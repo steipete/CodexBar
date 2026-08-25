@@ -1532,3 +1532,4 @@
 "Visible usage items" = "Synliga användningsposter";
 "Restore Defaults" = "Återställ standardvärden";
 "Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "Välj vilka användningsrader som visas i den här leverantörens meny, förhandsvisningen i Inställningar och Översikt.";
+"%@ (unavailable)" = "%@ (inte tillgänglig)";

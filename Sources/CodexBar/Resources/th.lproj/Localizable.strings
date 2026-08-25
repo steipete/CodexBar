@@ -1537,3 +1537,4 @@
 "Visible usage items" = "รายการการใช้งานที่มองเห็น";
 "Restore Defaults" = "คืนค่าเริ่มต้น";
 "Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "เลือกแถวการใช้งานที่จะแสดงในเมนูของผู้ให้บริการนี้ ตัวอย่างการตั้งค่า และภาพรวม";
+"%@ (unavailable)" = "%@ (ไม่พร้อมใช้งาน)";

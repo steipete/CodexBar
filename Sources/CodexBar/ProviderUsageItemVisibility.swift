@@ -19,6 +19,21 @@ struct ProviderUsageItemDescriptor: Identifiable, Equatable, Sendable {
     let title: String
 }
 
+extension ProviderUsageItemID {
+    /// Label used when the provider is not reporting the item right now, so the settings row still
+    /// names something recognizable instead of falling back to a raw storage key.
+    var unreportedTitle: String {
+        switch self {
+        case .credits: L("Credits")
+        case .codexResetCredits: L("Limit Reset Credits")
+        default:
+            self.rawValue.hasPrefix(Self.metricPrefix)
+                ? String(self.rawValue.dropFirst(Self.metricPrefix.count))
+                : self.rawValue
+        }
+    }
+}
+
 extension UsageMenuCardView.Model {
     @MainActor
     var usageItemDescriptors: [ProviderUsageItemDescriptor] {
@@ -39,6 +54,27 @@ extension UsageMenuCardView.Model {
 
         var seen = Set<ProviderUsageItemID>()
         return descriptors.filter { seen.insert($0.id).inserted }
+    }
+
+    /// `usageItemDescriptors` plus a row for every hidden item the provider stopped reporting.
+    ///
+    /// A partial refresh, an outage, or a plan change can drop a lane the user hid earlier. Without
+    /// these placeholders its checkbox disappears while the selection stays stored, so the only way
+    /// back is Restore Defaults, which also discards every other choice.
+    @MainActor
+    func usageItemDescriptors(includingHidden hiddenItemIDs: Set<ProviderUsageItemID>)
+        -> [ProviderUsageItemDescriptor]
+    {
+        var descriptors = self.usageItemDescriptors
+        guard !hiddenItemIDs.isEmpty else { return descriptors }
+
+        let reported = Set(descriptors.map(\.id))
+        for itemID in hiddenItemIDs.subtracting(reported).sorted(by: { $0.rawValue < $1.rawValue }) {
+            descriptors.append(ProviderUsageItemDescriptor(
+                id: itemID,
+                title: L("%@ (unavailable)", itemID.unreportedTitle)))
+        }
+        return descriptors
     }
 
     func applyingUsageItemVisibility(hiddenItemIDs: Set<ProviderUsageItemID>) -> Self {

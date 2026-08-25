@@ -1535,3 +1535,4 @@
 "Visible usage items" = "Görünür kullanım öğeleri";
 "Restore Defaults" = "Varsayılanları Geri Yükle";
 "Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "Bu sağlayıcının menüsünde, Ayarlar önizlemesinde ve Genel Bakış'ta hangi kullanım satırlarının görüneceğini seçin.";
+"%@ (unavailable)" = "%@ (kullanılamıyor)";

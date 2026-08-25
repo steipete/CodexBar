@@ -1502,3 +1502,4 @@
 "Visible usage items" = "표시할 사용량 항목";
 "Restore Defaults" = "기본값 복원";
 "Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "이 제공업체의 메뉴, 설정 미리보기 및 개요에 표시할 사용량 행을 선택합니다.";
+"%@ (unavailable)" = "%@(사용할 수 없음)";

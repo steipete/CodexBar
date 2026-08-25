@@ -1536,3 +1536,4 @@
 "Visible usage items" = "Visible usage items";
 "Restore Defaults" = "Restore Defaults";
 "Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "Choose which usage rows appear in this provider's menu, Settings preview, and Overview.";
+"%@ (unavailable)" = "%@ (unavailable)";

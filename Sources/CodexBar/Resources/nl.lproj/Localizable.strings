@@ -1532,3 +1532,4 @@
 "Visible usage items" = "Zichtbare gebruiksitems";
 "Restore Defaults" = "Standaardinstellingen herstellen";
 "Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "Kies welke gebruiksrijen worden weergegeven in het menu van deze provider, het instellingenvoorbeeld en het overzicht.";
+"%@ (unavailable)" = "%@ (niet beschikbaar)";

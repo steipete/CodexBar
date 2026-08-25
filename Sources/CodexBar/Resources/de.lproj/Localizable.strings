@@ -1533,3 +1533,4 @@
 "Visible usage items" = "Sichtbare Nutzungselemente";
 "Restore Defaults" = "Standardeinstellungen wiederherstellen";
 "Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "Wähle aus, welche Nutzungszeilen im Menü dieses Anbieters, in der Einstellungsvorschau und in der Übersicht angezeigt werden.";
+"%@ (unavailable)" = "%@ (nicht verfügbar)";

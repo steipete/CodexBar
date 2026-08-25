@@ -53,6 +53,25 @@ struct ProviderUsageItemVisibilityTests {
     }
 
     @Test
+    func `a hidden item the provider stopped reporting stays restorable`() {
+        // A partial refresh can drop a lane the user hid earlier. Its checkbox has to survive so the
+        // single row can be restored without Restore Defaults discarding the rest of the selection.
+        let model = Self.model(provider: .cursor, metricIDs: ["primary"])
+        let hiddenItemIDs: Set<ProviderUsageItemID> = [.metric("cursor-grok-bot"), .credits]
+
+        let descriptors = model.usageItemDescriptors(includingHidden: hiddenItemIDs)
+
+        #expect(descriptors.map(\.id.rawValue) == [
+            "metric:primary",
+            "metric:cursor-grok-bot",
+            "section:credits",
+        ])
+        #expect(descriptors.last?.title.contains("Credits") == true)
+        // Rows the provider still reports keep their menu title instead of the unreported fallback.
+        #expect(model.usageItemDescriptors.map(\.id.rawValue) == ["metric:primary"])
+    }
+
+    @Test
     func `cursor grok bot usage can be hidden without hiding weekly usage`() {
         let model = Self.model(provider: .cursor, metricIDs: ["primary", "cursor-grok-bot"])
 

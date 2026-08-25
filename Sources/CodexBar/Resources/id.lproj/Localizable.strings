@@ -1536,3 +1536,4 @@
 "Visible usage items" = "Item penggunaan yang terlihat";
 "Restore Defaults" = "Pulihkan Default";
 "Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "Pilih baris penggunaan yang muncul di menu penyedia ini, pratinjau Pengaturan, dan Ringkasan.";
+"%@ (unavailable)" = "%@ (tidak tersedia)";

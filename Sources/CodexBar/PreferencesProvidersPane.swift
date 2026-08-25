@@ -61,7 +61,8 @@ struct ProvidersPane: View {
             subtitle: self.providerSubtitle(self.provider),
             model: unfilteredModel.applyingUsageItemVisibility(
                 hiddenItemIDs: self.settings.hiddenUsageItemIDs(for: self.provider)),
-            usageItems: unfilteredModel.usageItemDescriptors,
+            usageItems: unfilteredModel.usageItemDescriptors(
+                includingHidden: self.settings.hiddenUsageItemIDs(for: self.provider)),
             openAIWebDiagnostic: self.openAIWebDiagnostic(for: self.provider),
             settingsPickers: self.extraSettingsPickers(for: self.provider),
             settingsToggles: self.extraSettingsToggles(for: self.provider),

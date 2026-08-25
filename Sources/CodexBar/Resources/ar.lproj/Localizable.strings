@@ -1537,3 +1537,4 @@
 "Visible usage items" = "عناصر الاستخدام المرئية";
 "Restore Defaults" = "استعادة الإعدادات الافتراضية";
 "Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "اختر صفوف الاستخدام التي تظهر في قائمة هذا المزوّد ومعاينة الإعدادات والنظرة العامة.";
+"%@ (unavailable)" = "%@ (غير متوفر)";

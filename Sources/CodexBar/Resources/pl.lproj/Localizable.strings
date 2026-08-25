@@ -1536,3 +1536,4 @@
 "Visible usage items" = "Widoczne elementy użycia";
 "Restore Defaults" = "Przywróć domyślne";
 "Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "Wybierz wiersze użycia wyświetlane w menu tego dostawcy, podglądzie ustawień i przeglądzie.";
+"%@ (unavailable)" = "%@ (niedostępne)";

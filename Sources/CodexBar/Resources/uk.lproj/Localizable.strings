@@ -1533,3 +1533,4 @@
 "Visible usage items" = "Видимі елементи використання";
 "Restore Defaults" = "Відновити типові значення";
 "Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "Виберіть, які рядки використання відображатимуться в меню цього постачальника, попередньому перегляді налаштувань і огляді.";
+"%@ (unavailable)" = "%@ (недоступний)";

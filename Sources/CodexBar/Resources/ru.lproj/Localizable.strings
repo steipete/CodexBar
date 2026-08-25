@@ -1534,3 +1534,4 @@
 "Visible usage items" = "Видимые показатели использования";
 "Restore Defaults" = "Восстановить настройки по умолчанию";
 "Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "Выберите, какие строки использования отображаются в меню этого провайдера, в предпросмотре настроек и в обзоре.";
+"%@ (unavailable)" = "%@ (недоступно)";

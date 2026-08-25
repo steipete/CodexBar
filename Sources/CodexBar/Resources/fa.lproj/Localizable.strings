@@ -1537,3 +1537,4 @@
 "Visible usage items" = "موارد قابل مشاهده استفاده";
 "Restore Defaults" = "بازیابی پیش‌فرض‌ها";
 "Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "انتخاب کنید کدام ردیف‌های استفاده در منوی این ارائه‌دهنده، پیش‌نمایش تنظیمات و نمای کلی نمایش داده شوند.";
+"%@ (unavailable)" = "%@ (در دسترس نیست)";

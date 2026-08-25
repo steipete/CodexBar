@@ -1534,3 +1534,4 @@
 "Visible usage items" = "Mục sử dụng hiển thị";
 "Restore Defaults" = "Khôi phục mặc định";
 "Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "Chọn các hàng sử dụng xuất hiện trong menu của nhà cung cấp này, bản xem trước Cài đặt và Tổng quan.";
+"%@ (unavailable)" = "%@ (không khả dụng)";

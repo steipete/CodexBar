@@ -1536,3 +1536,4 @@
 "Visible usage items" = "Elements d'ús visibles";
 "Restore Defaults" = "Restaura els valors predeterminats";
 "Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "Trieu quines files d'ús es mostren al menú d'aquest proveïdor, a la previsualització de Configuració i a la vista general.";
+"%@ (unavailable)" = "%@ (no disponible)";
