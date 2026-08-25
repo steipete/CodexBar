@@ -953,6 +953,12 @@ extension UsageStore {
             migratedState.recoveryAboveThresholdCount = 0
             states[key] = migratedState
         }
+        // Legacy Codex states predate the plan and posted-boundary evidence needed by delayed confirmation.
+        // Discard them instead of guessing: the next sample safely establishes a fresh detector baseline.
+        states = states.filter { key, state in
+            !key.hasPrefix("\(UsageProvider.codex.rawValue):")
+                || state.codexWeeklyEvidenceVersion == LimitResetDetectorState.currentCodexWeeklyEvidenceVersion
+        }
         return states
     }
 

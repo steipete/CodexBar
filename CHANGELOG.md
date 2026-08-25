@@ -3,6 +3,8 @@
 ## 0.55.1 — Unreleased
 
 ### Fixed
+- Codex: refresh open usage cards in place after weekly resets without clipping reset details or mixing account identities (#3168, #3189). Thanks @Zihao-Qi!
+- Codex: recover weekly usage after early backend resets without spending a reset credit, preserve account-scoped confirmation across relaunch, and expire stale observations safely (#3177, #3179). Thanks @Zihao-Qi!
 - Grok: recover the usage bar from bearer billing when credits expose only a period, preserve the authoritative reset, and explain genuinely unavailable usage without switching accounts (#3181). Thanks @olddonkey!
 - Spend dashboard: finish the final local Codex history file promptly while the dashboard is visible, preserve explicit background and stop choices, and keep existing usage caches intact (#3114). Thanks @Yuxin-Qiao!
 - Fireworks: show real 30-day API billing spend even when local cost summaries are disabled (#3183, #3185). Thanks @dhalarewich!

@@ -8,13 +8,15 @@ struct CodexAccountUsageSnapshot: Identifiable {
     let error: String?
     let sourceLabel: String?
     let credits: CreditsSnapshot?
+    let weeklyResetCandidate: CodexWeeklyResetPublicationCandidate?
 
     init(
         account: CodexVisibleAccount,
         snapshot: UsageSnapshot?,
         error: String?,
         sourceLabel: String?,
-        credits: CreditsSnapshot? = nil)
+        credits: CreditsSnapshot? = nil,
+        weeklyResetCandidate: CodexWeeklyResetPublicationCandidate? = nil)
     {
         self.id = account.id
         self.account = account
@@ -22,6 +24,7 @@ struct CodexAccountUsageSnapshot: Identifiable {
         self.error = error
         self.sourceLabel = sourceLabel
         self.credits = credits
+        self.weeklyResetCandidate = weeklyResetCandidate
     }
 }
 
@@ -33,7 +36,9 @@ enum CodexMonthlyCreditPreservation {
     {
         guard enrichmentFailed else { return incoming }
         guard let priorLimit = prior?.codexCreditLimit else { return incoming }
-        if incoming?.codexCreditLimit != nil { return incoming }
+        if incoming?.codexCreditLimit != nil {
+            return incoming
+        }
         guard let incoming else {
             return CreditsSnapshot(
                 remaining: 0,
@@ -77,7 +82,9 @@ enum CodexMonthlyCreditPreservation {
         currentCredits: CreditsSnapshot?,
         cachedCredits: CreditsSnapshot?) -> Bool
     {
-        if !enrichmentFailed || publishedCredits != nil { return true }
+        if !enrichmentFailed || publishedCredits != nil {
+            return true
+        }
         return currentCredits?.codexCreditLimit == nil && cachedCredits?.codexCreditLimit == nil
     }
 
@@ -108,6 +115,7 @@ struct FileCodexAccountUsageSnapshotStore: CodexAccountUsageSnapshotStoring, @un
         let error: String?
         let sourceLabel: String?
         let credits: CreditsSnapshot?
+        let weeklyResetCandidate: CodexWeeklyResetPublicationCandidate?
     }
 
     private struct AccountIdentity: Codable, Equatable {
@@ -167,7 +175,8 @@ struct FileCodexAccountUsageSnapshotStore: CodexAccountUsageSnapshotStoring, @un
                 snapshot: Self.relabelSnapshot(record.snapshot, for: account),
                 error: record.error,
                 sourceLabel: record.sourceLabel,
-                credits: record.credits)
+                credits: record.credits,
+                weeklyResetCandidate: Self.relabelCandidate(record.weeklyResetCandidate, for: account))
         }
     }
 
@@ -183,7 +192,8 @@ struct FileCodexAccountUsageSnapshotStore: CodexAccountUsageSnapshotStoring, @un
                     snapshot: snapshot.snapshot,
                     error: snapshot.error,
                     sourceLabel: snapshot.sourceLabel,
-                    credits: snapshot.credits)
+                    credits: snapshot.credits,
+                    weeklyResetCandidate: snapshot.weeklyResetCandidate)
             })
         let directory = self.fileURL.deletingLastPathComponent()
         do {
@@ -213,6 +223,22 @@ struct FileCodexAccountUsageSnapshotStore: CodexAccountUsageSnapshotStoring, @un
             accountEmail: account.email,
             accountOrganization: identity?.accountOrganization,
             loginMethod: identity?.loginMethod ?? account.workspaceLabel))
+    }
+
+    private static func relabelCandidate(
+        _ candidate: CodexWeeklyResetPublicationCandidate?,
+        for account: CodexVisibleAccount) -> CodexWeeklyResetPublicationCandidate?
+    {
+        guard let candidate,
+              candidate.evidenceVersion == CodexWeeklyResetPublicationCandidate.currentEvidenceVersion,
+              let snapshot = relabelSnapshot(candidate.snapshot, for: account)
+        else {
+            return nil
+        }
+        return CodexWeeklyResetPublicationCandidate(
+            firstObservedAt: candidate.firstObservedAt,
+            createdAt: candidate.createdAt,
+            snapshot: snapshot)
     }
 
     static func defaultURL() -> URL {

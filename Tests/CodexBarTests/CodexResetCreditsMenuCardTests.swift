@@ -114,6 +114,59 @@ struct CodexResetCreditsMenuCardTests {
 
     @MainActor
     @Test
+    func `tracked refresh rejects a different account even while personal information is hidden`() throws {
+        let now = Date(timeIntervalSince1970: 1_781_726_400)
+        let snapshot = Self.snapshot(
+            now: now,
+            credits: [Self.credit(id: "finite", status: .available, now: now, expiresIn: 86400)])
+        let frozen = try Self.model(
+            snapshot: snapshot,
+            email: "first@example.com",
+            hidePersonalInfo: true,
+            now: now)
+        let switched = try Self.model(
+            snapshot: snapshot,
+            email: "second@example.com",
+            hidePersonalInfo: true,
+            now: now)
+        let sameAccount = try Self.model(
+            snapshot: snapshot,
+            email: " FIRST@EXAMPLE.COM ",
+            hidePersonalInfo: true,
+            now: now)
+        let firstWorkspace = try Self.model(
+            snapshot: snapshot,
+            email: "shared@example.com",
+            accountID: "first-workspace",
+            hidePersonalInfo: true,
+            now: now)
+        let secondWorkspace = try Self.model(
+            snapshot: snapshot,
+            email: "shared@example.com",
+            accountID: "second-workspace",
+            hidePersonalInfo: true,
+            now: now)
+
+        #expect(frozen.email == switched.email)
+        #expect(frozen.accountIdentityFingerprint != switched.accountIdentityFingerprint)
+        #expect(frozen.accountIdentityFingerprint == sameAccount.accountIdentityFingerprint)
+        #expect(firstWorkspace.accountIdentityFingerprint != secondWorkspace.accountIdentityFingerprint)
+        #expect(!frozen.hasCompatibleTrackedLayout(with: switched))
+        #expect(!switched.hasCompatibleTrackedLayout(with: frozen))
+        #expect(!firstWorkspace.hasCompatibleTrackedLayout(with: secondWorkspace))
+        #expect(frozen.hasCompatibleTrackedLayout(with: sameAccount))
+
+        let monitor = MenuCardRefreshMonitor(
+            resolveModel: { _ in switched },
+            isProviderRefreshActive: { _ in false })
+        monitor.beginManualRefresh(frozenModels: [.codex: frozen], provider: .codex)
+        #expect(!monitor.publishResolvedModelIfCompatible(for: .codex))
+        #expect(monitor.model(for: .codex, fallback: frozen).accountIdentityFingerprint
+            == frozen.accountIdentityFingerprint)
+    }
+
+    @MainActor
+    @Test
     func `refresh monitor publishes reset usage when reset credit countdown changes`() throws {
         let (frozen, resolved) = try Self.weeklyResetTransitionModels()
         let frozenResetText = try #require(frozen.metrics.first { $0.id == "secondary" }?.resetText)
@@ -219,10 +272,21 @@ struct CodexResetCreditsMenuCardTests {
 
     private static func model(
         snapshot: UsageSnapshot,
+        email: String? = nil,
+        accountID: String? = nil,
         showOptionalUsage: Bool = true,
         resetStyle: ResetTimeDisplayStyle = .countdown,
+        hidePersonalInfo: Bool = false,
         now: Date) throws -> UsageMenuCardView.Model
     {
+        let snapshot = email.map {
+            snapshot.withIdentity(ProviderIdentitySnapshot(
+                providerID: .codex,
+                accountEmail: $0,
+                accountOrganization: nil,
+                loginMethod: nil,
+                accountID: accountID))
+        } ?? snapshot
         let metadata = try #require(ProviderDefaults.metadata[.codex])
         let codexProjection = CodexConsumerProjection.make(
             surface: .liveCard,
@@ -247,14 +311,14 @@ struct CodexResetCreditsMenuCardTests {
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,
-            account: AccountInfo(email: nil, plan: nil),
+            account: AccountInfo(email: email, plan: nil),
             isRefreshing: false,
             lastError: nil,
             usageBarsShowUsed: false,
             resetTimeDisplayStyle: resetStyle,
             tokenCostUsageEnabled: false,
             showOptionalCreditsAndExtraUsage: showOptionalUsage,
-            hidePersonalInfo: false,
+            hidePersonalInfo: hidePersonalInfo,
             now: now))
     }
 

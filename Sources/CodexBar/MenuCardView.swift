@@ -165,6 +165,7 @@ struct UsageMenuCardView: View {
         let provider: UsageProvider
         let providerName: String
         let email: String
+        var accountIdentityFingerprint: String?
         let subtitleText: String
         let subtitleStyle: SubtitleStyle
         var usesLiveSubtitle: Bool = false
@@ -1004,6 +1005,7 @@ extension UsageMenuCardView.Model {
             provider: input.provider,
             providerName: input.metadata.displayName,
             email: redacted.email,
+            accountIdentityFingerprint: Self.trackedAccountIdentityFingerprint(input: input),
             subtitleText: redacted.subtitleText,
             subtitleStyle: subtitle.style,
             usesLiveSubtitle: input.usesLiveSubtitle,
@@ -1556,5 +1558,19 @@ extension UsageMenuCardView.Model {
                 input: input,
                 weeklyWindow: weekly,
                 weeklyWindowID: nil))
+    }
+}
+
+extension UsageMenuCardView.Model {
+    fileprivate static func trackedAccountIdentityFingerprint(input: Input) -> String? {
+        let accountID = input.snapshot?.identity(for: input.provider.instanceID)?.accountID?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let email = Self.email(from: input)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        let normalizedAccountID = accountID?.isEmpty == false ? accountID : nil
+        guard !email.isEmpty || normalizedAccountID != nil else { return nil }
+        return UsageStore.sha256Hex(
+            "CodexBar.tracked-account:\(input.provider.rawValue):\(normalizedAccountID ?? ""):\(email)")
     }
 }

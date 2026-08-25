@@ -40,7 +40,9 @@ extension UsageStore {
         let expectedGuard: CodexAccountScopedRefreshGuard
         let limitResetOwnerKey: CodexLimitResetOwnerKey?
         let previousSnapshot: UsageSnapshot?
+        let previousSourceLabel: String?
         let missingWindowBackfillSnapshot: UsageSnapshot?
+        let pendingWeeklyResetCandidate: CodexWeeklyResetPublicationCandidate?
     }
 
     private struct ClaudeRefreshReconciliation {
@@ -328,7 +330,9 @@ extension UsageStore {
             expectedGuard: expectedGuard,
             limitResetOwnerKey: ownerKey,
             previousSnapshot: previousSnapshot,
-            missingWindowBackfillSnapshot: missingWindowBackfillSnapshot)
+            previousSourceLabel: hydratedPrior?.sourceLabel ?? self.lastSourceLabels[.codex],
+            missingWindowBackfillSnapshot: missingWindowBackfillSnapshot,
+            pendingWeeklyResetCandidate: hydratedPrior?.weeklyResetCandidate)
     }
 
     /// Runs one provider fetch pass. A nonnil result keeps the retry inside the current coordinator request, so
@@ -435,7 +439,9 @@ extension UsageStore {
             initialOutcome: initialOutcome,
             expectedGuard: codexExpectedGuard,
             previousSnapshot: previousCodexSnapshot,
+            previousSourceLabel: codexPreparation?.previousSourceLabel,
             missingWindowBackfillSnapshot: codexMissingWindowBackfillSnapshot,
+            pendingWeeklyResetCandidate: codexPreparation?.pendingWeeklyResetCandidate,
             fetchOutcome: fetchOutcome,
             generation: generation))
         else {
