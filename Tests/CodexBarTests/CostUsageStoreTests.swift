@@ -594,13 +594,13 @@ extension CostUsageStoreTests {
         reread.lastScanUnixMs = 2000
         let interloper = try SQLiteTestConnection(url: store.databaseURL)
         var checkpointError: Error?
-        CostUsageStore.identicalContentPreLockCheckpointForTesting = {
+        CostUsageStore.identicalContentPreLockCheckpointForTesting = (store.databaseURL, {
             do {
                 try interloper.execute("UPDATE files SET parsed_bytes = 999 WHERE path = '\(path)'")
             } catch {
                 checkpointError = error
             }
-        }
+        })
         defer { CostUsageStore.identicalContentPreLockCheckpointForTesting = nil }
 
         let result = save(reread)
@@ -1005,6 +1005,7 @@ extension CostUsageStoreTests {
         let fixture = try StoreFixture()
         defer { fixture.remove() }
         #expect(CostUsageStore.compatiblePredecessorParserHashes == [
+            "cfd84d13ad7d4cfa",
             "98da5914d2f6a9cd",
             "43609cc56f76a003",
             "b975eb705f905b9a",
@@ -1013,7 +1014,7 @@ extension CostUsageStoreTests {
             "3c984b655688593f",
             "5f8507161b23757c",
         ])
-        let predecessorHash = "43609cc56f76a003"
+        let predecessorHash = "cfd84d13ad7d4cfa"
         let predecessorVersion = CostUsageStore.combinedSchemaVersion(
             base: CostUsageStore.baseSchemaVersion,
             parserHash: predecessorHash)

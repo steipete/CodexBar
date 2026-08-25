@@ -36,7 +36,7 @@ public final class CurrencyExchange: @unchecked Sendable {
         "SGD": 1.34,
         "INR": 84.50,
         "CHF": 0.80,
-        "AED": 3.67,
+        "AED": 3.6725,
     ]
     private var lastFetchTime: Date?
 

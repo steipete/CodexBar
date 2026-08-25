@@ -476,7 +476,7 @@ struct UsageFormatterTests {
     }
 
     @Test
-    func `currency exchange converts rates and formats correctly`() {
+    func `currency exchange converts rates and formats correctly`() throws {
         let exchange = CurrencyExchange.shared
         let epsilon = 1e-9
         // USD → USD is identity
@@ -523,11 +523,15 @@ struct UsageFormatterTests {
         #expect(explicitCZK.contains("CZK"))
         #expect(explicitCZK.contains("."))
 
-        let aedRate = exchange.rate(for: "AED") ?? 3.67
+        let aedRate = try #require(exchange.rate(for: "AED"))
         #expect(abs((exchange.convert(usdAmount: 10.0, to: "AED") ?? 0) - 10.0 * aedRate) < epsilon)
+        #expect(abs((exchange.convert(amount: 10.0, from: "AED", to: "USD") ?? 0) - 10.0 / aedRate) < epsilon)
+        #expect(abs((exchange.convert(amount: 10.0, from: "GBP", to: "AED") ?? 0)
+                - 10.0 / gbpRate * aedRate) < epsilon)
         let explicitAED = UsageFormatter.convertedCostString(10.0, preferredCurrency: "AED", providerCurrency: "USD")
-        #expect(explicitAED.contains("AED"))
-        #expect(explicitAED.contains("."))
+        #expect(explicitAED == UsageFormatter.currencyString(10.0 * aedRate, currencyCode: "AED"))
+        #expect(explicitAED.hasPrefix("AED"))
+        #expect(explicitAED.range(of: #"\.\d{2}$"#, options: .regularExpression) != nil)
 
         // CHF is supported: conversion through the USD pivot works both ways.
         let chfRate = exchange.rate(for: "CHF") ?? 0.80
@@ -557,6 +561,7 @@ struct UsageFormatterTests {
         #expect(CurrencyExchange.requiresLiveRates(preferredCurrencyCode: "KRW"))
         #expect(CurrencyExchange.requiresLiveRates(preferredCurrencyCode: "CZK"))
         #expect(CurrencyExchange.requiresLiveRates(preferredCurrencyCode: "AED"))
+        #expect(CurrencyExchange.requiresLiveRates(preferredCurrencyCode: " aed "))
     }
 
     @Test

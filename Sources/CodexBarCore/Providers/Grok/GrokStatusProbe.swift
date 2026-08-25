@@ -76,6 +76,8 @@ public struct GrokUsageSnapshot: Sendable {
 public struct GrokStatusProbe: Sendable {
     public static let teamUsageUnavailableMessage =
         "Grok team usage is unavailable from the current billing surface; identity is still available."
+    public static let usageUnavailableMessage =
+        "Grok usage is unavailable because its billing sources did not report a usage percentage."
 
     public init() {}
 

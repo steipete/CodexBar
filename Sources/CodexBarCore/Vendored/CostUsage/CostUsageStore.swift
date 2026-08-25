@@ -77,6 +77,7 @@ actor CostUsageStore {
         parserHash: CodexParserHash.value)
     static let cacheGeneration = "sqlite:\(CostUsageStore.schemaVersion)"
     static let compatiblePredecessorParserHashes: Set<String> = [
+        "cfd84d13ad7d4cfa", // 0.55.x scan scheduling and progress bookkeeping; persisted rows unchanged.
         "98da5914d2f6a9cd", // Pushed PR producer before retry signaling; persisted rows unchanged.
         "43609cc56f76a003", // 0.49.3 request-tier pricing; persisted row shape unchanged.
         "b975eb705f905b9a", // 0.49.0-0.49.2 SQLite producer with compatible rows.
@@ -90,8 +91,10 @@ actor CostUsageStore {
     /// persisted file with the running count, so a crash-safety harness can SIGKILL the
     /// process at a deterministic mid-save point. Never set in production.
     nonisolated(unsafe) static var saveCycleCheckpointForTesting: ((Int) -> Void)?
-    /// Test-only interleaving point after optimistic identity succeeds and before its writer lock.
-    nonisolated(unsafe) static var identicalContentPreLockCheckpointForTesting: (() -> Void)?
+    /// Test-only interleaving point scoped to one database so parallel store fixtures stay isolated.
+    nonisolated(unsafe) static var identicalContentPreLockCheckpointForTesting: (
+        databaseURL: URL,
+        checkpoint: () -> Void)?
 
     /// Test-only traversal proof for persisted Codex catch-up reconciliation. Never set in production.
     nonisolated(unsafe) static var codexCatchUpReconciliationVisitForTesting: (() -> Void)?

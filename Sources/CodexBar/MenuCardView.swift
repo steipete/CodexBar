@@ -982,7 +982,7 @@ extension UsageMenuCardView.Model {
         let providerCostFollowsSummaryStyle = Self.providerCostFollowsSummaryStyle(
             cost: input.snapshot?.providerCost,
             style: providerCostStyle,
-            isClaudeAdminAPI: isClaudeAdminAPI)
+            isClaudeAdminAPI: isClaudeAdminAPI) && !menuCard.providerCostIsRequiredUsage
         let providerCost: ProviderCostSection? = if !showsProviderCost ||
             (providerCostFollowsSummaryStyle && !input.costSummaryInlineEnabled)
         {

@@ -57,6 +57,20 @@ The grok.com billing gRPC-web endpoint remains a best-effort fallback.
      `onDemandUsed.val / onDemandCap.val * 100`. A parseable current period
      without either value represents unknown usage. The reset timestamp comes from
      `config.currentPeriod.end`, then `config.billingPeriodEnd`.
+   - Unknown usage yields no rate window at all, and a successful strategy ends the
+     fetch pipeline, so a period-only credits answer would otherwise hide the usage
+     bar for plans whose payload never publishes `creditUsagePercent`. Before that
+     answer is accepted, CodexBar retries the grok.com bearer gRPC path (step 4,
+     still without cookies) and adopts its percent when it has one, keeping the
+     credits period and plan metadata, with the proxy's authoritative reset taking
+     precedence over a conflicting gRPC timestamp. When grok.com has no percent
+     either, or the retry fails, usage stays unknown and the card reports an explicit
+     unavailable-usage diagnostic — an absent value is never reported as 0%.
+     Only a percentage that grok.com actually put on the wire is adopted: that
+     parser reports its own no-usage-yet frame (a period with no percentage field)
+     as 0, and promoting that reading would recreate the fabricated 0%. The retry
+     also runs under a 6-second budget, because period-only payloads recur on every
+     refresh and a grok.com outage must not delay the credits answer already in hand.
    - Plan name does not come from the credits payload. After a successful
      auth-file or SuperGrok OAuth web billing result (CLI-proxy) or the team
      identity-only path, CodexBar GETs `https://cli-chat-proxy.grok.com/v1/settings`

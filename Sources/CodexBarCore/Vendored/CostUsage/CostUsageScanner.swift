@@ -5773,10 +5773,12 @@ enum CostUsageScanner {
             cache.codexPricingKey = plan.codexPricingKey
             cache.codexPriorityMetadataKey = plan.codexPriorityMetadataKey
             cache.codexProjectMetadataVersion = Self.codexProjectMetadataVersion
-            let hasKnownBoundedWork = scanBudget.resumedPartialFileCount > 0
+            let hasDeferredWork = scanBudget.resumedPartialFileCount > 0
                 || scanBudget.deferredByBudgetFileCount > 0
                 || scanBudget.deferredByTimeBudgetFileCount > 0
-                || refreshSelection.exhaustedVisitBudget
+            let hasExhaustedVisitBudget = refreshSelection.exhaustedVisitBudget
+            let hasKnownBoundedWork = hasDeferredWork
+                || hasExhaustedVisitBudget
                 || cache.codexActiveLookbackState != nil
                 || fileIndex.hasPendingDiscovery
             let progressUpdate = Self.updateCodexScanProgress(
@@ -5784,8 +5786,11 @@ enum CostUsageScanner {
                 context: CodexScanProgressUpdateContext(
                     inventoryPaths: filePathsInScan,
                     hasKnownBoundedWork: hasKnownBoundedWork,
+                    hasDeferredWork: hasDeferredWork,
+                    hasExhaustedVisitBudget: hasExhaustedVisitBudget,
                     canReuseApproximateProgress: canReuseApproximateProgress,
                     pendingQueuePathCount: cache.codexActiveLookbackState?.pendingFilePaths.count,
+                    isDiscoveryComplete: !fileIndex.hasPendingDiscovery,
                     completionStatesBeforeScan: completionStatesBeforeScan,
                     workRecorder: options.codexScanWorkRecorderForTesting))
             let scanProgress = progressUpdate.summary
@@ -5854,8 +5859,11 @@ enum CostUsageScanner {
     private struct CodexScanProgressUpdateContext {
         let inventoryPaths: Set<String>
         let hasKnownBoundedWork: Bool
+        let hasDeferredWork: Bool
+        let hasExhaustedVisitBudget: Bool
         let canReuseApproximateProgress: Bool
         let pendingQueuePathCount: Int?
+        let isDiscoveryComplete: Bool
         let completionStatesBeforeScan: [String: Bool]
         let workRecorder: CodexScanWorkRecorder?
     }
@@ -5904,11 +5912,22 @@ enum CostUsageScanner {
             completedFiles = max(completedFiles, max(0, totalFiles - pendingQueuePathCount))
         }
 
-        // A bounded-work signal proves at least one pass remains even if this slice happened
-        // to visit the final 512 candidates. Keep one conservative slot open until an exact
-        // identity-deduplicated traversal validates the inventory.
+        // Bounded work previously kept one slot open until an exact traversal, which stalled
+        // 471/472 when only one large file remained. Allow that final file to close only after
+        // both the pending queue and file discovery have drained; catch-up still waits for the
+        // exact inventory validation below. Keep deferred bounded work below full progress:
+        // selection exhaustion or time/budget deferral must not publish 100% prematurely.
         let incompleteSelectedFiles = statesAfterScan.values.count(where: { !$0 })
-        completedFiles = min(completedFiles, max(0, totalFiles - max(1, incompleteSelectedFiles)))
+        let canCloseFinalFile = context.isDiscoveryComplete
+            && !context.hasDeferredWork
+            && !context.hasExhaustedVisitBudget
+            && incompleteSelectedFiles == 0
+            && (context.pendingQueuePathCount ?? 0) <= 1
+        if canCloseFinalFile {
+            completedFiles = min(completedFiles, totalFiles)
+        } else {
+            completedFiles = min(completedFiles, max(0, totalFiles - max(1, incompleteSelectedFiles)))
+        }
 
         cache.codexScanInventoryPaths = nil
         return (CodexScanProgressSummary(
