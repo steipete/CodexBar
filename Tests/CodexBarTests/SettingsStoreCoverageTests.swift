@@ -413,15 +413,18 @@ struct SettingsStoreCoverageTests {
     }
 
     @Test
-    func `opencode go token accounts force manual cookie routing`() {
+    func `opencode go token accounts inject as api keys without forcing cookie routing`() {
+        // OpenCode Go token accounts now inject as OPENCODE_API_KEY (requiresManualCookieSource:
+        // false), not as a cookie header - fetch strategy selection per-request already
+        // distinguishes an API key from a legacy cookie-shaped value via legacyCookieDetector, so
+        // adding an account must not force the global cookie source into manual.
         let settings = Self.makeSettingsStore()
-        settings.addTokenAccount(provider: .opencodego, label: "Go", token: "auth=go-cookie")
+        settings.addTokenAccount(provider: .opencodego, label: "Go", token: "sk-work")
 
         let snapshot = settings.opencodegoSettingsSnapshot(tokenOverride: nil)
 
-        #expect(settings.opencodegoCookieSource == .manual)
-        #expect(snapshot.cookieSource == .manual)
-        #expect(snapshot.manualCookieHeader == "auth=go-cookie")
+        #expect(settings.opencodegoCookieSource == .auto)
+        #expect(snapshot.cookieSource == .auto)
     }
 
     @Test

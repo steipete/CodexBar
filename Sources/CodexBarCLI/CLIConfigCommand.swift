@@ -286,11 +286,16 @@ extension CodexBarCLI {
                 accounts: accounts,
                 activeIndex: accounts.count - 1)
             // Only clear the single-key field once its value is safely represented elsewhere
-            // (migrated into the account list, or it never held anything). A provider that
-            // hasn't opted into migration keeps its existing key untouched instead of losing it:
-            // once tokenAccounts is non-empty, fetches route through the selected account, so
-            // the leftover key is simply inert, not double-used.
-            if !hasLegacyKey || migratesExistingKey {
+            // (migrated into the account list, or it never held anything), or the provider
+            // explicitly wants a stale single-key value discarded on any account mutation
+            // (clearsAPIKeyOnMutation - e.g. Copilot, whose config-level GitHub token isn't
+            // meant to become a phantom "Default" account). A provider with neither flag keeps
+            // its existing key untouched instead of losing it: once tokenAccounts is non-empty,
+            // fetches route through the selected account, so the leftover key is simply inert,
+            // not double-used. Mirrors SettingsStore+TokenAccounts.swift, which already applies
+            // clearsAPIKeyOnMutation here.
+            let clearsOnMutation = TokenAccountSupportCatalog.support(for: provider)?.clearsAPIKeyOnMutation == true
+            if !hasLegacyKey || migratesExistingKey || clearsOnMutation {
                 providerConfig.apiKey = nil
             }
             if enableProvider {

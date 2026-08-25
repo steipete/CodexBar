@@ -59,6 +59,39 @@ struct OpenCodeGoAddTokenAccountTests {
         #expect(accounts[0].token == "sk-same")
     }
 
+    @Test
+    func `a quoted incoming token is recognized as identical to the clean legacy key`() {
+        let settings = Self.makeSettings(suite: "OpenCodeGoAddTokenAccountTests-quoted-incoming")
+        // Reverse of the above: the stored legacy key is already clean, but the user pastes a
+        // quoted copy of the same credential into Add Account.
+        settings[providerConfig: .opencodego, field: .apiKey] = "sk-same"
+
+        settings.addTokenAccount(provider: .opencodego, label: "Personal", token: "\"sk-same\"")
+
+        let accounts = settings.tokenAccounts(for: .opencodego)
+        #expect(accounts.count == 1)
+        #expect(accounts[0].label == "Personal")
+    }
+
+    @Test
+    func `adding an account migrates a stray legacy key even when accounts already exist`() {
+        let settings = Self.makeSettings(suite: "OpenCodeGoAddTokenAccountTests-stray")
+        settings.addTokenAccount(provider: .opencodego, label: "Acc1", token: "sk-acc1")
+        settings.addTokenAccount(provider: .opencodego, label: "Acc2", token: "sk-acc2")
+
+        // Simulates a provider-level key set through some other path (e.g. the CLI's plain
+        // `set-api-key` with no --label) after accounts already existed - a reachable state
+        // where the key sits unmigrated alongside a non-empty account list.
+        settings[providerConfig: .opencodego, field: .apiKey] = "sk-stray"
+
+        settings.addTokenAccount(provider: .opencodego, label: "Acc3", token: "sk-acc3")
+
+        let accounts = settings.tokenAccounts(for: .opencodego)
+        #expect(accounts.map(\.label) == ["Acc1", "Acc2", "Default", "Acc3"])
+        #expect(accounts.map(\.token) == ["sk-acc1", "sk-acc2", "sk-stray", "sk-acc3"])
+        #expect(settings.providerConfig(for: .opencodego)?.apiKey == nil)
+    }
+
     private static func makeSettings(suite: String) -> SettingsStore {
         testSettingsStore(
             suiteName: "\(suite)-\(UUID().uuidString)",

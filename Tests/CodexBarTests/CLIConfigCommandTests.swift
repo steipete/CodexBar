@@ -380,6 +380,40 @@ struct CLIConfigCommandTests {
     }
 
     @Test
+    func `config set api key clears a stale Copilot key when adding a labeled account`() throws {
+        let config = CodexBarConfig.makeDefault()
+        let withLegacyKey = CodexBarCLI.configSettingAPIKey(
+            config,
+            provider: .copilot,
+            apiKey: "gh-legacy",
+            enableProvider: true)
+
+        let options = try #require(try CodexBarCLI.resolveConfigAPIKeyAccountOptions(
+            provider: .copilot,
+            label: "Work",
+            usageScope: nil,
+            organizationID: nil,
+            workspaceID: nil))
+        let updated = CodexBarCLI.configSettingAPIKey(
+            withLegacyKey,
+            provider: .copilot,
+            apiKey: "gh-work",
+            enableProvider: true,
+            accountOptions: options)
+
+        let provider = try #require(updated.providerConfig(for: .copilot))
+        let accounts = provider.tokenAccounts?.accounts ?? []
+
+        // Copilot opts out of migratesExistingAPIKeyOnFirstAccount but opts into
+        // clearsAPIKeyOnMutation: a config-level GitHub token isn't meant to become a phantom
+        // "Default" account, but it must still be discarded on mutation rather than left behind
+        // as a stale, unused value - matching what the app's SettingsStore already does.
+        #expect(provider.apiKey == nil)
+        #expect(accounts.map(\.label) == ["Work"])
+        #expect(accounts.map(\.token) == ["gh-work"])
+    }
+
+    @Test
     func `config provider toggle parses provider and json flags`() throws {
         let parser = CommandParser(signature: CodexBarCLI._configProviderToggleSignatureForTesting())
         let parsed = try parser.parse(arguments: [

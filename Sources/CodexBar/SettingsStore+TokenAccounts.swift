@@ -89,17 +89,24 @@ extension SettingsStore {
         let existing = self.tokenAccountsData(for: provider)
         var accounts = existing?.accounts ?? []
         // A previously configured single provider-level API key isn't visible to stacked
-        // fan-out (it only iterates tokenAccounts), so adding the first labeled account would
-        // otherwise silently stop tracking that existing subscription. Migrate it in first.
-        let legacyKey = accounts.isEmpty
-            && TokenAccountSupportCatalog.support(for: provider)?.migratesExistingAPIKeyOnFirstAccount == true
+        // fan-out (it only iterates tokenAccounts), so adding a labeled account would otherwise
+        // silently stop tracking that existing subscription. Not gated on accounts.isEmpty: a
+        // legacy key can still be sitting unmigrated even when tokenAccounts is already
+        // non-empty (e.g. a provider-level key configured after accounts already existed).
+        // Mirrors CLIConfigCommand.configSettingAPIKey, which migrates regardless of account
+        // count for the same reason.
+        let legacyKey = TokenAccountSupportCatalog.support(for: provider)?.migratesExistingAPIKeyOnFirstAccount == true
             ? cleanTokenAccountSecret(self.providerConfig(for: provider)?.apiKey)
             : nil
         // If the account being added uses the same token as the existing single key, the user is
         // just naming their current subscription (e.g. via Add Account), not adding a second one.
         // Let the account appended below carry that label instead of also migrating a duplicate
         // "Default" entry with the identical token, which would fetch and render it twice.
-        if let legacyKey, !legacyKey.isEmpty, legacyKey != trimmedToken {
+        // Normalize the incoming token the same way as the legacy key (quote-stripped, not just
+        // whitespace-trimmed) so a quoted paste of an already-stored key doesn't compare as a
+        // different credential and migrate a spurious duplicate.
+        let normalizedIncomingToken = cleanTokenAccountSecret(trimmedToken) ?? trimmedToken
+        if let legacyKey, !legacyKey.isEmpty, legacyKey != normalizedIncomingToken {
             accounts.append(ProviderTokenAccount(
                 id: UUID(),
                 label: "Default",
