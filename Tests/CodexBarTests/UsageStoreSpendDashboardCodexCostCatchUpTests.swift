@@ -259,6 +259,109 @@ struct UsageStoreSpendDashboardCodexCostCatchUpTests {
         store.cancelSpendDashboardCodexCostCatchUp()
     }
 
+    @Test
+    func `synchronization after an explicit stop does not restart the worker`() throws {
+        let store = try Self.makeStore(suite: "stop-stays-durable")
+        let accounts = [Self.account(id: "account", cacheIdentity: "cache-account")]
+        store.startSpendDashboardCodexCostCatchUpIfNeeded(accounts: accounts, mode: .accelerated)
+        store.stopSpendDashboardCodexCostCatchUp()
+
+        store.synchronizeSpendDashboardCodexCostCatchUp(accounts: accounts)
+
+        #expect(store.spendDashboardCodexCostCatchUpStopRequested)
+        #expect(store.spendDashboardCodexCostCatchUpTask == nil)
+        store.cancelSpendDashboardCodexCostCatchUp()
+    }
+
+    @Test
+    func `visible synchronization upgrades an automatic worker to accelerated`() throws {
+        let store = try Self.makeStore(suite: "upgrade-automatic-on-visible")
+        let accounts = [Self.account(id: "account", cacheIdentity: "cache-account")]
+        store._test_spendDashboardCodexCostCatchUpResourceStateOverride = {
+            (.ac, false, .nominal)
+        }
+
+        store.startSpendDashboardCodexCostCatchUpIfNeeded(accounts: accounts, mode: .automatic)
+        let originalToken = store.spendDashboardCodexCostCatchUpToken
+        store.synchronizeSpendDashboardCodexCostCatchUp(accounts: accounts, preferredMode: .accelerated)
+
+        #expect(originalToken != nil)
+        #expect(store.spendDashboardCodexCostCatchUpTask != nil)
+        #expect(store.spendDashboardCodexCostCatchUpMode == .accelerated)
+        store.cancelSpendDashboardCodexCostCatchUp()
+    }
+
+    @Test
+    func `visible synchronization does not bypass low power mode`() throws {
+        let store = try Self.makeStore(suite: "visible-respects-low-power")
+        store._test_spendDashboardCodexCostCatchUpResourceStateOverride = {
+            (.battery, true, .nominal)
+        }
+
+        store.synchronizeSpendDashboardCodexCostCatchUp(
+            accounts: [Self.account(id: "account", cacheIdentity: "cache-account")],
+            preferredMode: .accelerated)
+
+        #expect(store.spendDashboardCodexCostCatchUpMode == .automatic)
+        store.cancelSpendDashboardCodexCostCatchUp()
+    }
+
+    @Test
+    func `visible synchronization does not bypass serious thermal pressure`() throws {
+        let store = try Self.makeStore(suite: "visible-respects-thermal-pressure")
+        store._test_spendDashboardCodexCostCatchUpResourceStateOverride = {
+            (.ac, false, .serious)
+        }
+
+        store.synchronizeSpendDashboardCodexCostCatchUp(
+            accounts: [Self.account(id: "account", cacheIdentity: "cache-account")],
+            preferredMode: .accelerated)
+
+        #expect(store.spendDashboardCodexCostCatchUpMode == .automatic)
+        store.cancelSpendDashboardCodexCostCatchUp()
+    }
+
+    @Test
+    func `visible synchronization preserves an explicitly accelerated worker in low power mode`() throws {
+        let store = try Self.makeStore(suite: "explicit-acceleration-in-low-power")
+        let accounts = [Self.account(id: "account", cacheIdentity: "cache-account")]
+        store._test_spendDashboardCodexCostCatchUpResourceStateOverride = {
+            (.battery, true, .serious)
+        }
+        store.startSpendDashboardCodexCostCatchUpIfNeeded(accounts: accounts, mode: .accelerated)
+
+        store.synchronizeSpendDashboardCodexCostCatchUp(accounts: accounts, preferredMode: .accelerated)
+
+        #expect(store.spendDashboardCodexCostCatchUpMode == .accelerated)
+        store.cancelSpendDashboardCodexCostCatchUp()
+    }
+
+    @Test
+    func `hidden synchronization downgrades an accelerated worker to automatic`() throws {
+        let store = try Self.makeStore(suite: "downgrade-accelerated-on-hidden")
+        let accounts = [Self.account(id: "account", cacheIdentity: "cache-account")]
+
+        store.startSpendDashboardCodexCostCatchUpIfNeeded(accounts: accounts, mode: .accelerated)
+        store.synchronizeSpendDashboardCodexCostCatchUp(accounts: accounts, preferredMode: .automatic)
+
+        #expect(store.spendDashboardCodexCostCatchUpTask != nil)
+        #expect(store.spendDashboardCodexCostCatchUpMode == .automatic)
+        store.cancelSpendDashboardCodexCostCatchUp()
+    }
+
+    @Test
+    func `stopped synchronization still clears an invalid account scope`() throws {
+        let store = try Self.makeStore(suite: "stopped-invalid-account-scope")
+        let accounts = [Self.account(id: "account", cacheIdentity: "cache-account")]
+        store.startSpendDashboardCodexCostCatchUpIfNeeded(accounts: accounts, mode: .accelerated)
+        store.stopSpendDashboardCodexCostCatchUp()
+
+        store.synchronizeSpendDashboardCodexCostCatchUp(accounts: [])
+
+        #expect(store.spendDashboardCodexCostCatchUpTask == nil)
+        #expect(!store.spendDashboardCodexCostCatchUpStopRequested)
+    }
+
     private static func makeStore(suite: String) throws -> UsageStore {
         let settings = testSettingsStore(
             suiteName: "UsageStoreSpendDashboardCodexCostCatchUpTests-\(suite)")

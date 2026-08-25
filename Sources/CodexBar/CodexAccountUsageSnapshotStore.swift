@@ -36,7 +36,9 @@ enum CodexMonthlyCreditPreservation {
     {
         guard enrichmentFailed else { return incoming }
         guard let priorLimit = prior?.codexCreditLimit else { return incoming }
-        if incoming?.codexCreditLimit != nil { return incoming }
+        if incoming?.codexCreditLimit != nil {
+            return incoming
+        }
         guard let incoming else {
             return CreditsSnapshot(
                 remaining: 0,
@@ -80,7 +82,9 @@ enum CodexMonthlyCreditPreservation {
         currentCredits: CreditsSnapshot?,
         cachedCredits: CreditsSnapshot?) -> Bool
     {
-        if !enrichmentFailed || publishedCredits != nil { return true }
+        if !enrichmentFailed || publishedCredits != nil {
+            return true
+        }
         return currentCredits?.codexCreditLimit == nil && cachedCredits?.codexCreditLimit == nil
     }
 
@@ -233,6 +237,7 @@ struct FileCodexAccountUsageSnapshotStore: CodexAccountUsageSnapshotStoring, @un
         }
         return CodexWeeklyResetPublicationCandidate(
             firstObservedAt: candidate.firstObservedAt,
+            createdAt: candidate.createdAt,
             snapshot: snapshot)
     }
 

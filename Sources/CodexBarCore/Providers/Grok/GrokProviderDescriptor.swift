@@ -239,11 +239,11 @@ struct GrokOAuthFetchStrategy: ProviderFetchStrategy {
                 return (snapshot, "grok-web", true)
             case .proxy:
                 let snapshot = try await GrokCreditsProxyFetcher.fetch(credentials: credentials)
-                return (snapshot, "grok-cli-proxy", true)
+                return try await Self.resolvingUnknownUsage(snapshot, credentials: credentials)
             case .proxyThenGrpc:
                 do {
                     let snapshot = try await GrokCreditsProxyFetcher.fetch(credentials: credentials)
-                    return (snapshot, "grok-cli-proxy", true)
+                    return try await Self.resolvingUnknownUsage(snapshot, credentials: credentials)
                 } catch is CancellationError {
                     throw CancellationError()
                 } catch let error as URLError where error.code == .cancelled {
@@ -253,6 +253,57 @@ struct GrokOAuthFetchStrategy: ProviderFetchStrategy {
                     return (snapshot, "grok-web", true)
                 }
             }
+        }
+    }
+
+    /// A credits payload that carries a billing period but no usage value is a successful
+    /// response with unknown usage (#3157), and an unknown percent produces no rate window at
+    /// all. Plans whose credits payload never publishes `creditUsagePercent` would therefore
+    /// lose the usage bar entirely, so ask the grok.com bearer surface before that empty answer
+    /// ends the fetch. This stays on the auth-file token: no browser cookie import is involved.
+    /// grok.com remains best-effort — when it also has no percent, the proxy's period and plan
+    /// metadata are kept with usage still unknown.
+    ///
+    /// Two properties keep the enrichment from costing more than it adds. Only a wire-published
+    /// percent is adopted, because the grok.com parser reports its own no-usage-yet frame as 0
+    /// without any percentage on the wire and promoting that would rebuild the fabricated 0%
+    /// #3157 removed. And the request runs under a short deadline: period-only payloads recur on
+    /// every refresh for affected plans, so a grok.com outage must not hold back a proxy snapshot
+    /// that is already valid for the caller's remaining fields.
+    static let unknownUsageEnrichmentBudget: Duration = .seconds(6)
+
+    static func resolvingUnknownUsage(
+        _ proxySnapshot: GrokWebBillingSnapshot,
+        credentials: GrokCredentials,
+        budget: Duration = GrokOAuthFetchStrategy.unknownUsageEnrichmentBudget,
+        grpcBilling: @escaping GrokWebFetchStrategy.ProxyBillingFetch = {
+            try await GrokWebBillingFetcher.fetch(credentials: $0)
+        }) async throws -> (
+        snapshot: GrokWebBillingSnapshot,
+        sourceLabel: String,
+        authenticatedByAuthFile: Bool)
+    {
+        guard proxySnapshot.usedPercent == nil else {
+            return (proxySnapshot, "grok-cli-proxy", true)
+        }
+        let proxyAnswer = (proxySnapshot, "grok-cli-proxy", true)
+        let join = BoundedTaskJoin(sourceTask: Task { try await grpcBilling(credentials) })
+        switch await join.value(joinGrace: budget) {
+        case let .value(grpcSnapshot):
+            guard grpcSnapshot.usedPercent != nil, grpcSnapshot.usedPercentIsWirePublished else {
+                return proxyAnswer
+            }
+            return (grpcSnapshot.completing(with: proxySnapshot), "grok-web", true)
+        case .timedOut:
+            return proxyAnswer
+        case let .failure(error):
+            if error is CancellationError {
+                throw CancellationError()
+            }
+            if let urlError = error as? URLError, urlError.code == .cancelled {
+                throw urlError
+            }
+            return proxyAnswer
         }
     }
 
@@ -369,7 +420,8 @@ struct GrokWebFetchStrategy: ProviderFetchStrategy {
             subscriptionTier: subscriptionTier ?? enrichedBilling.subscriptionTier)
         return self.makeResult(
             usage: snapshot.toUsageSnapshot(),
-            sourceLabel: sourceLabel)
+            sourceLabel: sourceLabel,
+            diagnostic: enrichedBilling.usedPercent == nil ? GrokStatusProbe.usageUnavailableMessage : nil)
     }
 
     func fetchWebBilling(

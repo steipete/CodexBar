@@ -4,6 +4,13 @@ import IOKit.ps
 enum CodexCostCatchUpMode: String, Sendable {
     case automatic
     case accelerated
+
+    var scanDurationPerRefresh: TimeInterval {
+        switch self {
+        case .automatic: CodexCostCatchUpPolicy.automaticBurstDuration
+        case .accelerated: 10
+        }
+    }
 }
 
 enum CodexCostCatchUpPowerSource: String, Sendable {

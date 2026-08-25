@@ -668,7 +668,10 @@ extension CodexWeeklyResetConfirmationTests {
             previous: previous,
             initial: initial,
             confirmation: confirmation,
-            sourceEvidence: .allExactOAuth))
+            sourceEvidence: .allExactOAuth,
+            observedAt: initial.updatedAt))
+        #expect(candidate.firstObservedAt == initial.updatedAt)
+        #expect(candidate.createdAt == initial.updatedAt)
 
         let tooSoon = self.exactIdentifiedSnapshot(
             offset: 30,
@@ -700,19 +703,176 @@ extension CodexWeeklyResetConfirmationTests {
                 previous: previous,
                 candidate: candidate,
                 current: tooSoon,
-                currentIsExactOAuth: true) == .retainCandidate)
+                currentIsExactOAuth: true,
+                observedAt: tooSoon.updatedAt) == .retainCandidate)
         #expect(
             CodexWeeklyResetConfirmation.delayedCandidateDecision(
                 previous: previous,
                 candidate: candidate,
                 current: laterRefresh,
-                currentIsExactOAuth: true) == .publishCurrent)
+                currentIsExactOAuth: true,
+                observedAt: laterRefresh.updatedAt) == .publishCurrent)
         #expect(
             CodexWeeklyResetConfirmation.delayedCandidateDecision(
                 previous: previous,
                 candidate: candidate,
                 current: expiredRefresh,
-                currentIsExactOAuth: true) == .discardCandidate)
+                currentIsExactOAuth: true,
+                observedAt: expiredRefresh.updatedAt) == .discardCandidate)
+    }
+
+    @Test
+    func `local observation clock expires stalled reset evidence and rejects stale identity changes`() throws {
+        let nextBoundary = self.resetAt.addingTimeInterval(7 * 24 * 60 * 60)
+        let expiry = nextBoundary.addingTimeInterval(24 * 60 * 60)
+        let previous = self.exactIdentifiedSnapshot(
+            offset: 0,
+            weeklyUsed: 80,
+            weeklyReset: self.resetAt,
+            resetCredits: self.resetCredits(status: .available, capturedAt: self.capturedAt, expiresAt: expiry))
+        let initial = self.exactIdentifiedSnapshot(
+            offset: 1,
+            weeklyUsed: 0,
+            weeklyReset: nextBoundary,
+            resetCredits: self.resetCredits(
+                status: .available,
+                capturedAt: self.capturedAt.addingTimeInterval(1),
+                expiresAt: expiry))
+        let confirmation = self.exactIdentifiedSnapshot(
+            offset: 2,
+            weeklyUsed: 0,
+            weeklyReset: nextBoundary,
+            resetCredits: self.resetCredits(
+                status: .available,
+                capturedAt: self.capturedAt.addingTimeInterval(2),
+                expiresAt: expiry))
+        let candidate = try #require(CodexWeeklyResetConfirmation.makeDelayedCandidate(
+            previous: previous,
+            initial: initial,
+            confirmation: confirmation,
+            sourceEvidence: .allExactOAuth,
+            observedAt: self.capturedAt))
+        let validUntil = self.capturedAt.addingTimeInterval(30 * 60)
+        let expiredAt = validUntil.addingTimeInterval(1)
+
+        #expect(CodexWeeklyResetConfirmation.shouldRetainDelayedCandidate(candidate, observedAt: validUntil))
+        #expect(!CodexWeeklyResetConfirmation.shouldRetainDelayedCandidate(candidate, observedAt: expiredAt))
+        #expect(!CodexWeeklyResetConfirmation.shouldRetainDelayedCandidate(
+            candidate,
+            observedAt: self.capturedAt.addingTimeInterval(-1)))
+        #expect(CodexWeeklyResetConfirmation.delayedCandidateDecision(
+            previous: previous,
+            candidate: candidate,
+            current: confirmation,
+            currentIsExactOAuth: true,
+            observedAt: self.capturedAt.addingTimeInterval(60)) == .retainCandidate)
+        #expect(CodexWeeklyResetConfirmation.delayedCandidateDecision(
+            previous: previous,
+            candidate: candidate,
+            current: confirmation,
+            currentIsExactOAuth: true,
+            observedAt: expiredAt) == .discardCandidate)
+        #expect(CodexWeeklyResetConfirmation.delayedCandidateDecision(
+            previous: previous,
+            candidate: candidate,
+            current: initial,
+            currentIsExactOAuth: true,
+            observedAt: expiredAt) == .discardCandidate)
+        #expect(CodexWeeklyResetConfirmation.delayedCandidateDecision(
+            previous: previous,
+            candidate: candidate,
+            current: confirmation,
+            currentIsExactOAuth: false,
+            observedAt: self.capturedAt.addingTimeInterval(30)) == .discardCandidate)
+        #expect(CodexWeeklyResetConfirmation.delayedCandidateDecision(
+            previous: previous,
+            candidate: candidate,
+            current: self.identified(confirmation, email: "other@example.com", plan: "pro"),
+            currentIsExactOAuth: true,
+            observedAt: self.capturedAt.addingTimeInterval(30)) == .discardCandidate)
+    }
+
+    @Test
+    func `future provider timestamps cannot bypass the local confirmation delay`() throws {
+        let nextBoundary = self.resetAt.addingTimeInterval(7 * 24 * 60 * 60)
+        let expiry = nextBoundary.addingTimeInterval(24 * 60 * 60)
+        let previous = self.exactIdentifiedSnapshot(
+            offset: 0,
+            weeklyUsed: 80,
+            weeklyReset: self.resetAt,
+            resetCredits: self.resetCredits(status: .available, capturedAt: self.capturedAt, expiresAt: expiry))
+        let initial = self.exactIdentifiedSnapshot(
+            offset: 1,
+            weeklyUsed: 0,
+            weeklyReset: nextBoundary,
+            resetCredits: self.resetCredits(
+                status: .available,
+                capturedAt: self.capturedAt.addingTimeInterval(1),
+                expiresAt: expiry))
+        let confirmation = self.exactIdentifiedSnapshot(
+            offset: 2,
+            weeklyUsed: 0,
+            weeklyReset: nextBoundary,
+            resetCredits: self.resetCredits(
+                status: .available,
+                capturedAt: self.capturedAt.addingTimeInterval(2),
+                expiresAt: expiry))
+        let candidate = try #require(CodexWeeklyResetConfirmation.makeDelayedCandidate(
+            previous: previous,
+            initial: initial,
+            confirmation: confirmation,
+            sourceEvidence: .allExactOAuth,
+            observedAt: self.capturedAt))
+        let futureProviderObservation = self.exactIdentifiedSnapshot(
+            offset: 120,
+            weeklyUsed: 0.5,
+            weeklyReset: nextBoundary,
+            resetCredits: self.resetCredits(
+                status: .available,
+                capturedAt: self.capturedAt.addingTimeInterval(120),
+                expiresAt: expiry))
+
+        #expect(CodexWeeklyResetConfirmation.delayedCandidateDecision(
+            previous: previous,
+            candidate: candidate,
+            current: futureProviderObservation,
+            currentIsExactOAuth: true,
+            observedAt: self.capturedAt.addingTimeInterval(59)) == .retainCandidate)
+        #expect(CodexWeeklyResetConfirmation.delayedCandidateDecision(
+            previous: previous,
+            candidate: candidate,
+            current: futureProviderObservation,
+            currentIsExactOAuth: true,
+            observedAt: self.capturedAt.addingTimeInterval(60)) == .publishCurrent)
+
+        let futureCandidate = CodexWeeklyResetPublicationCandidate(
+            firstObservedAt: initial.updatedAt,
+            createdAt: self.capturedAt.addingTimeInterval(1),
+            snapshot: confirmation)
+        #expect(CodexWeeklyResetConfirmation.delayedCandidateDecision(
+            previous: previous,
+            candidate: futureCandidate,
+            current: futureProviderObservation,
+            currentIsExactOAuth: true,
+            observedAt: self.capturedAt) == .discardCandidate)
+    }
+
+    @Test
+    func `legacy persisted reset candidates decode without a local creation date`() throws {
+        let snapshot = self.snapshot(offset: 2, weeklyUsed: 0, weeklyReset: self.resetAt)
+        let candidate = CodexWeeklyResetPublicationCandidate(
+            firstObservedAt: self.capturedAt,
+            createdAt: self.capturedAt.addingTimeInterval(10),
+            snapshot: snapshot)
+        var payload = try #require(JSONSerialization
+            .jsonObject(with: JSONEncoder().encode(candidate)) as? [String: Any])
+        payload.removeValue(forKey: "createdAt")
+        let legacyData = try JSONSerialization.data(withJSONObject: payload)
+        let decoded = try JSONDecoder().decode(CodexWeeklyResetPublicationCandidate.self, from: legacyData)
+
+        #expect(decoded.createdAt == candidate.firstObservedAt)
+        #expect(decoded.firstObservedAt == candidate.firstObservedAt)
+        #expect(decoded.snapshot.updatedAt == candidate.snapshot.updatedAt)
     }
 
     @Test

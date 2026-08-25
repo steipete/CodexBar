@@ -80,13 +80,16 @@ extension CodexAccountScopedRefreshTests {
         self.installContextualCodexProvider(on: firstLowStore, sourceLabel: "oauth", kind: .oauth) { _ in
             try await firstLowLoader.load()
         }
-        await firstLowStore.refreshProvider(.codex, allowDisabled: true)
+        await CodexWeeklyResetConfirmation.$observationDateOverride.withValue(initialLow.updatedAt) {
+            await firstLowStore.refreshProvider(.codex, allowDisabled: true)
+        }
 
         #expect(firstLowStore.snapshots[.codex]?.updatedAt == prior.updatedAt)
         let persistedCandidate = try #require(snapshotStore.load(
             for: settings.codexVisibleAccountProjection.visibleAccounts).first)
         #expect(persistedCandidate.snapshot?.updatedAt == prior.updatedAt)
         #expect(persistedCandidate.weeklyResetCandidate?.snapshot.updatedAt == confirmedLow.updatedAt)
+        #expect(persistedCandidate.weeklyResetCandidate?.createdAt == initialLow.updatedAt)
 
         let laterLoader = SequencedCodexSnapshotLoader(steps: [.success(laterLow)])
         let relaunchedStore = self.makeCodexWeeklyPublicationStore(
@@ -99,7 +102,9 @@ extension CodexAccountScopedRefreshTests {
             try await laterLoader.load()
         }
 
-        await relaunchedStore.refreshProvider(.codex, allowDisabled: true)
+        await CodexWeeklyResetConfirmation.$observationDateOverride.withValue(laterLow.updatedAt) {
+            await relaunchedStore.refreshProvider(.codex, allowDisabled: true)
+        }
 
         #expect(await laterLoader.callCount == 1)
         #expect(relaunchedStore.snapshots[.codex]?.updatedAt == laterLow.updatedAt)
@@ -109,6 +114,150 @@ extension CodexAccountScopedRefreshTests {
             for: settings.codexVisibleAccountProjection.visibleAccounts).first)
         #expect(persistedFresh.snapshot?.updatedAt == laterLow.updatedAt)
         #expect(persistedFresh.weeklyResetCandidate == nil)
+    }
+
+    @Test
+    func `expired reset evidence is removed across relaunch when provider time stalls`() async throws {
+        let suite = "CodexWeeklyResetPublicationTests-expired-stalled-relaunch"
+        let email = "expired-stalled-relaunch@example.com"
+        let settings = self.makeSettingsStore(suite: suite)
+        settings.refreshFrequency = .manual
+        settings.codexCookieSource = .off
+        settings._test_liveSystemCodexAccount = self.liveAccount(
+            email: email,
+            identity: .providerAccount(id: "acct-expired-stalled-relaunch"))
+        defer { settings._test_liveSystemCodexAccount = nil }
+
+        let now = Date()
+        let priorBoundary = now.addingTimeInterval(2 * 24 * 60 * 60)
+        let nextBoundary = priorBoundary.addingTimeInterval(7 * 24 * 60 * 60)
+        let expiry = nextBoundary.addingTimeInterval(24 * 60 * 60)
+        let previous = self.codexWeeklySnapshot(
+            email: email,
+            weeklyUsedPercent: 81,
+            weeklyReset: priorBoundary,
+            updatedAt: now.addingTimeInterval(-2000),
+            resetCredits: codexAvailableResetCredits(
+                capturedAt: now.addingTimeInterval(-2000),
+                expiresAt: expiry),
+            dataConfidence: .exact)
+        let stalled = self.codexWeeklySnapshot(
+            email: email,
+            weeklyUsedPercent: 0,
+            weeklyReset: nextBoundary,
+            updatedAt: now.addingTimeInterval(-1900),
+            resetCredits: codexAvailableResetCredits(
+                capturedAt: now.addingTimeInterval(-1900),
+                expiresAt: expiry),
+            dataConfidence: .exact)
+        let candidate = CodexWeeklyResetPublicationCandidate(
+            firstObservedAt: stalled.updatedAt,
+            createdAt: now.addingTimeInterval(-1801),
+            snapshot: stalled)
+        let snapshotURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codex-weekly-expired-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: snapshotURL) }
+        let snapshotStore = FileCodexAccountUsageSnapshotStore(fileURL: snapshotURL)
+        let account = try #require(settings.codexVisibleAccountProjection.visibleAccounts.first)
+        snapshotStore.store([CodexAccountUsageSnapshot(
+            account: account,
+            snapshot: previous,
+            error: nil,
+            sourceLabel: "oauth",
+            weeklyResetCandidate: candidate)])
+
+        let store = self.makeCodexWeeklyPublicationStore(
+            settings: settings,
+            suite: suite,
+            snapshotStore: snapshotStore)
+        #expect(store.codexAccountSnapshots.first?.weeklyResetCandidate?.createdAt == candidate.createdAt)
+        let admission = await UsageStore.codexOutcomeAdmittedForPublication(
+            initialOutcome: codexWeeklyFetchOutcome(stalled),
+            previousSnapshot: previous,
+            previousSourceLabel: "oauth",
+            missingWindowBackfillSnapshot: nil,
+            pendingCandidate: candidate,
+            observedAt: now,
+            fetchConfirmation: {
+                ProviderFetchOutcome(
+                    result: .failure(TestRefreshError(message: "confirmation unavailable")),
+                    attempts: [])
+            })
+        #expect(admission.outcome == nil)
+        store.persistCodexWeeklyResetPublicationCandidate(
+            admission.pendingCandidate,
+            expectedGuard: store.freshCodexAccountScopedRefreshGuard(),
+            previousSnapshot: previous)
+
+        #expect(store.codexAccountSnapshots.count == 1)
+        #expect(store.codexAccountSnapshots.first?.weeklyResetCandidate == nil)
+        let persisted = try #require(snapshotStore.load(
+            for: settings.codexVisibleAccountProjection.visibleAccounts).first)
+        #expect(persisted.weeklyResetCandidate == nil)
+        #expect(persisted.snapshot?.updatedAt == previous.updatedAt)
+    }
+
+    @Test
+    func `persisting an active reset candidate keeps other accounts cached`() throws {
+        let suite = "CodexWeeklyResetPublicationTests-candidate-preserves-siblings"
+        let email = "candidate-owner@example.com"
+        let settings = self.makeSettingsStore(suite: suite)
+        settings.refreshFrequency = .manual
+        settings.codexCookieSource = .off
+        settings._test_liveSystemCodexAccount = self.liveAccount(
+            email: email,
+            identity: .providerAccount(id: "acct-candidate-owner"))
+        defer { settings._test_liveSystemCodexAccount = nil }
+
+        let owner = try #require(settings.codexVisibleAccountProjection.visibleAccounts.first)
+        let sibling = CodexVisibleAccount(
+            id: "cached-sibling-account",
+            email: "sibling@example.com",
+            workspaceLabel: "Sibling Workspace",
+            workspaceAccountID: "acct-cached-sibling",
+            authFingerprint: "sibling-auth-fingerprint",
+            storedAccountID: nil,
+            selectionSource: owner.selectionSource,
+            isActive: false,
+            isLive: false,
+            canReauthenticate: false,
+            canRemove: false)
+        let now = Date()
+        let ownerSnapshot = self.codexWeeklySnapshot(
+            email: email,
+            weeklyUsedPercent: 81,
+            weeklyReset: now.addingTimeInterval(2 * 24 * 60 * 60),
+            updatedAt: now)
+        let siblingSnapshot = self.codexWeeklySnapshot(
+            email: "sibling@example.com",
+            weeklyUsedPercent: 42,
+            weeklyReset: now.addingTimeInterval(3 * 24 * 60 * 60),
+            updatedAt: now)
+        let siblingRow = CodexAccountUsageSnapshot(
+            account: sibling,
+            snapshot: siblingSnapshot,
+            error: nil,
+            sourceLabel: "cached-sibling")
+        let snapshotStore = RecordingCodexAccountUsageSnapshotStore(initialSnapshots: [siblingRow])
+        let store = self.makeCodexWeeklyPublicationStore(
+            settings: settings,
+            suite: suite,
+            snapshotStore: snapshotStore)
+        store.codexAccountSnapshots = [siblingRow]
+        let candidate = CodexWeeklyResetPublicationCandidate(
+            firstObservedAt: now,
+            createdAt: now,
+            snapshot: ownerSnapshot)
+
+        store.persistCodexWeeklyResetPublicationCandidate(
+            candidate,
+            expectedGuard: store.freshCodexAccountScopedRefreshGuard(),
+            previousSnapshot: ownerSnapshot)
+
+        #expect(store.codexAccountSnapshots.count == 2)
+        #expect(store.codexAccountSnapshots.first { $0.id == sibling.id }?.snapshot?.secondary?.usedPercent == 42)
+        #expect(store.codexAccountSnapshots.first { $0.id == owner.id }?.weeklyResetCandidate?.createdAt == now)
+        #expect(Set(snapshotStore.storedSnapshots.map(\.id)) == Set([owner.id, sibling.id]))
     }
 
     @Test
@@ -543,7 +692,9 @@ extension CodexAccountScopedRefreshTests {
         let recorder = CodexWeeklyPublicationEventRecorder(email: email)
         defer { recorder.invalidate() }
 
-        await store.refreshProvider(.codex, allowDisabled: true)
+        await CodexWeeklyResetConfirmation.$observationDateOverride.withValue(initialLow.updatedAt) {
+            await store.refreshProvider(.codex, allowDisabled: true)
+        }
 
         #expect(await loader.callCount == 2)
         #expect(store.snapshots[.codex]?.updatedAt == prior.updatedAt)
@@ -551,7 +702,9 @@ extension CodexAccountScopedRefreshTests {
         #expect(store.codexAccountSnapshots.first?.weeklyResetCandidate?.snapshot.updatedAt == confirmedLow.updatedAt)
         #expect(recorder.usedPercents.isEmpty)
 
-        await store.refreshProvider(.codex, allowDisabled: true)
+        await CodexWeeklyResetConfirmation.$observationDateOverride.withValue(laterLow.updatedAt) {
+            await store.refreshProvider(.codex, allowDisabled: true)
+        }
 
         #expect(await loader.callCount == 3)
         #expect(store.snapshots[.codex]?.updatedAt == laterLow.updatedAt)
@@ -609,6 +762,7 @@ extension CodexAccountScopedRefreshTests {
             previousSnapshot: previous,
             previousSourceLabel: "oauth",
             missingWindowBackfillSnapshot: backfill,
+            observedAt: initial.updatedAt,
             fetchConfirmation: { codexWeeklyFetchOutcome(confirmation) })
         let candidate = try #require(firstAdmission.pendingCandidate)
         #expect(firstAdmission.outcome == nil)
@@ -628,6 +782,7 @@ extension CodexAccountScopedRefreshTests {
             previousSourceLabel: "oauth",
             missingWindowBackfillSnapshot: backfill,
             pendingCandidate: candidate,
+            observedAt: later.updatedAt,
             fetchConfirmation: { codexWeeklyFetchOutcome(later) })
         let admittedOutcome = try #require(admitted.outcome)
         let result = try admittedOutcome.result.get()
@@ -675,7 +830,8 @@ extension CodexAccountScopedRefreshTests {
             previous: previous,
             initial: initial,
             confirmation: confirmation,
-            sourceEvidence: .allExactOAuth))
+            sourceEvidence: .allExactOAuth,
+            observedAt: initial.updatedAt))
         let expiredLow = self.codexWeeklySnapshot(
             email: email,
             weeklyUsedPercent: 0.5,

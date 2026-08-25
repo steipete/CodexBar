@@ -37,13 +37,13 @@ extension UsageStore {
                 accountEmail: account.email,
                 accountOrganization: identity?.accountOrganization,
                 loginMethod: identity?.loginMethod ?? account.workspaceLabel))
-            self.codexAccountSnapshots = [CodexAccountUsageSnapshot(
+            self.codexAccountSnapshots.append(CodexAccountUsageSnapshot(
                 account: account,
                 snapshot: relabeled,
                 error: self.errors[.codex],
                 sourceLabel: self.lastSourceLabels[.codex],
                 credits: self.credits,
-                weeklyResetCandidate: candidate)]
+                weeklyResetCandidate: candidate))
         }
         self.codexAccountUsageSnapshotStore?.store(self.codexAccountSnapshots)
     }

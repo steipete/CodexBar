@@ -6,16 +6,38 @@ struct CodexWeeklyResetPublicationCandidate: Codable, Sendable {
 
     let evidenceVersion: Int
     let firstObservedAt: Date
+    let createdAt: Date
     let snapshot: UsageSnapshot
 
-    init(firstObservedAt: Date, snapshot: UsageSnapshot) {
+    init(firstObservedAt: Date, createdAt: Date? = nil, snapshot: UsageSnapshot) {
         self.evidenceVersion = Self.currentEvidenceVersion
         self.firstObservedAt = firstObservedAt
+        self.createdAt = createdAt ?? firstObservedAt
         self.snapshot = snapshot
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.evidenceVersion = try container.decode(Int.self, forKey: .evidenceVersion)
+        self.firstObservedAt = try container.decode(Date.self, forKey: .firstObservedAt)
+        self.createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? self.firstObservedAt
+        self.snapshot = try container.decode(UsageSnapshot.self, forKey: .snapshot)
     }
 }
 
 struct CodexWeeklyResetConfirmation: Sendable {
+    #if DEBUG
+    @TaskLocal static var observationDateOverride: Date?
+    #endif
+
+    static var observationDate: Date {
+        #if DEBUG
+        self.observationDateOverride ?? Date()
+        #else
+        Date()
+        #endif
+    }
+
     enum InitialDecision: Equatable, Sendable {
         case publishInitial
         case requiresConfirmation
@@ -215,8 +237,10 @@ struct CodexWeeklyResetConfirmation: Sendable {
         previous: UsageSnapshot?,
         initial: UsageSnapshot,
         confirmation: UsageSnapshot,
-        sourceEvidence: SourceEvidence) -> CodexWeeklyResetPublicationCandidate?
+        sourceEvidence: SourceEvidence,
+        observedAt: Date? = nil) -> CodexWeeklyResetPublicationCandidate?
     {
+        let observedAt = observedAt ?? self.observationDate
         guard sourceEvidence.previousIsExactOAuth,
               sourceEvidence.initialIsExactOAuth,
               sourceEvidence.confirmationIsExactOAuth,
@@ -227,6 +251,7 @@ struct CodexWeeklyResetConfirmation: Sendable {
               isFinite(previous.updatedAt),
               isFinite(initial.updatedAt),
               isFinite(confirmation.updatedAt),
+              isFinite(observedAt),
               initial.updatedAt > previous.updatedAt,
               confirmation.updatedAt > initial.updatedAt,
               let previousWeekly = CodexConsumerProjection.sourceRateWindow(for: .weekly, snapshot: previous),
@@ -255,6 +280,7 @@ struct CodexWeeklyResetConfirmation: Sendable {
         }
         return CodexWeeklyResetPublicationCandidate(
             firstObservedAt: initial.updatedAt,
+            createdAt: observedAt,
             snapshot: confirmation)
     }
 
@@ -262,19 +288,22 @@ struct CodexWeeklyResetConfirmation: Sendable {
         previous: UsageSnapshot?,
         candidate: CodexWeeklyResetPublicationCandidate,
         current: UsageSnapshot,
-        currentIsExactOAuth: Bool) -> DelayedCandidateDecision
+        currentIsExactOAuth: Bool,
+        observedAt: Date? = nil) -> DelayedCandidateDecision
     {
+        let observedAt = observedAt ?? self.observationDate
         guard candidate.evidenceVersion == CodexWeeklyResetPublicationCandidate.currentEvidenceVersion else {
             return .discardCandidate
         }
         guard self.isFinite(candidate.firstObservedAt),
+              self.isFinite(candidate.createdAt),
               self.isFinite(candidate.snapshot.updatedAt),
-              self.isFinite(current.updatedAt)
+              self.isFinite(current.updatedAt),
+              self.isFinite(observedAt)
         else {
             return .discardCandidate
         }
-        guard current.updatedAt > candidate.snapshot.updatedAt else { return .retainCandidate }
-        let age = current.updatedAt.timeIntervalSince(candidate.firstObservedAt)
+        let age = observedAt.timeIntervalSince(candidate.createdAt)
         guard age >= 0, age <= Self.delayedCandidateMaximumAge else { return .discardCandidate }
         guard currentIsExactOAuth,
               let previous,
@@ -307,6 +336,7 @@ struct CodexWeeklyResetConfirmation: Sendable {
         else {
             return .discardCandidate
         }
+        guard current.updatedAt > candidate.snapshot.updatedAt else { return .retainCandidate }
         return age >= Self.delayedCandidateMinimumAge ? .publishCurrent : .retainCandidate
     }
 
@@ -316,13 +346,13 @@ struct CodexWeeklyResetConfirmation: Sendable {
     {
         guard candidate.evidenceVersion == CodexWeeklyResetPublicationCandidate.currentEvidenceVersion,
               self.isFinite(candidate.firstObservedAt),
+              self.isFinite(candidate.createdAt),
               self.isFinite(candidate.snapshot.updatedAt),
               self.isFinite(observedAt)
         else {
             return false
         }
-        guard observedAt > candidate.snapshot.updatedAt else { return true }
-        let age = observedAt.timeIntervalSince(candidate.firstObservedAt)
+        let age = observedAt.timeIntervalSince(candidate.createdAt)
         return age >= 0 && age <= self.delayedCandidateMaximumAge
     }
 
@@ -363,9 +393,15 @@ struct CodexWeeklyResetConfirmation: Sendable {
                     status: $0.status.rawValue,
                     expiresAt: $0.expiresAt)
             }.sorted { lhs, rhs in
-                if lhs.id != rhs.id { return lhs.id < rhs.id }
-                if lhs.resetType != rhs.resetType { return lhs.resetType < rhs.resetType }
-                if lhs.status != rhs.status { return lhs.status < rhs.status }
+                if lhs.id != rhs.id {
+                    return lhs.id < rhs.id
+                }
+                if lhs.resetType != rhs.resetType {
+                    return lhs.resetType < rhs.resetType
+                }
+                if lhs.status != rhs.status {
+                    return lhs.status < rhs.status
+                }
                 return (lhs.expiresAt ?? .distantPast) < (rhs.expiresAt ?? .distantPast)
             }
         }

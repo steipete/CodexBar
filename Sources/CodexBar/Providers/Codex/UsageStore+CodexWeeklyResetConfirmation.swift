@@ -32,19 +32,16 @@ extension UsageStore {
         previousSourceLabel: String?,
         missingWindowBackfillSnapshot: UsageSnapshot?,
         pendingCandidate: CodexWeeklyResetPublicationCandidate? = nil,
+        observedAt: Date = CodexWeeklyResetConfirmation.observationDate,
         fetchConfirmation: @escaping CodexWeeklyConfirmationFetch) async -> CodexWeeklyResetPublicationAdmission
     {
+        var candidateForRetry = pendingCandidate.flatMap {
+            CodexWeeklyResetConfirmation.shouldRetainDelayedCandidate($0, observedAt: observedAt) ? $0 : nil
+        }
         guard case let .success(rawInitialResult) = initialOutcome.result else {
-            return CodexWeeklyResetPublicationAdmission(
-                outcome: initialOutcome,
-                pendingCandidate: pendingCandidate)
+            return CodexWeeklyResetPublicationAdmission(outcome: initialOutcome, pendingCandidate: candidateForRetry)
         }
         let rawInitialSnapshot = rawInitialResult.usage.scoped(to: .codex)
-        var candidateForRetry = pendingCandidate.flatMap {
-            CodexWeeklyResetConfirmation.shouldRetainDelayedCandidate(
-                $0,
-                observedAt: rawInitialSnapshot.updatedAt) ? $0 : nil
-        }
         let publicationBaseline = [previousSnapshot, missingWindowBackfillSnapshot]
             .compactMap(\.self)
             .max { $0.updatedAt < $1.updatedAt }
@@ -87,7 +84,8 @@ extension UsageStore {
                     candidateForRetry,
                     previousSnapshot: previousSnapshot,
                     initialSnapshot: rawInitialSnapshot,
-                    initialResult: rawInitialResult))
+                    initialResult: rawInitialResult,
+                    observedAt: observedAt))
         case .requiresConfirmation:
             break
         }
@@ -97,7 +95,8 @@ extension UsageStore {
                 previous: previousSnapshot,
                 candidate: pendingCandidate,
                 current: rawInitialSnapshot,
-                currentIsExactOAuth: Self.isExactCodexOAuthResult(rawInitialResult))
+                currentIsExactOAuth: Self.isExactCodexOAuthResult(rawInitialResult),
+                observedAt: observedAt)
             Self.logCodexWeeklyResetPublicationDecision(
                 stage: "delayedConfirmation",
                 decision: String(describing: delayedDecision),
@@ -183,7 +182,8 @@ extension UsageStore {
                         .trimmingCharacters(in: .whitespacesAndNewlines)
                         .lowercased() == "oauth",
                     initialIsExactOAuth: Self.isExactCodexOAuthResult(rawInitialResult),
-                    confirmationIsExactOAuth: Self.isExactCodexOAuthResult(confirmationResult)))
+                    confirmationIsExactOAuth: Self.isExactCodexOAuthResult(confirmationResult)),
+                observedAt: observedAt)
             return CodexWeeklyResetPublicationAdmission(
                 outcome: nil,
                 pendingCandidate: candidate)
@@ -227,14 +227,16 @@ extension UsageStore {
         _ candidate: CodexWeeklyResetPublicationCandidate?,
         previousSnapshot: UsageSnapshot?,
         initialSnapshot: UsageSnapshot,
-        initialResult: ProviderFetchResult) -> CodexWeeklyResetPublicationCandidate?
+        initialResult: ProviderFetchResult,
+        observedAt: Date) -> CodexWeeklyResetPublicationCandidate?
     {
         guard let candidate else { return nil }
         let decision = CodexWeeklyResetConfirmation.delayedCandidateDecision(
             previous: previousSnapshot,
             candidate: candidate,
             current: initialSnapshot,
-            currentIsExactOAuth: Self.isExactCodexOAuthResult(initialResult))
+            currentIsExactOAuth: Self.isExactCodexOAuthResult(initialResult),
+            observedAt: observedAt)
         return decision == .discardCandidate ? nil : candidate
     }
 
