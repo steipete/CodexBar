@@ -7,7 +7,9 @@ extension UsageStore {
         let initialOutcome: ProviderFetchOutcome
         let expectedGuard: CodexAccountScopedRefreshGuard?
         let previousSnapshot: UsageSnapshot?
+        let previousSourceLabel: String?
         let missingWindowBackfillSnapshot: UsageSnapshot?
+        let pendingWeeklyResetCandidate: CodexWeeklyResetPublicationCandidate?
         let fetchOutcome: @Sendable () async -> ProviderFetchOutcome
         let generation: UInt64
     }
@@ -53,12 +55,18 @@ extension UsageStore {
                 generation: resolution.generation)
             return nil
         }
-        guard let admittedOutcome = await Self.codexOutcomeAdmittedForPublication(
+        let admission = await Self.codexOutcomeAdmittedForPublication(
             initialOutcome: resolution.initialOutcome,
             previousSnapshot: resolution.previousSnapshot,
+            previousSourceLabel: resolution.previousSourceLabel,
             missingWindowBackfillSnapshot: resolution.missingWindowBackfillSnapshot,
+            pendingCandidate: resolution.pendingWeeklyResetCandidate,
             fetchConfirmation: resolution.fetchOutcome)
-        else {
+        self.persistCodexWeeklyResetPublicationCandidate(
+            admission.pendingCandidate,
+            expectedGuard: resolution.expectedGuard,
+            previousSnapshot: resolution.previousSnapshot)
+        guard let admittedOutcome = admission.outcome else {
             if let expectedGuard = resolution.expectedGuard {
                 self.retireCodexStateIfRefreshOwnerChanged(
                     expectedGuard: expectedGuard,

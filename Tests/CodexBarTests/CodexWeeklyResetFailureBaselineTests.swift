@@ -6,7 +6,7 @@ import Testing
 @MainActor
 extension CodexAccountScopedRefreshTests {
     @Test
-    func `hard failure keeps trusted weekly baseline for later confirmed low publication`() async {
+    func `hard failure keeps trusted weekly baseline when a low lacks strong evidence`() async {
         let suite = "CodexWeeklyResetFailureBaselineTests-hard-failure"
         let email = "failure-baseline@example.com"
         let settings = self.makeSettingsStore(suite: suite)
@@ -84,9 +84,9 @@ extension CodexAccountScopedRefreshTests {
         await store.refreshProvider(.codex, allowDisabled: true)
 
         #expect(await loader.callCount == 2)
-        #expect(store.snapshots[.codex]?.updatedAt == confirmedLow.updatedAt)
-        #expect(store.snapshots[.codex]?.secondary?.usedPercent == 0.5)
-        #expect(store.lastKnownResetSnapshots[.codex]?.updatedAt == confirmedLow.updatedAt)
-        #expect(store.lastKnownResetSnapshots[.codex]?.secondary?.usedPercent == 0.5)
+        #expect(store.snapshots[.codex]?.updatedAt == primaryOnlyPublishedAt)
+        #expect(store.snapshots[.codex]?.secondary == nil)
+        #expect(store.lastKnownResetSnapshots[.codex]?.updatedAt == prior.updatedAt)
+        #expect(store.lastKnownResetSnapshots[.codex]?.secondary?.usedPercent == 73)
     }
 }

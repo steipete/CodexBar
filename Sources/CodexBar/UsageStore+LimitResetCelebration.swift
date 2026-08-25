@@ -7,6 +7,7 @@ extension UsageStore {
     // A newly advanced weekly boundary is strong reset evidence. Allow a modest amount of usage
     // so a reset is not missed when the first post-rollover sample arrives after the user resumed work.
     private nonisolated static let codexWeeklyAdvancedBoundaryResetThreshold = 5.0
+    private nonisolated static let codexWeeklyResetCandidateBaselineThreshold = 25.0
     private nonisolated static let codexWeeklyResetCandidateConfirmationThreshold = 5.0
     private nonisolated static let codexWeeklyResetCandidateMinimumAge: TimeInterval = 60
     private nonisolated static let codexWeeklyResetCandidateMaximumAge: TimeInterval = 30 * 60
@@ -265,7 +266,7 @@ extension UsageStore {
         let currentUsed = observation.usedPercent
         let currentObservedAt = observation.observedAt
         let wasAboveThreshold = currentUsed > self.limitResetThreshold
-        let wasAboveCodexWeeklyCandidateThreshold = currentUsed > self.codexWeeklyResetCandidateConfirmationThreshold
+        let wasAboveCodexWeeklyCandidateThreshold = currentUsed > self.codexWeeklyResetCandidateBaselineThreshold
         let isClaudeWeekly = input.provider == .claude && input.seriesName == .weekly
         let isCodexWeekly = input.provider == .codex && input.seriesName == .weekly
         let claudeWeeklyRecoveryPending = isClaudeWeekly
@@ -333,7 +334,7 @@ extension UsageStore {
             claudeWeeklyRecoveryConfirmed
         } else if codexDecision.expiredCandidate || planChanged {
             isCodexWeekly
-                ? currentUsed > self.codexWeeklyResetCandidateConfirmationThreshold
+                ? currentUsed > self.codexWeeklyResetCandidateBaselineThreshold
                 : wasAboveThreshold
         } else if shouldPreserveBaseline || shouldAwaitLowConfirmation {
             true

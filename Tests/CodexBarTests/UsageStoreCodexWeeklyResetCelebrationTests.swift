@@ -36,6 +36,36 @@ extension UsageStorePlanUtilizationTests {
 
     @MainActor
     @Test
+    func `codex weekly six to five percent drift does not celebrate`() async throws {
+        let store = Self.makeStore()
+        let accountLabel = "codex-weekly-small-drift@example.com"
+        let ownerKey = try #require(CodexLimitResetOwnerKey(
+            identity: .providerAccount(id: "fixture-codex-weekly-small-drift"),
+            accountEmail: accountLabel))
+        let recorder = WeeklyLimitResetEventRecorder(provider: .codex, accountLabel: accountLabel)
+        defer { recorder.invalidate() }
+
+        let firstDate = Date(timeIntervalSince1970: 1_701_450_000)
+        let weeklyReset = firstDate.addingTimeInterval(3 * 24 * 3600)
+        for (offset, usedPercent) in [(TimeInterval(0), 6.0), (60, 5.0), (120, 5.0)] {
+            let snapshot = codexWeeklyResetSnapshot(
+                accountLabel: accountLabel,
+                usedPercent: usedPercent,
+                resetsAt: weeklyReset,
+                updatedAt: firstDate.addingTimeInterval(offset))
+            await store.recordPlanUtilizationHistorySample(
+                provider: .codex,
+                snapshot: snapshot,
+                codexLimitResetOwnerKey: ownerKey,
+                now: snapshot.updatedAt)
+        }
+
+        #expect(recorder.events.isEmpty)
+        #expect(store.weeklyLimitResetDetectorStates.values.first?.pendingLowConfirmation == false)
+    }
+
+    @MainActor
+    @Test
     func `codex weekly unchanged boundary candidate can start at two percent and confirms later`() async throws {
         let store = Self.makeStore()
         let accountLabel = "codex-weekly-delayed-confirmation@example.com"
@@ -194,7 +224,7 @@ extension UsageStorePlanUtilizationTests {
 
         let rebound = codexWeeklyResetSnapshot(
             accountLabel: accountLabel,
-            usedPercent: 20,
+            usedPercent: 30,
             resetsAt: weeklyReset,
             updatedAt: firstDate.addingTimeInterval(120))
         await store.recordPlanUtilizationHistorySample(

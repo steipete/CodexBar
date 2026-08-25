@@ -4,6 +4,11 @@ import Foundation
 extension UsageStore {
     typealias CodexWeeklyConfirmationFetch = @Sendable () async -> ProviderFetchOutcome
 
+    struct CodexWeeklyResetPublicationAdmission {
+        let outcome: ProviderFetchOutcome?
+        let pendingCandidate: CodexWeeklyResetPublicationCandidate?
+    }
+
     private struct CodexWeeklyResetPublicationTrace {
         let previousSnapshot: UsageSnapshot?
         let missingWindowBackfillSnapshot: UsageSnapshot?
@@ -12,14 +17,34 @@ extension UsageStore {
         let confirmationSnapshot: UsageSnapshot?
     }
 
+    private struct CodexMissingWeeklyAdmissionInput {
+        let rawInitialSnapshot: UsageSnapshot
+        let previousSnapshot: UsageSnapshot?
+        let publicationBaseline: UsageSnapshot?
+        let missingWindowBackfillSnapshot: UsageSnapshot?
+        let publicationInitialOutcome: ProviderFetchOutcome
+        let pendingCandidate: CodexWeeklyResetPublicationCandidate?
+    }
+
     nonisolated static func codexOutcomeAdmittedForPublication(
         initialOutcome: ProviderFetchOutcome,
         previousSnapshot: UsageSnapshot?,
+        previousSourceLabel: String?,
         missingWindowBackfillSnapshot: UsageSnapshot?,
-        fetchConfirmation: @escaping CodexWeeklyConfirmationFetch) async -> ProviderFetchOutcome?
+        pendingCandidate: CodexWeeklyResetPublicationCandidate? = nil,
+        fetchConfirmation: @escaping CodexWeeklyConfirmationFetch) async -> CodexWeeklyResetPublicationAdmission
     {
-        guard case let .success(rawInitialResult) = initialOutcome.result else { return initialOutcome }
+        guard case let .success(rawInitialResult) = initialOutcome.result else {
+            return CodexWeeklyResetPublicationAdmission(
+                outcome: initialOutcome,
+                pendingCandidate: pendingCandidate)
+        }
         let rawInitialSnapshot = rawInitialResult.usage.scoped(to: .codex)
+        var candidateForRetry = pendingCandidate.flatMap {
+            CodexWeeklyResetConfirmation.shouldRetainDelayedCandidate(
+                $0,
+                observedAt: rawInitialSnapshot.updatedAt) ? $0 : nil
+        }
         let publicationBaseline = [previousSnapshot, missingWindowBackfillSnapshot]
             .compactMap(\.self)
             .max { $0.updatedAt < $1.updatedAt }
@@ -32,58 +57,82 @@ extension UsageStore {
         }
 
         if CodexConsumerProjection.sourceRateWindow(for: .weekly, snapshot: rawInitialSnapshot) == nil {
-            guard rawInitialSnapshot.updatedAt.timeIntervalSinceReferenceDate.isFinite,
-                  previousSnapshot.map({
-                      $0.updatedAt.timeIntervalSinceReferenceDate.isFinite &&
-                          rawInitialSnapshot.updatedAt > $0.updatedAt
-                  }) ?? true,
-                  missingWindowBackfillSnapshot.map({
-                      $0.updatedAt.timeIntervalSinceReferenceDate.isFinite &&
-                          rawInitialSnapshot.updatedAt >= $0.updatedAt
-                  }) ?? true
-            else {
-                return nil
-            }
-            if CodexConsumerProjection.sourceRateWindow(for: .weekly, snapshot: publicationBaseline) != nil,
-               case let .success(publicationResult) = publicationInitialOutcome.result,
-               CodexConsumerProjection.sourceRateWindow(
-                   for: .weekly,
-                   snapshot: publicationResult.usage.scoped(to: .codex)) == nil
-            {
-                return nil
-            }
-            return publicationInitialOutcome
+            return Self.codexMissingWeeklyAdmission(input: CodexMissingWeeklyAdmissionInput(
+                rawInitialSnapshot: rawInitialSnapshot,
+                previousSnapshot: previousSnapshot,
+                publicationBaseline: publicationBaseline,
+                missingWindowBackfillSnapshot: missingWindowBackfillSnapshot,
+                publicationInitialOutcome: publicationInitialOutcome,
+                pendingCandidate: candidateForRetry))
         }
 
         let initialDecision = CodexWeeklyResetConfirmation.initialDecision(
             previous: publicationBaseline,
             initial: rawInitialSnapshot)
-        if initialDecision != .publishInitial {
+        Self.logCodexWeeklyResetInitialDecision(
+            initialDecision,
+            previousSnapshot: previousSnapshot,
+            missingWindowBackfillSnapshot: missingWindowBackfillSnapshot,
+            publicationBaseline: publicationBaseline,
+            initialSnapshot: rawInitialSnapshot)
+        switch initialDecision {
+        case .publishInitial:
+            return CodexWeeklyResetPublicationAdmission(
+                outcome: publicationInitialOutcome,
+                pendingCandidate: nil)
+        case .preservePrevious:
+            return CodexWeeklyResetPublicationAdmission(
+                outcome: nil,
+                pendingCandidate: Self.codexCandidateAfterPreservedInitial(
+                    candidateForRetry,
+                    previousSnapshot: previousSnapshot,
+                    initialSnapshot: rawInitialSnapshot,
+                    initialResult: rawInitialResult))
+        case .requiresConfirmation:
+            break
+        }
+
+        if let pendingCandidate = candidateForRetry {
+            let delayedDecision = CodexWeeklyResetConfirmation.delayedCandidateDecision(
+                previous: previousSnapshot,
+                candidate: pendingCandidate,
+                current: rawInitialSnapshot,
+                currentIsExactOAuth: Self.isExactCodexOAuthResult(rawInitialResult))
             Self.logCodexWeeklyResetPublicationDecision(
-                stage: "initial",
-                decision: String(describing: initialDecision),
+                stage: "delayedConfirmation",
+                decision: String(describing: delayedDecision),
                 trace: CodexWeeklyResetPublicationTrace(
                     previousSnapshot: previousSnapshot,
                     missingWindowBackfillSnapshot: missingWindowBackfillSnapshot,
                     publicationBaseline: publicationBaseline,
                     initialSnapshot: rawInitialSnapshot,
-                    confirmationSnapshot: nil))
-        }
-        switch initialDecision {
-        case .publishInitial:
-            return publicationInitialOutcome
-        case .preservePrevious:
-            return nil
-        case .requiresConfirmation:
-            break
+                    confirmationSnapshot: pendingCandidate.snapshot))
+            switch delayedDecision {
+            case .publishCurrent:
+                return CodexWeeklyResetPublicationAdmission(
+                    outcome: publicationInitialOutcome,
+                    pendingCandidate: nil)
+            case .retainCandidate:
+                return CodexWeeklyResetPublicationAdmission(
+                    outcome: nil,
+                    pendingCandidate: pendingCandidate)
+            case .discardCandidate:
+                candidateForRetry = nil
+            }
         }
 
-        guard !Task.isCancelled else { return nil }
+        guard !Task.isCancelled else {
+            return CodexWeeklyResetPublicationAdmission(
+                outcome: nil,
+                pendingCandidate: candidateForRetry)
+        }
         let confirmationOutcome = await fetchConfirmation()
         guard !Task.isCancelled,
               case let .success(confirmationResult) = confirmationOutcome.result
         else {
-            return nil
+            return CodexWeeklyResetPublicationAdmission(
+                outcome: nil,
+                pendingCandidate: candidateForRetry)
         }
         let confirmationSnapshot = confirmationResult.usage.scoped(to: .codex)
         let confirmationTrace = CodexWeeklyResetPublicationTrace(
@@ -99,7 +148,9 @@ extension UsageStore {
                 stage: "confirmation",
                 decision: "preservePreviousAccountMismatch",
                 trace: confirmationTrace)
-            return nil
+            return CodexWeeklyResetPublicationAdmission(
+                outcome: nil,
+                pendingCandidate: nil)
         }
         let confirmationDecision = CodexWeeklyResetConfirmation.confirmationDecision(
             previous: publicationBaseline,
@@ -113,14 +164,103 @@ extension UsageStore {
         switch confirmationDecision {
         case .publishConfirmation:
             if let missingWindowBackfillSnapshot {
-                return confirmationOutcome.replacingUsage(Self.codexBackfillingResetWindows(
-                    confirmationSnapshot,
-                    from: missingWindowBackfillSnapshot))
+                return CodexWeeklyResetPublicationAdmission(
+                    outcome: confirmationOutcome.replacingUsage(Self.codexBackfillingResetWindows(
+                        confirmationSnapshot,
+                        from: missingWindowBackfillSnapshot)),
+                    pendingCandidate: nil)
             }
-            return confirmationOutcome
+            return CodexWeeklyResetPublicationAdmission(
+                outcome: confirmationOutcome,
+                pendingCandidate: nil)
         case .preservePrevious:
-            return nil
+            let candidate = CodexWeeklyResetConfirmation.makeDelayedCandidate(
+                previous: previousSnapshot,
+                initial: rawInitialSnapshot,
+                confirmation: confirmationSnapshot,
+                sourceEvidence: .init(
+                    previousIsExactOAuth: previousSourceLabel?
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                        .lowercased() == "oauth",
+                    initialIsExactOAuth: Self.isExactCodexOAuthResult(rawInitialResult),
+                    confirmationIsExactOAuth: Self.isExactCodexOAuthResult(confirmationResult)))
+            return CodexWeeklyResetPublicationAdmission(
+                outcome: nil,
+                pendingCandidate: candidate)
         }
+    }
+
+    private nonisolated static func codexMissingWeeklyAdmission(
+        input: CodexMissingWeeklyAdmissionInput) -> CodexWeeklyResetPublicationAdmission
+    {
+        let rawInitialSnapshot = input.rawInitialSnapshot
+        guard rawInitialSnapshot.updatedAt.timeIntervalSinceReferenceDate.isFinite,
+              input.previousSnapshot.map({
+                  $0.updatedAt.timeIntervalSinceReferenceDate.isFinite &&
+                      rawInitialSnapshot.updatedAt > $0.updatedAt
+              }) ?? true,
+              input.missingWindowBackfillSnapshot.map({
+                  $0.updatedAt.timeIntervalSinceReferenceDate.isFinite &&
+                      rawInitialSnapshot.updatedAt >= $0.updatedAt
+              }) ?? true
+        else {
+            return CodexWeeklyResetPublicationAdmission(
+                outcome: nil,
+                pendingCandidate: input.pendingCandidate)
+        }
+        if CodexConsumerProjection.sourceRateWindow(for: .weekly, snapshot: input.publicationBaseline) != nil,
+           case let .success(publicationResult) = input.publicationInitialOutcome.result,
+           CodexConsumerProjection.sourceRateWindow(
+               for: .weekly,
+               snapshot: publicationResult.usage.scoped(to: .codex)) == nil
+        {
+            return CodexWeeklyResetPublicationAdmission(
+                outcome: nil,
+                pendingCandidate: input.pendingCandidate)
+        }
+        return CodexWeeklyResetPublicationAdmission(
+            outcome: input.publicationInitialOutcome,
+            pendingCandidate: nil)
+    }
+
+    private nonisolated static func codexCandidateAfterPreservedInitial(
+        _ candidate: CodexWeeklyResetPublicationCandidate?,
+        previousSnapshot: UsageSnapshot?,
+        initialSnapshot: UsageSnapshot,
+        initialResult: ProviderFetchResult) -> CodexWeeklyResetPublicationCandidate?
+    {
+        guard let candidate else { return nil }
+        let decision = CodexWeeklyResetConfirmation.delayedCandidateDecision(
+            previous: previousSnapshot,
+            candidate: candidate,
+            current: initialSnapshot,
+            currentIsExactOAuth: Self.isExactCodexOAuthResult(initialResult))
+        return decision == .discardCandidate ? nil : candidate
+    }
+
+    private nonisolated static func logCodexWeeklyResetInitialDecision(
+        _ decision: CodexWeeklyResetConfirmation.InitialDecision,
+        previousSnapshot: UsageSnapshot?,
+        missingWindowBackfillSnapshot: UsageSnapshot?,
+        publicationBaseline: UsageSnapshot?,
+        initialSnapshot: UsageSnapshot)
+    {
+        guard decision != .publishInitial else { return }
+        self.logCodexWeeklyResetPublicationDecision(
+            stage: "initial",
+            decision: String(describing: decision),
+            trace: CodexWeeklyResetPublicationTrace(
+                previousSnapshot: previousSnapshot,
+                missingWindowBackfillSnapshot: missingWindowBackfillSnapshot,
+                publicationBaseline: publicationBaseline,
+                initialSnapshot: initialSnapshot,
+                confirmationSnapshot: nil))
+    }
+
+    private nonisolated static func isExactCodexOAuthResult(_ result: ProviderFetchResult) -> Bool {
+        guard case .oauth = result.strategyKind else { return false }
+        return result.sourceLabel.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "oauth"
+            && result.usage.scoped(to: .codex).dataConfidence == .exact
     }
 
     private nonisolated static func logCodexWeeklyResetPublicationDecision(
