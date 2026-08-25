@@ -725,6 +725,22 @@ struct MenuBarLayoutTests {
     }
 
     @Test
+    func `opencode go exposes the monthly tertiary lane once a window exists`() {
+        #expect(MenuBarLayoutLane.available(for: .opencodego) == [.primary, .secondary])
+
+        let usageSnapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            tertiary: RateWindow(usedPercent: 100, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date())
+        #expect(MenuBarLayoutLane.available(for: .opencodego, snapshot: usageSnapshot) == [
+            .primary,
+            .secondary,
+            .tertiary,
+        ])
+    }
+
+    @Test
     func `scoped weekly window picks the most constrained active carve-out`() {
         let fable = NamedRateWindow(
             id: "claude-weekly-scoped-fable",

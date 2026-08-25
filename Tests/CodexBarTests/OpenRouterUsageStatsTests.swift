@@ -419,6 +419,32 @@ struct OpenRouterPluginGoldenTests {
         #expect(abs((model.costUSD ?? -1) - 12.345) < 1e-9)
     }
 
+    @Test(arguments: ["2026-08-23", "2026-08-23 00:00:00"])
+    func `activity accepts date and datetime rows and normalizes their UTC day`(activityDate: String) async throws {
+        let activityBody = #"""
+        {"data":[{
+          "date":"\#(activityDate)",
+          "model":"openai/gpt-5.6",
+          "endpoint_id":"endpoint-a",
+          "prompt_tokens":100,
+          "completion_tokens":50,
+          "reasoning_tokens":10,
+          "requests":2,
+          "usage":12.345
+        }]}
+        """#
+        let now = Date(timeIntervalSince1970: 1_787_598_000) // 2026-08-24T12:00:00Z; stable injected clock.
+
+        let usage = try await Self.fetch(activityBody: activityBody, now: now)
+        let cost = try #require(usage.costUsage)
+
+        #expect(cost.daily.count == 1)
+        #expect(cost.daily.first?.date == "2026-08-23")
+        #expect(cost.last30DaysTokens == 150)
+        #expect(cost.last30DaysRequests == 2)
+        #expect(abs((cost.last30DaysCostUSD ?? -1) - 12.345) < 1e-9)
+    }
+
     @Test
     func `activity spend includes BYOK estimate without double counting reasoning tokens`() async throws {
         let activityBody = #"""
@@ -535,6 +561,20 @@ struct OpenRouterPluginGoldenTests {
         #"""
         {"data":[{
           "date":"2026-02-31", "model":"openai/gpt-5.6",
+          "prompt_tokens":1, "completion_tokens":1, "reasoning_tokens":0,
+          "requests":1, "usage":1
+        }]}
+        """#,
+        #"""
+        {"data":[{
+          "date":"2026-02-31 00:00:00", "model":"openai/gpt-5.6",
+          "prompt_tokens":1, "completion_tokens":1, "reasoning_tokens":0,
+          "requests":1, "usage":1
+        }]}
+        """#,
+        #"""
+        {"data":[{
+          "date":"2026-08-17T00:00:00", "model":"openai/gpt-5.6",
           "prompt_tokens":1, "completion_tokens":1, "reasoning_tokens":0,
           "requests":1, "usage":1
         }]}

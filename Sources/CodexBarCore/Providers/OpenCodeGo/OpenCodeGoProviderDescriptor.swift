@@ -26,6 +26,9 @@ public enum OpenCodeGoProviderDescriptor {
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .opencodego,
+            menuBarMetrics: ProviderMenuBarMetricCapabilities(
+                supported: [.automatic, .primary, .secondary, .tertiary],
+                tertiaryRequiresWindow: true),
             settingsSection: .init(
                 OpenCodeGoProviderSettingsKey.self,
                 cookieSettings: { settings in

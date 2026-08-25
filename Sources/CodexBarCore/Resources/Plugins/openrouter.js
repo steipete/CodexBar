@@ -150,10 +150,11 @@ defineProvider({
             if (!row || typeof row !== "object" || Array.isArray(row)) {
               throw new TypeError(`activity.data[${index}] must be an object`);
             }
-            const date = typeof row.date === "string" ? row.date.trim() : "";
-            if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-              throw new TypeError(`activity.data[${index}].date must be YYYY-MM-DD`);
+            const rawDate = typeof row.date === "string" ? row.date.trim() : "";
+            if (!/^\d{4}-\d{2}-\d{2}(?: \d{2}:\d{2}:\d{2})?$/.test(rawDate)) {
+              throw new TypeError(`activity.data[${index}].date must be YYYY-MM-DD or YYYY-MM-DD HH:MM:SS`);
             }
+            const date = rawDate.slice(0, 10);
             const parsedDate = new Date(`${date}T00:00:00Z`);
             if (!Number.isFinite(parsedDate.getTime()) || parsedDate.toISOString().slice(0, 10) !== date) {
               throw new TypeError(`activity.data[${index}].date must be a real calendar date`);
