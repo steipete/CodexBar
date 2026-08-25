@@ -112,6 +112,24 @@ struct ProviderUsageItemVisibilityTests {
     }
 
     @Test
+    func `changing usage item visibility leaves the provider refresh revision untouched`() {
+        let settings = testSettingsStore(
+            suiteName: "ProviderUsageItemVisibilityTests-refresh-revision-\(UUID().uuidString)")
+        let provider = UsageProvider.codex
+        let before = settings.providerConfigRevision(for: provider)
+
+        settings.setUsageItemVisible(false, itemID: .metric("primary"), for: provider)
+
+        #expect(settings.hiddenUsageItemIDs(for: provider) == [.metric("primary")])
+        #expect(settings.providerConfigRevision(for: provider) == before)
+
+        settings.restoreDefaultUsageItemVisibility(for: provider)
+
+        #expect(settings.hiddenUsageItemIDs(for: provider).isEmpty)
+        #expect(settings.providerConfigRevision(for: provider) == before)
+    }
+
+    @Test
     func `legacy codex spark choice migrates and explicit defaults survive reload`() throws {
         let suite = "ProviderUsageItemVisibilityTests-migration-\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))

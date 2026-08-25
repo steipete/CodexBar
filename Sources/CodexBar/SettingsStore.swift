@@ -1070,6 +1070,7 @@ extension SettingsStore {
         // a cosmetic edit schedules no replacement fetch.
         var fetchRelevant = config
         fetchRelevant.accentColor = nil
+        fetchRelevant.hiddenUsageItemIDs = nil
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         return (try? encoder.encode(fetchRelevant)) ?? Data()
