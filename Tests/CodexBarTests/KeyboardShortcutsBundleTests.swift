@@ -48,4 +48,28 @@ struct KeyboardShortcutsBundleTests {
             #expect(recorder.placeholderString == "按下快捷键")
         }
     }
+
+    @Test func `localized prompts survive later recorder lifecycle writes`() async {
+        let recorder = KeyboardShortcuts.RecorderCocoa(for: .init("test.keyboardshortcuts.lifecycle"))
+        let coordinator = OpenMenuShortcutRecorder.Coordinator()
+
+        await CodexBarLocalizationOverride.$appLanguage.withValue("zh-Hans") {
+            coordinator.attach(to: recorder)
+
+            NotificationCenter.default.post(
+                name: NSControl.textDidBeginEditingNotification,
+                object: recorder)
+            recorder.placeholderString = "Dependency recording prompt"
+            await Task.yield()
+            #expect(recorder.placeholderString == "按下快捷键")
+
+            let notification = Notification(
+                name: NSControl.textDidEndEditingNotification,
+                object: recorder)
+            NotificationCenter.default.post(notification)
+            recorder.controlTextDidEndEditing(notification)
+            await Task.yield()
+            #expect(recorder.placeholderString == "设置快捷键")
+        }
+    }
 }

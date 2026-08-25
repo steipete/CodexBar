@@ -109,6 +109,7 @@ struct OpenMenuShortcutRecorder: NSViewRepresentable {
     @MainActor
     final class Coordinator: NSObject {
         private weak var recorder: KeyboardShortcuts.RecorderCocoa?
+        private var placeholderUpdateTask: Task<Void, Never>?
 
         override init() {
             super.init()
@@ -145,7 +146,14 @@ struct OpenMenuShortcutRecorder: NSViewRepresentable {
         }
 
         private func updatePlaceholder(isRecording: Bool) {
-            self.recorder?.placeholderString = L(isRecording ? "press_shortcut" : "record_shortcut")
+            guard let recorder = self.recorder else { return }
+            let placeholder = L(isRecording ? "press_shortcut" : "record_shortcut")
+            recorder.placeholderString = placeholder
+            self.placeholderUpdateTask?.cancel()
+            self.placeholderUpdateTask = Task { @MainActor [weak self, weak recorder] in
+                guard !Task.isCancelled, let self, let recorder, self.recorder === recorder else { return }
+                recorder.placeholderString = placeholder
+            }
         }
     }
 }
