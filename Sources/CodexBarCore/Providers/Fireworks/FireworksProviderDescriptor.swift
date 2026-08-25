@@ -46,6 +46,14 @@ public enum FireworksProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Fireworks spend comes from the billing summary API; cost history is not tracked." }),
+            presentation: ProviderUsagePresentation(costPresenter: { snapshot in
+                // Fireworks exposes rated spend, but not a spend-limit window. Render the
+                // zero-limit cost as API spend instead of dropping it as an unbounded budget.
+                let style: ProviderCostMenuCardStyle = (snapshot.providerCost?.limit ?? 1) <= 0
+                    ? .apiSpend
+                    : .generic
+                return ProviderCostPresentation(menuCardStyle: style)
+            }),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .api],
                 pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [FireworksAPIFetchStrategy()] })),
