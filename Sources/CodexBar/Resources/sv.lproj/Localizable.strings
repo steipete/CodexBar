@@ -654,6 +654,8 @@
 "section_keyboard_shortcut" = "Kortkommando";
 "open_menu_shortcut_title" = "Öppna meny";
 "open_menu_shortcut_subtitle" = "Öppna menyradsmenyn var du än är.";
+"record_shortcut" = "Spela in kortkommando";
+"press_shortcut" = "Tryck på kortkommandot";
 "install_cli" = "Installera CLI";
 "install_cli_subtitle" = "Symlänka CodexBarCLI till /usr/local/bin och /opt/homebrew/bin som codexbar.";
 "cli_not_found" = "CodexBarCLI hittades inte i apppaketet.";

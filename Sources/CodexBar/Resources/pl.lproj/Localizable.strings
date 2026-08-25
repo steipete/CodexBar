@@ -663,6 +663,8 @@
 "section_keyboard_shortcut" = "Skrót klawiaturowy";
 "open_menu_shortcut_title" = "Skrót otwierania menu";
 "open_menu_shortcut_subtitle" = "Skrót klawiaturowy do otwierania menu CodexBar.";
+"record_shortcut" = "Nagraj skrót";
+"press_shortcut" = "Naciśnij skrót";
 "install_cli" = "Zainstaluj CLI";
 "install_cli_subtitle" = "Utwórz dowiązanie symboliczne CodexBarCLI do /usr/local/bin i /opt/homebrew/bin jako codexbar.";
 "cli_not_found" = "Nie znaleziono CodexBarCLI w pakiecie aplikacji.";

@@ -643,6 +643,8 @@
 "section_keyboard_shortcut" = "키보드 단축키";
 "open_menu_shortcut_title" = "메뉴 열기";
 "open_menu_shortcut_subtitle" = "어디서나 메뉴 막대 메뉴를 실행합니다.";
+"record_shortcut" = "단축키 등록";
+"press_shortcut" = "단축키 입력";
 "install_cli" = "CLI 설치";
 "install_cli_subtitle" = "CodexBarCLI를 codexbar로 /usr/local/bin 및 /opt/homebrew/bin에 심볼릭 링크합니다.";
 "cli_not_found" = "앱 번들에서 CodexBarCLI를 찾을 수 없습니다.";

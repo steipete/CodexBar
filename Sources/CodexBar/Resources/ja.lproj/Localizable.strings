@@ -652,6 +652,8 @@
 "section_keyboard_shortcut" = "キーボードショートカット";
 "open_menu_shortcut_title" = "メニューを開く";
 "open_menu_shortcut_subtitle" = "どこからでもメニューバーのメニューを開きます。";
+"record_shortcut" = "キーを記録";
+"press_shortcut" = "キーを押してください";
 "install_cli" = "CLI をインストール";
 "install_cli_subtitle" = "CodexBarCLI を codexbar として /usr/local/bin と /opt/homebrew/bin にシンボリックリンクします。";
 "cli_not_found" = "アプリバンドル内に CodexBarCLI が見つかりません。";

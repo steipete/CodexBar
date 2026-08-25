@@ -647,6 +647,8 @@
 "section_keyboard_shortcut" = "Atajo de teclado";
 "open_menu_shortcut_title" = "Abrir menú";
 "open_menu_shortcut_subtitle" = "Abrir el menú de la barra de menús desde cualquier lugar.";
+"record_shortcut" = "Grabar atajo";
+"press_shortcut" = "Pulsar atajo";
 "install_cli" = "Instalar CLI";
 "install_cli_subtitle" = "Crear un enlace simbólico de CodexBarCLI en /usr/local/bin y /opt/homebrew/bin como codexbar.";
 "cli_not_found" = "No se encontró CodexBarCLI en el paquete de la app.";

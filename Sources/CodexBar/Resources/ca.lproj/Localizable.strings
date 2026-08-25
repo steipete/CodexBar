@@ -639,6 +639,8 @@
 "section_keyboard_shortcut" = "Drecera de teclat";
 "open_menu_shortcut_title" = "Obriu el menú";
 "open_menu_shortcut_subtitle" = "Obriu el menú de la barra de menús des de qualsevol lloc.";
+"record_shortcut" = "Enregistra la drecera";
+"press_shortcut" = "Premeu la drecera";
 "install_cli" = "Instal·la la CLI";
 "install_cli_subtitle" = "Creeu un enllaç simbòlic de CodexBarCLI a /usr/local/bin i /opt/homebrew/bin com a codexbar.";
 "cli_not_found" = "No s'ha trobat CodexBarCLI al paquet de l'app.";

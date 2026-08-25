@@ -652,6 +652,8 @@
 "section_keyboard_shortcut" = "快速鍵";
 "open_menu_shortcut_title" = "開啟選單";
 "open_menu_shortcut_subtitle" = "從任意位置觸發選單列選單。";
+"record_shortcut" = "設定快速鍵";
+"press_shortcut" = "按下快速鍵";
 "install_cli" = "安裝 CLI";
 "install_cli_subtitle" = "將 CodexBarCLI 作為 codexbar 符號連結到 /usr/local/bin 和 /opt/homebrew/bin。";
 "cli_not_found" = "在 App 套件中找不到 CodexBarCLI。";

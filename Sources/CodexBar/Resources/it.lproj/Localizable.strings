@@ -663,6 +663,8 @@
 "section_keyboard_shortcut" = "Scorciatoia tastiera";
 "open_menu_shortcut_title" = "Apri menu";
 "open_menu_shortcut_subtitle" = "Attiva il menu della barra da qualsiasi punto.";
+"record_shortcut" = "Registra scorciatoia";
+"press_shortcut" = "Premi scorciatoia";
 "install_cli" = "Installa CLI";
 "install_cli_subtitle" = "Crea il symlink di CodexBarCLI in /usr/local/bin e /opt/homebrew/bin come codexbar.";
 "cli_not_found" = "CodexBarCLI non trovato nel bundle dell'app.";

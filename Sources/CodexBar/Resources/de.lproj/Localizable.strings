@@ -653,6 +653,8 @@
 "section_keyboard_shortcut" = "Tastenkombination";
 "open_menu_shortcut_title" = "Menü öffnen";
 "open_menu_shortcut_subtitle" = "Lösen Sie das Menü der Menüleiste von überall aus aus.";
+"record_shortcut" = "Kurzbefehl aufnehmen";
+"press_shortcut" = "Kurzbefehl wählen…";
 "install_cli" = "CLI installieren";
 "install_cli_subtitle" = "Verknüpfen Sie CodexBarCLI mit /usr/local/bin und /opt/homebrew/bin als Codexbar.";
 "cli_not_found" = "CodexBarCLI wurde im App-Bundle nicht gefunden.";

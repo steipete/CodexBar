@@ -651,6 +651,8 @@
 "section_keyboard_shortcut" = "Phím tắt";
 "open_menu_shortcut_title" = "Mở menu";
 "open_menu_shortcut_subtitle" = "Kích hoạt menu thanh menu từ mọi nơi.";
+"record_shortcut" = "Ghi phím tắt";
+"press_shortcut" = "Nhấn phím tắt";
 "install_cli" = "Cài đặt CLI";
 "install_cli_subtitle" = "Liên kết tượng trưng CodexBarCLI tới /usr/local/bin và /opt/homebrew/bin dưới dạng codexbar.";
 "cli_not_found" = "Không tìm thấy CodexBarCLI trong gói ứng dụng.";

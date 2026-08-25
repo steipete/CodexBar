@@ -628,6 +628,8 @@
 "section_keyboard_shortcut" = "快捷键";
 "open_menu_shortcut_title" = "打开菜单";
 "open_menu_shortcut_subtitle" = "从任意位置触发菜单栏菜单。";
+"record_shortcut" = "设置快捷键";
+"press_shortcut" = "按下快捷键";
 "install_cli" = "安装 CLI";
 "install_cli_subtitle" = "将 CodexBarCLI 作为 codexbar 符号链接到 /usr/local/bin 和 /opt/homebrew/bin。";
 "cli_not_found" = "在应用包中未找到 CodexBarCLI。";

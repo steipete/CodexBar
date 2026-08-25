@@ -656,6 +656,8 @@
 "section_keyboard_shortcut" = "Сочетание клавиш";
 "open_menu_shortcut_title" = "Открыть меню";
 "open_menu_shortcut_subtitle" = "Вызывать меню строки меню из любого места.";
+"record_shortcut" = "Добавить";
+"press_shortcut" = "Запись…";
 "install_cli" = "Установить CLI";
 "install_cli_subtitle" = "Создать symlink CodexBarCLI как codexbar в /usr/local/bin и /opt/homebrew/bin.";
 "cli_not_found" = "CodexBarCLI не найден в комплекте приложения.";

@@ -661,6 +661,8 @@
 "section_keyboard_shortcut" = "میانبر کیبورد";
 "open_menu_shortcut_title" = "منوی باز";
 "open_menu_shortcut_subtitle" = "منوی نوار منو را از هر جایی فعال کنید.";
+"record_shortcut" = "ثبت میانبر";
+"press_shortcut" = "میانبر را فشار دهید";
 "install_cli" = "نصب CLI";
 "install_cli_subtitle" = "Symlink CodexBarCLI به /usr/local/bin و /opt/homebrew/bin به عنوان codexbar.";
 "cli_not_found" = "CodexBarCLI در بسته برنامه ها یافت نمی شود.";

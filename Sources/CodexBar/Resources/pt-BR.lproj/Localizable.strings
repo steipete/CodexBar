@@ -652,6 +652,8 @@
 "section_keyboard_shortcut" = "Atalho de teclado";
 "open_menu_shortcut_title" = "Abrir menu";
 "open_menu_shortcut_subtitle" = "Aciona o menu da barra de menus de qualquer lugar.";
+"record_shortcut" = "Gravar Atalho";
+"press_shortcut" = "Digite o Atalho";
 "install_cli" = "Instalar CLI";
 "install_cli_subtitle" = "Cria symlink de CodexBarCLI em /usr/local/bin e /opt/homebrew/bin como codexbar.";
 "cli_not_found" = "CodexBarCLI não encontrado no pacote do app.";

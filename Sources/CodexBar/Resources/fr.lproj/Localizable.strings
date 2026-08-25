@@ -655,6 +655,8 @@
 "section_keyboard_shortcut" = "Raccourci clavier";
 "open_menu_shortcut_title" = "Ouvrir le menu";
 "open_menu_shortcut_subtitle" = "Déclenchez le menu de la barre de menus depuis n'importe où.";
+"record_shortcut" = "Enregistrer le raccourci";
+"press_shortcut" = "Saisir un raccourci";
 "install_cli" = "Installer la CLI";
 "install_cli_subtitle" = "Lien symbolique CodexBarCLI vers /usr/local/bin et /opt/homebrew/bin en tant que codexbar.";
 "cli_not_found" = "CodexBarCLI introuvable dans l'ensemble d'applications.";

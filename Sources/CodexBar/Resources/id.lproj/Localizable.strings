@@ -663,6 +663,8 @@
 "section_keyboard_shortcut" = "Pintasan keyboard";
 "open_menu_shortcut_title" = "Buka menu";
 "open_menu_shortcut_subtitle" = "Picu menu bar dari mana saja.";
+"record_shortcut" = "Rekam pintasan";
+"press_shortcut" = "Tekan pintasan";
 "install_cli" = "Pasang CLI";
 "install_cli_subtitle" = "Symlink CodexBarCLI ke /usr/local/bin dan /opt/homebrew/bin sebagai codexbar.";
 "cli_not_found" = "CodexBarCLI tidak ditemukan di bundel aplikasi.";
