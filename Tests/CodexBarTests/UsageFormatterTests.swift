@@ -523,6 +523,12 @@ struct UsageFormatterTests {
         #expect(explicitCZK.contains("CZK"))
         #expect(explicitCZK.contains("."))
 
+        let aedRate = exchange.rate(for: "AED") ?? 3.67
+        #expect(abs((exchange.convert(usdAmount: 10.0, to: "AED") ?? 0) - 10.0 * aedRate) < epsilon)
+        let explicitAED = UsageFormatter.convertedCostString(10.0, preferredCurrency: "AED", providerCurrency: "USD")
+        #expect(explicitAED.contains("AED"))
+        #expect(explicitAED.contains("."))
+
         // CHF is supported: conversion through the USD pivot works both ways.
         let chfRate = exchange.rate(for: "CHF") ?? 0.80
         #expect(abs((exchange.convert(usdAmount: 10.0, to: "CHF") ?? 0) - 10.0 * chfRate) < epsilon)
@@ -550,6 +556,7 @@ struct UsageFormatterTests {
         #expect(CurrencyExchange.requiresLiveRates(preferredCurrencyCode: " eur "))
         #expect(CurrencyExchange.requiresLiveRates(preferredCurrencyCode: "KRW"))
         #expect(CurrencyExchange.requiresLiveRates(preferredCurrencyCode: "CZK"))
+        #expect(CurrencyExchange.requiresLiveRates(preferredCurrencyCode: "AED"))
     }
 
     @Test
