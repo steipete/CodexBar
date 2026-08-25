@@ -2,6 +2,9 @@
 
 ## 0.55.1 — Unreleased
 
+### Fixed
+- OpenRouter: accept the Activity API's space-separated timestamps when aggregating 30-day spend (#3174).
+
 ## 0.55.0 — 2026-08-24
 
 ### Highlights

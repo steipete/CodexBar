@@ -219,6 +219,52 @@ struct OpenRouterPluginGoldenTests {
     }
 
     @Test
+    func `activity accepts space separated timestamp dates`() async throws {
+        let activityBody = #"""
+        {"data":[{
+          "date":"2026-08-17 00:00:00",
+          "model_permaslug":"openai/gpt-5.6",
+          "prompt_tokens":10,
+          "completion_tokens":5,
+          "reasoning_tokens":2,
+          "requests":1,
+          "usage":1
+        }]}
+        """#
+
+        let usage = try await Self.fetch(activityBody: activityBody)
+        let cost = try #require(usage.costUsage)
+
+        #expect(cost.last30DaysCostUSD == 1)
+        #expect(cost.daily.map(\.date) == ["2026-08-17"])
+    }
+
+    @Test
+    func `activity deduplicates bare and timestamp dates`() async throws {
+        let activityBody = #"""
+        {"data":[
+          {
+            "date":"2026-08-17", "model":"openai/gpt-5.6", "endpoint_id":"same",
+            "prompt_tokens":10, "completion_tokens":5, "reasoning_tokens":2,
+            "requests":1, "usage":1
+          },
+          {
+            "date":"2026-08-17 00:00:00", "model":"openai/gpt-5.6", "endpoint_id":"same",
+            "prompt_tokens":10, "completion_tokens":5, "reasoning_tokens":2,
+            "requests":1, "usage":1
+          }
+        ]}
+        """#
+
+        let usage = try await Self.fetch(activityBody: activityBody)
+        let cost = try #require(usage.costUsage)
+
+        #expect(cost.last30DaysCostUSD == 1)
+        #expect(cost.daily.map(\.date) == ["2026-08-17"])
+        #expect(cost.daily.first?.requestCount == 1)
+    }
+
+    @Test
     func `server remaining drives monthly quota golden`() async throws {
         let usage = try await Self.fetch(keyBody: #"""
         {"data":{
@@ -535,6 +581,20 @@ struct OpenRouterPluginGoldenTests {
         #"""
         {"data":[{
           "date":"2026-02-31", "model":"openai/gpt-5.6",
+          "prompt_tokens":1, "completion_tokens":1, "reasoning_tokens":0,
+          "requests":1, "usage":1
+        }]}
+        """#,
+        #"""
+        {"data":[{
+          "date":"2026-02-31 00:00:00", "model":"openai/gpt-5.6",
+          "prompt_tokens":1, "completion_tokens":1, "reasoning_tokens":0,
+          "requests":1, "usage":1
+        }]}
+        """#,
+        #"""
+        {"data":[{
+          "date":"2026-08-17 24:00:00", "model":"openai/gpt-5.6",
           "prompt_tokens":1, "completion_tokens":1, "reasoning_tokens":0,
           "requests":1, "usage":1
         }]}
