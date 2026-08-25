@@ -2,6 +2,22 @@ import CodexBarCore
 import Foundation
 
 extension UsageStore {
+    func scheduleSupplementalUsageUpdates(
+        provider: UsageProvider,
+        results: [TokenAccountFetchResult],
+        selectedAccountID: UUID,
+        generation: UInt64?)
+    {
+        for result in results where result.account.id != selectedAccountID {
+            guard case let .success(fetchResult) = result.outcome.result else { continue }
+            self.scheduleSupplementalUsageUpdate(
+                provider: provider,
+                result: fetchResult,
+                generation: generation,
+                accountID: result.account.id)
+        }
+    }
+
     func scheduleSupplementalUsageUpdate(
         provider: UsageProvider,
         result: ProviderFetchResult,
@@ -30,27 +46,37 @@ extension UsageStore {
         expectedUpdatedAt: Date,
         accountID: UUID?)
     {
-        guard provider == .grok,
-              let current = self.snapshots[provider.instanceID],
-              current.updatedAt == expectedUpdatedAt
-        else { return }
+        guard provider == .grok else { return }
 
         let resetCredits: GrokRateLimitResetCreditsSnapshot? = switch update {
         case let .grokResetCredits(snapshot): snapshot
         }
-        let updated = current.withGrokResetCredits(resetCredits)
-        self.snapshots[provider.instanceID] = updated
-        if self.lastKnownResetSnapshots[provider.instanceID]?.updatedAt == expectedUpdatedAt {
-            self.lastKnownResetSnapshots[provider.instanceID] = updated
+        if let accountID,
+           let account = self.uniqueTokenAccount(provider: provider, accountID: accountID),
+           let accountSnapshot = self.accountSnapshots[provider.instanceID]?.first(where: {
+               $0.account.id == accountID && $0.snapshot?.updatedAt == expectedUpdatedAt
+           }),
+           let currentAccountUsage = accountSnapshot.snapshot
+        {
+            self.cacheTokenAccountSnapshot(
+                provider: provider,
+                account: account,
+                snapshot: currentAccountUsage.withGrokResetCredits(resetCredits),
+                sourceLabel: accountSnapshot.sourceLabel)
         }
 
-        guard let accountID,
-              let account = self.uniqueTokenAccount(provider: provider, accountID: accountID)
-        else { return }
-        self.cacheTokenAccountSnapshot(
-            provider: provider,
-            account: account,
-            snapshot: updated,
-            sourceLabel: self.lastSourceLabels[provider.instanceID])
+        let updatesLiveSnapshot = accountID.map {
+            self.settings.effectiveSelectedTokenAccount(for: provider)?.id == $0
+        } ?? true
+        if updatesLiveSnapshot,
+           let current = self.snapshots[provider.instanceID],
+           current.updatedAt == expectedUpdatedAt
+        {
+            let updated = current.withGrokResetCredits(resetCredits)
+            self.snapshots[provider.instanceID] = updated
+            if self.lastKnownResetSnapshots[provider.instanceID]?.updatedAt == expectedUpdatedAt {
+                self.lastKnownResetSnapshots[provider.instanceID] = updated
+            }
+        }
     }
 }

@@ -249,7 +249,14 @@ public struct UsageSnapshot: Codable, Sendable {
     }
 
     public func withGrokResetCredits(_ resetCredits: GrokRateLimitResetCreditsSnapshot?) -> UsageSnapshot {
-        self.replacing(grokResetCredits: .value(resetCredits))
+        let details = self.details.compactMap { section -> ProviderDetailSection? in
+            let rows = section.rows.filter { $0.label != GrokRateLimitResetCreditsSnapshot.detailLabel }
+            guard !rows.isEmpty || section.chart != nil else { return nil }
+            return .makeSection(title: section.title, rows: rows, chart: section.chart)
+        }
+        return self.replacing(
+            details: .value(details),
+            grokResetCredits: .value(resetCredits))
     }
 
     public func withSubscriptionMetadata(expiresAt: Date?, renewsAt: Date?) -> UsageSnapshot {

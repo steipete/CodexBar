@@ -220,6 +220,96 @@ struct GrokRemainingResetsFetcherTests {
     }
 
     @Test
+    func `replacement lookup joins the in flight refresh`() async throws {
+        GrokRemainingResetsFetcher.resetCacheForTesting()
+        defer { GrokRemainingResetsFetcher.resetCacheForTesting() }
+        let now = Date(timeIntervalSince1970: 1_787_647_576)
+        let expiresAt = now.addingTimeInterval(86400)
+        let token = GrokRemainingReset(tokenID: "restok_sample", grantedAt: nil, expiresAt: expiresAt)
+        let gate = RemainingResetsRefreshGate()
+        let refresh: GrokRemainingResetsFetcher.Refresh = { _, _, _ in
+            await gate.waitForRefresh()
+            return [token]
+        }
+
+        let first = GrokRemainingResetsFetcher.cachedLookupAndRefresh(
+            credentials: Self.credentials,
+            cookieHeader: nil,
+            now: now,
+            refresh: refresh)
+        let replacement = GrokRemainingResetsFetcher.cachedLookupAndRefresh(
+            credentials: Self.credentials,
+            cookieHeader: nil,
+            now: now.addingTimeInterval(1),
+            refresh: refresh)
+
+        #expect(first.tokens.isEmpty)
+        #expect(replacement.tokens.isEmpty)
+        let firstTask = try #require(first.snapshotTask)
+        let replacementTask = try #require(replacement.snapshotTask)
+
+        await gate.resume()
+        let firstSnapshot = try #require(await firstTask.value)
+        let replacementSnapshot = try #require(await replacementTask.value)
+
+        #expect(await gate.refreshCount == 1)
+        #expect(firstSnapshot.expirations == [expiresAt])
+        #expect(replacementSnapshot.expirations == [expiresAt])
+    }
+
+    @Test
+    func `non-200 refresh retains cached reset inventory`() async throws {
+        GrokRemainingResetsFetcher.resetCacheForTesting()
+        defer {
+            GrokRemainingResetsFetcher.resetCacheForTesting()
+            GrokRemainingResetsStubURLProtocol.reset()
+        }
+        let now = Date(timeIntervalSince1970: 1_787_647_576)
+        let expiresAt = now.addingTimeInterval(86400)
+        let token = GrokRemainingReset(tokenID: "restok_sample", grantedAt: nil, expiresAt: expiresAt)
+        let seeded = GrokRemainingResetsFetcher.cachedLookupAndRefresh(
+            credentials: Self.credentials,
+            cookieHeader: nil,
+            now: now,
+            refresh: { _, _, _ in [token] })
+        _ = await seeded.snapshotTask?.value
+
+        let session = Self.makeSession()
+        let endpoint = try #require(URL(string: "https://grok.test/remaining-resets"))
+        GrokRemainingResetsStubURLProtocol.reset()
+        GrokRemainingResetsStubURLProtocol.handler = { request in
+            try Self.response(for: request, body: Data("rate limited".utf8), statusCode: 429)
+        }
+        let failed = GrokRemainingResetsFetcher.cachedLookupAndRefresh(
+            credentials: Self.credentials,
+            cookieHeader: nil,
+            now: now.addingTimeInterval(61),
+            refresh: { credentials, cookieHeader, refreshNow in
+                await GrokRemainingResetsFetcher.fetchResult(
+                    credentials: credentials,
+                    cookieHeader: cookieHeader,
+                    now: refreshNow,
+                    session: session,
+                    endpoint: endpoint)
+            })
+
+        #expect(failed.tokens == [token])
+        let retainedSnapshot = try #require(await failed.snapshotTask?.value)
+        #expect(retainedSnapshot.expirations == [expiresAt])
+
+        let retained = GrokRemainingResetsFetcher.cachedLookupAndRefresh(
+            credentials: Self.credentials,
+            cookieHeader: nil,
+            now: now.addingTimeInterval(62),
+            refresh: { _, _, _ in
+                Issue.record("Fresh retained inventory should not start another request")
+                return []
+            })
+        #expect(retained.tokens == [token])
+        #expect(retained.snapshotTask == nil)
+    }
+
+    @Test
     func `CLI coupon lookup uses the credential captured in its snapshot`() {
         let now = Date(timeIntervalSince1970: 1_787_647_576)
         let snapshot = GrokUsageSnapshot(
@@ -306,14 +396,38 @@ struct GrokRemainingResetsFetcherTests {
         return URLSession(configuration: configuration)
     }
 
-    private static func response(for request: URLRequest, body: Data) throws -> (HTTPURLResponse, Data) {
+    private static func response(
+        for request: URLRequest,
+        body: Data,
+        statusCode: Int = 200) throws -> (HTTPURLResponse, Data)
+    {
         let url = try #require(request.url)
         let response = HTTPURLResponse(
             url: url,
-            statusCode: 200,
+            statusCode: statusCode,
             httpVersion: "HTTP/1.1",
             headerFields: ["Content-Type": "application/grpc-web+proto"])!
         return (response, body)
+    }
+}
+
+private actor RemainingResetsRefreshGate {
+    private(set) var refreshCount = 0
+    private var continuation: CheckedContinuation<Void, Never>?
+    private var isOpen = false
+
+    func waitForRefresh() async {
+        self.refreshCount += 1
+        guard !self.isOpen else { return }
+        await withCheckedContinuation { continuation in
+            self.continuation = continuation
+        }
+    }
+
+    func resume() {
+        self.isOpen = true
+        self.continuation?.resume()
+        self.continuation = nil
     }
 }
 

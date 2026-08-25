@@ -20,6 +20,8 @@ public struct GrokRemainingReset: Sendable, Equatable {
 /// Display-safe reset-credit inventory. Redemption token identifiers stay inside the
 /// short-lived fetch cache and never enter a UsageSnapshot or its persisted JSON.
 public struct GrokRateLimitResetCreditsSnapshot: Sendable, Equatable {
+    static let detailLabel = "Limit Reset Credits"
+
     public let expirations: [Date]
     public let updatedAt: Date
 
@@ -62,22 +64,30 @@ private final class GrokRemainingResetsCache: @unchecked Sendable {
 
     private let lock = NSLock()
     private var entries: [String: Entry] = [:]
-    private var inFlight: Set<String> = []
+    private var inFlight: [String: Task<GrokRateLimitResetCreditsSnapshot?, Never>] = [:]
 
-    func beginRefresh(key: String, now: Date, refreshInterval: TimeInterval) -> (
+    func lookup(
+        key: String,
+        now: Date,
+        refreshInterval: TimeInterval,
+        startRefresh: @Sendable ([GrokRemainingReset]) -> Task<GrokRateLimitResetCreditsSnapshot?, Never>) -> (
         tokens: [GrokRemainingReset],
-        shouldRefresh: Bool)
+        snapshotTask: Task<GrokRateLimitResetCreditsSnapshot?, Never>?)
     {
         self.lock.lock()
         defer { self.lock.unlock() }
 
         let entry = self.entries[key] ?? Entry(tokens: [], lastAttemptAt: nil)
-        let isFresh = entry.lastAttemptAt.map { now.timeIntervalSince($0) < refreshInterval } ?? false
-        guard !self.inFlight.contains(key), !isFresh else {
-            return (entry.tokens, false)
+        if let task = self.inFlight[key] {
+            return (entry.tokens, task)
         }
-        self.inFlight.insert(key)
-        return (entry.tokens, true)
+        let isFresh = entry.lastAttemptAt.map { now.timeIntervalSince($0) < refreshInterval } ?? false
+        guard !isFresh else {
+            return (entry.tokens, nil)
+        }
+        let task = startRefresh(entry.tokens)
+        self.inFlight[key] = task
+        return (entry.tokens, task)
     }
 
     func finishRefresh(key: String, tokens: [GrokRemainingReset]?, attemptedAt: Date) {
@@ -86,7 +96,7 @@ private final class GrokRemainingResetsCache: @unchecked Sendable {
 
         let retained = self.entries[key]?.tokens ?? []
         self.entries[key] = Entry(tokens: tokens ?? retained, lastAttemptAt: attemptedAt)
-        self.inFlight.remove(key)
+        self.inFlight.removeValue(forKey: key)
     }
 
     func reset() {
@@ -171,20 +181,18 @@ enum GrokRemainingResetsFetcher {
         guard let key = cacheKey(credentials: credentials, cookieHeader: cookieHeader) else {
             return .empty
         }
-        let state = Self.cache.beginRefresh(
+        let state = Self.cache.lookup(
             key: key,
             now: now,
-            refreshInterval: Self.cacheRefreshInterval)
-        guard state.shouldRefresh else {
-            return GrokRemainingResetsLookupResult(tokens: state.tokens, snapshotTask: nil)
-        }
-
-        let snapshotTask = Task {
-            let tokens = await refresh(credentials, cookieHeader, now)
-            Self.cache.finishRefresh(key: key, tokens: tokens, attemptedAt: now)
-            return Self.snapshot(tokens: tokens ?? state.tokens, now: now)
-        }
-        return GrokRemainingResetsLookupResult(tokens: state.tokens, snapshotTask: snapshotTask)
+            refreshInterval: Self.cacheRefreshInterval,
+            startRefresh: { retainedTokens in
+                Task {
+                    let tokens = await refresh(credentials, cookieHeader, now)
+                    Self.cache.finishRefresh(key: key, tokens: tokens, attemptedAt: now)
+                    return Self.snapshot(tokens: tokens ?? retainedTokens, now: now)
+                }
+            })
+        return GrokRemainingResetsLookupResult(tokens: state.tokens, snapshotTask: state.snapshotTask)
     }
 
     static func resetCacheForTesting() {
@@ -206,7 +214,7 @@ enum GrokRemainingResetsFetcher {
             endpoint: endpoint) ?? []
     }
 
-    private static func fetchResult(
+    static func fetchResult(
         credentials: GrokCredentials?,
         cookieHeader: String?,
         now: Date = .init(),
@@ -259,7 +267,7 @@ enum GrokRemainingResetsFetcher {
             .makeSection(
                 rows: [
                     .makeRow(
-                        label: "Limit Reset Credits",
+                        label: GrokRateLimitResetCreditsSnapshot.detailLabel,
                         value: value,
                         secondaryValue: "Expires \(UsageFormatter.resetDescription(from: next.expiresAt, now: now))"),
                 ]),
@@ -335,7 +343,8 @@ enum GrokRemainingResetsFetcher {
             throw GrokWebBillingError.invalidResponse
         }
         guard response.statusCode == 200 else {
-            return []
+            let body = String(data: response.data.prefix(400), encoding: .utf8) ?? ""
+            throw GrokWebBillingError.requestFailed(response.statusCode, body)
         }
         try GrokWebBillingFetcher.validateGRPCStatusFields(
             GrokWebBillingFetcher.grpcHeaderFields(from: response.response.allHeaderFields))
