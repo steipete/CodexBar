@@ -539,7 +539,7 @@
 "quota_warning_warning" = "Uyarı";
 "quota_warning_critical" = "Kritik";
 "apply" = "Uygula";
-"quit_app" = "CodexBar'dan çık";
+"quit_app" = "CodexBar'dan Çık";
 
 /* Tab titles */
 "tab_general" = "Genel";
