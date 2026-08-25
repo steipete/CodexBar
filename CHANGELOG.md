@@ -248,6 +248,7 @@
 - Grok: recover the usage bar from bearer billing when credits expose only a period, preserve the authoritative reset, and explain genuinely unavailable usage without switching accounts (#3181). Thanks @olddonkey!
 - Spend dashboard: finish the final local Codex history file promptly while the dashboard is visible, preserve explicit background and stop choices, and keep existing usage caches intact (#3114). Thanks @Yuxin-Qiao!
 - Fireworks: show real 30-day API billing spend even when local cost summaries are disabled (#3183, #3185). Thanks @dhalarewich!
+- Grok: show unused SuperGrok usage-limit reset coupons from grok.com's remaining-resets RPC instead of dropping them when weekly credits succeed.
 - OpenRouter: accept timestamp-shaped Activity API dates so exact 30-day spend history loads again (#3174).
 - Amp: parse bold Markdown usage labels from the latest CLI while preserving compatibility with older plain-text output (#3171).
 - OpenCode Go: expose a Monthly % lane token for custom menu bar layouts once the monthly window has been observed (#3175).

@@ -408,7 +408,8 @@ struct GrokWebBillingFetcherTests {
                         usedPercent: 0,
                         resetsAt: Date(timeIntervalSince1970: 1_800_000_003)),
                     "Chrome",
-                    false)
+                    false,
+                    nil)
             },
             settingsTier: { _ in
                 asked.setValue(true)
@@ -431,7 +432,8 @@ struct GrokWebBillingFetcherTests {
                         usedPercent: 0,
                         resetsAt: Date(timeIntervalSince1970: 1_800_000_003)),
                     "grok-cli-proxy",
-                    true)
+                    true,
+                    nil)
             },
             settingsTier: { _ in "SuperGrok Heavy" })
 
@@ -467,7 +469,8 @@ struct GrokWebBillingFetcherTests {
                         usedPercent: nil,
                         resetsAt: Date(timeIntervalSince1970: 1_800_000_003)),
                     "grok-cli-proxy",
-                    true)
+                    true,
+                    nil)
             },
             settingsTier: { _ in "SuperGrok Heavy" })
 
@@ -489,7 +492,8 @@ struct GrokWebBillingFetcherTests {
                         usedPercent: 18,
                         resetsAt: Date(timeIntervalSince1970: 1_800_000_003)),
                     "grok-cli-proxy",
-                    true)
+                    true,
+                    nil)
             },
             settingsTier: { _ in nil })
 

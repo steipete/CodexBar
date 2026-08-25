@@ -300,7 +300,7 @@ struct GrokCreditsProxyFetcherTests {
             },
             legacyBilling: {
                 events.append("legacy")
-                return (GrokWebBillingSnapshot(usedPercent: 99, resetsAt: nil), "legacy", false)
+                return (GrokWebBillingSnapshot(usedPercent: 99, resetsAt: nil), "legacy", false, nil)
             })
 
         #expect(events.values == ["proxy"])
@@ -325,7 +325,8 @@ struct GrokCreditsProxyFetcherTests {
                         usedPercent: 33,
                         resetsAt: Date(timeIntervalSince1970: 1_800_000_003)),
                     "Chrome",
-                    false)
+                    false,
+                    nil)
             })
 
         #expect(events.values == ["proxy", "legacy"])
@@ -345,7 +346,7 @@ struct GrokCreditsProxyFetcherTests {
             },
             legacyBilling: {
                 events.append("legacy")
-                return (GrokWebBillingSnapshot(usedPercent: 42, resetsAt: nil), "Chrome", false)
+                return (GrokWebBillingSnapshot(usedPercent: 42, resetsAt: nil), "Chrome", false, nil)
             })
 
         #expect(events.values == ["proxy", "legacy"])
@@ -367,7 +368,7 @@ struct GrokCreditsProxyFetcherTests {
                 },
                 legacyBilling: {
                     events.append("legacy")
-                    return (GrokWebBillingSnapshot(usedPercent: 42, resetsAt: nil), "Chrome", false)
+                    return (GrokWebBillingSnapshot(usedPercent: 42, resetsAt: nil), "Chrome", false, nil)
                 })
         } throws: { error in
             error is CancellationError
@@ -382,7 +383,7 @@ struct GrokCreditsProxyFetcherTests {
                 },
                 legacyBilling: {
                     events.append("legacy")
-                    return (GrokWebBillingSnapshot(usedPercent: 42, resetsAt: nil), "Chrome", false)
+                    return (GrokWebBillingSnapshot(usedPercent: 42, resetsAt: nil), "Chrome", false, nil)
                 })
         } throws: { error in
             (error as? URLError)?.code == .cancelled

@@ -527,6 +527,13 @@ extension UsageStore {
             provider: provider,
             outcome: outcome,
             context: context)
+        if case let .success(result) = outcome.result {
+            self.scheduleSupplementalUsageUpdate(
+                provider: provider,
+                result: result,
+                generation: context.generation,
+                accountID: context.tokenAccount?.id)
+        }
         return nil
     }
 

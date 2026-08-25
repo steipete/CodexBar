@@ -85,6 +85,14 @@ The grok.com billing gRPC-web endpoint remains a best-effort fallback.
      active billing period. A missing proxy value alone remains unknown. The retry
      also runs under a 6-second budget, because period-only payloads recur on every
      refresh and a grok.com outage must not delay the credits answer already in hand.
+   - Weekly credits do not include usage-limit reset coupons. After a successful
+     SuperGrok OAuth or CLI-proxy usage refresh, CodexBar POSTs an empty gRPC-web
+     request to `https://grok.com/prod_mc_billing.ConsumerUiSvc/GetRemainingResets`
+     with the same bearer. Available tokens (`token_id` + `validity_end`) render as
+     a `Limit Reset Credits` detail row. The credential-scoped lookup refreshes a
+     short-lived in-memory cache in the background, with a 2-second transport
+     budget, so it never delays already-fetched weekly usage. CodexBar does not
+     redeem or modify reset tokens.
    - Plan name does not come from the credits payload. After a successful
      auth-file or SuperGrok OAuth web billing result (CLI-proxy) or the team
      identity-only path, CodexBar GETs `https://cli-chat-proxy.grok.com/v1/settings`
@@ -209,6 +217,10 @@ The grok.com billing gRPC-web endpoint remains a best-effort fallback.
     when `resetsAt` matches a common cycle, falling back to the registered
     "Credits" label otherwise. Settings and history views continue to use
     "Credits" as the stable metric name.
+- **Usage-limit reset coupons**:
+  - From `GetRemainingResets`, not from `/v1/billing?format=credits`.
+  - Shown as a `Limit Reset Credits` detail row (`1 available`, next expiry).
+  - Best-effort: timeouts, 404s, and empty inventories leave weekly usage intact.
 - **Identity**:
   - `accountEmail` from credential `email`.
   - `accountOrganization` from credential `team_id`.
@@ -256,6 +268,7 @@ points to `https://status.x.ai`.
 - `Sources/CodexBarCore/Providers/Grok/GrokPlan.swift`
 - `Sources/CodexBarCore/Providers/Grok/GrokRPCClient.swift`
 - `Sources/CodexBarCore/Providers/Grok/GrokCreditsProxyFetcher.swift`
+- `Sources/CodexBarCore/Providers/Grok/GrokRemainingResetsFetcher.swift`
 - `Sources/CodexBarCore/Providers/Grok/GrokCLISettingsFetcher.swift`
 - `Sources/CodexBarCore/Providers/Grok/GrokWebBillingFetcher.swift`
 - `Sources/CodexBarCore/Providers/Grok/GrokStatusProbe.swift`
