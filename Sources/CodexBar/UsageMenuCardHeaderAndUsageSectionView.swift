@@ -14,6 +14,7 @@ struct UsageMenuCardHeaderAndUsageSectionView: View {
                 width: self.width)
             UsageMenuCardUsageSectionView(
                 model: self.model,
+                layoutModel: self.layoutModel,
                 showBottomDivider: false,
                 bottomPadding: self.bottomPadding,
                 width: self.width)

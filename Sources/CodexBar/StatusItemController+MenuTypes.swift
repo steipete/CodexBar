@@ -50,6 +50,7 @@ struct OverviewMenuCardRowView: View {
             if self.hasUsageBlock {
                 UsageMenuCardUsageSectionView(
                     model: self.model,
+                    layoutModel: self.model,
                     showBottomDivider: false,
                     bottomPadding: 6,
                     width: self.width,
