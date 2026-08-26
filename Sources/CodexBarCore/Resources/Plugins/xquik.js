@@ -14,6 +14,18 @@ defineProvider({
 
   async fetchUsage(ctx) {
     const response = await ctx.http.getJSON("https://xquik.com/api/v1/credits");
+    if (response.status === 401 || response.status === 403) {
+      throw ctx.fail.authenticationExpired("Xquik API key was rejected.");
+    }
+    if (response.status === 429) {
+      throw ctx.fail.rateLimited("Xquik credits API error: HTTP 429");
+    }
+    if (response.status >= 500) {
+      throw ctx.fail.providerUnavailable(`Xquik credits API error: HTTP ${response.status}`);
+    }
+    if (response.status !== 200) {
+      throw ctx.fail.apiFailure(`Xquik credits API error: HTTP ${response.status}`);
+    }
     const payload = response.json;
     if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
       throw ctx.fail.parseFailure("Xquik credits response must be an object");

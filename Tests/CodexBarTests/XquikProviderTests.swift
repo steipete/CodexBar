@@ -101,6 +101,38 @@ struct XquikProviderTests {
         #expect(snapshot.primary?.resetDescription == "50,000 credits available")
     }
 
+    @Test(arguments: [
+        (401, ProviderFetchClassifiedError.Kind.authenticationExpired),
+        (403, .authenticationExpired),
+        (402, .apiFailure),
+        (429, .rateLimited),
+        (503, .providerUnavailable),
+    ])
+    func `HTTP failures are classified before credits parsing`(
+        argument: (Int, ProviderFetchClassifiedError.Kind)) async throws
+    {
+        let (statusCode, expectedKind) = argument
+        let runtime = try ProviderPluginRuntime(
+            bundledPlugin: "xquik",
+            transport: ProviderHTTPTransportHandler { request in
+                try Self.response(request: request, body: #"{"error":"fixture"}"#, statusCode: statusCode)
+            })
+
+        do {
+            _ = try await runtime.fetchUsage(secrets: ["XQUIK_API_KEY": "fixture-key"])
+            Issue.record("Expected \(expectedKind.rawValue) failure")
+        } catch let error as ProviderFetchClassifiedError {
+            #expect(error.kind == expectedKind)
+            if statusCode == 401 || statusCode == 403 {
+                #expect(error.message == "Xquik API key was rejected.")
+            } else {
+                #expect(error.message == "Xquik credits API error: HTTP \(statusCode)")
+            }
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
     @Test
     func `descriptor and credential adapter expose the API integration`() {
         let descriptor = ProviderDescriptorRegistry.descriptor(for: .xquik)
@@ -135,11 +167,15 @@ struct XquikProviderTests {
         return try await runtime.fetchUsage(secrets: ["XQUIK_API_KEY": "fixture-key"])
     }
 
-    private static func response(request: URLRequest, body: String) throws -> (Data, URLResponse) {
+    private static func response(
+        request: URLRequest,
+        body: String,
+        statusCode: Int = 200) throws -> (Data, URLResponse)
+    {
         let url = try #require(request.url)
         let response = try #require(HTTPURLResponse(
             url: url,
-            statusCode: 200,
+            statusCode: statusCode,
             httpVersion: nil,
             headerFields: ["Content-Type": "application/json"]))
         return (Data(body.utf8), response)
