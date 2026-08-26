@@ -327,8 +327,8 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             autosaveName: identity.autosaveName,
             legacyDefaultItemIndex: legacyDefaultItemIndex)
         let item = statusBar.statusItem(withLength: NSStatusItem.variableLength)
-        onCreated?(item)
         item.autosaveName = identity.autosaveName
+        onCreated?(item)
         if let button = item.button {
             let title = self.statusItemAccessibilityTitle(
                 isDebugApp: self.isDebugApp(bundleIdentifier: Bundle.main.bundleIdentifier))

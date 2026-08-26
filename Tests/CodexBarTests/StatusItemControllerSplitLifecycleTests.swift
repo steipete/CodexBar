@@ -215,6 +215,22 @@ struct StatusItemControllerSplitLifecycleTests {
     }
 
     @Test
+    func `status item publishes stable manager identity before creation callback`() {
+        let settings = self.makeSettings()
+        let statusBar = self.makeStatusBarForTesting()
+        var callbackAutosaveName: String?
+        let item = StatusItemController.makeStatusItem(
+            statusBar: statusBar,
+            identity: .merged,
+            defaults: settings.userDefaults,
+            legacyDefaultItemIndex: nil,
+            onCreated: { callbackAutosaveName = $0.autosaveName })
+        defer { statusBar.removeStatusItem(item) }
+
+        #expect(callbackAutosaveName == "codexbar-merged")
+    }
+
+    @Test
     func `status item identity returns stable autosave names`() {
         #expect(StatusItemController.StatusItemIdentity.merged.autosaveName == "codexbar-merged")
         #expect(StatusItemController.StatusItemIdentity.provider(.codex).autosaveName == "codexbar-codex")
