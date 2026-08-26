@@ -249,14 +249,19 @@ public struct UsageSnapshot: Codable, Sendable {
     }
 
     public func withGrokResetCredits(_ resetCredits: GrokRateLimitResetCreditsSnapshot?) -> UsageSnapshot {
-        let details = self.details.compactMap { section -> ProviderDetailSection? in
+        self.replacing(
+            details: .value(Self.removingGrokResetCreditDetails(from: self.details)),
+            grokResetCredits: .value(resetCredits))
+    }
+
+    private static func removingGrokResetCreditDetails(
+        from details: [ProviderDetailSection]) -> [ProviderDetailSection]
+    {
+        details.compactMap { section -> ProviderDetailSection? in
             let rows = section.rows.filter { $0.label != GrokRateLimitResetCreditsSnapshot.detailLabel }
             guard !rows.isEmpty || section.chart != nil else { return nil }
             return .makeSection(title: section.title, rows: rows, chart: section.chart)
         }
-        return self.replacing(
-            details: .value(details),
-            grokResetCredits: .value(resetCredits))
     }
 
     public func withSubscriptionMetadata(expiresAt: Date?, renewsAt: Date?) -> UsageSnapshot {
@@ -287,8 +292,9 @@ public struct UsageSnapshot: Codable, Sendable {
         self.extraRateWindows = try container.decodeIfPresent([NamedRateWindow].self, forKey: .extraRateWindows)
         self.providerCost = try container.decodeIfPresent(ProviderCostSnapshot.self, forKey: .providerCost)
         self.costUsage = nil // Live-only provider history; refresh from the authoritative source.
-        self.details = try container.decodeIfPresent([ProviderDetailSection].self, forKey: .details) ?? []
-        try ProviderDetailSection.validateSections(self.details)
+        let details = try container.decodeIfPresent([ProviderDetailSection].self, forKey: .details) ?? []
+        try ProviderDetailSection.validateSections(details)
+        self.details = Self.removingGrokResetCreditDetails(from: details)
         self.deepseekDetailedUsageState = .notRequested // Live-only fetch state
         self.deepseekPlatformProfiles = [] // Live-only browser profile catalog
         self.opencodegoUsage = nil // Not persisted, fetched fresh each time
