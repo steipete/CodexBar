@@ -1071,9 +1071,7 @@ extension UsageMenuCardView.Model {
                 }
             }
         }
-        if input.provider == .grok,
-           !input.showOptionalCreditsAndExtraUsage || Self.limitResetCredits(input: input) != nil
-        {
+        if input.provider == .grok {
             details = details.compactMap { section in
                 let rows = section.rows.filter { $0.label != "Limit Reset Credits" }
                 guard !rows.isEmpty || section.chart != nil else { return nil }

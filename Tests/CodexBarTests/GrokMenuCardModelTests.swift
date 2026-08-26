@@ -155,6 +155,34 @@ struct GrokMenuCardModelTests {
     }
 
     @Test
+    func `expired live coupons do not fall back to cached coupon details`() throws {
+        let now = Date(timeIntervalSince1970: 1_787_647_576)
+        let details = try [
+            ProviderDetailSection(
+                rows: [
+                    ProviderDetailSection.Row(
+                        label: "Limit Reset Credits",
+                        value: "1 available",
+                        secondaryValue: "Expires Sep 12"),
+                ]),
+        ]
+        let model = try Self.model(
+            now: now,
+            window: RateWindow(
+                usedPercent: 29,
+                windowMinutes: nil,
+                resetsAt: now.addingTimeInterval(5 * 24 * 3600),
+                resetDescription: nil),
+            details: details,
+            resetCredits: GrokRateLimitResetCreditsSnapshot(
+                expirations: [now.addingTimeInterval(-1)],
+                updatedAt: now.addingTimeInterval(-3600)))
+
+        #expect(model.limitResetCredits == nil)
+        #expect(model.providerDetails.isEmpty)
+    }
+
+    @Test
     func `optional usage disabled hides cached coupon details`() throws {
         let now = Date(timeIntervalSince1970: 1_787_647_576)
         let details = try [

@@ -187,13 +187,11 @@ extension UsageMenuCardView.Model {
                 now: input.now)
         case .grok:
             guard input.showOptionalCreditsAndExtraUsage else { return nil }
-            if let resetCredits = input.snapshot?.grokResetCredits,
-               let presentation = LimitResetCreditsPresentation.make(
-                   snapshot: resetCredits,
-                   resetStyle: input.resetTimeDisplayStyle,
-                   now: input.now)
-            {
-                return presentation
+            if let resetCredits = input.snapshot?.grokResetCredits {
+                return LimitResetCreditsPresentation.make(
+                    snapshot: resetCredits,
+                    resetStyle: input.resetTimeDisplayStyle,
+                    now: input.now)
             }
             return LimitResetCreditsPresentation.make(details: input.snapshot?.details ?? [])
         default:
