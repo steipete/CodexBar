@@ -362,9 +362,11 @@ enum CostUsageScanner {
             self.turnID = turnID
             self.eventIndex = eventIndex
             self.timestampUnixMs = timestampUnixMs
-            self.input = input
-            self.cached = cached
-            self.output = output
+            self.input = max(0, input)
+            // Clamp cached to not exceed input (toks scale: clamped_cached = min(cached, input))
+            // prevents inflated totals when malformed JSONL reports more cached than input.
+            self.cached = min(max(0, cached), max(0, input))
+            self.output = max(0, output)
             self.reasoning = reasoning.map { min(max(0, $0), max(0, output)) }
             self.knownCostNanos = knownCostNanos
             self.unpricedTokens = unpricedTokens
