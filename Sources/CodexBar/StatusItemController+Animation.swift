@@ -913,6 +913,11 @@ extension StatusItemController {
         {
             return balance
         }
+        if provider == .aihubmix,
+           let balance = Self.aihubmixBalanceDisplayText(snapshot: snapshot)
+        {
+            return balance
+        }
         if provider == .mistral {
             let preference = self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot)
             let hasMonthlyPlan = snapshot?.extraRateWindows?.contains { $0.id == "mistral-monthly-plan" } == true
@@ -1056,6 +1061,30 @@ extension StatusItemController {
                     .first?
                     .trimmingCharacters(in: .whitespacesAndNewlines)
             }
+    }
+
+    nonisolated static func aihubmixBalanceDisplayText(snapshot: UsageSnapshot?) -> String? {
+        // Provider-specific by design: AIHubMix stores remaining prepaid USD in its login-method payload.
+        self.displayValue(
+            from: snapshot?.loginMethod(for: .aihubmix),
+            prefix: "Balance:",
+            removingSuffix: "")
+    }
+
+    nonisolated static func automaticLayoutText(
+        provider: UsageProvider,
+        snapshot: UsageSnapshot?,
+        hasAutomaticWindow: Bool) -> String?
+    {
+        guard !hasAutomaticWindow else { return nil }
+        switch provider {
+        case .mistral:
+            return self.mistralSpendDisplayText(snapshot: snapshot)
+        case .aihubmix:
+            return self.aihubmixBalanceDisplayText(snapshot: snapshot)
+        default:
+            return nil
+        }
     }
 
     nonisolated static func mistralSpendDisplayText(snapshot: UsageSnapshot?) -> String? {

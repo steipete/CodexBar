@@ -183,6 +183,7 @@ printf '%s' "$LITELLM_API_KEY" | codexbar config set-api-key --provider litellm 
 printf '%s' "$CLAWROUTER_API_KEY" | codexbar config set-api-key --provider clawrouter --stdin
 printf '%s' "$SUB2API_API_KEY" | codexbar config set-api-key --provider sub2api --stdin
 printf '%s' "$AIAND_API_KEY" | codexbar config set-api-key --provider aiand --stdin
+printf '%s' "$AIHUBMIX_ACCESS_KEY" | codexbar config set-api-key --provider aihubmix --stdin
 printf '%s' "$XAI_MANAGEMENT_API_KEY" | codexbar config set-api-key --provider xai --stdin
 ```
 

@@ -74,5 +74,6 @@ public enum ProviderManifest {
         XAIProviderDescriptor.descriptor,
         NotionProviderDescriptor.descriptor,
         IBMBobProviderDescriptor.descriptor,
+        AIHubMixProviderDescriptor.descriptor,
     ]
 }
