@@ -395,10 +395,19 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
                 isAPIKey: credentials.isAPIKey)
         }
 
-        let usage = try await CodexOAuthUsageFetcher.fetchUsage(
-            accessToken: credentials.accessToken,
-            accountId: credentials.accountId,
-            env: context.env)
+        let accessToken = credentials.accessToken
+        let accountId = credentials.accountId
+        let env = context.env
+        async let usageRequest = CodexOAuthUsageFetcher.fetchUsage(
+            accessToken: accessToken,
+            accountId: accountId,
+            env: env)
+        async let subscriptionRequest = CodexOAuthUsageFetcher.fetchSubscription(
+            accessToken: accessToken,
+            accountId: accountId,
+            env: env)
+        let usage = try await usageRequest
+        let subscription = await subscriptionRequest
         let resetCreditsAttempted = Self.shouldFetchResetCredits(context)
         let resetCredits = try await Self.fetchResetCreditsIfRequested(
             context: context,
@@ -408,6 +417,7 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
             usageResponse: usage,
             resetCredits: resetCredits,
             credentials: credentials,
+            subscription: subscription,
             updatedAt: updatedAt,
             allowEmptyUsageForResetCreditEnrichment: Self.defersResetCreditFetchToApp(context),
             codexResetCreditsAttempted: resetCreditsAttempted)
@@ -506,6 +516,7 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
         usageResponse: CodexUsageResponse,
         resetCredits: CodexRateLimitResetCreditsSnapshot? = nil,
         credentials: CodexOAuthCredentials,
+        subscription: OpenAISubscriptionDates? = nil,
         updatedAt: Date,
         allowEmptyUsageForResetCreditEnrichment: Bool = false,
         codexResetCreditsAttempted: Bool = false) throws -> ProviderFetchResult
@@ -514,6 +525,7 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
         let reconciled = CodexReconciledState.fromOAuth(
             response: usageResponse,
             credentials: credentials,
+            subscription: subscription,
             updatedAt: updatedAt)
 
         if let reconciled {

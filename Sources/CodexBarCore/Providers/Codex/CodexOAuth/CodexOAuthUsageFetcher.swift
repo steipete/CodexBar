@@ -392,6 +392,7 @@ public enum CodexOAuthUsageFetcher {
     private static let defaultChatGPTBaseURL = "https://chatgpt.com/backend-api/"
     private static let chatGPTUsagePath = "/wham/usage"
     private static let codexUsagePath = "/api/codex/usage"
+    private static let chatGPTSubscriptionsPath = "/subscriptions"
     private static let rateLimitResetCreditsPath = "/wham/rate-limit-reset-credits"
     private static let spendControlsMonthlyUsagePathSuffix = "/spend-controls/current-user/monthly-usage"
 
@@ -467,6 +468,65 @@ public enum CodexOAuthUsageFetcher {
             env: env,
             timeout: timeout,
             session: CodexAuthenticatedHTTPTransport.current)
+    }
+
+    public static func fetchSubscription(
+        accessToken: String,
+        accountId: String?,
+        env: [String: String] = ProcessInfo.processInfo.environment,
+        timeout: TimeInterval = 3) async -> OpenAISubscriptionDates?
+    {
+        await self.fetchSubscription(
+            accessToken: accessToken,
+            accountId: accountId,
+            env: env,
+            timeout: timeout,
+            session: CodexAuthenticatedHTTPTransport.current)
+    }
+
+    public static func fetchSubscription(
+        accessToken: String,
+        accountId: String?,
+        env: [String: String] = ProcessInfo.processInfo.environment,
+        timeout: TimeInterval = 3,
+        session transport: any ProviderHTTPTransport) async -> OpenAISubscriptionDates?
+    {
+        guard let accountId = accountId?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !accountId.isEmpty
+        else { return nil }
+
+        var request = URLRequest(
+            url: self.resolveSubscriptionsURL(env: env, accountId: accountId),
+            cachePolicy: .reloadIgnoringLocalCacheData,
+            timeoutInterval: timeout)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("CodexBar", forHTTPHeaderField: "User-Agent")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue(accountId, forHTTPHeaderField: "ChatGPT-Account-Id")
+
+        let logger = CodexBarLog.logger(LogCategories.provider(.codex, scope: "subscription"))
+        do {
+            let response = try await transport.response(for: request)
+            let metadata = (200...299).contains(response.statusCode)
+                ? OpenAISubscriptionDates.parse(data: response.data)
+                : nil
+            logger.debug(
+                "Codex subscription response",
+                metadata: [
+                    "status": "\(response.statusCode)",
+                    "contentType": response.response.value(forHTTPHeaderField: "Content-Type") ?? "missing",
+                    "bytes": "\(response.data.count)",
+                    "shape": OpenAISubscriptionDates.responseShape(data: response.data),
+                    "parsed": metadata == nil ? "0" : "1",
+                ])
+            return metadata
+        } catch {
+            logger.debug(
+                "Codex subscription request failed",
+                metadata: ["errorType": String(describing: type(of: error))])
+            return nil
+        }
     }
 
     public static func fetchSpendControlsMonthlyUsage(
@@ -605,6 +665,20 @@ public enum CodexOAuthUsageFetcher {
         let path = normalized.contains("/backend-api") ? Self.chatGPTUsagePath : Self.codexUsagePath
         let full = normalized + path
         return URL(string: full) ?? URL(string: Self.defaultChatGPTBaseURL + Self.chatGPTUsagePath)!
+    }
+
+    private static func resolveSubscriptionsURL(
+        env: [String: String],
+        accountId: String,
+        configContents: String? = nil) -> URL
+    {
+        let baseURL = self.resolveChatGPTBaseURL(env: env, configContents: configContents)
+        let normalized = self.normalizeChatGPTBaseURL(baseURL)
+        let full = normalized + Self.chatGPTSubscriptionsPath
+        let endpoint = URL(string: full) ?? URL(string: Self.defaultChatGPTBaseURL + Self.chatGPTSubscriptionsPath)!
+        guard var components = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) else { return endpoint }
+        components.queryItems = (components.queryItems ?? []) + [URLQueryItem(name: "account_id", value: accountId)]
+        return components.url ?? endpoint
     }
 
     private static func resolveRateLimitResetCreditsURL(env: [String: String]) -> URL {
