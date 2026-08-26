@@ -54,6 +54,25 @@ struct GrokRemainingResetsLookupResult: Sendable {
             await .grokResetCredits(snapshotTask.value)
         }
     }
+
+    func resolved(
+        at now: Date,
+        requiresCompleteness: Bool) async -> GrokRemainingResetsResolution
+    {
+        if requiresCompleteness, let snapshotTask {
+            return await GrokRemainingResetsResolution(
+                snapshot: snapshotTask.value,
+                supplementalUsageTask: nil)
+        }
+        return GrokRemainingResetsResolution(
+            snapshot: GrokRemainingResetsFetcher.snapshot(tokens: self.tokens, now: now),
+            supplementalUsageTask: self.supplementalUsageTask)
+    }
+}
+
+struct GrokRemainingResetsResolution: Sendable {
+    let snapshot: GrokRateLimitResetCreditsSnapshot?
+    let supplementalUsageTask: Task<ProviderSupplementalUsageUpdate, Never>?
 }
 
 private final class GrokRemainingResetsCache: @unchecked Sendable {
@@ -260,16 +279,30 @@ enum GrokRemainingResetsFetcher {
     }
 
     static func detailSections(tokens: [GrokRemainingReset], now: Date) -> [ProviderDetailSection] {
-        let available = self.availableTokens(tokens, now: now)
-        guard let next = available.first else { return [] }
-        let value = available.count == 1 ? "1 available" : "\(available.count) available"
+        self.detailSections(
+            expirations: self.availableTokens(tokens, now: now).map(\.expiresAt),
+            now: now)
+    }
+
+    static func detailSections(
+        snapshot: GrokRateLimitResetCreditsSnapshot?,
+        now: Date) -> [ProviderDetailSection]
+    {
+        self.detailSections(
+            expirations: snapshot?.availableExpirations(at: now) ?? [],
+            now: now)
+    }
+
+    private static func detailSections(expirations: [Date], now: Date) -> [ProviderDetailSection] {
+        guard let next = expirations.first else { return [] }
+        let value = expirations.count == 1 ? "1 available" : "\(expirations.count) available"
         return [
             .makeSection(
                 rows: [
                     .makeRow(
                         label: GrokRateLimitResetCreditsSnapshot.detailLabel,
                         value: value,
-                        secondaryValue: "Expires \(UsageFormatter.resetDescription(from: next.expiresAt, now: now))"),
+                        secondaryValue: "Expires \(UsageFormatter.resetDescription(from: next, now: now))"),
                 ]),
         ]
     }
@@ -290,12 +323,16 @@ enum GrokRemainingResetsFetcher {
         if payloads.isEmpty, GrokWebBillingFetcher.looksLikeProtobufPayload(data) {
             payloads = [data]
         }
-        guard !payloads.isEmpty else { return [] }
+        guard !payloads.isEmpty else { throw GrokWebBillingError.parseFailed }
         try GrokWebBillingFetcher.validateGRPCWebTrailers(data)
 
         var tokens: [GrokRemainingReset] = []
         for payload in payloads {
-            tokens.append(contentsOf: Self.parseMessage(payload, now: now))
+            guard !payload.isEmpty else { continue }
+            guard let parsed = Self.parseMessage(payload, now: now), parsed.containsTokenRecord else {
+                throw GrokWebBillingError.parseFailed
+            }
+            tokens.append(contentsOf: parsed.tokens)
         }
         return tokens
             .filter { $0.expiresAt > now && !$0.tokenID.isEmpty }
@@ -351,66 +388,27 @@ enum GrokRemainingResetsFetcher {
         return try Self.parseTokens(response.data, now: now)
     }
 
-    private static func parseMessage(_ data: Data, now: Date) -> [GrokRemainingReset] {
-        let bytes = [UInt8](data)
-        var tokens: [GrokRemainingReset] = []
-        var index = 0
-        while index < bytes.count {
-            let fieldStart = index
-            guard let key = Self.readVarint(bytes, index: &index), key != 0 else {
-                index = fieldStart + 1
-                continue
-            }
-            let fieldNumber = key >> 3
-            let wireType = key & 0x07
-            switch wireType {
-            case 0:
-                _ = Self.readVarint(bytes, index: &index)
-            case 1:
-                guard index + 8 <= bytes.count else { return tokens }
-                index += 8
-            case 2:
-                guard let length = Self.readVarint(bytes, index: &index),
-                      length <= UInt64(bytes.count - index)
-                else {
-                    index = fieldStart + 1
-                    continue
-                }
-                let start = index
-                let end = index + Int(length)
-                if fieldNumber == 10,
-                   let token = Self.parseToken(Data(bytes[start..<end]), now: now)
-                {
-                    tokens.append(token)
-                }
-                index = end
-            case 5:
-                guard index + 4 <= bytes.count else { return tokens }
-                index += 4
-            default:
-                index = fieldStart + 1
-            }
-        }
-        return tokens
+    private struct ParsedMessage {
+        let tokens: [GrokRemainingReset]
+        let containsTokenRecord: Bool
     }
 
-    private static func parseToken(_ data: Data, now: Date) -> GrokRemainingReset? {
+    private struct ParsedToken {
+        let token: GrokRemainingReset?
+    }
+
+    private static func parseMessage(_ data: Data, now: Date) -> ParsedMessage? {
         let bytes = [UInt8](data)
-        var tokenID = ""
-        var grantedAt: Date?
-        var expiresAt: Date?
+        var tokens: [GrokRemainingReset] = []
+        var containsTokenRecord = false
         var index = 0
         while index < bytes.count {
-            let fieldStart = index
-            guard let key = Self.readVarint(bytes, index: &index), key != 0 else {
-                index = fieldStart + 1
-                continue
-            }
+            guard let key = Self.readVarint(bytes, index: &index), key != 0 else { return nil }
             let fieldNumber = key >> 3
             let wireType = key & 0x07
             switch wireType {
             case 0:
-                _ = Self.readVarint(bytes, index: &index)
+                guard Self.readVarint(bytes, index: &index) != nil else { return nil }
             case 1:
                 guard index + 8 <= bytes.count else { return nil }
                 index += 8
@@ -418,8 +416,51 @@ enum GrokRemainingResetsFetcher {
                 guard let length = Self.readVarint(bytes, index: &index),
                       length <= UInt64(bytes.count - index)
                 else {
-                    index = fieldStart + 1
-                    continue
+                    return nil
+                }
+                let start = index
+                let end = index + Int(length)
+                if fieldNumber == 10 {
+                    containsTokenRecord = true
+                    guard let parsed = Self.parseToken(Data(bytes[start..<end]), now: now) else {
+                        return nil
+                    }
+                    if let token = parsed.token {
+                        tokens.append(token)
+                    }
+                }
+                index = end
+            case 5:
+                guard index + 4 <= bytes.count else { return nil }
+                index += 4
+            default:
+                return nil
+            }
+        }
+        return ParsedMessage(tokens: tokens, containsTokenRecord: containsTokenRecord)
+    }
+
+    private static func parseToken(_ data: Data, now: Date) -> ParsedToken? {
+        let bytes = [UInt8](data)
+        var tokenID = ""
+        var grantedAt: Date?
+        var expiresAt: Date?
+        var index = 0
+        while index < bytes.count {
+            guard let key = Self.readVarint(bytes, index: &index), key != 0 else { return nil }
+            let fieldNumber = key >> 3
+            let wireType = key & 0x07
+            switch wireType {
+            case 0:
+                guard Self.readVarint(bytes, index: &index) != nil else { return nil }
+            case 1:
+                guard index + 8 <= bytes.count else { return nil }
+                index += 8
+            case 2:
+                guard let length = Self.readVarint(bytes, index: &index),
+                      length <= UInt64(bytes.count - index)
+                else {
+                    return nil
                 }
                 let start = index
                 let end = index + Int(length)
@@ -436,11 +477,15 @@ enum GrokRemainingResetsFetcher {
                 guard index + 4 <= bytes.count else { return nil }
                 index += 4
             default:
-                index = fieldStart + 1
+                return nil
             }
         }
-        guard !tokenID.isEmpty, let expiresAt, expiresAt > now else { return nil }
-        return GrokRemainingReset(tokenID: tokenID, grantedAt: grantedAt, expiresAt: expiresAt)
+        guard !tokenID.isEmpty, let expiresAt else { return nil }
+        guard expiresAt > now else { return ParsedToken(token: nil) }
+        return ParsedToken(token: GrokRemainingReset(
+            tokenID: tokenID,
+            grantedAt: grantedAt,
+            expiresAt: expiresAt))
     }
 
     private static func timestamp(from data: Data) -> Date? {

@@ -189,21 +189,34 @@ struct GrokCLIFetchStrategy: ProviderFetchStrategy {
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
         let probe = GrokStatusProbe()
         let snap = try await probe.fetch(env: context.env)
-        let usage = snap.toUsageSnapshot()
         let resetLookup = Self.remainingResetLookup(
             snapshot: snap,
             includeOptionalUsage: context.includeOptionalUsage)
-        let resetCredits = GrokRemainingResetsFetcher.snapshot(
-            tokens: resetLookup.tokens,
-            now: snap.updatedAt)
+        return await self.makeUsageResult(
+            snapshot: snap,
+            context: context,
+            resetLookup: resetLookup)
+    }
+
+    func makeUsageResult(
+        snapshot: GrokUsageSnapshot,
+        context: ProviderFetchContext,
+        resetLookup: GrokRemainingResetsLookupResult) async -> ProviderFetchResult
+    {
+        let usage = snapshot.toUsageSnapshot()
+        let resetResolution = await resetLookup.resolved(
+            at: snapshot.updatedAt,
+            requiresCompleteness: context.requiresOptionalUsageCompleteness)
         return self.makeResult(
             usage: usage
-                .withGrokResetCredits(resetCredits)
+                .withGrokResetCredits(resetResolution.snapshot)
                 .replacing(details: .value(
-                    GrokRemainingResetsFetcher.detailSections(tokens: resetLookup.tokens, now: snap.updatedAt))),
+                    GrokRemainingResetsFetcher.detailSections(
+                        snapshot: resetResolution.snapshot,
+                        now: snapshot.updatedAt))),
             sourceLabel: "grok-cli",
-            supplementalUsageTask: resetLookup.supplementalUsageTask,
-            diagnostic: snap.diagnostic)
+            supplementalUsageTask: resetResolution.supplementalUsageTask,
+            diagnostic: snapshot.diagnostic)
     }
 
     static func remainingResetTokens(
@@ -513,18 +526,18 @@ struct GrokWebFetchStrategy: ProviderFetchStrategy {
                 authenticatedByAuthFile ? nil : winningCookieHeader,
                 snapshot.updatedAt)
             : .empty
-        let resetCredits = GrokRemainingResetsFetcher.snapshot(
-            tokens: resetLookup.tokens,
-            now: snapshot.updatedAt)
+        let resetResolution = await resetLookup.resolved(
+            at: snapshot.updatedAt,
+            requiresCompleteness: context.requiresOptionalUsageCompleteness)
         return self.makeResult(
             usage: usage
-                .withGrokResetCredits(resetCredits)
+                .withGrokResetCredits(resetResolution.snapshot)
                 .replacing(details: .value(
                     GrokRemainingResetsFetcher.detailSections(
-                        tokens: resetLookup.tokens,
+                        snapshot: resetResolution.snapshot,
                         now: snapshot.updatedAt))),
             sourceLabel: sourceLabel,
-            supplementalUsageTask: resetLookup.supplementalUsageTask,
+            supplementalUsageTask: resetResolution.supplementalUsageTask,
             diagnostic: enrichedBilling.usedPercent == nil ? GrokStatusProbe.usageUnavailableMessage : nil)
     }
 

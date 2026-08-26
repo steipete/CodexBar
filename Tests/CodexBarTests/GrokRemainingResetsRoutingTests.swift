@@ -57,7 +57,70 @@ struct GrokRemainingResetsRoutingTests {
         #expect(result.usage.details.isEmpty)
     }
 
-    private static func webContext(includeOptionalUsage: Bool) -> ProviderFetchContext {
+    @Test
+    func `completion-required strategy awaits deferred coupon inventory`() async throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let expiresAt = now.addingTimeInterval(172_800)
+        let resetCredits = GrokRateLimitResetCreditsSnapshot(
+            expirations: [expiresAt],
+            updatedAt: now)
+        let result = try await GrokWebFetchStrategy().fetch(
+            Self.webContext(
+                includeOptionalUsage: true,
+                requiresOptionalUsageCompleteness: true),
+            webBilling: {
+                (
+                    GrokWebBillingSnapshot(usedPercent: 29, resetsAt: now.addingTimeInterval(86400)),
+                    "Chrome",
+                    false,
+                    "sso=winning")
+            },
+            settingsTier: { _ in nil },
+            remainingResets: { _, _, _ in
+                GrokRemainingResetsLookupResult(
+                    tokens: [],
+                    snapshotTask: Task { resetCredits })
+            })
+
+        #expect(result.usage.grokResetCredits == resetCredits)
+        #expect(result.usage.details.first?.rows.first?.value == "1 available")
+        #expect(result.supplementalUsageTask == nil)
+    }
+
+    @Test
+    func `CLI completion-required result awaits deferred coupon inventory`() async {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let expiresAt = now.addingTimeInterval(172_800)
+        let resetCredits = GrokRateLimitResetCreditsSnapshot(
+            expirations: [expiresAt],
+            updatedAt: now)
+        let snapshot = GrokUsageSnapshot(
+            billing: nil,
+            webBilling: GrokWebBillingSnapshot(
+                usedPercent: 29,
+                resetsAt: now.addingTimeInterval(86400)),
+            credentials: nil,
+            localSummary: nil,
+            cliVersion: nil,
+            updatedAt: now)
+        let result = await GrokCLIFetchStrategy().makeUsageResult(
+            snapshot: snapshot,
+            context: Self.webContext(
+                includeOptionalUsage: true,
+                requiresOptionalUsageCompleteness: true),
+            resetLookup: GrokRemainingResetsLookupResult(
+                tokens: [],
+                snapshotTask: Task { resetCredits }))
+
+        #expect(result.usage.grokResetCredits == resetCredits)
+        #expect(result.usage.details.first?.rows.first?.value == "1 available")
+        #expect(result.supplementalUsageTask == nil)
+    }
+
+    private static func webContext(
+        includeOptionalUsage: Bool,
+        requiresOptionalUsageCompleteness: Bool = false) -> ProviderFetchContext
+    {
         let home = FileManager.default.temporaryDirectory
             .appendingPathComponent("CodexBar-GrokResetRouting-\(UUID().uuidString)", isDirectory: true)
         let browserDetection = BrowserDetection(cacheTTL: 0)
@@ -66,6 +129,7 @@ struct GrokRemainingResetsRoutingTests {
             sourceMode: .web,
             includeCredits: true,
             includeOptionalUsage: includeOptionalUsage,
+            requiresOptionalUsageCompleteness: requiresOptionalUsageCompleteness,
             webTimeout: 1,
             webDebugDumpHTML: false,
             verbose: false,

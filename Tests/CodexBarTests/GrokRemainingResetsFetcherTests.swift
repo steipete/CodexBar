@@ -27,6 +27,30 @@ struct GrokRemainingResetsFetcherTests {
     }
 
     @Test
+    func `accepts the canonical empty remaining-resets message`() throws {
+        let tokens = try GrokRemainingResetsFetcher.parseTokens(Data([0, 0, 0, 0, 0]))
+        #expect(tokens.isEmpty)
+    }
+
+    @Test
+    func `rejects malformed nonempty remaining-resets payloads`() {
+        let malformedPayloads = [
+            Data("<html>upstream error</html>".utf8),
+            Data([0, 0, 0, 0, 4, 0x52]),
+            Data([0, 0, 0, 0, 2, 0x08, 0x01]),
+        ]
+
+        for payload in malformedPayloads {
+            #expect {
+                _ = try GrokRemainingResetsFetcher.parseTokens(payload)
+            } throws: { error in
+                guard case GrokWebBillingError.parseFailed = error else { return false }
+                return true
+            }
+        }
+    }
+
+    @Test
     func `maps available inventory onto Limit Reset Credits`() {
         let now = Date(timeIntervalSince1970: 1_787_647_576)
         let sections = GrokRemainingResetsFetcher.detailSections(
@@ -307,6 +331,47 @@ struct GrokRemainingResetsFetcherTests {
             })
         #expect(retained.tokens == [token])
         #expect(retained.snapshotTask == nil)
+    }
+
+    @Test
+    func `malformed 200 refresh retains cached reset inventory`() async throws {
+        GrokRemainingResetsFetcher.resetCacheForTesting()
+        defer {
+            GrokRemainingResetsFetcher.resetCacheForTesting()
+            GrokRemainingResetsStubURLProtocol.reset()
+        }
+        let now = Date(timeIntervalSince1970: 1_787_647_576)
+        let expiresAt = now.addingTimeInterval(86400)
+        let token = GrokRemainingReset(tokenID: "restok_sample", grantedAt: nil, expiresAt: expiresAt)
+        let seeded = GrokRemainingResetsFetcher.cachedLookupAndRefresh(
+            credentials: Self.credentials,
+            cookieHeader: nil,
+            now: now,
+            refresh: { _, _, _ in [token] })
+        _ = await seeded.snapshotTask?.value
+
+        let session = Self.makeSession()
+        let endpoint = try #require(URL(string: "https://grok.test/remaining-resets"))
+        GrokRemainingResetsStubURLProtocol.reset()
+        GrokRemainingResetsStubURLProtocol.handler = { request in
+            try Self.response(for: request, body: Data("<html>upstream error</html>".utf8))
+        }
+        let failed = GrokRemainingResetsFetcher.cachedLookupAndRefresh(
+            credentials: Self.credentials,
+            cookieHeader: nil,
+            now: now.addingTimeInterval(61),
+            refresh: { credentials, cookieHeader, refreshNow in
+                await GrokRemainingResetsFetcher.fetchResult(
+                    credentials: credentials,
+                    cookieHeader: cookieHeader,
+                    now: refreshNow,
+                    session: session,
+                    endpoint: endpoint)
+            })
+
+        #expect(failed.tokens == [token])
+        let retainedSnapshot = try #require(await failed.snapshotTask?.value)
+        #expect(retainedSnapshot.expirations == [expiresAt])
     }
 
     @Test
