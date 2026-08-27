@@ -7,15 +7,17 @@ read_when:
 
 # Xquik provider
 
-CodexBar reads Xquik's free, read-only credit endpoint. It shows the exact available balance, lifetime usage, lifetime purchases, and automatic top-up state.
+CodexBar sends one non-mutating request to Xquik's free credit endpoint. It shows the exact available balance, lifetime usage, lifetime purchases, and automatic top-up state.
+
+Xquik credits fund X automation. They are not a coding-model quota. CodexBar presents them as an account balance, not a reset window.
 
 ## Data source
 
-1. Supply an API key through `XQUIK_API_KEY` or Settings → Providers → Xquik. Settings values are stored in `~/.codexbar/config.json`.
+1. Supply an account API key through `XQUIK_API_KEY` or Settings → Providers → Xquik. Settings values are stored in `~/.codexbar/config.json`.
 2. CodexBar calls `GET https://xquik.com/api/v1/credits`.
 3. The plugin sends the key through the `x-api-key` header.
 
-The request does not consume credits. It never creates, updates, or deletes Xquik resources.
+The request does not consume credits. It never creates, updates, or deletes Xquik resources. The account key is not restricted to this credits request. Protect it like any account API key.
 
 ## Usage details
 

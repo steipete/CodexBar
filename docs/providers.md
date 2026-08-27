@@ -497,9 +497,11 @@ provider-specific cookie validation, endpoints, login detection, and error trans
 - Details: `docs/crof.md`.
 
 ## Xquik
-- API key from `~/.codexbar/config.json` or `XQUIK_API_KEY`.
+- Account API key from `~/.codexbar/config.json` or `XQUIK_API_KEY`.
 - Reads exact credit strings and automatic top-up state from `GET https://xquik.com/api/v1/credits`.
-- Shows available credits as the primary row and preserves lifetime totals above JavaScript's safe integer range.
+- Sends a non-mutating request. The account key is not restricted to credit access.
+- Shows X automation credits as an account balance, not a coding-model quota or reset window.
+- Preserves lifetime totals above JavaScript's safe integer range.
 - Status: none yet.
 - Details: `docs/xquik.md`.
 

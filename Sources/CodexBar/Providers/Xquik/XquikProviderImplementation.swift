@@ -31,7 +31,7 @@ struct XquikProviderImplementation: ProviderImplementation {
             ProviderSettingsFieldDescriptor(
                 id: "xquik-api-key",
                 title: "API key",
-                subtitle: "Stored in ~/.codexbar/config.json. You can also provide XQUIK_API_KEY.",
+                subtitle: "Account API key for one non-mutating credits request. You can also provide XQUIK_API_KEY.",
                 kind: .secure,
                 placeholder: "xq_...",
                 binding: context.providerConfigBinding(.apiKey),

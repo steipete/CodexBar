@@ -1,11 +1,13 @@
-#if canImport(JavaScriptCore)
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 import Testing
 @testable import CodexBarCore
 
 struct XquikProviderTests {
-    @Test
-    func `credits fixture preserves arbitrary precision totals`() async throws {
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `credits fixture preserves arbitrary precision totals`(engine: ProviderPluginEngineKind) async throws {
         let snapshot = try await Self.fetch(#"""
         {
           "balance":"9007199254740993",
@@ -15,7 +17,7 @@ struct XquikProviderTests {
           "auto_topup_amount_dollars":10,
           "auto_topup_threshold":"50000"
         }
-        """#)
+        """#, engine: engine)
 
         #expect(snapshot.primary == RateWindow(
             usedPercent: 0,
@@ -35,8 +37,8 @@ struct XquikProviderTests {
             ])])
     }
 
-    @Test
-    func `zero balance renders as exhausted without a top-up detail`() async throws {
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `zero balance renders as exhausted without a top-up detail`(engine: ProviderPluginEngineKind) async throws {
         let snapshot = try await Self.fetch(#"""
         {
           "balance":"000",
@@ -46,7 +48,7 @@ struct XquikProviderTests {
           "auto_topup_amount_dollars":0,
           "auto_topup_threshold":"0"
         }
-        """#)
+        """#, engine: engine)
 
         #expect(snapshot.primary?.usedPercent == 100)
         #expect(snapshot.primary?.resetDescription == "0 credits available")
@@ -59,15 +61,18 @@ struct XquikProviderTests {
         #"{"balance":"-1","lifetime_purchased":"1","lifetime_used":"0","auto_topup_enabled":false,"auto_topup_amount_dollars":0,"auto_topup_threshold":"0"}"#,
         #"{"balance":"1","lifetime_purchased":"1","lifetime_used":"0","auto_topup_enabled":"no","auto_topup_amount_dollars":0,"auto_topup_threshold":"0"}"#,
         #"{"balance":"1","lifetime_purchased":"1","lifetime_used":"0","auto_topup_enabled":false,"auto_topup_amount_dollars":-1,"auto_topup_threshold":"0"}"#,
-    ])
-    func `malformed credits payload fails closed`(_ body: String) async throws {
-        await #expect(throws: ProviderPluginError.self) {
-            _ = try await Self.fetch(body)
+    ], BundledPluginTestSupport.engines)
+    func `malformed credits payload fails closed`(
+        body: String,
+        engine: ProviderPluginEngineKind) async
+    {
+        await Self.expectFailure(.parseFailure, contains: "Xquik") {
+            try await Self.fetch(body, engine: engine)
         }
     }
 
-    @Test
-    func `oversized credit strings fail before display formatting`() async throws {
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `oversized credit strings fail before display formatting`(engine: ProviderPluginEngineKind) async {
         let body = """
         {
           "balance":"\(String(repeating: "9", count: 85))",
@@ -79,13 +84,15 @@ struct XquikProviderTests {
         }
         """
 
-        await #expect(throws: ProviderPluginError.self) {
-            _ = try await Self.fetch(body)
+        await Self.expectFailure(.parseFailure, contains: "at most 84 digits") {
+            try await Self.fetch(body, engine: engine)
         }
     }
 
-    @Test
-    func `plugin calls the documented endpoint with an x-api-key header`() async throws {
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `plugin calls the documented endpoint with an x-api-key header`(
+        engine: ProviderPluginEngineKind) async throws
+    {
         let transport = ProviderHTTPTransportHandler { request in
             #expect(request.url?.absoluteString == "https://xquik.com/api/v1/credits")
             #expect(request.httpMethod == "GET")
@@ -94,7 +101,7 @@ struct XquikProviderTests {
             #expect(request.value(forHTTPHeaderField: "Accept") == "application/json")
             return try Self.response(request: request, body: Self.standardFixture)
         }
-        let runtime = try ProviderPluginRuntime(bundledPlugin: "xquik", transport: transport)
+        let runtime = try BundledPluginTestSupport.runtime("xquik", engine: engine, transport: transport)
 
         let snapshot = try await runtime.fetchUsage(secrets: ["XQUIK_API_KEY": "xq_test"])
 
@@ -102,34 +109,54 @@ struct XquikProviderTests {
     }
 
     @Test(arguments: [
-        (401, ProviderFetchClassifiedError.Kind.authenticationExpired),
-        (403, .authenticationExpired),
-        (402, .apiFailure),
-        (429, .rateLimited),
-        (503, .providerUnavailable),
-    ])
-    func `HTTP failures are classified before credits parsing`(
-        argument: (Int, ProviderFetchClassifiedError.Kind)) async throws
+        (401, "", ProviderFetchClassifiedError.Kind.authenticationExpired),
+        (403, "forbidden", .authenticationExpired),
+        (402, "payment required", .apiFailure),
+        (429, "<html>slow down</html>", .rateLimited),
+        (503, "<html>unavailable</html>", .providerUnavailable),
+    ], BundledPluginTestSupport.engines)
+    func `HTTP failures are classified before body parsing`(
+        argument: (Int, String, ProviderFetchClassifiedError.Kind),
+        engine: ProviderPluginEngineKind) async
     {
-        let (statusCode, expectedKind) = argument
-        let runtime = try ProviderPluginRuntime(
-            bundledPlugin: "xquik",
-            transport: ProviderHTTPTransportHandler { request in
-                try Self.response(request: request, body: #"{"error":"fixture"}"#, statusCode: statusCode)
-            })
+        let (statusCode, body, expectedKind) = argument
+        await Self.expectFailure(
+            expectedKind,
+            contains: statusCode == 401 || statusCode == 403
+                ? "Xquik API key was rejected."
+                : "Xquik credits API error: HTTP \(statusCode)")
+        {
+            try await Self.fetch(body, engine: engine, statusCode: statusCode)
+        }
+    }
 
+    @Test(arguments: ["", "not-json", "<html>not JSON</html>"], BundledPluginTestSupport.engines)
+    func `successful malformed bodies are parse failures`(
+        body: String,
+        engine: ProviderPluginEngineKind) async
+    {
+        await Self.expectFailure(.parseFailure, contains: "response was not valid JSON") {
+            try await Self.fetch(body, engine: engine)
+        }
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `transport errors remain network failures`(engine: ProviderPluginEngineKind) async {
+        let runtime: ProviderPluginRuntime
         do {
-            _ = try await runtime.fetchUsage(secrets: ["XQUIK_API_KEY": "fixture-key"])
-            Issue.record("Expected \(expectedKind.rawValue) failure")
-        } catch let error as ProviderFetchClassifiedError {
-            #expect(error.kind == expectedKind)
-            if statusCode == 401 || statusCode == 403 {
-                #expect(error.message == "Xquik API key was rejected.")
-            } else {
-                #expect(error.message == "Xquik credits API error: HTTP \(statusCode)")
-            }
+            runtime = try BundledPluginTestSupport.runtime(
+                "xquik",
+                engine: engine,
+                transport: ProviderHTTPTransportHandler { _ in
+                    throw URLError(.cannotConnectToHost)
+                })
         } catch {
-            Issue.record("Unexpected error: \(error)")
+            Issue.record("Could not load Xquik plugin: \(error)")
+            return
+        }
+
+        await Self.expectFailure(.networkFailure, contains: "Xquik network error") {
+            try await runtime.fetchUsage(secrets: ["XQUIK_API_KEY": "fixture-key"])
         }
     }
 
@@ -158,11 +185,16 @@ struct XquikProviderTests {
         #expect(overridden[key] == "env-key")
     }
 
-    private static func fetch(_ body: String) async throws -> UsageSnapshot {
-        let runtime = try ProviderPluginRuntime(
-            bundledPlugin: "xquik",
+    private static func fetch(
+        _ body: String,
+        engine: ProviderPluginEngineKind,
+        statusCode: Int = 200) async throws -> UsageSnapshot
+    {
+        let runtime = try BundledPluginTestSupport.runtime(
+            "xquik",
+            engine: engine,
             transport: ProviderHTTPTransportHandler { request in
-                try Self.response(request: request, body: body)
+                try Self.response(request: request, body: body, statusCode: statusCode)
             })
         return try await runtime.fetchUsage(secrets: ["XQUIK_API_KEY": "fixture-key"])
     }
@@ -181,6 +213,22 @@ struct XquikProviderTests {
         return (Data(body.utf8), response)
     }
 
+    private static func expectFailure(
+        _ kind: ProviderFetchClassifiedError.Kind,
+        contains message: String,
+        operation: () async throws -> UsageSnapshot) async
+    {
+        do {
+            _ = try await operation()
+            Issue.record("Expected \(kind.rawValue) failure")
+        } catch let error as ProviderFetchClassifiedError {
+            #expect(error.kind == kind)
+            #expect(error.message.contains(message))
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
     private static let standardFixture = #"""
     {
       "balance":"50000",
@@ -192,4 +240,3 @@ struct XquikProviderTests {
     }
     """#
 }
-#endif

@@ -16,13 +16,18 @@ defineProvider({
     {
       key: "XQUIK_API_KEY",
       title: "API key",
-      subtitle: "Xquik API key used for the read-only credit endpoint.",
+      subtitle: "Xquik account API key. The credits request is non-mutating.",
       type: "secure",
     },
   ],
 
   async fetchUsage(ctx) {
-    const response = await ctx.http.getJSON("https://xquik.com/api/v1/credits");
+    let response;
+    try {
+      response = await ctx.http.get("https://xquik.com/api/v1/credits");
+    } catch (error) {
+      throw ctx.fail.networkFailure(`Xquik network error: ${(error as Error)?.message || String(error)}`);
+    }
     if (response.status === 401 || response.status === 403) {
       throw ctx.fail.authenticationExpired("Xquik API key was rejected.");
     }
@@ -35,7 +40,14 @@ defineProvider({
     if (response.status !== 200) {
       throw ctx.fail.apiFailure(`Xquik credits API error: HTTP ${response.status}`);
     }
-    const payload = response.json as XquikCreditsPayload;
+
+    let payload: XquikCreditsPayload;
+    try {
+      payload = JSON.parse(response.bodyText) as XquikCreditsPayload;
+    } catch (error) {
+      void error;
+      throw ctx.fail.parseFailure("Xquik credits response was not valid JSON");
+    }
     if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
       throw ctx.fail.parseFailure("Xquik credits response must be an object");
     }
