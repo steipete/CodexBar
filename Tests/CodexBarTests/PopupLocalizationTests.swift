@@ -142,6 +142,47 @@ struct PopupLocalizationTests {
     }
 
     @Test
+    func `OpenRouter localizes only its static cap disclosure`() throws {
+        let disclosure = "Spending cap, not balance"
+        let details = try [ProviderDetailSection(title: "API key", rows: [
+            .init(label: "API key limit", value: "$30.00", secondaryValue: disclosure),
+            .init(label: "API key limit", value: "Unavailable right now", secondaryValue: "Request returned HTTP 403"),
+            .init(label: "API key limit", value: disclosure, secondaryValue: "arbitrary provider value"),
+            .init(label: "Other", value: "$30.00", secondaryValue: disclosure),
+        ])]
+        CodexBarLocalizationOverride.$appLanguage.withValue("de") {
+            let localized = UsageMenuCardView.Model.localizedProviderDetails(details, provider: .openrouter)[0]
+            #expect(localized.rows[0].label == "API-Schlüssellimit")
+            #expect(localized.rows[0].value == "$30.00")
+            #expect(localized.rows[0].secondaryValue == "Ausgabenlimit, kein Guthaben")
+            #expect(localized.rows[1].secondaryValue == "Request returned HTTP 403")
+            #expect(localized.rows[2].value == disclosure)
+            #expect(localized.rows[2].secondaryValue == "arbitrary provider value")
+            #expect(localized.rows[3].secondaryValue == disclosure)
+            let other = UsageMenuCardView.Model.localizedProviderDetails(details, provider: .synthetic)[0]
+            #expect(other.rows[0].secondaryValue == disclosure)
+        }
+    }
+
+    @Test
+    @MainActor
+    func `bundled OpenRouter snapshot preserves used and remaining presentation`() async throws {
+        let snapshot = try await OpenRouterLimitTestSupport.snapshot()
+        try CodexBarLocalizationOverride.$appLanguage.withValue("en") {
+            for showUsed in [true, false] {
+                let model = try OpenRouterLimitTestSupport.model(snapshot, showUsed: showUsed)
+                let metric = try #require(model.metrics.first)
+                #expect(metric.percent == (showUsed ? 0 : 100))
+                #expect(metric.percentStyle == (showUsed ? .used : .left))
+                #expect(UsageMenuCardView.popupMetricTitle(provider: .openrouter, metric: metric) == "API key limit")
+                #expect(model.planText == "Balance: $1.90")
+                #expect(model.providerDetails.flatMap(\.rows).first { $0.label == "API key limit" }?.secondaryValue ==
+                    "Spending cap, not balance")
+            }
+        }
+    }
+
+    @Test
     func `generic provider details keep canonical labels alongside localized core metrics`() throws {
         try CodexBarLocalizationOverride.$appLanguage.withValue("zh-Hant") {
             let now = Date(timeIntervalSince1970: 1_700_179_200)
@@ -187,7 +228,7 @@ struct PopupLocalizationTests {
             // values and chart point labels stay canonical.
             let apiKey = try #require(model.providerDetails.first { $0.title == "API 金鑰" })
             #expect(apiKey.rows.map(\.label) == [
-                "API key budget", "API key remaining", "API key used", "Reset window",
+                "API 金鑰限制", "API key remaining", "API key used", "Reset window",
                 "今天", "本週", "本月", "Rate limit",
             ])
             #expect(apiKey.chart?.points.map(\.label) == ["Today", "This week", "This month"])

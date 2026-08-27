@@ -279,6 +279,7 @@ public struct ProviderMenuCardPresentation: Sendable {
     private let primaryCostHistoryResolver: PrimaryCostHistoryResolver
     public let creditsVisibility: ProviderCreditsVisibility
     public let showsCreditsSection: Bool
+    public let providerCostIsRequiredUsage: Bool
     public let usesProviderCostHistoryAsPrimaryDashboard: Bool
     public let supportsInlineTokenCostDashboard: Bool
     public let primaryDescriptionPlacement: ProviderPrimaryDescriptionPlacement
@@ -297,6 +298,7 @@ public struct ProviderMenuCardPresentation: Sendable {
         creditsVisibility: ProviderCreditsVisibility = .standard,
         showsCreditsSection: Bool = true,
         costVisibilityResolver: @escaping CostVisibilityResolver = { _ in true },
+        providerCostIsRequiredUsage: Bool = false,
         usesProviderCostHistoryAsPrimaryDashboard: Bool = false,
         primaryCostHistoryResolver: @escaping PrimaryCostHistoryResolver = { _, tokenSnapshot in tokenSnapshot },
         supportsInlineTokenCostDashboard: Bool = false,
@@ -316,6 +318,7 @@ public struct ProviderMenuCardPresentation: Sendable {
         self.creditsVisibility = creditsVisibility
         self.showsCreditsSection = showsCreditsSection
         self.costVisibilityResolver = costVisibilityResolver
+        self.providerCostIsRequiredUsage = providerCostIsRequiredUsage
         self.usesProviderCostHistoryAsPrimaryDashboard = usesProviderCostHistoryAsPrimaryDashboard
         self.primaryCostHistoryResolver = primaryCostHistoryResolver
         self.supportsInlineTokenCostDashboard = supportsInlineTokenCostDashboard
@@ -595,7 +598,7 @@ public struct ProviderUsagePresentation: Sendable {
 
     public static func standardSemanticWindows(snapshot: UsageSnapshot) -> ProviderSemanticWindows {
         let candidates = [snapshot.primary, snapshot.secondary, snapshot.tertiary]
-            + (snapshot.extraRateWindows ?? []).map(\.window)
+            + (snapshot.extraRateWindows ?? []).filter(\.usageKnown).map(\.window)
         let usable = candidates.compactMap { window -> RateWindow? in
             guard let window, !window.isSyntheticPlaceholder else { return nil }
             return window

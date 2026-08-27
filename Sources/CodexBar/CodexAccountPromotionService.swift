@@ -41,18 +41,20 @@ struct SettingsStoreCodexAccountReconciliationSnapshotLoader: CodexAccountReconc
 struct DefaultCodexAuthMaterialReader: CodexAuthMaterialReading {
     func readAuthData(homeURL: URL) throws -> Data? {
         let authFileURL = CodexAccountPromotionService.authFileURL(for: homeURL)
-        guard FileManager.default.fileExists(atPath: authFileURL.path) else {
+        guard CodexCredentialFileAccess.fileExists(at: authFileURL) else {
             return nil
         }
-        return try Data(contentsOf: authFileURL)
+        return try CodexCredentialFileAccess.read(at: authFileURL)
     }
 }
 
 struct DefaultCodexLiveAuthSwapper: CodexLiveAuthSwapping {
     func swapLiveAuthData(_ data: Data, liveHomeURL: URL) throws {
-        try FileManager.default.createDirectory(at: liveHomeURL, withIntermediateDirectories: true)
-
         let liveAuthURL = CodexAccountPromotionService.authFileURL(for: liveHomeURL)
+        guard CodexCredentialFileAccess.permits(liveAuthURL) else { throw CodexOAuthCredentialsError.notFound }
+        if try CodexCredentialFileAccess.substituteWriteForTesting(at: liveAuthURL) { return }
+        try CodexCredentialFileAccess.createDirectory(forCredentialAt: liveAuthURL)
+
         let stagedAuthURL = liveHomeURL.appendingPathComponent(
             "auth.json.codexbar-staged-\(UUID().uuidString)",
             isDirectory: false)

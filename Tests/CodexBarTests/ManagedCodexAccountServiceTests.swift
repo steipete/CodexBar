@@ -3,12 +3,12 @@ import Foundation
 import Testing
 @testable import CodexBar
 
-@Suite(.serialized)
+@Suite(.serialized, CodexCredentialFixtures())
 @MainActor
 struct ManagedCodexAccountServiceTests {
     @Test
     func `upsert preserves uuid for matching canonical email`() async throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let root = CodexCredentialFixtures.root.appendingPathComponent(UUID().uuidString, isDirectory: true)
         defer { try? FileManager.default.removeItem(at: root) }
 
         let fileURL = root.appendingPathComponent("managed.json", isDirectory: false)
@@ -36,7 +36,7 @@ struct ManagedCodexAccountServiceTests {
 
     @Test
     func `new authentication appends managed account without implicit selection side effect`() async throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let root = CodexCredentialFixtures.root.appendingPathComponent(UUID().uuidString, isDirectory: true)
         defer { try? FileManager.default.removeItem(at: root) }
 
         let firstID = try #require(UUID(uuidString: "11111111-1111-1111-1111-111111111111"))
@@ -69,7 +69,7 @@ struct ManagedCodexAccountServiceTests {
 
     @Test
     func `same email provider backed workspaces coexist across sequential add account flows`() async throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let root = CodexCredentialFixtures.root.appendingPathComponent(UUID().uuidString, isDirectory: true)
         defer { try? FileManager.default.removeItem(at: root) }
 
         let store = InMemoryManagedCodexAccountStore(
@@ -115,7 +115,7 @@ struct ManagedCodexAccountServiceTests {
 
     @Test
     func `same workspace provider id with different emails does not overwrite existing account`() async throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let root = CodexCredentialFixtures.root.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let existingHome = root.appendingPathComponent("accounts/existing", isDirectory: true)
         try FileManager.default.createDirectory(at: existingHome, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -166,7 +166,7 @@ struct ManagedCodexAccountServiceTests {
 
     @Test
     func `selected workspace is persisted and used as account identity`() async throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let root = CodexCredentialFixtures.root.appendingPathComponent(UUID().uuidString, isDirectory: true)
         defer { try? FileManager.default.removeItem(at: root) }
 
         let store = InMemoryManagedCodexAccountStore(
@@ -212,7 +212,7 @@ struct ManagedCodexAccountServiceTests {
 
     @Test
     func `reauth keeps previous home when store write fails`() async throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let root = CodexCredentialFixtures.root.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let existingHome = root.appendingPathComponent("accounts/existing", isDirectory: true)
         try FileManager.default.createDirectory(at: existingHome, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -251,7 +251,7 @@ struct ManagedCodexAccountServiceTests {
 
     @Test
     func `reauth reconciles by provider account id before existing account id`() async throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let root = CodexCredentialFixtures.root.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let alphaHome = root.appendingPathComponent("accounts/alpha", isDirectory: true)
         let betaHome = root.appendingPathComponent("accounts/beta", isDirectory: true)
         try FileManager.default.createDirectory(at: alphaHome, withIntermediateDirectories: true)
@@ -309,7 +309,7 @@ struct ManagedCodexAccountServiceTests {
 
     @Test
     func `reauth to different account does not overwrite existing account id match`() async throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let root = CodexCredentialFixtures.root.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let aliceHome = root.appendingPathComponent("accounts/alice", isDirectory: true)
         try FileManager.default.createDirectory(at: aliceHome, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -355,7 +355,7 @@ struct ManagedCodexAccountServiceTests {
 
     @Test
     func `reauth on same email different workspace does not overwrite selected workspace`() async throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let root = CodexCredentialFixtures.root.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let personalHome = root.appendingPathComponent("accounts/personal", isDirectory: true)
         try FileManager.default.createDirectory(at: personalHome, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -407,7 +407,7 @@ struct ManagedCodexAccountServiceTests {
 
     @Test
     func `legacy row collapses onto provider backed row when provider id resolves elsewhere`() async throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let root = CodexCredentialFixtures.root.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let legacyHome = root.appendingPathComponent("accounts/legacy", isDirectory: true)
         let providerHome = root.appendingPathComponent("accounts/provider", isDirectory: true)
         try FileManager.default.createDirectory(at: legacyHome, withIntermediateDirectories: true)
@@ -456,7 +456,7 @@ struct ManagedCodexAccountServiceTests {
 
     @Test
     func `fresh provider login removes stale legacy row without explicit existing account id`() async throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let root = CodexCredentialFixtures.root.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let legacyHome = root.appendingPathComponent("accounts/legacy", isDirectory: true)
         let providerHome = root.appendingPathComponent("accounts/provider", isDirectory: true)
         try FileManager.default.createDirectory(at: legacyHome, withIntermediateDirectories: true)
@@ -504,7 +504,7 @@ struct ManagedCodexAccountServiceTests {
 
     @Test
     func `authentication persists workspace metadata and tolerates missing workspace label`() async throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let root = CodexCredentialFixtures.root.appendingPathComponent(UUID().uuidString, isDirectory: true)
         defer { try? FileManager.default.removeItem(at: root) }
 
         let store = InMemoryManagedCodexAccountStore(
@@ -539,7 +539,7 @@ struct ManagedCodexAccountServiceTests {
 
     @Test
     func `reauth preserves stored provider metadata when refresh cannot resolve account id`() async throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let root = CodexCredentialFixtures.root.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let existingHome = root.appendingPathComponent("accounts/existing", isDirectory: true)
         try FileManager.default.createDirectory(at: existingHome, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -586,7 +586,7 @@ struct ManagedCodexAccountServiceTests {
 
     @Test
     func `auth failure cleanup uses managed root safety check`() async throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let root = CodexCredentialFixtures.root.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let outsideHome = FileManager.default.temporaryDirectory.appendingPathComponent(
             UUID().uuidString,
             isDirectory: true)
@@ -615,7 +615,7 @@ struct ManagedCodexAccountServiceTests {
 
     @Test
     func `auth failure preserves codex login result output`() async throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let root = CodexCredentialFixtures.root.appendingPathComponent(UUID().uuidString, isDirectory: true)
         defer { try? FileManager.default.removeItem(at: root) }
 
         let loginResult = CodexLoginRunner.Result(
@@ -645,7 +645,7 @@ struct ManagedCodexAccountServiceTests {
 
     @Test
     func `remove deletes managed home under managed root`() async throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let root = CodexCredentialFixtures.root.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let home = root.appendingPathComponent("accounts/account-a", isDirectory: true)
         try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -675,7 +675,7 @@ struct ManagedCodexAccountServiceTests {
 
     @Test
     func `remove keeps remaining managed account records`() async throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let root = CodexCredentialFixtures.root.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let firstHome = root.appendingPathComponent("accounts/account-a", isDirectory: true)
         let secondHome = root.appendingPathComponent("accounts/account-b", isDirectory: true)
         try FileManager.default.createDirectory(at: firstHome, withIntermediateDirectories: true)
@@ -718,7 +718,7 @@ struct ManagedCodexAccountServiceTests {
 
     @Test
     func `remove keeps persisted account when store write fails`() async throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let root = CodexCredentialFixtures.root.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let home = root.appendingPathComponent("accounts/account-a", isDirectory: true)
         try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -751,7 +751,7 @@ struct ManagedCodexAccountServiceTests {
 
     @Test
     func `remove drops account but leaves unsafe home untouched`() async throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let root = CodexCredentialFixtures.root.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let outsideRoot = FileManager.default.temporaryDirectory.appendingPathComponent(
             UUID().uuidString,
             isDirectory: true)

@@ -628,6 +628,8 @@
 "section_keyboard_shortcut" = "快捷键";
 "open_menu_shortcut_title" = "打开菜单";
 "open_menu_shortcut_subtitle" = "从任意位置触发菜单栏菜单。";
+"record_shortcut" = "设置快捷键";
+"press_shortcut" = "按下快捷键";
 "install_cli" = "安装 CLI";
 "install_cli_subtitle" = "将 CodexBarCLI 作为 codexbar 符号链接到 /usr/local/bin 和 /opt/homebrew/bin。";
 "cli_not_found" = "在应用包中未找到 CodexBarCLI。";
@@ -1368,6 +1370,9 @@
 "menu_bar_layout_preset_compact_stacked" = "紧凑堆叠";
 "menu_bar_layout_preset_custom" = "自定义";
 "menu_bar_layout_live_preview" = "实时预览";
+"menu_bar_layout_default_preview" = "默认布局预览";
+"menu_bar_layout_overrides_notice" = "以下已启用的提供商使用各自保存的布局：";
+"menu_bar_layout_use_all_accessibility" = "%@：使用所有提供商的布局";
 "menu_bar_layout_strip" = "菜单栏条带";
 "menu_bar_layout_remove_line_break" = "移除换行";
 "menu_bar_layout_chip_hint" = "选择、拖动以重新排序，或使用移除操作。";
@@ -1576,3 +1581,4 @@
 "notch_sessions_placement_below" = "下方";
 "notch_autosize_footer" = "宽度自动跟随列数。下面每个部分都有自己的最大高度。";
 "notch_items_footer" = "拖动以重新排序。磁贴按此顺序填充各列；关闭某一行即可将其排除。";
+"Spending cap, not balance" = "支出上限，并非余额";

@@ -198,7 +198,7 @@ struct CostUsageCacheWideMigrationTests {
         #expect(secondMetrics.codexProgressAccountingVisits == 0)
         #expect(secondRecorder.attemptedCodexFilePaths().contains(targetURL.path))
         #expect(secondCache.codexActiveLookbackState?.pendingFilePaths.isEmpty == true)
-        #expect(secondCache.codexScanCompletedFiles == corpusSize - 1)
+        #expect(secondCache.codexScanCompletedFiles == corpusSize)
         #expect(secondCache.codexScanTotalFiles == corpusSize)
         #expect(secondCache.codexScanCatchUpPending == true)
 

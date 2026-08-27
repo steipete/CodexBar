@@ -301,6 +301,7 @@ public struct CostUsageFetcher: Sendable {
         now: Date = Date(),
         codexHomePath: String? = nil,
         historyDays: Int = 30,
+        scanDurationPerRefresh: TimeInterval? = nil,
         calendar: Calendar? = nil) async throws -> CodexScanCatchUpStatus
     {
         var options = Self.resolvedScannerOptions(
@@ -309,8 +310,9 @@ public struct CostUsageFetcher: Sendable {
             codexHomePath: codexHomePath)
         options.forceRescan = false
         options.refreshMinIntervalSeconds = 0
-        options.maxCodexScanDurationPerRefresh = Self.codexAutomaticScanDurationPerRefresh
         let clampedHistoryDays = max(1, min(365, historyDays))
+        options.maxCodexScanDurationPerRefresh =
+            scanDurationPerRefresh ?? Self.codexAutomaticScanDurationPerRefresh
         let since = options.calendar.date(
             byAdding: .day,
             value: -(clampedHistoryDays - 1),
@@ -998,6 +1000,11 @@ public struct CostUsageFetcher: Sendable {
             }
 
             guard !reports.isEmpty else { return nil }
+            // `previous` is an exact report captured before the current bounded refresh became
+            // pending. Its rows remain established even though native catch-up is still active;
+            // `staleSnapshotUpdatedAt` keeps refresh scheduling and stale presentation explicit.
+            let displayedHistoryCoverageIsEstablished = nativeHistoryCoverageIsEstablished
+                || staleSnapshotUpdatedAt != nil
             // updatedAt keeps the caches' real (oldest) scan time; stamping the hydration time
             // would let stale token rows inherit app-start freshness (#1964). lastRefreshAt
             // drives TTL suppression and stays native-only: a merged load must never delay a
@@ -1008,7 +1015,7 @@ public struct CostUsageFetcher: Sendable {
                     now: now,
                     historyDays: clampedHistoryDays,
                     calendar: options.calendar,
-                    historyCoverageIsEstablished: Self.codexHistoryCoverageIsEstablished(options: options),
+                    historyCoverageIsEstablished: displayedHistoryCoverageIsEstablished,
                     costProvenance: .listPriceEstimate,
                     projects: Self.mergedProjectBreakdowns(projects),
                     sessions: sessions,

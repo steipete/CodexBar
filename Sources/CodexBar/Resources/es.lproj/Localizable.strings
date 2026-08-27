@@ -647,6 +647,8 @@
 "section_keyboard_shortcut" = "Atajo de teclado";
 "open_menu_shortcut_title" = "Abrir menú";
 "open_menu_shortcut_subtitle" = "Abrir el menú de la barra de menús desde cualquier lugar.";
+"record_shortcut" = "Grabar atajo";
+"press_shortcut" = "Pulsar atajo";
 "install_cli" = "Instalar CLI";
 "install_cli_subtitle" = "Crear un enlace simbólico de CodexBarCLI en /usr/local/bin y /opt/homebrew/bin como codexbar.";
 "cli_not_found" = "No se encontró CodexBarCLI en el paquete de la app.";
@@ -1366,6 +1368,9 @@
 "menu_bar_layout_preset_compact_stacked" = "Apilado compacto";
 "menu_bar_layout_preset_custom" = "Personalizado";
 "menu_bar_layout_live_preview" = "Vista previa en directo";
+"menu_bar_layout_default_preview" = "Vista previa del diseño predeterminado";
+"menu_bar_layout_overrides_notice" = "Estos proveedores habilitados usan sus propios diseños guardados:";
+"menu_bar_layout_use_all_accessibility" = "%@: Usar el diseño de todos los proveedores";
 "menu_bar_layout_strip" = "Franja de la barra de menús";
 "menu_bar_layout_remove_line_break" = "Quitar salto de línea";
 "menu_bar_layout_chip_hint" = "Selecciona, arrastra para reordenar o usa la acción Quitar.";
@@ -1563,3 +1568,4 @@
 "notch_sessions_placement_below" = "Abajo";
 "notch_autosize_footer" = "El ancho es automático: sigue a las columnas. Cada sección de abajo tiene su propia altura máxima.";
 "notch_items_footer" = "Arrastra para reordenar. Los mosaicos llenan las columnas en este orden; desactiva una fila para excluirla.";
+"Spending cap, not balance" = "Límite de gasto, no saldo";

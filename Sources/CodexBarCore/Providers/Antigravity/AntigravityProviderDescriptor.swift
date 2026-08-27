@@ -61,6 +61,7 @@ public enum AntigravityProviderDescriptor {
                 iconWindowResolver: self.iconWindows,
                 // Provider-specific by design: Antigravity decorates its mixed-model usage with the Gemini badge.
                 iconDecorations: [.gemini, .antigravity],
+                semanticWindowResolver: self.semanticWindows,
                 requestedMenuBarLaneOrders: [
                     .primary: [.primary, .secondary, .tertiary],
                     .secondary: [.secondary, .primary, .tertiary],
@@ -86,6 +87,18 @@ public enum AntigravityProviderDescriptor {
 
     private static let quotaSummaryPrefix = "antigravity-quota-summary-"
     private static let compactFallbackPrefix = "antigravity-compact-fallback-"
+
+    private static func semanticWindows(snapshot: UsageSnapshot) -> ProviderSemanticWindows {
+        let rows = (snapshot.extraRateWindows ?? []).filter { $0.id.hasPrefix(self.quotaSummaryPrefix) }
+        guard !rows.isEmpty else {
+            return ProviderUsagePresentation.standardSemanticWindows(snapshot: snapshot)
+        }
+        // Family representatives can use different cadences; unavailable summary lanes must stay unavailable.
+        let known = rows.filter(\.usageKnown)
+        return ProviderSemanticWindows(
+            session: self.mostConstrained(windows: known, minutes: 300),
+            weekly: self.mostConstrained(windows: known, minutes: 7 * 24 * 60))
+    }
 
     private static func iconWindows(context: ProviderIconWindowContext) -> ProviderUsageWindowPair {
         let windows = (context.snapshot.extraRateWindows ?? [])

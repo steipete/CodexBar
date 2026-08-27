@@ -174,6 +174,19 @@ public enum GrokLocalSessionScanner {
             scannedAt: now)
     }
 
+    public static func summarizeOffMainThread(
+        env: [String: String],
+        lookbackDays: Int = defaultLookbackDays,
+        now: Date = .init()) async throws -> GrokLocalSessionSummary
+    {
+        try await CostUsageScanExecutor.run { checkCancellation in
+            try checkCancellation()
+            let summary = Self.summarize(env: env, lookbackDays: lookbackDays, now: now)
+            try checkCancellation()
+            return summary
+        }
+    }
+
     static func dayKey(for date: Date, calendar: Calendar) -> String? {
         let components = calendar.dateComponents([.year, .month, .day], from: date)
         guard let year = components.year, let month = components.month, let day = components.day else {

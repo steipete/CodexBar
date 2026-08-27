@@ -47,17 +47,33 @@ endpoints that Codex uses internally, while stale native credentials are recover
 ### Token Freshness and Ownership
 
 Codex CLI owns the refresh endpoint and the refresh-token lifecycle for the native
-`CODEX_HOME/auth.json`. CodexBar may inspect `last_refresh` to decide whether a usage snapshot is
-stale, but its usage path must not redeem that token or write a replacement file. Instead:
+`CODEX_HOME/auth.json`. CodexBar first extracts the access token's JWT `exp` as a best-effort
+scheduling hint, with a five-minute refresh window. Only native credentials use this extraction.
+If expiry is unavailable, the existing eight-day `last_refresh` rule applies; a missing or invalid
+timestamp still requires refresh. This keeps a future-expiry token on the OAuth path, including
+its model-specific usage windows, even when the refresh timestamp is old (#3221, #3222).
+
+The claim must be a signed integer JSON spelling within Codex's supported UTC date range
+(`-8334601228800...8210266876799` seconds). Booleans, strings, fractions, integral floating-point
+or exponent spellings, overflow, duplicate claims, and out-of-range dates fall back to age.
+Zero and negative timestamps in range are expired dates. Opaque tokens, missing claims, and
+undecodable payloads also fall back to age. Extraction requires three nonempty segments but
+does not verify headers or signatures: the unchanged bearer token and account scope still go
+to the service for authentication. Account-claim recovery is unchanged.
+
+Legacy external credentials retain their timestamp rule; OpenCode retains its explicit expiry
+in milliseconds and the external 60-second window. The usage path must not redeem any shared
+refresh token or write a replacement file. Instead:
 
 - stale native credentials produce `nativeRefreshRequired` and route to Codex CLI recovery;
 - stale legacy/OpenCode credentials produce `readOnlySource` and fail closed because there is no
   safe writer handoff; and
 - `CodexTokenRefresher` is not part of the shared-file usage path.
 
-The Codex CLI refresh interval is 8 days (from `TOKEN_REFRESH_INTERVAL`); the source reference is
-`codex-rs/core/src/auth.rs:504-545`. The refresh endpoint is documented here for ownership
-context only, not as a CodexBar usage action.
+Expiry precedence and the five-minute window follow the
+[pinned Codex auth manager](https://github.com/openai/codex/blob/528fd7ace5ec0a1c2a387dcb9c76a09f3fa011ee/codex-rs/login/src/auth/manager.rs#L2924)
+and [signed-integer claim decoder](https://github.com/openai/codex/blob/528fd7ace5ec0a1c2a387dcb9c76a09f3fa011ee/codex-rs/login/src/token_data.rs#L100).
+The refresh endpoint is documented here for ownership context only, not as a CodexBar usage action.
 
 ### Usage API
 
@@ -324,7 +340,11 @@ race this design is intended to avoid.
 4. Verify stale native credentials select Codex CLI recovery and stale external credentials fail
    closed without a refresh request or file write.
 5. Verify missing, unauthorized, decode, and network errors follow the source-aware fallback
-   policy; run `swift test --filter CodexOAuth` and `make check`.
+   policy. `CodexOAuthExpiryPipelineTests` exercises file loading through OAuth transport and
+   additional-window mapping, with a sentinel instead of launching CLI recovery.
+6. `CodexNativeJWTExpiryTests` in `TestsLinux` covers raw JSON numeric spellings on both platforms.
+   Run focused tests with `CODEXBAR_ALLOW_TEST_KEYCHAIN_ACCESS` unset and
+   `CODEXBAR_SUPPRESS_TEST_KEYCHAIN_ACCESS=1 CODEXBAR_TEST_CODEX_FILE_ISOLATION=1`, then `make check`.
 
 ---
 

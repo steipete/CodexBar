@@ -153,24 +153,6 @@ private struct TokenAccountFetchResult {
     let outcome: ProviderFetchOutcome
 }
 
-private struct CodexAccountFetchResult {
-    let index: Int
-    let account: CodexVisibleAccount
-    let outcome: ProviderFetchOutcome?
-    let limitResetOwnerKey: CodexLimitResetOwnerKey?
-}
-
-private struct CodexAccountFetchRequest {
-    let index: Int
-    let account: CodexVisibleAccount
-    let previousSnapshot: UsageSnapshot?
-    let missingWindowBackfillSnapshot: UsageSnapshot?
-    let limitResetOwnerKey: CodexLimitResetOwnerKey?
-    let descriptor: ProviderDescriptor
-    let context: ProviderFetchContext
-    let resetCreditsFetcher: UsageStore.CodexResetCreditsFetcher
-}
-
 private struct CodexManagedVisibleAccountRuntimeState {
     let authFingerprint: String?
     let workspaceAccountID: String?
@@ -249,22 +231,34 @@ extension UsageStore {
         var selectedSnapshot: UsageSnapshot?
         var selectedSourceLabel: String?
         var selectedLimitResetOwnerKey: CodexLimitResetOwnerKey?
+        var selectedWithheldSuccess = false
 
         let results = await self.fetchCodexVisibleAccountOutcomes(
             accounts,
             allVisibleAccounts: projection.visibleAccounts,
             priorSnapshots: priorSnapshots,
             activeVisibleAccountID: originalVisibleAccountID)
+        // Provider-specific by design: Codex fan-out checks the refresh generation before updating account rows.
+        guard !Task.isCancelled,
+              self.isCurrentProviderRefreshGeneration(.codex, generation: generation)
+        else { return }
+        let currentProjection = self.freshCodexVisibleAccountProjectionForAccountRefresh(
+            requireLiveManagedAuthFor: managedAccountIDsWithReadableAuthAtStart)
         for result in results {
             let account = result.account
             let priorSnapshot = Self.codexPriorAccountSnapshot(
                 matching: account,
                 in: priorSnapshots)
             guard let outcome = result.outcome else {
-                if let priorSnapshot {
-                    snapshots.append(priorSnapshot)
-                }
+                let authorizedSuccess = result.withheldSuccess != nil && Self.currentCodexVisibleAccount(
+                    matching: account,
+                    projection: currentProjection,
+                    allowProviderAccountAuthFingerprintMismatch: false) != nil
+                snapshots += Self.codexSnapshotsRetainingCandidate(
+                    authorizedSuccess ? priorSnapshot.map(Self.clearingCodexConnectivityError) : priorSnapshot,
+                    candidate: result.pendingWeeklyResetCandidate)
                 if account.id == originalVisibleAccountID {
+                    selectedWithheldSuccess = authorizedSuccess
                     selectedAccount = account
                     selectedLimitResetOwnerKey = result.limitResetOwnerKey
                 }
@@ -281,7 +275,13 @@ extension UsageStore {
                         priorSnapshot: priorSnapshot,
                         activeVisibleAccountID: originalVisibleAccountID))
             if let snapshot = resolved.snapshot {
-                snapshots.append(snapshot)
+                snapshots.append(CodexAccountUsageSnapshot(
+                    account: snapshot.account,
+                    snapshot: snapshot.snapshot,
+                    error: snapshot.error,
+                    sourceLabel: snapshot.sourceLabel,
+                    credits: snapshot.credits,
+                    weeklyResetCandidate: result.pendingWeeklyResetCandidate))
             }
             if account.id == originalVisibleAccountID {
                 selectedOutcome = outcome
@@ -292,29 +292,7 @@ extension UsageStore {
             }
         }
 
-        // Provider-specific by design: Codex multi-account results reconcile against the post-fetch visible projection.
-        let currentProjection = self.freshCodexVisibleAccountProjectionForAccountRefresh(
-            requireLiveManagedAuthFor: managedAccountIDsWithReadableAuthAtStart)
-        guard self.isCurrentProviderRefreshGeneration(.codex, generation: generation) else { return }
-        let currentSnapshots = snapshots.compactMap { snapshot -> CodexAccountUsageSnapshot? in
-            guard
-                let currentAccount = Self.currentCodexVisibleAccount(
-                    matching: snapshot.account,
-                    projection: currentProjection,
-                    allowProviderAccountAuthFingerprintMismatch: snapshot.error == nil)
-            else {
-                return nil
-            }
-            guard currentAccount != snapshot.account else { return snapshot }
-            return CodexAccountUsageSnapshot(
-                account: currentAccount,
-                snapshot: Self.codexVisibleAccountSnapshotRelabeledForCurrentProjection(
-                    snapshot.snapshot,
-                    account: currentAccount),
-                error: snapshot.error,
-                sourceLabel: snapshot.sourceLabel,
-                credits: snapshot.credits)
-        }
+        let currentSnapshots = Self.codexAccountSnapshots(snapshots, reconciledWith: currentProjection)
         self.codexAccountSnapshots = currentSnapshots
         self.codexAccountUsageSnapshotStore?.store(currentSnapshots)
 
@@ -324,6 +302,9 @@ extension UsageStore {
             originalAccount: originalVisibleAccount,
             currentProjection: currentProjection)
         guard let selectedOutcome, let selectedAccount else {
+            if selectionStillMatches, selectedWithheldSuccess {
+                self.recordCodexWithheldFetchSuccess()
+            }
             if selectionStillMatches,
                let selectedID = currentProjection.activeVisibleAccountID,
                let preserved = currentSnapshots.first(where: { $0.id == selectedID }),
@@ -481,7 +462,7 @@ extension UsageStore {
             hasUnreadableAddedAccountStore: projection.hasUnreadableAddedAccountStore)
     }
 
-    private static func currentCodexVisibleAccount(
+    static func currentCodexVisibleAccount(
         matching account: CodexVisibleAccount,
         projection: CodexVisibleAccountProjection,
         allowProviderAccountAuthFingerprintMismatch: Bool = true) -> CodexVisibleAccount?
@@ -502,7 +483,7 @@ extension UsageStore {
         }
     }
 
-    private static func codexVisibleAccountSnapshotRelabeledForCurrentProjection(
+    static func codexVisibleAccountSnapshotRelabeledForCurrentProjection(
         _ snapshot: UsageSnapshot?,
         account: CodexVisibleAccount) -> UsageSnapshot?
     {
@@ -883,8 +864,10 @@ extension UsageStore {
                 index: index,
                 account: account,
                 previousSnapshot: limitResetOwnerKey == nil ? nil : priorSnapshot?.snapshot,
+                previousSourceLabel: limitResetOwnerKey == nil ? nil : priorSnapshot?.sourceLabel,
                 missingWindowBackfillSnapshot: missingWindowBackfillSnapshot,
                 limitResetOwnerKey: limitResetOwnerKey,
+                pendingWeeklyResetCandidate: priorSnapshot?.weeklyResetCandidate,
                 descriptor: descriptor,
                 context: context,
                 resetCreditsFetcher: self.codexResetCreditsFetcher(workspaceAccountID: context.codexWorkspaceID))
@@ -904,30 +887,40 @@ extension UsageStore {
                             fetcher: request.resetCreditsFetcher)
                     }
                     let initialOutcome = await fetchOutcome()
-                    let outcome: ProviderFetchOutcome? =
-                        if Self.codexUsageOutcomeMatchesVisibleAccount(
-                            initialOutcome,
-                            account: request.account)
+                    let admission: CodexWeeklyResetPublicationAdmission?
+                    if Self.codexUsageOutcomeMatchesVisibleAccount(
+                        initialOutcome,
+                        account: request.account)
+                    {
+                        let admitted = await Self.codexOutcomeAdmittedForPublication(
+                            initialOutcome: initialOutcome,
+                            previousSnapshot: request.previousSnapshot,
+                            previousSourceLabel: request.previousSourceLabel,
+                            missingWindowBackfillSnapshot: request.missingWindowBackfillSnapshot,
+                            pendingCandidate: request.pendingWeeklyResetCandidate,
+                            fetchConfirmation: fetchOutcome)
+                        if let outcome = admitted.outcome,
+                           Self.codexUsageOutcomeMatchesVisibleAccount(outcome, account: request.account)
                         {
-                            if let admitted = await Self.codexOutcomeAdmittedForPublication(
-                                initialOutcome: initialOutcome,
-                                previousSnapshot: request.previousSnapshot,
-                                missingWindowBackfillSnapshot: request.missingWindowBackfillSnapshot,
-                                fetchConfirmation: fetchOutcome),
-                                Self.codexUsageOutcomeMatchesVisibleAccount(admitted, account: request.account)
-                            {
-                                admitted
-                            } else {
-                                nil
-                            }
+                            admission = CodexWeeklyResetPublicationAdmission(
+                                outcome: outcome,
+                                pendingCandidate: admitted.pendingCandidate)
                         } else {
-                            nil
+                            admission = CodexWeeklyResetPublicationAdmission(
+                                outcome: nil,
+                                pendingCandidate: admitted.pendingCandidate,
+                                withheldSuccess: admitted.withheldSuccess)
                         }
+                    } else {
+                        admission = nil
+                    }
                     return CodexAccountFetchResult(
                         index: request.index,
                         account: request.account,
-                        outcome: outcome,
-                        limitResetOwnerKey: request.limitResetOwnerKey)
+                        outcome: admission?.outcome,
+                        limitResetOwnerKey: request.limitResetOwnerKey,
+                        pendingWeeklyResetCandidate: admission?.pendingCandidate,
+                        withheldSuccess: admission?.withheldSuccess)
                 }
             }
 
@@ -1234,7 +1227,7 @@ extension UsageStore {
         self.codexScopedRefreshGuardsMatchAccount(lastGuard, expectedGuard)
     }
 
-    private nonisolated static func codexScopedRefreshGuard(for account: CodexVisibleAccount)
+    nonisolated static func codexScopedRefreshGuard(for account: CodexVisibleAccount)
         -> CodexAccountScopedRefreshGuard
     {
         let accountEmail = CodexIdentityResolver.normalizeEmail(account.email)
@@ -1407,7 +1400,7 @@ extension UsageStore {
         }
     }
 
-    private static func shouldPreserveCodexAccountSnapshotOnFailure(_ message: String) -> Bool {
+    static func shouldPreserveCodexAccountSnapshotOnFailure(_ message: String) -> Bool {
         guard CodexAccountHealth.status(forError: message) == .unavailable else { return false }
         let normalized = message.lowercased()
         return normalized.contains("network") || normalized.contains("internet connection")

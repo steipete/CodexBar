@@ -404,6 +404,7 @@ extension UsageMenuCardView.Model {
 
     private func hasCompatibleTrackedLayout(with candidate: Self, includeMetrics: Bool) -> Bool {
         guard self.provider == candidate.provider,
+              self.accountIdentityFingerprint == candidate.accountIdentityFingerprint,
               !includeMetrics || self.metrics.count == candidate.metrics.count,
               self.usageNotes == candidate.usageNotes,
               self.providerDetails == candidate.providerDetails,
@@ -414,7 +415,7 @@ extension UsageMenuCardView.Model {
                   candidateText: candidate.creditsText,
                   candidateRemaining: candidate.creditsRemaining),
               self.creditsHintText == candidate.creditsHintText,
-              self.codexResetCredits == candidate.codexResetCredits,
+              Self.hasCompatibleCodexResetCreditsLayout(self.codexResetCredits, candidate.codexResetCredits),
               self.placeholder == candidate.placeholder,
               Self.hasCompatibleDashboardLayout(self.inlineUsageDashboard, candidate.inlineUsageDashboard),
               Self.hasCompatibleProviderCostLayout(self.providerCost, candidate.providerCost),
@@ -427,15 +428,24 @@ extension UsageMenuCardView.Model {
         return zip(self.metrics, candidate.metrics).allSatisfy(Self.hasCompatibleMetricLayout)
     }
 
+    private static func hasCompatibleCodexResetCreditsLayout(
+        _ current: CodexResetCreditsPresentation?,
+        _ candidate: CodexResetCreditsPresentation?) -> Bool
+    {
+        // The hosted section has a fixed shape; its count and expiry strings can update in place.
+        (current == nil) == (candidate == nil)
+    }
+
     private static func hasCompatibleMetricLayout(_ current: Metric, _ candidate: Metric) -> Bool {
-        current.id == candidate.id &&
+        let currentMetaText = current.linePresentation(title: current.title).metaText
+        let candidateMetaText = candidate.linePresentation(title: candidate.title).metaText
+        return current.id == candidate.id &&
             current.title == candidate.title &&
             current.percentStyle == candidate.percentStyle &&
             (current.statusText == nil) == (candidate.statusText == nil) &&
             (current.resetText == nil) == (candidate.resetText == nil) &&
             (current.detailText == nil) == (candidate.detailText == nil) &&
-            (current.detailLeftText == nil) == (candidate.detailLeftText == nil) &&
-            (current.detailRightText == nil) == (candidate.detailRightText == nil) &&
+            (candidateMetaText == nil || currentMetaText != nil) &&
             current.cardStyle == candidate.cardStyle
     }
 

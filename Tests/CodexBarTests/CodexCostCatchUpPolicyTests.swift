@@ -4,6 +4,12 @@ import Testing
 
 struct CodexCostCatchUpPolicyTests {
     @Test
+    func `only accelerated mode uses the longer dashboard scan burst`() {
+        #expect(CodexCostCatchUpMode.automatic.scanDurationPerRefresh == 2)
+        #expect(CodexCostCatchUpMode.accelerated.scanDurationPerRefresh == 10)
+    }
+
+    @Test
     func `automatic mode targets one tenth percent duty cycle on AC power`() {
         let decision = CodexCostCatchUpPolicy().decision(for: .init(
             mode: .automatic,

@@ -655,6 +655,8 @@
 "section_keyboard_shortcut" = "Sneltoets";
 "open_menu_shortcut_title" = "Menu openen";
 "open_menu_shortcut_subtitle" = "Activeer het menubalkmenu vanaf elke locatie.";
+"record_shortcut" = "Toetscombinatie opnemen";
+"press_shortcut" = "Voer toetscombinatie in";
 "install_cli" = "Installeer CLI";
 "install_cli_subtitle" = "Symlink CodexBarCLI naar /usr/local/bin en /opt/homebrew/bin als codexbar.";
 "cli_not_found" = "CodexBarCLI niet gevonden in appbundel.";
@@ -1367,6 +1369,9 @@
 "menu_bar_layout_preset_compact_stacked" = "Compact gestapeld";
 "menu_bar_layout_preset_custom" = "Aangepast";
 "menu_bar_layout_live_preview" = "Livevoorvertoning";
+"menu_bar_layout_default_preview" = "Voorbeeld van standaardindeling";
+"menu_bar_layout_overrides_notice" = "Deze ingeschakelde providers gebruiken hun eigen opgeslagen indelingen:";
+"menu_bar_layout_use_all_accessibility" = "%@: Indeling voor alle providers gebruiken";
 "menu_bar_layout_strip" = "Menubalkstrook";
 "menu_bar_layout_remove_line_break" = "Regeleinde verwijderen";
 "menu_bar_layout_chip_hint" = "Selecteer, sleep om te herschikken of gebruik de actie Verwijderen.";
@@ -1564,3 +1569,4 @@
 "notch_sessions_placement_below" = "Onder";
 "notch_autosize_footer" = "De breedte is automatisch — die volgt de kolommen. Elke sectie hieronder heeft een eigen maximale hoogte.";
 "notch_items_footer" = "Sleep om te herordenen. Tegels vullen de kolommen in deze volgorde; zet een rij uit om die weg te laten.";
+"Spending cap, not balance" = "Uitgavenlimiet, geen saldo";

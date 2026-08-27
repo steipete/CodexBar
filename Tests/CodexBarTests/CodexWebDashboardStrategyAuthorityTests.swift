@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
-@Suite(.serialized)
+@Suite(.serialized, CodexCredentialFixtures())
 @MainActor
 struct CodexWebDashboardStrategyAuthorityTests {
     @Test
@@ -381,7 +381,7 @@ struct CodexWebDashboardStrategyAuthorityTests {
     }
 
     private func makeAuthHome(email: String?, accountId: String? = nil) throws -> URL {
-        let homeURL = FileManager.default.temporaryDirectory.appendingPathComponent(
+        let homeURL = CodexCredentialFixtures.root.appendingPathComponent(
             UUID().uuidString,
             isDirectory: true)
         try self.writeCodexAuthFile(homeURL: homeURL, email: email, accountId: accountId)

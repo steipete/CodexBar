@@ -18,6 +18,16 @@ struct SpendDashboardPublicationTests {
                 enabled: provider == .codex || provider == .claude)
         }
         settings.costUsageBucketTimeZoneIdentifier = "UTC"
+        // Isolate from any real ~/.codex corpus: this branch gives the spend dashboard longer
+        // catch-up slices, so a developer-machine corpus can delay the shared publication past
+        // the wait deadline even though the observation semantics are unchanged.
+        let isolatedCodexHome = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        settings._test_codexReconciliationEnvironment = ["CODEX_HOME": isolatedCodexHome.path]
+        defer {
+            settings._test_codexReconciliationEnvironment = nil
+            try? FileManager.default.removeItem(at: isolatedCodexHome)
+        }
         let store = UsageStore(
             fetcher: UsageFetcher(environment: [:]),
             browserDetection: BrowserDetection(cacheTTL: 0),
@@ -119,15 +129,15 @@ struct SpendDashboardPublicationTests {
             .snapshot.last30DaysCostUSD == 2.5)
     }
 
-    @Test
+    @Test(CodexCredentialFixtures())
     func `shared publication starts and stops in-flight Codex dashboard catch-up`() async throws {
         let settings = testSettingsStore(suiteName: "SpendDashboardPublicationTests-codex-catch-up")
         settings.costUsageEnabled = true
         let metadata = try #require(ProviderRegistry.shared.metadata[.codex])
         settings.setProviderEnabled(provider: .codex, metadata: metadata, enabled: true)
-        let missingLiveHome = FileManager.default.temporaryDirectory
+        let missingLiveHome = CodexCredentialFixtures.root
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
-        let profileHome = FileManager.default.temporaryDirectory
+        let profileHome = CodexCredentialFixtures.root
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try Self.writeCodexAuthFile(homeURL: profileHome)
         settings._test_codexReconciliationEnvironment = ["CODEX_HOME": missingLiveHome.path]

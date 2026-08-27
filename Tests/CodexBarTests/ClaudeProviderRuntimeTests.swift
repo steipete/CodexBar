@@ -11,6 +11,8 @@ struct ClaudeProviderRuntimeTests {
         store.claudeSwapAccountSnapshots = [self.accountSnapshot()]
         store.claudeSwapLastRefreshAt = Date()
         store.claudeSwapLastError = "stale"
+        store.claudeSwapDetectedVersion = "0.25.0"
+        store.claudeSwapTransientState.versionProbedPath = "/stale/cswap"
         let runtime = ClaudeProviderRuntime()
 
         runtime.settingsDidChange(context: ProviderRuntimeContext(provider: .claude, settings: settings, store: store))
@@ -18,6 +20,8 @@ struct ClaudeProviderRuntimeTests {
         #expect(store.claudeSwapAccountSnapshots.isEmpty)
         #expect(store.claudeSwapLastRefreshAt == nil)
         #expect(store.claudeSwapLastError == nil)
+        #expect(store.claudeSwapDetectedVersion == nil)
+        #expect(store.claudeSwapTransientState.versionProbedPath == nil)
     }
 
     @Test
@@ -53,6 +57,55 @@ struct ClaudeProviderRuntimeTests {
 
         #expect(store.claudeSwapAccountSnapshots.isEmpty)
         #expect(store.claudeSwapLastRefreshAt == nil)
+    }
+
+    @Test
+    func `failed version probe retries on the next adapter refresh`() async throws {
+        let (settings, store) = self.makeStore()
+        let fixture = try self.makeVersionRecoveryExecutable(delayFirstProbe: false)
+        let metadata = try #require(ProviderRegistry.shared.metadata[.claude])
+        settings.setProviderEnabled(provider: .claude, metadata: metadata, enabled: true)
+        settings.claudeSwapExecutablePath = fixture.executablePath
+        settings.claudeSwapEnabled = true
+
+        await store.refreshClaudeSwapAccounts()
+
+        #expect(store.claudeSwapDetectedVersion == nil)
+        #expect(store.claudeSwapTransientState.versionProbedPath == nil)
+        #expect(store.claudeSwapAccountSnapshots.count == 1)
+
+        await store.refreshClaudeSwapAccounts()
+
+        #expect(store.claudeSwapDetectedVersion == "0.25.0")
+        #expect(store.claudeSwapTransientState.versionProbedPath == fixture.executablePath)
+        #expect(try String(contentsOf: fixture.countURL, encoding: .utf8) == "2\n")
+    }
+
+    @Test
+    func `replacement refresh cannot publish a cancelled older version probe`() async throws {
+        let (settings, store) = self.makeStore()
+        let fixture = try self.makeVersionRecoveryExecutable(delayFirstProbe: true)
+        let metadata = try #require(ProviderRegistry.shared.metadata[.claude])
+        settings.setProviderEnabled(provider: .claude, metadata: metadata, enabled: true)
+        settings.claudeSwapExecutablePath = fixture.executablePath
+        settings.claudeSwapEnabled = true
+
+        store.scheduleClaudeSwapAccountRefresh()
+        let first = try #require(store.claudeSwapRefreshTask)
+        for _ in 0..<100 where !FileManager.default.fileExists(atPath: fixture.countURL.path) {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(FileManager.default.fileExists(atPath: fixture.countURL.path))
+
+        store.scheduleClaudeSwapAccountRefresh()
+        let replacement = try #require(store.claudeSwapRefreshTask)
+        await replacement.value
+        await first.value
+
+        #expect(store.claudeSwapDetectedVersion == "0.25.0")
+        #expect(store.claudeSwapTransientState.versionProbedPath == fixture.executablePath)
+        #expect(store.claudeSwapAccountSnapshots.count == 1)
+        #expect(try String(contentsOf: fixture.countURL, encoding: .utf8) == "2\n")
     }
 
     @Test
@@ -267,6 +320,36 @@ struct ClaudeProviderRuntimeTests {
         try script.write(to: url, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
         return url.path
+    }
+
+    private func makeVersionRecoveryExecutable(delayFirstProbe: Bool) throws -> (
+        executablePath: String,
+        countURL: URL)
+    {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("claude-swap-version-recovery-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let executable = directory.appendingPathComponent("cswap")
+        let countURL = directory.appendingPathComponent("version-count.txt")
+        let firstProbeAction = delayFirstProbe ? "/bin/sleep 30" : "exit 9"
+        let script = """
+        #!/bin/sh
+        if [ "$1" = "--version" ]; then
+          count=0
+          if [ -f '\(countURL.path)' ]; then count=$(/bin/cat '\(countURL.path)'); fi
+          count=$((count + 1))
+          printf '%s\\n' "$count" > '\(countURL.path)'
+          if [ "$count" -eq 1 ]; then \(firstProbeAction); fi
+          printf '%s\\n' 'cswap 0.25.0'
+          exit 0
+        fi
+        printf '%s\\n' '{"schemaVersion":1,"activeAccountNumber":1,"accounts":['
+        printf '%s\\n' '{"number":1,"email":"fixture@example.com","active":true,"usageStatus":"ok",'
+        printf '%s\\n' '"usage":{"fiveHour":{"pct":12.5}}}]}'
+        """
+        try script.write(to: executable, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executable.path)
+        return (executable.path, countURL)
     }
 
     private func makeSwitchExecutable(marker: URL) throws -> String {

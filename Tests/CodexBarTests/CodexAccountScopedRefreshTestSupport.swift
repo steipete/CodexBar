@@ -5,15 +5,9 @@ import Testing
 
 extension CodexAccountScopedRefreshTests {
     func makeSettingsStore(suite: String) -> SettingsStore {
-        let defaults = UserDefaults(suiteName: suite)!
-        defaults.removePersistentDomain(forName: suite)
-        defaults.set(true, forKey: "providerDetectionCompleted")
-        let configStore = testConfigStore(suiteName: suite)
-        let settings = SettingsStore(
-            userDefaults: defaults,
-            configStore: configStore,
-            zaiTokenStore: NoopZaiTokenStore(),
-            syntheticTokenStore: NoopSyntheticTokenStore())
+        let settings = testSettingsStore(suiteName: suite, prepareDefaults: {
+            $0.set(true, forKey: "providerDetectionCompleted")
+        })
         settings._test_activeManagedCodexAccount = nil
         settings._test_activeManagedCodexRemoteHomePath = nil
         settings._test_unreadableManagedCodexAccountStore = false
@@ -68,7 +62,7 @@ extension CodexAccountScopedRefreshTests {
     }
 
     func makeUsageStore(settings: SettingsStore, environmentBase: [String: String] = [:]) -> UsageStore {
-        let root = FileManager.default.temporaryDirectory
+        let root = CodexCredentialFixtures.root
             .appendingPathComponent("codexbar-tests", isDirectory: true)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         var environment = [
@@ -221,11 +215,13 @@ extension CodexAccountScopedRefreshTests {
 
     func installContextualCodexProvider(
         on store: UsageStore,
+        sourceLabel: String = "test-codex",
+        kind: ProviderFetchKind = .cli,
         loader: @escaping @Sendable (ProviderFetchContext) async throws -> UsageSnapshot)
     {
         let baseSpec = store.providerSpecs[.codex]!
         store.providerSpecs[.codex] = Self.makeCodexProviderSpec(baseSpec: baseSpec) { _ in
-            [ContextualTestCodexFetchStrategy(loader: loader, sourceLabel: "test-codex")]
+            [ContextualTestCodexFetchStrategy(loader: loader, sourceLabel: sourceLabel, kind: kind)]
         }
     }
 
@@ -513,7 +509,9 @@ extension CodexAccountScopedRefreshTests {
         weeklyUsedPercent: Double?,
         weeklyReset: Date?,
         updatedAt: Date,
-        sessionUsedPercent: Double = 25) -> UsageSnapshot
+        sessionUsedPercent: Double = 25,
+        resetCredits: CodexRateLimitResetCreditsSnapshot? = nil,
+        dataConfidence: UsageDataConfidence = .unknown) -> UsageSnapshot
     {
         UsageSnapshot(
             primary: RateWindow(
@@ -528,12 +526,14 @@ extension CodexAccountScopedRefreshTests {
                     resetsAt: weeklyReset,
                     resetDescription: nil)
             },
+            codexResetCredits: resetCredits,
             updatedAt: updatedAt,
             identity: ProviderIdentitySnapshot(
                 providerID: .codex,
                 accountEmail: email,
                 accountOrganization: nil,
-                loginMethod: "Pro"))
+                loginMethod: "Pro"),
+            dataConfidence: dataConfidence)
     }
 
     func makeCodexWeeklyPublicationStore(
@@ -541,7 +541,7 @@ extension CodexAccountScopedRefreshTests {
         suite: String,
         snapshotStore: (any CodexAccountUsageSnapshotStoring)? = nil) -> UsageStore
     {
-        let root = FileManager.default.temporaryDirectory
+        let root = CodexCredentialFixtures.root
             .appendingPathComponent("codexbar-weekly-publication-tests", isDirectory: true)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         let environment = [

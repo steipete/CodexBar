@@ -663,6 +663,8 @@
 "section_keyboard_shortcut" = "Pintasan keyboard";
 "open_menu_shortcut_title" = "Buka menu";
 "open_menu_shortcut_subtitle" = "Picu menu bar dari mana saja.";
+"record_shortcut" = "Rekam pintasan";
+"press_shortcut" = "Tekan pintasan";
 "install_cli" = "Pasang CLI";
 "install_cli_subtitle" = "Symlink CodexBarCLI ke /usr/local/bin dan /opt/homebrew/bin sebagai codexbar.";
 "cli_not_found" = "CodexBarCLI tidak ditemukan di bundel aplikasi.";
@@ -1371,6 +1373,9 @@
 "menu_bar_layout_preset_compact_stacked" = "Tumpukan ringkas";
 "menu_bar_layout_preset_custom" = "Kustom";
 "menu_bar_layout_live_preview" = "Pratinjau langsung";
+"menu_bar_layout_default_preview" = "Pratinjau tata letak default";
+"menu_bar_layout_overrides_notice" = "Penyedia aktif ini menggunakan tata letak tersimpan sendiri:";
+"menu_bar_layout_use_all_accessibility" = "%@: Gunakan tata letak semua penyedia";
 "menu_bar_layout_strip" = "Strip bar menu";
 "menu_bar_layout_remove_line_break" = "Hapus pemisah baris";
 "menu_bar_layout_chip_hint" = "Pilih, seret untuk mengurutkan ulang, atau gunakan tindakan Hapus.";
@@ -1568,3 +1573,4 @@
 "notch_sessions_placement_below" = "Di bawah";
 "notch_autosize_footer" = "Lebar otomatis — mengikuti kolom. Setiap bagian di bawah punya tinggi maksimum sendiri.";
 "notch_items_footer" = "Seret untuk mengurutkan. Kartu mengisi kolom dalam urutan ini; matikan satu baris untuk mengecualikannya.";
+"Spending cap, not balance" = "Batas pengeluaran, bukan saldo";

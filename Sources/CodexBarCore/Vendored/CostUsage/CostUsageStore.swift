@@ -77,6 +77,11 @@ actor CostUsageStore {
         parserHash: CodexParserHash.value)
     static let cacheGeneration = "sqlite:\(CostUsageStore.schemaVersion)"
     static let compatiblePredecessorParserHashes: Set<String> = [
+        "55f640e6bb0ccba4", // Cursor's optional coverage field leaves native rows and retained reports unchanged.
+        "c6c46a376ba16304", // 0.55.1 scheduler transition; rows and scoped retained reports are unchanged.
+        "dd19ffa2dcfa8d47", // Current main before report-window scoping; persisted rows unchanged.
+        "8050a4faf4fddb96", // PR base before retained-report persistence; parsed rows unchanged.
+        "cfd84d13ad7d4cfa", // 0.55.x scan scheduling and progress bookkeeping; persisted rows unchanged.
         "98da5914d2f6a9cd", // Pushed PR producer before retry signaling; persisted rows unchanged.
         "43609cc56f76a003", // 0.49.3 request-tier pricing; persisted row shape unchanged.
         "b975eb705f905b9a", // 0.49.0-0.49.2 SQLite producer with compatible rows.
@@ -85,13 +90,20 @@ actor CostUsageStore {
         "3c984b655688593f", // 0.54.x row-ownership evidence fix; parser and persisted row shape unchanged.
         "5f8507161b23757c", // 0.54.2 tokscale parity + priority evidence; persisted row shape unchanged.
     ]
+    static let incompatibleRetainedReportPredecessorParserHashes: Set<String> = [
+        "dd19ffa2dcfa8d47",
+        "2d17f4981b78d07f",
+        "8050a4faf4fddb96",
+    ]
 
     /// Test-only crash injection: invoked inside `saveCodexCache`'s transaction after each
     /// persisted file with the running count, so a crash-safety harness can SIGKILL the
     /// process at a deterministic mid-save point. Never set in production.
     nonisolated(unsafe) static var saveCycleCheckpointForTesting: ((Int) -> Void)?
-    /// Test-only interleaving point after optimistic identity succeeds and before its writer lock.
-    nonisolated(unsafe) static var identicalContentPreLockCheckpointForTesting: (() -> Void)?
+    /// Test-only interleaving point scoped to one database so parallel store fixtures stay isolated.
+    nonisolated(unsafe) static var identicalContentPreLockCheckpointForTesting: (
+        databaseURL: URL,
+        checkpoint: () -> Void)?
 
     /// Test-only traversal proof for persisted Codex catch-up reconciliation. Never set in production.
     nonisolated(unsafe) static var codexCatchUpReconciliationVisitForTesting: (() -> Void)?
@@ -350,7 +362,7 @@ extension CostUsageStore {
     }
 
     private func validateExistingDatabase(_ database: OpaquePointer) throws {
-        let state: (isCurrent: Bool, canAdoptPredecessor: Bool)
+        let state: (storedHash: String, isCurrent: Bool, canAdoptPredecessor: Bool)
         try Self.execute(database, "BEGIN")
         do {
             state = try self.databaseCompatibilityState(database)
@@ -377,7 +389,7 @@ extension CostUsageStore {
             }
             try Self.validateDatabaseIntegrity(database)
             if lockedState.canAdoptPredecessor {
-                try self.adoptCompatiblePredecessor(database)
+                try self.adoptCompatiblePredecessor(database, storedHash: lockedState.storedHash)
             }
             try Self.execute(database, "COMMIT")
         } catch {
@@ -387,6 +399,7 @@ extension CostUsageStore {
     }
 
     private func databaseCompatibilityState(_ database: OpaquePointer) throws -> (
+        storedHash: String,
         isCurrent: Bool,
         canAdoptPredecessor: Bool)
     {
@@ -404,7 +417,7 @@ extension CostUsageStore {
             && self.expectedSchemaVersion == Self.schemaVersion
             && Self.compatiblePredecessorParserHashes.contains(storedHash)
             && actualVersion == Int64(predecessorVersion)
-        return (isCurrent, canAdoptPredecessor)
+        return (storedHash, isCurrent, canAdoptPredecessor)
     }
 
     private static func validateDatabaseIntegrity(_ database: OpaquePointer) throws {
@@ -416,7 +429,23 @@ extension CostUsageStore {
         }
     }
 
-    private func adoptCompatiblePredecessor(_ database: OpaquePointer) throws {
+    private func adoptCompatiblePredecessor(_ database: OpaquePointer, storedHash: String) throws {
+        if Self.incompatibleRetainedReportPredecessorParserHashes.contains(storedHash),
+           var metadata = try Self.readSingleton(
+               CostUsageStoreMetadata.self,
+               database: database,
+               table: "scan_metadata")
+        {
+            metadata.previousReportPayload = nil
+            let payload = try JSONEncoder().encode(metadata)
+            let metadataStatement = try Self.prepare(
+                database,
+                "UPDATE scan_metadata SET payload = ? WHERE id = 1")
+            defer { sqlite3_finalize(metadataStatement) }
+            Self.bind(payload, to: metadataStatement, at: 1)
+            try Self.stepDone(metadataStatement, database: database)
+            guard sqlite3_changes(database) == 1 else { throw StoreError.incompatibleSchema }
+        }
         let statement = try Self.prepare(database, "UPDATE meta SET value = ? WHERE key = 'parser_hash'")
         defer { sqlite3_finalize(statement) }
         Self.bind(self.expectedParserHash, to: statement, at: 1)

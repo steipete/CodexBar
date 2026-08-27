@@ -202,6 +202,15 @@ struct CostUsageCatchUpCompletionTests {
             #expect(await store.upsertFile(file))
         }
 
+        let waitingPaths = Array(snapshot.files.suffix(2).map(\.path).reversed())
+        let rootPaths = Array((snapshot.metadata.rootMtimes ?? [:]).keys).sorted()
+        #expect(try await store.setLookbackState(CostUsageStoreLookbackState(
+            scanSinceDay: #require(snapshot.metadata.scanSinceDay),
+            rootPaths: rootPaths,
+            nextDayByRoot: [:],
+            completedRootPaths: rootPaths,
+            pendingFilePaths: waitingPaths,
+            legacyRecursivePendingRootPaths: [])))
         let counter = IdentityValidationCounter()
         CostUsageStore.codexCatchUpReconciliationVisitForTesting = { counter.increment() }
         defer { CostUsageStore.codexCatchUpReconciliationVisitForTesting = nil }
@@ -210,6 +219,7 @@ struct CostUsageCatchUpCompletionTests {
         #expect(counter.value == CostUsageScanner.codexCatchUpScanCandidateLimit)
         #expect(restored.codexActiveLookbackState?.pendingFilePaths.count
             == corpusSize - CostUsageScanner.codexCatchUpScanCandidateLimit)
+        #expect(Array(restored.codexActiveLookbackState?.pendingFilePaths.prefix(2) ?? []) == waitingPaths)
         #expect(restored.codexScanCatchUpPending == true)
     }
 

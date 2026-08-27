@@ -656,6 +656,8 @@
 "section_keyboard_shortcut" = "Сочетание клавиш";
 "open_menu_shortcut_title" = "Открыть меню";
 "open_menu_shortcut_subtitle" = "Вызывать меню строки меню из любого места.";
+"record_shortcut" = "Добавить";
+"press_shortcut" = "Запись…";
 "install_cli" = "Установить CLI";
 "install_cli_subtitle" = "Создать symlink CodexBarCLI как codexbar в /usr/local/bin и /opt/homebrew/bin.";
 "cli_not_found" = "CodexBarCLI не найден в комплекте приложения.";
@@ -1369,6 +1371,9 @@
 "menu_bar_layout_preset_compact_stacked" = "Компактно в две строки";
 "menu_bar_layout_preset_custom" = "Пользовательский";
 "menu_bar_layout_live_preview" = "Предпросмотр";
+"menu_bar_layout_default_preview" = "Предпросмотр макета по умолчанию";
+"menu_bar_layout_overrides_notice" = "Эти включённые провайдеры используют собственные сохранённые макеты:";
+"menu_bar_layout_use_all_accessibility" = "%@: Использовать макет для всех провайдеров";
 "menu_bar_layout_strip" = "Строка меню";
 "menu_bar_layout_remove_line_break" = "Удалить разрыв строки";
 "menu_bar_layout_chip_hint" = "Выберите, перетащите для изменения порядка или используйте действие удаления.";
@@ -1566,3 +1571,4 @@
 "notch_sessions_placement_below" = "Снизу";
 "notch_autosize_footer" = "Ширина автоматическая — она следует за столбцами. У каждого раздела ниже своя максимальная высота.";
 "notch_items_footer" = "Перетащите, чтобы изменить порядок. Плитки заполняют столбцы в этом порядке; отключите строку, чтобы исключить её.";
+"Spending cap, not balance" = "Лимит расходов, не баланс";

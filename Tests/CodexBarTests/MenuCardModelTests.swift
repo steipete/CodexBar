@@ -1092,7 +1092,7 @@ struct MenuCardModelTests {
             metric: metric)
         #expect(popupTitle == "API key limit")
         #expect(metric.resetText == nil)
-        #expect(model.providerDetails.flatMap(\.rows).first { $0.label == "API key budget" }?.value == "$20.00")
+        #expect(model.providerDetails.flatMap(\.rows).first { $0.label == "API key limit" }?.value == "$20.00")
         #expect(metric.detailRightText == nil)
     }
 
@@ -1135,7 +1135,7 @@ struct MenuCardModelTests {
         #expect(model.creditsText == nil)
         #expect(model.placeholder == nil)
         #expect(model.usageNotes.isEmpty)
-        #expect(model.providerDetails.flatMap(\.rows).first { $0.label == "API key budget" }?.value ==
+        #expect(model.providerDetails.flatMap(\.rows).first { $0.label == "API key limit" }?.value ==
             "No limit configured")
     }
 
@@ -1176,7 +1176,7 @@ struct MenuCardModelTests {
 
         #expect(model.metrics.isEmpty)
         #expect(model.usageNotes.isEmpty)
-        #expect(model.providerDetails.flatMap(\.rows).first { $0.label == "API key budget" }?.value ==
+        #expect(model.providerDetails.flatMap(\.rows).first { $0.label == "API key limit" }?.value ==
             "Unavailable right now")
     }
 

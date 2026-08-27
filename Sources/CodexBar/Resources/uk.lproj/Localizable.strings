@@ -655,6 +655,8 @@
 "section_keyboard_shortcut" = "Комбінація клавіш";
 "open_menu_shortcut_title" = "Відкрити меню";
 "open_menu_shortcut_subtitle" = "Викликати меню панелі меню з будь-якого місця.";
+"record_shortcut" = "Записати комбінацію";
+"press_shortcut" = "Натисніть комбінацію";
 "install_cli" = "Встановіть CLI";
 "install_cli_subtitle" = "Символьне посилання CodexBarCLI на /usr/local/bin і /opt/homebrew/bin як codexbar.";
 "cli_not_found" = "CodexBarCLI не знайдено в пакеті програм.";
@@ -1367,6 +1369,9 @@
 "menu_bar_layout_preset_compact_stacked" = "Компактно у два рядки";
 "menu_bar_layout_preset_custom" = "Користувацький";
 "menu_bar_layout_live_preview" = "Попередній перегляд";
+"menu_bar_layout_default_preview" = "Перегляд типового макета";
+"menu_bar_layout_overrides_notice" = "Ці ввімкнені провайдери використовують власні збережені макети:";
+"menu_bar_layout_use_all_accessibility" = "%@: Використовувати макет для всіх провайдерів";
 "menu_bar_layout_strip" = "Смуга меню";
 "menu_bar_layout_remove_line_break" = "Видалити розрив рядка";
 "menu_bar_layout_chip_hint" = "Виберіть, перетягніть для зміни порядку або скористайтеся дією видалення.";
@@ -1565,3 +1570,4 @@
 "notch_sessions_placement_below" = "Знизу";
 "notch_autosize_footer" = "Ширина автоматична — вона відповідає стовпцям. Кожен розділ нижче має власну максимальну висоту.";
 "notch_items_footer" = "Перетягніть, щоб змінити порядок. Плитки заповнюють стовпці в цьому порядку; вимкніть рядок, щоб виключити його.";
+"Spending cap, not balance" = "Ліміт витрат, не баланс";

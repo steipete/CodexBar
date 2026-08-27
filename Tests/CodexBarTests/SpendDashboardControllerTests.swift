@@ -53,9 +53,9 @@ struct SpendDashboardControllerTests {
         #expect(contexts.first?.includePiSessions == false)
     }
 
-    @Test
+    @Test(CodexCredentialFixtures())
     func `Codex auth rotation invalidates stale spend while retaining unrelated providers`() async throws {
-        let home = FileManager.default.temporaryDirectory
+        let home = CodexCredentialFixtures.root
             .appendingPathComponent(
                 "SpendDashboardControllerTests-auth-rotation-\(UUID().uuidString)",
                 isDirectory: true)
@@ -332,7 +332,7 @@ struct SpendDashboardControllerTests {
             settings: settings,
             startupBehavior: .testing,
             environmentBase: [:])
-        store.publishConfirmedEmptyTokenSnapshot(for: .claude)
+        store._setSpendDashboardTokenSnapshotForTesting(nil, for: .claude)
 
         let request = await SpendDashboardSource.makeRequest(
             settings: settings,

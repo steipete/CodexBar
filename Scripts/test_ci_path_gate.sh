@@ -199,10 +199,10 @@ if [[ -s "$unterminated_output" ]]; then
 fi
 
 verify="${ROOT_DIR}/Scripts/ci_verify_test_jobs.sh"
-"$verify" success success true success false true success >/dev/null
-"$verify" success success true success false false skipped >/dev/null
-"$verify" success success false skipped false true success >/dev/null
-"$verify" success success false skipped false false skipped >/dev/null
+"$verify" success success true success false true success success >/dev/null
+"$verify" success success true success false false skipped success >/dev/null
+"$verify" success success false skipped false true success success >/dev/null
+"$verify" success success false skipped false false skipped success >/dev/null
 
 assert_verify_fails() {
   if "$verify" "$@" >/dev/null 2>&1; then
@@ -211,16 +211,81 @@ assert_verify_fails() {
   fi
 }
 
-assert_verify_fails success success true skipped false true success
-assert_verify_fails success success true skipped true true success
-assert_verify_fails success success false skipped true true success
-assert_verify_fails success success true success true true success
-assert_verify_fails success success false success false true success
-assert_verify_fails success success "" skipped false true success
-assert_verify_fails failure success true success false true success
-assert_verify_fails success failure true success false true success
-assert_verify_fails success success true success false true skipped
-assert_verify_fails success success true success false false success
-assert_verify_fails success success true success false "" skipped
+assert_verify_fails success success true skipped false true success success
+assert_verify_fails success success true skipped true true success success
+assert_verify_fails success success false skipped true true success success
+assert_verify_fails success success true success true true success success
+assert_verify_fails success success false success false true success success
+assert_verify_fails success success "" skipped false true success success
+assert_verify_fails failure success true success false true success success
+assert_verify_fails success failure true success false true success success
+assert_verify_fails success success true success false true skipped success
+assert_verify_fails success success true success false false success success
+assert_verify_fails success success true success false "" skipped success
+
+assert_linux_verify_fails() {
+  local expected="$1"
+  local error_file="${tmp_dir}/linux-verify.error"
+  shift
+  if "$verify" "$@" >/dev/null 2>"$error_file"; then
+    printf 'unexpected Linux aggregate success: %s\n' "$*" >&2
+    exit 1
+  fi
+  if ! grep -Fxq "build-linux-cli matrix finished with ${expected}; expected success" "$error_file"; then
+    printf 'expected Linux matrix diagnostic for %s\n' "$expected" >&2
+    cat "$error_file" >&2
+    exit 1
+  fi
+}
+
+for macos_required in true false; do
+  macos_result=success
+  [[ "$macos_required" == true ]] || macos_result=skipped
+  for musl_required in true false; do
+    musl_result=success
+    [[ "$musl_required" == true ]] || musl_result=skipped
+    valid_args=(success success "$macos_required" "$macos_result" false "$musl_required" "$musl_result")
+    for linux_result in failure cancelled skipped '' unknown; do
+      assert_linux_verify_fails "${linux_result:-<empty>}" "${valid_args[@]}" "$linux_result"
+    done
+    assert_linux_verify_fails '<missing>' "${valid_args[@]}"
+
+    for failed_result in failure cancelled; do
+      assert_verify_fails "$failed_result" success "$macos_required" "$macos_result" \
+        false "$musl_required" "$musl_result" success
+      assert_verify_fails success "$failed_result" "$macos_required" "$macos_result" \
+        false "$musl_required" "$musl_result" success
+      if [[ "$macos_required" == true ]]; then
+        assert_verify_fails success success true "$failed_result" false "$musl_required" "$musl_result" success
+      fi
+      if [[ "$musl_required" == true ]]; then
+        assert_verify_fails success success "$macos_required" "$macos_result" false true "$failed_result" success
+      fi
+    done
+  done
+done
+
+# Check the actual aggregate dependency and shell argument, not summary text elsewhere in the workflow.
+python3 - "${ROOT_DIR}/.github/workflows/ci.yml" <<'PY'
+import pathlib
+import re
+import shlex
+import sys
+
+workflow = pathlib.Path(sys.argv[1]).read_text()
+aggregate = re.search(r"(?ms)^  lint-build-test:\n(.*?)(?=^  [\w-]+:|\Z)", workflow)
+if aggregate is None:
+    sys.exit("missing lint-build-test aggregate")
+body = aggregate.group(1)
+needs = re.search(r"(?m)^    needs:\n((?:      - [^\n]+\n)+)", body)
+if needs is None or "      - build-linux-cli" not in needs.group(1).splitlines():
+    sys.exit("lint-build-test must need build-linux-cli")
+command = re.search(r"(?m)^          \./Scripts/ci_verify_test_jobs\.sh(?:[^\n]*\\\n)+[^\n]*", body)
+if command is None:
+    sys.exit("missing aggregate verifier command")
+arguments = shlex.split(command.group(0).replace("\\\n", ""))
+if len(arguments) != 9 or arguments[8] != "${{ needs.build-linux-cli.result }}":
+    sys.exit("aggregate verifier argument eight must be needs.build-linux-cli.result")
+PY
 
 printf 'CI path gate tests passed.\n'

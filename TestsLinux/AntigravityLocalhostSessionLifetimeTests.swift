@@ -12,10 +12,8 @@ import Musl
 #endif
 @testable import CodexBarCore
 
-/// Regression coverage for #2243: the Antigravity localhost probe must reuse one
-/// process-lifetime URLSession instead of creating and invalidating a session per
-/// request, which exercised a FoundationNetworking/libdispatch socket-teardown
-/// race on Linux (swiftlang/swift-corelibs-foundation#4791).
+/// Covers the process-lifetime session-reuse contract from the #2243 mitigation,
+/// without establishing the root cause of Linux FoundationNetworking/libdispatch crashes.
 struct AntigravityLocalhostSessionLifetimeTests {
     @Test
     func `localhost requests reuse one session and delegate`() {
@@ -28,42 +26,43 @@ struct AntigravityLocalhostSessionLifetimeTests {
 
     @Test
     func `concurrent requests to a closed localhost port all throw without teardown churn`() async throws {
-        let port = try Self.closedLoopbackPort()
-        let thrownCount = await withTaskGroup(of: Bool.self) { group in
-            for _ in 0..<32 {
-                group.addTask {
-                    do {
-                        _ = try await AntigravityStatusProbe.makeRequest(
-                            payload: AntigravityStatusProbe.RequestPayload(path: "/closed", body: [:]),
-                            context: AntigravityStatusProbe.RequestContext(
-                                endpoints: [
-                                    AntigravityStatusProbe.AntigravityConnectionEndpoint(
-                                        scheme: "http",
-                                        port: port,
-                                        csrfToken: "",
-                                        source: .languageServer),
-                                ],
-                                timeout: 0.5))
-                        return false
-                    } catch {
-                        return true
+        try await Self.withClosedLoopbackPort { port in
+            let thrownCount = await withTaskGroup(of: Bool.self) { group in
+                for _ in 0..<32 {
+                    group.addTask {
+                        do {
+                            _ = try await AntigravityStatusProbe.makeRequest(
+                                payload: AntigravityStatusProbe.RequestPayload(path: "/closed", body: [:]),
+                                context: AntigravityStatusProbe.RequestContext(
+                                    endpoints: [
+                                        AntigravityStatusProbe.AntigravityConnectionEndpoint(
+                                            scheme: "http",
+                                            port: port,
+                                            csrfToken: "",
+                                            source: .languageServer),
+                                    ],
+                                    timeout: 0.5))
+                            return false
+                        } catch {
+                            return true
+                        }
                     }
                 }
+
+                var count = 0
+                for await didThrow in group where didThrow {
+                    count += 1
+                }
+                return count
             }
 
-            var count = 0
-            for await didThrow in group where didThrow {
-                count += 1
-            }
-            return count
+            #expect(thrownCount == 32)
         }
-
-        #expect(thrownCount == 32)
     }
 
-    /// Reserves an ephemeral loopback port and releases it so requests hit a
-    /// guaranteed-closed port (connection refused) without external traffic.
-    private static func closedLoopbackPort() throws -> Int {
+    /// Keeps an ephemeral loopback socket bound but not listening until requests finish,
+    /// preventing another process from reusing the port while connections are refused.
+    private static func withClosedLoopbackPort(_ operation: (Int) async -> Void) async throws {
         #if canImport(Glibc)
         let streamType = Int32(SOCK_STREAM.rawValue)
         #else
@@ -94,6 +93,6 @@ struct AntigravityLocalhostSessionLifetimeTests {
             }
         }
         guard nameResult == 0 else { throw POSIXError(.init(rawValue: errno) ?? .EIO) }
-        return Int(UInt16(bigEndian: address.sin_port))
+        await operation(Int(UInt16(bigEndian: address.sin_port)))
     }
 }

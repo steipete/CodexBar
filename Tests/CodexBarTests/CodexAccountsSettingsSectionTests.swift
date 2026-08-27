@@ -4,6 +4,7 @@ import Testing
 @testable import CodexBar
 
 @MainActor
+@Suite(CodexCredentialFixtures())
 struct CodexAccountsSettingsSectionTests {
     @Test
     func `codex accounts section shows live badge only for live only multi account row`() throws {
@@ -134,7 +135,7 @@ struct CodexAccountsSettingsSectionTests {
         let settings = Self.makeSettingsStore(suite: "CodexAccountsSettingsSectionTests-select-split")
         let store = Self.makeUsageStore(settings: settings)
         let managedStoreURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        let managedHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+        let managedHome = CodexCredentialFixtures.root.appendingPathComponent(
             UUID().uuidString,
             isDirectory: true)
         defer {

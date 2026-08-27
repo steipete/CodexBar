@@ -92,6 +92,7 @@ struct SpendDashboardLoadRequest: Sendable {
     let codexRequests: [CodexSpendScanRequest]
     let now: Date
     let force: Bool
+    let independentRefreshPending: Bool
 
     init(
         configuration: SpendDashboardConfiguration,
@@ -100,7 +101,8 @@ struct SpendDashboardLoadRequest: Sendable {
         confirmedEmptySourceIDs: Set<String> = [],
         codexRequests: [CodexSpendScanRequest],
         now: Date,
-        force: Bool)
+        force: Bool,
+        independentRefreshPending: Bool = false)
     {
         self.configuration = configuration
         self.capturedInputs = capturedInputs
@@ -109,6 +111,7 @@ struct SpendDashboardLoadRequest: Sendable {
         self.codexRequests = codexRequests
         self.now = now
         self.force = force
+        self.independentRefreshPending = independentRefreshPending
     }
 }
 
@@ -229,12 +232,20 @@ enum SpendDashboardSource {
 
         let providerBaselines = initialProviders.filter { $0 != .codex }.map { provider in
             let captured = self.capturedTokenPublication(store: store, provider: provider)
+            let shouldRefresh: Bool = if mode == .refreshMissing,
+                                         UsageStore.usesSpendDashboardIndependentTokenSnapshot(provider)
+            {
+                store.spendDashboardTokenRefreshNeeded(for: provider)
+            } else {
+                mode.shouldRefresh(hasPublication: captured.publication != nil)
+            }
             return (
                 provider: provider,
-                publication: captured.publication,
-                publicationRevision: captured.revision)
+                publicationRevision: captured.revision,
+                trigger: store.spendDashboardTokenRefreshTrigger(for: provider),
+                shouldRefresh: shouldRefresh)
         }
-        let baselinesToRefresh = providerBaselines.filter { mode.shouldRefresh(hasPublication: $0.publication != nil) }
+        let baselinesToRefresh = providerBaselines.filter(\.shouldRefresh)
         if !baselinesToRefresh.isEmpty {
             await withTaskGroup(of: Void.self) { group in
                 for baseline in baselinesToRefresh {
@@ -300,7 +311,7 @@ enum SpendDashboardSource {
                 unavailableSourceIDs.insert(provider.rawValue)
                 continue
             }
-            let shouldRefresh = mode.shouldRefresh(hasPublication: baseline.publication != nil)
+            let shouldRefresh = baseline.shouldRefresh
             let current = self.capturedTokenPublication(store: store, provider: provider)
             guard let currentPublication = current.publication else {
                 unavailableSourceIDs.insert(provider.rawValue)
@@ -330,7 +341,17 @@ enum SpendDashboardSource {
             confirmedEmptySourceIDs: confirmedEmptySourceIDs,
             codexRequests: codexRequests,
             now: captureNow,
-            force: mode.forcesLoader)
+            force: mode.forcesLoader,
+            independentRefreshPending: providers.contains { provider in
+                guard UsageStore.usesSpendDashboardIndependentTokenSnapshot(provider),
+                      !store.spendDashboardTokenRefreshInFlight.contains(provider.instanceID),
+                      store.spendDashboardTokenRefreshNeeded(for: provider)
+                else { return false }
+                // Capture barriers may discover pending work; refresh passes repeat only for triggers
+                // that changed while suspended, never merely because a source remained unavailable.
+                return mode == .captureOnly || providerBaselines.first { $0.provider == provider }?.trigger !=
+                    store.spendDashboardTokenRefreshTrigger(for: provider)
+            })
     }
 
     static func load(_ request: SpendDashboardLoadRequest) async -> SpendDashboardLoadResult {
@@ -724,6 +745,13 @@ enum SpendDashboardSource {
             }
             return "\(provider.rawValue):snapshot:\(current.publicationRevision):\(self.snapshotRevision(snapshot))"
         }
+        for provider in providers where UsageStore.usesSpendDashboardIndependentTokenSnapshot(provider) {
+            let trigger = store.spendDashboardTokenRefreshTrigger(for: provider)
+            let inFlight = store.spendDashboardTokenRefreshInFlight.contains(provider.instanceID)
+            // Keep refresh triggers outside the source's data-revision prefix used by forced reconciliation.
+            revisions
+                .append("independent-trigger-\(provider.rawValue):\(trigger.regularPublicationRevision):\(inFlight)")
+        }
         return revisions
     }
 
@@ -869,12 +897,7 @@ enum SpendDashboardSource {
     {
         if UsageStore.usesSpendDashboardIndependentTokenSnapshot(provider) {
             let revision = store.spendDashboardTokenSnapshotPublicationRevision(for: provider)
-            if let spend = store.spendDashboardTokenSnapshotPublicationForCurrentConfig(for: provider) {
-                return (spend, revision)
-            }
-            return (
-                store.tokenSnapshotPublicationForCurrentProviderConfig(for: provider),
-                revision)
+            return (store.spendDashboardTokenSnapshotPublicationForCurrentConfig(for: provider), revision)
         }
         return (
             store.tokenSnapshotPublicationForCurrentProviderConfig(for: provider),
@@ -1137,6 +1160,7 @@ final class SpendDashboardController {
     private let publicationHandler: PublicationHandler?
     private var loadTask: Task<Void, Never>?
     private var loadedInputs: [SpendDashboardModel.ProviderInput] = []
+    private var loadedInputScopes: [String: SpendDashboardLoadedInputScope] = [:]
     private var loadedAt = Date()
     private var lastSuccessfulConfiguration: SpendDashboardConfiguration?
     private var phase = LoadPhase.ordinary
@@ -1232,6 +1256,9 @@ final class SpendDashboardController {
             self.loadedInputs.removeAll { invalidatedSourceIDs.contains($0.id) }
             self.failedSourceIDs.subtract(invalidatedSourceIDs)
             self.confirmedEmptySourceIDs.subtract(invalidatedSourceIDs)
+            for sourceID in invalidatedSourceIDs {
+                self.loadedInputScopes.removeValue(forKey: sourceID)
+            }
             self.failedSourceCount = 0
             self.rebuildModel()
         }
@@ -1246,6 +1273,7 @@ final class SpendDashboardController {
               !configuration.providerIDs.isEmpty || configuration.openCodexUsageLogsEnabled
         else {
             self.loadedInputs = []
+            self.loadedInputScopes = [:]
             self.failedSourceIDs = []
             self.confirmedEmptySourceIDs = []
             self.openCodexObservation = .disabled
@@ -1296,6 +1324,11 @@ final class SpendDashboardController {
         self.loadedInputs.removeAll { cachedIDs.contains($0.id) }
         self.loadedInputs.append(contentsOf: result.inputs)
         self.loadedInputs = Self.stableUniqueInputs(self.loadedInputs)
+        for input in result.inputs {
+            self.loadedInputScopes[input.id] = SpendDashboardLoadedInputScope(
+                configuration: request.configuration,
+                input: input)
+        }
         self.loadedAt = request.now
         self.failedSourceCount = result.failedSourceCount
         self.failedSourceIDs = result.failedSourceIDs
@@ -1390,6 +1423,7 @@ final class SpendDashboardController {
                     ($0, ReconciliationObservation.confirmedEmpty)
                 }))
             self.startLoad(configuration: latestConfiguration, phase: .reconciling(outcome))
+            return
 
         case let .reconciling(outcome):
             let reconciled = Self.merge(outcome: outcome, capture: request)
@@ -1398,6 +1432,11 @@ final class SpendDashboardController {
                 result: reconciled.result,
                 invalidatedSourceIDs: outcome.invalidatedSourceIDs,
                 confirmedEmptySourceIDs: reconciled.confirmedEmptySourceIDs)
+        }
+        // Configuration is captured after suspended scans. A newer regular publication in that
+        // capture still needs one ordinary follow-up; it was not incorporated by the completed scan.
+        if request.independentRefreshPending, let configuration = self.configuration {
+            self.startLoad(configuration: configuration, phase: .ordinary)
         }
     }
 
@@ -1426,19 +1465,47 @@ final class SpendDashboardController {
         let codexDisplayNames = request.configuration.codexAccountDisplayNames
         self.refreshRetainedCodexDisplayNames(codexDisplayNames)
         var nextInputs = result.inputs
+        var nextInputScopes = Dictionary(uniqueKeysWithValues: nextInputs.map { input in
+            (input.id, SpendDashboardLoadedInputScope(configuration: request.configuration, input: input))
+        })
+        let unsafeSourceIDs = invalidatedSourceIDs
+            .union(result.invalidatedSourceIDs)
+            .union(confirmedEmptySourceIDs)
+        var incompleteCodexScopes: [String: SpendDashboardLoadedInputScope] = [:]
+        // Provider-specific by design: only Codex account histories publish bounded catch-up coverage.
+        for input in nextInputs
+            where input.provider == .codex && !input.snapshot.historyCoverageIsEstablished
+        {
+            incompleteCodexScopes[input.id] = SpendDashboardLoadedInputScope(
+                configuration: request.configuration,
+                input: input)
+        }
+        if !incompleteCodexScopes.isEmpty {
+            let retainedInputs = self.loadedInputs.filter {
+                incompleteCodexScopes[$0.id] == self.loadedInputScopes[$0.id] &&
+                    !unsafeSourceIDs.contains($0.id) &&
+                    $0.provider == .codex &&
+                    $0.snapshot.historyCoverageIsEstablished
+            }.map { Self.relabelCodexInput($0, displayNamesByID: codexDisplayNames) }
+            let retainedSourceIDs = Set(retainedInputs.map(\.id))
+            nextInputs.removeAll { retainedSourceIDs.contains($0.id) }
+            nextInputs.append(contentsOf: retainedInputs)
+        }
         if !result.failedSourceIDs.isEmpty {
             let freshIDs = Set(nextInputs.map(\.id))
-            let unsafeSourceIDs = invalidatedSourceIDs
-                .union(result.invalidatedSourceIDs)
-                .union(confirmedEmptySourceIDs)
-            nextInputs.append(contentsOf: self.loadedInputs.filter {
+            let retainedInputs = self.loadedInputs.filter {
                 result.failedSourceIDs.contains($0.id) &&
                     !unsafeSourceIDs.contains($0.id) &&
                     !freshIDs.contains($0.id)
-            }.map { Self.relabelCodexInput($0, displayNamesByID: codexDisplayNames) })
+            }.map { Self.relabelCodexInput($0, displayNamesByID: codexDisplayNames) }
+            nextInputs.append(contentsOf: retainedInputs)
+            for input in retainedInputs {
+                nextInputScopes[input.id] = self.loadedInputScopes[input.id]
+            }
         }
         self.configuration = request.configuration
         self.loadedInputs = Self.stableUniqueInputs(nextInputs)
+        self.loadedInputScopes = nextInputScopes
         self.loadedAt = request.now
         self.lastSuccessfulConfiguration = request.configuration
         self.failedSourceCount = result.failedSourceCount

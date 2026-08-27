@@ -57,6 +57,20 @@ The grok.com billing gRPC-web endpoint remains a best-effort fallback.
      `onDemandUsed.val / onDemandCap.val * 100`. A parseable current period
      without either value represents unknown usage. The reset timestamp comes from
      `config.currentPeriod.end`, then `config.billingPeriodEnd`.
+   - Unknown usage yields no rate window at all, and a successful strategy ends the
+     fetch pipeline, so a period-only credits answer would otherwise hide the usage
+     bar for plans whose payload never publishes `creditUsagePercent`. Before that
+     answer is accepted, CodexBar retries the grok.com bearer gRPC path (step 4,
+     still without cookies) and adopts its percent when it has one, keeping the
+     credits period and plan metadata, with the proxy's authoritative reset taking
+     precedence over a conflicting gRPC timestamp. When grok.com has no percent
+     either, or the retry fails, usage stays unknown and the card reports an explicit
+     unavailable-usage diagnostic — an absent value is never reported as 0%.
+     Only a percentage that grok.com actually put on the wire is adopted: that
+     parser reports its own no-usage-yet frame (a period with no percentage field)
+     as 0, and promoting that reading would recreate the fabricated 0%. The retry
+     also runs under a 6-second budget, because period-only payloads recur on every
+     refresh and a grok.com outage must not delay the credits answer already in hand.
    - Plan name does not come from the credits payload. After a successful
      auth-file or SuperGrok OAuth web billing result (CLI-proxy) or the team
      identity-only path, CodexBar GETs `https://cli-chat-proxy.grok.com/v1/settings`
@@ -76,9 +90,8 @@ The grok.com billing gRPC-web endpoint remains a best-effort fallback.
      Cookie-only authentication can fail with gRPC status 16 and
      `no-credentials`; signing in through Chrome alone cannot provide that proof
      to CodexBar, so `grok login` is the recommended recovery path.
-   - Uses grok.com browser session cookies. When a non-expired
-     `~/.grok/auth.json` token is available, CodexBar first sends it with each
-     browser session, then retries that session with cookies only.
+   - Uses grok.com browser session cookies. Successful cookie usage never inherits
+     the auth-file account's identity or settings tier.
    - CodexBar imports Chrome only by default to avoid unrelated browser
      Keychain prompts.
    - Ordinary CLI/test runtime does not import browser cookies unless
@@ -89,8 +102,10 @@ The grok.com billing gRPC-web endpoint remains a best-effort fallback.
      re-open the Chromium Keychain gate. The cached cookie is evicted only on
      authentication failures (HTTP 401/403 or gRPC auth statuses); a cached
      team-limited session keeps degrading to identity-only data.
-   - `~/.grok/auth.json` is still used for identity and as a last best-effort
-     bearer-only probe after browser sessions fail. Expired tokens are not sent.
+   - Auto can try a separate bearer-only probe after browser sessions fail.
+     Expired tokens are not sent. A team-usage rejection may still produce the
+     documented identity-only fallback from captured, non-expired team credentials;
+     this does not attach those credentials to successful cookie usage.
    - Parses the returned protobuf enough to recover used percent and
      reset timestamp, accepting both gRPC-web frames and the raw protobuf form
      returned by some successful requests. A current billing period with an
@@ -121,6 +136,10 @@ The grok.com billing gRPC-web endpoint remains a best-effort fallback.
   Chrome only.
 - Credits `subscriptionTier` maps SuperGrok vs SuperGrok Heavy on the plan badge.
   SuperGrok Heavy with no `creditUsagePercent` is unknown usage, not 0%.
+- Each OAuth fetch captures credentials once for billing, bearer retries, identity,
+  and settings enrichment. Replacing `auth.json` during an awaited request cannot
+  relabel the result with the new account. Cookie usage stays separate from this
+  captured account; local session scanning and CLI behavior are unchanged.
 
 
 ## JSON-RPC contract
@@ -203,7 +222,9 @@ diagnostics even when the RPC path is unavailable.
 Those local daily token buckets also feed the shared Usage & Spend catalog so an
 enabled Grok subscription is counted instead of omitted. SuperGrok/X Premium+
 credits remain a quota window on the usage bar; they are never converted into
-dollars.
+dollars. Local session scans run on the dedicated background usage-scan queue;
+menu cards and spend views reuse the already-published snapshot instead of
+walking the session directory whenever they render.
 
 ## Status
 

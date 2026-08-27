@@ -271,17 +271,9 @@ struct GeminiStatusProbeAPITests {
     }
 
     @Test
-    func `refreshes expired token with fnm bundle layout when fnm keeps stdout open`() async throws {
+    func `refreshes expired token with fnm bundle layout`() async throws {
         let env = try GeminiTestEnvironment()
         defer { env.cleanup() }
-        let childPIDFile = env.homeURL.appendingPathComponent("fnm-child.pid")
-        defer {
-            if let text = try? String(contentsOf: childPIDFile, encoding: .utf8),
-               let childPID = pid_t(text.trimmingCharacters(in: .whitespacesAndNewlines))
-            {
-                _ = kill(childPID, SIGKILL)
-            }
-        }
         try env.writeCredentials(
             accessToken: "old-token",
             refreshToken: "refresh-token",
@@ -305,19 +297,10 @@ struct GeminiStatusProbeAPITests {
             .path
         _ = try env.writeFakeFnm(
             npmRoot: npmRoot,
-            geminiPackageJSONPath: packageJSONPath.path,
-            holdNpmRootStdoutOpen: true)
+            geminiPackageJSONPath: packageJSONPath.path)
 
         let previousPath = ProcessInfo.processInfo.environment["PATH"]
-        let previousPIDFile = ProcessInfo.processInfo.environment["CODEXBAR_TEST_CHILD_PID_FILE"]
-        let fakeBinDir = env.homeURL.appendingPathComponent("bin").path
-        let pathValue = if let previousPath, !previousPath.isEmpty {
-            "\(fakeBinDir):\(binURL.deletingLastPathComponent().path):\(previousPath)"
-        } else {
-            "\(fakeBinDir):\(binURL.deletingLastPathComponent().path)"
-        }
-        setenv("PATH", pathValue, 1)
-        setenv("CODEXBAR_TEST_CHILD_PID_FILE", childPIDFile.path, 1)
+        setenv("PATH", env.fnmFixturePath(geminiBinary: binURL, inheritedPath: previousPath), 1)
 
         let previousGeminiPath = ProcessInfo.processInfo.environment["GEMINI_CLI_PATH"]
         setenv("GEMINI_CLI_PATH", binURL.path, 1)
@@ -326,12 +309,6 @@ struct GeminiStatusProbeAPITests {
                 setenv("PATH", previousPath, 1)
             } else {
                 unsetenv("PATH")
-            }
-
-            if let previousPIDFile {
-                setenv("CODEXBAR_TEST_CHILD_PID_FILE", previousPIDFile, 1)
-            } else {
-                unsetenv("CODEXBAR_TEST_CHILD_PID_FILE")
             }
 
             if let previousGeminiPath {
@@ -394,12 +371,43 @@ struct GeminiStatusProbeAPITests {
         let probe = GeminiStatusProbe(timeout: 2, homeDirectory: env.homeURL.path, dataLoader: dataLoader)
         let snapshot = try await probe.fetch()
         #expect(snapshot.accountPlan == "Paid")
-        let childPIDText = try String(contentsOf: childPIDFile, encoding: .utf8)
-        let childPID = try #require(pid_t(childPIDText.trimmingCharacters(in: .whitespacesAndNewlines)))
-        #expect(kill(childPID, 0) == 0, "package discovery should return while the stdout-holding child is alive")
-
         let updated = try env.readCredentials()
         #expect(updated["access_token"] as? String == "new-token")
+    }
+
+    @Test
+    func `fnm helper returns first line while an owned process holds stdout open`() throws {
+        let env = try GeminiTestEnvironment()
+        defer { env.cleanup() }
+        let holder = try GeminiStdoutHolderFixture(root: env.homeURL)
+        defer { holder.cleanup() }
+
+        let result = holder.runProducer()
+        try #require(result == "/tmp/gemini-package", "\(holder.producerDiagnostics)")
+        let publishedPID = try String(contentsOf: holder.pidFile, encoding: .utf8)
+        #expect(pid_t(publishedPID) == holder.process.processIdentifier)
+        #expect(holder.process.isRunning)
+
+        holder.cleanup()
+        #expect(!holder.process.isRunning)
+    }
+
+    @Test
+    func `fnm helper producer failure cleans up without a PID artifact`() throws {
+        let env = try GeminiTestEnvironment()
+        defer { env.cleanup() }
+        let holder = try GeminiStdoutHolderFixture(root: env.homeURL)
+        defer { holder.cleanup() }
+        let missingParent = env.homeURL.appendingPathComponent("missing/holder.pid")
+
+        #expect(holder.runProducer(pidFile: missingParent) == nil)
+        #expect(holder.producerDiagnostics.contains("FileNotFoundError"))
+        #expect(holder.producerDiagnostics.contains(missingParent.path))
+        #expect(!FileManager.default.fileExists(atPath: missingParent.path))
+        #expect(holder.process.isRunning)
+
+        holder.cleanup()
+        #expect(!holder.process.isRunning)
     }
 
     @Test

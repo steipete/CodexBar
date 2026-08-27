@@ -32,7 +32,8 @@ it in Settings. A configured slug remains useful for selecting among multiple ac
 
 ## Usage details
 
-- The menu card shows the 30-day spend, e.g. `$0.53` under a "Spend" label.
+- The menu card shows the 30-day spend, e.g. `$0.53` under an "API spend" label, even when the optional
+  local Cost summary setting is off.
 - There is no session or weekly window — Fireworks does not expose per-window quota via API.
 - HTTP 401/403 surfaces an invalid-key message, 429 a rate-limit message.
 - A 404 for a configured slug retries account discovery. An empty billing response is accepted only when the

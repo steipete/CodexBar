@@ -824,7 +824,7 @@ struct StatusMenuCodexSwitcherTests {
         #expect(state.canAddAccount == false)
     }
 
-    @Test
+    @Test(CodexCredentialFixtures())
     func `codex menu switcher can select managed row when same email rows split by identity`() throws {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
@@ -833,7 +833,7 @@ struct StatusMenuCodexSwitcherTests {
         settings.mergeIcons = false
         self.enableOnlyCodex(settings)
 
-        let managedHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+        let managedHome = CodexCredentialFixtures.root.appendingPathComponent(
             UUID().uuidString,
             isDirectory: true)
         let managedAccountID = try #require(UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-222222222222"))

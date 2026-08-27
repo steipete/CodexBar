@@ -128,13 +128,34 @@ enum MenuBarLayoutEditorMutations {
     }
 }
 
-private enum MenuBarLayoutEditorScope: Hashable {
+enum MenuBarLayoutEditorScope: Hashable {
     case all
     case provider(UsageProvider)
+
+    var previewLabel: String {
+        switch self {
+        case .all: L("menu_bar_layout_default_preview")
+        case .provider: L("menu_bar_layout_live_preview")
+        }
+    }
+
+    @MainActor
+    func providersWithOverrides(settings: SettingsStore) -> [UsageProvider] {
+        guard self == .all else { return [] }
+        let overrides = settings.menuBarLayoutOverrides
+        return settings.orderedFirstPartyProviders().filter {
+            settings.providerEnablement[$0.instanceID] == true && overrides[$0] != nil
+        }
+    }
 }
 
 @MainActor
 enum MenuBarLayoutEditorPersistence {
+    static func useAllProvidersLayout(for provider: UsageProvider, settings: SettingsStore) {
+        guard settings.providerEnablement[provider.instanceID] == true else { return }
+        settings.removeMenuBarLayoutOverride(for: provider)
+    }
+
     static func activate(
         _ layout: MenuBarLayout,
         for provider: UsageProvider?,
@@ -289,6 +310,7 @@ struct MenuBarLayoutEditor: View {
         VStack(alignment: .leading, spacing: 12) {
             self.header
             self.preview
+            self.overridesDisclosure
             self.layoutStrip
             self.removeDropTarget
 
@@ -347,11 +369,7 @@ struct MenuBarLayoutEditor: View {
             if case let .provider(provider) = self.scope,
                self.settings.menuBarLayoutOverrides[provider] != nil
             {
-                Button(L("menu_bar_layout_use_all")) {
-                    self.settings.removeMenuBarLayoutOverride(for: provider)
-                    self.selectedPosition = nil
-                }
-                .buttonStyle(.link)
+                self.useAllProvidersLayoutButton(for: provider)
             }
 
             Spacer(minLength: 8)
@@ -384,9 +402,39 @@ struct MenuBarLayoutEditor: View {
         }
     }
 
+    @ViewBuilder
+    private var overridesDisclosure: some View {
+        let providers = self.scope.providersWithOverrides(settings: self.settings)
+        if !providers.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(L("menu_bar_layout_overrides_notice"))
+                    .foregroundStyle(.secondary)
+                ForEach(providers, id: \.self) { provider in
+                    HStack {
+                        Text(L(self.store.metadata(for: provider).displayName))
+                        Spacer(minLength: 8)
+                        self.useAllProvidersLayoutButton(for: provider)
+                    }
+                }
+            }
+            .font(.caption)
+        }
+    }
+
+    private func useAllProvidersLayoutButton(for provider: UsageProvider) -> some View {
+        Button(L("menu_bar_layout_use_all")) {
+            MenuBarLayoutEditorPersistence.useAllProvidersLayout(for: provider, settings: self.settings)
+            self.selectedPosition = nil
+        }
+        .buttonStyle(.link)
+        .accessibilityLabel(L(
+            "menu_bar_layout_use_all_accessibility",
+            L(self.store.metadata(for: provider).displayName)))
+    }
+
     private var preview: some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text(L("menu_bar_layout_live_preview"))
+            Text(self.scope.previewLabel)
                 .font(.caption)
                 .foregroundStyle(.secondary)
             MenuBarLayoutPreview(

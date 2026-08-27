@@ -5,9 +5,9 @@ import Testing
 
 @MainActor
 struct SpendDashboardSourceConcurrencyTests {
-    @Test
+    @Test(CodexCredentialFixtures())
     func `Codex batch revalidates completed and failed accounts after later scans`() async throws {
-        let root = FileManager.default.temporaryDirectory
+        let root = CodexCredentialFixtures.root
             .appendingPathComponent("SpendDashboardSourceConcurrencyTests-auth-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -532,9 +532,9 @@ struct SpendDashboardSourceConcurrencyTests {
         #expect(controller.model.groups.first?.totalCost == 12)
     }
 
-    @Test
+    @Test(CodexCredentialFixtures())
     func `Codex concurrent loads restore configured order when completing out of order`() async throws {
-        let root = FileManager.default.temporaryDirectory
+        let root = CodexCredentialFixtures.root
             .appendingPathComponent(
                 "SpendDashboardSourceConcurrencyTests-order-\(UUID().uuidString)",
                 isDirectory: true)

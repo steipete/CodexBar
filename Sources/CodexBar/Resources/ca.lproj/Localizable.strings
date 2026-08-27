@@ -639,6 +639,8 @@
 "section_keyboard_shortcut" = "Drecera de teclat";
 "open_menu_shortcut_title" = "Obriu el menú";
 "open_menu_shortcut_subtitle" = "Obriu el menú de la barra de menús des de qualsevol lloc.";
+"record_shortcut" = "Enregistra la drecera";
+"press_shortcut" = "Premeu la drecera";
 "install_cli" = "Instal·la la CLI";
 "install_cli_subtitle" = "Creeu un enllaç simbòlic de CodexBarCLI a /usr/local/bin i /opt/homebrew/bin com a codexbar.";
 "cli_not_found" = "No s'ha trobat CodexBarCLI al paquet de l'app.";
@@ -1370,6 +1372,9 @@
 "menu_bar_layout_preset_compact_stacked" = "Apilat compacte";
 "menu_bar_layout_preset_custom" = "Personalitzat";
 "menu_bar_layout_live_preview" = "Previsualització en directe";
+"menu_bar_layout_default_preview" = "Previsualització del disseny per defecte";
+"menu_bar_layout_overrides_notice" = "Aquests proveïdors activats fan servir els seus propis dissenys desats:";
+"menu_bar_layout_use_all_accessibility" = "%@: Fes servir el disseny de tots els proveïdors";
 "menu_bar_layout_strip" = "Franja de la barra de menús";
 "menu_bar_layout_remove_line_break" = "Elimina el salt de línia";
 "menu_bar_layout_chip_hint" = "Selecciona, arrossega per reordenar o usa l’acció Elimina.";
@@ -1568,3 +1573,4 @@
 "notch_sessions_placement_below" = "A baix";
 "notch_autosize_footer" = "L'amplada és automàtica: segueix les columnes. Cada secció de sota té la seva pròpia alçada màxima.";
 "notch_items_footer" = "Arrossega per reordenar. Els mosaics omplen les columnes en aquest ordre; desactiva una fila per excloure-la.";
+"Spending cap, not balance" = "Límit de despesa, no saldo";

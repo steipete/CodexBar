@@ -203,6 +203,7 @@ struct SettingsStoreAdditionalTests {
             .cursor: standard.union([.tertiary, .extraUsage]),
             .gemini: standard.union([.average]),
             .perplexity: standard.union([.tertiary]),
+            .opencodego: standard.union([.tertiary]),
             .mistral: [.automatic, .monthlyPlan],
             .openrouter: [.automatic, .primary],
             .deepseek: [.automatic],

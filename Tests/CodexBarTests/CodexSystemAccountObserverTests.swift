@@ -3,11 +3,11 @@ import Foundation
 import Testing
 @testable import CodexBar
 
-@Suite(.serialized)
+@Suite(.serialized, CodexCredentialFixtures())
 struct CodexSystemAccountObserverTests {
     @Test
     func `observer reads ambient CODEX_HOME when present`() throws {
-        let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let home = CodexCredentialFixtures.root.appendingPathComponent(UUID().uuidString, isDirectory: true)
         defer { try? FileManager.default.removeItem(at: home) }
         try Self.writeCodexAuthFile(
             homeURL: home,
@@ -25,7 +25,7 @@ struct CodexSystemAccountObserverTests {
 
     @Test
     func `observer falls back to nil when ambient home has no readable email`() throws {
-        let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let home = CodexCredentialFixtures.root.appendingPathComponent(UUID().uuidString, isDirectory: true)
         defer { try? FileManager.default.removeItem(at: home) }
         try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
 
@@ -37,7 +37,7 @@ struct CodexSystemAccountObserverTests {
 
     @Test
     func `observer records observation timestamp`() throws {
-        let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let home = CodexCredentialFixtures.root.appendingPathComponent(UUID().uuidString, isDirectory: true)
         defer { try? FileManager.default.removeItem(at: home) }
         try Self.writeCodexAuthFile(homeURL: home, email: "user@example.com", plan: "team")
 
@@ -51,7 +51,7 @@ struct CodexSystemAccountObserverTests {
 
     @Test
     func `observer preserves provider account identity from scoped auth`() throws {
-        let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let home = CodexCredentialFixtures.root.appendingPathComponent(UUID().uuidString, isDirectory: true)
         defer { try? FileManager.default.removeItem(at: home) }
         try Self.writeCodexAuthFile(
             homeURL: home,
@@ -67,7 +67,7 @@ struct CodexSystemAccountObserverTests {
 
     @Test
     func `observer uses cached workspace label for provider account`() throws {
-        let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let home = CodexCredentialFixtures.root.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let cacheURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("codex-openai-workspaces-\(UUID().uuidString).json")
         defer {

@@ -237,7 +237,7 @@ public struct OpenCodeGoUsageFetcher: Sendable {
         guard let text = String(data: response.data, encoding: .utf8) else {
             throw OpenCodeGoUsageError.parseFailed("Response was not UTF-8.")
         }
-        return try self.parseSubscription(text: text, now: now)
+        return try self.parseAPIUsage(text: text, now: now)
     }
 
     static func requiredZenBalanceFallback(
@@ -471,6 +471,29 @@ extension OpenCodeGoUsageFetcher {
             throw OpenCodeGoUsageError.parseFailed("Missing usage fields.")
         }
         return text
+    }
+
+    static func parseAPIUsage(text: String, now: Date) throws -> OpenCodeGoUsageSnapshot {
+        guard let data = text.data(using: .utf8),
+              let dict = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let usage = dict["usage"] as? [String: Any],
+              let rolling = usage["rolling"] as? [String: Any]
+        else {
+            throw OpenCodeGoUsageError.parseFailed("Missing usage fields.")
+        }
+        let renewsAt = self.dateValue(from: self.value(from: usage, keys: self.renewAtKeys))
+            ?? self.dateValue(from: self.value(from: dict, keys: self.renewAtKeys))
+        guard let snapshot = self.buildSnapshot(
+            rolling: rolling,
+            weekly: usage["weekly"] as? [String: Any],
+            monthly: usage["monthly"] as? [String: Any],
+            now: now,
+            renewsAt: renewsAt,
+            directPercentEncoding: .percent)
+        else {
+            throw OpenCodeGoUsageError.parseFailed("Missing usage fields.")
+        }
+        return snapshot
     }
 
     static func parseSubscription(text: String, now: Date) throws -> OpenCodeGoUsageSnapshot {
@@ -751,25 +774,35 @@ extension OpenCodeGoUsageFetcher {
         return nil
     }
 
+    private enum DirectPercentEncoding {
+        case percent
+        case fractionOrPercent
+    }
+
     private static func buildSnapshot(
         rolling: [String: Any],
         weekly: [String: Any]?,
         monthly: [String: Any]?,
         now: Date,
-        renewsAt: Date? = nil) -> OpenCodeGoUsageSnapshot?
+        renewsAt: Date? = nil,
+        directPercentEncoding: DirectPercentEncoding = .fractionOrPercent) -> OpenCodeGoUsageSnapshot?
     {
-        guard let rollingWindow = self.parseWindow(rolling, now: now) else {
+        guard let rollingWindow = self.parseWindow(rolling, now: now, directPercentEncoding: directPercentEncoding)
+        else {
             return nil
         }
 
         let weeklyWindow: (percent: Double, resetInSec: Int)?
         if let weekly {
-            guard let parsed = self.parseWindow(weekly, now: now) else { return nil }
+            guard let parsed = self.parseWindow(weekly, now: now, directPercentEncoding: directPercentEncoding)
+            else { return nil }
             weeklyWindow = parsed
         } else {
             weeklyWindow = nil
         }
-        let monthlyWindow = monthly.flatMap { self.parseWindow($0, now: now) }
+        let monthlyWindow = monthly.flatMap {
+            self.parseWindow($0, now: now, directPercentEncoding: directPercentEncoding)
+        }
 
         return OpenCodeGoUsageSnapshot(
             hasWeeklyUsage: weeklyWindow != nil,
@@ -784,7 +817,11 @@ extension OpenCodeGoUsageFetcher {
             updatedAt: now)
     }
 
-    private static func parseWindow(_ dict: [String: Any], now: Date) -> (percent: Double, resetInSec: Int)? {
+    private static func parseWindow(
+        _ dict: [String: Any],
+        now: Date,
+        directPercentEncoding: DirectPercentEncoding = .fractionOrPercent) -> (percent: Double, resetInSec: Int)?
+    {
         var percent: Double?
 
         for key in self.percentKeys {
@@ -793,8 +830,7 @@ extension OpenCodeGoUsageFetcher {
                 break
             }
         }
-        // A direct percent field may arrive as a fraction (0...1) or a percent (0...100), so it goes
-        // through the `<= 1` heuristic below. A computed used/limit percent is already 0...100 and must not.
+        // Dashboard JSON may use fractions. API fields and computed used/limit percentages already use 0...100.
         let percentIsDirect = percent != nil
 
         if percent == nil {
@@ -820,7 +856,7 @@ extension OpenCodeGoUsageFetcher {
         }
 
         guard var resolvedPercent = percent else { return nil }
-        if percentIsDirect, resolvedPercent <= 1.0, resolvedPercent >= 0 {
+        if percentIsDirect, directPercentEncoding == .fractionOrPercent, resolvedPercent <= 1.0, resolvedPercent >= 0 {
             resolvedPercent *= 100
         }
         resolvedPercent = max(0, min(100, resolvedPercent))

@@ -40,7 +40,9 @@ extension UsageStore {
         let expectedGuard: CodexAccountScopedRefreshGuard
         let limitResetOwnerKey: CodexLimitResetOwnerKey?
         let previousSnapshot: UsageSnapshot?
+        let previousSourceLabel: String?
         let missingWindowBackfillSnapshot: UsageSnapshot?
+        let pendingWeeklyResetCandidate: CodexWeeklyResetPublicationCandidate?
     }
 
     private struct ClaudeRefreshReconciliation {
@@ -328,7 +330,9 @@ extension UsageStore {
             expectedGuard: expectedGuard,
             limitResetOwnerKey: ownerKey,
             previousSnapshot: previousSnapshot,
-            missingWindowBackfillSnapshot: missingWindowBackfillSnapshot)
+            previousSourceLabel: hydratedPrior?.sourceLabel ?? self.lastSourceLabels[.codex],
+            missingWindowBackfillSnapshot: missingWindowBackfillSnapshot,
+            pendingWeeklyResetCandidate: hydratedPrior?.weeklyResetCandidate)
     }
 
     /// Runs one provider fetch pass. A nonnil result keeps the retry inside the current coordinator request, so
@@ -435,7 +439,9 @@ extension UsageStore {
             initialOutcome: initialOutcome,
             expectedGuard: codexExpectedGuard,
             previousSnapshot: previousCodexSnapshot,
+            previousSourceLabel: codexPreparation?.previousSourceLabel,
             missingWindowBackfillSnapshot: codexMissingWindowBackfillSnapshot,
+            pendingWeeklyResetCandidate: codexPreparation?.pendingWeeklyResetCandidate,
             fetchOutcome: fetchOutcome,
             generation: generation))
         else {
@@ -1328,6 +1334,13 @@ extension UsageStore {
         attempts: [ProviderFetchAttempt],
         context: ProviderRefreshOutcomeContext) async
     {
+        // Provider-specific by design: Grok's local fallback scans off the main thread when remote billing fails.
+        let grokLocalFallback: CostUsageTokenSnapshot? = if provider == .grok {
+            try? await self.loadGrokLocalTokenSnapshot(historyDays: SpendDashboardSource.scanDays)
+        } else {
+            nil
+        }
+        guard !Task.isCancelled else { return }
         let shouldNotifyPermissionPrompt = Self.isPermissionPromptWaiting(error)
         await MainActor.run {
             guard self.isCurrentProviderRefreshGeneration(provider, generation: context.generation) else { return }
@@ -1450,11 +1463,7 @@ extension UsageStore {
                     // Provider-specific by design: local ~/.grok/sessions tokens remain readable
                     // when the remote billing probe fails.
                     if provider == .grok {
-                        if let local = self.tokenSnapshot(
-                            fromProviderSnapshot: nil,
-                            provider: .grok,
-                            historyDays: SpendDashboardSource.scanDays)
-                        {
+                        if let local = grokLocalFallback {
                             self.publishTokenSnapshot(local, for: provider)
                         } else {
                             self.clearTokenSnapshot(for: provider)

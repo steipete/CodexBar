@@ -778,10 +778,10 @@ struct SpendDashboardModelTests {
         #expect(spendDashboardModelHistoryPresentation(group) == .partial)
     }
 
-    @Test
+    @Test(CodexCredentialFixtures())
     func `Codex requests freeze source home auth and cache identity`() throws {
         let id = try #require(UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE"))
-        let home = FileManager.default.temporaryDirectory
+        let home = CodexCredentialFixtures.root
             .appendingPathComponent("SpendDashboardModelTests-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: home) }

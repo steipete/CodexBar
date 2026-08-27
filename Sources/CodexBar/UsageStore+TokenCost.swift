@@ -19,6 +19,25 @@ struct TokenSnapshotPublication: Sendable, Equatable {
 }
 
 extension UsageStore {
+    func logTokenUsageSuccess(
+        provider: UsageProvider,
+        snapshot: CostUsageTokenSnapshot,
+        historyDays: Int,
+        startedAt: Date)
+    {
+        let durationText = String(format: "%.2f", Date().timeIntervalSince(startedAt))
+        let sessionCost = snapshot.sessionCostUSD
+            .map { UsageFormatter.currencyString($0, currencyCode: snapshot.currencyCode) } ?? "—"
+        let monthCost = snapshot.last30DaysCostUSD
+            .map { UsageFormatter.currencyString($0, currencyCode: snapshot.currencyCode) } ?? "—"
+        let message =
+            "cost usage success provider=\(provider.rawValue) " +
+            "duration=\(durationText)s " +
+            "today=\(sessionCost) " +
+            "historyDays=\(historyDays) windowCost=\(monthCost)"
+        self.tokenCostLogger.info(message)
+    }
+
     enum CursorCostCookiePreparation {
         case proceed(String?)
         case reject
@@ -119,6 +138,16 @@ extension UsageStore {
     }
 
     func publishTokenSnapshot(_ snapshot: CostUsageTokenSnapshot, for provider: UsageProvider) {
+        // A bounded Codex refresh can succeed with partial rows while catch-up remains pending.
+        // Account and history-window changes fail the current-publication lookup below.
+        // Provider-specific by design: only Codex retains established history during bounded catch-up.
+        if provider == .codex,
+           !snapshot.historyCoverageIsEstablished,
+           self.tokenSnapshotPublicationForCurrentProviderConfig(for: provider)?
+               .snapshot?.historyCoverageIsEstablished == true
+        {
+            return
+        }
         self.tokenSnapshots[provider.instanceID] = snapshot
         self.publishTokenSnapshotState(snapshot, for: provider)
     }
@@ -157,6 +186,8 @@ extension UsageStore {
         self.tokenSnapshotPublications.removeAll()
         self.spendDashboardTokenPublications.removeAll()
         self.spendDashboardTokenPublicationRevisions.removeAll()
+        self.spendDashboardTokenIncorporatedTriggers.removeAll()
+        self.spendDashboardTokenFailedTriggers.removeAll()
     }
 
     func installProviderDerivedTokenSnapshot(from snapshot: UsageSnapshot, for provider: UsageProvider) {
@@ -408,7 +439,7 @@ extension UsageStore {
     {
         guard self.providerPublicationRevisionIsCurrent(publicationRevision, for: provider),
               self.settings.providerConfigRevision(for: provider) == providerConfigRevision,
-              self.settings.costUsageEnabled,
+              self.settings.isCostUsageEffectivelyEnabled(for: provider),
               self.isEnabled(provider),
               self.settings.costUsageHistoryDays == historyDays
         else {
@@ -475,8 +506,7 @@ extension UsageStore {
         case .xai:
             return snapshot.flatMap { XAICostUsageMapping.tokenSnapshot(from: $0, historyDays: windowDays) }
         case .grok:
-            return GrokLocalSessionScanner.summarize(lookbackDays: windowDays)
-                .toCostUsageTokenSnapshot(historyDays: windowDays)
+            return self.grokLocalTokenSnapshot(from: snapshot, historyDays: windowDays)
         default:
             return nil
         }

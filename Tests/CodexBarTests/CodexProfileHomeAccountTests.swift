@@ -3,7 +3,7 @@ import Foundation
 import Testing
 @testable import CodexBar
 
-@Suite(.serialized)
+@Suite(.serialized, CodexCredentialFixtures())
 struct CodexProfileHomeAccountTests {
     @MainActor
     private static func makeSettings(suite: String) throws -> SettingsStore {
@@ -24,10 +24,10 @@ struct CodexProfileHomeAccountTests {
     func `settings store discovers configured codex profile homes`() throws {
         let suite = "CodexProfileHomeAccountTests-discovery"
         let settings = try Self.makeSettings(suite: suite)
-        let missingLiveHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+        let missingLiveHome = CodexCredentialFixtures.root.appendingPathComponent(
             UUID().uuidString,
             isDirectory: true)
-        let profileHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+        let profileHome = CodexCredentialFixtures.root.appendingPathComponent(
             UUID().uuidString,
             isDirectory: true)
         try Self.writeCodexAuthFile(
@@ -69,7 +69,7 @@ struct CodexProfileHomeAccountTests {
     func `provider registry scopes selected codex profile home`() throws {
         let suite = "CodexProfileHomeAccountTests-routing"
         let settings = try Self.makeSettings(suite: suite)
-        let profileHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+        let profileHome = CodexCredentialFixtures.root.appendingPathComponent(
             UUID().uuidString,
             isDirectory: true)
         try Self.writeCodexAuthFile(
@@ -225,10 +225,10 @@ struct CodexProfileHomeAccountTests {
     func `removed profile home falls back without routing stale path`() throws {
         let suite = "CodexProfileHomeAccountTests-stale-routing"
         let settings = try Self.makeSettings(suite: suite)
-        let missingLiveHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+        let missingLiveHome = CodexCredentialFixtures.root.appendingPathComponent(
             UUID().uuidString,
             isDirectory: true)
-        let removedProfileHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+        let removedProfileHome = CodexCredentialFixtures.root.appendingPathComponent(
             UUID().uuidString,
             isDirectory: true)
         settings._test_codexReconciliationEnvironment = ["CODEX_HOME": missingLiveHome.path]
@@ -266,10 +266,10 @@ struct CodexProfileHomeAccountTests {
     func `external config removal immediately invalidates profile routing caches`() throws {
         let suite = "CodexProfileHomeAccountTests-external-removal"
         let settings = try Self.makeSettings(suite: suite)
-        let missingLiveHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+        let missingLiveHome = CodexCredentialFixtures.root.appendingPathComponent(
             UUID().uuidString,
             isDirectory: true)
-        let profileHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+        let profileHome = CodexCredentialFixtures.root.appendingPathComponent(
             UUID().uuidString,
             isDirectory: true)
         try Self.writeCodexAuthFile(
@@ -338,10 +338,10 @@ struct CodexProfileHomeAccountTests {
     func `unreadable configured profile home remains selected and routed`() throws {
         let suite = "CodexProfileHomeAccountTests-unreadable-routing"
         let settings = try Self.makeSettings(suite: suite)
-        let missingLiveHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+        let missingLiveHome = CodexCredentialFixtures.root.appendingPathComponent(
             UUID().uuidString,
             isDirectory: true)
-        let unreadableProfileHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+        let unreadableProfileHome = CodexCredentialFixtures.root.appendingPathComponent(
             UUID().uuidString,
             isDirectory: true)
         settings._test_codexReconciliationEnvironment = ["CODEX_HOME": missingLiveHome.path]
@@ -374,10 +374,10 @@ struct CodexProfileHomeAccountTests {
     func `profile without verified email refuses open A I cookie import`() async throws {
         let suite = "CodexProfileHomeAccountTests-missing-web-email"
         let settings = try Self.makeSettings(suite: suite)
-        let missingLiveHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+        let missingLiveHome = CodexCredentialFixtures.root.appendingPathComponent(
             UUID().uuidString,
             isDirectory: true)
-        let unreadableProfileHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+        let unreadableProfileHome = CodexCredentialFixtures.root.appendingPathComponent(
             UUID().uuidString,
             isDirectory: true)
         settings._test_codexReconciliationEnvironment = ["CODEX_HOME": missingLiveHome.path]
@@ -419,7 +419,7 @@ struct CodexProfileHomeAccountTests {
     func `profile home matching live home resolves to visible live account`() throws {
         let suite = "CodexProfileHomeAccountTests-live-duplicate"
         let settings = try Self.makeSettings(suite: suite)
-        let liveHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+        let liveHome = CodexCredentialFixtures.root.appendingPathComponent(
             UUID().uuidString,
             isDirectory: true)
         let liveAccount = ObservedSystemCodexAccount(
@@ -449,7 +449,7 @@ struct CodexProfileHomeAccountTests {
     func `profile home matching managed home resolves to visible managed account`() throws {
         let suite = "CodexProfileHomeAccountTests-managed-duplicate"
         let settings = try Self.makeSettings(suite: suite)
-        let managedHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+        let managedHome = CodexCredentialFixtures.root.appendingPathComponent(
             UUID().uuidString,
             isDirectory: true)
         let managedAccount = ManagedCodexAccount(
@@ -501,7 +501,7 @@ struct CodexProfileHomeAccountTests {
         settings.costUsageEnabled = true
         settings.costSummaryDisplayStyle = .both
         settings.codexLocalSessionCostLedgerEnabled = localLedgerEnabled
-        let root = FileManager.default.temporaryDirectory
+        let root = CodexCredentialFixtures.root
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         let firstHome = root.appendingPathComponent("profile-a", isDirectory: true)
         let secondHome = root.appendingPathComponent("profile-b", isDirectory: true)

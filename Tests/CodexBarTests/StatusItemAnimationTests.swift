@@ -333,7 +333,7 @@ struct StatusItemAnimationTests {
 
         #expect(image.size.width == 18)
         #expect(image.size.height == 18)
-        #expect(snapshot.detailRow(label: "API key budget")?.value == "No limit configured")
+        #expect(snapshot.detailRow(label: "API key limit")?.value == "No limit configured")
         #expect(controller.statusItems[.openrouter]?.button?.title.isEmpty == true)
         #expect(MenuBarDisplayText.percentText(window: snapshot.primary, showUsed: false) == nil)
 
@@ -400,7 +400,7 @@ struct StatusItemAnimationTests {
 
         #expect(image.size.width == 18)
         #expect(image.size.height == 18)
-        #expect(snapshot.detailRow(label: "API key budget")?.value == "Unavailable right now")
+        #expect(snapshot.detailRow(label: "API key limit")?.value == "Unavailable right now")
 
         // Even with no key data, OpenRouter still renders a meter rather than the brand logo.
         // A brand logo would be fully opaque here; the unfilled track is not.

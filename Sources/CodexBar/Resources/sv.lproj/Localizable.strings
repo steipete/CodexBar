@@ -654,6 +654,8 @@
 "section_keyboard_shortcut" = "Kortkommando";
 "open_menu_shortcut_title" = "Öppna meny";
 "open_menu_shortcut_subtitle" = "Öppna menyradsmenyn var du än är.";
+"record_shortcut" = "Spela in kortkommando";
+"press_shortcut" = "Tryck på kortkommandot";
 "install_cli" = "Installera CLI";
 "install_cli_subtitle" = "Symlänka CodexBarCLI till /usr/local/bin och /opt/homebrew/bin som codexbar.";
 "cli_not_found" = "CodexBarCLI hittades inte i apppaketet.";
@@ -1366,6 +1368,9 @@
 "menu_bar_layout_preset_compact_stacked" = "Kompakt staplad";
 "menu_bar_layout_preset_custom" = "Anpassat";
 "menu_bar_layout_live_preview" = "Liveförhandsvisning";
+"menu_bar_layout_default_preview" = "Förhandsvisning av standardlayout";
+"menu_bar_layout_overrides_notice" = "Dessa aktiverade leverantörer använder egna sparade layouter:";
+"menu_bar_layout_use_all_accessibility" = "%@: Använd layouten för alla leverantörer";
 "menu_bar_layout_strip" = "Menyradsremsa";
 "menu_bar_layout_remove_line_break" = "Ta bort radbrytning";
 "menu_bar_layout_chip_hint" = "Markera, dra för att ändra ordning eller använd åtgärden Ta bort.";
@@ -1564,3 +1569,4 @@
 "notch_sessions_placement_below" = "Nedanför";
 "notch_autosize_footer" = "Bredden är automatisk — den följer kolumnerna. Varje sektion nedan har sin egen största höjd.";
 "notch_items_footer" = "Dra för att ändra ordning. Brickorna fyller kolumnerna i denna ordning; stäng av en rad för att utesluta den.";
+"Spending cap, not balance" = "Utgiftstak, inte saldo";

@@ -37,11 +37,11 @@ struct ProviderCostContent: View {
                             .layoutPriority(1)
                     }
                 }
-                if let percentUsed = self.section.percentUsed {
+                if let percent = self.section.displayPercent {
                     UsageProgressBar(
-                        percent: percentUsed,
+                        percent: percent,
                         tint: self.progressColor,
-                        accessibilityLabel: L("Extra usage spent"))
+                        accessibilityLabel: self.section.progressAccessibilityLabel)
                 }
                 HStack(alignment: .firstTextBaseline) {
                     Text(self.section.spendLine).font(.footnote).lineLimit(1)
@@ -68,6 +68,14 @@ extension UsageMenuCardView.Model.ProviderCostSection {
         case inlineValue
     }
 
+    var displayPercent: Double? {
+        self.percentUsed.map { self.percentStyle == .used ? $0 : 100 - $0 }
+    }
+
+    var progressAccessibilityLabel: String {
+        self.percentStyle == .used ? L("Extra usage spent") : self.percentStyle.accessibilityLabel
+    }
+
     init(
         title: String,
         percentUsed: Double?,
@@ -75,7 +83,8 @@ extension UsageMenuCardView.Model.ProviderCostSection {
         percentLine: String?,
         balanceLine: String? = nil,
         presentation: Presentation = .detail,
-        showsInProviderDetails: Bool = true)
+        showsInProviderDetails: Bool = true,
+        percentStyle: UsageMenuCardView.Model.PercentStyle = .used)
     {
         self.init(
             title: title,
@@ -85,7 +94,8 @@ extension UsageMenuCardView.Model.ProviderCostSection {
             balanceLine: balanceLine,
             personalSpendLine: nil,
             presentation: presentation,
-            showsInProviderDetails: showsInProviderDetails)
+            showsInProviderDetails: showsInProviderDetails,
+            percentStyle: percentStyle)
     }
 }
 
@@ -397,6 +407,7 @@ extension UsageMenuCardView.Model {
     static func providerCostSection(
         cost: ProviderCostSnapshot?,
         style: ProviderCostMenuCardStyle,
+        percentStyle: PercentStyle = .used,
         isClaudeAdminAPI: Bool = false,
         preferredCurrencyCode: String = "auto") -> ProviderCostSection?
     {
@@ -504,7 +515,8 @@ extension UsageMenuCardView.Model {
                 spendLine: "\(periodLabel): \(used) / \(limit)",
                 percentLine: String(format: L("%.0f%% used"), min(100, max(0, percentUsed))),
                 balanceLine: balanceLine,
-                showsInProviderDetails: false)
+                showsInProviderDetails: false,
+                percentStyle: percentStyle)
         }
 
         if style == .apiSpend {

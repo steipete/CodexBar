@@ -1,7 +1,7 @@
-import CodexBarCore
 import Foundation
 import Testing
 @testable import CodexBar
+@testable import CodexBarCore
 
 // swiftlint:disable:next type_body_length
 struct MenuBarLayoutTests {
@@ -564,6 +564,129 @@ struct MenuBarLayoutTests {
         #expect(try JSONDecoder().decode(MenuBarLayout.self, from: trailingEmptyData).lines == [[.icon], []])
     }
 
+    @Test(arguments: [
+        (0.86, 0.55, 1.0, 1.0, (86.0, 55.0)),
+        (0.86, 0.55, 0.40, 0.80, (40.0, 55.0)),
+        (0.20, 0.90, 0.80, 0.30, (20.0, 30.0)),
+        (1.0, 1.0, 1.0, 1.0, (100.0, 100.0)),
+        (0.0, 0.45, 0.70, 0.0, (0.0, 0.0)),
+    ])
+    func `Antigravity semantic windows independently select each constrained known cadence`(
+        geminiSession: Double,
+        geminiWeekly: Double,
+        claudeSession: Double,
+        claudeWeekly: Double,
+        expected: (session: Double, weekly: Double)) throws
+    {
+        let json = antigravityQuotaSummaryJSON(
+            geminiSession: geminiSession,
+            geminiWeekly: geminiWeekly,
+            claudeSession: claudeSession,
+            claudeWeekly: claudeWeekly)
+        let snapshot = try AntigravityStatusProbe.parseQuotaSummaryResponse(Data(json.utf8)).toUsageSnapshot()
+        let windows = MenuBarLayoutSemanticWindowResolver.windows(provider: .antigravity, snapshot: snapshot)
+
+        #expect(windows.session?.remainingPercent.rounded() == expected.session)
+        #expect(windows.weekly?.remainingPercent.rounded() == expected.weekly)
+    }
+
+    @Test(arguments: [UsageProvider.antigravity, .zai])
+    func `semantic windows skip unknown extras before known quotas`(provider: UsageProvider) {
+        let prefix = provider == .antigravity ? "antigravity-quota-summary-" : "quota-"
+        let session = Self.semanticRow(prefix + "3p-5h", used: 14, minutes: 300)
+        let weekly = Self.semanticRow(prefix + "3p-weekly", used: 45, minutes: 10080)
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            extraRateWindows: [
+                Self.semanticRow(prefix + "gemini-5h", used: 100, minutes: 300, known: false),
+                Self.semanticRow(prefix + "gemini-weekly", used: 0, minutes: 10080, known: false),
+                session,
+                weekly,
+            ],
+            updatedAt: Date())
+        let windows = MenuBarLayoutSemanticWindowResolver.windows(provider: provider, snapshot: snapshot)
+
+        #expect(windows.session == session.window)
+        #expect(windows.weekly == weekly.window)
+    }
+
+    @Test(arguments: [300, 10080], [false, true])
+    func `Antigravity semantic cadence stays unavailable when its summary rows are missing or unknown`(
+        knownMinutes: Int,
+        includesUnknown: Bool)
+    {
+        let missingMinutes = knownMinutes == 300 ? 10080 : 300
+        let known = Self.semanticRow("antigravity-quota-summary-gemini-known", used: 0, minutes: knownMinutes)
+        let unknown = Self.semanticRow(
+            "antigravity-quota-summary-gemini-unknown", used: 100, minutes: missingMinutes, known: false)
+        let snapshot = UsageSnapshot(
+            primary: Self.semanticRow("legacy-session", used: 90, minutes: 300).window,
+            secondary: Self.semanticRow("legacy-weekly", used: 95, minutes: 10080).window,
+            extraRateWindows: [known]
+                + (includesUnknown ? [unknown] : [])
+                + [Self.semanticRow("unrelated-quota", used: 99, minutes: missingMinutes)],
+            updatedAt: Date())
+        let windows = MenuBarLayoutSemanticWindowResolver.windows(provider: .antigravity, snapshot: snapshot)
+
+        #expect(windows.session == (knownMinutes == 300 ? known.window : nil))
+        #expect(windows.weekly == (knownMinutes == 10080 ? known.window : nil))
+    }
+
+    @Test
+    func `Antigravity semantic windows with all unknown summary rows do not fall back to representative slots`() {
+        let snapshot = UsageSnapshot(
+            primary: Self.semanticRow("legacy-session", used: 14, minutes: 300).window,
+            secondary: Self.semanticRow("legacy-weekly", used: 45, minutes: 10080).window,
+            extraRateWindows: [
+                Self.semanticRow("antigravity-quota-summary-gemini-5h", used: 0, minutes: 300, known: false),
+                Self.semanticRow("antigravity-quota-summary-gemini-weekly", used: 100, minutes: 10080, known: false),
+            ],
+            updatedAt: Date())
+        let windows = MenuBarLayoutSemanticWindowResolver.windows(provider: .antigravity, snapshot: snapshot)
+
+        #expect(windows.session == nil)
+        #expect(windows.weekly == nil)
+        #expect(snapshot.extraRateWindows?.count == 2)
+    }
+
+    @Test(arguments: [UsageProvider.antigravity, .zai], [false, true])
+    func `standard semantic fallback preserves representative and first known extra ordering`(
+        provider: UsageProvider,
+        hasRepresentatives: Bool)
+    {
+        let session = Self.semanticRow("legacy-session", used: 14, minutes: 300).window
+        let weekly = Self.semanticRow("legacy-weekly", used: 45, minutes: 10080).window
+        let extraSession = Self.semanticRow("extra-session", used: 60, minutes: 300)
+        let extraWeekly = Self.semanticRow("extra-weekly", used: 70, minutes: 10080)
+        let snapshot = UsageSnapshot(
+            primary: hasRepresentatives ? session : nil,
+            secondary: hasRepresentatives ? weekly : nil,
+            extraRateWindows: [
+                extraSession,
+                extraWeekly,
+                Self.semanticRow("later-session", used: 100, minutes: 300),
+                Self.semanticRow("later-weekly", used: 100, minutes: 10080),
+            ],
+            updatedAt: Date())
+        let windows = MenuBarLayoutSemanticWindowResolver.windows(provider: provider, snapshot: snapshot)
+
+        #expect(windows.session == (hasRepresentatives ? session : extraSession.window))
+        #expect(windows.weekly == (hasRepresentatives ? weekly : extraWeekly.window))
+    }
+
+    private static func semanticRow(_ id: String, used: Double, minutes: Int, known: Bool = true) -> NamedRateWindow {
+        NamedRateWindow(
+            id: id,
+            title: id,
+            window: RateWindow(
+                usedPercent: used,
+                windowMinutes: minutes,
+                resetsAt: Date(timeIntervalSince1970: Double(minutes)),
+                resetDescription: id),
+            usageKnown: known)
+    }
+
     @Test
     func `semantic windows map Kimi weekly and short cadence lanes`() {
         let primary = RateWindow(usedPercent: 25, windowMinutes: nil, resetsAt: nil, resetDescription: nil)
@@ -718,6 +841,22 @@ struct MenuBarLayoutTests {
             tertiary: RateWindow(usedPercent: 17, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
             updatedAt: Date())
         #expect(MenuBarLayoutLane.available(for: .cursor, snapshot: usageSnapshot) == [
+            .primary,
+            .secondary,
+            .tertiary,
+        ])
+    }
+
+    @Test
+    func `opencode go exposes the monthly tertiary lane once a window exists`() {
+        #expect(MenuBarLayoutLane.available(for: .opencodego) == [.primary, .secondary])
+
+        let usageSnapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            tertiary: RateWindow(usedPercent: 100, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date())
+        #expect(MenuBarLayoutLane.available(for: .opencodego, snapshot: usageSnapshot) == [
             .primary,
             .secondary,
             .tertiary,
@@ -907,6 +1046,77 @@ struct MenuBarLayoutTests {
 
         #expect(settings.menuBarLayoutOverrides[.openrouter] == migrated)
         #expect(settings.menuBarLayout(for: .openrouter) == migrated)
+    }
+
+    @Test
+    @MainActor
+    func `global editor edits preserve saved overrides and targeted reset persists without unrelated changes`() throws {
+        try #require(SettingsStore.isRunningTests)
+        let settings = testSettingsStore(
+            suiteName: "MenuBarLayoutTests-global-override-edit",
+            config: CodexBarConfig(providers: UsageProvider.allCases.map {
+                ProviderConfig(id: $0.instanceID, enabled: $0 == .claude || $0 == .cursor)
+            }),
+            prepareDefaults: { defaults in
+                defaults.set(AppGroupSupport.migrationVersion, forKey: AppGroupSupport.migrationVersionKey)
+                defaults.set(true, forKey: "debugDisableKeychainAccess")
+            })
+        let global = MenuBarLayout(lines: [[.providerName]])
+        let edited = MenuBarLayout(lines: [[.providerName, .percent(window: .session)]])
+        let override = MenuBarLayout(lines: [[.percent(window: .weekly)]])
+        settings.setMenuBarLayout(global, for: nil)
+        settings.setMenuBarLayout(override, for: .claude)
+        settings.setMenuBarLayout(global, for: .cursor)
+        settings.setMenuBarLayout(override, for: .kimi)
+        settings.hidePersonalInfo = true
+        settings.menuBarLayoutSize = .small
+        settings.menuBarLayoutGap = .tight
+        settings.resetTimesShowAbsolute = true
+        let configBefore = try Data(contentsOf: settings.configStore.fileURL)
+
+        MenuBarLayoutEditorPersistence.activate(edited, for: nil, settings: settings)
+        #expect(settings.menuBarLayoutOverrides == [.claude: override, .cursor: global, .kimi: override])
+        #expect(settings.menuBarLayoutForGlobalEditing(representativeProvider: .claude) == edited)
+        #expect(settings.menuBarLayout(for: .claude) == override)
+        let reloaded = Self.reloadSettingsStore(settings)
+        #expect(reloaded.menuBarLayoutOverrides == settings.menuBarLayoutOverrides)
+
+        MenuBarLayoutEditorPersistence.useAllProvidersLayout(for: .claude, settings: reloaded)
+        let afterReset = Self.reloadSettingsStore(reloaded)
+        #expect(afterReset.menuBarLayout == edited)
+        #expect(afterReset.menuBarLayout(for: .claude) == edited)
+        #expect(afterReset.menuBarLayoutOverrides == [.cursor: global, .kimi: override])
+        #expect(afterReset.providerEnablement == settings.providerEnablement)
+        #expect(afterReset.providerOrder == settings.providerOrder)
+        #expect(afterReset.hidePersonalInfo)
+        #expect(afterReset.menuBarLayoutSize == .small)
+        #expect(afterReset.menuBarLayoutGap == .tight)
+        #expect(afterReset.resetTimeDisplayStyle == .absolute)
+        #expect(try Data(contentsOf: afterReset.configStore.fileURL) == configBefore)
+    }
+
+    @Test
+    @MainActor
+    func `first global edit still starts from the representative saved override`() throws {
+        try #require(SettingsStore.isRunningTests)
+        let settings = testSettingsStore(
+            suiteName: "MenuBarLayoutTests-global-editor-override-fallback",
+            prepareDefaults: { defaults in
+                defaults.set(AppGroupSupport.migrationVersion, forKey: AppGroupSupport.migrationVersionKey)
+                defaults.set(true, forKey: "debugDisableKeychainAccess")
+            })
+        let override = MenuBarLayout(lines: [[.percent(window: .weekly)]])
+        settings.setMenuBarLayout(override, for: .claude)
+
+        #expect(!settings.hasStoredMenuBarLayout)
+        let initial = settings.menuBarLayoutForGlobalEditing(representativeProvider: .claude)
+        #expect(initial == override)
+        let edited = MenuBarLayoutEditorMutations.append(.providerName, to: initial)
+        MenuBarLayoutEditorPersistence.activate(edited, for: nil, settings: settings)
+
+        #expect(settings.menuBarLayoutForGlobalEditing(representativeProvider: .claude) == edited)
+        #expect(settings.menuBarLayout(for: .claude) == override)
+        #expect(settings.menuBarLayoutOverrides == [.claude: override])
     }
 
     @Test

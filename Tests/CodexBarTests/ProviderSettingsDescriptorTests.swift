@@ -667,11 +667,58 @@ extension ProviderSettingsDescriptorTests {
         let pickers = implementation.settingsPickers(context: context)
         let fields = implementation.settingsFields(context: context)
         let regionPicker = try #require(pickers.first(where: { $0.id == "alibaba-token-plan-region" }))
+        let usagePicker = try #require(pickers.first(where: { $0.id == "alibaba-token-plan-usage-source" }))
+        let cookiePicker = try #require(pickers.first(where: { $0.id == "alibaba-token-plan-cookie-source" }))
 
-        #expect(pickers.contains(where: { $0.id == "alibaba-token-plan-cookie-source" }))
+        #expect(usagePicker.options.map(\.title) == ["Auto", "Bailian CLI", "Browser cookies"])
+        usagePicker.binding.wrappedValue = ProviderSourceMode.cli.rawValue
+        #expect(fixture.settings.alibabaTokenPlanUsageDataSource == .cli)
+        #expect(fixture.settings.configSnapshot.providerConfig(for: .alibabatokenplan)?.source == .cli)
+        #expect(implementation.sourceMode(context: ProviderSourceModeContext(
+            provider: .alibabatokenplan,
+            settings: fixture.settings)) == .cli)
+        #expect(implementation.defaultSourceLabel(context: ProviderSourceLabelContext(
+            provider: .alibabatokenplan,
+            settings: fixture.settings,
+            store: fixture.store,
+            descriptor: ProviderDescriptorRegistry.descriptor(for: .alibabatokenplan))) == "cli")
+        #expect(cookiePicker.isVisible?() == false)
+        usagePicker.binding.wrappedValue = ProviderSourceMode.web.rawValue
+        #expect(cookiePicker.isVisible?() == true)
+        #expect(fields.first?.isVisible?() == true)
+        usagePicker.binding.wrappedValue = ProviderSourceMode.auto.rawValue
+        #expect(fixture.settings.alibabaTokenPlanUsageDataSource == .auto)
+        #expect(fixture.settings.configSnapshot.providerConfig(for: .alibabatokenplan)?.source == .auto)
+        #expect(usagePicker.trailingText?() == nil)
         #expect(Set(regionPicker.options.map(\.id)) == ["intl", "cn", "intl-personal", "cn-personal"])
         #expect(fields.contains(where: { $0.id == "alibaba-token-plan-cookie" }))
         #expect(fields.first?.actions.contains(where: { $0.id == "alibaba-token-plan-open-dashboard" }) == true)
+    }
+
+    @Test
+    func `alibaba token plan unset source defaults to CLI first Auto`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-alibaba-token-plan-legacy")
+        let implementation = AlibabaTokenPlanProviderImplementation()
+        let context = fixture.settingsContext(provider: .alibabatokenplan)
+
+        #expect(fixture.settings.configSnapshot.providerConfig(for: .alibabatokenplan)?.source == nil)
+        #expect(fixture.settings.alibabaTokenPlanUsageDataSource == .auto)
+        #expect(implementation.sourceMode(context: ProviderSourceModeContext(
+            provider: .alibabatokenplan,
+            settings: fixture.settings)) == .auto)
+        #expect(implementation.defaultSourceLabel(context: ProviderSourceLabelContext(
+            provider: .alibabatokenplan,
+            settings: fixture.settings,
+            store: fixture.store,
+            descriptor: ProviderDescriptorRegistry.descriptor(for: .alibabatokenplan))) == "auto")
+
+        let usagePicker = try #require(implementation.settingsPickers(context: context)
+            .first(where: { $0.id == "alibaba-token-plan-usage-source" }))
+        #expect(usagePicker.binding.wrappedValue == ProviderSourceMode.auto.rawValue)
+
+        usagePicker.binding.wrappedValue = ProviderSourceMode.web.rawValue
+        #expect(fixture.settings.alibabaTokenPlanUsageDataSource == .web)
+        #expect(fixture.settings.configSnapshot.providerConfig(for: .alibabatokenplan)?.source == .web)
     }
 
     @Test
