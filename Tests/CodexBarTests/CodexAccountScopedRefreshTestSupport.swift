@@ -5,15 +5,9 @@ import Testing
 
 extension CodexAccountScopedRefreshTests {
     func makeSettingsStore(suite: String) -> SettingsStore {
-        let defaults = UserDefaults(suiteName: suite)!
-        defaults.removePersistentDomain(forName: suite)
-        defaults.set(true, forKey: "providerDetectionCompleted")
-        let configStore = testConfigStore(suiteName: suite)
-        let settings = SettingsStore(
-            userDefaults: defaults,
-            configStore: configStore,
-            zaiTokenStore: NoopZaiTokenStore(),
-            syntheticTokenStore: NoopSyntheticTokenStore())
+        let settings = testSettingsStore(suiteName: suite, prepareDefaults: {
+            $0.set(true, forKey: "providerDetectionCompleted")
+        })
         settings._test_activeManagedCodexAccount = nil
         settings._test_activeManagedCodexRemoteHomePath = nil
         settings._test_unreadableManagedCodexAccountStore = false

@@ -90,6 +90,12 @@ public struct CostUsageTokenMix: Sendable, Equatable, Codable {
     public var cacheReadTokens: Int?
     public var cacheCreationTokens: Int?
     public var reasoningTokens: Int?
+    /// Transient aggregation state, not a new persisted token field.
+    private var overflowedClasses: UInt8 = 0
+
+    private enum CodingKeys: String, CodingKey {
+        case inputTokens, outputTokens, cacheReadTokens, cacheCreationTokens, reasoningTokens
+    }
 
     public init(
         inputTokens: Int? = nil,
@@ -114,11 +120,12 @@ public struct CostUsageTokenMix: Sendable, Equatable, Codable {
     }
 
     public mutating func merge(_ other: CostUsageTokenMix) {
-        self.inputTokens = Self.add(self.inputTokens, other.inputTokens)
-        self.outputTokens = Self.add(self.outputTokens, other.outputTokens)
-        self.cacheReadTokens = Self.add(self.cacheReadTokens, other.cacheReadTokens)
-        self.cacheCreationTokens = Self.add(self.cacheCreationTokens, other.cacheCreationTokens)
-        self.reasoningTokens = Self.add(self.reasoningTokens, other.reasoningTokens)
+        self.overflowedClasses |= other.overflowedClasses
+        self.inputTokens = self.add(self.inputTokens, other.inputTokens, bit: 1)
+        self.outputTokens = self.add(self.outputTokens, other.outputTokens, bit: 2)
+        self.cacheReadTokens = self.add(self.cacheReadTokens, other.cacheReadTokens, bit: 4)
+        self.cacheCreationTokens = self.add(self.cacheCreationTokens, other.cacheCreationTokens, bit: 8)
+        self.reasoningTokens = self.add(self.reasoningTokens, other.reasoningTokens, bit: 16)
     }
 
     public static func + (lhs: Self, rhs: Self) -> Self {
@@ -141,10 +148,12 @@ public struct CostUsageTokenMix: Sendable, Equatable, Codable {
         return value
     }
 
-    private static func add(_ lhs: Int?, _ rhs: Int?) -> Int? {
+    private mutating func add(_ lhs: Int?, _ rhs: Int?, bit: UInt8) -> Int? {
+        guard self.overflowedClasses & bit == 0 else { return nil }
         switch (lhs, rhs) {
         case let (left?, right?):
             let (result, overflow) = left.addingReportingOverflow(right)
+            if overflow { self.overflowedClasses |= bit }
             return overflow ? nil : result
         case let (left?, nil):
             return left

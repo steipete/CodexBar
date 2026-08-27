@@ -506,8 +506,7 @@ extension CostUsageStore {
             currentWindowFlatDirectoryOffsetByRoot: [:],
             completedCurrentWindowFlatRootPaths: rootPaths)
         var pendingPaths = Set(lookback.pendingFilePaths)
-        pendingPaths.formUnion(paths)
-        lookback.pendingFilePaths = pendingPaths.sorted()
+        lookback.pendingFilePaths.append(contentsOf: paths.filter { pendingPaths.insert($0).inserted })
         cache.codexActiveLookbackState = lookback
         cache.codexScanCatchUpPending = true
     }

@@ -1504,3 +1504,4 @@
 "menu_bar_layout_conditional_default_session_spent" = "세션 거의 소진";
 "menu_bar_layout_conditional_default_either_high" = "세션 또는 주간 사용량 높음";
 "menu_bar_layout_conditional_default_scoped_weekly" = "모델별 주간 60% 초과 사용";
+"Spending cap, not balance" = "지출 한도이며 잔액이 아닙니다";

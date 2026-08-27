@@ -165,6 +165,8 @@ Example:
   - By default, a selected managed account keeps its own `CODEX_HOME` session history.
   - **Local session cost estimates** is a Codex-only opt-in that instead scans this Mac's ambient `$CODEX_HOME`
     (or `~/.codex`) independently of quota, OAuth, web-dashboard, and administrator access.
+  - Regular menu cost refreshes publish local session estimates even when global cost tracking is off. This does not
+    enable other providers' cost scans; results still require the same provider configuration and history/account scope.
   - The local-only mode never makes a network request or uploads session content. It uses an existing local models.dev
     cache when available, then the bundled `CostUsagePricing` rates.
 - Source files:
@@ -190,6 +192,8 @@ Example:
 - Window: configurable 1-365 day rolling history, with a 60s minimum refresh interval.
 - While a bounded refresh catches up with new session history, established totals remain visible only for the same
   account, history window, and bucket time zone. An incomplete first scan never borrows another account's totals.
+- Pending local-history files receive a turn before fresh work, within the existing byte and duration limits.
+  Unfinished files rotate behind waiting work, and the queue survives restarts without rebuilding compatible caches.
 
 ### Usage & Spend account rows
 

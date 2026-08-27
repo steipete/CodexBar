@@ -1538,3 +1538,4 @@
 "menu_bar_layout_conditional_default_session_spent" = "Sesi hampir habis";
 "menu_bar_layout_conditional_default_either_high" = "Sesi atau mingguan sedang tinggi";
 "menu_bar_layout_conditional_default_scoped_weekly" = "Mingguan per model di atas 60%";
+"Spending cap, not balance" = "Batas pengeluaran, bukan saldo";

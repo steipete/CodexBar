@@ -1538,3 +1538,4 @@
 "menu_bar_layout_conditional_default_session_spent" = "Sessió gairebé esgotada";
 "menu_bar_layout_conditional_default_either_high" = "Sessió o setmana en nivell alt";
 "menu_bar_layout_conditional_default_scoped_weekly" = "Setmana per model per damunt del 60 %";
+"Spending cap, not balance" = "Límit de despesa, no saldo";

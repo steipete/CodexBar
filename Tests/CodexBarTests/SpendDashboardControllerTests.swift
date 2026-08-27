@@ -332,7 +332,7 @@ struct SpendDashboardControllerTests {
             settings: settings,
             startupBehavior: .testing,
             environmentBase: [:])
-        store.publishConfirmedEmptyTokenSnapshot(for: .claude)
+        store._setSpendDashboardTokenSnapshotForTesting(nil, for: .claude)
 
         let request = await SpendDashboardSource.makeRequest(
             settings: settings,

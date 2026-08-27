@@ -1536,3 +1536,4 @@
 "menu_bar_layout_conditional_default_session_spent" = "Сессия почти исчерпана";
 "menu_bar_layout_conditional_default_either_high" = "Сессия или неделя на высоком уровне";
 "menu_bar_layout_conditional_default_scoped_weekly" = "Недельное окно модели более 60 %";
+"Spending cap, not balance" = "Лимит расходов, не баланс";

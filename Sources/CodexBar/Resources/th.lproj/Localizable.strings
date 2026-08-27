@@ -1539,3 +1539,4 @@
 "menu_bar_layout_conditional_default_session_spent" = "เซสชันเกือบหมด";
 "menu_bar_layout_conditional_default_either_high" = "เซสชันหรือรายสัปดาห์อยู่ในระดับสูง";
 "menu_bar_layout_conditional_default_scoped_weekly" = "รายสัปดาห์ตามโมเดลเกิน 60%";
+"Spending cap, not balance" = "เพดานการใช้จ่าย ไม่ใช่ยอดคงเหลือ";

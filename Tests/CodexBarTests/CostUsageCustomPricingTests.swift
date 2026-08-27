@@ -81,7 +81,9 @@ struct CostUsageCustomPricingTests {
     }
 
     @Test
-    func `aggregate fallback consults the overlay before bundled rates`() {
+    func `aggregate fallback consults the overlay before bundled rates`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
         let overlay = CostUsageCustomPricing.parse(Data("""
         { "gpt-5.4": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 } }
         """.utf8))
@@ -97,6 +99,7 @@ struct CostUsageCustomPricingTests {
             inputTokens: 1000,
             cachedInputTokens: 0,
             outputTokens: 100,
+            modelsDevCacheRoot: env.cacheRoot,
             customPricing: .empty)
         #expect(bundled != 0)
         #expect(bundled != nil)

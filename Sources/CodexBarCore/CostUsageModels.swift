@@ -199,11 +199,31 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
         }
         let coversFullHistory = days >= self.historyDays
         let windowMetered = coversFullHistory ? self.meteredCostUSD : nil
+        let totalTokens: Int? = {
+            guard !tokens.isEmpty else { return nil }
+            var sum = 0
+            for t in tokens {
+                let (res, of) = sum.addingReportingOverflow(t)
+                if of { return nil }
+                sum = res
+            }
+            return sum
+        }()
+        let totalRequests: Int? = {
+            guard !requests.isEmpty else { return nil }
+            var sum = 0
+            for r in requests {
+                let (res, of) = sum.addingReportingOverflow(r)
+                if of { return nil }
+                sum = res
+            }
+            return sum
+        }()
         return CostUsageWindowSummary(
             days: days,
-            totalTokens: tokens.isEmpty ? nil : tokens.reduce(0, +),
+            totalTokens: totalTokens,
             totalCostUSD: costs.isEmpty ? nil : costs.reduce(0, +),
-            totalRequests: requests.isEmpty ? nil : requests.reduce(0, +),
+            totalRequests: totalRequests,
             entryCount: entries.count,
             tokenMix: mix,
             coverage: coverage,
@@ -438,6 +458,10 @@ public struct CostUsageDailyReport: Sendable, Decodable {
         public let modelsUsed: [String]?
         public let modelBreakdowns: [ModelBreakdown]?
         public let unpricedRequestCount: Int?
+        /// Per-event count of requests with valid vendor costs. Unlike the aggregate
+        /// "costUSD != nil" check, this survives fail-closed aggregation when an invalid
+        /// cost from the same model poisons the summed amount.
+        public let pricedRequestCount: Int?
         public let unmeteredRequestCount: Int?
         public let estimatedRequestCount: Int?
 
@@ -445,6 +469,13 @@ public struct CostUsageDailyReport: Sendable, Decodable {
             let unpriced = max(0, self.unpricedRequestCount ?? 0)
             let unmetered = max(0, self.unmeteredRequestCount ?? 0)
             let estimated = max(0, self.estimatedRequestCount ?? 0)
+            if let priced = self.pricedRequestCount {
+                return CostUsageCoverageCounts(
+                    priced: max(0, priced),
+                    unpriced: unpriced,
+                    unmetered: unmetered,
+                    estimated: estimated)
+            }
             if let requests = self.requestCount, requests > 0 {
                 let priced = if self.costUSD != nil {
                     max(0, requests - unpriced - unmetered - estimated)
@@ -492,6 +523,7 @@ public struct CostUsageDailyReport: Sendable, Decodable {
             case models
             case modelBreakdowns
             case unpricedRequestCount
+            case pricedRequestCount
             case unmeteredRequestCount
             case estimatedRequestCount
         }
@@ -520,6 +552,7 @@ public struct CostUsageDailyReport: Sendable, Decodable {
             self.modelsUsed = Self.decodeModelsUsed(from: container)
             self.modelBreakdowns = try container.decodeIfPresent([ModelBreakdown].self, forKey: .modelBreakdowns)
             self.unpricedRequestCount = try container.decodeIfPresent(Int.self, forKey: .unpricedRequestCount)
+            self.pricedRequestCount = try container.decodeIfPresent(Int.self, forKey: .pricedRequestCount)
             self.unmeteredRequestCount = try container.decodeIfPresent(Int.self, forKey: .unmeteredRequestCount)
             self.estimatedRequestCount = try container.decodeIfPresent(Int.self, forKey: .estimatedRequestCount)
         }
@@ -538,7 +571,8 @@ public struct CostUsageDailyReport: Sendable, Decodable {
             modelBreakdowns: [ModelBreakdown]?,
             unpricedRequestCount: Int? = nil,
             unmeteredRequestCount: Int? = nil,
-            estimatedRequestCount: Int? = nil)
+            estimatedRequestCount: Int? = nil,
+            pricedRequestCount: Int? = nil)
         {
             self.date = date
             self.inputTokens = inputTokens
@@ -554,6 +588,7 @@ public struct CostUsageDailyReport: Sendable, Decodable {
             self.unpricedRequestCount = unpricedRequestCount
             self.unmeteredRequestCount = unmeteredRequestCount
             self.estimatedRequestCount = estimatedRequestCount
+            self.pricedRequestCount = pricedRequestCount
         }
 
         private static func decodeModelsUsed(from container: KeyedDecodingContainer<CodingKeys>) -> [String]? {

@@ -157,6 +157,7 @@ enum CostUsageScanner {
         var claudeProjectsRoots: [URL]?
         var cacheRoot: URL?
         var codexTraceDatabaseURL: URL?
+        var codexScanBudgetForTesting: CodexScanBudget?
         var calendar: Calendar
         var refreshMinIntervalSeconds: TimeInterval = 60
         var claudeLogProviderFilter: ClaudeLogProviderFilter = .all
@@ -2804,9 +2805,10 @@ enum CostUsageScanner {
         }
 
         if !discoveredFilePaths.isEmpty {
-            var pendingFilePaths = Set(state.pendingFilePaths)
-            pendingFilePaths.formUnion(discoveredFilePaths)
-            state.pendingFilePaths = pendingFilePaths.sorted()
+            let discoveredFiles = discoveredFilePaths.map { URL(fileURLWithPath: $0) }
+            Self.appendCodexActiveLookbackPaths(
+                preferNewest ? Self.sortedCodexSessionFilesNewestFirst(discoveredFiles) : discoveredFiles,
+                state: &state)
         }
         state.completedCurrentWindowRootPaths = completedPartitionRoots.sorted()
         state.completedCurrentWindowFlatRootPaths = completedFlatRoots.sorted()
@@ -2894,9 +2896,10 @@ enum CostUsageScanner {
                 : path
         }
         if !discoveredFilePaths.isEmpty {
-            var pendingFilePaths = Set(state.pendingFilePaths)
-            pendingFilePaths.formUnion(discoveredFilePaths)
-            state.pendingFilePaths = pendingFilePaths.sorted()
+            let discoveredFiles = discoveredFilePaths.map { URL(fileURLWithPath: $0) }
+            Self.appendCodexActiveLookbackPaths(
+                preferNewest ? Self.sortedCodexSessionFilesNewestFirst(discoveredFiles) : discoveredFiles,
+                state: &state)
         }
         if page.isComplete {
             completedRootPaths.insert(rootPath)
@@ -2941,6 +2944,7 @@ enum CostUsageScanner {
         let previousDiscovery: CostUsageCodexSessionDiscovery?
         let shouldBoundCatchUp: Bool
         let shouldSeedBoundedQueue: Bool
+        let preferNewest: Bool
     }
 
     private static func seedOrExtendCodexActiveLookbackQueue(
@@ -2953,7 +2957,8 @@ enum CostUsageScanner {
                 self.reseedCodexActiveLookbackPathKeys(migrationSeedPathKeys, state: &state)
             } else {
                 self.appendCodexActiveLookbackPaths(
-                    context.seedFiles,
+                    context.preferNewest ? self.sortedCodexSessionFilesNewestFirst(context.seedFiles) : context
+                        .seedFiles,
                     normalizeExisting: true,
                     state: &state)
             }
@@ -2964,7 +2969,9 @@ enum CostUsageScanner {
             Self.codexResolvedPath(URL(fileURLWithPath: $0))
         })
         let newFiles = context.discoveredFiles.filter { !previousPaths.contains(Self.codexResolvedPath($0)) }
-        Self.appendCodexActiveLookbackPaths(newFiles, state: &state)
+        Self.appendCodexActiveLookbackPaths(
+            context.preferNewest ? self.sortedCodexSessionFilesNewestFirst(newFiles) : newFiles,
+            state: &state)
     }
 
     private static func reseedCodexActiveLookbackPathKeys(
@@ -3083,7 +3090,7 @@ enum CostUsageScanner {
             }
         }
         return CodexRefreshCandidateSelection(
-            files: context.preferNewest ? self.sortedCodexSessionFilesNewestFirst(candidates) : candidates,
+            files: candidates,
             exhaustedVisitBudget: activeLookbackState.pendingFilePaths.count > candidates.count)
     }
 
@@ -3091,6 +3098,7 @@ enum CostUsageScanner {
     private static func finalizedCodexActiveLookbackState(
         _ state: CostUsageCodexActiveLookbackState,
         completedFilePaths: Set<String>,
+        servicedFilePaths: Set<String>,
         completionCandidateCount: Int,
         requiresBoundedDiscoveryCompletion: Bool,
         retainCompletedStateForExactValidation: Bool,
@@ -3104,6 +3112,12 @@ enum CostUsageScanner {
                 == false
         }
         state.pendingFilePaths.replaceSubrange(0..<prefixCount, with: retainedPrefix)
+        // Finalize the selected prefix before moving its unfinished work behind every waiter,
+        // including paths beyond this pass's 512-candidate limit.
+        let servicedSurvivors = retainedPrefix.filter { servicedFilePaths.contains($0) }
+        let servicedPrefixPaths = Set(servicedSurvivors)
+        state.pendingFilePaths.removeAll { servicedPrefixPaths.contains($0) }
+        state.pendingFilePaths.append(contentsOf: servicedSurvivors)
         let boundedDiscoveryIsComplete = !requiresBoundedDiscoveryCompletion
             || (Set(state.completedCurrentWindowRootPaths ?? []) == Set(state.rootPaths)
                 && Set(state.completedCurrentWindowFlatRootPaths ?? []) == Set(state.rootPaths))
@@ -5459,7 +5473,7 @@ enum CostUsageScanner {
             let cachedUntilKey = cache.scanUntilKey
             let shouldRunColdCacheLookback = cache.files.isEmpty || plan.rootsChanged
             let coldCacheLookbackStart = Self.localStartOfDay(range.scanSinceKey, calendar: options.calendar)
-            let scanBudget = CodexScanBudget(
+            let scanBudget = options.codexScanBudgetForTesting ?? CodexScanBudget(
                 maxFileBytes: options.maxCodexSessionFileBytes,
                 maxBytesPerRefresh: options.maxCodexScanBytesPerRefresh,
                 maxDuration: options.maxCodexScanDurationPerRefresh)
@@ -5477,16 +5491,24 @@ enum CostUsageScanner {
                 && cache.codexActiveLookbackState != nil
                 && Self.codexBoundedDiscoveryIsComplete(activeLookbackState)
                 && !plan.requiresCacheWideFileReprocessing
-            let shouldBoundCatchUp = scanBudget.hasTimeLimit
-                && !options.forceRescan
-                && (cache.files.isEmpty
+            let shouldBoundCatchUp = !options.forceRescan
+                && (scanBudget.hasTimeLimit || scanBudget.maxFileBytes > 0 || scanBudget.maxBytesPerRefresh > 0)
+                && ((scanBudget.hasTimeLimit && cache.files.isEmpty)
                     || cache.codexScanCatchUpPending == true
                     || cache.files.values.contains {
                         $0.codexScanComplete == false || $0.hasBufferedCodexForkRetryLines
                     }
                     || cache.codexActiveLookbackState != nil
                     || plan.requiresCacheWideFileReprocessing)
-            let shouldPageDiscovery = shouldBoundCatchUp && !isExactInventoryProofPass
+            let shouldPageDiscovery = scanBudget.hasTimeLimit && shouldBoundCatchUp && !isExactInventoryProofPass
+            if shouldBoundCatchUp, !scanBudget.hasTimeLimit || activeLookbackStateWasReset {
+                Self.appendCodexActiveLookbackPaths(
+                    cache.files.keys.sorted().filter {
+                        cache.files[$0]?.codexScanComplete == false
+                            || cache.files[$0]?.hasBufferedCodexForkRetryLines == true
+                    }.map { URL(fileURLWithPath: $0) },
+                    state: &activeLookbackState)
+            }
             let migrationQueueOwnsCachedPaths = plan.requiresCacheWideFileReprocessing
                 || activeLookbackState.cacheWideMigrationQueueActive == true
             let discoveryExcludedPathKeys = migrationQueueOwnsCachedPaths
@@ -5570,6 +5592,8 @@ enum CostUsageScanner {
                 seenPaths: &seenPaths,
                 fileURLsByPathKey: &fileURLsByPathKey,
                 files: &files)
+            let hasUnmaterializedPendingPaths = activeLookbackState.pendingFilePaths
+                .count > materializedPendingPathCount
 
             if !shouldPageDiscovery {
                 for fileURL in Self.cachedCodexSessionFiles(
@@ -5590,6 +5614,21 @@ enum CostUsageScanner {
                 ? Set(cache.files.keys.map { Self.codexPathKey(URL(fileURLWithPath: $0)) })
                 .union(fileURLsByPathKey.keys)
                 : Set(fileURLsByPathKey.keys)
+            if shouldBoundCatchUp, !scanBudget.hasTimeLimit {
+                // Full byte-only discovery also sees appends to known completed files and
+                // files that were discovered but never admitted on an earlier pass.
+                let dirtyFiles = files.filter { fileURL in
+                    guard let usage = cache.files[fileURL.path], usage.codexScanComplete == true,
+                          !usage.hasBufferedCodexForkRetryLines else { return true }
+                    let metadata = Self.codexFileMetadata(fileURL: fileURL)
+                    return usage.size != metadata.size || usage.mtimeUnixMs != metadata.mtimeUnixMs
+                        || usage.codexScanFileId != metadata.fileId
+                }
+                Self.appendCodexActiveLookbackPaths(
+                    options.preferNewestCodexSessionsFirst
+                        ? Self.sortedCodexSessionFilesNewestFirst(dirtyFiles) : dirtyFiles,
+                    state: &activeLookbackState)
+            }
             let cacheWideMigrationNeedsQueueReseed = Self.cacheWideMigrationNeedsQueueReseed(
                 plan: plan,
                 inventoryPathKeys: inventoryPathKeys,
@@ -5618,9 +5657,12 @@ enum CostUsageScanner {
                     discoveredFiles: discoveredFiles,
                     previousDiscovery: cache.codexSessionDiscovery,
                     shouldBoundCatchUp: shouldBoundCatchUp,
-                    shouldSeedBoundedQueue: shouldSeedBoundedQueue),
+                    shouldSeedBoundedQueue: shouldSeedBoundedQueue,
+                    preferNewest: options.preferNewestCodexSessionsFirst),
                 state: &activeLookbackState)
-            let boundedQueuePathCount = shouldSeedBoundedQueue
+            let canExtendSelectedPrefix = shouldSeedBoundedQueue
+                || (!isExactInventoryProofPass && !hasUnmaterializedPendingPaths)
+            let boundedQueuePathCount = canExtendSelectedPrefix
                 ? min(Self.codexCatchUpScanCandidateLimit, activeLookbackState.pendingFilePaths.count)
                 : materializedPendingPathCount
             let refreshSelection = Self.codexFilesScheduledForRefresh(
@@ -5699,9 +5741,10 @@ enum CostUsageScanner {
             cache.codexActiveLookbackState = Self.finalizedCodexActiveLookbackState(
                 activeLookbackState,
                 completedFilePaths: completedScheduledPaths,
+                servicedFilePaths: scanResult.processedPaths,
                 completionCandidateCount: pendingLookbackPathCount,
                 requiresBoundedDiscoveryCompletion: shouldPageDiscovery,
-                retainCompletedStateForExactValidation: shouldBoundCatchUp && pendingLookbackPathCount > 0,
+                retainCompletedStateForExactValidation: scanBudget.hasTimeLimit && pendingLookbackPathCount > 0,
                 workRecorder: options.codexScanWorkRecorderForTesting)
             if scanBudget.resumedPartialFileCount > 0
                 || scanBudget.deferredByBudgetFileCount > 0

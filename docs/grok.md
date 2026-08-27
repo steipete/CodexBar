@@ -90,9 +90,8 @@ The grok.com billing gRPC-web endpoint remains a best-effort fallback.
      Cookie-only authentication can fail with gRPC status 16 and
      `no-credentials`; signing in through Chrome alone cannot provide that proof
      to CodexBar, so `grok login` is the recommended recovery path.
-   - Uses grok.com browser session cookies. When a non-expired
-     `~/.grok/auth.json` token is available, CodexBar first sends it with each
-     browser session, then retries that session with cookies only.
+   - Uses grok.com browser session cookies. Successful cookie usage never inherits
+     the auth-file account's identity or settings tier.
    - CodexBar imports Chrome only by default to avoid unrelated browser
      Keychain prompts.
    - Ordinary CLI/test runtime does not import browser cookies unless
@@ -103,8 +102,10 @@ The grok.com billing gRPC-web endpoint remains a best-effort fallback.
      re-open the Chromium Keychain gate. The cached cookie is evicted only on
      authentication failures (HTTP 401/403 or gRPC auth statuses); a cached
      team-limited session keeps degrading to identity-only data.
-   - `~/.grok/auth.json` is still used for identity and as a last best-effort
-     bearer-only probe after browser sessions fail. Expired tokens are not sent.
+   - Auto can try a separate bearer-only probe after browser sessions fail.
+     Expired tokens are not sent. A team-usage rejection may still produce the
+     documented identity-only fallback from captured, non-expired team credentials;
+     this does not attach those credentials to successful cookie usage.
    - Parses the returned protobuf enough to recover used percent and
      reset timestamp, accepting both gRPC-web frames and the raw protobuf form
      returned by some successful requests. A current billing period with an
@@ -135,6 +136,10 @@ The grok.com billing gRPC-web endpoint remains a best-effort fallback.
   Chrome only.
 - Credits `subscriptionTier` maps SuperGrok vs SuperGrok Heavy on the plan badge.
   SuperGrok Heavy with no `creditUsagePercent` is unknown usage, not 0%.
+- Each OAuth fetch captures credentials once for billing, bearer retries, identity,
+  and settings enrichment. Replacing `auth.json` during an awaited request cannot
+  relabel the result with the new account. Cookie usage stays separate from this
+  captured account; local session scanning and CLI behavior are unchanged.
 
 
 ## JSON-RPC contract

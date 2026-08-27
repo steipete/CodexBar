@@ -58,9 +58,7 @@ struct OverviewSpendSummary: Equatable {
             return L("%@ tokens", isPartial ? "~\(value)" : value)
         }
 
-        let coveredDays = (resolvedKnownCostProviderCount ?? includedProviders.count) < providerCount
-            ? 0
-            : model.groups.map(\.coveredDayCount).min() ?? 0
+        let coveredDays = model.groups.map(\.coveredDayCount).min() ?? 0
         self.historyCoverageText = spendDashboardCoverageText(
             covered: coveredDays,
             requested: model.requestedDays)

@@ -77,6 +77,8 @@ actor CostUsageStore {
         parserHash: CodexParserHash.value)
     static let cacheGeneration = "sqlite:\(CostUsageStore.schemaVersion)"
     static let compatiblePredecessorParserHashes: Set<String> = [
+        "55f640e6bb0ccba4", // Cursor's optional coverage field leaves native rows and retained reports unchanged.
+        "c6c46a376ba16304", // 0.55.1 scheduler transition; rows and scoped retained reports are unchanged.
         "dd19ffa2dcfa8d47", // Current main before report-window scoping; persisted rows unchanged.
         "8050a4faf4fddb96", // PR base before retained-report persistence; parsed rows unchanged.
         "cfd84d13ad7d4cfa", // 0.55.x scan scheduling and progress bookkeeping; persisted rows unchanged.

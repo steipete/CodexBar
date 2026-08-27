@@ -14,6 +14,131 @@ final class MenuLayoutScreenshotRenderTests: XCTestCase {
     private static let width: CGFloat = 320
     private static let now = Date(timeIntervalSince1970: 1_782_000_000)
 
+    func test_renderCursorOverviewCoverageProof() throws {
+        guard let dir = ProcessInfo.processInfo.environment["CODEXBAR_CURSOR_OVERVIEW_SCREENSHOT_DIR"] else {
+            throw XCTSkip("Set CODEXBAR_CURSOR_OVERVIEW_SCREENSHOT_DIR to render the Cursor Overview proof.")
+        }
+        // This override changes assertions only; the fixture and production renderer are identical.
+        let expectedDays = ProcessInfo.processInfo.environment["CODEXBAR_CURSOR_OVERVIEW_EXPECTED_DAYS"] ?? "30"
+        let directory = URL(fileURLWithPath: dir, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try CodexBarLocalizationOverride.$appLanguage.withValue("en") {
+            let fixture = try CursorOverviewProofFixture.make()
+            XCTAssertEqual(fixture.model.groups.count, 1)
+            XCTAssertEqual(fixture.model.groups.first?.coveredDayCount, 30)
+            XCTAssertEqual(fixture.model.groups.first?.totalCost, 12)
+            XCTAssertEqual(fixture.model.groups.first?.totalTokens, 1000)
+            XCTAssertEqual(fixture.counts.total, 2)
+            XCTAssertEqual(fixture.counts.cost, 1)
+            XCTAssertEqual(fixture.counts.tokens, 1)
+            XCTAssertTrue(fixture.summary.isPartial)
+            try CursorOverviewProofFixture.eventJSON.write(
+                to: directory.appendingPathComponent("input.json"), atomically: true, encoding: .utf8)
+            for dark in [false, true] {
+                let view = AnyView(OverviewSpendSummaryCardView(summary: fixture.summary, days: 30, width: 310)
+                    .environment(\.locale, Locale(identifier: "en_US_POSIX"))
+                    .environment(\.colorScheme, dark ? .dark : .light)
+                    .environment(\.displayScale, 2)
+                    .environment(\.accessibilityEnabled, true)
+                    .background(Color(nsColor: .windowBackgroundColor)))
+                let hosting = NSHostingView(rootView: view)
+                hosting.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+                let name = "cursor-overview-\(dark ? "dark" : "light")"
+                let png = try XCTUnwrap(Self.pngData(hosting: hosting))
+                XCTAssertEqual(hosting.frame.width, 310)
+                XCTAssertFalse(png.isEmpty)
+                try png.write(to: directory.appendingPathComponent("\(name).png"))
+                let accessibility = Self.accessibilityText(hosting)
+                try accessibility.write(
+                    to: directory.appendingPathComponent("\(name)-accessibility.txt"),
+                    atomically: true,
+                    encoding: .utf8)
+                for text in [
+                    "Coverage: \(expectedDays) / 30", "~$12.00", "1 of 2 subscriptions have spend", "~1K tokens",
+                    "Priced 1 · Unpriced 0 · Unmetered 0 · Estimated 0", "List-price equivalent",
+                ] {
+                    XCTAssertTrue(accessibility.contains(text), accessibility)
+                }
+            }
+        }
+    }
+
+    func test_renderOpenRouterLimitClarityProof() async throws {
+        guard let dir = ProcessInfo.processInfo.environment["CODEXBAR_OPENROUTER_CLARITY_SCREENSHOT_DIR"] else {
+            throw XCTSkip("Set CODEXBAR_OPENROUTER_CLARITY_SCREENSHOT_DIR to render the OpenRouter proof.")
+        }
+        let snapshot = try await OpenRouterLimitTestSupport.snapshot()
+        let directory = URL(fileURLWithPath: dir, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        for language in ["en", "de"] {
+            try CodexBarLocalizationOverride.$appLanguage.withValue(language) {
+                for showUsed in [false, true] {
+                    let model = try OpenRouterLimitTestSupport.model(snapshot, showUsed: showUsed)
+                    for dark in [false, true] {
+                        for sectioned in [false, true] {
+                            let content = sectioned
+                                ? AnyView(UsageMenuCardHeaderAndUsageSectionView(
+                                    model: model,
+                                    layoutModel: model,
+                                    bottomPadding: UsageMenuCardLayout.sectionBottomPadding,
+                                    width: 310))
+                                : AnyView(UsageMenuCardView(model: model, width: 310))
+                            let view = AnyView(content
+                                .environment(\.locale, Locale(identifier: language == "en" ? "en_US_POSIX" : "de_DE"))
+                                .environment(\.colorScheme, dark ? .dark : .light)
+                                .environment(\.displayScale, 2)
+                                .environment(\.accessibilityEnabled, true)
+                                .background(Color(nsColor: .windowBackgroundColor)))
+                            let hosting = NSHostingView(rootView: view)
+                            hosting.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+                            let name = "openrouter-\(language)-\(dark ? "dark" : "light")"
+                                + "-\(sectioned ? "sectioned" : "card")-\(showUsed ? "used" : "remaining")"
+                            let png = try XCTUnwrap(Self.pngData(hosting: hosting))
+                            XCTAssertEqual(hosting.frame.width, 310)
+                            try png.write(to: directory.appendingPathComponent("\(name).png"))
+                            // Inspect hosted accessibility children independently of pixels and model text.
+                            let accessibility = Self.accessibilityText(hosting)
+                            try accessibility.write(
+                                to: directory.appendingPathComponent("\(name)-accessibility.txt"),
+                                atomically: true,
+                                encoding: .utf8)
+                            XCTAssertTrue(accessibility.contains("$1.90"), accessibility)
+                            XCTAssertTrue(accessibility.contains("$30.00"), accessibility)
+                            XCTAssertTrue(accessibility.contains(L("API key limit")), accessibility)
+                            XCTAssertTrue(accessibility.contains(L(showUsed ? "Usage used" : "Usage remaining")))
+                            XCTAssertTrue(accessibility.contains(L("%d percent", showUsed ? 0 : 100)))
+                            XCTAssertTrue(accessibility.contains(L("Spending cap, not balance")), accessibility)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private static func accessibilityText(_ element: Any, depth: Int = 0) -> String {
+        guard depth < 30, let accessible = element as? NSObject else { return "" }
+        // SwiftUI nodes implement these public selectors without adopting the full NSAccessibility protocol.
+        let fields = [
+            #selector(NSAccessibilityProtocol.accessibilityRole),
+            #selector(NSAccessibilityProtocol.accessibilityLabel),
+            #selector(NSAccessibilityProtocol.accessibilityValue),
+            #selector(NSAccessibilityProtocol.accessibilityValueDescription),
+            #selector(NSAccessibilityProtocol.accessibilityHelp),
+        ].compactMap { selector in
+            self.accessibilityProperty(accessible, selector: selector).map { String(describing: $0) }
+        }.joined(separator: " | ")
+        let children = self.accessibilityProperty(
+            accessible, selector: #selector(NSAccessibilityProtocol.accessibilityChildren)) as? [Any] ?? []
+        return ([fields] + children.map {
+            self.accessibilityText($0, depth: depth + 1)
+        }).joined(separator: "\n")
+    }
+
+    private static func accessibilityProperty(_ element: NSObject, selector: Selector) -> Any? {
+        guard element.responds(to: selector) else { return nil }
+        return element.perform(selector)?.takeUnretainedValue()
+    }
+
     func test_renderLayoutOverrideDisclosureProof() throws {
         guard let dir = ProcessInfo.processInfo.environment["CODEXBAR_LAYOUT_OVERRIDE_SCREENSHOT_DIR"] else {
             throw XCTSkip("Set CODEXBAR_LAYOUT_OVERRIDE_SCREENSHOT_DIR to render the layout override proof.")
@@ -601,6 +726,10 @@ final class MenuLayoutScreenshotRenderTests: XCTestCase {
     private static func pngData(for view: AnyView) -> Data? {
         let hosting = NSHostingView(rootView: view)
         hosting.appearance = NSAppearance(named: .darkAqua)
+        return self.pngData(hosting: hosting)
+    }
+
+    private static func pngData(hosting: NSHostingView<AnyView>) -> Data? {
         let size = hosting.fittingSize
         guard size.width > 0, size.height > 0 else { return nil }
         hosting.frame = CGRect(origin: .zero, size: size)

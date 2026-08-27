@@ -133,11 +133,26 @@ struct CursorUsageEvent: Decodable, Sendable, Hashable {
 /// cost (converted to USD). Token counts mirror ccusage's mapping, with
 /// `cacheWriteTokens` treated as cache-creation input.
 struct CursorEventTokenUsage: Decodable, Sendable, Hashable {
+    enum Cost: Sendable, Hashable {
+        case valid(Double)
+        case omitted
+        case invalid
+    }
+
     let inputTokens: Int
     let outputTokens: Int
     let cacheWriteTokens: Int
     let cacheReadTokens: Int
-    let totalCents: Double?
+    let cost: Cost
+
+    var totalCents: Double? {
+        switch self.cost {
+        case let .valid(cents):
+            cents
+        case .omitted, .invalid:
+            nil
+        }
+    }
 
     private enum CodingKeys: String, CodingKey {
         case inputTokens
@@ -147,12 +162,43 @@ struct CursorEventTokenUsage: Decodable, Sendable, Hashable {
         case totalCents
     }
 
-    init(inputTokens: Int, outputTokens: Int, cacheWriteTokens: Int, cacheReadTokens: Int, totalCents: Double?) {
+    init(
+        inputTokens: Int = 0,
+        outputTokens: Int = 0,
+        cacheWriteTokens: Int = 0,
+        cacheReadTokens: Int = 0,
+        cost: Cost)
+    {
         self.inputTokens = inputTokens
         self.outputTokens = outputTokens
         self.cacheWriteTokens = cacheWriteTokens
         self.cacheReadTokens = cacheReadTokens
-        self.totalCents = totalCents
+        self.cost = cost
+    }
+
+    init(
+        inputTokens: Int = 0,
+        outputTokens: Int = 0,
+        cacheWriteTokens: Int = 0,
+        cacheReadTokens: Int = 0,
+        totalCents: Double?,
+        isTotalCentsInvalid: Bool = false)
+    {
+        self.inputTokens = inputTokens
+        self.outputTokens = outputTokens
+        self.cacheWriteTokens = cacheWriteTokens
+        self.cacheReadTokens = cacheReadTokens
+        if isTotalCentsInvalid {
+            self.cost = .invalid
+        } else if let totalCents {
+            if totalCents >= 0, totalCents.isFinite {
+                self.cost = .valid(totalCents)
+            } else {
+                self.cost = .invalid
+            }
+        } else {
+            self.cost = .omitted
+        }
     }
 
     init(from decoder: Decoder) throws {
@@ -161,7 +207,30 @@ struct CursorEventTokenUsage: Decodable, Sendable, Hashable {
         self.outputTokens = CursorEventNumber.int(container, .outputTokens)
         self.cacheWriteTokens = CursorEventNumber.int(container, .cacheWriteTokens)
         self.cacheReadTokens = CursorEventNumber.int(container, .cacheReadTokens)
-        self.totalCents = CursorEventNumber.double(container, .totalCents)
+        self.cost = Self.decodeCost(from: container, key: .totalCents)
+    }
+
+    private static func decodeCost(
+        from container: KeyedDecodingContainer<CodingKeys>,
+        key: CodingKeys) -> Cost
+    {
+        guard container.contains(key) else { return .omitted }
+        if (try? container.decodeNil(forKey: key)) == true {
+            return .omitted
+        }
+        if let value = try? container.decode(Double.self, forKey: key) {
+            return (value >= 0 && value.isFinite) ? .valid(value) : .invalid
+        }
+        if let value = try? container.decode(Int.self, forKey: key) {
+            return value >= 0 ? .valid(Double(value)) : .invalid
+        }
+        if let value = try? container.decode(String.self, forKey: key) {
+            guard let parsed = Double(value), parsed.isFinite, parsed >= 0 else {
+                return .invalid
+            }
+            return .valid(parsed)
+        }
+        return .invalid
     }
 
     var totalTokens: Int {
@@ -471,9 +540,12 @@ struct CursorUsageEventsFetcher: Sendable {
     /// to cache-creation input.
     static func makeDailyReport(
         from events: [CursorUsageEvent],
-        calendar: Calendar = .current) -> CostUsageDailyReport
+        calendar: Calendar = .current,
+        modelsDevCatalog: ModelsDevCatalog? = nil,
+        cacheRoot: URL? = nil) -> CostUsageDailyReport
     {
         var days: [String: [String: ModelAccumulator]] = [:]
+        var resolvedCatalog = modelsDevCatalog
         for event in events {
             guard let timestampMS = event.validTimestampMS,
                   let usage = event.tokenUsage,
@@ -482,9 +554,18 @@ struct CursorUsageEventsFetcher: Sendable {
             let date = Date(timeIntervalSince1970: Double(timestampMS) / 1000.0)
             let dayKey = CostUsageLocalDay.key(from: date, calendar: calendar)
             let model = event.model ?? "unknown"
+            var estimatedCents: Double?
+            if usage.cost == .omitted {
+                // Resolve lazily once; an explicit empty catalog prevents per-lookup cache reads.
+                let catalog = resolvedCatalog ?? ModelsDevCache.load(cacheRoot: cacheRoot).artifact?.catalog
+                    ?? ModelsDevCatalog(providers: [:])
+                resolvedCatalog = catalog
+                estimatedCents = Self.estimatedListPriceCents(
+                    for: usage, eventDate: date, model: model, modelsDevCatalog: catalog)
+            }
             var modelsForDay = days[dayKey] ?? [:]
             var accumulator = modelsForDay[model] ?? ModelAccumulator()
-            accumulator.add(usage)
+            accumulator.add(usage, estimatedCents: estimatedCents)
             modelsForDay[model] = accumulator
             days[dayKey] = modelsForDay
         }
@@ -502,17 +583,43 @@ struct CursorUsageEventsFetcher: Sendable {
         var cacheCreationTokens: Int? = 0
         var costUSD: Double?
         var costInvalid = false
+        var pricedRequests = 0
         var requestCount: Int? = 0
+        var estimatedRequests = 0
+        var unpricedRequests = 0
 
-        mutating func add(_ usage: CursorEventTokenUsage) {
+        mutating func add(
+            _ usage: CursorEventTokenUsage,
+            estimatedCents: Double? = nil)
+        {
             self.inputTokens = Self.checkedSum(self.inputTokens, usage.inputTokens)
             self.outputTokens = Self.checkedSum(self.outputTokens, usage.outputTokens)
             self.cacheReadTokens = Self.checkedSum(self.cacheReadTokens, usage.cacheReadTokens)
             self.cacheCreationTokens = Self.checkedSum(self.cacheCreationTokens, usage.cacheWriteTokens)
-            self.costUSD = Self.checkedKnownCostSum(
-                self.costUSD,
-                usage.totalCents,
-                alreadyInvalid: &self.costInvalid)
+            switch usage.cost {
+            case let .valid(totalCents):
+                self.costUSD = Self.checkedKnownCostSum(
+                    self.costUSD,
+                    totalCents,
+                    alreadyInvalid: &self.costInvalid)
+                self.pricedRequests += 1
+
+            case .omitted:
+                if let estimatedCents {
+                    self.costUSD = Self.checkedKnownCostSum(
+                        self.costUSD,
+                        estimatedCents,
+                        alreadyInvalid: &self.costInvalid)
+                    self.estimatedRequests += 1
+                } else {
+                    self.unpricedRequests += 1
+                }
+
+            case .invalid:
+                self.costInvalid = true
+                self.costUSD = nil
+                self.unpricedRequests += 1
+            }
             self.requestCount = Self.checkedSum(self.requestCount, 1)
         }
 
@@ -567,6 +674,9 @@ struct CursorUsageEventsFetcher: Sendable {
         var cacheCreationTokens: Int? = 0
         var requestCount: Int? = 0
         var costUSD: Double?
+        var pricedRequestCount = 0
+        var estimatedRequestCount = 0
+        var unpricedRequestCount = 0
         var breakdowns: [CostUsageDailyReport.ModelBreakdown] = []
 
         for (model, accumulator) in models {
@@ -576,6 +686,9 @@ struct CursorUsageEventsFetcher: Sendable {
             cacheCreationTokens = ModelAccumulator.checkedSum([cacheCreationTokens, accumulator.cacheCreationTokens])
             requestCount = ModelAccumulator.checkedSum([requestCount, accumulator.requestCount])
             costUSD = Self.checkedKnownUSDTotal(costUSD, accumulator.costUSD)
+            pricedRequestCount += accumulator.pricedRequests
+            estimatedRequestCount += accumulator.estimatedRequests
+            unpricedRequestCount += accumulator.unpricedRequests
             breakdowns.append(CostUsageDailyReport.ModelBreakdown(
                 modelName: model,
                 costUSD: accumulator.costUSD,
@@ -598,7 +711,60 @@ struct CursorUsageEventsFetcher: Sendable {
             requestCount: requestCount,
             costUSD: costUSD,
             modelsUsed: models.keys.sorted(),
-            modelBreakdowns: Self.sortedBreakdowns(breakdowns))
+            modelBreakdowns: Self.sortedBreakdowns(breakdowns),
+            unpricedRequestCount: unpricedRequestCount > 0 ? unpricedRequestCount : nil,
+            unmeteredRequestCount: nil,
+            estimatedRequestCount: estimatedRequestCount > 0 ? estimatedRequestCount : nil,
+            // Coverage must not lose valid requests just because an invalid cost from the
+            // same model failed the whole aggregate closed; carry the per-event count.
+            pricedRequestCount: pricedRequestCount > 0 ? pricedRequestCount : nil)
+    }
+
+    /// List-price estimate for events whose vendor omitted totalCents, resolved through
+    /// cached and bundled catalog tables without any network access.
+    /// Cursor counters are disjoint: input excludes cached reads and writes.
+    /// Codex/OpenAI treats cache tokens as a subset of total input, so they are folded
+    /// into the input count for that route only. Claude bills input and cache tokens
+    /// disjointly, so the original counters are preserved for the Claude fallback.
+    /// Cursor emits dotted Claude aliases such as "claude-4.5-sonnet"; the bundled
+    /// Claude catalog keys on "claude-sonnet-4-5", so the alias order is swapped before
+    /// that lookup.
+    private static func estimatedListPriceCents(
+        for usage: CursorEventTokenUsage,
+        eventDate: Date,
+        model: String,
+        modelsDevCatalog: ModelsDevCatalog) -> Double?
+    {
+        guard usage.cost == .omitted else { return nil }
+        if let usd = CostUsagePricing.codexCostUSD(
+            model: model,
+            inputTokens: usage.inputTokens + usage.cacheReadTokens + usage.cacheWriteTokens,
+            cachedInputTokens: usage.cacheReadTokens,
+            outputTokens: usage.outputTokens,
+            cacheWriteInputTokens: usage.cacheWriteTokens,
+            pricingDate: eventDate,
+            modelsDevCatalog: modelsDevCatalog,
+            customPricing: .empty)
+        {
+            return usd * 100
+        }
+        if let usd = CostUsagePricing.claudeCostUSD(
+            model: Self.cursorClaudeCatalogModel(model),
+            inputTokens: usage.inputTokens,
+            cacheReadInputTokens: usage.cacheReadTokens,
+            cacheCreationInputTokens: usage.cacheWriteTokens,
+            outputTokens: usage.outputTokens,
+            pricingDate: eventDate,
+            modelsDevCatalog: modelsDevCatalog)
+        {
+            return usd * 100
+        }
+        return nil
+    }
+
+    private static func cursorClaudeCatalogModel(_ model: String) -> String {
+        guard let match = model.wholeMatch(of: /^claude-(\d+)\.(\d+)-(sonnet|opus|haiku)(-.*)?$/) else { return model }
+        return "claude-\(match.3)-\(match.1)-\(match.2)\(match.4 ?? "")"
     }
 
     private static func makeSummary(from entries: [CostUsageDailyReport.Entry]) -> CostUsageDailyReport.Summary {

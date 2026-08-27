@@ -767,7 +767,14 @@ struct CostUsageBoundedProgressTests {
         pendingCache.codexScanCatchUpPending = true
         CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: pendingCache)
 
-        options.maxCodexScanDurationPerRefresh = .leastNonzeroMagnitude
+        let clock = BoundedProgressCounter()
+        let origin = ContinuousClock.now
+        options.codexScanBudgetForTesting = CostUsageScanner.CodexScanBudget(
+            maxFileBytes: 0,
+            maxBytesPerRefresh: 0,
+            maxDuration: 2,
+            now: { origin.advanced(by: .seconds(clock.value == 0 ? 0 : 3)) })
+        clock.increment()
         let recorder = CostUsageScanner.CodexScanWorkRecorder()
         options.codexScanWorkRecorderForTesting = recorder
         _ = CostUsageScanner.loadDailyReport(

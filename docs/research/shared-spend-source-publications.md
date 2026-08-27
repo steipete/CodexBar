@@ -15,6 +15,10 @@ The publication must preserve source identity and truth state:
 
 Every async producer captures identity before suspension and validates cancellation, generation, provider configuration, and ownership again before publication. Cancellation is only a performance tool; identity validation is the correctness boundary.
 
+Independent dashboard scans also capture the regular token publication revision before suspension. Successful scans (including confirmed empty) acknowledge only that revision; failed attempts are tracked separately to prevent automatic retry loops. A newer regular publication triggers a targeted 365-day scan, with one coalesced follow-up when data arrives during a scan. Regular trigger revisions remain separate from authoritative dashboard data revisions, and short menu snapshots cannot substitute for dashboard history.
+
+This fixes an independently reproduced dashboard freshness gap investigated alongside #3209 and #3176. The screenshot in #3209 is the regular provider-menu cost chart and submenu; its Claude root cause remains unproved. This dashboard fix does not establish a resolution of that report, #3194's Codex quota/persistence issue, or #3207's separate scanner fairness work.
+
 ## Why this fits CodexBar
 
 The existing implementation already contains most of the required primitives:
