@@ -661,6 +661,8 @@
 "section_keyboard_shortcut" = "Klavye kısayolu";
 "open_menu_shortcut_title" = "Menüyü aç";
 "open_menu_shortcut_subtitle" = "Menü çubuğu menüsünü herhangi bir yerden tetikleyin.";
+"record_shortcut" = "Kısayolu kaydet";
+"press_shortcut" = "Kısayola basın";
 "install_cli" = "CLI'yi yükle";
 "install_cli_subtitle" = "CodexBarCLI'yi codexbar olarak /usr/local/bin ve /opt/homebrew/bin dizinlerine sembolik bağlayın.";
 "cli_not_found" = "CodexBarCLI uygulama paketinde bulunamadı.";
@@ -1369,6 +1371,9 @@
 "menu_bar_layout_preset_compact_stacked" = "Kompakt yığın";
 "menu_bar_layout_preset_custom" = "Özel";
 "menu_bar_layout_live_preview" = "Canlı önizleme";
+"menu_bar_layout_default_preview" = "Varsayılan düzen önizlemesi";
+"menu_bar_layout_overrides_notice" = "Bu etkin sağlayıcılar kendi kayıtlı düzenlerini kullanır:";
+"menu_bar_layout_use_all_accessibility" = "%@: Tüm sağlayıcıların düzenini kullan";
 "menu_bar_layout_strip" = "Menü çubuğu şeridi";
 "menu_bar_layout_remove_line_break" = "Satır sonunu kaldır";
 "menu_bar_layout_chip_hint" = "Seçin, yeniden sıralamak için sürükleyin veya kaldırma eylemini kullanın.";
@@ -1536,3 +1541,4 @@
 "Restore Defaults" = "Varsayılanları Geri Yükle";
 "Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "Bu sağlayıcının menüsünde, Ayarlar önizlemesinde ve Genel Bakış'ta hangi kullanım satırlarının görüneceğini seçin.";
 "%@ (unavailable)" = "%@ (kullanılamıyor)";
+"Spending cap, not balance" = "Harcama sınırı, bakiye değil";

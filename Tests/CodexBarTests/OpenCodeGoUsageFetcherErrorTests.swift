@@ -43,22 +43,41 @@ private final class OpenCodeGoContinuationBox<Value: Sendable>: @unchecked Senda
 
 @Suite(.serialized)
 struct OpenCodeGoUsageFetcherErrorTests {
-    @Test
-    func `public usage API sends bearer token and parses all windows`() async throws {
+    @Test(arguments: [
+        (12, 8, 35),
+        (3, 1, 0),
+        (1, 1, 1),
+        (0, 0, 0),
+        (100, 100, 100),
+        (0.5, 0.5, 0.5),
+        (1, nil, nil),
+        (1, 1, nil),
+        (1, nil, 1),
+    ] as [(Double, Double?, Double?)])
+    func `public usage API sends bearer token and preserves percent units`(
+        rolling: Double,
+        weekly: Double?,
+        monthly: Double?) async throws
+    {
         defer { OpenCodeGoStubURLProtocol.handler = nil }
+        let resetDates = [
+            "2026-08-12T02:00:00.000Z",
+            "2026-08-18T00:00:00.000Z",
+            "2026-09-01T00:00:00.000Z",
+        ]
+        var windows: [String: Any] = ["rolling": ["percent": rolling, "resetsAt": resetDates[0]]]
+        if let weekly {
+            windows["weekly"] = ["percent": weekly, "resetsAt": resetDates[1]]
+        }
+        if let monthly {
+            windows["monthly"] = ["percent": monthly, "resetsAt": resetDates[2]]
+        }
+        let data = try JSONSerialization.data(withJSONObject: ["usage": windows])
+        let body = try #require(String(data: data, encoding: .utf8))
         let requests = OpenCodeGoRequestRecorder<URLRequest>()
         OpenCodeGoStubURLProtocol.handler = { request in
             guard let url = request.url else { throw URLError(.badURL) }
             requests.append(request)
-            let body = """
-            {
-              "usage": {
-                "rolling": {"percent": 12, "resetsAt": "2026-08-12T02:00:00.000Z"},
-                "weekly": {"percent": 8, "resetsAt": "2026-08-18T00:00:00.000Z"},
-                "monthly": {"percent": 35, "resetsAt": "2026-09-01T00:00:00.000Z"}
-              }
-            }
-            """
             return Self.makeResponse(url: url, body: body, statusCode: 200, contentType: "application/json")
         }
 
@@ -72,11 +91,18 @@ struct OpenCodeGoUsageFetcherErrorTests {
         #expect(requests.values.count == 1)
         #expect(requests.values.first?.url?.path == "/zen/go/v1/usage")
         #expect(requests.values.first?.value(forHTTPHeaderField: "Authorization") == "Bearer go_secret")
-        #expect(snapshot.rollingUsagePercent == 12)
-        #expect(snapshot.weeklyUsagePercent == 8)
-        #expect(snapshot.monthlyUsagePercent == 35)
-        #expect(snapshot.hasWeeklyUsage)
-        #expect(snapshot.hasMonthlyUsage)
+        let usage = snapshot.toUsageSnapshot()
+        #expect(usage.primary?.usedPercent == rolling)
+        #expect(usage.secondary?.usedPercent == weekly)
+        #expect(usage.tertiary?.usedPercent == monthly)
+        #expect(snapshot.hasWeeklyUsage == (weekly != nil))
+        #expect(snapshot.hasMonthlyUsage == (monthly != nil))
+
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        #expect(usage.primary?.resetsAt == formatter.date(from: resetDates[0]))
+        #expect(usage.secondary?.resetsAt == weekly.flatMap { _ in formatter.date(from: resetDates[1]) })
+        #expect(usage.tertiary?.resetsAt == monthly.flatMap { _ in formatter.date(from: resetDates[2]) })
     }
 
     @Test

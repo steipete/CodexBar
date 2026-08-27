@@ -14,7 +14,7 @@ extension UsageMenuCardView.Model {
                     try? ProviderDetailSection.Row(
                         label: L(row.label),
                         value: row.value,
-                        secondaryValue: row.secondaryValue)
+                        secondaryValue: self.localizedProviderDetailSecondaryValue(row, provider: provider))
                 }
                 return try? ProviderDetailSection(
                     title: section.title.map(L),
@@ -43,6 +43,18 @@ extension UsageMenuCardView.Model {
                 rows: rows,
                 chart: chart)
         }
+    }
+
+    private static func localizedProviderDetailSecondaryValue(
+        _ row: ProviderDetailSection.Row,
+        provider: UsageProvider) -> String?
+    {
+        // Only this plugin-owned disclosure is copy; arbitrary provider values stay canonical.
+        guard provider == .openrouter,
+              row.label == "API key limit",
+              row.secondaryValue == "Spending cap, not balance"
+        else { return row.secondaryValue }
+        return L("Spending cap, not balance")
     }
 
     static func localizedDeepSeekBalanceDescription(_ description: String) -> String {

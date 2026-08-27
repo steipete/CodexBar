@@ -124,13 +124,15 @@ func testConfigStore(suiteName: String, reset: Bool = true) -> CodexBarConfigSto
 func testSettingsStore(
     suiteName: String,
     tokenAccountStore: any ProviderTokenAccountStoring = InMemoryTokenAccountStore(),
-    config: CodexBarConfig? = nil) -> SettingsStore
+    config: CodexBarConfig? = nil,
+    prepareDefaults: ((UserDefaults) -> Void)? = nil) -> SettingsStore
 {
     let isolatedSuiteName = "\(suiteName)-\(UUID().uuidString)"
     guard let defaults = UserDefaults(suiteName: isolatedSuiteName) else {
         preconditionFailure("Could not create test defaults suite")
     }
     defaults.removePersistentDomain(forName: isolatedSuiteName)
+    prepareDefaults?(defaults)
     let configStore = testConfigStore(suiteName: isolatedSuiteName)
     if let config {
         do {
@@ -178,7 +180,7 @@ func withStatusItemControllerForTesting<T>(
     let controller = StatusItemController(
         store: store,
         settings: settings,
-        account: account ?? fetcher.loadAccountInfo(),
+        account: account ?? AccountInfo(email: nil, plan: nil),
         updater: DisabledUpdaterController(),
         preferencesSelection: PreferencesSelection(),
         statusBar: statusBar)
@@ -199,7 +201,7 @@ func withStatusItemControllerForTesting<T>(
     let controller = StatusItemController(
         store: store,
         settings: settings,
-        account: account ?? fetcher.loadAccountInfo(),
+        account: account ?? AccountInfo(email: nil, plan: nil),
         updater: DisabledUpdaterController(),
         preferencesSelection: PreferencesSelection(),
         statusBar: statusBar)

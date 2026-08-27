@@ -23,7 +23,7 @@ final class CodexAccountPromotionTestContainer {
         workspaceIdentities: [String: CodexOpenAIWorkspaceIdentity] = [:]) throws
     {
         self.suiteName = suiteName
-        self.rootURL = FileManager.default.temporaryDirectory
+        self.rootURL = CodexCredentialFixtures.root
             .appendingPathComponent("codex-account-promotion-tests", isDirectory: true)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         self.liveHomeURL = self.rootURL.appendingPathComponent("liveHome", isDirectory: true)

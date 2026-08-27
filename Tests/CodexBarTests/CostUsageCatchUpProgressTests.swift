@@ -4,6 +4,22 @@ import Testing
 
 struct CostUsageCatchUpProgressTests {
     @Test
+    func `pending queue rotation alone is not progress`() {
+        var cache = CostUsageCache()
+        cache.codexActiveLookbackState = CostUsageCodexActiveLookbackState(
+            scanSinceKey: "2026-05-10",
+            rootPaths: ["/sessions"],
+            pendingFilePaths: ["/sessions/a.jsonl", "/sessions/b.jsonl", "/sessions/c.jsonl"])
+        let before = CostUsageFetcher.codexScanProgressKey(cache: cache, scopedFiles: [:])
+        cache.codexActiveLookbackState?.pendingFilePaths = [
+            "/sessions/b.jsonl",
+            "/sessions/c.jsonl",
+            "/sessions/a.jsonl",
+        ]
+        #expect(CostUsageFetcher.codexScanProgressKey(cache: cache, scopedFiles: [:]) == before)
+    }
+
+    @Test
     func `progress key includes semantic discovery cursor progress`() {
         var cache = CostUsageCache()
         cache.codexSessionDiscovery = CostUsageCodexSessionDiscovery(

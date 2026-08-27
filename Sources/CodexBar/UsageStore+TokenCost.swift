@@ -119,6 +119,16 @@ extension UsageStore {
     }
 
     func publishTokenSnapshot(_ snapshot: CostUsageTokenSnapshot, for provider: UsageProvider) {
+        // A bounded Codex refresh can succeed with partial rows while catch-up remains pending.
+        // Account and history-window changes fail the current-publication lookup below.
+        // Provider-specific by design: only Codex retains established history during bounded catch-up.
+        if provider == .codex,
+           !snapshot.historyCoverageIsEstablished,
+           self.tokenSnapshotPublicationForCurrentProviderConfig(for: provider)?
+               .snapshot?.historyCoverageIsEstablished == true
+        {
+            return
+        }
         self.tokenSnapshots[provider.instanceID] = snapshot
         self.publishTokenSnapshotState(snapshot, for: provider)
     }
@@ -408,7 +418,7 @@ extension UsageStore {
     {
         guard self.providerPublicationRevisionIsCurrent(publicationRevision, for: provider),
               self.settings.providerConfigRevision(for: provider) == providerConfigRevision,
-              self.settings.costUsageEnabled,
+              self.settings.isCostUsageEffectivelyEnabled(for: provider),
               self.isEnabled(provider),
               self.settings.costUsageHistoryDays == historyDays
         else {
@@ -475,8 +485,7 @@ extension UsageStore {
         case .xai:
             return snapshot.flatMap { XAICostUsageMapping.tokenSnapshot(from: $0, historyDays: windowDays) }
         case .grok:
-            return GrokLocalSessionScanner.summarize(lookbackDays: windowDays)
-                .toCostUsageTokenSnapshot(historyDays: windowDays)
+            return self.grokLocalTokenSnapshot(from: snapshot, historyDays: windowDays)
         default:
             return nil
         }

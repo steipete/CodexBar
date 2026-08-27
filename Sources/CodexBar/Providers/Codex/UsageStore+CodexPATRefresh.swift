@@ -16,7 +16,11 @@ extension UsageStore {
 
     nonisolated static func isCodexPATOutcome(_ outcome: ProviderFetchOutcome) -> Bool {
         guard case let .success(result) = outcome.result else { return false }
-        return result.strategyID == "codex.pat" || result.sourceLabel == "pat"
+        return self.isCodexPATResult(result)
+    }
+
+    nonisolated static func isCodexPATResult(_ result: ProviderFetchResult) -> Bool {
+        result.strategyID == "codex.pat" || result.sourceLabel == "pat"
     }
 
     nonisolated static func codexPublicationRefreshOverrides(
@@ -43,6 +47,9 @@ extension UsageStore {
         _ resolution: CodexRefreshOutcomeResolution) async -> ProviderFetchOutcome?
     {
         guard resolution.provider == .codex else { return resolution.initialOutcome }
+        guard !Task.isCancelled,
+              self.isCurrentProviderRefreshGeneration(.codex, generation: resolution.generation)
+        else { return nil }
         if case let .success(result) = resolution.initialOutcome.result,
            !Self.isCodexPATOutcome(resolution.initialOutcome),
            let expectedGuard = resolution.expectedGuard,
@@ -62,6 +69,9 @@ extension UsageStore {
             missingWindowBackfillSnapshot: resolution.missingWindowBackfillSnapshot,
             pendingCandidate: resolution.pendingWeeklyResetCandidate,
             fetchConfirmation: resolution.fetchOutcome)
+        guard !Task.isCancelled,
+              self.isCurrentProviderRefreshGeneration(.codex, generation: resolution.generation)
+        else { return nil }
         self.persistCodexWeeklyResetPublicationCandidate(
             admission.pendingCandidate,
             expectedGuard: resolution.expectedGuard,
@@ -69,6 +79,12 @@ extension UsageStore {
         guard let admittedOutcome = admission.outcome else {
             if let expectedGuard = resolution.expectedGuard {
                 self.retireCodexStateIfRefreshOwnerChanged(
+                    expectedGuard: expectedGuard,
+                    generation: resolution.generation)
+            }
+            if let success = admission.withheldSuccess, let expectedGuard = resolution.expectedGuard {
+                self.clearCodexFetchErrorAfterWithheldPublication(
+                    success: success,
                     expectedGuard: expectedGuard,
                     generation: resolution.generation)
             }

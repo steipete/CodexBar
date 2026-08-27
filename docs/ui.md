@@ -18,6 +18,10 @@ read_when:
 - Display → Menu Bar → Layout provides presets plus a token editor. Tokens can be clicked to append, dragged from the
   palette, reordered between one or two lines, dragged out, or removed with Delete. Layouts can be global or overridden
   per provider. Manual edits select the Custom preset.
+- All providers previews the default layout and lists enabled providers with saved overrides, even when an override
+  currently matches the default. Each “Use all-providers layout” action removes only that provider's override;
+  global edits preserve overrides, and disabled providers are left untouched. Before a default is first saved,
+  editing still starts from the representative provider's effective layout.
 - Small/Regular controls the token font scale. Tight/Regular controls status-item padding. Compact stacked uses two
   tightly spaced lines sized to fit the menu bar.
 
@@ -64,6 +68,7 @@ model-generic token label while the rendered menu-bar prefix and accessibility l
 - Manual refresh updates the open card subtitle and persistent Refresh-row spinner in place. Repeated clicks share the
   active request, and the existing row geometry remains fixed through success or failure.
 - Codex credits can add a separate “Buy Credits…” menu action.
+- Claude capped Extra Usage follows the used/remaining fill preference; spending amounts and “% used” copy stay unchanged.
 - Codex OpenAI web extras: code review remaining and usage breakdown render when dashboard data is attached.
 - Token accounts: optional account switcher bar or stacked account cards (up to 6) when multiple manual tokens exist.
 - Provider storage usage is opt-in from Advanced settings. When enabled, overview rows and provider detail cards can show

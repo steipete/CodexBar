@@ -2,6 +2,7 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
+@Suite(CodexCredentialFixtures())
 struct CodexOAuthManagedWorkspaceRecoveryTests {
     @Test
     func `automatic mode does not expose unscoped CLI fallback for a managed workspace`() async {
@@ -13,7 +14,7 @@ struct CodexOAuthManagedWorkspaceRecoveryTests {
 
     @Test
     func `native refresh recovery is unavailable when managed workspace scope is selected`() async throws {
-        let home = FileManager.default.temporaryDirectory
+        let home = CodexCredentialFixtures.root
             .appendingPathComponent("codexbar-native-refresh-managed-workspace-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: home) }

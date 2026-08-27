@@ -370,13 +370,13 @@ struct ProvidersPaneCoverageTests {
         #expect(picker?.trailingActions.first?.isVisible?() == false)
     }
 
-    @Test
+    @Test(CodexCredentialFixtures())
     func `codex providers pane uses managed account fallback instead of ambient account`() throws {
         let settings = Self.makeSettingsStore(suite: "ProvidersPaneCoverageTests-codex-managed-fallback")
-        let ambientHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+        let ambientHome = CodexCredentialFixtures.root.appendingPathComponent(
             UUID().uuidString,
             isDirectory: true)
-        let managedHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+        let managedHome = CodexCredentialFixtures.root.appendingPathComponent(
             UUID().uuidString,
             isDirectory: true)
         defer {

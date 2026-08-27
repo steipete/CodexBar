@@ -661,6 +661,8 @@
 "section_keyboard_shortcut" = "แป้นพิมพ์ลัด";
 "open_menu_shortcut_title" = "เปิดเมนู";
 "open_menu_shortcut_subtitle" = "ทริกเกอร์เมนูแถบเมนูได้จากทุกที่";
+"record_shortcut" = "บันทึกปุ่มลัด";
+"press_shortcut" = "กดปุ่มลัด";
 "install_cli" = "ติดตั้ง CLI";
 "install_cli_subtitle" = "Symlink CodexBarCLI เป็น /usr/local/bin และ /opt/homebrew/bin เป็น codexbar";
 "cli_not_found" = "ไม่พบ CodexBarCLI ใน App Bundle";
@@ -1371,6 +1373,9 @@
 "menu_bar_layout_preset_compact_stacked" = "ซ้อนแบบกะทัดรัด";
 "menu_bar_layout_preset_custom" = "กําหนดเอง";
 "menu_bar_layout_live_preview" = "ตัวอย่างสด";
+"menu_bar_layout_default_preview" = "ตัวอย่างเค้าโครงเริ่มต้น";
+"menu_bar_layout_overrides_notice" = "ผู้ให้บริการที่เปิดใช้งานเหล่านี้ใช้เค้าโครงที่บันทึกไว้ของตนเอง:";
+"menu_bar_layout_use_all_accessibility" = "%@: ใช้เค้าโครงสำหรับผู้ให้บริการทั้งหมด";
 "menu_bar_layout_strip" = "แถบเมนู";
 "menu_bar_layout_remove_line_break" = "ลบการขึ้นบรรทัดใหม่";
 "menu_bar_layout_chip_hint" = "เลือก ลากเพื่อจัดลำดับใหม่ หรือใช้การทำงานลบ";
@@ -1538,3 +1543,4 @@
 "Restore Defaults" = "คืนค่าเริ่มต้น";
 "Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "เลือกแถวการใช้งานที่จะแสดงในเมนูของผู้ให้บริการนี้ ตัวอย่างการตั้งค่า และภาพรวม";
 "%@ (unavailable)" = "%@ (ไม่พร้อมใช้งาน)";
+"Spending cap, not balance" = "เพดานการใช้จ่าย ไม่ใช่ยอดคงเหลือ";

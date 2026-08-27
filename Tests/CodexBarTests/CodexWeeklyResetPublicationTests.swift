@@ -1119,9 +1119,9 @@ extension CodexAccountScopedRefreshTests {
         let suite = "CodexWeeklyResetPublicationTests-stacked-response-email-mismatch"
         let targetID = try #require(UUID(uuidString: "11111111-2222-3333-4444-555555555555"))
         let siblingID = try #require(UUID(uuidString: "66666666-7777-8888-9999-AAAAAAAAAAAA"))
-        let targetHome = FileManager.default.temporaryDirectory
+        let targetHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-stacked-mismatch-target-\(UUID().uuidString)", isDirectory: true)
-        let siblingHome = FileManager.default.temporaryDirectory
+        let siblingHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-stacked-mismatch-sibling-\(UUID().uuidString)", isDirectory: true)
         let target = try self.makeManagedCodexWeeklyPublicationAccount(
             id: targetID,
@@ -1189,9 +1189,9 @@ extension CodexAccountScopedRefreshTests {
 
         let suspiciousID = try #require(UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-303030303030"))
         let siblingID = try #require(UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-313131313131"))
-        let suspiciousHome = FileManager.default.temporaryDirectory
+        let suspiciousHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-weekly-suspicious-\(UUID().uuidString)", isDirectory: true)
-        let siblingHome = FileManager.default.temporaryDirectory
+        let siblingHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-weekly-sibling-\(UUID().uuidString)", isDirectory: true)
         let suspiciousAccount = try self.makeManagedCodexWeeklyPublicationAccount(
             id: suspiciousID,

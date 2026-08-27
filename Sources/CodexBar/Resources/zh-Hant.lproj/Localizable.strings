@@ -652,6 +652,8 @@
 "section_keyboard_shortcut" = "快速鍵";
 "open_menu_shortcut_title" = "開啟選單";
 "open_menu_shortcut_subtitle" = "從任意位置觸發選單列選單。";
+"record_shortcut" = "設定快速鍵";
+"press_shortcut" = "按下快速鍵";
 "install_cli" = "安裝 CLI";
 "install_cli_subtitle" = "將 CodexBarCLI 作為 codexbar 符號連結到 /usr/local/bin 和 /opt/homebrew/bin。";
 "cli_not_found" = "在 App 套件中找不到 CodexBarCLI。";
@@ -1398,6 +1400,9 @@
 "menu_bar_layout_preset_compact_stacked" = "緊湊堆疊";
 "menu_bar_layout_preset_custom" = "自訂";
 "menu_bar_layout_live_preview" = "即時預覽";
+"menu_bar_layout_default_preview" = "預設佈局預覽";
+"menu_bar_layout_overrides_notice" = "以下已啟用的供應商使用各自儲存的佈局：";
+"menu_bar_layout_use_all_accessibility" = "%@：使用所有供應商的佈局";
 "menu_bar_layout_strip" = "選單列條帶";
 "menu_bar_layout_remove_line_break" = "移除換行";
 "menu_bar_layout_chip_hint" = "選取、拖曳以重新排序，或使用移除動作。";
@@ -1565,3 +1570,4 @@
 "Restore Defaults" = "回復預設值";
 "Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "選擇要在此供應商的選單、設定預覽與概覽中顯示的用量列。";
 "%@ (unavailable)" = "%@（無法使用）";
+"Spending cap, not balance" = "支出上限，並非餘額";

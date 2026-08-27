@@ -13,17 +13,22 @@ extension UsageStore {
 
         let visibleAccounts = self.freshCodexVisibleAccountsForSnapshotHydration()
         let activeMatches = visibleAccounts.filter {
-            $0.isActive &&
-                $0.selectionSource == currentGuard.source &&
-                CodexIdentityResolver.normalizeEmail($0.email) == currentGuard.accountKey
+            $0.isActive && Self.codexScopedRefreshGuardsMatchAccount(
+                currentGuard, Self.codexScopedRefreshGuard(for: $0))
         }
         guard activeMatches.count == 1, let account = activeMatches.first else { return }
 
-        if let index = self.codexAccountSnapshots.firstIndex(where: { $0.id == account.id }) {
-            let existing = self.codexAccountSnapshots[index]
+        // Single-account refresh clears memory before admission; keep the persisted rows and their credits intact.
+        var records = self.codexAccountSnapshots
+        let persisted = self.codexAccountUsageSnapshotStore?.load(for: visibleAccounts) ?? []
+        records += persisted.filter { row in !records.contains { $0.id == row.id } }
+        if let index = records.firstIndex(where: { $0.id == account.id }) {
+            let existing = records[index]
+            guard Self.codexScopedRefreshGuardsMatchAccount(
+                currentGuard, Self.codexScopedRefreshGuard(for: existing.account)) else { return }
             guard existing.weeklyResetCandidate != nil || candidate != nil else { return }
-            self.codexAccountSnapshots[index] = CodexAccountUsageSnapshot(
-                account: account,
+            records[index] = CodexAccountUsageSnapshot(
+                account: existing.account,
                 snapshot: existing.snapshot,
                 error: existing.error,
                 sourceLabel: existing.sourceLabel,
@@ -37,7 +42,7 @@ extension UsageStore {
                 accountEmail: account.email,
                 accountOrganization: identity?.accountOrganization,
                 loginMethod: identity?.loginMethod ?? account.workspaceLabel))
-            self.codexAccountSnapshots.append(CodexAccountUsageSnapshot(
+            records.append(CodexAccountUsageSnapshot(
                 account: account,
                 snapshot: relabeled,
                 error: self.errors[.codex],
@@ -45,6 +50,7 @@ extension UsageStore {
                 credits: self.credits,
                 weeklyResetCandidate: candidate))
         }
-        self.codexAccountUsageSnapshotStore?.store(self.codexAccountSnapshots)
+        self.codexAccountSnapshots = records
+        self.codexAccountUsageSnapshotStore?.store(records)
     }
 }

@@ -661,6 +661,8 @@
 "section_keyboard_shortcut" = "اختصار لوحة المفاتيح";
 "open_menu_shortcut_title" = "قائمة مفتوحة";
 "open_menu_shortcut_subtitle" = "فعل قائمة شريط القوائم من أي مكان.";
+"record_shortcut" = "سجل اختصاراً";
+"press_shortcut" = "اضغط على الاختصار";
 "install_cli" = "تثبيت CLI";
 "install_cli_subtitle" = "Symlink CodexBarCLI إلى /usr/local/bin و /opt/homebrew/bin ك codexbar.";
 "cli_not_found" = "CodexBarCLI غير موجود في حزمة التطبيقات.";
@@ -1371,6 +1373,9 @@
 "menu_bar_layout_preset_compact_stacked" = "مكدّس مضغوط";
 "menu_bar_layout_preset_custom" = "العرف";
 "menu_bar_layout_live_preview" = "معاينة مباشرة";
+"menu_bar_layout_default_preview" = "معاينة التخطيط الافتراضي";
+"menu_bar_layout_overrides_notice" = "يستخدم هؤلاء المزوّدون المفعّلون تخطيطاتهم المحفوظة الخاصة:";
+"menu_bar_layout_use_all_accessibility" = "%@: استخدام تخطيط جميع المزوّدين";
 "menu_bar_layout_strip" = "شريط القوائم";
 "menu_bar_layout_remove_line_break" = "إزالة فاصل السطر";
 "menu_bar_layout_chip_hint" = "حدّد أو اسحب لإعادة الترتيب أو استخدم إجراء الإزالة.";
@@ -1538,3 +1543,4 @@
 "Restore Defaults" = "استعادة الإعدادات الافتراضية";
 "Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "اختر صفوف الاستخدام التي تظهر في قائمة هذا المزوّد ومعاينة الإعدادات والنظرة العامة.";
 "%@ (unavailable)" = "%@ (غير متوفر)";
+"Spending cap, not balance" = "حد الإنفاق، وليس الرصيد";

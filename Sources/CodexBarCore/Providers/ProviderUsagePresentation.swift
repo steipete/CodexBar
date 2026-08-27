@@ -598,7 +598,7 @@ public struct ProviderUsagePresentation: Sendable {
 
     public static func standardSemanticWindows(snapshot: UsageSnapshot) -> ProviderSemanticWindows {
         let candidates = [snapshot.primary, snapshot.secondary, snapshot.tertiary]
-            + (snapshot.extraRateWindows ?? []).map(\.window)
+            + (snapshot.extraRateWindows ?? []).filter(\.usageKnown).map(\.window)
         let usable = candidates.compactMap { window -> RateWindow? in
             guard let window, !window.isSyntheticPlaceholder else { return nil }
             return window

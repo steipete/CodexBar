@@ -1,8 +1,34 @@
 # Changelog
 
-## 0.55.1 — Unreleased
+## 0.55.2 — Unreleased
 
 ### Fixed
+- Cursor: estimate omitted API-rate costs from cached or bundled pricing, preserve invalid-cost coverage and compatible history caches, and separate Overview history coverage from missing subscriptions (#3129). Thanks @Yuxin-Qiao!
+- OpenRouter: label the API key spending limit consistently and clarify that it is a cap, not the separate account balance (#3158). Thanks @vinschger!
+- Codex: refresh local session cost estimates when global cost tracking is off, without repeatedly rejecting successful scans as stale. Thanks @vinschger!
+- Codex: fairly resume older partial session files during busy local cost scans without increasing scan limits or rebuilding compatible caches (#3207). Thanks @IchenDEV!
+- Menu bar: label the All providers preview as the default and disclose enabled providers with saved overrides, with a targeted “Use all-providers layout” action (#3210). Thanks @Sedrak-Hovhannisyan!
+- Claude: respect the used/remaining fill preference for capped Extra Usage, so an exhausted cap is empty in remaining mode (#3213). Thanks @vinschger!
+- Codex: clear stale connectivity errors after an authorized successful fetch even when weekly usage is withheld, including persisted and stacked-account errors (#3214). Thanks @olddonkey!
+- Antigravity: select the most constrained known quota independently for session and weekly menu-bar layout tokens, so unused model families no longer mask consumed quota (#3206). Thanks @foobra!
+- Codex: honor native access-token JWT expiry before the eight-day refresh age so valid OAuth usage keeps model-specific limits, while preserving CLI-owned refresh and external-source behavior (#3221, #3222). Thanks @anagnorisis2peripeteia!
+- OpenCode Go: preserve API percentage units so 1% usage no longer appears as 100%, including local-history overlays (#3216). Thanks @rodrigoalma!
+- CLI install: block inherited shell functions and startup hooks before helper validation and failure handling, and use absolute tools and a clean administrator-command environment while retaining approval and both existing symlink destinations (#3205, #3217).
+
+## 0.55.1 — 2026-08-25
+
+### Highlights
+- **Codex weekly resets recover cleanly**: early backend resets refresh open usage cards without mixing accounts, spending reset credits, or losing confirmation across relaunches (#3177, #3189).
+- **Codex spend stays visible during catch-up**: established totals remain accurate while newer local session history finishes processing, without rebuilding existing caches (#3051, #3114).
+- **Grok menus stay responsive**: local session scans no longer block menu opening, and bearer billing restores real usage without losing account context (#3181, #3195).
+- **Bailian CLI Token Plan support**: signed-in Alibaba accounts now load region-aware 5-hour and weekly quotas directly from the CLI, with browser fallback (#3020, #3080).
+- **Fireworks billing spend restored**: real 30-day API spending appears even when local cost summaries are disabled (#3183, #3185).
+
+### Fixed
+- Claude: retry failed claude-swap version detection, ignore superseded startup probes, and clear stale adapter versions when disabled (#3126).
+- Alibaba Token Plan: try the signed-in Bailian CLI before browser cookies, with isolated subprocess credentials and region-aware 5-hour/weekly quotas (#3020, #3080). Thanks @Hek846!
+- Codex: preserve established local spend totals while newer session history catches up, without crossing accounts, history windows, or time zones; upgrade existing spend caches in place (#3051). Thanks @mauriciopolvora!
+- Codex: refresh open usage cards in place after weekly resets without clipping reset details or mixing account identities (#3168, #3189). Thanks @Zihao-Qi!
 - Codex: recover weekly usage after early backend resets without spending a reset credit, preserve account-scoped confirmation across relaunch, and expire stale observations safely (#3177, #3179). Thanks @Zihao-Qi!
 - Grok: recover the usage bar from bearer billing when credits expose only a period, preserve the authoritative reset, and explain genuinely unavailable usage without switching accounts (#3181). Thanks @olddonkey!
 - Spend dashboard: finish the final local Codex history file promptly while the dashboard is visible, preserve explicit background and stop choices, and keep existing usage caches intact (#3114). Thanks @Yuxin-Qiao!
@@ -12,12 +38,14 @@
 - OpenCode Go: expose a Monthly % lane token for custom menu bar layouts once the monthly window has been observed (#3175).
 
 ### Performance
+- Grok: keep menu opening responsive by reusing published local-session totals and moving filesystem scans off the main thread (#3195).
 - OpenCodex: parse only newly appended usage-log entries instead of rebuilding the entire cache on every refresh, cutting memory use while preserving compatibility with older app versions (#3140). Thanks @olddonkey!
 
 ### Usage & Spend
 - Added AED (UAE dirham) to the display currency options (#3186). Thanks @samiashi!
 
 ### Localization
+- Settings: keep the keyboard shortcut recorder in the selected app language while recording and after editing (#3190). Thanks @endless7!
 - Turkish: improve translations throughout settings and provider views, including the previously untranslated iCloud sync section (#3178). Thanks @husodrn46!
 
 ## 0.55.0 — 2026-08-24

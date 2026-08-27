@@ -99,26 +99,69 @@ public enum AlibabaTokenPlanProviderDescriptor {
                 primaryBindingQuotaLanes: [.secondary],
                 menuCard: ProviderMenuCardPresentation(showsPrimaryBalanceDescription: true)),
             fetchPlan: ProviderFetchPlan(
-                sourceModes: [.auto, .web],
+                sourceModes: [.auto, .cli, .web],
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
             cli: ProviderCLIConfig(
                 name: "alibaba-token-plan",
                 aliases: ["alibaba-token", "bailian-token-plan"],
                 versionDetector: nil,
-                browserSupportExemption: { _, _, settings in
+                browserSupportExemption: { sourceMode, _, settings in
+                    if sourceMode == .auto || sourceMode == .cli {
+                        return true
+                    }
                     // Manual cookies use plain URLSession; only browser import is platform-bound.
-                    settings?.alibabaTokenPlan?.cookieSource == .manual
+                    return settings?.alibabaTokenPlan?.cookieSource == .manual
                 }))
     }
 
-    private static func resolveStrategies(context: ProviderFetchContext) async -> [any ProviderFetchStrategy] {
-        guard context.settings?.alibabaTokenPlan?.cookieSource != .off else { return [] }
+    static func resolveStrategies(context: ProviderFetchContext) async -> [any ProviderFetchStrategy] {
         switch context.sourceMode {
-        case .auto, .web:
-            return [AlibabaTokenPlanWebFetchStrategy()]
-        case .api, .cli, .oauth:
+        case .auto:
+            if context.settings?.alibabaTokenPlan?.cookieSource == .off {
+                return [AlibabaTokenPlanCLIFetchStrategy()]
+            }
+            return [AlibabaTokenPlanCLIFetchStrategy(), AlibabaTokenPlanWebFetchStrategy()]
+        case .cli:
+            return [AlibabaTokenPlanCLIFetchStrategy()]
+        case .web:
+            return context.settings?.alibabaTokenPlan?.cookieSource == .off
+                ? []
+                : [AlibabaTokenPlanWebFetchStrategy()]
+        case .api, .oauth:
             return []
         }
+    }
+}
+
+struct AlibabaTokenPlanCLIFetchStrategy: ProviderFetchStrategy {
+    let id: String = "alibaba-token-plan.cli"
+    let kind: ProviderFetchKind = .cli
+    private let fetchUsage: @Sendable (
+        AlibabaTokenPlanAPIRegion,
+        [String: String]) async throws -> AlibabaTokenPlanUsageSnapshot
+
+    init(fetchUsage: @escaping @Sendable (
+        AlibabaTokenPlanAPIRegion,
+        [String: String]) async throws -> AlibabaTokenPlanUsageSnapshot = { region, environment in
+        try await AlibabaTokenPlanCLIUsageFetcher.fetch(region: region, environment: environment)
+    }) {
+        self.fetchUsage = fetchUsage
+    }
+
+    func isAvailable(_: ProviderFetchContext) async -> Bool {
+        // Run explicit CLI mode even when the binary is absent so the user gets an actionable error.
+        // Auto uses the same path and falls through softly when any CLI step fails.
+        true
+    }
+
+    func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
+        let region = context.settings?.alibabaTokenPlan?.apiRegion ?? .international
+        let usage = try await self.fetchUsage(region, context.env)
+        return self.makeResult(usage: usage.toUsageSnapshot(), sourceLabel: "cli")
+    }
+
+    func shouldFallback(on _: Error, context: ProviderFetchContext) -> Bool {
+        context.sourceMode == .auto
     }
 }
 
@@ -193,8 +236,8 @@ struct AlibabaTokenPlanWebFetchStrategy: ProviderFetchStrategy {
         }
     }
 
-    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
-        false
+    func shouldFallback(on _: Error, context: ProviderFetchContext) -> Bool {
+        context.sourceMode == .auto
     }
 
     static func resolveCookieHeader(context: ProviderFetchContext, allowCached: Bool) throws -> String {

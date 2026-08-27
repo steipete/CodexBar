@@ -1137,6 +1137,7 @@ final class SpendDashboardController {
     private let publicationHandler: PublicationHandler?
     private var loadTask: Task<Void, Never>?
     private var loadedInputs: [SpendDashboardModel.ProviderInput] = []
+    private var loadedInputScopes: [String: SpendDashboardLoadedInputScope] = [:]
     private var loadedAt = Date()
     private var lastSuccessfulConfiguration: SpendDashboardConfiguration?
     private var phase = LoadPhase.ordinary
@@ -1232,6 +1233,9 @@ final class SpendDashboardController {
             self.loadedInputs.removeAll { invalidatedSourceIDs.contains($0.id) }
             self.failedSourceIDs.subtract(invalidatedSourceIDs)
             self.confirmedEmptySourceIDs.subtract(invalidatedSourceIDs)
+            for sourceID in invalidatedSourceIDs {
+                self.loadedInputScopes.removeValue(forKey: sourceID)
+            }
             self.failedSourceCount = 0
             self.rebuildModel()
         }
@@ -1246,6 +1250,7 @@ final class SpendDashboardController {
               !configuration.providerIDs.isEmpty || configuration.openCodexUsageLogsEnabled
         else {
             self.loadedInputs = []
+            self.loadedInputScopes = [:]
             self.failedSourceIDs = []
             self.confirmedEmptySourceIDs = []
             self.openCodexObservation = .disabled
@@ -1296,6 +1301,11 @@ final class SpendDashboardController {
         self.loadedInputs.removeAll { cachedIDs.contains($0.id) }
         self.loadedInputs.append(contentsOf: result.inputs)
         self.loadedInputs = Self.stableUniqueInputs(self.loadedInputs)
+        for input in result.inputs {
+            self.loadedInputScopes[input.id] = SpendDashboardLoadedInputScope(
+                configuration: request.configuration,
+                input: input)
+        }
         self.loadedAt = request.now
         self.failedSourceCount = result.failedSourceCount
         self.failedSourceIDs = result.failedSourceIDs
@@ -1426,19 +1436,47 @@ final class SpendDashboardController {
         let codexDisplayNames = request.configuration.codexAccountDisplayNames
         self.refreshRetainedCodexDisplayNames(codexDisplayNames)
         var nextInputs = result.inputs
+        var nextInputScopes = Dictionary(uniqueKeysWithValues: nextInputs.map { input in
+            (input.id, SpendDashboardLoadedInputScope(configuration: request.configuration, input: input))
+        })
+        let unsafeSourceIDs = invalidatedSourceIDs
+            .union(result.invalidatedSourceIDs)
+            .union(confirmedEmptySourceIDs)
+        var incompleteCodexScopes: [String: SpendDashboardLoadedInputScope] = [:]
+        // Provider-specific by design: only Codex account histories publish bounded catch-up coverage.
+        for input in nextInputs
+            where input.provider == .codex && !input.snapshot.historyCoverageIsEstablished
+        {
+            incompleteCodexScopes[input.id] = SpendDashboardLoadedInputScope(
+                configuration: request.configuration,
+                input: input)
+        }
+        if !incompleteCodexScopes.isEmpty {
+            let retainedInputs = self.loadedInputs.filter {
+                incompleteCodexScopes[$0.id] == self.loadedInputScopes[$0.id] &&
+                    !unsafeSourceIDs.contains($0.id) &&
+                    $0.provider == .codex &&
+                    $0.snapshot.historyCoverageIsEstablished
+            }.map { Self.relabelCodexInput($0, displayNamesByID: codexDisplayNames) }
+            let retainedSourceIDs = Set(retainedInputs.map(\.id))
+            nextInputs.removeAll { retainedSourceIDs.contains($0.id) }
+            nextInputs.append(contentsOf: retainedInputs)
+        }
         if !result.failedSourceIDs.isEmpty {
             let freshIDs = Set(nextInputs.map(\.id))
-            let unsafeSourceIDs = invalidatedSourceIDs
-                .union(result.invalidatedSourceIDs)
-                .union(confirmedEmptySourceIDs)
-            nextInputs.append(contentsOf: self.loadedInputs.filter {
+            let retainedInputs = self.loadedInputs.filter {
                 result.failedSourceIDs.contains($0.id) &&
                     !unsafeSourceIDs.contains($0.id) &&
                     !freshIDs.contains($0.id)
-            }.map { Self.relabelCodexInput($0, displayNamesByID: codexDisplayNames) })
+            }.map { Self.relabelCodexInput($0, displayNamesByID: codexDisplayNames) }
+            nextInputs.append(contentsOf: retainedInputs)
+            for input in retainedInputs {
+                nextInputScopes[input.id] = self.loadedInputScopes[input.id]
+            }
         }
         self.configuration = request.configuration
         self.loadedInputs = Self.stableUniqueInputs(nextInputs)
+        self.loadedInputScopes = nextInputScopes
         self.loadedAt = request.now
         self.lastSuccessfulConfiguration = request.configuration
         self.failedSourceCount = result.failedSourceCount

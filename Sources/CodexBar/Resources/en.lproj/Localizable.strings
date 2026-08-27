@@ -641,6 +641,8 @@
 "section_keyboard_shortcut" = "Keyboard shortcut";
 "open_menu_shortcut_title" = "Open menu";
 "open_menu_shortcut_subtitle" = "Trigger the menu bar menu from anywhere.";
+"record_shortcut" = "Record Shortcut";
+"press_shortcut" = "Press Shortcut";
 "install_cli" = "Install CLI";
 "install_cli_subtitle" = "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar.";
 "cli_not_found" = "CodexBarCLI not found in app bundle.";
@@ -1373,6 +1375,9 @@
 "menu_bar_layout_preset_compact_stacked" = "Compact stacked";
 "menu_bar_layout_preset_custom" = "Custom";
 "menu_bar_layout_live_preview" = "Live preview";
+"menu_bar_layout_default_preview" = "Default layout preview";
+"menu_bar_layout_overrides_notice" = "These enabled providers use their own saved layouts:";
+"menu_bar_layout_use_all_accessibility" = "%@: Use all-providers layout";
 "menu_bar_layout_strip" = "Menu bar strip";
 "menu_bar_layout_remove_line_break" = "Remove line break";
 "menu_bar_layout_chip_hint" = "Select, drag to reorder, or use the Remove action.";
@@ -1537,3 +1542,4 @@
 "Restore Defaults" = "Restore Defaults";
 "Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "Choose which usage rows appear in this provider's menu, Settings preview, and Overview.";
 "%@ (unavailable)" = "%@ (unavailable)";
+"Spending cap, not balance" = "Spending cap, not balance";

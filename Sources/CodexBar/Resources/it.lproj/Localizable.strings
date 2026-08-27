@@ -663,6 +663,8 @@
 "section_keyboard_shortcut" = "Scorciatoia tastiera";
 "open_menu_shortcut_title" = "Apri menu";
 "open_menu_shortcut_subtitle" = "Attiva il menu della barra da qualsiasi punto.";
+"record_shortcut" = "Registra scorciatoia";
+"press_shortcut" = "Premi scorciatoia";
 "install_cli" = "Installa CLI";
 "install_cli_subtitle" = "Crea il symlink di CodexBarCLI in /usr/local/bin e /opt/homebrew/bin come codexbar.";
 "cli_not_found" = "CodexBarCLI non trovato nel bundle dell'app.";
@@ -1371,6 +1373,9 @@
 "menu_bar_layout_preset_compact_stacked" = "Compatto su due righe";
 "menu_bar_layout_preset_custom" = "Personalizzato";
 "menu_bar_layout_live_preview" = "Anteprima dal vivo";
+"menu_bar_layout_default_preview" = "Anteprima del layout predefinito";
+"menu_bar_layout_overrides_notice" = "Questi provider abilitati usano i propri layout salvati:";
+"menu_bar_layout_use_all_accessibility" = "%@: Usa il layout di tutti i provider";
 "menu_bar_layout_strip" = "Striscia della barra dei menu";
 "menu_bar_layout_remove_line_break" = "Rimuovi interruzione di riga";
 "menu_bar_layout_chip_hint" = "Seleziona, trascina per riordinare o usa l’azione Rimuovi.";
@@ -1537,3 +1542,4 @@
 "Restore Defaults" = "Ripristina impostazioni predefinite";
 "Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "Scegli quali righe di utilizzo mostrare nel menu di questo provider, nell’anteprima delle Impostazioni e nella Panoramica.";
 "%@ (unavailable)" = "%@ (non disponibile)";
+"Spending cap, not balance" = "Limite di spesa, non saldo";

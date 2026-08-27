@@ -129,15 +129,15 @@ struct SpendDashboardPublicationTests {
             .snapshot.last30DaysCostUSD == 2.5)
     }
 
-    @Test
+    @Test(CodexCredentialFixtures())
     func `shared publication starts and stops in-flight Codex dashboard catch-up`() async throws {
         let settings = testSettingsStore(suiteName: "SpendDashboardPublicationTests-codex-catch-up")
         settings.costUsageEnabled = true
         let metadata = try #require(ProviderRegistry.shared.metadata[.codex])
         settings.setProviderEnabled(provider: .codex, metadata: metadata, enabled: true)
-        let missingLiveHome = FileManager.default.temporaryDirectory
+        let missingLiveHome = CodexCredentialFixtures.root
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
-        let profileHome = FileManager.default.temporaryDirectory
+        let profileHome = CodexCredentialFixtures.root
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try Self.writeCodexAuthFile(homeURL: profileHome)
         settings._test_codexReconciliationEnvironment = ["CODEX_HOME": missingLiveHome.path]

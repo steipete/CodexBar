@@ -2,10 +2,11 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
+@Suite(CodexCredentialFixtures())
 struct CodexOAuthCredentialReadTests {
     @Test
     func `missing auth json maps to a not found credential error`() throws {
-        let home = FileManager.default.temporaryDirectory
+        let home = CodexCredentialFixtures.root
             .appendingPathComponent("codex-oauth-missing-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: home) }
 
@@ -20,7 +21,7 @@ struct CodexOAuthCredentialReadTests {
 
     @Test
     func `unreadable auth json maps to an unreadable credential error`() throws {
-        let home = FileManager.default.temporaryDirectory
+        let home = CodexCredentialFixtures.root
             .appendingPathComponent("codex-oauth-unreadable-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: home) }
         try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
@@ -225,9 +226,9 @@ struct CodexOAuthCredentialReadTests {
 
     @Test
     func `expired external oauth fetch fails closed without mutating its source`() async throws {
-        let home = FileManager.default.temporaryDirectory
+        let home = CodexCredentialFixtures.root
             .appendingPathComponent("codex-oauth-stale-fetch-home-\(UUID().uuidString)", isDirectory: true)
-        let dataHome = FileManager.default.temporaryDirectory
+        let dataHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-oauth-stale-fetch-data-\(UUID().uuidString)", isDirectory: true)
         defer {
             try? FileManager.default.removeItem(at: home)
@@ -331,6 +332,122 @@ struct CodexOAuthCredentialReadTests {
     }
 
     @Test
+    func `valid native JWT expiry overrides a stale refresh timestamp`() async throws {
+        let accessToken = Self.jwt(payload: ["exp": 4_102_444_800])
+        let credentials = try Self.nativeCredentials(accessToken: accessToken)
+
+        #expect(credentials.expiresAt == Date(timeIntervalSince1970: 4_102_444_800))
+        #expect(!credentials.needsRefresh)
+        let resolved = try await CodexOAuthFetchStrategy._prepareCredentialsForTesting(credentials)
+        #expect(resolved.accessToken == accessToken)
+    }
+
+    @Test
+    func `expired native JWT overrides a fresh refresh timestamp`() throws {
+        let accessToken = Self.jwt(payload: ["exp": 0])
+        let credentials = try Self.nativeCredentials(
+            accessToken: accessToken,
+            lastRefresh: ISO8601DateFormatter().string(from: Date()))
+
+        #expect(credentials.expiresAt == Date(timeIntervalSince1970: 0))
+        #expect(credentials.needsRefresh)
+    }
+
+    @Test
+    func `native OAuth refreshes within the Codex five minute window`() {
+        let expiresAt = Date().addingTimeInterval(2 * 60)
+        let native = CodexOAuthCredentials(
+            accessToken: "native-access",
+            refreshToken: "native-refresh",
+            idToken: nil,
+            accountId: nil,
+            lastRefresh: nil,
+            expiresAt: expiresAt,
+            source: .codexHome)
+        let external = CodexOAuthCredentials(
+            accessToken: "external-access",
+            refreshToken: "external-refresh",
+            idToken: nil,
+            accountId: nil,
+            lastRefresh: nil,
+            expiresAt: expiresAt,
+            source: .openCode)
+
+        #expect(native.needsRefresh)
+        #expect(!external.needsRefresh)
+    }
+
+    @Test(arguments: [Int64(0), Int64(1)])
+    func `native JWT accepts integer expiry values`(expiration: Int64) throws {
+        let credentials = try Self.nativeCredentials(
+            accessToken: Self.jwt(payload: ["exp": expiration]))
+
+        #expect(credentials.expiresAt == Date(timeIntervalSince1970: TimeInterval(expiration)))
+    }
+
+    @Test
+    func `native JWT boolean expiry falls back to the refresh timestamp`() throws {
+        let credentials = try Self.nativeCredentials(
+            accessToken: Self.jwt(payload: ["exp": true]))
+
+        #expect(credentials.expiresAt == nil)
+        #expect(credentials.needsRefresh)
+    }
+
+    @Test
+    func `native JWT fractional expiry falls back to the refresh timestamp`() throws {
+        let credentials = try Self.nativeCredentials(
+            accessToken: Self.jwt(payload: ["exp": 1.5]))
+
+        #expect(credentials.expiresAt == nil)
+        #expect(credentials.needsRefresh)
+    }
+
+    @Test
+    func `native JWT integral floating expiry falls back to the refresh timestamp`() throws {
+        let credentials = try Self.nativeCredentials(
+            accessToken: Self.jwt(payloadJSON: #"{"exp":4102444800.0}"#))
+
+        #expect(credentials.expiresAt == nil)
+        #expect(credentials.needsRefresh)
+    }
+
+    @Test
+    func `native JWT out of range expiry falls back to the refresh timestamp`() throws {
+        let outOfRange = NSNumber(value: UInt64(Int64.max) + 1)
+        let credentials = try Self.nativeCredentials(
+            accessToken: Self.jwt(payload: ["exp": outOfRange]))
+
+        #expect(credentials.expiresAt == nil)
+        #expect(credentials.needsRefresh)
+    }
+
+    @Test
+    func `native JWT rejects an integer outside the Codex date range`() throws {
+        let credentials = try Self.nativeCredentials(
+            accessToken: Self.jwt(payload: ["exp": Int64.max]))
+
+        #expect(credentials.expiresAt == nil)
+        #expect(credentials.needsRefresh)
+    }
+
+    @Test
+    func `native JWT requires nonempty header and signature`() throws {
+        let validToken = Self.jwt(payload: ["exp": 4_102_444_800])
+        let parts = validToken.split(separator: ".", omittingEmptySubsequences: false)
+        let malformedTokens = [
+            ".\(parts[1]).\(parts[2])",
+            "\(parts[0]).\(parts[1]).",
+        ]
+
+        for token in malformedTokens {
+            let credentials = try Self.nativeCredentials(accessToken: token)
+            #expect(credentials.expiresAt == nil)
+            #expect(credentials.needsRefresh)
+        }
+    }
+
+    @Test
     func `stale native probes never redeem a shared refresh token`() async throws {
         let credentials = CodexOAuthCredentials(
             accessToken: "expired-access",
@@ -355,9 +472,9 @@ struct CodexOAuthCredentialReadTests {
 
     @Test
     func `consented external OAuth fetch uses the token without mutating its source`() async throws {
-        let home = FileManager.default.temporaryDirectory
+        let home = CodexCredentialFixtures.root
             .appendingPathComponent("codex-oauth-fetch-home-\(UUID().uuidString)", isDirectory: true)
-        let dataHome = FileManager.default.temporaryDirectory
+        let dataHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-oauth-fetch-data-\(UUID().uuidString)", isDirectory: true)
         defer {
             try? FileManager.default.removeItem(at: home)
@@ -431,7 +548,7 @@ struct CodexOAuthCredentialReadTests {
 
     @Test
     func `credential save preserves the supplied refresh timestamp`() throws {
-        let home = FileManager.default.temporaryDirectory
+        let home = CodexCredentialFixtures.root
             .appendingPathComponent("codex-oauth-save-timestamp-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: home) }
         let timestamp = Date(timeIntervalSince1970: 1_700_000_000)
@@ -472,9 +589,9 @@ struct CodexOAuthCredentialReadTests {
 
     @Test
     func `native codex home wins over external oauth sources`() throws {
-        let home = FileManager.default.temporaryDirectory
+        let home = CodexCredentialFixtures.root
             .appendingPathComponent("codex-oauth-native-home-\(UUID().uuidString)", isDirectory: true)
-        let dataHome = FileManager.default.temporaryDirectory
+        let dataHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-oauth-native-data-\(UUID().uuidString)", isDirectory: true)
         defer {
             try? FileManager.default.removeItem(at: home)
@@ -512,9 +629,9 @@ struct CodexOAuthCredentialReadTests {
 
     @Test
     func `legacy codex home wins before open code fallback`() throws {
-        let home = FileManager.default.temporaryDirectory
+        let home = CodexCredentialFixtures.root
             .appendingPathComponent("codex-oauth-legacy-home-\(UUID().uuidString)", isDirectory: true)
-        let dataHome = FileManager.default.temporaryDirectory
+        let dataHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-oauth-legacy-data-\(UUID().uuidString)", isDirectory: true)
         defer {
             try? FileManager.default.removeItem(at: home)
@@ -554,7 +671,7 @@ struct CodexOAuthCredentialReadTests {
 
     @Test
     func `legacy API keys are rejected by the external OAuth fallback`() throws {
-        let home = FileManager.default.temporaryDirectory
+        let home = CodexCredentialFixtures.root
             .appendingPathComponent("codex-oauth-legacy-api-key-home-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: home) }
         let legacyDirectory = home
@@ -578,9 +695,9 @@ struct CodexOAuthCredentialReadTests {
 
     @Test
     func `usage credential loading falls back to isolated open code data`() throws {
-        let home = FileManager.default.temporaryDirectory
+        let home = CodexCredentialFixtures.root
             .appendingPathComponent("codex-oauth-fallback-home-\(UUID().uuidString)", isDirectory: true)
-        let dataHome = FileManager.default.temporaryDirectory
+        let dataHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-oauth-fallback-data-\(UUID().uuidString)", isDirectory: true)
         defer {
             try? FileManager.default.removeItem(at: home)
@@ -610,9 +727,9 @@ struct CodexOAuthCredentialReadTests {
 
     @Test
     func `external fallback does not mask an unreadable native auth file`() throws {
-        let home = FileManager.default.temporaryDirectory
+        let home = CodexCredentialFixtures.root
             .appendingPathComponent("codex-oauth-unreadable-native-\(UUID().uuidString)", isDirectory: true)
-        let dataHome = FileManager.default.temporaryDirectory
+        let dataHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-oauth-unreadable-external-\(UUID().uuidString)", isDirectory: true)
         defer {
             try? FileManager.default.removeItem(at: home)
@@ -642,7 +759,7 @@ struct CodexOAuthCredentialReadTests {
 
     @Test
     func `external fallback does not mask malformed native auth json`() throws {
-        let home = FileManager.default.temporaryDirectory
+        let home = CodexCredentialFixtures.root
             .appendingPathComponent("codex-oauth-malformed-native-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: home) }
         let nativeDirectory = home.appendingPathComponent(".codex", isDirectory: true)
@@ -663,7 +780,7 @@ struct CodexOAuthCredentialReadTests {
 
     @Test
     func `external fallback does not mask native auth without oauth tokens`() throws {
-        let home = FileManager.default.temporaryDirectory
+        let home = CodexCredentialFixtures.root
             .appendingPathComponent("codex-oauth-missing-tokens-native-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: home) }
         let nativeDirectory = home.appendingPathComponent(".codex", isDirectory: true)
@@ -684,9 +801,9 @@ struct CodexOAuthCredentialReadTests {
 
     @Test
     func `external OAuth fallback is disabled without explicit consent`() throws {
-        let home = FileManager.default.temporaryDirectory
+        let home = CodexCredentialFixtures.root
             .appendingPathComponent("codex-oauth-consent-home-\(UUID().uuidString)", isDirectory: true)
-        let dataHome = FileManager.default.temporaryDirectory
+        let dataHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-oauth-consent-data-\(UUID().uuidString)", isDirectory: true)
         defer {
             try? FileManager.default.removeItem(at: home)
@@ -713,9 +830,9 @@ struct CodexOAuthCredentialReadTests {
 
     @Test
     func `explicit codex home does not borrow open code credentials`() throws {
-        let home = FileManager.default.temporaryDirectory
+        let home = CodexCredentialFixtures.root
             .appendingPathComponent("codex-oauth-isolated-home-\(UUID().uuidString)", isDirectory: true)
-        let dataHome = FileManager.default.temporaryDirectory
+        let dataHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-oauth-isolated-data-\(UUID().uuidString)", isDirectory: true)
         defer {
             try? FileManager.default.removeItem(at: home)
@@ -741,6 +858,15 @@ struct CodexOAuthCredentialReadTests {
     }
 
     private static func jwt(payload: [String: Any]) -> String {
+        let payloadData = (try? JSONSerialization.data(withJSONObject: payload)) ?? Data()
+        return Self.jwt(payloadData: payloadData)
+    }
+
+    private static func jwt(payloadJSON: String) -> String {
+        self.jwt(payloadData: Data(payloadJSON.utf8))
+    }
+
+    private static func jwt(payloadData: Data) -> String {
         let encode: (Data) -> String = { data in
             data.base64EncodedString()
                 .replacingOccurrences(of: "+", with: "-")
@@ -748,7 +874,21 @@ struct CodexOAuthCredentialReadTests {
                 .replacingOccurrences(of: "=", with: "")
         }
         let header = encode(Data(#"{"alg":"none","typ":"JWT"}"#.utf8))
-        let body = (try? JSONSerialization.data(withJSONObject: payload)).map(encode) ?? ""
+        let body = encode(payloadData)
         return "\(header).\(body).signature"
+    }
+
+    private static func nativeCredentials(
+        accessToken: String,
+        lastRefresh: String = "2000-01-01T00:00:00Z") throws -> CodexOAuthCredentials
+    {
+        let authData = try JSONSerialization.data(withJSONObject: [
+            "tokens": [
+                "access_token": accessToken,
+                "refresh_token": "native-refresh",
+            ],
+            "last_refresh": lastRefresh,
+        ])
+        return try CodexOAuthCredentialsStore.parse(data: authData)
     }
 }

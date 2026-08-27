@@ -8,7 +8,7 @@ extension CodexAccountScopedRefreshTests {
     func `dashboard refresh accepted via unresolved routing fallback during account scoped refresh`() async throws {
         let settings = self.makeSettingsStore(
             suite: "CodexAccountScopedRefreshTests-dashboard-unresolved-routing-fallback")
-        let isolatedHome = FileManager.default.temporaryDirectory
+        let isolatedHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-dashboard-unresolved-routing-\(UUID().uuidString)", isDirectory: true)
         try? FileManager.default.createDirectory(at: isolatedHome, withIntermediateDirectories: true)
         let codexMetadata = try #require(ProviderDescriptorRegistry.metadata[.codex])
@@ -61,7 +61,7 @@ extension CodexAccountScopedRefreshTests {
         defer { OpenAIDashboardCacheStore.clear() }
 
         let settings = self.makeSettingsStore(suite: "CodexAccountScopedRefreshTests-dashboard-fail-closed-cleanup")
-        let managedHome = FileManager.default.temporaryDirectory
+        let managedHome = CodexCredentialFixtures.root
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         defer { try? FileManager.default.removeItem(at: managedHome) }
         try Self.writeCodexAuthFile(
@@ -127,7 +127,7 @@ extension CodexAccountScopedRefreshTests {
 
         let settings = self.makeSettingsStore(
             suite: "CodexAccountScopedRefreshTests-dashboard-fail-closed-token-rotation-cleanup")
-        let managedHome = FileManager.default.temporaryDirectory
+        let managedHome = CodexCredentialFixtures.root
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         defer { try? FileManager.default.removeItem(at: managedHome) }
         try Self.writeCodexAuthFile(

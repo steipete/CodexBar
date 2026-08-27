@@ -652,6 +652,8 @@
 "section_keyboard_shortcut" = "Atalho de teclado";
 "open_menu_shortcut_title" = "Abrir menu";
 "open_menu_shortcut_subtitle" = "Aciona o menu da barra de menus de qualquer lugar.";
+"record_shortcut" = "Gravar Atalho";
+"press_shortcut" = "Digite o Atalho";
 "install_cli" = "Instalar CLI";
 "install_cli_subtitle" = "Cria symlink de CodexBarCLI em /usr/local/bin e /opt/homebrew/bin como codexbar.";
 "cli_not_found" = "CodexBarCLI não encontrado no pacote do app.";
@@ -1368,6 +1370,9 @@
 "menu_bar_layout_preset_compact_stacked" = "Empilhado compacto";
 "menu_bar_layout_preset_custom" = "Personalizado";
 "menu_bar_layout_live_preview" = "Prévia ao vivo";
+"menu_bar_layout_default_preview" = "Prévia do layout padrão";
+"menu_bar_layout_overrides_notice" = "Estes provedores ativados usam seus próprios layouts salvos:";
+"menu_bar_layout_use_all_accessibility" = "%@: Usar o layout de todos os provedores";
 "menu_bar_layout_strip" = "Faixa da barra de menus";
 "menu_bar_layout_remove_line_break" = "Remover quebra de linha";
 "menu_bar_layout_chip_hint" = "Selecione, arraste para reordenar ou use a ação Remover.";
@@ -1534,3 +1539,4 @@
 "Restore Defaults" = "Restaurar padrões";
 "Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "Escolha quais linhas de uso aparecem no menu deste provedor, na prévia dos Ajustes e na Visão geral.";
 "%@ (unavailable)" = "%@ (indisponível)";
+"Spending cap, not balance" = "Limite de gastos, não saldo";

@@ -7,6 +7,8 @@ extension UsageStore {
     struct CodexWeeklyResetPublicationAdmission {
         let outcome: ProviderFetchOutcome?
         let pendingCandidate: CodexWeeklyResetPublicationCandidate?
+        /// Nil publication alone cannot distinguish a withheld success from a failed confirmation.
+        var withheldSuccess: ProviderFetchResult?
     }
 
     private struct CodexWeeklyResetPublicationTrace {
@@ -85,7 +87,8 @@ extension UsageStore {
                     previousSnapshot: previousSnapshot,
                     initialSnapshot: rawInitialSnapshot,
                     initialResult: rawInitialResult,
-                    observedAt: observedAt))
+                    observedAt: observedAt),
+                withheldSuccess: rawInitialResult)
         case .requiresConfirmation:
             break
         }
@@ -114,24 +117,21 @@ extension UsageStore {
             case .retainCandidate:
                 return CodexWeeklyResetPublicationAdmission(
                     outcome: nil,
-                    pendingCandidate: pendingCandidate)
+                    pendingCandidate: pendingCandidate,
+                    withheldSuccess: rawInitialResult)
             case .discardCandidate:
                 candidateForRetry = nil
             }
         }
 
         guard !Task.isCancelled else {
-            return CodexWeeklyResetPublicationAdmission(
-                outcome: nil,
-                pendingCandidate: candidateForRetry)
+            return CodexWeeklyResetPublicationAdmission(outcome: nil, pendingCandidate: candidateForRetry)
         }
         let confirmationOutcome = await fetchConfirmation()
         guard !Task.isCancelled,
               case let .success(confirmationResult) = confirmationOutcome.result
         else {
-            return CodexWeeklyResetPublicationAdmission(
-                outcome: nil,
-                pendingCandidate: candidateForRetry)
+            return CodexWeeklyResetPublicationAdmission(outcome: nil, pendingCandidate: candidateForRetry)
         }
         let confirmationSnapshot = confirmationResult.usage.scoped(to: .codex)
         let confirmationTrace = CodexWeeklyResetPublicationTrace(
@@ -186,7 +186,8 @@ extension UsageStore {
                 observedAt: observedAt)
             return CodexWeeklyResetPublicationAdmission(
                 outcome: nil,
-                pendingCandidate: candidate)
+                pendingCandidate: candidate,
+                withheldSuccess: confirmationResult)
         }
     }
 
@@ -194,6 +195,13 @@ extension UsageStore {
         input: CodexMissingWeeklyAdmissionInput) -> CodexWeeklyResetPublicationAdmission
     {
         let rawInitialSnapshot = input.rawInitialSnapshot
+        let withheldSuccess: ProviderFetchResult? = if case let .success(result) = input.publicationInitialOutcome
+            .result
+        {
+            result
+        } else {
+            nil
+        }
         guard rawInitialSnapshot.updatedAt.timeIntervalSinceReferenceDate.isFinite,
               input.previousSnapshot.map({
                   $0.updatedAt.timeIntervalSinceReferenceDate.isFinite &&
@@ -206,7 +214,8 @@ extension UsageStore {
         else {
             return CodexWeeklyResetPublicationAdmission(
                 outcome: nil,
-                pendingCandidate: input.pendingCandidate)
+                pendingCandidate: input.pendingCandidate,
+                withheldSuccess: withheldSuccess)
         }
         if CodexConsumerProjection.sourceRateWindow(for: .weekly, snapshot: input.publicationBaseline) != nil,
            case let .success(publicationResult) = input.publicationInitialOutcome.result,
@@ -216,7 +225,8 @@ extension UsageStore {
         {
             return CodexWeeklyResetPublicationAdmission(
                 outcome: nil,
-                pendingCandidate: input.pendingCandidate)
+                pendingCandidate: input.pendingCandidate,
+                withheldSuccess: withheldSuccess)
         }
         return CodexWeeklyResetPublicationAdmission(
             outcome: input.publicationInitialOutcome,

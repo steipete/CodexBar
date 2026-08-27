@@ -315,11 +315,15 @@ defineProvider({
     if (keyData) {
       const rows = [];
       if (keyLimit !== null && keyLimit > 0) {
-        rows.push({ label: "API key budget", value: currency(keyLimit) });
+        rows.push({
+          label: "API key limit",
+          value: currency(keyLimit),
+          secondaryValue: "Spending cap, not balance",
+        });
         if (keyRemaining !== null) rows.push({ label: "API key remaining", value: currency(keyRemaining) });
         if (keyUsage !== null) rows.push({ label: "API key used", value: currency(keyUsage) });
       } else {
-        rows.push({ label: "API key budget", value: "No limit configured" });
+        rows.push({ label: "API key limit", value: "No limit configured" });
       }
       const resetWindow = typeof keyData.limit_reset === "string" ? keyData.limit_reset.trim() : "";
       if (resetWindow) rows.push({ label: "Reset window", value: resetWindow });
@@ -353,7 +357,7 @@ defineProvider({
         title: "API key",
         rows: [
           {
-            label: "API key budget",
+            label: "API key limit",
             value: "Unavailable right now",
             secondaryValue: keyDegradation,
           },

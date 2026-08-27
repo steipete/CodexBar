@@ -17,6 +17,8 @@ read_when:
   - `subscription.get` (`7abeebee372f304e050aaaf92be863f4a86490e382f8c79db68fd94040d691b4`)
 
 ## Usage mapping
+- The Go usage API reports `usage.rolling/weekly/monthly.percent` in percentage units (0...100): `1` means 1%, and
+  `0.5` means 0.5%. Generic dashboard JSON still accepts fractional usage values (0...1).
 - Primary window: rolling 5-hour usage (`rollingUsage.usagePercent`, `rollingUsage.resetInSec`).
 - Secondary window: optional weekly usage (`weeklyUsage.usagePercent`, `weeklyUsage.resetInSec`).
 - Resets computed as `now + resetInSec`.

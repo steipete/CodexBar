@@ -16,6 +16,8 @@ private final class PiSessionISO8601FormatterBox: @unchecked Sendable {
 }
 
 enum PiSessionCostScanner {
+    @TaskLocal static var sessionParseObserverForTesting: (@Sendable () -> Void)?
+
     struct Options {
         var piSessionsRoot: URL?
         var ompSessionsRoot: URL?
@@ -64,6 +66,12 @@ enum PiSessionCostScanner {
         let catalog: ModelsDevCatalog?
         let cacheRoot: URL?
         let pricingKey: String
+        let compatiblePricingKeys: Set<String>
+
+        func matches(_ key: String?) -> Bool {
+            guard let key else { return false }
+            return key == self.pricingKey || self.compatiblePricingKeys.contains(key)
+        }
     }
 
     private struct ScanContext {
@@ -124,7 +132,7 @@ enum PiSessionCostScanner {
         let refreshMs = Int64(max(0, options.refreshMinIntervalSeconds) * 1000)
         let pricingContext = self.pricingContext(now: now, cacheRoot: options.cacheRoot)
         let windowExpanded = self.requestedWindowExpandsCache(range: range, cache: cache)
-        let pricingChanged = cache.pricingKey != pricingContext.pricingKey
+        let pricingChanged = !pricingContext.matches(cache.pricingKey)
         let shouldRefresh = options.forceRescan
             || windowExpanded
             || pricingChanged
@@ -234,7 +242,7 @@ enum PiSessionCostScanner {
         guard !self.requestedWindowExpandsCache(range: range, cache: cache) else { return nil }
 
         let pricingContext = self.pricingContext(now: now, cacheRoot: cacheRoot)
-        guard cache.pricingKey == pricingContext.pricingKey else { return nil }
+        guard pricingContext.matches(cache.pricingKey) else { return nil }
         let report = self.buildReport(
             provider: provider,
             cache: cache,
@@ -249,15 +257,26 @@ enum PiSessionCostScanner {
 
     private static func pricingContext(now: Date, cacheRoot: URL?) -> ModelsDevPricingContext {
         let modelsDevArtifact = ModelsDevCache.load(now: now, cacheRoot: cacheRoot).artifact
+        let customPricingFingerprint = CostUsageCustomPricing.load().fingerprint
+        func key(parserHash: String) -> String {
+            CostUsagePricingKey.codex(
+                modelsDevArtifact: modelsDevArtifact,
+                formulaVersion: Self.costFormulaVersion,
+                parserHash: parserHash,
+                modelsDevProviderIDs: CostUsagePricing.codexModelsDevProviderIDs.union(
+                    Set(CostUsagePricing.claudeFirstPartyModelsDevProviderIDs)),
+                customPricingFingerprint: customPricingFingerprint)
+        }
+        // Only the scheduler and optional report-field transitions have identical Pi pricing inputs.
+        // A later parser change must invalidate normally unless separately reviewed for compatibility.
+        let compatiblePricingKeys: Set<String> = CodexParserHash.value == "21f10143afe00c55"
+            ? Set(["c6c46a376ba16304", "55f640e6bb0ccba4"].map { key(parserHash: $0) })
+            : []
         return ModelsDevPricingContext(
             catalog: modelsDevArtifact?.catalog,
             cacheRoot: cacheRoot,
-            pricingKey: CostUsagePricingKey.codex(
-                modelsDevArtifact: modelsDevArtifact,
-                formulaVersion: Self.costFormulaVersion,
-                parserHash: CodexParserHash.value,
-                modelsDevProviderIDs: CostUsagePricing.codexModelsDevProviderIDs.union(
-                    Set(CostUsagePricing.claudeFirstPartyModelsDevProviderIDs))))
+            pricingKey: key(parserHash: CodexParserHash.value),
+            compatiblePricingKeys: compatiblePricingKeys)
     }
 
     private static func requestedWindowExpandsCache(
@@ -445,6 +464,7 @@ enum PiSessionCostScanner {
         pricingContext: ModelsDevPricingContext? = nil,
         checkCancellation: CostUsageScanner.CancellationCheck? = nil) throws -> ParseResult
     {
+        self.sessionParseObserverForTesting?()
         var sessionID = initialSessionID
         var currentModelContext = initialModelContext
         var contributions: [String: [String: [String: PiPackedUsage]]] = [:]

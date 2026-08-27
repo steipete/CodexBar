@@ -9,6 +9,10 @@ RETRY_NON_TIMEOUT_FAILURES="${CODEXBAR_TEST_RETRY_NON_TIMEOUT_FAILURES:-1}"
 
 cd "${ROOT_DIR}"
 
+# Inherited by release-built tests and arbitrary CLI children as well as the test runner.
+export CODEXBAR_TEST_CODEX_FILE_ISOLATION=1
+unset CODEXBAR_TEST_CODEX_FILE_FIXTURES
+
 # Defense in depth: test processes also self-detect, but keep this explicit so runner changes cannot
 # expose the user's login Keychain. Deliberate isolated Keychain tests must opt in by setting the allow flag.
 if [[ "${CODEXBAR_ALLOW_TEST_KEYCHAIN_ACCESS:-}" != "1" ]]; then

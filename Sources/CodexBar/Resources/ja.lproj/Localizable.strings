@@ -652,6 +652,8 @@
 "section_keyboard_shortcut" = "キーボードショートカット";
 "open_menu_shortcut_title" = "メニューを開く";
 "open_menu_shortcut_subtitle" = "どこからでもメニューバーのメニューを開きます。";
+"record_shortcut" = "キーを記録";
+"press_shortcut" = "キーを押してください";
 "install_cli" = "CLI をインストール";
 "install_cli_subtitle" = "CodexBarCLI を codexbar として /usr/local/bin と /opt/homebrew/bin にシンボリックリンクします。";
 "cli_not_found" = "アプリバンドル内に CodexBarCLI が見つかりません。";
@@ -1368,6 +1370,9 @@
 "menu_bar_layout_preset_compact_stacked" = "コンパクトな2段表示";
 "menu_bar_layout_preset_custom" = "カスタム";
 "menu_bar_layout_live_preview" = "ライブプレビュー";
+"menu_bar_layout_default_preview" = "デフォルトレイアウトのプレビュー";
+"menu_bar_layout_overrides_notice" = "次の有効なプロバイダーは独自の保存済みレイアウトを使用しています：";
+"menu_bar_layout_use_all_accessibility" = "%@：全プロバイダーのレイアウトを使用";
 "menu_bar_layout_strip" = "メニューバー表示";
 "menu_bar_layout_remove_line_break" = "改行を削除";
 "menu_bar_layout_chip_hint" = "選択、ドラッグで並べ替え、または削除アクションを使用します。";
@@ -1534,3 +1539,4 @@
 "Restore Defaults" = "デフォルトに戻す";
 "Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "このプロバイダーのメニュー、設定プレビュー、概要に表示する使用量の行を選択します。";
 "%@ (unavailable)" = "%@（利用不可）";
+"Spending cap, not balance" = "利用上限額（残高ではありません）";

@@ -259,15 +259,15 @@ struct OpenCodeGoWebOverlayTests {
             },
             apiUsageOverlayFetcher: { _, apiKey in
                 observedKeys.append(apiKey)
-                return OpenCodeGoUsageSnapshot(
-                    hasMonthlyUsage: true,
-                    rollingUsagePercent: 11,
-                    weeklyUsagePercent: 22,
-                    monthlyUsagePercent: 33,
-                    rollingResetInSec: 18100,
-                    weeklyResetInSec: 266_500,
-                    monthlyResetInSec: 1_539_100,
-                    updatedAt: Self.updatedAt.addingTimeInterval(3))
+                return try OpenCodeGoUsageFetcher.parseAPIUsage(
+                    text: """
+                    {"usage": {
+                      "rolling": {"percent": 3, "resetInSec": 18100},
+                      "weekly": {"percent": 1, "resetInSec": 266500},
+                      "monthly": {"percent": 0, "resetInSec": 1539100}
+                    }}
+                    """,
+                    now: Self.updatedAt.addingTimeInterval(3))
             })
 
         let result = try await strategy.fetch(self.makeContext(
@@ -277,11 +277,14 @@ struct OpenCodeGoWebOverlayTests {
         #expect(result.sourceLabel == "local+api")
         #expect(observedKeys.values == ["go_test"])
         #expect(webCalls.values == ["auth=test"])
-        #expect(result.usage.primary?.usedPercent == 11)
-        #expect(result.usage.secondary?.usedPercent == 22)
-        #expect(result.usage.tertiary?.usedPercent == 33)
+        #expect(result.usage.primary?.usedPercent == 3)
+        #expect(result.usage.secondary?.usedPercent == 1)
+        #expect(result.usage.tertiary?.usedPercent == 0)
         #expect(result.usage.opencodegoUsage?.daily.count == 1)
+        #expect(result.usage.opencodegoUsage?.daily.first?.costUSD == 11.52)
+        #expect(result.usage.opencodegoUsage?.daily.first?.requestCount == 748)
         #expect(result.usage.providerCost?.used == 42.5)
+        #expect(result.usage.dataConfidence != .estimated)
     }
 
     @Test

@@ -154,7 +154,7 @@ extension CodexAccountScopedRefreshTests {
             email: "stacked-a@example.com",
             identity: .providerAccount(id: "stacked-owner-a"))
         let managedID = try #require(UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-515151515151"))
-        let managedHome = FileManager.default.temporaryDirectory
+        let managedHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-stacked-owner-race-\(UUID().uuidString)", isDirectory: true)
         let managedAccount = try self.makeManagedCodexWeeklyPublicationAccount(
             id: managedID,

@@ -53,9 +53,9 @@ struct SpendDashboardControllerTests {
         #expect(contexts.first?.includePiSessions == false)
     }
 
-    @Test
+    @Test(CodexCredentialFixtures())
     func `Codex auth rotation invalidates stale spend while retaining unrelated providers`() async throws {
-        let home = FileManager.default.temporaryDirectory
+        let home = CodexCredentialFixtures.root
             .appendingPathComponent(
                 "SpendDashboardControllerTests-auth-rotation-\(UUID().uuidString)",
                 isDirectory: true)

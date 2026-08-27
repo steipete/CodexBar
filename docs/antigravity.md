@@ -234,6 +234,11 @@ shared OAuth file can still be used as a fallback credential source.
 - Some Antigravity local/CLI model config entries include reset metadata but omit `remainingFraction`. Those windows stay
   in `extraRateWindows` for reset context and are marked with `usageKnown: false`; clients should not render their
   `usedPercent` as a real exhausted quota.
+- Menu-bar layout Session and Weekly tokens independently select the most constrained known quota-summary row for
+  each cadence across model families. They do not use the Gemini and Claude/GPT family representatives, which can
+  represent different cadences. Unknown or missing summary cadences remain unavailable; snapshots without summary
+  rows retain the standard cadence fallback. Automatic selection, its exhausted-quota option, and explicit family
+  metrics retain their existing selection policies.
 - Antigravity reports every model family the plan covers, so an account that only uses Gemini still receives a
   Claude/GPT pair pinned at 0%. Menu cards and widgets hide a family once every lane in it reports known zero usage.
   A family with unknown usage stays visible, and every family remains visible when all are untouched, for example

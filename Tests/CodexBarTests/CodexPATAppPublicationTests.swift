@@ -13,7 +13,7 @@ extension CodexAccountScopedRefreshTests {
         settings._test_liveSystemCodexAccount = self.liveAccount(email: "live-oauth@example.com")
 
         let managedID = try #require(UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-999999999999"))
-        let managedHome = FileManager.default.temporaryDirectory
+        let managedHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-pat-managed-\(UUID().uuidString)", isDirectory: true)
         let managedAccount = ManagedCodexAccount(
             id: managedID,
@@ -26,7 +26,7 @@ extension CodexAccountScopedRefreshTests {
         settings._test_managedCodexAccountStoreURL = managedStoreURL
         settings.codexActiveSource = .managedAccount(id: managedID)
 
-        let ambientRoot = FileManager.default.temporaryDirectory
+        let ambientRoot = CodexCredentialFixtures.root
             .appendingPathComponent("codex-pat-ambient-\(UUID().uuidString)", isDirectory: true)
         let ambientCodexHome = ambientRoot.appendingPathComponent(".codex", isDirectory: true)
         try FileManager.default.createDirectory(
@@ -80,7 +80,7 @@ extension CodexAccountScopedRefreshTests {
         settings.codexUsageDataSource = .auto
         settings._test_liveSystemCodexAccount = self.liveAccount(email: "live-oauth@example.com")
 
-        let profileHome = FileManager.default.temporaryDirectory
+        let profileHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-pat-profile-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: profileHome, withIntermediateDirectories: true)
         try Data(#"{"personal_access_token":"at-profile-only"}"#.utf8)
@@ -90,7 +90,7 @@ extension CodexAccountScopedRefreshTests {
             entry.codexActiveSource = .profileHome(path: profileHome.path)
         }
 
-        let ambientRoot = FileManager.default.temporaryDirectory
+        let ambientRoot = CodexCredentialFixtures.root
             .appendingPathComponent(
                 "codex-pat-ambient-empty-\(UUID().uuidString)", isDirectory: true)
         let ambientCodexHome = ambientRoot.appendingPathComponent(".codex", isDirectory: true)

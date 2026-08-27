@@ -217,7 +217,9 @@ diagnostics even when the RPC path is unavailable.
 Those local daily token buckets also feed the shared Usage & Spend catalog so an
 enabled Grok subscription is counted instead of omitted. SuperGrok/X Premium+
 credits remain a quota window on the usage bar; they are never converted into
-dollars.
+dollars. Local session scans run on the dedicated background usage-scan queue;
+menu cards and spend views reuse the already-published snapshot instead of
+walking the session directory whenever they render.
 
 ## Status
 

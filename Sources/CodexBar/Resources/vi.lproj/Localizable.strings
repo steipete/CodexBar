@@ -651,6 +651,8 @@
 "section_keyboard_shortcut" = "Phím tắt";
 "open_menu_shortcut_title" = "Mở menu";
 "open_menu_shortcut_subtitle" = "Kích hoạt menu thanh menu từ mọi nơi.";
+"record_shortcut" = "Ghi phím tắt";
+"press_shortcut" = "Nhấn phím tắt";
 "install_cli" = "Cài đặt CLI";
 "install_cli_subtitle" = "Liên kết tượng trưng CodexBarCLI tới /usr/local/bin và /opt/homebrew/bin dưới dạng codexbar.";
 "cli_not_found" = "Không tìm thấy CodexBarCLI trong gói ứng dụng.";
@@ -1368,6 +1370,9 @@
 "menu_bar_layout_preset_compact_stacked" = "Xếp chồng gọn";
 "menu_bar_layout_preset_custom" = "Tùy chỉnh";
 "menu_bar_layout_live_preview" = "Xem trước trực tiếp";
+"menu_bar_layout_default_preview" = "Xem trước bố cục mặc định";
+"menu_bar_layout_overrides_notice" = "Các nhà cung cấp đang bật này dùng bố cục riêng đã lưu:";
+"menu_bar_layout_use_all_accessibility" = "%@: Dùng bố cục của tất cả nhà cung cấp";
 "menu_bar_layout_strip" = "Dải thanh menu";
 "menu_bar_layout_remove_line_break" = "Xóa ngắt dòng";
 "menu_bar_layout_chip_hint" = "Chọn, kéo để sắp xếp lại hoặc dùng thao tác Xóa.";
@@ -1535,3 +1540,4 @@
 "Restore Defaults" = "Khôi phục mặc định";
 "Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "Chọn các hàng sử dụng xuất hiện trong menu của nhà cung cấp này, bản xem trước Cài đặt và Tổng quan.";
 "%@ (unavailable)" = "%@ (không khả dụng)";
+"Spending cap, not balance" = "Hạn mức chi tiêu, không phải số dư";

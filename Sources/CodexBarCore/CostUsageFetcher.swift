@@ -1000,6 +1000,11 @@ public struct CostUsageFetcher: Sendable {
             }
 
             guard !reports.isEmpty else { return nil }
+            // `previous` is an exact report captured before the current bounded refresh became
+            // pending. Its rows remain established even though native catch-up is still active;
+            // `staleSnapshotUpdatedAt` keeps refresh scheduling and stale presentation explicit.
+            let displayedHistoryCoverageIsEstablished = nativeHistoryCoverageIsEstablished
+                || staleSnapshotUpdatedAt != nil
             // updatedAt keeps the caches' real (oldest) scan time; stamping the hydration time
             // would let stale token rows inherit app-start freshness (#1964). lastRefreshAt
             // drives TTL suppression and stays native-only: a merged load must never delay a
@@ -1010,7 +1015,7 @@ public struct CostUsageFetcher: Sendable {
                     now: now,
                     historyDays: clampedHistoryDays,
                     calendar: options.calendar,
-                    historyCoverageIsEstablished: Self.codexHistoryCoverageIsEstablished(options: options),
+                    historyCoverageIsEstablished: displayedHistoryCoverageIsEstablished,
                     costProvenance: .listPriceEstimate,
                     projects: Self.mergedProjectBreakdowns(projects),
                     sessions: sessions,

@@ -57,7 +57,7 @@ complete when the available scan window covers fewer days.
 | OpenCode | Web dashboard via cookies (`web`). |
 | OpenCode Go | Unscoped Auto: local SQLite cost history with API overlay (`local+api`) → usage API (`api`) → web dashboard (`web`). Scoped Auto (selected account/manual cookie/workspace): web → local → API. Explicit API/Web: selected source only. |
 | Alibaba Coding Plan | Console RPC via web cookies (auto/manual) with API key fallback (`web`, `api`). |
-| Alibaba Token Plan | Bailian subscription summary API via browser or manual cookies (`web`). |
+| Alibaba Token Plan | Signed-in Bailian CLI (`cli`) → subscription summary API via browser or manual cookies (`web`). |
 | Qwen Cloud | Qwen Cloud 5-hour/weekly Token Plan APIs via browser or manual cookies (`web`). |
 | Droid/Factory | API key (`FACTORY_API_KEY` / config) → web cookies → stored tokens → local storage → WorkOS cookies (`auto`, `api`, `web`). |
 | Devin | Chrome localStorage session or manual Bearer token → daily and weekly quota API (`web`). |
@@ -242,6 +242,8 @@ complete when the available scan window covers fewer days.
 - Details: `docs/alibaba-coding-plan.md`.
 
 ## Alibaba Token Plan
+- Auto tries the signed-in Bailian `bl` CLI first, then falls back to browser/manual cookies; explicit CLI/Web modes
+  remain source-strict.
 - Explicit Team variants post to `GetSubscriptionSummary`; explicit Personal/Solo variants fetch the 5-hour and
   weekly rolling windows plus subscription/quota metadata without probing across plan types.
 - Cookie sources: browser import (`auto`), manual Cookie header, or `ALIBABA_TOKEN_PLAN_COOKIE`.

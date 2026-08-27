@@ -123,7 +123,7 @@ public struct GrokStatusProbe: Sendable {
         }
 
         // Local fallback summary always succeeds (empty if no sessions yet).
-        let localSummary = GrokLocalSessionScanner.summarize(env: env)
+        let localSummary = try await GrokLocalSessionScanner.summarizeOffMainThread(env: env)
         let cliVersion = Self.detectVersion(env: env)
 
         // `localSummary` is *not* currently projected into a visible RateWindow or

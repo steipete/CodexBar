@@ -3,6 +3,19 @@ import Foundation
 
 /// Provider-specific by design: The Alibaba folder co-locates settings for the distinct Token Plan variant.
 extension SettingsStore {
+    var alibabaTokenPlanUsageDataSource: ProviderSourceMode {
+        get { self.configSnapshot.providerConfig(for: .alibabatokenplan)?.source ?? .auto }
+        set {
+            self.updateProviderConfig(provider: .alibabatokenplan) { entry in
+                entry.source = newValue
+            }
+            self.logProviderModeChange(
+                provider: .alibabatokenplan,
+                field: "source",
+                value: newValue.rawValue)
+        }
+    }
+
     var alibabaTokenPlanCookieHeader: String {
         get { self.configSnapshot.providerConfig(for: .alibabatokenplan)?.sanitizedCookieHeader ?? "" }
         set {

@@ -385,9 +385,9 @@ struct GrokWebFetchStrategy: ProviderFetchStrategy {
                 throw GrokWebBillingError.teamUsageUnsupported
             }
             let subscriptionTier = try await resolveSettingsTier(authState)
-            let identitySnapshot = GrokStatusProbe.identityOnlySnapshot(
+            let identitySnapshot = try await GrokStatusProbe.identityOnlySnapshot(
                 credentials: authState,
-                localSummary: GrokLocalSessionScanner.summarize(env: context.env),
+                localSummary: GrokLocalSessionScanner.summarizeOffMainThread(env: context.env),
                 cliVersion: GrokStatusProbe.detectVersion(env: context.env),
                 subscriptionTier: subscriptionTier)
             return self.makeResult(
@@ -407,14 +407,14 @@ struct GrokWebFetchStrategy: ProviderFetchStrategy {
                 nil
             }
         let enrichedBilling = webBilling.applying(subscriptionTier: subscriptionTier)
-        let snapshot = GrokUsageSnapshot(
+        let snapshot = try await GrokUsageSnapshot(
             billing: nil,
             webBilling: enrichedBilling,
             credentials: GrokStatusProbe.credentialsForSnapshot(
                 credentials: credentials,
                 billing: nil,
                 webBilling: enrichedBilling),
-            localSummary: GrokLocalSessionScanner.summarize(env: context.env),
+            localSummary: GrokLocalSessionScanner.summarizeOffMainThread(env: context.env),
             cliVersion: GrokStatusProbe.detectVersion(env: context.env),
             updatedAt: Date(),
             subscriptionTier: subscriptionTier ?? enrichedBilling.subscriptionTier)

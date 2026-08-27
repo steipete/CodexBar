@@ -654,6 +654,8 @@
 "section_keyboard_shortcut" = "Kortkommando";
 "open_menu_shortcut_title" = "Öppna meny";
 "open_menu_shortcut_subtitle" = "Öppna menyradsmenyn var du än är.";
+"record_shortcut" = "Spela in kortkommando";
+"press_shortcut" = "Tryck på kortkommandot";
 "install_cli" = "Installera CLI";
 "install_cli_subtitle" = "Symlänka CodexBarCLI till /usr/local/bin och /opt/homebrew/bin som codexbar.";
 "cli_not_found" = "CodexBarCLI hittades inte i apppaketet.";
@@ -1366,6 +1368,9 @@
 "menu_bar_layout_preset_compact_stacked" = "Kompakt staplad";
 "menu_bar_layout_preset_custom" = "Anpassat";
 "menu_bar_layout_live_preview" = "Liveförhandsvisning";
+"menu_bar_layout_default_preview" = "Förhandsvisning av standardlayout";
+"menu_bar_layout_overrides_notice" = "Dessa aktiverade leverantörer använder egna sparade layouter:";
+"menu_bar_layout_use_all_accessibility" = "%@: Använd layouten för alla leverantörer";
 "menu_bar_layout_strip" = "Menyradsremsa";
 "menu_bar_layout_remove_line_break" = "Ta bort radbrytning";
 "menu_bar_layout_chip_hint" = "Markera, dra för att ändra ordning eller använd åtgärden Ta bort.";
@@ -1533,3 +1538,4 @@
 "Restore Defaults" = "Återställ standardvärden";
 "Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "Välj vilka användningsrader som visas i den här leverantörens meny, förhandsvisningen i Inställningar och Översikt.";
 "%@ (unavailable)" = "%@ (inte tillgänglig)";
+"Spending cap, not balance" = "Utgiftstak, inte saldo";
