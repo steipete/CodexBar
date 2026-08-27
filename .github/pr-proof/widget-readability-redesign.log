@@ -64,9 +64,11 @@ Checks
 - make test                           923 selections; see limit below
 - swift build --target CodexBarWidget clean
 - xcodebuild CodexBarWidgetExtension  Release, arm64 + x86_64, BUILD SUCCEEDED
-- 37 focused tests over the pure layout logic (headline selection, lane capacity,
+- 46 focused tests over the pure layout logic (headline selection, lane capacity,
   overflow reservation, reset rounding, pager wrap-around, monogram uniqueness,
-  tinted-mode mark styling, WCAG contrast for every provider colour)
+  tinted-mode mark styling, WCAG contrast for every provider colour), including the
+  combined curation/reservation regression, a density guard, and a sweep across
+  lane count x curation x budget x binding-lane position
 
 Limit
 - StatusMenuSwitcherRefreshTests "merged provider switch updates live tab rows in
@@ -74,7 +76,35 @@ Limit
   base (27c7f334e) with this branch's changes absent, verified in a separate
   worktree. It is a headless AppKit menu-identity assertion and is unrelated to this
   diff, which touches only Sources/CodexBarWidget.
-- The rendered tiles are not device screenshots. Device behaviour was checked
-  separately by installing a locally signed build and confirming the widget extension
-  read its App Group container, but those frames contain live account usage and are
-  deliberately not attached.
+- The before/after contact sheets are headless renders. Runtime behaviour is proven
+  separately below with real WidgetKit desktop screenshots; those frames carry a
+  synthetic seeded snapshot, so no live account usage appears in any attached image.
+
+Runtime proof (2cdfe0734 + docs commit)
+- Packaged the real appex (CodexBarWidget.appex inside CodexBar.app, debug config,
+  Developer ID signed, app group <team>.com.steipete.codexbar.debug) and installed it
+  as /Applications/CodexBar (Test).app on macOS 26. pluginkit showed
+  com.steipete.codexbar.debug.widget registered.
+- Launched the app once; it wrote widget-snapshot.json into the app-group container
+  (live pipeline). Quit the app, then replaced the file with a synthetic snapshot
+  (5 providers incl. a 4-lane Kimi shape with a 1%-left code lane) validated against
+  the real decoder first. Everything below ran with the app process dead - timelines
+  and intents are the extension's own.
+- Added the Switcher widget at small, medium and large from the gallery; all three
+  rendered the seeded data with fresh timestamps (widget-redesign-runtime-pager.png,
+  widget-redesign-runtime-modes.png).
+- Pager: clicked the chevrons through Codex 1/5 -> Claude 2/5 -> Gemini 3/5 ->
+  Cursor 4/5 -> Kimi 5/5 -> wrap to 1/5, in place, no Edit Widget. Claude's reset
+  caption came from the slot-recovery path (its seeded rows carry no window), Gemini's
+  7% hero rendered in severity colour with full-width bar.
+- Kimi shape on-device: medium showed hero 1% Code 7d + Session/Weekly + "+1 more"
+  (three rows in the three-row budget); small reserved the overflow slot and showed
+  hero + Session + "+2 more" (two rows in the two-row budget); large listed every
+  lane with no overflow line. That is the combined curation/reservation fix from this
+  review round, live.
+- Tinted: set "Dim widgets on desktop" to Always, captured all three sizes in the
+  vibrant rendering - monograms, bars, chart and pager all legible - then restored
+  the setting. Margins: tile content sits on its own 14pt inset with no doubled
+  system margin at any size.
+- Cleanup: widgets removed, test app and its group container deleted, production
+  CodexBar untouched throughout.
