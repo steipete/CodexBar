@@ -32,6 +32,7 @@ struct WidgetTilePlan: Equatable {
     ///     `lanes` when the tile lists everything.
     ///   - reservesOverflowRow: when the tile is too tight to absorb the "+N more" line on top of a
     ///     full lane list, the line takes one of the lane slots instead of overflowing the tile.
+    ///     Measured against `lanes`, since a lane dropped by curation overflows just the same.
     static func make(
         lanes: [WidgetTileLane],
         displayCandidates: [WidgetTileLane]? = nil,
@@ -43,7 +44,13 @@ struct WidgetTilePlan: Equatable {
         let remainder = candidates.filter { $0.id != hero.id }
         // Honour the provider's intended row count: the headline occupies one of those rows.
         var capacity = min(max(0, maxSecondaryLanes), max(0, candidates.count - 1))
-        if reservesOverflowRow, remainder.count > capacity {
+        // Give up a lane slot only when the "+N more" line would actually push the tile past its
+        // budget. Whether that line appears is decided against every lane the provider reports,
+        // not the curated subset: curation drops lanes that never reach `remainder`, so a curated
+        // remainder that fits its budget exactly can still overflow.
+        let listed = min(remainder.count, capacity)
+        let overflows = (lanes.count - 1) - listed > 0
+        if reservesOverflowRow, listed + (overflows ? 1 : 0) > maxSecondaryLanes {
             capacity = max(1, capacity - 1)
         }
         let shown = Array(remainder.prefix(capacity))

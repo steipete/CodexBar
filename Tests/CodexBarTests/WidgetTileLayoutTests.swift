@@ -78,6 +78,32 @@ struct WidgetTileLayoutTests {
     }
 
     @Test
+    func `reserving a slot accounts for lanes the curation already dropped`() {
+        // Kimi reports four lanes but caps compact tiles at three. When the binding lane is one of
+        // those three, the curated remainder fits the budget exactly, so no slot was reserved —
+        // yet a fourth lane still overflows and "+N more" was drawn as an extra row on top of a
+        // full lane list. Reservation has to count every omitted lane, not just the curated ones.
+        let all = [
+            self.lane("primary", "Session", 4),
+            self.lane("secondary", "Weekly", 61),
+            self.lane("kimi-monthly", "Monthly", 72),
+            self.lane("kimi-code-7d", "Code 7d", 88),
+        ]
+        let curated = Array(all.prefix(3))
+
+        let plan = WidgetTilePlan.make(
+            lanes: all,
+            displayCandidates: curated,
+            maxSecondaryLanes: 2,
+            reservesOverflowRow: true)
+
+        #expect(plan.hero?.id == "primary")
+        #expect(plan.overflowCount > 0)
+        // The headline sits above the budget; the listed lanes plus the "+N more" line share it.
+        #expect(plan.lanes.count + 1 <= 2)
+    }
+
+    @Test
     func `reserving a slot does nothing when every lane already fits`() {
         let lanes = (0..<3).map { self.lane("lane-\($0)", "Lane \($0)", Double(50 + $0)) }
 
@@ -85,6 +111,66 @@ struct WidgetTileLayoutTests {
 
         #expect(plan.lanes.count == 2)
         #expect(plan.overflowCount == 0)
+    }
+
+    @Test
+    func `reservation costs a lane only when the overflow line would not fit`() {
+        // Same four-lane curated shape as above, one row of budget wider. Here the two listed
+        // lanes and the "+N more" line already fit, so reserving would drop a lane the tile has
+        // room for. Reservation is about staying inside the budget, not about the mere presence
+        // of an overflow line.
+        let all = [
+            self.lane("primary", "Session", 4),
+            self.lane("secondary", "Weekly", 61),
+            self.lane("kimi-monthly", "Monthly", 72),
+            self.lane("kimi-code-7d", "Code 7d", 88),
+        ]
+
+        let plan = WidgetTilePlan.make(
+            lanes: all,
+            displayCandidates: Array(all.prefix(3)),
+            maxSecondaryLanes: 3,
+            reservesOverflowRow: true)
+
+        #expect(plan.lanes.count == 2)
+        #expect(plan.overflowCount == 1)
+    }
+
+    @Test
+    func `no reserving budget ever renders more rows than it has`() {
+        // Curation, reservation and headline selection interact, and the focused tests cover them
+        // one at a time — which is exactly how the curated-remainder case slipped through. Sweeping
+        // the combinations is what catches the intersections. Budgets start at two because that is
+        // the smallest a reserving tile asks for (`WidgetTileSize.secondaryLaneCapacity` returns 2
+        // or 3 for small and medium); large tiles take everything and do not reserve.
+        for laneCount in 1...6 {
+            for curatedCount in 1...laneCount {
+                for budget in 2...4 {
+                    for constrainedIndex in 0..<laneCount {
+                        let all = (0..<laneCount).map {
+                            self.lane("lane-\($0)", "Lane \($0)", $0 == constrainedIndex ? 1 : 80)
+                        }
+
+                        let plan = WidgetTilePlan.make(
+                            lanes: all,
+                            displayCandidates: Array(all.prefix(curatedCount)),
+                            maxSecondaryLanes: budget,
+                            reservesOverflowRow: true)
+
+                        let shape = """
+                        \(laneCount) lanes, \(curatedCount) curated, budget \(budget), \
+                        constrained at \(constrainedIndex)
+                        """
+                        // The headline sits above the budget; the listed lanes and the "+N more"
+                        // line share it.
+                        let rows = plan.lanes.count + (plan.overflowCount > 0 ? 1 : 0)
+                        #expect(rows <= budget, "\(shape) rendered \(rows) rows")
+                        // Curation must never bury the lane that is actually binding.
+                        #expect(plan.hero?.id == "lane-\(constrainedIndex)", "\(shape)")
+                    }
+                }
+            }
+        }
     }
 
     @Test
