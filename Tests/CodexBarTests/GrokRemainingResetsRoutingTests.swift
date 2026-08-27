@@ -5,17 +5,88 @@ import Testing
 @Suite(.serialized)
 struct GrokRemainingResetsRoutingTests {
     @Test
+    func `oauth billing and supplemental coupons stay on captured account during auth switch`() async throws {
+        let grokHome = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CodexBar-GrokAccountSwitch-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: grokHome, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: grokHome) }
+        try Self.writeAuth(
+            accessToken: "token-a",
+            email: "account-a@example.com",
+            to: grokHome)
+
+        let billingGate = GrokBillingGate()
+        let tierAccount = LockIsolated<String?>(nil)
+        let resetAccount = LockIsolated<String?>(nil)
+        let resetCookie = LockIsolated<String?>(nil)
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let expectedCredits = GrokRateLimitResetCreditsSnapshot(
+            expirations: [now.addingTimeInterval(172_800)],
+            updatedAt: now)
+
+        let fetchTask = Task {
+            try await GrokWebFetchStrategy().fetch(
+                Self.webContext(includeOptionalUsage: true, grokHome: grokHome),
+                webBilling: { capturedCredentials in
+                    let credentials = try capturedCredentials.get()
+                    await billingGate.waitUntilReleased()
+                    return GrokWebBillingResult(
+                        snapshot: GrokWebBillingSnapshot(
+                            usedPercent: 29,
+                            resetsAt: now.addingTimeInterval(86400)),
+                        sourceLabel: "grok-cli-proxy",
+                        authContext: .oauth(credentials))
+                },
+                settingsTier: { credentials in
+                    tierAccount.setValue(credentials?.email)
+                    return "SuperGrok Heavy"
+                },
+                remainingResets: { credentials, cookieHeader, _ in
+                    resetAccount.setValue(credentials?.email)
+                    resetCookie.setValue(cookieHeader)
+                    return GrokRemainingResetsLookupResult(
+                        tokens: [],
+                        snapshotTask: Task { expectedCredits })
+                })
+        }
+
+        await billingGate.waitUntilStarted()
+        try Self.writeAuth(
+            accessToken: "token-b",
+            email: "account-b@example.com",
+            to: grokHome)
+        let credentialsB = try GrokCredentialsStore.load(env: ["GROK_HOME": grokHome.path])
+        #expect(credentialsB.email == "account-b@example.com")
+        await billingGate.release()
+
+        let result = try await fetchTask.value
+        #expect(result.usage.primary?.usedPercent == 29)
+        #expect(result.usage.accountEmail(for: .grok) == "account-a@example.com")
+        #expect(result.usage.loginMethod(for: .grok) == "SuperGrok Heavy")
+        #expect(tierAccount.value == "account-a@example.com")
+        #expect(resetAccount.value == "account-a@example.com")
+        #expect(resetCookie.value == nil)
+        let supplementalUpdate = await result.supplementalUsageTask?.value
+        guard case let .grokResetCredits(resetCredits) = supplementalUpdate else {
+            Issue.record("Expected a deferred Grok reset-credit update")
+            return
+        }
+        #expect(resetCredits == expectedCredits)
+    }
+
+    @Test
     func `web strategy reuses the cookie that won billing for coupon lookup`() async throws {
         let capturedCookie = LockIsolated<String?>(nil)
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let result = try await GrokWebFetchStrategy().fetch(
             Self.webContext(includeOptionalUsage: true),
-            webBilling: {
-                (
-                    GrokWebBillingSnapshot(usedPercent: 29, resetsAt: now.addingTimeInterval(86400)),
-                    "Chrome Profile 2",
-                    false,
-                    "sso=winning")
+            webBilling: { _ in
+                GrokWebBillingResult(
+                    snapshot: GrokWebBillingSnapshot(
+                        usedPercent: 29,
+                        resetsAt: now.addingTimeInterval(86400)),
+                    sourceLabel: "Chrome Profile 2",
+                    authContext: .cookie("sso=winning"))
             },
             settingsTier: { _ in nil },
             remainingResets: { credentials, cookieHeader, _ in
@@ -40,12 +111,11 @@ struct GrokRemainingResetsRoutingTests {
         let lookupCalled = LockIsolated(false)
         let result = try await GrokWebFetchStrategy().fetch(
             Self.webContext(includeOptionalUsage: false),
-            webBilling: {
-                (
-                    GrokWebBillingSnapshot(usedPercent: 29, resetsAt: nil),
-                    "Chrome",
-                    false,
-                    "sso=winning")
+            webBilling: { _ in
+                GrokWebBillingResult(
+                    snapshot: GrokWebBillingSnapshot(usedPercent: 29, resetsAt: nil),
+                    sourceLabel: "Chrome",
+                    authContext: .cookie("sso=winning"))
             },
             settingsTier: { _ in nil },
             remainingResets: { _, _, _ in
@@ -68,12 +138,13 @@ struct GrokRemainingResetsRoutingTests {
             Self.webContext(
                 includeOptionalUsage: true,
                 requiresOptionalUsageCompleteness: true),
-            webBilling: {
-                (
-                    GrokWebBillingSnapshot(usedPercent: 29, resetsAt: now.addingTimeInterval(86400)),
-                    "Chrome",
-                    false,
-                    "sso=winning")
+            webBilling: { _ in
+                GrokWebBillingResult(
+                    snapshot: GrokWebBillingSnapshot(
+                        usedPercent: 29,
+                        resetsAt: now.addingTimeInterval(86400)),
+                    sourceLabel: "Chrome",
+                    authContext: .cookie("sso=winning"))
             },
             settingsTier: { _ in nil },
             remainingResets: { _, _, _ in
@@ -119,9 +190,10 @@ struct GrokRemainingResetsRoutingTests {
 
     private static func webContext(
         includeOptionalUsage: Bool,
-        requiresOptionalUsageCompleteness: Bool = false) -> ProviderFetchContext
+        requiresOptionalUsageCompleteness: Bool = false,
+        grokHome: URL? = nil) -> ProviderFetchContext
     {
-        let home = FileManager.default.temporaryDirectory
+        let home = grokHome ?? FileManager.default.temporaryDirectory
             .appendingPathComponent("CodexBar-GrokResetRouting-\(UUID().uuidString)", isDirectory: true)
         let browserDetection = BrowserDetection(cacheTTL: 0)
         return ProviderFetchContext(
@@ -142,5 +214,54 @@ struct GrokRemainingResetsRoutingTests {
             fetcher: UsageFetcher(),
             claudeFetcher: ClaudeUsageFetcher(browserDetection: browserDetection),
             browserDetection: browserDetection)
+    }
+
+    private static func writeAuth(accessToken: String, email: String, to grokHome: URL) throws {
+        let auth = #"""
+        {
+          "https://auth.x.ai::client": {
+            "key": "\#(accessToken)",
+            "email": "\#(email)",
+            "principal_type": "Personal"
+          }
+        }
+        """#
+        try Data(auth.utf8).write(
+            to: grokHome.appendingPathComponent("auth.json"),
+            options: .atomic)
+    }
+}
+
+private actor GrokBillingGate {
+    private var started = false
+    private var released = false
+    private var startWaiters: [CheckedContinuation<Void, Never>] = []
+    private var releaseWaiters: [CheckedContinuation<Void, Never>] = []
+
+    func waitUntilReleased() async {
+        if !self.started {
+            self.started = true
+            let waiters = self.startWaiters
+            self.startWaiters.removeAll()
+            waiters.forEach { $0.resume() }
+        }
+        guard !self.released else { return }
+        await withCheckedContinuation { continuation in
+            self.releaseWaiters.append(continuation)
+        }
+    }
+
+    func waitUntilStarted() async {
+        guard !self.started else { return }
+        await withCheckedContinuation { continuation in
+            self.startWaiters.append(continuation)
+        }
+    }
+
+    func release() {
+        self.released = true
+        let waiters = self.releaseWaiters
+        self.releaseWaiters.removeAll()
+        waiters.forEach { $0.resume() }
     }
 }
