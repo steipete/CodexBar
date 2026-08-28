@@ -517,30 +517,42 @@ extension CodexBarCLI {
         var sawReasoning = false
         var sawTokens = false
         var sawCost = false
+        var overflowInput = false
+        var overflowOutput = false
+        var overflowCacheRead = false
+        var overflowCacheCreation = false
+        var overflowReasoning = false
+        var overflowTokens = false
 
         for entry in entries {
             if let input = entry.inputTokens {
-                totalInput += input
+                let (res, of) = totalInput.addingReportingOverflow(input)
+                if of { overflowInput = true } else { totalInput = res }
                 sawInput = true
             }
             if let output = entry.outputTokens {
-                totalOutput += output
+                let (res, of) = totalOutput.addingReportingOverflow(output)
+                if of { overflowOutput = true } else { totalOutput = res }
                 sawOutput = true
             }
             if let cacheRead = entry.cacheReadTokens {
-                totalCacheRead += cacheRead
+                let (res, of) = totalCacheRead.addingReportingOverflow(cacheRead)
+                if of { overflowCacheRead = true } else { totalCacheRead = res }
                 sawCacheRead = true
             }
             if let cacheCreation = entry.cacheCreationTokens {
-                totalCacheCreation += cacheCreation
+                let (res, of) = totalCacheCreation.addingReportingOverflow(cacheCreation)
+                if of { overflowCacheCreation = true } else { totalCacheCreation = res }
                 sawCacheCreation = true
             }
             if let reasoning = entry.reasoningTokens {
-                totalReasoning += reasoning
+                let (res, of) = totalReasoning.addingReportingOverflow(reasoning)
+                if of { overflowReasoning = true } else { totalReasoning = res }
                 sawReasoning = true
             }
             if let tokens = entry.totalTokens {
-                totalTokens += tokens
+                let (res, of) = totalTokens.addingReportingOverflow(tokens)
+                if of { overflowTokens = true } else { totalTokens = res }
                 sawTokens = true
             }
             if let cost = entry.costUSD {
@@ -551,12 +563,12 @@ extension CodexBarCLI {
 
         let summary = snapshot.summary(forLastDays: snapshot.historyDays)
         return CostTotalsPayload(
-            totalInputTokens: sawInput ? totalInput : nil,
-            totalOutputTokens: sawOutput ? totalOutput : nil,
-            cacheReadTokens: sawCacheRead ? totalCacheRead : nil,
-            cacheCreationTokens: sawCacheCreation ? totalCacheCreation : nil,
-            reasoningTokens: sawReasoning ? totalReasoning : nil,
-            totalTokens: sawTokens ? totalTokens : snapshot.last30DaysTokens,
+            totalInputTokens: (sawInput && !overflowInput) ? totalInput : nil,
+            totalOutputTokens: (sawOutput && !overflowOutput) ? totalOutput : nil,
+            cacheReadTokens: (sawCacheRead && !overflowCacheRead) ? totalCacheRead : nil,
+            cacheCreationTokens: (sawCacheCreation && !overflowCacheCreation) ? totalCacheCreation : nil,
+            reasoningTokens: (sawReasoning && !overflowReasoning) ? totalReasoning : nil,
+            totalTokens: (sawTokens && !overflowTokens) ? totalTokens : snapshot.last30DaysTokens,
             totalCostUSD: sawCost ? totalCost : snapshot.last30DaysCostUSD,
             provenance: summary.provenance.rawValue,
             coverage: summary.coverage)

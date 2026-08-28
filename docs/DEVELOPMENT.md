@@ -132,6 +132,72 @@ See the canonical [provider authoring guide](provider.md#adding-a-new-provider) 
 make test
 ```
 
+Suite commands retain the default 180-second deadline, including SwiftPM startup and discovery.
+The runner reports elapsed time and owned PIDs every 30 seconds even when test output is buffered.
+It tracks process birth identities and descendants, including helpers that create separate process
+groups or sessions, and drains them before retrying. Separate sessions are allowed: the shell runner
+uses them to protect controlling-terminal ownership. The direct command remains unreaped until cleanup
+finishes (`waitid` with `WNOWAIT`), preventing reuse of its PID/session. Observed descendant session
+leaders can establish ownership of orphaned session members only while a matching live or unreaped
+birth identity still anchors that session. Known descendants retain their identities after reparenting;
+empty completed sessions retire. If an observed session loses its anchor while unaccounted live members
+remain, cleanup fails without adopting or signaling those uncertain PIDs. Unavailable metadata for a
+known identity also fails cleanup; an unreadable unrelated peer does not abort enumeration.
+For the direct child, confirmed metadata absence (ESRCH/ENOENT) can precede a waitable exit on
+Darwin. Its unreaped wait handle retains ownership while ordinary polling continues within the
+original command deadline. Pending wait status is not completion; permission and I/O errors still
+fail. Direct-child cleanup signals require retained wait ownership, even if no birth metadata was
+captured. Other PIDs continue to require verified birth identities.
+
+Cleanup sends TERM to verified individual identities, escalates after three seconds, and requires the
+owned set to drain within five seconds. Error paths make a final bounded attempt against readable known
+identities and reap the direct child, then propagate failure instead of starting another suite/retry.
+Initialization failures similarly TERM/KILL/reap the still-owned direct child. Linux treats a zombie
+leader with other threads as running. Other PIDs require birth checks before signals, with pidfds used
+on Linux when available. macOS descendant signals use `proc_signal_with_audittoken`: a combined native
+BSD/unique-identity read must match the tracked birth, then the kernel binds the signal to that PID's
+generation while checking the caller's normal signal permissions. A stale generation (including an
+exec race) is not signaled; later cleanup attempts can refresh it after matching birth again. Missing
+native signal support, permission failures, and I/O errors fail cleanup without a numeric-PID fallback.
+
+This is a bounded metadata polling tracker, not a daemon sandbox. A new session whose leader and attached
+ancestry both disappear entirely between observations cannot be discovered reliably. Snapshot enumeration
+is not atomic, and unreadable, never-observed descendants cannot be attributed. The initial `swift test list`
+discovery/build path is unchanged; the 180-second bound applies to each suite/group command, including its
+startup. `Scripts/test_swift_test_sharding.sh` includes synthetic containment tests; they do not launch
+Swift, the app, or provider probes. Its native pthread regression runs only on Linux and uses the system C
+compiler; macOS runs the corresponding metadata unit tests and reports the native case as skipped.
+macOS also runs native audit-token fixtures: deliberately wrong generations leave owned children alive,
+matching identities TERM/KILL and reap them, and unrelated sentinels survive. These fixtures use stop
+files and self-expiry, with final cleanup restricted to their unreaped direct children.
+
+Process-cleanup fixtures keep ancestry alive until the real ownership refresh observes matching ready
+child identities (and the session-tree grandchild), then acknowledges a private fixture gate before drain.
+The direct `waitid` fixture uses the same handshake without reaping its root. Immediate cases and a controlled
+one-second readiness delay retain the two-second command budget; startup no longer adds a fixed 1.2-second
+ancestry sleep. Gate waits are bounded and stop-file aware; helper self-expiry remains 20 seconds.
+
+Cost performance and fair-scheduling corpora use exclusive initial fixture creation: the scanner only
+reads after setup has closed each file. This avoids per-file atomic publication and durability work
+without changing corpus contents or scan budgets. The shared atomic fixture writer remains available
+for replacement and publication tests.
+
+### Adaptive refresh fixtures
+
+Heuristics and timer tests seed disabled providers through `testSettingsStore(config:)`, which saves the
+file-backed config before settings initialization. They do not replay a synchronous config write for each
+provider toggle during setup. The seed preserves provider defaults and explicitly keeps OpenAI web access
+off; an existing config would otherwise enable it. Reset-boundary tests then enable only the stubbed Codex
+provider. Timer intervals, polling deadlines, and production persistence behavior remain unchanged.
+
+### Claude session fixtures
+
+Profile/reuse and overlapping-capture tests wait for the fixture's expected `Account:` response with idle
+completion disabled; PTY command echo alone is not functional completion. The profile/reuse test keeps both
+immediate responses and a controlled 0.5-second response delay, beyond the former 0.1-second idle window.
+Capture budgets remain two seconds for profile/reuse and five seconds for overlap. Account, environment,
+launch-count, isolation, and stale-artifact assertions remain independent of the completion condition.
+
 ### Codex credential fixtures
 
 Ordinary tests deny Codex credential-file access at the Codex-owned I/O boundaries, before reads,
@@ -164,6 +230,15 @@ scope decoding, and denial are compiled in release builds too. `bash Scripts/tes
 compiles the actual policy and detector with optimization and without `DEBUG`, then checks denied,
 scoped-child, and non-test decisions against synthetic temporary files. It does not build or exercise
 the complete release CLI, refresh a real account, or establish isolation for other providers.
+
+### WebView ownership regressions
+
+`OpenAIDashboardWebViewCacheTests` uses explicit nonpersistent stores and a DEBUG preparation seam to suspend
+acquisitions without navigation. Controlled continuations exercise eviction/replacement, stale completion, timeout
+retry, store-scoped invalidation, and lease cleanup after cache loss. Host assertions check one cleanup request and
+registration with `WebKitTeardown`; they do not establish WebContent process termination or diagnose CPU/RSS incidents.
+The existing headless CI guards remain in place for these AppKit tests. The suite also contains older persistent-store
+factory tests; exclude those when running a nonpersistent-only focused check.
 
 ### CI Aggregate Contract
 

@@ -57,6 +57,11 @@ applications.” In Keychain Access, adding only the installed, stably signed `C
 Open **CodexBar → Settings → Advanced** and enable **Disable Keychain access**. The stored setting is applied
 immediately; relaunching is useful when diagnosing another already-running copy.
 
+Startup resolves the local preference, falling back to the current shared app-group preference only when no local
+value is stored, before legacy credential migration. While access is disabled, permitted file-backed and manual-default
+imports can still be saved, but legacy credential cleanup and migration completion remain pending for a later launch
+with access enabled.
+
 This setting blocks CodexBar-owned Security.framework item reads and writes, including foreign-item readers such as
 Zed, and disables Chromium Safe Storage decryption. Browser-cookie import that needs Keychain is skipped. It does not
 promise that a provider-owned CLI launched by CodexBar will avoid its own credential store; Claude's owner-CLI policy

@@ -230,6 +230,13 @@ struct LocalizationLanguageCatalogTests {
                 "terminal_app_subtitle": "Terminal usado pola acción Abrir terminal",
             ],
             "ca": [
+                "Projects": "Projectes",
+                "iCloud Sync": "Sincronització amb iCloud",
+                "Input": "Entrada",
+                "Cache write": "Escriptura a la memòria cau",
+                "Copy Image": "Copia la imatge",
+                "hooks_add_rule": "Afegeix una regla",
+                "menu_bar_layout_scope_help": "Editeu la disposició predeterminada o substituïu-la per a un proveïdor.",
                 "A managed Codex login is already running. Wait for it to finish before adding ":
                     "Ja hi ha un inici de sessió gestionat de Codex en curs. Espereu que acabi abans d'afegir ",
                 "%@: %@": "%@: %@",

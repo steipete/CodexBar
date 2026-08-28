@@ -199,11 +199,31 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
         }
         let coversFullHistory = days >= self.historyDays
         let windowMetered = coversFullHistory ? self.meteredCostUSD : nil
+        let totalTokens: Int? = {
+            guard !tokens.isEmpty else { return nil }
+            var sum = 0
+            for t in tokens {
+                let (res, of) = sum.addingReportingOverflow(t)
+                if of { return nil }
+                sum = res
+            }
+            return sum
+        }()
+        let totalRequests: Int? = {
+            guard !requests.isEmpty else { return nil }
+            var sum = 0
+            for r in requests {
+                let (res, of) = sum.addingReportingOverflow(r)
+                if of { return nil }
+                sum = res
+            }
+            return sum
+        }()
         return CostUsageWindowSummary(
             days: days,
-            totalTokens: tokens.isEmpty ? nil : tokens.reduce(0, +),
+            totalTokens: totalTokens,
             totalCostUSD: costs.isEmpty ? nil : costs.reduce(0, +),
-            totalRequests: requests.isEmpty ? nil : requests.reduce(0, +),
+            totalRequests: totalRequests,
             entryCount: entries.count,
             tokenMix: mix,
             coverage: coverage,

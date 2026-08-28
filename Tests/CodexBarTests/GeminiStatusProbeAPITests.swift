@@ -380,7 +380,7 @@ struct GeminiStatusProbeAPITests {
         let env = try GeminiTestEnvironment()
         defer { env.cleanup() }
         let holder = try GeminiStdoutHolderFixture(root: env.homeURL)
-        defer { holder.cleanup() }
+        defer { #expect(holder.cleanup().succeeded) }
 
         let result = holder.runProducer()
         try #require(result == "/tmp/gemini-package", "\(holder.producerDiagnostics)")
@@ -388,7 +388,7 @@ struct GeminiStatusProbeAPITests {
         #expect(pid_t(publishedPID) == holder.process.processIdentifier)
         #expect(holder.process.isRunning)
 
-        holder.cleanup()
+        #expect(holder.cleanup().succeeded)
         #expect(!holder.process.isRunning)
     }
 
@@ -397,7 +397,7 @@ struct GeminiStatusProbeAPITests {
         let env = try GeminiTestEnvironment()
         defer { env.cleanup() }
         let holder = try GeminiStdoutHolderFixture(root: env.homeURL)
-        defer { holder.cleanup() }
+        defer { #expect(holder.cleanup().succeeded) }
         let missingParent = env.homeURL.appendingPathComponent("missing/holder.pid")
 
         #expect(holder.runProducer(pidFile: missingParent) == nil)
@@ -406,7 +406,7 @@ struct GeminiStatusProbeAPITests {
         #expect(!FileManager.default.fileExists(atPath: missingParent.path))
         #expect(holder.process.isRunning)
 
-        holder.cleanup()
+        #expect(holder.cleanup().succeeded)
         #expect(!holder.process.isRunning)
     }
 

@@ -15,7 +15,7 @@ private final class PiSessionParseCounter: @unchecked Sendable {
 }
 
 struct PiSessionCostCompatibilityTests {
-    @Test(arguments: [false, true], ["c6c46a376ba16304", "55f640e6bb0ccba4"])
+    @Test(arguments: [false, true], ["c6c46a376ba16304", "55f640e6bb0ccba4", "21f10143afe00c55"])
     func `reviewed hash adoption preserves pi and omp parsing but still invalidates pricing`(
         catalogPresent: Bool, predecessorHash: String) throws
     {

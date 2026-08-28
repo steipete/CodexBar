@@ -1556,7 +1556,7 @@ extension UsageStore {
             self.lastTokenFetchScope[provider.instanceID] = completedCostScopeSignature
             self.startCodexCostCatchUpIfNeeded(afterRefreshing: provider)
 
-            guard !snapshot.daily.isEmpty || snapshot.meteredCostUSD != nil else {
+            if try self.regularTokenSnapshotIsConfirmedEmpty(snapshot, for: provider) {
                 self.publishConfirmedEmptyTokenSnapshot(for: provider)
                 self.tokenErrors[provider.instanceID] = Self.tokenCostNoDataMessage(for: provider)
                 self.tokenFailureGates[provider.instanceID]?.recordSuccess()

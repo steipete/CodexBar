@@ -93,6 +93,11 @@ Example:
 - Uses an off-screen `WKWebView` with a per-account `WKWebsiteDataStore`.
   - Store key: deterministic UUID from the normalized email.
 - WebKit store can hold multiple accounts concurrently.
+- Each WebView acquisition keeps ownership across asynchronous page preparation. Explicit store eviction invalidates
+  that store's pending preparations, so stale success, failure, or timeout retry cannot displace a replacement view.
+  Evict-all invalidates all pending preparations; ordinary lease release does not invalidate concurrent temporary views.
+- Leases retain their cleanup owner independently of the cache and release only once. Validated pages still support
+  the brief reuse handoff; other releases schedule the existing deferred WebKit cleanup, including temporary views.
 - Cookie import (Automatic mode, when WebKit store has no matching session or login required):
   1) Safari: `~/Library/Cookies/Cookies.binarycookies`
   2) Chrome/Chromium forks: `~/Library/Application Support/Google/Chrome/*/Cookies`
@@ -187,8 +192,12 @@ Example:
   - Native conversation rows reuse the corrected cached per-file totals and existing pricing tables. They are hidden
     when pi-compatible usage joins the aggregate because the native-only rows would not reconcile with the merged total.
 - Cache:
-  - Native + merged provider cache: `~/Library/Caches/CodexBar/cost-usage/codex-v11.json`
-  - pi-compatible session cache: `~/Library/Caches/CodexBar/cost-usage/pi-sessions-v7.json`
+  - Native session store: `~/Library/Caches/CodexBar/cost-usage/cost-usage.sqlite`
+  - pi-compatible session cache: `~/Library/Caches/CodexBar/cost-usage/pi-sessions-v8.json`
+  - Catch-up status reads progress metadata without loading historical usage JSON or replay bodies. Cached reports
+    retain row-level pricing evidence and project/session details, but omit raw token snapshots, accumulator state,
+    and replay bodies. File cursor metadata, including JSONL resume state, remains available for progress tracking.
+    Scanner and save operations still load the complete state; fresh database opens retain integrity validation.
 - Window: configurable 1-365 day rolling history, with a 60s minimum refresh interval.
 - While a bounded refresh catches up with new session history, established totals remain visible only for the same
   account, history window, and bucket time zone. An incomplete first scan never borrows another account's totals.

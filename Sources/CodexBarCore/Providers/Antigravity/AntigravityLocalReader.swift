@@ -1,208 +1,318 @@
 import Foundation
 
-// MARK: - Antigravity Local Reader (tokscale compatible)
-
 enum AntigravityLocalReader {
-    static func tokiCachePaths(home: URL? = nil) -> [URL] {
-        let base: URL = if let home {
-            home.appendingPathComponent(".config/tokscale/antigravity-cache/sessions", isDirectory: true)
-        } else if let dir = ProcessInfo.processInfo.environment["TOKSCALE_CONFIG_DIR"] {
-            URL(fileURLWithPath: dir).appendingPathComponent("antigravity-cache/sessions", isDirectory: true)
-        } else {
-            FileManager.default.homeDirectoryForCurrentUser
-                .appendingPathComponent(".config/tokscale/antigravity-cache/sessions", isDirectory: true)
-        }
-        guard let contents = try? FileManager.default.contentsOfDirectory(
-            at: base, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) else { return [] }
-        return contents.filter { $0.pathExtension == "jsonl" }.sorted { $0.lastPathComponent < $1.lastPathComponent }
+    enum Coverage: Sendable {
+        case complete
+        case partial
+        case unavailable
     }
 
-    static func cliDBPaths(home: URL? = nil) -> [URL] {
-        let base: URL = if let env = ProcessInfo.processInfo.environment["GEMINI_CLI_HOME"], !env.isEmpty {
-            URL(fileURLWithPath: env).appendingPathComponent("antigravity-cli/conversations", isDirectory: true)
-        } else if let home {
-            home.appendingPathComponent(".gemini/antigravity-cli/conversations", isDirectory: true)
-        } else {
-            FileManager.default.homeDirectoryForCurrentUser
-                .appendingPathComponent(".gemini/antigravity-cli/conversations", isDirectory: true)
+    struct DailyReportResult: Sendable {
+        let report: CostUsageDailyReport
+        let coverage: Coverage
+        let statistics: Statistics
+
+        var isComplete: Bool {
+            self.coverage == .complete
         }
-        guard let c = try? FileManager.default.contentsOfDirectory(
-            at: base, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) else { return [] }
-        return c
-            .filter {
-                $0.pathExtension == "db" && !$0.lastPathComponent.hasSuffix("-wal") && !$0.lastPathComponent
-                    .hasSuffix("-shm")
+
+        var isAvailable: Bool {
+            self.coverage == .complete
+        }
+    }
+
+    struct Event: Equatable {
+        let session: String
+        let row: Int64
+        let turn: AntigravityProtoReader.ParsedTurn
+        let cacheWrite: Int
+        let input: Int
+        let total: Int
+
+        init?(session: String, row: Int64, turn: AntigravityProtoReader.ParsedTurn, cacheWrite: Int) {
+            guard let usage = turn.usage, turn.timestampMs != nil,
+                  let input = AntigravityLocalReader.checkedAdd(usage.systemPrompt, usage.newInput),
+                  let total = AntigravityLocalReader.checkedSum(
+                      [input, usage.output, usage.cacheRead, cacheWrite, usage.reasoning])
+            else { return nil }
+            self.session = session
+            self.row = row
+            self.turn = turn
+            self.cacheWrite = cacheWrite
+            self.input = input
+            self.total = total
+        }
+    }
+
+    struct SourceResult {
+        var events: [Event] = []
+        var isComplete = true
+    }
+
+    private struct RowIdentity: Hashable {
+        let session: String
+        let row: Int64
+    }
+
+    private struct ResponseIdentity: Hashable {
+        let session: String
+        let response: String
+    }
+
+    private struct LabelIdentity: Hashable {
+        let session: String
+        let label: String
+    }
+
+    static func normalizeModelID(_ raw: String) -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "unknown" : trimmed
+    }
+
+    static func checkedAdd(_ lhs: Int, _ rhs: Int) -> Int? {
+        let (result, overflow) = lhs.addingReportingOverflow(rhs)
+        return overflow ? nil : result
+    }
+
+    static func checkedSum(_ values: [Int]) -> Int? {
+        var total = 0
+        for value in values {
+            guard let next = self.checkedAdd(total, value) else { return nil }
+            total = next
+        }
+        return total
+    }
+
+    static func makeDailyReportWithStatus(
+        context: Context,
+        calendar: Calendar = .current,
+        limits: Limits = Limits(),
+        clock: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
+        checkCancellation: @escaping () throws -> Void = {}) throws -> DailyReportResult
+    {
+        let budget = Budget(limits: limits, clock: clock, cancellation: checkCancellation)
+        do {
+            let databases = try self.discover(roots: context.databaseRoots, extension: "db", budget: budget)
+            // A discovery error is not absence and never authorizes a cache replacement.
+            if !databases.paths.isEmpty || !databases.isComplete {
+                let source = try self.readDatabases(databases.paths, budget: budget)
+                return try self.aggregate(
+                    source, discoveryComplete: databases.isComplete, calendar: calendar, budget: budget)
             }
-            .sorted { $0.lastPathComponent < $1.lastPathComponent }
+            let cache = try self.discover(roots: [context.cacheRoot], extension: "jsonl", budget: budget)
+            guard !cache.paths.isEmpty || !cache.isComplete else {
+                return DailyReportResult(
+                    report: .init(data: [], summary: nil), coverage: .unavailable, statistics: budget.statistics)
+            }
+            let source = try self.readJSONL(cache.paths, budget: budget)
+            return try self.aggregate(
+                source, discoveryComplete: cache.isComplete, calendar: calendar, budget: budget)
+        } catch ScanFailure.exhausted {
+            return DailyReportResult(
+                report: .init(data: [], summary: nil), coverage: .partial, statistics: budget.statistics)
+        }
     }
 
-    static func parseJSONLCache(paths: [URL]? = nil, calendar: Calendar = .current) -> [CostUsageDailyReport.Entry] {
-        var entries: [CostUsageDailyReport.Entry] = []
-        var seenResponseIds = Set<String>()
-        for url in paths ?? self.tokiCachePaths() {
-            guard let data = try? Data(contentsOf: url),
-                  let text = String(data: data, encoding: .utf8) else { continue }
-            var sessionModel: String?
-            for line in text.components(separatedBy: .newlines) {
-                let t = line.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !t.isEmpty, let d = t.data(using: .utf8),
-                      let json = try? JSONSerialization.jsonObject(with: d) as? [String: Any] else { continue }
-                let type = json["type"] as? String
-                if type == "session_meta" {
-                    sessionModel = json["modelId"] as? String ?? json["model_id"] as? String
+    private static func aggregate(
+        _ source: SourceResult,
+        discoveryComplete: Bool,
+        calendar: Calendar,
+        budget: Budget) throws -> DailyReportResult
+    {
+        var isComplete = discoveryComplete && source.isComplete
+            && budget.statistics.sqliteHandlesOpened == budget.statistics.sqliteHandlesClosed
+        var models: [LabelIdentity: String] = [:]
+        var conflicts = Set<LabelIdentity>()
+        for event in source.events {
+            try budget.check()
+            if let label = event.turn.label, let model = event.turn.model {
+                let key = LabelIdentity(session: event.session, label: label)
+                if let prior = models[key], prior != model {
+                    conflicts.insert(key)
+                } else {
+                    models[key] = model
+                }
+            }
+        }
+
+        var rows: [RowIdentity: Event] = [:]
+        var responses: [ResponseIdentity: Event] = [:]
+        var entries: [String: CostUsageDailyReport.Entry] = [:]
+        for event in source.events {
+            try budget.check()
+            let row = RowIdentity(session: event.session, row: event.row)
+            guard let entry = self.entry(event, models: models, conflicts: conflicts, calendar: calendar) else {
+                isComplete = false
+                continue
+            }
+            if let prior = rows[row] {
+                // Same filename/session and idx identifies a copied SQLite row, not its token payload.
+                if prior != event { isComplete = false }
+                continue
+            }
+            let response = event.turn.usage?.responseID.map {
+                ResponseIdentity(session: event.session, response: $0)
+            }
+            if let response, let prior = responses[response] {
+                if prior.turn != event.turn || prior.cacheWrite != event.cacheWrite {
+                    isComplete = false
+                } else {
+                    rows[row] = event
+                }
+                continue
+            }
+            let next: CostUsageDailyReport.Entry
+            if let prior = entries[entry.date] {
+                guard let merged = self.checkedMergeEntry(prior, entry) else {
+                    isComplete = false
                     continue
                 }
-                if type == "usage" || json["input"] != nil {
-                    if let rid = (json["responseId"] as? String ?? json["response_id"] as? String), !rid.isEmpty {
-                        if seenResponseIds.contains(rid) { continue }
-                        seenResponseIds.insert(rid)
-                    }
-                    let modelId =
-                        (json["modelId"] as? String ?? json["model_id"] as? String ?? sessionModel ?? "unknown")
-                    let input = (json["input"] as? Int) ?? 0
-                    let output = (json["output"] as? Int) ?? 0
-                    let read = (json["cacheRead"] as? Int) ?? (json["cache_read"] as? Int) ?? 0
-                    let write = (json["cacheWrite"] as? Int) ?? (json["cache_write"] as? Int) ?? 0
-                    let reason = (json["reasoning"] as? Int) ?? 0
-                    let ts = (json["timestamp"] as? Int64) ?? (json["timestamp"] as? Int).map(Int64.init) ?? 0
-                    let date = self.timestampToDayKey(ts, calendar: calendar)
-                    let total = input + output + read + write
-                    if total == 0 { continue }
-                    if let idx = entries.firstIndex(where: { $0.date == date }) {
-                        var e = entries[idx]
-                        let ne = CostUsageDailyReport.Entry(
-                            date: e.date,
-                            inputTokens: (e.inputTokens ?? 0) + input,
-                            outputTokens: (e.outputTokens ?? 0) + output,
-                            cacheReadTokens: (e.cacheReadTokens ?? 0) + read,
-                            cacheCreationTokens: (e.cacheCreationTokens ?? 0) + write,
-                            reasoningTokens: (e.reasoningTokens ?? 0) + reason,
-                            totalTokens: (e.totalTokens ?? 0) + total,
-                            requestCount: (e.requestCount ?? 0) + 1,
-                            costUSD: e.costUSD,
-                            modelsUsed: nil,
-                            modelBreakdowns: self.mergeBreakdown(e.modelBreakdowns, model: modelId, tokens: total))
-                        entries[idx] = ne
-                    } else {
-                        let e = CostUsageDailyReport.Entry(
-                            date: date,
-                            inputTokens: input,
-                            outputTokens: output,
-                            cacheReadTokens: read,
-                            cacheCreationTokens: write,
-                            reasoningTokens: reason,
-                            totalTokens: total,
-                            requestCount: 1,
-                            costUSD: nil,
-                            modelsUsed: nil,
-                            modelBreakdowns: [
-                                CostUsageDailyReport.ModelBreakdown(
-                                    modelName: modelId,
-                                    costUSD: nil,
-                                    totalTokens: total,
-                                    requestCount: 1),
-                            ])
-                        entries.append(e)
-                    }
-                }
-            }
-        }
-        return entries.sorted { $0.date < $1.date }
-    }
-
-    static func parseCLIDBs() -> [CostUsageDailyReport.Entry] {
-        []
-    }
-
-    static func makeDailyReport(calendar: Calendar = .current) -> CostUsageDailyReport {
-        var merged: [String: CostUsageDailyReport.Entry] = [:]
-        for e in self.parseJSONLCache(calendar: calendar) + self.parseCLIDBs() {
-            if var ex = merged[e.date] {
-                let mergedCost: Double? = {
-                    if ex.costUSD == nil, e.costUSD == nil { return nil }
-                    return (ex.costUSD ?? 0) + (e.costUSD ?? 0)
-                }()
-                let ne = CostUsageDailyReport.Entry(
-                    date: ex.date,
-                    inputTokens: (ex.inputTokens ?? 0) + (e.inputTokens ?? 0),
-                    outputTokens: (ex.outputTokens ?? 0) + (e.outputTokens ?? 0),
-                    cacheReadTokens: (ex.cacheReadTokens ?? 0) + (e.cacheReadTokens ?? 0),
-                    cacheCreationTokens: (ex.cacheCreationTokens ?? 0) + (e.cacheCreationTokens ?? 0),
-                    reasoningTokens: (ex.reasoningTokens ?? 0) + (e.reasoningTokens ?? 0),
-                    totalTokens: (ex.totalTokens ?? 0) + (e.totalTokens ?? 0),
-                    requestCount: (ex.requestCount ?? 0) + (e.requestCount ?? 0),
-                    costUSD: mergedCost,
-                    modelsUsed: nil,
-                    modelBreakdowns: self.mergeBreakdowns(ex.modelBreakdowns, e.modelBreakdowns))
-                merged[e.date] = ne
+                next = merged
             } else {
-                merged[e.date] = e
+                next = entry
             }
+            entries[entry.date] = next
+            // Failed validation or aggregation must never reserve identity.
+            rows[row] = event
+            if let response { responses[response] = event }
         }
-        let sorted = merged.values.sorted { $0.date < $1.date }
-        let costValues = sorted.compactMap(\.costUSD)
-        let totalCost: Double? = costValues.isEmpty ? nil : costValues.reduce(0, +)
-        let totalTokens = sorted.compactMap(\.totalTokens).reduce(0, +)
-        let summary: CostUsageDailyReport.Summary? = sorted.isEmpty ? nil : .init(
-            totalInputTokens: nil,
-            totalOutputTokens: nil,
-            totalTokens: totalTokens,
-            totalCostUSD: totalCost)
-        return CostUsageDailyReport(data: sorted, summary: summary)
+        let daily = entries.values.sorted { $0.date < $1.date }
+        let total = self.checkedSum(daily.compactMap(\.totalTokens))
+        return DailyReportResult(
+            report: .init(
+                data: daily,
+                summary: daily.isEmpty ? nil : .init(
+                    totalInputTokens: nil, totalOutputTokens: nil, totalTokens: total, totalCostUSD: nil)),
+            coverage: isComplete ? .complete : .partial,
+            statistics: budget.statistics)
     }
 
-    private static func timestampToDayKey(_ ms: Int64, calendar: Calendar = .current) -> String {
-        let sec = Double(ms) / 1000.0
-        let date = Date(timeIntervalSince1970: sec)
-        let c = calendar
-        let comps = c.dateComponents([.year, .month, .day], from: date)
-        return String(format: "%04d-%02d-%02d", comps.year ?? 1970, comps.month ?? 1, comps.day ?? 1)
+    private static func entry(
+        _ event: Event,
+        models: [LabelIdentity: String],
+        conflicts: Set<LabelIdentity>,
+        calendar: Calendar) -> CostUsageDailyReport.Entry?
+    {
+        guard let usage = event.turn.usage, let timestamp = event.turn.timestampMs
+        else { return nil }
+        let input = event.input
+        let total = event.total
+        let label = event.turn.label.map { LabelIdentity(session: event.session, label: $0) }
+        let inherited = label.flatMap { conflicts.contains($0) ? nil : models[$0] }
+        let model = self.normalizeModelID(event.turn.model ?? inherited ?? "unknown")
+        let day = CostUsageLocalDay.key(
+            from: Date(timeIntervalSince1970: Double(timestamp) / 1000), calendar: calendar)
+        return .init(
+            date: day,
+            inputTokens: input,
+            outputTokens: usage.output,
+            cacheReadTokens: usage.cacheRead,
+            cacheCreationTokens: event.cacheWrite,
+            reasoningTokens: usage.reasoning,
+            totalTokens: total,
+            requestCount: 1,
+            costUSD: nil,
+            modelsUsed: nil,
+            modelBreakdowns: [.init(
+                modelName: model,
+                costUSD: nil,
+                totalTokens: total,
+                requestCount: 1,
+                inputTokens: input,
+                outputTokens: usage.output,
+                cacheReadTokens: usage.cacheRead,
+                cacheCreationTokens: event.cacheWrite,
+                reasoningTokens: usage.reasoning)])
     }
 
-    private static func mergeBreakdown(
+    private static func checkedMergeEntry(
+        _ existing: CostUsageDailyReport.Entry,
+        _ new: CostUsageDailyReport.Entry) -> CostUsageDailyReport.Entry?
+    {
+        guard let input = self.checkedAdd(existing.inputTokens ?? 0, new.inputTokens ?? 0),
+              let output = self.checkedAdd(existing.outputTokens ?? 0, new.outputTokens ?? 0),
+              let read = self.checkedAdd(existing.cacheReadTokens ?? 0, new.cacheReadTokens ?? 0),
+              let creation = self.checkedAdd(existing.cacheCreationTokens ?? 0, new.cacheCreationTokens ?? 0),
+              let reason = self.checkedAdd(existing.reasoningTokens ?? 0, new.reasoningTokens ?? 0),
+              let total = self.checkedAdd(existing.totalTokens ?? 0, new.totalTokens ?? 0),
+              let requests = self.checkedAdd(existing.requestCount ?? 0, new.requestCount ?? 0) else { return nil }
+        let breakdowns: [CostUsageDailyReport.ModelBreakdown]?
+        if let ex = existing.modelBreakdowns, let nw = new.modelBreakdowns {
+            var merged = ex
+            for b in nw {
+                guard let updated = self.checkedMergeBreakdown(
+                    merged,
+                    model: b.modelName,
+                    tokens: b.totalTokens ?? 0,
+                    requestCount: b.requestCount ?? 1,
+                    inputTokens: b.inputTokens,
+                    outputTokens: b.outputTokens,
+                    cacheReadTokens: b.cacheReadTokens,
+                    cacheCreationTokens: b.cacheCreationTokens,
+                    reasoningTokens: b.reasoningTokens) else { return nil }
+                merged = updated
+            }
+            breakdowns = merged
+        } else {
+            breakdowns = existing.modelBreakdowns ?? new.modelBreakdowns
+        }
+        return CostUsageDailyReport.Entry(
+            date: existing.date,
+            inputTokens: input,
+            outputTokens: output,
+            cacheReadTokens: read,
+            cacheCreationTokens: creation,
+            reasoningTokens: reason,
+            totalTokens: total,
+            requestCount: requests,
+            costUSD: nil,
+            modelsUsed: nil,
+            modelBreakdowns: breakdowns)
+    }
+
+    private static func checkedMergeBreakdown(
         _ ex: [CostUsageDailyReport.ModelBreakdown]?,
         model: String,
-        tokens: Int) -> [CostUsageDailyReport.ModelBreakdown]
+        tokens: Int,
+        requestCount: Int = 1,
+        inputTokens: Int? = nil,
+        outputTokens: Int? = nil,
+        cacheReadTokens: Int? = nil,
+        cacheCreationTokens: Int? = nil,
+        reasoningTokens: Int? = nil) -> [CostUsageDailyReport.ModelBreakdown]?
     {
         var arr = ex ?? []
         if let i = arr.firstIndex(where: { $0.modelName == model }) {
             let b = arr[i]
+            guard let newTotal = self.checkedAdd(b.totalTokens ?? 0, tokens),
+                  let newRequests = self.checkedAdd(b.requestCount ?? 0, requestCount),
+                  let newInput = self.checkedAdd(b.inputTokens ?? 0, inputTokens ?? 0),
+                  let newOutput = self.checkedAdd(b.outputTokens ?? 0, outputTokens ?? 0),
+                  let newRead = self.checkedAdd(b.cacheReadTokens ?? 0, cacheReadTokens ?? 0),
+                  let newCreate = self.checkedAdd(b.cacheCreationTokens ?? 0, cacheCreationTokens ?? 0),
+                  let newReason = self.checkedAdd(b.reasoningTokens ?? 0, reasoningTokens ?? 0) else { return nil }
             arr[i] = CostUsageDailyReport.ModelBreakdown(
                 modelName: b.modelName,
-                costUSD: b.costUSD,
-                totalTokens: (b.totalTokens ?? 0) + tokens,
-                requestCount: (b.requestCount ?? 0) + 1)
+                costUSD: nil,
+                totalTokens: newTotal,
+                requestCount: newRequests,
+                inputTokens: newInput,
+                outputTokens: newOutput,
+                cacheReadTokens: newRead,
+                cacheCreationTokens: newCreate,
+                reasoningTokens: newReason)
         } else {
             arr.append(CostUsageDailyReport.ModelBreakdown(
                 modelName: model,
                 costUSD: nil,
                 totalTokens: tokens,
-                requestCount: 1))
+                requestCount: requestCount,
+                inputTokens: inputTokens,
+                outputTokens: outputTokens,
+                cacheReadTokens: cacheReadTokens,
+                cacheCreationTokens: cacheCreationTokens,
+                reasoningTokens: reasoningTokens))
         }
         return arr
-    }
-
-    private static func mergeBreakdowns(
-        _ a: [CostUsageDailyReport.ModelBreakdown]?,
-        _ b: [CostUsageDailyReport.ModelBreakdown]?) -> [CostUsageDailyReport.ModelBreakdown]?
-    {
-        var d: [String: CostUsageDailyReport.ModelBreakdown] = [:]
-        for m in (a ?? []) + (b ?? []) {
-            if var ex = d[m.modelName] {
-                let mergedCost: Double? = {
-                    if ex.costUSD == nil, m.costUSD == nil { return nil }
-                    return (ex.costUSD ?? 0) + (m.costUSD ?? 0)
-                }()
-                ex = CostUsageDailyReport.ModelBreakdown(
-                    modelName: ex.modelName,
-                    costUSD: mergedCost,
-                    totalTokens: (ex.totalTokens ?? 0) + (m.totalTokens ?? 0),
-                    requestCount: (ex.requestCount ?? 0) + (m.requestCount ?? 0))
-                d[m.modelName] = ex
-            } else {
-                d[m.modelName] = m
-            }
-        }
-        return d.isEmpty ? nil : Array(d.values)
     }
 }

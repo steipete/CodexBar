@@ -46,6 +46,65 @@ struct CursorUsageEventsPaginationTests {
     // MARK: - Fetching & Pagination
 
     @Test
+    func `literal empty response establishes an empty initial window`() async throws {
+        let transport = ProviderHTTPTransportStub { _ in Self.httpResponse("{}") }
+        let fetcher = CursorUsageEventsFetcher(baseURL: Self.baseURL, transport: transport)
+        let result = try await fetcher.fetchUsage(
+            cookieHeader: "WorkosCursorSessionToken=fixture",
+            since: nil,
+            until: nil,
+            calendar: Self.utcCalendar)
+
+        #expect(result.daily.data.isEmpty)
+        #expect(result.meteredCostUSD == nil)
+        #expect(await transport.requests().count == 1)
+    }
+
+    @Test(arguments: [1, 2])
+    func `empty terminal response preserves the preceding total and rejects missing events`(total: Int) async throws {
+        let event = #"{"timestamp":"1700000000000","model":"gpt-5","chargedCents":4}"#
+        let transport = ProviderHTTPTransportStub { request in
+            Self.requestedPage(request) == 1
+                ? Self.httpResponse("{\"totalUsageEventsCount\":\(total),\"usageEventsDisplay\":[\(event)]}")
+                : Self.httpResponse("{\"totalUsageEventsCount\":\(total)}")
+        }
+        let fetcher = CursorUsageEventsFetcher(baseURL: Self.baseURL, transport: transport, pageSize: 1)
+        do {
+            let result = try await fetcher.fetchUsage(
+                cookieHeader: "WorkosCursorSessionToken=fixture",
+                since: nil,
+                until: nil,
+                calendar: Self.utcCalendar)
+            #expect(total == 1)
+            #expect(Self.approxEqual(result.meteredCostUSD, 0.04))
+        } catch let CostUsageError.cursorPaginationIncomplete(expected, received) {
+            #expect(total == 2)
+            #expect(expected == 2)
+            #expect(received == 1)
+        }
+        #expect(await transport.requests().count == 2)
+    }
+
+    @Test
+    func `literal empty response cannot replace a preceding positive query count`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            Self.requestedPage(request) == 1
+                ? Self
+                .httpResponse(#"{"totalUsageEventsCount":1,"usageEventsDisplay":[{"timestamp":"1700000000000"}]}"#)
+                : Self.httpResponse("{}")
+        }
+        let fetcher = CursorUsageEventsFetcher(baseURL: Self.baseURL, transport: transport, pageSize: 1)
+        do {
+            _ = try await fetcher.fetchUsage(
+                cookieHeader: "WorkosCursorSessionToken=fixture", since: nil, until: nil)
+            Issue.record("Expected the changed query count to fail")
+        } catch let CostUsageError.cursorPaginationInconsistent(expected, received) {
+            #expect(expected == 1)
+            #expect(received == 0)
+        }
+    }
+
+    @Test
     func `fetchUsage paginates, dedupes, sums metered cents, and sends Origin and Cookie headers`() async throws {
         // swiftlint:disable line_length
         let firstEvent = #"""

@@ -4,7 +4,10 @@
 from __future__ import annotations
 
 import argparse
+import ctypes
+import errno
 import os
+from pathlib import Path
 import re
 import signal
 import subprocess
@@ -80,20 +83,335 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def run_command(command: list[str], timeout: int | None = None) -> int:
-    print(f"+ {' '.join(command)}", flush=True)
-    process = subprocess.Popen(command, start_new_session=True)
+@dataclass(frozen=True)
+class TestProcess:
+    pid: int
+    parent: int
+    session: int
+    birth: tuple[int, int]
+    zombie: bool = False
+
+
+if sys.platform == "darwin":
+    class ProcBSDInfo(ctypes.Structure):
+        # proc_bsdinfo from sys/proc_info.h; ps lstart loses subsecond PID identity.
+        _fields_ = [
+            (name, ctypes.c_uint32) for name in (
+                "flags", "state", "exit_status", "pid", "parent", "uid", "gid",
+                "ruid", "rgid", "svuid", "svgid", "reserved",
+            )
+        ] + [("comm", ctypes.c_char * 16), ("name", ctypes.c_char * 32)] + [
+            (name, ctypes.c_uint32) for name in ("files", "group", "jobc", "tdev", "tpgid", "nice")
+        ] + [("seconds", ctypes.c_uint64), ("microseconds", ctypes.c_uint64)]
+
+    class ProcUniqueIdentifierInfo(ctypes.Structure):
+        # sys/proc_info_private.h: 56-byte API layout, including unused reserved fields.
+        _fields_ = [
+            ("uuid", ctypes.c_uint8 * 16), ("uniqueid", ctypes.c_uint64),
+            ("parent_uniqueid", ctypes.c_uint64), ("pidversion", ctypes.c_int32),
+            ("reserved", ctypes.c_uint32), ("reserved2", ctypes.c_uint64), ("reserved3", ctypes.c_uint64),
+        ]
+
+    class ProcBSDInfoWithUniqueID(ctypes.Structure):
+        _fields_ = [("bsd", ProcBSDInfo), ("unique", ProcUniqueIdentifierInfo)]
+
+    class AuditToken(ctypes.Structure):
+        _fields_ = [("val", ctypes.c_uint32 * 8)]
+
+    _libproc = ctypes.CDLL("/usr/lib/libproc.dylib", use_errno=True)
+    _libproc.proc_pidinfo.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_uint64, ctypes.c_void_p, ctypes.c_int]
+    _libproc.proc_pidinfo.restype = ctypes.c_int
+    _proc_signal_with_audittoken = getattr(_libproc, "proc_signal_with_audittoken", None)
+    if _proc_signal_with_audittoken is not None:
+        _proc_signal_with_audittoken.argtypes = [ctypes.POINTER(AuditToken), ctypes.c_int]
+        _proc_signal_with_audittoken.restype = ctypes.c_int
+
+
+def darwin_pidinfo(pid: int, flavor: int, info):
+    ctypes.set_errno(0)
+    size = _libproc.proc_pidinfo(pid, flavor, 0, ctypes.byref(info), ctypes.sizeof(info))
+    if size != ctypes.sizeof(info):
+        error = ctypes.get_errno() if size <= 0 else errno.EIO
+        raise OSError(error or errno.EIO, f"Cannot read process metadata for PID {pid}")
+    return info
+
+
+def darwin_signal_process(info: TestProcess, sig: signal.Signals) -> None:
+    if _proc_signal_with_audittoken is None:
+        raise OSError(errno.ENOSYS, "Darwin process cleanup requires proc_signal_with_audittoken")
     try:
-        return process.wait(timeout=timeout)
-    except subprocess.TimeoutExpired:
-        print(f"::warning::Command timed out after {timeout}s: {' '.join(command)}", flush=True)
-        os.killpg(process.pid, signal.SIGTERM)
+        # PROC_PIDT_BSDINFOWITHUNIQID reads birth and generation from one held proc.
+        current = darwin_pidinfo(info.pid, 18, ProcBSDInfoWithUniqueID())
+    except (FileNotFoundError, ProcessLookupError):
+        return
+    if current.bsd.pid != info.pid or (current.bsd.seconds, current.bsd.microseconds) != info.birth:
+        return
+    # Only target PID/pidversion are used; these are not caller credentials. XNU
+    # checks the real caller's permissions and binds the signal to this generation.
+    token = AuditToken()
+    token.val[5], token.val[7] = info.pid, current.unique.pidversion
+    error = _proc_signal_with_audittoken(ctypes.byref(token), sig)
+    # libproc returns errno directly, not -1/errno. An exec can stale this token;
+    # a later cleanup attempt obtains a fresh generation only after matching birth.
+    if error and error != errno.ESRCH:
+        raise OSError(error, f"Cannot signal process identity for PID {info.pid}")
+
+
+def test_process(pid: int) -> TestProcess | None:
+    try:
+        if sys.platform == "darwin":
+            info = darwin_pidinfo(pid, 3, ProcBSDInfo())
+            zombie = info.state == 5
+            try:
+                session = 0 if zombie else os.getsid(pid)
+            except ProcessLookupError:
+                # getsid excludes exited processes; retain the birth read before that race.
+                session = 0
+            return TestProcess(pid, info.parent, session, (info.seconds, info.microseconds), zombie)
+        if sys.platform.startswith("linux"):
+            fields = Path(f"/proc/{pid}/stat").read_bytes().rsplit(b")", 1)[1].split()
+            # A zombie leader can still have live threads after pthread_exit(). Linux release_task
+            # removes the last nonleader before notifying the parent that the group has exited.
+            zombie = fields[0] == b"Z" and int(fields[17]) == 1
+            return TestProcess(pid, int(fields[1]), int(fields[3]), (int(fields[19]), 0), zombie)
+        raise RuntimeError("Swift test process containment requires macOS or Linux")
+    except (FileNotFoundError, ProcessLookupError):
+        return None
+    except (IndexError, ValueError) as error:
+        raise OSError(errno.EIO, f"Incomplete process metadata for PID {pid}") from error
+
+
+def test_process_snapshot(required: Iterable[int] = ()) -> dict[int, TestProcess]:
+    # Numeric metadata only; never inspect command lines or environments of peer jobs.
+    pids = subprocess.check_output(["ps", "-axo", "pid="], text=True, timeout=2).split()
+    required = set(required)
+    snapshot = {}
+    for pid in {int(pid) for pid in pids} | required:
         try:
-            process.wait(timeout=10)
-        except subprocess.TimeoutExpired:
-            os.killpg(process.pid, signal.SIGKILL)
-            process.wait()
-        return 124
+            info = test_process(pid)
+        except OSError:
+            if pid in required:
+                raise
+            continue
+        if info is not None:
+            snapshot[pid] = info
+    return snapshot
+
+
+class TestProcessOwnership:
+    def __init__(self, root: TestProcess, process: subprocess.Popen | None = None):
+        self.root = root
+        self.process = process
+        self.known = {root.pid: root.birth}
+        self.sessions = {root.pid: root.birth} if root.session == root.pid else {}
+
+    def refresh(self) -> dict[int, TestProcess]:
+        snapshot = test_process_snapshot(self.known.keys() | self.sessions.keys())
+        if self.process is not None:
+            if self.process.returncode is not None:
+                raise RuntimeError("Test root was reaped before cleanup completed")
+            exited = unreaped_exit_code(self.process) is not None
+            current_root = snapshot.get(self.root.pid)
+            if current_root is not None and self.root.birth == (0, 0):
+                self.root = TestProcess(
+                    current_root.pid, current_root.parent, self.process.pid, current_root.birth, current_root.zombie)
+                self.known[self.root.pid] = current_root.birth
+                self.sessions[self.root.pid] = current_root.birth
+            elif current_root is not None and current_root.birth != self.root.birth:
+                raise RuntimeError("Test root identity changed before cleanup completed")
+            # Darwin can hide metadata before exit becomes waitable. The unreaped child
+            # still anchors its PID/session; only wait status establishes root completion.
+            snapshot[self.root.pid] = TestProcess(
+                self.root.pid, self.root.parent, self.root.session, self.root.birth, exited)
+        owned = {pid: info for pid, info in snapshot.items() if self.known.get(pid) == info.birth}
+        checked_sessions = {}
+        while True:
+            self.known.update({pid: info.birth for pid, info in owned.items()})
+            self.sessions.update({pid: info.birth for pid, info in owned.items() if info.session == pid})
+            for sid, birth in self.sessions.items():
+                if sid in checked_sessions:
+                    continue
+                if self.process is not None and sid == self.root.pid:
+                    checked_sessions[sid] = True
+                    continue
+                anchor = snapshot.get(sid)
+                # Recheck AFTER enumeration: the leader might have been reaped during the snapshot.
+                current = test_process(sid) if anchor is not None and anchor.birth == birth else None
+                checked_sessions[sid] = current is not None and current.birth == birth
+            additions = {
+                pid: info for pid, info in snapshot.items()
+                if pid not in owned and (
+                    (info.parent in owned and info.birth >= owned[info.parent].birth)
+                    or (checked_sessions.get(info.session, False) and info.birth >= self.sessions[info.session])
+                )
+            }
+            if not additions:
+                break
+            owned.update(additions)
+        for sid in list(self.sessions):
+            if checked_sessions[sid]:
+                continue
+            members = {pid for pid, info in snapshot.items() if info.session == sid and not info.zombie}
+            if members - owned.keys():
+                raise RuntimeError(
+                    f"Lost test session continuity for SID {sid}; "
+                    f"cannot attribute PIDs {sorted(members - owned.keys())}")
+            if not members:
+                del self.sessions[sid]
+        # Confirmed exits/replacements retire; unavailable known metadata raises before reaching here.
+        self.known = {pid: info.birth for pid, info in owned.items()}
+        return {pid: info for pid, info in owned.items() if not info.zombie}
+
+    def send(self, info: TestProcess, sig: signal.Signals) -> None:
+        descriptor = None
+        try:
+            if self.process is not None and info.pid == self.process.pid:
+                if self.process.returncode is not None:
+                    raise RuntimeError("Test root was reaped before cleanup completed")
+                # Direct-child signal authority comes from wait ownership, not metadata
+                # which may already be hidden (or a placeholder for an unobserved birth).
+                if unreaped_exit_code(self.process) is None:
+                    os.kill(self.process.pid, sig)
+                return
+            if sys.platform.startswith("linux") and hasattr(os, "pidfd_open"):
+                descriptor = os.pidfd_open(info.pid)
+            current = test_process(info.pid)
+            if current is None or current.birth != self.known.get(info.pid) or current.birth != info.birth:
+                return
+            if descriptor is not None:
+                signal.pidfd_send_signal(descriptor, sig)
+            elif sys.platform == "darwin":
+                darwin_signal_process(info, sig)
+            else:
+                os.kill(info.pid, sig)
+        except ProcessLookupError:
+            pass
+        finally:
+            if descriptor is not None:
+                os.close(descriptor)
+
+    def drain(self, process: subprocess.Popen) -> None:
+        try:
+            self._drain(process)
+        except BaseException:
+            # If enumeration fails, still stop identities already proven ours, then fail closed.
+            for pid, birth in self.known.items():
+                try:
+                    info = test_process(pid)
+                    if info is not None and info.birth == birth:
+                        self.send(info, signal.SIGKILL)
+                except OSError as error:
+                    print(f"Cannot verify cleanup PID {pid}: errno={error.errno}", file=sys.stderr, flush=True)
+            try:
+                stop_unreaped_child(process)
+            except (OSError, subprocess.TimeoutExpired) as error:
+                print(f"Direct child cleanup failed: {type(error).__name__}", file=sys.stderr, flush=True)
+            raise
+
+    def _drain(self, process: subprocess.Popen) -> None:
+        started = time.monotonic()
+        terminated: set[tuple[int, tuple[int, int]]] = set()
+        while True:
+            owned = self.refresh()
+            if not owned:
+                process.wait(timeout=1)
+                return
+            elapsed = time.monotonic() - started
+            if elapsed >= 5:
+                # Never begin a retry while a known child is still running.
+                raise RuntimeError(f"Could not drain owned test processes within 5s: {sorted(owned)}")
+            for info in owned.values():
+                identity = (info.pid, info.birth)
+                if elapsed >= 3:
+                    self.send(info, signal.SIGKILL)
+                elif identity not in terminated:
+                    self.send(info, signal.SIGTERM)
+                    terminated.add(identity)
+            time.sleep(0.1)
+
+
+def unreaped_exit_code(process: subprocess.Popen) -> int | None:
+    result = os.waitid(os.P_PID, process.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT)
+    if result is None:
+        return None
+    return result.si_status if result.si_code == os.CLD_EXITED else -result.si_status
+
+
+def stop_unreaped_child(process: subprocess.Popen) -> None:
+    # The direct child is ours even if native metadata initialization failed. Do not use
+    # Popen.terminate/poll: they may reap it and permit its PID/session to be recycled.
+    if process.returncode is not None:
+        return
+    if unreaped_exit_code(process) is not None:
+        process.wait(timeout=2)
+        return
+    try:
+        os.kill(process.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        pass
+    deadline = time.monotonic() + 3
+    while unreaped_exit_code(process) is None and time.monotonic() < deadline:
+        time.sleep(0.1)
+    if unreaped_exit_code(process) is None:
+        try:
+            os.kill(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+    process.wait(timeout=2)
+
+
+def run_command(command: list[str], timeout: int | None = None) -> int:
+    if sys.platform != "darwin" and not sys.platform.startswith("linux"):
+        raise RuntimeError("Swift test process containment requires macOS or Linux")
+    if not all(hasattr(os, name) for name in ("waitid", "P_PID", "WEXITED", "WNOHANG", "WNOWAIT")):
+        raise RuntimeError("Swift test process containment requires waitid with WNOWAIT")
+    print(f"+ {' '.join(command)}", flush=True)
+    started = time.monotonic()
+    ownership = None
+    process = None
+    try:
+        process = subprocess.Popen(command, start_new_session=True)
+        root = test_process(process.pid)
+        if root is None:
+            exited = unreaped_exit_code(process) is not None
+            # Missing metadata can precede a waitable exit. Zero is only a placeholder
+            # for this unreaped handle; ordinary polling retains the existing deadline.
+            root = TestProcess(process.pid, os.getpid(), process.pid, (0, 0), exited)
+        # Popen established this session even if getsid now races with the command's exit.
+        root = TestProcess(root.pid, root.parent, process.pid, root.birth, root.zombie)
+        ownership = TestProcessOwnership(root, process)
+        next_diagnostic = started + 30
+        while True:
+            owned = ownership.refresh()
+            result = unreaped_exit_code(process)
+            if result is not None:
+                return result
+            now = time.monotonic()
+            if timeout is not None and now - started >= timeout:
+                print(f"::warning::Command timed out after {timeout}s: {' '.join(command)}", flush=True)
+                return 124
+            if now >= next_diagnostic:
+                print(f"Swift test command pid={process.pid} elapsed={now - started:.1f}s owned={sorted(owned)}", flush=True)
+                next_diagnostic = now + 30
+            wait = 0.5 if timeout is None else min(0.5, max(0, timeout - (now - started)))
+            time.sleep(wait)
+    finally:
+        # SwiftPM children can create their own groups; killing only the root group leaks them.
+        propagating_error = sys.exc_info()[0] is not None
+        previous_interrupt = signal.signal(signal.SIGINT, signal.SIG_IGN)
+        try:
+            if process is None:
+                pass
+            elif ownership is None:
+                stop_unreaped_child(process)
+            else:
+                ownership.drain(process)
+        except BaseException as error:
+            if not propagating_error:
+                raise
+            print(f"Cleanup also failed: {type(error).__name__}: {error}", file=sys.stderr, flush=True)
+        finally:
+            signal.signal(signal.SIGINT, previous_interrupt)
 
 
 def swift_test_list(swift_command: list[str]) -> list[TestSelection]:

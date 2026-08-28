@@ -267,10 +267,10 @@ enum PiSessionCostScanner {
                     Set(CostUsagePricing.claudeFirstPartyModelsDevProviderIDs)),
                 customPricingFingerprint: customPricingFingerprint)
         }
-        // Only the scheduler and optional report-field transitions have identical Pi pricing inputs.
+        // Reviewed scheduler/report-field and Codex read-view/storage-only transitions leave Pi pricing unchanged.
         // A later parser change must invalidate normally unless separately reviewed for compatibility.
-        let compatiblePricingKeys: Set<String> = CodexParserHash.value == "21f10143afe00c55"
-            ? Set(["c6c46a376ba16304", "55f640e6bb0ccba4"].map { key(parserHash: $0) })
+        let compatiblePricingKeys: Set<String> = CodexParserHash.value == "f8577be489f4c13d"
+            ? Set(["c6c46a376ba16304", "55f640e6bb0ccba4", "21f10143afe00c55"].map { key(parserHash: $0) })
             : []
         return ModelsDevPricingContext(
             catalog: modelsDevArtifact?.catalog,
