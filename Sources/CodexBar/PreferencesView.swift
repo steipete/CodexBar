@@ -108,6 +108,7 @@ struct PreferencesView: View {
                 .ignoresSafeArea()
 
             self.detailView
+                .modifier(SettingsDetailScrollEdgeEffect(title: self.selection.pane.title))
                 .frame(
                     maxWidth: SettingsPane.detailMaxWidth,
                     maxHeight: .infinity,
@@ -198,6 +199,26 @@ struct PreferencesView: View {
     private func ensureValidSelection() {
         if !self.settings.debugMenuEnabled, self.selection.pane == .debug {
             self.selection.pane = .general
+        }
+    }
+}
+
+private struct SettingsDetailScrollEdgeEffect: ViewModifier {
+    let title: String
+
+    func body(content: Content) -> some View {
+        if #available(macOS 26.0, *) {
+            content
+                .scrollEdgeEffectStyle(.soft, for: .top)
+                .safeAreaBar(edge: .top, spacing: 0) {
+                    Text(self.title)
+                        .font(.headline)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 12)
+                }
+        } else {
+            content
         }
     }
 }
@@ -375,8 +396,13 @@ final class SettingsWindowAppearanceView: NSView {
         if !window.titlebarAppearsTransparent {
             window.titlebarAppearsTransparent = true
         }
-        if window.titleVisibility != .visible {
-            window.titleVisibility = .visible
+        let expectedTitleVisibility: NSWindow.TitleVisibility = if #available(macOS 26.0, *) {
+            .hidden
+        } else {
+            .visible
+        }
+        if window.titleVisibility != expectedTitleVisibility {
+            window.titleVisibility = expectedTitleVisibility
         }
         if window.titlebarSeparatorStyle != .none {
             window.titlebarSeparatorStyle = .none

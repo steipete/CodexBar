@@ -222,6 +222,25 @@ struct SettingsWindowAppearanceTests {
     }
 
     @Test
+    func `settings window uses the custom detail title on macOS 26`() {
+        let bridge = SettingsWindowAppearanceView()
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 400, height: 300),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false)
+
+        window.contentView = bridge
+
+        let expectedVisibility: NSWindow.TitleVisibility = if #available(macOS 26.0, *) {
+            .hidden
+        } else {
+            .visible
+        }
+        #expect(window.titleVisibility == expectedVisibility)
+    }
+
+    @Test
     func `repeated theme updates cannot leave an explicit appearance`() {
         let resetCapture = ResetCapture()
         let bridge = SettingsWindowAppearanceView { resetCapture.actions.append($0) }
