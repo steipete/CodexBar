@@ -29,6 +29,7 @@ struct AntigravityProtoReader {
         var timestampMs: Int64?
         var model: String?
         var label: String?
+        var stepUUID: String?
     }
 
     private struct Timestamp {
@@ -142,14 +143,45 @@ struct AntigravityProtoReader {
         do {
             // Repeated singular messages merge, scalars use last-one-wins. Every occurrence is validated.
             try self.fields(rootBytes[...], checkCancellation: checkCancellation) { field in
-                guard field.number == 1 else { return }
-                foundChat = true
-                try self.parseChat(
-                    field.message(), turn: &turn, time: &time, checkCancellation: checkCancellation)
+                switch field.number {
+                case 1:
+                    foundChat = true
+                    try self.parseChat(
+                        field.message(), turn: &turn, time: &time, checkCancellation: checkCancellation)
+                case 4:
+                    turn.stepUUID = try field.string()
+                default:
+                    break
+                }
             }
             guard foundChat else { return nil }
             turn.timestampMs = try time.milliseconds()
             return turn
+        } catch AntigravityLocalReader.ScanFailure.invalid {
+            return nil
+        }
+    }
+
+    static func parseStepMetadata(
+        _ bytes: [UInt8],
+        checkCancellation: () throws -> Void = {}) throws -> (stepUUID: String?, timestampMs: Int64?)?
+    {
+        var stepUUID: String?
+        var time = Timestamp()
+        do {
+            try self.fields(bytes[...], checkCancellation: checkCancellation) { field in
+                switch field.number {
+                case 1:
+                    try self.parseTimestampField(
+                        field.message(), time: &time, checkCancellation: checkCancellation)
+                case 12:
+                    stepUUID = try field.string()
+                default:
+                    break
+                }
+            }
+            let ms = try time.milliseconds()
+            return (stepUUID, ms)
         } catch AntigravityLocalReader.ScanFailure.invalid {
             return nil
         }
@@ -194,6 +226,28 @@ struct AntigravityProtoReader {
         }
     }
 
+    private static func parseTimestampField(
+        _ bytes: ArraySlice<UInt8>,
+        time: inout Timestamp,
+        checkCancellation: () throws -> Void) throws
+    {
+        try self.fields(bytes, checkCancellation: checkCancellation) { stamp in
+            switch stamp.number {
+            case 1:
+                let seconds = try stamp.integer()
+                guard seconds > 0, seconds <= 253_402_300_799 else {
+                    throw AntigravityLocalReader.ScanFailure.invalid
+                }
+                time.seconds = seconds
+            case 2:
+                let nanos = try stamp.integer()
+                guard nanos <= 999_999_999 else { throw AntigravityLocalReader.ScanFailure.invalid }
+                time.nanos = nanos
+            default: break
+            }
+        }
+    }
+
     private static func parseGeneration(
         _ bytes: ArraySlice<UInt8>,
         time: inout Timestamp,
@@ -201,21 +255,7 @@ struct AntigravityProtoReader {
     {
         try self.fields(bytes, checkCancellation: checkCancellation) { field in
             guard field.number == 4 else { return }
-            try self.fields(field.message(), checkCancellation: checkCancellation) { stamp in
-                switch stamp.number {
-                case 1:
-                    let seconds = try stamp.integer()
-                    guard seconds > 0, seconds <= 253_402_300_799 else {
-                        throw AntigravityLocalReader.ScanFailure.invalid
-                    }
-                    time.seconds = seconds
-                case 2:
-                    let nanos = try stamp.integer()
-                    guard nanos <= 999_999_999 else { throw AntigravityLocalReader.ScanFailure.invalid }
-                    time.nanos = nanos
-                default: break
-                }
-            }
+            try self.parseTimestampField(field.message(), time: &time, checkCancellation: checkCancellation)
         }
     }
 }

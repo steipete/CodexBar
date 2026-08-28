@@ -453,4 +453,67 @@ struct AntigravityLocalReaderTests {
         #expect(!snapshot.historyCoverageIsEstablished)
         #expect(snapshot.last30DaysTokens == nil)
     }
+
+    @Test
+    func `field 2 root envelope with step table timestamps aggregates complete coverage`() async throws {
+        let fixture = try Fixture()
+        let stepUUID = "step-abc-123"
+        let genBlob = Fixture.blobWithRootEnvelope(stepUUID: stepUUID, model: "gemini-3.7-flash", seconds: nil)
+        let stepBlob = Fixture.stepMetadataBlob(stepUUID: stepUUID, seconds: 1_787_832_000, nanos: 250_000_000)
+        try fixture.database(blobs: [genBlob], stepBlobs: [stepBlob])
+        let report = try fixture.report()
+        #expect(report.coverage == .complete)
+        #expect(report.report.data.first?.date == "2026-08-27")
+        #expect(report.report.data.first?.inputTokens == 111)
+        #expect(report.report.data.first?.outputTokens == 30)
+        #expect(report.report.data.first?.reasoningTokens == 7)
+        #expect(report.report.data.first?.modelBreakdowns?.first?.modelName == "gemini-3.7-flash")
+        #expect(try await fixture.snapshot().last30DaysTokens == 198)
+    }
+
+    @Test
+    func `field 2 root envelope with reused step UUID consumes step timestamps in order`() throws {
+        let fixture = try Fixture()
+        let stepUUID = "reused-step-uuid"
+        let first = Fixture.blobWithRootEnvelope(stepUUID: stepUUID, seconds: nil)
+        let second = Fixture.blobWithRootEnvelope(stepUUID: stepUUID, seconds: nil)
+        let beforeMidnight = Fixture.stepMetadataBlob(stepUUID: stepUUID, seconds: 1_787_875_140)
+        let afterMidnight = Fixture.stepMetadataBlob(stepUUID: stepUUID, seconds: 1_787_875_260)
+        try fixture.database(blobs: [first, second], stepBlobs: [beforeMidnight, afterMidnight])
+
+        let report = try fixture.report()
+
+        #expect(report.coverage == .complete)
+        #expect(report.report.data.map(\.date) == ["2026-08-27", "2026-08-28"])
+        #expect(report.report.data.map(\.requestCount) == [1, 1])
+    }
+
+    @Test
+    func `field 2 root envelope with embedded timestamp in field 9 aggregates complete coverage`() async throws {
+        let fixture = try Fixture()
+        let genBlob = Fixture.blobWithRootEnvelope(
+            stepUUID: "step-embedded",
+            model: "claude-opus-4-6-thinking",
+            seconds: 1_787_832_000)
+        try fixture.database(blobs: [genBlob])
+        let report = try fixture.report()
+        #expect(report.coverage == .complete)
+        #expect(report.report.data.first?.date == "2026-08-27")
+        #expect(report.report.data.first?.modelBreakdowns?.first?.modelName == "claude-opus-4-6-thinking")
+        #expect(try await fixture.snapshot().last30DaysTokens == 198)
+    }
+
+    @Test
+    func `field 2 root envelope without timestamp in either gen_metadata or steps fails closed with partial coverage`()
+        async throws
+    {
+        let fixture = try Fixture()
+        let genBlob = Fixture.blobWithRootEnvelope(stepUUID: "missing-step-uuid", seconds: nil)
+        try fixture.database(blobs: [genBlob])
+        let report = try fixture.report()
+        #expect(report.coverage == .partial)
+        let snapshot = try await fixture.snapshot()
+        #expect(!snapshot.historyCoverageIsEstablished)
+        #expect(snapshot.last30DaysTokens == nil)
+    }
 }

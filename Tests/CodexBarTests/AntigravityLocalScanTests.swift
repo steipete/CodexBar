@@ -150,6 +150,24 @@ struct AntigravityLocalScanTests {
     }
 
     @Test
+    func `optional steps scan does not exhaust embedded timestamp usage rows`() throws {
+        let fixture = try Fixture()
+        let blob = Fixture.blobWithRootEnvelope(seconds: 1_787_832_000)
+        let url = try fixture.database(blobs: [blob], stepBlobs: [])
+        let database = try Fixture.open(url)
+        defer { sqlite3_close(database) }
+        try Fixture.execute(database, "INSERT INTO steps VALUES (0, zeroblob(40)), (1, zeroblob(40))")
+        var limits = AntigravityLocalReader.Limits()
+        limits.rowsPerDatabase = 1
+
+        let report = try fixture.report(limits: limits)
+
+        #expect(report.coverage == .complete)
+        #expect(report.statistics.rows == 1)
+        #expect(report.statistics.attemptedBytes == blob.count)
+    }
+
+    @Test
     func `recursive aggregate view is rejected without executing its payload query`() throws {
         let fixture = try Fixture()
         let url = try fixture.database()
