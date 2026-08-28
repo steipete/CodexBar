@@ -197,7 +197,12 @@ struct SyncModelTests {
             grokResetCredits: GrokRateLimitResetCreditsSnapshot(
                 expirations: [now.addingTimeInterval(86400)],
                 updatedAt: now),
-            updatedAt: now)
+            updatedAt: now,
+            identity: ProviderIdentitySnapshot(
+                providerID: .grok,
+                accountEmail: nil,
+                accountOrganization: nil,
+                loginMethod: "SuperGrok"))
         let payload = AccountSnapshotSyncPayload(
             provider: .grok,
             deviceID: "device-id",
@@ -213,6 +218,40 @@ struct SyncModelTests {
         #expect(decoded.usage.grokResetCredits == nil)
         #expect(decoded.usage.detailRow(label: "Limit Reset Credits") == nil)
         #expect(decoded.usage.detailRow(label: "Plan")?.value == "SuperGrok")
+    }
+
+    @Test
+    func `non-Grok fleet snapshots preserve same-named reset detail`() throws {
+        let provider = try #require(ProviderInstanceID(rawValue: "example-plugin"))
+        let details = try [
+            ProviderDetailSection(rows: [
+                ProviderDetailSection.Row(
+                    label: "Limit Reset Credits",
+                    value: "Plugin-defined value"),
+            ]),
+        ]
+        let usage = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            details: details,
+            updatedAt: Date(timeIntervalSince1970: 1_800_000_000),
+            identity: ProviderIdentitySnapshot(
+                providerID: provider,
+                accountEmail: nil,
+                accountOrganization: nil,
+                loginMethod: nil))
+        let payload = AccountSnapshotSyncPayload(
+            provider: provider,
+            deviceID: "device-id",
+            accountIdentity: "plugin-account",
+            displayLabel: "Example plugin",
+            usage: usage)
+
+        let decoded = try CanonicalSyncJSON.decode(
+            AccountSnapshotSyncPayload.self,
+            from: CanonicalSyncJSON.encode(payload))
+
+        #expect(decoded.usage.detailRow(label: "Limit Reset Credits")?.value == "Plugin-defined value")
     }
 
     @Test

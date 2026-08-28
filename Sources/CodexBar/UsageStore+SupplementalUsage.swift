@@ -2,6 +2,20 @@ import CodexBarCore
 import Foundation
 
 extension UsageStore {
+    func scheduleSupplementalUsageUpdate(
+        provider: UsageProvider,
+        outcome: ProviderFetchOutcome,
+        generation: UInt64?,
+        accountID: UUID?)
+    {
+        guard case let .success(result) = outcome.result else { return }
+        self.scheduleSupplementalUsageUpdate(
+            provider: provider,
+            result: result,
+            generation: generation,
+            accountID: accountID)
+    }
+
     func scheduleSupplementalUsageUpdates(
         provider: UsageProvider,
         results: [TokenAccountFetchResult],
@@ -46,6 +60,7 @@ extension UsageStore {
         expectedUpdatedAt: Date,
         accountID: UUID?)
     {
+        // Provider-specific by design: only Grok publishes remaining reset credits as a supplemental update.
         guard provider == .grok else { return }
 
         let resetCredits: GrokRateLimitResetCreditsSnapshot? = switch update {

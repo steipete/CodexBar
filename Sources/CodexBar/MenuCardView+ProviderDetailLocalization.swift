@@ -97,8 +97,8 @@ extension UsageMenuCardView.Model {
         return L("Resets every 5 hours")
     }
 
-    /// Provider-specific by design: DeepSeek, z.ai, and Kiro detail values carry provider-owned unit phrasing that
-    /// localizes at the presentation boundary without touching other providers.
+    /// Provider-specific by design: DeepSeek, z.ai, Kiro, and Grok detail values carry provider-owned
+    /// unit phrasing that localizes at the presentation boundary without touching other providers.
     private static func localizedProviderDetailValue(_ value: String, provider: UsageProvider) -> String {
         switch provider {
         case .deepseek:
