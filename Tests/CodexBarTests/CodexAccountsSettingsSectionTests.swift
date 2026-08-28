@@ -40,6 +40,25 @@ struct CodexAccountsSettingsSectionTests {
     }
 
     @Test
+    func `codex accounts menu bar items setting requires multiple visible accounts`() throws {
+        let settings = Self.makeSettingsStore(suite: "CodexAccountsSettingsSectionTests-menu-bar-items")
+        settings._test_liveSystemCodexAccount = ObservedSystemCodexAccount(
+            email: "solo@example.com",
+            codexHomePath: "/Users/test/.codex",
+            observedAt: Date())
+
+        #expect(AccountMenuBarDisplayModeSetting(settings: settings, provider: .codex, accountCount: 0) == nil)
+        #expect(AccountMenuBarDisplayModeSetting(settings: settings, provider: .codex, accountCount: 1) == nil)
+
+        let setting = try #require(
+            AccountMenuBarDisplayModeSetting(settings: settings, provider: .codex, accountCount: 2))
+        #expect(setting.binding.wrappedValue == .combined)
+
+        setting.binding.wrappedValue = .separate
+        #expect(settings.accountMenuBarDisplayMode(for: .codex) == .separate)
+    }
+
+    @Test
     func `single account codex settings uses simple account view instead of picker`() throws {
         let settings = Self.makeSettingsStore(suite: "CodexAccountsSettingsSectionTests-single-account")
         let store = Self.makeUsageStore(settings: settings)

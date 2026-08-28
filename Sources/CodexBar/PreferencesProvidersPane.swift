@@ -75,6 +75,7 @@ struct ProvidersPane: View {
                     settingsToggles: self.extraSettingsToggles(for: provider),
                     settingsFields: self.extraSettingsFields(for: provider),
                     settingsActions: self.extraSettingsActions(for: provider),
+                    settingsMenuBarItems: self.accountMenuBarDisplayModeSetting(for: provider),
                     settingsTokenAccounts: self.tokenAccountDescriptor(for: provider),
                     settingsOrganizations: self.extraSettingsOrganizations(for: provider),
                     errorDisplay: self.providerErrorDisplay(provider),
@@ -399,6 +400,27 @@ struct ProvidersPane: View {
         guard let impl = ProviderCatalog.implementation(for: provider) else { return nil }
         let context = self.makeSettingsContext(provider: provider)
         return impl.settingsOrganizations(context: context)
+    }
+
+    func accountMenuBarDisplayModeSetting(
+        for provider: UsageProvider) -> AccountMenuBarDisplayModeSetting?
+    {
+        let accountCount: Int
+        if provider == .codex {
+            accountCount = self.settings.codexVisibleAccountProjection.visibleAccounts.count
+        } else {
+            guard TokenAccountSupportCatalog.support(for: provider) != nil else { return nil }
+            accountCount = self.settings.tokenAccounts(for: provider).count
+        }
+
+        return AccountMenuBarDisplayModeSetting(
+            settings: self.settings,
+            provider: provider,
+            accountCount: accountCount,
+            onChange: { mode in
+                guard mode == .separate else { return }
+                self.triggerRefresh(for: provider)
+            })
     }
 
     func tokenAccountDescriptor(for provider: UsageProvider) -> ProviderSettingsTokenAccountsDescriptor? {

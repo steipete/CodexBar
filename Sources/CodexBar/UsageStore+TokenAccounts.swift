@@ -55,20 +55,24 @@ extension UsageStore {
 
     func shouldFetchAllTokenAccounts(provider: UsageProvider, accounts: [ProviderTokenAccount]) -> Bool {
         guard TokenAccountSupportCatalog.support(for: provider) != nil else { return false }
-        return self.settings.multiAccountMenuLayout == .stacked && accounts.count > 1
+        let separateItems = self.settings.accountMenuBarDisplayMode(for: provider) == .separate
+        return (separateItems || self.settings.multiAccountMenuLayout == .stacked) && accounts.count > 1
     }
 
     func shouldFetchAllCodexVisibleAccounts() -> Bool {
-        self.settings.multiAccountMenuLayout == .stacked &&
+        let separateItems = self.settings.accountMenuBarDisplayMode(for: .codex) == .separate
+        return (separateItems || self.settings.multiAccountMenuLayout == .stacked) &&
             self.settings.codexVisibleAccountProjection.visibleAccounts.count > 1
     }
 
     func refreshCodexVisibleAccountsForMenu() async {
         let projection = self.settings.codexVisibleAccountProjection
-        let accounts = self.limitedCodexVisibleAccounts(
-            projection.visibleAccounts,
-            snapshots: self.codexAccountSnapshots,
-            activeVisibleAccountID: projection.activeVisibleAccountID)
+        let accounts = self.settings.accountMenuBarDisplayMode(for: .codex) == .separate
+            ? projection.visibleAccounts
+            : self.limitedCodexVisibleAccounts(
+                projection.visibleAccounts,
+                snapshots: self.codexAccountSnapshots,
+                activeVisibleAccountID: projection.activeVisibleAccountID)
         guard accounts.count > 1 else {
             self.codexAccountSnapshots = []
             return
@@ -139,7 +143,9 @@ extension UsageStore {
 
     func refreshTokenAccounts(provider: UsageProvider, accounts: [ProviderTokenAccount]) async {
         let selectedAccount = self.settings.selectedTokenAccount(for: provider)
-        let limitedAccounts = self.limitedTokenAccounts(accounts, selected: selectedAccount)
+        let limitedAccounts = self.settings.accountMenuBarDisplayMode(for: provider) == .separate
+            ? accounts
+            : self.limitedTokenAccounts(accounts, selected: selectedAccount)
         let effectiveSelected = selectedAccount ?? limitedAccounts.first
 
         // Capture the prior per-account snapshot state so we can preserve last-good

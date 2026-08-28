@@ -2,6 +2,18 @@ import CodexBarCore
 import Foundation
 
 extension SettingsStore {
+    func accountMenuBarDisplayMode(for provider: UsageProvider) -> AccountMenuBarDisplayMode {
+        let rawValue = self.accountMenuBarDisplayModesRaw[provider.rawValue] ?? ""
+        return AccountMenuBarDisplayMode(rawValue: rawValue) ?? .combined
+    }
+
+    func setAccountMenuBarDisplayMode(_ mode: AccountMenuBarDisplayMode, for provider: UsageProvider) {
+        self.accountMenuBarDisplayModesRaw[provider.rawValue] = mode.rawValue
+        if mode == .separate {
+            self.mergeIcons = false
+        }
+    }
+
     func menuBarMetricPreference(for provider: UsageProvider) -> MenuBarMetricPreference {
         if Self.isBalanceOnlyProvider(provider) {
             return .automatic

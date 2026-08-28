@@ -29,6 +29,7 @@ struct SettingsDefaultsState {
     var historicalTrackingEnabled: Bool
     var multiAccountMenuLayoutRaw: String
     var menuBarMetricPreferencesRaw: [String: String]
+    var accountMenuBarDisplayModesRaw: [String: String]
     var costUsageEnabled: Bool
     var costUsageHistoryDays: Int
     var hidePersonalInfo: Bool

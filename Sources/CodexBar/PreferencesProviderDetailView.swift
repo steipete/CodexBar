@@ -12,6 +12,7 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
     let settingsToggles: [ProviderSettingsToggleDescriptor]
     let settingsFields: [ProviderSettingsFieldDescriptor]
     let settingsActions: [ProviderSettingsActionsDescriptor]
+    let settingsMenuBarItems: AccountMenuBarDisplayModeSetting?
     let settingsTokenAccounts: ProviderSettingsTokenAccountsDescriptor?
     let settingsOrganizations: ProviderSettingsOrganizationsDescriptor?
     let errorDisplay: ProviderErrorDisplay?
@@ -31,6 +32,7 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
         settingsToggles: [ProviderSettingsToggleDescriptor],
         settingsFields: [ProviderSettingsFieldDescriptor],
         settingsActions: [ProviderSettingsActionsDescriptor] = [],
+        settingsMenuBarItems: AccountMenuBarDisplayModeSetting? = nil,
         settingsTokenAccounts: ProviderSettingsTokenAccountsDescriptor?,
         settingsOrganizations: ProviderSettingsOrganizationsDescriptor? = nil,
         errorDisplay: ProviderErrorDisplay?,
@@ -49,6 +51,7 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
         self.settingsToggles = settingsToggles
         self.settingsFields = settingsFields
         self.settingsActions = settingsActions
+        self.settingsMenuBarItems = settingsMenuBarItems
         self.settingsTokenAccounts = settingsTokenAccounts
         self.settingsOrganizations = settingsOrganizations
         self.errorDisplay = errorDisplay
@@ -118,6 +121,9 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
                         ForEach(self.settingsPickers) { picker in
                             ProviderSettingsPickerRowView(picker: picker)
                         }
+                        if let menuBarItems = self.settingsMenuBarItems {
+                            MenuBarItemsRow(setting: menuBarItems)
+                        }
                         if let tokenAccounts = self.settingsTokenAccounts,
                            tokenAccounts.isVisible?() ?? true
                         {
@@ -160,6 +166,7 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
         !self.settingsPickers.isEmpty ||
             !self.settingsFields.isEmpty ||
             !self.settingsActions.isEmpty ||
+            self.settingsMenuBarItems != nil ||
             self.settingsTokenAccounts != nil ||
             self.settingsOrganizations != nil
     }

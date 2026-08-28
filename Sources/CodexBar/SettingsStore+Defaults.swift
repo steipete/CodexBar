@@ -288,6 +288,14 @@ extension SettingsStore {
         }
     }
 
+    var accountMenuBarDisplayModesRaw: [String: String] {
+        get { self.defaultsState.accountMenuBarDisplayModesRaw }
+        set {
+            self.defaultsState.accountMenuBarDisplayModesRaw = newValue
+            self.userDefaults.set(newValue, forKey: "accountMenuBarDisplayModes")
+        }
+    }
+
     var costUsageEnabled: Bool {
         get { self.defaultsState.costUsageEnabled }
         set {
@@ -440,6 +448,9 @@ extension SettingsStore {
         set {
             self.defaultsState.mergeIcons = newValue
             self.userDefaults.set(newValue, forKey: "mergeIcons")
+            if newValue {
+                self.accountMenuBarDisplayModesRaw = [:]
+            }
         }
     }
 

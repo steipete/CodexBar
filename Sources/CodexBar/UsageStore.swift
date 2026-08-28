@@ -40,6 +40,8 @@ extension UsageStore {
     var iconObservationToken: Int {
         _ = self.snapshots
         _ = self.errors
+        _ = self.accountSnapshots
+        _ = self.codexAccountSnapshots
         _ = self.credits
         _ = self.lastCreditsError
         _ = self.openAIDashboard
@@ -71,6 +73,7 @@ extension UsageStore {
             }
             _ = self.settings.multiAccountMenuLayout
             _ = self.settings.tokenAccountsByProvider
+            _ = self.settings.accountMenuBarDisplayModesRaw
             _ = self.settings.mergeIcons
             _ = self.settings.selectedMenuProvider
             _ = self.settings.debugLoadingPattern

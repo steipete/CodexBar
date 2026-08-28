@@ -28,6 +28,51 @@ struct ProvidersPaneCoverageTests {
     }
 
     @Test
+    func `token accounts menu bar items setting hidden until multiple accounts`() {
+        let settings = Self.makeSettingsStore(suite: "ProvidersPaneCoverageTests-menu-bar-items-gate")
+        let store = Self.makeUsageStore(settings: settings)
+        let pane = ProvidersPane(settings: settings, store: store)
+
+        #expect(pane._test_accountMenuBarDisplayModeSetting(for: .claude) == nil)
+
+        settings.addTokenAccount(provider: .claude, label: "Primary", token: "token-1")
+        #expect(pane._test_accountMenuBarDisplayModeSetting(for: .claude) == nil)
+
+        settings.addTokenAccount(provider: .claude, label: "Secondary", token: "token-2")
+        #expect(pane._test_accountMenuBarDisplayModeSetting(for: .claude) != nil)
+    }
+
+    @Test
+    func `token accounts menu bar items binding refreshes newly split accounts`() async throws {
+        let settings = Self.makeSettingsStore(suite: "ProvidersPaneCoverageTests-menu-bar-items-binding")
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing)
+        var refreshedProviders: [UsageProvider] = []
+        store._test_providerRefreshOverride = { refreshedProviders.append($0) }
+        let pane = ProvidersPane(settings: settings, store: store)
+
+        settings.addTokenAccount(provider: .claude, label: "Primary", token: "token-1")
+        settings.addTokenAccount(provider: .claude, label: "Secondary", token: "token-2")
+
+        let setting = try #require(pane._test_accountMenuBarDisplayModeSetting(for: .claude))
+        #expect(setting.binding.wrappedValue == .combined)
+
+        setting.binding.wrappedValue = .separate
+        for _ in 0..<20 where refreshedProviders.isEmpty {
+            await Task.yield()
+        }
+
+        #expect(settings.accountMenuBarDisplayMode(for: .claude) == .separate)
+        #expect(refreshedProviders == [.claude])
+
+        setting.binding.wrappedValue = .combined
+        #expect(settings.accountMenuBarDisplayMode(for: .claude) == .combined)
+    }
+
+    @Test
     func `provider search filters display names and raw ids`() {
         let providers: [UsageProvider] = [.codex, .claude, .openrouter, .deepseek]
         let names: [UsageProvider: String] = [

@@ -425,39 +425,123 @@ extension StatusItemController {
         return false
     }
 
+    private struct ProviderIconRenderInput {
+        let provider: UsageProvider
+        let button: NSStatusBarButton
+        let snapshot: UsageSnapshot?
+        let stale: Bool
+        let statusIndicator: ProviderStatusIndicator
+        let phase: Double?
+        let shouldAnimate: Bool
+        let accountScoped: Bool
+    }
+
     @discardableResult
     func applyIcon(for provider: UsageProvider, phase: Double?) -> Bool {
         guard let button = self.statusItems[provider]?.button else { return false }
-        let snapshot = self.store.snapshot(for: provider)
+        return self.renderProviderIcon(
+            ProviderIconRenderInput(
+                provider: provider,
+                button: button,
+                snapshot: self.store.snapshot(for: provider),
+                stale: self.store.isStale(provider: provider),
+                statusIndicator: self.store.statusIndicator(for: provider),
+                phase: phase,
+                shouldAnimate: true,
+                accountScoped: false),
+            shouldSkip: { self.shouldSkipProviderIconRender(provider: provider, signature: $0) })
+    }
+
+    @discardableResult
+    func applyIcon(
+        for key: AccountStatusItemKey,
+        context: AccountStatusItemContext,
+        phase: Double?) -> Bool
+    {
+        guard let button = self.accountStatusItems[key]?.button else { return false }
+        let accountSnapshot: (snapshot: UsageSnapshot?, error: String?)? = switch context {
+        case let .token(provider, account):
+            self.store.accountSnapshots[provider]?
+                .first(where: { $0.account.id == account.id })
+                .map { ($0.snapshot, $0.error) }
+        case let .codex(account):
+            self.store.codexAccountSnapshots
+                .first(where: { $0.id == account.id })
+                .map { ($0.snapshot, $0.error) }
+        }
+        return self.renderProviderIcon(
+            ProviderIconRenderInput(
+                provider: context.provider,
+                button: button,
+                snapshot: accountSnapshot?.snapshot,
+                stale: accountSnapshot?.error != nil,
+                statusIndicator: accountSnapshot?.error == nil ? .none : .major,
+                phase: phase,
+                shouldAnimate: false,
+                accountScoped: true),
+            shouldSkip: {
+                if self.lastAppliedAccountIconRenderSignatures[key] == $0 { return true }
+                self.lastAppliedAccountIconRenderSignatures[key] = $0
+                return false
+            })
+    }
+
+    private func renderBrandPercentIcon(
+        _ input: ProviderIconRenderInput,
+        style: IconStyle,
+        warningFlash: Bool,
+        shouldSkip: (String) -> Bool) -> Bool?
+    {
+        guard self.settings.menuBarShowsBrandIconWithPercent,
+              let brand = ProviderBrandIcon.image(for: input.provider)
+        else { return nil }
+        let displayText = input.accountScoped && input.snapshot == nil
+            ? nil
+            : self.menuBarDisplayText(for: input.provider, snapshot: input.snapshot)
+        let signature = [
+            "mode=brandPercent",
+            "provider=\(input.provider.rawValue)",
+            "style=\(String(describing: style))",
+            "text=\(displayText ?? "nil")",
+            "warningFlash=\(warningFlash ? "1" : "0")",
+        ].joined(separator: "|")
+        if shouldSkip(signature) {
+            self.noteIconPerfRender(skipped: true)
+            return true
+        }
+        self.setButtonImage(
+            warningFlash ? Self.quotaWarningFlashImage(base: brand) : brand,
+            for: input.button)
+        self.setButtonTitle(displayText, for: input.button)
+        self.noteIconPerfRender(skipped: false)
+        return false
+    }
+
+    private func renderProviderIcon(
+        _ input: ProviderIconRenderInput,
+        shouldSkip: (String) -> Bool) -> Bool
+    {
+        let provider = input.provider
+        let button = input.button
+        let snapshot = input.snapshot
+        let initialStale = input.stale
+        let statusIndicator = input.statusIndicator
+        let phase = input.phase
+        let shouldAnimate = input.shouldAnimate
+        let accountScoped = input.accountScoped
         // IconRenderer treats these values as a left-to-right "progress fill" percentage; depending on the
         // user setting we pass either "percent left" or "percent used".
         let showUsed = self.settings.usageBarsShowUsed
-        let showBrandPercent = self.settings.menuBarShowsBrandIconWithPercent
         let style: IconStyle = self.store.style(for: provider)
-        let warningFlash = self.quotaWarningFlashActive(provider: provider)
-
-        if showBrandPercent,
-           let brand = ProviderBrandIcon.image(for: provider)
+        let warningFlash = accountScoped ? false : self.quotaWarningFlashActive(provider: provider)
+        if let result = self.renderBrandPercentIcon(
+            input,
+            style: style,
+            warningFlash: warningFlash,
+            shouldSkip: shouldSkip)
         {
-            let displayText = self.menuBarDisplayText(for: provider, snapshot: snapshot)
-            let signature = [
-                "mode=brandPercent",
-                "provider=\(provider.rawValue)",
-                "style=\(String(describing: style))",
-                "text=\(displayText ?? "nil")",
-                "warningFlash=\(warningFlash ? "1" : "0")",
-            ].joined(separator: "|")
-            if self.shouldSkipProviderIconRender(provider: provider, signature: signature) {
-                self.noteIconPerfRender(skipped: true)
-                return true
-            }
-            self.setButtonImage(
-                warningFlash ? Self.quotaWarningFlashImage(base: brand) : brand, for: button)
-            self.setButtonTitle(displayText, for: button)
-            self.noteIconPerfRender(skipped: false)
-            return false
+            return result
         }
-
         self.setButtonTitle(nil, for: button)
 
         // OpenRouter always gets a meter here — the brand-logo fallback was removed on purpose.
@@ -488,19 +572,22 @@ extension StatusItemController {
         }
         let codexProjection = self.store.codexConsumerProjectionIfNeeded(
             for: provider,
-            surface: .menuBar,
+            surface: accountScoped ? .overrideCard : .menuBar,
             snapshotOverride: snapshot,
             now: snapshot?.updatedAt ?? Date())
-        var credits: Double? =
+        var credits: Double? = if accountScoped {
+            codexProjection?.menuBarFallback == .creditsBalance ? codexProjection?.credits?.remaining : nil
+        } else {
             codexProjection?.menuBarFallback == .creditsBalance
                 ? self.store.codexMenuBarCreditsRemaining(
                     snapshotOverride: snapshot,
                     now: snapshot?.updatedAt ?? Date())
                 : nil
-        var stale = self.store.isStale(provider: provider)
+        }
+        var stale = initialStale
         var morphProgress: Double?
 
-        if let phase, self.shouldAnimate(provider: provider) {
+        if shouldAnimate, let phase, self.shouldAnimate(provider: provider) {
             var pattern = self.animationPattern
             if provider == .claude, pattern == .unbraid {
                 pattern = .cylon
@@ -522,7 +609,7 @@ extension StatusItemController {
             }
         }
 
-        let isLoading = phase != nil && self.shouldAnimate(provider: provider)
+        let isLoading = shouldAnimate && phase != nil && self.shouldAnimate(provider: provider)
         let blink: CGFloat = {
             guard isLoading, style == .warp, let phase else {
                 return self.blinkAmount(for: provider)
@@ -532,7 +619,6 @@ extension StatusItemController {
         }()
         let wiggle = self.wiggleAmount(for: provider)
         let tilt = self.tiltAmount(for: provider) * .pi / 28 // limit to ~6.4°
-        let statusIndicator = self.store.statusIndicator(for: provider)
         if let morphProgress {
             let signature = [
                 "mode=morph",
@@ -543,7 +629,7 @@ extension StatusItemController {
                 "warningFlash=\(warningFlash ? "1" : "0")",
                 "loading=\(isLoading ? "1" : "0")",
             ].joined(separator: "|")
-            if self.shouldSkipProviderIconRender(provider: provider, signature: signature) {
+            if shouldSkip(signature) {
                 self.noteIconPerfRender(skipped: true)
                 return true
             }
@@ -566,7 +652,7 @@ extension StatusItemController {
                 "warningFlash=\(warningFlash ? "1" : "0")",
                 "loading=\(isLoading ? "1" : "0")",
             ].joined(separator: "|")
-            if self.shouldSkipProviderIconRender(provider: provider, signature: signature) {
+            if shouldSkip(signature) {
                 self.noteIconPerfRender(skipped: true)
                 return true
             }

@@ -12,6 +12,9 @@ read_when:
 - Merge Icons toggle combines providers into one status item with a switcher.
 - Provider status items use stable autosave names and are reused across provider toggles so macOS can preserve icon
   positions.
+- Providers with multiple accounts expose Settings → Menu bar items. “One for provider” keeps the default single
+  provider item; “One per account” creates an account-scoped item for every account.
+- Account-scoped items refresh and render independently, and their menus omit the provider-level account switcher.
 - When Overview has selected providers, the switcher includes an Overview tab that renders up to 3 provider rows.
 - Overview row order follows provider order; selecting a row jumps to that provider detail card.
 - The global open-menu keyboard shortcut toggles the currently tracked menu closed before opening a new one.
@@ -30,7 +33,8 @@ read_when:
   tertiary, and extra windows render when the provider snapshot has data for them.
 - Codex credits can add a separate “Buy Credits…” menu action.
 - Codex OpenAI web extras: code review remaining and usage breakdown render when dashboard data is attached.
-- Token accounts: optional account switcher bar or stacked account cards (up to 6) when multiple manual tokens exist.
+- Token accounts in “One for provider” mode can show an account switcher bar or stacked account cards (up to 6) when
+  multiple manual tokens exist.
 - Provider storage usage is opt-in from Advanced settings. When enabled, overview rows and provider detail cards can show
   local provider-owned storage totals, with a submenu for path breakdowns and copyable paths.
 

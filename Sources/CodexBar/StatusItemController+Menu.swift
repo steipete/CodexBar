@@ -161,7 +161,8 @@ extension StatusItemController {
 
         let isPersistentMenu = menu === self.mergedMenu ||
             menu === self.fallbackMenu ||
-            self.providerMenus.values.contains { $0 === menu }
+            self.providerMenus.values.contains { $0 === menu } ||
+            self.accountMenus.values.contains { $0 === menu }
         if !isPersistentMenu {
             self.clearTransientMenuTrackingState(key)
         } else if self.menuNeedsRefresh(menu) {
@@ -198,8 +199,8 @@ extension StatusItemController {
                 provider: provider)
         }
 
-        let enabledProviders = self.store.enabledProvidersForDisplay()
-        let includesOverview = self.includesOverviewTab(enabledProviders: enabledProviders)
+        guard !self.populateAccountMenuIfNeeded(menu) else { return }
+        let (enabledProviders, includesOverview) = self.enabledProviderMenuContext()
         let switcherSelection = self.shouldMergeIcons && enabledProviders.count > 1
             ? self.resolvedSwitcherSelection(
                 enabledProviders: enabledProviders,
@@ -347,6 +348,67 @@ extension StatusItemController {
                 tokenAccountDisplay: tokenAccountDisplay,
                 openAIContext: openAIContext,
                 descriptor: descriptor))
+    }
+
+    private func populateAccountMenuIfNeeded(_ menu: NSMenu) -> Bool {
+        guard let key = self.menuAccountStatusItemKeys[ObjectIdentifier(menu)],
+              let context = self.accountStatusItemContexts[key]
+        else { return false }
+        self.populateAccountMenu(menu, key: key, context: context)
+        return true
+    }
+
+    private func enabledProviderMenuContext() -> ([UsageProvider], Bool) {
+        let providers = self.store.enabledProvidersForDisplay()
+        return (providers, self.includesOverviewTab(enabledProviders: providers))
+    }
+
+    private func populateAccountMenu(
+        _ menu: NSMenu,
+        key: AccountStatusItemKey,
+        context: AccountStatusItemContext)
+    {
+        let accountSnapshot: (snapshot: UsageSnapshot?, error: String?)? = switch context {
+        case let .token(provider, account):
+            self.store.accountSnapshots[provider]?
+                .first(where: { $0.account.id == account.id })
+                .map { ($0.snapshot, $0.error) }
+        case let .codex(account):
+            self.store.codexAccountSnapshots
+                .first(where: { $0.id == account.id })
+                .map { ($0.snapshot, $0.error) }
+        }
+        let provider = context.provider
+        let descriptor = MenuDescriptor.build(
+            provider: provider,
+            store: self.store,
+            settings: self.settings,
+            account: context.accountInfo,
+            managedCodexAccountCoordinator: self.managedCodexAccountCoordinator,
+            codexAccountPromotionCoordinator: self.codexAccountPromotionCoordinator,
+            updateReady: self.updater.updateStatus.isUpdateReady,
+            includeContextualActions: false)
+        let actions = descriptor.sections.last.map { [$0] } ?? []
+        let menuWidth = self.menuCardWidth(for: [provider], sections: actions)
+
+        self.performMenuMutationWithoutAnimation {
+            menu.removeAllItems()
+            if let model = self.menuCardModel(
+                for: provider,
+                snapshotOverride: accountSnapshot?.snapshot,
+                errorOverride: accountSnapshot?.error,
+                forceOverrideCard: true,
+                accountOverride: context.accountInfo)
+            {
+                menu.addItem(self.makeMenuCardItem(
+                    UsageMenuCardView(model: model, width: menuWidth),
+                    id: "accountMenuCard",
+                    width: menuWidth,
+                    heightCacheScope: "\(provider.rawValue)-account-\(key.accountID)"))
+                menu.addItem(.separator())
+            }
+            self.addActionableSections(actions, to: menu, width: menuWidth)
+        }
     }
 
     private func reusableFixedWidthRows(in menu: NSMenu) -> [NSMenuItem] {

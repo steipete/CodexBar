@@ -55,7 +55,7 @@ extension StatusItemController {
                 tokenError = nil
             }
         } else if ProviderDescriptorRegistry.descriptor(for: target).tokenCost.supportsTokenCost,
-                  snapshotOverride == nil
+                  surface == .liveCard
         {
             credits = nil
             creditsError = nil
@@ -76,8 +76,10 @@ extension StatusItemController {
         let kiloAutoMode = target == .kilo && self.settings.kiloUsageDataSource == .auto
         // Abacus uses primary for monthly credits (no secondary window)
         let paceWindow = target == .abacus ? snapshot?.primary : snapshot?.secondary
-        let weeklyPace = if let codexProjection,
-                            let weekly = codexProjection.rateWindow(for: .weekly)
+        let weeklyPace: UsagePace? = if surface == .overrideCard {
+            nil
+        } else if let codexProjection,
+                  let weekly = codexProjection.rateWindow(for: .weekly)
         {
             self.store.weeklyPace(provider: target, window: weekly, now: now)
         } else {
@@ -98,9 +100,11 @@ extension StatusItemController {
             tokenError: tokenError,
             account: accountOverride ?? self.store.accountInfo(for: target),
             isRefreshing: self.store.shouldShowRefreshingMenuCard(for: target),
-            lastError: errorOverride
-                ?? codexProjection?.userFacingErrors.usage
-                ?? self.store.userFacingError(for: target),
+            lastError: surface == .overrideCard
+                ? errorOverride
+                : (errorOverride
+                    ?? codexProjection?.userFacingErrors.usage
+                    ?? self.store.userFacingError(for: target)),
             usageBarsShowUsed: self.settings.usageBarsShowUsed,
             resetTimeDisplayStyle: self.settings.resetTimeDisplayStyle,
             tokenCostUsageEnabled: self.settings.isCostUsageEffectivelyEnabled(for: target),

@@ -75,6 +75,30 @@ struct StatusItemIconObservationSignatureTests {
         #expect(controller.storeIconObservationSignature() != baseline)
     }
 
+    @Test
+    func `store icon observation signature changes when account snapshot changes`() {
+        let (_, store, controller) = self.makeController(
+            suiteName: "StatusItemIconObservationSignatureTests-account-snapshot")
+        defer { controller.releaseStatusItemsForTesting() }
+        let account = ProviderTokenAccount(
+            id: UUID(),
+            label: "Account",
+            token: "token",
+            addedAt: 0,
+            lastUsed: nil)
+        let baseline = controller.storeIconObservationSignature()
+
+        store.accountSnapshots[.claude] = [
+            TokenAccountUsageSnapshot(
+                account: account,
+                snapshot: Self.makeSnapshot(provider: .claude, email: "account@example.com"),
+                error: nil,
+                sourceLabel: nil),
+        ]
+
+        #expect(controller.storeIconObservationSignature() != baseline)
+    }
+
     private static func makeSnapshot(provider: UsageProvider, email: String) -> UsageSnapshot {
         UsageSnapshot(
             primary: RateWindow(usedPercent: 10, windowMinutes: 300, resetsAt: nil, resetDescription: nil),

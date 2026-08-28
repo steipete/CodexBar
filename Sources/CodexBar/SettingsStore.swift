@@ -108,6 +108,11 @@ enum MultiAccountMenuLayout: String, CaseIterable, Identifiable {
     }
 }
 
+enum AccountMenuBarDisplayMode: String, CaseIterable {
+    case combined
+    case separate
+}
+
 struct CachedCodexAccountReconciliationSnapshot {
     let activeSource: CodexActiveSource
     let loadedAt: Date
@@ -352,7 +357,7 @@ extension SettingsStore {
             let legacyShowAll = userDefaults.object(forKey: "showAllTokenAccountsInMenu") as? Bool ?? false
             return legacyShowAll ? MultiAccountMenuLayout.stacked.rawValue : MultiAccountMenuLayout.segmented.rawValue
         }()
-        let resolvedPreferences = Self.loadMenuBarMetricPreferences(userDefaults: userDefaults)
+        let (resolvedPreferences, accountMenuBarDisplayModesRaw) = Self.loadProviderMenuPreferences(userDefaults)
         let costUsageEnabled = userDefaults.object(forKey: "tokenCostUsageEnabled") as? Bool ?? false
         let rawCostUsageHistoryDays = userDefaults.object(forKey: "tokenCostUsageHistoryDays") as? Int ?? 30
         let costUsageHistoryDays = max(1, min(365, rawCostUsageHistoryDays))
@@ -424,6 +429,7 @@ extension SettingsStore {
             historicalTrackingEnabled: historicalTrackingEnabled,
             multiAccountMenuLayoutRaw: multiAccountMenuLayoutRaw,
             menuBarMetricPreferencesRaw: resolvedPreferences,
+            accountMenuBarDisplayModesRaw: accountMenuBarDisplayModesRaw,
             costUsageEnabled: costUsageEnabled,
             costUsageHistoryDays: costUsageHistoryDays,
             hidePersonalInfo: hidePersonalInfo,
@@ -445,6 +451,15 @@ extension SettingsStore {
             selectedMenuProviderRaw: selectedMenuProviderRaw,
             providerDetectionCompleted: providerDetectionCompleted,
             appLanguageRaw: appLanguageRaw)
+    }
+
+    private static func loadProviderMenuPreferences(
+        _ userDefaults: UserDefaults) -> (metrics: [String: String], accountDisplayModes: [String: String])
+    {
+        let metrics = Self.loadMenuBarMetricPreferences(userDefaults: userDefaults)
+        let accountDisplayModes =
+            userDefaults.dictionary(forKey: "accountMenuBarDisplayModes") as? [String: String] ?? [:]
+        return (metrics, accountDisplayModes)
     }
 
     private static func loadMenuBarMetricPreferences(userDefaults: UserDefaults) -> [String: String] {

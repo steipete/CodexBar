@@ -30,6 +30,7 @@ extension SettingsStore {
         _ = self.historicalTrackingEnabled
         _ = self.multiAccountMenuLayout
         _ = self.menuBarMetricPreferencesRaw
+        _ = self.accountMenuBarDisplayModesRaw
         _ = self.costUsageEnabled
         _ = self.costUsageHistoryDays
         _ = self.appLanguage
