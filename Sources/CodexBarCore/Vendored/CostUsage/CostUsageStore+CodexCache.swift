@@ -66,8 +66,8 @@ extension CostUsageStore {
                     files: Self.readFiles(database, recorder: recorder),
                     tokenSnapshots: [],
                     usageRows: purpose == .report ? Self.readUsageRows(database, path: nil, recorder: recorder) : [],
-                    fileDayAggregates: purpose == .report ? Self.readFileDayAggregates(database, path: nil) : [],
-                    dayAggregates: purpose == .report
+                    fileDayAggregates: purpose != .status ? Self.readFileDayAggregates(database, path: nil) : [],
+                    dayAggregates: purpose != .status
                         ? Self.readDayAggregates(database, sinceDay: nil, untilDay: nil) : [],
                     forkLineage: Self.readForkLineage(database, path: nil),
                     bufferedLines: [],
@@ -1101,18 +1101,27 @@ extension CostUsageStore {
     {
         aggregates.flatMap { aggregate -> [CostUsageScanner.CodexUsageRow] in
             var rows: [CostUsageScanner.CodexUsageRow] = []
-            func append(input: Int64, cached: Int64, output: Int64, mode: String) {
-                guard input != 0 || cached != 0 || output != 0 else { return }
+            var nextEventIndex = 0
+            func append(
+                input: Int64,
+                cached: Int64,
+                output: Int64,
+                knownCostNanos: Int64? = nil,
+                mode: String)
+            {
+                guard input != 0 || cached != 0 || output != 0 || knownCostNanos != nil else { return }
                 rows.append(CostUsageScanner.CodexUsageRow(
                     day: aggregate.day,
                     model: aggregate.model,
                     turnID: nil,
-                    eventIndex: nil,
+                    eventIndex: nextEventIndex,
                     input: Self.int(input),
                     cached: Self.int(cached),
                     output: Self.int(output),
+                    knownCostNanos: knownCostNanos,
                     pricingModel: aggregate.model,
                     pricingMode: mode))
+                nextEventIndex += 1
             }
             append(
                 input: aggregate.standardInputTokens,
@@ -1125,17 +1134,71 @@ extension CostUsageStore {
                 output: aggregate.priorityOutputTokens,
                 mode: "priority")
             if aggregate.authoritativeCostNanos != 0 {
-                rows.append(CostUsageScanner.CodexUsageRow(
-                    day: aggregate.day,
-                    model: aggregate.model,
-                    turnID: nil,
-                    eventIndex: nil,
-                    input: 0,
-                    cached: 0,
-                    output: 0,
-                    knownCostNanos: aggregate.authoritativeCostNanos,
-                    pricingModel: aggregate.model,
-                    pricingMode: "standard"))
+                let authoritativeInput = max(
+                    0,
+                    aggregate.inputTokens
+                        - aggregate.standardInputTokens
+                        - aggregate.priorityInputTokens)
+                let authoritativeCached = max(
+                    0,
+                    aggregate.cachedTokens
+                        - aggregate.standardCachedTokens
+                        - aggregate.priorityCachedTokens)
+                let authoritativeOutput = max(
+                    0,
+                    aggregate.outputTokens
+                        - aggregate.standardOutputTokens
+                        - aggregate.priorityOutputTokens)
+                let estimatedStandardTokens = max(0, aggregate.standardInputTokens)
+                    + max(0, aggregate.standardOutputTokens)
+                let estimatedPriorityTokens = max(0, aggregate.priorityInputTokens)
+                    + max(0, aggregate.priorityOutputTokens)
+                var authoritativeStandardTokens = max(
+                    0,
+                    aggregate.standardTokens - estimatedStandardTokens)
+                var authoritativePriorityTokens = max(
+                    0,
+                    aggregate.priorityTokens - estimatedPriorityTokens)
+                let authoritativeTokens = authoritativeInput + authoritativeOutput
+                let classifiedAuthoritativeTokens = authoritativeStandardTokens + authoritativePriorityTokens
+                if classifiedAuthoritativeTokens < authoritativeTokens {
+                    authoritativeStandardTokens += authoritativeTokens - classifiedAuthoritativeTokens
+                } else if classifiedAuthoritativeTokens > authoritativeTokens {
+                    let excess = classifiedAuthoritativeTokens - authoritativeTokens
+                    let priorityReduction = min(authoritativePriorityTokens, excess)
+                    authoritativePriorityTokens -= priorityReduction
+                    authoritativeStandardTokens = max(
+                        0,
+                        authoritativeStandardTokens - (excess - priorityReduction))
+                }
+
+                let standardInput = min(authoritativeInput, authoritativeStandardTokens)
+                let standardOutput = authoritativeStandardTokens - standardInput
+                let priorityInput = authoritativeInput - standardInput
+                let priorityOutput = authoritativeOutput - standardOutput
+                let standardCostNanos = if authoritativeTokens > 0, authoritativePriorityTokens > 0 {
+                    Int64((
+                        Double(aggregate.authoritativeCostNanos)
+                            * Double(authoritativeStandardTokens)
+                            / Double(authoritativeTokens)).rounded())
+                } else {
+                    aggregate.authoritativeCostNanos
+                }
+                let priorityCostNanos = aggregate.authoritativeCostNanos - standardCostNanos
+                append(
+                    input: standardInput,
+                    cached: authoritativeCached,
+                    output: standardOutput,
+                    knownCostNanos: standardCostNanos,
+                    mode: "standard")
+                if authoritativePriorityTokens > 0 {
+                    append(
+                        input: priorityInput,
+                        cached: 0,
+                        output: priorityOutput,
+                        knownCostNanos: priorityCostNanos,
+                        mode: "priority")
+                }
             }
             return rows
         }

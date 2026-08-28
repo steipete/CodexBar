@@ -378,7 +378,7 @@ struct UsageStoreManualTokenRefreshTests {
     }
 
     @Test
-    func `menu open cost refresh drops requests within the forced-scan floor`() async {
+    func `menu open cost refresh runs after every completed menu opening`() async {
         let store = Self.makeStore()
         let recorder = TokenRefreshRecorder()
         store._test_tokenUsageRefreshOverride = { provider, force in
@@ -390,31 +390,7 @@ struct UsageStoreManualTokenRefreshTests {
         #expect(didRecord)
         await store.tokenRefreshSequenceTask?.value
 
-        // Reopening the menu right after a forced scan must not start another one.
         store.scheduleForcedTokenRefresh()
-        try? await Task.sleep(for: .milliseconds(50))
-        #expect(store.tokenRefreshSequenceTask == nil)
-        #expect(store.pendingForcedTokenRefresh == false)
-        #expect(await recorder.calls.count == 1)
-    }
-
-    @Test
-    func `menu open cost refresh runs again once the forced-scan floor elapses`() async {
-        let store = Self.makeStore()
-        let recorder = TokenRefreshRecorder()
-        store._test_tokenUsageRefreshOverride = { provider, force in
-            await recorder.record(provider: provider, force: force)
-        }
-
-        store.scheduleForcedTokenRefresh()
-        let didRecord = await recorder.waitForCallCount(1)
-        #expect(didRecord)
-        await store.tokenRefreshSequenceTask?.value
-
-        store.lastForcedTokenRefreshStartedAt =
-            Date(timeIntervalSinceNow: -(UsageStore.forcedTokenRefreshMinInterval + 1))
-        store.scheduleForcedTokenRefresh()
-
         let didRunSecondPass = await recorder.waitForCallCount(2)
         #expect(didRunSecondPass)
         await store.tokenRefreshSequenceTask?.value
@@ -422,7 +398,7 @@ struct UsageStoreManualTokenRefreshTests {
     }
 
     @Test
-    func `menu open cost refresh within the floor does not queue behind a running sequence`() async {
+    func `menu open cost refresh queues behind a later running sequence`() async {
         let store = Self.makeStore()
         let gate = TokenRefreshGate()
         let recorder = TokenRefreshRecorder()
@@ -443,15 +419,14 @@ struct UsageStoreManualTokenRefreshTests {
         store.scheduleTokenRefreshForTesting()
         await gate.waitForStart()
 
-        // The scheduled sequence is in flight, but the floor drops the request before it can queue.
         store.scheduleForcedTokenRefresh()
-        #expect(store.pendingForcedTokenRefresh == false)
+        #expect(store.pendingForcedTokenRefresh)
 
         await gate.release()
         await store.tokenRefreshSequenceTask?.value
         try? await Task.sleep(for: .milliseconds(50))
 
-        #expect(await recorder.calls.map(\.force) == [true, false])
+        #expect(await recorder.calls.map(\.force) == [true, false, true])
     }
 
     @Test

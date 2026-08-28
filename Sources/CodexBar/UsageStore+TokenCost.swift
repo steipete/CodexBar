@@ -62,6 +62,7 @@ extension UsageStore {
     func loadTokenUsageSnapshot(
         provider: UsageProvider,
         force: Bool,
+        lightweightMenuOpen: Bool = false,
         now: Date,
         codexHomePath: String?,
         historyDays: Int,
@@ -73,6 +74,11 @@ extension UsageStore {
 
         let fetcher = self.costUsageFetcher
         let timeoutSeconds = self.tokenFetchTimeout
+        let lowPowerAutomaticCodexRefresh = provider == .codex
+            && self.settings.backgroundWorkLowPowerModeEnabled
+            && !force
+        let summaryOnlyCodexRefresh = provider == .codex
+            && (lightweightMenuOpen || lowPowerAutomaticCodexRefresh)
         // Provider-specific by design: the Codex ledger owns pricing refresh while Bedrock resolves AWS environment.
         let allowPricingRefresh = provider != .codex || !self.settings.codexLocalSessionCostLedgerEnabled
         let environment = provider == .bedrock
@@ -82,7 +88,7 @@ extension UsageStore {
                 settings: self.settings,
                 tokenOverride: nil)
             : self.environmentBase
-        return try await withThrowingTaskGroup(of: CostUsageTokenSnapshot.self) { group in
+        let snapshot = try await withThrowingTaskGroup(of: CostUsageTokenSnapshot.self) { group in
             group.addTask(priority: .utility) {
                 try await fetcher.loadTokenSnapshot(
                     provider: provider,
@@ -94,6 +100,8 @@ extension UsageStore {
                     historyDays: historyDays,
                     cursorCookieHeaderOverride: cursorCookieHeaderOverride,
                     allowPricingRefresh: allowPricingRefresh,
+                    includeProjectAndSessionBreakdowns: !summaryOnlyCodexRefresh,
+                    reuseCodexReportWhenSourcesAreUnchanged: summaryOnlyCodexRefresh,
                     bypassScannerDebounce: true,
                     calendar: self.settings.costUsageBucketCalendar)
             }
@@ -105,6 +113,29 @@ extension UsageStore {
             guard let snapshot = try await group.next() else { throw CancellationError() }
             return snapshot
         }
+        guard summaryOnlyCodexRefresh,
+              provider == .codex,
+              let previous = self.tokenSnapshotPublicationForCurrentProviderConfig(for: provider)?.snapshot
+        else { return snapshot }
+        return CostUsageTokenSnapshot(
+            sessionTokens: snapshot.sessionTokens,
+            sessionCostUSD: snapshot.sessionCostUSD,
+            sessionRequests: snapshot.sessionRequests,
+            last30DaysTokens: snapshot.last30DaysTokens,
+            last30DaysCostUSD: snapshot.last30DaysCostUSD,
+            last30DaysRequests: snapshot.last30DaysRequests,
+            currencyCode: snapshot.currencyCode,
+            historyDays: snapshot.historyDays,
+            historyCoverageIsEstablished: snapshot.historyCoverageIsEstablished,
+            historyLabel: snapshot.historyLabel,
+            meteredCostUSD: snapshot.meteredCostUSD,
+            costProvenance: snapshot.costProvenance,
+            credentialScopeFingerprint: snapshot.credentialScopeFingerprint,
+            daily: snapshot.daily,
+            projects: previous.projects,
+            sessions: previous.sessions,
+            hourly: snapshot.hourly,
+            updatedAt: snapshot.updatedAt)
     }
 
     func tokenSnapshot(for provider: UsageProvider) -> CostUsageTokenSnapshot? {
@@ -279,6 +310,7 @@ extension UsageStore {
                     now: now,
                     codexHomePath: scope.codexHomePath,
                     historyDays: historyDays,
+                    includeProjectAndSessionBreakdowns: !self.settings.backgroundWorkLowPowerModeEnabled,
                     calendar: self.settings.costUsageBucketCalendar)
                     .map {
                         (

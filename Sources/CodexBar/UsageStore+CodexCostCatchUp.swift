@@ -145,10 +145,20 @@ extension UsageStore {
                         try await self.sleepBetweenCodexCostCatchUpPasses(seconds: delay)
                         continue
                     case let .runAfter(delay):
-                        self.publishCodexCostCatchUpActivity(
-                            status: status,
-                            context: context,
-                            phase: .indexing)
+                        if self.usesInteractiveLowPowerCodexCostCatchUpCadence(
+                            mode: self.codexCostCatchUpMode)
+                        {
+                            self.publishCodexCostCatchUpActivity(
+                                status: status,
+                                context: context,
+                                phase: .paused,
+                                pauseReason: .lowPower)
+                        } else {
+                            self.publishCodexCostCatchUpActivity(
+                                status: status,
+                                context: context,
+                                phase: .indexing)
+                        }
                         try await self.sleepBetweenCodexCostCatchUpPasses(seconds: delay)
                     }
 
@@ -328,12 +338,24 @@ extension UsageStore {
             powerSource: CodexCostCatchUpPowerSource.current(),
             lowPowerModeEnabled: ProcessInfo.processInfo.isLowPowerModeEnabled,
             thermalState: ProcessInfo.processInfo.thermalState)
-        return CodexCostCatchUpPolicy().decision(for: .init(
+        let decision = CodexCostCatchUpPolicy().decision(for: .init(
             mode: mode,
             previousActiveDuration: previousActiveDuration,
             powerSource: resourceState.powerSource,
             lowPowerModeEnabled: resourceState.lowPowerModeEnabled,
             thermalState: resourceState.thermalState))
+        guard self.usesInteractiveLowPowerCodexCostCatchUpCadence(mode: mode) else {
+            return decision
+        }
+        // The foreground menu-open scan already makes bounded progress whenever the user asks for
+        // fresh data. Do not follow it with another invisible pass roughly 33 minutes later on AC.
+        return decision.enforcingMinimumDelay(Self.interactiveLowPowerTokenFetchTTL)
+    }
+
+    private func usesInteractiveLowPowerCodexCostCatchUpCadence(mode: CodexCostCatchUpMode) -> Bool {
+        mode == .automatic
+            && self.settings.backgroundWorkLowPowerModeEnabled
+            && self.settings.refreshAllProvidersOnMenuOpen
     }
 
     private func publishCodexCostCatchUpActivity(

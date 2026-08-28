@@ -161,7 +161,7 @@ struct CostUsageStoreReadWorkTests {
     }
 
     @Test(arguments: [false, true])
-    func `cached totals exclude raw token and replay details`(incomplete: Bool) async throws {
+    func `cached totals exclude raw token usage and replay details`(incomplete: Bool) async throws {
         let fixture = try ReadWorkFixture(fileCount: 2, rowsPerFile: 4, incomplete: incomplete)
         defer { fixture.remove() }
         let recorder = CostUsageStoreReadWorkRecorder(databaseURL: fixture.store.databaseURL)
@@ -176,9 +176,9 @@ struct CostUsageStoreReadWorkTests {
         #expect(work.bufferedLines == 0)
         #expect(work.bufferedPayloadBytes == 0)
         #expect(work.accumulatorRows == 0)
-        #expect(work.usageRows == fixture.rowCount)
-        #expect(work.usageRowDecodeAttempts == fixture.rowCount)
-        #expect(work.usagePayloadBytes > 0)
+        #expect(work.usageRows == 0)
+        #expect(work.usageRowDecodeAttempts == 0)
+        #expect(work.usagePayloadBytes == 0)
         #expect(work.retryPresenceRows == (incomplete ? 1 : 0))
         #expect(work.readViewConversions == 1)
         #expect(work.readViewConversionsInTransaction == 0)

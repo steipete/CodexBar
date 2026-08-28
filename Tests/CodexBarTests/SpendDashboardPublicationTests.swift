@@ -7,6 +7,31 @@ import Testing
 @Suite(.serialized)
 struct SpendDashboardPublicationTests {
     @Test
+    func `global low power mode keeps the shared year dashboard dormant`() {
+        let settings = testSettingsStore(suiteName: "SpendDashboardPublicationTests-global-low-power")
+        settings.backgroundWorkLowPowerModePreference = .on
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing,
+            environmentBase: [:])
+
+        store.synchronizeSharedSpendDashboardPublicationForPowerMode()
+
+        #expect(!store.sharedSpendDashboardObservationStarted)
+        #expect(store.sharedSpendDashboardControllerStorage == nil)
+        let publication = store.spendDashboardPublication
+        #expect(publication.revision == 0)
+        #expect(publication.generation == 0)
+        #expect(publication.configuration == nil)
+        #expect(publication.loadedAt == .distantPast)
+        #expect(!publication.isRefreshing)
+        #expect(publication.inputs.isEmpty)
+        #expect(publication.sources.isEmpty)
+    }
+
+    @Test
     func `shared source observation follows regular Codex publication and bucket ownership`() async {
         let settings = testSettingsStore(suiteName: "SpendDashboardPublicationTests-source-observation")
         settings.costUsageEnabled = true

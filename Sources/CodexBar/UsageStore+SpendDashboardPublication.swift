@@ -53,6 +53,18 @@ extension UsageStore {
         self.cancelSpendDashboardCodexCostCatchUp()
     }
 
+    /// The status menu can build its short overview from the regular token publication.
+    /// Avoid eagerly materializing the independent 365-day dashboard source while global
+    /// low-power mode is active; opening Usage & Spend still starts it explicitly.
+    func synchronizeSharedSpendDashboardPublicationForPowerMode() {
+        if self.settings.backgroundWorkLowPowerModeEnabled {
+            self.stopSharedSpendDashboardPublication()
+            self.spendDashboardPublication = .empty
+        } else {
+            self.startSharedSpendDashboardPublication()
+        }
+    }
+
     private func observeSharedSpendDashboardConfiguration() {
         guard self.sharedSpendDashboardObservationStarted else { return }
         let configuration = withObservationTracking {

@@ -160,6 +160,56 @@ struct UsageStoreSpendDashboardCodexCostCatchUpTests {
         #expect(store.spendDashboardCodexCostCatchUpRevision == 0)
         #expect(store.spendDashboardCodexCostCatchUpActivity?.phase == .paused)
         #expect(store.spendDashboardCodexCostCatchUpActivity?.pauseReason == .noProgress)
+        #expect(store.spendDashboardCodexCostCatchUpRetryNotBefore != nil)
+        #expect(store.spendDashboardCodexCostCatchUpRetryScopeSignature != nil)
+
+        store.synchronizeSpendDashboardCodexCostCatchUp(accounts: accounts)
+
+        #expect(store.spendDashboardCodexCostCatchUpTask == nil)
+
+        let replacementAccounts = [Self.account(id: "replacement", cacheIdentity: "cache-replacement")]
+        store.synchronizeSpendDashboardCodexCostCatchUp(accounts: replacementAccounts)
+
+        #expect(store.spendDashboardCodexCostCatchUpTask != nil)
+        #expect(store.spendDashboardCodexCostCatchUpRetryNotBefore == nil)
+        #expect(store.spendDashboardCodexCostCatchUpRetryScopeSignature == nil)
+        store.cancelSpendDashboardCodexCostCatchUp()
+    }
+
+    @Test
+    func `manual retry bypasses a no-progress background backoff`() async throws {
+        let store = try Self.makeStore(suite: "manual-no-progress-retry")
+        let accounts = [Self.account(id: "stalled", cacheIdentity: "cache-stalled")]
+        store._test_spendDashboardCodexCostCatchUpStatusOverride = { _ in
+            Self.status(
+                pending: true,
+                key: "unchanged",
+                processedBytes: 25)
+        }
+        store._test_spendDashboardCodexCostCatchUpAdvanceOverride = { _, _, _ in
+            Self.status(pending: true, key: "unchanged", processedBytes: 25)
+        }
+        store._test_spendDashboardCodexCostCatchUpSleepOverride = { _ in
+            await Task.yield()
+        }
+
+        store.startSpendDashboardCodexCostCatchUpIfNeeded(accounts: accounts, mode: .accelerated)
+        await Self.waitUntil {
+            store.spendDashboardCodexCostCatchUpTask == nil
+        }
+        #expect(store.spendDashboardCodexCostCatchUpRetryNotBefore != nil)
+
+        store._test_spendDashboardCodexCostCatchUpStatusOverride = { _ in
+            Self.status(pending: false, key: "complete", processedBytes: 100)
+        }
+        store.startSpendDashboardCodexCostCatchUpIfNeeded(accounts: accounts, mode: .accelerated)
+        await Self.waitUntil {
+            store.spendDashboardCodexCostCatchUpTask == nil
+        }
+
+        #expect(store.spendDashboardCodexCostCatchUpRetryNotBefore == nil)
+        #expect(store.spendDashboardCodexCostCatchUpRetryScopeSignature == nil)
+        #expect(store.spendDashboardCodexCostCatchUpActivity?.phase == .complete)
     }
 
     @Test
@@ -303,6 +353,62 @@ struct UsageStoreSpendDashboardCodexCostCatchUpTests {
             preferredMode: .accelerated)
 
         #expect(store.spendDashboardCodexCostCatchUpMode == .automatic)
+        store.cancelSpendDashboardCodexCostCatchUp()
+    }
+
+    @Test
+    func `global low power mode floors automatic dashboard wakeups at thirty minutes`() async throws {
+        let store = try Self.makeStore(suite: "global-low-power-delay")
+        store.settings.backgroundWorkLowPowerModePreference = .on
+        store._test_spendDashboardCodexCostCatchUpStatusOverride = { _ in
+            Self.status(pending: true, key: "pending", processedBytes: 25)
+        }
+        var observedDelay: TimeInterval?
+        store._test_spendDashboardCodexCostCatchUpSleepOverride = { delay in
+            observedDelay = delay
+            throw CancellationError()
+        }
+        store._test_spendDashboardCodexCostCatchUpResourceStateOverride = {
+            (.battery, true, .nominal)
+        }
+
+        store.startSpendDashboardCodexCostCatchUpIfNeeded(
+            accounts: [Self.account(id: "account", cacheIdentity: "cache-account")])
+        await Self.waitUntil {
+            store.spendDashboardCodexCostCatchUpTask == nil
+        }
+
+        #expect(observedDelay == BackgroundWorkPowerPolicy.lowPowerMinimumInterval)
+    }
+
+    @Test
+    func `global low power mode cancels hidden dashboard catch-up`() throws {
+        let store = try Self.makeStore(suite: "global-low-power-hidden")
+        let accounts = [Self.account(id: "account", cacheIdentity: "cache-account")]
+        store.startSpendDashboardCodexCostCatchUpIfNeeded(accounts: accounts, mode: .accelerated)
+        #expect(store.spendDashboardCodexCostCatchUpTask != nil)
+
+        store.settings.backgroundWorkLowPowerModePreference = .on
+        store.synchronizeSpendDashboardCodexCostCatchUp(accounts: accounts, preferredMode: .automatic)
+
+        #expect(store.spendDashboardCodexCostCatchUpTask == nil)
+        #expect(store.spendDashboardCodexCostCatchUpActivity == nil)
+    }
+
+    @Test
+    func `global low power mode permits explicit visible dashboard catch-up`() throws {
+        let store = try Self.makeStore(suite: "global-low-power-visible")
+        store.settings.backgroundWorkLowPowerModePreference = .on
+        store._test_spendDashboardCodexCostCatchUpResourceStateOverride = {
+            (.ac, false, .nominal)
+        }
+
+        store.synchronizeSpendDashboardCodexCostCatchUp(
+            accounts: [Self.account(id: "account", cacheIdentity: "cache-account")],
+            preferredMode: .accelerated)
+
+        #expect(store.spendDashboardCodexCostCatchUpTask != nil)
+        #expect(store.spendDashboardCodexCostCatchUpMode == .accelerated)
         store.cancelSpendDashboardCodexCostCatchUp()
     }
 

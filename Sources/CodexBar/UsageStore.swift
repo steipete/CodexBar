@@ -74,6 +74,7 @@ extension UsageStore {
                 self.invalidateProviderAvailabilityCache()
                 self.probeLogs = [:]
                 guard self.startupBehavior.automaticallyStartsBackgroundWork else { return }
+                self.synchronizeSharedSpendDashboardPublicationForPowerMode()
                 self.startTimer()
                 self.updateProviderRuntimes()
                 let enabledNow = Set(self.settings.enabledProvidersOrdered(
@@ -362,7 +363,6 @@ final class UsageStore {
     @ObservationIgnored var tokenRefreshSequenceProvider: ProviderInstanceID?
     @ObservationIgnored var tokenRefreshSequenceIsForcedAllPass = false
     @ObservationIgnored var pendingForcedTokenRefresh = false
-    @ObservationIgnored var lastForcedTokenRefreshStartedAt: Date?
     @ObservationIgnored var tokenRefreshRetryProviders: Set<ProviderInstanceID> = []
     @ObservationIgnored var codexCostCatchUpTask: Task<Void, Never>?
     @ObservationIgnored var codexCostCatchUpToken: UUID?
@@ -378,6 +378,8 @@ final class UsageStore {
     @ObservationIgnored var spendDashboardCodexCostCatchUpStopRequested = false
     @ObservationIgnored var spendDashboardCodexCostCatchUpPassIsRunning = false
     @ObservationIgnored var spendDashboardCodexCostCatchUpRestartRequested = false
+    @ObservationIgnored var spendDashboardCodexCostCatchUpRetryNotBefore: Date?
+    @ObservationIgnored var spendDashboardCodexCostCatchUpRetryScopeSignature: String?
     @ObservationIgnored var forcedRefreshEnrichmentTask: Task<Void, Never>?
     @ObservationIgnored var forcedRefreshEnrichmentToken: UUID?
     @ObservationIgnored var pendingForcedRefreshEnrichmentTask: Task<Void, Never>?
@@ -452,24 +454,32 @@ final class UsageStore {
     /// Energy/WidgetKit floor for expensive local-history scans and their additional snapshot publications.
     /// Faster provider refreshes still update quota/status normally, but reuse token-cost history within this TTL.
     static let minimumTokenFetchTTL: TimeInterval = 15 * 60
+    /// With refresh-on-open enabled, local token history is refreshed whenever the user asks to see it.
+    /// Keep the redundant low-power background scan sparse so large Codex ledgers do not incur a multi-second
+    /// materialization every 30 minutes while the provider quota itself continues on its normal cadence.
+    static let interactiveLowPowerTokenFetchTTL: TimeInterval = 6 * 60 * 60
 
     var tokenFetchTTL: TimeInterval? {
         Self.tokenFetchTTL(
             for: self.settings.refreshFrequency,
-            lowPowerModeEnabled: self.settings.backgroundWorkLowPowerModeEnabled)
+            lowPowerModeEnabled: self.settings.backgroundWorkLowPowerModeEnabled,
+            refreshAllProvidersOnMenuOpen: self.settings.refreshAllProvidersOnMenuOpen)
     }
 
     static func tokenFetchTTL(
         for frequency: RefreshFrequency,
-        lowPowerModeEnabled: Bool = false) -> TimeInterval?
+        lowPowerModeEnabled: Bool = false,
+        refreshAllProvidersOnMenuOpen: Bool = false) -> TimeInterval?
     {
         let interval = frequency.usesAdaptivePolicy
             ? AdaptiveRefreshPolicy.nominalIntervalForHeuristics
             : frequency.seconds
         let widgetSafeInterval = interval.map { max($0, Self.minimumTokenFetchTTL) }
-        return BackgroundWorkPowerPolicy.automaticInterval(
+        let powerLimitedInterval = BackgroundWorkPowerPolicy.automaticInterval(
             widgetSafeInterval,
             lowPowerModeEnabled: lowPowerModeEnabled)
+        guard lowPowerModeEnabled, refreshAllProvidersOnMenuOpen else { return powerLimitedInterval }
+        return powerLimitedInterval.map { max($0, Self.interactiveLowPowerTokenFetchTTL) }
     }
 
     @ObservationIgnored let tokenFetchTimeout: TimeInterval = 10 * 60
@@ -549,7 +559,7 @@ final class UsageStore {
             loginShellPATH: LoginShellPathCache.shared.current?.joined(separator: ":"))
         guard self.startupBehavior.automaticallyStartsBackgroundWork else { return }
         self.hydrateCachedTokenSnapshots()
-        self.startSharedSpendDashboardPublication()
+        self.synchronizeSharedSpendDashboardPublicationForPowerMode()
         self.detectVersions()
         self.updateProviderRuntimes()
         Task { @MainActor [weak self] in
@@ -1447,7 +1457,11 @@ extension UsageStore {
         }
     }
 
-    func refreshTokenUsage(_ provider: UsageProvider, force: Bool) async {
+    func refreshTokenUsage(
+        _ provider: UsageProvider,
+        force: Bool,
+        lightweightMenuOpen: Bool = false) async
+    {
         guard ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.supportsTokenCost else {
             self.resetTokenUsageState(for: provider)
             return
@@ -1528,6 +1542,7 @@ extension UsageStore {
             let snapshot = try await self.loadTokenUsageSnapshot(
                 provider: provider,
                 force: force,
+                lightweightMenuOpen: lightweightMenuOpen,
                 now: now,
                 codexHomePath: costScope.codexHomePath,
                 historyDays: historyDays,

@@ -60,6 +60,23 @@ struct CodexCostCatchUpPolicyTests {
     }
 
     @Test
+    func `minimum delay applies to running and paused decisions`() {
+        let running = CodexCostCatchUpPolicy.Decision(
+            action: .runAfter(30),
+            targetDutyCycle: 0.001)
+        let paused = CodexCostCatchUpPolicy.Decision(
+            action: .pause(60, .lowPower),
+            targetDutyCycle: nil)
+
+        #expect(running.enforcingMinimumDelay(1800) == .init(
+            action: .runAfter(1800),
+            targetDutyCycle: 0.001))
+        #expect(paused.enforcingMinimumDelay(1800) == .init(
+            action: .pause(1800, .lowPower),
+            targetDutyCycle: nil))
+    }
+
+    @Test
     func `accelerated mode ignores low power but not critical thermal pressure`() {
         let lowPowerDecision = CodexCostCatchUpPolicy().decision(for: .init(
             mode: .accelerated,

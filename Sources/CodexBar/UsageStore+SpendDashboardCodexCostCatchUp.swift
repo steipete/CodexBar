@@ -23,9 +23,29 @@ extension UsageStore {
             self.cancelSpendDashboardCodexCostCatchUp()
             return
         }
+        // In global low-power mode the hidden dashboard must not maintain a 365-day index.
+        // A visible dashboard passes `.accelerated`, which remains an explicit user action.
+        if self.settings.backgroundWorkLowPowerModeEnabled,
+           preferredMode != .accelerated
+        {
+            self.cancelSpendDashboardCodexCostCatchUp()
+            return
+        }
         // A user-requested stop must stay durable until they explicitly resume; background
         // synchronization would otherwise restart the worker behind their back.
         guard !self.spendDashboardCodexCostCatchUpStopRequested else { return }
+        let (_, scopeSignature) = Self.spendDashboardCodexCostCatchUpScope(
+            accounts: accounts,
+            configuredHistoryDays: self.settings.costUsageHistoryDays)
+        if let retryNotBefore = self.spendDashboardCodexCostCatchUpRetryNotBefore {
+            if self.spendDashboardCodexCostCatchUpRetryScopeSignature == scopeSignature,
+               retryNotBefore > Date()
+            {
+                return
+            }
+            self.spendDashboardCodexCostCatchUpRetryNotBefore = nil
+            self.spendDashboardCodexCostCatchUpRetryScopeSignature = nil
+        }
         var mode = preferredMode
             ?? (self.spendDashboardCodexCostCatchUpTask == nil ? .automatic : self.spendDashboardCodexCostCatchUpMode)
         if preferredMode == .accelerated,
@@ -52,12 +72,12 @@ extension UsageStore {
             self.cancelSpendDashboardCodexCostCatchUp()
             return
         }
+        self.spendDashboardCodexCostCatchUpRetryNotBefore = nil
+        self.spendDashboardCodexCostCatchUpRetryScopeSignature = nil
 
-        let historyDays = max(SpendDashboardSource.scanDays, self.settings.costUsageHistoryDays)
-        let accountScopeSignature = accounts
-            .map { "\($0.id)|\($0.cacheIdentity)" }
-            .joined(separator: "\u{0}")
-        let scopeSignature = "\(historyDays)\u{0}\(accountScopeSignature)"
+        let (historyDays, scopeSignature) = Self.spendDashboardCodexCostCatchUpScope(
+            accounts: accounts,
+            configuredHistoryDays: self.settings.costUsageHistoryDays)
         if self.spendDashboardCodexCostCatchUpTask != nil,
            self.spendDashboardCodexCostCatchUpScopeSignature == scopeSignature
         {
@@ -139,6 +159,8 @@ extension UsageStore {
         self.spendDashboardCodexCostCatchUpStopRequested = false
         self.spendDashboardCodexCostCatchUpPassIsRunning = false
         self.spendDashboardCodexCostCatchUpRestartRequested = false
+        self.spendDashboardCodexCostCatchUpRetryNotBefore = nil
+        self.spendDashboardCodexCostCatchUpRetryScopeSignature = nil
         self.spendDashboardCodexCostCatchUpActivity = nil
     }
 
@@ -173,6 +195,10 @@ extension UsageStore {
                     statuses[$0.cacheIdentity]?.pending == true
                         && !stalledCacheIdentities.contains($0.cacheIdentity)
                 }) else {
+                    self.spendDashboardCodexCostCatchUpRestartRequested = false
+                    self.spendDashboardCodexCostCatchUpRetryNotBefore = Date().addingTimeInterval(
+                        BackgroundWorkPowerPolicy.lowPowerMinimumInterval)
+                    self.spendDashboardCodexCostCatchUpRetryScopeSignature = context.scopeSignature
                     self.publishSpendDashboardCodexCostCatchUpActivity(
                         statuses: statuses,
                         context: context,
@@ -335,12 +361,16 @@ extension UsageStore {
             powerSource: CodexCostCatchUpPowerSource.current(),
             lowPowerModeEnabled: ProcessInfo.processInfo.isLowPowerModeEnabled,
             thermalState: ProcessInfo.processInfo.thermalState)
-        return CodexCostCatchUpPolicy().decision(for: .init(
+        let decision = CodexCostCatchUpPolicy().decision(for: .init(
             mode: mode,
             previousActiveDuration: previousActiveDuration,
             powerSource: resourceState.powerSource,
             lowPowerModeEnabled: resourceState.lowPowerModeEnabled,
             thermalState: resourceState.thermalState))
+        guard mode == .automatic, self.settings.backgroundWorkLowPowerModeEnabled else {
+            return decision
+        }
+        return decision.enforcingMinimumDelay(BackgroundWorkPowerPolicy.lowPowerMinimumInterval)
     }
 
     private func publishSpendDashboardCodexCostCatchUpActivity(
@@ -387,6 +417,17 @@ extension UsageStore {
     {
         var seen: Set<String> = []
         return accounts.filter { seen.insert($0.cacheIdentity).inserted }
+    }
+
+    private static func spendDashboardCodexCostCatchUpScope(
+        accounts: [CodexSpendScanRequest],
+        configuredHistoryDays: Int) -> (historyDays: Int, signature: String)
+    {
+        let historyDays = max(SpendDashboardSource.scanDays, configuredHistoryDays)
+        let accountScopeSignature = accounts
+            .map { "\($0.id)|\($0.cacheIdentity)" }
+            .joined(separator: "\u{0}")
+        return (historyDays, "\(historyDays)\u{0}\(accountScopeSignature)")
     }
 
     private static func spendDashboardCodexCatchUpIsPending(

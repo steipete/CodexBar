@@ -51,6 +51,27 @@ struct UsageStoreTokenRefreshCadenceTests {
             lowPowerModeEnabled: true) == nil)
     }
 
+    @Test(arguments: [
+        RefreshFrequency.oneMinute,
+        .fiveMinutes,
+        .fifteenMinutes,
+        .thirtyMinutes,
+    ])
+    func `refresh on open makes low power background token scans six hourly`(frequency: RefreshFrequency) {
+        #expect(UsageStore.tokenFetchTTL(
+            for: frequency,
+            lowPowerModeEnabled: true,
+            refreshAllProvidersOnMenuOpen: true) == TimeInterval(6 * 60 * 60))
+    }
+
+    @Test
+    func `refresh on open preserves manual-only token cadence`() {
+        #expect(UsageStore.tokenFetchTTL(
+            for: .manual,
+            lowPowerModeEnabled: true,
+            refreshAllProvidersOnMenuOpen: true) == nil)
+    }
+
     @Test(arguments: [RefreshFrequency.oneMinute, .twoMinutes, .fiveMinutes])
     func `fast provider refreshes cannot rescan local cost within fifteen minutes`(
         frequency: RefreshFrequency) async throws

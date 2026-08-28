@@ -265,6 +265,8 @@ struct UsageStoreCodexCostCatchUpTests {
     @Test
     func `accelerated catch-up runs without an inter-pass delay and publishes progress`() async throws {
         let store = try Self.makeStore(suite: "accelerated")
+        store.settings.backgroundWorkLowPowerModePreference = .on
+        store.settings.refreshAllProvidersOnMenuOpen = true
         var statusLoadCount = 0
         var sleepDurations: [TimeInterval] = []
         store._test_tokenUsageSnapshotLoaderOverride = { _, _, now, _, _ in
@@ -306,6 +308,50 @@ struct UsageStoreCodexCostCatchUpTests {
         #expect(store.codexCostCatchUpActivity?.phase == .complete)
         #expect(store.codexCostCatchUpActivity?.mode == .accelerated)
         #expect(store.codexCostCatchUpActivity?.fractionCompleted == 1)
+    }
+
+    @Test
+    func `refresh-on-open low power mode defers only automatic catch-up for six hours`() async throws {
+        let store = try Self.makeStore(suite: "interactive-low-power")
+        store.settings.backgroundWorkLowPowerModePreference = .on
+        store.settings.refreshAllProvidersOnMenuOpen = true
+        var advanceCount = 0
+        var observedDelay: TimeInterval?
+        var observedPhase: CodexCostCatchUpActivity.Phase?
+        var observedPauseReason: CodexCostCatchUpPauseReason?
+        store._test_codexCostCatchUpStatusOverride = { _ in
+            CostUsageFetcher.CodexScanCatchUpStatus(
+                pending: true,
+                progressKey: "partial",
+                processedBytes: 50,
+                totalBytes: 100)
+        }
+        store._test_codexCostCatchUpAdvanceOverride = { _, _, _ in
+            advanceCount += 1
+            return CostUsageFetcher.CodexScanCatchUpStatus(
+                pending: false,
+                progressKey: "unexpected")
+        }
+        store._test_codexCostCatchUpSleepOverride = { duration in
+            observedDelay = duration
+            observedPhase = store.codexCostCatchUpActivity?.phase
+            observedPauseReason = store.codexCostCatchUpActivity?.pauseReason
+            store.stopCodexCostCatchUp()
+            await Task.yield()
+        }
+        store._test_codexCostCatchUpResourceStateOverride = {
+            (.ac, false, .nominal)
+        }
+
+        store.startCodexCostCatchUpIfNeeded()
+        await Self.waitUntil {
+            store.codexCostCatchUpTask == nil
+        }
+
+        #expect(observedDelay == UsageStore.interactiveLowPowerTokenFetchTTL)
+        #expect(advanceCount == 0)
+        #expect(observedPhase == .paused)
+        #expect(observedPauseReason == .lowPower)
     }
 
     @Test

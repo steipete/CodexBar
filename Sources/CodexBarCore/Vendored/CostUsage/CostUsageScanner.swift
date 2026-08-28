@@ -160,6 +160,9 @@ enum CostUsageScanner {
         var codexScanBudgetForTesting: CodexScanBudget?
         var calendar: Calendar
         var refreshMinIntervalSeconds: TimeInterval = 60
+        /// For interaction-triggered refreshes, check persisted file metadata before materializing
+        /// parser rows and token snapshots. An unchanged corpus can answer exactly from day aggregates.
+        var reuseCodexReportWhenSourcesAreUnchanged: Bool = false
         var claudeLogProviderFilter: ClaudeLogProviderFilter = .all
         /// Force a full rescan, ignoring per-file cache and incremental offsets.
         var forceRescan: Bool = false
@@ -5360,6 +5363,113 @@ enum CostUsageScanner {
         CostUsageStoreAccess.load(cacheRoot: options.cacheRoot, calendar: range.calendar)
     }
 
+    static func codexReportIfSourcesAreUnchanged(
+        cache: CostUsageCache,
+        range: CostUsageDayRange,
+        now: Date,
+        options: Options) -> CostUsageDailyReport?
+    {
+        guard cache.lastScanUnixMs > 0,
+              cache.timeZoneIdentifier == range.calendar.timeZone.identifier,
+              cache.codexScanCatchUpPending != true,
+              cache.codexActiveLookbackState == nil,
+              !cache.files.values.contains(where: {
+                  $0.codexScanComplete == false || $0.hasBufferedCodexForkRetryLines
+              })
+        else { return nil }
+
+        let nowMs = Int64(now.timeIntervalSince1970 * 1000)
+        let plan = Self.makeCodexRefreshPlan(
+            cache: cache,
+            range: range,
+            now: now,
+            nowMs: nowMs,
+            options: options)
+        guard !options.forceRescan,
+              !plan.rootsChanged,
+              !plan.windowExpanded,
+              !plan.needsPricingMetadataMigration,
+              !plan.needsProjectMetadataMigration,
+              !plan.needsTurnIDCacheMigration,
+              !plan.priorityMetadataChanged,
+              !plan.priorityTurnsChanged,
+              !plan.requiresCacheWideFileReprocessing,
+              Self.codexSourceFilesAreUnchanged(cache: cache, range: range, roots: plan.roots)
+        else { return nil }
+
+        return Self.buildCodexReportFromCache(
+            cache: cache,
+            range: range,
+            modelsDevCatalog: plan.modelsDevCatalog,
+            modelsDevCacheRoot: options.cacheRoot,
+            priorityTurns: plan.priorityTurns)
+    }
+
+    private static func codexSourceFilesAreUnchanged(
+        cache: CostUsageCache,
+        range: CostUsageDayRange,
+        roots: [URL]) -> Bool
+    {
+        guard let discovery = cache.codexSessionDiscovery,
+              discovery.headScan == nil,
+              discovery.pendingSessionIds.isEmpty,
+              Set(discovery.roots) == Set(roots.map(\.standardizedFileURL.path))
+        else { return false }
+
+        for (path, usage) in cache.files {
+            let metadata = Self.codexFileMetadata(fileURL: URL(fileURLWithPath: path))
+            guard metadata.fileId != nil,
+                  usage.codexScanFileId == metadata.fileId,
+                  usage.mtimeUnixMs == metadata.mtimeUnixMs,
+                  usage.size == metadata.size
+            else { return false }
+        }
+
+        for (path, stamp) in discovery.directoryStamps {
+            let metadata = Self.codexFileMetadata(
+                fileURL: URL(fileURLWithPath: path, isDirectory: true))
+            guard metadata.fileId != nil, metadata.mtimeUnixMs == stamp.mtimeUnixMs else {
+                return false
+            }
+        }
+
+        let cachedPathKeys = Set(cache.files.keys.map {
+            Self.codexPathKey(URL(fileURLWithPath: $0))
+        })
+        for root in roots {
+            let currentFiles = Self.listCodexSessionFiles(
+                root: root,
+                scanSinceKey: range.scanSinceKey,
+                scanUntilKey: range.scanUntilKey,
+                includeRecursive: false,
+                calendar: range.calendar)
+            if currentFiles.contains(where: { !cachedPathKeys.contains(Self.codexPathKey($0)) }) {
+                return false
+            }
+        }
+
+        // A session stored in an older date partition can be resumed and appended in place.
+        // Mirror the warm scanner's active-session lookback so the summary shortcut cannot miss
+        // a newly active file that has not entered the cache yet.
+        guard let modifiedSince = Self.localStartOfDay(range.scanSinceKey, calendar: range.calendar)
+        else { return false }
+        for root in roots {
+            let scanBudget = CodexScanBudget(maxFileBytes: 0, maxBytesPerRefresh: 0)
+            let lookback = Self.listCodexRecentlyModifiedPartitionFiles(
+                root: root,
+                scanSinceKey: range.scanSinceKey,
+                modifiedSince: modifiedSince,
+                scanBudget: scanBudget,
+                resumeDayKey: nil,
+                calendar: range.calendar)
+            guard lookback.isComplete else { return false }
+            if lookback.files.contains(where: { !cachedPathKeys.contains(Self.codexPathKey($0)) }) {
+                return false
+            }
+        }
+        return true
+    }
+
     private static func codexPreviousReportCandidate(
         cache: CostUsageCache,
         range: CostUsageDayRange,
@@ -5453,6 +5563,15 @@ enum CostUsageScanner {
         options: Options,
         checkCancellation: CancellationCheck?) throws -> CostUsageDailyReport
     {
+        if options.reuseCodexReportWhenSourcesAreUnchanged {
+            let summary = CostUsageStoreAccess.readView(
+                cacheRoot: options.cacheRoot,
+                calendar: range.calendar,
+                purpose: .summary)
+            if let report = summary.unchangedSourceReport(range: range, now: now, options: options) {
+                return report
+            }
+        }
         let loadedCache = Self.loadCodexCache(options: options, range: range)
         var cache = loadedCache.cache
         let nowMs = Int64(now.timeIntervalSince1970 * 1000)

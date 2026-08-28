@@ -190,6 +190,9 @@ struct SpendDashboardPane: View {
         .onDisappear {
             self.isVisible = false
             self.synchronizeCodexCostCatchUp()
+            if self.settings.backgroundWorkLowPowerModeEnabled {
+                self.store.synchronizeSharedSpendDashboardPublicationForPowerMode()
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in
             self.controller.refreshDateWindow()

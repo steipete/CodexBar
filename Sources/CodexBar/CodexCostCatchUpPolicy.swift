@@ -84,6 +84,15 @@ struct CodexCostCatchUpPolicy: Sendable {
 
         let action: Action
         let targetDutyCycle: Double?
+
+        func enforcingMinimumDelay(_ minimumDelay: TimeInterval) -> Self {
+            let minimumDelay = max(0, minimumDelay)
+            let action = switch self.action {
+            case let .runAfter(delay): Action.runAfter(max(delay, minimumDelay))
+            case let .pause(delay, reason): Action.pause(max(delay, minimumDelay), reason)
+            }
+            return Self(action: action, targetDutyCycle: self.targetDutyCycle)
+        }
     }
 
     static let automaticBurstDuration: TimeInterval = 2

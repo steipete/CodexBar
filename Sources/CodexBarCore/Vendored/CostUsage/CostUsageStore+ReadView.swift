@@ -73,6 +73,18 @@ struct CostUsageStoreReadView: Sendable {
         CostUsageScanner.buildCodexReportFromCache(cache: self.cache, range: range, modelsDevCacheRoot: cacheRoot)
     }
 
+    func unchangedSourceReport(
+        range: CostUsageScanner.CostUsageDayRange,
+        now: Date,
+        options: CostUsageScanner.Options) -> CostUsageDailyReport?
+    {
+        CostUsageScanner.codexReportIfSourcesAreUnchanged(
+            cache: self.cache,
+            range: range,
+            now: now,
+            options: options)
+    }
+
     func projects(range: CostUsageScanner.CostUsageDayRange, cacheRoot: URL?) -> [CostUsageProjectBreakdown] {
         CostUsageScanner.buildCodexProjectBreakdownsFromCache(
             cache: self.cache, range: range, modelsDevCacheRoot: cacheRoot)
@@ -109,5 +121,6 @@ struct CostUsageStoreReadView: Sendable {
 
 enum CostUsageStoreReadPurpose {
     case status
+    case summary
     case report
 }
