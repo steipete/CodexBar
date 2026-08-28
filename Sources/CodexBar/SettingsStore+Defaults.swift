@@ -928,9 +928,6 @@ extension SettingsStore {
         set {
             self.defaultsState.mergeIcons = newValue
             self.userDefaults.set(newValue, forKey: "mergeIcons")
-            if newValue {
-                self.accountMenuBarDisplayModesRaw = [:]
-            }
         }
     }
 

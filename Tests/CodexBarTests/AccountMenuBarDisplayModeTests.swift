@@ -51,8 +51,9 @@ struct AccountMenuBarDisplayModeTests {
     }
 
     @Test
-    func `enabling merged icons clears all separate display modes`() throws {
-        let (store, defaults, _) = try Self.makeStore(suite: "AccountMenuBarDisplayModeTests-merge-clears-separate")
+    func `merged icons temporarily override separate display modes`() throws {
+        let suite = "AccountMenuBarDisplayModeTests-merge-overrides-separate"
+        let (store, defaults, _) = try Self.makeStore(suite: suite)
         store.setAccountMenuBarDisplayMode(.separate, for: .codex)
         store.setAccountMenuBarDisplayMode(.separate, for: .claude)
 
@@ -60,7 +61,19 @@ struct AccountMenuBarDisplayModeTests {
 
         #expect(store.accountMenuBarDisplayMode(for: .codex) == .combined)
         #expect(store.accountMenuBarDisplayMode(for: .claude) == .combined)
-        #expect(defaults.dictionary(forKey: "accountMenuBarDisplayModes")?.isEmpty == true)
+        #expect(defaults.dictionary(forKey: "accountMenuBarDisplayModes") as? [String: String] == [
+            UsageProvider.codex.rawValue: AccountMenuBarDisplayMode.separate.rawValue,
+            UsageProvider.claude.rawValue: AccountMenuBarDisplayMode.separate.rawValue,
+        ])
+
+        let reconstructed = try Self.reconstructStore(suite: suite)
+        #expect(reconstructed.accountMenuBarDisplayMode(for: .codex) == .combined)
+        #expect(reconstructed.accountMenuBarDisplayMode(for: .claude) == .combined)
+
+        reconstructed.mergeIcons = false
+
+        #expect(reconstructed.accountMenuBarDisplayMode(for: .codex) == .separate)
+        #expect(reconstructed.accountMenuBarDisplayMode(for: .claude) == .separate)
     }
 
     private static func makeStore(

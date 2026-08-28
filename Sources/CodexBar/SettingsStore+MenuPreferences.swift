@@ -124,6 +124,7 @@ extension String {
 
 extension SettingsStore {
     func accountMenuBarDisplayMode(for provider: UsageProvider) -> AccountMenuBarDisplayMode {
+        guard !self.mergeIcons else { return .combined }
         let rawValue = self.accountMenuBarDisplayModesRaw[provider.rawValue] ?? ""
         return AccountMenuBarDisplayMode(rawValue: rawValue) ?? .combined
     }
