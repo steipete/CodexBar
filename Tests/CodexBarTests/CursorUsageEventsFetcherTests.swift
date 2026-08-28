@@ -253,10 +253,34 @@ struct CursorUsageEventsFetcherTests {
         #expect(Self.approxEqual(event.tokenUsage?.totalCents, 12.5))
     }
 
+    @Test
+    func `page decoding accepts the literal empty query response`() throws {
+        let page = try JSONDecoder().decode(CursorUsageEventsPage.self, from: Data("{}".utf8))
+
+        #expect(page.totalUsageEventsCount == 0)
+        #expect(page.usageEventsDisplay.isEmpty)
+    }
+
+    @Test(arguments: [0, 2])
+    func `page decoding preserves the query count on omitted empty arrays`(count: Int) throws {
+        let json = #"{"totalUsageEventsCount":\#(count)}"#
+        let page = try JSONDecoder().decode(CursorUsageEventsPage.self, from: Data(json.utf8))
+        #expect(page.totalUsageEventsCount == count)
+        #expect(page.usageEventsDisplay.isEmpty)
+    }
+
     @Test(arguments: [
-        #"{"totalUsageEventsCount":0}"#,
         #"{"totalUsageEventsCount":0,"usageEventsDisplay":{}}"#,
         #"{"error":"temporarily unavailable"}"#,
+        #"{"usageEventsDisplay":null}"#,
+        #"{"unknown":null}"#,
+        #"{"totalUsageEventsCount":0,"error":"unavailable"}"#,
+        #"{"totalUsageEventsCount":null}"#,
+        #"{"totalUsageEventsCount":"Infinity"}"#,
+        #"{"totalUsageEventsCount":true}"#,
+        #"{"totalUsageEventsCount":-1}"#,
+        "[]",
+        "null",
     ])
     func `page decoding rejects missing or malformed event arrays`(json: String) {
         #expect(throws: DecodingError.self) {

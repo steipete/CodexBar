@@ -107,6 +107,7 @@ Auth reuses the exact status-probe session resolution and cookie-source policy:
 Fetch behavior:
 - `POST https://cursor.com/api/dashboard/get-filtered-usage-events` (cookie-authenticated; requires a matching `Origin` for CSRF).
 - Pages of 1000 events (up to 200 pages), with exact page-boundary overlap removed before aggregation. Reaching the safety cap or otherwise receiving fewer events than Cursor reports fails the refresh instead of publishing a partial total.
+- Empty query windows return `{}`; empty terminal pages omit the event array but retain `totalUsageEventsCount`. Both shapes were verified against populated pages from the same live session. The decoder accepts only these exact omitted-array shapes, preserves the query count, and rejects malformed arrays or ambiguous envelopes; a terminal `{}` contradicting an earlier positive count still fails.
 - The window start is snapped to the local day boundary so a 1-day window covers all of today and wider windows keep their full first day.
 
 Two totals are reported from the same events:

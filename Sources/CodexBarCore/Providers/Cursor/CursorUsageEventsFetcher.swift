@@ -20,12 +20,35 @@ struct CursorUsageEventsPage: Decodable, Sendable {
         case usageEventsDisplay
     }
 
+    private struct ResponseKey: CodingKey {
+        let stringValue: String
+        var intValue: Int? {
+            nil
+        }
+
+        init?(stringValue: String) {
+            self.stringValue = stringValue
+        }
+
+        init?(intValue _: Int) {
+            nil
+        }
+    }
+
     init(totalUsageEventsCount: Int?, usageEventsDisplay: [CursorUsageEvent]) {
         self.totalUsageEventsCount = totalUsageEventsCount
         self.usageEventsDisplay = usageEventsDisplay
     }
 
     init(from decoder: Decoder) throws {
+        // Empty queries omit both fields; empty terminal pages retain the query's total count.
+        // Inspect every key so error envelopes cannot masquerade as confirmed empty usage.
+        let responseKeys = try decoder.container(keyedBy: ResponseKey.self).allKeys
+        if responseKeys.isEmpty {
+            self.totalUsageEventsCount = 0
+            self.usageEventsDisplay = []
+            return
+        }
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let decodedCount = CursorEventNumber.int64(container, .totalUsageEventsCount)
             .flatMap(Int.init(exactly:))
@@ -36,6 +59,13 @@ struct CursorUsageEventsPage: Decodable, Sendable {
                 debugDescription: "Cursor usage event count cannot be negative")
         }
         self.totalUsageEventsCount = decodedCount
+        if decodedCount != nil,
+           responseKeys.count == 1,
+           responseKeys.first?.stringValue == CodingKeys.totalUsageEventsCount.rawValue
+        {
+            self.usageEventsDisplay = []
+            return
+        }
         self.usageEventsDisplay = try container.decode([CursorUsageEvent].self, forKey: .usageEventsDisplay)
     }
 }
