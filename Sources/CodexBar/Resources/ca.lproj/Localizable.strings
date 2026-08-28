@@ -1442,6 +1442,7 @@
 "More" = "Més";
 
 /* Provider Plugins */
+"Plugins" = "Connectors";
 "Install…" = "Instal·la…";
 "Install plugin" = "Instal·la el connector";
 "Copies a JavaScript or TypeScript file into the plugins directory." = "Copia un fitxer de JavaScript o TypeScript al directori de connectors.";

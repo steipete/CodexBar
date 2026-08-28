@@ -1443,6 +1443,7 @@
 "More" = "Banyak";
 
 /* Provider Plugins */
+"Plugins" = "Plugins";
 "Install…" = "Pasang…";
 "Install plugin" = "Pasang plugin";
 "Copies a JavaScript or TypeScript file into the plugins directory." = "Menyalin file JavaScript atau TypeScript ke direktori plugin.";

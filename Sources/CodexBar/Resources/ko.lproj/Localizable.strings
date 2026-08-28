@@ -1409,6 +1409,7 @@
 "More" = "많음";
 
 /* Provider Plugins */
+"Plugins" = "Plugins";
 "Install…" = "설치…";
 "Install plugin" = "플러그인 설치";
 "Copies a JavaScript or TypeScript file into the plugins directory." = "JavaScript 또는 TypeScript 파일을 플러그인 디렉터리에 복사합니다.";

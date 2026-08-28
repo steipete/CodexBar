@@ -66,6 +66,9 @@ final class MenuLayoutScreenshotRenderTests: XCTestCase {
                     // Render production views, with no engine, providers, hooks, or credential access running.
                     // Offscreen Forms do not expose their children through the accessibility traversal.
                     let views: [(String, AnyView, [String])] = [
+                        ("sidebar", AnyView(SettingsSidebarView(
+                            settings: settings, store: store, selection: .constant(.plugins))
+                            .frame(width: SettingsPane.sidebarMinWidth, height: 620)), []),
                         ("icloud", AnyView(ICloudSyncPane(settings: settings, state: state)
                                 .frame(width: 560, height: 600)), []),
                         ("hooks", AnyView(HooksPane(settings: settings)
@@ -87,7 +90,10 @@ final class MenuLayoutScreenshotRenderTests: XCTestCase {
                             let hosting = NSHostingView(rootView: view)
                             hosting.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
                             let stem = "catalan-\(name)-\(dark ? "dark" : "light")"
-                            let png = try XCTUnwrap(Self.pngData(hosting: hosting))
+                            let data = name == "sidebar"
+                                ? Self.pngDataWithWindow(hosting: hosting)
+                                : Self.pngData(hosting: hosting)
+                            let png = try XCTUnwrap(data)
                             XCTAssertFalse(png.isEmpty)
                             try png.write(to: directory.appendingPathComponent("\(stem).png"))
                             let accessibility = Self.accessibilityText(hosting)
@@ -845,6 +851,29 @@ final class MenuLayoutScreenshotRenderTests: XCTestCase {
         representation.size = size
         guard let context = NSGraphicsContext(bitmapImageRep: representation) else { return nil }
         hosting.displayIgnoringOpacity(hosting.bounds, in: context)
+        return representation.representation(using: .png, properties: [:])
+    }
+}
+
+extension MenuLayoutScreenshotRenderTests {
+    fileprivate static func pngDataWithWindow(hosting: NSHostingView<AnyView>) -> Data? {
+        // Native List rows need a window to materialize, but it never needs to be ordered onscreen.
+        let size = hosting.fittingSize
+        hosting.frame = CGRect(origin: .zero, size: size)
+        let window = NSWindow(
+            contentRect: hosting.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.appearance = hosting.appearance
+        window.contentView = hosting
+        defer {
+            window.contentView = nil
+            window.close()
+        }
+        window.layoutIfNeeded()
+        hosting.layoutSubtreeIfNeeded()
+        RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        guard let representation = hosting.bitmapImageRepForCachingDisplay(in: hosting.bounds) else { return nil }
+        hosting.cacheDisplay(in: hosting.bounds, to: representation)
         return representation.representation(using: .png, properties: [:])
     }
 }
