@@ -187,8 +187,12 @@ Example:
   - Native conversation rows reuse the corrected cached per-file totals and existing pricing tables. They are hidden
     when pi-compatible usage joins the aggregate because the native-only rows would not reconcile with the merged total.
 - Cache:
-  - Native + merged provider cache: `~/Library/Caches/CodexBar/cost-usage/codex-v11.json`
-  - pi-compatible session cache: `~/Library/Caches/CodexBar/cost-usage/pi-sessions-v7.json`
+  - Native session store: `~/Library/Caches/CodexBar/cost-usage/cost-usage.sqlite`
+  - pi-compatible session cache: `~/Library/Caches/CodexBar/cost-usage/pi-sessions-v8.json`
+  - Catch-up status reads progress metadata without loading historical usage JSON or replay bodies. Cached reports
+    retain row-level pricing evidence and project/session details, but omit raw token snapshots, accumulator state,
+    and replay bodies. File cursor metadata, including JSONL resume state, remains available for progress tracking.
+    Scanner and save operations still load the complete state; fresh database opens retain integrity validation.
 - Window: configurable 1-365 day rolling history, with a 60s minimum refresh interval.
 - While a bounded refresh catches up with new session history, established totals remain visible only for the same
   account, history window, and bucket time zone. An incomplete first scan never borrows another account's totals.

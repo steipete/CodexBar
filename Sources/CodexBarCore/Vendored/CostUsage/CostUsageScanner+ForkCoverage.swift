@@ -184,7 +184,8 @@ extension CostUsageFileUsage {
 
         // Missing-parent forks keep empty billed days on purpose. Session timestamps still
         // place them in the scan window so force-rescan prune cannot drop the unmetered gap.
-        let isIncompleteFork = self.codexBufferedUnresolvedForkLines != nil
+        let isIncompleteFork = (self.codexReadRetryBufferPresence?.unresolvedFork
+            ?? (self.codexBufferedUnresolvedForkLines != nil))
             || CostUsageScanner.isUnresolvedMissingParentFork(self)
         guard isIncompleteFork else { return false }
 

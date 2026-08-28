@@ -52,7 +52,41 @@ extension CostUsageStore {
         guard snapshot.metadata.timeZoneIdentifier == nil
             || snapshot.metadata.timeZoneIdentifier == calendar.timeZone.identifier
         else { return CostUsageCache() }
-        return Self.cache(from: snapshot)
+        return Self.cache(from: snapshot, recorder: self.scopedReadWorkRecorderForTesting)
+    }
+
+    func loadCodexReadView(calendar: Calendar, purpose: CostUsageStoreReadPurpose) -> CostUsageStoreReadView {
+        _ = self.removeLegacyCodexArtifactIfPresent()
+        return self.withDatabase(default: CostUsageStoreReadView(cache: CostUsageCache())) { database in
+            let recorder = self.scopedReadWorkRecorderForTesting
+            let (snapshot, retryPresence) = try Self.inReadTransaction(database) {
+                let snapshot = try CostUsageStoreSnapshot(
+                    metadata: Self.readSingleton(
+                        CostUsageStoreMetadata.self, database: database, table: "scan_metadata") ?? .empty,
+                    files: Self.readFiles(database, recorder: recorder),
+                    tokenSnapshots: [],
+                    usageRows: purpose == .report ? Self.readUsageRows(database, path: nil, recorder: recorder) : [],
+                    fileDayAggregates: purpose == .report ? Self.readFileDayAggregates(database, path: nil) : [],
+                    dayAggregates: purpose == .report
+                        ? Self.readDayAggregates(database, sinceDay: nil, untilDay: nil) : [],
+                    forkLineage: Self.readForkLineage(database, path: nil),
+                    bufferedLines: [],
+                    discoveryState: Self.readSingleton(
+                        CostUsageStoreDiscoveryState.self, database: database, table: "discovery_state"),
+                    lookbackState: Self.readSingleton(
+                        CostUsageStoreLookbackState.self, database: database, table: "lookback_state"),
+                    accumulators: [])
+                let retryPresence = try Self.readRetryBufferPresence(database, recorder: recorder)
+                return (snapshot, retryPresence)
+            }
+            guard snapshot.metadata.timeZoneIdentifier == nil
+                || snapshot.metadata.timeZoneIdentifier == calendar.timeZone.identifier
+            else { return CostUsageStoreReadView(cache: CostUsageCache()) }
+            // Identity/anchor reconciliation touches the filesystem; do not pin a SQLite reader during it.
+            recorder?.recordReadViewConversion(database: database)
+            return CostUsageStoreReadView(cache: Self.cache(
+                from: snapshot, recorder: recorder, retryPresence: retryPresence))
+        }
     }
 
     @discardableResult
@@ -75,7 +109,8 @@ extension CostUsageStore {
            Self.persistedContentMatches(
                previous: previous,
                cache: cache,
-               calendar: calendar)
+               calendar: calendar,
+               recorder: self.scopedReadWorkRecorderForTesting)
         {
             // Retention owns the safety boundary: even a semantically unchanged scanner result
             // must honor newly tightened row/file budgets before it can return.
@@ -104,7 +139,8 @@ extension CostUsageStore {
             guard Self.persistedContentMatches(
                 previous: lockedPrevious,
                 cache: cache,
-                calendar: calendar)
+                calendar: calendar,
+                recorder: self.scopedReadWorkRecorderForTesting)
             else {
                 _ = self.rollbackSaveTransaction()
                 var retry = result
@@ -201,9 +237,10 @@ extension CostUsageStore {
     private static func persistedContentMatches(
         previous: CostUsageStoreSnapshot,
         cache: CostUsageCache,
-        calendar: Calendar) -> Bool
+        calendar: Calendar,
+        recorder: CostUsageStoreReadWorkRecorder?) -> Bool
     {
-        var restored = Self.cache(from: previous)
+        var restored = Self.cache(from: previous, recorder: recorder)
         guard restored.timeZoneIdentifier == nil
             || restored.timeZoneIdentifier == calendar.timeZone.identifier
         else { return false }
@@ -334,7 +371,12 @@ extension CostUsageStore {
         var validatedCurrentSnapshot = false
     }
 
-    private static func cache(from snapshot: CostUsageStoreSnapshot) -> CostUsageCache {
+    private static func cache(
+        from snapshot: CostUsageStoreSnapshot,
+        recorder: CostUsageStoreReadWorkRecorder?,
+        retryPresence: [String: CostUsageCodexRetryBufferPresence]? = nil) -> CostUsageCache
+    {
+        recorder?.recordCacheConversion()
         var cache = CostUsageCache()
         let metadata = snapshot.metadata
         cache.lastScanUnixMs = metadata.lastScanUnixMs
@@ -381,6 +423,7 @@ extension CostUsageStore {
                   let details = try? JSONDecoder().decode(StoredFileDetails.self, from: detailsData)
             else { continue }
             let aggregates = (aggregatesByPath[file.path] ?? []).map(\.aggregate)
+            recorder?.recordUsageRowDecodes(count: rowsByPath[file.path]?.count ?? 0)
             let rows = (rowsByPath[file.path] ?? []).compactMap {
                 try? JSONDecoder().decode(CostUsageScanner.CodexUsageRow.self, from: $0.payload)
             }
@@ -466,7 +509,8 @@ extension CostUsageStore {
                     try? JSONDecoder().decode(CostUsageJsonl.ResumeState.self, from: $0)
                 },
                 codexBufferedSubagentLines: Self.bufferedLines(buffers, kind: .subagent),
-                codexBufferedUnresolvedForkLines: Self.bufferedLines(buffers, kind: .unresolvedFork))
+                codexBufferedUnresolvedForkLines: Self.bufferedLines(buffers, kind: .unresolvedFork),
+                codexReadRetryBufferPresence: retryPresence.map { $0[file.path] ?? .init() })
             cache.files[file.path] = usage
         }
         Self.enqueueDeferredCodexIdentityValidation(
@@ -1294,6 +1338,14 @@ struct CostUsageStoreLoad: @unchecked Sendable {
 }
 
 enum CostUsageStoreAccess {
+    static func readView(
+        cacheRoot: URL?,
+        calendar: Calendar,
+        purpose: CostUsageStoreReadPurpose) -> CostUsageStoreReadView
+    {
+        CostUsageStore(cacheRoot: cacheRoot).syncLoadCodexReadView(calendar: calendar, purpose: purpose)
+    }
+
     static func load(cacheRoot: URL?, calendar: Calendar) -> CostUsageStoreLoad {
         let store = CostUsageStore(cacheRoot: cacheRoot)
         let cache = store.syncLoadCodexCache(calendar: calendar)

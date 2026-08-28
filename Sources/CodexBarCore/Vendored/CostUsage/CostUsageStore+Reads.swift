@@ -15,19 +15,20 @@ extension CostUsageStore {
             defer { sqlite3_finalize(statement) }
             Self.bind(path, to: statement, at: 1)
             guard sqlite3_step(statement) == SQLITE_ROW else { return nil }
+            self.scopedReadWorkRecorderForTesting?.recordFile()
             return try Self.decodeFile(statement)
         }
     }
 
     func fetchTokenSnapshots(path: String) -> [CostUsageStoreTokenSnapshot] {
         self.withDatabase(default: []) { database in
-            try Self.readTokenSnapshots(database, path: path)
+            try Self.readTokenSnapshots(database, path: path, recorder: self.scopedReadWorkRecorderForTesting)
         }
     }
 
     func fetchUsageRows(path: String) -> [CostUsageStoreUsageRow] {
         self.withDatabase(default: []) { database in
-            try Self.readUsageRows(database, path: path)
+            try Self.readUsageRows(database, path: path, recorder: self.scopedReadWorkRecorderForTesting)
         }
     }
 
@@ -56,7 +57,8 @@ extension CostUsageStore {
         kind: CostUsageStoreBufferedLineKind? = nil) -> [CostUsageStoreBufferedLine]
     {
         self.withDatabase(default: []) { database in
-            try Self.readBufferedLines(database, path: path, kind: kind)
+            try Self.readBufferedLines(
+                database, path: path, kind: kind, recorder: self.scopedReadWorkRecorderForTesting)
         }
     }
 
@@ -74,7 +76,7 @@ extension CostUsageStore {
 
     func fetchAccumulator(path: String) -> CostUsageStoreAccumulator? {
         self.withDatabase(default: nil) { database in
-            try Self.readAccumulators(database, path: path).first
+            try Self.readAccumulators(database, path: path, recorder: self.scopedReadWorkRecorderForTesting).first
         }
     }
 
@@ -100,7 +102,7 @@ extension CostUsageStore {
     func readSnapshot() -> CostUsageStoreSnapshot {
         self.withDatabase(default: Self.emptySnapshot) { database in
             try Self.inReadTransaction(database) {
-                try Self.readSnapshot(database)
+                try Self.readSnapshot(database, recorder: self.scopedReadWorkRecorderForTesting)
             }
         }
     }
@@ -109,7 +111,7 @@ extension CostUsageStore {
     /// its writer lock so content identity and the following write share one SQLite snapshot.
     func readSnapshotInCurrentTransaction() -> CostUsageStoreSnapshot {
         self.withDatabase(default: Self.emptySnapshot) { database in
-            try Self.readSnapshot(database)
+            try Self.readSnapshot(database, recorder: self.scopedReadWorkRecorderForTesting)
         }
     }
 
@@ -190,19 +192,22 @@ extension CostUsageStore {
             accumulators: [])
     }
 
-    private static func readSnapshot(_ database: OpaquePointer) throws -> CostUsageStoreSnapshot {
-        try CostUsageStoreSnapshot(
+    private static func readSnapshot(
+        _ database: OpaquePointer,
+        recorder: CostUsageStoreReadWorkRecorder?) throws -> CostUsageStoreSnapshot
+    {
+        let snapshot = try CostUsageStoreSnapshot(
             metadata: self.readSingleton(
                 CostUsageStoreMetadata.self,
                 database: database,
                 table: "scan_metadata") ?? .empty,
-            files: self.readFiles(database),
-            tokenSnapshots: self.readTokenSnapshots(database, path: nil),
-            usageRows: self.readUsageRows(database, path: nil),
+            files: self.readFiles(database, recorder: recorder),
+            tokenSnapshots: self.readTokenSnapshots(database, path: nil, recorder: recorder),
+            usageRows: self.readUsageRows(database, path: nil, recorder: recorder),
             fileDayAggregates: self.readFileDayAggregates(database, path: nil),
             dayAggregates: self.readDayAggregates(database, sinceDay: nil, untilDay: nil),
             forkLineage: self.readForkLineage(database, path: nil),
-            bufferedLines: self.readBufferedLines(database, path: nil, kind: nil),
+            bufferedLines: self.readBufferedLines(database, path: nil, kind: nil, recorder: recorder),
             discoveryState: self.readSingleton(
                 CostUsageStoreDiscoveryState.self,
                 database: database,
@@ -211,7 +216,9 @@ extension CostUsageStore {
                 CostUsageStoreLookbackState.self,
                 database: database,
                 table: "lookback_state"),
-            accumulators: self.readAccumulators(database, path: nil))
+            accumulators: self.readAccumulators(database, path: nil, recorder: recorder))
+        recorder?.recordFullSnapshot()
+        return snapshot
     }
 
     private static let fileSelectSQL = """
@@ -221,12 +228,16 @@ extension CostUsageStore {
     FROM files
     """
 
-    static func readFiles(_ database: OpaquePointer) throws -> [CostUsageStoreFile] {
+    static func readFiles(
+        _ database: OpaquePointer,
+        recorder: CostUsageStoreReadWorkRecorder? = nil) throws -> [CostUsageStoreFile]
+    {
         let statement = try self.prepare(database, self.fileSelectSQL + " ORDER BY path")
         defer { sqlite3_finalize(statement) }
         var values: [CostUsageStoreFile] = []
         var result = sqlite3_step(statement)
         while result == SQLITE_ROW {
+            recorder?.recordFile()
             try values.append(self.decodeFile(statement))
             result = sqlite3_step(statement)
         }
@@ -265,7 +276,8 @@ extension CostUsageStore {
 
     static func readTokenSnapshots(
         _ database: OpaquePointer,
-        path: String?) throws -> [CostUsageStoreTokenSnapshot]
+        path: String?,
+        recorder: CostUsageStoreReadWorkRecorder? = nil) throws -> [CostUsageStoreTokenSnapshot]
     {
         var sql = """
         SELECT f.path, t.event_index, t.timestamp, t.timestamp_ms, t.day,
@@ -289,6 +301,7 @@ extension CostUsageStore {
                   let eventIndex = Int(exactly: sqlite3_column_int64(statement, 1)),
                   let timestamp = self.columnText(statement, at: 2)
             else { throw StoreError.invalidData }
+            recorder?.recordTokenSnapshot()
             values.append(CostUsageStoreTokenSnapshot(
                 path: path,
                 eventIndex: eventIndex,
@@ -306,7 +319,8 @@ extension CostUsageStore {
 
     static func readUsageRows(
         _ database: OpaquePointer,
-        path: String?) throws -> [CostUsageStoreUsageRow]
+        path: String?,
+        recorder: CostUsageStoreReadWorkRecorder? = nil) throws -> [CostUsageStoreUsageRow]
     {
         var sql = """
         SELECT f.path, r.row_index, r.payload
@@ -328,6 +342,7 @@ extension CostUsageStore {
                   let rowIndex = Int(exactly: sqlite3_column_int64(statement, 1)),
                   let payload = self.columnData(statement, at: 2)
             else { throw StoreError.invalidData }
+            recorder?.recordUsageRow(payloadBytes: payload.count)
             values.append(CostUsageStoreUsageRow(path: path, rowIndex: rowIndex, payload: payload))
             result = sqlite3_step(statement)
         }
@@ -478,10 +493,41 @@ extension CostUsageStore {
         return values
     }
 
+    static func readRetryBufferPresence(
+        _ database: OpaquePointer,
+        recorder: CostUsageStoreReadWorkRecorder?) throws -> [String: CostUsageCodexRetryBufferPresence]
+    {
+        // A retained retry row keeps read-only coverage incomplete even if its body is malformed.
+        // Body decoding and recovery belong to the full scanner path, not this presence query.
+        let statement = try self.prepare(database, """
+        SELECT f.path, b.kind
+        FROM buffered_lines b JOIN files f ON f.id = b.file_id
+        WHERE b.kind IN ('subagent', 'unresolvedFork')
+        GROUP BY b.file_id, b.kind
+        """)
+        defer { sqlite3_finalize(statement) }
+        var values: [String: CostUsageCodexRetryBufferPresence] = [:]
+        var result = sqlite3_step(statement)
+        while result == SQLITE_ROW {
+            guard let path = self.columnText(statement, at: 0),
+                  let kind = self.columnText(statement, at: 1) else { throw StoreError.invalidData }
+            recorder?.recordRetryPresence()
+            if kind == CostUsageStoreBufferedLineKind.subagent.rawValue {
+                values[path, default: .init()].subagent = true
+            } else {
+                values[path, default: .init()].unresolvedFork = true
+            }
+            result = sqlite3_step(statement)
+        }
+        guard result == SQLITE_DONE else { throw StoreError.sqlite(result) }
+        return values
+    }
+
     static func readBufferedLines(
         _ database: OpaquePointer,
         path: String?,
-        kind: CostUsageStoreBufferedLineKind?) throws -> [CostUsageStoreBufferedLine]
+        kind: CostUsageStoreBufferedLineKind?,
+        recorder: CostUsageStoreReadWorkRecorder? = nil) throws -> [CostUsageStoreBufferedLine]
     {
         var sql = """
         SELECT f.path, b.kind, b.line_index, b.ordinal, b.end_offset, b.payload
@@ -517,6 +563,7 @@ extension CostUsageStore {
                   let lineIndex = Int(exactly: sqlite3_column_int64(statement, 2)),
                   let payload = self.columnData(statement, at: 5)
             else { throw StoreError.invalidData }
+            recorder?.recordBufferedLine(payloadBytes: payload.count)
             values.append(CostUsageStoreBufferedLine(
                 path: path,
                 kind: kind,
@@ -532,7 +579,8 @@ extension CostUsageStore {
 
     static func readAccumulators(
         _ database: OpaquePointer,
-        path: String?) throws -> [CostUsageStoreAccumulator]
+        path: String?,
+        recorder: CostUsageStoreReadWorkRecorder? = nil) throws -> [CostUsageStoreAccumulator]
     {
         var sql = """
         SELECT f.path, a.event_count, a.next_usage_row_index,
@@ -558,6 +606,7 @@ extension CostUsageStore {
                   let eventCount = Int(exactly: sqlite3_column_int64(statement, 1)),
                   let seenData = self.columnData(statement, at: 17)
             else { throw StoreError.invalidData }
+            recorder?.recordAccumulator()
             let seen = try JSONDecoder().decode([CostUsageStoreTotals].self, from: seenData)
             values.append(CostUsageStoreAccumulator(
                 path: path,

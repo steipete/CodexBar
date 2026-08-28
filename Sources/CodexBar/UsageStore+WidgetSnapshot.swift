@@ -342,8 +342,16 @@ extension UsageStore {
         provider: UsageProvider) -> WidgetSnapshot.TokenUsageSummary?
     {
         guard let snapshot else { return nil }
-        let fallbackTokens = snapshot.daily.compactMap(\.totalTokens).reduce(0, +)
-        let monthTokensValue = snapshot.last30DaysTokens ?? (fallbackTokens > 0 ? fallbackTokens : nil)
+        let fallbackTokens: Int? = {
+            var sum = 0
+            for t in snapshot.daily.compactMap(\.totalTokens) {
+                let (res, of) = sum.addingReportingOverflow(t)
+                if of { return nil }
+                sum = res
+            }
+            return sum > 0 ? sum : nil
+        }()
+        let monthTokensValue = snapshot.last30DaysTokens ?? fallbackTokens
         let sessionLabel = if provider == .bedrock || provider == .mistral {
             "Latest billing day"
         } else if provider == .codex {

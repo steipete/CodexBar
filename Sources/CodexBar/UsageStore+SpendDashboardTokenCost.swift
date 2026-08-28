@@ -149,6 +149,10 @@ extension UsageStore {
                     costScopeSignature: costScopeSignature)
                 return
             }
+            let hasUsage = !snapshot.daily.isEmpty || snapshot.meteredCostUSD != nil
+            guard hasUsage || snapshot.historyCoverageIsEstablished else {
+                throw TokenSnapshotError.historyUnavailable
+            }
             self.lastSpendDashboardTokenFetchScope[provider.instanceID] = completedCostScopeSignature
             self.spendDashboardTokenIncorporatedTriggers[provider.instanceID] = SpendDashboardTokenRefreshTrigger(
                 providerConfigRevision: providerConfigRevision,
@@ -156,7 +160,7 @@ extension UsageStore {
                 regularPublicationRevision: trigger.regularPublicationRevision)
             self.spendDashboardTokenFailedTriggers.removeValue(forKey: provider.instanceID)
 
-            guard !snapshot.daily.isEmpty || snapshot.meteredCostUSD != nil else {
+            guard hasUsage else {
                 self.publishSpendDashboardConfirmedEmptyTokenSnapshot(for: provider)
                 return
             }
