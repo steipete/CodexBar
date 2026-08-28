@@ -3,6 +3,7 @@
 ## 0.55.2 — Unreleased
 
 ### Fixed
+- Codex: keep OpenAI web acquisitions and lease cleanup owned across cache eviction, preventing stale preparation results or timeout retries from displacing replacement views (#3252).
 - Codex: reduce cached cost-read overhead by loading progress metadata separately and leaving raw scanner state out of cached reports, including project and session details (#3247). Thanks @robertoecf!
 - Antigravity: read recognized local SQLite conversations as bounded token-only history, preserving unavailable coverage, session identity, and overflow-safe totals (#3212). Thanks @Yuxin-Qiao!
 - Usage & Spend: refresh outdated independent 365-day histories after regular token publications, preserving older rows and coalescing updates during scans (investigated alongside #3209, #3176). Thanks @vinschger!

@@ -1,4 +1,9 @@
 import Foundation
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#endif
 import Testing
 @testable import CodexBarCore
 
@@ -1248,6 +1253,31 @@ struct CostUsageTestEnvironment {
     }
 
     func writeCodexSessionFile(day: Date, filename: String, contents: String) throws -> URL {
+        let url = try self.codexSessionFileURL(day: day, filename: filename)
+        try contents.write(to: url, atomically: true, encoding: .utf8)
+        return url
+    }
+
+    func seedCodexSessionFile(day: Date, filename: String, contents: String) throws -> URL {
+        let url = try self.codexSessionFileURL(day: day, filename: filename)
+        // Initial corpus files have no readers until setup returns; no atomic publication or fsync is needed.
+        let descriptor = open(url.path, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0o666)
+        guard descriptor >= 0 else {
+            let code = errno
+            throw NSError(domain: NSPOSIXErrorDomain, code: Int(code))
+        }
+        let handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
+        do {
+            try handle.write(contentsOf: Data(contents.utf8))
+            try handle.close()
+        } catch {
+            try? handle.close()
+            throw error
+        }
+        return url
+    }
+
+    private func codexSessionFileURL(day: Date, filename: String) throws -> URL {
         let comps = Calendar.current.dateComponents([.year, .month, .day], from: day)
         let y = String(format: "%04d", comps.year ?? 1970)
         let m = String(format: "%02d", comps.month ?? 1)
@@ -1259,9 +1289,7 @@ struct CostUsageTestEnvironment {
             .appendingPathComponent(d, isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
 
-        let url = dir.appendingPathComponent(filename, isDirectory: false)
-        try contents.write(to: url, atomically: true, encoding: .utf8)
-        return url
+        return dir.appendingPathComponent(filename, isDirectory: false)
     }
 
     func writeClaudeProjectFile(relativePath: String, contents: String) throws -> URL {

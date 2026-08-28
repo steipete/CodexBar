@@ -399,7 +399,7 @@ struct CostUsageFairSchedulingTests {
         mtime: Date) throws -> URL
     {
         let header = #"{"type":"session_meta","payload":{"id":"\#(name)"}}"# + "\n"
-        let url = try env.writeCodexSessionFile(
+        let url = try env.seedCodexSessionFile(
             day: day,
             filename: name + ".jsonl",
             contents: header + Self.rows(env: env, day: day, indices: 1...rows))

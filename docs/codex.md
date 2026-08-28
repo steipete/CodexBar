@@ -93,6 +93,11 @@ Example:
 - Uses an off-screen `WKWebView` with a per-account `WKWebsiteDataStore`.
   - Store key: deterministic UUID from the normalized email.
 - WebKit store can hold multiple accounts concurrently.
+- Each WebView acquisition keeps ownership across asynchronous page preparation. Explicit store eviction invalidates
+  that store's pending preparations, so stale success, failure, or timeout retry cannot displace a replacement view.
+  Evict-all invalidates all pending preparations; ordinary lease release does not invalidate concurrent temporary views.
+- Leases retain their cleanup owner independently of the cache and release only once. Validated pages still support
+  the brief reuse handoff; other releases schedule the existing deferred WebKit cleanup, including temporary views.
 - Cookie import (Automatic mode, when WebKit store has no matching session or login required):
   1) Safari: `~/Library/Cookies/Cookies.binarycookies`
   2) Chrome/Chromium forks: `~/Library/Application Support/Google/Chrome/*/Cookies`
