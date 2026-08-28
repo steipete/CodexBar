@@ -1,0 +1,7 @@
+source: CostUsageFetcher.loadTokenSnapshot(provider: .codex)
+cutoffUTC: 2026-07-30T00:00:00Z
+fixture: local synthetic codex JSONL sessions scanned through the real scanner path
+2026-07-29 gpt-5.6-terra costUSD=0.00030250000000000003 totalTokens=Optional(105)
+2026-07-30 gpt-5.6-terra costUSD=0.00024199999999999997 totalTokens=Optional(105)
+2026-07-29 gpt-5.6-luna costUSD=0.00012099999999999999 totalTokens=Optional(105)
+2026-07-30 gpt-5.6-luna costUSD=2.4200000000000002e-05 totalTokens=Optional(105)

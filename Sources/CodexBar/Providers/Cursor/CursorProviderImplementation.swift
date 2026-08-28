@@ -1,9 +1,7 @@
 import CodexBarCore
-import CodexBarMacroSupport
 import Foundation
 import SwiftUI
 
-@ProviderImplementationRegistration
 struct CursorProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .cursor
     let supportsLoginFlow: Bool = true
@@ -69,9 +67,7 @@ struct CursorProviderImplementation: ProviderImplementation {
                 isVisible: nil,
                 onChange: nil,
                 trailingText: {
-                    guard let entry = CookieHeaderCache.load(provider: .cursor) else { return nil }
-                    let when = entry.storedAt.relativeDescription()
-                    return "Cached: \(entry.sourceLabel) • \(when)"
+                    ProviderCookieSourceUI.cachedTrailingText(provider: .cursor)
                 }),
         ]
     }
@@ -85,15 +81,23 @@ struct CursorProviderImplementation: ProviderImplementation {
     @MainActor
     func runLoginFlow(context: ProviderLoginContext) async -> Bool {
         await context.controller.runCursorLoginFlow()
-        return true
     }
 
     @MainActor
     func appendUsageMenuEntries(context: ProviderMenuUsageContext, entries: inout [ProviderMenuEntry]) {
-        guard let cost = context.snapshot?.providerCost, cost.currencyCode != "Quota" else { return }
-        let used = UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
+        guard context.settings.showOptionalCreditsAndExtraUsage,
+              let cost = context.snapshot?.providerCost,
+              cost.currencyCode != "Quota"
+        else { return }
+        let used = UsageFormatter.convertedCostString(
+            cost.used,
+            preferredCurrency: context.settings.preferredCurrencyCode,
+            providerCurrency: cost.currencyCode)
         if cost.limit > 0 {
-            let limitStr = UsageFormatter.currencyString(cost.limit, currencyCode: cost.currencyCode)
+            let limitStr = UsageFormatter.convertedCostString(
+                cost.limit,
+                preferredCurrency: context.settings.preferredCurrencyCode,
+                providerCurrency: cost.currencyCode)
             entries.append(.text(String(format: L("cursor_on_demand_with_limit"), used, limitStr), .primary))
         } else {
             entries.append(.text(String(format: L("cursor_on_demand"), used), .primary))

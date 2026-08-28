@@ -1,3 +1,11 @@
+---
+summary: "Quotio comparison notes and possible CodexBar enhancement ideas."
+read_when:
+  - Evaluating Quotio-inspired UX or architecture ideas
+  - Planning provider quota-tracking roadmap items
+  - Comparing CodexBar scope against proxy-based quota tools
+---
+
 # Quotio Comparison & Enhancement Opportunities
 
 **Date:** 2026-01-04  

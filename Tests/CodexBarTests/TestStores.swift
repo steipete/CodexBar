@@ -69,22 +69,6 @@ final class InMemoryKimiTokenStore: KimiTokenStoring, @unchecked Sendable {
     }
 }
 
-final class InMemoryKimiK2TokenStore: KimiK2TokenStoring, @unchecked Sendable {
-    var value: String?
-
-    init(value: String? = nil) {
-        self.value = value
-    }
-
-    func loadToken() throws -> String? {
-        self.value
-    }
-
-    func storeToken(_ token: String?) throws {
-        self.value = token
-    }
-}
-
 final class InMemoryCopilotTokenStore: CopilotTokenStoring, @unchecked Sendable {
     var value: String?
 
@@ -136,20 +120,67 @@ func testConfigStore(suiteName: String, reset: Bool = true) -> CodexBarConfigSto
     return CodexBarConfigStore(fileURL: url)
 }
 
+@MainActor
+func testSettingsStore(
+    suiteName: String,
+    tokenAccountStore: any ProviderTokenAccountStoring = InMemoryTokenAccountStore(),
+    config: CodexBarConfig? = nil,
+    prepareDefaults: ((UserDefaults) -> Void)? = nil) -> SettingsStore
+{
+    let isolatedSuiteName = "\(suiteName)-\(UUID().uuidString)"
+    guard let defaults = UserDefaults(suiteName: isolatedSuiteName) else {
+        preconditionFailure("Could not create test defaults suite")
+    }
+    defaults.removePersistentDomain(forName: isolatedSuiteName)
+    prepareDefaults?(defaults)
+    let configStore = testConfigStore(suiteName: isolatedSuiteName)
+    if let config {
+        do {
+            try configStore.save(config)
+        } catch {
+            preconditionFailure("Could not save test config: \(error)")
+        }
+    }
+    return SettingsStore(
+        userDefaults: defaults,
+        configStore: configStore,
+        zaiTokenStore: NoopZaiTokenStore(),
+        syntheticTokenStore: NoopSyntheticTokenStore(),
+        codexCookieStore: InMemoryCookieHeaderStore(),
+        claudeCookieStore: InMemoryCookieHeaderStore(),
+        cursorCookieStore: InMemoryCookieHeaderStore(),
+        opencodeCookieStore: InMemoryCookieHeaderStore(),
+        factoryCookieStore: InMemoryCookieHeaderStore(),
+        minimaxCookieStore: InMemoryMiniMaxCookieStore(),
+        minimaxAPITokenStore: InMemoryMiniMaxAPITokenStore(),
+        kimiTokenStore: InMemoryKimiTokenStore(),
+        augmentCookieStore: InMemoryCookieHeaderStore(),
+        ampCookieStore: InMemoryCookieHeaderStore(),
+        copilotTokenStore: InMemoryCopilotTokenStore(),
+        tokenAccountStore: tokenAccountStore)
+}
+
 #if os(macOS)
+@MainActor
+func testStatusBar() -> NSStatusBar {
+    // Standalone NSStatusBar instances can crash during swiftpm-testing-helper teardown.
+    .system
+}
+
 @MainActor
 @discardableResult
 func withStatusItemControllerForTesting<T>(
     store: UsageStore,
     settings: SettingsStore,
     fetcher: UsageFetcher,
+    account: AccountInfo? = nil,
     statusBar: NSStatusBar = .system,
     operation: (StatusItemController) throws -> T) rethrows -> T
 {
     let controller = StatusItemController(
         store: store,
         settings: settings,
-        account: fetcher.loadAccountInfo(),
+        account: account ?? AccountInfo(email: nil, plan: nil),
         updater: DisabledUpdaterController(),
         preferencesSelection: PreferencesSelection(),
         statusBar: statusBar)
@@ -163,13 +194,14 @@ func withStatusItemControllerForTesting<T>(
     store: UsageStore,
     settings: SettingsStore,
     fetcher: UsageFetcher,
+    account: AccountInfo? = nil,
     statusBar: NSStatusBar = .system,
     operation: (StatusItemController) async throws -> T) async rethrows -> T
 {
     let controller = StatusItemController(
         store: store,
         settings: settings,
-        account: fetcher.loadAccountInfo(),
+        account: account ?? AccountInfo(email: nil, plan: nil),
         updater: DisabledUpdaterController(),
         preferencesSelection: PreferencesSelection(),
         statusBar: statusBar)

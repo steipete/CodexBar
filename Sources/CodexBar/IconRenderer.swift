@@ -3,6 +3,23 @@ import CodexBarCore
 
 // swiftlint:disable:next type_body_length
 enum IconRenderer {
+    struct QuotaLayoutPolicy: Hashable {
+        let reservesMissingSecondaryLane: Bool
+        let treatsExhaustedSecondaryAsMissing: Bool
+
+        static func provider(_ provider: UsageProvider) -> Self {
+            let presentation = ProviderDescriptorRegistry.descriptor(for: provider).presentation
+            return Self(
+                reservesMissingSecondaryLane: presentation.reservesMissingSecondaryIconLane,
+                treatsExhaustedSecondaryAsMissing: presentation.treatsExhaustedSecondaryIconWindowAsMissing)
+        }
+
+        static func style(_ style: IconStyle) -> Self {
+            UsageProvider(rawValue: style.rawValue).map(self.provider)
+                ?? Self(reservesMissingSecondaryLane: false, treatsExhaustedSecondaryAsMissing: false)
+        }
+    }
+
     private static let creditsCap: Double = 1000
     private static let baseSize = NSSize(width: 18, height: 18)
     // Render to an 18×18 pt template (36×36 px at 2×) to match the system menu bar size.
@@ -28,6 +45,11 @@ enum IconRenderer {
 
     private static let grid = PixelGrid(scale: outputScale)
 
+    static func fillWidthPixels(remaining: Double, rectWidth: Int) -> Int {
+        let clamped = max(0, min(remaining / 100, 1))
+        return max(0, min(rectWidth, Int((CGFloat(rectWidth) * CGFloat(clamped)).rounded())))
+    }
+
     private struct IconCacheKey: Hashable {
         let primary: Int
         let weekly: Int
@@ -35,6 +57,8 @@ enum IconRenderer {
         let stale: Bool
         let style: Int
         let indicator: Int
+        let hideCritters: Bool
+        let quotaLayoutPolicy: QuotaLayoutPolicy
     }
 
     private final class IconCacheStore: @unchecked Sendable {
@@ -118,8 +142,11 @@ enum IconRenderer {
         blink: CGFloat = 0,
         wiggle: CGFloat = 0,
         tilt: CGFloat = 0,
-        statusIndicator: ProviderStatusIndicator = .none) -> NSImage
+        statusIndicator: ProviderStatusIndicator = .none,
+        hideCritters: Bool = false,
+        quotaLayoutPolicy: QuotaLayoutPolicy? = nil) -> NSImage
     {
+        let quotaLayoutPolicy = quotaLayoutPolicy ?? .style(style)
         let shouldCache = blink <= 0.0001 && wiggle <= 0.0001 && tilt <= 0.0001
         let render = {
             self.renderImage {
@@ -176,8 +203,7 @@ enum IconRenderer {
 
                     // Fill: clip to the capsule and paint a left-to-right rect so the progress edge is straight.
                     if let remaining {
-                        let clamped = max(0, min(remaining / 100, 1))
-                        let fillWidthPx = max(0, min(rectPx.w, Int((CGFloat(rectPx.w) * CGFloat(clamped)).rounded())))
+                        let fillWidthPx = Self.fillWidthPixels(remaining: remaining, rectWidth: rectPx.w)
                         if fillWidthPx > 0 {
                             NSGraphicsContext.current?.cgContext.saveGState()
                             trackPath.addClip()
@@ -634,8 +660,11 @@ enum IconRenderer {
                     }
                 }
 
+                let providerPresentation = UsageProvider(rawValue: style.rawValue)
+                    .map { ProviderDescriptorRegistry.descriptor(for: $0).presentation }
+                let usesMissingSecondaryLayout = quotaLayoutPolicy.treatsExhaustedSecondaryAsMissing
                 let effectiveWeeklyRemaining: Double? = {
-                    if style == .warp, let weeklyRemaining, weeklyRemaining <= 0 {
+                    if usesMissingSecondaryLayout, let weeklyRemaining, weeklyRemaining <= 0 {
                         return nil
                     }
                     return weeklyRemaining
@@ -653,57 +682,94 @@ enum IconRenderer {
                 let creditsBottomRectPx = RectPx(x: barXPx, y: 4, w: barWidthPx, h: 6)
 
                 // Warp special case: when no bonus or bonus exhausted, show "top monthly, bottom dimmed"
-                let warpNoBonus = style == .warp && !weeklyAvailable
+                let missingSecondary = usesMissingSecondaryLayout && !weeklyAvailable
 
-                if weeklyAvailable {
+                // "Hide critters" renders plain meter bars: suppress all face/decoration twists.
+                let decorations = hideCritters ? ProviderIconDecorations() : providerPresentation?.iconDecorations ?? []
+                let twistFace = decorations.contains(.face)
+                let twistNotches = decorations.contains(.notches)
+                let twistGemini = decorations.contains(.gemini)
+                let twistAntigravity = decorations.contains(.antigravity)
+                let twistFactory = decorations.contains(.factory)
+                let twistWarp = decorations.contains(.warp)
+
+                if let bottomValue, bottomValue > 0, topValue == nil,
+                   !quotaLayoutPolicy.reservesMissingSecondaryLane,
+                   !usesMissingSecondaryLayout
+                {
+                    // Some providers surface their only meaningful quota in the secondary slot.
+                    drawBar(
+                        rectPx: creditsRectPx,
+                        remaining: bottomValue,
+                        addNotches: twistNotches,
+                        addFace: twistFace,
+                        addGeminiTwist: twistGemini,
+                        addAntigravityTwist: twistAntigravity,
+                        addFactoryTwist: twistFactory,
+                        addWarpTwist: twistWarp,
+                        blink: blink)
+                } else if weeklyAvailable {
                     // Normal: top=primary, bottom=secondary (bonus/weekly).
                     drawBar(
                         rectPx: topRectPx,
                         remaining: topValue,
-                        addNotches: style == .claude,
-                        addFace: style == .codex,
-                        addGeminiTwist: style == .gemini || style == .antigravity,
-                        addAntigravityTwist: style == .antigravity,
-                        addFactoryTwist: style == .factory,
-                        addWarpTwist: style == .warp,
+                        addNotches: twistNotches,
+                        addFace: twistFace,
+                        addGeminiTwist: twistGemini,
+                        addAntigravityTwist: twistAntigravity,
+                        addFactoryTwist: twistFactory,
+                        addWarpTwist: twistWarp,
                         blink: blink)
                     drawBar(rectPx: bottomRectPx, remaining: bottomValue)
-                } else if !hasWeekly || warpNoBonus {
-                    if style == .warp {
+                } else if !hasWeekly || missingSecondary {
+                    if usesMissingSecondaryLayout {
                         // Warp: no bonus or bonus exhausted -> top=monthly credits, bottom=dimmed track
                         drawBar(
                             rectPx: topRectPx,
                             remaining: topValue,
-                            addWarpTwist: true,
+                            addWarpTwist: twistWarp,
                             blink: blink)
                         drawBar(rectPx: bottomRectPx, remaining: nil, alpha: 0.45)
                     } else {
-                        // Weekly missing (e.g. Claude enterprise): keep normal layout but
-                        // dim the bottom track to indicate N/A.
                         if topValue == nil, let ratio = creditsRatio {
                             // Credits-only: show credits prominently (e.g. credits loaded before usage).
                             drawBar(
                                 rectPx: creditsRectPx,
                                 remaining: ratio,
                                 alpha: creditsAlpha,
-                                addNotches: style == .claude,
-                                addFace: style == .codex,
-                                addGeminiTwist: style == .gemini || style == .antigravity,
-                                addAntigravityTwist: style == .antigravity,
-                                addFactoryTwist: style == .factory,
-                                addWarpTwist: style == .warp,
+                                addNotches: twistNotches,
+                                addFace: twistFace,
+                                addGeminiTwist: twistGemini,
+                                addAntigravityTwist: twistAntigravity,
+                                addFactoryTwist: twistFactory,
+                                addWarpTwist: twistWarp,
                                 blink: blink)
                             drawBar(rectPx: creditsBottomRectPx, remaining: nil, alpha: 0.45)
+                        } else if !quotaLayoutPolicy.reservesMissingSecondaryLane, let topValue {
+                            // One meaningful quota should read as one meter. Reserving an unavailable second
+                            // lane makes (for example) 46% remaining look like roughly 23% of the icon.
+                            drawBar(
+                                rectPx: creditsRectPx,
+                                remaining: topValue,
+                                addNotches: twistNotches,
+                                addFace: twistFace,
+                                addGeminiTwist: twistGemini,
+                                addAntigravityTwist: twistAntigravity,
+                                addFactoryTwist: twistFactory,
+                                addWarpTwist: twistWarp,
+                                blink: blink)
                         } else {
+                            // Missing secondary (for example Claude Enterprise): preserve the normal two-lane
+                            // layout and dim the unavailable lane.
                             drawBar(
                                 rectPx: topRectPx,
                                 remaining: topValue,
-                                addNotches: style == .claude,
-                                addFace: style == .codex,
-                                addGeminiTwist: style == .gemini || style == .antigravity,
-                                addAntigravityTwist: style == .antigravity,
-                                addFactoryTwist: style == .factory,
-                                addWarpTwist: style == .warp,
+                                addNotches: twistNotches,
+                                addFace: twistFace,
+                                addGeminiTwist: twistGemini,
+                                addAntigravityTwist: twistAntigravity,
+                                addFactoryTwist: twistFactory,
+                                addWarpTwist: twistWarp,
                                 blink: blink)
                             drawBar(rectPx: bottomRectPx, remaining: nil, alpha: 0.45)
                         }
@@ -715,24 +781,24 @@ enum IconRenderer {
                             rectPx: creditsRectPx,
                             remaining: ratio,
                             alpha: creditsAlpha,
-                            addNotches: style == .claude,
-                            addFace: style == .codex,
-                            addGeminiTwist: style == .gemini || style == .antigravity,
-                            addAntigravityTwist: style == .antigravity,
-                            addFactoryTwist: style == .factory,
-                            addWarpTwist: style == .warp,
+                            addNotches: twistNotches,
+                            addFace: twistFace,
+                            addGeminiTwist: twistGemini,
+                            addAntigravityTwist: twistAntigravity,
+                            addFactoryTwist: twistFactory,
+                            addWarpTwist: twistWarp,
                             blink: blink)
                     } else {
                         // No credits available; fall back to 5h if present.
                         drawBar(
                             rectPx: topRectPx,
                             remaining: topValue,
-                            addNotches: style == .claude,
-                            addFace: style == .codex,
-                            addGeminiTwist: style == .gemini || style == .antigravity,
-                            addAntigravityTwist: style == .antigravity,
-                            addFactoryTwist: style == .factory,
-                            addWarpTwist: style == .warp,
+                            addNotches: twistNotches,
+                            addFace: twistFace,
+                            addGeminiTwist: twistGemini,
+                            addAntigravityTwist: twistAntigravity,
+                            addFactoryTwist: twistFactory,
+                            addWarpTwist: twistWarp,
                             blink: blink)
                     }
                     drawBar(rectPx: creditsBottomRectPx, remaining: bottomValue)
@@ -749,7 +815,9 @@ enum IconRenderer {
                 credits: self.quantizedCredits(creditsRemaining),
                 stale: stale,
                 style: self.styleKey(style),
-                indicator: self.indicatorKey(statusIndicator))
+                indicator: self.indicatorKey(statusIndicator),
+                hideCritters: hideCritters,
+                quotaLayoutPolicy: quotaLayoutPolicy)
             if let cached = self.cachedIcon(for: key) {
                 return cached
             }
@@ -764,14 +832,14 @@ enum IconRenderer {
     // swiftlint:enable function_body_length
 
     /// Morph helper: unbraids a simplified knot into our bar icon.
-    static func makeMorphIcon(progress: Double, style: IconStyle) -> NSImage {
+    static func makeMorphIcon(progress: Double, style: IconStyle, hideCritters: Bool = false) -> NSImage {
         let clamped = max(0, min(progress, 1))
-        let key = self.morphCacheKey(progress: clamped, style: style)
+        let key = self.morphCacheKey(progress: clamped, style: style, hideCritters: hideCritters)
         if let cached = self.morphCache.image(for: key) {
             return cached
         }
         let image = self.renderImage {
-            self.drawUnbraidMorph(t: clamped, style: style)
+            self.drawUnbraidMorph(t: clamped, style: style, hideCritters: hideCritters)
         }
         self.morphCache.set(image, for: key)
         return image
@@ -811,9 +879,9 @@ enum IconRenderer {
         }
     }
 
-    private static func morphCacheKey(progress: Double, style: IconStyle) -> NSNumber {
+    private static func morphCacheKey(progress: Double, style: IconStyle, hideCritters: Bool) -> NSNumber {
         let bucket = Int((progress * Double(self.morphBucketCount)).rounded())
-        let key = self.styleKey(style) * 1000 + bucket
+        let key = (hideCritters ? 1_000_000 : 0) + self.styleKey(style) * 1000 + bucket
         return NSNumber(value: key)
     }
 
@@ -825,7 +893,7 @@ enum IconRenderer {
         self.iconCacheStore.storeIcon(image, for: key, limit: self.iconCacheLimit)
     }
 
-    private static func drawUnbraidMorph(t: Double, style: IconStyle) {
+    private static func drawUnbraidMorph(t: Double, style: IconStyle, hideCritters: Bool) {
         let t = CGFloat(max(0, min(t, 1)))
         let size = Self.baseSize
         let center = CGPoint(x: size.width / 2, y: size.height / 2)
@@ -903,7 +971,8 @@ enum IconRenderer {
                 weeklyRemaining: 100,
                 creditsRemaining: nil,
                 stale: false,
-                style: style)
+                style: style,
+                hideCritters: hideCritters)
             bars.draw(in: CGRect(origin: .zero, size: size), from: .zero, operation: .sourceOver, fraction: barT)
         }
     }
@@ -944,6 +1013,8 @@ enum IconRenderer {
                 y: 2,
                 width: size,
                 height: size)
+            Self.clearStatusOverlayHalo(
+                NSBezierPath(ovalIn: rect.insetBy(dx: -1, dy: -1)))
             let path = NSBezierPath(ovalIn: rect)
             color.setFill()
             path.fill()
@@ -953,19 +1024,33 @@ enum IconRenderer {
                 y: 4,
                 width: 2.0,
                 height: 6)
-            let linePath = NSBezierPath(roundedRect: lineRect, xRadius: 1, yRadius: 1)
-            color.setFill()
-            linePath.fill()
-
             let dotRect = Self.snapRect(
                 x: Self.baseSize.width - 6,
                 y: 2,
                 width: 2.0,
                 height: 2.0)
+
+            let haloRect = lineRect.union(dotRect).insetBy(dx: -1, dy: -1)
+            Self.clearStatusOverlayHalo(
+                NSBezierPath(roundedRect: haloRect, xRadius: 2, yRadius: 2))
+
+            let linePath = NSBezierPath(roundedRect: lineRect, xRadius: 1, yRadius: 1)
+            color.setFill()
+            linePath.fill()
             NSBezierPath(ovalIn: dotRect).fill()
         case .none:
             break
         }
+    }
+
+    private static func clearStatusOverlayHalo(_ path: NSBezierPath) {
+        guard let ctx = NSGraphicsContext.current?.cgContext else { return }
+        ctx.saveGState()
+        ctx.setBlendMode(.clear)
+        // The fill color is ignored by .clear; it only drives the path fill operation.
+        NSColor.black.setFill()
+        path.fill()
+        ctx.restoreGState()
     }
 
     private static func withScaledContext(_ draw: () -> Void) {

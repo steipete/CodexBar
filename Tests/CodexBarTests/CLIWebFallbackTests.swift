@@ -70,6 +70,14 @@ struct CLIWebFallbackTests {
             after: OpenAIDashboardFetcher.FetchError.noDashboardData(body: "missing")))
         #expect(!CodexWebDashboardStrategy.shouldRetryWithFreshBrowserImport(
             after: OpenAIDashboardFetcher.FetchError.loginRequired))
+        #expect(!CodexWebDashboardStrategy.shouldRetryWithFreshBrowserImport(
+            after: OpenAIWebCodexError.timedOut(seconds: 30)))
+    }
+
+    @Test
+    func `codex shared deadline timeout has useful error`() {
+        let error = OpenAIWebCodexError.timedOut(seconds: 30)
+        #expect(error.localizedDescription == "OpenAI web dashboard fetch timed out after 30 seconds.")
     }
 
     @Test
@@ -121,6 +129,33 @@ struct CLIWebFallbackTests {
     }
 
     @Test
+    func `codex web strategy fails closed when profile target is unavailable`() async {
+        let settings = ProviderSettingsSnapshot.make(
+            codex: .init(
+                usageDataSource: .auto,
+                cookieSource: .auto,
+                manualCookieHeader: nil,
+                profileAccountTargetUnavailable: true))
+        let strategy = CodexWebDashboardStrategy()
+
+        let autoContext = self.makeContext(sourceMode: .auto, settings: settings)
+        let autoAvailable = await strategy.isAvailable(autoContext)
+        #expect(!autoAvailable)
+
+        let explicitWebContext = self.makeContext(sourceMode: .web, settings: settings)
+        let explicitWebAvailable = await strategy.isAvailable(explicitWebContext)
+        #expect(explicitWebAvailable)
+        do {
+            _ = try await strategy.fetch(explicitWebContext)
+            Issue.record("Expected unavailable profile target to require login")
+        } catch OpenAIDashboardFetcher.FetchError.loginRequired {
+            // Expected before browser import can accept an arbitrary account.
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
+    @Test
     func `claude falls back when no session key`() {
         let context = self.makeContext()
         let strategy = ClaudeWebFetchStrategy(browserDetection: BrowserDetection(cacheTTL: 0))
@@ -130,24 +165,40 @@ struct CLIWebFallbackTests {
 
     @Test
     func `claude CLI fallback is enabled only for app auto`() {
-        let strategy = ClaudeCLIFetchStrategy(
+        let webAvailableStrategy = ClaudeCLIFetchStrategy(
             useWebExtras: false,
+            includePrepaidBalance: false,
             manualCookieHeader: nil,
-            browserDetection: BrowserDetection(cacheTTL: 0))
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            hasWebFallback: true)
+        let webUnavailableStrategy = ClaudeCLIFetchStrategy(
+            useWebExtras: false,
+            includePrepaidBalance: false,
+            manualCookieHeader: nil,
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            hasWebFallback: false)
         let error = ClaudeUsageError.parseFailed("cli failed")
         let webAvailableSettings = self.makeClaudeSettingsSnapshot(cookieHeader: "sessionKey=sk-ant-test")
         let webUnavailableSettings = self.makeClaudeSettingsSnapshot(cookieHeader: "foo=bar")
 
-        #expect(strategy.shouldFallback(
+        #expect(webAvailableStrategy.shouldFallback(
             on: error,
             context: self.makeContext(runtime: .app, sourceMode: .auto, settings: webAvailableSettings)))
-        #expect(!strategy.shouldFallback(
+        #expect(!webUnavailableStrategy.shouldFallback(
             on: error,
             context: self.makeContext(runtime: .app, sourceMode: .auto, settings: webUnavailableSettings)))
-        #expect(!strategy.shouldFallback(on: error, context: self.makeContext(runtime: .app, sourceMode: .cli)))
-        #expect(!strategy.shouldFallback(on: error, context: self.makeContext(runtime: .app, sourceMode: .web)))
-        #expect(!strategy.shouldFallback(on: error, context: self.makeContext(runtime: .app, sourceMode: .oauth)))
-        #expect(!strategy.shouldFallback(on: error, context: self.makeContext(runtime: .cli, sourceMode: .auto)))
+        #expect(!webAvailableStrategy.shouldFallback(
+            on: error,
+            context: self.makeContext(runtime: .app, sourceMode: .cli)))
+        #expect(!webAvailableStrategy.shouldFallback(
+            on: error,
+            context: self.makeContext(runtime: .app, sourceMode: .web)))
+        #expect(!webAvailableStrategy.shouldFallback(
+            on: error,
+            context: self.makeContext(runtime: .app, sourceMode: .oauth)))
+        #expect(!webAvailableStrategy.shouldFallback(
+            on: error,
+            context: self.makeContext(runtime: .cli, sourceMode: .auto)))
     }
 
     @Test

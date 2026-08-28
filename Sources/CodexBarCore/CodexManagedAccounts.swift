@@ -83,8 +83,8 @@ public enum CodexAuthFingerprint {
 
     public static func fingerprint(homePath: String, fileManager: FileManager = .default) -> String? {
         let url = self.authFileURL(homePath: homePath)
-        guard fileManager.fileExists(atPath: url.path),
-              let data = try? Data(contentsOf: url)
+        guard CodexCredentialFileAccess.fileExists(at: url, fileManager: fileManager),
+              let data = try? CodexCredentialFileAccess.read(at: url)
         else {
             return nil
         }

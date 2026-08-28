@@ -1,0 +1,3 @@
+extension SettingsStore {
+    func ensureChutesAPIKeyLoaded() {}
+}

@@ -79,16 +79,15 @@ extension WindsurfGetPlanStatusResponse {
             identity: identity)
     }
 
-    private static func formatResetDescription(_ date: Date?) -> String? {
+    static func formatResetDescription(_ date: Date?, now: Date = Date()) -> String? {
         guard let date else { return nil }
-        let now = Date()
         let interval = date.timeIntervalSince(now)
         guard interval > 0 else { return "Expired" }
 
         let hours = Int(interval / 3600)
         let minutes = Int((interval.truncatingRemainder(dividingBy: 3600)) / 60)
 
-        if hours > 24 {
+        if hours >= 24 {
             let days = hours / 24
             let remainingHours = hours % 24
             return "Resets in \(days)d \(remainingHours)h"
@@ -119,7 +118,8 @@ public enum WindsurfWebFetcherError: LocalizedError, Sendable {
     public var errorDescription: String? {
         switch self {
         case .noSessionData:
-            "No Windsurf web session found in Chromium localStorage. Sign in to windsurf.com in Chrome or Edge first."
+            "No Windsurf web session found in Chromium localStorage. " +
+                "Sign in to app.devin.ai or windsurf.com in Chrome first."
         case let .invalidManualSession(message):
             "Invalid Windsurf session payload: \(message)"
         case let .apiCallFailed(message):

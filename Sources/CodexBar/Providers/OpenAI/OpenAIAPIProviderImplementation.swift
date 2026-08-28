@@ -1,9 +1,7 @@
 import AppKit
 import CodexBarCore
-import CodexBarMacroSupport
 import Foundation
 
-@ProviderImplementationRegistration
 struct OpenAIAPIProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .openai
 
@@ -14,8 +12,8 @@ struct OpenAIAPIProviderImplementation: ProviderImplementation {
 
     @MainActor
     func observeSettings(_ settings: SettingsStore) {
-        _ = settings.openAIAPIKey
-        _ = settings.openAIAPIProjectID
+        _ = settings[providerConfig: .openai, field: .apiKey]
+        _ = settings[providerConfig: .openai, field: .secretWorkspace(logField: "projectID")]
     }
 
     @MainActor
@@ -23,7 +21,8 @@ struct OpenAIAPIProviderImplementation: ProviderImplementation {
         if OpenAIAPISettingsReader.apiKey(environment: context.environment) != nil {
             return true
         }
-        return !context.settings.openAIAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        return !context.settings[providerConfig: .openai, field: .apiKey]
+            .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     @MainActor
@@ -32,11 +31,11 @@ struct OpenAIAPIProviderImplementation: ProviderImplementation {
             ProviderSettingsFieldDescriptor(
                 id: "openai-api-key",
                 title: "Admin API key",
-                subtitle: "Stored in ~/.codexbar/config.json. OPENAI_ADMIN_KEY is preferred; " +
-                    "OPENAI_API_KEY still works.",
+                subtitle: "Stored in ~/.codexbar/config.json. OPENAI_ADMIN_KEY is required for organization usage; " +
+                    "legacy/user keys only get a best-effort balance fallback.",
                 kind: .secure,
                 placeholder: "sk-admin-...",
-                binding: context.stringBinding(\.openAIAPIKey),
+                binding: context.providerConfigBinding(.apiKey),
                 actions: [
                     ProviderSettingsActionDescriptor(
                         id: "openai-open-billing",
@@ -60,7 +59,7 @@ struct OpenAIAPIProviderImplementation: ProviderImplementation {
                     "inherit OPENAI_PROJECT_ID.",
                 kind: .plain,
                 placeholder: "proj_...",
-                binding: context.stringBinding(\.openAIAPIProjectID),
+                binding: context.providerConfigBinding(.secretWorkspace(logField: "projectID")),
                 actions: [
                     ProviderSettingsActionDescriptor(
                         id: "openai-open-projects",

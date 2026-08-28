@@ -2,21 +2,26 @@ import CodexBarCore
 import SwiftUI
 import WidgetKit
 
+extension EnvironmentValues {
+    @Entry fileprivate var widgetUsageShowsUsed: Bool = false
+}
+
 struct CodexBarUsageWidgetView: View {
     @Environment(\.widgetFamily) private var family
     let entry: CodexBarWidgetEntry
 
     var body: some View {
-        let providerEntry = self.entry.snapshot.entries.first { $0.provider == self.entry.provider }
-        ZStack {
-            Color.black.opacity(0.02)
+        let providerEntry = self.entry.snapshot.entries.first { $0.provider == self.entry.provider.instanceID }
+        Group {
             if let providerEntry {
                 self.content(providerEntry: providerEntry)
             } else {
                 self.emptyState
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .containerBackground(.fill.tertiary, for: .widget)
+        .environment(\.widgetUsageShowsUsed, self.entry.snapshot.usageBarsShowUsed)
     }
 
     @ViewBuilder
@@ -49,15 +54,15 @@ struct CodexBarHistoryWidgetView: View {
     let entry: CodexBarWidgetEntry
 
     var body: some View {
-        let providerEntry = self.entry.snapshot.entries.first { $0.provider == self.entry.provider }
-        ZStack {
-            Color.black.opacity(0.02)
+        let providerEntry = self.entry.snapshot.entries.first { $0.provider == self.entry.provider.instanceID }
+        Group {
             if let providerEntry {
                 HistoryView(entry: providerEntry, isLarge: self.family == .systemLarge)
             } else {
                 self.emptyState
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .containerBackground(.fill.tertiary, for: .widget)
     }
 
@@ -78,15 +83,15 @@ struct CodexBarCompactWidgetView: View {
     let entry: CodexBarCompactEntry
 
     var body: some View {
-        let providerEntry = self.entry.snapshot.entries.first { $0.provider == self.entry.provider }
-        ZStack {
-            Color.black.opacity(0.02)
+        let providerEntry = self.entry.snapshot.entries.first { $0.provider == self.entry.provider.instanceID }
+        Group {
             if let providerEntry {
                 CompactMetricView(entry: providerEntry, metric: self.entry.metric)
             } else {
                 self.emptyState
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .containerBackground(.fill.tertiary, for: .widget)
     }
 
@@ -108,25 +113,24 @@ struct CodexBarSwitcherWidgetView: View {
     let entry: CodexBarSwitcherEntry
 
     var body: some View {
-        let providerEntry = self.entry.snapshot.entries.first { $0.provider == self.entry.provider }
-        ZStack {
-            Color.black.opacity(0.02)
-            VStack(alignment: .leading, spacing: 10) {
-                ProviderSwitcherRow(
-                    providers: self.entry.availableProviders,
-                    selected: self.entry.provider,
-                    updatedAt: providerEntry?.updatedAt ?? Date(),
-                    compact: self.family == .systemSmall,
-                    showsTimestamp: self.family != .systemSmall)
-                if let providerEntry {
-                    self.content(providerEntry: providerEntry)
-                } else {
-                    self.emptyState
-                }
+        let providerEntry = self.entry.snapshot.entries.first { $0.provider == self.entry.provider.instanceID }
+        VStack(alignment: .leading, spacing: 10) {
+            ProviderSwitcherRow(
+                providers: self.entry.availableProviders,
+                selected: self.entry.provider,
+                updatedAt: providerEntry?.updatedAt ?? Date(),
+                compact: self.family == .systemSmall,
+                showsTimestamp: self.family != .systemSmall)
+            if let providerEntry {
+                self.content(providerEntry: providerEntry)
+            } else {
+                self.emptyState
             }
-            .padding(12)
         }
+        .padding(12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .containerBackground(.fill.tertiary, for: .widget)
+        .environment(\.widgetUsageShowsUsed, self.entry.snapshot.usageBarsShowUsed)
     }
 
     @ViewBuilder
@@ -158,7 +162,7 @@ private struct CompactMetricView: View {
     let metric: CompactMetric
 
     var body: some View {
-        let display = self.display
+        let display = CompactMetricFormatter.display(for: self.entry, metric: self.metric)
         VStack(alignment: .leading, spacing: 8) {
             HeaderView(provider: self.entry.provider, updatedAt: self.entry.updatedAt)
             VStack(alignment: .leading, spacing: 2) {
@@ -177,27 +181,60 @@ private struct CompactMetricView: View {
         }
         .padding(12)
     }
+}
 
-    private var display: (value: String, label: String, detail: String?) {
-        switch self.metric {
+struct CompactMetricDisplay: Equatable {
+    let value: String
+    let label: String
+    let detail: String?
+}
+
+enum CompactMetricFormatter {
+    static func display(for entry: WidgetSnapshot.ProviderEntry, metric: CompactMetric) -> CompactMetricDisplay {
+        switch metric {
         case .credits:
-            let value = self.entry.creditsRemaining.map(WidgetFormat.credits) ?? "—"
-            return (value, "Credits left", nil)
+            if let cost = WidgetBalanceFormatter.extraUsageCost(for: entry) {
+                return CompactMetricDisplay(
+                    value: WidgetFormat.currency(cost.used, code: cost.currencyCode),
+                    label: "Extra usage balance",
+                    detail: nil)
+            }
+            let value = entry.creditsRemaining.map(WidgetFormat.credits) ?? "—"
+            return CompactMetricDisplay(value: value, label: "Credits left", detail: nil)
         case .todayCost:
-            let value = self.entry.tokenUsage.map { token in
+            let value = entry.tokenUsage.map { token in
                 token.sessionCostUSD.map { WidgetFormat.currency($0, code: token.currencyCode) } ?? "—"
             } ?? "—"
-            let detail = self.entry.tokenUsage?.sessionTokens.map(WidgetFormat.tokenCount)
-            let label = self.entry.tokenUsage.map { "\($0.sessionLabel) cost" } ?? "Today cost"
-            return (value, label, detail)
+            let detail = entry.tokenUsage?.sessionTokens.map(WidgetFormat.tokenCount)
+            let label = entry.tokenUsage.map {
+                WidgetFormat.tokenRowTitle(
+                    Self.costMetricLabel($0.sessionLabel, provider: entry.provider),
+                    summary: $0,
+                    entryUpdatedAt: entry.updatedAt)
+            } ?? "Today cost"
+            return CompactMetricDisplay(value: value, label: label, detail: detail)
         case .last30DaysCost:
-            let value = self.entry.tokenUsage.map { token in
+            let value = entry.tokenUsage.map { token in
                 token.last30DaysCostUSD.map { WidgetFormat.currency($0, code: token.currencyCode) } ?? "—"
             } ?? "—"
-            let detail = self.entry.tokenUsage?.last30DaysTokens.map(WidgetFormat.tokenCount)
-            let label = self.entry.tokenUsage.map { "\($0.last30DaysLabel) cost" } ?? "30d cost"
-            return (value, label, detail)
+            let detail = entry.tokenUsage?.last30DaysTokens.map(WidgetFormat.tokenCount)
+            let label = entry.tokenUsage.map {
+                WidgetFormat.tokenRowTitle(
+                    Self.costMetricLabel($0.last30DaysLabel, provider: entry.provider),
+                    summary: $0,
+                    entryUpdatedAt: entry.updatedAt)
+            } ?? "30d cost"
+            return CompactMetricDisplay(value: value, label: label, detail: detail)
         }
+    }
+
+    static func costMetricLabel(_ label: String, provider: ProviderInstanceID) -> String {
+        // Provider-specific by design: old Codex widget timelines lack the API-estimate billing disclaimer.
+        guard provider == .codex else { return "\(label) cost" }
+        // Existing widget timelines may predate the estimate labels. Do not leave a bare
+        // dollar value until the app next republishes it.
+        guard !label.contains("API est.") else { return label }
+        return "\(label) API est. · not billed"
     }
 }
 
@@ -234,7 +271,7 @@ private struct ProviderSwitchChip: View {
     var body: some View {
         let label = self.compact ? self.shortLabel : self.longLabel
         let background = self.selected
-            ? WidgetColors.color(for: self.provider).opacity(0.2)
+            ? WidgetColors.color(for: self.provider.instanceID).opacity(0.2)
             : Color.primary.opacity(0.08)
 
         if let choice = ProviderChoice(provider: self.provider) {
@@ -262,56 +299,7 @@ private struct ProviderSwitchChip: View {
     }
 
     private var shortLabel: String {
-        switch self.provider {
-        case .codex: "Codex"
-        case .openai: "OpenAI"
-        case .azureopenai: "Azure OpenAI"
-        case .claude: "Claude"
-        case .gemini: "Gemini"
-        case .antigravity: "Anti"
-        case .cursor: "Cursor"
-        case .opencode: "OpenCode"
-        case .opencodego: "OpenCode Go"
-        case .alibaba: "Alibaba"
-        case .alibabatokenplan: "Token Plan"
-        case .zai: "z.ai"
-        case .factory: "Droid"
-        case .copilot: "Copilot"
-        case .minimax: "MiniMax"
-        case .manus: "Manus"
-        case .vertexai: "Vertex"
-        case .kilo: "Kilo"
-        case .kiro: "Kiro"
-        case .augment: "Augment"
-        case .jetbrains: "JetBrains"
-        case .kimi: "Kimi"
-        case .kimik2: "Kimi K2"
-        case .moonshot: "Moonshot"
-        case .amp: "Amp"
-        case .t3chat: "T3 Chat"
-        case .ollama: "Ollama"
-        case .synthetic: "Synthetic"
-        case .openrouter: "OpenRouter"
-        case .elevenlabs: "ElevenLabs"
-        case .warp: "Warp"
-        case .windsurf: "Windsurf"
-        case .perplexity: "Pplx"
-        case .mimo: "MiMo"
-        case .doubao: "Doubao"
-        case .abacus: "Abacus"
-        case .mistral: "Mistral"
-        case .deepseek: "DeepSeek"
-        case .codebuff: "Codebuff"
-        case .crof: "Crof"
-        case .venice: "Venice"
-        case .commandcode: "Command Code"
-        case .stepfun: "StepFun"
-        case .bedrock: "Bedrock"
-        case .grok: "Grok"
-        case .groq: "Groq"
-        case .llmproxy: "LLM Proxy"
-        case .deepgram: "Deepgram"
-        }
+        ProviderDefaults.metadata[self.provider]?.shortDisplayName ?? self.provider.rawValue.capitalized
     }
 }
 
@@ -320,7 +308,10 @@ private struct SwitcherSmallUsageView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            ForEach(WidgetUsageRow.rows(for: self.entry)) { row in
+            ForEach(WidgetUsageRow.rows(
+                for: self.entry,
+                limit: WidgetUsageRow.smallWidgetRowLimit(for: self.entry)))
+            { row in
                 UsageBarRow(
                     title: row.title,
                     percentLeft: row.percentLeft,
@@ -332,6 +323,20 @@ private struct SwitcherSmallUsageView: View {
                     percentLeft: codeReview,
                     color: WidgetColors.color(for: self.entry.provider))
             }
+            if let token = WidgetUsageRow.compactTokenUsage(for: self.entry) {
+                ValueLine(
+                    title: WidgetFormat.tokenRowTitle(
+                        token.sessionLabel,
+                        summary: token,
+                        entryUpdatedAt: self.entry.updatedAt),
+                    value: WidgetFormat.costAndTokens(
+                        cost: token.sessionCostUSD,
+                        tokens: token.sessionTokens,
+                        currencyCode: token.currencyCode))
+            }
+            if let balance = extraUsageBalanceLine(for: entry) {
+                balance
+            }
         }
     }
 }
@@ -341,7 +346,10 @@ private struct SwitcherMediumUsageView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            ForEach(WidgetUsageRow.rows(for: self.entry)) { row in
+            ForEach(WidgetUsageRow.rows(
+                for: self.entry,
+                limit: WidgetUsageRow.mediumWidgetRowLimit(for: self.entry)))
+            { row in
                 UsageBarRow(
                     title: row.title,
                     percentLeft: row.percentLeft,
@@ -352,11 +360,17 @@ private struct SwitcherMediumUsageView: View {
             }
             if let token = entry.tokenUsage {
                 ValueLine(
-                    title: token.sessionLabel,
+                    title: WidgetFormat.tokenRowTitle(
+                        token.sessionLabel,
+                        summary: token,
+                        entryUpdatedAt: self.entry.updatedAt),
                     value: WidgetFormat.costAndTokens(
                         cost: token.sessionCostUSD,
                         tokens: token.sessionTokens,
                         currencyCode: token.currencyCode))
+            }
+            if let balance = extraUsageBalanceLine(for: entry) {
+                balance
             }
         }
     }
@@ -385,20 +399,32 @@ private struct SwitcherLargeUsageView: View {
             if let token = entry.tokenUsage {
                 VStack(alignment: .leading, spacing: 4) {
                     ValueLine(
-                        title: token.sessionLabel,
+                        title: WidgetFormat.tokenRowTitle(
+                            token.sessionLabel,
+                            summary: token,
+                            entryUpdatedAt: self.entry.updatedAt),
                         value: WidgetFormat.costAndTokens(
                             cost: token.sessionCostUSD,
                             tokens: token.sessionTokens,
                             currencyCode: token.currencyCode))
                     ValueLine(
-                        title: token.last30DaysLabel,
+                        title: WidgetFormat.tokenRowTitle(
+                            token.last30DaysLabel,
+                            summary: token,
+                            entryUpdatedAt: self.entry.updatedAt),
                         value: WidgetFormat.costAndTokens(
                             cost: token.last30DaysCostUSD,
                             tokens: token.last30DaysTokens,
                             currencyCode: token.currencyCode))
                 }
             }
-            UsageHistoryChart(points: self.entry.dailyUsage, color: WidgetColors.color(for: self.entry.provider))
+            if let balance = extraUsageBalanceLine(for: entry) {
+                balance
+            }
+            UsageHistoryChart(
+                points: self.entry.dailyUsage,
+                color: WidgetColors.color(for: self.entry.provider),
+                currencyCode: self.entry.tokenUsage?.currencyCode)
                 .frame(height: 50)
         }
     }
@@ -410,7 +436,10 @@ private struct SmallUsageView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HeaderView(provider: self.entry.provider, updatedAt: self.entry.updatedAt)
-            ForEach(WidgetUsageRow.rows(for: self.entry)) { row in
+            ForEach(WidgetUsageRow.rows(
+                for: self.entry,
+                limit: WidgetUsageRow.smallWidgetRowLimit(for: self.entry)))
+            { row in
                 UsageBarRow(
                     title: row.title,
                     percentLeft: row.percentLeft,
@@ -421,6 +450,20 @@ private struct SmallUsageView: View {
                     title: "Code review",
                     percentLeft: codeReview,
                     color: WidgetColors.color(for: self.entry.provider))
+            }
+            if let token = WidgetUsageRow.compactTokenUsage(for: self.entry) {
+                ValueLine(
+                    title: WidgetFormat.tokenRowTitle(
+                        token.sessionLabel,
+                        summary: token,
+                        entryUpdatedAt: self.entry.updatedAt),
+                    value: WidgetFormat.costAndTokens(
+                        cost: token.sessionCostUSD,
+                        tokens: token.sessionTokens,
+                        currencyCode: token.currencyCode))
+            }
+            if let balance = extraUsageBalanceLine(for: entry) {
+                balance
             }
         }
         .padding(12)
@@ -433,7 +476,10 @@ private struct MediumUsageView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HeaderView(provider: self.entry.provider, updatedAt: self.entry.updatedAt)
-            ForEach(WidgetUsageRow.rows(for: self.entry)) { row in
+            ForEach(WidgetUsageRow.rows(
+                for: self.entry,
+                limit: WidgetUsageRow.mediumWidgetRowLimit(for: self.entry)))
+            { row in
                 UsageBarRow(
                     title: row.title,
                     percentLeft: row.percentLeft,
@@ -444,11 +490,17 @@ private struct MediumUsageView: View {
             }
             if let token = entry.tokenUsage {
                 ValueLine(
-                    title: token.sessionLabel,
+                    title: WidgetFormat.tokenRowTitle(
+                        token.sessionLabel,
+                        summary: token,
+                        entryUpdatedAt: self.entry.updatedAt),
                     value: WidgetFormat.costAndTokens(
                         cost: token.sessionCostUSD,
                         tokens: token.sessionTokens,
                         currencyCode: token.currencyCode))
+            }
+            if let balance = extraUsageBalanceLine(for: entry) {
+                balance
             }
         }
         .padding(12)
@@ -479,20 +531,32 @@ private struct LargeUsageView: View {
             if let token = entry.tokenUsage {
                 VStack(alignment: .leading, spacing: 4) {
                     ValueLine(
-                        title: token.sessionLabel,
+                        title: WidgetFormat.tokenRowTitle(
+                            token.sessionLabel,
+                            summary: token,
+                            entryUpdatedAt: self.entry.updatedAt),
                         value: WidgetFormat.costAndTokens(
                             cost: token.sessionCostUSD,
                             tokens: token.sessionTokens,
                             currencyCode: token.currencyCode))
                     ValueLine(
-                        title: token.last30DaysLabel,
+                        title: WidgetFormat.tokenRowTitle(
+                            token.last30DaysLabel,
+                            summary: token,
+                            entryUpdatedAt: self.entry.updatedAt),
                         value: WidgetFormat.costAndTokens(
                             cost: token.last30DaysCostUSD,
                             tokens: token.last30DaysTokens,
                             currencyCode: token.currencyCode))
                 }
             }
-            UsageHistoryChart(points: self.entry.dailyUsage, color: WidgetColors.color(for: self.entry.provider))
+            if let balance = extraUsageBalanceLine(for: entry) {
+                balance
+            }
+            UsageHistoryChart(
+                points: self.entry.dailyUsage,
+                color: WidgetColors.color(for: self.entry.provider),
+                currencyCode: self.entry.tokenUsage?.currencyCode)
                 .frame(height: 50)
         }
         .padding(12)
@@ -504,31 +568,204 @@ struct WidgetUsageRow: Identifiable, Equatable {
     let title: String
     let percentLeft: Double?
 
-    static func rows(for entry: WidgetSnapshot.ProviderEntry) -> [WidgetUsageRow] {
+    private enum AntigravityQuotaFamily {
+        case gemini
+        case claudeGPT
+    }
+
+    static func smallWidgetRowLimit(for entry: WidgetSnapshot.ProviderEntry) -> Int? {
+        self.widgetRowLimit(for: entry, family: .small)
+    }
+
+    static func mediumWidgetRowLimit(for entry: WidgetSnapshot.ProviderEntry) -> Int? {
+        self.widgetRowLimit(for: entry, family: .medium)
+    }
+
+    private static func widgetRowLimit(
+        for entry: WidgetSnapshot.ProviderEntry,
+        family: ProviderWidgetFamily) -> Int?
+    {
+        guard let provider = entry.provider.firstPartyProvider else { return nil }
+        return ProviderDescriptorRegistry.descriptor(for: provider).presentation.widgetRowLimit(
+            rows: entry.usageRows,
+            family: family)
+    }
+
+    static func rows(
+        for entry: WidgetSnapshot.ProviderEntry,
+        limit: Int? = nil,
+        now: Date = Date()) -> [WidgetUsageRow]
+    {
+        let rows: [WidgetUsageRow]
         if let usageRows = entry.usageRows {
-            return usageRows.map { row in
-                WidgetUsageRow(id: row.id, title: row.title, percentLeft: row.percentLeft)
+            let resolvedSnapshots = usageRows.map { row in
+                guard row.window == nil,
+                      let window = self.legacyCodexRateWindow(for: row.id, entry: entry)
+                else {
+                    return row
+                }
+                return WidgetSnapshot.WidgetUsageRowSnapshot(
+                    id: row.id,
+                    title: row.title,
+                    percentLeft: row.percentLeft,
+                    window: window)
+            }
+            let sourceRows = resolvedSnapshots.map { row in
+                WidgetUsageRow(
+                    id: row.id,
+                    title: row.title,
+                    percentLeft: row.window?.remainingPercent ?? row.percentLeft)
+            }
+            rows = self.applyingCodexWeeklyCap(
+                sourceRows,
+                snapshots: resolvedSnapshots,
+                provider: entry.provider,
+                now: now)
+        } else {
+            let metadata = entry.provider.firstPartyProvider.flatMap { ProviderDefaults.metadata[$0] }
+            var defaultRows = [
+                WidgetUsageRow(
+                    id: "primary",
+                    title: metadata?.sessionLabel ?? "Session",
+                    percentLeft: entry.primary?.remainingPercent),
+                WidgetUsageRow(
+                    id: "secondary",
+                    title: metadata?.weeklyLabel ?? "Weekly",
+                    percentLeft: entry.secondary?.remainingPercent),
+            ]
+            if metadata?.supportsOpus == true {
+                defaultRows.append(WidgetUsageRow(
+                    id: "tertiary",
+                    title: metadata?.opusLabel ?? "Opus",
+                    percentLeft: entry.tertiary?.remainingPercent))
+            }
+            rows = defaultRows.filter { $0.percentLeft != nil }
+        }
+        guard let limit else { return rows }
+        // Provider-specific by design: Antigravity medium widgets select one constrained row per model family.
+        if entry.provider == .antigravity,
+           limit >= 2,
+           rows.contains(where: { $0.id.hasPrefix("antigravity-quota-summary-") })
+        {
+            var selected = [AntigravityQuotaFamily.gemini, .claudeGPT].compactMap { family in
+                rows
+                    .filter { self.antigravityQuotaFamily(for: $0) == family }
+                    .min(by: self.isMoreConstrained)
+            }
+            let selectedIDs = Set(selected.map(\.id))
+            let fallbackRows = rows.enumerated()
+                .filter { !selectedIDs.contains($0.element.id) }
+                .sorted { lhs, rhs in
+                    switch (lhs.element.percentLeft, rhs.element.percentLeft) {
+                    case let (.some(left), .some(right)):
+                        left == right ? lhs.offset < rhs.offset : left < right
+                    case (.some, .none):
+                        true
+                    case (.none, .some):
+                        false
+                    case (.none, .none):
+                        lhs.offset < rhs.offset
+                    }
+                }
+                .map(\.element)
+            selected.append(contentsOf: fallbackRows.prefix(max(0, limit - selected.count)))
+            return selected
+        }
+        return Array(rows.prefix(max(0, limit)))
+    }
+
+    private static func applyingCodexWeeklyCap(
+        _ rows: [WidgetUsageRow],
+        snapshots: [WidgetSnapshot.WidgetUsageRowSnapshot],
+        provider: ProviderInstanceID,
+        now: Date) -> [WidgetUsageRow]
+    {
+        // Provider-specific by design: Codex weekly exhaustion suppresses its paired legacy session widget row.
+        guard provider == .codex,
+              let weekly = snapshots.first(where: { $0.id == "weekly" })?.window,
+              weekly.remainingPercent <= 0,
+              weekly.resetsAt.map({ $0 > now }) ?? true
+        else {
+            return rows
+        }
+        return rows.map { row in
+            guard row.id == "session" else { return row }
+            return WidgetUsageRow(id: row.id, title: row.title, percentLeft: 0)
+        }
+    }
+
+    private static func legacyCodexRateWindow(
+        for rowID: String,
+        entry: WidgetSnapshot.ProviderEntry) -> RateWindow?
+    {
+        // Provider-specific by design: old Codex timelines reconstruct session/weekly windows by duration.
+        guard entry.provider == .codex else { return nil }
+        let candidates = [(entry.primary, "session"), (entry.secondary, "weekly")]
+        for (window, fallbackID) in candidates {
+            guard let window else { continue }
+            let classifiedID = switch window.windowMinutes {
+            case 300: "session"
+            case 10080: "weekly"
+            default: fallbackID
+            }
+            if classifiedID == rowID {
+                return window
             }
         }
+        return nil
+    }
 
-        let metadata = ProviderDefaults.metadata[entry.provider]
-        var rows = [
-            WidgetUsageRow(
-                id: "primary",
-                title: metadata?.sessionLabel ?? "Session",
-                percentLeft: entry.primary?.remainingPercent),
-            WidgetUsageRow(
-                id: "secondary",
-                title: metadata?.weeklyLabel ?? "Weekly",
-                percentLeft: entry.secondary?.remainingPercent),
-        ]
-        if metadata?.supportsOpus == true {
-            rows.append(WidgetUsageRow(
-                id: "tertiary",
-                title: metadata?.opusLabel ?? "Opus",
-                percentLeft: entry.tertiary?.remainingPercent))
+    static func compactTokenUsage(
+        for entry: WidgetSnapshot.ProviderEntry) -> WidgetSnapshot.TokenUsageSummary?
+    {
+        guard self.rows(for: entry).isEmpty,
+              entry.codeReviewRemainingPercent == nil
+        else {
+            return nil
         }
-        return rows.filter { $0.percentLeft != nil }
+        return entry.tokenUsage
+    }
+
+    private static func antigravityQuotaFamily(for row: WidgetUsageRow) -> AntigravityQuotaFamily? {
+        // Provider-specific by design: Antigravity IDs/titles classify Gemini versus third-party quota families.
+        guard row.id.hasPrefix("antigravity-quota-summary-") else { return nil }
+        let id = row.id.lowercased()
+        if id.contains("gemini") {
+            return .gemini
+        }
+        if id.contains("3p") || id.contains("third-party") {
+            return .claudeGPT
+        }
+
+        let title = row.title.lowercased()
+        if title.contains("gemini") {
+            return .gemini
+        }
+        if title.contains("claude") || title.contains("gpt") {
+            return .claudeGPT
+        }
+        return nil
+    }
+
+    private static func isMoreConstrained(_ lhs: WidgetUsageRow, than rhs: WidgetUsageRow) -> Bool {
+        switch (lhs.percentLeft, rhs.percentLeft) {
+        case let (.some(left), .some(right)):
+            left < right
+        case (.some, .none):
+            true
+        case (.none, .some):
+            false
+        case (.none, .none):
+            false
+        }
+    }
+}
+
+enum WidgetUsageDisplay {
+    static func percent(fromRemaining remaining: Double?, showUsed: Bool) -> Double? {
+        guard let remaining else { return nil }
+        let clamped = max(0, min(100, remaining))
+        return showUsed ? 100 - clamped : clamped
     }
 }
 
@@ -539,17 +776,26 @@ private struct HistoryView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HeaderView(provider: self.entry.provider, updatedAt: self.entry.updatedAt)
-            UsageHistoryChart(points: self.entry.dailyUsage, color: WidgetColors.color(for: self.entry.provider))
+            UsageHistoryChart(
+                points: self.entry.dailyUsage,
+                color: WidgetColors.color(for: self.entry.provider),
+                currencyCode: self.entry.tokenUsage?.currencyCode)
                 .frame(height: self.isLarge ? 90 : 60)
             if let token = entry.tokenUsage {
                 ValueLine(
-                    title: token.sessionLabel,
+                    title: WidgetFormat.tokenRowTitle(
+                        token.sessionLabel,
+                        summary: token,
+                        entryUpdatedAt: self.entry.updatedAt),
                     value: WidgetFormat.costAndTokens(
                         cost: token.sessionCostUSD,
                         tokens: token.sessionTokens,
                         currencyCode: token.currencyCode))
                 ValueLine(
-                    title: token.last30DaysLabel,
+                    title: WidgetFormat.tokenRowTitle(
+                        token.last30DaysLabel,
+                        summary: token,
+                        entryUpdatedAt: self.entry.updatedAt),
                     value: WidgetFormat.costAndTokens(
                         cost: token.last30DaysCostUSD,
                         tokens: token.last30DaysTokens,
@@ -561,12 +807,13 @@ private struct HistoryView: View {
 }
 
 private struct HeaderView: View {
-    let provider: UsageProvider
+    let provider: ProviderInstanceID
     let updatedAt: Date
 
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
-            Text(ProviderDefaults.metadata[self.provider]?.displayName ?? self.provider.rawValue.capitalized)
+            Text(self.provider.firstPartyProvider.flatMap { ProviderDefaults.metadata[$0]?.displayName }
+                ?? self.provider.rawValue.capitalized)
                 .font(.body)
                 .fontWeight(.semibold)
             Spacer()
@@ -578,22 +825,24 @@ private struct HeaderView: View {
 }
 
 private struct UsageBarRow: View {
+    @Environment(\.widgetUsageShowsUsed) private var showUsed
     let title: String
     let percentLeft: Double?
     let color: Color
 
     var body: some View {
+        let percent = WidgetUsageDisplay.percent(fromRemaining: self.percentLeft, showUsed: self.showUsed)
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text(self.title)
                     .font(.caption)
                 Spacer()
-                Text(WidgetFormat.percent(self.percentLeft))
+                Text(WidgetFormat.percent(percent))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
             GeometryReader { proxy in
-                let width = max(0, min(1, (percentLeft ?? 0) / 100)) * proxy.size.width
+                let width = max(0, min(1, (percent ?? 0) / 100)) * proxy.size.width
                 ZStack(alignment: .leading) {
                     Capsule().fill(Color.primary.opacity(0.08))
                     Capsule().fill(self.color).frame(width: width)
@@ -613,8 +862,16 @@ private struct ValueLine: View {
             Text(self.title)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
             Text(self.value)
                 .font(.caption)
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .allowsTightening(true)
+                .layoutPriority(1)
         }
     }
 }
@@ -622,127 +879,89 @@ private struct ValueLine: View {
 private struct UsageHistoryChart: View {
     let points: [WidgetSnapshot.DailyUsagePoint]
     let color: Color
+    let currencyCode: String?
 
     var body: some View {
+        let isCostMode = UsageHistoryChartMode.isCostMode(self.points)
         let values = self.points.map { point -> Double in
-            if let cost = point.costUSD { return cost }
+            if isCostMode {
+                return point.costUSD ?? 0
+            }
             return Double(point.totalTokens ?? 0)
         }
-        let maxValue = values.max() ?? 0
-        HStack(alignment: .bottom, spacing: 2) {
-            ForEach(values.indices, id: \.self) { index in
-                let value = values[index]
-                let height = maxValue > 0 ? CGFloat(value / maxValue) : 0
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(self.color.opacity(0.85))
-                    .frame(maxWidth: .infinity)
-                    .scaleEffect(x: 1, y: height, anchor: .bottom)
-                    .animation(.easeOut(duration: 0.2), value: height)
+        let scale = UsageChartScale(values: values)
+        VStack(alignment: .trailing, spacing: 2) {
+            if isCostMode,
+               let currencyCode = self.currencyCode,
+               scale.maximum > 0
+            {
+                Text(UsageFormatter.compactCurrencyString(scale.maximum, currencyCode: currencyCode))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .allowsTightening(true)
+            }
+            GeometryReader { geometry in
+                HStack(alignment: .bottom, spacing: 2) {
+                    ForEach(values.indices, id: \.self) { index in
+                        let fraction = scale.fraction(for: values[index])
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(self.color.opacity(0.85))
+                            .frame(maxWidth: .infinity)
+                            .frame(height: max(fraction > 0 ? 2 : 0, CGFloat(fraction) * geometry.size.height))
+                            .animation(.easeOut(duration: 0.2), value: fraction)
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
             }
         }
     }
 }
 
-enum WidgetColors {
-    // swiftlint:disable:next cyclomatic_complexity
-    static func color(for provider: UsageProvider) -> Color {
-        switch provider {
-        case .codex:
-            Color(red: 73 / 255, green: 163 / 255, blue: 176 / 255)
-        case .openai:
-            Color(red: 15 / 255, green: 130 / 255, blue: 110 / 255)
-        case .azureopenai:
-            Color(red: 0, green: 120 / 255, blue: 212 / 255)
-        case .claude:
-            Color(red: 204 / 255, green: 124 / 255, blue: 94 / 255)
-        case .gemini:
-            Color(red: 171 / 255, green: 135 / 255, blue: 234 / 255)
-        case .antigravity:
-            Color(red: 96 / 255, green: 186 / 255, blue: 126 / 255)
-        case .cursor:
-            Color(red: 0 / 255, green: 191 / 255, blue: 165 / 255) // #00BFA5 - Cursor teal
-        case .opencode:
-            Color(red: 59 / 255, green: 130 / 255, blue: 246 / 255)
-        case .opencodego:
-            Color(red: 59 / 255, green: 130 / 255, blue: 246 / 255)
-        case .alibaba, .alibabatokenplan:
-            Color(red: 1.0, green: 106 / 255, blue: 0)
-        case .zai:
-            Color(red: 232 / 255, green: 90 / 255, blue: 106 / 255)
-        case .factory:
-            Color(red: 255 / 255, green: 107 / 255, blue: 53 / 255) // Factory orange
-        case .copilot:
-            Color(red: 168 / 255, green: 85 / 255, blue: 247 / 255) // Purple
-        case .minimax:
-            Color(red: 254 / 255, green: 96 / 255, blue: 60 / 255)
-        case .manus:
-            Color(red: 24 / 255, green: 24 / 255, blue: 24 / 255)
-        case .vertexai:
-            Color(red: 66 / 255, green: 133 / 255, blue: 244 / 255) // Google Blue
-        case .kilo:
-            Color(red: 242 / 255, green: 112 / 255, blue: 39 / 255) // Kilo orange
-        case .kiro:
-            Color(red: 255 / 255, green: 153 / 255, blue: 0 / 255) // AWS orange
-        case .augment:
-            Color(red: 99 / 255, green: 102 / 255, blue: 241 / 255) // Augment purple
-        case .jetbrains:
-            Color(red: 255 / 255, green: 51 / 255, blue: 153 / 255) // JetBrains pink
-        case .kimi:
-            Color(red: 254 / 255, green: 96 / 255, blue: 60 / 255) // Kimi orange
-        case .kimik2:
-            Color(red: 76 / 255, green: 0 / 255, blue: 255 / 255) // Kimi K2 purple
-        case .moonshot:
-            Color(red: 32 / 255, green: 93 / 255, blue: 235 / 255)
-        case .amp:
-            Color(red: 220 / 255, green: 38 / 255, blue: 38 / 255) // Amp red
-        case .t3chat:
-            Color(red: 245 / 255, green: 102 / 255, blue: 71 / 255)
-        case .ollama:
-            Color(red: 32 / 255, green: 32 / 255, blue: 32 / 255) // Ollama charcoal
-        case .synthetic:
-            Color(red: 20 / 255, green: 20 / 255, blue: 20 / 255) // Synthetic charcoal
-        case .openrouter:
-            Color(red: 111 / 255, green: 66 / 255, blue: 193 / 255) // OpenRouter purple
-        case .elevenlabs:
-            Color(red: 235 / 255, green: 235 / 255, blue: 230 / 255)
-        case .warp:
-            Color(red: 147 / 255, green: 139 / 255, blue: 180 / 255)
-        case .windsurf:
-            Color(red: 52 / 255, green: 232 / 255, blue: 187 / 255) // Windsurf #34e8bb
-        case .perplexity:
-            Color(red: 32 / 255, green: 178 / 255, blue: 170 / 255) // Perplexity teal
-        case .mimo:
-            Color(red: 1.0, green: 105 / 255, blue: 0)
-        case .doubao:
-            Color(red: 45 / 255, green: 136 / 255, blue: 255 / 255) // Doubao blue
-        case .abacus:
-            Color(red: 56 / 255, green: 189 / 255, blue: 248 / 255)
-        case .mistral:
-            Color(red: 255 / 255, green: 80 / 255, blue: 15 / 255) // Mistral orange
-        case .deepseek:
-            Color(red: 82 / 255, green: 125 / 255, blue: 240 / 255)
-        case .codebuff:
-            Color(red: 68 / 255, green: 255 / 255, blue: 0 / 255) // Codebuff lime
-        case .crof:
-            Color(red: 46 / 255, green: 171 / 255, blue: 148 / 255)
-        case .venice:
-            Color(red: 51 / 255, green: 153 / 255, blue: 1.0)
-        case .commandcode:
-            Color(red: 0, green: 0, blue: 0)
-        case .stepfun:
-            Color(red: 255 / 255, green: 140 / 255, blue: 0 / 255) // StepFun orange
-        case .bedrock:
-            Color(red: 255 / 255, green: 153 / 255, blue: 0 / 255) // AWS orange
-        case .grok:
-            Color(red: 16 / 255, green: 163 / 255, blue: 127 / 255) // Grok teal
-        case .groq:
-            Color(red: 245 / 255, green: 104 / 255, blue: 68 / 255)
-        case .llmproxy:
-            Color(red: 36 / 255, green: 180 / 255, blue: 126 / 255)
-        case .deepgram:
-            Color(red: 10 / 255, green: 18 / 255, blue: 27 / 255)
-        }
+enum UsageHistoryChartMode {
+    static func isCostMode(_ points: [WidgetSnapshot.DailyUsagePoint]) -> Bool {
+        !points.isEmpty && points.allSatisfy { $0.costUSD != nil }
     }
+}
+
+enum WidgetColors {
+    static func color(for instanceID: ProviderInstanceID) -> Color {
+        guard let provider = instanceID.firstPartyProvider else { return .secondary }
+        // The widget cannot read ~/.codexbar/config.json, so it resolves the user override from the
+        // copy the app mirrors into the App Group.
+        let color = ProviderAccentColors.sharedOverride(for: instanceID)
+            ?? ProviderDescriptorRegistry.descriptor(for: provider).branding.widgetColor
+        return Color(red: color.red, green: color.green, blue: color.blue)
+    }
+}
+
+struct WidgetBalanceLine: Equatable {
+    let title: String
+    let value: String
+}
+
+enum WidgetBalanceFormatter {
+    static func extraUsageCost(for entry: WidgetSnapshot.ProviderEntry) -> ProviderCostSnapshot? {
+        // Provider-specific by design: Devin encodes its extra-usage balance as a named provider-cost period.
+        guard entry.provider == .devin,
+              let cost = entry.providerCost,
+              cost.period == "Extra usage balance"
+        else { return nil }
+        return cost
+    }
+
+    static func extraUsageBalance(for entry: WidgetSnapshot.ProviderEntry) -> WidgetBalanceLine? {
+        guard let cost = self.extraUsageCost(for: entry) else { return nil }
+        return WidgetBalanceLine(
+            title: "Extra usage",
+            value: "Balance: \(WidgetFormat.currency(cost.used, code: cost.currencyCode))")
+    }
+}
+
+private func extraUsageBalanceLine(for entry: WidgetSnapshot.ProviderEntry) -> ValueLine? {
+    guard let line = WidgetBalanceFormatter.extraUsageBalance(for: entry) else { return nil }
+    return ValueLine(title: line.title, value: line.value)
 }
 
 enum WidgetFormat {
@@ -777,11 +996,7 @@ enum WidgetFormat {
     }
 
     static func tokenCount(_ value: Int) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.maximumFractionDigits = 0
-        let raw = formatter.string(from: NSNumber(value: value)) ?? "\(value)"
-        return "\(raw) tokens"
+        "\(UsageFormatter.tokenCountString(value)) tokens"
     }
 
     static func relativeDate(_ date: Date) -> String {
@@ -789,5 +1004,16 @@ enum WidgetFormat {
         formatter.locale = Locale(identifier: "en_US")
         formatter.unitsStyle = .short
         return formatter.localizedString(for: date, relativeTo: Date())
+    }
+
+    /// Suffixes the title with the token snapshot's own age once it lags the entry's
+    /// freshness signal past `TokenUsageSummary.staleLagThreshold`.
+    static func tokenRowTitle(
+        _ base: String,
+        summary: WidgetSnapshot.TokenUsageSummary,
+        entryUpdatedAt: Date) -> String
+    {
+        guard summary.isStale(comparedTo: entryUpdatedAt), let updatedAt = summary.updatedAt else { return base }
+        return "\(base) · \(self.relativeDate(updatedAt))"
     }
 }

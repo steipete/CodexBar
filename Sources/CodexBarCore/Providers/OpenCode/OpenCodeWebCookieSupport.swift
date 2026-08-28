@@ -51,12 +51,7 @@ enum OpenCodeWebCookieSupport {
 
     #if os(macOS)
     static func automaticImportOrder(provider: UsageProvider) -> BrowserCookieImportOrder {
-        if provider == .opencodego,
-           let order = ProviderDefaults.metadata[provider]?.browserCookieOrder
-        {
-            return order
-        }
-        return [.chrome]
+        ProviderDefaults.metadata[provider]?.browserCookieOrder ?? [.chrome]
     }
     #endif
 }

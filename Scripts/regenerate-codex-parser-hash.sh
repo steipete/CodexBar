@@ -32,10 +32,12 @@ fi
 FILE_LIST="$(mktemp)"
 trap 'rm -f "$FILE_LIST"' EXIT
 
+# Storage-only files have their own schema-version gate and do not change parser semantics.
 find "$SOURCE_DIR" \
   -type f \
   -name '*.swift' \
   ! -name '*Claude*' \
+  ! -name 'CostUsageStore*.swift' \
   -print |
   sed "s#^${ROOT_DIR}/##" |
   LC_ALL=C sort >"$FILE_LIST"

@@ -1,12 +1,24 @@
-import CodexBarMacroSupport
 import Foundation
 
-@ProviderDescriptorRegistration
-@ProviderDescriptorDefinition
 public enum ManusProviderDescriptor {
+    public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+    private static let credentials = ProviderCredentialAdapter(
+        tokenAccountSupport: TokenAccountSupport(
+            title: "Session tokens",
+            subtitle: "Store multiple Manus session_id cookies.",
+            placeholder: "session_id=…",
+            injection: .cookieHeader,
+            requiresManualCookieSource: true,
+            cookieName: ManusCookieHeader.sessionCookieName),
+        authDetector: { environment, _ in
+            ManusSettingsReader.sessionToken(environment: environment) == nil ? [] : ["web"]
+        })
+
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .manus,
+            settingsSection: .init(ManusProviderSettingsKey.self, cookieSettings: ManusProviderSettings.self),
+            credentials: self.credentials,
             metadata: ProviderMetadata(
                 id: .manus,
                 displayName: "Manus",
@@ -19,25 +31,57 @@ public enum ManusProviderDescriptor {
                 toggleTitle: "Show Manus usage",
                 cliName: "manus",
                 defaultEnabled: false,
+                widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
+                debugLogUnavailableMessage: "Manus debug log not yet implemented",
                 browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,
                 dashboardURL: "https://manus.im",
                 statusPageURL: nil),
             branding: ProviderBranding(
-                iconStyle: .manus,
+                iconStyle: .init(provider: .manus),
                 iconResourceName: "ProviderIcon-manus",
-                color: ProviderColor(red: 52 / 255, green: 50 / 255, blue: 45 / 255)),
+                color: ProviderColor(red: 52 / 255, green: 50 / 255, blue: 45 / 255),
+                confettiPalette: [
+                    ProviderColor(hex: 0x34322D),
+                    ProviderColor(hex: 0xF2F0E9),
+                    ProviderColor(hex: 0x0099FF),
+                ],
+                widgetColor: ProviderColor(red: 24 / 255, green: 24 / 255, blue: 24 / 255)),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Manus cost summary is not supported." }),
-            fetchPlan: ProviderFetchPlan(
-                sourceModes: [.auto, .web],
-                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [ManusWebFetchStrategy()] })),
+            presentation: ProviderUsagePresentation(
+                costPresenter: { _ in ProviderCostPresentation(menuCardStyle: .hidden) },
+                menuCard: ProviderMenuCardPresentation(
+                    showsPrimaryBalanceDescription: true,
+                    clearsPrimaryReset: true)),
+            fetchPlan: self.fetchPlan(),
             cli: ProviderCLIConfig(
                 name: "manus",
                 aliases: [],
                 versionDetector: nil))
+    }
+
+    private static func fetchPlan() -> ProviderFetchPlan {
+        ProviderFetchPlan(
+            sourceModes: [.auto, .web],
+            pipeline: ProviderFetchPipeline(resolveStrategies: { context in
+                let swift = ManusWebFetchStrategy()
+                guard ProviderPluginPrototype.isEnabled(environment: context.env) else { return [swift] }
+                return [
+                    ScriptFetchStrategy(
+                        id: "manus.js",
+                        provider: .manus,
+                        bundledPlugin: "manus",
+                        kind: .web,
+                        resolveValues: { context in
+                            guard context.settings?.manus?.cookieSource != .off else { return nil }
+                            return ScriptFetchStrategy.Values()
+                        }),
+                    swift,
+                ]
+            }))
     }
 }
 
@@ -60,11 +104,13 @@ struct ManusWebFetchStrategy: ProviderFetchStrategy {
 
     let id: String = "manus.web"
     let kind: ProviderFetchKind = .web
-    private static let log = CodexBarLog.logger(LogCategories.manusWeb)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.manus, scope: "web"))
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
         guard context.settings?.manus?.cookieSource != .off else { return false }
-        if context.settings?.manus?.cookieSource == .manual { return true }
+        if context.settings?.manus?.cookieSource == .manual {
+            return true
+        }
 
         if let cached = CookieHeaderCache.load(provider: .manus),
            ManusCookieHeader.token(from: cached.cookieHeader) != nil
@@ -111,9 +157,15 @@ struct ManusWebFetchStrategy: ProviderFetchStrategy {
     }
 
     func shouldFallback(on error: Error, context _: ProviderFetchContext) -> Bool {
-        if case ManusAPIError.missingToken = error { return false }
-        if case ManusAPIError.invalidCookie = error { return false }
-        if case ManusAPIError.invalidToken = error { return false }
+        if case ManusAPIError.missingToken = error {
+            return false
+        }
+        if case ManusAPIError.invalidCookie = error {
+            return false
+        }
+        if case ManusAPIError.invalidToken = error {
+            return false
+        }
         return true
     }
 

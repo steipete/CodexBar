@@ -1,12 +1,31 @@
-import CodexBarMacroSupport
 import Foundation
 
-@ProviderDescriptorRegistration
-@ProviderDescriptorDefinition
 public enum CodebuffProviderDescriptor {
+    public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+    private static let credentials = ProviderCredentialAdapter(
+        supportsAPIKeyOverride: true,
+        environmentProjections: [
+            .apiKey(
+                CodebuffSettingsReader.apiTokenKey,
+                precedence: .environment,
+                environmentHasValue: { CodebuffSettingsReader.apiKey(environment: $0) != nil }),
+        ],
+        tokenResolver: { kind, environment, authFileURL in
+            guard kind == .primary else { return nil }
+            if let token = CodebuffSettingsReader.apiKey(environment: environment) {
+                return ProviderTokenResolution(token: token, source: .environment)
+            }
+            guard let token = CodebuffSettingsReader.authToken(authFileURL: authFileURL) else { return nil }
+            return ProviderTokenResolution(token: token, source: .authFile)
+        },
+        authDetector: { environment, _ in
+            CodebuffSettingsReader.apiKey(environment: environment) == nil ? [] : ["api"]
+        })
+
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .codebuff,
+            credentials: self.credentials,
             metadata: ProviderMetadata(
                 id: .codebuff,
                 displayName: "Codebuff",
@@ -19,6 +38,7 @@ public enum CodebuffProviderDescriptor {
                 toggleTitle: "Show Codebuff usage",
                 cliName: "codebuff",
                 defaultEnabled: false,
+                widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
                 browserCookieOrder: nil,
@@ -26,9 +46,14 @@ public enum CodebuffProviderDescriptor {
                 statusPageURL: nil,
                 statusLinkURL: nil),
             branding: ProviderBranding(
-                iconStyle: .codebuff,
+                iconStyle: .init(provider: .codebuff),
                 iconResourceName: "ProviderIcon-codebuff",
-                color: ProviderColor(red: 68 / 255, green: 255 / 255, blue: 0 / 255)),
+                color: ProviderColor(red: 68 / 255, green: 255 / 255, blue: 0 / 255),
+                confettiPalette: [
+                    ProviderColor(hex: 0x9EFC62),
+                    ProviderColor(hex: 0xFFFFFF),
+                    ProviderColor(hex: 0x000000),
+                ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Codebuff cost summary is not yet supported." }),
@@ -75,19 +100,22 @@ struct CodebuffAPIFetchStrategy: ProviderFetchStrategy {
     }
 
     private static func resolveToken(environment: [String: String]) -> ProviderTokenResolution? {
-        ProviderTokenResolver.codebuffResolution(environment: environment)
+        ProviderTokenResolver.resolution(for: .codebuff, environment: environment)
     }
 }
 
 /// Errors related to Codebuff settings.
-public enum CodebuffSettingsError: LocalizedError, Sendable {
+public enum CodebuffSettingsError: LocalizedError, Sendable, Equatable {
     case missingToken
+    case invalidEndpointOverride(String)
 
     public var errorDescription: String? {
         switch self {
         case .missingToken:
             "Codebuff API token not configured. Set CODEBUFF_API_KEY or run `codebuff login` to " +
                 "populate ~/.config/manicode/credentials.json."
+        case let .invalidEndpointOverride(key):
+            "Codebuff endpoint override \(key) must use HTTPS or a bare host."
         }
     }
 }

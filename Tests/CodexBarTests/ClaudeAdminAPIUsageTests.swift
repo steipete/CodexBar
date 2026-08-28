@@ -176,9 +176,36 @@ struct ClaudeAdminAPIUsageTests {
         #expect(usage.providerCost?.used == 8.5)
         #expect(usage.providerCost?.limit == 0)
         #expect(usage.providerCost?.period == "Last 30 days")
-        #expect(usage.claudeAdminAPIUsage?.last30Days.totalTokens == 1950)
+        #expect(usage.detailRow(label: "30d tokens")?.value == "1,950")
         #expect(usage.identity?.providerID == .claude)
         #expect(usage.identity?.loginMethod == "Admin API")
+    }
+
+    @Test
+    func `current day summary is zero when Claude admin history is stale`() throws {
+        let now = try Self.localNoon(year: 2023, month: 11, day: 17)
+        let bucketDay = try Self.localNoon(year: 2023, month: 11, day: 14)
+        let apiUsage = ClaudeAdminAPIUsageSnapshot(
+            daily: [
+                ClaudeAdminAPIUsageSnapshot.DailyBucket(
+                    day: "2023-11-14",
+                    startTime: bucketDay,
+                    endTime: bucketDay.addingTimeInterval(86400),
+                    costUSD: 8.5,
+                    inputTokens: 1000,
+                    cacheCreationInputTokens: 400,
+                    cacheReadInputTokens: 300,
+                    outputTokens: 250,
+                    totalTokens: 1950,
+                    costItems: [],
+                    models: []),
+            ],
+            updatedAt: now)
+
+        #expect(apiUsage.currentDay.costUSD == 0)
+        #expect(apiUsage.currentDay.totalTokens == 0)
+        #expect(apiUsage.latestDay.costUSD == 8.5)
+        #expect(apiUsage.latestDay.totalTokens == 1950)
     }
 
     @Test
@@ -192,5 +219,9 @@ struct ClaudeAdminAPIUsageTests {
 
         #expect(result.sourceLabel == "admin-api")
         #expect(result.usage.identity?.loginMethod == "Admin API")
+    }
+
+    private static func localNoon(year: Int, month: Int, day: Int) throws -> Date {
+        try #require(Calendar.current.date(from: DateComponents(year: year, month: month, day: day, hour: 12)))
     }
 }

@@ -19,10 +19,41 @@ public enum CodebuffUsageFetcher {
         includeSubscription: Bool = true,
         session transport: any ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> CodebuffUsageSnapshot
     {
+        try await self.fetchUsage(
+            apiKey: apiKey,
+            environment: environment,
+            includeSubscription: includeSubscription,
+            transport: transport,
+            subscriptionGrace: .seconds(self.subscriptionGraceSeconds))
+    }
+
+    static func _fetchUsageForTesting(
+        apiKey: String,
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        includeSubscription: Bool = true,
+        transport: any ProviderHTTPTransport,
+        subscriptionGrace: Duration) async throws -> CodebuffUsageSnapshot
+    {
+        try await self.fetchUsage(
+            apiKey: apiKey,
+            environment: environment,
+            includeSubscription: includeSubscription,
+            transport: transport,
+            subscriptionGrace: subscriptionGrace)
+    }
+
+    private static func fetchUsage(
+        apiKey: String,
+        environment: [String: String],
+        includeSubscription: Bool,
+        transport: any ProviderHTTPTransport,
+        subscriptionGrace: Duration) async throws -> CodebuffUsageSnapshot
+    {
         let trimmed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             throw CodebuffUsageError.missingCredentials
         }
+        try CodebuffSettingsReader.validateEndpointOverrides(environment: environment)
 
         let baseURL = CodebuffSettingsReader.apiURL(environment: environment)
 
@@ -30,7 +61,8 @@ public enum CodebuffUsageFetcher {
             apiKey: trimmed,
             baseURL: baseURL,
             includeSubscription: includeSubscription,
-            transport: transport)
+            transport: transport,
+            subscriptionGrace: subscriptionGrace)
 
         return CodebuffUsageSnapshot(
             creditsUsed: usageValues.used,
@@ -52,70 +84,58 @@ public enum CodebuffUsageFetcher {
         apiKey: String,
         baseURL: URL,
         includeSubscription: Bool,
-        transport: any ProviderHTTPTransport) async throws -> (UsagePayload, SubscriptionPayload?)
+        transport: any ProviderHTTPTransport,
+        subscriptionGrace: Duration) async throws -> (UsagePayload, SubscriptionPayload?)
     {
-        try await withThrowingTaskGroup(of: FetchResult.self) { group in
-            group.addTask {
-                try await .usage(self.fetchUsagePayload(apiKey: apiKey, baseURL: baseURL, transport: transport))
+        guard includeSubscription else {
+            return try await (
+                self.fetchUsagePayload(apiKey: apiKey, baseURL: baseURL, transport: transport),
+                nil)
+        }
+
+        let subscriptionTask = Task<SubscriptionPayload?, Error> {
+            try await self.fetchSubscriptionPayload(
+                apiKey: apiKey,
+                baseURL: baseURL,
+                transport: transport)
+        }
+        let usageValues: UsagePayload
+        do {
+            usageValues = try await withTaskCancellationHandler {
+                try await self.fetchUsagePayload(
+                    apiKey: apiKey,
+                    baseURL: baseURL,
+                    transport: transport)
+            } onCancel: {
+                subscriptionTask.cancel()
             }
-            if includeSubscription {
-                group.addTask {
-                    await .subscription(try? self.fetchSubscriptionPayload(
-                        apiKey: apiKey,
-                        baseURL: baseURL,
-                        transport: transport))
-                }
-            }
+        } catch {
+            subscriptionTask.cancel()
+            throw error
+        }
 
-            var usageValues: UsagePayload?
-            var subscriptionValues: SubscriptionPayload?
-            var subscriptionFinished = !includeSubscription
-            var timeoutStarted = false
-
-            while let result = try await group.next() {
-                switch result {
-                case let .usage(payload):
-                    usageValues = payload
-                    if subscriptionFinished {
-                        group.cancelAll()
-                        return (payload, subscriptionValues)
-                    }
-                    if !timeoutStarted {
-                        timeoutStarted = true
-                        group.addTask {
-                            let nanos = UInt64(max(0, Self.subscriptionGraceSeconds) * 1_000_000_000)
-                            try? await Task.sleep(nanoseconds: nanos)
-                            return .subscriptionTimeout
-                        }
-                    }
-
-                case let .subscription(payload):
-                    subscriptionValues = payload
-                    subscriptionFinished = true
-                    if let usageValues {
-                        group.cancelAll()
-                        return (usageValues, payload)
-                    }
-
-                case .subscriptionTimeout:
-                    if let usageValues {
-                        group.cancelAll()
-                        return (usageValues, subscriptionValues)
-                    }
-                }
-            }
-
-            throw CodebuffUsageError.networkError("Usage request did not complete")
+        do {
+            try Task.checkCancellation()
+        } catch {
+            subscriptionTask.cancel()
+            throw error
+        }
+        let race = BoundedTaskJoin(sourceTask: subscriptionTask)
+        switch await race.value(joinGrace: subscriptionGrace) {
+        case let .value(subscriptionValues):
+            try Task.checkCancellation()
+            return (usageValues, subscriptionValues)
+        case .timedOut:
+            try Task.checkCancellation()
+            return (usageValues, nil)
+        case .failure:
+            subscriptionTask.cancel()
+            try Task.checkCancellation()
+            return (usageValues, nil)
         }
     }
 
     // MARK: - Endpoint helpers
-
-    private enum FetchResult {
-        case usage(UsagePayload)
-        case subscription(SubscriptionPayload?)
-        case subscriptionTimeout
-    }
 
     struct UsagePayload {
         let used: Double?

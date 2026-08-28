@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "redactionVersion": 1,
+  "familyAlias": "archived-fork-33ce-3869",
+  "files": [
+    {
+      "alias": "parent",
+      "relativePath": "codex-home/archived_sessions/parent.jsonl",
+      "sourceRole": "archive",
+      "leafSessionAlias": "parent-session",
+      "parentSessionAlias": null
+    },
+    {
+      "alias": "child",
+      "relativePath": "codex-home/archived_sessions/child.jsonl",
+      "sourceRole": "archive",
+      "leafSessionAlias": "child-session",
+      "parentSessionAlias": "parent-session"
+    }
+  ],
+  "copiedPrefixes": [
+    {
+      "parentAlias": "parent",
+      "childAlias": "child",
+      "length": 135
+    }
+  ],
+  "oracle": {
+    "parentEventCount": 135,
+    "childEventCount": 158,
+    "copiedPrefixLength": 135,
+    "parentLastTokens": 13432621,
+    "childLastTokens": 15352834,
+    "copiedPrefixLastTokens": 13432621,
+    "naiveLastTokens": 28785455,
+    "dedupedLastTokens": 15352834,
+    "copiedPrefixTimestampMismatches": 135,
+    "parentHasTotalTokenUsageDrop": false,
+    "childHasTotalTokenUsageDrop": false
+  }
+}

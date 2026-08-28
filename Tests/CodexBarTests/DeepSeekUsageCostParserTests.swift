@@ -853,3 +853,150 @@ struct DeepSeekUsageCostParserTests {
         #expect(summary.todayTokens == 450) // 150 + 300
     }
 }
+
+struct DeepSeekUsageCostParserAuthorizationTests {
+    private static let emptyCostJSON = """
+    {
+      "code": 0,
+      "msg": "",
+      "data": {
+        "biz_code": 0,
+        "biz_msg": "",
+        "biz_data": []
+      }
+    }
+    """
+
+    @Test
+    func `invalid platform token code requests a new web session`() {
+        let amountJSON = """
+        {
+          "code": 40003,
+          "msg": "Authorization Failed (invalid token)",
+          "data": null
+        }
+        """
+        let costJSON = """
+        {
+          "code": 0,
+          "msg": "",
+          "data": {
+            "biz_code": 0,
+            "biz_msg": "",
+            "biz_data": []
+          }
+        }
+        """
+
+        #expect {
+            _ = try DeepSeekUsageFetcher._parseUsageSummaryForTesting(
+                amountData: Data(amountJSON.utf8),
+                costData: Data(costJSON.utf8))
+        } throws: { error in
+            error as? DeepSeekUsageError == .invalidPlatformToken
+        }
+    }
+
+    @Test
+    func `nested invalid platform token code requests a new web session`() {
+        let amountJSON = """
+        {
+          "code": 0,
+          "msg": "",
+          "data": {
+            "biz_code": 40002,
+            "biz_msg": "Authorization Failed",
+            "biz_data": null
+          }
+        }
+        """
+        let costJSON = """
+        {
+          "code": 0,
+          "msg": "",
+          "data": {
+            "biz_code": 0,
+            "biz_msg": "",
+            "biz_data": []
+          }
+        }
+        """
+
+        #expect {
+            _ = try DeepSeekUsageFetcher._parseUsageSummaryForTesting(
+                amountData: Data(amountJSON.utf8),
+                costData: Data(costJSON.utf8))
+        } throws: { error in
+            error as? DeepSeekUsageError == .invalidPlatformToken
+        }
+    }
+
+    @Test
+    func `top level authentication error survives an unexpected data shape`() {
+        let amountJSON = """
+        {
+          "code": 40003,
+          "msg": "Authorization Failed",
+          "data": "unexpected"
+        }
+        """
+
+        #expect {
+            _ = try DeepSeekUsageFetcher._parseUsageSummaryForTesting(
+                amountData: Data(amountJSON.utf8),
+                costData: Data(Self.emptyCostJSON.utf8))
+        } throws: { error in
+            error as? DeepSeekUsageError == .invalidPlatformToken
+        }
+    }
+
+    @Test
+    func `nested authentication error survives an unexpected biz data shape`() {
+        let amountJSON = """
+        {
+          "code": 0,
+          "msg": "",
+          "data": {
+            "biz_code": 40002,
+            "biz_msg": "Authorization Failed",
+            "biz_data": "unexpected"
+          }
+        }
+        """
+
+        #expect {
+            _ = try DeepSeekUsageFetcher._parseUsageSummaryForTesting(
+                amountData: Data(amountJSON.utf8),
+                costData: Data(Self.emptyCostJSON.utf8))
+        } throws: { error in
+            error as? DeepSeekUsageError == .invalidPlatformToken
+        }
+    }
+
+    @Test
+    func `successful malformed payload reports its decoding path`() {
+        let amountJSON = """
+        {
+          "code": 0,
+          "msg": "",
+          "data": {
+            "biz_code": 0,
+            "biz_msg": "",
+            "biz_data": {
+              "total": "unexpected",
+              "days": []
+            }
+          }
+        }
+        """
+
+        #expect {
+            _ = try DeepSeekUsageFetcher._parseUsageSummaryForTesting(
+                amountData: Data(amountJSON.utf8),
+                costData: Data(Self.emptyCostJSON.utf8))
+        } throws: { error in
+            guard case let DeepSeekUsageError.parseFailed(message) = error else { return false }
+            return message.contains("total") && message.contains("typeMismatch")
+        }
+    }
+}

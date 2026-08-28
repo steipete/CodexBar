@@ -71,6 +71,10 @@ struct MenuContent: View {
                 }
             }
             .buttonStyle(.plain)
+        case let .unavailable(title, tooltip):
+            Text(title)
+                .foregroundStyle(.secondary)
+                .help(tooltip ?? "")
         case let .submenu(title, systemImageName, submenuItems):
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 8) {
@@ -142,6 +146,8 @@ struct MenuContent: View {
             self.actions.quit()
         case let .copyError(message):
             self.actions.copyError(message)
+        case .focusAgentSession:
+            return
         }
     }
 }
@@ -160,6 +166,38 @@ struct MenuActions {
     let openAbout: () -> Void
     let quit: () -> Void
     let copyError: (String) -> Void
+}
+
+struct PersistentRefreshRowMetrics: Equatable {
+    static let defaults = Self(
+        rowHeight: 24,
+        selectionHorizontalInset: 5,
+        selectionVerticalInset: 0,
+        selectionCornerRadius: 7,
+        // Align the custom row's image/title frames with native NSMenuItem columns.
+        leadingPadding: 15,
+        trailingPadding: 8,
+        iconWidth: 16,
+        iconSymbolPointSize: 16,
+        iconSymbolWeight: .regular,
+        iconTitleSpacing: 4.5,
+        shortcutFontSize: 13,
+        shortcutXOffset: -9.5,
+        shortcutYOffset: 0)
+
+    let rowHeight: CGFloat
+    let selectionHorizontalInset: CGFloat
+    let selectionVerticalInset: CGFloat
+    let selectionCornerRadius: CGFloat
+    let leadingPadding: CGFloat
+    let trailingPadding: CGFloat
+    let iconWidth: CGFloat
+    let iconSymbolPointSize: CGFloat
+    let iconSymbolWeight: NSFont.Weight
+    let iconTitleSpacing: CGFloat
+    let shortcutFontSize: CGFloat
+    let shortcutXOffset: CGFloat
+    let shortcutYOffset: CGFloat
 }
 
 @MainActor
@@ -181,7 +219,7 @@ struct StatusIconView: View {
     }
 
     private var accessibilityValue: String {
-        let snapshot = self.store.snapshot(for: self.provider)
+        let snapshot = self.store.snapshot(for: self.provider.instanceID)
         guard let snap = snapshot else {
             return L("No data")
         }
@@ -189,25 +227,33 @@ struct StatusIconView: View {
             snapshot: snap,
             style: self.store.style(for: self.provider))
         let primary = remaining.primary
-        let percent = primary.map { String(format: L("%d percent remaining"), Int($0 * 100)) } ?? L("Unknown")
+        let percent = primary.map(Self.accessibilityPercentRemaining) ?? L("Unknown")
         let stale = self.store.isStale(provider: self.provider)
         return stale ? "\(percent), \(L("stale data"))" : percent
     }
 
+    static func accessibilityPercentRemaining(_ remaining: Double) -> String {
+        String(format: L("%d percent remaining"), Int(remaining.rounded()))
+    }
+
     private var icon: NSImage {
-        let snapshot = self.store.snapshot(for: self.provider)
+        let now = Date()
+        let snapshot = self.store.snapshot(for: self.provider.instanceID)
         let remaining = snapshot.map {
-            IconRemainingResolver.resolvedRemaining(snapshot: $0, style: self.store.style(for: self.provider))
+            IconRemainingResolver.resolvedRemaining(
+                snapshot: $0,
+                style: self.store.style(for: self.provider),
+                now: now)
         }
         let creditsProjection = self.store.codexConsumerProjectionIfNeeded(
             for: self.provider,
             surface: .menuBar,
             snapshotOverride: snapshot,
-            now: snapshot?.updatedAt ?? Date())
+            now: now)
         let creditsRemaining = creditsProjection?.menuBarFallback == .creditsBalance
             ? self.store.codexMenuBarCreditsRemaining(
                 snapshotOverride: snapshot,
-                now: snapshot?.updatedAt ?? Date())
+                now: now)
             : nil
         return IconRenderer.makeIcon(
             primaryRemaining: remaining?.primary,
@@ -215,6 +261,8 @@ struct StatusIconView: View {
             creditsRemaining: creditsRemaining,
             stale: self.store.isStale(provider: self.provider),
             style: self.store.style(for: self.provider),
-            statusIndicator: self.store.statusIndicator(for: self.provider))
+            statusIndicator: self.store.statusIndicator(for: self.provider),
+            hideCritters: self.store.settings.menuBarHidesCritters,
+            quotaLayoutPolicy: .provider(self.provider))
     }
 }

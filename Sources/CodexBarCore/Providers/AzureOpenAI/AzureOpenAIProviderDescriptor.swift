@@ -1,12 +1,22 @@
-import CodexBarMacroSupport
 import Foundation
 
-@ProviderDescriptorRegistration
-@ProviderDescriptorDefinition
 public enum AzureOpenAIProviderDescriptor {
+    public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+    private static let credentials = ProviderCredentialAdapter.apiKey(
+        environmentKey: AzureOpenAISettingsReader.apiKeyEnvironmentKey,
+        apiKeyDebugLabel: AzureOpenAISettingsReader.apiKeyEnvironmentKey,
+        additionalProjections: [
+            .enterpriseHost(AzureOpenAISettingsReader.endpointEnvironmentKey),
+            .workspaceID(AzureOpenAISettingsReader.deploymentNameEnvironmentKey),
+        ],
+        resolve: AzureOpenAISettingsReader.apiKey,
+        missingCredentialMessage: { _ in AzureOpenAISettingsError.missingAPIKey.errorDescription })
+
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .azureopenai,
+            credentials: self.credentials,
+            config: ProviderConfigCapabilities(workspaceIDValidationOrder: 0, supportsEnterpriseHost: true),
             metadata: ProviderMetadata(
                 id: .azureopenai,
                 displayName: "Azure OpenAI",
@@ -19,6 +29,7 @@ public enum AzureOpenAIProviderDescriptor {
                 toggleTitle: "Show Azure OpenAI status",
                 cliName: "azure-openai",
                 defaultEnabled: false,
+                widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
                 browserCookieOrder: nil,
@@ -26,12 +37,20 @@ public enum AzureOpenAIProviderDescriptor {
                 statusPageURL: nil,
                 statusLinkURL: "https://azure.status.microsoft/en-us/status"),
             branding: ProviderBranding(
-                iconStyle: .openai,
+                // Provider-specific by design: Azure OpenAI deliberately shares OpenAI's icon rendering style.
+                iconStyle: .init(provider: .openai),
                 iconResourceName: "ProviderIcon-codex",
-                color: ProviderColor(red: 0, green: 120 / 255, blue: 212 / 255)),
+                color: ProviderColor(red: 0, green: 120 / 255, blue: 212 / 255),
+                confettiPalette: [
+                    ProviderColor(hex: 0x0078D4),
+                    ProviderColor(hex: 0x50E6FF),
+                    ProviderColor(hex: 0xFFFFFF),
+                ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Azure OpenAI usage history is not exposed by the deployment validation probe." }),
+            presentation: ProviderUsagePresentation(menu: ProviderMenuDescriptorPresentation(
+                primaryDescriptionIsDetail: { _ in true })),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .api],
                 pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [AzureOpenAIAPIFetchStrategy()] })),
@@ -57,6 +76,7 @@ struct AzureOpenAIAPIFetchStrategy: ProviderFetchStrategy {
         guard let apiKey = Self.resolveAPIKey(environment: context.env) else {
             throw AzureOpenAIUsageError.missingAPIKey
         }
+        try AzureOpenAISettingsReader.validateEndpointOverrides(environment: context.env)
         guard let endpoint = Self.resolveEndpoint(environment: context.env) else {
             throw AzureOpenAIUsageError.missingEndpoint
         }
@@ -79,7 +99,7 @@ struct AzureOpenAIAPIFetchStrategy: ProviderFetchStrategy {
     }
 
     private static func resolveAPIKey(environment: [String: String]) -> String? {
-        ProviderTokenResolver.azureOpenAIToken(environment: environment)
+        ProviderTokenResolver.token(for: .azureopenai, environment: environment)
     }
 
     private static func resolveEndpoint(environment: [String: String]) -> URL? {

@@ -1,7 +1,23 @@
+import CodexBarCore
 import Foundation
 
 extension SettingsStore {
+    func costSummaryShowsInline(for provider: UsageProvider) -> Bool {
+        // Provider-specific by design: Codex's local ledger can enable its summary without the global scanner.
+        let isEnabled = self.costUsageEnabled ||
+            (provider == .codex && self.codexLocalSessionCostLedgerEnabled)
+        return isEnabled &&
+            self.costSummaryDisplayStyle.showsInlineSummary
+    }
+
+    func costSummaryShowsSubmenu(for provider: UsageProvider) -> Bool {
+        self.isCostUsageEffectivelyEnabled(for: provider) &&
+            self.costSummaryDisplayStyle.showsCostSubmenu
+    }
+
     func applyTokenCostDefaultIfNeeded() {
+        // Tests cover detection directly; skip filesystem-driven auto-enablement to keep startup deterministic.
+        guard !Self.isRunningTests else { return }
         // Settings are persisted in UserDefaults.standard.
         guard UserDefaults.standard.object(forKey: "tokenCostUsageEnabled") == nil else { return }
 
@@ -18,8 +34,13 @@ extension SettingsStore {
 
     nonisolated static func hasAnyTokenCostUsageSources(
         env: [String: String] = ProcessInfo.processInfo.environment,
-        fileManager: FileManager = .default) -> Bool
+        fileManager: FileManager = .default,
+        homeDirectory: URL? = nil,
+        workingDirectory: URL? = nil) -> Bool
     {
+        // Provider-specific by design: only Codex and Claude have local JSONL scanners that can auto-enable token cost.
+        let home = homeDirectory ?? fileManager.homeDirectoryForCurrentUser
+
         func hasAnyJsonl(in root: URL) -> Bool {
             guard fileManager.fileExists(atPath: root.path) else { return false }
             guard let enumerator = fileManager.enumerator(
@@ -39,7 +60,7 @@ extension SettingsStore {
             if let raw, !raw.isEmpty {
                 return URL(fileURLWithPath: raw).appendingPathComponent("sessions", isDirectory: true)
             }
-            return fileManager.homeDirectoryForCurrentUser
+            return home
                 .appendingPathComponent(".codex", isDirectory: true)
                 .appendingPathComponent("sessions", isDirectory: true)
         }()
@@ -51,28 +72,37 @@ extension SettingsStore {
                 .appendingPathComponent("archived_sessions", isDirectory: true)
         }()
 
-        if hasAnyJsonl(in: codexRoot) { return true }
-        if let archivedCodexRoot, hasAnyJsonl(in: archivedCodexRoot) { return true }
+        if hasAnyJsonl(in: codexRoot) {
+            return true
+        }
+        if let archivedCodexRoot, hasAnyJsonl(in: archivedCodexRoot) {
+            return true
+        }
 
         let claudeRoots: [URL] = {
-            if let env = env["CLAUDE_CONFIG_DIR"]?.trimmingCharacters(in: .whitespacesAndNewlines),
-               !env.isEmpty
+            if let configuredRoot = env[ClaudeConfigPaths.configDirectoryEnvironmentKey],
+               !configuredRoot.isEmpty
             {
-                return env.split(separator: ",").map { part in
-                    let raw = String(part).trimmingCharacters(in: .whitespacesAndNewlines)
-                    let url = URL(fileURLWithPath: raw)
-                    if url.lastPathComponent == "projects" {
-                        return url
-                    }
-                    return url.appendingPathComponent("projects", isDirectory: true)
-                }
+                return [ClaudeConfigPaths.configRoot(
+                    environment: env,
+                    workingDirectory: workingDirectory)
+                    .appendingPathComponent("projects", isDirectory: true)]
             }
 
-            let home = fileManager.homeDirectoryForCurrentUser
+            var pathEnvironment = env
+            if pathEnvironment["HOME"]?.isEmpty ?? true {
+                pathEnvironment["HOME"] = home.path
+            }
+            let ownerHome = ClaudeConfigPaths.homeDirectory(
+                environment: pathEnvironment,
+                workingDirectory: workingDirectory)
+            let configRoot = ClaudeConfigPaths.configRoot(
+                environment: pathEnvironment,
+                workingDirectory: workingDirectory)
             return [
-                home.appendingPathComponent(".config/claude/projects", isDirectory: true),
-                home.appendingPathComponent(".claude/projects", isDirectory: true),
-            ]
+                ownerHome.appendingPathComponent(".config/claude/projects", isDirectory: true),
+                configRoot.appendingPathComponent("projects", isDirectory: true),
+            ] + ClaudeDesktopProjectsLocator.roots(homeDirectory: ownerHome, fileManager: fileManager)
         }()
 
         return claudeRoots.contains(where: hasAnyJsonl(in:))

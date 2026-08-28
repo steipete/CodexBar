@@ -12,8 +12,6 @@ read_when:
 - `Sources/CodexBar`: state + UI (UsageStore, SettingsStore, StatusItemController, menus, icon rendering).
 - `Sources/CodexBarWidget`: WidgetKit extension wired to the shared snapshot.
 - `Sources/CodexBarCLI`: bundled CLI for `codexbar` usage/status output.
-- `Sources/CodexBarMacros`: SwiftSyntax macros for provider registration.
-- `Sources/CodexBarMacroSupport`: shared macro support used by app/core/CLI targets.
 - `Sources/CodexBarClaudeWatchdog`: helper process for stable Claude CLI PTY sessions.
 - `Sources/CodexBarClaudeWebProbe`: CLI helper to diagnose Claude web fetches.
 
@@ -24,6 +22,7 @@ read_when:
 ## Data flow
 - Background refresh → `UsageFetcher`/provider probes → `UsageStore` → menu/icon/widgets.
 - Settings toggles feed `SettingsStore` → `UsageStore` refresh cadence + feature flags.
+- Runtime-only provider settings flow through typed, descriptor-registered sections in `ProviderSettingsSnapshot`.
 
 ## Concurrency & platform
 - Swift 6 strict concurrency enabled; prefer Sendable state and explicit MainActor hops.

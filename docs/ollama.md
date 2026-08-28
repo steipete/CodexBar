@@ -27,6 +27,8 @@ Usage limits for session and weekly windows.
 3. For API-key mode, paste an API key from `https://ollama.com/settings/keys` or set `OLLAMA_API_KEY`.
 4. For quota bars, leave **Cookie source** on **Auto** (recommended, imports Chrome cookies by default).
 
+Ollama API keys currently do not expire, but they can be revoked from the key settings page.
+
 ### Manual cookie import (optional)
 
 1. Open `https://ollama.com/settings` in your browser.
@@ -35,8 +37,14 @@ Usage limits for session and weekly windows.
 
 ## How it works
 
-- API-key mode fetches `https://ollama.com/api/tags` with `Authorization: Bearer <key>` to verify Cloud API access.
+- API-key mode first probes the authenticated `https://ollama.com/api/web_search` endpoint without performing a
+  search, then fetches `https://ollama.com/api/tags` for the model catalog. The catalog endpoint is public and cannot
+  verify a key by itself.
 - Cookie mode fetches `https://ollama.com/settings` using browser cookies.
+- Cookie discovery recognizes the current WorkOS AuthKit `wos-session` cookie alongside legacy Ollama and NextAuth
+  session names.
+- Redirects from settings to `/signin` or the WorkOS AuthKit authorization page are treated as expired sessions, so
+  CodexBar can try the next cookie candidate and show sign-in guidance instead of a parser error.
 - Parses:
   - Plan badge under **Cloud Usage**.
   - **Session usage** and **Weekly usage** percentages.
@@ -46,12 +54,12 @@ Usage limits for session and weekly windows.
 
 ### “No Ollama session cookie found”
 
-Log in to `https://ollama.com/settings` in Chrome, then refresh in CodexBar.
+Sign in at `https://ollama.com/signin` in Chrome, then refresh CodexBar.
 If your active session is only in Safari (or another browser), use **Cookie source → Manual** and paste a cookie header.
 
 ### “Ollama session cookie expired”
 
-Sign out and back in at `https://ollama.com/settings`, then refresh.
+Sign out and back in at `https://ollama.com/signin`, then refresh.
 
 ### “Could not parse Ollama usage”
 

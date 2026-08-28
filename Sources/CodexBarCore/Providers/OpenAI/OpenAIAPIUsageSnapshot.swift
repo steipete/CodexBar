@@ -126,7 +126,7 @@ public struct OpenAIAPIUsageSnapshot: Codable, Equatable, Sendable {
     }
 
     public var last30Days: Summary {
-        self.summary(days: self.historyDays)
+        self.historyDays == 1 ? self.currentDay : self.summary(days: self.historyDays)
     }
 
     public var historyWindowLabel: String {
@@ -141,8 +141,28 @@ public struct OpenAIAPIUsageSnapshot: Codable, Equatable, Sendable {
         self.summary(days: 7)
     }
 
+    public var currentDay: Summary {
+        self.summary(forLocalDayContaining: self.updatedAt)
+    }
+
     public var latestDay: Summary {
         self.summary(days: 1)
+    }
+
+    public func summary(forLocalDayContaining date: Date, calendar _: Calendar = .current) -> Summary {
+        let selected = self.daily.filter { bucket in
+            CostUsageBucketInterval.contains(
+                date,
+                startTime: bucket.startTime,
+                endTime: bucket.endTime)
+        }
+        return Summary(
+            costUSD: selected.reduce(0) { $0 + $1.costUSD },
+            requests: selected.reduce(0) { $0 + $1.requests },
+            inputTokens: selected.reduce(0) { $0 + $1.inputTokens },
+            cachedInputTokens: selected.reduce(0) { $0 + $1.cachedInputTokens },
+            outputTokens: selected.reduce(0) { $0 + $1.outputTokens },
+            totalTokens: selected.reduce(0) { $0 + $1.totalTokens })
     }
 
     public func summary(days: Int) -> Summary {
@@ -166,7 +186,9 @@ public struct OpenAIAPIUsageSnapshot: Codable, Equatable, Sendable {
         return totals
             .map { name, total in total.makeModel(name: name) }
             .sorted {
-                if $0.totalTokens == $1.totalTokens { return $0.name < $1.name }
+                if $0.totalTokens == $1.totalTokens {
+                    return $0.name < $1.name
+                }
                 return $0.totalTokens > $1.totalTokens
             }
     }
@@ -181,7 +203,9 @@ public struct OpenAIAPIUsageSnapshot: Codable, Equatable, Sendable {
         return totals
             .map { LineItemBreakdown(name: $0.key, costUSD: $0.value) }
             .sorted {
-                if $0.costUSD == $1.costUSD { return $0.name < $1.name }
+                if $0.costUSD == $1.costUSD {
+                    return $0.name < $1.name
+                }
                 return $0.costUSD > $1.costUSD
             }
     }
@@ -238,16 +262,17 @@ public struct OpenAIAPIUsageSnapshot: Codable, Equatable, Sendable {
                 modelsUsed: modelsUsed.isEmpty ? nil : modelsUsed,
                 modelBreakdowns: modelBreakdowns.isEmpty ? nil : modelBreakdowns)
         }
-        let latest = self.latestDay
+        let today = self.currentDay
         let total = self.last30Days
         return CostUsageTokenSnapshot(
-            sessionTokens: latest.totalTokens,
-            sessionCostUSD: latest.costUSD,
-            sessionRequests: latest.requests,
+            sessionTokens: today.totalTokens,
+            sessionCostUSD: today.costUSD,
+            sessionRequests: today.requests,
             last30DaysTokens: total.totalTokens,
             last30DaysCostUSD: total.costUSD,
             last30DaysRequests: total.requests,
             historyDays: self.historyDays,
+            costProvenance: .vendorMetered,
             daily: daily,
             updatedAt: self.updatedAt)
     }

@@ -29,6 +29,83 @@ struct AntigravityOAuthCredentialsStoreTests {
     }
 
     @Test
+    func `oauth client discovery reads renamed gemini bundle identifier`() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let geminiClient = AntigravityOAuthClient(
+            clientID: self.googleClientID("gemini"),
+            clientSecret: self.googleClientSecret(repeating: "f"))
+        try self.writeAntigravityApp(
+            named: "Google Gemini.app",
+            under: root,
+            bundleIdentifier: "com.google.GeminiMacOS",
+            artifactRelativePath: "Contents/Resources/app/out/main.js",
+            artifactData: Data("""
+            out-build/vs/platform/cloudCode/common/oauthClient.js
+            clientId="\(geminiClient.clientID)";
+            clientSecret="\(geminiClient.clientSecret)";
+            """.utf8))
+
+        #expect(
+            AntigravityOAuthConfig.discoverClientFromInstalledApp(
+                applicationRoots: [root]) == geminiClient)
+    }
+
+    @Test
+    func `oauth client discovery reads gemini native binary artifact`() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let geminiClient = AntigravityOAuthClient(
+            clientID: self.googleClientID("gemini-native"),
+            clientSecret: self.googleClientSecret(repeating: "g"))
+        var artifactData = Data([0xFF])
+        artifactData.append(Data(
+            """
+            \u{0}\(geminiClient.clientSecret)\u{0}oauth_data\u{0}\(geminiClient.clientID)\u{0}
+            """.utf8))
+        try self.writeAntigravityApp(
+            named: "Gemini.app",
+            under: root,
+            bundleIdentifier: "com.google.GeminiMacOS",
+            artifactRelativePath: "Contents/MacOS/Gemini",
+            artifactData: artifactData)
+
+        #expect(
+            AntigravityOAuthConfig.discoverClientFromInstalledApp(
+                applicationRoots: [root]) == geminiClient)
+    }
+
+    @Test
+    func `oauth client discovery skips gemini app with foreign bundle identifier`() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let foreignClient = AntigravityOAuthClient(
+            clientID: self.googleClientID("foreign"),
+            clientSecret: self.googleClientSecret(repeating: "h"))
+        var artifactData = Data([0xFF])
+        artifactData.append(Data(
+            """
+            \u{0}\(foreignClient.clientSecret)\u{0}oauth_data\u{0}\(foreignClient.clientID)\u{0}
+            """.utf8))
+        try self.writeAntigravityApp(
+            named: "Gemini.app",
+            under: root,
+            bundleIdentifier: "com.example.other-gemini",
+            artifactRelativePath: "Contents/MacOS/Gemini",
+            artifactData: artifactData)
+
+        #expect(
+            AntigravityOAuthConfig.discoverClientFromInstalledApp(
+                applicationRoots: [root]) == nil)
+    }
+
+    @Test
     func `oauth client discovery reads standalone antigravity 2 bundle`() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

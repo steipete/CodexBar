@@ -111,6 +111,38 @@ struct OpenAIAPIUsageFetcherTests {
         #expect(snapshot.topModels.first?.totalTokens == 1800)
     }
 
+    @Test(arguments: ["NaN", "Infinity", "-Infinity", "1e309", "-1e309"])
+    func `rejects nonfinite cost strings`(value: String) {
+        let costs = """
+        {
+          "data": [{
+            "start_time": 1700000000,
+            "end_time": 1700086400,
+            "results": [{ "amount": { "value": "\(value)", "currency": "usd" } }]
+          }],
+          "has_more": false,
+          "next_page": null
+        }
+        """
+        let completions = #"{"data":[],"has_more":false,"next_page":null}"#
+
+        do {
+            _ = try OpenAIAPIUsageFetcher._parseSnapshotForTesting(
+                costs: Data(costs.utf8),
+                completions: Data(completions.utf8),
+                now: Date(timeIntervalSince1970: 1_700_179_200))
+            Issue.record("Expected a costs parse failure.")
+        } catch let error as OpenAIAPIUsageError {
+            guard case let .parseFailed(endpoint, _) = error else {
+                Issue.record("Expected a costs parse failure, got \(error).")
+                return
+            }
+            #expect(endpoint == "costs")
+        } catch {
+            Issue.record("Expected OpenAIAPIUsageError, got \(error).")
+        }
+    }
+
     @Test
     func `admin usage fetch pages long history within endpoint bucket limit`() async throws {
         let now = Date(timeIntervalSince1970: 1_700_179_200)
@@ -191,6 +223,127 @@ struct OpenAIAPIUsageFetcherTests {
     }
 
     @Test
+    func `admin usage follows costs and completions pagination cursors`() async throws {
+        let now = Date(timeIntervalSince1970: 1_700_179_200)
+        let transport = OpenAIAdminUsagePaginationScript()
+
+        let snapshot = try await OpenAIAPIUsageFetcher.fetchUsage(
+            apiKey: "sk-test",
+            projectID: "proj_abc",
+            costsURL: #require(URL(string: "https://api.openai.test/v1/organization/costs")),
+            completionsURL: #require(URL(string: "https://api.openai.test/v1/organization/usage/completions")),
+            session: transport,
+            now: now,
+            historyDays: 1)
+
+        let requests = await transport.requests()
+        let costsRequests = requests.filter { $0.url?.path.contains("/organization/costs") == true }
+        let completionRequests = requests.filter { $0.url?.path.contains("/usage/completions") == true }
+
+        #expect(snapshot.daily.count == 1)
+        #expect(snapshot.latestDay.costUSD == 4.0)
+        #expect(snapshot.latestDay.requests == 3)
+        #expect(snapshot.latestDay.totalTokens == 45)
+        #expect(costsRequests.count == 2)
+        #expect(completionRequests.count == 2)
+        #expect(Self.queryValue("page", in: costsRequests[0]) == nil)
+        #expect(Self.queryValue("page", in: costsRequests[1]) == "costs_page_2")
+        #expect(Self.queryValue("page", in: completionRequests[0]) == nil)
+        #expect(Self.queryValue("page", in: completionRequests[1]) == "completions_page_2")
+        #expect(requests.allSatisfy { Self.queryValue("project_ids", in: $0) == "proj_abc" })
+    }
+
+    @Test
+    func `admin usage rejects repeated pagination cursor`() async throws {
+        let transport = OpenAIAdminUsageRepeatingCursorScript()
+
+        await #expect(throws: OpenAIAPIUsageError.parseFailed(
+            endpoint: "costs",
+            message: "Pagination cursor repeated."))
+        {
+            try await OpenAIAPIUsageFetcher.fetchUsage(
+                apiKey: "sk-test",
+                costsURL: #require(URL(string: "https://api.openai.test/v1/organization/costs")),
+                completionsURL: #require(URL(string: "https://api.openai.test/v1/organization/usage/completions")),
+                session: transport,
+                now: Date(timeIntervalSince1970: 1_700_179_200),
+                historyDays: 1)
+        }
+    }
+
+    @Test
+    func `admin usage rejects missing pagination cursor`() async throws {
+        let transport = OpenAIAdminUsageMissingCursorScript()
+
+        await #expect(throws: OpenAIAPIUsageError.parseFailed(
+            endpoint: "costs",
+            message: "Pagination cursor missing."))
+        {
+            try await OpenAIAPIUsageFetcher.fetchUsage(
+                apiKey: "sk-test",
+                costsURL: #require(URL(string: "https://api.openai.test/v1/organization/costs")),
+                completionsURL: #require(URL(string: "https://api.openai.test/v1/organization/usage/completions")),
+                session: transport,
+                now: Date(timeIntervalSince1970: 1_700_179_200),
+                historyDays: 1)
+        }
+    }
+
+    @Test
+    func `admin usage rejects page without costs data`() async throws {
+        let transport = OpenAIAdminUsageMalformedPageScript(
+            costs: #"{"object":"page","has_more":false,"next_page":null}"#,
+            completions: #"{"object":"page","data":[],"has_more":false,"next_page":null}"#)
+
+        do {
+            _ = try await OpenAIAPIUsageFetcher.fetchUsage(
+                apiKey: "sk-test",
+                costsURL: #require(URL(string: "https://api.openai.test/v1/organization/costs")),
+                completionsURL: #require(URL(string: "https://api.openai.test/v1/organization/usage/completions")),
+                session: transport,
+                now: Date(timeIntervalSince1970: 1_700_179_200),
+                historyDays: 1)
+            Issue.record("Expected costs parse failure.")
+        } catch let error as OpenAIAPIUsageError {
+            guard case let .parseFailed(endpoint, message) = error else {
+                Issue.record("Expected parse failure, got \(error).")
+                return
+            }
+            #expect(endpoint == "costs")
+            #expect(message.contains("data"))
+        } catch {
+            Issue.record("Expected OpenAIAPIUsageError, got \(error).")
+        }
+    }
+
+    @Test
+    func `admin usage rejects page without completions pagination state`() async throws {
+        let transport = OpenAIAdminUsageMalformedPageScript(
+            costs: #"{"object":"page","data":[],"has_more":false,"next_page":null}"#,
+            completions: #"{"object":"page","data":[],"next_page":null}"#)
+
+        do {
+            _ = try await OpenAIAPIUsageFetcher.fetchUsage(
+                apiKey: "sk-test",
+                costsURL: #require(URL(string: "https://api.openai.test/v1/organization/costs")),
+                completionsURL: #require(URL(string: "https://api.openai.test/v1/organization/usage/completions")),
+                session: transport,
+                now: Date(timeIntervalSince1970: 1_700_179_200),
+                historyDays: 1)
+            Issue.record("Expected completions parse failure.")
+        } catch let error as OpenAIAPIUsageError {
+            guard case let .parseFailed(endpoint, message) = error else {
+                Issue.record("Expected parse failure, got \(error).")
+                return
+            }
+            #expect(endpoint == "completions")
+            #expect(message.contains("missing"))
+        } catch {
+            Issue.record("Expected OpenAIAPIUsageError, got \(error).")
+        }
+    }
+
+    @Test
     func `admin usage retries transient completions failure once`() async throws {
         let now = Date(timeIntervalSince1970: 1_700_179_200)
         let emptyPage = Data(#"{"object":"page","data":[],"has_more":false,"next_page":null}"#.utf8)
@@ -264,14 +417,16 @@ struct OpenAIAPIUsageFetcherTests {
     }
 
     @Test
-    func `maps project scoped admin usage to cost token snapshot`() {
-        let now = Date(timeIntervalSince1970: 1_700_179_200)
+    func `maps project scoped admin usage to cost token snapshot`() throws {
+        let now = try Self.localNoon(year: 2023, month: 11, day: 17)
+        let firstDay = try Self.localNoon(year: 2023, month: 11, day: 13)
+        let secondDay = try Self.localNoon(year: 2023, month: 11, day: 14)
         let apiUsage = OpenAIAPIUsageSnapshot(
             daily: [
                 OpenAIAPIUsageSnapshot.DailyBucket(
                     day: "2023-11-13",
-                    startTime: now.addingTimeInterval(-86400),
-                    endTime: now,
+                    startTime: firstDay,
+                    endTime: firstDay.addingTimeInterval(86400),
                     costUSD: 2.25,
                     requests: 3,
                     inputTokens: 300,
@@ -290,8 +445,8 @@ struct OpenAIAPIUsageFetcherTests {
                     ]),
                 OpenAIAPIUsageSnapshot.DailyBucket(
                     day: "2023-11-14",
-                    startTime: now,
-                    endTime: now.addingTimeInterval(86400),
+                    startTime: secondDay,
+                    endTime: secondDay.addingTimeInterval(86400),
                     costUSD: 8.5,
                     requests: 42,
                     inputTokens: 1000,
@@ -321,9 +476,11 @@ struct OpenAIAPIUsageFetcherTests {
         #expect(usage.identity?.accountOrganization == "Project: proj_abc")
         #expect(snapshot.historyDays == 7)
         #expect(snapshot.currencyCode == "USD")
-        #expect(snapshot.sessionCostUSD == 8.5)
-        #expect(snapshot.sessionTokens == 1250)
-        #expect(snapshot.sessionRequests == 42)
+        #expect(apiUsage.currentDay.costUSD == 0)
+        #expect(apiUsage.currentDay.totalTokens == 0)
+        #expect(snapshot.sessionCostUSD == 0)
+        #expect(snapshot.sessionTokens == 0)
+        #expect(snapshot.sessionRequests == 0)
         #expect(snapshot.last30DaysCostUSD == 10.75)
         #expect(snapshot.last30DaysTokens == 1750)
         #expect(snapshot.last30DaysRequests == 45)
@@ -332,6 +489,200 @@ struct OpenAIAPIUsageFetcherTests {
         #expect(snapshot.daily[1].requestCount == 42)
         #expect(snapshot.daily[1].modelBreakdowns?.first?.requestCount == 42)
         #expect(snapshot.daily[1].modelBreakdowns?.first?.modelName == "gpt-5.2-codex")
+    }
+
+    private static func queryValue(_ name: String, in request: URLRequest) -> String? {
+        guard let url = request.url,
+              let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        else { return nil }
+        return components.queryItems?.first(where: { $0.name == name })?.value
+    }
+
+    private static func localNoon(year: Int, month: Int, day: Int) throws -> Date {
+        try #require(Calendar.current.date(from: DateComponents(year: year, month: month, day: day, hour: 12)))
+    }
+}
+
+private actor OpenAIAdminUsagePaginationScript: ProviderHTTPTransport {
+    private var recordedRequests: [URLRequest] = []
+
+    func requests() -> [URLRequest] {
+        self.recordedRequests
+    }
+
+    func data(for request: URLRequest) throws -> (Data, URLResponse) {
+        self.recordedRequests.append(request)
+        let url = request.url ?? URL(string: "https://api.openai.test")!
+        let page = Self.queryValue("page", in: url)
+        let body: String = if url.path.contains("/organization/costs") {
+            page == "costs_page_2" ? Self.costsPage2 : Self.costsPage1
+        } else if url.path.contains("/usage/completions") {
+            page == "completions_page_2" ? Self.completionsPage2 : Self.completionsPage1
+        } else {
+            #"{"object":"page","data":[],"has_more":false,"next_page":null}"#
+        }
+        return (Data(body.utf8), HTTPURLResponse(
+            url: url,
+            statusCode: 200,
+            httpVersion: "HTTP/1.1",
+            headerFields: nil)!)
+    }
+
+    private static func queryValue(_ name: String, in url: URL) -> String? {
+        URLComponents(url: url, resolvingAgainstBaseURL: false)?
+            .queryItems?
+            .first(where: { $0.name == name })?
+            .value
+    }
+
+    private static let costsPage1 = """
+    {
+      "object": "page",
+      "data": [
+        {
+          "object": "bucket",
+          "start_time": 1700000000,
+          "end_time": 1700086400,
+          "results": [
+            {
+              "object": "organization.costs.result",
+              "amount": { "value": 1.25, "currency": "usd" },
+              "line_item": "Text tokens"
+            }
+          ]
+        }
+      ],
+      "has_more": true,
+      "next_page": "costs_page_2"
+    }
+    """
+
+    private static let costsPage2 = """
+    {
+      "object": "page",
+      "data": [
+        {
+          "object": "bucket",
+          "start_time": 1700000000,
+          "end_time": 1700086400,
+          "results": [
+            {
+              "object": "organization.costs.result",
+              "amount": { "value": 2.75, "currency": "usd" },
+              "line_item": "Web search tool calls"
+            }
+          ]
+        }
+      ],
+      "has_more": false,
+      "next_page": null
+    }
+    """
+
+    private static let completionsPage1 = """
+    {
+      "object": "page",
+      "data": [
+        {
+          "object": "bucket",
+          "start_time": 1700000000,
+          "end_time": 1700086400,
+          "results": [
+            {
+              "object": "organization.usage.completions.result",
+              "input_tokens": 10,
+              "output_tokens": 5,
+              "num_model_requests": 1,
+              "model": "gpt-5.2"
+            }
+          ]
+        }
+      ],
+      "has_more": true,
+      "next_page": "completions_page_2"
+    }
+    """
+
+    private static let completionsPage2 = """
+    {
+      "object": "page",
+      "data": [
+        {
+          "object": "bucket",
+          "start_time": 1700000000,
+          "end_time": 1700086400,
+          "results": [
+            {
+              "object": "organization.usage.completions.result",
+              "input_tokens": 20,
+              "output_tokens": 10,
+              "num_model_requests": 2,
+              "model": "gpt-5.2"
+            }
+          ]
+        }
+      ],
+      "has_more": false,
+      "next_page": null
+    }
+    """
+}
+
+private actor OpenAIAdminUsageRepeatingCursorScript: ProviderHTTPTransport {
+    func data(for request: URLRequest) throws -> (Data, URLResponse) {
+        let url = request.url ?? URL(string: "https://api.openai.test")!
+        let body = """
+        {
+          "object": "page",
+          "data": [],
+          "has_more": true,
+          "next_page": "same_page"
+        }
+        """
+        return (Data(body.utf8), HTTPURLResponse(
+            url: url,
+            statusCode: 200,
+            httpVersion: "HTTP/1.1",
+            headerFields: nil)!)
+    }
+}
+
+private actor OpenAIAdminUsageMissingCursorScript: ProviderHTTPTransport {
+    func data(for request: URLRequest) throws -> (Data, URLResponse) {
+        let url = request.url ?? URL(string: "https://api.openai.test")!
+        let body = """
+        {
+          "object": "page",
+          "data": [],
+          "has_more": true,
+          "next_page": null
+        }
+        """
+        return (Data(body.utf8), HTTPURLResponse(
+            url: url,
+            statusCode: 200,
+            httpVersion: "HTTP/1.1",
+            headerFields: nil)!)
+    }
+}
+
+private actor OpenAIAdminUsageMalformedPageScript: ProviderHTTPTransport {
+    private let costs: String
+    private let completions: String
+
+    init(costs: String, completions: String) {
+        self.costs = costs
+        self.completions = completions
+    }
+
+    func data(for request: URLRequest) throws -> (Data, URLResponse) {
+        let url = request.url ?? URL(string: "https://api.openai.test")!
+        let body = url.path.contains("/usage/completions") ? self.completions : self.costs
+        return (Data(body.utf8), HTTPURLResponse(
+            url: url,
+            statusCode: 200,
+            httpVersion: "HTTP/1.1",
+            headerFields: nil)!)
     }
 }
 

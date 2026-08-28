@@ -22,13 +22,15 @@ struct MenuDescriptorOpenAIAPITests {
             fetcher: UsageFetcher(environment: [:]),
             browserDetection: BrowserDetection(cacheTTL: 0),
             settings: settings)
-        let now = Date(timeIntervalSince1970: 1_700_179_200)
+        let now = try Self.localNoon(year: 2023, month: 11, day: 17)
+        let firstDay = try Self.localNoon(year: 2023, month: 11, day: 13)
+        let secondDay = try Self.localNoon(year: 2023, month: 11, day: 14)
         let usage = OpenAIAPIUsageSnapshot(
             daily: [
                 OpenAIAPIUsageSnapshot.DailyBucket(
                     day: "2023-11-13",
-                    startTime: now.addingTimeInterval(-86400),
-                    endTime: now,
+                    startTime: firstDay,
+                    endTime: firstDay.addingTimeInterval(86400),
                     costUSD: 5,
                     requests: 8,
                     inputTokens: 100,
@@ -47,8 +49,8 @@ struct MenuDescriptorOpenAIAPITests {
                     ]),
                 OpenAIAPIUsageSnapshot.DailyBucket(
                     day: "2023-11-14",
-                    startTime: now,
-                    endTime: now.addingTimeInterval(86400),
+                    startTime: secondDay,
+                    endTime: secondDay.addingTimeInterval(86400),
                     costUSD: 12.5,
                     requests: 40,
                     inputTokens: 1000,
@@ -83,10 +85,14 @@ struct MenuDescriptorOpenAIAPITests {
                 return text
             }
 
-        #expect(lines.contains("Today: $12.50 · 1.5K tokens"))
+        #expect(lines.contains("Today: $0.00 · 0 tokens"))
         #expect(lines.contains("7d: $17.50 · 48 requests"))
         #expect(lines.contains("30d: $17.50 · 48 requests"))
         #expect(lines.contains("Top model: gpt-5.2-codex"))
         #expect(!lines.contains("No usage yet"))
+    }
+
+    private static func localNoon(year: Int, month: Int, day: Int) throws -> Date {
+        try #require(Calendar.current.date(from: DateComponents(year: year, month: month, day: day, hour: 12)))
     }
 }

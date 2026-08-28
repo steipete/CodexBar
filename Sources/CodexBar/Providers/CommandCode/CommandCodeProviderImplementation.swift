@@ -1,10 +1,8 @@
 import AppKit
 import CodexBarCore
-import CodexBarMacroSupport
 import Foundation
 import SwiftUI
 
-@ProviderImplementationRegistration
 struct CommandCodeProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .commandcode
 

@@ -5,7 +5,7 @@ import Testing
 
 @MainActor
 struct MenuDescriptorCodexManagedFallbackTests {
-    @Test
+    @Test(CodexCredentialFixtures())
     func `codex account section prefers managed fallback over ambient account`() throws {
         let suite = "MenuDescriptorCodexManagedFallbackTests"
         let defaults = try #require(UserDefaults(suiteName: suite))
@@ -24,17 +24,16 @@ struct MenuDescriptorCodexManagedFallbackTests {
             minimaxCookieStore: InMemoryMiniMaxCookieStore(),
             minimaxAPITokenStore: InMemoryMiniMaxAPITokenStore(),
             kimiTokenStore: InMemoryKimiTokenStore(),
-            kimiK2TokenStore: InMemoryKimiK2TokenStore(),
             augmentCookieStore: InMemoryCookieHeaderStore(),
             ampCookieStore: InMemoryCookieHeaderStore(),
             copilotTokenStore: InMemoryCopilotTokenStore(),
             tokenAccountStore: InMemoryTokenAccountStore())
         settings.statusChecksEnabled = false
 
-        let ambientHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+        let ambientHome = CodexCredentialFixtures.root.appendingPathComponent(
             UUID().uuidString,
             isDirectory: true)
-        let managedHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+        let managedHome = CodexCredentialFixtures.root.appendingPathComponent(
             UUID().uuidString,
             isDirectory: true)
         defer {
@@ -101,7 +100,6 @@ struct MenuDescriptorCodexManagedFallbackTests {
             minimaxCookieStore: InMemoryMiniMaxCookieStore(),
             minimaxAPITokenStore: InMemoryMiniMaxAPITokenStore(),
             kimiTokenStore: InMemoryKimiTokenStore(),
-            kimiK2TokenStore: InMemoryKimiK2TokenStore(),
             augmentCookieStore: InMemoryCookieHeaderStore(),
             ampCookieStore: InMemoryCookieHeaderStore(),
             copilotTokenStore: InMemoryCopilotTokenStore(),

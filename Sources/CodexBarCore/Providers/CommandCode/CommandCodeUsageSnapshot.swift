@@ -1,6 +1,6 @@
 import Foundation
 
-/// Parsed view of CommandCode `/internal/billing/credits` + `/internal/billing/subscriptions`.
+/// Parsed view of Command Code billing credits, rolling limits, and subscription state.
 public struct CommandCodeUsageSnapshot: Sendable {
     /// USD remaining in the current monthly grant (`credits.monthlyCredits`).
     public let monthlyCreditsRemaining: Double
@@ -10,12 +10,18 @@ public struct CommandCodeUsageSnapshot: Sendable {
     public let premiumMonthlyCredits: Double
     /// USD remaining in the open-source monthly grant (`credits.opensourceMonthlyCredits`).
     public let opensourceMonthlyCredits: Double
+    /// Rolling five-hour usage limit reported by the credits response.
+    public let fiveHourWindow: RateWindow?
+    /// Rolling weekly usage limit reported by the credits response.
+    public let weeklyWindow: RateWindow?
     /// Subscription plan, or nil when the user is on the free tier.
     public let plan: CommandCodePlanCatalog.Plan?
     /// `currentPeriodEnd` from the active subscription.
     public let billingPeriodEnd: Date?
     /// Subscription status (e.g. `active`, `canceled`).
     public let subscriptionStatus: String?
+    /// The optional subscription request timed out or failed for this refresh.
+    public let subscriptionEnrichmentUnavailable: Bool
     public let updatedAt: Date
 
     public init(
@@ -23,18 +29,24 @@ public struct CommandCodeUsageSnapshot: Sendable {
         purchasedCredits: Double,
         premiumMonthlyCredits: Double,
         opensourceMonthlyCredits: Double,
+        fiveHourWindow: RateWindow? = nil,
+        weeklyWindow: RateWindow? = nil,
         plan: CommandCodePlanCatalog.Plan?,
         billingPeriodEnd: Date?,
         subscriptionStatus: String?,
+        subscriptionEnrichmentUnavailable: Bool = false,
         updatedAt: Date = Date())
     {
         self.monthlyCreditsRemaining = monthlyCreditsRemaining
         self.purchasedCredits = purchasedCredits
         self.premiumMonthlyCredits = premiumMonthlyCredits
         self.opensourceMonthlyCredits = opensourceMonthlyCredits
+        self.fiveHourWindow = fiveHourWindow
+        self.weeklyWindow = weeklyWindow
         self.plan = plan
         self.billingPeriodEnd = billingPeriodEnd
         self.subscriptionStatus = subscriptionStatus
+        self.subscriptionEnrichmentUnavailable = subscriptionEnrichmentUnavailable
         self.updatedAt = updatedAt
     }
 
@@ -50,7 +62,7 @@ public struct CommandCodeUsageSnapshot: Sendable {
     }
 
     public func toUsageSnapshot() -> UsageSnapshot {
-        let primary = self.makePrimaryWindow()
+        let monthly = self.makeMonthlyWindow()
 
         let identity = ProviderIdentitySnapshot(
             providerID: .commandcode,
@@ -59,31 +71,34 @@ public struct CommandCodeUsageSnapshot: Sendable {
             loginMethod: self.makeLoginMethod())
 
         return UsageSnapshot(
-            primary: primary,
-            secondary: nil,
-            tertiary: nil,
+            primary: self.fiveHourWindow,
+            secondary: self.weeklyWindow,
+            tertiary: monthly,
             providerCost: nil,
+            commandCodeSubscriptionEnrichmentUnavailable: self.subscriptionEnrichmentUnavailable,
+            commandCodeHasSubscriptionPlan: self.plan != nil,
+            commandCodeMonthlyGrantDepleted: self.monthlyCreditsRemaining <= 0,
             updatedAt: self.updatedAt,
             identity: identity)
     }
 
-    private func makePrimaryWindow() -> RateWindow? {
+    private func makeMonthlyWindow() -> RateWindow? {
         guard let total = self.monthlyCreditsTotal, total > 0 else {
             // Free / unknown plan with no allowance — surface 100% so the bar renders empty.
             if self.monthlyCreditsRemaining > 0 || self.purchasedCredits > 0 {
                 return RateWindow(
                     usedPercent: 0,
-                    windowMinutes: nil,
+                    windowMinutes: ProviderPaceCapability.monthlyWindowSentinelMinutes,
                     resetsAt: self.billingPeriodEnd,
                     resetDescription: nil)
             }
             return nil
         }
         let used = self.monthlyCreditsUsed ?? 0
-        let percent = min(100, max(0, (used / total) * 100))
+        let percent = UsagePercent(used: used, limit: total).displayClamped
         return RateWindow(
             usedPercent: percent,
-            windowMinutes: nil,
+            windowMinutes: ProviderPaceCapability.monthlyWindowSentinelMinutes,
             resetsAt: self.billingPeriodEnd,
             resetDescription: nil)
     }

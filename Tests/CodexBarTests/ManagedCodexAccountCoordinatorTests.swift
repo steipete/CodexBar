@@ -38,6 +38,34 @@ struct ManagedCodexAccountCoordinatorTests {
         #expect(coordinator.isAuthenticatingManagedAccount == false)
         #expect(coordinator.authenticatingManagedAccountID == nil)
     }
+
+    @Test
+    func `coordinator clears in flight state after managed login timeout`() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let loginResult = CodexLoginRunner.Result(outcome: .timedOut, output: "timed out")
+        let existingAccountID = try #require(UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-222222222222"))
+        let service = ManagedCodexAccountService(
+            store: InMemoryManagedCodexAccountStoreForCoordinatorTests(
+                accounts: ManagedCodexAccountSet(version: 1, accounts: [])),
+            homeFactory: CoordinatorTestManagedCodexHomeFactory(root: root),
+            loginRunner: TimedOutManagedCodexLoginRunner(result: loginResult),
+            identityReader: CoordinatorStubManagedCodexIdentityReader(email: "user@example.com"))
+        let coordinator = ManagedCodexAccountCoordinator(service: service)
+
+        do {
+            _ = try await coordinator.authenticateManagedAccount(existingAccountID: existingAccountID, timeout: 0.2)
+            Issue.record("Expected managed login timeout to throw")
+        } catch let error as ManagedCodexAccountServiceError {
+            #expect(error == .loginFailed(loginResult))
+        } catch {
+            Issue.record("Expected ManagedCodexAccountServiceError.loginFailed, got \(error)")
+        }
+
+        #expect(coordinator.isAuthenticatingManagedAccount == false)
+        #expect(coordinator.authenticatingManagedAccountID == nil)
+    }
 }
 
 private actor BlockingManagedCodexLoginRunner: ManagedCodexLoginRunning {
@@ -65,6 +93,14 @@ private actor BlockingManagedCodexLoginRunner: ManagedCodexLoginRunning {
         let result = CodexLoginRunner.Result(outcome: .success, output: "ok")
         self.waiters.forEach { $0.resume(returning: result) }
         self.waiters.removeAll()
+    }
+}
+
+private struct TimedOutManagedCodexLoginRunner: ManagedCodexLoginRunning {
+    let result: CodexLoginRunner.Result
+
+    func run(homePath _: String, timeout _: TimeInterval) async -> CodexLoginRunner.Result {
+        self.result
     }
 }
 

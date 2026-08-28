@@ -73,6 +73,6 @@ read_when:
    - Config validation (bad region/source/apiKey field).
    - SettingsStore order/toggle invariants still pass.
 8. **Verification**
-   - `swift test`, `swiftformat Sources Tests`, `swiftlint --strict`, `make check`.
+   - `make test`, `swiftformat Sources Tests`, `swiftlint --strict`, `make check`.
    - `./Scripts/compile_and_run.sh`.
    - CLI e2e: `codexbar --json-only ...`, `codexbar config validate`.

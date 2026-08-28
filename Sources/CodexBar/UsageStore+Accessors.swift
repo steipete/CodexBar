@@ -2,15 +2,124 @@ import CodexBarCore
 import Foundation
 
 extension UsageStore {
+    var statusChecksEnabled: Bool {
+        self.settings.statusChecksEnabled
+    }
+
+    /// Compile-time implementation kinds for provider-specific fetch and bespoke UI boundaries.
+    func enabledFirstPartyProviders() -> [UsageProvider] {
+        self.enabledProviders().compactMap(\.firstPartyProvider)
+    }
+
+    func enabledFirstPartyProvidersForDisplay() -> [UsageProvider] {
+        self.enabledProvidersForDisplay().compactMap(\.firstPartyProvider)
+    }
+
+    func enabledFirstPartyProvidersForBackgroundWork() -> [UsageProvider] {
+        self.enabledProvidersForBackgroundWork().compactMap(\.firstPartyProvider)
+    }
+
+    struct DeepSeekProfileTransition {
+        var snapshot: UsageSnapshot
+        let accountID: UUID?
+        let hasSyntheticBalance: Bool
+    }
+
+    func version(for provider: UsageProvider) -> String? {
+        self.versions[provider.instanceID]
+    }
+
     var codexSnapshot: UsageSnapshot? {
+        // Provider-specific by design: dedicated Codex consumers require the reconciled primary-account snapshot.
         self.snapshots[.codex]
     }
 
     var claudeSnapshot: UsageSnapshot? {
+        // Provider-specific by design: Claude swap/account consumers require the active Claude snapshot directly.
         self.snapshots[.claude]
     }
 
+    func presentationSnapshot(for provider: UsageProvider) -> UsageSnapshot? {
+        // Provider-specific by design: DeepSeek profile transitions and Codex dashboard attachment overlay live state.
+        if provider == .deepseek,
+           let transition = self.deepseekProfileTransition,
+           transition.accountID == self.settings.selectedTokenAccount(for: .deepseek)?.id
+        {
+            return transition.snapshot
+        }
+        if let snapshot = self.snapshots[provider.instanceID] {
+            if provider == .codex {
+                if self.openAIDashboardAttachmentAuthorized,
+                   let dashboard = self.openAIDashboard,
+                   dashboard.subscriptionRenewsAt != nil || dashboard.subscriptionExpiresAt != nil
+                {
+                    return snapshot.withSubscriptionMetadata(
+                        expiresAt: dashboard.subscriptionExpiresAt,
+                        renewsAt: dashboard.subscriptionRenewsAt)
+                }
+
+                if let cache = OpenAIDashboardCacheStore.load(),
+                   cache.snapshot.subscriptionRenewsAt != nil || cache.snapshot.subscriptionExpiresAt != nil,
+                   let cacheEmail = CodexIdentityResolver.normalizeEmail(cache.accountEmail),
+                   let accountEmail = CodexIdentityResolver.normalizeEmail(
+                       snapshot.accountEmail(for: .codex) ?? self.accountInfo(for: .codex).email),
+                   cacheEmail == accountEmail
+                {
+                    return snapshot.withSubscriptionMetadata(
+                        expiresAt: cache.snapshot.subscriptionExpiresAt,
+                        renewsAt: cache.snapshot.subscriptionRenewsAt)
+                }
+            }
+            return snapshot
+        }
+        guard provider == .deepseek, self.refreshingProviders.contains(provider.instanceID) else { return nil }
+        return self.lastKnownResetSnapshots[provider.instanceID]
+    }
+
+    func beginDeepSeekProfileTransition(preservingBalance: Bool = true) {
+        guard self.deepseekProfileTransition == nil,
+              let snapshot = self.snapshots[.deepseek] ?? self.lastKnownResetSnapshots[.deepseek]
+        else { return }
+        var transitionSnapshot = snapshot.withoutDeepSeekDetailedUsage()
+        if !preservingBalance {
+            transitionSnapshot = transitionSnapshot.with(
+                primary: RateWindow(
+                    usedPercent: 0,
+                    windowMinutes: nil,
+                    resetsAt: nil,
+                    resetDescription: L("Refreshing")),
+                secondary: nil)
+        }
+        self.deepseekProfileTransition = DeepSeekProfileTransition(
+            snapshot: transitionSnapshot,
+            accountID: self.settings.selectedTokenAccount(for: .deepseek)?.id,
+            hasSyntheticBalance: !preservingBalance)
+    }
+
+    func markDeepSeekProfileTransitionUnavailable() {
+        guard var transition = self.deepseekProfileTransition,
+              transition.hasSyntheticBalance
+        else { return }
+        transition.snapshot = transition.snapshot.with(
+            primary: RateWindow(
+                usedPercent: 0,
+                windowMinutes: nil,
+                resetsAt: nil,
+                resetDescription: L("Unavailable")),
+            secondary: nil)
+        self.deepseekProfileTransition = transition
+    }
+
+    func clearDeepSeekProfileTransition() {
+        self.deepseekProfileTransition = nil
+    }
+
+    var deepseekProfileTransitionSnapshot: UsageSnapshot? {
+        self.deepseekProfileTransition?.snapshot
+    }
+
     var lastCodexError: String? {
+        // Provider-specific by design: Codex dashboard and credits surfaces expose separate app-owned error lanes.
         self.errors[.codex]
     }
 
@@ -27,71 +136,100 @@ extension UsageStore {
     }
 
     var lastClaudeError: String? {
+        // Provider-specific by design: Claude swap/account surfaces consume the active Claude error lane directly.
         self.errors[.claude]
     }
 
     func error(for provider: UsageProvider) -> String? {
-        self.errors[provider]
+        self.errors[provider.instanceID]
+    }
+
+    func diagnostic(for provider: UsageProvider) -> String? {
+        self.diagnostics[provider.instanceID]
     }
 
     func userFacingError(for provider: UsageProvider) -> String? {
-        if let raw = self.errors[provider] {
-            guard provider == .codex else { return raw }
-            return CodexUIErrorMapper.userFacingMessage(raw)
+        if let raw = self.errors[provider.instanceID] {
+            switch provider {
+            case .codex:
+                return CodexUIErrorMapper.userFacingMessage(raw)
+            case .claude:
+                return ClaudeUIErrorMapper.userFacingMessage(
+                    raw,
+                    staleSnapshotUpdatedAt: self.snapshots[provider.instanceID]?.updatedAt)
+            case .ollama:
+                return OllamaUIErrorMapper.userFacingMessage(raw)
+            default:
+                return raw
+            }
+        }
+        if let diagnostic = self.diagnostics[provider.instanceID] {
+            return diagnostic
         }
         return self.unavailableMessage(for: provider)
     }
 
     func unavailableMessage(for provider: UsageProvider) -> String? {
-        guard self.enabledProvidersForDisplay().contains(provider),
+        guard self.enabledProvidersForDisplay().contains(provider.instanceID),
               !self.isProviderAvailable(provider)
         else {
             return nil
         }
 
-        switch provider {
-        case .synthetic:
-            return SyntheticSettingsError.missingToken.errorDescription
-        case .zai:
-            return ZaiSettingsError.missingToken.errorDescription
-        case .openrouter:
-            return OpenRouterSettingsError.missingToken.errorDescription
-        case .azureopenai:
-            return AzureOpenAISettingsError.missingAPIKey.errorDescription
-        case .elevenlabs:
-            return ElevenLabsUsageError.missingCredentials.errorDescription
-        case .deepseek:
-            return DeepSeekUsageError.missingCredentials.errorDescription
-        case .perplexity:
-            return PerplexityAPIError.missingToken.errorDescription
-        case .minimax:
-            return MiniMaxAPISettingsError.missingToken.errorDescription
-        case .kimi:
-            return KimiAPIError.missingToken.errorDescription
-        default:
-            return "\(self.metadata(for: provider).displayName) is unavailable in the current environment."
+        if let adapter = ProviderDescriptorRegistry.descriptor(for: provider).credentials {
+            let environment = ProviderRegistry.makeEnvironment(
+                base: self.environmentBase,
+                provider: provider,
+                settings: self.settings,
+                tokenOverride: nil)
+            if let message = adapter.unavailableMessage(environment: environment) {
+                return message
+            }
         }
+
+        return "\(self.metadata(for: provider).displayName) is unavailable in the current environment."
     }
 
     func status(for provider: UsageProvider) -> ProviderStatus? {
         guard self.statusChecksEnabled else { return nil }
-        return self.statuses[provider]
+        return self.statuses[provider.instanceID]
     }
 
     func statusIndicator(for provider: UsageProvider) -> ProviderStatusIndicator {
         self.status(for: provider)?.indicator ?? .none
     }
 
+    func statusComponents(for provider: UsageProvider) -> [ProviderStatusComponent] {
+        guard self.statusChecksEnabled else { return [] }
+        return self.statusComponents[provider.instanceID] ?? []
+    }
+
     func accountInfo(for provider: UsageProvider) -> AccountInfo {
-        guard provider == .codex else {
-            return self.codexFetcher.loadAccountInfo()
+        let now = Date()
+        let configRevision = self.settings.configRevision
+        if let cached = self.accountInfoCache[provider.instanceID],
+           cached.isValid(now: now, configRevision: configRevision)
+        {
+            return cached.account
         }
-        let env = ProviderRegistry.makeEnvironment(
-            base: self.environmentBase,
-            provider: .codex,
-            settings: self.settings,
-            tokenOverride: nil)
-        let fetcher = ProviderRegistry.makeFetcher(base: self.codexFetcher, provider: .codex, env: env)
-        return fetcher.loadAccountInfo()
+
+        let account: AccountInfo
+        // Provider-specific by design: Codex account info must be loaded through its selected filesystem scope.
+        if provider == .codex {
+            let env = ProviderRegistry.makeEnvironment(
+                base: self.environmentBase,
+                provider: .codex,
+                settings: self.settings,
+                tokenOverride: nil)
+            let fetcher = ProviderRegistry.makeFetcher(base: self.codexFetcher, provider: .codex, env: env)
+            account = fetcher.loadAccountInfo()
+        } else {
+            account = self.codexFetcher.loadAccountInfo()
+        }
+        self.accountInfoCache[provider.instanceID] = AccountInfoCacheEntry(
+            account: account,
+            configRevision: configRevision,
+            expiresAt: now.addingTimeInterval(self.accountInfoCacheTTL))
+        return account
     }
 }

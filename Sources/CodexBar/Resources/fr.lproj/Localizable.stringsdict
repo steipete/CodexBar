@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>≈%d full 5h windows of weekly left · %d windows until reset</key>
+  <dict>
+    <key>NSStringLocalizedFormatKey</key>
+    <string>%#@left@ · %#@until@</string>
+    <key>left</key>
+    <dict>
+      <key>NSStringFormatSpecTypeKey</key>
+      <string>NSStringPluralRuleType</string>
+      <key>NSStringFormatValueTypeKey</key>
+      <string>d</string>
+      <key>one</key>
+      <string>≈%d fenêtre complète de 5 h de quota hebdomadaire</string>
+      <key>other</key>
+      <string>≈%d fenêtres complètes de 5 h de quota hebdomadaire</string>
+    </dict>
+    <key>until</key>
+    <dict>
+      <key>NSStringFormatSpecTypeKey</key>
+      <string>NSStringPluralRuleType</string>
+      <key>NSStringFormatValueTypeKey</key>
+      <string>d</string>
+      <key>one</key>
+      <string>%d fenêtre avant réinitialisation</string>
+      <key>other</key>
+      <string>%d fenêtres avant réinitialisation</string>
+    </dict>
+  </dict>
+  <key>Weekly can run out ≈%d windows early</key>
+  <dict>
+    <key>NSStringLocalizedFormatKey</key>
+    <string>%#@early@</string>
+    <key>early</key>
+    <dict>
+      <key>NSStringFormatSpecTypeKey</key>
+      <string>NSStringPluralRuleType</string>
+      <key>NSStringFormatValueTypeKey</key>
+      <string>d</string>
+      <key>one</key>
+      <string>Le quota hebdomadaire peut être épuisé ≈%d fenêtre plus tôt</string>
+      <key>other</key>
+      <string>Le quota hebdomadaire peut être épuisé ≈%d fenêtres plus tôt</string>
+    </dict>
+  </dict>
+</dict>
+</plist>

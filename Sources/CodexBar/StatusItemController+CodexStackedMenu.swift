@@ -27,13 +27,18 @@ extension StatusItemController {
                     snapshotOverride: accountSnapshot?.snapshot,
                     errorOverride: health.label,
                     forceOverrideCard: accountSnapshot == nil,
-                    accountOverride: self.accountInfo(for: account))
+                    accountOverride: self.accountInfo(for: account),
+                    historySelectionOverride: self.store.codexPlanUtilizationHistorySelection(
+                        forVisibleAccount: account),
+                    creditsOverride: accountSnapshot?.credits)
                 guard let model else { continue }
                 menu.addItem(self.makeMenuCardItem(
                     UsageMenuCardView(model: model, width: context.menuWidth),
                     id: "menuCard-\(cardIndex)",
                     width: context.menuWidth,
-                    heightCacheScope: account.id))
+                    heightCacheScope: account.id,
+                    heightCacheFingerprint: model.heightFingerprint(section: "card"),
+                    containsInteractiveControls: true))
                 cardIndex += 1
                 if account.id != section.accounts.last?.id {
                     menu.addItem(.separator())
@@ -50,7 +55,9 @@ extension StatusItemController {
                 UsageMenuCardView(model: model, width: context.menuWidth),
                 id: "menuCard",
                 width: context.menuWidth,
-                heightCacheScope: context.currentProvider.rawValue))
+                heightCacheScope: context.currentProvider.rawValue,
+                heightCacheFingerprint: model.heightFingerprint(section: "card"),
+                containsInteractiveControls: true))
         }
         menu.addItem(.separator())
         if self.addStorageMenuCardSection(to: menu, provider: context.currentProvider, width: context.menuWidth) {

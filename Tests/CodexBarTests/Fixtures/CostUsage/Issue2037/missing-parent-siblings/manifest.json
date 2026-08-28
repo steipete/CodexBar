@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "redactionVersion": 1,
+  "familyAlias": "missing-parent-siblings",
+  "files": [
+    {
+      "alias": "sibling-a",
+      "relativePath": "codex-home/archived_sessions/sibling-a.jsonl",
+      "sourceRole": "archive",
+      "leafSessionAlias": "sibling-a-session",
+      "parentSessionAlias": "missing-parent-session"
+    },
+    {
+      "alias": "sibling-b",
+      "relativePath": "codex-home/archived_sessions/sibling-b.jsonl",
+      "sourceRole": "archive",
+      "leafSessionAlias": "sibling-b-session",
+      "parentSessionAlias": "missing-parent-session"
+    }
+  ],
+  "copiedPrefixes": [
+    {
+      "parentAlias": "sibling-a",
+      "childAlias": "sibling-b",
+      "length": 135
+    }
+  ],
+  "billablePrefixOwnerAlias": "sibling-a",
+  "missingParentSessionId": "missing-parent-session",
+  "oracle": {
+    "parentEventCount": 135,
+    "childEventCount": 158,
+    "copiedPrefixLength": 135,
+    "parentLastTokens": 13432621,
+    "childLastTokens": 28788548,
+    "copiedPrefixLastTokens": 13432621,
+    "naiveLastTokens": 28788548,
+    "dedupedLastTokens": 15355927,
+    "copiedPrefixTimestampMismatches": 135,
+    "parentHasTotalTokenUsageDrop": false,
+    "childHasTotalTokenUsageDrop": false
+  },
+  "scannerOracle": {
+    "naiveScannerUnits": 54409503,
+    "dedupedScannerUnits": 28836599,
+    "prefixScannerUnits": 25547233,
+    "siblingAUniqueScannerUnits": 3311641,
+    "siblingBUniqueScannerUnits": 3396,
+    "unresolvedForkSkippedFirstEventScannerUnits": 25671
+  }
+}

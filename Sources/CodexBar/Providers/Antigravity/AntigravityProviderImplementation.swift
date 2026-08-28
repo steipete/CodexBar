@@ -1,9 +1,7 @@
 import CodexBarCore
-import CodexBarMacroSupport
 import Foundation
 import SwiftUI
 
-@ProviderImplementationRegistration
 struct AntigravityProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .antigravity
     let supportsLoginFlow: Bool = true
@@ -11,6 +9,7 @@ struct AntigravityProviderImplementation: ProviderImplementation {
     @MainActor
     func observeSettings(_ settings: SettingsStore) {
         _ = settings.antigravityUsageDataSource
+        _ = settings.antigravityPrioritizeExhaustedQuotas
         _ = settings.tokenAccountsData(for: .antigravity)
     }
 
@@ -29,6 +28,24 @@ struct AntigravityProviderImplementation: ProviderImplementation {
     }
 
     @MainActor
+    func settingsToggles(context: ProviderSettingsContext) -> [ProviderSettingsToggleDescriptor] {
+        [
+            ProviderSettingsToggleDescriptor(
+                id: "antigravity-prioritize-exhausted-quotas",
+                title: "Prioritize exhausted quotas",
+                subtitle: "Optional. In Automatic mode, let exhausted five-hour or weekly lanes outrank " +
+                    "still-usable model families. Applies to the menu bar and Overview ranking.",
+                binding: context.boolBinding(\.antigravityPrioritizeExhaustedQuotas),
+                statusText: nil,
+                actions: [],
+                isVisible: nil,
+                onChange: nil,
+                onAppDidBecomeActive: nil,
+                onAppearWhenEnabled: nil),
+        ]
+    }
+
+    @MainActor
     func settingsPickers(context: ProviderSettingsContext) -> [ProviderSettingsPickerDescriptor] {
         let usageBinding = Binding(
             get: { context.settings.antigravityUsageDataSource.rawValue },
@@ -42,7 +59,8 @@ struct AntigravityProviderImplementation: ProviderImplementation {
             ProviderSettingsPickerDescriptor(
                 id: "antigravity-usage-source",
                 title: "Usage source",
-                subtitle: "Auto uses the local IDE API first, then Google OAuth when the IDE is closed.",
+                subtitle: "Auto tries Antigravity app, agy CLI, then IDE; " +
+                    "OAuth follows for selected or signed-in accounts.",
                 binding: usageBinding,
                 options: usageOptions,
                 isVisible: nil,

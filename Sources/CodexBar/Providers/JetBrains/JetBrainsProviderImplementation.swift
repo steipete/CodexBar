@@ -1,9 +1,7 @@
 import CodexBarCore
-import CodexBarMacroSupport
 import Foundation
 import SwiftUI
 
-@ProviderImplementationRegistration
 struct JetBrainsProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .jetbrains
 

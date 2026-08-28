@@ -1,10 +1,28 @@
-import CodexBarCore
 import Foundation
+import Observation
 import Testing
 @testable import CodexBar
+@testable import CodexBarCore
 
 @MainActor
 struct UsageStoreCoverageTests {
+    private final class ObservationFlag: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value = false
+
+        func set() {
+            self.lock.lock()
+            self.value = true
+            self.lock.unlock()
+        }
+
+        func get() -> Bool {
+            self.lock.lock()
+            defer { self.lock.unlock() }
+            return self.value
+        }
+    }
+
     @Test
     func `provider with highest usage and icon style`() throws {
         let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-highest")
@@ -49,6 +67,116 @@ struct UsageStoreCoverageTests {
     }
 
     @Test
+    func `cursor credential fingerprint is stable and does not expose the cookie`() {
+        let cookie = "fixture=a"
+        let fingerprint = CookieHeaderCache.credentialFingerprint(cookie)
+
+        #expect(fingerprint == CookieHeaderCache.credentialFingerprint("  \(cookie)  "))
+        #expect(fingerprint != CookieHeaderCache.credentialFingerprint("fixture=b"))
+        #expect(!fingerprint.contains("fixture=a"))
+    }
+
+    @Test
+    func `cursor manual cost refresh rejects an empty cookie without falling back`() async throws {
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-cursor-manual-cost")
+        settings.costUsageEnabled = true
+        settings.cursorCookieSource = .manual
+        settings.cursorCookieHeader = "  "
+        let metadata = try #require(ProviderRegistry.shared.metadata[.cursor])
+        settings.setProviderEnabled(provider: .cursor, metadata: metadata, enabled: true)
+        let store = Self.makeUsageStore(settings: settings)
+        let invoked = ObservationFlag()
+        store._test_tokenUsageSnapshotLoaderOverride = { _, _, now, _, _ in
+            invoked.set()
+            return CostUsageTokenSnapshot(
+                sessionTokens: nil,
+                sessionCostUSD: nil,
+                last30DaysTokens: nil,
+                last30DaysCostUSD: nil,
+                meteredCostUSD: 1,
+                daily: [],
+                updatedAt: now)
+        }
+
+        await store.refreshTokenUsage(.cursor, force: true)
+
+        #expect(!invoked.get())
+        #expect(store.tokenSnapshot(for: .cursor) == nil)
+        #expect(store.tokenError(for: .cursor)?.contains("non-empty Manual cookie header") == true)
+        #expect(store.tokenSnapshotScopeSignature(for: .cursor).contains("manual:missing"))
+    }
+
+    @Test
+    func `cursor metered-only cost refresh publishes the snapshot`() async throws {
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-cursor-metered-only")
+        settings.costUsageEnabled = true
+        settings.cursorCookieSource = .manual
+        settings.cursorCookieHeader = "fixture=cursor"
+        let metadata = try #require(ProviderRegistry.shared.metadata[.cursor])
+        settings.setProviderEnabled(provider: .cursor, metadata: metadata, enabled: true)
+        let store = Self.makeUsageStore(settings: settings)
+        store._test_tokenUsageSnapshotLoaderOverride = { _, _, now, _, _ in
+            CostUsageTokenSnapshot(
+                sessionTokens: nil,
+                sessionCostUSD: nil,
+                last30DaysTokens: nil,
+                last30DaysCostUSD: nil,
+                meteredCostUSD: 1.25,
+                daily: [],
+                updatedAt: now)
+        }
+
+        await store.refreshTokenUsage(.cursor, force: true)
+
+        #expect(store.tokenSnapshot(for: .cursor)?.meteredCostUSD == 1.25)
+        #expect(store.tokenError(for: .cursor) == nil)
+    }
+
+    @Test
+    func `cursor auto credential resolution cannot relax a changed history window`() throws {
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-cursor-history-race")
+        settings.costUsageEnabled = true
+        settings.costUsageHistoryDays = 30
+        settings.cursorCookieSource = .auto
+        let metadata = try #require(ProviderRegistry.shared.metadata[.cursor])
+        settings.setProviderEnabled(provider: .cursor, metadata: metadata, enabled: true)
+        let store = Self.makeUsageStore(settings: settings)
+        let cookie = "fixture=resolved"
+        let fingerprint = CookieHeaderCache.credentialFingerprint(cookie)
+        let generation = CookieHeaderCache.beginDisplayReadGenerationForTesting(provider: .cursor)
+        let previousEntry = CookieHeaderCache.currentDisplayEntryForTesting(provider: .cursor)
+        _ = CookieHeaderCache.commitDisplaySnapshotIfCurrentForTesting(
+            provider: .cursor,
+            entry: CookieHeaderCache.Entry(
+                cookieHeader: cookie,
+                storedAt: Date(),
+                sourceLabel: "test"),
+            generation: generation)
+        defer {
+            _ = CookieHeaderCache.commitDisplaySnapshotIfCurrentForTesting(
+                provider: .cursor,
+                entry: previousEntry,
+                generation: generation)
+        }
+
+        let initialSignature = store.cursorCostScopeSignature(
+            historyDays: 30,
+            source: .auto,
+            credentialFingerprint: "unresolved")
+        let revision = store.providerPublicationRevision(for: .cursor)
+        let providerConfigRevision = settings.providerConfigRevision(for: .cursor)
+        settings.costUsageHistoryDays = 7
+
+        #expect(!store.tokenRefreshPublicationIsCurrent(
+            provider: .cursor,
+            publicationRevision: revision,
+            providerConfigRevision: providerConfigRevision,
+            historyDays: 30,
+            costScopeSignature: initialSignature,
+            fetchedCredentialScopeFingerprint: fingerprint))
+    }
+
+    @Test
     func `source label adds open AI web`() {
         let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-source")
         settings.debugDisableKeychainAccess = false
@@ -71,12 +199,160 @@ struct UsageStoreCoverageTests {
     }
 
     @Test
+    func `amp balances are rendered in provider cards`() {
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-amp-credits")
+        let store = Self.makeUsageStore(settings: settings)
+        let now = Date()
+
+        let snapshot = AmpUsageSnapshot(
+            freeQuota: 100,
+            freeUsed: 51.4,
+            hourlyReplenishment: nil,
+            windowHours: 24,
+            individualCredits: 25.64,
+            workspaceBalances: [AmpWorkspaceBalance(name: "billing@example.test", remaining: 10.22)],
+            updatedAt: now).toUsageSnapshot(now: now)
+        store._setSnapshotForTesting(snapshot, provider: .amp)
+        let model = ProvidersPane(settings: settings, store: store)._test_menuCardModel(for: .amp)
+
+        #expect(model.metrics.map(\.title) == ["Amp Free"])
+        #expect(model.metrics.allSatisfy { $0.pacePercent == nil })
+        #expect(model.creditsText == nil)
+        #expect(model.providerDetails.first?.rows.map(\.label) == [
+            "Individual credits", "Workspace billing@example.test",
+        ])
+        #expect(model.creditsRemaining == nil)
+
+        settings.hidePersonalInfo = true
+        let redactedModel = ProvidersPane(settings: settings, store: store)._test_menuCardModel(for: .amp)
+        #expect(redactedModel.providerDetails.first?.rows.last?.label == "Workspace")
+    }
+
+    @Test
+    func `amp subscription pools use their own labels`() {
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-amp-subscription")
+        let store = Self.makeUsageStore(settings: settings)
+        let now = Date()
+
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 3,
+                    windowMinutes: ProviderPaceCapability.monthlyWindowSentinelMinutes,
+                    resetsAt: now.addingTimeInterval(29 * 24 * 60 * 60),
+                    resetDescription: "renews in 29 days"),
+                secondary: RateWindow(
+                    usedPercent: 0,
+                    windowMinutes: ProviderPaceCapability.monthlyWindowSentinelMinutes,
+                    resetsAt: now.addingTimeInterval(29 * 24 * 60 * 60),
+                    resetDescription: "renews in 29 days"),
+                extraRateWindows: [NamedRateWindow(
+                    id: "amp-free",
+                    title: "Amp Free",
+                    window: RateWindow(
+                        usedPercent: 39,
+                        windowMinutes: 1440,
+                        resetsAt: now.addingTimeInterval(8 * 60 * 60),
+                        resetDescription: "resets daily"))],
+                updatedAt: now,
+                identity: ProviderIdentitySnapshot(
+                    providerID: .amp,
+                    accountEmail: nil,
+                    accountOrganization: nil,
+                    loginMethod: "Megawatt")),
+            provider: .amp)
+
+        let model = ProvidersPane(settings: settings, store: store)._test_menuCardModel(for: .amp)
+        let descriptor = MenuDescriptor.build(
+            provider: .amp,
+            store: store,
+            settings: settings,
+            account: AccountInfo(email: nil, plan: nil),
+            updateReady: false,
+            includeContextualActions: false,
+            now: now)
+        let menuLines = descriptor.sections.flatMap(\.entries).compactMap { entry -> String? in
+            guard case let .text(text, _) = entry else { return nil }
+            return text
+        }
+
+        #expect(model.metrics.map(\.title) == ["Other usage", "Orb usage", "Amp Free"])
+        #expect(model.planText == "Megawatt")
+        #expect(menuLines.contains { $0.hasPrefix("Amp Free:") })
+    }
+
+    @Test(CodexCredentialFixtures())
+    func `account info caches codex auth parsing until config revision changes`() throws {
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-account-info-cache")
+        let home = CodexCredentialFixtures.root.appendingPathComponent(
+            "usage-store-account-info-\(UUID().uuidString)",
+            isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: home) }
+
+        try Self.writeCodexAuthFile(homeURL: home, email: "first@example.com", plan: "plus")
+        let env = ["CODEX_HOME": home.path]
+        settings._test_codexReconciliationEnvironment = env
+        defer { settings._test_codexReconciliationEnvironment = nil }
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: env),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing,
+            environmentBase: env)
+
+        let first = store.accountInfo(for: .codex)
+        try Self.writeCodexAuthFile(homeURL: home, email: "second@example.com", plan: "pro")
+        let cached = store.accountInfo(for: .codex)
+        settings.configRevision &+= 1
+        let refreshed = store.accountInfo(for: .codex)
+
+        #expect(first.email == "first@example.com")
+        #expect(cached.email == "first@example.com")
+        #expect(refreshed.email == "second@example.com")
+    }
+
+    @Test
     func `source label uses configured kilo source`() {
         let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-kilo-source")
         settings.kiloUsageDataSource = .api
 
         let store = Self.makeUsageStore(settings: settings)
         #expect(store.sourceLabel(for: .kilo) == "api")
+    }
+
+    @Test
+    func `clearing copilot budget extras syncs reset baseline`() {
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-copilot-budget-clear")
+        let store = Self.makeUsageStore(settings: settings)
+        let live = Self.makeCopilotSnapshot(usedPercent: 20, extraRateWindows: [Self.makeCopilotBudgetWindow()])
+        let resetBaseline = Self.makeCopilotSnapshot(usedPercent: 10, extraRateWindows: nil)
+        store._setSnapshotForTesting(live, provider: .copilot)
+        store.lastKnownResetSnapshots[.copilot] = resetBaseline
+
+        store.clearCopilotBudgetExtras()
+
+        #expect(store.snapshot(for: .copilot)?.extraRateWindows == nil)
+        #expect(store.lastKnownResetSnapshots[.copilot]?.extraRateWindows == nil)
+        #expect(store.lastKnownResetSnapshots[.copilot]?.primary?.usedPercent == 20)
+    }
+
+    @Test
+    func `clearing copilot budget extras also clears stale reset baseline`() {
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-copilot-budget-reset-clear")
+        let store = Self.makeUsageStore(settings: settings)
+        let live = Self.makeCopilotSnapshot(usedPercent: 20, extraRateWindows: nil)
+        let resetBaseline = Self.makeCopilotSnapshot(
+            usedPercent: 10,
+            extraRateWindows: [Self.makeCopilotBudgetWindow()])
+        store._setSnapshotForTesting(live, provider: .copilot)
+        store.lastKnownResetSnapshots[.copilot] = resetBaseline
+
+        store.clearCopilotBudgetExtras()
+
+        #expect(store.snapshot(for: .copilot)?.extraRateWindows == nil)
+        #expect(store.snapshot(for: .copilot)?.primary?.usedPercent == 20)
+        #expect(store.lastKnownResetSnapshots[.copilot]?.extraRateWindows == nil)
+        #expect(store.lastKnownResetSnapshots[.copilot]?.primary?.usedPercent == 10)
     }
 
     @Test
@@ -169,6 +445,9 @@ struct UsageStoreCoverageTests {
         store._setSnapshotForTesting(staleSnapshot, provider: .claude)
         store._setErrorForTesting("stale", provider: .claude)
         store.statuses[.claude] = ProviderStatus(indicator: .major, description: "Outage", updatedAt: Date())
+        store.statusComponents[.claude] = [
+            ProviderStatusComponent(id: "api", name: "API", indicator: .major, status: "major_outage"),
+        ]
 
         #expect(store.enabledProviders() == [.codex])
 
@@ -177,6 +456,7 @@ struct UsageStoreCoverageTests {
         #expect(store.snapshot(for: .claude) == nil)
         #expect(store.errors[.claude] == nil)
         #expect(store.statuses[.claude] == nil)
+        #expect(store.statusComponents(for: .claude).isEmpty)
     }
 
     @Test
@@ -267,6 +547,29 @@ struct UsageStoreCoverageTests {
         #expect(store.userFacingError(for: .synthetic) == SyntheticSettingsError.missingToken.errorDescription)
         #expect(store.unavailableMessage(for: .synthetic) == SyntheticSettingsError.missingToken.errorDescription)
     }
+}
+
+extension UsageStoreCoverageTests {
+    @Test
+    func `sub2api unavailable message identifies the missing setting`() throws {
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-sub2api-unavailable-message")
+        settings.refreshFrequency = .manual
+        settings.statusChecksEnabled = false
+
+        let metadata = ProviderRegistry.shared.metadata
+        for provider in UsageProvider.allCases {
+            try settings.setProviderEnabled(
+                provider: provider,
+                metadata: #require(metadata[provider]),
+                enabled: provider == .sub2api)
+        }
+
+        let store = Self.makeUsageStore(settings: settings)
+        #expect(store.unavailableMessage(for: .sub2api) == Sub2APISettingsReader.missingCredentialsMessage)
+
+        settings[providerConfig: .sub2api, field: .apiKey] = "group-key"
+        #expect(store.unavailableMessage(for: .sub2api) == Sub2APISettingsReader.missingBaseURLMessage)
+    }
 
     @Test
     func `refresh clears enabled but unavailable cached state`() async throws {
@@ -294,7 +597,12 @@ struct UsageStoreCoverageTests {
         store._setSnapshotForTesting(cachedSnapshot, provider: .synthetic)
         let account = ProviderTokenAccount(id: UUID(), label: "Account", token: "token", addedAt: 0, lastUsed: nil)
         store.accountSnapshots[.synthetic] = [
-            TokenAccountUsageSnapshot(account: account, snapshot: cachedSnapshot, error: nil, sourceLabel: "api"),
+            TokenAccountUsageSnapshot(
+                account: account,
+                snapshot: cachedSnapshot,
+                error: nil,
+                sourceLabel: "api",
+                cacheKey: store.tokenAccountSnapshotCacheKey(provider: .synthetic, account: account)),
         ]
         store._setTokenSnapshotForTesting(
             CostUsageTokenSnapshot(
@@ -338,6 +646,9 @@ struct UsageStoreCoverageTests {
         let store = Self.makeUsageStore(settings: settings)
         store._setErrorForTesting("stale", provider: .synthetic)
         store.statuses[.synthetic] = ProviderStatus(indicator: .major, description: "Outage", updatedAt: Date())
+        store.statusComponents[.synthetic] = [
+            ProviderStatusComponent(id: "api", name: "API", indicator: .major, status: "major_outage"),
+        ]
         store.tokenErrors[.synthetic] = "token stale"
 
         #expect(store.enabledProvidersForDisplay() == [.synthetic])
@@ -349,21 +660,27 @@ struct UsageStoreCoverageTests {
         #expect(store.errors[.synthetic] == nil)
         #expect(store.tokenErrors[.synthetic] == nil)
         #expect(store.statuses[.synthetic] == nil)
+        #expect(store.statusComponents(for: .synthetic).isEmpty)
         #expect(store.enabledProvidersForBackgroundWork().isEmpty)
     }
 
     @Test
     func `widget snapshot projects provider derived token usage`() async throws {
         let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-widget-provider-cost")
+        settings.costUsageEnabled = true
         let store = Self.makeUsageStore(settings: settings)
+        let formatter = ISO8601DateFormatter()
+        let updatedAt = try #require(formatter.date(from: "2026-05-26T12:00:00Z"))
+        let startDate = try #require(formatter.date(from: "2026-05-01T00:00:00Z"))
+        let endDate = try #require(formatter.date(from: "2026-05-31T23:59:59Z"))
         let day = MistralDailyUsageBucket(
             day: "2026-05-26",
-            cost: 1.2,
+            cost: 9,
             inputTokens: 10,
             cachedTokens: 0,
             outputTokens: 5,
             models: [])
-        store._setSnapshotForTesting(MistralUsageSnapshot(
+        let providerSnapshot = MistralUsageSnapshot(
             totalCost: 9,
             currency: "eur",
             currencySymbol: "€",
@@ -372,9 +689,14 @@ struct UsageStoreCoverageTests {
             totalCachedTokens: 0,
             modelCount: 1,
             daily: [day],
-            startDate: nil,
-            endDate: nil,
-            updatedAt: Date()).toUsageSnapshot(), provider: .mistral)
+            startDate: startDate,
+            endDate: endDate,
+            updatedAt: updatedAt).toUsageSnapshot()
+        store._setSnapshotForTesting(providerSnapshot, provider: .mistral)
+        let tokenSnapshot = try #require(store.tokenSnapshot(
+            fromProviderSnapshot: providerSnapshot,
+            provider: .mistral))
+        store._setTokenSnapshotForTesting(tokenSnapshot, provider: .mistral)
 
         var widgetSnapshots: [WidgetSnapshot] = []
         store._test_widgetSnapshotSaveOverride = { widgetSnapshots.append($0) }
@@ -472,6 +794,144 @@ struct UsageStoreCoverageTests {
     }
 
     @Test
+    func `background work settings observation ignores menu provider selection churn`() async throws {
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-switcher-selection-observation")
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        try Self.enableOnly(.codex, settings: settings)
+
+        let store = Self.makeUsageStore(settings: settings)
+        let didChange = ObservationFlag()
+
+        withObservationTracking {
+            _ = store.backgroundWorkSettingsObservationToken
+        } onChange: {
+            didChange.set()
+        }
+
+        settings.selectedMenuProvider = .codex
+        try? await Task.sleep(nanoseconds: 50_000_000)
+        #expect(didChange.get() == false)
+
+        let refreshDidChange = ObservationFlag()
+        withObservationTracking {
+            _ = store.backgroundWorkSettingsObservationToken
+        } onChange: {
+            refreshDidChange.set()
+        }
+
+        settings.refreshFrequency = .oneMinute
+        try? await Task.sleep(nanoseconds: 50_000_000)
+        #expect(refreshDidChange.get() == true)
+    }
+
+    @Test
+    func `background work settings observation ignores display only settings churn`() async throws {
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-display-only-observation")
+        settings.refreshFrequency = .manual
+        settings.statusChecksEnabled = false
+        settings.mergeIcons = false
+        settings.randomBlinkEnabled = false
+        settings.usageBarsShowUsed = false
+        settings.showOptionalCreditsAndExtraUsage = false
+        try Self.enableOnly(.codex, settings: settings)
+
+        let store = Self.makeUsageStore(settings: settings)
+        let didChange = ObservationFlag()
+
+        withObservationTracking {
+            _ = store.backgroundWorkSettingsObservationToken
+        } onChange: {
+            didChange.set()
+        }
+
+        settings.usageBarsShowUsed = true
+        settings.mergeIcons = true
+        settings.randomBlinkEnabled = true
+        settings.codexSparkUsageVisible.toggle()
+        settings.debugLoadingPattern = .pulse
+        settings.setProviderOrder(Array(settings.orderedProviders().reversed()))
+        try? await Task.sleep(nanoseconds: 50_000_000)
+        #expect(didChange.get() == false)
+
+        let refreshDidChange = ObservationFlag()
+        withObservationTracking {
+            _ = store.backgroundWorkSettingsObservationToken
+        } onChange: {
+            refreshDidChange.set()
+        }
+
+        settings.statusChecksEnabled = true
+        try? await Task.sleep(nanoseconds: 50_000_000)
+        #expect(refreshDidChange.get() == true)
+
+        let layoutDidChange = ObservationFlag()
+        withObservationTracking {
+            _ = store.backgroundWorkSettingsObservationToken
+        } onChange: {
+            layoutDidChange.set()
+        }
+
+        settings.multiAccountMenuLayout = .stacked
+        try? await Task.sleep(nanoseconds: 50_000_000)
+        #expect(layoutDidChange.get() == true)
+
+        let optionalUsageDidChange = ObservationFlag()
+        withObservationTracking {
+            _ = store.backgroundWorkSettingsObservationToken
+        } onChange: {
+            optionalUsageDidChange.set()
+        }
+
+        settings.showOptionalCreditsAndExtraUsage = true
+        try? await Task.sleep(nanoseconds: 50_000_000)
+        #expect(optionalUsageDidChange.get() == true)
+    }
+
+    @Test
+    func `display only settings do not invoke provider refresh while background work is active`() async throws {
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-display-only-no-provider-refresh")
+        settings.refreshFrequency = .manual
+        settings.statusChecksEnabled = false
+        settings.mergeIcons = false
+        settings.randomBlinkEnabled = false
+        settings.usageBarsShowUsed = false
+        try Self.enableOnly(.codex, settings: settings)
+
+        let store = Self.makeUsageStore(settings: settings)
+        var refreshedProviders: [UsageProvider] = []
+        store._test_providerRefreshOverride = { refreshedProviders.append($0) }
+        defer { store._test_providerRefreshOverride = nil }
+
+        func observeBackgroundSettingsForTest() {
+            withObservationTracking {
+                _ = store.backgroundWorkSettingsObservationToken
+            } onChange: {
+                Task { @MainActor in
+                    await store.refreshForSettingsChange()
+                }
+            }
+        }
+
+        observeBackgroundSettingsForTest()
+
+        settings.usageBarsShowUsed = true
+        settings.mergeIcons = true
+        settings.randomBlinkEnabled = true
+        settings.codexSparkUsageVisible.toggle()
+        settings.debugLoadingPattern = .pulse
+        settings.setProviderOrder(Array(settings.orderedProviders().reversed()))
+        try? await Task.sleep(nanoseconds: 50_000_000)
+        #expect(refreshedProviders.isEmpty)
+
+        settings.codexUsageDataSource = .cli
+        for _ in 0..<20 where !refreshedProviders.contains(.codex) {
+            try? await Task.sleep(nanoseconds: 25_000_000)
+        }
+        #expect(refreshedProviders.contains(.codex))
+    }
+
+    @Test
     func `startup status network failure schedules bounded retry`() async throws {
         let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-startup-status-retry")
         settings.refreshFrequency = .manual
@@ -500,8 +960,37 @@ struct UsageStoreCoverageTests {
 
         #expect(scheduled.map(\.attempt) == [1])
         #expect(scheduled.map(\.delay) == [15])
-        #expect(store.statuses[.codex]?.indicator == .unknown)
-        #expect(store.statuses[.codex]?.description?.isEmpty == false)
+        #expect(store.statuses[.codex] == nil)
+    }
+
+    @Test
+    func `status transport failure preserves last successful provider status`() async throws {
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-status-failure-preserves-success")
+        settings.refreshFrequency = .manual
+        settings.statusChecksEnabled = true
+        try Self.enableOnly(.codex, settings: settings)
+
+        let store = Self.makeUsageStore(settings: settings)
+        let updatedAt = Date(timeIntervalSince1970: 1_750_000_000)
+        store.statuses[.codex] = ProviderStatus(
+            indicator: .major,
+            description: "Service disruption",
+            updatedAt: updatedAt)
+        store._test_providerStatusFetchOverride = { _ in
+            throw URLError(.timedOut)
+        }
+        defer {
+            store._test_providerStatusFetchOverride = nil
+            store.startupConnectivityRetryTask?.cancel()
+            store.startupConnectivityRetryTask = nil
+        }
+
+        await store.refreshProviderStatus(.codex)
+
+        let status = try #require(store.statuses[.codex])
+        #expect(status.indicator == .major)
+        #expect(status.description == "Service disruption")
+        #expect(status.updatedAt == updatedAt)
     }
 
     @Test
@@ -578,7 +1067,6 @@ struct UsageStoreCoverageTests {
             minimaxCookieStore: InMemoryMiniMaxCookieStore(),
             minimaxAPITokenStore: InMemoryMiniMaxAPITokenStore(),
             kimiTokenStore: InMemoryKimiTokenStore(),
-            kimiK2TokenStore: InMemoryKimiK2TokenStore(),
             augmentCookieStore: InMemoryCookieHeaderStore(),
             ampCookieStore: InMemoryCookieHeaderStore(),
             copilotTokenStore: InMemoryCopilotTokenStore(),
@@ -593,6 +1081,56 @@ struct UsageStoreCoverageTests {
             browserDetection: BrowserDetection(cacheTTL: 0),
             settings: settings,
             environmentBase: [:])
+    }
+
+    private static func writeCodexAuthFile(homeURL: URL, email: String, plan: String) throws {
+        try FileManager.default.createDirectory(at: homeURL, withIntermediateDirectories: true)
+        let auth = try [
+            "tokens": [
+                "accessToken": "access-token",
+                "refreshToken": "refresh-token",
+                "idToken": Self.fakeCodexJWT(email: email, plan: plan),
+            ],
+        ]
+        let data = try JSONSerialization.data(withJSONObject: auth)
+        try data.write(to: homeURL.appendingPathComponent("auth.json"), options: .atomic)
+    }
+
+    private static func fakeCodexJWT(email: String, plan: String) throws -> String {
+        let header = try JSONSerialization.data(withJSONObject: ["alg": "none"])
+        let payload = try JSONSerialization.data(withJSONObject: [
+            "email": email,
+            "chatgpt_plan_type": plan,
+            "https://api.openai.com/auth": [
+                "chatgpt_plan_type": plan,
+            ],
+        ])
+        return "\(Self.base64URL(header)).\(Self.base64URL(payload))."
+    }
+
+    private static func base64URL(_ data: Data) -> String {
+        data.base64EncodedString()
+            .replacingOccurrences(of: "=", with: "")
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+    }
+
+    private static func makeCopilotSnapshot(
+        usedPercent: Double,
+        extraRateWindows: [NamedRateWindow]?) -> UsageSnapshot
+    {
+        UsageSnapshot(
+            primary: RateWindow(usedPercent: usedPercent, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            extraRateWindows: extraRateWindows,
+            updatedAt: Date(timeIntervalSince1970: 1_780_358_400))
+    }
+
+    private static func makeCopilotBudgetWindow() -> NamedRateWindow {
+        NamedRateWindow(
+            id: "copilot-budget-test",
+            title: "Budget - Copilot",
+            window: RateWindow(usedPercent: 50, windowMinutes: nil, resetsAt: nil, resetDescription: nil))
     }
 
     private static func enableOnly(_ enabledProvider: UsageProvider, settings: SettingsStore) throws {
@@ -619,7 +1157,9 @@ private actor StartupConnectivityRetrySleepGate {
     }
 
     func waitUntilSleeping() async {
-        if self.continuation != nil { return }
+        if self.continuation != nil {
+            return
+        }
         await withCheckedContinuation { continuation in
             self.waiters.append(continuation)
         }

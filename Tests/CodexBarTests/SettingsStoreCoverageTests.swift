@@ -25,11 +25,17 @@ struct SettingsStoreCoverageTests {
         #expect(ordered.first == .zai)
         #expect(ordered.contains(.minimax))
 
+        let configRevisionBeforeOrder = settings.configRevision
+        let backgroundRevisionBeforeOrder = settings.backgroundWorkSettingsRevision
         settings.moveProvider(fromOffsets: IndexSet(integer: 0), toOffset: 2)
         #expect(settings.orderedProviders() != ordered)
+        #expect(settings.configRevision == configRevisionBeforeOrder + 1)
+        #expect(settings.backgroundWorkSettingsRevision == backgroundRevisionBeforeOrder)
 
         let metadata = ProviderRegistry.shared.metadata
+        let backgroundRevisionBeforeEnablement = settings.backgroundWorkSettingsRevision
         try settings.setProviderEnabled(provider: .codex, metadata: #require(metadata[.codex]), enabled: true)
+        #expect(settings.backgroundWorkSettingsRevision == backgroundRevisionBeforeEnablement + 1)
         try settings.setProviderEnabled(provider: .claude, metadata: #require(metadata[.claude]), enabled: false)
         let enabled = settings.enabledProvidersOrdered(metadataByProvider: metadata)
         #expect(enabled.contains(.codex))
@@ -72,6 +78,113 @@ struct SettingsStoreCoverageTests {
 
         settings.resetTimesShowAbsolute = true
         #expect(settings.resetTimeDisplayStyle == .absolute)
+    }
+
+    @Test
+    func `minimax settings snapshot uses selected token account as manual cookie`() {
+        let settings = Self.makeSettingsStore(suiteName: "SettingsStoreCoverageTests-minimax-token-account")
+        settings.minimaxCookieSource = .auto
+        settings.minimaxCookieHeader = "HERTZ-SESSION=global"
+        settings.addTokenAccount(provider: .minimax, label: "account", token: "HERTZ-SESSION=selected")
+
+        let snapshot = settings.minimaxSettingsSnapshot(tokenOverride: nil)
+
+        #expect(snapshot.cookieSource == .manual)
+        #expect(snapshot.manualCookieHeader == "HERTZ-SESSION=selected")
+    }
+
+    @Test
+    func `minimax settings snapshot falls back to global cookie without token accounts`() {
+        let settings = Self.makeSettingsStore(suiteName: "SettingsStoreCoverageTests-minimax-global-cookie")
+        settings.minimaxCookieSource = .auto
+        settings.minimaxCookieHeader = "HERTZ-SESSION=global"
+
+        let snapshot = settings.minimaxSettingsSnapshot(tokenOverride: nil)
+
+        #expect(snapshot.cookieSource == .auto)
+        #expect(snapshot.manualCookieHeader == "HERTZ-SESSION=global")
+    }
+
+    @Test
+    func `copilot budget extras default off and persist in provider snapshot`() throws {
+        let suite = "SettingsStoreCoverageTests-copilot-budget-extras"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+
+        let initial = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(initial.copilotBudgetExtrasEnabled == false)
+        #expect(initial.copilotSettingsSnapshot(tokenOverride: nil).budgetExtrasEnabled == false)
+
+        initial.copilotBudgetExtrasEnabled = true
+
+        let reloaded = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(reloaded.copilotBudgetExtrasEnabled)
+        #expect(reloaded.copilotSettingsSnapshot(tokenOverride: nil).budgetExtrasEnabled)
+    }
+
+    @Test
+    func `agent sessions default off and persist explicit opt in`() throws {
+        let suite = "SettingsStoreCoverageTests-agent-sessions"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+
+        let initial = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(initial.agentSessionsEnabled == false)
+        #expect(initial.agentSessionLabelStyle == .project)
+        #expect(defaults.object(forKey: "agentSessionsEnabled") == nil)
+        #expect(defaults.object(forKey: "agentSessionLabelStyle") == nil)
+
+        initial.agentSessionsEnabled = true
+        initial.agentSessionLabelStyle = .descriptiveAndProject
+        #expect(defaults.object(forKey: "agentSessionsEnabled") as? Bool == true)
+        #expect(defaults.string(forKey: "agentSessionLabelStyle") == "descriptiveAndProject")
+
+        let reloaded = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(reloaded.agentSessionsEnabled)
+        #expect(reloaded.agentSessionLabelStyle == .descriptiveAndProject)
+    }
+
+    @Test
+    func `background low power mode defaults off persists and drives effective web saver`() throws {
+        let suite = "SettingsStoreCoverageTests-background-low-power"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+
+        let initial = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(initial.backgroundWorkLowPowerModePreference == .off)
+        #expect(initial.backgroundWorkLowPowerModeEnabled == false)
+        #expect(defaults.string(forKey: "backgroundWorkLowPowerModePreference") == "off")
+        #expect(initial.effectiveOpenAIWebBatterySaverEnabled == false)
+
+        let revision = initial.backgroundWorkSettingsRevision
+        initial.backgroundWorkLowPowerModePreference = .on
+
+        #expect(initial.backgroundWorkSettingsRevision == revision + 1)
+        #expect(initial.effectiveOpenAIWebBatterySaverEnabled)
+
+        let reloaded = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(reloaded.backgroundWorkLowPowerModeEnabled)
+        #expect(reloaded.effectiveOpenAIWebBatterySaverEnabled)
+
+        reloaded.backgroundWorkLowPowerModePreference = .off
+        reloaded.openAIWebBatterySaverEnabled = true
+        #expect(reloaded.effectiveOpenAIWebBatterySaverEnabled)
+    }
+
+    @Test
+    func `background low power mode migrates legacy enabled flag to on preference`() throws {
+        let suite = "SettingsStoreCoverageTests-background-low-power-migration"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defaults.set(true, forKey: "backgroundWorkLowPowerModeEnabled")
+        let configStore = testConfigStore(suiteName: suite)
+
+        let migrated = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(migrated.backgroundWorkLowPowerModePreference == .on)
+        #expect(defaults.string(forKey: "backgroundWorkLowPowerModePreference") == "on")
     }
 
     @Test
@@ -152,6 +265,31 @@ struct SettingsStoreCoverageTests {
     }
 
     @Test
+    func `zai token account update preserves team metadata`() throws {
+        let settings = Self.makeSettingsStore()
+
+        settings.addTokenAccount(
+            provider: .zai,
+            label: "Team",
+            token: "token-1",
+            usageScope: "team",
+            organizationID: "org-team",
+            workspaceID: "proj-team")
+
+        let original = try #require(settings.selectedTokenAccount(for: .zai))
+        settings.updateTokenAccount(
+            provider: .zai,
+            accountID: original.id,
+            label: "Team Updated",
+            token: "token-2")
+
+        let updated = try #require(settings.selectedTokenAccount(for: .zai))
+        #expect(updated.usageScope == "team")
+        #expect(updated.organizationID == "org-team")
+        #expect(updated.workspaceID == "proj-team")
+    }
+
+    @Test
     func `copilot token accounts clear legacy api key fallback`() throws {
         let settings = Self.makeSettingsStore()
         settings.copilotAPIToken = "legacy-token"
@@ -168,6 +306,21 @@ struct SettingsStoreCoverageTests {
         #expect(settings.tokenAccounts(for: .copilot).isEmpty)
         #expect(settings.copilotAPIToken.isEmpty)
         #expect(settings.copilotSettingsSnapshot(tokenOverride: nil).apiToken == nil)
+    }
+
+    @Test
+    func `copilot settings snapshot carries selected account identifier`() {
+        let settings = Self.makeSettingsStore()
+        settings.addTokenAccount(
+            provider: .copilot,
+            label: "octocat (Pro)",
+            token: "token-1",
+            externalIdentifier: "github:user:123")
+
+        let snapshot = settings.copilotSettingsSnapshot(tokenOverride: nil)
+
+        #expect(snapshot.apiToken == "token-1")
+        #expect(snapshot.selectedAccountExternalIdentifier == "github:user:123")
     }
 
     @Test
@@ -216,7 +369,7 @@ struct SettingsStoreCoverageTests {
 
         let snapshot = settings.claudeSettingsSnapshot(tokenOverride: nil)
 
-        #expect(snapshot.usageDataSource == .auto)
+        #expect(snapshot.usageDataSource == .oauth)
         #expect(snapshot.cookieSource == .off)
         #expect(snapshot.manualCookieHeader?.isEmpty == true)
     }
@@ -228,7 +381,7 @@ struct SettingsStoreCoverageTests {
 
         let snapshot = settings.claudeSettingsSnapshot(tokenOverride: nil)
 
-        #expect(snapshot.usageDataSource == .auto)
+        #expect(snapshot.usageDataSource == .web)
         #expect(snapshot.cookieSource == .manual)
         #expect(snapshot.manualCookieHeader == "sessionKey=sk-ant-session-token")
     }
@@ -307,6 +460,62 @@ struct SettingsStoreCoverageTests {
         #expect(SettingsStore.hasAnyTokenCostUsageSources(
             env: ["CLAUDE_CONFIG_DIR": claudeRoot.path],
             fileManager: fileManager))
+
+        let metadataOnlyHome = fileManager.temporaryDirectory.appendingPathComponent(
+            "claude-desktop-metadata-\(UUID().uuidString)",
+            isDirectory: true)
+        let metadataFile = metadataOnlyHome
+            .appendingPathComponent("Library/Application Support/Claude/claude-code-sessions", isDirectory: true)
+            .appendingPathComponent("account-id/org-id/local_session.json", isDirectory: false)
+        try fileManager.createDirectory(at: metadataFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(#"{"cliSessionId":"desktop-cli-session"}"#.utf8).write(to: metadataFile)
+
+        #expect(!SettingsStore.hasAnyTokenCostUsageSources(
+            env: [:],
+            fileManager: fileManager,
+            homeDirectory: metadataOnlyHome))
+
+        let desktopHome = fileManager.temporaryDirectory.appendingPathComponent(
+            "claude-desktop-\(UUID().uuidString)",
+            isDirectory: true)
+        let desktopProjects = desktopHome
+            .appendingPathComponent("Library", isDirectory: true)
+            .appendingPathComponent("Application Support", isDirectory: true)
+            .appendingPathComponent("Claude", isDirectory: true)
+            .appendingPathComponent("local-agent-mode-sessions", isDirectory: true)
+            .appendingPathComponent("workspace-id", isDirectory: true)
+            .appendingPathComponent("session-id", isDirectory: true)
+            .appendingPathComponent("local_agent", isDirectory: true)
+            .appendingPathComponent(".claude", isDirectory: true)
+            .appendingPathComponent("projects", isDirectory: true)
+        try fileManager.createDirectory(at: desktopProjects, withIntermediateDirectories: true)
+        let desktopFile = desktopProjects
+            .appendingPathComponent("project-a", isDirectory: true)
+            .appendingPathComponent("session-a.jsonl", isDirectory: false)
+        try fileManager.createDirectory(at: desktopFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+        fileManager.createFile(atPath: desktopFile.path, contents: Data("{}".utf8))
+
+        #expect(SettingsStore.hasAnyTokenCostUsageSources(
+            env: [:],
+            fileManager: fileManager,
+            homeDirectory: desktopHome))
+
+        let desktopCodeHome = fileManager.temporaryDirectory.appendingPathComponent(
+            "claude-desktop-code-\(UUID().uuidString)",
+            isDirectory: true)
+        let desktopCodeFile = desktopCodeHome
+            .appendingPathComponent("Library/Application Support/Claude/claude-code-sessions", isDirectory: true)
+            .appendingPathComponent("account-id/org-id/.claude/projects/project-a", isDirectory: true)
+            .appendingPathComponent("session-a.jsonl", isDirectory: false)
+        try fileManager.createDirectory(
+            at: desktopCodeFile.deletingLastPathComponent(),
+            withIntermediateDirectories: true)
+        fileManager.createFile(atPath: desktopCodeFile.path, contents: Data("{}".utf8))
+
+        #expect(SettingsStore.hasAnyTokenCostUsageSources(
+            env: [:],
+            fileManager: fileManager,
+            homeDirectory: desktopCodeHome))
     }
 
     @Test
@@ -323,7 +532,6 @@ struct SettingsStoreCoverageTests {
         settings.ensureMiniMaxCookieLoaded()
         settings.ensureMiniMaxAPITokenLoaded()
         settings.ensureKimiAuthTokenLoaded()
-        settings.ensureKimiK2APITokenLoaded()
         settings.ensureAugmentCookieLoaded()
         settings.ensureAmpCookieLoaded()
         settings.ensureOllamaCookieLoaded()
@@ -331,7 +539,7 @@ struct SettingsStoreCoverageTests {
         settings.ensureTokenAccountsLoaded()
 
         #expect(settings.zaiAPIToken.isEmpty)
-        #expect(settings.syntheticAPIToken.isEmpty)
+        #expect(settings[providerConfig: .synthetic, field: .apiKey].isEmpty)
     }
 
     @Test
@@ -388,9 +596,9 @@ struct SettingsStoreCoverageTests {
     }
 
     @Test
-    func `claude keychain read strategy defaults to security CLI experimental`() {
+    func `claude keychain read strategy defaults to security framework`() {
         let settings = Self.makeSettingsStore()
-        #expect(settings.claudeOAuthKeychainReadStrategy == .securityCLIExperimental)
+        #expect(settings.claudeOAuthKeychainReadStrategy == .securityFramework)
     }
 
     @Test
@@ -401,13 +609,56 @@ struct SettingsStoreCoverageTests {
         let configStore = testConfigStore(suiteName: suite)
 
         let first = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
-        first.claudeOAuthKeychainReadStrategy = .securityCLIExperimental
+        first.claudeOAuthKeychainReadStrategy = .securityFramework
         #expect(
             defaults.string(forKey: "claudeOAuthKeychainReadStrategy")
-                == ClaudeOAuthKeychainReadStrategy.securityCLIExperimental.rawValue)
+                == ClaudeOAuthKeychainReadStrategy.securityFramework.rawValue)
 
         let second = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
-        #expect(second.claudeOAuthKeychainReadStrategy == .securityCLIExperimental)
+        #expect(second.claudeOAuthKeychainReadStrategy == .securityFramework)
+    }
+
+    @Test
+    func `claude legacy security CLI read strategy preserves no prompt intent`() throws {
+        let suite = "SettingsStoreCoverageTests-claude-keychain-read-strategy-migration"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defaults.set(
+            ClaudeOAuthKeychainReadStrategy.securityCLIExperimental.rawValue,
+            forKey: "claudeOAuthKeychainReadStrategy")
+        let configStore = testConfigStore(suiteName: suite)
+
+        let settings = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+
+        #expect(settings.claudeOAuthKeychainReadStrategy == .securityFramework)
+        #expect(settings.claudeOAuthKeychainPromptMode == .never)
+        #expect(settings.claudeOAuthPromptFreeCredentialsEnabled)
+        #expect(
+            defaults.string(forKey: "claudeOAuthKeychainReadStrategy")
+                == ClaudeOAuthKeychainReadStrategy.securityFramework.rawValue)
+        #expect(
+            defaults.string(forKey: "claudeOAuthKeychainPromptMode")
+                == ClaudeOAuthKeychainPromptMode.never.rawValue)
+    }
+
+    @Test
+    func `claude legacy security CLI migration preserves explicit prompt policy`() throws {
+        let suite = "SettingsStoreCoverageTests-claude-keychain-explicit-prompt-migration"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defaults.set(
+            ClaudeOAuthKeychainReadStrategy.securityCLIExperimental.rawValue,
+            forKey: "claudeOAuthKeychainReadStrategy")
+        defaults.set(
+            ClaudeOAuthKeychainPromptMode.always.rawValue,
+            forKey: "claudeOAuthKeychainPromptMode")
+        let configStore = testConfigStore(suiteName: suite)
+
+        let settings = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+
+        #expect(settings.claudeOAuthKeychainReadStrategy == .securityFramework)
+        #expect(settings.claudeOAuthKeychainPromptMode == .always)
+        #expect(!settings.claudeOAuthPromptFreeCredentialsEnabled)
     }
 
     @Test
@@ -423,15 +674,17 @@ struct SettingsStoreCoverageTests {
     }
 
     @Test
-    func `claude prompt free credentials toggle maps to read strategy`() {
+    func `claude prompt free credentials toggle maps to never prompt policy`() {
         let settings = Self.makeSettingsStore()
-        #expect(settings.claudeOAuthPromptFreeCredentialsEnabled == true)
+        #expect(settings.claudeOAuthPromptFreeCredentialsEnabled == false)
+
+        settings.claudeOAuthPromptFreeCredentialsEnabled = true
+        #expect(settings.claudeOAuthKeychainReadStrategy == .securityFramework)
+        #expect(settings.claudeOAuthKeychainPromptMode == .never)
 
         settings.claudeOAuthPromptFreeCredentialsEnabled = false
         #expect(settings.claudeOAuthKeychainReadStrategy == .securityFramework)
-
-        settings.claudeOAuthPromptFreeCredentialsEnabled = true
-        #expect(settings.claudeOAuthKeychainReadStrategy == .securityCLIExperimental)
+        #expect(settings.claudeOAuthKeychainPromptMode == .onlyOnUserAction)
     }
 
     @Test
@@ -486,6 +739,97 @@ struct SettingsStoreCoverageTests {
     }
 
     @Test
+    func `removing last antigravity oauth account clears matching shared credentials`() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("antigravity-shared-removal-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let sharedStore = AntigravityOAuthCredentialsStore(
+            fileURL: root.appendingPathComponent("oauth_creds.json"))
+        let credentials = AntigravityOAuthCredentials(
+            accessToken: "shared-access",
+            refreshToken: "shared-refresh",
+            expiryDate: Date(timeIntervalSince1970: 1_700_000_000),
+            email: "user@example.com")
+        try sharedStore.save(credentials)
+        let settings = Self.makeSettingsStore(
+            suiteName: "SettingsStoreCoverageTests-antigravity-remove-shared",
+            antigravityOAuthCredentialsStore: sharedStore)
+
+        settings.upsertAntigravityOAuthAccount(credentials)
+        let account = try #require(settings.selectedTokenAccount(for: .antigravity))
+        settings.removeTokenAccount(provider: .antigravity, accountID: account.id)
+
+        #expect(settings.tokenAccounts(for: .antigravity).isEmpty)
+        #expect(try sharedStore.load() == nil)
+    }
+
+    @Test
+    func `removing antigravity oauth account preserves freshly reauthenticated credentials`() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("antigravity-shared-reauth-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let sharedStore = AntigravityOAuthCredentialsStore(
+            fileURL: root.appendingPathComponent("oauth_creds.json"))
+        let removed = AntigravityOAuthCredentials(
+            accessToken: "removed-access",
+            refreshToken: "removed-refresh",
+            expiryDate: Date(timeIntervalSince1970: 1_700_000_000),
+            email: "user@example.com")
+        let refreshed = AntigravityOAuthCredentials(
+            accessToken: "fresh-access",
+            refreshToken: "fresh-refresh",
+            expiryDate: Date(timeIntervalSince1970: 1_700_000_100),
+            email: "user@example.com")
+        try sharedStore.save(refreshed)
+        let settings = Self.makeSettingsStore(
+            suiteName: "SettingsStoreCoverageTests-antigravity-preserve-reauth",
+            antigravityOAuthCredentialsStore: sharedStore)
+
+        settings.upsertAntigravityOAuthAccount(removed)
+        let account = try #require(settings.selectedTokenAccount(for: .antigravity))
+        settings.removeTokenAccount(provider: .antigravity, accountID: account.id)
+
+        #expect(try sharedStore.load() == refreshed)
+    }
+
+    @Test
+    func `removing antigravity oauth account preserves different shared credentials`() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("antigravity-shared-preserve-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let sharedStore = AntigravityOAuthCredentialsStore(
+            fileURL: root.appendingPathComponent("oauth_creds.json"))
+        let removed = AntigravityOAuthCredentials(
+            accessToken: "removed-access",
+            refreshToken: "removed-refresh",
+            expiryDate: Date(timeIntervalSince1970: 1_700_000_000),
+            email: "removed@example.com")
+        let shared = AntigravityOAuthCredentials(
+            accessToken: "shared-access",
+            refreshToken: "shared-refresh",
+            expiryDate: Date(timeIntervalSince1970: 1_700_000_000),
+            email: "shared@example.com")
+        try sharedStore.save(shared)
+        let settings = Self.makeSettingsStore(
+            suiteName: "SettingsStoreCoverageTests-antigravity-preserve-shared",
+            antigravityOAuthCredentialsStore: sharedStore)
+
+        settings.upsertAntigravityOAuthAccount(removed)
+        let account = try #require(settings.selectedTokenAccount(for: .antigravity))
+        settings.removeTokenAccount(provider: .antigravity, accountID: account.id)
+
+        #expect(settings.tokenAccounts(for: .antigravity).isEmpty)
+        try await Task.sleep(nanoseconds: 50_000_000)
+        #expect(try sharedStore.load() == shared)
+    }
+
+    @Test
     func `weekly progress work days defaults to nil and persists across store reload`() throws {
         let suite = "SettingsStoreCoverageTests-weekly-progress-work-days"
         let defaults = try #require(UserDefaults(suiteName: suite))
@@ -517,17 +861,76 @@ struct SettingsStoreCoverageTests {
         #expect(reloaded4.weeklyProgressWorkDays == nil)
     }
 
-    private static func makeSettingsStore(suiteName: String = "SettingsStoreCoverageTests") -> SettingsStore {
+    @Test
+    func `workday tick appearance defaults to subtle and persists valid choices`() throws {
+        let suite = "SettingsStoreCoverageTests-workday-tick-appearance"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+
+        let fresh = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(fresh.workdayTickAppearance == .subtle)
+
+        fresh.workdayTickAppearance = .highContrast
+        #expect(defaults.string(forKey: "workdayTickAppearance") == WorkdayTickAppearance.highContrast.rawValue)
+
+        let reloaded = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(reloaded.workdayTickAppearance == .highContrast)
+
+        defaults.set("unknown", forKey: "workdayTickAppearance")
+        let invalid = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(invalid.workdayTickAppearance == .subtle)
+    }
+
+    @Test
+    func `preferred currency defaults to USD and persists an explicit selection`() throws {
+        let suite = "SettingsStoreCoverageTests-preferred-currency"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+
+        let fresh = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(fresh.preferredCurrencyCode == "USD")
+
+        fresh.preferredCurrencyCode = "GBP"
+        let reloaded = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(reloaded.preferredCurrencyCode == "GBP")
+
+        reloaded.preferredCurrencyCode = "AED"
+        let reloadedAED = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(reloadedAED.preferredCurrencyCode == "AED")
+    }
+
+    @Test
+    func `preferred currency picker matches every supported exchange currency`() {
+        let pickerCurrencies = PreferredCurrencyOption.allCases
+            .filter { $0 != .auto }
+            .map(\.rawValue)
+
+        #expect(pickerCurrencies == CurrencyExchange.supportedCurrencies)
+        #expect(PreferredCurrencyOption.aed.label == "AED (د.إ)")
+    }
+
+    private static func makeSettingsStore(
+        suiteName: String = "SettingsStoreCoverageTests",
+        antigravityOAuthCredentialsStore: AntigravityOAuthCredentialsStore = AntigravityOAuthCredentialsStore())
+        -> SettingsStore
+    {
         let defaults = UserDefaults(suiteName: suiteName)!
         defaults.removePersistentDomain(forName: suiteName)
         defaults.set(false, forKey: "debugDisableKeychainAccess")
         let configStore = testConfigStore(suiteName: suiteName)
-        return Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        return Self.makeSettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            antigravityOAuthCredentialsStore: antigravityOAuthCredentialsStore)
     }
 
     private static func makeSettingsStore(
         userDefaults: UserDefaults,
-        configStore: CodexBarConfigStore) -> SettingsStore
+        configStore: CodexBarConfigStore,
+        antigravityOAuthCredentialsStore: AntigravityOAuthCredentialsStore = AntigravityOAuthCredentialsStore())
+        -> SettingsStore
     {
         SettingsStore(
             userDefaults: userDefaults,
@@ -542,10 +945,25 @@ struct SettingsStoreCoverageTests {
             minimaxCookieStore: InMemoryMiniMaxCookieStore(),
             minimaxAPITokenStore: InMemoryMiniMaxAPITokenStore(),
             kimiTokenStore: InMemoryKimiTokenStore(),
-            kimiK2TokenStore: InMemoryKimiK2TokenStore(),
             augmentCookieStore: InMemoryCookieHeaderStore(),
             ampCookieStore: InMemoryCookieHeaderStore(),
             copilotTokenStore: InMemoryCopilotTokenStore(),
-            tokenAccountStore: InMemoryTokenAccountStore())
+            tokenAccountStore: InMemoryTokenAccountStore(),
+            antigravityOAuthCredentialsStore: antigravityOAuthCredentialsStore)
+    }
+
+    private static func waitForSharedAntigravityCredentials(
+        in store: AntigravityOAuthCredentialsStore,
+        matches predicate: (AntigravityOAuthCredentials?) -> Bool) async throws
+        -> AntigravityOAuthCredentials?
+    {
+        for _ in 0..<100 {
+            let credentials = try store.load()
+            if predicate(credentials) {
+                return credentials
+            }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        return try store.load()
     }
 }

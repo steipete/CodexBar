@@ -1,0 +1,19 @@
+{
+  "code": "200",
+  "data": {
+    "DataV2": {
+      "data": {
+        "success": true,
+        "data": {
+          "per5HourPercentage": 0.0009973083333333333,
+          "per5HourResetTime": 1784813220000,
+          "per1WeekPercentage": 0.0003014725,
+          "per1WeekResetTime": 1785234900000
+        }
+      },
+      "success": true,
+      "httpStatus": 200
+    }
+  },
+  "successResponse": true
+}

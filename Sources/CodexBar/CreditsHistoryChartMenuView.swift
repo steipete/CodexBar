@@ -38,7 +38,8 @@ struct CreditsHistoryChartMenuView: View {
                     ForEach(model.points) { point in
                         BarMark(
                             x: .value(L("Day"), point.date, unit: .day),
-                            y: .value(L("Credits used"), point.creditsUsed))
+                            y: .value(L("Credits used"), point.creditsUsed),
+                            width: .ratio(ChartBarHoverSelection.barWidthRatio))
                             .foregroundStyle(Self.barColor)
                     }
                     if let peak = Self.peakPoint(model: model) {
@@ -46,7 +47,8 @@ struct CreditsHistoryChartMenuView: View {
                         BarMark(
                             x: .value(L("Day"), peak.date, unit: .day),
                             yStart: .value(L("Cap start"), capStart),
-                            yEnd: .value(L("Cap end"), peak.creditsUsed))
+                            yEnd: .value(L("Cap end"), peak.creditsUsed),
+                            width: .ratio(ChartBarHoverSelection.barWidthRatio))
                             .foregroundStyle(Color(nsColor: .systemYellow))
                     }
                 }
@@ -221,47 +223,9 @@ struct CreditsHistoryChartMenuView: View {
 
     private func selectionBandRect(model: Model, proxy: ChartProxy, geo: GeometryProxy) -> CGRect? {
         guard let key = self.selectedDayKey else { return nil }
-        guard let plotAnchor = proxy.plotFrame else { return nil }
-        let plotFrame = geo[plotAnchor]
-        guard let index = model.dayDates.firstIndex(where: { $0.dayKey == key }) else { return nil }
-        let date = model.dayDates[index].date
-        guard let x = proxy.position(forX: date) else { return nil }
-
-        func xForIndex(_ idx: Int) -> CGFloat? {
-            guard idx >= 0, idx < model.dayDates.count else { return nil }
-            return proxy.position(forX: model.dayDates[idx].date)
-        }
-
-        let xPrev = xForIndex(index - 1)
-        let xNext = xForIndex(index + 1)
-
-        if model.dayDates.count <= 1 {
-            return CGRect(
-                x: plotFrame.origin.x,
-                y: plotFrame.origin.y,
-                width: plotFrame.width,
-                height: plotFrame.height)
-        }
-
-        let leftInPlot: CGFloat = if let xPrev {
-            (xPrev + x) / 2
-        } else if let xNext {
-            x - (xNext - x) / 2
-        } else {
-            x - 8
-        }
-
-        let rightInPlot: CGFloat = if let xNext {
-            (xNext + x) / 2
-        } else if let xPrev {
-            x + (x - xPrev) / 2
-        } else {
-            x + 8
-        }
-
-        let left = plotFrame.origin.x + min(leftInPlot, rightInPlot)
-        let right = plotFrame.origin.x + max(leftInPlot, rightInPlot)
-        return CGRect(x: left, y: plotFrame.origin.y, width: right - left, height: plotFrame.height)
+        guard let index = model.selectableDayDates.firstIndex(where: { $0.dayKey == key }) else { return nil }
+        guard let geometry = self.hoverGeometry(model: model, proxy: proxy, geo: geo) else { return nil }
+        return geometry.bars[index].frame
     }
 
     private func updateSelection(
@@ -275,31 +239,32 @@ struct CreditsHistoryChartMenuView: View {
             return
         }
 
-        guard let plotAnchor = proxy.plotFrame else { return }
-        let plotFrame = geo[plotAnchor]
-        guard plotFrame.contains(location) else { return }
+        guard let geometry = self.hoverGeometry(model: model, proxy: proxy, geo: geo),
+              let selection = ChartBarHoverSelection.selection(
+                  at: location,
+                  plotFrame: geometry.plotFrame,
+                  bars: geometry.bars)
+        else { return }
+        let key = model.selectableDayDates[selection.index].dayKey
 
-        let xInPlot = location.x - plotFrame.origin.x
-        guard let date: Date = proxy.value(atX: xInPlot) else { return }
-        guard let nearest = self.nearestDayKey(to: date, model: model) else { return }
-
-        if self.selectedDayKey != nearest {
-            self.selectedDayKey = nearest
+        if self.selectedDayKey != key {
+            self.selectedDayKey = key
         }
     }
 
-    private func nearestDayKey(to date: Date, model: Model) -> String? {
-        guard !model.selectableDayDates.isEmpty else { return nil }
-        var best: (key: String, distance: TimeInterval)?
-        for entry in model.selectableDayDates {
-            let dist = abs(entry.date.timeIntervalSince(date))
-            if let cur = best {
-                if dist < cur.distance { best = (entry.dayKey, dist) }
-            } else {
-                best = (entry.dayKey, dist)
-            }
-        }
-        return best?.key
+    private func hoverGeometry(
+        model: Model,
+        proxy: ChartProxy,
+        geo: GeometryProxy) -> (plotFrame: CGRect, bars: [ChartBarHoverSelection.Bar])?
+    {
+        guard let plotAnchor = proxy.plotFrame else { return nil }
+        let plotFrame = geo[plotAnchor]
+        guard let bars = ChartBarHoverSelection.calendarDayBars(
+            dates: model.selectableDayDates.map(\.date),
+            plotFrame: plotFrame,
+            position: { proxy.position(forX: $0) })
+        else { return nil }
+        return (plotFrame, bars)
     }
 
     private func detailLines(model: Model) -> (primary: String, secondary: String?) {

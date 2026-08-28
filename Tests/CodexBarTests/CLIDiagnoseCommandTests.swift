@@ -1,4 +1,5 @@
 import CodexBarCore
+import Foundation
 import Testing
 @testable import CodexBarCLI
 
@@ -9,55 +10,61 @@ struct CLIDiagnoseCommandTests {
 
         #expect(help.contains("codexbar diagnose --provider <name|all> --format json"))
         #expect(help.contains("codexbar diagnose --provider all --format json"))
+        #expect(help.contains("--redact"))
+        #expect(help.contains("--output <path>"))
         #expect(help.contains("safe JSON export"))
         #expect(help.contains("raw API tokens"))
     }
 
+    @Test
+    func `diagnose output writer creates parent directories`() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CodexBarDiagnoseTests-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let output = root.appendingPathComponent("nested/diagnostic.json")
+        try CodexBarCLI.writeDiagnosticExport(#"{"provider":"minimax"}"#, to: output.path)
+
+        let contents = try String(contentsOf: output, encoding: .utf8)
+        #expect(contents == #"{"provider":"minimax"}"#)
+    }
+
     private func makeSettingsWithMiniMaxCookie(_ manualCookieHeader: String) -> ProviderSettingsSnapshot {
-        ProviderSettingsSnapshot(
-            debugMenuEnabled: false,
-            debugKeepCLISessionsAlive: false,
-            codex: nil,
-            claude: nil,
-            cursor: nil,
-            opencode: nil,
-            opencodego: nil,
-            alibaba: nil,
-            factory: nil,
+        ProviderSettingsSnapshot.make(
             minimax: ProviderSettingsSnapshot.MiniMaxProviderSettings(
                 cookieSource: .manual,
                 manualCookieHeader: manualCookieHeader,
-                apiRegion: .global),
-            manus: nil,
-            zai: nil,
-            copilot: nil,
-            kilo: nil,
-            kimi: nil,
-            augment: nil,
-            amp: nil,
-            ollama: nil)
+                apiRegion: .global))
     }
 
     @Test
     func `diagnose auth mode uses settings-backed MiniMax manual cookie when env token is absent`() {
         let settings = self.makeSettingsWithMiniMaxCookie("Cookie: session_id=demo-cookie")
 
-        let authMode = CodexBarCLI._resolveMiniMaxAuthModeForTesting(
+        let summary = CodexBarCLI._diagnosticAuthSummaryForTesting(
+            provider: .minimax,
+            account: nil,
+            config: nil,
             environment: [:],
             settings: settings)
 
-        #expect(authMode == .cookie)
+        #expect(summary.configured)
+        #expect(summary.modes == ["cookie"])
     }
 
     @Test
     func `diagnose auth mode keeps apiToken precedence over settings cookie`() {
         let settings = self.makeSettingsWithMiniMaxCookie("Cookie: session_id=demo-cookie")
 
-        let authMode = CodexBarCLI._resolveMiniMaxAuthModeForTesting(
+        let summary = CodexBarCLI._diagnosticAuthSummaryForTesting(
+            provider: .minimax,
+            account: nil,
+            config: nil,
             environment: [MiniMaxAPISettingsReader.apiTokenKey: "sk-api-demo-token"],
             settings: settings)
 
-        #expect(authMode == .apiToken)
+        #expect(summary.configured)
+        #expect(summary.modes == ["apiToken"])
     }
 
     @Test
@@ -80,6 +87,32 @@ struct CLIDiagnoseCommandTests {
             account: nil,
             config: nil,
             environment: [OpenAIAPISettingsReader.apiKeyEnvironmentKey: "sk-test"],
+            settings: nil)
+
+        #expect(summary.configured)
+        #expect(summary.modes == ["api"])
+    }
+
+    @Test
+    func `generic diagnose auth summary detects Chutes environment credentials`() {
+        let summary = CodexBarCLI._diagnosticAuthSummaryForTesting(
+            provider: .chutes,
+            account: nil,
+            config: nil,
+            environment: [ChutesSettingsReader.apiKeyEnvironmentKey: "chutes-test"],
+            settings: nil)
+
+        #expect(summary.configured)
+        #expect(summary.modes == ["api"])
+    }
+
+    @Test
+    func `generic diagnose auth summary detects Neuralwatt environment credentials`() {
+        let summary = CodexBarCLI._diagnosticAuthSummaryForTesting(
+            provider: .neuralwatt,
+            account: nil,
+            config: nil,
+            environment: [NeuralWattSettingsReader.apiKeyEnvironmentKey: "sk-test"],
             settings: nil)
 
         #expect(summary.configured)

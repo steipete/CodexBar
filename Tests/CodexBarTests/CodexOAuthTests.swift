@@ -2,13 +2,20 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
+@Suite(CodexCredentialFixtures())
 struct CodexOAuthTests {
-    private func makeContext(sourceMode: ProviderSourceMode = .auto) -> ProviderFetchContext {
+    private func makeContext(
+        runtime: ProviderRuntime = .app,
+        sourceMode: ProviderSourceMode = .auto,
+        includeCredits: Bool = true,
+        includeOptionalUsage: Bool = true) -> ProviderFetchContext
+    {
         let browserDetection = BrowserDetection(cacheTTL: 0)
         return ProviderFetchContext(
-            runtime: .app,
+            runtime: runtime,
             sourceMode: sourceMode,
-            includeCredits: true,
+            includeCredits: includeCredits,
+            includeOptionalUsage: includeOptionalUsage,
             webTimeout: 60,
             webDebugDumpHTML: false,
             verbose: false,
@@ -75,6 +82,34 @@ struct CodexOAuthTests {
         #expect(creds.refreshToken.isEmpty)
         #expect(creds.idToken == nil)
         #expect(creds.accountId == nil)
+        #expect(creds.isAPIKey)
+        #expect(!creds.needsRefresh)
+    }
+
+    @Test
+    func `reset-credit token load ignores an API key beside O auth tokens`() throws {
+        let home = CodexCredentialFixtures.root
+            .appendingPathComponent("codexbar-reset-credit-oauth-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: home) }
+        let json = """
+        {
+          "OPENAI_API_KEY": "sk-test",
+          "tokens": {
+            "access_token": "oauth-access-token",
+            "refresh_token": "oauth-refresh-token",
+            "account_id": "account-123"
+          },
+          "last_refresh": "2026-07-01T12:00:00Z"
+        }
+        """
+        try Data(json.utf8).write(to: home.appendingPathComponent("auth.json"))
+
+        let credentials = try CodexOAuthCredentialsStore.loadOAuthTokens(env: ["CODEX_HOME": home.path])
+
+        #expect(credentials.accessToken == "oauth-access-token")
+        #expect(credentials.refreshToken == "oauth-refresh-token")
+        #expect(credentials.accountId == "account-123")
     }
 
     @Test
@@ -162,6 +197,73 @@ struct CodexOAuthTests {
         #expect(snapshot.secondary?.windowMinutes == 10080)
         #expect(snapshot.primary?.resetsAt != nil)
         #expect(snapshot.secondary?.resetsAt != nil)
+    }
+
+    @Test
+    func `O auth response with precise windows maps to exact confidence`() throws {
+        let json = """
+        {
+          "rate_limit": {
+            "primary_window": {
+              "used_percent": 22,
+              "reset_at": 1766948068,
+              "limit_window_seconds": 18000
+            },
+            "secondary_window": {
+              "used_percent": 43,
+              "reset_at": 1767407914,
+              "limit_window_seconds": 604800
+            }
+          }
+        }
+        """
+        let creds = CodexOAuthCredentials(
+            accessToken: "access",
+            refreshToken: "refresh",
+            idToken: nil,
+            accountId: nil,
+            lastRefresh: Date())
+        let result = try CodexOAuthFetchStrategy._mapResultForTesting(Data(json.utf8), credentials: creds)
+
+        #expect(result.sourceLabel == "oauth")
+        #expect(result.usage.dataConfidence == .exact)
+        #expect(result.usage.primary?.usedPercent == 22)
+        #expect(result.usage.secondary?.usedPercent == 43)
+    }
+
+    @Test
+    func `O auth response with malformed additional window maps to unknown confidence`() throws {
+        let json = """
+        {
+          "rate_limit": {
+            "primary_window": {
+              "used_percent": 22,
+              "reset_at": 1766948068,
+              "limit_window_seconds": 18000
+            }
+          },
+          "additional_rate_limits": [
+            {
+              "limit_name": "GPT-5.3-Codex-Spark",
+              "metered_feature": "gpt_5_3_codex_spark",
+              "rate_limit": {
+                "primary_window": { "used_percent": "bad" }
+              }
+            }
+          ]
+        }
+        """
+        let creds = CodexOAuthCredentials(
+            accessToken: "access",
+            refreshToken: "refresh",
+            idToken: nil,
+            accountId: nil,
+            lastRefresh: Date())
+        let result = try CodexOAuthFetchStrategy._mapResultForTesting(Data(json.utf8), credentials: creds)
+
+        #expect(result.usage.primary?.usedPercent == 22)
+        #expect(result.usage.extraRateWindows == nil)
+        #expect(result.usage.dataConfidence == .unknown)
     }
 
     @Test
@@ -352,6 +454,11 @@ struct CodexOAuthTests {
         let snapshot = try CodexOAuthFetchStrategy._mapUsageForTesting(Data(json.utf8), credentials: creds)
         #expect(snapshot?.primary?.usedPercent == 18)
         #expect(snapshot?.secondary == nil)
+
+        let result = try CodexOAuthFetchStrategy._mapResultForTesting(Data(json.utf8), credentials: creds)
+        #expect(result.usage.primary?.usedPercent == 18)
+        #expect(result.usage.secondary == nil)
+        #expect(result.usage.dataConfidence == .unknown)
     }
 
     @Test
@@ -632,7 +739,9 @@ struct CodexOAuthTests {
 
         #expect(strategy.shouldFallback(on: CodexOAuthFetchError.unauthorized, context: context))
         #expect(strategy.shouldFallback(on: CodexOAuthCredentialsError.notFound, context: context))
+        #expect(strategy.shouldFallback(on: CodexOAuthCredentialsError.unreadable, context: context))
         #expect(strategy.shouldFallback(on: CodexOAuthCredentialsError.missingTokens, context: context))
+        #expect(!strategy.shouldFallback(on: CodexOAuthCredentialsError.readOnlySource, context: context))
         #expect(strategy.shouldFallback(on: CodexTokenRefresher.RefreshError.expired, context: context))
         #expect(strategy.shouldFallback(on: CodexTokenRefresher.RefreshError.revoked, context: context))
         #expect(strategy.shouldFallback(on: CodexTokenRefresher.RefreshError.reused, context: context))
@@ -676,12 +785,64 @@ struct CodexOAuthTests {
     }
 
     @Test
-    func `explicit O auth mode never falls back to CLI`() {
+    func `explicit O auth mode only falls back to CLI for native refresh recovery`() {
         let strategy = CodexOAuthFetchStrategy()
         let context = self.makeContext(sourceMode: .oauth)
 
         #expect(!strategy.shouldFallback(on: CodexOAuthFetchError.unauthorized, context: context))
+        #expect(strategy.shouldFallback(on: CodexOAuthCredentialsError.nativeRefreshRequired, context: context))
+        #expect(!strategy.shouldFallback(on: CodexOAuthCredentialsError.readOnlySource, context: context))
         #expect(!strategy.shouldFallback(on: CodexTokenRefresher.RefreshError.expired, context: context))
+    }
+
+    @Test
+    func `credential recovery errors direct users to codex login`() {
+        #expect(CodexOAuthCredentialsError.nativeRefreshRequired.localizedDescription.contains("codex login"))
+        #expect(CodexOAuthCredentialsError.readOnlySource.localizedDescription.contains("codex login"))
+        #expect(CodexOAuthFetchError.unauthorized.localizedDescription.contains("codex login"))
+    }
+
+    @Test
+    func `explicit O auth mode includes CLI recovery after native credentials expire`() async {
+        let context = self.makeContext(sourceMode: .oauth)
+        let strategies = await CodexProviderDescriptor.descriptor.fetchPlan.pipeline.resolveStrategies(context)
+
+        #expect(strategies.map(\.id) == ["codex.oauth", "codex.oauth-native-refresh-cli"])
+    }
+
+    @Test
+    func `native refresh recovery is unavailable when Codex CLI is missing`() async throws {
+        let home = CodexCredentialFixtures.root
+            .appendingPathComponent("codexbar-native-refresh-no-cli-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: home) }
+        try CodexOAuthCredentialsStore.save(
+            CodexOAuthCredentials(
+                accessToken: "access-token",
+                refreshToken: "refresh-token",
+                idToken: nil,
+                accountId: "account-id",
+                lastRefresh: Date(timeIntervalSinceNow: -(9 * 24 * 60 * 60))),
+            env: ["CODEX_HOME": home.path])
+
+        var context = self.makeContext(sourceMode: .oauth)
+        context = ProviderFetchContext(
+            runtime: context.runtime,
+            sourceMode: context.sourceMode,
+            includeCredits: context.includeCredits,
+            includeOptionalUsage: context.includeOptionalUsage,
+            webTimeout: context.webTimeout,
+            webDebugDumpHTML: context.webDebugDumpHTML,
+            verbose: context.verbose,
+            env: ["CODEX_HOME": home.path, "CODEX_CLI_PATH": "/missing/codex"],
+            settings: context.settings,
+            fetcher: context.fetcher,
+            claudeFetcher: context.claudeFetcher,
+            browserDetection: context.browserDetection)
+
+        let isAvailable = await CodexOAuthNativeRefreshCLIStrategy(binaryResolver: { _ in nil })
+            .isAvailable(context)
+        #expect(!isAvailable)
     }
 
     @Test

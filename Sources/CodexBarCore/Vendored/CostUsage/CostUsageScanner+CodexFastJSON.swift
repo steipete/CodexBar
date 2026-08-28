@@ -18,6 +18,22 @@ extension CostUsageScanner {
         }
     }
 
+    static func extractJSONByteStringFieldAllowingEmpty(
+        _ field: [UInt8],
+        from bytes: UnsafeBufferPointer<UInt8>,
+        in range: Range<Int>,
+        atDepth targetDepth: Int) -> String?
+    {
+        self.extractJSONByteField(field, from: bytes, in: range, atDepth: targetDepth) { valueIndex in
+            guard let parsed = parseJSONByteStringRange(in: bytes, index: &valueIndex, limit: range.upperBound)
+            else { return nil }
+            if parsed.hasEscapes {
+                return self.decodeEscapedJSONByteString(from: bytes, in: parsed.range)
+            }
+            return String(bytes: bytes[parsed.range], encoding: .utf8)
+        }
+    }
+
     static func extractJSONByteObjectField(
         _ field: [UInt8],
         from bytes: UnsafeBufferPointer<UInt8>,
@@ -37,6 +53,17 @@ extension CostUsageScanner {
     {
         self.extractJSONByteField(field, from: bytes, in: range, atDepth: targetDepth) { valueIndex in
             self.parseJSONByteInt(in: bytes, index: &valueIndex, limit: range.upperBound)
+        }
+    }
+
+    static func extractJSONByteBoolField(
+        _ field: [UInt8],
+        from bytes: UnsafeBufferPointer<UInt8>,
+        in range: Range<Int>,
+        atDepth targetDepth: Int) -> Bool?
+    {
+        self.extractJSONByteField(field, from: bytes, in: range, atDepth: targetDepth) { valueIndex in
+            self.parseJSONByteBool(in: bytes, index: &valueIndex, limit: range.upperBound)
         }
     }
 
@@ -169,6 +196,33 @@ extension CostUsageScanner {
             index += 1
         }
         return sawDigit ? (sign == -1 ? -value : value) : nil
+    }
+
+    private static func parseJSONByteBool(
+        in bytes: UnsafeBufferPointer<UInt8>,
+        index: inout Int,
+        limit: Int) -> Bool?
+    {
+        if index + 4 <= limit,
+           bytes[index] == 0x74,
+           bytes[index + 1] == 0x72,
+           bytes[index + 2] == 0x75,
+           bytes[index + 3] == 0x65
+        {
+            index += 4
+            return true
+        }
+        if index + 5 <= limit,
+           bytes[index] == 0x66,
+           bytes[index + 1] == 0x61,
+           bytes[index + 2] == 0x6C,
+           bytes[index + 3] == 0x73,
+           bytes[index + 4] == 0x65
+        {
+            index += 5
+            return false
+        }
+        return nil
     }
 
     private static func skipJSONByteWhitespace(

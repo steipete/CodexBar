@@ -1,14 +1,15 @@
 ---
-summary: "AWS Bedrock provider: Cost Explorer credentials, budget tracking, and usage display."
+summary: "AWS Bedrock provider: Cost Explorer spend, CloudWatch Claude activity, credentials, and budgets."
 read_when:
   - Setting up AWS Bedrock usage tracking
-  - Debugging Bedrock Cost Explorer fetches
-  - Updating Bedrock credentials, region, or budget handling
+  - Debugging Bedrock Cost Explorer or CloudWatch fetches
+  - Updating Bedrock credentials, region, budget, or activity handling
 ---
 
 # AWS Bedrock provider
 
-CodexBar reads AWS Cost Explorer for Bedrock spend and can compare the current month against an optional budget.
+CodexBar reads AWS Cost Explorer for Bedrock spend and can compare the current month against an optional budget. When
+permitted, it also reads CloudWatch for rolling 14-day Claude token and request totals in the configured region.
 
 ## Authentication
 
@@ -57,19 +58,25 @@ export AWS_CLI_PATH="/opt/homebrew/bin/aws"   # optional override
 ```
 
 The AWS identity (from either mode) must have permission to call Cost Explorer APIs, including `ce:GetCostAndUsage`.
+Grant `cloudwatch:GetMetricData` to add the optional Claude activity totals. Without that permission, cost and budget
+tracking continue unchanged.
 
 ## Data source
 
 - Service: AWS Cost Explorer.
 - Region: `AWS_REGION` or `AWS_DEFAULT_REGION`, defaulting to `us-east-1`.
 - Usage: current-month Bedrock spend and historical daily cost buckets.
+- Claude activity: rolling 14-day input tokens, output tokens, and requests from the configured region's `AWS/Bedrock`
+  CloudWatch metrics. Other model families are excluded.
 - Budget: `CODEXBAR_BEDROCK_BUDGET`, when set to a positive dollar amount.
-- Test override: `CODEXBAR_BEDROCK_API_URL` replaces the Cost Explorer endpoint.
+- Test override: `CODEXBAR_BEDROCK_API_URL` replaces the Cost Explorer endpoint; use HTTPS or loopback HTTP.
+- Test override: `CODEXBAR_BEDROCK_CLOUDWATCH_API_URL` replaces the CloudWatch endpoint; use HTTPS or loopback HTTP.
 
 ## Display
 
 - Shows month-to-date Bedrock spend.
 - Shows budget progress when a budget is configured.
+- Shows rolling 14-day Claude tokens and requests when CloudWatch access is available.
 - Reuses the shared inline dashboard for daily cost history when enough buckets are available.
 
 ## CLI
@@ -86,6 +93,8 @@ codexbar --provider bedrock --format json --pretty
 - Confirm the credentials are visible to CodexBar.
 - Confirm the AWS account has Cost Explorer enabled.
 - Confirm the IAM principal can call `ce:GetCostAndUsage`.
+- To include Claude token/request totals, confirm the principal can call `cloudwatch:GetMetricData` in the configured
+  region.
 - If using temporary credentials, include `AWS_SESSION_TOKEN`.
 - In profile mode, confirm the AWS CLI is installed (or set `AWS_CLI_PATH`) and that the profile name is correct.
 

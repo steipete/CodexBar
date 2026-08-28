@@ -3,10 +3,16 @@ import Foundation
 
 extension SettingsStore {
     var moonshotAPIToken: String {
-        get { self.configSnapshot.providerConfig(for: .moonshot)?.sanitizedAPIKey ?? "" }
+        get {
+            guard let config = self.configSnapshot.providerConfig(for: .moonshot),
+                  config.sanitizedAPIKeyRegion == self.moonshotRegion.rawValue
+            else { return "" }
+            return config.sanitizedAPIKey ?? ""
+        }
         set {
             self.updateProviderConfig(provider: .moonshot) { entry in
                 entry.apiKey = self.normalizedConfigValue(newValue)
+                entry.apiKeyRegion = entry.apiKey == nil ? nil : self.moonshotRegion.rawValue
             }
             self.logSecretUpdate(provider: .moonshot, field: "apiKey", value: newValue)
         }
@@ -25,6 +31,13 @@ extension SettingsStore {
     }
 
     func ensureMoonshotAPITokenLoaded() {}
+
+    func hasMoonshotAPIToken(for region: MoonshotRegion) -> Bool {
+        guard let config = self.configSnapshot.providerConfig(for: .moonshot),
+              config.sanitizedAPIKeyRegion == region.rawValue
+        else { return false }
+        return config.sanitizedAPIKey != nil
+    }
 
     var configuredMoonshotRegion: MoonshotRegion? {
         guard let raw = self.configSnapshot.providerConfig(for: .moonshot)?.region?

@@ -297,6 +297,15 @@ struct GeminiTestEnvironment {
         return geminiBinary
     }
 
+    func fnmFixturePath(geminiBinary: URL, inheritedPath: String?) -> String {
+        let fnmBin = self.homeURL.appendingPathComponent("bin").path
+        let geminiBin = geminiBinary.deletingLastPathComponent().path
+        let fixturePath = "\(fnmBin):\(geminiBin)"
+        // Other suites may inherit the process-wide PATH while this fixture runs.
+        guard let inheritedPath, !inheritedPath.isEmpty else { return fixturePath }
+        return "\(fixturePath):\(inheritedPath)"
+    }
+
     func writeFakeFnm(
         currentVersion: String = "v24.6.0",
         npmRoot: String? = nil,

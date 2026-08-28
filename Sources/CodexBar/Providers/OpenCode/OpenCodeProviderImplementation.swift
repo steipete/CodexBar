@@ -1,10 +1,8 @@
 import AppKit
 import CodexBarCore
-import CodexBarMacroSupport
 import Foundation
 import SwiftUI
 
-@ProviderImplementationRegistration
 struct OpenCodeProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .opencode
 
@@ -28,7 +26,9 @@ struct OpenCodeProviderImplementation: ProviderImplementation {
     @MainActor
     func tokenAccountsVisibility(context: ProviderSettingsContext, support: TokenAccountSupport) -> Bool {
         guard support.requiresManualCookieSource else { return true }
-        if !context.settings.tokenAccounts(for: context.provider).isEmpty { return true }
+        if !context.settings.tokenAccounts(for: context.provider).isEmpty {
+            return true
+        }
         return context.settings.opencodeCookieSource == .manual
     }
 
@@ -70,10 +70,17 @@ struct OpenCodeProviderImplementation: ProviderImplementation {
                 isVisible: nil,
                 onChange: nil,
                 trailingText: {
-                    OpenCodeProviderUI.cachedCookieTrailingText(
+                    ProviderCookieRefreshAction.trailingText(
                         provider: .opencode,
-                        cookieSource: context.settings.opencodeCookieSource)
-                }),
+                        cookieSource: context.settings.opencodeCookieSource,
+                        context: context)
+                },
+                trailingActions: [
+                    ProviderCookieRefreshAction.descriptor(
+                        provider: .opencode,
+                        cookieSource: { context.settings.opencodeCookieSource },
+                        context: context),
+                ]),
         ]
     }
 

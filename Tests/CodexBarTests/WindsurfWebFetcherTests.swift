@@ -1,9 +1,18 @@
 import Foundation
+import SweetCookieKit
 import Testing
 @testable import CodexBarCore
 
 @Suite(.serialized)
 struct WindsurfWebFetcherTests {
+    @Test
+    func `missing session guidance names current and legacy origins`() {
+        let message = WindsurfWebFetcherError.noSessionData.errorDescription
+
+        #expect(message?.contains("app.devin.ai") == true)
+        #expect(message?.contains("windsurf.com") == true)
+    }
+
     private struct ResponseFixture {
         let planName: String
         let dailyRemaining: Int
@@ -17,6 +26,23 @@ struct WindsurfWebFetcherTests {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [WindsurfWebFetcherStubURLProtocol.self]
         return URLSession(configuration: config)
+    }
+
+    private func withWindsurfSessionOverrides<T>(
+        importSessions: ((BrowserDetection, ((String) -> Void)?) -> [WindsurfDevinSessionImporter.SessionInfo])? = nil,
+        preferredSessions: ((BrowserDetection, ((String) -> Void)?) -> [WindsurfDevinSessionImporter.SessionInfo])? =
+            nil,
+        fallbackSessions: ((BrowserDetection, ((String) -> Void)?) -> [WindsurfDevinSessionImporter.SessionInfo])? =
+            nil,
+        operation: () async throws -> T) async rethrows -> T
+    {
+        try await WindsurfDevinSessionImporter.withImportSessionsOverrideForTesting(importSessions) {
+            try await WindsurfDevinSessionImporter.withImportPreferredSessionsOverrideForTesting(preferredSessions) {
+                try await WindsurfDevinSessionImporter.withImportFallbackSessionsOverrideForTesting(fallbackSessions) {
+                    try await operation()
+                }
+            }
+        }
     }
 
     @Test
@@ -84,31 +110,29 @@ struct WindsurfWebFetcherTests {
     @Test
     func `auto session import retries next profile after auth failure`() async throws {
         defer {
-            WindsurfDevinSessionImporter.importSessionsOverrideForTesting = nil
-            WindsurfDevinSessionImporter.importPreferredSessionsOverrideForTesting = nil
-            WindsurfDevinSessionImporter.importFallbackSessionsOverrideForTesting = nil
             WindsurfWebFetcherStubURLProtocol.requests = []
             WindsurfWebFetcherStubURLProtocol.handler = nil
         }
 
-        WindsurfDevinSessionImporter.importPreferredSessionsOverrideForTesting = { _, _ in
-            [
-                WindsurfDevinSessionImporter.SessionInfo(
-                    session: WindsurfDevinSessionAuth(
-                        sessionToken: "stale-token",
-                        auth1Token: "stale-auth1",
-                        accountID: "stale-account",
-                        primaryOrgID: "stale-org"),
-                    sourceLabel: "Chrome Default"),
-                WindsurfDevinSessionImporter.SessionInfo(
-                    session: WindsurfDevinSessionAuth(
-                        sessionToken: "fresh-token",
-                        auth1Token: "fresh-auth1",
-                        accountID: "fresh-account",
-                        primaryOrgID: "fresh-org"),
-                    sourceLabel: "Chrome Profile 1"),
-            ]
-        }
+        let preferredSessions: (BrowserDetection, ((String) -> Void)?)
+            -> [WindsurfDevinSessionImporter.SessionInfo] = { _, _ in
+                [
+                    WindsurfDevinSessionImporter.SessionInfo(
+                        session: WindsurfDevinSessionAuth(
+                            sessionToken: "stale-token",
+                            auth1Token: "stale-auth1",
+                            accountID: "stale-account",
+                            primaryOrgID: "stale-org"),
+                        sourceLabel: "Chrome Default"),
+                    WindsurfDevinSessionImporter.SessionInfo(
+                        session: WindsurfDevinSessionAuth(
+                            sessionToken: "fresh-token",
+                            auth1Token: "fresh-auth1",
+                            accountID: "fresh-account",
+                            primaryOrgID: "fresh-org"),
+                        sourceLabel: "Chrome Profile 1"),
+                ]
+            }
 
         WindsurfWebFetcherStubURLProtocol.requests = []
         WindsurfWebFetcherStubURLProtocol.handler = { request in
@@ -137,50 +161,51 @@ struct WindsurfWebFetcherTests {
                 statusCode: 200)
         }
 
-        let snapshot = try await WindsurfWebFetcher.fetchUsage(
-            browserDetection: BrowserDetection(cacheTTL: 0),
-            cookieSource: .auto,
-            timeout: 2,
-            session: self.makeSession())
+        try await self.withWindsurfSessionOverrides(preferredSessions: preferredSessions) {
+            let snapshot = try await WindsurfWebFetcher.fetchUsage(
+                browserDetection: BrowserDetection(cacheTTL: 0),
+                cookieSource: .auto,
+                timeout: 2,
+                session: self.makeSession())
 
-        #expect(WindsurfWebFetcherStubURLProtocol.requests.count == 2)
-        #expect(snapshot.identity?.loginMethod == "Teams")
-        #expect(snapshot.primary?.usedPercent == 25)
-        #expect(snapshot.secondary?.usedPercent == 10)
+            #expect(WindsurfWebFetcherStubURLProtocol.requests.count == 2)
+            #expect(snapshot.identity?.loginMethod == "Teams")
+            #expect(snapshot.primary?.usedPercent == 25)
+            #expect(snapshot.secondary?.usedPercent == 10)
+        }
     }
 
     @Test
     func `auto session import tries fallback browsers after preferred sessions fail`() async throws {
         defer {
-            WindsurfDevinSessionImporter.importSessionsOverrideForTesting = nil
-            WindsurfDevinSessionImporter.importPreferredSessionsOverrideForTesting = nil
-            WindsurfDevinSessionImporter.importFallbackSessionsOverrideForTesting = nil
             WindsurfWebFetcherStubURLProtocol.requests = []
             WindsurfWebFetcherStubURLProtocol.handler = nil
         }
 
-        WindsurfDevinSessionImporter.importPreferredSessionsOverrideForTesting = { _, _ in
-            [
-                WindsurfDevinSessionImporter.SessionInfo(
-                    session: WindsurfDevinSessionAuth(
-                        sessionToken: "stale-chrome-token",
-                        auth1Token: "stale-auth1",
-                        accountID: "stale-account",
-                        primaryOrgID: "stale-org"),
-                    sourceLabel: "Chrome Default"),
-            ]
-        }
-        WindsurfDevinSessionImporter.importFallbackSessionsOverrideForTesting = { _, _ in
-            [
-                WindsurfDevinSessionImporter.SessionInfo(
-                    session: WindsurfDevinSessionAuth(
-                        sessionToken: "fresh-edge-token",
-                        auth1Token: "fresh-auth1",
-                        accountID: "fresh-account",
-                        primaryOrgID: "fresh-org"),
-                    sourceLabel: "Microsoft Edge Default"),
-            ]
-        }
+        let preferredSessions: (BrowserDetection, ((String) -> Void)?)
+            -> [WindsurfDevinSessionImporter.SessionInfo] = { _, _ in
+                [
+                    WindsurfDevinSessionImporter.SessionInfo(
+                        session: WindsurfDevinSessionAuth(
+                            sessionToken: "stale-chrome-token",
+                            auth1Token: "stale-auth1",
+                            accountID: "stale-account",
+                            primaryOrgID: "stale-org"),
+                        sourceLabel: "Chrome Default"),
+                ]
+            }
+        let fallbackSessions: (BrowserDetection, ((String) -> Void)?)
+            -> [WindsurfDevinSessionImporter.SessionInfo] = { _, _ in
+                [
+                    WindsurfDevinSessionImporter.SessionInfo(
+                        session: WindsurfDevinSessionAuth(
+                            sessionToken: "fresh-edge-token",
+                            auth1Token: "fresh-auth1",
+                            accountID: "fresh-account",
+                            primaryOrgID: "fresh-org"),
+                        sourceLabel: "Microsoft Edge Default"),
+                ]
+            }
 
         WindsurfWebFetcherStubURLProtocol.requests = []
         WindsurfWebFetcherStubURLProtocol.handler = { request in
@@ -209,51 +234,129 @@ struct WindsurfWebFetcherTests {
                 statusCode: 200)
         }
 
-        let snapshot = try await WindsurfWebFetcher.fetchUsage(
-            browserDetection: BrowserDetection(cacheTTL: 0),
-            cookieSource: .auto,
-            timeout: 2,
-            session: self.makeSession())
+        try await self.withWindsurfSessionOverrides(
+            preferredSessions: preferredSessions,
+            fallbackSessions: fallbackSessions)
+        {
+            let snapshot = try await WindsurfWebFetcher.fetchUsage(
+                browserDetection: BrowserDetection(cacheTTL: 0),
+                cookieSource: .auto,
+                timeout: 2,
+                session: self.makeSession())
 
-        #expect(WindsurfWebFetcherStubURLProtocol.requests.count == 2)
-        #expect(snapshot.identity?.loginMethod == "Teams")
-        #expect(snapshot.primary?.usedPercent == 36)
-        #expect(snapshot.secondary?.usedPercent == 20)
+            #expect(WindsurfWebFetcherStubURLProtocol.requests.count == 2)
+            #expect(snapshot.identity?.loginMethod == "Teams")
+            #expect(snapshot.primary?.usedPercent == 36)
+            #expect(snapshot.secondary?.usedPercent == 20)
+        }
+    }
+
+    @Test
+    func `auto import uses complete legacy origin when app origin is partial`() async throws {
+        defer {
+            WindsurfWebFetcherStubURLProtocol.requests = []
+            WindsurfWebFetcherStubURLProtocol.handler = nil
+        }
+
+        let appOrigin = try #require(URL(string: "https://app.devin.ai"))
+        let legacyOrigin = try #require(URL(string: "https://windsurf.com"))
+        let snapshots = WindsurfDevinSessionImporter.localStorageSnapshots(from: [
+            (
+                origin: appOrigin,
+                entries: [
+                    Self.localStorageEntry(origin: appOrigin, key: "devin_session_token", value: "app-session"),
+                    Self.localStorageEntry(origin: appOrigin, key: "devin_auth1_token", value: "app-auth1"),
+                ]),
+            (
+                origin: legacyOrigin,
+                entries: [
+                    Self.localStorageEntry(origin: legacyOrigin, key: "devin_session_token", value: "legacy-session"),
+                    Self.localStorageEntry(origin: legacyOrigin, key: "devin_auth1_token", value: "legacy-auth1"),
+                    Self.localStorageEntry(origin: legacyOrigin, key: "devin_account_id", value: "legacy-account"),
+                    Self.localStorageEntry(origin: legacyOrigin, key: "devin_primary_org_id", value: "legacy-org"),
+                ]),
+        ])
+
+        let sessionInfos = snapshots.compactMap { snapshot in
+            WindsurfDevinSessionImporter.session(
+                from: snapshot.storage,
+                sourceLabel: "Chrome Default (\(snapshot.sourceSuffix ?? "unknown"))")
+        }
+        WindsurfWebFetcherStubURLProtocol.requests = []
+        WindsurfWebFetcherStubURLProtocol.handler = { request in
+            let url = try #require(request.url)
+            #expect(request.value(forHTTPHeaderField: "x-devin-session-token") == "legacy-session")
+            #expect(request.value(forHTTPHeaderField: "x-devin-auth1-token") == "legacy-auth1")
+            #expect(request.value(forHTTPHeaderField: "x-devin-account-id") == "legacy-account")
+            #expect(request.value(forHTTPHeaderField: "x-devin-primary-org-id") == "legacy-org")
+
+            let body = try WindsurfPlanStatusProtoCodec.decodeRequest(Self.requestBodyData(from: request))
+            #expect(body.authToken == "legacy-session")
+
+            return Self.makeResponse(
+                url: url,
+                body: Self.makePlanStatusResponse(ResponseFixture(
+                    planName: "Pro",
+                    dailyRemaining: 70,
+                    weeklyRemaining: 85,
+                    planEndUnix: 1_777_888_000,
+                    dailyResetUnix: 1_777_900_000,
+                    weeklyResetUnix: 1_778_000_000)),
+                contentType: "application/proto",
+                statusCode: 200)
+        }
+
+        try await self.withWindsurfSessionOverrides(
+            preferredSessions: { _, _ in sessionInfos },
+            operation: {
+                let snapshot = try await WindsurfWebFetcher.fetchUsage(
+                    browserDetection: BrowserDetection(cacheTTL: 0),
+                    cookieSource: .auto,
+                    timeout: 2,
+                    session: self.makeSession())
+
+                #expect(snapshots.count == 1)
+                #expect(sessionInfos.map(\.sourceLabel) == ["Chrome Default (windsurf.com)"])
+                #expect(WindsurfWebFetcherStubURLProtocol.requests.count == 1)
+                #expect(snapshot.identity?.loginMethod == "Pro")
+                #expect(snapshot.primary?.usedPercent == 30)
+                #expect(snapshot.secondary?.usedPercent == 15)
+            })
     }
 
     @Test
     func `manual mode with empty session does not fall back to imported session`() async {
         defer {
-            WindsurfDevinSessionImporter.importSessionsOverrideForTesting = nil
-            WindsurfDevinSessionImporter.importPreferredSessionsOverrideForTesting = nil
-            WindsurfDevinSessionImporter.importFallbackSessionsOverrideForTesting = nil
             WindsurfWebFetcherStubURLProtocol.requests = []
             WindsurfWebFetcherStubURLProtocol.handler = nil
         }
 
-        WindsurfDevinSessionImporter.importSessionsOverrideForTesting = { _, _ in
-            [
-                WindsurfDevinSessionImporter.SessionInfo(
-                    session: WindsurfDevinSessionAuth(
-                        sessionToken: "auto-token",
-                        auth1Token: "auto-auth1",
-                        accountID: "auto-account",
-                        primaryOrgID: "auto-org"),
-                    sourceLabel: "Chrome Default"),
-            ]
-        }
+        let importedSessions: (BrowserDetection, ((String) -> Void)?)
+            -> [WindsurfDevinSessionImporter.SessionInfo] = { _, _ in
+                [
+                    WindsurfDevinSessionImporter.SessionInfo(
+                        session: WindsurfDevinSessionAuth(
+                            sessionToken: "auto-token",
+                            auth1Token: "auto-auth1",
+                            accountID: "auto-account",
+                            primaryOrgID: "auto-org"),
+                        sourceLabel: "Chrome Default"),
+                ]
+            }
         WindsurfWebFetcherStubURLProtocol.requests = []
 
-        await #expect {
-            _ = try await WindsurfWebFetcher.fetchUsage(
-                browserDetection: BrowserDetection(cacheTTL: 0),
-                cookieSource: .manual,
-                manualSessionInput: "   \n",
-                timeout: 2,
-                session: self.makeSession())
-        } throws: { error in
-            guard case let WindsurfWebFetcherError.invalidManualSession(message) = error else { return false }
-            return message == "empty input"
+        _ = await self.withWindsurfSessionOverrides(importSessions: importedSessions) {
+            await #expect {
+                _ = try await WindsurfWebFetcher.fetchUsage(
+                    browserDetection: BrowserDetection(cacheTTL: 0),
+                    cookieSource: .manual,
+                    manualSessionInput: "   \n",
+                    timeout: 2,
+                    session: self.makeSession())
+            } throws: { error in
+                guard case let WindsurfWebFetcherError.invalidManualSession(message) = error else { return false }
+                return message == "empty input"
+            }
         }
         #expect(WindsurfWebFetcherStubURLProtocol.requests.isEmpty)
     }
@@ -439,11 +542,23 @@ struct WindsurfWebFetcherTests {
         data.append(UInt8(remaining))
         return data
     }
+
+    private static func localStorageEntry(origin: URL, key: String, value: String) -> ChromiumLocalStorageEntry {
+        ChromiumLocalStorageEntry(
+            origin: origin.absoluteString,
+            key: key,
+            value: value,
+            rawValueLength: value.utf8.count)
+    }
 }
 
 final class WindsurfWebFetcherStubURLProtocol: URLProtocol {
     nonisolated(unsafe) static var requests: [URLRequest] = []
-    nonisolated(unsafe) static var handler: (@Sendable (URLRequest) throws -> (HTTPURLResponse, Data))?
+    private static let _handlerBox = LockIsolated<(@Sendable (URLRequest) throws -> (HTTPURLResponse, Data))?>(nil)
+    static var handler: (@Sendable (URLRequest) throws -> (HTTPURLResponse, Data))? {
+        get { Self._handlerBox.value }
+        set { Self._handlerBox.setValue(newValue) }
+    }
 
     override static func canInit(with _: URLRequest) -> Bool {
         true

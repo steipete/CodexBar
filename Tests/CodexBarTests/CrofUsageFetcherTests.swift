@@ -1,120 +1,92 @@
+#if canImport(JavaScriptCore)
 import Foundation
 import Testing
 @testable import CodexBarCore
 
-@Suite(.serialized)
-struct CrofUsageFetcherTests {
+struct CrofPluginGoldenTests {
     @Test
-    func `usage URL points at public usage API`() {
-        #expect(CrofUsageFetcher.usageURL.absoluteString == "https://crof.ai/usage_api/")
+    func `credits-only fixture matches the production golden`() async throws {
+        let json = """
+        {
+          "credits":9.0441,
+          "requests_plan":null,
+          "usable_requests":null,
+          "usage":{
+            "deepseek-v4-flash":{
+              "cached_tokens":0,
+              "input_tokens":23,
+              "output_tokens":132,
+              "total_tokens":155
+            }
+          }
+        }
+        """
+        let snapshot = try await Self.fetch(json)
+
+        #expect(snapshot.primary == RateWindow(
+            usedPercent: 0,
+            windowMinutes: nil,
+            resetsAt: nil,
+            resetDescription: "$9.04"))
+        #expect(snapshot.secondary == nil)
+        #expect(snapshot.identity?.providerID == .crof)
+        #expect(snapshot.identity?.loginMethod == "API key")
     }
 
     @Test
-    func `usage response parses credits and request quota`() throws {
+    func `request-quota fixture matches the production golden`() async throws {
         let json = """
         {"credits":10.0,"requests_plan":1000,"usable_requests":998}
         """
+        let now = Date(timeIntervalSince1970: 1_777_800_000)
+        let fetchStartedAt = Date()
+        let snapshot = try await Self.fetch(json, now: now)
 
-        let snapshot = try CrofUsageFetcher._parseSnapshotForTesting(Data(json.utf8))
-
-        #expect(snapshot.credits == 10)
-        #expect(snapshot.requestsPlan == 1000)
-        #expect(snapshot.usableRequests == 998)
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(identifier: "America/Chicago"))
+        let reset = try #require(calendar.date(
+            byAdding: .day,
+            value: 1,
+            to: calendar.startOfDay(for: fetchStartedAt)))
+        #expect(snapshot.primary == RateWindow(
+            usedPercent: 1,
+            windowMinutes: 1440,
+            resetsAt: reset,
+            resetDescription: "998 requests left"))
+        #expect(snapshot.secondary == RateWindow(
+            usedPercent: 0,
+            windowMinutes: nil,
+            resetsAt: nil,
+            resetDescription: "$10.00"))
     }
 
     @Test
-    func `usage snapshot maps usable requests to remaining quota`() {
-        let snapshot = CrofUsageSnapshot(
-            credits: 10,
-            requestsPlan: 1000,
-            usableRequests: 998,
-            updatedAt: Date(timeIntervalSince1970: 1_777_800_000))
+    func `credit balance formatting and depletion match the production goldens`() async throws {
+        let funded = try await Self.fetch(#"{"credits":9.9999,"requests_plan":null,"usable_requests":null}"#)
+        let depleted = try await Self.fetch(#"{"credits":0,"requests_plan":null,"usable_requests":null}"#)
 
-        let usage = snapshot.toUsageSnapshot()
-
-        #expect(usage.primary?.usedPercent == 1)
-        #expect(usage.primary?.windowMinutes == 1440)
-        #expect(usage.primary?.resetDescription == "998 requests left")
-        #expect(usage.secondary?.usedPercent == 0)
-        #expect(usage.secondary?.resetDescription == "$10.00")
-        #expect(usage.identity?.providerID == .crof)
-        #expect(usage.identity?.loginMethod == "API key")
+        #expect(funded.primary?.usedPercent == 0)
+        #expect(funded.primary?.resetDescription == "$9.99")
+        #expect(depleted.primary?.usedPercent == 100)
+        #expect(depleted.primary?.resetDescription == "$0.00")
     }
 
     @Test
-    func `usage snapshot floors credit balance to cents`() {
-        let snapshot = CrofUsageSnapshot(
-            credits: 9.9999,
-            requestsPlan: 1000,
-            usableRequests: 998)
-
-        #expect(snapshot.toUsageSnapshot().secondary?.resetDescription == "$9.99")
-    }
-
-    @Test
-    func `usage snapshot resets requests at next America Chicago midnight`() throws {
-        var utc = Calendar(identifier: .gregorian)
-        utc.timeZone = try #require(TimeZone(secondsFromGMT: 0))
-        let updatedAt = try #require(utc.date(from: DateComponents(
-            year: 2026,
-            month: 5,
-            day: 8,
-            hour: 18,
-            minute: 30)))
-        let expectedReset = try #require(utc.date(from: DateComponents(
-            year: 2026,
-            month: 5,
-            day: 9,
-            hour: 5)))
-        let snapshot = CrofUsageSnapshot(
-            credits: 10,
-            requestsPlan: 1000,
-            usableRequests: 998,
-            updatedAt: updatedAt)
-
-        #expect(snapshot.toUsageSnapshot().primary?.resetsAt == expectedReset)
-    }
-
-    @Test
-    func `usage snapshot clamps overreported usable requests`() {
-        let snapshot = CrofUsageSnapshot(
-            credits: 0,
-            requestsPlan: 1000,
-            usableRequests: 1200)
-
-        #expect(snapshot.toUsageSnapshot().primary?.usedPercent == 0)
-    }
-
-    @Test
-    func `usage snapshot treats zero plan as exhausted`() {
-        let snapshot = CrofUsageSnapshot(
-            credits: 0,
-            requestsPlan: 0,
-            usableRequests: 0)
-
-        #expect(snapshot.toUsageSnapshot().primary?.usedPercent == 100)
-    }
-
-    @Test
-    func `fetch sends bearer token`() async throws {
-        defer {
-            CrofStubURLProtocol.handler = nil
-            CrofStubURLProtocol.requests = []
-        }
-        CrofStubURLProtocol.requests = []
-        CrofStubURLProtocol.handler = { request in
-            guard let url = request.url else { throw URLError(.badURL) }
+    func `plugin request uses the public endpoint and bearer token`() async throws {
+        let transport = ProviderHTTPTransportHandler { request in
+            #expect(request.url?.absoluteString == "https://crof.ai/usage_api/")
+            #expect(request.httpMethod == "GET")
             #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer crof-test")
             #expect(request.value(forHTTPHeaderField: "Accept") == "application/json")
-            return try Self.makeResponse(
-                url: url,
-                body: #"{"credits":10.0,"requests_plan":1000,"usable_requests":998}"#)
+            return try Self.response(
+                request: request,
+                body: #"{"credits":9.0441,"requests_plan":null,"usable_requests":null,"usage":{}}"#)
         }
+        let runtime = try ProviderPluginRuntime(bundledPlugin: "crof", transport: transport)
 
-        let snapshot = try await CrofUsageFetcher.fetchUsage(apiKey: "crof-test", session: Self.makeSession())
+        let snapshot = try await runtime.fetchUsage(secrets: ["CROF_API_KEY": "crof-test"])
 
-        #expect(snapshot.usableRequests == 998)
-        #expect(CrofStubURLProtocol.requests.map(\.url?.absoluteString) == ["https://crof.ai/usage_api/"])
+        #expect(snapshot.primary?.resetDescription == "$9.04")
     }
 
     @Test
@@ -122,115 +94,92 @@ struct CrofUsageFetcherTests {
         let descriptor = ProviderDescriptorRegistry.descriptor(for: .crof)
         #expect(descriptor.metadata.displayName == "Crof")
         #expect(descriptor.metadata.dashboardURL == "https://crof.ai/dashboard")
+        #expect(descriptor.metadata.sessionLabel == "Credits")
         #expect(descriptor.fetchPlan.sourceModes == [.auto, .api])
         #expect(descriptor.branding.iconResourceName == "ProviderIcon-crof")
     }
 
     @Test
-    func `settings reader uses CROF_API_KEY`() {
-        let token = CrofSettingsReader.apiKey(environment: [
-            CrofSettingsReader.apiKeyEnvironmentKeys[0]: "  crof-token  ",
-        ])
-
-        #expect(token == "crof-token")
-    }
-
-    @Test
-    func `token resolver uses crof environment token`() {
-        let env = [CrofSettingsReader.apiKeyEnvironmentKeys[0]: "crof-token"]
-        let resolution = ProviderTokenResolver.crofResolution(environment: env)
-
-        #expect(resolution?.token == "crof-token")
-        #expect(resolution?.source == .environment)
-    }
-
-    @Test
-    func `config API key override feeds crof environment`() {
-        let config = ProviderConfig(id: .crof, apiKey: "config-token")
-        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
-            base: [:],
-            provider: .crof,
-            config: config)
-
-        #expect(env[CrofSettingsReader.apiKeyEnvironmentKeys[0]] == "config-token")
-        #expect(ProviderTokenResolver.crofToken(environment: env) == "config-token")
-    }
-
-    @Test
-    func `config API key leaves existing crof environment token alone`() {
+    func `settings and credential adapter preserve Crof precedence`() {
         let key = CrofSettingsReader.apiKeyEnvironmentKeys[0]
+        #expect(CrofSettingsReader.apiKey(environment: [key: "  crof-token  "]) == "crof-token")
+        #expect(ProviderTokenResolver.resolution(for: .crof, environment: [key: "crof-token"])?.token == "crof-token")
+
         let config = ProviderConfig(id: .crof, apiKey: "config-token")
-        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+        let configured = ProviderConfigEnvironment.applyAPIKeyOverride(base: [:], provider: .crof, config: config)
+        #expect(configured[key] == "config-token")
+        let overridden = ProviderConfigEnvironment.applyAPIKeyOverride(
             base: [key: "env-token"],
             provider: .crof,
             config: config)
-
-        #expect(env[key] == "env-token")
-        #expect(ProviderTokenResolver.crofToken(environment: env) == "env-token")
+        #expect(overridden[key] == "env-token")
     }
 
-    @Test
-    func `missing credentials fetch call throws missing credentials`() async {
-        do {
-            _ = try await CrofUsageFetcher.fetchUsage(apiKey: "   ")
-            Issue.record("Expected missingCredentials error")
-        } catch let error as CrofUsageError {
-            #expect(error == .missingCredentials)
-        } catch {
-            Issue.record("Unexpected error: \(error)")
-        }
-    }
-
-    private static func makeSession() -> URLSession {
-        let config = URLSessionConfiguration.ephemeral
-        config.protocolClasses = [CrofStubURLProtocol.self]
-        return URLSession(configuration: config)
-    }
-
-    private static func makeResponse(
-        url: URL,
-        body: String,
-        statusCode: Int = 200) throws -> (HTTPURLResponse, Data)
+    private static func fetch(
+        _ body: String,
+        now: Date = Date(timeIntervalSince1970: 1_800_000_000)) async throws -> UsageSnapshot
     {
-        guard let response = HTTPURLResponse(
+        let runtime = try ProviderPluginRuntime(
+            bundledPlugin: "crof",
+            transport: ProviderHTTPTransportHandler { request in
+                try Self.response(request: request, body: body)
+            })
+        return try await runtime.fetchUsage(secrets: ["CROF_API_KEY": "fixture-key"], now: now)
+    }
+
+    private static func response(request: URLRequest, body: String) throws -> (Data, URLResponse) {
+        let url = try #require(request.url)
+        let response = try #require(HTTPURLResponse(
             url: url,
-            statusCode: statusCode,
+            statusCode: 200,
             httpVersion: nil,
-            headerFields: ["Content-Type": "application/json"])
-        else {
-            throw URLError(.badServerResponse)
-        }
-        return (response, Data(body.utf8))
+            headerFields: ["Content-Type": "application/json"]))
+        return (Data(body.utf8), response)
     }
 }
 
-final class CrofStubURLProtocol: URLProtocol {
-    nonisolated(unsafe) static var handler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
-    nonisolated(unsafe) static var requests: [URLRequest] = []
-
-    override static func canInit(with request: URLRequest) -> Bool {
-        request.url?.host == "crof.ai"
+enum CrofTestSnapshots {
+    static func credits(_ amount: Double, updatedAt: Date = Date()) -> UsageSnapshot {
+        UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: amount > 0 ? 0 : 100,
+                windowMinutes: nil,
+                resetsAt: nil,
+                resetDescription: String(format: "$%.2f", floor(max(0, amount) * 100) / 100)),
+            secondary: nil,
+            tertiary: nil,
+            providerCost: nil,
+            updatedAt: updatedAt,
+            identity: ProviderIdentitySnapshot(
+                providerID: .crof,
+                accountEmail: nil,
+                accountOrganization: nil,
+                loginMethod: "API key"))
     }
 
-    override static func canonicalRequest(for request: URLRequest) -> URLRequest {
-        request
+    static func requestQuota(
+        credits: Double,
+        plan: Double,
+        remaining: Double,
+        updatedAt: Date = Date()) -> UsageSnapshot
+    {
+        let clamped = max(0, min(plan, remaining))
+        let remainingPercent = plan > 0 ? floor(clamped / plan * 100) : 0
+        return UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 100 - remainingPercent,
+                windowMinutes: 1440,
+                resetsAt: updatedAt.addingTimeInterval(86400),
+                resetDescription: "\(Int(max(0, remaining))) requests left"),
+            secondary: self.credits(credits, updatedAt: updatedAt).primary,
+            tertiary: nil,
+            providerCost: nil,
+            updatedAt: updatedAt,
+            identity: ProviderIdentitySnapshot(
+                providerID: .crof,
+                accountEmail: nil,
+                accountOrganization: nil,
+                loginMethod: "API key"))
     }
-
-    override func startLoading() {
-        Self.requests.append(self.request)
-        guard let handler = Self.handler else {
-            self.client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
-            return
-        }
-        do {
-            let (response, data) = try handler(self.request)
-            self.client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-            self.client?.urlProtocol(self, didLoad: data)
-            self.client?.urlProtocolDidFinishLoading(self)
-        } catch {
-            self.client?.urlProtocol(self, didFailWithError: error)
-        }
-    }
-
-    override func stopLoading() {}
 }
+#endif

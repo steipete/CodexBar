@@ -9,100 +9,51 @@ enum ProviderChoice: String, AppEnum {
     case gemini
     case alibaba
     case alibabatokenplan
+    case qwencloud
     case antigravity
+    case cursor
     case zai
     case copilot
+    case devin
     case minimax
     case kilo
     case opencode
     case opencodego
+    case mistral
+    case kimi
 
     static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Provider")
 
+    /// AppIntents extracts this metadata statically; it must stay a literal, exhaustive
+    /// dictionary. WidgetProviderChoiceTests pins these titles to the descriptor registry.
+    /// Provider-specific by design: AppIntents requires a compile-time provider display inventory.
     static let caseDisplayRepresentations: [ProviderChoice: DisplayRepresentation] = [
         .codex: DisplayRepresentation(title: "Codex"),
         .claude: DisplayRepresentation(title: "Claude"),
         .gemini: DisplayRepresentation(title: "Gemini"),
         .alibaba: DisplayRepresentation(title: "Alibaba"),
         .alibabatokenplan: DisplayRepresentation(title: "Alibaba Token Plan"),
+        .qwencloud: DisplayRepresentation(title: "Qwen Cloud"),
         .antigravity: DisplayRepresentation(title: "Antigravity"),
-        .zai: DisplayRepresentation(title: "z.ai"),
+        .cursor: DisplayRepresentation(title: "Cursor"),
+        .zai: DisplayRepresentation(title: "z.ai / GLM"),
         .copilot: DisplayRepresentation(title: "Copilot"),
+        .devin: DisplayRepresentation(title: "Devin"),
         .minimax: DisplayRepresentation(title: "MiniMax"),
         .kilo: DisplayRepresentation(title: "Kilo"),
         .opencode: DisplayRepresentation(title: "OpenCode"),
         .opencodego: DisplayRepresentation(title: "OpenCode Go"),
+        .mistral: DisplayRepresentation(title: "Mistral"),
+        .kimi: DisplayRepresentation(title: "Kimi Code"),
     ]
 
     var provider: UsageProvider {
-        switch self {
-        case .codex: .codex
-        case .claude: .claude
-        case .gemini: .gemini
-        case .alibaba: .alibaba
-        case .alibabatokenplan: .alibabatokenplan
-        case .antigravity: .antigravity
-        case .zai: .zai
-        case .copilot: .copilot
-        case .minimax: .minimax
-        case .kilo: .kilo
-        case .opencode: .opencode
-        case .opencodego: .opencodego
-        }
+        UsageProvider(rawValue: self.rawValue)!
     }
 
-    // swiftlint:disable:next cyclomatic_complexity
     init?(provider: UsageProvider) {
-        switch provider {
-        case .codex: self = .codex
-        case .openai: return nil // OpenAI not yet supported in widgets
-        case .azureopenai: return nil // Azure OpenAI not yet supported in widgets
-        case .claude: self = .claude
-        case .gemini: self = .gemini
-        case .alibaba: self = .alibaba
-        case .alibabatokenplan: self = .alibabatokenplan
-        case .antigravity: self = .antigravity
-        case .cursor: return nil // Cursor not yet supported in widgets
-        case .opencode: self = .opencode
-        case .opencodego: self = .opencodego
-        case .zai: self = .zai
-        case .factory: return nil // Factory not yet supported in widgets
-        case .copilot: self = .copilot
-        case .minimax: self = .minimax
-        case .manus: return nil // Manus not yet supported in widgets
-        case .vertexai: return nil // Vertex AI not yet supported in widgets
-        case .kilo: self = .kilo
-        case .kiro: return nil // Kiro not yet supported in widgets
-        case .augment: return nil // Augment not yet supported in widgets
-        case .jetbrains: return nil // JetBrains not yet supported in widgets
-        case .kimi: return nil // Kimi not yet supported in widgets
-        case .kimik2: return nil // Kimi K2 not yet supported in widgets
-        case .moonshot: return nil // Moonshot not yet supported in widgets
-        case .amp: return nil // Amp not yet supported in widgets
-        case .t3chat: return nil // T3 Chat not yet supported in widgets
-        case .ollama: return nil // Ollama not yet supported in widgets
-        case .synthetic: return nil // Synthetic not yet supported in widgets
-        case .openrouter: return nil // OpenRouter not yet supported in widgets
-        case .elevenlabs: return nil // ElevenLabs not yet supported in widgets
-        case .warp: return nil // Warp not yet supported in widgets
-        case .windsurf: return nil // Windsurf not yet supported in widgets
-        case .perplexity: return nil // Perplexity not yet supported in widgets
-        case .mimo: return nil // Xiaomi MiMo not yet supported in widgets
-        case .doubao: return nil // Doubao not yet supported in widgets
-        case .abacus: return nil // Abacus AI not yet supported in widgets
-        case .mistral: return nil // Mistral not yet supported in widgets
-        case .deepseek: return nil // DeepSeek not yet supported in widgets
-        case .codebuff: return nil // Codebuff not yet supported in widgets
-        case .crof: return nil // Crof not yet supported in widgets
-        case .venice: return nil // Venice not yet supported in widgets
-        case .commandcode: return nil // CommandCode not yet supported in widgets
-        case .stepfun: return nil // StepFun not yet supported in widgets
-        case .bedrock: return nil // Bedrock not yet supported in widgets
-        case .grok: return nil // Grok not yet supported in widgets
-        case .groq: return nil // Groq not yet supported in widgets
-        case .llmproxy: return nil // LLM Proxy not yet supported in widgets
-        case .deepgram: return nil // Deepgram not yet supported in widgets
-        }
+        guard ProviderDescriptorRegistry.descriptor(for: provider).metadata.widgetSelectable else { return nil }
+        self.init(rawValue: provider.rawValue)
     }
 }
 
@@ -210,8 +161,9 @@ struct CodexBarTimelineProvider: AppIntentTimelineProvider {
     {
         let provider = configuration.provider.provider
         let snapshot = WidgetSnapshotStore.load() ?? WidgetPreviewData.emptySnapshot()
-        let entry = CodexBarWidgetEntry(date: Date(), provider: provider, snapshot: snapshot)
-        let refresh = Date().addingTimeInterval(30 * 60)
+        let now = Date()
+        let entry = CodexBarWidgetEntry(date: now, provider: provider, snapshot: snapshot)
+        let refresh = BurnDownRefreshSchedule.nextRefresh(snapshot: snapshot, provider: provider, now: now)
         return Timeline(entries: [entry], policy: .after(refresh))
     }
 }
@@ -233,7 +185,10 @@ struct CodexBarSwitcherTimelineProvider: TimelineProvider {
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<CodexBarSwitcherEntry>) -> Void) {
         let entry = self.makeEntry()
-        let refresh = Date().addingTimeInterval(30 * 60)
+        let refresh = BurnDownRefreshSchedule.nextRefresh(
+            snapshot: entry.snapshot,
+            provider: entry.provider,
+            now: entry.date)
         completion(Timeline(entries: [entry], policy: .after(refresh)))
     }
 
@@ -241,8 +196,8 @@ struct CodexBarSwitcherTimelineProvider: TimelineProvider {
         let snapshot = WidgetSnapshotStore.load() ?? WidgetPreviewData.emptySnapshot()
         let providers = self.availableProviders(from: snapshot)
         let stored = WidgetSelectionStore.loadSelectedProvider()
-        let selected = providers.first { $0 == stored } ?? providers.first ?? .codex
-        if selected != stored {
+        let selected = providers.first { $0.instanceID == stored } ?? providers.first ?? .codex
+        if selected.instanceID != stored {
             WidgetSelectionStore.saveSelectedProvider(selected)
         }
         return CodexBarSwitcherEntry(
@@ -258,8 +213,13 @@ struct CodexBarSwitcherTimelineProvider: TimelineProvider {
 
     static func supportedProviders(from snapshot: WidgetSnapshot) -> [UsageProvider] {
         let enabled = snapshot.enabledProviders
-        let providers = enabled.isEmpty ? snapshot.entries.map(\.provider) : enabled
-        let supported = providers.filter { ProviderChoice(provider: $0) != nil }
+        let instanceIDs = enabled.isEmpty ? snapshot.entries.map(\.provider) : enabled
+        let supported = instanceIDs.compactMap { instanceID -> UsageProvider? in
+            guard let provider = instanceID.firstPartyProvider, ProviderChoice(provider: provider) != nil else {
+                return nil
+            }
+            return provider
+        }
         return supported.isEmpty ? [.codex] : supported
     }
 }
@@ -306,8 +266,12 @@ enum WidgetPreviewData {
     }
 
     static func snapshot() -> WidgetSnapshot {
-        let primary = RateWindow(usedPercent: 35, windowMinutes: nil, resetsAt: nil, resetDescription: "Resets in 4h")
-        let secondary = RateWindow(usedPercent: 60, windowMinutes: nil, resetsAt: nil, resetDescription: "Resets in 3d")
+        let primary = RateWindow(usedPercent: 35, windowMinutes: 300, resetsAt: nil, resetDescription: "Resets in 4h")
+        let secondary = RateWindow(
+            usedPercent: 60,
+            windowMinutes: 10080,
+            resetsAt: nil,
+            resetDescription: "Resets in 3d")
         let entry = WidgetSnapshot.ProviderEntry(
             provider: .codex,
             updatedAt: Date(),

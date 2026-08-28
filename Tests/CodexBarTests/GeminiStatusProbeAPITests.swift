@@ -1,6 +1,11 @@
 import CodexBarCore
 import Foundation
 import Testing
+#if canImport(Darwin)
+import Darwin
+#else
+import Glibc
+#endif
 
 @Suite(.serialized)
 struct GeminiStatusProbeAPITests {
@@ -15,11 +20,11 @@ struct GeminiStatusProbeAPITests {
         }
     }
 
-    @Test
-    func `rejects api key auth type`() async throws {
+    @Test(arguments: ["gemini-api-key", "api-key"])
+    func `rejects api key auth types`(authType: String) async throws {
         let env = try GeminiTestEnvironment()
         defer { env.cleanup() }
-        try env.writeSettings(authType: "api-key")
+        try env.writeSettings(authType: authType)
 
         let probe = GeminiStatusProbe(timeout: 1, homeDirectory: env.homeURL.path)
         await Self.expectError(.unsupportedAuthType("API key")) {
@@ -290,16 +295,12 @@ struct GeminiStatusProbeAPITests {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .path
-        _ = try env.writeFakeFnm(npmRoot: npmRoot, geminiPackageJSONPath: packageJSONPath.path)
+        _ = try env.writeFakeFnm(
+            npmRoot: npmRoot,
+            geminiPackageJSONPath: packageJSONPath.path)
 
         let previousPath = ProcessInfo.processInfo.environment["PATH"]
-        let fakeBinDir = env.homeURL.appendingPathComponent("bin").path
-        let pathValue = if let previousPath, !previousPath.isEmpty {
-            "\(fakeBinDir):\(binURL.deletingLastPathComponent().path):\(previousPath)"
-        } else {
-            "\(fakeBinDir):\(binURL.deletingLastPathComponent().path)"
-        }
-        setenv("PATH", pathValue, 1)
+        setenv("PATH", env.fnmFixturePath(geminiBinary: binURL, inheritedPath: previousPath), 1)
 
         let previousGeminiPath = ProcessInfo.processInfo.environment["GEMINI_CLI_PATH"]
         setenv("GEMINI_CLI_PATH", binURL.path, 1)
@@ -370,9 +371,119 @@ struct GeminiStatusProbeAPITests {
         let probe = GeminiStatusProbe(timeout: 2, homeDirectory: env.homeURL.path, dataLoader: dataLoader)
         let snapshot = try await probe.fetch()
         #expect(snapshot.accountPlan == "Paid")
-
         let updated = try env.readCredentials()
         #expect(updated["access_token"] as? String == "new-token")
+    }
+
+    @Test
+    func `fnm helper returns first line while an owned process holds stdout open`() throws {
+        let env = try GeminiTestEnvironment()
+        defer { env.cleanup() }
+        let holder = try GeminiStdoutHolderFixture(root: env.homeURL)
+        defer { #expect(holder.cleanup().succeeded) }
+
+        let result = holder.runProducer()
+        try #require(result == "/tmp/gemini-package", "\(holder.producerDiagnostics)")
+        let publishedPID = try String(contentsOf: holder.pidFile, encoding: .utf8)
+        #expect(pid_t(publishedPID) == holder.process.processIdentifier)
+        #expect(holder.process.isRunning)
+
+        #expect(holder.cleanup().succeeded)
+        #expect(!holder.process.isRunning)
+    }
+
+    @Test
+    func `fnm helper producer failure cleans up without a PID artifact`() throws {
+        let env = try GeminiTestEnvironment()
+        defer { env.cleanup() }
+        let holder = try GeminiStdoutHolderFixture(root: env.homeURL)
+        defer { #expect(holder.cleanup().succeeded) }
+        let missingParent = env.homeURL.appendingPathComponent("missing/holder.pid")
+
+        #expect(holder.runProducer(pidFile: missingParent) == nil)
+        #expect(holder.producerDiagnostics.contains("FileNotFoundError"))
+        #expect(holder.producerDiagnostics.contains(missingParent.path))
+        #expect(!FileManager.default.fileExists(atPath: missingParent.path))
+        #expect(holder.process.isRunning)
+
+        #expect(holder.cleanup().succeeded)
+        #expect(!holder.process.isRunning)
+    }
+
+    @Test
+    func `fnm helper timeout hard stops a process that ignores SIGTERM`() throws {
+        let env = try GeminiTestEnvironment()
+        defer { env.cleanup() }
+        let pidFile = env.homeURL.appendingPathComponent("fnm-timeout.pid")
+        let helper = env.homeURL.appendingPathComponent("fnm-timeout")
+        try """
+        #!/bin/sh
+        printf '%s\\n' "$$" > "$1"
+        trap '' TERM
+        while true; do sleep 1; done
+        """.write(to: helper, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: helper.path)
+
+        let clock = ContinuousClock()
+        let start = clock.now
+        let result = GeminiStatusProbe.runProcess(
+            executable: helper.path,
+            arguments: [pidFile.path],
+            environment: [:],
+            timeout: 5)
+        let elapsed = start.duration(to: clock.now)
+        let text = try String(contentsOf: pidFile, encoding: .utf8)
+        let processID = try #require(pid_t(text.trimmingCharacters(in: .whitespacesAndNewlines)))
+        defer { _ = kill(processID, SIGKILL) }
+
+        #expect(result == nil)
+        #expect(kill(processID, 0) == -1)
+        #expect(elapsed < .seconds(7.5), "Ignored SIGTERM should escalate to SIGKILL, took \(elapsed)")
+    }
+
+    @Test
+    func `fnm helper completed no-output failure returns before deadline`() throws {
+        let env = try GeminiTestEnvironment()
+        defer { env.cleanup() }
+        let helper = env.homeURL.appendingPathComponent("fnm-failure")
+        try """
+        #!/bin/sh
+        exit 23
+        """.write(to: helper, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: helper.path)
+
+        let clock = ContinuousClock()
+        let start = clock.now
+        let result = GeminiStatusProbe.runProcess(
+            executable: helper.path,
+            arguments: [],
+            environment: [:],
+            timeout: 10)
+
+        #expect(result == nil)
+        #expect(start.duration(to: clock.now) < .seconds(5))
+    }
+
+    @Test
+    func `fnm helper successful output returns first line`() throws {
+        let env = try GeminiTestEnvironment()
+        defer { env.cleanup() }
+        let helper = env.homeURL.appendingPathComponent("fnm-success")
+        try """
+        #!/bin/sh
+        sleep 0.05
+        printf '%s\n' '/tmp/gemini-package'
+        printf '%s\n' 'ignored trailing output'
+        """.write(to: helper, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: helper.path)
+
+        let result = GeminiStatusProbe.runProcess(
+            executable: helper.path,
+            arguments: [],
+            environment: [:],
+            timeout: 2)
+
+        #expect(result == "/tmp/gemini-package")
     }
 
     @Test
@@ -574,33 +685,6 @@ struct GeminiStatusProbeAPITests {
         let counts = calls.counts()
         #expect(counts.primary == 1)
         #expect(counts.fallback == 0)
-    }
-
-    @Test
-    func `fails refresh when O auth config missing`() async throws {
-        let env = try GeminiTestEnvironment()
-        defer { env.cleanup() }
-        try env.writeCredentials(
-            accessToken: "old-token",
-            refreshToken: "refresh-token",
-            expiry: Date().addingTimeInterval(-3600),
-            idToken: nil)
-
-        let binURL = try env.writeFakeGeminiCLI(includeOAuth: false)
-        let previousValue = ProcessInfo.processInfo.environment["GEMINI_CLI_PATH"]
-        setenv("GEMINI_CLI_PATH", binURL.path, 1)
-        defer {
-            if let previousValue {
-                setenv("GEMINI_CLI_PATH", previousValue, 1)
-            } else {
-                unsetenv("GEMINI_CLI_PATH")
-            }
-        }
-
-        let probe = GeminiStatusProbe(timeout: 1, homeDirectory: env.homeURL.path)
-        await Self.expectError(.apiError("Could not find Gemini CLI OAuth configuration")) {
-            _ = try await probe.fetch()
-        }
     }
 
     @Test

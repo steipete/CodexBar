@@ -1,19 +1,28 @@
-import CodexBarMacroSupport
 import Foundation
 
 #if os(macOS)
 import SweetCookieKit
 #endif
 
-@ProviderDescriptorRegistration
-@ProviderDescriptorDefinition
 public enum AbacusProviderDescriptor {
+    public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+    private static let credentials = ProviderCredentialAdapter(tokenAccountSupport: TokenAccountSupport(
+        title: "Session tokens",
+        subtitle: "Store multiple Abacus AI Cookie headers.",
+        placeholder: "Cookie: …",
+        injection: .cookieHeader,
+        requiresManualCookieSource: true,
+        cookieName: nil))
+
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .abacus,
+            settingsSection: .init(AbacusProviderSettingsKey.self, cookieSettings: AbacusProviderSettings.self),
+            credentials: self.credentials,
             metadata: ProviderMetadata(
                 id: .abacus,
                 displayName: "Abacus AI",
+                shortDisplayName: "Abacus",
                 sessionLabel: "Credits",
                 weeklyLabel: "Weekly",
                 opusLabel: nil,
@@ -23,19 +32,31 @@ public enum AbacusProviderDescriptor {
                 toggleTitle: "Show Abacus AI usage",
                 cliName: "abacusai",
                 defaultEnabled: false,
+                widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
+                sharePlanLabels: ["basic": "Basic", "pro": "Pro", "team": "Team", "enterprise": "Enterprise"],
                 browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,
                 dashboardURL: "https://apps.abacus.ai/chatllm/admin/compute-points-usage",
                 statusPageURL: nil,
                 statusLinkURL: nil),
             branding: ProviderBranding(
-                iconStyle: .abacus,
+                iconStyle: .init(provider: .abacus),
                 iconResourceName: "ProviderIcon-abacus",
-                color: ProviderColor(red: 56 / 255, green: 189 / 255, blue: 248 / 255)),
+                color: ProviderColor(red: 56 / 255, green: 189 / 255, blue: 248 / 255),
+                confettiPalette: [
+                    ProviderColor(hex: 0x35BEE2),
+                    ProviderColor(hex: 0xC64AF9),
+                    ProviderColor(hex: 0xFFFFFF),
+                ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Abacus AI cost summary is not supported." }),
+            presentation: ProviderUsagePresentation(
+                menuCard: ProviderMenuCardPresentation(usesAbacusPace: true),
+                menu: ProviderMenuDescriptorPresentation(
+                    primaryDescriptionIsDetail: { _ in true },
+                    showsPrimaryWeeklyPace: true)),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web],
                 pipeline: ProviderFetchPipeline(resolveStrategies: { _ in
@@ -69,7 +90,7 @@ struct AbacusWebFetchStrategy: ProviderFetchStrategy {
             manual = nil
         }
         let logger: ((String) -> Void)? = context.verbose
-            ? { msg in CodexBarLog.logger(LogCategories.abacusUsage).verbose(msg) }
+            ? { msg in CodexBarLog.logger(LogCategories.provider(.abacus, scope: "usage")).verbose(msg) }
             : nil
         let snap = try await AbacusUsageFetcher.fetchUsage(
             cookieHeaderOverride: manual,

@@ -3,7 +3,7 @@ import Foundation
 import Testing
 @testable import CodexBar
 
-@Suite(.serialized)
+@Suite(.serialized, CodexCredentialFixtures())
 @MainActor
 struct CodexAccountScopedRefreshTests {
     @Test
@@ -141,6 +141,9 @@ struct CodexAccountScopedRefreshTests {
         settings._test_liveSystemCodexAccount = self.liveAccount(email: "beta@example.com")
         let freshSnapshot = self.codexSnapshot(email: "beta@example.com", usedPercent: 5)
         store._setSnapshotForTesting(freshSnapshot, provider: .codex)
+        let betaGuard = store.freshCodexAccountScopedRefreshGuard()
+        store.lastCodexUsagePublicationGuard = betaGuard
+        store.lastCodexAccountScopedRefreshGuard = betaGuard
         await blocker.resume(with: .failure(TestRefreshError(message: "stale failure")))
         await refreshTask.value
 
@@ -220,7 +223,7 @@ struct CodexAccountScopedRefreshTests {
     func `managed refresh invalidation keeps state when provider account is unchanged`() throws {
         let settings = self.makeSettingsStore(
             suite: "CodexAccountScopedRefreshTests-managed-renamed-email")
-        let managedHome = FileManager.default.temporaryDirectory
+        let managedHome = CodexCredentialFixtures.root
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         defer { try? FileManager.default.removeItem(at: managedHome) }
         try Self.writeCodexAuthFile(
@@ -273,7 +276,7 @@ struct CodexAccountScopedRefreshTests {
     @Test
     func `credits refresh returns quickly when no live codex account is available`() async {
         let settings = self.makeSettingsStore(suite: "CodexAccountScopedRefreshTests-credits-no-live-account")
-        let isolatedHome = FileManager.default.temporaryDirectory
+        let isolatedHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-credits-no-live-\(UUID().uuidString)", isDirectory: true)
         try? FileManager.default.createDirectory(at: isolatedHome, withIntermediateDirectories: true)
         settings.refreshFrequency = .manual
@@ -324,7 +327,7 @@ struct CodexAccountScopedRefreshTests {
     @Test
     func `dashboard refresh fail closes when live identity is unresolved without trusted continuity`() async {
         let settings = self.makeSettingsStore(suite: "CodexAccountScopedRefreshTests-dashboard-unresolved-fail-closed")
-        let isolatedHome = FileManager.default.temporaryDirectory
+        let isolatedHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-openai-web-unresolved-fail-closed-\(UUID().uuidString)", isDirectory: true)
         try? FileManager.default.createDirectory(at: isolatedHome, withIntermediateDirectories: true)
         settings.refreshFrequency = .manual
@@ -362,7 +365,7 @@ struct CodexAccountScopedRefreshTests {
     func `dashboard refresh attaches for unresolved live identity with trusted non dashboard continuity`() async {
         let settings = self.makeSettingsStore(
             suite: "CodexAccountScopedRefreshTests-dashboard-unresolved-trusted-continuity")
-        let isolatedHome = FileManager.default.temporaryDirectory
+        let isolatedHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-openai-web-unresolved-trusted-\(UUID().uuidString)", isDirectory: true)
         try? FileManager.default.createDirectory(at: isolatedHome, withIntermediateDirectories: true)
         settings.refreshFrequency = .manual
@@ -379,6 +382,12 @@ struct CodexAccountScopedRefreshTests {
             self.codexSnapshot(email: "trusted@example.com", usedPercent: 12),
             provider: .codex)
         store.lastSourceLabels[.codex] = "codex-cli"
+        let trustedGuard = CodexAccountScopedRefreshGuard(
+            source: .liveSystem,
+            identity: .emailOnly(normalizedEmail: "trusted@example.com"),
+            accountKey: "trusted@example.com")
+        store.lastCodexUsagePublicationGuard = trustedGuard
+        store.lastCodexAccountScopedRefreshGuard = trustedGuard
         store._test_openAIDashboardLoaderOverride = { _, _, _, _ in
             self.dashboard(email: "trusted@example.com", creditsRemaining: 33, usedPercent: 12)
         }
@@ -448,7 +457,7 @@ struct CodexAccountScopedRefreshTests {
     @Test
     func `dashboard display only keeps dashboard visible and clears dashboard derived data`() async throws {
         let settings = self.makeSettingsStore(suite: "CodexAccountScopedRefreshTests-dashboard-display-only-cleanup")
-        let managedHome = FileManager.default.temporaryDirectory
+        let managedHome = CodexCredentialFixtures.root
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         defer { try? FileManager.default.removeItem(at: managedHome) }
         try Self.writeCodexAuthFile(
@@ -510,7 +519,7 @@ struct CodexAccountScopedRefreshTests {
         defer { OpenAIDashboardCacheStore.clear() }
 
         let settings = self.makeSettingsStore(suite: "CodexAccountScopedRefreshTests-dashboard-downgrade")
-        let managedHome = FileManager.default.temporaryDirectory
+        let managedHome = CodexCredentialFixtures.root
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         defer { try? FileManager.default.removeItem(at: managedHome) }
         try Self.writeCodexAuthFile(
@@ -569,7 +578,7 @@ struct CodexAccountScopedRefreshTests {
     @Test
     func `dashboard refresh rejects stale completion during live account reconciliation lag`() async {
         let settings = self.makeSettingsStore(suite: "CodexAccountScopedRefreshTests-dashboard-reject-stale-live-lag")
-        let isolatedHome = FileManager.default.temporaryDirectory
+        let isolatedHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-openai-web-stale-live-lag-\(UUID().uuidString)", isDirectory: true)
         try? FileManager.default.createDirectory(at: isolatedHome, withIntermediateDirectories: true)
         settings.refreshFrequency = .manual
@@ -669,7 +678,7 @@ struct CodexAccountScopedRefreshTests {
     @Test
     func `live switch invalidates stale codex state even when only last known live email remains`() async {
         let settings = self.makeSettingsStore(suite: "CodexAccountScopedRefreshTests-invalidate-with-stale-last-known")
-        let isolatedHome = FileManager.default.temporaryDirectory
+        let isolatedHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-invalidate-stale-last-known-\(UUID().uuidString)", isDirectory: true)
         try? FileManager.default.createDirectory(at: isolatedHome, withIntermediateDirectories: true)
         settings.refreshFrequency = .manual

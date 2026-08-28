@@ -1,12 +1,12 @@
-import CodexBarMacroSupport
 import Foundation
 
-@ProviderDescriptorRegistration
-@ProviderDescriptorDefinition
 public enum T3ChatProviderDescriptor {
+    public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .t3chat,
+            settingsSection: .init(T3ChatProviderSettingsKey.self, cookieSettings: T3ChatProviderSettings.self),
             metadata: ProviderMetadata(
                 id: .t3chat,
                 displayName: "T3 Chat",
@@ -19,26 +19,54 @@ public enum T3ChatProviderDescriptor {
                 toggleTitle: "Show T3 Chat usage",
                 cliName: "t3chat",
                 defaultEnabled: false,
+                widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
+                sharePlanLabels: ["free": "Free", "pro": "Pro", "team": "Team"],
+                debugLogUnavailableMessage: "T3 Chat debug log not yet implemented",
+                debugPane: ProviderDebugPaneCapabilities(errorSimulationOrder: 6),
                 browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,
                 dashboardURL: "https://t3.chat/settings/customization",
                 subscriptionDashboardURL: "https://t3.chat/settings/subscription",
                 statusPageURL: nil),
             branding: ProviderBranding(
-                iconStyle: .t3chat,
+                iconStyle: .init(provider: .t3chat),
                 iconResourceName: "ProviderIcon-t3chat",
-                color: ProviderColor(red: 245 / 255, green: 102 / 255, blue: 71 / 255)),
+                color: ProviderColor(red: 245 / 255, green: 102 / 255, blue: 71 / 255),
+                confettiPalette: [
+                    ProviderColor(hex: 0x970B72),
+                    ProviderColor(hex: 0xE6229C),
+                    ProviderColor(hex: 0xFEA0F6),
+                ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "T3 Chat cost summary is not supported." }),
-            fetchPlan: ProviderFetchPlan(
-                sourceModes: [.auto, .web],
-                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [T3ChatWebFetchStrategy()] })),
+            fetchPlan: self.fetchPlan(),
             cli: ProviderCLIConfig(
                 name: "t3chat",
                 aliases: ["t3-chat", "t3"],
                 versionDetector: nil))
+    }
+
+    private static func fetchPlan() -> ProviderFetchPlan {
+        ProviderFetchPlan(
+            sourceModes: [.auto, .web],
+            pipeline: ProviderFetchPipeline(resolveStrategies: { context in
+                let swift = T3ChatWebFetchStrategy()
+                guard ProviderPluginPrototype.isEnabled(environment: context.env) else { return [swift] }
+                return [
+                    ScriptFetchStrategy(
+                        id: "t3chat.js",
+                        provider: .t3chat,
+                        bundledPlugin: "t3chat",
+                        kind: .web,
+                        resolveValues: { context in
+                            guard context.settings?.t3chat?.cookieSource != .off else { return nil }
+                            return ScriptFetchStrategy.Values()
+                        }),
+                    swift,
+                ]
+            }))
     }
 }
 
@@ -63,7 +91,7 @@ struct T3ChatWebFetchStrategy: ProviderFetchStrategy {
         let fetcher = T3ChatUsageFetcher(browserDetection: context.browserDetection)
         let manual = Self.manualCookieHeader(from: context)
         let logger: ((String) -> Void)? = context.verbose
-            ? { msg in CodexBarLog.logger(LogCategories.t3chat).verbose(msg) }
+            ? { msg in CodexBarLog.logger(LogCategories.provider(.t3chat)).verbose(msg) }
             : nil
         let snapshot = try await fetcher.fetch(
             cookieHeaderOverride: manual,

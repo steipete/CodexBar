@@ -1,8 +1,20 @@
 import CodexBarCore
+import Foundation
+
+typealias ClaudeLoginFlowRunner = (
+    _ timeout: TimeInterval,
+    _ onPhaseChange: @escaping @Sendable (ClaudeLoginRunner.Phase) -> Void) async -> ClaudeLoginRunner.Result
 
 @MainActor
 extension StatusItemController {
     func runClaudeLoginFlow() async -> Bool {
+        await self.runClaudeLoginFlow(
+            loginRunner: { timeout, onPhaseChange in
+                await ClaudeLoginRunner.run(timeout: timeout, onPhaseChange: onPhaseChange)
+            })
+    }
+
+    func runClaudeLoginFlow(loginRunner: ClaudeLoginFlowRunner) async -> Bool {
         let phaseHandler: @Sendable (ClaudeLoginRunner.Phase) -> Void = { [weak self] phase in
             Task { @MainActor in
                 switch phase {
@@ -11,7 +23,7 @@ extension StatusItemController {
                 }
             }
         }
-        let result = await ClaudeLoginRunner.run(timeout: 120, onPhaseChange: phaseHandler)
+        let result = await loginRunner(120, phaseHandler)
         guard !Task.isCancelled else { return false }
         self.loginPhase = .idle
         self.presentClaudeLoginResult(result)
@@ -21,7 +33,6 @@ extension StatusItemController {
         if case .success = result.outcome {
             let metadata = self.store.metadata(for: .claude)
             self.settings.setProviderEnabled(provider: .claude, metadata: metadata, enabled: true)
-            self.settings.claudeUsageDataSource = .oauth
             self.postLoginNotification(for: .claude)
             return true
         }

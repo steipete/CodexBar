@@ -66,8 +66,21 @@ public struct CopilotUsageFetcher: Sendable {
         }
 
         let usage = try JSONDecoder().decode(CopilotUsageResponse.self, from: response.data)
-        let premium = Self.makeRateWindow(from: usage.quotaSnapshots.premiumInteractions)
-        let chat = Self.makeRateWindow(from: usage.quotaSnapshots.chat)
+        let resetsAt = Self.parseQuotaResetDate(usage.quotaResetDate)
+        let premiumSnapshot = usage.quotaSnapshots.premiumInteractions
+        let chatSnapshot = usage.quotaSnapshots.chat
+        let premium = Self.makeRateWindow(from: premiumSnapshot, resetsAt: resetsAt)
+        let chat = Self.makeRateWindow(from: chatSnapshot, resetsAt: resetsAt)
+        let creditsUsed = premiumSnapshot?.creditsUsed ?? chatSnapshot?.creditsUsed
+        let details: [ProviderDetailSection] = creditsUsed.map { creditsUsed in
+            [.makeSection(title: "Credits", rows: [
+                .makeRow(
+                    label: "Credits used",
+                    value: UsageFormatter.creditsNumberString(from: creditsUsed),
+                    secondaryValue: resetsAt.map { UsageFormatter.resetDescription(from: $0) }),
+            ])]
+        } ?? []
+        let hasUnlimitedQuota = premiumSnapshot?.unlimited == true || chatSnapshot?.unlimited == true
 
         let primary: RateWindow?
         let secondary: RateWindow?
@@ -79,9 +92,9 @@ public struct CopilotUsageFetcher: Sendable {
             // ("Premium" for primary, "Chat" for secondary) on chat-only plans.
             primary = nil
             secondary = chatWindow
-        } else if usage.tokenBasedBilling {
-            // Copilot Business token-based billing currently exposes zero-entitlement
-            // placeholder quotas on this endpoint, so surface the plan without fake usage.
+        } else if usage.tokenBasedBilling || hasUnlimitedQuota {
+            // Copilot Business token-based billing placeholders and explicitly unlimited quota
+            // markers are not metered windows, so surface the plan without fake usage.
             primary = nil
             secondary = nil
         } else {
@@ -98,6 +111,7 @@ public struct CopilotUsageFetcher: Sendable {
             secondary: secondary,
             tertiary: nil,
             providerCost: nil,
+            details: details,
             updatedAt: Date(),
             identity: identity)
     }
@@ -137,8 +151,12 @@ public struct CopilotUsageFetcher: Sendable {
         request.setValue("2025-04-01", forHTTPHeaderField: "X-Github-Api-Version")
     }
 
-    static func makeRateWindow(from snapshot: CopilotUsageResponse.QuotaSnapshot?) -> RateWindow? {
+    static func makeRateWindow(
+        from snapshot: CopilotUsageResponse.QuotaSnapshot?,
+        resetsAt: Date? = nil) -> RateWindow?
+    {
         guard let snapshot else { return nil }
+        guard !snapshot.unlimited else { return nil }
         guard !snapshot.isPlaceholder else { return nil }
         guard snapshot.hasPercentRemaining else { return nil }
         let usedPercent = snapshot.usedPercent
@@ -148,8 +166,34 @@ public struct CopilotUsageFetcher: Sendable {
 
         return RateWindow(
             usedPercent: usedPercent,
-            windowMinutes: nil, // Not provided
-            resetsAt: nil, // Not provided per-quota in the simplified snapshot
+            windowMinutes: nil,
+            resetsAt: resetsAt,
             resetDescription: overQuotaDescription)
+    }
+
+    static func parseQuotaResetDate(_ value: String?) -> Date? {
+        guard let raw = value?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else {
+            return nil
+        }
+
+        let fractionalISO = ISO8601DateFormatter()
+        fractionalISO.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = fractionalISO.date(from: raw) {
+            return date
+        }
+
+        let internetISO = ISO8601DateFormatter()
+        internetISO.formatOptions = [.withInternetDateTime]
+        if let date = internetISO.date(from: raw) {
+            return date
+        }
+
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.isLenient = false
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.date(from: raw)
     }
 }

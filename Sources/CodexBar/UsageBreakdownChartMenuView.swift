@@ -4,6 +4,12 @@ import SwiftUI
 
 @MainActor
 struct UsageBreakdownChartMenuView: View {
+    enum PresentationState: Equatable {
+        case empty
+        case totalsOnly
+        case chart
+    }
+
     private struct Point: Identifiable {
         let id: String
         let date: Date
@@ -19,28 +25,55 @@ struct UsageBreakdownChartMenuView: View {
     }
 
     private let breakdown: [OpenAIDashboardDailyBreakdown]
+    private let now: Date
+    private let calendar: Calendar
     private let width: CGFloat
     @State private var selectedDayKey: String?
 
-    init(breakdown: [OpenAIDashboardDailyBreakdown], width: CGFloat) {
+    init(
+        breakdown: [OpenAIDashboardDailyBreakdown],
+        now: Date = Date(),
+        calendar: Calendar = .current,
+        width: CGFloat)
+    {
         self.breakdown = breakdown
+        self.now = now
+        self.calendar = calendar
         self.width = width
     }
 
     var body: some View {
-        let model = Self.makeModel(from: self.breakdown)
+        let summary = OpenAIDashboardDailyBreakdown.recentUsageSummary(
+            from: self.breakdown,
+            now: self.now,
+            calendar: self.calendar)
+        let model = Self.makeModel(from: summary.daily)
+        let presentationState = Self.presentationState(
+            hasSummary: !summary.daily.isEmpty,
+            hasChartPoints: !model.points.isEmpty)
         VStack(alignment: .leading, spacing: 10) {
-            if model.points.isEmpty {
+            if presentationState != .empty {
+                HStack(alignment: .firstTextBaseline) {
+                    self.summaryMetric(title: L("Today"), credits: summary.todayCredits)
+                    Spacer(minLength: 12)
+                    self.summaryMetric(
+                        title: String(format: L("Last %d days"), summary.historyDays),
+                        credits: summary.totalCredits)
+                }
+            }
+
+            if presentationState == .empty {
                 Text(L("No usage breakdown data."))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .accessibilityLabel(L("No usage breakdown data available."))
-            } else {
+            } else if presentationState == .chart {
                 Chart {
                     ForEach(model.points) { point in
                         BarMark(
                             x: .value(L("Day"), point.date, unit: .day),
-                            y: .value(L("Credits used"), point.creditsUsed))
+                            y: .value(L("Credits used"), point.creditsUsed),
+                            width: .ratio(ChartBarHoverSelection.barWidthRatio))
                             .foregroundStyle(by: .value(L("Service"), point.service))
                     }
                     if let peak = model.peakPoint {
@@ -48,19 +81,24 @@ struct UsageBreakdownChartMenuView: View {
                         BarMark(
                             x: .value(L("Day"), peak.date, unit: .day),
                             yStart: .value(L("Cap start"), capStart),
-                            yEnd: .value(L("Cap end"), peak.creditsUsed))
+                            yEnd: .value(L("Cap end"), peak.creditsUsed),
+                            width: .ratio(ChartBarHoverSelection.barWidthRatio))
                             .foregroundStyle(Color(nsColor: .systemYellow))
                     }
                 }
                 .chartForegroundStyleScale(domain: model.services, range: model.serviceColors)
                 .chartYAxis(.hidden)
                 .chartXAxis {
-                    AxisMarks(values: model.axisDates) { _ in
+                    AxisMarks(values: model.axisDates) { value in
                         AxisGridLine().foregroundStyle(Color.clear)
                         AxisTick().foregroundStyle(Color.clear)
-                        AxisValueLabel(format: .dateTime.month(.abbreviated).day())
-                            .font(.caption2)
-                            .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
+                        if let date = value.as(Date.self) {
+                            AxisValueLabel(anchor: ChartAxisLabelLayout.barCenteredAnchor) {
+                                Text(date, format: .dateTime.month(.abbreviated).day())
+                                    .font(.caption2)
+                                    .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
+                            }
+                        }
                     }
                 }
                 .chartLegend(.hidden)
@@ -133,6 +171,12 @@ struct UsageBreakdownChartMenuView: View {
         .frame(minWidth: self.width, maxWidth: .infinity, alignment: .leading)
     }
 
+    static func presentationState(hasSummary: Bool, hasChartPoints: Bool) -> PresentationState {
+        if hasChartPoints { return .chart }
+        if hasSummary { return .totalsOnly }
+        return .empty
+    }
+
     private struct Model {
         let points: [Point]
         let breakdownByDayKey: [String: OpenAIDashboardDailyBreakdown]
@@ -153,6 +197,25 @@ struct UsageBreakdownChartMenuView: View {
     }
 
     private static let selectionBandColor = Color(nsColor: .labelColor).opacity(0.1)
+
+    private func summaryMetric(title: String, credits: Double?) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(title)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            Text(Self.creditsString(credits))
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .monospacedDigit()
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private static func creditsString(_ credits: Double?) -> String {
+        guard let credits, credits.isFinite else { return "—" }
+        let value = credits.formatted(.number.precision(.fractionLength(0...2)))
+        return "\(value) \(L("credits"))"
+    }
 
     private static func makeModel(from breakdown: [OpenAIDashboardDailyBreakdown]) -> Model {
         let sorted = OpenAIDashboardDailyBreakdown.removingSkillUsageServices(from: breakdown)
@@ -285,47 +348,9 @@ struct UsageBreakdownChartMenuView: View {
 
     private func selectionBandRect(model: Model, proxy: ChartProxy, geo: GeometryProxy) -> CGRect? {
         guard let key = self.selectedDayKey else { return nil }
-        guard let plotAnchor = proxy.plotFrame else { return nil }
-        let plotFrame = geo[plotAnchor]
-        guard let index = model.dayDates.firstIndex(where: { $0.dayKey == key }) else { return nil }
-        let date = model.dayDates[index].date
-        guard let x = proxy.position(forX: date) else { return nil }
-
-        func xForIndex(_ idx: Int) -> CGFloat? {
-            guard idx >= 0, idx < model.dayDates.count else { return nil }
-            return proxy.position(forX: model.dayDates[idx].date)
-        }
-
-        let xPrev = xForIndex(index - 1)
-        let xNext = xForIndex(index + 1)
-
-        if model.dayDates.count <= 1 {
-            return CGRect(
-                x: plotFrame.origin.x,
-                y: plotFrame.origin.y,
-                width: plotFrame.width,
-                height: plotFrame.height)
-        }
-
-        let leftInPlot: CGFloat = if let xPrev {
-            (xPrev + x) / 2
-        } else if let xNext {
-            x - (xNext - x) / 2
-        } else {
-            x - 8
-        }
-
-        let rightInPlot: CGFloat = if let xNext {
-            (xNext + x) / 2
-        } else if let xPrev {
-            x + (x - xPrev) / 2
-        } else {
-            x + 8
-        }
-
-        let left = plotFrame.origin.x + min(leftInPlot, rightInPlot)
-        let right = plotFrame.origin.x + max(leftInPlot, rightInPlot)
-        return CGRect(x: left, y: plotFrame.origin.y, width: right - left, height: plotFrame.height)
+        guard let index = model.selectableDayDates.firstIndex(where: { $0.dayKey == key }) else { return nil }
+        guard let geometry = self.hoverGeometry(model: model, proxy: proxy, geo: geo) else { return nil }
+        return geometry.bars[index].frame
     }
 
     private func updateSelection(
@@ -339,31 +364,32 @@ struct UsageBreakdownChartMenuView: View {
             return
         }
 
-        guard let plotAnchor = proxy.plotFrame else { return }
-        let plotFrame = geo[plotAnchor]
-        guard plotFrame.contains(location) else { return }
+        guard let geometry = self.hoverGeometry(model: model, proxy: proxy, geo: geo),
+              let selection = ChartBarHoverSelection.selection(
+                  at: location,
+                  plotFrame: geometry.plotFrame,
+                  bars: geometry.bars)
+        else { return }
+        let key = model.selectableDayDates[selection.index].dayKey
 
-        let xInPlot = location.x - plotFrame.origin.x
-        guard let date: Date = proxy.value(atX: xInPlot) else { return }
-        guard let nearest = self.nearestDayKey(to: date, model: model) else { return }
-
-        if self.selectedDayKey != nearest {
-            self.selectedDayKey = nearest
+        if self.selectedDayKey != key {
+            self.selectedDayKey = key
         }
     }
 
-    private func nearestDayKey(to date: Date, model: Model) -> String? {
-        guard !model.selectableDayDates.isEmpty else { return nil }
-        var best: (key: String, distance: TimeInterval)?
-        for entry in model.selectableDayDates {
-            let dist = abs(entry.date.timeIntervalSince(date))
-            if let cur = best {
-                if dist < cur.distance { best = (entry.dayKey, dist) }
-            } else {
-                best = (entry.dayKey, dist)
-            }
-        }
-        return best?.key
+    private func hoverGeometry(
+        model: Model,
+        proxy: ChartProxy,
+        geo: GeometryProxy) -> (plotFrame: CGRect, bars: [ChartBarHoverSelection.Bar])?
+    {
+        guard let plotAnchor = proxy.plotFrame else { return nil }
+        let plotFrame = geo[plotAnchor]
+        guard let bars = ChartBarHoverSelection.calendarDayBars(
+            dates: model.selectableDayDates.map(\.date),
+            plotFrame: plotFrame,
+            position: { proxy.position(forX: $0) })
+        else { return nil }
+        return (plotFrame, bars)
     }
 
     private func detailLines(model: Model) -> (primary: String, secondary: String?) {

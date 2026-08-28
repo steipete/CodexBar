@@ -26,11 +26,10 @@ extension SettingsStore {
 extension SettingsStore {
     func perplexitySettingsSnapshot(tokenOverride: TokenAccountOverride?) -> ProviderSettingsSnapshot
     .PerplexityProviderSettings {
-        // tokenOverride is not used: Perplexity auth is cookie-based, not token-account-based.
-        // Manual cookies are handled via perplexityManualCookieHeader in the settings snapshot below.
-        _ = tokenOverride
-        return ProviderSettingsSnapshot.PerplexityProviderSettings(
-            cookieSource: self.perplexityCookieSource,
-            manualCookieHeader: self.perplexityManualCookieHeader)
+        self.resolvedCookieSettings(
+            provider: .perplexity,
+            configuredSource: self.perplexityCookieSource,
+            configuredHeader: self.perplexityManualCookieHeader,
+            tokenOverride: tokenOverride)
     }
 }

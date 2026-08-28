@@ -284,7 +284,7 @@ fi
 
 # 3) Package (release build happens inside package_app.sh).
 if [[ "${RUN_TESTS}" == "1" ]]; then
-  run_step "swift test" swift test -q
+  run_step "sharded swift tests" "${ROOT_DIR}/Scripts/test.sh"
 fi
 if [[ "${DEBUG_LLDB}" == "1" && -n "${RELEASE_ARCHES}" ]]; then
   fail "--release-arches is only supported for release packaging"

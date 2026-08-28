@@ -1,10 +1,8 @@
 import AppKit
 import CodexBarCore
-import CodexBarMacroSupport
 import Foundation
 import SwiftUI
 
-@ProviderImplementationRegistration
 struct OpenCodeGoProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .opencodego
 
@@ -18,6 +16,7 @@ struct OpenCodeGoProviderImplementation: ProviderImplementation {
         _ = settings.opencodegoCookieSource
         _ = settings.opencodegoCookieHeader
         _ = settings.opencodegoWorkspaceID
+        _ = settings[providerConfig: .opencodego, field: .apiKey]
     }
 
     @MainActor
@@ -28,7 +27,9 @@ struct OpenCodeGoProviderImplementation: ProviderImplementation {
     @MainActor
     func tokenAccountsVisibility(context: ProviderSettingsContext, support: TokenAccountSupport) -> Bool {
         guard support.requiresManualCookieSource else { return true }
-        if !context.settings.tokenAccounts(for: context.provider).isEmpty { return true }
+        if !context.settings.tokenAccounts(for: context.provider).isEmpty {
+            return true
+        }
         return context.settings.opencodegoCookieSource == .manual
     }
 
@@ -70,16 +71,33 @@ struct OpenCodeGoProviderImplementation: ProviderImplementation {
                 isVisible: nil,
                 onChange: nil,
                 trailingText: {
-                    OpenCodeProviderUI.cachedCookieTrailingText(
+                    ProviderCookieRefreshAction.trailingText(
                         provider: .opencodego,
-                        cookieSource: context.settings.opencodegoCookieSource)
-                }),
+                        cookieSource: context.settings.opencodegoCookieSource,
+                        context: context)
+                },
+                trailingActions: [
+                    ProviderCookieRefreshAction.descriptor(
+                        provider: .opencodego,
+                        cookieSource: { context.settings.opencodegoCookieSource },
+                        context: context),
+                ]),
         ]
     }
 
     @MainActor
     func settingsFields(context: ProviderSettingsContext) -> [ProviderSettingsFieldDescriptor] {
         [
+            ProviderSettingsFieldDescriptor(
+                id: "opencodego-api-key",
+                title: "API key",
+                subtitle: "Preferred for Go usage limits. Also reads OPENCODE_API_KEY.",
+                kind: .secure,
+                placeholder: "OpenCode API key",
+                binding: context.providerConfigBinding(.apiKey),
+                actions: [],
+                isVisible: nil,
+                onActivate: nil),
             ProviderSettingsFieldDescriptor(
                 id: "opencodego-workspace-id",
                 title: "Workspace ID",

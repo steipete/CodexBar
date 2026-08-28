@@ -6,10 +6,24 @@ public struct MoonshotSettingsReader: Sendable {
         "MOONSHOT_KEY",
     ]
     public static let regionEnvironmentKey = "MOONSHOT_REGION"
+    public static let configAPIKeyEnvironmentKey = "CODEXBAR_MOONSHOT_API_KEY"
+    public static let configAPIKeyRegionEnvironmentKey = "CODEXBAR_MOONSHOT_API_KEY_REGION"
 
     public static func apiKey(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
     {
+        self.apiKey(for: self.region(environment: environment), environment: environment)
+    }
+
+    public static func apiKey(
+        for region: MoonshotRegion,
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
+    {
+        if let apiKey = self.regionBoundConfigAPIKey(for: region, environment: environment) {
+            return apiKey
+        }
+
+        guard self.region(environment: environment) == region else { return nil }
         for key in self.apiKeyEnvironmentKeys {
             guard let raw = environment[key]?.trimmingCharacters(in: .whitespacesAndNewlines),
                   !raw.isEmpty
@@ -23,6 +37,18 @@ public struct MoonshotSettingsReader: Sendable {
         }
 
         return nil
+    }
+
+    private static func regionBoundConfigAPIKey(
+        for region: MoonshotRegion,
+        environment: [String: String]) -> String?
+    {
+        guard let rawRegion = environment[self.configAPIKeyRegionEnvironmentKey],
+              MoonshotRegion(rawValue: cleaned(rawRegion).lowercased()) == region,
+              let rawKey = environment[self.configAPIKeyEnvironmentKey]
+        else { return nil }
+        let key = Self.cleaned(rawKey)
+        return key.isEmpty ? nil : key
     }
 
     public static func region(

@@ -115,7 +115,9 @@ struct ClaudeOAuthDelegatedRefreshRecoveryTests {
                                     dataSource: .oauth,
                                     oauthKeychainPromptCooldownEnabled: true)
 
-                                let fetchOverride: (@Sendable (String) async throws -> OAuthUsageResponse)? = { token in
+                                let fetchOverride: @Sendable (
+                                    String,
+                                    Bool) async throws -> OAuthUsageResponse = { token, _ in
                                     await tokenCapture.set(token)
                                     return usageResponse
                                 }
@@ -224,7 +226,9 @@ struct ClaudeOAuthDelegatedRefreshRecoveryTests {
                                     dataSource: .oauth,
                                     oauthKeychainPromptCooldownEnabled: true)
 
-                                let fetchOverride: (@Sendable (String) async throws -> OAuthUsageResponse)? = { token in
+                                let fetchOverride: @Sendable (
+                                    String,
+                                    Bool) async throws -> OAuthUsageResponse = { token, _ in
                                     await tokenCapture.set(token)
                                     return usageResponse
                                 }

@@ -111,15 +111,16 @@ public enum CodexBarLog {
 
     public static func logger(_ category: String) -> CodexBarLogger {
         let logger = Logger(label: "com.steipete.codexbar.\(category)")
-        return CodexBarLogger { level, message, metadata in
-            guard self.shouldLog(level) else { return }
+        return CodexBarLogger(isEnabled: { level in
+            self.shouldLog(level)
+        }, log: { level, message, metadata in
             let swiftLogLevel = level.asSwiftLogLevel
             let safeMessage = LogRedactor.redact(message)
             let meta = metadata?.reduce(into: Logger.Metadata()) { partial, entry in
                 partial[entry.key] = .string(LogRedactor.redact(entry.value))
             }
             logger.log(level: swiftLogLevel, "\(safeMessage)", metadata: meta)
-        }
+        })
     }
 
     public static func parseLevel(_ raw: String?) -> Level? {
@@ -170,37 +171,59 @@ private struct DiscardLogHandler: LogHandler {
 }
 
 public struct CodexBarLogger: Sendable {
+    private let isEnabled: @Sendable (CodexBarLog.Level) -> Bool
     private let logFn: @Sendable (CodexBarLog.Level, String, [String: String]?) -> Void
 
-    fileprivate init(_ logFn: @escaping @Sendable (CodexBarLog.Level, String, [String: String]?) -> Void) {
-        self.logFn = logFn
+    fileprivate init(
+        isEnabled: @escaping @Sendable (CodexBarLog.Level) -> Bool,
+        log: @escaping @Sendable (CodexBarLog.Level, String, [String: String]?) -> Void)
+    {
+        self.isEnabled = isEnabled
+        self.logFn = log
+    }
+
+    init(
+        minimumLevel: CodexBarLog.Level,
+        log: @escaping @Sendable (CodexBarLog.Level, String, [String: String]?) -> Void)
+    {
+        self.isEnabled = { level in level.rank >= minimumLevel.rank }
+        self.logFn = log
+    }
+
+    private func log(
+        _ level: CodexBarLog.Level,
+        _ message: @autoclosure () -> String,
+        metadata: [String: String]?)
+    {
+        guard self.isEnabled(level) else { return }
+        self.logFn(level, message(), metadata)
     }
 
     public func trace(_ message: @autoclosure () -> String, metadata: [String: String]? = nil) {
-        self.logFn(.trace, message(), metadata)
+        self.log(.trace, message(), metadata: metadata)
     }
 
     public func verbose(_ message: @autoclosure () -> String, metadata: [String: String]? = nil) {
-        self.logFn(.verbose, message(), metadata)
+        self.log(.verbose, message(), metadata: metadata)
     }
 
     public func debug(_ message: @autoclosure () -> String, metadata: [String: String]? = nil) {
-        self.logFn(.debug, message(), metadata)
+        self.log(.debug, message(), metadata: metadata)
     }
 
     public func info(_ message: @autoclosure () -> String, metadata: [String: String]? = nil) {
-        self.logFn(.info, message(), metadata)
+        self.log(.info, message(), metadata: metadata)
     }
 
     public func warning(_ message: @autoclosure () -> String, metadata: [String: String]? = nil) {
-        self.logFn(.warning, message(), metadata)
+        self.log(.warning, message(), metadata: metadata)
     }
 
     public func error(_ message: @autoclosure () -> String, metadata: [String: String]? = nil) {
-        self.logFn(.error, message(), metadata)
+        self.log(.error, message(), metadata: metadata)
     }
 
     public func critical(_ message: @autoclosure () -> String, metadata: [String: String]? = nil) {
-        self.logFn(.critical, message(), metadata)
+        self.log(.critical, message(), metadata: metadata)
     }
 }

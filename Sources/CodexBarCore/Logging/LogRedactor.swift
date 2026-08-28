@@ -24,6 +24,8 @@ public enum LogRedactor {
         pattern: #"sk-api-[^\s"'`;,)>\]]+"#)
 
     public static func redact(_ text: String) -> String {
+        guard self.mayContainSensitiveValue(text) else { return text }
+
         var output = text
         // Email is broad and safe first
         output = self.replace(self.emailRegex, in: output, with: "<redacted-email>")
@@ -36,6 +38,16 @@ public enum LogRedactor {
         output = self.replace(self.cookieHeaderRegex, in: output, with: "$1<redacted>")
         output = self.replace(self.authorizationRegex, in: output, with: "$1<redacted>")
         return output
+    }
+
+    private static func mayContainSensitiveValue(_ text: String) -> Bool {
+        if text.range(of: "@") != nil { return true }
+        if text.range(of: "sk-cp-", options: [.caseInsensitive]) != nil { return true }
+        if text.range(of: "sk-api-", options: [.caseInsensitive]) != nil { return true }
+        if text.range(of: "bearer", options: [.caseInsensitive]) != nil { return true }
+        if text.range(of: "cookie", options: [.caseInsensitive]) != nil { return true }
+        if text.range(of: "authorization", options: [.caseInsensitive]) != nil { return true }
+        return false
     }
 
     private static func makeRegex(pattern: String, options: NSRegularExpression.Options = []) -> NSRegularExpression {

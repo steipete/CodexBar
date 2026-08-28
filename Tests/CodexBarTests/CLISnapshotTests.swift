@@ -3,7 +3,38 @@ import Foundation
 import Testing
 @testable import CodexBarCLI
 
+// swiftlint:disable:next type_body_length
 struct CLISnapshotTests {
+    @Test
+    func `renders Gemini paid plan without changing acronym casing`() {
+        let identity = ProviderIdentitySnapshot(
+            providerID: .gemini,
+            accountEmail: nil,
+            accountOrganization: nil,
+            loginMethod: "Gemini Code Assist in Google One AI Pro")
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: Date(timeIntervalSince1970: 0),
+            identity: identity)
+
+        let output = CLIRenderer.renderText(
+            provider: .gemini,
+            snapshot: snapshot,
+            credits: nil,
+            context: RenderContext(
+                header: "Gemini",
+                status: nil,
+                useColor: false,
+                resetStyle: .absolute))
+
+        #expect(CLIRenderer.planBadgeText(provider: .gemini, snapshot: snapshot) ==
+            "Gemini Code Assist in Google One AI Pro")
+        #expect(output.contains("Plan: Gemini Code Assist in Google One AI Pro"))
+        #expect(!output.contains("Google One Ai Pro"))
+    }
+
     @Test
     func `renders Factory token rate billing with time window labels`() {
         let snap = UsageSnapshot(
@@ -92,6 +123,56 @@ struct CLISnapshotTests {
     }
 
     @Test
+    func `renders Codex limit reset credits`() {
+        let now = Date()
+        let expiresAt = now.addingTimeInterval(7200)
+        let resetCredits = CodexRateLimitResetCreditsSnapshot(
+            credits: [
+                CodexRateLimitResetCredit(
+                    id: "credit-1",
+                    resetType: "codex_rate_limits",
+                    status: .available,
+                    grantedAt: Date(timeIntervalSince1970: 0),
+                    expiresAt: expiresAt,
+                    redeemStartedAt: nil,
+                    redeemedAt: nil,
+                    title: nil,
+                    description: nil),
+                CodexRateLimitResetCredit(
+                    id: "expired-credit",
+                    resetType: "codex_rate_limits",
+                    status: .available,
+                    grantedAt: Date(timeIntervalSince1970: 0),
+                    expiresAt: now,
+                    redeemStartedAt: nil,
+                    redeemedAt: nil,
+                    title: nil,
+                    description: nil),
+            ],
+            availableCount: 99,
+            updatedAt: Date(timeIntervalSince1970: 0))
+        let snapshot = UsageSnapshot(
+            primary: .init(usedPercent: 10, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            tertiary: nil,
+            codexResetCredits: resetCredits,
+            updatedAt: Date(timeIntervalSince1970: 0))
+
+        let output = CLIRenderer.renderText(
+            provider: .codex,
+            snapshot: snapshot,
+            credits: nil,
+            context: RenderContext(
+                header: "Codex (oauth)",
+                status: nil,
+                useColor: false,
+                resetStyle: .countdown))
+
+        #expect(output.contains("Limit Reset Credits: 1 available"))
+        #expect(output.contains("Next reset credit expires"))
+    }
+
+    @Test
     func `renders Codex prolite plan with multiplier display name`() {
         let identity = ProviderIdentitySnapshot(
             providerID: .codex,
@@ -174,6 +255,34 @@ struct CLISnapshotTests {
     }
 
     @Test
+    func `renders Claude Max multiplier without uppercasing x`() {
+        let identity = ProviderIdentitySnapshot(
+            providerID: .claude,
+            accountEmail: nil,
+            accountOrganization: nil,
+            loginMethod: "Claude Max 5x")
+        let snapshot = UsageSnapshot(
+            primary: .init(usedPercent: 2, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: Date(timeIntervalSince1970: 0),
+            identity: identity)
+
+        let output = CLIRenderer.renderText(
+            provider: .claude,
+            snapshot: snapshot,
+            credits: nil,
+            context: RenderContext(
+                header: "Claude (oauth)",
+                status: nil,
+                useColor: false,
+                resetStyle: .absolute))
+
+        #expect(output.contains("Plan: Claude Max 5x"))
+        #expect(!output.contains("Plan: Claude Max 5X"))
+    }
+
+    @Test
     func `renders warp unlimited as detail not reset`() {
         let meta = ProviderDescriptorRegistry.descriptor(for: .warp).metadata
         let snap = UsageSnapshot(
@@ -240,11 +349,7 @@ struct CLISnapshotTests {
     @Test
     func `renders crof dollar balance as detail not reset`() {
         let meta = ProviderDescriptorRegistry.descriptor(for: .crof).metadata
-        let snap = CrofUsageSnapshot(
-            credits: 9.9999,
-            requestsPlan: 1000,
-            usableRequests: 998,
-            updatedAt: Date(timeIntervalSince1970: 0)).toUsageSnapshot()
+        let snap = CrofTestSnapshots.credits(9.9999, updatedAt: Date(timeIntervalSince1970: 0))
 
         let output = CLIRenderer.renderText(
             provider: .crof,
@@ -256,10 +361,70 @@ struct CLISnapshotTests {
                 useColor: false,
                 resetStyle: .countdown))
 
-        #expect(output.contains("\(meta.sessionLabel): 99% left"))
-        #expect(output.contains("\(meta.weeklyLabel): 100% left"))
+        #expect(output.contains("\(meta.sessionLabel): 100% left"))
         #expect(output.contains("$9.99"))
         #expect(!output.contains("Resets $9.99"))
+        #expect(!output.contains("requests left"))
+    }
+
+    @Test
+    func `renders crof request quota when returned`() {
+        let snap = CrofTestSnapshots.requestQuota(
+            credits: 9.9999,
+            plan: 1000,
+            remaining: 998,
+            updatedAt: Date(timeIntervalSince1970: 0))
+
+        let output = CLIRenderer.renderText(
+            provider: .crof,
+            snapshot: snap,
+            credits: nil,
+            context: RenderContext(
+                header: "Crof",
+                status: nil,
+                useColor: false,
+                resetStyle: .countdown))
+
+        #expect(output.contains("Requests: 99% left"))
+        #expect(output.contains("998 requests left"))
+        #expect(output.contains("Credits: 100% left"))
+        #expect(output.contains("$9.99"))
+    }
+
+    @Test
+    func `renders qoder reset and credit total separately`() {
+        let meta = ProviderDescriptorRegistry.descriptor(for: .qoder).metadata
+        let now = Date(timeIntervalSince1970: 0)
+        let snap = UsageSnapshot(
+            primary: .init(
+                usedPercent: 25,
+                windowMinutes: nil,
+                resetsAt: now.addingTimeInterval(3600),
+                resetDescription: "125 / 500 credits"),
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: now,
+            identity: ProviderIdentitySnapshot(
+                providerID: .qoder,
+                accountEmail: nil,
+                accountOrganization: nil,
+                loginMethod: nil))
+
+        let output = CLIRenderer.renderText(
+            provider: .qoder,
+            snapshot: snap,
+            credits: nil,
+            context: RenderContext(
+                header: "Qoder",
+                status: nil,
+                useColor: false,
+                resetStyle: .countdown),
+            now: now)
+
+        #expect(output.contains("\(meta.sessionLabel): 75% left"))
+        #expect(output.contains("Resets in 1h"))
+        #expect(output.contains("125 / 500 credits"))
+        #expect(!output.contains("Resets 125 / 500 credits"))
     }
 
     @Test
@@ -379,6 +544,303 @@ struct CLISnapshotTests {
     }
 
     @Test
+    func `configured work days affect weekly text and JSON pace`() throws {
+        var calendar = Calendar.current
+        calendar.timeZone = .current
+        let resetsAt = try #require(calendar.date(from: DateComponents(
+            calendar: calendar,
+            timeZone: calendar.timeZone,
+            year: 2026,
+            month: 6,
+            day: 14)))
+        let now = resetsAt.addingTimeInterval(-72 * 60 * 60)
+        let snap = UsageSnapshot(
+            primary: nil,
+            secondary: .init(
+                usedPercent: 60,
+                windowMinutes: 10080,
+                resetsAt: resetsAt,
+                resetDescription: nil),
+            tertiary: nil,
+            updatedAt: now)
+
+        let output = CLIRenderer.renderText(
+            provider: .codex,
+            snapshot: snap,
+            credits: nil,
+            context: RenderContext(
+                header: "Codex 0.0.0 (codex-cli)",
+                status: nil,
+                useColor: false,
+                resetStyle: .countdown,
+                weeklyWorkDays: 5),
+            now: now)
+        #expect(output.contains("Pace: On pace | Expected 60% used | Lasts until reset"))
+
+        let pace = try #require(CLIRenderer.providerPacePayload(
+            provider: .codex,
+            snapshot: snap,
+            weeklyWorkDays: 5,
+            now: now)?.secondary)
+        #expect(pace.expectedUsedPercent == 60)
+        #expect(pace.summary == "On pace | Expected 60% used | Lasts until reset")
+    }
+
+    @Test
+    func `Kimi routes inverted quota windows to CLI pace and JSON metadata`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let snapshot = UsageSnapshot(
+            primary: .init(
+                usedPercent: 30,
+                windowMinutes: KimiProviderDescriptor.weeklyWindowMinutes,
+                resetsAt: now.addingTimeInterval(4 * 24 * 60 * 60),
+                resetDescription: "weekly"),
+            secondary: .init(
+                usedPercent: 10,
+                windowMinutes: KimiProviderDescriptor.sessionWindowMinutes,
+                resetsAt: now.addingTimeInterval(4 * 60 * 60),
+                resetDescription: "rate limit"),
+            tertiary: nil,
+            updatedAt: now)
+
+        let pace = try #require(CLIRenderer.providerPacePayload(provider: .kimi, snapshot: snapshot, now: now))
+        #expect(pace.primary?.expectedUsedPercent == 43)
+        #expect(pace.primary?.summary == "13% in reserve | Expected 43% used | Lasts until reset")
+        #expect(pace.secondary?.expectedUsedPercent == 20)
+        #expect(pace.secondary?.summary == "10% in reserve | Expected 20% used | Lasts until reset")
+
+        let output = CLIRenderer.renderText(
+            provider: .kimi,
+            snapshot: snapshot,
+            credits: nil,
+            context: RenderContext(
+                header: "Kimi",
+                status: nil,
+                useColor: false,
+                resetStyle: .countdown),
+            now: now)
+        #expect(output.split(separator: "\n").count(where: { $0.contains("Pace:") }) == 2)
+
+        let payload = ProviderPayload(
+            provider: .kimi,
+            account: nil,
+            version: nil,
+            source: "Kimi Code API key",
+            status: nil,
+            usage: snapshot,
+            credits: nil,
+            antigravityPlanInfo: nil,
+            openaiDashboard: nil,
+            error: nil,
+            pace: pace)
+        let data = try JSONEncoder().encode(payload)
+        let root = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let usage = try #require(root["usage"] as? [String: Any])
+        let primary = try #require(usage["primary"] as? [String: Any])
+        let secondary = try #require(usage["secondary"] as? [String: Any])
+        #expect(primary["windowMinutes"] as? Int == KimiProviderDescriptor.weeklyWindowMinutes)
+        #expect(secondary["windowMinutes"] as? Int == KimiProviderDescriptor.sessionWindowMinutes)
+        let encodedPace = try #require(root["pace"] as? [String: Any])
+        #expect(encodedPace["primary"] != nil)
+        #expect(encodedPace["secondary"] != nil)
+    }
+
+    @Test
+    func `zai routes verified coding windows to CLI pace`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let snapshot = UsageSnapshot(
+            primary: .init(
+                usedPercent: 50,
+                windowMinutes: 5 * 60,
+                resetsAt: now.addingTimeInterval(2.5 * 60 * 60),
+                resetDescription: "5-hour"),
+            secondary: .init(
+                usedPercent: 50,
+                windowMinutes: 7 * 24 * 60,
+                resetsAt: now.addingTimeInterval(3.5 * 24 * 60 * 60),
+                resetDescription: "weekly"),
+            tertiary: nil,
+            updatedAt: now)
+
+        let pace = try #require(CLIRenderer.providerPacePayload(provider: .zai, snapshot: snapshot, now: now))
+        #expect(pace.primary?.expectedUsedPercent == 50)
+        #expect(pace.secondary?.expectedUsedPercent == 50)
+
+        let output = CLIRenderer.renderText(
+            provider: .zai,
+            snapshot: snapshot,
+            credits: nil,
+            context: RenderContext(
+                header: "z.ai",
+                status: nil,
+                useColor: false,
+                resetStyle: .countdown),
+            now: now)
+        #expect(output.split(separator: "\n").count(where: { $0.contains("Pace: On pace") }) == 2)
+    }
+
+    @Test
+    func `zai CLI pace rejects a rolling 30-day coding limit`() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let snapshot = UsageSnapshot(
+            primary: .init(
+                usedPercent: 50,
+                windowMinutes: ProviderPaceCapability.monthlyWindowSentinelMinutes,
+                resetsAt: now.addingTimeInterval(15 * 24 * 60 * 60),
+                resetDescription: "30 days window"),
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: now)
+
+        #expect(CLIRenderer.providerPacePayload(provider: .zai, snapshot: snapshot, now: now) == nil)
+
+        let output = CLIRenderer.renderText(
+            provider: .zai,
+            snapshot: snapshot,
+            credits: nil,
+            context: RenderContext(
+                header: "z.ai",
+                status: nil,
+                useColor: false,
+                resetStyle: .countdown),
+            now: now)
+        #expect(!output.contains("Pace:"))
+    }
+
+    @Test
+    func `Kimi CLI pace rejects missing and unsupported window durations`() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        for duration: Int? in [nil, 24 * 60, 30 * 24 * 60] {
+            let window = RateWindow(
+                usedPercent: 25,
+                windowMinutes: duration,
+                resetsAt: now.addingTimeInterval(60 * 60),
+                resetDescription: nil)
+            let snapshots = [
+                UsageSnapshot(
+                    primary: window,
+                    secondary: nil,
+                    tertiary: nil,
+                    updatedAt: now),
+                UsageSnapshot(
+                    primary: nil,
+                    secondary: window,
+                    tertiary: nil,
+                    updatedAt: now),
+            ]
+
+            for snapshot in snapshots {
+                #expect(CLIRenderer.providerPacePayload(provider: .kimi, snapshot: snapshot, now: now) == nil)
+            }
+        }
+    }
+
+    @Test
+    func `descriptor reset window capability enables CLI pace`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let snapshot = UsageSnapshot(
+            primary: .init(
+                usedPercent: 30,
+                windowMinutes: nil,
+                resetsAt: now.addingTimeInterval(4 * 24 * 60 * 60),
+                resetDescription: "weekly"),
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: now)
+
+        let pace = try #require(CLIRenderer.providerPacePayload(provider: .grok, snapshot: snapshot, now: now))
+        let primary = try #require(pace.primary)
+        #expect(primary.expectedUsedPercent == 43)
+        #expect(primary.summary == "13% in reserve | Expected 43% used | Lasts until reset")
+    }
+
+    @Test
+    func `descriptor monthly CLI pace uses the calendar cycle`() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+        let resetsAt = try #require(calendar.date(from: DateComponents(
+            calendar: calendar,
+            timeZone: calendar.timeZone,
+            year: 2026,
+            month: 3,
+            day: 1)))
+        let now = try #require(calendar.date(from: DateComponents(
+            calendar: calendar,
+            timeZone: calendar.timeZone,
+            year: 2026,
+            month: 2,
+            day: 15)))
+        let snapshot = UsageSnapshot(
+            primary: .init(
+                usedPercent: 40,
+                windowMinutes: ProviderPaceCapability.monthlyWindowSentinelMinutes,
+                resetsAt: resetsAt,
+                resetDescription: "monthly"),
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: now)
+
+        let pace = try #require(CLIRenderer.providerPacePayload(provider: .amp, snapshot: snapshot, now: now))
+        #expect(pace.primary?.expectedUsedPercent == 50)
+    }
+
+    @Test
+    func `descriptor monthly CLI pace includes tertiary text and JSON`() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+        let resetsAt = try #require(calendar.date(from: DateComponents(
+            calendar: calendar,
+            timeZone: calendar.timeZone,
+            year: 2026,
+            month: 3,
+            day: 1)))
+        let now = try #require(calendar.date(from: DateComponents(
+            calendar: calendar,
+            timeZone: calendar.timeZone,
+            year: 2026,
+            month: 2,
+            day: 15)))
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            tertiary: .init(
+                usedPercent: 40,
+                windowMinutes: ProviderPaceCapability.monthlyWindowSentinelMinutes,
+                resetsAt: resetsAt,
+                resetDescription: "monthly"),
+            updatedAt: now)
+
+        for provider: UsageProvider in [.alibaba, .opencodego] {
+            let pace = try #require(CLIRenderer.providerPacePayload(
+                provider: provider,
+                snapshot: snapshot,
+                now: now))
+            #expect(pace.primary == nil)
+            #expect(pace.secondary == nil)
+            #expect(pace.tertiary?.expectedUsedPercent == 50)
+
+            let output = CLIRenderer.renderText(
+                provider: provider,
+                snapshot: snapshot,
+                credits: nil,
+                context: RenderContext(
+                    header: provider.rawValue,
+                    status: nil,
+                    useColor: false,
+                    resetStyle: .countdown),
+                now: now)
+            #expect(output.contains("Monthly: 60% left"))
+            #expect(output.contains("Pace: 10% in reserve | Expected 50% used | Lasts until reset"))
+
+            let data = try JSONEncoder().encode(pace)
+            let encoded = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+            #expect(encoded["primary"] == nil)
+            #expect(encoded["secondary"] == nil)
+            #expect(encoded["tertiary"] != nil)
+        }
+    }
+
+    @Test
     func `renders Ollama weekly pace line when weekly window has reset`() {
         let now = Date()
         let snap = UsageSnapshot(
@@ -407,6 +869,7 @@ struct CLISnapshotTests {
 
         #expect(output.contains("Weekly: 77% left"))
         #expect(output.contains("Pace: 6% in reserve | Expected 29% used | Lasts until reset"))
+        #expect(!output.contains("1.5× headroom"))
     }
 
     @Test
@@ -437,6 +900,179 @@ struct CLISnapshotTests {
     }
 
     @Test
+    func `renders session pace line when session window has reset`() {
+        let now = Date()
+        let snap = UsageSnapshot(
+            primary: .init(
+                usedPercent: 20,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(2 * 60 * 60),
+                resetDescription: nil),
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: now)
+
+        let output = CLIRenderer.renderText(
+            provider: .codex,
+            snapshot: snap,
+            credits: nil,
+            context: RenderContext(
+                header: "Codex 0.0.0 (codex-cli)",
+                status: nil,
+                useColor: false,
+                resetStyle: .countdown),
+            now: now)
+
+        #expect(output.contains("Session: 80% left"))
+        // 2h remaining of a 5h window => 3h elapsed => 60% expected; even rate easily lasts to reset.
+        #expect(output.contains("Pace: 40% in reserve | Expected 60% used | Lasts until reset | 1.5× headroom"))
+    }
+
+    @Test
+    func `renders Claude session pace using five hour default window`() {
+        let now = Date()
+        let snap = UsageSnapshot(
+            primary: .init(
+                usedPercent: 20,
+                windowMinutes: nil,
+                resetsAt: now.addingTimeInterval(2 * 60 * 60),
+                resetDescription: nil),
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: now)
+
+        let output = CLIRenderer.renderText(
+            provider: .claude,
+            snapshot: snap,
+            credits: nil,
+            context: RenderContext(
+                header: "Claude Code 2.0.69 (claude)",
+                status: nil,
+                useColor: false,
+                resetStyle: .countdown),
+            now: now)
+
+        // windowMinutes is nil, so the 5-hour (300 minute) session default must drive the pace.
+        #expect(output.contains("Pace: 40% in reserve | Expected 60% used | Lasts until reset"))
+        #expect(!output.contains("1.5× headroom"))
+    }
+
+    @Test
+    func `renders session pace deficit with run out estimate`() {
+        let now = Date()
+        let snap = UsageSnapshot(
+            primary: .init(
+                usedPercent: 50,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(4 * 60 * 60),
+                resetDescription: nil),
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: now)
+
+        let output = CLIRenderer.renderText(
+            provider: .codex,
+            snapshot: snap,
+            credits: nil,
+            context: RenderContext(
+                header: "Codex 0.0.0 (codex-cli)",
+                status: nil,
+                useColor: false,
+                resetStyle: .countdown),
+            now: now)
+
+        // 1h elapsed of a 5h window => 20% expected vs 50% used => burning ahead of pace.
+        // Session mirrors the GUI's "Projected empty" wording (weekly uses "Runs out").
+        #expect(output.contains("Pace: 30% in deficit | Expected 20% used | Projected empty in"))
+        #expect(!output.contains("Runs out"))
+    }
+
+    @Test
+    func `renders session pace on track and lasts until reset`() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        // Exactly halfway through a 5h window with 50% used => On pace (delta 0); the even rate
+        // means the quota lasts precisely to the reset.
+        let snap = UsageSnapshot(
+            primary: .init(
+                usedPercent: 50,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(2.5 * 60 * 60),
+                resetDescription: nil),
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: now)
+
+        let output = CLIRenderer.renderText(
+            provider: .codex,
+            snapshot: snap,
+            credits: nil,
+            context: RenderContext(
+                header: "Codex 0.0.0 (codex-cli)",
+                status: nil,
+                useColor: false,
+                resetStyle: .countdown),
+            now: now)
+
+        #expect(output.contains("Pace: On pace | Expected 50% used | Lasts until reset"))
+    }
+
+    @Test
+    func `hides session pace for unsupported provider`() {
+        let now = Date()
+        let snap = UsageSnapshot(
+            primary: .init(
+                usedPercent: 20,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(2 * 60 * 60),
+                resetDescription: nil),
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: now)
+
+        let output = CLIRenderer.renderText(
+            provider: .deepseek,
+            snapshot: snap,
+            credits: nil,
+            context: RenderContext(
+                header: "DeepSeek 0.0.0 (deepseek)",
+                status: nil,
+                useColor: false,
+                resetStyle: .countdown))
+
+        #expect(!output.contains("Pace:"))
+    }
+
+    @Test
+    func `hides session pace for non-session primary window`() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        // Claude with no 5-hour data falls a 7-day window back into `primary`; it must not be
+        // paced as a "Session" (that would print "Projected empty …" over a weekly window).
+        let snap = UsageSnapshot(
+            primary: .init(
+                usedPercent: 50,
+                windowMinutes: 10080,
+                resetsAt: now.addingTimeInterval(3 * 24 * 60 * 60),
+                resetDescription: nil),
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: now)
+
+        let output = CLIRenderer.renderText(
+            provider: .claude,
+            snapshot: snap,
+            credits: nil,
+            context: RenderContext(
+                header: "Claude Code 2.0.69 (claude)",
+                status: nil,
+                useColor: false,
+                resetStyle: .countdown),
+            now: now)
+
+        #expect(!output.contains("Pace:"))
+        #expect(CLIRenderer.providerPacePayload(provider: .claude, snapshot: snap, now: now) == nil)
+    }
+
+    @Test
     func `renders JSON payload`() throws {
         let snap = UsageSnapshot(
             primary: .init(usedPercent: 50, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
@@ -458,7 +1094,8 @@ struct CLISnapshotTests {
             credits: nil,
             antigravityPlanInfo: nil,
             openaiDashboard: nil,
-            error: nil)
+            error: nil,
+            diagnostic: "Grok team usage is unavailable from the current billing surface.")
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .secondsSince1970
         let data = try encoder.encode(payload)
@@ -471,9 +1108,169 @@ struct CLISnapshotTests {
         #expect(json.contains("\"version\":\"1.2.3\""))
         #expect(json.contains("\"status\""))
         #expect(json.contains("status.example.com"))
+        #expect(json.contains("Grok team usage is unavailable from the current billing surface."))
         #expect(json.contains("\"primary\""))
         #expect(json.contains("\"windowMinutes\":300"))
         #expect(json.contains("1700000000"))
+    }
+
+    @Test
+    func `json pace rounds derived numbers to match usage precision`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        // 13000s elapsed of an 18000s (300m) window => 72.22% expected; used 79 => +6.78 deficit;
+        // projected empty in ~3455.7s. Derived fields must be emitted as whole numbers (no float noise).
+        let snap = UsageSnapshot(
+            primary: .init(
+                usedPercent: 79,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(5000),
+                resetDescription: nil),
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: now)
+
+        let payload = ProviderPayload(
+            provider: .codex,
+            account: nil,
+            version: nil,
+            source: "codex-cli",
+            status: nil,
+            usage: snap,
+            credits: nil,
+            antigravityPlanInfo: nil,
+            openaiDashboard: nil,
+            error: nil,
+            pace: CLIRenderer.providerPacePayload(provider: .codex, snapshot: snap, now: now))
+
+        let data = try JSONEncoder().encode(payload)
+        let root = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let primary = try #require((root["pace"] as? [String: Any])?["primary"] as? [String: Any])
+
+        #expect(primary["expectedUsedPercent"] as? Double == 72)
+        #expect(primary["deltaPercent"] as? Double == 7)
+        #expect(primary["etaSeconds"] as? Double == 3456)
+        // actualUsedPercent is not emitted; consumers read usage.primary.usedPercent.
+        #expect(primary["actualUsedPercent"] == nil)
+    }
+
+    @Test
+    func `json payload includes session and weekly pace with distinct wording`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let snap = UsageSnapshot(
+            // 1h elapsed of a 5h window => 20% expected vs 50% used => deficit, runs out in 1h.
+            primary: .init(
+                usedPercent: 50,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(4 * 60 * 60),
+                resetDescription: nil),
+            // 5d elapsed of a 7d window => ~71% expected vs 90% used => deficit, runs out before reset.
+            secondary: .init(
+                usedPercent: 90,
+                windowMinutes: 10080,
+                resetsAt: now.addingTimeInterval(2 * 24 * 60 * 60),
+                resetDescription: nil),
+            tertiary: nil,
+            updatedAt: now)
+
+        let payload = ProviderPayload(
+            provider: .codex,
+            account: nil,
+            version: "1.2.3",
+            source: "codex-cli",
+            status: nil,
+            usage: snap,
+            credits: nil,
+            antigravityPlanInfo: nil,
+            openaiDashboard: nil,
+            error: nil,
+            pace: CLIRenderer.providerPacePayload(provider: .codex, snapshot: snap, now: now))
+
+        let data = try JSONEncoder().encode(payload)
+        let root = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let pace = try #require(root["pace"] as? [String: Any])
+
+        let primary = try #require(pace["primary"] as? [String: Any])
+        #expect(primary["stage"] as? String == "farAhead")
+        #expect(primary["expectedUsedPercent"] as? Double == 20)
+        #expect(primary["deltaPercent"] as? Double == 30)
+        #expect(primary["willLastToReset"] as? Bool == false)
+        #expect(primary["etaSeconds"] as? Double == 3600)
+        #expect((primary["summary"] as? String)?
+            .contains("30% in deficit | Expected 20% used | Projected empty in") == true)
+        // actualUsedPercent is redundant with usage.usedPercent and is not emitted;
+        // runOutProbability is never set by the CLI, so both keys are omitted.
+        #expect(primary["actualUsedPercent"] == nil)
+        #expect(primary["runOutProbability"] == nil)
+
+        let secondary = try #require(pace["secondary"] as? [String: Any])
+        #expect(secondary["stage"] as? String == "farAhead")
+        #expect((secondary["summary"] as? String)?.contains("Runs out in") == true)
+        #expect((secondary["summary"] as? String)?.contains("Projected empty") == false)
+    }
+
+    @Test
+    func `json omits pace when not applicable`() throws {
+        let now = Date()
+        let snap = UsageSnapshot(
+            primary: .init(
+                usedPercent: 20,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(2 * 60 * 60),
+                resetDescription: nil),
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: now)
+
+        // DeepSeek has no descriptor pace capability, so no pace should be emitted.
+        let payload = ProviderPayload(
+            provider: .deepseek,
+            account: nil,
+            version: nil,
+            source: "deepseek",
+            status: nil,
+            usage: snap,
+            credits: nil,
+            antigravityPlanInfo: nil,
+            openaiDashboard: nil,
+            error: nil,
+            pace: CLIRenderer.providerPacePayload(provider: .deepseek, snapshot: snap, now: now))
+
+        let data = try JSONEncoder().encode(payload)
+        let json = try #require(String(data: data, encoding: .utf8))
+        #expect(!json.contains("\"pace\""))
+    }
+
+    @Test
+    func `json includes only session pace when weekly window missing`() throws {
+        let now = Date()
+        let snap = UsageSnapshot(
+            primary: .init(
+                usedPercent: 50,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(4 * 60 * 60),
+                resetDescription: nil),
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: now)
+
+        let payload = ProviderPayload(
+            provider: .codex,
+            account: nil,
+            version: nil,
+            source: "codex-cli",
+            status: nil,
+            usage: snap,
+            credits: nil,
+            antigravityPlanInfo: nil,
+            openaiDashboard: nil,
+            error: nil,
+            pace: CLIRenderer.providerPacePayload(provider: .codex, snapshot: snap, now: now))
+
+        let data = try JSONEncoder().encode(payload)
+        let root = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let pace = try #require(root["pace"] as? [String: Any])
+        #expect(pace["primary"] is [String: Any])
+        #expect(pace["secondary"] == nil)
     }
 
     @Test
@@ -619,11 +1416,17 @@ struct CLISnapshotTests {
     }
 
     @Test
-    func `renders 5-hour tertiary row for zai`() {
+    func `renders GLM coding windows with MCP separate`() {
         let snap = UsageSnapshot(
-            primary: .init(usedPercent: 9, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
-            secondary: .init(usedPercent: 50, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
-            tertiary: .init(usedPercent: 25, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            primary: .init(usedPercent: 25, windowMinutes: 300, resetsAt: nil, resetDescription: "5-hour"),
+            secondary: .init(usedPercent: 9, windowMinutes: 10080, resetsAt: nil, resetDescription: "1 week window"),
+            tertiary: nil,
+            extraRateWindows: [
+                NamedRateWindow(
+                    id: "zai-mcp",
+                    title: "MCP",
+                    window: .init(usedPercent: 50, windowMinutes: nil, resetsAt: nil, resetDescription: "MCP")),
+            ],
             updatedAt: Date(timeIntervalSince1970: 0))
 
         let output = CLIRenderer.renderText(
@@ -637,7 +1440,135 @@ struct CLISnapshotTests {
                 resetStyle: .absolute))
 
         #expect(output.contains("5-hour:"))
-        #expect(output.contains("Tokens:"))
+        #expect(output.contains("Weekly:"))
         #expect(output.contains("MCP:"))
+    }
+
+    @Test
+    func `devin overage balance without primary window omits generic cost line`() {
+        let snap = UsageSnapshot(
+            primary: nil,
+            secondary: .init(usedPercent: 42, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            tertiary: nil,
+            providerCost: ProviderCostSnapshot(
+                used: 48.0,
+                limit: 0,
+                currencyCode: "USD",
+                period: "Extra usage balance",
+                updatedAt: Date(timeIntervalSince1970: 0)),
+            updatedAt: Date(timeIntervalSince1970: 0))
+        let output = CLIRenderer.renderText(
+            provider: .devin,
+            snapshot: snap,
+            credits: nil,
+            context: RenderContext(
+                header: "Devin (devin)",
+                status: nil,
+                useColor: false,
+                resetStyle: .absolute))
+        #expect(output.contains("Extra usage: $48.00"))
+        #expect(!output.contains("Cost:"))
+        #expect(!output.contains(" / 0.0"))
+    }
+
+    @Test
+    func `renders opencode go session and weekly pace lines`() {
+        let now = Date()
+        let snap = UsageSnapshot(
+            primary: .init(
+                usedPercent: 20,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(2 * 60 * 60),
+                resetDescription: nil),
+            secondary: .init(
+                usedPercent: 23,
+                windowMinutes: 10080,
+                resetsAt: now.addingTimeInterval(5 * 24 * 3600),
+                resetDescription: nil),
+            tertiary: nil,
+            updatedAt: now)
+
+        let output = CLIRenderer.renderText(
+            provider: .opencodego,
+            snapshot: snap,
+            credits: nil,
+            context: RenderContext(
+                header: "OpenCode Go (web)",
+                status: nil,
+                useColor: false,
+                resetStyle: .countdown),
+            now: now)
+
+        #expect(output.contains("5-hour: 80% left"))
+        // 2h remaining of a 5h window => 3h elapsed => 60% expected; opencode go is not codex so no headroom suffix.
+        #expect(output.contains("Pace: 40% in reserve | Expected 60% used | Lasts until reset"))
+        #expect(output.contains("Weekly: 77% left"))
+        // 5d remaining of a 7d window => 2d elapsed => 28.57% expected (29% displayed), delta -5.57 => -6 displayed.
+        #expect(output.contains("Pace: 6% in reserve | Expected 29% used | Lasts until reset"))
+        #expect(!output.contains("1.5× headroom"))
+    }
+
+    @Test
+    func `returns opencode go pace payload for primary and secondary`() throws {
+        let now = Date()
+        let snap = UsageSnapshot(
+            primary: .init(
+                usedPercent: 20,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(2 * 60 * 60),
+                resetDescription: nil),
+            secondary: .init(
+                usedPercent: 23,
+                windowMinutes: 10080,
+                resetsAt: now.addingTimeInterval(5 * 24 * 3600),
+                resetDescription: nil),
+            tertiary: nil,
+            updatedAt: now)
+
+        let pace = try #require(CLIRenderer.providerPacePayload(provider: .opencodego, snapshot: snap, now: now))
+        #expect(pace.primary != nil)
+        #expect(pace.primary?.stage == "farBehind")
+        #expect(pace.primary?.deltaPercent == -40)
+        #expect(pace.primary?.expectedUsedPercent == 60)
+        #expect(pace.primary?.summary == "40% in reserve | Expected 60% used | Lasts until reset")
+        #expect(pace.secondary != nil)
+        #expect(pace.secondary?.stage == "slightlyBehind")
+        #expect(pace.secondary?.deltaPercent == -6)
+        #expect(pace.secondary?.expectedUsedPercent == 29)
+        #expect(pace.secondary?.summary == "6% in reserve | Expected 29% used | Lasts until reset")
+    }
+
+    @Test
+    func `returns opencode go primary-only pace when weekly usage is missing`() throws {
+        let now = Date()
+        let snap = UsageSnapshot(
+            primary: .init(
+                usedPercent: 20,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(2 * 60 * 60),
+                resetDescription: nil),
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: now)
+
+        let pace = try #require(CLIRenderer.providerPacePayload(provider: .opencodego, snapshot: snap, now: now))
+        #expect(pace.primary != nil)
+        #expect(pace.secondary == nil)
+    }
+
+    @Test
+    func `hides opencode go primary pace when window exceeds five hours`() {
+        let now = Date()
+        let snap = UsageSnapshot(
+            primary: .init(
+                usedPercent: 20,
+                windowMinutes: 400,
+                resetsAt: now.addingTimeInterval(2 * 60 * 60),
+                resetDescription: nil),
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: now)
+
+        #expect(CLIRenderer.providerPacePayload(provider: .opencodego, snapshot: snap, now: now) == nil)
     }
 }

@@ -10,6 +10,9 @@ public struct GrokCredentials: Sendable {
     public let firstName: String?
     public let lastName: String?
     public let teamId: String?
+    /// The principal scope reported by Grok's cached OIDC credential, when available.
+    /// Keep this optional because older auth.json entries do not include it.
+    public let principalType: String?
     public let oidcIssuer: String?
     public let oidcClientId: String?
     public let expiresAt: Date?
@@ -25,6 +28,7 @@ public struct GrokCredentials: Sendable {
         firstName: String?,
         lastName: String?,
         teamId: String?,
+        principalType: String? = nil,
         oidcIssuer: String?,
         oidcClientId: String?,
         expiresAt: Date?,
@@ -39,10 +43,29 @@ public struct GrokCredentials: Sendable {
         self.firstName = firstName
         self.lastName = lastName
         self.teamId = teamId
+        self.principalType = principalType
         self.oidcIssuer = oidcIssuer
         self.oidcClientId = oidcClientId
         self.expiresAt = expiresAt
         self.createTime = createTime
+    }
+
+    public static func pasted(accessToken: String) -> GrokCredentials {
+        GrokCredentials(
+            accessToken: accessToken,
+            refreshToken: nil,
+            scope: "",
+            authMode: "oidc",
+            userId: nil,
+            email: nil,
+            firstName: nil,
+            lastName: nil,
+            teamId: nil,
+            principalType: nil,
+            oidcIssuer: nil,
+            oidcClientId: nil,
+            expiresAt: nil,
+            createTime: nil)
     }
 
     public var displayName: String? {
@@ -54,6 +77,11 @@ public struct GrokCredentials: Sendable {
     public var isExpired: Bool {
         guard let expiresAt else { return false }
         return Date() >= expiresAt
+    }
+
+    public var isTeamPrincipal: Bool {
+        self.principalType?.trimmingCharacters(in: .whitespacesAndNewlines)
+            .caseInsensitiveCompare("team") == .orderedSame
     }
 
     public var loginMethod: String? {
@@ -107,7 +135,22 @@ public enum GrokCredentialsStore {
         self.grokHomeURL(env: env, fileManager: fileManager).appendingPathComponent("auth.json")
     }
 
-    public static func load(env: [String: String] = ProcessInfo.processInfo.environment) throws -> GrokCredentials {
+    /// Prefer the Grok Build token file. If `grok login` has not created it yet, open `~/.grok`
+    /// instead of inventing an empty auth.json.
+    public static func tokenFileURLToOpen(
+        env: [String: String] = ProcessInfo.processInfo.environment,
+        fileManager: FileManager = .default) -> URL
+    {
+        let url = self.authFileURL(env: env, fileManager: fileManager)
+        if fileManager.fileExists(atPath: url.path) {
+            return url
+        }
+        return self.grokHomeURL(env: env, fileManager: fileManager)
+    }
+
+    public static func load(env: [String: String] = ProcessInfo.processInfo.environment) throws
+        -> GrokCredentials
+    {
         let url = self.authFileURL(env: env)
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw GrokCredentialsError.notFound
@@ -147,13 +190,16 @@ public enum GrokCredentialsStore {
             firstName: (entry["first_name"] as? String)?.nilIfEmpty,
             lastName: (entry["last_name"] as? String)?.nilIfEmpty,
             teamId: (entry["team_id"] as? String)?.nilIfEmpty,
+            principalType: (entry["principal_type"] as? String)?.nilIfEmpty,
             oidcIssuer: (entry["oidc_issuer"] as? String)?.nilIfEmpty,
             oidcClientId: (entry["oidc_client_id"] as? String)?.nilIfEmpty,
             expiresAt: Self.parseDate(entry["expires_at"]),
             createTime: Self.parseDate(entry["create_time"]))
     }
 
-    private static func selectPreferredEntry(in root: [String: Any]) -> (scope: String, entry: [String: Any])? {
+    private static func selectPreferredEntry(in root: [String: Any]) -> (
+        scope: String, entry: [String: Any])?
+    {
         var oidcCandidate: (String, [String: Any])?
         var legacyCandidate: (String, [String: Any])?
         for (scope, value) in root {
@@ -175,7 +221,9 @@ public enum GrokCredentialsStore {
         guard let value = raw as? String, !value.isEmpty else { return nil }
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = formatter.date(from: value) { return date }
+        if let date = formatter.date(from: value) {
+            return date
+        }
         formatter.formatOptions = [.withInternetDateTime]
         return formatter.date(from: value)
     }

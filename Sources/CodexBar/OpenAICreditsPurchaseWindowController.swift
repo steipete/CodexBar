@@ -361,6 +361,7 @@ final class OpenAICreditsPurchaseWindowController: NSWindowController, WKNavigat
     private let logger = CodexBarLog.logger(LogCategories.creditsPurchase)
     private var webView: WKWebView?
     private var accountEmail: String?
+    private var cacheScope: CookieHeaderCache.Scope?
     private var pendingAutoStart = false
     private let logHandler = WeakScriptMessageHandler()
 
@@ -374,10 +375,23 @@ final class OpenAICreditsPurchaseWindowController: NSWindowController, WKNavigat
         fatalError("init(coder:) has not been implemented")
     }
 
-    func show(purchaseURL: URL, accountEmail: String?, autoStartPurchase: Bool) {
+    func show(
+        purchaseURL: URL,
+        accountEmail: String?,
+        cacheScope: CookieHeaderCache.Scope?,
+        autoStartPurchase: Bool)
+    {
+        guard Self.canOpenPurchaseWindow(accountEmail: accountEmail, cacheScope: cacheScope) else {
+            self.close()
+            self.accountEmail = nil
+            self.cacheScope = nil
+            self.logger.error("Buy credits blocked: scoped account email unavailable")
+            return
+        }
         let normalizedEmail = Self.normalizeEmail(accountEmail)
-        if self.window == nil || normalizedEmail != self.accountEmail {
+        if self.window == nil || normalizedEmail != self.accountEmail || cacheScope != self.cacheScope {
             self.accountEmail = normalizedEmail
+            self.cacheScope = cacheScope
             self.buildWindow()
         }
         Self.resetDebugLog()
@@ -399,7 +413,9 @@ final class OpenAICreditsPurchaseWindowController: NSWindowController, WKNavigat
     private func buildWindow() {
         let config = WKWebViewConfiguration()
         config.userContentController.add(self.logHandler, name: Self.logHandlerName)
-        config.websiteDataStore = OpenAIDashboardWebsiteDataStore.store(forAccountEmail: self.accountEmail)
+        config.websiteDataStore = OpenAIDashboardWebsiteDataStore.store(
+            forAccountEmail: self.accountEmail,
+            scope: self.cacheScope)
 
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = self
@@ -466,6 +482,10 @@ final class OpenAICreditsPurchaseWindowController: NSWindowController, WKNavigat
     private static func normalizeEmail(_ email: String?) -> String? {
         guard let raw = email?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else { return nil }
         return raw.lowercased()
+    }
+
+    static func canOpenPurchaseWindow(accountEmail: String?, cacheScope: CookieHeaderCache.Scope?) -> Bool {
+        cacheScope == nil || self.normalizeEmail(accountEmail) != nil
     }
 
     private static func defaultFrame() -> NSRect {

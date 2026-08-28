@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>≈%d full 5h windows of weekly left · %d windows until reset</key>
+  <dict>
+    <key>NSStringLocalizedFormatKey</key>
+    <string>%#@left@ · %#@until@</string>
+    <key>left</key>
+    <dict>
+      <key>NSStringFormatSpecTypeKey</key>
+      <string>NSStringPluralRuleType</string>
+      <key>NSStringFormatValueTypeKey</key>
+      <string>d</string>
+      <key>one</key>
+      <string>週間枠は約%d回分の完全な5時間ウィンドウ</string>
+      <key>other</key>
+      <string>週間枠は約%d回分の完全な5時間ウィンドウ</string>
+    </dict>
+    <key>until</key>
+    <dict>
+      <key>NSStringFormatSpecTypeKey</key>
+      <string>NSStringPluralRuleType</string>
+      <key>NSStringFormatValueTypeKey</key>
+      <string>d</string>
+      <key>one</key>
+      <string>リセットまで%d回</string>
+      <key>other</key>
+      <string>リセットまで%d回</string>
+    </dict>
+  </dict>
+  <key>Weekly can run out ≈%d windows early</key>
+  <dict>
+    <key>NSStringLocalizedFormatKey</key>
+    <string>%#@early@</string>
+    <key>early</key>
+    <dict>
+      <key>NSStringFormatSpecTypeKey</key>
+      <string>NSStringPluralRuleType</string>
+      <key>NSStringFormatValueTypeKey</key>
+      <string>d</string>
+      <key>one</key>
+      <string>週間枠は約%dウィンドウ早く使い切る可能性があります</string>
+      <key>other</key>
+      <string>週間枠は約%dウィンドウ早く使い切る可能性があります</string>
+    </dict>
+  </dict>
+</dict>
+</plist>

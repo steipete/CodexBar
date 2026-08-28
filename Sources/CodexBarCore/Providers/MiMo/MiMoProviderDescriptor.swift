@@ -1,29 +1,26 @@
-import CodexBarMacroSupport
 import Foundation
-
-#if os(macOS)
 import SweetCookieKit
-#endif
 
-@ProviderDescriptorRegistration
-@ProviderDescriptorDefinition
 public enum MiMoProviderDescriptor {
-    static func makeDescriptor() -> ProviderDescriptor {
-        #if os(macOS)
-        let browserOrder: BrowserCookieImportOrder = [
-            .chrome,
-            .chromeBeta,
-            .chromeCanary,
-        ]
-        #else
-        let browserOrder: BrowserCookieImportOrder? = nil
-        #endif
+    public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
 
-        return ProviderDescriptor(
+    /// Safari first, the existing Chrome family, then Firefox/Edge; other Chromium forks remain manual-only.
+    private static var browserCookieOrder: BrowserCookieImportOrder? {
+        #if os(macOS)
+        [.safari, .chrome, .chromeBeta, .chromeCanary, .firefox, .edge]
+        #else
+        nil
+        #endif
+    }
+
+    static func makeDescriptor() -> ProviderDescriptor {
+        ProviderDescriptor(
             id: .mimo,
+            settingsSection: .init(MiMoProviderSettingsKey.self, cookieSettings: MiMoProviderSettings.self),
             metadata: ProviderMetadata(
                 id: .mimo,
                 displayName: "Xiaomi MiMo",
+                shortDisplayName: "MiMo",
                 sessionLabel: "Credits",
                 weeklyLabel: "Window",
                 opusLabel: nil,
@@ -33,25 +30,58 @@ public enum MiMoProviderDescriptor {
                 toggleTitle: "Show Xiaomi MiMo token plan & balance",
                 cliName: "mimo",
                 defaultEnabled: false,
+                widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
-                browserCookieOrder: browserOrder,
+                debugLogUnavailableMessage: "Xiaomi MiMo debug log not yet implemented",
+                browserCookieOrder: self.browserCookieOrder,
                 dashboardURL: "https://platform.xiaomimimo.com/#/console/balance",
                 statusPageURL: nil),
             branding: ProviderBranding(
-                iconStyle: .mimo,
+                iconStyle: .init(provider: .mimo),
                 iconResourceName: "ProviderIcon-mimo",
-                color: ProviderColor(red: 1.0, green: 105 / 255, blue: 0)),
+                color: ProviderColor(red: 1.0, green: 105 / 255, blue: 0),
+                confettiPalette: [
+                    ProviderColor(hex: 0x3D3834),
+                    ProviderColor(hex: 0x736B68),
+                ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Xiaomi MiMo cost summary is not supported." }),
+            pace: .calendarMonthResetWindow,
+            presentation: ProviderUsagePresentation(
+                identityPresenter: { provider, snapshot in
+                    let balance = snapshot.detailRow(label: "Balance")?.value
+                    guard let plan = snapshot.loginMethod(for: provider),
+                          !plan.isEmpty,
+                          !plan.localizedCaseInsensitiveContains("balance:")
+                    else {
+                        return ProviderIdentityPresentation(badge: balance, plan: nil)
+                    }
+                    let display = UsageFormatter.cleanPlanName(plan)
+                    return ProviderIdentityPresentation(badge: balance ?? display, plan: display)
+                },
+                menuCard: ProviderMenuCardPresentation(
+                    showsPrimaryBalanceDescription: true,
+                    hidesPrimaryResetWithoutDate: true),
+                menu: ProviderMenuDescriptorPresentation(primaryDescriptionIsDetail: { _ in true }),
+                planRow: ProviderPlanRowPresentation(stripsBalancePrefix: true)),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web],
-                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [MiMoWebFetchStrategy()] })),
+                pipeline: ProviderFetchPipeline(resolveStrategies: { context in
+                    if context.sourceMode == .web {
+                        return [MiMoWebFetchStrategy()]
+                    }
+                    return [MiMoWebFetchStrategy(), MiMoLocalFetchStrategy()]
+                })),
             cli: ProviderCLIConfig(
                 name: "mimo",
                 aliases: ["xiaomi-mimo"],
-                versionDetector: nil))
+                versionDetector: nil,
+                browserSupportExemption: { sourceMode, environment, _ in
+                    guard sourceMode == .auto, let environment else { return false }
+                    return MiMoLocalUsageFallback.cacheExists(environment: environment)
+                }))
     }
 }
 
@@ -64,25 +94,33 @@ struct MiMoWebFetchStrategy: ProviderFetchStrategy {
         if context.settings?.mimo?.cookieSource == .manual {
             return Self.resolveManualCookieHeader(context: context) != nil
         }
-        if Self.resolveManualCookieHeader(context: context) != nil {
-            return true
-        }
-
-        #if os(macOS)
-        if let cached = CookieHeaderCache.load(provider: .mimo),
-           MiMoCookieHeader.normalizedHeader(from: cached.cookieHeader) != nil
-        {
-            return true
-        }
-        return MiMoCookieImporter.hasSession(browserDetection: context.browserDetection)
-        #else
-        return false
-        #endif
+        // Fetch resolves the session so missing-cookie and browser-permission errors stay actionable.
+        return true
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
+        try await self.fetchFromWeb(context)
+    }
+
+    static func shouldFallbackToLocal(error: Error) -> Bool {
+        if let settingsError = error as? MiMoSettingsError {
+            switch settingsError {
+            case .missingCookie, .invalidCookie:
+                return true
+            case .invalidEndpointOverride:
+                return false
+            }
+        }
+        guard let mimoError = error as? MiMoUsageError else { return false }
+        switch mimoError {
+        case .invalidCredentials, .loginRequired: return true
+        case .parseFailed, .networkError: return false
+        }
+    }
+
+    private func fetchFromWeb(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
         guard context.settings?.mimo?.cookieSource != .off else {
-            throw MiMoSettingsError.missingCookie
+            throw MiMoSettingsError.missingCookie()
         }
         if context.settings?.mimo?.cookieSource == .manual {
             guard let manualCookie = Self.resolveManualCookieHeader(context: context) else {
@@ -122,8 +160,10 @@ struct MiMoWebFetchStrategy: ProviderFetchStrategy {
 
         let sessions = try MiMoCookieImporter.importSessions(browserDetection: context.browserDetection)
         guard !sessions.isEmpty else {
-            if let lastError { throw lastError }
-            throw MiMoSettingsError.missingCookie
+            if let lastError {
+                throw lastError
+            }
+            throw MiMoSettingsError.missingCookie()
         }
 
         for session in sessions {
@@ -145,15 +185,17 @@ struct MiMoWebFetchStrategy: ProviderFetchStrategy {
             }
         }
 
-        if let lastError { throw lastError }
-        throw MiMoSettingsError.missingCookie
+        if let lastError {
+            throw lastError
+        }
+        throw MiMoSettingsError.missingCookie()
         #else
-        throw MiMoSettingsError.missingCookie
+        throw MiMoSettingsError.missingCookie()
         #endif
     }
 
-    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
-        false
+    func shouldFallback(on error: Error, context _: ProviderFetchContext) -> Bool {
+        Self.shouldFallbackToLocal(error: error)
     }
 
     private static func resolveManualCookieHeader(context: ProviderFetchContext) -> String? {
@@ -174,5 +216,41 @@ struct MiMoWebFetchStrategy: ProviderFetchStrategy {
         case .networkError:
             return false
         }
+    }
+}
+
+enum MiMoLocalUsageError: LocalizedError {
+    case invalidCache(String)
+
+    var errorDescription: String? {
+        switch self {
+        case let .invalidCache(path):
+            "Xiaomi MiMo local usage cache is unreadable or malformed: \(path)"
+        }
+    }
+}
+
+struct MiMoLocalFetchStrategy: ProviderFetchStrategy {
+    let id: String = "mimo.local"
+    let kind: ProviderFetchKind = .localProbe
+
+    func isAvailable(_ context: ProviderFetchContext) async -> Bool {
+        MiMoLocalUsageFallback.cacheExists(environment: context.env)
+    }
+
+    func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
+        let path = Self.cachePath(context: context)
+        guard let snapshot = MiMoLocalUsageFallback.snapshot(cachePath: path) else {
+            throw MiMoLocalUsageError.invalidCache(path)
+        }
+        return self.makeResult(usage: snapshot.toUsageSnapshot(includeBalance: false), sourceLabel: "local")
+    }
+
+    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
+        false
+    }
+
+    private static func cachePath(context: ProviderFetchContext) -> String {
+        MiMoLocalUsageFallback.cachePath(environment: context.env)
     }
 }

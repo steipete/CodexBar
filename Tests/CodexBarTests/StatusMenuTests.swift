@@ -103,6 +103,46 @@ struct StatusMenuTests {
     }
 
     @Test
+    func `zai dashboard action follows selected region`() {
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+
+        settings.zaiAPIRegion = .global
+        #expect(controller.dashboardURL(for: .zai) == ZaiAPIRegion.global.dashboardURL)
+        #expect(
+            controller.dashboardURL(for: .zai)?.absoluteString ==
+                "https://z.ai/manage-apikey/coding-plan/personal/my-plan")
+        #expect(
+            controller.dashboardURL(
+                for: .zai,
+                environment: [ZaiSettingsReader.apiHostKey: "open.bigmodel.cn"]) ==
+                ZaiAPIRegion.bigmodelCN.dashboardURL)
+
+        settings.zaiAPIRegion = .bigmodelCN
+        #expect(controller.dashboardURL(for: .zai) == ZaiAPIRegion.bigmodelCN.dashboardURL)
+        #expect(controller.dashboardURL(for: .zai)?.absoluteString == "https://bigmodel.cn/coding-plan/personal/usage")
+
+        settings.addTokenAccount(provider: .zai, label: "Team", token: "team-token", usageScope: "team")
+        #expect(controller.dashboardURL(for: .zai) == ZaiAPIRegion.bigmodelCN.teamDashboardURL)
+        #expect(
+            controller.dashboardURL(for: .zai)?.absoluteString ==
+                "https://bigmodel.cn/coding-plan/team/usage-stats")
+    }
+
+    @Test
     func `opencode go dashboard action follows configured workspace`() {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
@@ -434,7 +474,7 @@ struct StatusMenuTests {
             }
             let menu = controller.makeMenu()
             controller.menuWillOpen(menu)
-            StatusItemController.setMenuRefreshEnabledForTesting(false)
+            controller.menuRefreshEnabledOverrideForTesting = false
             try? await Task.sleep(for: .milliseconds(180))
         }
 
@@ -554,8 +594,7 @@ struct StatusMenuTests {
         let menu = controller.makeMenu()
         controller.menuWillOpen(menu)
         controller.openMenus[ObjectIdentifier(menu)] = menu
-        StatusItemController.setMenuRefreshEnabledForTesting(true)
-        defer { StatusItemController.resetMenuRefreshEnabledForTesting() }
+        controller.menuRefreshEnabledOverrideForTesting = true
 
         let initialSwitcher = menu.items.first?.view as? ProviderSwitcherView
         #expect(initialSwitcher != nil)
@@ -563,11 +602,18 @@ struct StatusMenuTests {
 
         settings.usageBarsShowUsed = true
         controller.handleProviderConfigChange(reason: "usageBarsShowUsed")
-        for _ in 0..<20
-            where initialSwitcherID == (menu.items.first?.view as? ProviderSwitcherView).map(ObjectIdentifier.init)
-        {
+        for _ in 0..<20 {
             await Task.yield()
         }
+
+        #expect(controller.parentMenuRebuildsDeferredDuringTracking.contains(ObjectIdentifier(menu)))
+        if let initialSwitcherID, let currentSwitcher = menu.items.first?.view as? ProviderSwitcherView {
+            #expect(initialSwitcherID == ObjectIdentifier(currentSwitcher))
+        }
+
+        controller.menuDidClose(menu)
+        controller.menuWillOpen(menu)
+        defer { controller.menuDidClose(menu) }
 
         let updatedSwitcher = menu.items.first?.view as? ProviderSwitcherView
         #expect(updatedSwitcher != nil)
@@ -697,8 +743,7 @@ struct StatusMenuTests {
         let menu = controller.makeMenu()
         controller.menuWillOpen(menu)
         controller.openMenus[ObjectIdentifier(menu)] = menu
-        StatusItemController.setMenuRefreshEnabledForTesting(true)
-        defer { StatusItemController.resetMenuRefreshEnabledForTesting() }
+        controller.menuRefreshEnabledOverrideForTesting = true
 
         let initialButtons = self.switcherButtons(in: menu)
         #expect(initialButtons.count == activeProviders.count)
@@ -716,7 +761,7 @@ struct StatusMenuTests {
     }
 
     @Test
-    func `overview tab omits contextual provider actions`() {
+    func `overview tab omits contextual provider actions`() throws {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
         settings.statusChecksEnabled = false
@@ -755,10 +800,11 @@ struct StatusMenuTests {
         #expect(titles.contains("About CodexBar"))
         #expect(titles.contains("Quit"))
 
-        let refreshItem = menu.items.first { $0.title == "Refresh" }
-        #expect(refreshItem != nil)
-        #expect(refreshItem?.keyEquivalent == "r")
-        #expect(refreshItem?.keyEquivalentModifierMask == [.command])
+        let refreshItem = try #require(menu.items.first { $0.title == "Refresh" })
+        #expect(controller.isPersistentRefreshItem(refreshItem))
+        #expect(refreshItem.view is PersistentRefreshMenuView)
+        #expect(refreshItem.keyEquivalent.isEmpty)
+        #expect(refreshItem.keyEquivalentModifierMask.isEmpty)
 
         let settingsItem = menu.items.first { $0.title == "Settings..." }
         #expect(settingsItem != nil)
@@ -1168,12 +1214,13 @@ extension StatusMenuTests {
         controller.menuWillOpen(menu)
         let usageItem = menu.items.first { ($0.representedObject as? String) == "menuCardUsage" }
         let creditsItem = menu.items.first { ($0.representedObject as? String) == "menuCardCredits" }
+        let creditsHistoryItem = menu.items.first { item in
+            item.submenu?.items.contains { ($0.representedObject as? String) == "creditsHistoryChart" } == true
+        }
         #expect(
             usageItem?.submenu?.items
                 .contains { ($0.representedObject as? String) == "usageBreakdownChart" } == true)
-        #expect(
-            creditsItem?.submenu?.items
-                .contains { ($0.representedObject as? String) == "creditsHistoryChart" } == true)
+        #expect(creditsItem == nil && creditsHistoryItem != nil)
     }
 
     @Test
@@ -1184,6 +1231,8 @@ extension StatusMenuTests {
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
         settings.selectedMenuProvider = .openai
+        settings.costUsageEnabled = true
+        settings.costSummaryDisplayStyle = .both
 
         let registry = ProviderRegistry.shared
         let metadata = try #require(registry.metadata[.openai])
@@ -1238,17 +1287,13 @@ extension StatusMenuTests {
         settings.mergeIcons = true
         settings.selectedMenuProvider = .codex
         settings.costUsageEnabled = true
+        settings.costSummaryDisplayStyle = .both
 
         let registry = ProviderRegistry.shared
-        if let codexMeta = registry.metadata[.codex] {
-            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
-        }
-        if let claudeMeta = registry.metadata[.claude] {
-            settings.setProviderEnabled(provider: .claude, metadata: claudeMeta, enabled: false)
-        }
-        if let geminiMeta = registry.metadata[.gemini] {
-            settings.setProviderEnabled(provider: .gemini, metadata: geminiMeta, enabled: false)
-        }
+        let metadata = registry.metadata
+        try settings.setProviderEnabled(provider: .codex, metadata: #require(metadata[.codex]), enabled: true)
+        try settings.setProviderEnabled(provider: .claude, metadata: #require(metadata[.claude]), enabled: false)
+        try settings.setProviderEnabled(provider: .gemini, metadata: #require(metadata[.gemini]), enabled: false)
 
         let fetcher = UsageFetcher()
         let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
@@ -1367,6 +1412,7 @@ extension StatusMenuTests {
         settings.mergeIcons = true
         settings.selectedMenuProvider = .claude
         settings.costUsageEnabled = true
+        settings.costSummaryDisplayStyle = .both
         settings.claudeWebExtrasEnabled = true
 
         let registry = ProviderRegistry.shared
@@ -1442,6 +1488,7 @@ extension StatusMenuTests {
         settings.mergeIcons = true
         settings.selectedMenuProvider = .vertexai
         settings.costUsageEnabled = true
+        settings.costSummaryDisplayStyle = .both
 
         let registry = ProviderRegistry.shared
         if let vertexMeta = registry.metadata[.vertexai] {
@@ -1492,7 +1539,7 @@ extension StatusMenuTests {
 
 extension StatusMenuTests {
     @Test
-    func `overview tab renders overview rows for all active providers when three or fewer`() {
+    func `overview tab renders overview rows for six active providers`() {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
         settings.statusChecksEnabled = false
@@ -1501,11 +1548,14 @@ extension StatusMenuTests {
         settings.selectedMenuProvider = .claude
         settings.mergedMenuLastSelectedWasOverview = true
 
+        let enabledProviders: Set<UsageProvider> = [.codex, .claude, .cursor, .opencode, .warp, .gemini]
         let registry = ProviderRegistry.shared
         for provider in UsageProvider.allCases {
             guard let metadata = registry.metadata[provider] else { continue }
-            let shouldEnable = provider == .codex || provider == .claude || provider == .cursor
-            settings.setProviderEnabled(provider: provider, metadata: metadata, enabled: shouldEnable)
+            settings.setProviderEnabled(
+                provider: provider,
+                metadata: metadata,
+                enabled: enabledProviders.contains(provider))
         }
 
         let fetcher = UsageFetcher()
@@ -1520,18 +1570,14 @@ extension StatusMenuTests {
 
         let menu = controller.makeMenu()
         controller.menuWillOpen(menu)
-
         let ids = self.representedIDs(in: menu)
         let overviewRows = ids.filter { $0.hasPrefix("overviewRow-") }
-        #expect(overviewRows.count == 3)
-        #expect(overviewRows.contains("overviewRow-codex"))
-        #expect(overviewRows.contains("overviewRow-claude"))
-        #expect(overviewRows.contains("overviewRow-cursor"))
-        #expect(ids.contains("menuCard") == false)
+        #expect(Set(overviewRows) == Set(enabledProviders.map { "overviewRow-\($0.rawValue)" }))
+        #expect(menu.items.count(where: \.isSeparatorItem) == overviewRows.count + 1)
     }
 
     @Test
-    func `overview tab honors stored subset when three or fewer`() {
+    func `overview tab honors stored subset when within the provider limit`() {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
         settings.statusChecksEnabled = false
@@ -1583,15 +1629,14 @@ extension StatusMenuTests {
         settings.selectedMenuProvider = .codex
         settings.mergedMenuLastSelectedWasOverview = true
         settings.mergedOverviewSelectedProviders = []
-
+        let enabledProviders: Set<UsageProvider> = [.codex, .claude, .cursor, .opencode, .warp, .gemini, .grok]
         let registry = ProviderRegistry.shared
         for provider in UsageProvider.allCases {
             guard let metadata = registry.metadata[provider] else { continue }
-            let shouldEnable = provider == .codex ||
-                provider == .claude ||
-                provider == .cursor ||
-                provider == .opencode
-            settings.setProviderEnabled(provider: provider, metadata: metadata, enabled: shouldEnable)
+            settings.setProviderEnabled(
+                provider: provider,
+                metadata: metadata,
+                enabled: enabledProviders.contains(provider))
         }
 
         let fetcher = UsageFetcher()
@@ -1656,51 +1701,5 @@ extension StatusMenuTests {
         })
         #expect(claudeRow.action != nil)
         #expect(claudeRow.target is StatusItemController)
-    }
-
-    @Test
-    func `selecting overview row switches to provider detail`() throws {
-        self.disableMenuCardsForTesting()
-        let settings = self.makeSettings()
-        settings.statusChecksEnabled = false
-        settings.refreshFrequency = .manual
-        settings.mergeIcons = true
-        settings.selectedMenuProvider = .codex
-        settings.mergedMenuLastSelectedWasOverview = true
-
-        let registry = ProviderRegistry.shared
-        for provider in UsageProvider.allCases {
-            guard let metadata = registry.metadata[provider] else { continue }
-            let shouldEnable = provider == .codex || provider == .claude
-            settings.setProviderEnabled(provider: provider, metadata: metadata, enabled: shouldEnable)
-        }
-
-        let fetcher = UsageFetcher()
-        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
-        let controller = StatusItemController(
-            store: store,
-            settings: settings,
-            account: fetcher.loadAccountInfo(),
-            updater: DisabledUpdaterController(),
-            preferencesSelection: PreferencesSelection(),
-            statusBar: self.makeStatusBarForTesting())
-
-        let menu = controller.makeMenu()
-        controller.menuWillOpen(menu)
-
-        let claudeRow = try #require(menu.items.first {
-            ($0.representedObject as? String) == "overviewRow-claude"
-        })
-        let action = try #require(claudeRow.action)
-        let target = try #require(claudeRow.target as? StatusItemController)
-        _ = target.perform(action, with: claudeRow)
-
-        #expect(settings.mergedMenuLastSelectedWasOverview == false)
-        #expect(settings.selectedMenuProvider == .claude)
-
-        let ids = self.representedIDs(in: menu)
-        #expect(ids.contains("menuCard"))
-        #expect(ids.contains(where: { $0.hasPrefix("overviewRow-") }) == false)
-        #expect(self.switcherButtons(in: menu).first(where: { $0.state == .on })?.tag == 2)
     }
 }

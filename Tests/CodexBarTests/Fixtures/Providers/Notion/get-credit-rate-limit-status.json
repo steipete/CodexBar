@@ -1,0 +1,20 @@
+{
+  "status": "within_limit",
+  "window": {
+    "creditType": "basic_ai_credits",
+    "scope": "per_user",
+    "window": "6h",
+    "used": 42.5,
+    "limit": 100
+  },
+  "resetsInSeconds": 12600,
+  "billingPeriodWindow": {
+    "creditType": "basic_ai_credits",
+    "scope": "per_user",
+    "cadence": "billing_period",
+    "used": 18.0,
+    "limit": 100,
+    "periodEndMs": 1788000000000
+  },
+  "enforcement": "preview"
+}

@@ -29,6 +29,27 @@ struct KeychainCacheStoreTests {
     }
 
     @Test
+    func `implicit test store override stays isolated from explicit test store`() {
+        let service = "implicit-test-store-\(UUID().uuidString)"
+        let key = KeychainCacheStore.Key(category: "test", identifier: UUID().uuidString)
+        let explicitEntry = TestEntry(value: "explicit", storedAt: Date(timeIntervalSince1970: 1))
+        let implicitEntry = TestEntry(value: "implicit", storedAt: Date(timeIntervalSince1970: 2))
+
+        KeychainCacheStore.setTestStoreForTesting(true)
+        defer { KeychainCacheStore.setTestStoreForTesting(false) }
+
+        KeychainCacheStore.withServiceOverrideForTesting(service) {
+            KeychainCacheStore.store(key: key, entry: explicitEntry)
+            KeychainCacheStore.withImplicitTestStoreForTesting {
+                #expect(self.loadedEntry(for: key) == nil)
+                KeychainCacheStore.store(key: key, entry: implicitEntry)
+                #expect(self.loadedEntry(for: key) == implicitEntry)
+            }
+            #expect(self.loadedEntry(for: key) == explicitEntry)
+        }
+    }
+
+    @Test
     func `background interaction keeps real keychain cache available for no UI reads writes and deletes`() {
         KeychainAccessGate.withTaskOverrideForTesting(false) {
             ProviderInteractionContext.$current.withValue(.background) {
@@ -36,6 +57,11 @@ struct KeychainCacheStoreTests {
                 #expect(KeychainCacheStore.canEnumerateOrDeleteRealKeychainForTesting == true)
             }
         }
+    }
+
+    private func loadedEntry(for key: KeychainCacheStore.Key) -> TestEntry? {
+        guard case let .found(entry) = KeychainCacheStore.load(key: key, as: TestEntry.self) else { return nil }
+        return entry
     }
 
     @Test
@@ -142,6 +168,78 @@ struct KeychainCacheStoreTests {
 
     #if os(macOS)
     @Test
+    func `unsafe cache ACL remains unavailable without interaction`() {
+        let service = "cache-preflight-\(UUID().uuidString)"
+        let key = KeychainCacheStore.Key(category: "test", identifier: UUID().uuidString)
+        let observed = LockIsolated<(String, String?)?>(nil)
+
+        let result: KeychainCacheStore.LoadResult<TestEntry> = KeychainCacheStore.withServiceOverrideForTesting(
+            service)
+        {
+            KeychainCacheStore.withRealKeychainPathForTesting {
+                KeychainAccessGate.withTaskOverrideForTesting(false) {
+                    KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { candidateService, account in
+                        observed.setValue((candidateService, account))
+                        return .interactionRequired
+                    } operation: {
+                        KeychainCacheStore.load(key: key, as: TestEntry.self)
+                    }
+                }
+            }
+        }
+
+        #expect(observed.value?.0 == service)
+        #expect(observed.value?.1 == key.account)
+        switch result {
+        case .temporarilyUnavailable:
+            break
+        case .found, .invalid, .missing:
+            Issue.record("Expected an unsafe cache item to remain unavailable")
+        }
+    }
+
+    @Test
+    func `cache secret read stops when attributes preflight finds no item`() {
+        let key = KeychainCacheStore.Key(category: "test", identifier: UUID().uuidString)
+        let preflight: (String, String?) -> KeychainAccessPreflight.Outcome = { _, _ in .notFound }
+        let result: KeychainCacheStore.LoadResult<TestEntry> = KeychainCacheStore.withRealKeychainPathForTesting {
+            KeychainAccessGate.withTaskOverrideForTesting(false) {
+                KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting(preflight, operation: {
+                    KeychainCacheStore.load(key: key, as: TestEntry.self)
+                })
+            }
+        }
+
+        switch result {
+        case .missing:
+            break
+        case .found, .temporarilyUnavailable, .invalid:
+            Issue.record("Expected a missing preflight item to skip the secret-data query")
+        }
+    }
+
+    @Test
+    func `cache store and clear stop when decrypt ACL requires interaction`() {
+        let key = KeychainCacheStore.Key(category: "test", identifier: UUID().uuidString)
+        let entry = TestEntry(value: "blocked", storedAt: Date(timeIntervalSince1970: 0))
+        let recorder = KeychainCacheStore.OperationRecorder()
+        let preflight: (String, String?) -> KeychainAccessPreflight.Outcome = { _, _ in .interactionRequired }
+
+        KeychainCacheStore.withRealKeychainPathForTesting {
+            KeychainAccessGate.withTaskOverrideForTesting(false) {
+                KeychainCacheStore.withOperationRecorderForTesting(recorder) {
+                    KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting(preflight) {
+                        #expect(KeychainCacheStore.storeResult(key: key, entry: entry) == false)
+                        #expect(KeychainCacheStore.clearResult(key: key) == .failed)
+                    }
+                }
+            }
+        }
+
+        #expect(recorder.operations == [.store, .clear])
+    }
+
+    @Test
     func `interaction not allowed is treated as temporarily unavailable`() {
         let key = KeychainCacheStore.Key(category: "test", identifier: UUID().uuidString)
         let result: KeychainCacheStore.LoadResult<TestEntry> = KeychainCacheStore.loadResultForKeychainReadFailure(
@@ -159,7 +257,9 @@ struct KeychainCacheStoreTests {
     @Test
     func `delete interaction not allowed is non fatal`() {
         let key = KeychainCacheStore.Key(category: "test", identifier: UUID().uuidString)
-        #expect(KeychainCacheStore.clearResultForKeychainDeleteStatus(errSecInteractionNotAllowed, key: key) == false)
+        #expect(KeychainCacheStore.clearResultForKeychainDeleteStatus(
+            errSecInteractionNotAllowed,
+            key: key) == .failed)
     }
 
     @Test
@@ -190,6 +290,177 @@ struct KeychainCacheStoreTests {
     }
 
     @Test
+    func `disabled keychain access keeps an in process memory cache`() {
+        KeychainCacheStore.resetDisabledAccessMemoryStoreForTesting()
+        defer {
+            KeychainCacheStore.resetDisabledAccessMemoryStoreForTesting()
+            KeychainAccessGate.resetOverrideForTesting()
+        }
+
+        let service = "disabled-memory-\(UUID().uuidString)"
+        let key = KeychainCacheStore.Key(category: "cookie", identifier: "cursor")
+        let entry = TestEntry(value: "WorkosCursorSessionToken=memory", storedAt: Date(timeIntervalSince1970: 3))
+
+        KeychainAccessGate.withTaskOverrideForTesting(true) {
+            KeychainCacheStore.withDisabledAccessMemoryStoreForTesting(true) {
+                KeychainCacheStore.withServiceOverrideForTesting(service) {
+                    #expect(KeychainCacheStore.storeResult(key: key, entry: entry))
+                    switch KeychainCacheStore.load(key: key, as: TestEntry.self) {
+                    case let .found(loaded):
+                        #expect(loaded == entry)
+                    case .missing, .temporarilyUnavailable, .invalid:
+                        #expect(Bool(false), "Expected in-process memory cache entry")
+                    }
+                    #expect(KeychainCacheStore.keys(category: "cookie").contains(key))
+                    #expect(KeychainCacheStore.clearResult(key: key) == .removed)
+                    switch KeychainCacheStore.load(key: key, as: TestEntry.self) {
+                    case .missing:
+                        break
+                    case .found, .temporarilyUnavailable, .invalid:
+                        #expect(Bool(false), "Expected memory cache entry to be cleared")
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    func `bundled ad hoc builds keep cookie cache in process memory`() {
+        KeychainCacheStore.resetDisabledAccessMemoryStoreForTesting()
+        defer { KeychainCacheStore.resetDisabledAccessMemoryStoreForTesting() }
+
+        let service = "adhoc-memory-\(UUID().uuidString)"
+        let key = KeychainCacheStore.Key.cookie(provider: .claude)
+        let entry = TestEntry(value: "sessionKey=memory", storedAt: Date(timeIntervalSince1970: 4))
+
+        KeychainCacheStore.withBundledAdHocProcessForTesting(true) {
+            KeychainCacheStore.withServiceOverrideForTesting(service) {
+                #expect(KeychainCacheStore.storeResult(key: key, entry: entry))
+                #expect(self.loadedEntry(for: key) == entry)
+                #expect(KeychainCacheStore.keys(category: "cookie") == [key])
+                #expect(KeychainCacheStore.clearResult(key: key) == .removed)
+                #expect(self.loadedEntry(for: key) == nil)
+            }
+        }
+    }
+
+    @Test
+    func `certificate signed builds keep cookie cache in persistent store`() {
+        KeychainCacheStore.resetDisabledAccessMemoryStoreForTesting()
+        KeychainCacheStore.setTestStoreForTesting(true)
+        defer {
+            KeychainCacheStore.setTestStoreForTesting(false)
+            KeychainCacheStore.resetDisabledAccessMemoryStoreForTesting()
+        }
+
+        let service = "signed-persistent-\(UUID().uuidString)"
+        let key = KeychainCacheStore.Key.cookie(provider: .claude)
+        let entry = TestEntry(value: "sessionKey=persistent", storedAt: Date(timeIntervalSince1970: 5))
+
+        KeychainCacheStore.withBundledAdHocProcessForTesting(false) {
+            KeychainCacheStore.withServiceOverrideForTesting(service) {
+                #expect(KeychainCacheStore.storeResult(key: key, entry: entry))
+                #expect(self.loadedEntry(for: key) == entry)
+            }
+        }
+
+        KeychainCacheStore.withBundledAdHocProcessForTesting(true) {
+            KeychainCacheStore.withServiceOverrideForTesting(service) {
+                #expect(self.loadedEntry(for: key) == nil)
+            }
+        }
+
+        KeychainCacheStore.withBundledAdHocProcessForTesting(false) {
+            KeychainCacheStore.withServiceOverrideForTesting(service) {
+                #expect(self.loadedEntry(for: key) == entry)
+                #expect(KeychainCacheStore.clearResult(key: key) == .removed)
+            }
+        }
+    }
+
+    @Test
+    func `code signing certificate detection recognizes signed system code`() {
+        #expect(KeychainCacheStore.hasCodeSigningCertificate(at: URL(fileURLWithPath: "/usr/bin/security")))
+        #expect(!KeychainCacheStore.hasCodeSigningCertificate(
+            at: URL(fileURLWithPath: "/path/that/does/not/exist")))
+    }
+
+    @Test
+    func `bundled ad hoc builds do not move OAuth credentials into memory`() {
+        KeychainCacheStore.resetDisabledAccessMemoryStoreForTesting()
+        defer {
+            KeychainCacheStore.resetDisabledAccessMemoryStoreForTesting()
+            KeychainAccessGate.resetOverrideForTesting()
+        }
+
+        let service = "adhoc-memory-oauth-\(UUID().uuidString)"
+        let key = KeychainCacheStore.Key.oauth(provider: .claude)
+        let entry = TestEntry(value: "synthetic-oauth-credential", storedAt: Date(timeIntervalSince1970: 5))
+
+        KeychainAccessGate.withTaskOverrideForTesting(true) {
+            KeychainCacheStore.withBundledAdHocProcessForTesting(true) {
+                KeychainCacheStore.withServiceOverrideForTesting(service) {
+                    #expect(!KeychainCacheStore.storeResult(key: key, entry: entry))
+                    #expect(self.loadedEntry(for: key) == nil)
+                    #expect(KeychainCacheStore.keysResult(category: "oauth") == .failed)
+                }
+            }
+        }
+    }
+
+    @Test
+    func `disabled keychain access does not retain OAuth entries in memory`() {
+        KeychainCacheStore.resetDisabledAccessMemoryStoreForTesting()
+        defer {
+            KeychainCacheStore.resetDisabledAccessMemoryStoreForTesting()
+            KeychainAccessGate.resetOverrideForTesting()
+        }
+
+        let service = "disabled-memory-oauth-\(UUID().uuidString)"
+        let key = KeychainCacheStore.Key.oauth(provider: .claude)
+        let entry = TestEntry(value: "synthetic-oauth-credential", storedAt: Date(timeIntervalSince1970: 4))
+
+        KeychainAccessGate.withTaskOverrideForTesting(true) {
+            KeychainCacheStore.withDisabledAccessMemoryStoreForTesting(true) {
+                KeychainCacheStore.withServiceOverrideForTesting(service) {
+                    #expect(!KeychainCacheStore.storeResult(key: key, entry: entry))
+                    #expect(self.loadedEntry(for: key) == nil)
+                    #expect(KeychainCacheStore.keysResult(category: "oauth") == .failed)
+                }
+            }
+        }
+    }
+
+    @Test
+    func `toggling Keychain access clears the disabled access memory cache`() {
+        KeychainCacheStore.resetDisabledAccessMemoryStoreForTesting()
+        defer {
+            KeychainCacheStore.resetDisabledAccessMemoryStoreForTesting()
+            KeychainAccessGate.resetOverrideForTesting()
+        }
+
+        let service = "disabled-memory-toggle-\(UUID().uuidString)"
+        let key = KeychainCacheStore.Key(category: "cookie", identifier: "cursor")
+        let entry = TestEntry(value: "WorkosCursorSessionToken=stale", storedAt: Date(timeIntervalSince1970: 4))
+
+        KeychainAccessGate.isDisabled = true
+        KeychainCacheStore.withDisabledAccessMemoryStoreForTesting(true) {
+            KeychainCacheStore.withServiceOverrideForTesting(service) {
+                #expect(KeychainCacheStore.storeResult(key: key, entry: entry))
+                #expect(self.loadedEntry(for: key) == entry)
+            }
+        }
+
+        KeychainAccessGate.isDisabled = false
+
+        KeychainCacheStore.withDisabledAccessMemoryStoreForTesting(true) {
+            KeychainCacheStore.withServiceOverrideForTesting(service) {
+                #expect(self.loadedEntry(for: key) == nil)
+            }
+        }
+    }
+
+    @Test
     func `cache ACL trusts bundled app and CLI helper`() {
         let root = URL(fileURLWithPath: "/Applications/CodexBar.app")
         let executable = root.appendingPathComponent("Contents/MacOS/CodexBar")
@@ -210,6 +481,47 @@ struct KeychainCacheStoreTests {
             helper.path,
             executable.path,
         ])
+    }
+
+    @Test
+    func `cache preflight inspects only the invoking executable`() {
+        let root = URL(fileURLWithPath: "/Applications/CodexBar.app")
+        let executable = root.appendingPathComponent("Contents/MacOS/CodexBar")
+        let helper = root.appendingPathComponent("Contents/Helpers/CodexBarCLI")
+
+        let currentPaths = KeychainCacheStore.invokingApplicationPathsForCacheAccess(
+            executableURL: executable,
+            fileExists: { $0 == executable.path })
+
+        #expect(currentPaths == [executable.path])
+        #expect(!currentPaths.contains(helper.path))
+    }
+
+    @Test
+    func `cache ACL refuses bare dev binaries without an app bundle`() {
+        // Trusting an ephemeral `swift build` binary would freeze a broken ACL
+        // onto the shared item; the packaged app would then prompt on every read.
+        let bundleURL = URL(fileURLWithPath: "/Users/dev/project/.build/debug")
+        let executable = URL(fileURLWithPath: "/Users/dev/project/.build/debug/CodexBarCLI")
+
+        let paths = KeychainCacheStore.trustedApplicationPathsForCacheAccess(
+            bundleURL: bundleURL,
+            executableURL: executable,
+            fileExists: { _ in true })
+
+        #expect(paths.isEmpty)
+    }
+
+    @Test
+    func `blocked keychain access exports suppression for child processes`() {
+        // Under tests access is always blocked; the decision must export the
+        // suppression variable so spawned CLI children inherit it (their process
+        // names match no test pattern).
+        #expect(KeychainTestSafety.shouldBlockRealKeychainAccess())
+
+        let exported = getenv(KeychainTestSafety.suppressAccessEnvironmentKey)
+        #expect(exported != nil)
+        #expect(exported.map { String(cString: $0) } == "1")
     }
     #endif
 }

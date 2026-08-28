@@ -2,6 +2,7 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
+@Suite(.serialized)
 struct ClaudeOAuthTests {
     @Test
     func `parses O auth credentials`() throws {
@@ -53,6 +54,35 @@ struct ClaudeOAuthTests {
     }
 
     @Test
+    func `mcp O auth only keychain payload throws`() {
+        let json = """
+        {
+          "mcpOAuth": {
+            "plugin:slack:slack": {
+              "accessToken": ""
+            }
+          }
+        }
+        """
+        #expect(throws: ClaudeOAuthCredentialsError.self) {
+            _ = try ClaudeOAuthCredentials.parse(data: Data(json.utf8))
+        }
+    }
+
+    @Test
+    func `detects mcp O auth only keychain payload shape`() {
+        let json = """
+        {
+          "mcpOAuth": {
+            "craft": { "accessToken": "" }
+          }
+        }
+        """
+        let data = Data(json.utf8)
+        #expect(ClaudeOAuthCredentials.isMcpOAuthOnlyPayload(data: data))
+    }
+
+    @Test
     func `treats missing expiry as expired`() {
         let creds = ClaudeOAuthCredentials(
             accessToken: "token",
@@ -81,6 +111,43 @@ struct ClaudeOAuthTests {
         #expect(snap.opus?.usedPercent == 5)
         #expect(snap.primary.resetsAt != nil)
         #expect(snap.loginMethod == "Claude Pro")
+        #expect(snap.oauthHistoryOwnerIdentifier?.count == 64)
+    }
+
+    @Test
+    func `O auth profile request decodes nested account identity`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            let url = try #require(request.url)
+            let response = try #require(HTTPURLResponse(
+                url: url,
+                statusCode: 200,
+                httpVersion: "HTTP/1.1",
+                headerFields: ["Content-Type": "application/json"]))
+            let body = """
+            {
+              "account": {
+                "uuid": "account-123",
+                "email": "user@example.com"
+              },
+              "organization": {
+                "uuid": "org-123"
+              }
+            }
+            """
+            return (Data(body.utf8), response)
+        }
+
+        let profile = try await ClaudeOAuthUsageFetcher.fetchProfile(
+            accessToken: "oauth-token",
+            transport: transport)
+
+        #expect(profile.emailAddress == "user@example.com")
+        #expect(profile.organizationUuid == "org-123")
+        let request = try #require(await transport.requests().first)
+        #expect(request.url?.absoluteString == "https://api.anthropic.com/api/oauth/profile")
+        #expect(request.httpMethod == "GET")
+        #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer oauth-token")
+        #expect(request.value(forHTTPHeaderField: "Accept") == "application/json")
     }
 
     @Test
@@ -114,6 +181,81 @@ struct ClaudeOAuthTests {
     }
 
     @Test
+    func `surfaces Fable scoped weekly limit from limits array`() throws {
+        // Real shape observed 2026-07-03 during Anthropic's Fable 5 promotional access
+        // window (up to 50% of the weekly limit on Fable 5): weekly caps have moved from
+        // flat seven_day_* fields (now null) to a `limits` array with `scope.model.display_name`.
+        let json = """
+        {
+          "five_hour": { "utilization": 11.0, "resets_at": "2026-07-03T00:30:00.282668+00:00" },
+          "seven_day": { "utilization": 9.0, "resets_at": "2026-07-08T09:00:00.282694+00:00" },
+          "seven_day_opus": null,
+          "seven_day_sonnet": null,
+          "limits": [
+            {
+              "kind": "session", "group": "session", "percent": 11,
+              "resets_at": "2026-07-03T00:30:00.282668+00:00", "scope": null, "is_active": true
+            },
+            {
+              "kind": "weekly_all", "group": "weekly", "percent": 9,
+              "resets_at": "2026-07-08T09:00:00.282694+00:00", "scope": null, "is_active": false
+            },
+            {
+              "kind": "weekly_scoped", "group": "weekly", "percent": 5,
+              "resets_at": "2026-07-08T09:00:00.283070+00:00",
+              "scope": { "model": { "id": null, "display_name": "Fable" }, "surface": null },
+              "is_active": false
+            }
+          ]
+        }
+        """
+        let snap = try ClaudeUsageFetcher._mapOAuthUsageForTesting(Data(json.utf8))
+        let fable = snap.extraRateWindows.first(where: { $0.id == "claude-weekly-scoped-fable" })
+        #expect(fable?.title == "Fable only")
+        #expect(fable?.window.usedPercent == 5)
+        #expect(fable?.window.resetsAt != nil)
+    }
+
+    @Test
+    func `orders O auth scoped weekly windows before daily routines`() throws {
+        let json = """
+        {
+          "five_hour": { "utilization": 12.5, "resets_at": "2025-12-25T12:00:00.000Z" },
+          "seven_day": { "utilization": 30, "resets_at": "2025-12-31T00:00:00.000Z" },
+          "seven_day_routines": { "utilization": 18, "resets_at": "2026-01-01T00:00:00.000Z" },
+          "limits": [
+            {
+              "kind": "weekly_scoped", "group": "weekly", "percent": 29,
+              "resets_at": "2025-12-31T00:00:00.000Z",
+              "scope": { "model": { "id": null, "display_name": "Fable" }, "surface": null },
+              "is_active": false
+            }
+          ]
+        }
+        """
+        let snap = try ClaudeUsageFetcher._mapOAuthUsageForTesting(Data(json.utf8))
+        #expect(snap.extraRateWindows.map(\.title) == ["Fable only", "Daily Routines"])
+    }
+
+    @Test
+    func `ignores weekly scoped limit without a model display name`() throws {
+        let json = """
+        {
+          "five_hour": { "utilization": 11.0, "resets_at": "2026-07-03T00:30:00.282668+00:00" },
+          "limits": [
+            {
+              "kind": "weekly_scoped", "group": "weekly", "percent": 5,
+              "resets_at": "2026-07-08T09:00:00.283070+00:00",
+              "scope": { "model": null, "surface": null }, "is_active": false
+            }
+          ]
+        }
+        """
+        let snap = try ClaudeUsageFetcher._mapOAuthUsageForTesting(Data(json.utf8))
+        #expect(snap.extraRateWindows.contains { $0.id.hasPrefix("claude-weekly-scoped-") } == false)
+    }
+
+    @Test
     func `ignores merged O auth omelette usage window`() throws {
         let json = """
         {
@@ -129,7 +271,7 @@ struct ClaudeOAuthTests {
     }
 
     @Test
-    func `maps O auth null cowork as zero routines window`() throws {
+    func `omits routines window when O auth cowork is null`() throws {
         let json = """
         {
           "five_hour": { "utilization": 12.5, "resets_at": "2025-12-25T12:00:00.000Z" },
@@ -138,7 +280,7 @@ struct ClaudeOAuthTests {
         }
         """
         let snap = try ClaudeUsageFetcher._mapOAuthUsageForTesting(Data(json.utf8))
-        #expect(snap.extraRateWindows.first(where: { $0.id == "claude-routines" })?.window.usedPercent == 0)
+        #expect(snap.extraRateWindows.contains { $0.id == "claude-routines" } == false)
         #expect(snap.extraRateWindows.contains { $0.id == "claude-design" } == false)
     }
 
@@ -369,7 +511,7 @@ struct ClaudeOAuthTests {
                 scopes: ["user:profile"],
                 rateLimitTier: nil)
         }
-        let fetchOverride: (@Sendable (String) async throws -> OAuthUsageResponse)? = { _ in
+        let fetchOverride: (@Sendable (String, Bool) async throws -> OAuthUsageResponse)? = { _, _ in
             throw ClaudeOAuthFetchError.rateLimited(retryAfter: nil)
         }
 
@@ -402,15 +544,174 @@ struct ClaudeOAuthTests {
 
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let retryAfter = now.addingTimeInterval(120)
+        let accountA = "test-auth-token"
+        let accountB = "test-token-placeholder"
 
-        #expect(ClaudeOAuthUsageRateLimitGate.currentBlockedUntil(now: now) == nil)
-        ClaudeOAuthUsageRateLimitGate.recordRateLimit(retryAfter: retryAfter, now: now)
+        #expect(ClaudeOAuthUsageRateLimitGate.currentBlockedUntil(accessToken: accountA, now: now) == nil)
+        ClaudeOAuthUsageRateLimitGate.recordRateLimit(
+            accessToken: accountA,
+            retryAfter: retryAfter,
+            now: now)
 
-        #expect(ClaudeOAuthUsageRateLimitGate.currentBlockedUntil(now: now) == retryAfter)
-        #expect(ClaudeOAuthUsageRateLimitGate.blockedUntil(interaction: .background, now: now) == retryAfter)
-        #expect(ClaudeOAuthUsageRateLimitGate.blockedUntil(interaction: .userInitiated, now: now) == nil)
-        #expect(ClaudeOAuthUsageRateLimitGate.currentBlockedUntil(now: now.addingTimeInterval(119)) != nil)
-        #expect(ClaudeOAuthUsageRateLimitGate.currentBlockedUntil(now: now.addingTimeInterval(121)) == nil)
+        #expect(ClaudeOAuthUsageRateLimitGate.currentBlockedUntil(accessToken: accountA, now: now) == retryAfter)
+        #expect(ClaudeOAuthUsageRateLimitGate.currentBlockedUntil(accessToken: accountB, now: now) == nil)
+        #expect(
+            ClaudeOAuthUsageRateLimitGate.blockedUntil(
+                accessToken: accountA,
+                interaction: .background,
+                now: now) == retryAfter)
+        #expect(
+            ClaudeOAuthUsageRateLimitGate.blockedUntil(
+                accessToken: accountA,
+                interaction: .userInitiated,
+                now: now) == nil)
+        #expect(
+            ClaudeOAuthUsageRateLimitGate.currentBlockedUntil(
+                accessToken: accountA,
+                now: now.addingTimeInterval(119)) != nil)
+        #expect(
+            ClaudeOAuthUsageRateLimitGate.currentBlockedUntil(
+                accessToken: accountA,
+                now: now.addingTimeInterval(121)) == nil)
+    }
+
+    @Test
+    func `O auth cooldown storage is private and cleans stale entries`() {
+        ClaudeOAuthUsageRateLimitGate.resetForTesting()
+        defer { ClaudeOAuthUsageRateLimitGate.resetForTesting() }
+
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let accessToken = "test-auth-token"
+        let preferenceName = ClaudeOAuthUsageRateLimitGate.storageKeyForTesting(accessToken: accessToken)
+        let prefix = "claudeOAuthUsageRateLimitBlockedUntilV2."
+        let legacyKey = "claudeOAuthUsageRateLimitBlockedUntilV1"
+        let expiredKey = prefix + "expired"
+        let malformedKey = prefix + "malformed"
+        UserDefaults.standard.set(now.addingTimeInterval(600).timeIntervalSince1970, forKey: legacyKey)
+        UserDefaults.standard.set(now.addingTimeInterval(-1).timeIntervalSince1970, forKey: expiredKey)
+        UserDefaults.standard.set("not-a-date", forKey: malformedKey)
+
+        ClaudeOAuthUsageRateLimitGate.recordRateLimit(
+            accessToken: accessToken,
+            retryAfter: now.addingTimeInterval(120),
+            now: now)
+
+        #expect(!preferenceName.contains(accessToken))
+        #expect(String(preferenceName.dropFirst(prefix.count)).count == 64)
+        #expect(UserDefaults.standard.object(forKey: preferenceName) != nil)
+        #expect(UserDefaults.standard.object(forKey: legacyKey) == nil)
+        #expect(UserDefaults.standard.object(forKey: expiredKey) == nil)
+        #expect(UserDefaults.standard.object(forKey: malformedKey) == nil)
+    }
+
+    @Test
+    func `concurrent O auth cooldown writes keep every account and latest deadline`() async {
+        ClaudeOAuthUsageRateLimitGate.resetForTesting()
+        defer { ClaudeOAuthUsageRateLimitGate.resetForTesting() }
+
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let shortDeadline = now.addingTimeInterval(60)
+        let longDeadline = now.addingTimeInterval(600)
+        await withTaskGroup(of: Void.self) { group in
+            for index in 0..<100 {
+                group.addTask {
+                    ClaudeOAuthUsageRateLimitGate.recordRateLimit(
+                        accessToken: index.isMultiple(of: 2) ? "test-auth-token" : "test-token-placeholder",
+                        retryAfter: index.isMultiple(of: 3) ? longDeadline : shortDeadline,
+                        now: now)
+                }
+            }
+        }
+
+        #expect(
+            ClaudeOAuthUsageRateLimitGate.currentBlockedUntil(
+                accessToken: "test-auth-token",
+                now: now) == longDeadline)
+        #expect(
+            ClaudeOAuthUsageRateLimitGate.currentBlockedUntil(
+                accessToken: "test-token-placeholder",
+                now: now) == longDeadline)
+    }
+
+    @Test
+    func `O auth transport cooldown is isolated and user recovery clears one account`() async throws {
+        ClaudeOAuthUsageRateLimitGate.resetForTesting()
+        defer { ClaudeOAuthUsageRateLimitGate.resetForTesting() }
+
+        let accountA = "test-auth-token"
+        let accountB = "test-token-placeholder"
+        let recorder = OAuthUsageTransportRecorder()
+        let transport = ProviderHTTPTransportHandler { request in
+            let authorization = request.value(forHTTPHeaderField: "Authorization") ?? ""
+            let bearerValue = authorization.replacingOccurrences(of: "Bearer ", with: "")
+            let statusCode = await recorder.nextStatusCode(token: bearerValue)
+            let body = statusCode == 200
+                ? #"{"five_hour":{"utilization":12.5,"resets_at":"2026-07-09T18:00:00Z"}}"#
+                : #"{"type":"rate_limit_error"}"#
+            let requestURL = try #require(request.url)
+            let response = try #require(HTTPURLResponse(
+                url: requestURL,
+                statusCode: statusCode,
+                httpVersion: "HTTP/1.1",
+                headerFields: statusCode == 429 ? ["Retry-After": "300"] : nil))
+            return (Data(body.utf8), response)
+        }
+
+        do {
+            _ = try await ProviderInteractionContext.$current.withValue(.background) {
+                try await ClaudeOAuthUsageFetcher.fetchUsage(
+                    accessToken: accountA,
+                    detectClaudeVersion: false,
+                    transport: transport)
+            }
+            Issue.record("Expected account A rate limit")
+        } catch let error as ClaudeOAuthFetchError {
+            guard case .rateLimited = error else {
+                Issue.record("Expected account A rate limit, got \(error)")
+                return
+            }
+        }
+
+        do {
+            _ = try await ProviderInteractionContext.$current.withValue(.background) {
+                try await ClaudeOAuthUsageFetcher.fetchUsage(
+                    accessToken: accountA,
+                    detectClaudeVersion: false,
+                    transport: transport)
+            }
+            Issue.record("Expected account A cooldown")
+        } catch let error as ClaudeOAuthFetchError {
+            guard case .rateLimited = error else {
+                Issue.record("Expected account A cooldown, got \(error)")
+                return
+            }
+        }
+        #expect(await recorder.requestCount(token: accountA) == 1)
+
+        _ = try await ProviderInteractionContext.$current.withValue(.background) {
+            try await ClaudeOAuthUsageFetcher.fetchUsage(
+                accessToken: accountB,
+                detectClaudeVersion: false,
+                transport: transport)
+        }
+        #expect(await recorder.requestCount(token: accountB) == 1)
+
+        _ = try await ProviderInteractionContext.$current.withValue(.userInitiated) {
+            try await ClaudeOAuthUsageFetcher.fetchUsage(
+                accessToken: accountA,
+                detectClaudeVersion: false,
+                transport: transport)
+        }
+        #expect(await recorder.requestCount(token: accountA) == 2)
+        #expect(ClaudeOAuthUsageRateLimitGate.currentBlockedUntil(accessToken: accountA) == nil)
+
+        _ = try await ProviderInteractionContext.$current.withValue(.background) {
+            try await ClaudeOAuthUsageFetcher.fetchUsage(
+                accessToken: accountA,
+                detectClaudeVersion: false,
+                transport: transport)
+        }
+        #expect(await recorder.requestCount(token: accountA) == 3)
     }
 
     @Test
@@ -452,6 +753,30 @@ struct ClaudeOAuthTests {
     }
 
     @Test
+    func `oauth usage fallback user agent skips version detector`() {
+        var detectionCount = 0
+        let fallback = ClaudeOAuthUsageFetcher._userAgentForTesting(
+            detectClaudeVersion: false,
+            versionDetector: {
+                detectionCount += 1
+                return "2.1.70 (Claude Code)"
+            })
+
+        #expect(fallback == "claude-code/2.1.0")
+        #expect(detectionCount == 0)
+
+        let detected = ClaudeOAuthUsageFetcher._userAgentForTesting(
+            detectClaudeVersion: true,
+            versionDetector: {
+                detectionCount += 1
+                return "2.1.70 (Claude Code)"
+            })
+
+        #expect(detected == "claude-code/2.1.70")
+        #expect(detectionCount == 1)
+    }
+
+    @Test
     func `skips extra usage when disabled`() throws {
         let json = """
         {
@@ -470,7 +795,7 @@ struct ClaudeOAuthTests {
     // MARK: - Scope-based strategy resolution
 
     @Test
-    func `prefers O auth when available`() {
+    func `app auto prefers available O auth over CLI`() {
         let strategy = ClaudeProviderDescriptor.resolveUsageStrategy(
             selectedDataSource: .auto,
             webExtrasEnabled: false,
@@ -492,14 +817,14 @@ struct ClaudeOAuthTests {
     }
 
     @Test
-    func `falls back to web when O auth missing and CLI missing`() {
+    func `app auto uses available O auth when CLI is missing`() {
         let strategy = ClaudeProviderDescriptor.resolveUsageStrategy(
             selectedDataSource: .auto,
             webExtrasEnabled: false,
             hasWebSession: true,
             hasCLI: false,
-            hasOAuthCredentials: false)
-        #expect(strategy.dataSource == .web)
+            hasOAuthCredentials: true)
+        #expect(strategy.dataSource == .oauth)
     }
 
     @Test
@@ -511,5 +836,19 @@ struct ClaudeOAuthTests {
             hasCLI: true,
             hasOAuthCredentials: false)
         #expect(strategy.dataSource == .cli)
+    }
+}
+
+private actor OAuthUsageTransportRecorder {
+    private var counts: [String: Int] = [:]
+
+    func nextStatusCode(token: String) -> Int {
+        let count = (self.counts[token] ?? 0) + 1
+        self.counts[token] = count
+        return token == "test-auth-token" && count == 1 ? 429 : 200
+    }
+
+    func requestCount(token: String) -> Int {
+        self.counts[token] ?? 0
     }
 }

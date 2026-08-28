@@ -1,4 +1,4 @@
-# SwiftFormat configuration for Peekaboo project
+# SwiftFormat configuration for CodexBar
 # Compatible with Swift 6 strict concurrency mode
 
 # IMPORTANT: Don't remove self where it's required for Swift 6 concurrency
@@ -39,7 +39,8 @@
 --enumthreshold 0
 
 # Swift 6 specific
---swiftversion 6.2
+--swiftversion 6.3
+--disable redundantSendable # Keep explicit concurrency contracts visible
 
 # Other
 --stripunusedargs closure-only

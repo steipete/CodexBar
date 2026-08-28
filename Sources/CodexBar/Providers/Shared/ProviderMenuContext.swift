@@ -25,4 +25,5 @@ struct ProviderMenuLoginContext {
     let store: UsageStore
     let settings: SettingsStore
     let account: AccountInfo
+    let hasAccount: Bool
 }

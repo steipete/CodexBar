@@ -9,7 +9,11 @@ extension UsageStore {
         let signature: String
     }
 
-    private static let automaticStorageRefreshInterval: TimeInterval = 5 * 60
+    nonisolated static func automaticStorageRefreshInterval(lowPowerModeEnabled: Bool) -> TimeInterval {
+        BackgroundWorkPowerPolicy.automaticInterval(
+            5 * 60,
+            lowPowerModeEnabled: lowPowerModeEnabled) ?? 5 * 60
+    }
 
     var isStorageRefreshInFlight: Bool {
         self.storageRefreshTask != nil
@@ -17,7 +21,7 @@ extension UsageStore {
 
     func storageFootprint(for provider: UsageProvider) -> ProviderStorageFootprint? {
         guard self.settings.providerStorageFootprintsEnabled else { return nil }
-        return self.providerStorageFootprints[provider]
+        return self.providerStorageFootprints[provider.instanceID]
     }
 
     func storageFootprintText(for provider: UsageProvider) -> String? {
@@ -29,15 +33,15 @@ extension UsageStore {
     }
 
     func refreshStorageFootprintsForOverview() {
-        self.scheduleStorageFootprintRefresh(for: self.enabledProvidersForDisplay())
+        self.scheduleStorageFootprintRefresh(for: self.enabledFirstPartyProvidersForDisplay())
     }
 
     func refreshStorageFootprintsForOverviewNow() async {
-        await self.refreshStorageFootprintsNow(for: self.enabledProvidersForDisplay())
+        await self.refreshStorageFootprintsNow(for: self.enabledFirstPartyProvidersForDisplay())
     }
 
     func scheduleStorageFootprintRefreshForOverview(force: Bool = false) {
-        self.scheduleStorageFootprintRefresh(for: self.enabledProvidersForDisplay(), force: force)
+        self.scheduleStorageFootprintRefresh(for: self.enabledFirstPartyProvidersForDisplay(), force: force)
     }
 
     func refreshStorageFootprintsNow(for providers: [UsageProvider]) async {
@@ -45,7 +49,16 @@ extension UsageStore {
             self.clearStorageFootprints()
             return
         }
-        guard let request = self.makeStorageRefreshRequest(for: providers) else {
+        let environment = self.environmentBase
+        let managedAccountsOverride = self.managedCodexAccountsForStorageOverride
+        let request = await Task.detached(priority: .utility) {
+            let managedAccounts = Self.loadManagedCodexAccountsForStorage(override: managedAccountsOverride)
+            return Self.makeStorageRefreshRequest(
+                for: providers,
+                environment: environment,
+                managedAccounts: managedAccounts)
+        }.value
+        guard let request else {
             self.clearStorageFootprints()
             return
         }
@@ -67,6 +80,7 @@ extension UsageStore {
             updatedAt: Date())
         self.storageRefreshTask = nil
         self.storageRefreshInFlightSignature = nil
+        self.storageRefreshInFlightRequestKey = nil
     }
 
     func scheduleStorageFootprintRefresh(for providers: [UsageProvider], force: Bool = false) {
@@ -74,21 +88,26 @@ extension UsageStore {
             self.clearStorageFootprints()
             return
         }
-        guard let request = self.makeStorageRefreshRequest(for: providers) else {
+        let managedAccountsOverride = self.managedCodexAccountsForStorageOverride
+        let requestKey = Self.storageRefreshRequestKey(
+            for: providers,
+            managedAccountsOverride: managedAccountsOverride)
+        guard !requestKey.isEmpty else {
             self.clearStorageFootprints()
             return
         }
 
         let now = Date()
         if self.storageRefreshTask != nil,
-           self.storageRefreshInFlightSignature == request.signature
+           self.storageRefreshInFlightRequestKey == nil || self.storageRefreshInFlightRequestKey == requestKey
         {
             return
         }
         if !force {
-            if self.lastStorageRefreshSignature == request.signature,
+            if self.lastStorageRefreshRequestKey == requestKey,
                let lastStorageRefreshAt,
-               now.timeIntervalSince(lastStorageRefreshAt) < Self.automaticStorageRefreshInterval
+               now.timeIntervalSince(lastStorageRefreshAt) < Self.automaticStorageRefreshInterval(
+                   lowPowerModeEnabled: self.settings.backgroundWorkLowPowerModeEnabled)
             {
                 return
             }
@@ -97,9 +116,32 @@ extension UsageStore {
         self.storageRefreshTask?.cancel()
         self.storageRefreshGeneration &+= 1
         let generation = self.storageRefreshGeneration
-        self.storageRefreshInFlightSignature = request.signature
+        self.storageRefreshInFlightSignature = nil
+        self.storageRefreshInFlightRequestKey = requestKey
+        let environment = self.environmentBase
 
         self.storageRefreshTask = Task.detached(priority: .utility) { [weak self] in
+            let managedAccounts = Self.loadManagedCodexAccountsForStorage(override: managedAccountsOverride)
+            guard let request = Self.makeStorageRefreshRequest(
+                for: providers,
+                environment: environment,
+                managedAccounts: managedAccounts)
+            else {
+                await MainActor.run { [weak self] in
+                    guard let self,
+                          !Task.isCancelled,
+                          generation == self.storageRefreshGeneration
+                    else { return }
+                    self.providerStorageFootprints.removeAll()
+                    self.storageRefreshTask = nil
+                    self.storageRefreshInFlightSignature = nil
+                    self.storageRefreshInFlightRequestKey = nil
+                    self.lastStorageRefreshSignature = nil
+                    self.lastStorageRefreshRequestKey = requestKey
+                    self.lastStorageRefreshAt = Date()
+                }
+                return
+            }
             let footprints = Self.scanStorageFootprints(candidatePathsByProvider: request.candidatePathsByProvider)
 
             await MainActor.run { [weak self] in
@@ -112,9 +154,11 @@ extension UsageStore {
                     footprints,
                     providers: request.providers,
                     signature: request.signature,
+                    requestKey: requestKey,
                     updatedAt: Date())
                 self.storageRefreshTask = nil
                 self.storageRefreshInFlightSignature = nil
+                self.storageRefreshInFlightRequestKey = nil
             }
         }
     }
@@ -123,7 +167,9 @@ extension UsageStore {
         self.storageRefreshTask?.cancel()
         self.storageRefreshTask = nil
         self.storageRefreshInFlightSignature = nil
+        self.storageRefreshInFlightRequestKey = nil
         self.lastStorageRefreshSignature = nil
+        self.lastStorageRefreshRequestKey = nil
         self.lastStorageRefreshAt = nil
         self.providerStorageFootprints.removeAll()
     }
@@ -132,23 +178,44 @@ extension UsageStore {
         _ footprints: [UsageProvider: ProviderStorageFootprint],
         providers: [UsageProvider],
         signature: String,
+        requestKey: String? = nil,
         updatedAt: Date)
     {
-        let providerSet = Set(providers)
-        self.providerStorageFootprints = self.providerStorageFootprints.filter { !providerSet.contains($0.key) }
+        let providerSet = Set(providers.map(\.instanceID))
+        var updated = self.providerStorageFootprints.filter { !providerSet.contains($0.key) }
         for provider in providers {
-            self.providerStorageFootprints[provider] = footprints[provider]
+            // Reuse the existing footprint when only its scan timestamp would change, so the equality
+            // guard below treats an unchanged scan as a no-op.
+            if let incoming = footprints[provider],
+               let existing = self.providerStorageFootprints[provider.instanceID],
+               existing.hasSameContents(as: incoming)
+            {
+                updated[provider.instanceID] = existing
+            } else {
+                updated[provider.instanceID] = footprints[provider]
+            }
+        }
+        // Only republish the observable footprints when a value actually changed. Storage scans run
+        // on every menu open and roughly every 5 minutes; an unconditional re-assignment wakes
+        // `menuObservationToken` -> `invalidateMenus` churn (clearing menu caches) even when the
+        // scanned bytes are identical.
+        if updated != self.providerStorageFootprints {
+            self.providerStorageFootprints = updated
         }
         self.lastStorageRefreshSignature = signature
+        self.lastStorageRefreshRequestKey = requestKey ?? signature
         self.lastStorageRefreshAt = updatedAt
     }
 
-    private func makeStorageRefreshRequest(for providers: [UsageProvider]) -> StorageRefreshRequest? {
+    private nonisolated static func makeStorageRefreshRequest(
+        for providers: [UsageProvider],
+        environment: [String: String],
+        managedAccounts: [ManagedCodexAccount])
+        -> StorageRefreshRequest?
+    {
         let uniqueProviders = Array(Set(providers)).sorted { $0.rawValue < $1.rawValue }
         guard !uniqueProviders.isEmpty else { return nil }
 
-        let environment = self.environmentBase
-        let managedAccounts = self.loadManagedCodexAccountsForStorage()
         var candidatePathsByProvider: [UsageProvider: [String]] = [:]
 
         for provider in uniqueProviders {
@@ -175,9 +242,39 @@ extension UsageStore {
             signature: signature)
     }
 
-    private func loadManagedCodexAccountsForStorage() -> [ManagedCodexAccount] {
-        if let managedCodexAccountsForStorageOverride {
-            return managedCodexAccountsForStorageOverride
+    private nonisolated static func storageRefreshRequestKey(
+        for providers: [UsageProvider],
+        managedAccountsOverride: [ManagedCodexAccount]?)
+        -> String
+    {
+        let uniqueProviders = Array(Set(providers))
+            .sorted { $0.rawValue < $1.rawValue }
+        let providerKey = uniqueProviders.map(\.rawValue).joined(separator: ",")
+        guard uniqueProviders.contains(.codex) else { return providerKey }
+
+        let managedAccountsRevision: String
+        if let managedAccountsOverride {
+            managedAccountsRevision = Array(Set(managedAccountsOverride.map(\.managedHomePath)))
+                .sorted()
+                .joined(separator: "\u{1f}")
+        } else {
+            let fileURL = FileManagedCodexAccountStore.defaultURL()
+            let attributes = try? FileManager.default.attributesOfItem(atPath: fileURL.path)
+            let modificationDate = (attributes?[.modificationDate] as? Date)?
+                .timeIntervalSinceReferenceDate.bitPattern ?? 0
+            let fileNumber = (attributes?[.systemFileNumber] as? NSNumber)?.uint64Value ?? 0
+            let fileSize = (attributes?[.size] as? NSNumber)?.uint64Value ?? 0
+            managedAccountsRevision = "\(fileNumber):\(modificationDate):\(fileSize)"
+        }
+        return "\(providerKey)\u{1e}\(managedAccountsRevision)"
+    }
+
+    private nonisolated static func loadManagedCodexAccountsForStorage(
+        override: [ManagedCodexAccount]?)
+        -> [ManagedCodexAccount]
+    {
+        if let override {
+            return override
         }
         return (try? FileManagedCodexAccountStore().loadAccounts().accounts) ?? []
     }

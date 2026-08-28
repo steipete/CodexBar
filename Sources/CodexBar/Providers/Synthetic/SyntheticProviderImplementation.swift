@@ -1,9 +1,7 @@
 import AppKit
 import CodexBarCore
-import CodexBarMacroSupport
 import Foundation
 
-@ProviderImplementationRegistration
 struct SyntheticProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .synthetic
 
@@ -14,7 +12,7 @@ struct SyntheticProviderImplementation: ProviderImplementation {
 
     @MainActor
     func observeSettings(_ settings: SettingsStore) {
-        _ = settings.syntheticAPIToken
+        _ = settings[providerConfig: .synthetic, field: .apiKey]
     }
 
     @MainActor
@@ -23,7 +21,8 @@ struct SyntheticProviderImplementation: ProviderImplementation {
             return true
         }
         context.settings.ensureSyntheticAPITokenLoaded()
-        return !context.settings.syntheticAPIToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        return !context.settings[providerConfig: .synthetic, field: .apiKey]
+            .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     @MainActor
@@ -35,7 +34,7 @@ struct SyntheticProviderImplementation: ProviderImplementation {
                 subtitle: "Stored in ~/.codexbar/config.json. Paste the key from the Synthetic dashboard.",
                 kind: .secure,
                 placeholder: "Paste key…",
-                binding: context.stringBinding(\.syntheticAPIToken),
+                binding: context.providerConfigBinding(.apiKey),
                 actions: [],
                 isVisible: nil,
                 onActivate: { context.settings.ensureSyntheticAPITokenLoaded() }),

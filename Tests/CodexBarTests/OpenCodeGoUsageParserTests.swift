@@ -60,6 +60,30 @@ struct OpenCodeGoUsageParserTests {
     }
 
     @Test
+    func `parses scaled zen balance from billing server response`() {
+        let text =
+            #";0x00000120;((self.$R=self.$R||{})["server-fn:test"]=[],"# +
+            #"($R=>$R[0]=$R[1]={customerID:"cus_test",balance:$R[2]=2375000000,reload:!1})"# +
+            #"($R["server-fn:test"]))"#
+
+        #expect(OpenCodeGoZenBalanceParser.parseBillingServerResponse(text: text) == 23.75)
+    }
+
+    @Test
+    func `billing server parser ignores unrelated balance metadata`() {
+        let text = #"$R[0]={balanceEnabled:!0,balanceUpdatedAt:1800000000}"#
+
+        #expect(OpenCodeGoZenBalanceParser.parseBillingServerResponse(text: text) == nil)
+    }
+
+    @Test
+    func `billing server parser ignores balance when billing is disabled`() {
+        let text = #"$R[0]={customerID:null,balance:0,reload:!1}"#
+
+        #expect(OpenCodeGoZenBalanceParser.parseBillingServerResponse(text: text) == nil)
+    }
+
+    @Test
     func `zen balance parser ignores metadata before amount`() throws {
         let payload: [String: Any] = [
             "data": [
@@ -101,6 +125,77 @@ struct OpenCodeGoUsageParserTests {
     }
 
     @Test
+    func `parses rolling only usage from seroval response`() throws {
+        let text =
+            "$R[16]($R[30],$R[41]={rollingUsage:$R[42]={status:\"ok\",resetInSec:5944,usagePercent:17}});"
+        let now = Date(timeIntervalSince1970: 0)
+
+        let snapshot = try OpenCodeGoUsageFetcher.parseSubscription(text: text, now: now)
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(snapshot.rollingUsagePercent == 17)
+        #expect(snapshot.rollingResetInSec == 5944)
+        #expect(snapshot.hasWeeklyUsage == false)
+        #expect(usage.primary?.usedPercent == 17)
+        #expect(usage.secondary == nil)
+        #expect(usage.tertiary == nil)
+    }
+
+    @Test
+    func `parses rolling only usage from JSON response`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let payload: [String: Any] = [
+            "usage": [
+                "rollingUsage": [
+                    "usagePercent": 25,
+                    "resetInSec": 600,
+                ],
+            ],
+        ]
+        let data = try JSONSerialization.data(withJSONObject: payload)
+        let text = String(data: data, encoding: .utf8) ?? ""
+
+        let snapshot = try OpenCodeGoUsageFetcher.parseSubscription(text: text, now: now)
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(snapshot.rollingUsagePercent == 25)
+        #expect(snapshot.rollingResetInSec == 600)
+        #expect(snapshot.hasWeeklyUsage == false)
+        #expect(usage.primary?.usedPercent == 25)
+        #expect(usage.secondary == nil)
+        #expect(usage.tertiary == nil)
+    }
+
+    @Test
+    func `recovers weekly usage from nested JSON window`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let payload: [String: Any] = [
+            "usage": [
+                "rollingUsage": [
+                    "usagePercent": 25,
+                    "resetInSec": 600,
+                ],
+                "weeklyUsage": [
+                    "window": [
+                        "usagePercent": 75,
+                        "resetInSec": 7200,
+                    ],
+                ],
+            ],
+        ]
+        let data = try JSONSerialization.data(withJSONObject: payload)
+        let text = String(data: data, encoding: .utf8) ?? ""
+
+        let snapshot = try OpenCodeGoUsageFetcher.parseSubscription(text: text, now: now)
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(snapshot.hasWeeklyUsage == true)
+        #expect(snapshot.weeklyUsagePercent == 75)
+        #expect(snapshot.weeklyResetInSec == 7200)
+        #expect(usage.secondary?.usedPercent == 75)
+    }
+
+    @Test
     func `parses subscription from JSON with reset at and ratio percentages`() throws {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let rollingResetAt = now.addingTimeInterval(3600)
@@ -137,18 +232,41 @@ struct OpenCodeGoUsageParserTests {
         #expect(snapshot.monthlyResetInSec == 86400)
     }
 
-    @Test
-    func `computes usage percent from totals and treats monthly as optional`() throws {
+    @Test(arguments: ["1e309", "1e308"])
+    func `ignores reset timestamps outside integer range`(resetAt: String) throws {
+        let text = """
+        {
+          "rollingUsage": { "usagePercent": 17, "resetAt": "\(resetAt)" },
+          "weeklyUsage": { "usagePercent": 75, "resetInSec": 7200 }
+        }
+        """
+
+        let snapshot = try OpenCodeGoUsageFetcher.parseSubscription(
+            text: text,
+            now: Date(timeIntervalSince1970: 1_700_000_000))
+
+        #expect(snapshot.rollingUsagePercent == 17)
+        #expect(snapshot.weeklyUsagePercent == 75)
+        #expect(snapshot.rollingResetInSec == 0)
+        #expect(snapshot.weeklyResetInSec == 7200)
+    }
+
+    @Test(arguments: [(25.0, 100.0, 25.0), (1, 100, 1), (1, 200, 0.5)])
+    func `computes usage percent from totals and treats monthly as optional`(
+        used: Double,
+        limit: Double,
+        percent: Double) throws
+    {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let payload: [String: Any] = [
             "rollingUsage": [
-                "used": 25,
-                "limit": 100,
+                "used": used,
+                "limit": limit,
                 "resetInSec": 600,
             ],
             "weeklyUsage": [
-                "used": 50,
-                "limit": 200,
+                "used": used * 2,
+                "limit": limit * 2,
                 "resetInSec": 3600,
             ],
         ]
@@ -158,8 +276,8 @@ struct OpenCodeGoUsageParserTests {
         let snapshot = try OpenCodeGoUsageFetcher.parseSubscription(text: text, now: now)
         let usage = snapshot.toUsageSnapshot()
 
-        #expect(snapshot.rollingUsagePercent == 25)
-        #expect(snapshot.weeklyUsagePercent == 25)
+        #expect(snapshot.rollingUsagePercent == percent)
+        #expect(snapshot.weeklyUsagePercent == percent)
         #expect(snapshot.hasMonthlyUsage == false)
         #expect(snapshot.monthlyUsagePercent == 0)
         #expect(snapshot.monthlyResetInSec == 0)
@@ -237,7 +355,7 @@ struct OpenCodeGoUsageParserTests {
     }
 
     @Test
-    func `candidate fallback does not fabricate weekly from non weekly windows`() throws {
+    func `candidate fallback preserves missing weekly window`() throws {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let payload: [String: Any] = [
             "windows": [
@@ -256,9 +374,15 @@ struct OpenCodeGoUsageParserTests {
         let data = try JSONSerialization.data(withJSONObject: payload)
         let text = String(data: data, encoding: .utf8) ?? ""
 
-        #expect(throws: OpenCodeGoUsageError.self) {
-            _ = try OpenCodeGoUsageFetcher.parseSubscription(text: text, now: now)
-        }
+        let snapshot = try OpenCodeGoUsageFetcher.parseSubscription(text: text, now: now)
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(snapshot.rollingUsagePercent == 15)
+        #expect(snapshot.hasWeeklyUsage == false)
+        #expect(snapshot.hasMonthlyUsage == true)
+        #expect(snapshot.monthlyUsagePercent == 30)
+        #expect(usage.secondary == nil)
+        #expect(usage.tertiary?.usedPercent == 30)
     }
 
     @Test

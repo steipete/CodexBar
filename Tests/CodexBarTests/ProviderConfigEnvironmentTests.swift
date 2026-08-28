@@ -3,6 +3,37 @@ import Testing
 
 struct ProviderConfigEnvironmentTests {
     @Test
+    func `projects Moonshot key with its bound region`() {
+        var config = ProviderConfig(
+            id: .moonshot,
+            apiKey: "china-token",
+            region: MoonshotRegion.china.rawValue)
+        config.apiKeyRegion = MoonshotRegion.china.rawValue
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: ["MOONSHOT_API_KEY": "international-token"],
+            provider: .moonshot,
+            config: config)
+
+        #expect(env["MOONSHOT_API_KEY"] == "international-token")
+        #expect(env[MoonshotSettingsReader.configAPIKeyEnvironmentKey] == "china-token")
+        #expect(env[MoonshotSettingsReader.configAPIKeyRegionEnvironmentKey] == "china")
+        #expect(MoonshotSettingsReader.apiKey(for: .china, environment: env) == "china-token")
+        #expect(MoonshotSettingsReader.apiKey(for: .international, environment: env) == "international-token")
+    }
+
+    @Test
+    func `applies API key override for amp`() {
+        let config = ProviderConfig(id: .amp, apiKey: "sgamp-config")
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: [:],
+            provider: .amp,
+            config: config)
+
+        #expect(env[AmpSettingsReader.apiTokenKey] == "sgamp-config")
+        #expect(ProviderTokenResolver.token(for: .amp, environment: env) == "sgamp-config")
+    }
+
+    @Test
     func `applies API key override for zai`() {
         let config = ProviderConfig(id: .zai, apiKey: "z-token")
         let env = ProviderConfigEnvironment.applyAPIKeyOverride(
@@ -11,6 +42,8 @@ struct ProviderConfigEnvironmentTests {
             config: config)
 
         #expect(env[ZaiSettingsReader.apiTokenKey] == "z-token")
+        #expect(env[ZaiSettingsReader.bigModelOrganizationKey] == nil)
+        #expect(env[ZaiSettingsReader.bigModelProjectKey] == nil)
     }
 
     @Test
@@ -48,21 +81,257 @@ struct ProviderConfigEnvironmentTests {
             config: config)
 
         #expect(env[DoubaoSettingsReader.apiKeyEnvironmentKeys[0]] == "db-token")
-        #expect(ProviderTokenResolver.doubaoToken(environment: env) == "db-token")
+        #expect(ProviderTokenResolver.token(for: .doubao, environment: env) == "db-token")
     }
 
+    @Test
+    func `preserves doubao ark API key when environment secret key is present`() {
+        let config = ProviderConfig(id: .doubao, apiKey: "ark-config")
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: [
+                DoubaoSettingsReader.secretAccessKeyEnvironmentKeys[0]: "sk-env",
+            ],
+            provider: .doubao,
+            config: config)
+
+        #expect(env[DoubaoSettingsReader.apiKeyEnvironmentKeys[0]] == "ark-config")
+        #expect(env[DoubaoSettingsReader.accessKeyIDEnvironmentKeys[0]] == nil)
+        #expect(env[DoubaoSettingsReader.secretAccessKeyEnvironmentKeys[0]] == nil)
+        #expect(DoubaoSettingsReader.codingPlanCredentials(environment: env) == nil)
+        #expect(ProviderTokenResolver.token(for: .doubao, environment: env) == "ark-config")
+    }
+
+    @Test
+    func `preserves doubao ark API key when config secret key is present`() {
+        let config = ProviderConfig(
+            id: .doubao,
+            apiKey: "ark-config",
+            secretKey: "sk-config")
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: [:],
+            provider: .doubao,
+            config: config)
+
+        #expect(env[DoubaoSettingsReader.apiKeyEnvironmentKeys[0]] == "ark-config")
+        #expect(env[DoubaoSettingsReader.accessKeyIDEnvironmentKeys[0]] == nil)
+        #expect(env[DoubaoSettingsReader.secretAccessKeyEnvironmentKeys[0]] == nil)
+        #expect(DoubaoSettingsReader.codingPlanCredentials(environment: env) == nil)
+        #expect(ProviderTokenResolver.token(for: .doubao, environment: env) == "ark-config")
+    }
+
+    @Test
+    func `doubao ark API key config overrides environment coding plan credentials`() {
+        let config = ProviderConfig(id: .doubao, apiKey: "ark-config")
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: [
+                DoubaoSettingsReader.accessKeyIDEnvironmentKeys[0]: "AKLT-env",
+                DoubaoSettingsReader.secretAccessKeyEnvironmentKeys[0]: "sk-env",
+                DoubaoSettingsReader.regionEnvironmentKeys[0]: "cn-shanghai",
+            ],
+            provider: .doubao,
+            config: config)
+
+        #expect(env[DoubaoSettingsReader.apiKeyEnvironmentKeys[0]] == "ark-config")
+        #expect(env[DoubaoSettingsReader.accessKeyIDEnvironmentKeys[0]] == nil)
+        #expect(env[DoubaoSettingsReader.secretAccessKeyEnvironmentKeys[0]] == nil)
+        #expect(DoubaoSettingsReader.codingPlanCredentials(environment: env) == nil)
+        #expect(ProviderTokenResolver.token(for: .doubao, environment: env) == "ark-config")
+    }
+
+    @Test
+    func `reads doubao volcengine secret key alias`() {
+        let env = [
+            DoubaoSettingsReader.accessKeyIDEnvironmentKeys[1]: "AKLT-env",
+            "VOLCENGINE_SECRET_KEY": "sk-env",
+        ]
+
+        #expect(DoubaoSettingsReader.secretAccessKeyEnvironmentKeys.contains("VOLCENGINE_SECRET_KEY"))
+        #expect(DoubaoSettingsReader.secretAccessKey(environment: env) == "sk-env")
+        #expect(DoubaoSettingsReader.codingPlanCredentials(environment: env)?.accessKeyID == "AKLT-env")
+        #expect(DoubaoSettingsReader.codingPlanCredentials(environment: env)?.secretAccessKey == "sk-env")
+    }
+
+    @Test
+    func `reads doubao volc sdk credential aliases`() {
+        let env = [
+            "VOLC_ACCESSKEY": "AKLT-volc",
+            "VOLC_SECRETKEY": "sk-volc",
+            "VOLC_REGION": "cn-shanghai",
+        ]
+
+        #expect(DoubaoSettingsReader.accessKeyIDEnvironmentKeys.contains("VOLC_ACCESSKEY"))
+        #expect(DoubaoSettingsReader.secretAccessKeyEnvironmentKeys.contains("VOLC_SECRETKEY"))
+        #expect(DoubaoSettingsReader.regionEnvironmentKeys.contains("VOLC_REGION"))
+        #expect(DoubaoSettingsReader.codingPlanCredentials(environment: env)?.accessKeyID == "AKLT-volc")
+        #expect(DoubaoSettingsReader.codingPlanCredentials(environment: env)?.secretAccessKey == "sk-volc")
+        #expect(DoubaoSettingsReader.codingPlanCredentials(environment: env)?.region == "cn-shanghai")
+    }
+
+    @Test
+    func `does not project incomplete doubao access key as ark API key`() {
+        let config = ProviderConfig(id: .doubao, apiKey: "AKLT-config")
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: [:],
+            provider: .doubao,
+            config: config)
+
+        #expect(env[DoubaoSettingsReader.accessKeyIDEnvironmentKeys[0]] == nil)
+        #expect(env[DoubaoSettingsReader.apiKeyEnvironmentKeys[0]] == nil)
+        #expect(DoubaoSettingsReader.codingPlanCredentials(environment: env) == nil)
+        #expect(ProviderTokenResolver.token(for: .doubao, environment: env) == nil)
+    }
+
+    @Test
+    func `keeps base doubao ark API key when config access key lacks secret`() {
+        let config = ProviderConfig(id: .doubao, apiKey: "AKLT-config")
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: [
+                DoubaoSettingsReader.apiKeyEnvironmentKeys[0]: "ark-env",
+            ],
+            provider: .doubao,
+            config: config)
+
+        #expect(env[DoubaoSettingsReader.accessKeyIDEnvironmentKeys[0]] == nil)
+        #expect(env[DoubaoSettingsReader.apiKeyEnvironmentKeys[0]] == "ark-env")
+        #expect(DoubaoSettingsReader.codingPlanCredentials(environment: env) == nil)
+        #expect(ProviderTokenResolver.token(for: .doubao, environment: env) == "ark-env")
+    }
+
+    @Test
+    func `applies volcengine access key override for doubao coding plan`() {
+        let config = ProviderConfig(
+            id: .doubao,
+            apiKey: "AKLT-config",
+            secretKey: "sk-config",
+            region: "cn-shanghai")
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: [:],
+            provider: .doubao,
+            config: config)
+
+        #expect(env[DoubaoSettingsReader.accessKeyIDEnvironmentKeys[0]] == "AKLT-config")
+        #expect(env[DoubaoSettingsReader.secretAccessKeyEnvironmentKeys[0]] == "sk-config")
+        #expect(env[DoubaoSettingsReader.regionEnvironmentKeys[0]] == "cn-shanghai")
+        #expect(DoubaoSettingsReader.codingPlanCredentials(environment: env)?.accessKeyID == "AKLT-config")
+        #expect(DoubaoSettingsReader.codingPlanCredentials(environment: env)?.secretAccessKey == "sk-config")
+        #expect(DoubaoSettingsReader.codingPlanCredentials(environment: env)?.region == "cn-shanghai")
+    }
+
+    @Test
+    func `merges doubao config access key with environment secret key`() {
+        let config = ProviderConfig(
+            id: .doubao,
+            apiKey: "AKLT-config")
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: [
+                DoubaoSettingsReader.secretAccessKeyEnvironmentKeys[0]: "sk-env",
+                DoubaoSettingsReader.regionEnvironmentKeys[2]: "cn-shanghai",
+            ],
+            provider: .doubao,
+            config: config)
+
+        #expect(env[DoubaoSettingsReader.accessKeyIDEnvironmentKeys[0]] == "AKLT-config")
+        #expect(env[DoubaoSettingsReader.secretAccessKeyEnvironmentKeys[0]] == "sk-env")
+        #expect(env[DoubaoSettingsReader.regionEnvironmentKeys[0]] == "cn-shanghai")
+        #expect(env[DoubaoSettingsReader.apiKeyEnvironmentKeys[0]] == nil)
+        #expect(DoubaoSettingsReader.codingPlanCredentials(environment: env)?.accessKeyID == "AKLT-config")
+        #expect(DoubaoSettingsReader.codingPlanCredentials(environment: env)?.secretAccessKey == "sk-env")
+        #expect(DoubaoSettingsReader.codingPlanCredentials(environment: env)?.region == "cn-shanghai")
+    }
+
+    @Test
+    func `merges doubao environment access key with config secret key`() {
+        let config = ProviderConfig(
+            id: .doubao,
+            secretKey: "sk-config")
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: [
+                DoubaoSettingsReader.accessKeyIDEnvironmentKeys[0]: "AKLT-env",
+                DoubaoSettingsReader.regionEnvironmentKeys[1]: "cn-beijing",
+            ],
+            provider: .doubao,
+            config: config)
+
+        #expect(env[DoubaoSettingsReader.accessKeyIDEnvironmentKeys[0]] == "AKLT-env")
+        #expect(env[DoubaoSettingsReader.secretAccessKeyEnvironmentKeys[0]] == "sk-config")
+        #expect(env[DoubaoSettingsReader.regionEnvironmentKeys[0]] == "cn-beijing")
+        #expect(DoubaoSettingsReader.codingPlanCredentials(environment: env)?.accessKeyID == "AKLT-env")
+        #expect(DoubaoSettingsReader.codingPlanCredentials(environment: env)?.secretAccessKey == "sk-config")
+        #expect(DoubaoSettingsReader.codingPlanCredentials(environment: env)?.region == "cn-beijing")
+    }
+
+    @Test
+    func `applies cookie header override for sakana`() {
+        let config = ProviderConfig(id: .sakana, cookieHeader: "Cookie: session=abc")
+        let env = ProviderConfigEnvironment.applyProviderConfigOverrides(
+            base: [:],
+            provider: .sakana,
+            config: config)
+
+        #expect(env[SakanaSettingsReader.cookieHeaderKey] == "Cookie: session=abc")
+        #expect(SakanaSettingsReader.cookieHeader(environment: env) == "session=abc")
+    }
+
+    @Test
+    func `applies cookie header override for longcat`() {
+        let config = ProviderConfig(
+            id: .longcat,
+            cookieHeader: "Cookie: passport_token=abc; uid=42",
+            cookieSource: .manual)
+        let env = ProviderConfigEnvironment.applyProviderConfigOverrides(
+            base: [:],
+            provider: .longcat,
+            config: config)
+
+        #expect(env[LongCatSettingsReader.cookieHeaderKey] == "Cookie: passport_token=abc; uid=42")
+        #expect(LongCatSettingsReader.cookieHeader(environment: env) == "Cookie: passport_token=abc; uid=42")
+    }
+
+    @Test
+    func `does not expose stored longcat cookie outside manual mode`() {
+        for source in [ProviderCookieSource.auto, .off] {
+            let config = ProviderConfig(id: .longcat, cookieHeader: "stale=1", cookieSource: source)
+            let env = ProviderConfigEnvironment.applyProviderConfigOverrides(
+                base: [:],
+                provider: .longcat,
+                config: config)
+
+            #expect(env[LongCatSettingsReader.cookieHeaderKey] == nil)
+        }
+    }
+
+    @Test
     func `applies API key override for moonshot`() {
-        let config = ProviderConfig(id: .moonshot, apiKey: "moon-token")
+        var config = ProviderConfig(
+            id: .moonshot,
+            apiKey: "moon-token")
+        config.apiKeyRegion = MoonshotRegion.international.rawValue
         let env = ProviderConfigEnvironment.applyAPIKeyOverride(
             base: [:],
             provider: .moonshot,
             config: config)
 
-        let key = MoonshotSettingsReader.apiKeyEnvironmentKeys.first
-        #expect(key != nil)
-        guard let key else { return }
+        #expect(env[MoonshotSettingsReader.configAPIKeyEnvironmentKey] == "moon-token")
+        #expect(MoonshotSettingsReader.apiKey(for: .international, environment: env) == "moon-token")
+    }
 
-        #expect(env[key] == "moon-token")
+    @Test
+    func `applies Kimi API key and base URL config overrides`() throws {
+        let config = ProviderConfig(
+            id: .kimi,
+            apiKey: "kimi-api-token",
+            enterpriseHost: "https://proxy.example.com/kimi")
+        let env = ProviderConfigEnvironment.applyProviderConfigOverrides(
+            base: [:],
+            provider: .kimi,
+            config: config)
+
+        #expect(env["KIMI_CODE_API_KEY"] == "kimi-api-token")
+        #expect(env["KIMI_API_KEY"] == nil)
+        #expect(env[KimiSettingsReader.codeAPIBaseURLEnvironmentKey] == "https://proxy.example.com/kimi")
+        #expect(ProviderTokenResolver.token(for: .kimi, kind: .secondary, environment: env) == "kimi-api-token")
+        #expect(try KimiSettingsReader.codeAPIBaseURL(environment: env).absoluteString ==
+            "https://proxy.example.com/kimi")
     }
 
     @Test
@@ -74,7 +343,20 @@ struct ProviderConfigEnvironmentTests {
             config: config)
 
         #expect(env[ElevenLabsSettingsReader.apiKeyEnvironmentKey] == "xi-token")
-        #expect(ProviderTokenResolver.elevenLabsToken(environment: env) == "xi-token")
+        #expect(ProviderTokenResolver.token(for: .elevenlabs, environment: env) == "xi-token")
+    }
+
+    @Test
+    func `applies API key override for NeuralWatt`() {
+        let config = ProviderConfig(id: .neuralwatt, apiKey: "sk-neuralwatt-config")
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: [:],
+            provider: .neuralwatt,
+            config: config)
+
+        #expect(env[NeuralWattSettingsReader.apiKeyEnvironmentKey] == "sk-neuralwatt-config")
+        #expect(ProviderTokenResolver.token(for: .neuralwatt, environment: env) == "sk-neuralwatt-config")
+        #expect(ProviderConfigEnvironment.supportsAPIKeyOverride(for: .neuralwatt))
     }
 
     @Test
@@ -86,7 +368,7 @@ struct ProviderConfigEnvironmentTests {
             config: config)
 
         #expect(env[GroqSettingsReader.apiKeyEnvironmentKey] == "gsk-token")
-        #expect(ProviderTokenResolver.groqToken(environment: env) == "gsk-token")
+        #expect(ProviderTokenResolver.token(for: .groq, environment: env) == "gsk-token")
     }
 
     @Test
@@ -102,7 +384,23 @@ struct ProviderConfigEnvironmentTests {
 
         #expect(env[LLMProxySettingsReader.apiKeyEnvironmentKey] == "proxy-token")
         #expect(env[LLMProxySettingsReader.baseURLEnvironmentKey] == "https://proxy.example.com")
-        #expect(ProviderTokenResolver.llmProxyToken(environment: env) == "proxy-token")
+        #expect(ProviderTokenResolver.token(for: .llmproxy, environment: env) == "proxy-token")
+    }
+
+    @Test
+    func `applies LiteLLM config overrides`() {
+        let config = ProviderConfig(
+            id: .litellm,
+            apiKey: "litellm-token",
+            enterpriseHost: "https://litellm.example.com/v1")
+        let env = ProviderConfigEnvironment.applyProviderConfigOverrides(
+            base: [:],
+            provider: .litellm,
+            config: config)
+
+        #expect(env[LiteLLMSettingsReader.apiKeyEnvironmentKey] == "litellm-token")
+        #expect(env[LiteLLMSettingsReader.baseURLEnvironmentKey] == "https://litellm.example.com/v1")
+        #expect(ProviderTokenResolver.token(for: .litellm, environment: env) == "litellm-token")
     }
 
     @Test
@@ -118,7 +416,7 @@ struct ProviderConfigEnvironmentTests {
 
         #expect(env[OpenAIAPISettingsReader.adminAPIKeyEnvironmentKey] == "config-openai-token")
         #expect(env[OpenAIAPISettingsReader.apiKeyEnvironmentKey] == "env-api-token")
-        #expect(ProviderTokenResolver.openAIAPIToken(environment: env) == "config-openai-token")
+        #expect(ProviderTokenResolver.token(for: .openai, environment: env) == "config-openai-token")
     }
 
     @Test
@@ -155,7 +453,7 @@ struct ProviderConfigEnvironmentTests {
         #expect(env[AzureOpenAISettingsReader.apiKeyEnvironmentKey] == "config-azure-token")
         #expect(env[AzureOpenAISettingsReader.endpointEnvironmentKey] == "https://example-resource.openai.azure.com")
         #expect(env[AzureOpenAISettingsReader.deploymentNameEnvironmentKey] == "chat-prod")
-        #expect(ProviderTokenResolver.azureOpenAIToken(environment: env) == "config-azure-token")
+        #expect(ProviderTokenResolver.token(for: .azureopenai, environment: env) == "config-azure-token")
         #expect(AzureOpenAISettingsReader.deploymentName(environment: env) == "chat-prod")
     }
 
@@ -218,13 +516,13 @@ struct ProviderConfigEnvironmentTests {
 
     @Test
     func `bedrock profile mode projects AWS_PROFILE without saved static keys`() {
-        let config = ProviderConfig(
+        var config = ProviderConfig(
             id: .bedrock,
             apiKey: "AKIATEST",
             secretKey: "secret",
-            region: "eu-west-1",
-            awsProfile: "work",
-            awsAuthMode: "profile")
+            region: "eu-west-1")
+        config.awsProfile = "work"
+        config.awsAuthMode = "profile"
         let env = ProviderConfigEnvironment.applyAPIKeyOverride(
             base: [:],
             provider: .bedrock,
@@ -267,7 +565,9 @@ struct ProviderConfigEnvironmentTests {
 
     @Test
     func `bedrock profile mode preserves inherited static credentials for environment source profiles`() {
-        let config = ProviderConfig(id: .bedrock, awsProfile: "work", awsAuthMode: "profile")
+        var config = ProviderConfig(id: .bedrock)
+        config.awsProfile = "work"
+        config.awsAuthMode = "profile"
         let env = ProviderConfigEnvironment.applyAPIKeyOverride(
             base: [
                 BedrockSettingsReader.accessKeyIDKey: "AKIAINHERITED",
@@ -304,12 +604,12 @@ struct ProviderConfigEnvironmentTests {
 
     @Test
     func `bedrock keys mode still projects static credentials`() {
-        let config = ProviderConfig(
+        var config = ProviderConfig(
             id: .bedrock,
             apiKey: "AKIATEST",
             secretKey: "secret",
-            region: "us-west-2",
-            awsAuthMode: "keys")
+            region: "us-west-2")
+        config.awsAuthMode = "keys"
         let env = ProviderConfigEnvironment.applyAPIKeyOverride(
             base: [:],
             provider: .bedrock,
@@ -333,7 +633,39 @@ struct ProviderConfigEnvironmentTests {
         guard let key else { return }
 
         #expect(env[key] == nil)
-        #expect(ProviderTokenResolver.deepseekToken(environment: env) == nil)
+        #expect(ProviderTokenResolver.token(for: .deepseek, environment: env) == nil)
+    }
+
+    @Test
+    func `projects the legacy DeepSeek Platform token and stable profile identifier`() {
+        var config = ProviderConfig(
+            id: .deepseek,
+            apiKey: "legacy-api-key",
+            cookieHeader: "browser-platform-token")
+        config.deepseekProfileID = "/profiles/Profile 2"
+        config.deepseekProfileScope = "account-id"
+        let env = ProviderConfigEnvironment.applyProviderConfigOverrides(
+            base: [:],
+            provider: .deepseek,
+            config: config)
+
+        #expect(env[DeepSeekSettingsReader.apiKeyEnvironmentKey] == nil)
+        #expect(env[DeepSeekSettingsReader.platformTokenEnvironmentKey] == "browser-platform-token")
+        #expect(env[DeepSeekSettingsReader.profileIDEnvironmentKey] == "chrome:Profile 2")
+        #expect(env[DeepSeekSettingsReader.profileScopeEnvironmentKey] == "account-id")
+    }
+
+    @Test
+    func `normalization preserves a legacy DeepSeek browser token and canonicalizes the profile path`() throws {
+        var providerConfig = ProviderConfig(id: .deepseek, cookieHeader: "browser-platform-token")
+        providerConfig.deepseekProfileID = "/profiles/Profile 2"
+        providerConfig.deepseekProfileScope = " account-id "
+        let config = CodexBarConfig(providers: [providerConfig]).normalized()
+        let deepseek = try #require(config.providerConfig(for: .deepseek))
+
+        #expect(deepseek.cookieHeader == "browser-platform-token")
+        #expect(deepseek.deepseekProfileID == "chrome:Profile 2")
+        #expect(deepseek.deepseekProfileScope == "account-id")
     }
 
     @Test
@@ -345,7 +677,32 @@ struct ProviderConfigEnvironmentTests {
             config: config)
 
         #expect(env[KiloSettingsReader.apiTokenKey] == "kilo-token")
-        #expect(ProviderTokenResolver.kiloToken(environment: env, authFileURL: nil) == "kilo-token")
+        #expect(ProviderTokenResolver.token(for: .kilo, environment: env, authFileURL: nil) == "kilo-token")
+    }
+
+    @Test
+    func `applies API key override for factory`() {
+        let config = ProviderConfig(id: .factory, apiKey: "fk-config-token")
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: [:],
+            provider: .factory,
+            config: config)
+
+        #expect(env[FactorySettingsReader.apiTokenKey] == "fk-config-token")
+        #expect(FactorySettingsReader.apiKey(environment: env) == "fk-config-token")
+        #expect(ProviderConfigEnvironment.supportsAPIKeyOverride(for: .factory))
+    }
+
+    @Test
+    func `factory config api key wins over existing FACTORY_API_KEY`() {
+        let config = ProviderConfig(id: .factory, apiKey: "fk-config-token")
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: [FactorySettingsReader.apiTokenKey: "fk-env-token"],
+            provider: .factory,
+            config: config)
+
+        #expect(env[FactorySettingsReader.apiTokenKey] == "fk-config-token")
+        #expect(FactorySettingsReader.apiKey(environment: env) == "fk-config-token")
     }
 
     @Test
@@ -357,7 +714,7 @@ struct ProviderConfigEnvironmentTests {
             config: config)
 
         #expect(env[OpenRouterSettingsReader.envKey] == "config-token")
-        #expect(ProviderTokenResolver.openRouterToken(environment: env) == "config-token")
+        #expect(ProviderTokenResolver.token(for: .openrouter, environment: env) == "config-token")
     }
 
     @Test
@@ -370,7 +727,7 @@ struct ProviderConfigEnvironmentTests {
             config: config)
 
         #expect(env[envKey] == "env-token")
-        #expect(ProviderTokenResolver.deepseekToken(environment: env) == "env-token")
+        #expect(ProviderTokenResolver.token(for: .deepseek, environment: env) == "env-token")
     }
 
     @Test
@@ -383,7 +740,7 @@ struct ProviderConfigEnvironmentTests {
 
         #expect(env[CodebuffSettingsReader.apiTokenKey] == "cb-config-token")
         #expect(
-            ProviderTokenResolver.codebuffToken(environment: env, authFileURL: nil)
+            ProviderTokenResolver.token(for: .codebuff, environment: env, authFileURL: nil)
                 == "cb-config-token")
     }
 
@@ -396,10 +753,7 @@ struct ProviderConfigEnvironmentTests {
             config: config)
 
         #expect(env[DeepgramSettingsReader.apiKeyEnvironmentKey] == "dg-token")
-        #expect(ProviderTokenResolver.deepgramResolution(
-            type: .apiKey,
-            environment: env)
-            == "dg-token")
+        #expect(ProviderTokenResolver.token(for: .deepgram, environment: env) == "dg-token")
     }
 
     @Test
@@ -434,7 +788,7 @@ struct ProviderConfigEnvironmentTests {
 
         #expect(env[CodebuffSettingsReader.apiTokenKey] == "env-token")
         #expect(
-            ProviderTokenResolver.codebuffToken(environment: env, authFileURL: nil)
+            ProviderTokenResolver.token(for: .codebuff, environment: env, authFileURL: nil)
                 == "env-token")
     }
 
@@ -447,5 +801,22 @@ struct ProviderConfigEnvironmentTests {
             config: config)
 
         #expect(env[ZaiSettingsReader.apiTokenKey] == "existing")
+    }
+
+    @Test
+    func `applies API key override for poe`() {
+        let config = ProviderConfig(id: .poe, apiKey: "poe-token")
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: [:],
+            provider: .poe,
+            config: config)
+
+        #expect(env[PoeSettingsReader.apiKeyEnvironmentKey] == "poe-token")
+        #expect(ProviderTokenResolver.token(for: .poe, environment: env) == "poe-token")
+    }
+
+    @Test
+    func `poe supports API key override`() {
+        #expect(ProviderConfigEnvironment.supportsAPIKeyOverride(for: .poe) == true)
     }
 }

@@ -5,6 +5,12 @@ public struct AlibabaTokenPlanSettingsReader: Sendable {
     public static let hostKey = "ALIBABA_TOKEN_PLAN_HOST"
     public static let quotaURLKey = "ALIBABA_TOKEN_PLAN_QUOTA_URL"
 
+    private static let endpointValidator = ProviderEndpointOverrideValidator(
+        allowedHosts: [
+            "modelstudio.console.alibabacloud.com",
+            "bailian.console.aliyun.com",
+        ])
+
     public static func cookieHeader(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
     {
@@ -14,21 +20,17 @@ public struct AlibabaTokenPlanSettingsReader: Sendable {
     public static func hostOverride(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
     {
-        guard let raw = self.cleaned(environment[self.hostKey]) else { return nil }
-        if let scheme = URL(string: raw)?.scheme {
-            return scheme.lowercased() == "https" ? raw : nil
-        }
-        return raw
+        self.endpointValidator.validatedHost(
+            self.cleaned(environment[self.hostKey]),
+            policy: .allowAnyHTTPSHost)
     }
 
     public static func quotaURL(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> URL?
     {
-        guard let raw = self.cleaned(environment[self.quotaURLKey]) else { return nil }
-        if let url = URL(string: raw), let scheme = url.scheme {
-            return scheme.lowercased() == "https" ? url : nil
-        }
-        return URL(string: "https://\(raw)")
+        self.endpointValidator.validatedURL(
+            self.cleaned(environment[self.quotaURLKey]),
+            policy: .allowAnyHTTPSHost)
     }
 
     static func cleaned(_ raw: String?) -> String? {
@@ -53,7 +55,8 @@ public enum AlibabaTokenPlanSettingsError: LocalizedError, Sendable {
         switch self {
         case let .missingCookie(details):
             let base = "No Alibaba Token Plan session cookies found in browsers. " +
-                "Sign in to Bailian in Chrome, allow CodexBar to access Chrome Safe Storage in Keychain Access, " +
+                "Sign in to Model Studio/Bailian in Chrome, " +
+                "allow CodexBar to access Chrome Safe Storage in Keychain Access, " +
                 "or paste a manual Cookie header."
             guard let details, !details.isEmpty else { return base }
             return "\(base) \(details)"

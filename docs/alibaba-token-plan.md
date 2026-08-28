@@ -1,5 +1,5 @@
 ---
-summary: "Alibaba Token Plan provider notes: Bailian cookie auth, subscription summary endpoint, and setup."
+summary: "Alibaba Token Plan provider notes: Team and Personal/Solo variants, Bailian CLI/browser auth, and setup."
 read_when:
   - Adding or modifying the Alibaba Token Plan provider
   - Debugging Alibaba Token Plan cookie import or subscription summary fetching
@@ -8,11 +8,13 @@ read_when:
 
 # Alibaba Token Plan Provider
 
-The Alibaba Token Plan provider tracks Bailian token-plan credits from the Alibaba Cloud console.
+The Alibaba Token Plan provider tracks Team credits and Personal/Solo rolling-window usage from the Alibaba Cloud console.
 
 ## Features
 
 - **Token-plan usage display**: Shows used, total, and remaining token-plan credits when Bailian returns quota totals.
+- **Personal/Solo windows**: Shows 5-hour and 7-day usage, reset times, and tier-specific quota totals.
+- **Bailian CLI auth**: Reuses an already signed-in `bl` executable without importing browser cookies.
 - **Cookie-based auth**: Uses browser cookies or a pasted `Cookie:` header.
 - **Expiry awareness**: Shows the nearest token-plan expiration date as the reset time when the subscription summary includes it.
 
@@ -20,27 +22,39 @@ The Alibaba Token Plan provider tracks Bailian token-plan credits from the Aliba
 
 1. Open **Settings -> Providers**
 2. Enable **Alibaba Token Plan**
-3. Leave **Cookie source** on **Auto** (recommended)
+3. Choose the matching **Gateway region** Team or Personal/Solo variant
+4. Leave **Usage source** on **Auto** to try the signed-in Bailian CLI first, then browser cookies
+5. Leave **Cookie source** on **Auto** unless using a manually pasted browser cookie
 
 ### Manual cookie import (optional)
 
-1. Open `https://bailian.console.aliyun.com/cn-beijing?tab=plan#/efm/subscription/token-plan`
-2. Copy a `Cookie:` header from your browser's Network tab
+1. Open the Token Plan page using **Open Token Plan** in settings
+2. Copy a `Cookie:` header from the quota request in your browser's Network tab. For Personal/Solo, use the
+   `.../tokenplan/personal/api/v2/usage` request so the header is scoped to the quota host.
 3. Paste it into **Alibaba Token Plan -> Cookie source -> Manual**
 
 ## How it works
 
-- Fetches `POST https://bailian.console.aliyun.com/data/api.json?action=GetSubscriptionSummary&product=BssOpenAPI-V3&_tag=`
-- Sends form-encoded fields for `product=BssOpenAPI-V3`, `action=GetSubscriptionSummary`, `region=cn-beijing`, and `params={"ProductCode":"sfm_tokenplanteams_dp_cn"}`
-- Uses Alibaba/Bailian login cookies, with `sec_token` added when it can be resolved from the dashboard page
-- Parses `TotalValue`, `TotalSurplusValue`, `TotalCount`, and `NearestExpireDate` from the subscription summary response
+- Automatic mode runs `bl usage token-plan --console-region <region> --console-site <site> --output json` first.
+  A missing CLI, expired CLI login, or unsupported response falls back to the existing browser-cookie path.
+- Explicit **Bailian CLI** and **Browser cookies** modes stay strict and do not switch sources.
+- The Bailian subprocess receives only PATH, home/config discovery, locale, timezone, and proxy variables; ambient
+  API keys, browser cookies, cloud credentials, and SSH agent state are not inherited.
+- Team variants fetch `GetSubscriptionSummary` from the selected international or mainland console and parse the
+  credit pool without probing Personal endpoints.
+- Personal/Solo variants fetch `usage`, `subscription`, and `quota-config` from the rolling-window API. International
+  uses `bailian-singapore-cs.alibabacloud.com`; mainland uses `bailian-cs.console.aliyun.com`.
+- Browser cookies are rebuilt independently for the dashboard and quota hosts. Personal/Solo requests use the
+  quota-host cookie header. The dashboard `sec_token` is resolved best-effort and appended when available
+  (some accounts get `BailianGateway.Workspace.NotAuthorised` without it); requests still proceed without it.
+- Config region values are `intl` and `cn` for Team, or `intl-personal` and `cn-personal` for Personal/Solo.
 - Supports `ALIBABA_TOKEN_PLAN_HOST` and `ALIBABA_TOKEN_PLAN_QUOTA_URL` for testing endpoint overrides
 
 ## Limitations
 
-- Alibaba Token Plan currently supports the Bailian web-cookie path only
+- Bailian CLI mode requires a signed-in `bl` executable on PATH; browser cookies remain available as a fallback
 - API-key auth, token cost summaries, and automatic status polling are not supported
-- The default endpoint is the China mainland Bailian token-plan subscription summary
+- Live provider auth is not exercised by the test suite; endpoint changes rely on reporter confirmation after release
 
 ## Troubleshooting
 

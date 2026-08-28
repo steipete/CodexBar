@@ -2,6 +2,15 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
+private let ollamaUsageHTML = """
+<div>
+  <span>Session usage</span>
+  <span>1.2% used</span>
+  <span>Weekly usage</span>
+  <span>3.4% used</span>
+</div>
+"""
+
 @Suite(.serialized)
 struct OllamaUsageFetcherRetryMappingTests {
     private func makeContext(
@@ -85,14 +94,336 @@ struct OllamaUsageFetcherRetryMappingTests {
     }
 
     @Test
-    func `api fetch sends bearer token and rejects unauthorized key`() async throws {
-        let url = try #require(URL(string: "https://ollama.com/api/tags"))
+    func `automatic web fetch reuses validated cached cookie without browser import`() async throws {
+        let cached = CookieHeaderCache.Entry(
+            cookieHeader: "session=cached",
+            storedAt: Date(timeIntervalSince1970: 100),
+            sourceLabel: "Chrome")
+        var events: [String] = []
+
+        let snapshot = try await OllamaStatusFetchStrategy.fetchAutomatic(
+            cached: cached,
+            fetchCached: { entry in
+                events.append("cache:\(entry.sourceLabel)")
+                return Self.makeSnapshot(sessionUsedPercent: 12)
+            },
+            fetchBrowser: {
+                events.append("browser")
+                return OllamaUsageFetcher.ResolvedCookieFetch(
+                    snapshot: Self.makeSnapshot(sessionUsedPercent: 99),
+                    cookieHeader: "session=browser",
+                    sourceLabel: "Browser")
+            },
+            clearCached: { _ in events.append("clear") },
+            storeResolved: { _ in events.append("store") })
+
+        #expect(snapshot.sessionUsedPercent == 12)
+        #expect(events == ["cache:Chrome"])
+    }
+
+    @Test
+    func `automatic web fetch keeps cached cookie on offline failure`() async {
+        let cached = CookieHeaderCache.Entry(
+            cookieHeader: "session=cached",
+            storedAt: Date(timeIntervalSince1970: 100),
+            sourceLabel: "Chrome")
+        var events: [String] = []
+
+        await #expect(throws: URLError.self) {
+            _ = try await OllamaStatusFetchStrategy.fetchAutomatic(
+                cached: cached,
+                fetchCached: { _ in throw URLError(.notConnectedToInternet) },
+                fetchBrowser: {
+                    events.append("browser")
+                    return OllamaUsageFetcher.ResolvedCookieFetch(
+                        snapshot: Self.makeSnapshot(sessionUsedPercent: 99),
+                        cookieHeader: "session=browser",
+                        sourceLabel: "Browser")
+                },
+                clearCached: { _ in events.append("clear") },
+                storeResolved: { _ in events.append("store") })
+        }
+
+        #expect(events.isEmpty)
+    }
+
+    @Test
+    func `automatic web fetch replaces cached cookie only after authentication failure on a user initiated refresh`()
+        async throws
+    {
+        let cached = CookieHeaderCache.Entry(
+            cookieHeader: "session=expired",
+            storedAt: Date(timeIntervalSince1970: 100),
+            sourceLabel: "Chrome")
+        var events: [String] = []
+
+        let snapshot = try await ProviderInteractionContext.$current.withValue(.userInitiated) {
+            try await OllamaStatusFetchStrategy.fetchAutomatic(
+                cached: cached,
+                fetchCached: { _ in
+                    events.append("cache")
+                    throw OllamaUsageError.invalidCredentials
+                },
+                fetchBrowser: {
+                    events.append("browser")
+                    return OllamaUsageFetcher.ResolvedCookieFetch(
+                        snapshot: Self.makeSnapshot(sessionUsedPercent: 34),
+                        cookieHeader: "session=fresh",
+                        sourceLabel: "Brave")
+                },
+                clearCached: { entry in events.append("clear:\(entry.sourceLabel)") },
+                storeResolved: { resolved in events.append("store:\(resolved.sourceLabel)") })
+        }
+
+        #expect(snapshot.sessionUsedPercent == 34)
+        #expect(events == ["cache", "clear:Chrome", "browser", "store:Brave"])
+    }
+
+    @Test
+    func `automatic web fetch still recovers via the browser on a background auth failure`() async throws {
+        // The ollama.com session cookie rotates independently of the user's signed-in state, so a background
+        // refresh can see the cached cookie go stale even though the user never signed out.
+        // BrowserCookieAccessGate gates the browser read on its own no-UI preflight — it does not always deny
+        // a background attempt (e.g. Safari never needs Keychain decryption) — so a background auth failure
+        // must still attempt browser recovery rather than assuming it will fail.
+        let cached = CookieHeaderCache.Entry(
+            cookieHeader: "session=expired",
+            storedAt: Date(timeIntervalSince1970: 100),
+            sourceLabel: "Chrome")
+        var events: [String] = []
+
+        let snapshot = try await ProviderInteractionContext.$current.withValue(.background) {
+            try await OllamaStatusFetchStrategy.fetchAutomatic(
+                cached: cached,
+                fetchCached: { _ in
+                    events.append("cache")
+                    throw OllamaUsageError.invalidCredentials
+                },
+                fetchBrowser: {
+                    events.append("browser")
+                    return OllamaUsageFetcher.ResolvedCookieFetch(
+                        snapshot: Self.makeSnapshot(sessionUsedPercent: 34),
+                        cookieHeader: "session=fresh",
+                        sourceLabel: "Safari")
+                },
+                clearCached: { entry in events.append("clear:\(entry.sourceLabel)") },
+                storeResolved: { resolved in events.append("store:\(resolved.sourceLabel)") })
+        }
+
+        #expect(snapshot.sessionUsedPercent == 34)
+        #expect(events == ["cache", "clear:Chrome", "browser", "store:Safari"])
+    }
+
+    @Test
+    func `automatic web fetch surfaces the original auth error when background browser recovery also fails`()
+        async
+    {
+        // When BrowserCookieAccessGate does deny the background attempt (e.g. an un-granted Chromium Keychain
+        // item), fetchBrowser fails too — surface the original, accurate auth error rather than a misleading
+        // "no session cookie" one from the failed recovery attempt.
+        let cached = CookieHeaderCache.Entry(
+            cookieHeader: "session=expired",
+            storedAt: Date(timeIntervalSince1970: 100),
+            sourceLabel: "Chrome")
+        var events: [String] = []
+
+        await ProviderInteractionContext.$current.withValue(.background) {
+            do {
+                _ = try await OllamaStatusFetchStrategy.fetchAutomatic(
+                    cached: cached,
+                    fetchCached: { _ in
+                        events.append("cache")
+                        throw OllamaUsageError.invalidCredentials
+                    },
+                    fetchBrowser: {
+                        events.append("browser")
+                        throw OllamaUsageError.noSessionCookie
+                    },
+                    clearCached: { entry in events.append("clear:\(entry.sourceLabel)") },
+                    storeResolved: { _ in events.append("store") })
+                Issue.record("Expected the original auth failure to be re-thrown")
+            } catch OllamaUsageError.invalidCredentials {
+                // expected — the original cached-cookie auth error, not noSessionCookie from fetchBrowser
+            } catch {
+                Issue.record("Expected invalidCredentials, got \(error)")
+            }
+        }
+
+        #expect(events == ["cache", "clear:Chrome", "browser"])
+    }
+
+    @Test
+    func `actionable browser access error classification covers every browser diagnosis case`() {
+        #expect(OllamaStatusFetchStrategy.isActionableBrowserAccessError(
+            OllamaUsageError.safariCookieAccessDenied))
+        #expect(OllamaStatusFetchStrategy.isActionableBrowserAccessError(
+            OllamaUsageError.browserCookieDecryptionDenied("Chrome")))
+        #expect(OllamaStatusFetchStrategy.isActionableBrowserAccessError(
+            OllamaUsageError.browserCookieDecryptionDisabled("Chrome")))
+        #expect(!OllamaStatusFetchStrategy.isActionableBrowserAccessError(
+            OllamaUsageError.noSessionCookie))
+        #expect(!OllamaStatusFetchStrategy.isActionableBrowserAccessError(
+            OllamaUsageError.invalidCredentials))
+    }
+
+    @Test
+    func `automatic web fetch surfaces an actionable browser access error on a user initiated refresh`() async {
+        // A user-initiated refresh is the explicit-retry path: if the browser recovery attempt fails with a
+        // specific, actionable diagnosis (e.g. Safari needs Full Disk Access, or a Chromium Keychain prompt was
+        // declined), that guidance must reach the user — swapping it for the generic expired-cached-cookie error
+        // would send them chasing a stale "please sign in again" instead of the real, fixable cause.
+        let cached = CookieHeaderCache.Entry(
+            cookieHeader: "session=expired",
+            storedAt: Date(timeIntervalSince1970: 100),
+            sourceLabel: "Chrome")
+        var events: [String] = []
+
+        await ProviderInteractionContext.$current.withValue(.userInitiated) {
+            do {
+                _ = try await OllamaStatusFetchStrategy.fetchAutomatic(
+                    cached: cached,
+                    fetchCached: { _ in
+                        events.append("cache")
+                        throw OllamaUsageError.invalidCredentials
+                    },
+                    fetchBrowser: {
+                        events.append("browser")
+                        throw OllamaUsageError.safariCookieAccessDenied
+                    },
+                    clearCached: { entry in events.append("clear:\(entry.sourceLabel)") },
+                    storeResolved: { _ in events.append("store") })
+                Issue.record("Expected the actionable browser access error to be re-thrown")
+            } catch OllamaUsageError.safariCookieAccessDenied {
+                // expected — the specific, actionable diagnosis, not the generic cached auth error
+            } catch {
+                Issue.record("Expected safariCookieAccessDenied, got \(error)")
+            }
+        }
+
+        #expect(events == ["cache", "clear:Chrome", "browser"])
+    }
+
+    @Test
+    func `automatic web fetch still recovers the original auth error for a non actionable background failure`()
+        async
+    {
+        // A background refresh's own failed recovery attempt only ever reports the generic "no session cookie"
+        // shape (BrowserCookieAccessGate denies before an actionable browser-access error could even occur),
+        // so it should keep surfacing the original, accurate cached-cookie auth error rather than that generic
+        // one — the existing behavior for the common case must not regress.
+        let cached = CookieHeaderCache.Entry(
+            cookieHeader: "session=expired",
+            storedAt: Date(timeIntervalSince1970: 100),
+            sourceLabel: "Chrome")
+        var events: [String] = []
+
+        await ProviderInteractionContext.$current.withValue(.userInitiated) {
+            do {
+                _ = try await OllamaStatusFetchStrategy.fetchAutomatic(
+                    cached: cached,
+                    fetchCached: { _ in
+                        events.append("cache")
+                        throw OllamaUsageError.invalidCredentials
+                    },
+                    fetchBrowser: {
+                        events.append("browser")
+                        throw OllamaUsageError.noSessionCookie
+                    },
+                    clearCached: { entry in events.append("clear:\(entry.sourceLabel)") },
+                    storeResolved: { _ in events.append("store") })
+                Issue.record("Expected the original auth failure to be re-thrown")
+            } catch OllamaUsageError.invalidCredentials {
+                // expected
+            } catch {
+                Issue.record("Expected invalidCredentials, got \(error)")
+            }
+        }
+
+        #expect(events == ["cache", "clear:Chrome", "browser"])
+    }
+
+    @Test
+    func `cached cookie invalidation excludes network and parse errors`() {
+        #expect(OllamaStatusFetchStrategy.shouldInvalidateCachedCookie(
+            after: OllamaUsageError.invalidCredentials))
+        #expect(OllamaStatusFetchStrategy.shouldInvalidateCachedCookie(
+            after: OllamaUsageError.notLoggedIn))
+        #expect(!OllamaStatusFetchStrategy.shouldInvalidateCachedCookie(
+            after: URLError(.notConnectedToInternet)))
+        #expect(!OllamaStatusFetchStrategy.shouldInvalidateCachedCookie(
+            after: OllamaUsageError.parseFailed("changed page")))
+    }
+
+    @Test
+    func `cached session missing usage tries another browser without clearing cache`() async throws {
+        let cached = CookieHeaderCache.Entry(
+            cookieHeader: "session=cached",
+            storedAt: Date(timeIntervalSince1970: 100),
+            sourceLabel: "Chrome")
+        var events: [String] = []
+
+        let snapshot = try await OllamaStatusFetchStrategy.fetchAutomatic(
+            cached: cached,
+            fetchCached: { _ in
+                events.append("cache")
+                throw OllamaUsageError.parseFailed("Missing Ollama usage data.")
+            },
+            fetchBrowser: {
+                events.append("browser")
+                return OllamaUsageFetcher.ResolvedCookieFetch(
+                    snapshot: Self.makeSnapshot(sessionUsedPercent: 56),
+                    cookieHeader: "session=browser",
+                    sourceLabel: "Brave")
+            },
+            clearCached: { _ in events.append("clear") },
+            storeResolved: { resolved in events.append("store:\(resolved.sourceLabel)") })
+
+        #expect(snapshot.sessionUsedPercent == 56)
+        #expect(events == ["cache", "browser", "store:Brave"])
+    }
+
+    @Test
+    func `failed browser fallback preserves cached missing usage error`() async {
+        let cached = CookieHeaderCache.Entry(
+            cookieHeader: "session=cached",
+            storedAt: Date(timeIntervalSince1970: 100),
+            sourceLabel: "Chrome")
+        var events: [String] = []
+
+        do {
+            _ = try await OllamaStatusFetchStrategy.fetchAutomatic(
+                cached: cached,
+                fetchCached: { _ in
+                    events.append("cache")
+                    throw OllamaUsageError.parseFailed("Missing Ollama usage data.")
+                },
+                fetchBrowser: {
+                    events.append("browser")
+                    throw OllamaUsageError.noSessionCookie
+                },
+                clearCached: { _ in events.append("clear") },
+                storeResolved: { _ in events.append("store") })
+            Issue.record("Expected cached parse failure")
+        } catch let OllamaUsageError.parseFailed(message) {
+            #expect(message == "Missing Ollama usage data.")
+        } catch {
+            Issue.record("Expected cached parse failure, got \(error)")
+        }
+
+        #expect(events == ["cache", "browser"])
+    }
+
+    @Test(arguments: [401, 403])
+    func `api fetch sends bearer token and rejects unauthorized key`(statusCode: Int) async throws {
+        let url = try #require(URL(string: "https://ollama.com/api/web_search"))
         let transport = ProviderHTTPTransportHandler { request in
             #expect(request.url == url)
+            #expect(request.httpMethod == "POST")
+            #expect(request.httpBody == Data(#"{"query":""}"#.utf8))
             #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer ollama-test")
             let response = HTTPURLResponse(
                 url: url,
-                statusCode: 401,
+                statusCode: statusCode,
                 httpVersion: "HTTP/1.1",
                 headerFields: nil)!
             return (Data("{}".utf8), response)
@@ -106,8 +437,230 @@ struct OllamaUsageFetcherRetryMappingTests {
                 Issue.record("Expected apiUnauthorized, got \(error)")
                 return
             }
+            #expect(error.localizedDescription == "Ollama API key is invalid or revoked.")
         } catch {
             Issue.record("Expected OllamaUsageError.apiUnauthorized, got \(error)")
+        }
+    }
+
+    @Test
+    func `authorized validation continues to model catalog`() async throws {
+        let validationURL = try #require(URL(string: "https://ollama.test/api/web_search"))
+        let tagsURL = try #require(URL(string: "https://ollama.test/api/tags"))
+        let transport = ProviderHTTPTransportHandler { request in
+            let statusCode: Int
+            let data: Data
+            switch request.url {
+            case validationURL:
+                statusCode = 400
+                data = Data(#"{"error":"query is required"}"#.utf8)
+            case tagsURL:
+                statusCode = 200
+                data = Data(#"{"models":[{}]}"#.utf8)
+            default:
+                Issue.record("Unexpected Ollama API URL")
+                statusCode = 500
+                data = Data()
+            }
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: statusCode,
+                httpVersion: "HTTP/1.1",
+                headerFields: nil)!
+            return (data, response)
+        }
+
+        let snapshot = try await OllamaAPIUsageFetcher.fetchUsage(
+            apiKey: "ollama-test",
+            tagsURL: tagsURL,
+            validationURL: validationURL,
+            transport: transport)
+
+        #expect(snapshot.modelCount == 1)
+    }
+
+    @Test(arguments: [401, 403])
+    func `authorized validation still rejects unauthorized model catalog`(statusCode: Int) async throws {
+        let validationURL = try #require(URL(string: "https://ollama.test/api/web_search"))
+        let tagsURL = try #require(URL(string: "https://ollama.test/api/tags"))
+        let transport = ProviderHTTPTransportHandler { request in
+            let responseStatus = request.url == validationURL ? 400 : statusCode
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: responseStatus,
+                httpVersion: "HTTP/1.1",
+                headerFields: nil)!
+            return (Data("{}".utf8), response)
+        }
+
+        do {
+            _ = try await OllamaAPIUsageFetcher.fetchUsage(
+                apiKey: "ollama-test",
+                tagsURL: tagsURL,
+                validationURL: validationURL,
+                transport: transport)
+            Issue.record("Expected unauthorized model catalog error")
+        } catch let error as OllamaUsageError {
+            guard case .apiUnauthorized = error else {
+                Issue.record("Expected apiUnauthorized, got \(error)")
+                return
+            }
+        } catch {
+            Issue.record("Expected OllamaUsageError.apiUnauthorized, got \(error)")
+        }
+    }
+
+    @Test
+    func `custom catalog derives validation on the same origin`() async throws {
+        let tagsURL = try #require(URL(string: "https://private.example/prefix/api/tags"))
+        let validationURL = try #require(URL(string: "https://private.example/prefix/api/web_search"))
+        let transport = ProviderHTTPTransportHandler { request in
+            let statusCode: Int
+            let data: Data
+            switch request.url {
+            case validationURL:
+                statusCode = 400
+                data = Data(#"{"error":"query is required"}"#.utf8)
+            case tagsURL:
+                statusCode = 200
+                data = Data(#"{"models":[{}]}"#.utf8)
+            default:
+                Issue.record("Unexpected Ollama API URL")
+                statusCode = 500
+                data = Data()
+            }
+            #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer private-key")
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: statusCode,
+                httpVersion: "HTTP/1.1",
+                headerFields: nil)!
+            return (data, response)
+        }
+
+        let snapshot = try await OllamaAPIUsageFetcher.fetchUsage(
+            apiKey: "private-key",
+            tagsURL: tagsURL,
+            transport: transport)
+
+        #expect(snapshot.modelCount == 1)
+    }
+
+    @Test
+    func `cross origin validation endpoint is rejected before sending credentials`() async throws {
+        let tagsURL = try #require(URL(string: "https://private.example/api/tags"))
+        let validationURL = try #require(URL(string: "https://ollama.com/api/web_search"))
+        let transport = ProviderHTTPTransportHandler { _ in
+            Issue.record("Cross-origin endpoints must fail before transport")
+            throw URLError(.badURL)
+        }
+
+        do {
+            _ = try await OllamaAPIUsageFetcher.fetchUsage(
+                apiKey: "private-key",
+                tagsURL: tagsURL,
+                validationURL: validationURL,
+                transport: transport)
+            Issue.record("Expected a same-origin validation error")
+        } catch let error as OllamaUsageError {
+            guard case let .networkError(message) = error else {
+                Issue.record("Expected networkError, got \(error)")
+                return
+            }
+            #expect(message == "Ollama key validation and model catalog endpoints must share an origin.")
+        } catch {
+            Issue.record("Expected OllamaUsageError.networkError, got \(error)")
+        }
+    }
+
+    @Test
+    func `non loopback HTTP catalog is rejected before sending credentials`() async throws {
+        let tagsURL = try #require(URL(string: "http://private.example/api/tags"))
+        let transport = ProviderHTTPTransportHandler { _ in
+            Issue.record("Insecure non-loopback endpoints must fail before transport")
+            throw URLError(.badURL)
+        }
+
+        do {
+            _ = try await OllamaAPIUsageFetcher.fetchUsage(
+                apiKey: "private-key",
+                tagsURL: tagsURL,
+                transport: transport)
+            Issue.record("Expected an insecure endpoint error")
+        } catch let error as OllamaUsageError {
+            guard case let .networkError(message) = error else {
+                Issue.record("Expected networkError, got \(error)")
+                return
+            }
+            #expect(message == "Ollama API endpoints must use HTTPS or loopback HTTP.")
+        } catch {
+            Issue.record("Expected OllamaUsageError.networkError, got \(error)")
+        }
+    }
+
+    @Test
+    func `api validation preserves cancellation`() async {
+        let transport = ProviderHTTPTransportHandler { _ in
+            throw CancellationError()
+        }
+
+        await #expect(throws: CancellationError.self) {
+            _ = try await OllamaAPIUsageFetcher.fetchUsage(apiKey: "ollama-test", transport: transport)
+        }
+    }
+
+    @Test
+    func `model catalog fetch preserves URL cancellation`() async throws {
+        let validationURL = try #require(URL(string: "https://ollama.test/api/web_search"))
+        let tagsURL = try #require(URL(string: "https://ollama.test/api/tags"))
+        let transport = ProviderHTTPTransportHandler { request in
+            guard request.url == validationURL else { throw URLError(.cancelled) }
+            let response = HTTPURLResponse(
+                url: validationURL,
+                statusCode: 400,
+                httpVersion: "HTTP/1.1",
+                headerFields: nil)!
+            return (Data(#"{"error":"query is required"}"#.utf8), response)
+        }
+
+        await #expect(throws: CancellationError.self) {
+            _ = try await OllamaAPIUsageFetcher.fetchUsage(
+                apiKey: "ollama-test",
+                tagsURL: tagsURL,
+                validationURL: validationURL,
+                transport: transport)
+        }
+    }
+
+    @Test
+    func `unproven validation status fails closed`() async throws {
+        let validationURL = try #require(URL(string: "https://ollama.test/api/web_search"))
+        let tagsURL = try #require(URL(string: "https://ollama.test/api/tags"))
+        let transport = ProviderHTTPTransportHandler { request in
+            #expect(request.url == validationURL)
+            let response = HTTPURLResponse(
+                url: validationURL,
+                statusCode: 422,
+                httpVersion: "HTTP/1.1",
+                headerFields: nil)!
+            return (Data(#"{"error":"unprocessable"}"#.utf8), response)
+        }
+
+        do {
+            _ = try await OllamaAPIUsageFetcher.fetchUsage(
+                apiKey: "ollama-test",
+                tagsURL: tagsURL,
+                validationURL: validationURL,
+                transport: transport)
+            Issue.record("Expected an HTTP 422 network error")
+        } catch let error as OllamaUsageError {
+            guard case let .networkError(message) = error else {
+                Issue.record("Expected networkError, got \(error)")
+                return
+            }
+            #expect(message == "HTTP 422")
+        } catch {
+            Issue.record("Expected OllamaUsageError.networkError, got \(error)")
         }
     }
 
@@ -121,13 +674,7 @@ struct OllamaUsageFetcherRetryMappingTests {
             return Self.makeResponse(url: url, body: body, statusCode: 200)
         }
 
-        let fetcher = OllamaUsageFetcher(
-            browserDetection: BrowserDetection(cacheTTL: 0),
-            makeURLSession: { delegate in
-                let config = URLSessionConfiguration.ephemeral
-                config.protocolClasses = [OllamaRetryMappingStubURLProtocol.self]
-                return URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
-            })
+        let fetcher = self.makeCookieFetcher()
         do {
             _ = try await fetcher.fetch(
                 cookieHeaderOverride: "session=test-cookie",
@@ -144,6 +691,194 @@ struct OllamaUsageFetcherRetryMappingTests {
         }
     }
 
+    @Test
+    func `workos sign in landing surfaces invalid credentials before parsing`() async throws {
+        defer { OllamaRetryMappingStubURLProtocol.handler = nil }
+
+        let landingURL = try #require(URL(
+            string: "https://signin.ollama.com/?client_id=test&authorization_session_id=expired"))
+        OllamaRetryMappingStubURLProtocol.handler = { request in
+            #expect(request.url == URL(string: "https://ollama.com/settings"))
+            let body = "<html><body>Sign in to Ollama</body></html>"
+            return Self.makeResponse(url: landingURL, body: body, statusCode: 200)
+        }
+
+        let fetcher = self.makeCookieFetcher()
+        do {
+            _ = try await fetcher.fetch(
+                cookieHeaderOverride: "session=expired-cookie",
+                manualCookieMode: true)
+            Issue.record("Expected OllamaUsageError.invalidCredentials")
+        } catch let error as OllamaUsageError {
+            guard case .invalidCredentials = error else {
+                Issue.record("Expected invalidCredentials, got \(error)")
+                return
+            }
+        } catch {
+            Issue.record("Expected OllamaUsageError.invalidCredentials, got \(error)")
+        }
+    }
+
+    @Test
+    func `workos sign in service failure remains a network error`() async throws {
+        defer { OllamaRetryMappingStubURLProtocol.handler = nil }
+
+        let landingURL = try #require(URL(string: "https://signin.ollama.com/"))
+        OllamaRetryMappingStubURLProtocol.handler = { _ in
+            Self.makeResponse(url: landingURL, body: "Service unavailable", statusCode: 503)
+        }
+
+        let fetcher = self.makeCookieFetcher()
+        do {
+            _ = try await fetcher.fetch(
+                cookieHeaderOverride: "session=expired-cookie",
+                manualCookieMode: true)
+            Issue.record("Expected OllamaUsageError.networkError")
+        } catch let error as OllamaUsageError {
+            guard case let .networkError(message) = error else {
+                Issue.record("Expected networkError, got \(error)")
+                return
+            }
+            #expect(message == "HTTP 503")
+        } catch {
+            Issue.record("Expected OllamaUsageError.networkError, got \(error)")
+        }
+    }
+
+    @Test
+    func `temporary session is finished after a failed request`() async throws {
+        defer { OllamaRetryMappingStubURLProtocol.handler = nil }
+
+        let landingURL = try #require(URL(string: "https://ollama.com/settings"))
+        OllamaRetryMappingStubURLProtocol.handler = { _ in
+            Self.makeResponse(url: landingURL, body: "Service unavailable", statusCode: 503)
+        }
+        let recorder = OllamaSessionFinishRecorder()
+        let fetcher = self.makeCookieFetcher(finishURLSession: { session in
+            recorder.record(session)
+            session.finishTasksAndInvalidate()
+        })
+
+        do {
+            _ = try await fetcher.fetch(
+                cookieHeaderOverride: "session=expired-cookie",
+                manualCookieMode: true)
+            Issue.record("Expected OllamaUsageError.networkError")
+        } catch is OllamaUsageError {
+            #expect(recorder.count == 1)
+        }
+    }
+
+    @Test
+    func `temporary session is finished after a successful request`() async throws {
+        defer { OllamaRetryMappingStubURLProtocol.handler = nil }
+
+        OllamaRetryMappingStubURLProtocol.handler = { request in
+            let url = try #require(request.url)
+            return Self.makeResponse(url: url, body: ollamaUsageHTML, statusCode: 200)
+        }
+        let recorder = OllamaSessionFinishRecorder()
+        let fetcher = self.makeCookieFetcher(finishURLSession: { session in
+            recorder.record(session)
+            session.finishTasksAndInvalidate()
+        })
+
+        _ = try await fetcher.fetch(
+            cookieHeaderOverride: "session=test-cookie",
+            manualCookieMode: true)
+
+        #expect(recorder.count == 1)
+    }
+
+    @Test
+    func `token account header survives the manual strategy boundary`() {
+        let header = "__Secure-session=my-cookie:session=abc"
+        let context = self.makeContext(
+            sourceMode: .auto,
+            settings: ProviderSettingsSnapshot.make(
+                ollama: .init(cookieSource: .manual, manualCookieHeader: header)))
+
+        #expect(OllamaStatusFetchStrategy.manualCookieHeader(from: context) == header)
+    }
+
+    @Test
+    func `token account session value reaches outgoing cookie header`() async throws {
+        defer { OllamaRetryMappingStubURLProtocol.handler = nil }
+
+        let account = ProviderTokenAccount(
+            id: UUID(),
+            label: "Primary",
+            token: "account-token",
+            addedAt: 0,
+            lastUsed: nil)
+        let settings = ProviderCookieSettingsResolver.resolve(
+            provider: .ollama,
+            configuredSource: .auto,
+            configuredHeader: nil,
+            selectedAccount: account)
+        OllamaRetryMappingStubURLProtocol.handler = { request in
+            #expect(request.value(forHTTPHeaderField: "Cookie") == "__Secure-session=account-token")
+            let url = try #require(request.url)
+            return Self.makeResponse(url: url, body: ollamaUsageHTML, statusCode: 200)
+        }
+
+        let fetcher = self.makeCookieFetcher()
+        _ = try await fetcher.fetch(
+            cookieHeaderOverride: settings.manualCookieHeader,
+            manualCookieMode: true)
+    }
+
+    @Test
+    func `manual workos capture sends normalized outgoing cookie header`() async throws {
+        defer { OllamaRetryMappingStubURLProtocol.handler = nil }
+
+        OllamaRetryMappingStubURLProtocol.handler = { request in
+            #expect(request.value(forHTTPHeaderField: "Cookie") == "aid=aux; wos-session=account-token; theme=dark")
+            let url = try #require(request.url)
+            return Self.makeResponse(url: url, body: ollamaUsageHTML, statusCode: 200)
+        }
+
+        let fetcher = self.makeCookieFetcher()
+        _ = try await fetcher.fetch(
+            cookieHeaderOverride: "Cookie: aid=aux; wos-session=account-token; theme=dark",
+            manualCookieMode: true)
+    }
+
+    @Test
+    func `temporary session is finished after a transport failure`() async {
+        defer { OllamaRetryMappingStubURLProtocol.handler = nil }
+
+        OllamaRetryMappingStubURLProtocol.handler = { _ in
+            throw URLError(.notConnectedToInternet)
+        }
+        let recorder = OllamaSessionFinishRecorder()
+        let fetcher = self.makeCookieFetcher(finishURLSession: { session in
+            recorder.record(session)
+            session.finishTasksAndInvalidate()
+        })
+
+        await #expect(throws: URLError.self) {
+            _ = try await fetcher.fetch(
+                cookieHeaderOverride: "session=test-cookie",
+                manualCookieMode: true)
+        }
+        #expect(recorder.count == 1)
+    }
+
+    private func makeCookieFetcher(
+        finishURLSession: @escaping @Sendable (URLSession) -> Void = { $0.finishTasksAndInvalidate() })
+        -> OllamaUsageFetcher
+    {
+        OllamaUsageFetcher(
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            makeURLSession: { delegate in
+                let config = URLSessionConfiguration.ephemeral
+                config.protocolClasses = [OllamaRetryMappingStubURLProtocol.self]
+                return URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
+            },
+            finishURLSession: finishURLSession)
+    }
+
     private static func makeResponse(
         url: URL,
         body: String,
@@ -156,10 +891,40 @@ struct OllamaUsageFetcherRetryMappingTests {
             headerFields: ["Content-Type": "text/html"])!
         return (response, Data(body.utf8))
     }
+
+    private static func makeSnapshot(sessionUsedPercent: Double) -> OllamaUsageSnapshot {
+        OllamaUsageSnapshot(
+            planName: nil,
+            accountEmail: nil,
+            sessionUsedPercent: sessionUsedPercent,
+            weeklyUsedPercent: nil,
+            sessionResetsAt: nil,
+            weeklyResetsAt: nil,
+            updatedAt: Date(timeIntervalSince1970: 200))
+    }
+}
+
+private final class OllamaSessionFinishRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var sessions: [URLSession] = []
+
+    var count: Int {
+        self.lock.withLock { self.sessions.count }
+    }
+
+    func record(_ session: URLSession) {
+        self.lock.withLock {
+            self.sessions.append(session)
+        }
+    }
 }
 
 final class OllamaRetryMappingStubURLProtocol: URLProtocol {
-    nonisolated(unsafe) static var handler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
+    private static let _handlerBox = LockIsolated<((URLRequest) throws -> (HTTPURLResponse, Data))?>(nil)
+    static var handler: ((URLRequest) throws -> (HTTPURLResponse, Data))? {
+        get { Self._handlerBox.value }
+        set { Self._handlerBox.setValue(newValue) }
+    }
 
     override static func canInit(with request: URLRequest) -> Bool {
         guard let host = request.url?.host?.lowercased() else { return false }

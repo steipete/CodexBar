@@ -3,7 +3,7 @@ import Foundation
 import Testing
 @testable import CodexBar
 
-@Suite(.serialized)
+@Suite(.serialized, CodexCredentialFixtures())
 @MainActor
 struct CodexPresentationCharacterizationTests {
     @Test
@@ -44,6 +44,51 @@ struct CodexPresentationCharacterizationTests {
         let lines = self.textLines(from: descriptor)
         #expect(!lines.contains(where: { $0.hasPrefix("Session:") }))
         #expect(lines.contains(where: { $0.hasPrefix("Weekly:") }))
+    }
+
+    @Test
+    func `monthly Codex primary submenu omits session pace text`() {
+        let settings = self.makeSettingsStore(suite: "CodexPresentationCharacterizationTests-monthly-primary")
+        settings.statusChecksEnabled = false
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(
+            fetcher: fetcher,
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing)
+        let now = Date()
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 90,
+                    windowMinutes: 43200,
+                    resetsAt: now.addingTimeInterval(2 * 3600),
+                    resetDescription: nil),
+                secondary: RateWindow(
+                    usedPercent: 5,
+                    windowMinutes: 10080,
+                    resetsAt: now.addingTimeInterval(7 * 86400),
+                    resetDescription: nil),
+                updatedAt: now,
+                identity: ProviderIdentitySnapshot(
+                    providerID: .codex,
+                    accountEmail: "codex@example.com",
+                    accountOrganization: nil,
+                    loginMethod: "plus")),
+            provider: .codex)
+
+        let descriptor = MenuDescriptor.build(
+            provider: .codex,
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updateReady: false,
+            includeContextualActions: false)
+
+        let lines = self.textLines(from: descriptor)
+        #expect(lines.contains(where: { $0.hasPrefix("Monthly:") }))
+        #expect(!lines.contains(where: { $0.hasPrefix("Pace:") }))
     }
 
     @Test
@@ -96,6 +141,45 @@ struct CodexPresentationCharacterizationTests {
     }
 
     @Test
+    func `Codex menu omits account row when hiding personal info`() {
+        let settings = self.makeSettingsStore(suite: "CodexPresentationCharacterizationTests-hide-account")
+        settings.statusChecksEnabled = false
+        settings.hidePersonalInfo = true
+
+        let fetcher = UsageFetcher(environment: [:])
+        let store = UsageStore(
+            fetcher: fetcher,
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing)
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(usedPercent: 12, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+                secondary: nil,
+                updatedAt: Date(),
+                identity: ProviderIdentitySnapshot(
+                    providerID: .codex,
+                    accountEmail: "codex@example.com",
+                    accountOrganization: nil,
+                    loginMethod: "free")),
+            provider: .codex)
+
+        let descriptor = MenuDescriptor.build(
+            provider: .codex,
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updateReady: false,
+            includeContextualActions: false)
+
+        let lines = self.textLines(from: descriptor)
+        #expect(!lines.contains(where: { $0.hasPrefix("Account:") }))
+        #expect(!lines.contains(where: { $0.contains("codex@example.com") }))
+        #expect(!lines.contains(where: { $0.contains("Hidden") }))
+        #expect(lines.contains("Plan: Free"))
+    }
+
+    @Test
     func `Codex menu maps prolite plan to multiplier display name`() {
         let settings = self.makeSettingsStore(suite: "CodexPresentationCharacterizationTests-prolite")
         settings.statusChecksEnabled = false
@@ -136,7 +220,7 @@ struct CodexPresentationCharacterizationTests {
     func `Codex menu prefers snapshot identity over conflicting fallback account info`() throws {
         let settings = self.makeSettingsStore(suite: "CodexPresentationCharacterizationTests-snapshot-precedence")
         settings.statusChecksEnabled = false
-        let managedHome = FileManager.default.temporaryDirectory
+        let managedHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-presentation-fallback-\(UUID().uuidString)", isDirectory: true)
         let managedAccount = ManagedCodexAccount(
             id: UUID(),
@@ -196,7 +280,7 @@ struct CodexPresentationCharacterizationTests {
     func `Codex menu falls back per field when snapshot identity is partial`() {
         let settings = self.makeSettingsStore(suite: "CodexPresentationCharacterizationTests-partial-fallback")
         settings.statusChecksEnabled = false
-        let managedHome = FileManager.default.temporaryDirectory
+        let managedHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-presentation-partial-\(UUID().uuidString)", isDirectory: true)
         let managedAccount = ManagedCodexAccount(
             id: UUID(),
@@ -384,7 +468,7 @@ struct CodexPresentationCharacterizationTests {
     }
 
     @Test
-    func `zai menu descriptor includes Tokens MCP and 5-hour rows`() {
+    func `zai menu descriptor includes 5-hour weekly and MCP rows`() {
         let settings = self.makeSettingsStore(suite: "CodexPresentationCharacterizationTests-zai-three-quota")
         settings.statusChecksEnabled = false
 
@@ -397,20 +481,26 @@ struct CodexPresentationCharacterizationTests {
         store._setSnapshotForTesting(
             UsageSnapshot(
                 primary: RateWindow(
-                    usedPercent: 9,
-                    windowMinutes: 10080,
-                    resetsAt: nil,
-                    resetDescription: nil),
-                secondary: RateWindow(
-                    usedPercent: 50,
-                    windowMinutes: nil,
-                    resetsAt: nil,
-                    resetDescription: nil),
-                tertiary: RateWindow(
                     usedPercent: 25,
                     windowMinutes: 300,
                     resetsAt: nil,
-                    resetDescription: nil),
+                    resetDescription: "5-hour"),
+                secondary: RateWindow(
+                    usedPercent: 9,
+                    windowMinutes: 10080,
+                    resetsAt: nil,
+                    resetDescription: "1 week window"),
+                tertiary: nil,
+                extraRateWindows: [
+                    NamedRateWindow(
+                        id: "zai-mcp",
+                        title: "MCP",
+                        window: RateWindow(
+                            usedPercent: 50,
+                            windowMinutes: nil,
+                            resetsAt: nil,
+                            resetDescription: "MCP")),
+                ],
                 updatedAt: Date(),
                 identity: ProviderIdentitySnapshot(
                     providerID: .zai,
@@ -428,9 +518,9 @@ struct CodexPresentationCharacterizationTests {
             includeContextualActions: false)
 
         let lines = self.textLines(from: descriptor)
-        #expect(lines.contains(where: { $0.hasPrefix("Tokens:") }))
         #expect(lines.contains(where: { $0.hasPrefix("MCP:") }))
         #expect(lines.contains(where: { $0.hasPrefix("5-hour:") }))
+        #expect(lines.contains(where: { $0.hasPrefix("Weekly:") }))
     }
 
     private func makeSettingsStore(suite: String) -> SettingsStore {

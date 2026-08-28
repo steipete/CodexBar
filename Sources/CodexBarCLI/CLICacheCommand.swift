@@ -29,11 +29,12 @@ extension CodexBarCLI {
         if clearCookies {
             if let rawProvider {
                 if let provider = ProviderDescriptorRegistry.cliNameMap[rawProvider.lowercased()] {
-                    let cleared = CookieHeaderCache.clearAllScopes(provider: provider)
+                    let summary = CookieHeaderCache.clearAllScopesDetailed(provider: provider)
                     results.append(CacheClearResult(
                         cache: "cookies",
                         provider: provider.rawValue,
-                        cleared: cleared))
+                        cleared: summary.clearedCount,
+                        error: Self.cookieClearError(failedCount: summary.failedCount)))
                 } else {
                     Self.exit(
                         code: .failure,
@@ -42,8 +43,12 @@ extension CodexBarCLI {
                         kind: .args)
                 }
             } else {
-                let cleared = CookieHeaderCache.clearAll()
-                results.append(CacheClearResult(cache: "cookies", provider: nil, cleared: cleared))
+                let summary = CookieHeaderCache.clearAllDetailed()
+                results.append(CacheClearResult(
+                    cache: "cookies",
+                    provider: nil,
+                    cleared: summary.clearedCount,
+                    error: Self.cookieClearError(failedCount: summary.failedCount)))
             }
         }
 
@@ -86,6 +91,11 @@ extension CodexBarCLI {
     static func cacheClearProviderScopeError(rawProvider: String?, clearCost: Bool) -> String? {
         guard rawProvider != nil, clearCost else { return nil }
         return "--provider only scopes cookie caches. Use --cookies --provider <name>, or omit --provider."
+    }
+
+    private static func cookieClearError(failedCount: Int) -> String? {
+        guard failedCount > 0 else { return nil }
+        return "Cookie cache cleanup failed for \(failedCount) operation\(failedCount == 1 ? "" : "s")"
     }
 }
 

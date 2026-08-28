@@ -2,6 +2,38 @@ import CodexBarCore
 import Foundation
 
 extension SettingsStore {
+    var factoryUsageDataSource: ProviderSourceMode {
+        get {
+            switch self.configSnapshot.providerConfig(for: .factory)?.source {
+            case .api: .api
+            case .web: .web
+            case .auto, .cli, .oauth, .none: .auto
+            }
+        }
+        set {
+            let source: ProviderSourceMode? = switch newValue {
+            case .auto: .auto
+            case .api: .api
+            case .web: .web
+            case .cli, .oauth: .auto
+            }
+            self.updateProviderConfig(provider: .factory) { entry in
+                entry.source = source
+            }
+            self.logProviderModeChange(provider: .factory, field: "usageSource", value: newValue.rawValue)
+        }
+    }
+
+    var factoryAPIKey: String {
+        get { self.configSnapshot.providerConfig(for: .factory)?.sanitizedAPIKey ?? "" }
+        set {
+            self.updateProviderConfig(provider: .factory) { entry in
+                entry.apiKey = self.normalizedConfigValue(newValue)
+            }
+            self.logSecretUpdate(provider: .factory, field: "apiKey", value: newValue)
+        }
+    }
+
     var factoryCookieHeader: String {
         get { self.configSnapshot.providerConfig(for: .factory)?.sanitizedCookieHeader ?? "" }
         set {
@@ -28,36 +60,10 @@ extension SettingsStore {
 extension SettingsStore {
     func factorySettingsSnapshot(tokenOverride: TokenAccountOverride?) -> ProviderSettingsSnapshot
     .FactoryProviderSettings {
-        ProviderSettingsSnapshot.FactoryProviderSettings(
-            cookieSource: self.factorySnapshotCookieSource(tokenOverride: tokenOverride),
-            manualCookieHeader: self.factorySnapshotCookieHeader(tokenOverride: tokenOverride))
-    }
-
-    private func factorySnapshotCookieHeader(tokenOverride: TokenAccountOverride?) -> String {
-        let fallback = self.factoryCookieHeader
-        guard let support = TokenAccountSupportCatalog.support(for: .factory),
-              case .cookieHeader = support.injection
-        else {
-            return fallback
-        }
-        guard let account = ProviderTokenAccountSelection.selectedAccount(
+        self.resolvedCookieSettings(
             provider: .factory,
-            settings: self,
-            override: tokenOverride)
-        else {
-            return fallback
-        }
-        return TokenAccountSupportCatalog.normalizedCookieHeader(account.token, support: support)
-    }
-
-    private func factorySnapshotCookieSource(tokenOverride: TokenAccountOverride?) -> ProviderCookieSource {
-        let fallback = self.factoryCookieSource
-        guard let support = TokenAccountSupportCatalog.support(for: .factory),
-              support.requiresManualCookieSource
-        else {
-            return fallback
-        }
-        if self.tokenAccounts(for: .factory).isEmpty { return fallback }
-        return .manual
+            configuredSource: self.factoryCookieSource,
+            configuredHeader: self.factoryCookieHeader,
+            tokenOverride: tokenOverride)
     }
 }

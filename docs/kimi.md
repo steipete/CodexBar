@@ -6,22 +6,59 @@ read_when:
   - Adjusting Kimi menu labels or settings
 ---
 
-# Kimi Provider
+# Kimi Code Provider
 
 Tracks usage for [Kimi For Coding](https://www.kimi.com/code) in CodexBar.
+
+Kimi Code is distinct from the Moonshot/Kimi Open Platform. China-issued Open Platform keys and balance
+belong under **Moonshot / Kimi Open Platform** with the China mainland region selected; they are not Kimi
+Code subscription credentials.
 
 ## Features
 
 - Displays weekly request quota (from membership tier)
 - Shows current 5-hour rate limit usage
-- Automatic and manual authentication methods
+- Enriches Code API/CLI usage with the monthly membership pool when a web session is available
+- API-key, Kimi Code CLI, automatic cookie, and manual cookie authentication methods
 - Automatic refresh countdown
 
 ## Setup
 
-Choose one of two authentication methods:
+Choose one of four authentication methods:
 
-### Method 1: Automatic Browser Import (Recommended)
+### Method 1: Kimi Code API Key (Recommended)
+
+Create an API key in the [Kimi Code Console](https://www.kimi.com/code/console), then save it in CodexBar:
+
+```bash
+codexbar config set-api-key --provider kimi --api-key "kimi-api-key-here"
+```
+
+Or provide it through the environment:
+
+```bash
+export KIMI_CODE_API_KEY="kimi-code-api-key-here"
+```
+
+CodexBar calls `GET https://api.kimi.com/coding/v1/usages` with the API key. Set
+`KIMI_CODE_BASE_URL` only when testing a compatible HTTPS proxy or alternate host with an explicit API key.
+CodexBar never forwards a Kimi Code CLI credential to an endpoint override.
+
+### Method 2: Kimi Code CLI
+
+If you are signed in with the official Kimi Code CLI, Auto mode can reuse its fresh access token from
+`~/.kimi-code/credentials/kimi-code.json`. CodexBar sends the same device identity headers as the CLI,
+including the local hostname, OS details, and stable `~/.kimi-code/device_id` value. If that device ID is
+missing, CodexBar creates it with private file permissions to match the official client.
+
+CodexBar treats CLI-owned authentication as read-only: it never uses the refresh token and never rewrites
+the credential file. When the access token expires, sign in again with Kimi Code CLI or configure an API
+key. Set `KIMI_CODE_HOME` only when the official CLI uses a non-default home directory.
+
+Custom `KIMI_CODE_BASE_URL`, `KIMI_CODE_OAUTH_HOST`, and `KIMI_OAUTH_HOST` values disable CLI credential
+reuse; use an explicit API key for endpoint-override testing.
+
+### Method 3: Automatic Browser Import
 
 **No setup needed!** If you're already logged in to Kimi in Arc, Chrome, Safari, Edge, Brave, or Chromium:
 
@@ -32,7 +69,12 @@ Choose one of two authentication methods:
 
 **Note**: Requires Full Disk Access to read browser cookies (System Settings → Privacy & Security → Full Disk Access → CodexBar).
 
-### Method 2: Manual Token Entry
+Automatic mode also checks the official Kimi Desktop app before importing browser cookies. Its Chromium
+Cookies database is opened read-only: active WAL databases use SQLite's normal WAL-aware path, while idle
+WAL-mode databases with no sidecars use an immutable read-only fallback. CodexBar never creates or modifies
+Kimi Desktop database files.
+
+### Method 4: Manual Token Entry
 
 For advanced users or when automatic import fails:
 
@@ -44,7 +86,7 @@ For advanced users or when automatic import fails:
 6. Copy the `kimi-auth` cookie value (JWT token)
 7. Paste it into the "Auth Token" field in CodexBar
 
-### Method 3: Environment Variable
+### Cookie Environment Variable
 
 Alternatively, set the `KIMI_AUTH_TOKEN` environment variable:
 
@@ -56,13 +98,52 @@ export KIMI_AUTH_TOKEN="jwt-token-here"
 
 When multiple sources are available, CodexBar uses this order:
 
-1. Manual token (from Settings UI)
-2. Environment variable (`KIMI_AUTH_TOKEN`)
-3. Browser cookies (Arc → Chrome → Safari → Edge → Brave → Chromium)
+1. API key (`providers[].apiKey` or `KIMI_CODE_API_KEY`) in Auto mode
+2. Fresh Kimi Code CLI access token (`~/.kimi-code/credentials/kimi-code.json`)
+3. Manual cookie/token (from Settings UI) when web fallback is used
+4. Cookie environment variable (`KIMI_AUTH_TOKEN`)
+5. Kimi Desktop `kimi-auth` cookie
+6. Browser cookies (Arc → Chrome → Safari → Edge → Brave → Chromium)
+
+For Code API and CLI results, sources 3–6 are best-effort enrichment only: the required Code usage remains
+available if the membership request fails. Setting **Cookie source** to **Off** disables this enrichment and
+does not inspect Kimi Desktop or browser cookies.
 
 **Note**: Browser cookie import requires Full Disk Access permission.
 
+Setting **Cookie source** to **Off** prevents browser import on every Kimi path. Context-free token resolution is
+limited to explicit environment values; only the provider's settings-aware web strategy may inspect browsers.
+
 ## API Details
+
+### Kimi Code API key
+
+**Endpoint**: `GET https://api.kimi.com/coding/v1/usages`
+
+**Authentication**: Bearer token (from `providers[].apiKey`, `KIMI_CODE_API_KEY`, or a fresh Kimi Code CLI credential)
+
+**Response**:
+```json
+{
+  "usage": {
+    "limit": "2048",
+    "used": "214",
+    "remaining": "1834",
+    "resetTime": "2026-01-09T15:23:13.716839300Z"
+  },
+  "limits": [{
+    "window": {"duration": 300, "timeUnit": "TIME_UNIT_MINUTE"},
+    "detail": {
+      "limit": "200",
+      "used": "139",
+      "remaining": "61",
+      "resetTime": "2026-01-06T13:33:02.717479433Z"
+    }
+  }]
+}
+```
+
+### Kimi web cookie fallback
 
 **Endpoint**: `POST https://www.kimi.com/apiv2/kimi.gateway.billing.v1.BillingService/GetUsages`
 

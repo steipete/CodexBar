@@ -27,6 +27,40 @@ struct StatusItemAnimationTests {
     }
 
     @Test
+    func `known unavailable limits stop loading animation`() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "StatusItemAnimationTests-known-unavailable"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+
+        let registry = ProviderRegistry.shared
+        if let claudeMeta = registry.metadata[.claude] {
+            settings.setProviderEnabled(provider: .claude, metadata: claudeMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        store._setSnapshotForTesting(nil, provider: .claude)
+        store._setErrorForTesting(nil, provider: .claude)
+        #expect(controller.shouldAnimate(provider: .claude))
+
+        store._setKnownLimitsAvailabilityForTesting(.unavailable, provider: .claude)
+        #expect(!controller.shouldAnimate(provider: .claude))
+    }
+
+    @Test
     func `merged icon loading animation tracks selected provider only`() {
         let settings = SettingsStore(
             configStore: testConfigStore(suiteName: "StatusItemAnimationTests-merged"),
@@ -44,7 +78,7 @@ struct StatusItemAnimationTests {
         if let openRouterMeta = registry.metadata[.openrouter] {
             settings.setProviderEnabled(provider: .openrouter, metadata: openRouterMeta, enabled: true)
         }
-        settings.openRouterAPIToken = "or-token"
+        settings[providerConfig: .openrouter, field: .apiKey] = "or-token"
         if let geminiMeta = registry.metadata[.gemini] {
             settings.setProviderEnabled(provider: .gemini, metadata: geminiMeta, enabled: false)
         }
@@ -92,7 +126,7 @@ struct StatusItemAnimationTests {
         if let openRouterMeta = registry.metadata[.openrouter] {
             settings.setProviderEnabled(provider: .openrouter, metadata: openRouterMeta, enabled: true)
         }
-        settings.openRouterAPIToken = "or-token"
+        settings[providerConfig: .openrouter, field: .apiKey] = "or-token"
 
         let fetcher = UsageFetcher()
         let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
@@ -263,7 +297,7 @@ struct StatusItemAnimationTests {
         if let openRouterMeta = registry.metadata[.openrouter] {
             settings.setProviderEnabled(provider: .openrouter, metadata: openRouterMeta, enabled: true)
         }
-        settings.openRouterAPIToken = "or-token"
+        settings[providerConfig: .openrouter, field: .apiKey] = "or-token"
 
         let fetcher = UsageFetcher()
         let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
@@ -299,7 +333,7 @@ struct StatusItemAnimationTests {
 
         #expect(image.size.width == 18)
         #expect(image.size.height == 18)
-        #expect(snapshot.openRouterUsage?.keyQuotaStatus == .noLimitConfigured)
+        #expect(snapshot.detailRow(label: "API key limit")?.value == "No limit configured")
         #expect(controller.statusItems[.openrouter]?.button?.title.isEmpty == true)
         #expect(MenuBarDisplayText.percentText(window: snapshot.primary, showUsed: false) == nil)
 
@@ -330,7 +364,7 @@ struct StatusItemAnimationTests {
         if let openRouterMeta = registry.metadata[.openrouter] {
             settings.setProviderEnabled(provider: .openrouter, metadata: openRouterMeta, enabled: true)
         }
-        settings.openRouterAPIToken = "or-token"
+        settings[providerConfig: .openrouter, field: .apiKey] = "or-token"
 
         let fetcher = UsageFetcher()
         let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
@@ -366,7 +400,7 @@ struct StatusItemAnimationTests {
 
         #expect(image.size.width == 18)
         #expect(image.size.height == 18)
-        #expect(snapshot.openRouterUsage?.keyQuotaStatus == .unavailable)
+        #expect(snapshot.detailRow(label: "API key limit")?.value == "Unavailable right now")
 
         // Even with no key data, OpenRouter still renders a meter rather than the brand logo.
         // A brand logo would be fully opaque here; the unfilled track is not.
@@ -418,6 +452,47 @@ struct StatusItemAnimationTests {
         let window = controller.menuBarMetricWindow(for: .codex, snapshot: snapshot)
 
         #expect(window?.usedPercent == 42)
+    }
+
+    @Test
+    func `combined codex menu bar metric window uses most constrained visible lane`() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "StatusItemAnimationTests-codex-combined-window"),
+            zaiTokenStore: NoopZaiTokenStore())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .codex
+        settings.setMenuBarMetricPreference(.primaryAndSecondary, for: .codex)
+
+        let registry = ProviderRegistry.shared
+        if let codexMeta = registry.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 12, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 91, windowMinutes: 7 * 24 * 60, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date())
+
+        store._setSnapshotForTesting(snapshot, provider: .codex)
+        store._setErrorForTesting(nil, provider: .codex)
+
+        let window = controller.menuBarMetricWindow(for: .codex, snapshot: snapshot)
+
+        #expect(window?.usedPercent == 91)
+        #expect(window?.windowMinutes == 7 * 24 * 60)
     }
 
     @Test
@@ -895,6 +970,47 @@ struct StatusItemAnimationTests {
     }
 
     @Test
+    func `menu bar display text formats codex combined percent lanes`() {
+        let sessionWindow = RateWindow(usedPercent: 7, windowMinutes: 300, resetsAt: nil, resetDescription: nil)
+        let weeklyWindow = RateWindow(usedPercent: 18, windowMinutes: 10080, resetsAt: nil, resetDescription: nil)
+
+        let remaining = MenuBarDisplayText.combinedSessionWeeklyPercentText(
+            sessionWindow: sessionWindow,
+            weeklyWindow: weeklyWindow,
+            showUsed: false)
+        let used = MenuBarDisplayText.combinedSessionWeeklyPercentText(
+            sessionWindow: sessionWindow,
+            weeklyWindow: weeklyWindow,
+            showUsed: true)
+        let weeklyOnly = MenuBarDisplayText.combinedSessionWeeklyPercentText(
+            sessionWindow: nil,
+            weeklyWindow: weeklyWindow,
+            showUsed: false)
+        let nineHour = MenuBarDisplayText.combinedSessionWeeklyPercentText(
+            sessionWindow: RateWindow(
+                usedPercent: 7,
+                windowMinutes: 540,
+                resetsAt: nil,
+                resetDescription: nil),
+            weeklyWindow: weeklyWindow,
+            showUsed: false)
+        let unknownSessionDuration = MenuBarDisplayText.combinedSessionWeeklyPercentText(
+            sessionWindow: RateWindow(
+                usedPercent: 7,
+                windowMinutes: nil,
+                resetsAt: nil,
+                resetDescription: nil),
+            weeklyWindow: weeklyWindow,
+            showUsed: false)
+
+        #expect(remaining == "5h 93% · W 82%")
+        #expect(used == "5h 7% · W 18%")
+        #expect(weeklyOnly == "W 82%")
+        #expect(nineHour == "9h 93% · W 82%")
+        #expect(unknownSessionDuration == "S 93% · W 82%")
+    }
+
+    @Test
     func `menu bar display text falls back to percent when pace unavailable`() {
         let percentWindow = RateWindow(usedPercent: 40, windowMinutes: nil, resetsAt: nil, resetDescription: nil)
 
@@ -907,8 +1023,7 @@ struct StatusItemAnimationTests {
             percentWindow: percentWindow,
             showUsed: true)
 
-        #expect(pace == nil)
-        // "Both" mode falls back to percent-only when pace is unavailable
+        #expect(pace == "40%")
         #expect(both == "40%")
     }
 
@@ -927,9 +1042,542 @@ struct StatusItemAnimationTests {
             pace: nil,
             showUsed: true)
 
-        #expect(pace == nil)
-        // "Both" mode falls back to percent-only when pace is unavailable
+        #expect(pace == "40%")
         #expect(both == "40%")
+    }
+
+    @Test
+    func `claude primary menu bar metric computes pace from selected session window`() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "StatusItemAnimationTests-claude-primary-pace"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .claude
+        settings.menuBarDisplayMode = .both
+        settings.usageBarsShowUsed = false
+        settings.setMenuBarMetricPreference(.primary, for: .claude)
+
+        let registry = ProviderRegistry.shared
+        if let claudeMeta = registry.metadata[.claude] {
+            settings.setProviderEnabled(provider: .claude, metadata: claudeMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let now = Date()
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 80,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(4 * 60 * 60),
+                resetDescription: nil),
+            secondary: RateWindow(
+                usedPercent: 20,
+                windowMinutes: 7 * 24 * 60,
+                resetsAt: now.addingTimeInterval(24 * 60 * 60),
+                resetDescription: nil),
+            updatedAt: now)
+        store._setSnapshotForTesting(snapshot, provider: .claude)
+        store._setErrorForTesting(nil, provider: .claude)
+
+        let displayText = controller.menuBarDisplayText(for: .claude, snapshot: snapshot)
+
+        #expect(displayText == "20% · +60%")
+    }
+
+    @Test
+    func `claude combined menu bar metric shows session and weekly lanes`() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "StatusItemAnimationTests-claude-combined"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .claude
+        settings.menuBarDisplayMode = .percent
+        settings.usageBarsShowUsed = true
+        settings.setMenuBarMetricPreference(.primaryAndSecondary, for: .claude)
+        #expect(settings.menuBarMetricPreference(for: .claude) == .primaryAndSecondary)
+
+        let registry = ProviderRegistry.shared
+        if let claudeMeta = registry.metadata[.claude] {
+            settings.setProviderEnabled(provider: .claude, metadata: claudeMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let now = Date()
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 12,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(4 * 60 * 60),
+                resetDescription: nil),
+            secondary: RateWindow(
+                usedPercent: 45,
+                windowMinutes: 7 * 24 * 60,
+                resetsAt: now.addingTimeInterval(24 * 60 * 60),
+                resetDescription: nil),
+            updatedAt: now)
+        store._setSnapshotForTesting(snapshot, provider: .claude)
+        store._setErrorForTesting(nil, provider: .claude)
+
+        let displayText = controller.menuBarDisplayText(for: .claude, snapshot: snapshot)
+
+        #expect(displayText == "5h 12% · W 45%")
+    }
+
+    @Test
+    func `claude combined menu bar metric shows weekly only when session lane is absent`() {
+        // Mirrors the Claude OAuth path where `five_hour` is missing: the mapper parks the 7-day
+        // window in BOTH `primary` and `secondary`. The combined metric must not relabel the
+        // weekly window as a session lane (e.g. "168h 42% · W 42%") — it should show weekly only.
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "StatusItemAnimationTests-claude-combined-no-session"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .claude
+        settings.menuBarDisplayMode = .percent
+        settings.usageBarsShowUsed = true
+        settings.setMenuBarMetricPreference(.primaryAndSecondary, for: .claude)
+
+        let registry = ProviderRegistry.shared
+        if let claudeMeta = registry.metadata[.claude] {
+            settings.setProviderEnabled(provider: .claude, metadata: claudeMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let now = Date()
+        let weekly = RateWindow(
+            usedPercent: 42,
+            windowMinutes: 7 * 24 * 60,
+            resetsAt: now.addingTimeInterval(24 * 60 * 60),
+            resetDescription: nil)
+        let snapshot = UsageSnapshot(primary: weekly, secondary: weekly, updatedAt: now)
+        store._setSnapshotForTesting(snapshot, provider: .claude)
+        store._setErrorForTesting(nil, provider: .claude)
+
+        let displayText = controller.menuBarDisplayText(for: .claude, snapshot: snapshot)
+
+        #expect(displayText == "W 42%")
+    }
+
+    @Test
+    func `claude combined menu bar metric paces the weekly lane in both mode`() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "StatusItemAnimationTests-claude-combined-pace"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .claude
+        settings.menuBarDisplayMode = .both
+        settings.menuBarShowsResetTimeWhenExhausted = false
+        settings.usageBarsShowUsed = false
+        settings.setMenuBarMetricPreference(.primaryAndSecondary, for: .claude)
+
+        let registry = ProviderRegistry.shared
+        if let claudeMeta = registry.metadata[.claude] {
+            settings.setProviderEnabled(provider: .claude, metadata: claudeMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let now = Date()
+        // Session lane is fully consumed, so its own pace is nil; the weekly lane still has room.
+        // The combined metric must pace the weekly lane, so a pace component must appear even though
+        // the displayed percent comes from the session lane (here fully consumed).
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 100,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(4 * 60 * 60),
+                resetDescription: nil),
+            secondary: RateWindow(
+                usedPercent: 50,
+                windowMinutes: 7 * 24 * 60,
+                resetsAt: now.addingTimeInterval(60 * 60),
+                resetDescription: nil),
+            updatedAt: now)
+        store._setSnapshotForTesting(snapshot, provider: .claude)
+        store._setErrorForTesting(nil, provider: .claude)
+
+        let displayText = controller.menuBarDisplayText(for: .claude, snapshot: snapshot)
+
+        // "0% · ±N%": percent from the session lane (here exhausted), pace from the weekly lane.
+        #expect(displayText?.hasPrefix("0% · ") == true)
+    }
+
+    @Test
+    func `claude combined menu bar metric pairs session usage with weekly pace`() {
+        // Regression: in pace/both modes the combined metric must pair the SESSION usage with the
+        // WEEKLY pace. Previously the usage component came from the most-constrained lane, so when the
+        // weekly lane was busier than the session lane it showed weekly usage + weekly pace.
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "StatusItemAnimationTests-claude-combined-session-pace"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .claude
+        settings.menuBarDisplayMode = .both
+        settings.usageBarsShowUsed = true
+        settings.setMenuBarMetricPreference(.primaryAndSecondary, for: .claude)
+
+        let registry = ProviderRegistry.shared
+        if let claudeMeta = registry.metadata[.claude] {
+            settings.setProviderEnabled(provider: .claude, metadata: claudeMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let now = Date()
+        // Weekly lane (45%) is busier than the session lane (12%). The usage component must still be the
+        // session lane, while the pace is computed on the weekly lane (mostly elapsed → pace present).
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 12,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(4 * 60 * 60),
+                resetDescription: nil),
+            secondary: RateWindow(
+                usedPercent: 45,
+                windowMinutes: 7 * 24 * 60,
+                resetsAt: now.addingTimeInterval(60 * 60),
+                resetDescription: nil),
+            updatedAt: now)
+        store._setSnapshotForTesting(snapshot, provider: .claude)
+        store._setErrorForTesting(nil, provider: .claude)
+
+        let displayText = controller.menuBarDisplayText(for: .claude, snapshot: snapshot)
+
+        // Usage is the session lane (12% used), not the most-constrained weekly lane (45%).
+        #expect(displayText?.hasPrefix("12% · ") == true)
+        #expect(displayText?.hasPrefix("45%") == false)
+    }
+
+    @Test
+    func `codex combined menu bar metric pairs session usage with weekly pace`() {
+        // The combined metric is shared with Codex, which resolves its lanes through the consumer
+        // projection. The session usage must headline the pace/both readout there too — not the busier
+        // weekly lane that drives the icon/bar.
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "StatusItemAnimationTests-codex-combined-session-pace"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .codex
+        settings.menuBarDisplayMode = .both
+        settings.usageBarsShowUsed = true
+        settings.setMenuBarMetricPreference(.primaryAndSecondary, for: .codex)
+
+        let registry = ProviderRegistry.shared
+        if let codexMeta = registry.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let now = Date()
+        // Weekly lane (91%) is busier than the session lane (12%), but neither is exhausted. The usage
+        // component must be the session lane while the pace is computed on the weekly lane.
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 12,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(4 * 60 * 60),
+                resetDescription: nil),
+            secondary: RateWindow(
+                usedPercent: 91,
+                windowMinutes: 7 * 24 * 60,
+                resetsAt: now.addingTimeInterval(60 * 60),
+                resetDescription: nil),
+            updatedAt: now)
+        store._setSnapshotForTesting(snapshot, provider: .codex)
+        store._setErrorForTesting(nil, provider: .codex)
+
+        let displayText = controller.menuBarDisplayText(for: .codex, snapshot: snapshot)
+
+        #expect(displayText?.hasPrefix("12% · ") == true)
+        #expect(displayText?.hasPrefix("91%") == false)
+    }
+
+    @Test
+    func `claude combined menu bar metric surfaces an exhausted weekly lane in both mode`() {
+        // When the weekly lane is exhausted it is the binding cap and has no pace, so the combined metric
+        // must surface it instead of a roomy session number that would hide the spent weekly limit.
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "StatusItemAnimationTests-claude-combined-weekly-exhausted"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .claude
+        settings.menuBarDisplayMode = .both
+        settings.menuBarShowsResetTimeWhenExhausted = false
+        settings.usageBarsShowUsed = false
+        settings.setMenuBarMetricPreference(.primaryAndSecondary, for: .claude)
+
+        let registry = ProviderRegistry.shared
+        if let claudeMeta = registry.metadata[.claude] {
+            settings.setProviderEnabled(provider: .claude, metadata: claudeMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let now = Date()
+        // Session lane has room (88% remaining); weekly lane is fully consumed (0% remaining).
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 12,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(4 * 60 * 60),
+                resetDescription: nil),
+            secondary: RateWindow(
+                usedPercent: 100,
+                windowMinutes: 7 * 24 * 60,
+                resetsAt: now.addingTimeInterval(60 * 60),
+                resetDescription: nil),
+            updatedAt: now)
+        store._setSnapshotForTesting(snapshot, provider: .claude)
+        store._setErrorForTesting(nil, provider: .claude)
+
+        let displayText = controller.menuBarDisplayText(for: .claude, snapshot: snapshot)
+
+        // Shows the exhausted weekly lane (0% remaining), not the roomy session lane (88%).
+        #expect(displayText == "0%")
+        #expect(displayText?.hasPrefix("88%") == false)
+    }
+
+    @Test
+    func `claude combined menu bar metric falls back to weekly lane in both mode when session absent`() {
+        // Five_hour OAuth fallback: the mapper parks the 7-day window in both primary and secondary, so no
+        // session lane exists. The pace/both usage component must land on the weekly lane, not collapse to
+        // nil.
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "StatusItemAnimationTests-claude-combined-no-session-both"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .claude
+        settings.menuBarDisplayMode = .both
+        settings.usageBarsShowUsed = true
+        settings.setMenuBarMetricPreference(.primaryAndSecondary, for: .claude)
+
+        let registry = ProviderRegistry.shared
+        if let claudeMeta = registry.metadata[.claude] {
+            settings.setProviderEnabled(provider: .claude, metadata: claudeMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let now = Date()
+        let weekly = RateWindow(
+            usedPercent: 42,
+            windowMinutes: 7 * 24 * 60,
+            resetsAt: now.addingTimeInterval(60 * 60),
+            resetDescription: nil)
+        let snapshot = UsageSnapshot(primary: weekly, secondary: weekly, updatedAt: now)
+        store._setSnapshotForTesting(snapshot, provider: .claude)
+        store._setErrorForTesting(nil, provider: .claude)
+
+        let displayText = controller.menuBarDisplayText(for: .claude, snapshot: snapshot)
+
+        // Usage lands on the weekly lane (42% used) rather than collapsing to nil.
+        #expect(displayText?.hasPrefix("42%") == true)
+    }
+
+    @Test
+    func `claude combined menu bar metric shows spend limit for a spend-limit-only account`() {
+        // A Claude account that only exposes an enterprise/extra-usage spend limit has no real
+        // session/weekly lanes (here a 0% 5h placeholder + a spend limit). With Session + Weekly selected,
+        // it must surface the spend-limit usage, not the meaningless "5h 0%" placeholder lane.
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "StatusItemAnimationTests-claude-combined-spend-limit"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .claude
+        settings.menuBarDisplayMode = .percent
+        settings.usageBarsShowUsed = true
+        settings.setMenuBarMetricPreference(.primaryAndSecondary, for: .claude)
+
+        let registry = ProviderRegistry.shared
+        if let claudeMeta = registry.metadata[.claude] {
+            settings.setProviderEnabled(provider: .claude, metadata: claudeMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let now = Date()
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 0,
+                windowMinutes: 300,
+                resetsAt: nil,
+                resetDescription: nil,
+                isSyntheticPlaceholder: true),
+            secondary: nil,
+            providerCost: ProviderCostSnapshot(
+                used: 45,
+                limit: 100,
+                currencyCode: "USD",
+                period: "Spend limit",
+                updatedAt: now),
+            updatedAt: now)
+        store._setSnapshotForTesting(snapshot, provider: .claude)
+        store._setErrorForTesting(nil, provider: .claude)
+
+        let displayText = controller.menuBarDisplayText(for: .claude, snapshot: snapshot)
+
+        // Spend-limit usage (45% of the cap), not the "5h 0%" placeholder lane.
+        #expect(displayText == "45%")
+        #expect(displayText?.contains("5h") == false)
+    }
+
+    @Test
+    func `codex menu bar pace does not fall back to session when weekly projection is unavailable`() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "StatusItemAnimationTests-codex-no-weekly-pace"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .codex
+        settings.menuBarDisplayMode = .both
+        settings.usageBarsShowUsed = false
+        settings.setMenuBarMetricPreference(.primary, for: .codex)
+
+        let registry = ProviderRegistry.shared
+        if let codexMeta = registry.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let now = Date()
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 80,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(4 * 60 * 60),
+                resetDescription: nil),
+            secondary: nil,
+            updatedAt: now)
+        store._setSnapshotForTesting(snapshot, provider: .codex)
+        store._setErrorForTesting(nil, provider: .codex)
+
+        let displayText = controller.menuBarDisplayText(for: .codex, snapshot: snapshot)
+
+        #expect(displayText == "20%")
     }
 
     @Test

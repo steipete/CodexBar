@@ -74,7 +74,7 @@ struct StatusItemQuotaWarningFlashTests {
         if let openRouterMeta = registry.metadata[.openrouter] {
             settings.setProviderEnabled(provider: .openrouter, metadata: openRouterMeta, enabled: true)
         }
-        settings.openRouterAPIToken = "or-token"
+        settings[providerConfig: .openrouter, field: .apiKey] = "or-token"
 
         let fetcher = UsageFetcher()
         let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)

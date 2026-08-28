@@ -1,273 +1,748 @@
+#if canImport(JavaScriptCore)
 import Foundation
 import Testing
 @testable import CodexBarCore
 
-@Suite(.serialized)
-struct OpenRouterUsageStatsTests {
-    @Test
-    func `to usage snapshot uses key quota for primary window`() {
-        let snapshot = OpenRouterUsageSnapshot(
-            totalCredits: 50,
-            totalUsage: 45.3895596325,
-            balance: 4.6104403675,
-            usedPercent: 90.779119265,
-            keyLimit: 20,
-            keyUsage: 5,
-            rateLimit: nil,
-            updatedAt: Date(timeIntervalSince1970: 1_739_841_600))
+struct OpenRouterPluginGoldenTests {
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `key caps remain independent of account balance`(engine: ProviderPluginEngineKind) async throws {
+        let fixtures: [(body: String, limit: String, used: Double?, remaining: String?)] = [
+            (OpenRouterLimitTestSupport.keyBody, "$30.00", 0, "$30.00"),
+            (#"{"data":{"limit":1,"limit_remaining":1}}"#, "$1.00", 0, "$1.00"),
+            (#"{"data":{"limit":1.9,"limit_remaining":1.9}}"#, "$1.90", 0, "$1.90"),
+            (#"{"data":{"limit":30,"limit_remaining":-5}}"#, "$30.00", 100, "$0.00"),
+            (#"{"data":{"limit":30}}"#, "$30.00", nil, nil),
+            (#"{"data":{}}"#, "No limit configured", nil, nil),
+            (#"{"data":{"limit":null}}"#, "No limit configured", nil, nil),
+            (#"{"data":{"limit":0,"usage":0}}"#, "No limit configured", nil, nil),
+            (#"{"data":{"limit":-1,"usage":0}}"#, "No limit configured", nil, nil),
+        ]
+        for fixture in fixtures {
+            let snapshot = try await OpenRouterLimitTestSupport.snapshot(engine: engine, keyBody: fixture.body)
+            #expect(snapshot.identity?.loginMethod == "Balance: $1.90")
+            #expect(snapshot.detailRow(label: "Remaining")?.value == "$1.90")
+            #expect(snapshot.primary?.usedPercent == fixture.used)
+            #expect(snapshot.detailRow(label: "API key limit")?.value == fixture.limit)
+            #expect(snapshot.detailRow(label: "API key remaining")?.value == fixture.remaining)
+            #expect(snapshot.detailRow(label: "API key limit")?.secondaryValue ==
+                (fixture.limit == "No limit configured" ? nil : "Spending cap, not balance"))
+            #expect(snapshot.updatedAt == OpenRouterLimitTestSupport.now)
+        }
+    }
 
-        let usage = snapshot.toUsageSnapshot()
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `limit copy preserves server remaining and reset window precedence`(
+        engine: ProviderPluginEngineKind) async throws
+    {
+        for (reset, used, remaining) in [
+            ("daily", 20.0, "$24.00"), ("weekly", 40.0, "$18.00"),
+            ("monthly", 60.0, "$12.00"), ("unknown", 90.0, "$3.00"),
+        ] {
+            let body = """
+            {"data":{"limit":30,"limit_reset":"\(reset)","usage":27,
+            "usage_daily":6,"usage_weekly":12,"usage_monthly":18}}
+            """
+            let snapshot = try await OpenRouterLimitTestSupport.snapshot(engine: engine, keyBody: body)
+            #expect(snapshot.primary?.usedPercent == used)
+            #expect(snapshot.detailRow(label: "API key remaining")?.value == remaining)
+            #expect(snapshot.detailRow(label: "API key used")?.value == "$27.00")
+            #expect(snapshot.detailRow(label: "Reset window")?.value == reset)
+            let serverBody = """
+            {"data":{"limit":30,"limit_remaining":30,"limit_reset":"\(reset)","usage":27,
+            "usage_daily":6,"usage_weekly":12,"usage_monthly":18}}
+            """
+            let server = try await OpenRouterLimitTestSupport.snapshot(engine: engine, keyBody: serverBody)
+            #expect(server.primary?.usedPercent == 0)
+            #expect(server.detailRow(label: "API key remaining")?.value == "$30.00")
+            #expect(server.detailRow(label: "API key used")?.value == "$27.00")
+        }
+    }
 
-        #expect(usage.primary?.usedPercent == 25)
-        #expect(usage.primary?.resetsAt == nil)
-        #expect(usage.primary?.resetDescription == nil)
-        #expect(usage.openRouterUsage?.keyQuotaStatus == .available)
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `unavailable limit keeps diagnostics instead of the cap disclosure`(
+        engine: ProviderPluginEngineKind) async throws
+    {
+        for (body, statusCode, diagnostic) in [
+            ("{}", 403, "Request returned HTTP 403"),
+            (#"{"data":{"limit":"invalid"}}"#, 200, "Response was invalid"),
+        ] {
+            let snapshot = try await OpenRouterLimitTestSupport.snapshot(
+                engine: engine, keyBody: body, keyStatus: statusCode)
+            #expect(snapshot.identity?.loginMethod == "Balance: $1.90")
+            #expect(snapshot.primary == nil)
+            #expect(snapshot.detailRow(label: "API key limit")?.value == "Unavailable right now")
+            #expect(snapshot.detailRow(label: "API key limit")?.secondaryValue == diagnostic)
+        }
     }
 
     @Test
-    func `to usage snapshot without valid key limit omits primary window`() {
-        let snapshot = OpenRouterUsageSnapshot(
-            totalCredits: 50,
-            totalUsage: 45.3895596325,
-            balance: 4.6104403675,
-            usedPercent: 90.779119265,
-            keyLimit: nil,
-            keyUsage: nil,
-            rateLimit: nil,
-            updatedAt: Date(timeIntervalSince1970: 1_739_841_600))
+    func `production strategy resolves configured management key`() throws {
+        let config = ProviderConfig(
+            id: .openrouter,
+            pluginSecrets: [
+                OpenRouterSettingsReader.managementAPIKeyEnvironmentKey: "configured-management-key",
+            ])
+        let contribution = try #require(OpenRouterProviderDescriptor.descriptor.settingsSection
+            .credentialContribution(context: ProviderCredentialSettingsContext(config: config, account: nil)))
+        let settings = ProviderSettingsSnapshot(contributions: [contribution])
+        let values = try #require(OpenRouterProviderDescriptor.scriptValues(
+            environment: [
+                OpenRouterSettingsReader.envKey: "standard-key",
+                OpenRouterSettingsReader.apiURLEnvironmentKey: "https://proxy.example/api/v1",
+            ],
+            settings: settings))
 
-        let usage = snapshot.toUsageSnapshot()
-
-        #expect(usage.primary == nil)
-        #expect(usage.openRouterUsage?.keyQuotaStatus == .unavailable)
+        #expect(values.secrets[OpenRouterSettingsReader.envKey] == "standard-key")
+        #expect(values.secrets[OpenRouterSettingsReader.managementAPIKeyEnvironmentKey] == "configured-management-key")
+        #expect(values.settings[OpenRouterSettingsReader.apiURLEnvironmentKey] == "https://proxy.example/api/v1")
     }
 
     @Test
-    func `to usage snapshot when no limit configured omits primary and marks no limit`() {
-        let snapshot = OpenRouterUsageSnapshot(
-            totalCredits: 50,
-            totalUsage: 45.3895596325,
-            balance: 4.6104403675,
-            usedPercent: 90.779119265,
-            keyDataFetched: true,
-            keyLimit: nil,
-            keyUsage: nil,
-            rateLimit: nil,
-            updatedAt: Date(timeIntervalSince1970: 1_739_841_600))
+    func `key quota fixture matches the production golden`() async throws {
+        let snapshot = try await Self.fetch(keyBody: #"{"data":{"limit":20,"usage":5}}"#)
 
-        let usage = snapshot.toUsageSnapshot()
-
-        #expect(usage.primary == nil)
-        #expect(usage.openRouterUsage?.keyQuotaStatus == .noLimitConfigured)
+        #expect(snapshot.primary?.usedPercent == 25)
+        #expect(snapshot.primary?.resetsAt == nil)
+        #expect(snapshot.primary?.resetDescription == nil)
+        #expect(snapshot.detailRow(label: "API key limit")?.value == "$20.00")
+        #expect(snapshot.detailRow(label: "API key limit")?.secondaryValue == "Spending cap, not balance")
+        #expect(snapshot.detailRow(label: "API key remaining")?.value == "$15.00")
     }
 
     @Test
-    func `sanitizers redact sensitive token shapes`() {
-        let body = """
+    func `missing key limit omits primary and marks no limit`() async throws {
+        let snapshot = try await Self.fetch(keyBody: #"{"data":{}}"#)
+
+        #expect(snapshot.primary == nil)
+        #expect(snapshot.detailRow(label: "API key limit")?.value == "No limit configured")
+        #expect(snapshot.detailRow(label: "API key limit")?.secondaryValue == nil)
+    }
+
+    @Test
+    func `unavailable key enrichment omits primary and marks unavailable`() async throws {
+        let snapshot = try await Self.fetch(keyBody: "{}", keyStatus: 500)
+
+        #expect(snapshot.primary == nil)
+        #expect(snapshot.detailRow(label: "API key limit")?.value == "Unavailable right now")
+        #expect(snapshot.detailRow(label: "API key limit")?.secondaryValue == "Request returned HTTP 500")
+    }
+
+    @Test
+    func `credits error is classified without response body details`() async throws {
+        let body = #"""
         {"error":"bad token sk-or-v1-abc123","token":"secret-token","authorization":"Bearer sk-or-v1-xyz789"}
-        """
-
-        let summary = OpenRouterUsageFetcher._sanitizedResponseBodySummaryForTesting(body)
-        let debugBody = OpenRouterUsageFetcher._redactedDebugResponseBodyForTesting(body)
-
-        #expect(summary.contains("sk-or-v1-[REDACTED]"))
-        #expect(summary.contains("\"token\":\"[REDACTED]\""))
-        #expect(!summary.contains("secret-token"))
-        #expect(!summary.contains("sk-or-v1-abc123"))
-
-        #expect(debugBody?.contains("sk-or-v1-[REDACTED]") == true)
-        #expect(debugBody?.contains("\"token\":\"[REDACTED]\"") == true)
-        #expect(debugBody?.contains("secret-token") == false)
-        #expect(debugBody?.contains("sk-or-v1-xyz789") == false)
-    }
-
-    @Test
-    func `non200 fetch throws generic HTTP error without body details`() async throws {
-        let registered = URLProtocol.registerClass(OpenRouterStubURLProtocol.self)
-        defer {
-            if registered {
-                URLProtocol.unregisterClass(OpenRouterStubURLProtocol.self)
-            }
-            OpenRouterStubURLProtocol.handler = nil
-        }
-
-        OpenRouterStubURLProtocol.handler = { request in
-            guard let url = request.url else { throw URLError(.badURL) }
-            let body = #"{"error":"invalid sk-or-v1-super-secret","token":"dont-leak-me"}"#
-            return Self.makeResponse(url: url, body: body, statusCode: 401)
-        }
+        """#
 
         do {
-            _ = try await OpenRouterUsageFetcher.fetchUsage(
-                apiKey: "sk-or-v1-test",
-                environment: ["OPENROUTER_API_URL": "https://openrouter.test/api/v1"])
-            Issue.record("Expected OpenRouterUsageError.apiError")
-        } catch let error as OpenRouterUsageError {
-            guard case let .apiError(message) = error else {
-                Issue.record("Expected apiError, got: \(error)")
-                return
-            }
-            #expect(message == "HTTP 401")
-            #expect(!message.contains("dont-leak-me"))
-            #expect(!message.contains("sk-or-v1-super-secret"))
+            _ = try await Self.fetch(creditsBody: body, creditsStatus: 401)
+            Issue.record("Expected API failure")
+        } catch let error as ProviderFetchClassifiedError {
+            #expect(error.kind == .apiFailure)
+            #expect(error.message == "OpenRouter API error: HTTP 401")
+            #expect(!error.localizedDescription.contains("secret-token"))
+            #expect(!error.localizedDescription.contains("sk-or-v1-abc123"))
+        } catch {
+            Issue.record("Unexpected error: \(error)")
         }
     }
 
     @Test
-    func `fetch usage sets credits timeout and client headers`() async throws {
-        let registered = URLProtocol.registerClass(OpenRouterStubURLProtocol.self)
-        defer {
-            if registered {
-                URLProtocol.unregisterClass(OpenRouterStubURLProtocol.self)
-            }
-            OpenRouterStubURLProtocol.handler = nil
-        }
+    func `requests preserve credits headers and one second enrichment deadline`() async throws {
+        let requests = OpenRouterRequestRecorder()
+        let transport = Self.transport(requests: requests, keyBody: #"""
+        {"data":{
+          "limit":20,
+          "usage":0.5,
+          "usage_daily":0.12,
+          "usage_weekly":0.74,
+          "usage_monthly":4.56,
+          "rate_limit":{"requests":120,"interval":"10s"}
+        }}
+        """#)
+        let runtime = try ProviderPluginRuntime(bundledPlugin: "openrouter", transport: transport)
 
-        OpenRouterStubURLProtocol.handler = { request in
-            guard let url = request.url else { throw URLError(.badURL) }
-            switch url.path {
-            case "/api/v1/credits":
-                #expect(request.timeoutInterval == 15)
-                #expect(request.value(forHTTPHeaderField: "HTTP-Referer") == "https://codexbar.example")
-                #expect(request.value(forHTTPHeaderField: "X-Title") == "CodexBar QA")
-                let body = #"{"data":{"total_credits":100,"total_usage":40}}"#
-                return Self.makeResponse(url: url, body: body, statusCode: 200)
-            case "/api/v1/key":
-                let body = #"""
-                {"data":{
-                  "limit":20,
-                  "usage":0.5,
-                  "usage_daily":0.12,
-                  "usage_weekly":0.74,
-                  "usage_monthly":4.56,
-                  "rate_limit":{"requests":120,"interval":"10s"}
-                }}
-                """#
-                return Self.makeResponse(url: url, body: body, statusCode: 200)
-            default:
-                return Self.makeResponse(url: url, body: "{}", statusCode: 404)
-            }
-        }
+        let usage = try await runtime.fetchUsage(
+            settings: [
+                OpenRouterSettingsReader.apiURLEnvironmentKey: "https://openrouter.test/api/v1",
+                OpenRouterSettingsReader.httpRefererEnvironmentKey: "https://codexbar.example",
+                OpenRouterSettingsReader.clientTitleEnvironmentKey: "CodexBar QA",
+            ],
+            secrets: [OpenRouterSettingsReader.envKey: "sk-or-v1-test"])
 
-        let usage = try await OpenRouterUsageFetcher.fetchUsage(
-            apiKey: "sk-or-v1-test",
-            environment: [
-                "OPENROUTER_API_URL": "https://openrouter.test/api/v1",
-                "OPENROUTER_HTTP_REFERER": " https://codexbar.example ",
-                "OPENROUTER_X_TITLE": "CodexBar QA",
+        let recorded = await requests.requests
+        #expect(recorded.count == 2)
+        #expect(recorded[0].timeoutInterval == 15)
+        #expect(recorded[0].value(forHTTPHeaderField: "HTTP-Referer") == "https://codexbar.example")
+        #expect(recorded[0].value(forHTTPHeaderField: "X-Title") == "CodexBar QA")
+        #expect(recorded[1].timeoutInterval == 1)
+        #expect(recorded[1].value(forHTTPHeaderField: "HTTP-Referer") == nil)
+        #expect(recorded[1].value(forHTTPHeaderField: "X-Title") == nil)
+        #expect(usage.detailRow(label: "Last 30 days")?.value == "Unavailable right now")
+        #expect(usage.detailRow(label: "Last 30 days")?.secondaryValue == "Management API key not configured")
+        #expect(usage.detailRow(label: "Today")?.value == "$0.12")
+        #expect(usage.detailRow(label: "This week")?.value == "$0.74")
+        #expect(usage.detailRow(label: "This month")?.value == "$4.56")
+        #expect(usage.detailRow(label: "Rate limit")?.value == "120 requests / 10s")
+    }
+
+    @Test
+    func `management key activity stays on official origin when API base is overridden`() async throws {
+        let requests = OpenRouterRequestRecorder()
+        let runtime = try ProviderPluginRuntime(
+            bundledPlugin: "openrouter",
+            transport: ProviderHTTPTransportHandler { request in
+                await requests.append(request)
+                let path = request.url?.path ?? ""
+                if path.hasSuffix("/activity") {
+                    return try Self.response(request, body: #"{"data":[]}"#)
+                }
+                if path.hasSuffix("/key") {
+                    return try Self.response(request, body: #"{"data":{"limit":20,"usage":5}}"#)
+                }
+                return try Self.response(request, body: Self.defaultCreditsBody)
+            })
+
+        _ = try await runtime.fetchUsage(
+            settings: [
+                OpenRouterSettingsReader.apiURLEnvironmentKey: "https://proxy.example/api/v1",
+            ],
+            secrets: [
+                OpenRouterSettingsReader.envKey: "standard-key",
+                OpenRouterSettingsReader.managementAPIKeyEnvironmentKey: "management-key",
             ])
+        let recorded = await requests.requests
+        let activity = recorded.filter { $0.url?.path.hasSuffix("/activity") == true }
+        let ordinary = recorded.filter { $0.url?.path.hasSuffix("/activity") != true }
 
-        #expect(usage.totalCredits == 100)
-        #expect(usage.totalUsage == 40)
-        #expect(usage.keyDataFetched)
-        #expect(usage.keyLimit == 20)
-        #expect(usage.keyUsage == 0.5)
-        #expect(usage.keyUsageDaily == 0.12)
-        #expect(usage.keyUsageWeekly == 0.74)
-        #expect(usage.keyUsageMonthly == 4.56)
-        #expect(usage.keyRemaining == 19.5)
-        #expect(usage.keyUsedPercent == 2.5)
-        #expect(usage.keyQuotaStatus == .available)
+        #expect(activity.count == 2)
+        #expect(activity.allSatisfy { $0.url?.host == "openrouter.ai" })
+        #expect(activity.allSatisfy { $0.value(forHTTPHeaderField: "Authorization") == "Bearer management-key" })
+        #expect(ordinary.count == 2)
+        #expect(ordinary.allSatisfy { $0.url?.host == "proxy.example" })
+        #expect(ordinary.allSatisfy { $0.value(forHTTPHeaderField: "Authorization") == "Bearer standard-key" })
     }
 
     @Test
-    func `fetch usage when key endpoint fails marks quota unavailable`() async throws {
-        let registered = URLProtocol.registerClass(OpenRouterStubURLProtocol.self)
-        defer {
-            if registered {
-                URLProtocol.unregisterClass(OpenRouterStubURLProtocol.self)
-            }
-            OpenRouterStubURLProtocol.handler = nil
-        }
+    func `activity requests the latest completed UTC day`() async throws {
+        let requests = OpenRouterRequestRecorder()
+        let activityBody = #"""
+        {"data":[
+          {
+            "date":"2026-08-17",
+            "model":"openai/gpt-5.6",
+            "prompt_tokens":10,
+            "completion_tokens":5,
+            "reasoning_tokens":2,
+            "requests":1,
+            "usage":1
+          },
+          {
+            "date":"2026-07-19",
+            "model":"x-ai/grok-4",
+            "prompt_tokens":4,
+            "completion_tokens":1,
+            "reasoning_tokens":0,
+            "requests":1,
+            "usage":1
+          }
+        ]}
+        """#
+        let runtime = try ProviderPluginRuntime(
+            bundledPlugin: "openrouter",
+            transport: ProviderHTTPTransportHandler { request in
+                await requests.append(request)
+                let path = request.url?.path ?? ""
+                if path.hasSuffix("/activity") {
+                    let date = request.url
+                        .flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false) }?
+                        .queryItems?
+                        .first { $0.name == "date" }?
+                        .value
+                    if date == "2026-08-18" {
+                        return try Self.response(
+                            request,
+                            body: #"{"error":{"message":"Date must be within the last 30 (completed) UTC days"}}"#,
+                            statusCode: 400)
+                    }
+                    return try Self.response(request, body: activityBody)
+                }
+                if path.hasSuffix("/key") {
+                    return try Self.response(request, body: #"{"data":{"limit":20,"usage":5}}"#)
+                }
+                return try Self.response(request, body: Self.defaultCreditsBody)
+            })
+        let now = Date(timeIntervalSince1970: 1_787_079_600) // 2026-08-18T12:00:00Z; stable injected clock.
 
-        OpenRouterStubURLProtocol.handler = { request in
-            guard let url = request.url else { throw URLError(.badURL) }
-            switch url.path {
-            case "/api/v1/credits":
-                let body = #"{"data":{"total_credits":100,"total_usage":40}}"#
-                return Self.makeResponse(url: url, body: body, statusCode: 200)
-            case "/api/v1/key":
-                return Self.makeResponse(url: url, body: "{}", statusCode: 500)
-            default:
-                return Self.makeResponse(url: url, body: "{}", statusCode: 404)
-            }
-        }
+        let usage = try await runtime.fetchUsage(
+            secrets: [
+                OpenRouterSettingsReader.envKey: "fixture-key",
+                OpenRouterSettingsReader.managementAPIKeyEnvironmentKey: "fixture-management-key",
+            ],
+            now: now)
+        let recorded = await requests.requests
+        let datedRequest = try #require(recorded.first { $0.url?.query != nil })
+        let date = datedRequest.url
+            .flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false) }?
+            .queryItems?
+            .first { $0.name == "date" }?
+            .value
 
-        let usage = try await OpenRouterUsageFetcher.fetchUsage(
-            apiKey: "sk-or-v1-test",
-            environment: ["OPENROUTER_API_URL": "https://openrouter.test/api/v1"])
-
-        #expect(!usage.keyDataFetched)
-        #expect(usage.keyQuotaStatus == .unavailable)
+        #expect(date == "2026-08-17")
+        #expect(usage.costUsage?.last30DaysCostUSD == 2)
     }
 
     @Test
-    func `usage snapshot round trip persists open router usage metadata`() throws {
-        let openRouter = OpenRouterUsageSnapshot(
-            totalCredits: 50,
-            totalUsage: 45.3895596325,
-            balance: 4.6104403675,
-            usedPercent: 90.779119265,
-            keyDataFetched: true,
-            keyLimit: nil,
-            keyUsage: nil,
-            keyUsageDaily: 0.12,
-            keyUsageWeekly: 0.74,
-            keyUsageMonthly: 4.56,
-            rateLimit: nil,
-            updatedAt: Date(timeIntervalSince1970: 1_739_841_600))
-        let snapshot = openRouter.toUsageSnapshot()
+    func `server remaining drives monthly quota golden`() async throws {
+        let usage = try await Self.fetch(keyBody: #"""
+        {"data":{
+          "limit":500,
+          "limit_remaining":454.542594979,
+          "limit_reset":"monthly",
+          "usage":433.286754736,
+          "usage_daily":3.404645509,
+          "usage_weekly":3.404645509,
+          "usage_monthly":45.457405021
+        }}
+        """#)
 
-        let encoder = JSONEncoder()
-        let data = try encoder.encode(snapshot)
-        let decoded = try JSONDecoder().decode(UsageSnapshot.self, from: data)
-
-        #expect(decoded.openRouterUsage?.keyDataFetched == true)
-        #expect(decoded.openRouterUsage?.keyQuotaStatus == .noLimitConfigured)
-        #expect(decoded.openRouterUsage?.keyUsageDaily == 0.12)
-        #expect(decoded.openRouterUsage?.keyUsageWeekly == 0.74)
-        #expect(decoded.openRouterUsage?.keyUsageMonthly == 4.56)
+        #expect(abs((usage.primary?.usedPercent ?? -1) - 9.0914810042) < 1e-9)
+        #expect(usage.detailRow(label: "API key remaining")?.value == "$454.54")
+        #expect(usage.detailRow(label: "Reset window")?.value == "monthly")
     }
 
-    private static func makeResponse(
-        url: URL,
-        body: String,
-        statusCode: Int = 200) -> (HTTPURLResponse, Data)
+    @Test
+    func `missing remaining falls back to reset window usage`() async throws {
+        let usage = try await Self.fetch(keyBody: #"""
+        {"data":{
+          "limit":500,
+          "limit_reset":"monthly",
+          "usage":433.286754736,
+          "usage_monthly":45.457405021
+        }}
+        """#)
+
+        #expect(abs((usage.primary?.usedPercent ?? -1) - 9.0914810042) < 1e-9)
+        #expect(usage.detailRow(label: "API key remaining")?.value == "$454.54")
+    }
+
+    @Test
+    func `reset window works without cumulative usage`() async throws {
+        let usage = try await Self.fetch(keyBody: #"""
+        {"data":{
+          "limit":500,
+          "limit_reset":"monthly",
+          "usage_monthly":45.457405021
+        }}
+        """#)
+
+        #expect(abs((usage.primary?.usedPercent ?? -1) - 9.0914810042) < 1e-9)
+        #expect(usage.detailRow(label: "API key remaining")?.value == "$454.54")
+    }
+
+    @Test
+    func `negative server remaining is exhausted quota`() async throws {
+        let usage = try await Self.fetch(keyBody: #"""
+        {"data":{
+          "limit":500,
+          "limit_remaining":-5,
+          "limit_reset":"monthly",
+          "usage":433.286754736,
+          "usage_monthly":45.457405021
+        }}
+        """#)
+
+        #expect(usage.primary?.usedPercent == 100)
+        #expect(usage.detailRow(label: "API key remaining")?.value == "$0.00")
+    }
+
+    @Test
+    func `malformed key enrichment degrades to unavailable`() async throws {
+        let usage = try await Self.fetch(keyBody: #"{"data":{"limit":"twenty"}}"#)
+
+        #expect(usage.primary == nil)
+        #expect(usage.detailRow(label: "API key limit")?.value == "Unavailable right now")
+        #expect(usage.detailRow(label: "API key limit")?.secondaryValue == "Response was invalid")
+    }
+
+    @Test
+    func `credits parse failure is classified`() async throws {
+        do {
+            _ = try await Self.fetch(creditsBody: #"{"data":{"total_credits":"many","total_usage":40}}"#)
+            Issue.record("Expected parse failure")
+        } catch let error as ProviderFetchClassifiedError {
+            #expect(error.kind == .parseFailure)
+            #expect(error.message.contains("total_credits"))
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
+    @Test
+    func `invalid credits JSON is classified as parse failure`() async throws {
+        do {
+            _ = try await Self.fetch(creditsBody: "not-json")
+            Issue.record("Expected parse failure")
+        } catch let error as ProviderFetchClassifiedError {
+            #expect(error.kind == .parseFailure)
+            #expect(error.message == "Failed to parse OpenRouter response: response was not valid JSON")
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
+    @Test
+    func `key enrichment deadline does not block credits result`() async throws {
+        let transport = ProviderHTTPTransportHandler { request in
+            if request.url?.path.hasSuffix("/key") == true {
+                await withCheckedContinuation { continuation in
+                    DispatchQueue.global().asyncAfter(deadline: .now() + 1.5) {
+                        continuation.resume()
+                    }
+                }
+            }
+            return try Self.response(
+                request,
+                body: request.url?.path.hasSuffix("/key") == true
+                    ? #"{"data":{"limit":20,"usage":5}}"#
+                    : Self.defaultCreditsBody)
+        }
+        let runtime = try ProviderPluginRuntime(bundledPlugin: "openrouter", transport: transport)
+        let startedAt = ContinuousClock.now
+
+        let usage = try await runtime.fetchUsage(secrets: [OpenRouterSettingsReader.envKey: "fixture-key"])
+
+        #expect(ContinuousClock.now - startedAt < .seconds(1.4))
+        #expect(usage.primary == nil)
+        #expect(usage.detailRow(label: "API key limit")?.value == "Unavailable right now")
+        #expect(usage.detailRow(label: "API key limit")?.secondaryValue == "Request timed out")
+        try await Task.sleep(for: .milliseconds(600))
+    }
+
+    @Test
+    func `activity rows aggregate by UTC day and model into exact thirty day spend`() async throws {
+        let activityBody = #"""
+        {"data":[
+          {
+            "date":"2026-08-17",
+            "model":"openai/gpt-5.6",
+            "endpoint_id":"endpoint-a",
+            "provider_name":"OpenAI",
+            "prompt_tokens":100,
+            "completion_tokens":50,
+            "reasoning_tokens":10,
+            "requests":2,
+            "usage":12.345
+          },
+          {
+            "date":"2026-08-17",
+            "model":"x-ai/grok-4",
+            "endpoint_id":"endpoint-b",
+            "provider_name":"OpenAI",
+            "prompt_tokens":2,
+            "completion_tokens":3,
+            "reasoning_tokens":1,
+            "requests":1,
+            "usage":0.005
+          },
+          {
+            "date":"2026-08-16",
+            "model":"anthropic/claude-opus-4.1",
+            "endpoint_id":"endpoint-c",
+            "provider_name":"Anthropic",
+            "prompt_tokens":300,
+            "completion_tokens":100,
+            "reasoning_tokens":0,
+            "requests":4,
+            "usage":27.44
+          }
+        ]}
+        """#
+        let now = Date(timeIntervalSince1970: 1_787_079_600) // 2026-08-18T12:00:00Z; stable injected clock.
+        let usage = try await Self.fetch(activityBody: activityBody, now: now)
+        let cost = try #require(usage.costUsage)
+
+        #expect(cost.historyDays == 30)
+        #expect(cost.historyCoverageIsEstablished)
+        #expect(cost.currencyCode == "USD")
+        #expect(cost.costProvenance == .vendorMetered)
+        #expect(cost.last30DaysTokens == 555)
+        #expect(cost.last30DaysRequests == 7)
+        #expect(abs((cost.last30DaysCostUSD ?? -1) - 39.79) < 1e-9)
+        #expect(cost.last30DaysCostUSD?.isFinite == true)
+        #expect(cost.daily.count == 2)
+
+        let august17 = try #require(cost.daily.first { $0.date == "2026-08-17" })
+        #expect(august17.inputTokens == 102)
+        #expect(august17.outputTokens == 53)
+        #expect(august17.reasoningTokens == 11)
+        #expect(august17.totalTokens == 155)
+        #expect(august17.requestCount == 3)
+        #expect(abs((august17.costUSD ?? -1) - 12.35) < 1e-9)
+        #expect(august17.costUSD?.isFinite == true)
+        #expect(august17.modelsUsed == ["openai/gpt-5.6", "x-ai/grok-4"])
+        #expect(august17.modelBreakdowns?.count == 2)
+
+        let model = try #require(august17.modelBreakdowns?.first)
+        #expect(model.modelName == "openai/gpt-5.6")
+        #expect(model.inputTokens == 100)
+        #expect(model.outputTokens == 50)
+        #expect(model.reasoningTokens == 10)
+        #expect(model.totalTokens == 150)
+        #expect(model.requestCount == 2)
+        #expect(abs((model.costUSD ?? -1) - 12.345) < 1e-9)
+    }
+
+    @Test(arguments: ["2026-08-23", "2026-08-23 00:00:00"])
+    func `activity accepts date and datetime rows and normalizes their UTC day`(activityDate: String) async throws {
+        let activityBody = #"""
+        {"data":[{
+          "date":"\#(activityDate)",
+          "model":"openai/gpt-5.6",
+          "endpoint_id":"endpoint-a",
+          "prompt_tokens":100,
+          "completion_tokens":50,
+          "reasoning_tokens":10,
+          "requests":2,
+          "usage":12.345
+        }]}
+        """#
+        let now = Date(timeIntervalSince1970: 1_787_598_000) // 2026-08-24T12:00:00Z; stable injected clock.
+
+        let usage = try await Self.fetch(activityBody: activityBody, now: now)
+        let cost = try #require(usage.costUsage)
+
+        #expect(cost.daily.count == 1)
+        #expect(cost.daily.first?.date == "2026-08-23")
+        #expect(cost.last30DaysTokens == 150)
+        #expect(cost.last30DaysRequests == 2)
+        #expect(abs((cost.last30DaysCostUSD ?? -1) - 12.345) < 1e-9)
+    }
+
+    @Test
+    func `activity spend includes BYOK estimate without double counting reasoning tokens`() async throws {
+        let activityBody = #"""
+        {"data":[{
+          "date":"2026-08-17",
+          "model":"openai/gpt-5.6",
+          "endpoint_id":"endpoint-a",
+          "prompt_tokens":100,
+          "completion_tokens":50,
+          "reasoning_tokens":20,
+          "requests":2,
+          "usage":1.25,
+          "byok_usage_inference":0.75
+        }]}
+        """#
+        let usage = try await Self.fetch(activityBody: activityBody)
+        let cost = try #require(usage.costUsage)
+
+        #expect(cost.last30DaysCostUSD == 2.0)
+        #expect(cost.meteredCostUSD == 1.25)
+        #expect(cost.last30DaysTokens == 150)
+        #expect(cost.costProvenance == .mixed)
+        #expect(cost.daily.first?.estimatedRequestCount == 2)
+    }
+
+    @Test
+    func `BYOK only activity is labeled as estimated spend`() async throws {
+        let activityBody = #"""
+        {"data":[{
+          "date":"2026-08-17",
+          "model_permaslug":"openai/gpt-5.6",
+          "endpoint_id":"endpoint-a",
+          "prompt_tokens":10,
+          "completion_tokens":5,
+          "reasoning_tokens":2,
+          "requests":1,
+          "usage":0,
+          "byok_usage_inference":0.75
+        }]}
+        """#
+        let usage = try await Self.fetch(activityBody: activityBody)
+        let cost = try #require(usage.costUsage)
+
+        #expect(cost.last30DaysCostUSD == 0.75)
+        #expect(cost.meteredCostUSD == nil)
+        #expect(cost.costProvenance == .listPriceEstimate)
+    }
+
+    @Test
+    func `activity permission failure preserves credits and quota`() async throws {
+        let requests = OpenRouterRequestRecorder()
+        let runtime = try ProviderPluginRuntime(
+            bundledPlugin: "openrouter",
+            transport: ProviderHTTPTransportHandler { request in
+                await requests.append(request)
+                let path = request.url?.path ?? ""
+                if path.hasSuffix("/activity") {
+                    return try Self.response(request, body: #"{"error":"forbidden"}"#, statusCode: 403)
+                }
+                if path.hasSuffix("/key") {
+                    return try Self.response(request, body: #"{"data":{"limit":20,"usage":5}}"#)
+                }
+                return try Self.response(request, body: Self.defaultCreditsBody)
+            })
+
+        let usage = try await runtime.fetchUsage(secrets: [
+            OpenRouterSettingsReader.envKey: "fixture-key",
+            "OPENROUTER_MANAGEMENT_API_KEY": "fixture-management-key",
+        ])
+        let recorded = await requests.requests
+
+        #expect(usage.costUsage == nil)
+        #expect(usage.detailRow(label: "Remaining")?.value == "$60.00")
+        #expect(usage.detailRow(label: "Last 30 days")?.secondaryValue == "Management API key required")
+        #expect(recorded.count == 4)
+    }
+
+    @Test(arguments: [
+        #"""
+        {"data":[{
+          "date":"2026-08-17", "model":"openai/gpt-5.6",
+          "prompt_tokens":1e400, "completion_tokens":1, "reasoning_tokens":0,
+          "requests":1, "usage":1
+        }]}
+        """#,
+        #"""
+        {"data":[
+          {
+            "date":"2026-08-17", "model":"openai/gpt-5.6",
+            "prompt_tokens":5000000000000000000, "completion_tokens":0, "reasoning_tokens":0,
+            "requests":1, "usage":1
+          },
+          {
+            "date":"2026-08-17", "model":"openai/gpt-5.6",
+            "prompt_tokens":5000000000000000000, "completion_tokens":0, "reasoning_tokens":0,
+            "requests":1, "usage":1
+          }
+        ]}
+        """#,
+        #"""
+        {"data":[
+          {
+            "date":"2026-08-17", "model":"openai/gpt-5.6", "endpoint_id":"same",
+            "prompt_tokens":1, "completion_tokens":1, "reasoning_tokens":0,
+            "requests":1, "usage":1
+          },
+          {
+            "date":"2026-08-17", "model":"openai/gpt-5.6", "endpoint_id":"same",
+            "prompt_tokens":2, "completion_tokens":1, "reasoning_tokens":0,
+            "requests":1, "usage":1
+          }
+        ]}
+        """#,
+        #"""
+        {"data":[{
+          "date":"2026-02-31", "model":"openai/gpt-5.6",
+          "prompt_tokens":1, "completion_tokens":1, "reasoning_tokens":0,
+          "requests":1, "usage":1
+        }]}
+        """#,
+        #"""
+        {"data":[{
+          "date":"2026-02-31 00:00:00", "model":"openai/gpt-5.6",
+          "prompt_tokens":1, "completion_tokens":1, "reasoning_tokens":0,
+          "requests":1, "usage":1
+        }]}
+        """#,
+        #"""
+        {"data":[{
+          "date":"2026-08-17T00:00:00", "model":"openai/gpt-5.6",
+          "prompt_tokens":1, "completion_tokens":1, "reasoning_tokens":0,
+          "requests":1, "usage":1
+        }]}
+        """#,
+    ])
+    func `nonfinite or overflowing activity never publishes a cost snapshot`(activityBody: String) async throws {
+        let usage = try await Self.fetch(activityBody: activityBody)
+
+        #expect(usage.costUsage == nil)
+        #expect(usage.detailRow(label: "Remaining")?.value == "$60.00")
+        #expect(usage.detailRow(label: "Last 30 days")?.value == "Unavailable right now")
+        #expect(usage.detailRow(label: "Last 30 days")?.secondaryValue == "Response was invalid")
+    }
+
+    private static let defaultCreditsBody = #"{"data":{"total_credits":100,"total_usage":40}}"#
+
+    private static func fetch(
+        creditsBody: String = Self.defaultCreditsBody,
+        creditsStatus: Int = 200,
+        keyBody: String = #"{"data":{"limit":20,"usage":5}}"#,
+        keyStatus: Int = 200) async throws -> UsageSnapshot
     {
-        let response = HTTPURLResponse(
-            url: url,
+        let runtime = try ProviderPluginRuntime(
+            bundledPlugin: "openrouter",
+            transport: Self.transport(
+                creditsBody: creditsBody,
+                creditsStatus: creditsStatus,
+                keyBody: keyBody,
+                keyStatus: keyStatus))
+        return try await runtime.fetchUsage(secrets: [OpenRouterSettingsReader.envKey: "fixture-key"])
+    }
+
+    private static func fetch(
+        activityBody: String,
+        now: Date = Date(timeIntervalSince1970: 1_787_079_600)) async throws -> UsageSnapshot
+    {
+        let runtime = try ProviderPluginRuntime(
+            bundledPlugin: "openrouter",
+            transport: ProviderHTTPTransportHandler { request in
+                let body = switch request.url?.path {
+                case let path? where path.hasSuffix("/activity"):
+                    activityBody
+                case let path? where path.hasSuffix("/key"):
+                    #"{"data":{"limit":20,"usage":5}}"#
+                default:
+                    Self.defaultCreditsBody
+                }
+                return try Self.response(request, body: body)
+            })
+        return try await runtime.fetchUsage(
+            secrets: [
+                OpenRouterSettingsReader.envKey: "fixture-key",
+                "OPENROUTER_MANAGEMENT_API_KEY": "fixture-management-key",
+            ],
+            now: now)
+    }
+
+    private static func transport(
+        requests: OpenRouterRequestRecorder? = nil,
+        creditsBody: String = Self.defaultCreditsBody,
+        creditsStatus: Int = 200,
+        keyBody: String,
+        keyStatus: Int = 200) -> ProviderHTTPTransportHandler
+    {
+        ProviderHTTPTransportHandler { request in
+            if let requests {
+                await requests.append(request)
+            }
+            let isKey = request.url?.path.hasSuffix("/key") == true
+            return try Self.response(
+                request,
+                body: isKey ? keyBody : creditsBody,
+                statusCode: isKey ? keyStatus : creditsStatus)
+        }
+    }
+
+    private static func response(
+        _ request: URLRequest,
+        body: String,
+        statusCode: Int = 200) throws -> (Data, URLResponse)
+    {
+        let response = try #require(HTTPURLResponse(
+            url: request.url!,
             statusCode: statusCode,
             httpVersion: "HTTP/1.1",
-            headerFields: ["Content-Type": "application/json"])!
-        return (response, Data(body.utf8))
+            headerFields: ["Content-Type": "application/json"]))
+        return (Data(body.utf8), response)
     }
 }
 
-final class OpenRouterStubURLProtocol: URLProtocol {
-    nonisolated(unsafe) static var handler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
+private actor OpenRouterRequestRecorder {
+    private(set) var requests: [URLRequest] = []
 
-    override static func canInit(with request: URLRequest) -> Bool {
-        request.url?.host == "openrouter.test"
+    func append(_ request: URLRequest) {
+        self.requests.append(request)
     }
-
-    override static func canonicalRequest(for request: URLRequest) -> URLRequest {
-        request
-    }
-
-    override func startLoading() {
-        guard let handler = Self.handler else {
-            self.client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
-            return
-        }
-        do {
-            let (response, data) = try handler(self.request)
-            self.client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-            self.client?.urlProtocol(self, didLoad: data)
-            self.client?.urlProtocolDidFinishLoading(self)
-        } catch {
-            self.client?.urlProtocol(self, didFailWithError: error)
-        }
-    }
-
-    override func stopLoading() {}
 }
+#endif

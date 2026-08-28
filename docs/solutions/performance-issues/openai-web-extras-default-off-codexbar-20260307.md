@@ -1,6 +1,11 @@
 ---
 module: CodexBar
 date: 2026-03-07
+summary: "OpenAI web extras battery-drain fix: default optional hidden WebView work off."
+read_when:
+  - Investigating OpenAI web extras battery or energy impact
+  - Changing Codex OpenAI web extras defaults
+  - Reviewing hidden WebView performance safeguards
 problem_type: performance_issue
 component: tooling
 symptoms:

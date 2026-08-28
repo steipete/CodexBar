@@ -8,7 +8,9 @@ read_when:
 
 # CLI configuration
 
-`codexbar config` edits the same `~/.codexbar/config.json` file used by the app's Settings → Providers pane.
+`codexbar config` edits the same resolved config file used by the app's Settings → Providers pane.
+New installs use `~/.config/codexbar/config.json`; absolute `XDG_CONFIG_HOME` paths and `CODEXBAR_CONFIG` are
+supported, and existing `~/.codexbar/config.json` installs keep using the legacy file when no XDG config exists.
 The CLI writes the file with `0600` permissions.
 
 ## Providers
@@ -56,15 +58,30 @@ printf '%s' "$DEEPGRAM_API_KEY" | codexbar config set-api-key --provider deepgra
 printf '%s' "$GROQ_API_KEY" | codexbar config set-api-key --provider groq --stdin
 printf '%s' "$LLM_PROXY_API_KEY" | codexbar config set-api-key --provider llmproxy --stdin
 printf '%s' "$Z_AI_API_KEY" | codexbar config set-api-key --provider zai --stdin
+printf '%s' "$XAI_MANAGEMENT_API_KEY" | codexbar config set-api-key --provider xai --stdin
 ```
 
+For a z.ai team account:
+
+```bash
+printf '%s' "$Z_AI_API_KEY" | codexbar config set-api-key --provider zai --stdin \
+  --label Team \
+  --usage-scope team \
+  --organization-id org_... \
+  --workspace-id proj_...
+```
+
+Use single-line BigModel organization/project IDs; see [z.ai](zai.md).
+
 Only providers that consume config-backed API keys accept this command. Admin API providers may require a key with
-organization/usage permissions, not a normal inference key. Browser/OAuth providers such as Grok use their own provider
-sessions instead of an xAI API key for CodexBar's billing view, so enable them with
+organization/usage permissions, not a normal inference key. The `xai` provider reads xAI developer-platform billing
+with a Management key plus a team ID (set `workspaceID` in the provider entry, `XAI_TEAM_ID`, or the app settings
+pane); inference API keys are not accepted. The separate Grok provider tracks consumer Grok/SuperGrok subscriptions
+through its own browser/CLI session and takes no API key, so enable it with
 `codexbar config enable --provider grok`.
 
 LLM Proxy also needs a base URL. Use `LLM_PROXY_BASE_URL` for CLI runs, or add `"enterpriseHost"` to the provider entry
-in `~/.codexbar/config.json`.
+in the CodexBar config file.
 
 ## Isolated config files
 

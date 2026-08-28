@@ -28,6 +28,22 @@ final class ResetTimeBackfillTests: XCTestCase {
         XCTAssertEqual(result.nextRegenPercent, 4)
     }
 
+    func test_backfillsZeroWindowDurationFromCachedWindow() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let reset = now.addingTimeInterval(3600)
+        let cached = RateWindow(
+            usedPercent: 50,
+            windowMinutes: 300,
+            resetsAt: reset,
+            resetDescription: nil)
+        let fresh = RateWindow(usedPercent: 62, windowMinutes: 0, resetsAt: nil, resetDescription: nil)
+
+        let result = fresh.backfillingResetTime(from: cached, now: now)
+
+        XCTAssertEqual(result.windowMinutes, 300)
+        XCTAssertEqual(result.resetsAt, reset)
+    }
+
     func test_skipsExpiredCachedReset() {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let cached = RateWindow(
@@ -44,7 +60,7 @@ final class ResetTimeBackfillTests: XCTestCase {
         XCTAssertNil(result.resetDescription)
     }
 
-    func test_snapshotBackfillPreservesCurrentSnapshotFields() {
+    func test_snapshotBackfillPreservesCurrentSnapshotFields() throws {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let reset = now.addingTimeInterval(3600)
         let identity = ProviderIdentitySnapshot(
@@ -66,7 +82,7 @@ final class ResetTimeBackfillTests: XCTestCase {
                 resetsAt: nil,
                 resetDescription: nil,
                 nextRegenPercent: 2))
-        let fresh = UsageSnapshot(
+        let fresh = try UsageSnapshot(
             primary: RateWindow(
                 usedPercent: 66,
                 windowMinutes: nil,
@@ -75,7 +91,11 @@ final class ResetTimeBackfillTests: XCTestCase {
                 nextRegenPercent: 7),
             secondary: nil,
             extraRateWindows: [extra],
-            cursorRequests: CursorRequestUsage(used: 10, limit: 50),
+            details: [ProviderDetailSection(rows: [
+                ProviderDetailSection.Row(label: "Request quota", value: "10 / 50"),
+            ])],
+            subscriptionExpiresAt: reset.addingTimeInterval(86400),
+            subscriptionRenewsAt: reset.addingTimeInterval(43200),
             updatedAt: now,
             identity: identity)
 
@@ -86,7 +106,9 @@ final class ResetTimeBackfillTests: XCTestCase {
         XCTAssertEqual(result.primary?.nextRegenPercent, 7)
         XCTAssertEqual(result.extraRateWindows?.first?.id, "overflow")
         XCTAssertEqual(result.extraRateWindows?.first?.window.nextRegenPercent, 2)
-        XCTAssertEqual(result.cursorRequests?.used, 10)
+        XCTAssertEqual(result.detailRow(label: "Request quota")?.value, "10 / 50")
+        XCTAssertEqual(result.subscriptionExpiresAt, reset.addingTimeInterval(86400))
+        XCTAssertEqual(result.subscriptionRenewsAt, reset.addingTimeInterval(43200))
         XCTAssertEqual(result.identity?.accountEmail, "peter@example.com")
     }
 
@@ -118,5 +140,70 @@ final class ResetTimeBackfillTests: XCTestCase {
         let result = fresh.backfillingResetTimes(from: cached, now: now)
 
         XCTAssertNil(result.primary?.resetsAt)
+    }
+
+    func test_snapshotBackfillSkipsSameEmailWithDifferentStableAccountIDs() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let cached = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 40,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(3600),
+                resetDescription: "Soon"),
+            secondary: nil,
+            updatedAt: now.addingTimeInterval(-300),
+            identity: ProviderIdentitySnapshot(
+                providerID: .cursor,
+                accountEmail: "shared@example.com",
+                accountOrganization: nil,
+                loginMethod: nil,
+                accountID: "account-a"))
+        let fresh = UsageSnapshot(
+            primary: RateWindow(usedPercent: 66, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            updatedAt: now,
+            identity: ProviderIdentitySnapshot(
+                providerID: .cursor,
+                accountEmail: "shared@example.com",
+                accountOrganization: nil,
+                loginMethod: nil,
+                accountID: "account-b"))
+
+        let result = fresh.backfillingResetTimes(from: cached, now: now)
+
+        XCTAssertNil(result.primary?.resetsAt)
+    }
+
+    func test_snapshotBackfillKeepsOtherProviderResetWhenDescriptionChanges() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let reset = now.addingTimeInterval(3600)
+        let identity = ProviderIdentitySnapshot(
+            providerID: .claude,
+            accountEmail: "user@example.com",
+            accountOrganization: nil,
+            loginMethod: nil)
+        let cached = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 40,
+                windowMinutes: 300,
+                resetsAt: reset,
+                resetDescription: "40 / 100 used"),
+            secondary: nil,
+            updatedAt: now.addingTimeInterval(-300),
+            identity: identity)
+        let fresh = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 50,
+                windowMinutes: 300,
+                resetsAt: nil,
+                resetDescription: "50 / 100 used"),
+            secondary: nil,
+            updatedAt: now,
+            identity: identity)
+
+        let result = fresh.backfillingResetTimes(from: cached, now: now)
+
+        XCTAssertEqual(result.primary?.resetsAt, reset)
+        XCTAssertEqual(result.primary?.resetDescription, "50 / 100 used")
     }
 }

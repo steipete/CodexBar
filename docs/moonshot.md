@@ -1,15 +1,18 @@
 ---
-summary: "Moonshot / Kimi API provider data sources: API key + balance endpoint."
+summary: "Moonshot / Kimi Open Platform data sources, regional key routing, and balance endpoint."
 read_when:
   - Adding or tweaking Moonshot balance parsing
   - Updating Moonshot / Kimi API key handling
   - Documenting Moonshot / Kimi API provider behavior
 ---
 
-# Moonshot / Kimi API provider
+# Moonshot / Kimi Open Platform provider
 
-Moonshot / Kimi API is API-only. Balance is reported by `GET /v1/users/me/balance`,
+Moonshot / Kimi Open Platform is API-only. Balance is reported by `GET /v1/users/me/balance`,
 so CodexBar only needs a valid API key to show the current account balance.
+
+The native fetcher remains authoritative because this balance-only result is intentionally represented in snapshot
+identity without a rate window, cost, or detail, while the plugin contract rejects identity-only snapshots.
 
 ## Rationale
 
@@ -18,18 +21,19 @@ Kimi API docs use the Moonshot API surface for current Kimi models: examples rea
 quickstart. This provider is therefore named after the account and billing surface,
 not a specific Kimi model version.
 
-The existing `Kimi K2` provider remains separate because it targets the legacy
-`kimi-k2.ai` credit endpoint. Migrating or deprecating that provider should be a
-separate cleanup so existing user settings are not silently repointed.
+CodexBar uses the official Moonshot account and billing surface rather than unofficial
+third-party Kimi relays.
 
 ## Data sources
 
 1. **API key** stored in `~/.codexbar/config.json` or supplied via `MOONSHOT_API_KEY` / `MOONSHOT_KEY`.
-   CodexBar stores the key in config after you paste it in Settings → Providers → Moonshot / Kimi API.
+   CodexBar binds saved keys to the selected regional host. Switching regions does not send the saved key to
+   the other host; switch back or replace it with a key issued for the newly selected region.
 2. **Region**
    - International: `https://api.moonshot.ai/v1/users/me/balance`
    - China mainland: `https://api.moonshot.cn/v1/users/me/balance`
    - Configure with Settings → Providers → Moonshot → API region or `MOONSHOT_REGION`.
+   - Environment keys default to International. Set `MOONSHOT_REGION=china` alongside a China-issued key.
 3. **Balance endpoint**
    - Request headers: `Authorization: Bearer <api key>`, `Accept: application/json`
    - Response contains `available_balance`, `voucher_balance`, and `cash_balance`.

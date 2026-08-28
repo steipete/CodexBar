@@ -1,0 +1,22 @@
+{
+  "code": "200",
+  "data": {
+    "DataV2": {
+      "data": {
+        "success": true,
+        "data": {
+          "instanceCode": "sfm_tokenplansolo_public_cn-redacted",
+          "specCode": "pro",
+          "status": "VALID",
+          "remainingDays": 29,
+          "autoRenewFlag": false,
+          "startTime": 1784622404000,
+          "endTime": 1787328000000
+        }
+      },
+      "success": true,
+      "httpStatus": 200
+    }
+  },
+  "successResponse": true
+}

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>≈%d full 5h windows of weekly left · %d windows until reset</key>
+  <dict>
+    <key>NSStringLocalizedFormatKey</key>
+    <string>%#@left@ · %#@until@</string>
+    <key>left</key>
+    <dict>
+      <key>NSStringFormatSpecTypeKey</key>
+      <string>NSStringPluralRuleType</string>
+      <key>NSStringFormatValueTypeKey</key>
+      <string>d</string>
+      <key>one</key>
+      <string>Còn ≈%d cửa sổ 5 giờ đầy đủ của hạn mức tuần</string>
+      <key>other</key>
+      <string>Còn ≈%d cửa sổ 5 giờ đầy đủ của hạn mức tuần</string>
+    </dict>
+    <key>until</key>
+    <dict>
+      <key>NSStringFormatSpecTypeKey</key>
+      <string>NSStringPluralRuleType</string>
+      <key>NSStringFormatValueTypeKey</key>
+      <string>d</string>
+      <key>one</key>
+      <string>%d cửa sổ đến khi đặt lại</string>
+      <key>other</key>
+      <string>%d cửa sổ đến khi đặt lại</string>
+    </dict>
+  </dict>
+  <key>Weekly can run out ≈%d windows early</key>
+  <dict>
+    <key>NSStringLocalizedFormatKey</key>
+    <string>%#@early@</string>
+    <key>early</key>
+    <dict>
+      <key>NSStringFormatSpecTypeKey</key>
+      <string>NSStringPluralRuleType</string>
+      <key>NSStringFormatValueTypeKey</key>
+      <string>d</string>
+      <key>one</key>
+      <string>Hạn mức tuần có thể hết sớm ≈%d cửa sổ</string>
+      <key>other</key>
+      <string>Hạn mức tuần có thể hết sớm ≈%d cửa sổ</string>
+    </dict>
+  </dict>
+</dict>
+</plist>

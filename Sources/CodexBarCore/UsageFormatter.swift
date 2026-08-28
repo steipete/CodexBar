@@ -50,16 +50,31 @@ public enum UsageFormatter {
         if let provider {
             return provider(key)
         }
+        #if canImport(ObjectiveC)
+        // Bundle(for:) requires Objective-C bundle introspection. Linux uses the English
+        // fallback below; app localization is injected through localizationProvider.
         let coreBundle = Bundle(for: BundleToken.self)
         let coreValue = NSLocalizedString(key, tableName: "Localizable", bundle: coreBundle, value: key, comment: "")
         if coreValue != key { return coreValue }
 
         let mainValue = NSLocalizedString(key, tableName: "Localizable", bundle: .main, value: key, comment: "")
         if mainValue != key { return mainValue }
+        #endif
 
         switch key {
+        case "Updated relative %@": return "Updated %@"
+        case "Updated absolute %@": return "Updated %@"
         case "usage_percent_suffix_left": return "left"
         case "usage_percent_suffix_used": return "used"
+        case "reset_tomorrow_format": return "tomorrow, %@"
+        case "byte_unit_byte": return "byte"
+        case "byte_unit_bytes": return "bytes"
+        case "byte_unit_kilobyte": return "kilobyte"
+        case "byte_unit_kilobytes": return "kilobytes"
+        case "byte_unit_megabyte": return "megabyte"
+        case "byte_unit_megabytes": return "megabytes"
+        case "byte_unit_gigabyte": return "gigabyte"
+        case "byte_unit_gigabytes": return "gigabytes"
         default: return key
         }
     }
@@ -69,13 +84,26 @@ public enum UsageFormatter {
         return String(format: format, locale: self.currentLocale(), arguments: args)
     }
 
+    public static func percentText(_ percent: Double, suffix: String) -> String {
+        let clamped = min(100, max(0, percent))
+        if clamped > 0, clamped < 1 {
+            return self.localized("<1%% %@", suffix)
+        }
+        return self.localized("%.0f%% %@", clamped, suffix)
+    }
+
     public static func usageLine(remaining: Double, used: Double, showUsed: Bool) -> String {
         let percent = showUsed ? used : remaining
-        let clamped = min(100, max(0, percent))
         let suffix = showUsed
             ? self.localized("usage_percent_suffix_used")
             : self.localized("usage_percent_suffix_left")
-        return String(format: "%.0f%% %@", clamped, suffix)
+        return self.percentText(percent, suffix: suffix)
+    }
+
+    public static func percentString(_ percent: Double) -> String {
+        let clamped = min(100, max(0, percent))
+        if clamped > 0, clamped < 1 { return "<1%" }
+        return String(format: "%.0f%%", clamped)
     }
 
     public static func resetCountdownDescription(from date: Date, now: Date = .init()) -> String {
@@ -89,6 +117,7 @@ public enum UsageFormatter {
 
         if days > 0 {
             if hours > 0 { return "in \(days)d \(hours)h" }
+            if minutes > 0 { return "in \(days)d \(minutes)m" }
             return "in \(days)d"
         }
         if hours > 0 {
@@ -107,7 +136,8 @@ public enum UsageFormatter {
         if let tomorrow = calendar.date(byAdding: .day, value: 1, to: now),
            calendar.isDate(date, inSameDayAs: tomorrow)
         {
-            return "tomorrow, \(date.formatted(.dateTime.hour().minute().locale(self.currentLocale())))"
+            let timeStr = date.formatted(.dateTime.hour().minute().locale(self.currentLocale()))
+            return self.localized("reset_tomorrow_format", timeStr)
         }
         return date.formatted(.dateTime.month(.abbreviated).day().hour().minute().locale(self.currentLocale()))
     }
@@ -156,7 +186,7 @@ public enum UsageFormatter {
             let rel = RelativeDateTimeFormatter()
             rel.locale = self.currentLocale()
             rel.unitsStyle = .abbreviated
-            return self.localized("Updated %@", rel.localizedString(for: date, relativeTo: now))
+            return self.localized("Updated relative %@", rel.localizedString(for: date, relativeTo: now))
             #else
             let seconds = max(0, Int(now.timeIntervalSince(date)))
             if seconds < 3600 {
@@ -168,19 +198,22 @@ public enum UsageFormatter {
             #endif
         } else {
             return self.localized(
-                "Updated %@",
+                "Updated absolute %@",
                 date.formatted(.dateTime.hour().minute().locale(self.currentLocale())))
         }
     }
 
     public static func creditsString(from value: Double) -> String {
+        self.localized("%@ left", self.creditsNumberString(from: value))
+    }
+
+    public static func creditsNumberString(from value: Double) -> String {
         let number = NumberFormatter()
         number.numberStyle = .decimal
         number.maximumFractionDigits = 2
         // Use explicit locale for consistent formatting on all systems
         number.locale = Locale(identifier: "en_US_POSIX")
-        let formatted = number.string(from: NSNumber(value: value)) ?? String(format: "%.2f", value)
-        return self.localized("%@ left", formatted)
+        return number.string(from: NSNumber(value: value)) ?? String(format: "%.2f", value)
     }
 
     public static func kiroCreditNumber(_ value: Double) -> String {
@@ -189,6 +222,83 @@ public enum UsageFormatter {
             return String(format: "%.0f", rounded)
         }
         return String(format: "%.2f", value)
+    }
+
+    /// Formats a USD value into a target currency code with exchange rate conversion applied.
+    public static func convertedCostString(_ usdValue: Double, targetCurrency: String) -> String {
+        let converted = Self.convertedCost(
+            usdValue,
+            preferredCurrency: targetCurrency,
+            providerCurrency: "USD")
+        return self.currencyString(converted.value, currencyCode: converted.currencyCode)
+    }
+
+    /// Formats a value from one currency into another via USD pivot conversion.
+    /// Useful when displaying provider costs that are denominated in non-USD currencies
+    /// (e.g., Anthropic extra usage returned in GBP) under the user's preferred currency.
+    public static func convertedCostString(
+        _ value: Double,
+        fromCurrency: String,
+        targetCurrency: String) -> String
+    {
+        guard let converted = CurrencyExchange.shared.convert(
+            amount: value,
+            from: fromCurrency,
+            to: targetCurrency)
+        else {
+            return self.currencyString(value, currencyCode: fromCurrency)
+        }
+        return self.currencyString(converted, currencyCode: targetCurrency)
+    }
+
+    /// Resolves the effective currency code for cost display given user preference
+    /// and an optional provider currency. Returns the provider currency when preference
+    /// is "auto", otherwise returns the explicit preference.
+    public static func effectiveCurrencyCode(
+        preferred: String,
+        providerCurrency: String?) -> String
+    {
+        guard preferred != "auto", !preferred.isEmpty else {
+            return providerCurrency ?? "USD"
+        }
+        return preferred
+    }
+
+    /// Formats a cost value with smart currency conversion.
+    /// - When `preferredCurrency` is "auto", renders in `providerCurrency` (or USD fallback) without conversion.
+    /// - When `preferredCurrency` is an explicit code, converts from `providerCurrency` to the target.
+    public static func convertedCostString(
+        _ value: Double,
+        preferredCurrency: String,
+        providerCurrency: String?) -> String
+    {
+        let converted = Self.convertedCost(
+            value,
+            preferredCurrency: preferredCurrency,
+            providerCurrency: providerCurrency)
+        return Self.currencyString(converted.value, currencyCode: converted.currencyCode)
+    }
+
+    /// Resolves and converts a numeric cost while preserving its source currency
+    /// when the requested exchange rate is unavailable.
+    public static func convertedCost(
+        _ value: Double,
+        preferredCurrency: String,
+        providerCurrency: String?) -> (value: Double, currencyCode: String)
+    {
+        let sourceCurrency = providerCurrency ?? "USD"
+        let targetCurrency = Self.effectiveCurrencyCode(
+            preferred: preferredCurrency,
+            providerCurrency: providerCurrency)
+        guard targetCurrency != sourceCurrency,
+              let converted = CurrencyExchange.shared.convert(
+                  amount: value,
+                  from: sourceCurrency,
+                  to: targetCurrency)
+        else {
+            return (value, sourceCurrency)
+        }
+        return (converted, targetCurrency)
     }
 
     /// Formats a USD value with proper negative handling and thousand separators.
@@ -200,13 +310,7 @@ public enum UsageFormatter {
     public static let costEstimateHint = "Estimated from local logs · may differ from your bill"
 
     public static func costEstimateHint(provider: UsageProvider) -> String {
-        switch provider {
-        case .claude:
-            "Estimated from local Claude logs at API rates; token totals include cache read/write tokens " +
-                "and may differ from Claude Code /status."
-        default:
-            self.costEstimateHint
-        }
+        ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.estimateDisclaimer
     }
 
     /// Formats a currency value with the specified currency code.
@@ -214,6 +318,16 @@ public enum UsageFormatter {
     /// regardless of the user's system locale (e.g., pt-BR users see $54.72 not US$ 54,72).
     public static func currencyString(_ value: Double, currencyCode: String) -> String {
         value.formatted(.currency(code: currencyCode).locale(Locale(identifier: "en_US")))
+    }
+
+    public static func compactCurrencyString(_ value: Double, currencyCode: String) -> String {
+        if value != 0, abs(value) < 1 {
+            return self.currencyString(value, currencyCode: currencyCode)
+        }
+        return value.formatted(
+            .currency(code: currencyCode)
+                .precision(.fractionLength(0))
+                .locale(Locale(identifier: "en_US")))
     }
 
     public static func tokenCountString(_ value: Int) -> String {
@@ -239,16 +353,12 @@ public enum UsageFormatter {
             return "\(sign)\(formatted)\(unit.suffix)"
         }
 
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.usesGroupingSeparator = true
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        return formatter.string(from: NSNumber(value: value)) ?? "\(value)"
+        return "\(value)"
     }
 
     public static func byteCountString(_ bytes: Int64) -> String {
         let sign = bytes < 0 ? "-" : ""
-        let absBytes = Double(Swift.abs(bytes))
+        let absBytes = Double(bytes.magnitude)
         let units: [(threshold: Double, divisor: Double, suffix: String)] = [
             (1024 * 1024 * 1024, 1024 * 1024 * 1024, "GB"),
             (1024 * 1024, 1024 * 1024, "MB"),
@@ -263,6 +373,30 @@ public enum UsageFormatter {
         }
 
         return "\(bytes) B"
+    }
+
+    /// Same magnitudes as `byteCountString`, but spelled out ("megabytes" instead of "MB").
+    public static func byteCountStringLong(_ bytes: Int64) -> String {
+        let sign = bytes < 0 ? "-" : ""
+        let absBytes = Double(bytes.magnitude)
+        let units: [(threshold: Double, divisor: Double, singularKey: String, pluralKey: String)] = [
+            (1024 * 1024 * 1024, 1024 * 1024 * 1024, "byte_unit_gigabyte", "byte_unit_gigabytes"),
+            (1024 * 1024, 1024 * 1024, "byte_unit_megabyte", "byte_unit_megabytes"),
+            (1024, 1024, "byte_unit_kilobyte", "byte_unit_kilobytes"),
+        ]
+
+        for unit in units where absBytes >= unit.threshold {
+            let scaled = absBytes / unit.divisor
+            let format = scaled >= 10 || scaled.rounded(.towardZero) == scaled ? "%.0f" : "%.1f"
+            let formatted = String(format: format, locale: self.currentLocale(), scaled)
+            let displayScale = format == "%.0f" ? 1.0 : 10.0
+            let displayedValue = (scaled * displayScale).rounded() / displayScale
+            let word = self.localized(displayedValue == 1 ? unit.singularKey : unit.pluralKey)
+            return "\(sign)\(formatted) \(word)"
+        }
+
+        let word = self.localized(bytes.magnitude == 1 ? "byte_unit_byte" : "byte_unit_bytes")
+        return "\(bytes) \(word)"
     }
 
     public static func creditEventSummary(_ event: CreditEvent) -> String {
@@ -305,6 +439,8 @@ public enum UsageFormatter {
     public static func modelDisplayName(_ raw: String) -> String {
         var cleaned = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleaned.isEmpty else { return raw }
+        if cleaned == "codex-auto-review" { return "Codex Auto Review" }
+        if CostUsagePricing.isCodexUnattributedModel(cleaned) { return "Unknown model" }
 
         let patterns = [
             #"(?:-|\s)\d{8}$"#,

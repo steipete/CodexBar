@@ -1,13 +1,28 @@
-import CodexBarMacroSupport
 import Foundation
 
 #if os(macOS)
 import SweetCookieKit
 #endif
 
-@ProviderDescriptorRegistration
-@ProviderDescriptorDefinition
 public enum AlibabaTokenPlanProviderDescriptor {
+    public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+    private static let credentials = ProviderCredentialAdapter(
+        usesRegion: true,
+        authDetector: { environment, _ in
+            AlibabaTokenPlanSettingsReader.cookieHeader(environment: environment) == nil ? [] : ["web"]
+        },
+        configValidator: ProviderCredentialAdapter.regionValidator(
+            displayName: "Alibaba Token Plan",
+            isValid: { AlibabaTokenPlanAPIRegion(rawValue: $0) != nil }))
+
+    public static func primaryLabel(window: RateWindow?) -> String? {
+        window?.windowMinutes == 5 * 60 ? "5-hour" : nil
+    }
+
+    public static func secondaryLabel(window: RateWindow?) -> String? {
+        window?.windowMinutes == 7 * 24 * 60 ? "7-day" : nil
+    }
+
     static func makeDescriptor() -> ProviderDescriptor {
         #if os(macOS)
         let browserOrder: BrowserCookieImportOrder = [
@@ -23,11 +38,30 @@ public enum AlibabaTokenPlanProviderDescriptor {
         let browserOrder: BrowserCookieImportOrder? = nil
         #endif
 
+        // Provider-specific by design: The Alibaba folder co-locates the distinct Alibaba Token Plan descriptor.
         return ProviderDescriptor(
             id: .alibabatokenplan,
+            settingsSection: .init(
+                AlibabaTokenPlanProviderSettingsKey.self,
+                cookieSettings: { settings in
+                    CookieProviderSettings(
+                        cookieSource: settings.cookieSource,
+                        manualCookieHeader: settings.manualCookieHeader)
+                },
+                credentialSettings: { context in
+                    let settings = context.cookieSettings(for: .alibabatokenplan)
+                    let region = context.config?.sanitizedRegion
+                        .flatMap(AlibabaTokenPlanAPIRegion.init(rawValue:)) ?? .chinaMainland
+                    return AlibabaTokenPlanProviderSettings(
+                        cookieSource: settings.cookieSource,
+                        manualCookieHeader: settings.manualCookieHeader,
+                        apiRegion: region)
+                }),
+            credentials: self.credentials,
             metadata: ProviderMetadata(
                 id: .alibabatokenplan,
                 displayName: "Alibaba Token Plan",
+                shortDisplayName: "Token Plan",
                 sessionLabel: "Credits",
                 weeklyLabel: "Usage",
                 opusLabel: nil,
@@ -39,45 +73,124 @@ public enum AlibabaTokenPlanProviderDescriptor {
                 defaultEnabled: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
+                sharePlanLabels: [
+                    "token plan": "Token Plan", "token plan pro": "Token Plan Pro",
+                    "token plan plus": "Token Plan Plus",
+                ],
+                debugLogUnavailableMessage: "Alibaba Token Plan debug log not yet implemented",
                 browserCookieOrder: browserOrder,
                 dashboardURL: AlibabaTokenPlanUsageFetcher.dashboardURL.absoluteString,
                 statusPageURL: nil,
                 statusLinkURL: "https://status.aliyun.com"),
             branding: ProviderBranding(
-                iconStyle: .alibaba,
+                iconStyle: .init(provider: .alibaba),
                 iconResourceName: "ProviderIcon-alibaba",
-                color: ProviderColor(red: 1.0, green: 106 / 255, blue: 0)),
+                color: ProviderColor(red: 1.0, green: 106 / 255, blue: 0),
+                confettiPalette: [
+                    ProviderColor(hex: 0xFF6A00),
+                    ProviderColor(hex: 0x0064C8),
+                    ProviderColor(hex: 0xFFFFFF),
+                ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Alibaba Token Plan cost summary is not supported." }),
+            pace: .calendarMonthResetWindow,
+            presentation: ProviderUsagePresentation(
+                primaryBindingQuotaLanes: [.secondary],
+                menuCard: ProviderMenuCardPresentation(showsPrimaryBalanceDescription: true)),
             fetchPlan: ProviderFetchPlan(
-                sourceModes: [.auto, .web],
+                sourceModes: [.auto, .cli, .web],
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
             cli: ProviderCLIConfig(
                 name: "alibaba-token-plan",
                 aliases: ["alibaba-token", "bailian-token-plan"],
-                versionDetector: nil))
+                versionDetector: nil,
+                browserSupportExemption: { sourceMode, _, settings in
+                    if sourceMode == .auto || sourceMode == .cli {
+                        return true
+                    }
+                    // Manual cookies use plain URLSession; only browser import is platform-bound.
+                    return settings?.alibabaTokenPlan?.cookieSource == .manual
+                }))
     }
 
-    private static func resolveStrategies(context: ProviderFetchContext) async -> [any ProviderFetchStrategy] {
-        guard context.settings?.alibabaTokenPlan?.cookieSource != .off else { return [] }
+    static func resolveStrategies(context: ProviderFetchContext) async -> [any ProviderFetchStrategy] {
         switch context.sourceMode {
-        case .auto, .web:
-            return [AlibabaTokenPlanWebFetchStrategy()]
-        case .api, .cli, .oauth:
+        case .auto:
+            if context.settings?.alibabaTokenPlan?.cookieSource == .off {
+                return [AlibabaTokenPlanCLIFetchStrategy()]
+            }
+            return [AlibabaTokenPlanCLIFetchStrategy(), AlibabaTokenPlanWebFetchStrategy()]
+        case .cli:
+            return [AlibabaTokenPlanCLIFetchStrategy()]
+        case .web:
+            return context.settings?.alibabaTokenPlan?.cookieSource == .off
+                ? []
+                : [AlibabaTokenPlanWebFetchStrategy()]
+        case .api, .oauth:
             return []
         }
     }
 }
 
+struct AlibabaTokenPlanCLIFetchStrategy: ProviderFetchStrategy {
+    let id: String = "alibaba-token-plan.cli"
+    let kind: ProviderFetchKind = .cli
+    private let fetchUsage: @Sendable (
+        AlibabaTokenPlanAPIRegion,
+        [String: String]) async throws -> AlibabaTokenPlanUsageSnapshot
+
+    init(fetchUsage: @escaping @Sendable (
+        AlibabaTokenPlanAPIRegion,
+        [String: String]) async throws -> AlibabaTokenPlanUsageSnapshot = { region, environment in
+        try await AlibabaTokenPlanCLIUsageFetcher.fetch(region: region, environment: environment)
+    }) {
+        self.fetchUsage = fetchUsage
+    }
+
+    func isAvailable(_: ProviderFetchContext) async -> Bool {
+        // Run explicit CLI mode even when the binary is absent so the user gets an actionable error.
+        // Auto uses the same path and falls through softly when any CLI step fails.
+        true
+    }
+
+    func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
+        let region = context.settings?.alibabaTokenPlan?.apiRegion ?? .international
+        let usage = try await self.fetchUsage(region, context.env)
+        return self.makeResult(usage: usage.toUsageSnapshot(), sourceLabel: "cli")
+    }
+
+    func shouldFallback(on _: Error, context: ProviderFetchContext) -> Bool {
+        context.sourceMode == .auto
+    }
+}
+
 struct AlibabaTokenPlanWebFetchStrategy: ProviderFetchStrategy {
     private static let log = CodexBarLog.logger("alibaba-token-plan")
+    private let fetchUsage: @Sendable (
+        AlibabaTokenPlanCookieHeaders,
+        AlibabaTokenPlanAPIRegion,
+        [String: String]) async throws -> AlibabaTokenPlanUsageSnapshot
 
     let id: String = "alibaba-token-plan.web"
     let kind: ProviderFetchKind = .web
 
+    init(fetchUsage: @escaping @Sendable (
+        AlibabaTokenPlanCookieHeaders,
+        AlibabaTokenPlanAPIRegion,
+        [String: String]) async throws -> AlibabaTokenPlanUsageSnapshot = { headers, region, environment in
+        try await AlibabaTokenPlanUsageFetcher.fetchUsage(
+            apiCookieHeader: headers.apiCookieHeader,
+            dashboardCookieHeader: headers.dashboardCookieHeader,
+            region: region,
+            environment: environment)
+    }) {
+        self.fetchUsage = fetchUsage
+    }
+
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
         guard context.settings?.alibabaTokenPlan?.cookieSource != .off else { return false }
+        let region = context.settings?.alibabaTokenPlan?.apiRegion ?? .international
 
         if AlibabaTokenPlanSettingsReader.cookieHeader(environment: context.env) != nil {
             return true
@@ -90,7 +203,7 @@ struct AlibabaTokenPlanWebFetchStrategy: ProviderFetchStrategy {
         }
 
         #if os(macOS)
-        if let cached = CookieHeaderCache.load(provider: .alibabatokenplan),
+        if let cached = Self.cachedCookieEntry(region: region),
            !cached.cookieHeader.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         {
             return true
@@ -103,23 +216,19 @@ struct AlibabaTokenPlanWebFetchStrategy: ProviderFetchStrategy {
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
         let cookieSource = context.settings?.alibabaTokenPlan?.cookieSource ?? .auto
-        let cookieHeaders = try Self.resolveCookieHeaders(context: context, allowCached: true)
+        let region = context.settings?.alibabaTokenPlan?.apiRegion ?? .international
+        let cookieHeaders = try Self.resolveCookieHeaders(context: context, allowCached: true, region: region)
         do {
-            let usage = try await AlibabaTokenPlanUsageFetcher.fetchUsage(
-                apiCookieHeader: cookieHeaders.apiCookieHeader,
-                dashboardCookieHeader: cookieHeaders.dashboardCookieHeader,
-                environment: context.env)
+            let usage = try await self.fetchUsage(cookieHeaders, region, context.env)
             return self.makeResult(usage: usage.toUsageSnapshot(), sourceLabel: "web")
         } catch let error as AlibabaTokenPlanUsageError
             where error.isCredentialFailure && cookieSource != .manual
         {
             #if os(macOS)
-            CookieHeaderCache.clear(provider: .alibabatokenplan)
-            let refreshedHeaders = try Self.resolveCookieHeaders(context: context, allowCached: false)
-            let usage = try await AlibabaTokenPlanUsageFetcher.fetchUsage(
-                apiCookieHeader: refreshedHeaders.apiCookieHeader,
-                dashboardCookieHeader: refreshedHeaders.dashboardCookieHeader,
-                environment: context.env)
+            // Provider-specific by design: This strategy clears the co-located Token Plan variant's cookie cache.
+            CookieHeaderCache.clear(provider: .alibabatokenplan, scope: region.cookieCacheScope)
+            let refreshedHeaders = try Self.resolveCookieHeaders(context: context, allowCached: false, region: region)
+            let usage = try await self.fetchUsage(refreshedHeaders, region, context.env)
             return self.makeResult(usage: usage.toUsageSnapshot(), sourceLabel: "web")
             #else
             throw error
@@ -127,17 +236,19 @@ struct AlibabaTokenPlanWebFetchStrategy: ProviderFetchStrategy {
         }
     }
 
-    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
-        false
+    func shouldFallback(on _: Error, context: ProviderFetchContext) -> Bool {
+        context.sourceMode == .auto
     }
 
     static func resolveCookieHeader(context: ProviderFetchContext, allowCached: Bool) throws -> String {
-        try self.resolveCookieHeaders(context: context, allowCached: allowCached).apiCookieHeader
+        try self.resolveCookieHeaders(context: context, allowCached: allowCached, region: .international)
+            .apiCookieHeader
     }
 
     static func resolveCookieHeaders(
         context: ProviderFetchContext,
-        allowCached: Bool) throws -> AlibabaTokenPlanCookieHeaders
+        allowCached: Bool,
+        region: AlibabaTokenPlanAPIRegion = .international) throws -> AlibabaTokenPlanCookieHeaders
     {
         if let settings = context.settings?.alibabaTokenPlan,
            settings.cookieSource == .manual
@@ -171,8 +282,8 @@ struct AlibabaTokenPlanWebFetchStrategy: ProviderFetchStrategy {
 
         #if os(macOS)
         if allowCached,
-           let cached = CookieHeaderCache.load(provider: .alibabatokenplan),
-           let headers = AlibabaTokenPlanCookieHeaders(cachedHeader: cached.cookieHeader)
+           let cached = Self.cachedCookieEntry(region: region),
+           let headers = AlibabaTokenPlanCookieHeaders(alibabaTokenPlanCachedHeader: cached.cookieHeader)
         {
             Self.log.info(
                 "Alibaba Token Plan using cached browser cookie header",
@@ -193,6 +304,7 @@ struct AlibabaTokenPlanWebFetchStrategy: ProviderFetchStrategy {
             let rawCookieNames = session.cookies.map(\.name).filter { !$0.isEmpty }.uniquedSorted()
             guard let headers = AlibabaTokenPlanCookieHeader.headers(
                 from: session.cookies,
+                region: region,
                 environment: context.env)
             else {
                 Self.log.warning(
@@ -204,9 +316,11 @@ struct AlibabaTokenPlanWebFetchStrategy: ProviderFetchStrategy {
                 throw AlibabaTokenPlanSettingsError.missingCookie(
                     details: "No Alibaba Token Plan browser cookies were available after import.")
             }
+            // Provider-specific by design: This strategy stores cookies for the co-located Token Plan variant.
             CookieHeaderCache.store(
                 provider: .alibabatokenplan,
-                cookieHeader: headers.cacheCookieHeader,
+                scope: region.cookieCacheScope,
+                cookieHeader: headers.cacheAlibabaTokenPlanCookieHeader(),
                 sourceLabel: session.sourceLabel)
             Self.log.info(
                 "Alibaba Token Plan imported browser cookies",
@@ -230,6 +344,32 @@ struct AlibabaTokenPlanWebFetchStrategy: ProviderFetchStrategy {
         #endif
     }
 
+    #if os(macOS)
+    /// The former unscoped cache only ever represented the China gateway. Never expose it to
+    /// International requests; migrate it into the China scope after a successful scoped write.
+    private static func cachedCookieEntry(region: AlibabaTokenPlanAPIRegion) -> CookieHeaderCache.Entry? {
+        // Provider-specific by design: This migration is scoped to the co-located Token Plan variant's cache.
+        if let scoped = CookieHeaderCache.load(provider: .alibabatokenplan, scope: region.cookieCacheScope) {
+            return scoped
+        }
+        guard region == .chinaMainland,
+              let legacy = CookieHeaderCache.load(provider: .alibabatokenplan)
+        else { return nil }
+
+        CookieHeaderCache.store(
+            provider: .alibabatokenplan,
+            scope: region.cookieCacheScope,
+            cookieHeader: legacy.cookieHeader,
+            sourceLabel: legacy.sourceLabel,
+            now: legacy.storedAt)
+        if let migrated = CookieHeaderCache.load(provider: .alibabatokenplan, scope: region.cookieCacheScope) {
+            CookieHeaderCache.clear(provider: .alibabatokenplan)
+            return migrated
+        }
+        return legacy
+    }
+    #endif
+
     private static func missingCookieDetails(from error: Error) -> String? {
         if case let AlibabaCodingPlanSettingsError.missingCookie(details) = error {
             return details
@@ -239,18 +379,12 @@ struct AlibabaTokenPlanWebFetchStrategy: ProviderFetchStrategy {
     }
 }
 
-extension [String] {
-    fileprivate func uniquedSorted() -> [String] {
-        Array(Set(self)).sorted()
-    }
-}
-
 extension AlibabaTokenPlanUsageError {
     fileprivate var isCredentialFailure: Bool {
         switch self {
         case .loginRequired, .invalidCredentials:
             true
-        case .apiError, .networkError, .parseFailed:
+        case .apiError, .networkError, .parseFailed, .usageWindowsUnavailable:
             false
         }
     }

@@ -3,7 +3,7 @@ import Testing
 @testable import CodexBarCLI
 @testable import CodexBarCore
 
-@Suite(.serialized)
+@Suite(.serialized, CodexCredentialFixtures())
 struct CLIOpenAIDashboardCacheTests {
     @Test
     func `cached dashboard restores when authority allows cached reuse`() throws {
@@ -370,7 +370,7 @@ struct CLIOpenAIDashboardCacheTests {
     }
 
     private func makeAuthHome(email: String?, accountId: String? = nil) throws -> URL {
-        let homeURL = FileManager.default.temporaryDirectory.appendingPathComponent(
+        let homeURL = CodexCredentialFixtures.root.appendingPathComponent(
             UUID().uuidString,
             isDirectory: true)
         try self.writeCodexAuthFile(homeURL: homeURL, email: email, accountId: accountId)
@@ -378,7 +378,7 @@ struct CLIOpenAIDashboardCacheTests {
     }
 
     private func makeEmptyHome() -> URL {
-        let homeURL = FileManager.default.temporaryDirectory.appendingPathComponent(
+        let homeURL = CodexCredentialFixtures.root.appendingPathComponent(
             UUID().uuidString,
             isDirectory: true)
         try? FileManager.default.createDirectory(at: homeURL, withIntermediateDirectories: true)

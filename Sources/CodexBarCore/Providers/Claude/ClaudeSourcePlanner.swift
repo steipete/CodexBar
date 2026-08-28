@@ -27,6 +27,7 @@ public struct ClaudeSourcePlanningInput: Equatable, Sendable {
 
 public enum ClaudeSourcePlanReason: String, Equatable, Sendable {
     case explicitSourceSelection = "explicit-source-selection"
+    case explicitOAuthOwnerCLIFallback = "explicit-oauth-owner-cli-fallback"
     case appAutoPreferredOAuth = "app-auto-preferred-oauth"
     case appAutoFallbackCLI = "app-auto-fallback-cli"
     case appAutoFallbackWeb = "app-auto-fallback-web"
@@ -70,6 +71,8 @@ public struct ClaudeFetchPlan: Equatable, Sendable {
     public var preferredStep: ClaudeFetchPlanStep? {
         switch self.input.selectedDataSource {
         case .auto:
+            self.availableSteps.first
+        case .oauth where self.input.runtime == .app:
             self.availableSteps.first
         case .api, .oauth, .web, .cli:
             self.orderedSteps.first
@@ -187,7 +190,15 @@ public enum ClaudeSourcePlanner {
         case .api:
             [self.step(.api, reason: .explicitSourceSelection, input: input)]
         case .oauth:
-            [self.step(.oauth, reason: .explicitSourceSelection, input: input)]
+            switch input.runtime {
+            case .app:
+                [
+                    self.step(.oauth, reason: .explicitSourceSelection, input: input),
+                    self.step(.cli, reason: .explicitOAuthOwnerCLIFallback, input: input),
+                ]
+            case .cli:
+                [self.step(.oauth, reason: .explicitSourceSelection, input: input)]
+            }
         case .web:
             [self.step(.web, reason: .explicitSourceSelection, input: input)]
         case .cli:

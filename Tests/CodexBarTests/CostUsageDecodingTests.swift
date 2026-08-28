@@ -332,7 +332,56 @@ struct CostUsageDecodingTests {
     }
 
     @Test
-    func `token snapshot selects most recent day`() throws {
+    func `selects most recent supported month format`() throws {
+        let json = """
+        {
+          "type": "monthly",
+          "data": [
+            { "month": "Dec 2025", "totalTokens": 100, "costUSD": 1.00 },
+            { "month": "January 2026", "totalTokens": 200, "costUSD": 2.00 },
+            { "month": "2026-02", "totalTokens": 300, "costUSD": 3.00 }
+          ]
+        }
+        """
+
+        let report = try JSONDecoder().decode(CostUsageMonthlyReport.self, from: Data(json.utf8))
+        let selected = CostUsageFetcher.selectMostRecentMonth(from: report.data)
+        #expect(selected?.month == "2026-02")
+        #expect(selected?.totalTokens == 300)
+    }
+
+    @Test
+    func `date parsers handle concurrent mixed formats`() async {
+        let dateInputs = [
+            "2026-02-03T04:05:06.789Z",
+            "2026-02-03T04:05:06Z",
+            "2026-02-03",
+            "Feb 3, 2026",
+        ]
+        let monthInputs = ["Feb 2026", "February 2026", "2026-02"]
+
+        await withTaskGroup(of: Bool.self) { group in
+            for _ in 0..<32 {
+                group.addTask {
+                    for _ in 0..<250 {
+                        guard dateInputs.allSatisfy({ CostUsageDateParser.parse($0) != nil }),
+                              monthInputs.allSatisfy({ CostUsageDateParser.parseMonth($0) != nil })
+                        else {
+                            return false
+                        }
+                    }
+                    return true
+                }
+            }
+
+            for await succeeded in group {
+                #expect(succeeded)
+            }
+        }
+    }
+
+    @Test
+    func `token snapshot selects current local day`() throws {
         let json = """
         {
           "type": "daily",
@@ -355,13 +404,43 @@ struct CostUsageDecodingTests {
         """
 
         let report = try JSONDecoder().decode(CostUsageDailyReport.self, from: Data(json.utf8))
-        let now = Date(timeIntervalSince1970: 1_766_275_200) // 2025-12-21
+        let now = try Self.localNoon(year: 2025, month: 12, day: 21)
         let snapshot = CostUsageFetcher.tokenSnapshot(from: report, now: now)
         #expect(snapshot.sessionTokens == 10)
         #expect(snapshot.sessionCostUSD == 4.56)
         #expect(snapshot.last30DaysCostUSD == 5.79)
         #expect(snapshot.daily.count == 2)
         #expect(snapshot.updatedAt == now)
+    }
+
+    @Test
+    func `token snapshot rejects impossible later calendar day`() throws {
+        let json = """
+        {
+          "type": "daily",
+          "data": [
+            {
+              "date": "2026-05-13",
+              "totalTokens": 30,
+              "costUSD": 23.45
+            },
+            {
+              "date": "2026-06-31",
+              "totalTokens": 40,
+              "costUSD": 99.00
+            }
+          ]
+        }
+        """
+
+        let report = try JSONDecoder().decode(CostUsageDailyReport.self, from: Data(json.utf8))
+        let snapshot = CostUsageFetcher.tokenSnapshot(
+            from: report,
+            now: Date(),
+            useCurrentLocalDayForSession: false)
+
+        #expect(snapshot.sessionTokens == 30)
+        #expect(snapshot.sessionCostUSD == 23.45)
     }
 
     @Test
@@ -416,5 +495,9 @@ struct CostUsageDecodingTests {
         let report = try JSONDecoder().decode(CostUsageDailyReport.self, from: Data(json.utf8))
         let snapshot = CostUsageFetcher.tokenSnapshot(from: report, now: Date())
         #expect(snapshot.last30DaysCostUSD == nil)
+    }
+
+    private static func localNoon(year: Int, month: Int, day: Int) throws -> Date {
+        try #require(Calendar.current.date(from: DateComponents(year: year, month: month, day: day, hour: 12)))
     }
 }

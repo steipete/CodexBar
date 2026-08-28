@@ -1,0 +1,36 @@
+{
+  "groups" : [
+    {
+      "coverage" : {
+        "estimated" : 0,
+        "priced" : 1,
+        "unmetered" : 0,
+        "unpriced" : 0
+      },
+      "currencyCode" : "USD",
+      "models" : [
+
+      ],
+      "provenance" : "listPriceEstimate",
+      "providers" : [
+        {
+          "displayName" : "Cursor",
+          "id" : "cursor",
+          "sourceKind" : "native",
+          "totalCost" : 1,
+          "totalTokens" : 10
+        }
+      ],
+      "tokenMix" : {
+        "inputTokens" : 8,
+        "outputTokens" : 2
+      },
+      "totalCost" : 1,
+      "totalTokens" : 10
+    }
+  ],
+  "hiddenSourceIDs" : [
+    "cursor"
+  ],
+  "requestedDays" : 7
+}

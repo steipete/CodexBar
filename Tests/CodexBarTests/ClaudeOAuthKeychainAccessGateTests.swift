@@ -5,6 +5,21 @@ import Testing
 @Suite(.serialized)
 struct ClaudeOAuthKeychainAccessGateTests {
     @Test
+    func `completed prompt attempt advances generation for queued callers`() {
+        KeychainAccessGate.withTaskOverrideForTesting(false) {
+            ClaudeOAuthKeychainAccessGate.resetForTesting()
+            defer { ClaudeOAuthKeychainAccessGate.resetForTesting() }
+
+            let generation = ClaudeOAuthKeychainAccessGate.promptAttemptGeneration()
+
+            _ = ClaudeOAuthKeychainAccessGate.recordPromptAttemptCompleted()
+
+            #expect(ClaudeOAuthKeychainAccessGate.promptAttemptGeneration() == generation + 1)
+            #expect(ClaudeOAuthKeychainAccessGate.shouldAllowPrompt())
+        }
+    }
+
+    @Test
     func `blocks until cooldown expires`() {
         KeychainAccessGate.withTaskOverrideForTesting(false) {
             let store = ClaudeOAuthKeychainAccessGate.DeniedUntilStore()
@@ -56,6 +71,18 @@ struct ClaudeOAuthKeychainAccessGateTests {
         KeychainAccessGate.isDisabled = false
 
         #expect(KeychainAccessGate.isDisabled)
+    }
+
+    @Test
+    func `process force disable survives settings override`() {
+        KeychainAccessGate.resetOverrideForTesting()
+        defer { KeychainAccessGate.resetOverrideForTesting() }
+
+        KeychainAccessGate.forceDisabledForProcess(reason: "unbundled-executable")
+        KeychainAccessGate.isDisabled = false
+
+        #expect(KeychainAccessGate.isDisabled)
+        #expect(KeychainAccessGate.processDisableReason == "unbundled-executable")
     }
 
     @Test

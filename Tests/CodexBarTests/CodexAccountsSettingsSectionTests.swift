@@ -4,6 +4,7 @@ import Testing
 @testable import CodexBar
 
 @MainActor
+@Suite(CodexCredentialFixtures())
 struct CodexAccountsSettingsSectionTests {
     @Test
     func `codex accounts section shows live badge only for live only multi account row`() throws {
@@ -153,7 +154,7 @@ struct CodexAccountsSettingsSectionTests {
         let settings = Self.makeSettingsStore(suite: "CodexAccountsSettingsSectionTests-select-split")
         let store = Self.makeUsageStore(settings: settings)
         let managedStoreURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        let managedHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+        let managedHome = CodexCredentialFixtures.root.appendingPathComponent(
             UUID().uuidString,
             isDirectory: true)
         defer {
@@ -341,7 +342,6 @@ struct CodexAccountsSettingsSectionTests {
             minimaxCookieStore: InMemoryMiniMaxCookieStore(),
             minimaxAPITokenStore: InMemoryMiniMaxAPITokenStore(),
             kimiTokenStore: InMemoryKimiTokenStore(),
-            kimiK2TokenStore: InMemoryKimiK2TokenStore(),
             augmentCookieStore: InMemoryCookieHeaderStore(),
             ampCookieStore: InMemoryCookieHeaderStore(),
             copilotTokenStore: InMemoryCopilotTokenStore(),
@@ -349,11 +349,15 @@ struct CodexAccountsSettingsSectionTests {
     }
 
     private static func makeUsageStore(settings: SettingsStore) -> UsageStore {
-        UsageStore(
+        let store = UsageStore(
             fetcher: UsageFetcher(environment: [:]),
             browserDetection: BrowserDetection(cacheTTL: 0),
             settings: settings,
             startupBehavior: .testing)
+        // Account-selection tests must never trigger a real provider refresh.
+        store._test_providerRefreshOverride = { _ in }
+        store._test_codexCreditsLoaderOverride = { throw UsageError.noRateLimitsFound }
+        return store
     }
 }
 

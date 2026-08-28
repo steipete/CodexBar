@@ -59,8 +59,12 @@ public struct PerplexityUsageSnapshot: Sendable {
         return "Max"
     }
 
-    private static let promoExpiryFormatter: DateFormatter = {
+    /// Pinned to POSIX English so `MMM` cannot resolve through `Locale.current`: the surrounding label is
+    /// hardcoded English and the bundled plugin formats the same value with `toLocaleDateString("en-US", …)`.
+    /// Internal rather than private so a test can assert the pin survives.
+    static let promoExpiryFormatter: DateFormatter = {
         let fmt = DateFormatter()
+        fmt.locale = Locale(identifier: "en_US_POSIX")
         fmt.dateFormat = "MMM d"
         return fmt
     }()

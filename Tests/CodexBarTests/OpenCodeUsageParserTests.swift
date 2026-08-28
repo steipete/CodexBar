@@ -53,6 +53,25 @@ struct OpenCodeUsageParserTests {
         #expect(snapshot.weeklyResetInSec == 7200)
     }
 
+    @Test(arguments: ["1e309", "1e308"])
+    func `ignores reset timestamps outside integer range`(resetAt: String) throws {
+        let text = """
+        {
+          "rollingUsage": { "usagePercent": 17, "resetAt": "\(resetAt)" },
+          "weeklyUsage": { "usagePercent": 75, "resetInSec": 7200 }
+        }
+        """
+
+        let snapshot = try OpenCodeUsageFetcher.parseSubscription(
+            text: text,
+            now: Date(timeIntervalSince1970: 1_700_000_000))
+
+        #expect(snapshot.rollingUsagePercent == 17)
+        #expect(snapshot.weeklyUsagePercent == 75)
+        #expect(snapshot.rollingResetInSec == 0)
+        #expect(snapshot.weeklyResetInSec == 7200)
+    }
+
     @Test
     func `parses subscription from candidate windows`() throws {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
@@ -255,5 +274,55 @@ struct OpenCodeUsageParserTests {
         #expect(usage.extraRateWindows?[0].id == "renewal")
         #expect(usage.extraRateWindows?[0].title == "Renews")
         #expect(usage.extraRateWindows?[0].window.resetsAt == renewAt)
+    }
+
+    @Test
+    func `toUsageSnapshot maps pay as you go spend to the primary window and cost`() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let snapshot = OpenCodeUsageSnapshot.payAsYouGo(
+            OpenCodeUsageSnapshot.PayAsYouGoUsage(
+                monthlyUsageUSD: 15,
+                monthlyLimitUSD: 20,
+                balanceUSD: 12.5),
+            updatedAt: now)
+
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(usage.primary?.usedPercent == 75)
+        #expect(usage.primary?.windowMinutes == 30 * 24 * 60)
+        #expect(usage.secondary == nil)
+        #expect(usage.providerCost?.used == 15)
+        #expect(usage.providerCost?.limit == 20)
+        #expect(usage.providerCost?.balance == 12.5)
+        #expect(usage.providerCost?.period == "Monthly")
+        #expect(usage.providerCost?.currencyCode == "USD")
+    }
+
+    @Test
+    func `toUsageSnapshot omits the usage window when no monthly limit is configured`() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let snapshot = OpenCodeUsageSnapshot.payAsYouGo(
+            OpenCodeUsageSnapshot.PayAsYouGoUsage(
+                monthlyUsageUSD: 3,
+                monthlyLimitUSD: nil,
+                balanceUSD: 1),
+            updatedAt: now)
+
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(usage.primary == nil)
+        #expect(usage.providerCost?.used == 3)
+        #expect(usage.providerCost?.limit == 0)
+        #expect(usage.providerCost?.balance == 1)
+    }
+
+    @Test
+    func `pay as you go spend above the monthly limit clamps to 100 percent`() {
+        let usage = OpenCodeUsageSnapshot.PayAsYouGoUsage(
+            monthlyUsageUSD: 25,
+            monthlyLimitUSD: 20,
+            balanceUSD: 0)
+
+        #expect(usage.usedPercent == 100)
     }
 }

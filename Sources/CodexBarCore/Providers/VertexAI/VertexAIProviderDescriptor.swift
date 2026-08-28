@@ -1,15 +1,15 @@
-import CodexBarMacroSupport
 import Foundation
 
-@ProviderDescriptorRegistration
-@ProviderDescriptorDefinition
 public enum VertexAIProviderDescriptor {
+    public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .vertexai,
             metadata: ProviderMetadata(
                 id: .vertexai,
                 displayName: "Vertex AI",
+                shortDisplayName: "Vertex",
                 sessionLabel: "Requests",
                 weeklyLabel: "Tokens",
                 opusLabel: nil,
@@ -19,19 +19,30 @@ public enum VertexAIProviderDescriptor {
                 toggleTitle: "Show Vertex AI usage",
                 cliName: "vertexai",
                 defaultEnabled: false,
+                widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
+                debugLogUnavailableMessage: "Vertex AI debug log not yet implemented",
                 dashboardURL: "https://console.cloud.google.com/vertex-ai",
                 statusPageURL: nil,
                 statusLinkURL: "https://status.cloud.google.com"),
             branding: ProviderBranding(
-                iconStyle: .vertexai,
+                iconStyle: .init(provider: .vertexai),
                 iconResourceName: "ProviderIcon-vertexai",
-                color: ProviderColor(red: 66 / 255, green: 133 / 255, blue: 244 / 255)),
+                color: ProviderColor(red: 66 / 255, green: 133 / 255, blue: 244 / 255),
+                confettiPalette: [
+                    ProviderColor(hex: 0x4285F4),
+                    ProviderColor(hex: 0xEA4335),
+                    ProviderColor(hex: 0xFBBC04),
+                ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: true,
                 noDataMessage: { "No Vertex AI cost data found in Claude logs. Ensure entries include Vertex metadata."
-                }),
+                },
+                menuHintLines: [.localized("cost_estimate_hint")],
+                supportsTokenSnapshot: true),
+            presentation: ProviderUsagePresentation(menuCard: ProviderMenuCardPresentation(
+                supportsInlineTokenCostDashboard: true)),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .oauth],
                 pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [VertexAIOAuthFetchStrategy()] })),
@@ -76,7 +87,9 @@ struct VertexAIOAuthFetchStrategy: ProviderFetchStrategy {
     }
 
     func shouldFallback(on error: Error, context _: ProviderFetchContext) -> Bool {
-        if error is VertexAIOAuthCredentialsError { return true }
+        if error is VertexAIOAuthCredentialsError {
+            return true
+        }
         if let fetchError = error as? VertexAIFetchError {
             switch fetchError {
             case .unauthorized, .forbidden:

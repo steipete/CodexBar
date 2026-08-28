@@ -6,19 +6,22 @@ public struct CodexProviderSettingsBuilderInput: Sendable {
     public let manualCookieHeader: String?
     public let reconciliationSnapshot: CodexAccountReconciliationSnapshot
     public let resolvedActiveSource: CodexResolvedActiveSource
+    public let allowExternalOAuthSources: Bool
 
     public init(
         usageDataSource: CodexUsageDataSource,
         cookieSource: ProviderCookieSource,
         manualCookieHeader: String?,
         reconciliationSnapshot: CodexAccountReconciliationSnapshot,
-        resolvedActiveSource: CodexResolvedActiveSource)
+        resolvedActiveSource: CodexResolvedActiveSource,
+        allowExternalOAuthSources: Bool = false)
     {
         self.usageDataSource = usageDataSource
         self.cookieSource = cookieSource
         self.manualCookieHeader = manualCookieHeader
         self.reconciliationSnapshot = reconciliationSnapshot
         self.resolvedActiveSource = resolvedActiveSource
+        self.allowExternalOAuthSources = allowExternalOAuthSources
     }
 }
 
@@ -38,6 +41,14 @@ public enum CodexKnownOwnerCatalog {
                 normalizedEmail: CodexIdentityResolver.normalizeEmail(liveSystemAccount.email)))
         }
 
+        for profileAccount in snapshot.profileHomeAccounts {
+            candidates.append(CodexDashboardKnownOwnerCandidate(
+                identity: snapshot.runtimeIdentity(for: profileAccount),
+                normalizedEmail: CodexIdentityResolver.normalizeEmail(profileAccount.email),
+                sourceIsolationIdentifier: CookieHeaderCache.Scope.profileHome(profileAccount.codexHomePath)
+                    .isolationIdentifier))
+        }
+
         return candidates
     }
 }
@@ -52,6 +63,29 @@ public enum CodexProviderSettingsBuilder {
             false
         case .managedAccount:
             true
+        case .profileHome:
+            false
+        }
+        let openAIWebCacheScope: CookieHeaderCache.Scope? = switch input.resolvedActiveSource.resolvedSource {
+        case .liveSystem:
+            nil
+        case let .managedAccount(id):
+            .managedAccount(id)
+        case let .profileHome(path):
+            .profileHome(path)
+        }
+        let profileAccountTargetUnavailable = switch input.resolvedActiveSource.resolvedSource {
+        case .liveSystem, .managedAccount:
+            false
+        case let .profileHome(path):
+            snapshot.profileHomeAccount(path: path) == nil
+        }
+        let managedWorkspaceAccountID: String? = switch input.resolvedActiveSource.resolvedSource {
+        case .liveSystem, .profileHome:
+            nil
+        case .managedAccount:
+            input.reconciliationSnapshot.activeStoredAccount?.workspaceAccountID
+                ?? input.reconciliationSnapshot.activeStoredAccount?.providerAccountID
         }
 
         return ProviderSettingsSnapshot.CodexProviderSettings(
@@ -62,6 +96,10 @@ public enum CodexProviderSettingsBuilder {
             managedAccountTargetUnavailable: managedSourceSelected
                 && snapshot.hasUnreadableAddedAccountStore == false
                 && snapshot.activeStoredAccount == nil,
-            dashboardAuthorityKnownOwners: CodexKnownOwnerCatalog.candidates(from: snapshot))
+            profileAccountTargetUnavailable: profileAccountTargetUnavailable,
+            openAIWebCacheScope: openAIWebCacheScope,
+            dashboardAuthorityKnownOwners: CodexKnownOwnerCatalog.candidates(from: snapshot),
+            allowExternalOAuthSources: input.allowExternalOAuthSources,
+            managedWorkspaceAccountID: managedWorkspaceAccountID)
     }
 }

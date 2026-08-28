@@ -44,38 +44,15 @@ extension SettingsStore {
     func opencodegoSettingsSnapshot(tokenOverride: TokenAccountOverride?) -> ProviderSettingsSnapshot
         .OpenCodeProviderSettings
     {
-        ProviderSettingsSnapshot.OpenCodeProviderSettings(
-            cookieSource: self.opencodegoSnapshotCookieSource(tokenOverride: tokenOverride),
-            manualCookieHeader: self.opencodegoSnapshotCookieHeader(tokenOverride: tokenOverride),
-            workspaceID: self.opencodegoSnapshotWorkspaceID)
-    }
-
-    private func opencodegoSnapshotCookieHeader(tokenOverride: TokenAccountOverride?) -> String {
-        let fallback = self.opencodegoCookieHeader
-        guard let support = TokenAccountSupportCatalog.support(for: .opencodego),
-              case .cookieHeader = support.injection
-        else {
-            return fallback
-        }
-        guard let account = ProviderTokenAccountSelection.selectedAccount(
+        let cookieSettings: ProviderSettingsSnapshot.CookieProviderSettings = self.resolvedCookieSettings(
             provider: .opencodego,
-            settings: self,
-            override: tokenOverride)
-        else {
-            return fallback
-        }
-        return TokenAccountSupportCatalog.normalizedCookieHeader(account.token, support: support)
-    }
-
-    private func opencodegoSnapshotCookieSource(tokenOverride: TokenAccountOverride?) -> ProviderCookieSource {
-        let fallback = self.opencodegoCookieSource
-        guard let support = TokenAccountSupportCatalog.support(for: .opencodego),
-              support.requiresManualCookieSource
-        else {
-            return fallback
-        }
-        if self.tokenAccounts(for: .opencodego).isEmpty { return fallback }
-        return .manual
+            configuredSource: self.opencodegoCookieSource,
+            configuredHeader: self.opencodegoCookieHeader,
+            tokenOverride: tokenOverride)
+        return ProviderSettingsSnapshot.OpenCodeProviderSettings(
+            cookieSource: cookieSettings.cookieSource,
+            manualCookieHeader: cookieSettings.manualCookieHeader,
+            workspaceID: self.opencodegoSnapshotWorkspaceID)
     }
 
     private var opencodegoSnapshotWorkspaceID: String? {

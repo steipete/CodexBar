@@ -34,6 +34,9 @@ public struct MiniMaxServiceUsage: Sendable {
     /// The percentage of quota used (0-100)
     public let percent: Double
 
+    /// Whether this quota window is explicitly unlimited.
+    public let isUnlimited: Bool
+
     /// The timestamp when the quota will reset, if available
     public let resetsAt: Date?
 
@@ -49,6 +52,10 @@ public struct MiniMaxServiceUsage: Sendable {
     public var displayName: String {
         let normalized = self.serviceType.lowercased()
         return switch normalized {
+        case "general":
+            "General"
+        case "video":
+            "Video"
         case "text-generation":
             "Text Generation"
         case "text-to-speech":
@@ -80,6 +87,11 @@ public struct MiniMaxServiceUsage: Sendable {
         }
     }
 
+    public var isPrimaryTextQuotaLane: Bool {
+        let normalized = self.serviceType.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return normalized == "general" || self.displayName == "Text Generation"
+    }
+
     /// Creates a new MiniMaxServiceUsage instance.
     ///
     /// - Parameters:
@@ -98,6 +110,7 @@ public struct MiniMaxServiceUsage: Sendable {
         usage: Int,
         limit: Int,
         percent: Double,
+        isUnlimited: Bool = false,
         resetsAt: Date?,
         resetDescription: String)
     {
@@ -107,6 +120,7 @@ public struct MiniMaxServiceUsage: Sendable {
         self.usage = usage
         self.limit = limit
         self.percent = percent
+        self.isUnlimited = isUnlimited
         self.resetsAt = resetsAt
         self.resetDescription = resetDescription
     }

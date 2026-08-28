@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>≈%d full 5h windows of weekly left · %d windows until reset</key>
+  <dict>
+    <key>NSStringLocalizedFormatKey</key>
+    <string>%#@left@ · %#@until@</string>
+    <key>left</key>
+    <dict>
+      <key>NSStringFormatSpecTypeKey</key>
+      <string>NSStringPluralRuleType</string>
+      <key>NSStringFormatValueTypeKey</key>
+      <string>d</string>
+      <key>one</key>
+      <string>≈%d повне 5-годинне вікно тижневого ліміту</string>
+      <key>few</key>
+      <string>≈%d повні 5-годинні вікна тижневого ліміту</string>
+      <key>many</key>
+      <string>≈%d повних 5-годинних вікон тижневого ліміту</string>
+      <key>other</key>
+      <string>≈%d повних 5-годинних вікон тижневого ліміту</string>
+    </dict>
+    <key>until</key>
+    <dict>
+      <key>NSStringFormatSpecTypeKey</key>
+      <string>NSStringPluralRuleType</string>
+      <key>NSStringFormatValueTypeKey</key>
+      <string>d</string>
+      <key>one</key>
+      <string>%d вікно до скидання</string>
+      <key>few</key>
+      <string>%d вікна до скидання</string>
+      <key>many</key>
+      <string>%d вікон до скидання</string>
+      <key>other</key>
+      <string>%d вікон до скидання</string>
+    </dict>
+  </dict>
+  <key>Weekly can run out ≈%d windows early</key>
+  <dict>
+    <key>NSStringLocalizedFormatKey</key>
+    <string>%#@early@</string>
+    <key>early</key>
+    <dict>
+      <key>NSStringFormatSpecTypeKey</key>
+      <string>NSStringPluralRuleType</string>
+      <key>NSStringFormatValueTypeKey</key>
+      <string>d</string>
+      <key>one</key>
+      <string>Тижневий ліміт може вичерпатися на ≈%d вікно раніше</string>
+      <key>few</key>
+      <string>Тижневий ліміт може вичерпатися на ≈%d вікна раніше</string>
+      <key>many</key>
+      <string>Тижневий ліміт може вичерпатися на ≈%d вікон раніше</string>
+      <key>other</key>
+      <string>Тижневий ліміт може вичерпатися на ≈%d вікон раніше</string>
+    </dict>
+  </dict>
+</dict>
+</plist>

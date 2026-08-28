@@ -60,37 +60,14 @@ extension SettingsStore {
 extension SettingsStore {
     func minimaxSettingsSnapshot(tokenOverride: TokenAccountOverride?) -> ProviderSettingsSnapshot
     .MiniMaxProviderSettings {
-        ProviderSettingsSnapshot.MiniMaxProviderSettings(
-            cookieSource: self.minimaxSnapshotCookieSource(tokenOverride: tokenOverride),
-            manualCookieHeader: self.minimaxSnapshotCookieHeader(tokenOverride: tokenOverride),
-            apiRegion: self.minimaxAPIRegion)
-    }
-
-    private func minimaxSnapshotCookieHeader(tokenOverride: TokenAccountOverride?) -> String {
-        let fallback = self.minimaxCookieHeader
-        guard let support = TokenAccountSupportCatalog.support(for: .minimax),
-              case .cookieHeader = support.injection
-        else {
-            return fallback
-        }
-        guard let account = ProviderTokenAccountSelection.selectedAccount(
+        let cookieSettings: ProviderSettingsSnapshot.CookieProviderSettings = self.resolvedCookieSettings(
             provider: .minimax,
-            settings: self,
-            override: tokenOverride)
-        else {
-            return fallback
-        }
-        return TokenAccountSupportCatalog.normalizedCookieHeader(account.token, support: support)
-    }
-
-    private func minimaxSnapshotCookieSource(tokenOverride: TokenAccountOverride?) -> ProviderCookieSource {
-        let fallback = self.minimaxCookieSource
-        guard let support = TokenAccountSupportCatalog.support(for: .minimax),
-              support.requiresManualCookieSource
-        else {
-            return fallback
-        }
-        if self.tokenAccounts(for: .minimax).isEmpty { return fallback }
-        return .manual
+            configuredSource: self.minimaxCookieSource,
+            configuredHeader: self.minimaxCookieHeader,
+            tokenOverride: tokenOverride)
+        return ProviderSettingsSnapshot.MiniMaxProviderSettings(
+            cookieSource: cookieSettings.cookieSource,
+            manualCookieHeader: cookieSettings.manualCookieHeader,
+            apiRegion: self.minimaxAPIRegion)
     }
 }

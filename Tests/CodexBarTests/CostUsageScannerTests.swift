@@ -2,7 +2,95 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
+// swiftlint:disable:next type_body_length
 struct CostUsageScannerTests {
+    @Test
+    func `codex session metadata skips an oversized line without retaining it`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let fileURL = env.root.appendingPathComponent("oversized-session-meta.jsonl")
+        FileManager.default.createFile(atPath: fileURL.path, contents: nil)
+        let handle = try FileHandle(forWritingTo: fileURL)
+        defer { try? handle.close() }
+
+        let oversizedPrefix = "{\"type\":\"session_meta\",\"payload\":{\"id\":\"too-large\",\"padding\":\""
+        try handle.write(contentsOf: Data(oversizedPrefix.utf8))
+        let chunk = Data(repeating: 0x78, count: 64 * 1024)
+        for _ in 0..<128 {
+            try handle.write(contentsOf: chunk)
+        }
+        let expectedLine = #"{"type":"session_meta","payload":{"id":"expected-session"}}"#
+        try handle.write(contentsOf: Data((#""}}"# + "\n" + expectedLine).utf8))
+        try handle.close()
+
+        let sessionID = try CostUsageScanner.parseCodexSessionIdentifier(fileURL: fileURL)
+        #expect(sessionID == "expected-session")
+    }
+
+    @Test
+    func `codex session metadata accepts a line exactly at the byte limit`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let prefix = "{\"type\":\"session_meta\",\"payload\":{\"id\":\"limit-session\",\"padding\":\""
+        let suffix = "\"}}"
+        let paddingCount = CostUsageScanner.codexSessionMetadataMaxLineBytes
+            - prefix.utf8.count
+            - suffix.utf8.count
+        var line = Data(prefix.utf8)
+        line.append(Data(repeating: 0x78, count: paddingCount))
+        line.append(contentsOf: suffix.utf8)
+        #expect(line.count == CostUsageScanner.codexSessionMetadataMaxLineBytes)
+
+        let fileURL = env.root.appendingPathComponent("max-size-session-meta.jsonl")
+        try line.write(to: fileURL)
+        #expect(try (JSONSerialization.jsonObject(with: line)) is [String: Any])
+
+        let sessionID = try CostUsageScanner.parseCodexSessionIdentifier(fileURL: fileURL)
+        #expect(sessionID == "limit-session")
+    }
+
+    @Test
+    func `codex file metadata detects append truncation and replacement`() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-codex-metadata-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let fileURL = root.appendingPathComponent("session.jsonl")
+        try Data("abc".utf8).write(to: fileURL)
+
+        let initial = CostUsageScanner.codexFileMetadata(fileURL: fileURL)
+        #expect(initial.size == 3)
+        #expect(initial.fileId != nil)
+        let linkURL = root.appendingPathComponent("linked-session.jsonl")
+        try FileManager.default.createSymbolicLink(at: linkURL, withDestinationURL: fileURL)
+        let linked = CostUsageScanner.codexFileMetadata(fileURL: linkURL)
+        #expect(linked.size == initial.size)
+        #expect(linked.fileId == initial.fileId)
+
+        let handle = try FileHandle(forWritingTo: fileURL)
+        try handle.seekToEnd()
+        try handle.write(contentsOf: Data("def".utf8))
+        try handle.close()
+        let appended = CostUsageScanner.codexFileMetadata(fileURL: fileURL)
+        #expect(appended.size == 6)
+        #expect(appended.fileId == initial.fileId)
+
+        let truncateHandle = try FileHandle(forWritingTo: fileURL)
+        try truncateHandle.truncate(atOffset: 2)
+        try truncateHandle.close()
+        let truncated = CostUsageScanner.codexFileMetadata(fileURL: fileURL)
+        #expect(truncated.size == 2)
+        #expect(truncated.fileId == initial.fileId)
+
+        try FileManager.default.removeItem(at: fileURL)
+        try Data("replacement".utf8).write(to: fileURL)
+        let replaced = CostUsageScanner.codexFileMetadata(fileURL: fileURL)
+        #expect(replaced.size == 11)
+        #expect(replaced.fileId != initial.fileId)
+    }
+
     @Test
     func `vertex daily report filters claude logs`() throws {
         let env = try CostUsageTestEnvironment()
@@ -158,7 +246,7 @@ struct CostUsageScannerTests {
         let day = try env.makeLocalNoon(year: 2026, month: 5, day: 9)
         let first = env.isoString(for: day)
         let second = env.isoString(for: day.addingTimeInterval(1))
-        let model = "claude-sonnet-4-6"
+        let model = "claude-sonnet-4-5"
         let firstEntry: [String: Any] = [
             "type": "assistant",
             "timestamp": first,
@@ -365,6 +453,7 @@ struct CostUsageScannerTests {
                         "input_tokens": 100,
                         "cached_input_tokens": 20,
                         "output_tokens": 10,
+                        "reasoning_output_tokens": 4,
                     ],
                     "model": model,
                 ],
@@ -382,6 +471,8 @@ struct CostUsageScannerTests {
         #expect(first.lastTotals?.input == 100)
         #expect(first.lastTotals?.cached == 20)
         #expect(first.lastTotals?.output == 10)
+        #expect(first.lastTotals?.reasoning == 4)
+        #expect(first.rows.first?.reasoning == 4)
 
         let secondTokenCount: [String: Any] = [
             "type": "event_msg",
@@ -393,6 +484,7 @@ struct CostUsageScannerTests {
                         "input_tokens": 160,
                         "cached_input_tokens": 40,
                         "output_tokens": 16,
+                        "reasoning_output_tokens": 7,
                     ],
                     "model": model,
                 ],
@@ -413,6 +505,242 @@ struct CostUsageScannerTests {
         #expect(packed[0] == 60)
         #expect(packed[1] == 20)
         #expect(packed[2] == 6)
+        #expect(delta.rows.first?.reasoning == 3)
+    }
+
+    @Test
+    func `codex cached tokens use maximum of both cache fields`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2025, month: 12, day: 20)
+        let iso = env.isoString(for: day)
+        let model = "openai/gpt-5.2-codex"
+        // cache_read_input_tokens is the authoritative field in this fixture;
+        // the legacy fallback would have silently used the stale zero instead.
+        let tokenCount: [String: Any] = [
+            "type": "event_msg",
+            "timestamp": iso,
+            "payload": [
+                "type": "token_count",
+                "info": [
+                    "last_token_usage": [
+                        "input_tokens": 100,
+                        "cached_input_tokens": 0,
+                        "cache_read_input_tokens": 25,
+                        "output_tokens": 10,
+                    ],
+                    "model": model,
+                ],
+            ],
+        ]
+        let fileURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "cache-max.jsonl",
+            contents: env.jsonl([tokenCount]))
+        let range = CostUsageScanner.CostUsageDayRange(since: day, until: day)
+
+        let parsed = CostUsageScanner.parseCodexFile(fileURL: fileURL, range: range)
+        let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: day)
+        let packed = parsed.days[dayKey]?["gpt-5.2-codex"] ?? []
+
+        #expect(packed.count >= 3)
+        #expect(packed[0] == 100)
+        #expect(packed[1] == 25)
+        #expect(packed[2] == 10)
+    }
+
+    @Test
+    func `codex out-of-order stale snapshot does not double-count last usage`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2025, month: 12, day: 20)
+        let iso0 = env.isoString(for: day)
+        let iso1 = env.isoString(for: day.addingTimeInterval(1))
+        let iso2 = env.isoString(for: day.addingTimeInterval(2))
+        let model = "openai/gpt-5.2-codex"
+        let turnContext: [String: Any] = [
+            "type": "turn_context",
+            "timestamp": iso0,
+            "payload": ["model": model],
+        ]
+        func tokenCount(_ timestamp: String, input: Int, output: Int) -> [String: Any] {
+            [
+                "type": "event_msg",
+                "timestamp": timestamp,
+                "payload": [
+                    "type": "token_count",
+                    "info": [
+                        "total_token_usage": [
+                            "input_tokens": input,
+                            "output_tokens": output,
+                        ],
+                        "last_token_usage": [
+                            "input_tokens": 5,
+                            "output_tokens": 1,
+                        ],
+                    ],
+                ],
+            ]
+        }
+        // Normal increment, then a stale snapshot that regressed by roughly one
+        // increment, then a resume from the true watermark.
+        let lines = try env.jsonl([
+            turnContext,
+            tokenCount(iso1, input: 10, output: 3),
+            tokenCount(iso2, input: 8, output: 2),
+            tokenCount(iso2, input: 15, output: 5),
+        ])
+        let fileURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "stale-regression.jsonl",
+            contents: lines)
+        let range = CostUsageScanner.CostUsageDayRange(since: day, until: day)
+
+        let parsed = CostUsageScanner.parseCodexFile(fileURL: fileURL, range: range)
+        let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: day)
+        let packed = parsed.days[dayKey]?["gpt-5.2-codex"] ?? []
+
+        // Stale detection skips the regressed snapshot without advancing its baseline;
+        // the resumed true watermark contributes a second 5-token increment. Counted
+        // usage is therefore 10/2, while the raw cumulative watermark remains 15/5.
+        #expect(packed.count >= 3)
+        #expect(packed[0] == 10)
+        #expect(packed[2] == 2)
+    }
+
+    @Test
+    func `codex stale detection treats omitted reasoning as unknown`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2025, month: 12, day: 20)
+        let iso0 = env.isoString(for: day)
+        let iso1 = env.isoString(for: day.addingTimeInterval(1))
+        let iso2 = env.isoString(for: day.addingTimeInterval(2))
+        let model = "openai/gpt-5.2-codex"
+        let turnContext: [String: Any] = [
+            "type": "turn_context",
+            "timestamp": iso0,
+            "payload": ["model": model],
+        ]
+        func tokenCount(_ timestamp: String, input: Int, output: Int, reasoning: Int?) -> [String: Any] {
+            var total: [String: Any] = [
+                "input_tokens": input,
+                "output_tokens": output,
+            ]
+            if let reasoning {
+                total["reasoning_output_tokens"] = reasoning
+            }
+            return [
+                "type": "event_msg",
+                "timestamp": timestamp,
+                "payload": [
+                    "type": "token_count",
+                    "info": [
+                        "total_token_usage": total,
+                        "last_token_usage": [
+                            "input_tokens": 5,
+                            "output_tokens": 1,
+                        ],
+                    ],
+                ],
+            ]
+        }
+        // The first snapshot includes reasoning; the resumed snapshot omits it. The
+        // omitted field must not count as a reasoning regression that hides the row.
+        let lines = try env.jsonl([
+            turnContext,
+            tokenCount(iso1, input: 10, output: 3, reasoning: 1),
+            tokenCount(iso2, input: 15, output: 4, reasoning: nil),
+        ])
+        let fileURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "stale-omitted-reasoning.jsonl",
+            contents: lines)
+        let range = CostUsageScanner.CostUsageDayRange(since: day, until: day)
+
+        let parsed = CostUsageScanner.parseCodexFile(fileURL: fileURL, range: range)
+        let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: day)
+        let packed = parsed.days[dayKey]?["gpt-5.2-codex"] ?? []
+
+        #expect(packed.count >= 3)
+        #expect(packed[0] == 10)
+        // Both increments contribute one output unit each (1 + 1); the omitted
+        // reasoning field must not cause the second snapshot to be discarded.
+        #expect(packed[2] == 2)
+    }
+
+    @Test
+    func `codex bare usage rows count exec aliases with cached input subtraction`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 8, day: 21)
+        let iso = env.isoString(for: day)
+        let model = "openai/gpt-5.2-codex"
+
+        func bareUsage(model: String?, cachedTokens: Int) -> [String: Any] {
+            var usage: [String: Any] = [
+                "prompt_tokens": 120,
+                "completion_tokens": 30,
+            ]
+            if cachedTokens > 0 {
+                usage["cached_tokens"] = cachedTokens
+            }
+            var line: [String: Any] = [
+                "timestamp": iso,
+                "usage": usage,
+            ]
+            if let model {
+                line["model"] = model
+            }
+            return line
+        }
+
+        let fileURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "bare-usage.jsonl",
+            contents: env.jsonl([
+                bareUsage(model: model, cachedTokens: 20),
+                ["timestamp": iso, "data": ["usage": ["input": 10, "output": 4]]],
+            ]))
+        let range = CostUsageScanner.CostUsageDayRange(since: day, until: day)
+
+        let parsed = CostUsageScanner.parseCodexFile(fileURL: fileURL, range: range)
+        let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: day)
+
+        #expect(parsed.days[dayKey]?["gpt-5.2-codex"] == [100, 20, 30])
+        #expect(parsed.days[dayKey]?["unknown"] == [10, 0, 4])
+        #expect(parsed.rows.count == 2)
+    }
+
+    @Test
+    func `codex bare usage without timestamp uses prior accepted timestamp`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let dayOne = try env.makeLocalNoon(year: 2026, month: 8, day: 21)
+        let dayTwo = try env.makeLocalNoon(year: 2026, month: 8, day: 22)
+        let isoOne = env.isoString(for: dayOne)
+        let fileURL = try env.writeCodexSessionFile(
+            day: dayOne,
+            filename: "bare-usage-timestamp-fallback.jsonl",
+            contents: env.jsonl([
+                ["timestamp": isoOne, "response": ["usage": ["input_tokens": 7, "output_tokens": 3]]],
+                ["result": ["usage": ["input_tokens": 5, "output_tokens": 1]]],
+            ]))
+
+        let parsed = CostUsageScanner.parseCodexFile(
+            fileURL: fileURL,
+            range: .init(since: dayTwo, until: dayTwo))
+
+        // The timestamp-less result row must stay attributable to the last accepted day,
+        // not disappear when the requested report window is the following day.
+        let firstDayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: dayOne)
+        #expect(parsed.days[firstDayKey]?["unknown"] == [12, 0, 4])
+        #expect(parsed.rows.map(\.day) == [firstDayKey, firstDayKey])
     }
 
     @Test
@@ -524,6 +852,49 @@ struct CostUsageScannerTests {
         #expect(packed[0] == 0)
         #expect(packed[1] == 0)
         #expect(packed[2] == 5)
+    }
+
+    @Test
+    func `codex json fallback applies maximum cache selection`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2025, month: 12, day: 20)
+        let iso = env.isoString(for: day)
+        // The fast byte parser declines an escaped cache-read key, and the huge
+        // integer also defeats its nil-coalescing fallback. The line therefore
+        // reaches the JSONSerialization fallback, where the legacy
+        // nil-coalescing selection would have used the present zero and
+        // undercounted cached input.
+        let hugeInteger = String(repeating: "9", count: 100)
+        let cacheReadKey = "cache_\(String(UnicodeScalar(0x72)))ead_input_tokens"
+        let usageJSONParts = [
+            "{\"input_tokens\":\(hugeInteger)",
+            "\"cached_input_tokens\":0",
+            "\"\(cacheReadKey)\":25",
+            "\"output_tokens\":10}",
+        ]
+        let usageJSON = usageJSONParts.joined(separator: ",")
+        let eventJSONParts = [
+            "{\"type\":\"event_msg\",\"timestamp\":\"\(iso)\"",
+            "\"payload\":{\"type\":\"token_count\",\"info\":",
+            "{\"last_token_usage\":\(usageJSON),\"model\":\"openai/gpt-5.5\"}}}",
+        ]
+        let line = eventJSONParts.joined()
+        #expect(line.contains("\n") == false)
+        let fileURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "fallback-cache-max.jsonl",
+            contents: line + "\n")
+        let range = CostUsageScanner.CostUsageDayRange(since: day, until: day)
+
+        let parsed = CostUsageScanner.parseCodexFile(fileURL: fileURL, range: range)
+        let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: day)
+        let packed = parsed.days[dayKey]?["gpt-5.5"] ?? []
+
+        #expect(packed.count >= 3)
+        #expect(packed[1] == 25)
+        #expect(packed[2] == 10)
     }
 
     @Test
@@ -895,6 +1266,71 @@ struct CostUsageTestEnvironment {
 
     func writeClaudeProjectFile(relativePath: String, contents: String) throws -> URL {
         let url = self.claudeProjectsRoot.appendingPathComponent(relativePath, isDirectory: false)
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try contents.write(to: url, atomically: true, encoding: .utf8)
+        return url
+    }
+
+    func writeClaudeDesktopLocalAgentFile(relativePath: String, contents: String) throws -> URL {
+        let localAgentRoot = self.root
+            .appendingPathComponent("Library", isDirectory: true)
+            .appendingPathComponent("Application Support", isDirectory: true)
+            .appendingPathComponent("Claude", isDirectory: true)
+            .appendingPathComponent("local-agent-mode-sessions", isDirectory: true)
+            .appendingPathComponent("workspace-id", isDirectory: true)
+            .appendingPathComponent("session-id", isDirectory: true)
+            .appendingPathComponent("local_agent", isDirectory: true)
+        let url = localAgentRoot.appendingPathComponent(relativePath, isDirectory: false)
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try contents.write(to: url, atomically: true, encoding: .utf8)
+        return url
+    }
+
+    func writeClaudeDesktopLocalAgentProjectFile(relativePath: String, contents: String) throws -> URL {
+        try self.writeClaudeDesktopLocalAgentFile(
+            relativePath: ".claude/projects/\(relativePath)",
+            contents: contents)
+    }
+
+    func writeClaudeDesktopCodeSessionProjectFile(relativePath: String, contents: String) throws -> URL {
+        let projectsRoot = self.root
+            .appendingPathComponent("Library", isDirectory: true)
+            .appendingPathComponent("Application Support", isDirectory: true)
+            .appendingPathComponent("Claude", isDirectory: true)
+            .appendingPathComponent("claude-code-sessions", isDirectory: true)
+            .appendingPathComponent("account-id", isDirectory: true)
+            .appendingPathComponent("org-id", isDirectory: true)
+            .appendingPathComponent(".claude", isDirectory: true)
+            .appendingPathComponent("projects", isDirectory: true)
+        let url = projectsRoot.appendingPathComponent(relativePath, isDirectory: false)
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try contents.write(to: url, atomically: true, encoding: .utf8)
+        return url
+    }
+
+    func writeClaudeDesktopSharedProjectFile(relativePath: String, contents: String) throws -> URL {
+        let projectsRoot = self.root
+            .appendingPathComponent(".claude", isDirectory: true)
+            .appendingPathComponent("projects", isDirectory: true)
+        let url = projectsRoot.appendingPathComponent(relativePath, isDirectory: false)
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try contents.write(to: url, atomically: true, encoding: .utf8)
+        return url
+    }
+
+    func writeNestedClaudeDesktopLocalAgentProjectFile(relativePath: String, contents: String) throws -> URL {
+        let projectsRoot = self.root
+            .appendingPathComponent("Library", isDirectory: true)
+            .appendingPathComponent("Application Support", isDirectory: true)
+            .appendingPathComponent("Claude", isDirectory: true)
+            .appendingPathComponent("local-agent-mode-sessions", isDirectory: true)
+            .appendingPathComponent("workspace-id", isDirectory: true)
+            .appendingPathComponent("session-id", isDirectory: true)
+            .appendingPathComponent("agent", isDirectory: true)
+            .appendingPathComponent("local_agent", isDirectory: true)
+            .appendingPathComponent(".claude", isDirectory: true)
+            .appendingPathComponent("projects", isDirectory: true)
+        let url = projectsRoot.appendingPathComponent(relativePath, isDirectory: false)
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         try contents.write(to: url, atomically: true, encoding: .utf8)
         return url

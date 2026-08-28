@@ -1,6 +1,8 @@
 import Foundation
 
 enum OpenCodeGoZenBalanceParser {
+    private static let billingScale = 100_000_000.0
+
     static func parse(text: String) -> Double? {
         if let value = self.parseJSON(text: text) {
             return value
@@ -14,6 +16,26 @@ enum OpenCodeGoZenBalanceParser {
         }
         let nearbyPattern = #"(?i)(?:balance|残高)[\s\S]{0,120}?\$\s*([0-9][0-9,]*(?:\.[0-9]+)?)"#
         return self.extractDollarValue(pattern: nearbyPattern, text: text)
+    }
+
+    static func parseBillingServerResponse(text: String) -> Double? {
+        if let data = text.data(using: .utf8),
+           let object = try? JSONSerialization.jsonObject(with: data, options: []),
+           let rawBalance = self.findRawBillingBalance(in: object)
+        {
+            return rawBalance / self.billingScale
+        }
+
+        let customerPattern =
+            #"(?:\"customerID\"|customerID)\s*:\s*(?:\$R\[\d+\]\s*=\s*)?\"[^\"]+\""#
+        guard self.containsMatch(pattern: customerPattern, text: text) else {
+            return nil
+        }
+        let pattern = #"(?:\"balance\"|balance)\s*:\s*(?:\$R\[\d+\]\s*=\s*)?(-?[0-9]+(?:\.[0-9]+)?)"#
+        guard let rawBalance = self.extractNumber(pattern: pattern, text: text) else {
+            return nil
+        }
+        return rawBalance / self.billingScale
     }
 
     private static func parseJSON(text: String) -> Double? {
@@ -50,6 +72,40 @@ enum OpenCodeGoZenBalanceParser {
         return nil
     }
 
+    private static func findRawBillingBalance(in object: Any) -> Double? {
+        if let dict = object as? [String: Any] {
+            if dict["balance"] != nil {
+                guard let customerID = dict["customerID"] as? String,
+                      !customerID.isEmpty
+                else {
+                    return nil
+                }
+                guard let rawBalance = self.doubleValue(from: dict["balance"]) else {
+                    return nil
+                }
+                return rawBalance
+            }
+            for value in dict.values {
+                if let found = self.findRawBillingBalance(in: value) {
+                    return found
+                }
+            }
+        } else if let array = object as? [Any] {
+            for value in array {
+                if let found = self.findRawBillingBalance(in: value) {
+                    return found
+                }
+            }
+        }
+        return nil
+    }
+
+    private static func containsMatch(pattern: String, text: String) -> Bool {
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else { return false }
+        let nsrange = NSRange(text.startIndex..<text.endIndex, in: text)
+        return regex.firstMatch(in: text, options: [], range: nsrange) != nil
+    }
+
     private static func isExplicitBalanceAmountKey(_ key: String) -> Bool {
         let normalized = key
             .lowercased()
@@ -65,6 +121,10 @@ enum OpenCodeGoZenBalanceParser {
     }
 
     private static func extractDollarValue(pattern: String, text: String) -> Double? {
+        self.extractNumber(pattern: pattern, text: text)
+    }
+
+    private static func extractNumber(pattern: String, text: String) -> Double? {
         guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else { return nil }
         let nsrange = NSRange(text.startIndex..<text.endIndex, in: text)
         guard let match = regex.firstMatch(in: text, options: [], range: nsrange),

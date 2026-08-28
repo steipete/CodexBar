@@ -129,6 +129,71 @@ struct ProviderHTTPClientTests {
         #expect(response.statusCode == 403)
         #expect(await script.requestCount() == 1)
     }
+
+    @Test
+    func `redirect guard blocks cross origin redirects`() throws {
+        var redirectRequest = try URLRequest(url: #require(URL(string: "https://attacker.example/capture")))
+        redirectRequest.setValue("[REDACTED]", forHTTPHeaderField: "Cookie")
+        redirectRequest.setValue("[REDACTED]", forHTTPHeaderField: "x-api-key")
+
+        let guarded = ProviderHTTPRedirectGuardDelegate.guardedRedirectRequest(
+            originalURL: URL(string: "https://provider.example/usage"),
+            redirectRequest: redirectRequest)
+
+        #expect(guarded == nil)
+    }
+
+    @Test
+    func `redirect guard blocks non HTTPS redirects`() throws {
+        var redirectRequest = try URLRequest(url: #require(URL(string: "http://provider.example/capture")))
+        redirectRequest.setValue("[REDACTED]", forHTTPHeaderField: "Cookie")
+
+        let guarded = ProviderHTTPRedirectGuardDelegate.guardedRedirectRequest(
+            originalURL: URL(string: "https://provider.example/usage"),
+            redirectRequest: redirectRequest)
+
+        #expect(guarded == nil)
+    }
+
+    @Test
+    func `redirect guard blocks redirects without an original URL`() throws {
+        let redirectRequest = try URLRequest(url: #require(URL(string: "https://provider.example/usage/next")))
+
+        let guarded = ProviderHTTPRedirectGuardDelegate.guardedRedirectRequest(
+            originalURL: nil,
+            redirectRequest: redirectRequest)
+
+        #expect(guarded == nil)
+    }
+
+    @Test
+    func `redirect guard blocks port changes`() throws {
+        let redirectRequest = try URLRequest(url: #require(URL(string: "https://provider.example:8443/usage")))
+
+        let guarded = ProviderHTTPRedirectGuardDelegate.guardedRedirectRequest(
+            originalURL: URL(string: "https://provider.example/usage"),
+            redirectRequest: redirectRequest)
+
+        #expect(guarded == nil)
+    }
+
+    @Test
+    func `redirect guard preserves same origin HTTPS requests`() throws {
+        var redirectRequest = try URLRequest(url: #require(URL(string: "https://provider.example/usage/next")))
+        redirectRequest.setValue("[REDACTED]", forHTTPHeaderField: "Cookie")
+        redirectRequest.setValue("[REDACTED]", forHTTPHeaderField: "Authorization")
+        redirectRequest.setValue("[REDACTED]", forHTTPHeaderField: "x-api-key")
+        redirectRequest.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        let guarded = try #require(ProviderHTTPRedirectGuardDelegate.guardedRedirectRequest(
+            originalURL: URL(string: "https://provider.example/usage"),
+            redirectRequest: redirectRequest))
+
+        #expect(guarded.value(forHTTPHeaderField: "Cookie") == "[REDACTED]")
+        #expect(guarded.value(forHTTPHeaderField: "Authorization") == "[REDACTED]")
+        #expect(guarded.value(forHTTPHeaderField: "x-api-key") == "[REDACTED]")
+        #expect(guarded.value(forHTTPHeaderField: "Accept") == "application/json")
+    }
 }
 
 extension ProviderHTTPRetryPolicy {
@@ -177,7 +242,12 @@ private actor ScriptedHTTPTransport: ProviderHTTPTransport {
 }
 
 final class StubURLProtocol: URLProtocol {
-    nonisolated(unsafe) static var handler: ((URLRequest) throws -> (Data, URLResponse))?
+    private static let _handlerBox = LockIsolated<((URLRequest) throws -> (Data, URLResponse))?>(nil)
+    static var handler: ((URLRequest) throws -> (Data, URLResponse))? {
+        get { Self._handlerBox.value }
+        set { Self._handlerBox.setValue(newValue) }
+    }
+
     nonisolated(unsafe) static var requests: [URLRequest] = []
 
     override static func canInit(with request: URLRequest) -> Bool {

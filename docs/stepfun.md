@@ -31,6 +31,13 @@ authenticated via an Oasis-Token obtained through a username + password login fl
      - `weekly_usage_left_rate` — remaining fraction for the weekly window
      - `five_hour_usage_reset_time` — reset timestamp (string or integer)
      - `weekly_usage_reset_time` — reset timestamp (string or integer)
+     - `plan_family` — plan family identifier; `2` = credit-based subscription (e.g. Mini, Pro).
+       For credit plans the rate-window fields above are `0` (no window configured).
+     - `plan_credit_rate_limit` — credit usage object (present for `plan_family: 2`):
+       - `subscription_credit_left_rate` — remaining subscription credit fraction (e.g. `0.9641`)
+       - `subscription_credit_reset_time` — credit refill/reset timestamp
+       - `topup_credit_left_rate` — remaining top-up credit fraction
+       - `credit_buckets` — array of `{ credit_total, credit_residual, expire_at, next_reset_at }`
 
 3. **Plan status endpoint**
    - `POST https://platform.stepfun.com/api/step.openapi.devcenter.Dashboard/GetStepPlanStatus`
@@ -40,12 +47,23 @@ authenticated via an Oasis-Token obtained through a username + password login fl
 
 ## Usage details
 
-- **Primary window** (top bar): 5-hour rate limit (300 minutes).
-- **Secondary window** (bottom bar): weekly rate limit (10 080 minutes).
-- `usedPercent` is computed as `(1.0 - left_rate) × 100`.
+- **Rate-window plans** (`plan_family` absent or ≠ 2):
+  - **Primary window** (top bar): 5-hour rate limit (300 minutes).
+  - **Secondary window** (bottom bar): weekly rate limit (10 080 minutes).
+  - `usedPercent` is computed as `(1.0 - left_rate) × 100`.
+- **Credit-based plans** (`plan_family: 2`, e.g. Mini, Pro):
+  - **Primary window** (top bar): combined credit balance, weighted from `credit_buckets`
+    residual/total values when available.
+  - Without bucket sizes, uses `subscription_credit_left_rate` (or `topup_credit_left_rate` when
+    no subscription rate exists); the independent percentages cannot be safely added.
+  - No secondary window — credit plans don't have 5h/weekly rate-limit windows.
+  - `usedPercent = (1.0 - credit_left_rate) × 100`.
 - Plan name is shown as the `loginMethod` label in the menu card (e.g. "Plus").
 - When auth source is set to **Off**, no background refreshes occur.
 - Token expiry triggers automatic re-login (cache is cleared and the 3-step flow runs again).
+- The `Oasis-Webid` header/cookie must match the token's `device_id` claim. For tokens obtained
+  via Auto login the device_id is the app's own; for browser-imported (Manual) tokens it is
+  derived from the refresh-token JWT payload.
 
 ## Key files
 
@@ -54,4 +72,4 @@ authenticated via an Oasis-Token obtained through a username + password login fl
 - `Sources/CodexBarCore/Providers/StepFun/StepFunSettingsReader.swift` (env var resolution)
 - `Sources/CodexBar/Providers/StepFun/StepFunProviderImplementation.swift` (settings fields + activation logic)
 - `Sources/CodexBar/Providers/StepFun/StepFunSettingsStore.swift` (SettingsStore extension)
-- `Tests/CodexBarTests/StepFunUsageFetcherTests.swift` (22 test cases)
+- `Tests/CodexBarTests/StepFunUsageFetcherTests.swift` (26 test cases)

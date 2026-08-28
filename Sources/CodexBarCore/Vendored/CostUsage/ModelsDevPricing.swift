@@ -1,4 +1,9 @@
 import Foundation
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#endif
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
@@ -68,17 +73,36 @@ struct ModelsDevCatalog: Codable, Equatable {
         return self.providers[providerID]?.pricing(modelID: rawModelID)
     }
 
-    func containsProviderIDs(_ providerIDs: some Sequence<String>) -> Bool {
-        providerIDs.allSatisfy { self.providers.keys.contains(ModelsDevProvider.normalizeProviderID($0)) }
+    func isPlausibleRefresh() -> Bool {
+        // These are the direct pricing sources CodexBar relies on. Requiring both
+        // rejects empty/partial responses without comparing against a fallback-
+        // enriched cache that intentionally grows as models.dev churns.
+        ["anthropic", "openai"].allSatisfy { providerID in
+            self.providers[providerID]?.models.values.contains(where: \.isPriceable) == true
+        }
     }
 
-    func containsProviderModels(from cachedCatalog: ModelsDevCatalog) -> Bool {
-        cachedCatalog.providers.allSatisfy { providerID, cachedProvider in
-            guard let provider = self.providers[ModelsDevProvider.normalizeProviderID(providerID)] else { return false }
-            return cachedProvider.models.values
-                .filter(\.isPriceable)
-                .allSatisfy { provider.containsModel(matching: $0) }
+    func mergingFallbackPricing(from cachedCatalog: ModelsDevCatalog) -> ModelsDevCatalog {
+        var merged = self
+        for (providerID, cachedProvider) in cachedCatalog.providers {
+            let normalizedProviderID = ModelsDevProvider.normalizeProviderID(providerID)
+            guard var provider = merged.providers[normalizedProviderID] else {
+                merged.providers[normalizedProviderID] = cachedProvider
+                continue
+            }
+
+            for (modelKey, cachedModel) in cachedProvider.models
+                where cachedModel.isPriceable && !provider.containsPricedModel(
+                    withStableIdentity: cachedModel.stableIdentity)
+            {
+                let fallbackKey = provider.models[modelKey] == nil
+                    ? modelKey
+                    : "codexbar-fallback:\(modelKey):\(cachedModel.normalizedID)"
+                provider.models[fallbackKey] = cachedModel
+            }
+            merged.providers[normalizedProviderID] = provider
         }
+        return merged
     }
 }
 
@@ -149,21 +173,21 @@ struct ModelsDevProvider: Codable, Equatable {
             {
                 return ModelsDevPricingLookup(pricing: pricing, normalizedModelID: candidate)
             }
-        }
 
-        for candidate in candidates {
-            if let match = self.models.values.first(where: { $0.normalizedID == candidate }),
-               let pricing = match.pricing(providerID: self.id ?? self.mapKey ?? "", providerName: self.name)
-            {
-                return ModelsDevPricingLookup(pricing: pricing, normalizedModelID: match.normalizedID)
+            for match in self.models.values where match.normalizedID == candidate {
+                if let pricing = match.pricing(providerID: self.id ?? self.mapKey ?? "", providerName: self.name) {
+                    return ModelsDevPricingLookup(pricing: pricing, normalizedModelID: match.normalizedID)
+                }
             }
         }
 
         return nil
     }
 
-    func containsModel(matching cachedModel: ModelsDevModel) -> Bool {
-        self.pricing(modelID: cachedModel.id) != nil
+    func containsPricedModel(withStableIdentity modelID: String) -> Bool {
+        self.models.values.contains { model in
+            model.isPriceable && model.stableIdentity == modelID
+        }
     }
 }
 
@@ -175,6 +199,10 @@ struct ModelsDevModel: Codable, Equatable {
 
     var normalizedID: String {
         ModelsDevModelIDNormalizer.normalize(self.id)
+    }
+
+    var stableIdentity: String {
+        ModelsDevModelIDNormalizer.stableIdentity(self.id)
     }
 
     var isPriceable: Bool {
@@ -244,7 +272,29 @@ enum ModelsDevModelIDNormalizer {
         raw.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    static func candidates(_ raw: String) -> [String] {
+    static func stableIdentity(_ raw: String) -> String {
+        let normalized = self.normalize(raw)
+        if let atSign = normalized.firstIndex(of: "@") {
+            let base = String(normalized[..<atSign])
+            let suffix = String(normalized[normalized.index(after: atSign)...])
+            if suffix.range(of: #"^\d{8}$"#, options: .regularExpression) != nil {
+                return "\(self.canonicalAliasIdentity(base))-\(suffix)"
+            }
+        }
+
+        return self.canonicalAliasIdentity(normalized)
+    }
+
+    private static func canonicalAliasIdentity(_ raw: String) -> String {
+        self.candidates(raw, preserveDatedSnapshots: true).reversed().lazy
+            .map { candidate in
+                guard candidate.hasSuffix("@default") else { return candidate }
+                return String(candidate.dropLast("@default".count))
+            }
+            .first { !$0.isEmpty } ?? self.normalize(raw)
+    }
+
+    static func candidates(_ raw: String, preserveDatedSnapshots: Bool = false) -> [String] {
         var candidates: [String] = []
 
         func append(_ value: String) {
@@ -278,20 +328,22 @@ enum ModelsDevModelIDNormalizer {
             let candidate = candidates[index]
             if let atSign = candidate.firstIndex(of: "@") {
                 let base = String(candidate[..<atSign])
-                append(base)
                 let suffix = String(candidate[candidate.index(after: atSign)...])
                 if suffix.range(of: #"^\d{8}$"#, options: .regularExpression) != nil {
                     append("\(base)-\(suffix)")
                 }
+                append(base)
             } else if candidate.hasPrefix("claude-") {
                 append("\(candidate)@default")
             }
 
-            if let dated = candidate.range(of: #"-\d{4}-\d{2}-\d{2}$"#, options: .regularExpression) {
-                append(String(candidate[..<dated.lowerBound]))
-            }
-            if let compactDate = candidate.range(of: #"-\d{8}$"#, options: .regularExpression) {
-                append(String(candidate[..<compactDate.lowerBound]))
+            if !preserveDatedSnapshots {
+                if let dated = candidate.range(of: #"-\d{4}-\d{2}-\d{2}$"#, options: .regularExpression) {
+                    append(String(candidate[..<dated.lowerBound]))
+                }
+                if let compactDate = candidate.range(of: #"-\d{8}$"#, options: .regularExpression) {
+                    append(String(candidate[..<compactDate.lowerBound]))
+                }
             }
             if let version = candidate.range(of: #"-v\d+:\d+$"#, options: .regularExpression) {
                 var base = candidate
@@ -318,6 +370,57 @@ struct ModelsDevCacheLoadResult: Equatable {
     var error: ModelsDevCache.Error?
 }
 
+/// In-memory memo for the decoded models.dev catalog, keyed by file path + on-disk identity.
+///
+/// `ModelsDevCache.load` is called once per usage row whenever a cost lookup is performed without a
+/// pre-resolved catalog (see `CostUsagePricing.modelsDevLookup`). Without this memo, scanning a large
+/// `~/.codex` history re-reads and re-decodes the ~800 KB catalog JSON for every row, which pegs the CPU
+/// and freezes the menu during a refresh.
+///
+/// The full load *outcome* is memoized, not just successful decodes: a corrupt or wrong-version cache is
+/// read and decode-attempted exactly as expensively as a valid one, so caching only successes would leave
+/// the per-row storm in place whenever the cache is unreadable. Reusing the outcome while the file is
+/// unchanged keeps every fallback path cheap.
+private final class ModelsDevCacheMemo: @unchecked Sendable {
+    enum Outcome {
+        case decoded(ModelsDevCacheArtifact)
+        case failure(ModelsDevCache.Error)
+    }
+
+    private struct Entry {
+        let modificationDate: Date?
+        let size: Int?
+        let outcome: Outcome
+    }
+
+    private let lock = NSLock()
+    private var entries: [String: Entry] = [:]
+
+    func outcome(path: String, modificationDate: Date?, size: Int?) -> Outcome? {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+        guard let entry = self.entries[path],
+              entry.modificationDate == modificationDate,
+              entry.size == size
+        else {
+            return nil
+        }
+        return entry.outcome
+    }
+
+    func store(path: String, modificationDate: Date?, size: Int?, outcome: Outcome) {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+        self.entries[path] = Entry(modificationDate: modificationDate, size: size, outcome: outcome)
+    }
+
+    func invalidate(path: String) {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+        self.entries.removeValue(forKey: path)
+    }
+}
+
 enum ModelsDevCache {
     enum Error: Swift.Error, Equatable {
         case unreadable
@@ -327,6 +430,74 @@ enum ModelsDevCache {
 
     static let artifactVersion = 1
     static let ttlSeconds: TimeInterval = 24 * 60 * 60
+
+    private static let memo = ModelsDevCacheMemo()
+    /// Test-only instrumentation: counts `fileMetadata(at:)` reads (one per `load`) so tests can prove callers
+    /// resolve the catalog once instead of per pricing call. Task-local, so concurrent tests do not see each other's
+    /// counts, and unset (zero cost) in production.
+    @TaskLocal private static var metadataReadRecorder: MetadataReadRecorder?
+
+    final class MetadataReadRecorder: @unchecked Sendable {
+        private let lock = NSLock()
+        private var count = 0
+
+        func record() {
+            self.lock.lock()
+            self.count += 1
+            self.lock.unlock()
+        }
+
+        func snapshot() -> Int {
+            self.lock.lock()
+            defer { self.lock.unlock() }
+            return self.count
+        }
+    }
+
+    static func withMetadataReadRecorderForTesting<T>(
+        _ recorder: MetadataReadRecorder,
+        operation: () throws -> T) rethrows -> T
+    {
+        try self.$metadataReadRecorder.withValue(recorder) {
+            try operation()
+        }
+    }
+
+    static func withMetadataReadRecorderForTesting<T>(
+        _ recorder: MetadataReadRecorder,
+        operation: () async throws -> T) async rethrows -> T
+    {
+        try await self.$metadataReadRecorder.withValue(recorder) {
+            try await operation()
+        }
+    }
+
+    /// Cheap POSIX stat for the (mtime, size) memo key. `attributesOfItem` also reads xattrs.
+    /// `stat(2)` follows a terminal symlink (matching what `Data(contentsOf:)` later reads) whereas
+    /// `attributesOfItem` did not.
+    private static func fileMetadata(at url: URL) -> (modificationDate: Date?, size: Int?) {
+        self.metadataReadRecorder?.record()
+
+        return url.withUnsafeFileSystemRepresentation { pointer in
+            guard let pointer else { return (nil, nil) }
+            var status = stat()
+            guard stat(pointer, &status) == 0 else {
+                return (nil, nil)
+            }
+            return (Self.modificationDate(from: status), Int(status.st_size))
+        }
+    }
+
+    private static func modificationDate(from status: stat) -> Date {
+        #if canImport(Darwin)
+        let seconds = TimeInterval(status.st_mtimespec.tv_sec)
+        let nanoseconds = TimeInterval(status.st_mtimespec.tv_nsec)
+        #else
+        let seconds = TimeInterval(status.st_mtim.tv_sec)
+        let nanoseconds = TimeInterval(status.st_mtim.tv_nsec)
+        #endif
+        return Date(timeIntervalSince1970: seconds + nanoseconds / 1_000_000_000)
+    }
 
     private static func defaultCacheRoot() -> URL {
         let root = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
@@ -342,41 +513,72 @@ enum ModelsDevCache {
 
     static func load(now: Date = Date(), cacheRoot: URL? = nil) -> ModelsDevCacheLoadResult {
         let url = self.cacheFileURL(cacheRoot: cacheRoot)
+        let metadata = Self.fileMetadata(at: url)
+
+        // Staleness depends on `now`, so the result is always rebuilt; only the read+decode outcome is memoized.
+        if let outcome = Self.memo.outcome(
+            path: url.path,
+            modificationDate: metadata.modificationDate,
+            size: metadata.size)
+        {
+            return Self.result(for: outcome, now: now)
+        }
+
+        let outcome = Self.readOutcome(at: url)
+        Self.memo.store(
+            path: url.path,
+            modificationDate: metadata.modificationDate,
+            size: metadata.size,
+            outcome: outcome)
+        return Self.result(for: outcome, now: now)
+    }
+
+    private static func readOutcome(at url: URL) -> ModelsDevCacheMemo.Outcome {
         guard let data = try? Data(contentsOf: url) else {
-            return ModelsDevCacheLoadResult(artifact: nil, isStale: true, error: .unreadable)
+            return .failure(.unreadable)
         }
 
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         guard let decoded = try? decoder.decode(ModelsDevCacheArtifact.self, from: data) else {
-            return ModelsDevCacheLoadResult(artifact: nil, isStale: true, error: .invalidJSON)
+            return .failure(.invalidJSON)
         }
         guard decoded.version == Self.artifactVersion else {
-            return ModelsDevCacheLoadResult(artifact: nil, isStale: true, error: .invalidVersion)
+            return .failure(.invalidVersion)
         }
-
-        return ModelsDevCacheLoadResult(
-            artifact: decoded,
-            isStale: now.timeIntervalSince(decoded.fetchedAt) > Self.ttlSeconds,
-            error: nil)
+        return .decoded(decoded)
     }
 
-    static func save(catalog: ModelsDevCatalog, fetchedAt: Date = Date(), cacheRoot: URL? = nil) {
+    private static func result(for outcome: ModelsDevCacheMemo.Outcome, now: Date) -> ModelsDevCacheLoadResult {
+        switch outcome {
+        case let .decoded(artifact):
+            ModelsDevCacheLoadResult(
+                artifact: artifact,
+                isStale: now.timeIntervalSince(artifact.fetchedAt) > Self.ttlSeconds,
+                error: nil)
+        case let .failure(error):
+            ModelsDevCacheLoadResult(artifact: nil, isStale: true, error: error)
+        }
+    }
+
+    @discardableResult
+    static func save(catalog: ModelsDevCatalog, fetchedAt: Date = Date(), cacheRoot: URL? = nil) -> Bool {
         let artifact = ModelsDevCacheArtifact(
             version: Self.artifactVersion,
             fetchedAt: fetchedAt,
             catalog: catalog)
-        self.save(artifact: artifact, cacheRoot: cacheRoot)
+        return self.save(artifact: artifact, cacheRoot: cacheRoot)
     }
 
-    static func save(artifact: ModelsDevCacheArtifact, cacheRoot: URL? = nil) {
+    @discardableResult
+    static func save(artifact: ModelsDevCacheArtifact, cacheRoot: URL? = nil) -> Bool {
         let url = self.cacheFileURL(cacheRoot: cacheRoot)
         let dir = url.deletingLastPathComponent()
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
 
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
-        guard let data = try? encoder.encode(artifact) else { return }
+        guard let data = try? encoder.encode(artifact) else { return false }
 
         let tmp = dir.appendingPathComponent(".tmp-\(UUID().uuidString).json", isDirectory: false)
         do {
@@ -386,8 +588,12 @@ enum ModelsDevCache {
             } else {
                 try FileManager.default.moveItem(at: tmp, to: url)
             }
+            // The on-disk catalog changed; drop the memo so the next load decodes the fresh file.
+            Self.memo.invalidate(path: url.path)
+            return true
         } catch {
             try? FileManager.default.removeItem(at: tmp)
+            return false
         }
     }
 }
@@ -402,7 +608,7 @@ struct URLSessionModelsDevTransport: ModelsDevHTTPTransport {
     }
 }
 
-struct ModelsDevClient {
+struct ModelsDevClient: Sendable {
     enum Error: Swift.Error, Equatable {
         case invalidResponse
         case httpStatus(Int)
@@ -437,7 +643,16 @@ struct ModelsDevClient {
     }
 }
 
+enum ModelsDevUnknownModelRefreshOutcome: Equatable {
+    case pricingAvailable
+    case unavailable
+}
+
+private let modelsDevCatalogRetryInterval: TimeInterval = 15 * 60
+
 enum ModelsDevPricingPipeline {
+    private static let refreshCoordinator = ModelsDevRefreshCoordinator()
+
     static func lookup(
         providerID: String,
         modelID: String,
@@ -458,16 +673,107 @@ enum ModelsDevPricingPipeline {
         let load = ModelsDevCache.load(now: now, cacheRoot: cacheRoot)
         guard load.isStale else { return }
 
+        let cachePath = ModelsDevCache.cacheFileURL(cacheRoot: cacheRoot).standardizedFileURL.path
+        _ = await self.refreshCoordinator.refresh(
+            cachePath: cachePath,
+            now: now)
+        {
+            await self.refreshStaleCache(now: now, cacheRoot: cacheRoot, client: client)
+        }
+    }
+
+    static func refreshForUnknownModelsIfNeeded(
+        providerID: String,
+        modelIDs: Set<String>,
+        now: Date = Date(),
+        cacheRoot: URL? = nil,
+        client: ModelsDevClient = ModelsDevClient()) async -> ModelsDevUnknownModelRefreshOutcome
+    {
+        guard !modelIDs.isEmpty else { return .unavailable }
+        let load = ModelsDevCache.load(now: now, cacheRoot: cacheRoot)
+        let unknownModelIDs = modelIDs.filter {
+            load.artifact?.catalog.pricing(providerID: providerID, modelID: $0) == nil
+        }
+        guard !unknownModelIDs.isEmpty else { return .pricingAvailable }
+        if let fetchedAt = load.artifact?.fetchedAt,
+           now.timeIntervalSince(fetchedAt) < modelsDevCatalogRetryInterval
+        {
+            return .unavailable
+        }
+
+        let cachePath = ModelsDevCache.cacheFileURL(cacheRoot: cacheRoot).standardizedFileURL.path
+        _ = await self.refreshCoordinator.refresh(
+            cachePath: cachePath,
+            now: now)
+        {
+            await self.performRefresh(now: now, cacheRoot: cacheRoot, client: client)
+        }
+
+        let refreshedCatalog = ModelsDevCache.load(now: now, cacheRoot: cacheRoot).artifact?.catalog
+        let pricingBecameAvailable = unknownModelIDs.contains {
+            refreshedCatalog?.pricing(providerID: providerID, modelID: $0) != nil
+        }
+        return pricingBecameAvailable ? .pricingAvailable : .unavailable
+    }
+
+    private static func performRefresh(
+        now: Date,
+        cacheRoot: URL?,
+        client: ModelsDevClient) async -> Bool
+    {
         do {
             let catalog = try await client.fetchCatalog()
-            if let oldCatalog = load.artifact?.catalog,
-               !catalog.containsProviderModels(from: oldCatalog)
-            {
-                return
-            }
-            ModelsDevCache.save(catalog: catalog, fetchedAt: now, cacheRoot: cacheRoot)
+            guard catalog.isPlausibleRefresh() else { return false }
+            let oldCatalog = ModelsDevCache.load(now: now, cacheRoot: cacheRoot).artifact?.catalog
+            let refreshedCatalog = oldCatalog.map { catalog.mergingFallbackPricing(from: $0) } ?? catalog
+            return ModelsDevCache.save(catalog: refreshedCatalog, fetchedAt: now, cacheRoot: cacheRoot)
         } catch {
-            // Best-effort refresh only. Future scanner integration should keep using the last valid cache.
+            return false
         }
+    }
+
+    static func refreshStaleCache(
+        now: Date,
+        cacheRoot: URL?,
+        client: ModelsDevClient) async -> Bool
+    {
+        guard ModelsDevCache.load(now: now, cacheRoot: cacheRoot).isStale else { return true }
+        return await self.performRefresh(now: now, cacheRoot: cacheRoot, client: client)
+    }
+}
+
+private actor ModelsDevRefreshCoordinator {
+    private struct InFlightRefresh {
+        let id: UUID
+        let task: Task<Bool, Never>
+    }
+
+    private var inFlightByCachePath: [String: InFlightRefresh] = [:]
+    private var lastCatalogAttemptByCachePath: [String: Date] = [:]
+
+    func refresh(
+        cachePath: String,
+        now: Date,
+        operation: @escaping @Sendable () async -> Bool) async -> Bool
+    {
+        if let inFlight = self.inFlightByCachePath[cachePath] {
+            return await inFlight.task.value
+        }
+        if let lastAttempt = self.lastCatalogAttemptByCachePath[cachePath],
+           now.timeIntervalSince(lastAttempt) < modelsDevCatalogRetryInterval
+        {
+            return false
+        }
+        self.lastCatalogAttemptByCachePath[cachePath] = now
+
+        let inFlight = InFlightRefresh(
+            id: UUID(),
+            task: Task { await operation() })
+        self.inFlightByCachePath[cachePath] = inFlight
+        let result = await inFlight.task.value
+        if self.inFlightByCachePath[cachePath]?.id == inFlight.id {
+            self.inFlightByCachePath[cachePath] = nil
+        }
+        return result
     }
 }

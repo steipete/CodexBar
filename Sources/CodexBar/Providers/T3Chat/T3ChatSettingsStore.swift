@@ -27,36 +27,10 @@ extension SettingsStore {
     func t3ChatSettingsSnapshot(
         tokenOverride: TokenAccountOverride?) -> ProviderSettingsSnapshot.T3ChatProviderSettings
     {
-        ProviderSettingsSnapshot.T3ChatProviderSettings(
-            cookieSource: self.t3ChatSnapshotCookieSource(tokenOverride: tokenOverride),
-            manualCookieHeader: self.t3ChatSnapshotCookieHeader(tokenOverride: tokenOverride))
-    }
-
-    private func t3ChatSnapshotCookieHeader(tokenOverride: TokenAccountOverride?) -> String {
-        let fallback = self.t3ChatCookieHeader
-        guard let support = TokenAccountSupportCatalog.support(for: .t3chat),
-              case .cookieHeader = support.injection
-        else {
-            return fallback
-        }
-        guard let account = ProviderTokenAccountSelection.selectedAccount(
+        self.resolvedCookieSettings(
             provider: .t3chat,
-            settings: self,
-            override: tokenOverride)
-        else {
-            return fallback
-        }
-        return TokenAccountSupportCatalog.normalizedCookieHeader(account.token, support: support)
-    }
-
-    private func t3ChatSnapshotCookieSource(tokenOverride: TokenAccountOverride?) -> ProviderCookieSource {
-        let fallback = self.t3ChatCookieSource
-        guard let support = TokenAccountSupportCatalog.support(for: .t3chat),
-              support.requiresManualCookieSource
-        else {
-            return fallback
-        }
-        if self.tokenAccounts(for: .t3chat).isEmpty { return fallback }
-        return .manual
+            configuredSource: self.t3ChatCookieSource,
+            configuredHeader: self.t3ChatCookieHeader,
+            tokenOverride: tokenOverride)
     }
 }

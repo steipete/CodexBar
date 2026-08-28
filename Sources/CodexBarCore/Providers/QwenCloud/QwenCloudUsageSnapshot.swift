@@ -1,0 +1,145 @@
+import Foundation
+
+public struct QwenCloudUsageSnapshot: Sendable {
+    public let planName: String?
+    public let usedQuota: Double?
+    public let totalQuota: Double?
+    public let remainingQuota: Double?
+    public let resetsAt: Date?
+    public let fiveHourUsedPercent: Double?
+    public let fiveHourTotalQuota: Double?
+    public let fiveHourResetsAt: Date?
+    public let weeklyUsedPercent: Double?
+    public let weeklyTotalQuota: Double?
+    public let weeklyResetsAt: Date?
+    public let updatedAt: Date
+
+    public init(
+        planName: String?,
+        usedQuota: Double?,
+        totalQuota: Double?,
+        remainingQuota: Double?,
+        resetsAt: Date?,
+        fiveHourUsedPercent: Double? = nil,
+        fiveHourTotalQuota: Double? = nil,
+        fiveHourResetsAt: Date? = nil,
+        weeklyUsedPercent: Double? = nil,
+        weeklyTotalQuota: Double? = nil,
+        weeklyResetsAt: Date? = nil,
+        updatedAt: Date)
+    {
+        self.planName = planName
+        self.usedQuota = usedQuota
+        self.totalQuota = totalQuota
+        self.remainingQuota = remainingQuota
+        self.resetsAt = resetsAt
+        self.fiveHourUsedPercent = fiveHourUsedPercent
+        self.fiveHourTotalQuota = fiveHourTotalQuota
+        self.fiveHourResetsAt = fiveHourResetsAt
+        self.weeklyUsedPercent = weeklyUsedPercent
+        self.weeklyTotalQuota = weeklyTotalQuota
+        self.weeklyResetsAt = weeklyResetsAt
+        self.updatedAt = updatedAt
+    }
+}
+
+extension QwenCloudUsageSnapshot {
+    init(alibabaSnapshot: AlibabaTokenPlanUsageSnapshot) {
+        self.init(
+            planName: alibabaSnapshot.planName,
+            usedQuota: alibabaSnapshot.usedQuota,
+            totalQuota: alibabaSnapshot.totalQuota,
+            remainingQuota: alibabaSnapshot.remainingQuota,
+            resetsAt: alibabaSnapshot.resetsAt,
+            updatedAt: alibabaSnapshot.updatedAt)
+    }
+
+    public func toUsageSnapshot() -> UsageSnapshot {
+        let currentPrimary = self.fiveHourUsedPercent.map {
+            RateWindow(
+                usedPercent: $0,
+                windowMinutes: 5 * 60,
+                resetsAt: self.fiveHourResetsAt,
+                resetDescription: Self.quotaDetail(usedPercent: $0, total: self.fiveHourTotalQuota))
+        }
+        let legacyPrimary = Self.usedPercent(
+            used: self.usedQuota,
+            total: self.totalQuota,
+            remaining: self.remainingQuota).map {
+            RateWindow(
+                usedPercent: $0,
+                windowMinutes: 30 * 24 * 60,
+                resetsAt: self.resetsAt,
+                resetDescription: Self.quotaDetail(
+                    used: self.usedQuota,
+                    total: self.totalQuota,
+                    remaining: self.remainingQuota))
+        }
+        let primary = currentPrimary ?? legacyPrimary
+        let secondary = self.weeklyUsedPercent.map {
+            RateWindow(
+                usedPercent: $0,
+                windowMinutes: 7 * 24 * 60,
+                resetsAt: self.weeklyResetsAt,
+                resetDescription: Self.quotaDetail(usedPercent: $0, total: self.weeklyTotalQuota))
+        }
+
+        let planName = self.planName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let loginMethod = (planName?.isEmpty ?? true) ? nil : planName
+        let identity = ProviderIdentitySnapshot(
+            providerID: .qwencloud,
+            accountEmail: nil,
+            accountOrganization: nil,
+            loginMethod: loginMethod)
+
+        return UsageSnapshot(
+            primary: primary,
+            secondary: secondary,
+            tertiary: nil,
+            providerCost: nil,
+            updatedAt: self.updatedAt,
+            identity: identity)
+    }
+
+    private static func usedPercent(used: Double?, total: Double?, remaining: Double?) -> Double? {
+        guard let total, total > 0 else { return nil }
+        let usedValue: Double? = if let used {
+            used
+        } else if let remaining {
+            total - remaining
+        } else {
+            nil
+        }
+        guard let usedValue else { return nil }
+        let normalizedUsed = max(0, min(usedValue, total))
+        return normalizedUsed / total * 100
+    }
+
+    private static func quotaDetail(used: Double?, total: Double?, remaining: Double?) -> String? {
+        if let used, let total, total > 0 {
+            return "\(self.format(used)) / \(self.format(total)) credits used"
+        }
+        if let remaining, let total, total > 0 {
+            return "\(Self.format(remaining)) / \(Self.format(total)) credits left"
+        }
+        if let remaining {
+            return "\(Self.format(remaining)) credits left"
+        }
+        return nil
+    }
+
+    private static func quotaDetail(usedPercent: Double, total: Double?) -> String? {
+        guard let total, total > 0 else { return nil }
+        let used = total * usedPercent / 100
+        return "\(Self.format(used)) / \(Self.format(total)) credits used"
+    }
+
+    private static func format(_ value: Double) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.usesGroupingSeparator = true
+        formatter.maximumFractionDigits = value.rounded() == value ? 0 : 2
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        return formatter.string(from: NSNumber(value: value)) ?? String(format: "%.2f", value)
+    }
+}

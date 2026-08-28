@@ -19,6 +19,19 @@ struct ClaudeDirectUsageFallbackTests {
     }
 
     @Test
+    func `passive claude probes always disable the cli auto updater`() {
+        let environment = ClaudeCLISession.launchEnvironment(baseEnv: [
+            "DISABLE_AUTOUPDATER": "0",
+            ClaudeOAuthCredentialsStore.environmentTokenKey: "oauth-token",
+            "ANTHROPIC_API_KEY": "api-token",
+        ])
+
+        #expect(environment["DISABLE_AUTOUPDATER"] == "1")
+        #expect(environment[ClaudeOAuthCredentialsStore.environmentTokenKey] == nil)
+        #expect(environment["ANTHROPIC_API_KEY"] == nil)
+    }
+
+    @Test
     func `cli source falls back to direct usage when pty usage fails to load`() async throws {
         let cliLogURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("claude-direct-fallback-log-\(UUID().uuidString).txt")
@@ -50,6 +63,8 @@ struct ClaudeDirectUsageFallbackTests {
         let invocations = log.contents()
         #expect(invocations.contains("pty-usage"))
         #expect(invocations.contains("direct-usage"))
+        #expect(invocations.contains("pty-auto-updater-disabled"))
+        #expect(invocations.contains("direct-auto-updater-disabled"))
         #expect(!invocations.contains("pty-secret-env"))
         #expect(!invocations.contains("direct-secret-env"))
     }
@@ -87,6 +102,9 @@ struct ClaudeDirectUsageFallbackTests {
         try self.makeClaudeCLI(name: "claude-direct-fallback", logURL: logURL, scriptBody: """
         if [ "$1" = "/usage" ]; then
           printf 'direct-usage\\n' >> "$LOG_FILE"
+          if [ "$DISABLE_AUTOUPDATER" = "1" ]; then
+            printf 'direct-auto-updater-disabled\\n' >> "$LOG_FILE"
+          fi
           if [ -n "$CODEXBAR_CLAUDE_OAUTH_TOKEN" ] ||
              [ -n "$CODEXBAR_CLAUDE_OAUTH_SCOPES" ] ||
              [ -n "$ANTHROPIC_ADMIN_KEY" ]; then
@@ -99,6 +117,9 @@ struct ClaudeDirectUsageFallbackTests {
           case "$line" in
             *"/usage"*)
               printf 'pty-usage\\n' >> "$LOG_FILE"
+              if [ "$DISABLE_AUTOUPDATER" = "1" ]; then
+                printf 'pty-auto-updater-disabled\\n' >> "$LOG_FILE"
+              fi
               if [ -n "$CODEXBAR_CLAUDE_OAUTH_TOKEN" ] ||
                  [ -n "$CODEXBAR_CLAUDE_OAUTH_SCOPES" ] ||
                  [ -n "$ANTHROPIC_ADMIN_KEY" ]; then

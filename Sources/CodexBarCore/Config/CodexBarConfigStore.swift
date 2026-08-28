@@ -19,6 +19,7 @@ public enum CodexBarConfigStoreError: LocalizedError {
 
 public struct CodexBarConfigStore: @unchecked Sendable {
     public static let pathEnvironmentKey = "CODEXBAR_CONFIG"
+    public static let xdgConfigHomeEnvironmentKey = "XDG_CONFIG_HOME"
 
     public let fileURL: URL
     private let fileManager: FileManager
@@ -50,15 +51,22 @@ public struct CodexBarConfigStore: @unchecked Sendable {
     }
 
     public func save(_ config: CodexBarConfig) throws {
+        let data = try self.encodedData(for: config)
+        try self.saveEncodedData(data)
+    }
+
+    public func encodedData(for config: CodexBarConfig) throws -> Data {
         let normalized = config.normalized()
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        let data: Data
         do {
-            data = try encoder.encode(normalized)
+            return try encoder.encode(normalized)
         } catch {
             throw CodexBarConfigStoreError.encodeFailed(error.localizedDescription)
         }
+    }
+
+    public func saveEncodedData(_ data: Data) throws {
         let directory = self.fileURL.deletingLastPathComponent()
         if !self.fileManager.fileExists(atPath: directory.path) {
             try self.fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -74,7 +82,8 @@ public struct CodexBarConfigStore: @unchecked Sendable {
 
     public static func defaultURL(
         home: URL = FileManager.default.homeDirectoryForCurrentUser,
-        environment: [String: String] = ProcessInfo.processInfo.environment) -> URL
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        fileManager: FileManager = .default) -> URL
     {
         if let override = environment[pathEnvironmentKey]?.trimmingCharacters(in: .whitespacesAndNewlines),
            !override.isEmpty
@@ -82,9 +91,35 @@ public struct CodexBarConfigStore: @unchecked Sendable {
             let expanded = (override as NSString).expandingTildeInPath
             return URL(fileURLWithPath: expanded)
         }
-        return home
+
+        if let xdgConfigHome = environment[xdgConfigHomeEnvironmentKey]?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+            !xdgConfigHome.isEmpty
+        {
+            let expanded = (xdgConfigHome as NSString).expandingTildeInPath
+            if (expanded as NSString).isAbsolutePath {
+                return URL(fileURLWithPath: expanded, isDirectory: true)
+                    .appendingPathComponent("codexbar", isDirectory: true)
+                    .appendingPathComponent("config.json")
+            }
+        }
+
+        let xdgDefault = home
+            .appendingPathComponent(".config", isDirectory: true)
+            .appendingPathComponent("codexbar", isDirectory: true)
+            .appendingPathComponent("config.json")
+        if fileManager.fileExists(atPath: xdgDefault.path) {
+            return xdgDefault
+        }
+
+        let legacy = home
             .appendingPathComponent(".codexbar", isDirectory: true)
             .appendingPathComponent("config.json")
+        if fileManager.fileExists(atPath: legacy.path) {
+            return legacy
+        }
+
+        return xdgDefault
     }
 
     private func applySecurePermissionsIfNeeded() throws {

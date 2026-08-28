@@ -5,6 +5,38 @@ import Testing
 
 struct MenuCardOptionalUsageModelTests {
     @Test
+    func `hides supported provider credits when disabled`() throws {
+        let now = Date()
+        let metadata = try #require(ProviderDefaults.metadata[.augment])
+        let credits = CreditsSnapshot(remaining: 12, events: [], updatedAt: now)
+
+        func makeModel(showOptionalUsage: Bool) -> UsageMenuCardView.Model {
+            UsageMenuCardView.Model.make(.init(
+                provider: .augment,
+                metadata: metadata,
+                snapshot: nil,
+                credits: credits,
+                creditsError: nil,
+                dashboard: nil,
+                dashboardError: nil,
+                tokenSnapshot: nil,
+                tokenError: nil,
+                account: AccountInfo(email: nil, plan: nil),
+                isRefreshing: false,
+                lastError: nil,
+                usageBarsShowUsed: false,
+                resetTimeDisplayStyle: .countdown,
+                tokenCostUsageEnabled: false,
+                showOptionalCreditsAndExtraUsage: showOptionalUsage,
+                hidePersonalInfo: false,
+                now: now))
+        }
+
+        #expect(makeModel(showOptionalUsage: true).creditsText != nil)
+        #expect(makeModel(showOptionalUsage: false).creditsText == nil)
+    }
+
+    @Test
     func `hides codex credits when disabled`() throws {
         let now = Date()
         let identity = ProviderIdentitySnapshot(

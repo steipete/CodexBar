@@ -53,36 +53,10 @@ extension SettingsStore {
 extension SettingsStore {
     func ollamaSettingsSnapshot(tokenOverride: TokenAccountOverride?) -> ProviderSettingsSnapshot
     .OllamaProviderSettings {
-        ProviderSettingsSnapshot.OllamaProviderSettings(
-            cookieSource: self.ollamaSnapshotCookieSource(tokenOverride: tokenOverride),
-            manualCookieHeader: self.ollamaSnapshotCookieHeader(tokenOverride: tokenOverride))
-    }
-
-    private func ollamaSnapshotCookieHeader(tokenOverride: TokenAccountOverride?) -> String {
-        let fallback = self.ollamaCookieHeader
-        guard let support = TokenAccountSupportCatalog.support(for: .ollama),
-              case .cookieHeader = support.injection
-        else {
-            return fallback
-        }
-        guard let account = ProviderTokenAccountSelection.selectedAccount(
+        self.resolvedCookieSettings(
             provider: .ollama,
-            settings: self,
-            override: tokenOverride)
-        else {
-            return fallback
-        }
-        return TokenAccountSupportCatalog.normalizedCookieHeader(account.token, support: support)
-    }
-
-    private func ollamaSnapshotCookieSource(tokenOverride: TokenAccountOverride?) -> ProviderCookieSource {
-        let fallback = self.ollamaCookieSource
-        guard let support = TokenAccountSupportCatalog.support(for: .ollama),
-              support.requiresManualCookieSource
-        else {
-            return fallback
-        }
-        if self.tokenAccounts(for: .ollama).isEmpty { return fallback }
-        return .manual
+            configuredSource: self.ollamaCookieSource,
+            configuredHeader: self.ollamaCookieHeader,
+            tokenOverride: tokenOverride)
     }
 }

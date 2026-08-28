@@ -39,6 +39,10 @@ final class FileLogSink: @unchecked Sendable {
         self.queue.sync { self.fileURL }
     }
 
+    func isWriteEnabled() -> Bool {
+        self.queue.sync { self.isEnabled }
+    }
+
     func write(_ text: String) {
         self.queue.async {
             guard self.isEnabled else { return }
@@ -104,6 +108,7 @@ struct FileLogHandler: LogHandler {
     }
 
     func log(event: LogEvent) {
+        guard self.sink.isWriteEnabled() else { return }
         let ts = Self.timestamp()
         var combined = self.metadata
         if let metadata = event.metadata { combined.merge(metadata, uniquingKeysWith: { _, new in new }) }

@@ -1,3 +1,11 @@
+---
+summary: "Design spec for Kilo organization-scoped usage fetching, settings, and menu rendering."
+read_when:
+  - Designing or implementing Kilo organization support
+  - Changing Kilo scoped usage request headers
+  - Updating Kilo organization settings persistence
+---
+
 # Kilo Organization Selection & Usage — Design
 
 **Status:** approved

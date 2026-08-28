@@ -105,17 +105,24 @@ extension CodexVisibleAccountProjection {
 
         for storedAccount in snapshot.storedAccounts {
             let normalizedEmail = snapshot.runtimeEmail(for: storedAccount)
+            let runtimeIdentity = snapshot.runtimeIdentity(for: storedAccount)
+            let runtimeWorkspaceAccountID: String? = switch runtimeIdentity {
+            case let .providerAccount(id):
+                ManagedCodexAccount.normalizeWorkspaceAccountID(id)
+            case .emailOnly, .unresolved:
+                nil
+            }
             drafts.append(VisibleAccountDraft(
                 email: normalizedEmail,
                 workspaceLabel: Self.normalizeWorkspaceLabel(storedAccount.workspaceLabel),
-                workspaceAccountID: storedAccount.workspaceAccountID,
+                workspaceAccountID: storedAccount.workspaceAccountID ?? runtimeWorkspaceAccountID,
                 authFingerprint: storedAccount.authFingerprint,
                 storedAccountID: storedAccount.id,
                 selectionSource: .managedAccount(id: storedAccount.id),
                 isLive: false,
                 canReauthenticate: true,
                 canRemove: true,
-                identity: snapshot.runtimeIdentity(for: storedAccount)))
+                identity: runtimeIdentity))
         }
 
         if let liveSystemAccount = snapshot.liveSystemAccount {
@@ -172,6 +179,31 @@ extension CodexVisibleAccountProjection {
             }
         }
 
+        let livePath = snapshot.liveSystemAccount.flatMap { CodexHomeScope.normalizedHomePath($0.codexHomePath) }
+        let managedPaths = Set(snapshot.storedAccounts.compactMap {
+            CodexHomeScope.normalizedHomePath($0.managedHomePath)
+        })
+        for profileAccount in snapshot.profileHomeAccounts {
+            let profilePath = CodexHomeScope.normalizedHomePath(profileAccount.codexHomePath)
+            guard let profilePath,
+                  profilePath != livePath,
+                  !managedPaths.contains(profilePath)
+            else {
+                continue
+            }
+            drafts.append(VisibleAccountDraft(
+                email: Self.normalizeVisibleEmail(profileAccount.email),
+                workspaceLabel: Self.normalizeWorkspaceLabel(profileAccount.workspaceLabel),
+                workspaceAccountID: profileAccount.workspaceAccountID,
+                authFingerprint: profileAccount.authFingerprint,
+                storedAccountID: nil,
+                selectionSource: .profileHome(path: profilePath),
+                isLive: false,
+                canReauthenticate: false,
+                canRemove: false,
+                identity: snapshot.runtimeIdentity(for: profileAccount)))
+        }
+
         let groupedByEmail = Dictionary(grouping: drafts.indices, by: { drafts[$0].email })
         let visibleAccounts = drafts.map { draft in
             let id = Self.visibleAccountID(for: draft, emailGroupSize: groupedByEmail[draft.email]?.count ?? 0)
@@ -180,6 +212,8 @@ extension CodexVisibleAccountProjection {
                 draft.selectionSource == .liveSystem
             case let .managedAccount(id):
                 draft.selectionSource == .managedAccount(id: id)
+            case let .profileHome(path):
+                draft.selectionSource == .profileHome(path: path)
             }
 
             return CodexVisibleAccount(
@@ -233,6 +267,8 @@ extension CodexVisibleAccountProjection {
             return "live:\(CodexIdentityMatcher.selectionKey(for: draft.identity, fallbackEmail: draft.email))"
         case let .managedAccount(id):
             return "managed:\(id.uuidString.lowercased())"
+        case let .profileHome(path):
+            return "profile:\(path)"
         }
     }
 }

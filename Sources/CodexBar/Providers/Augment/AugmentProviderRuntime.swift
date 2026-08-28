@@ -5,6 +5,12 @@ import Foundation
 final class AugmentProviderRuntime: ProviderRuntime {
     let id: UsageProvider = .augment
     private var keepalive: AugmentSessionKeepalive?
+    #if DEBUG
+    private(set) var _test_keepaliveStopCount = 0
+    var _test_isKeepaliveRunning: Bool {
+        self.keepalive != nil
+    }
+    #endif
 
     func start(context: ProviderRuntimeContext) {
         self.updateKeepalive(context: context)
@@ -83,8 +89,12 @@ final class AugmentProviderRuntime: ProviderRuntime {
 
     private func stopKeepalive(context: ProviderRuntimeContext, reason: String) {
         #if os(macOS)
-        self.keepalive?.stop()
+        guard let keepalive = self.keepalive else { return }
+        keepalive.stop()
         self.keepalive = nil
+        #if DEBUG
+        self._test_keepaliveStopCount += 1
+        #endif
         context.store.augmentLogger.info("Augment keepalive stopped (\(reason))")
         #endif
     }

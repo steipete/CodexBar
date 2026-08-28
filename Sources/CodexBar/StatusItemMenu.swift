@@ -6,7 +6,9 @@ enum StatusItemMenuProviderNavigationDirection {
 }
 
 protocol StatusItemMenuPersistentActionDelegate: AnyObject {
-    func performPersistentRefreshAction()
+    func performPersistentRefreshAction(
+        in menuID: ObjectIdentifier,
+        menuInteractionGeneration: Int)
     func performPersistentSettingsAction()
     func performPersistentQuitAction()
     func performProviderNavigation(_ direction: StatusItemMenuProviderNavigationDirection)
@@ -14,12 +16,20 @@ protocol StatusItemMenuPersistentActionDelegate: AnyObject {
 
 final class StatusItemMenu: NSMenu {
     weak var persistentActionDelegate: StatusItemMenuPersistentActionDelegate?
+    var menuInteractionGeneration: Int?
+
+    func requestPersistentRefreshAction() {
+        guard let menuInteractionGeneration else { return }
+        self.persistentActionDelegate?.performPersistentRefreshAction(
+            in: ObjectIdentifier(self),
+            menuInteractionGeneration: menuInteractionGeneration)
+    }
 
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
         if let action = Self.persistentAction(for: event) {
             switch action {
             case .refresh:
-                self.persistentActionDelegate?.performPersistentRefreshAction()
+                self.requestPersistentRefreshAction()
             case .settings:
                 self.persistentActionDelegate?.performPersistentSettingsAction()
             case .quit:
@@ -41,6 +51,10 @@ final class StatusItemMenu: NSMenu {
         case refresh
         case settings
         case quit
+    }
+
+    nonisolated static func isPersistentRefreshShortcut(for event: NSEvent) -> Bool {
+        self.persistentAction(for: event) == .refresh
     }
 
     private nonisolated static func persistentAction(for event: NSEvent) -> PersistentAction? {

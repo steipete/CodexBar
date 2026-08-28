@@ -17,26 +17,13 @@ public enum ClaudeOAuthKeychainReadStrategyPreference {
         if let taskOverride { return taskOverride }
         #endif
         if let raw = userDefaults.string(forKey: self.userDefaultsKey) {
-            return ClaudeOAuthKeychainReadStrategy(rawValue: raw) ?? .securityFramework
+            let strategy = ClaudeOAuthKeychainReadStrategy(rawValue: raw) ?? .securityFramework
+            return strategy == .securityCLIExperimental ? .securityFramework : strategy
         }
-        #if DEBUG
-        if self.isRunningUnderTests,
-           ProcessInfo.processInfo.environment["CODEXBAR_ALLOW_TEST_KEYCHAIN_ACCESS"] != "1"
-        {
-            return .securityFramework
-        }
-        #endif
-        return .securityCLIExperimental
+        return .securityFramework
     }
 
     #if DEBUG
-    private static var isRunningUnderTests: Bool {
-        let processName = ProcessInfo.processInfo.processName
-        return processName == "swiftpm-testing-helper"
-            || processName.hasSuffix("PackageTests")
-            || ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
-    }
-
     public static func withTaskOverrideForTesting<T>(
         _ strategy: ClaudeOAuthKeychainReadStrategy?,
         operation: () throws -> T) rethrows -> T

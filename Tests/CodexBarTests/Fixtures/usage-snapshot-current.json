@@ -1,0 +1,29 @@
+{
+  "primary": {
+    "usedPercent": 42,
+    "windowMinutes": 300,
+    "resetsAt": "2026-08-02T17:00:00Z",
+    "resetDescription": null
+  },
+  "secondary": null,
+  "tertiary": null,
+  "providerCost": {
+    "used": 12.5,
+    "limit": 50,
+    "currencyCode": "USD",
+    "period": "Monthly",
+    "updatedAt": "2026-08-02T12:00:00Z"
+  },
+  "updatedAt": "2026-08-02T12:00:00Z",
+  "identity": {
+    "providerID": "synthetic",
+    "accountEmail": "fixture@example.com",
+    "accountOrganization": "Fixture Org",
+    "loginMethod": "API key",
+    "accountID": "acct_fixture"
+  },
+  "accountEmail": "fixture@example.com",
+  "accountOrganization": "Fixture Org",
+  "loginMethod": "API key",
+  "dataConfidence": "exact"
+}

@@ -8,6 +8,62 @@ import Testing
 @Suite(.serialized)
 struct PopupLocalizationTests {
     @Test
+    func `simplified Chinese derives session quota titles from their duration`() throws {
+        try CodexBarLocalizationOverride.$appLanguage.withValue("zh-Hans") {
+            for (windowMinutes, expectedTitle) in [(60, "1 小时"), (300, "5 小时"), (720, "12 小时")] {
+                let model = try Self.makeClaudeMenuCardModel(primaryWindowMinutes: windowMinutes)
+
+                #expect(model.metrics.first?.title == expectedTitle)
+            }
+        }
+    }
+
+    @Test
+    func `simplified Chinese labels a Claude weekly primary fallback accurately`() throws {
+        try CodexBarLocalizationOverride.$appLanguage.withValue("zh-Hans") {
+            let model = try Self.makeClaudeMenuCardModel(primaryWindowMinutes: 7 * 24 * 60)
+
+            #expect(model.metrics.first?.title == "每周")
+        }
+    }
+
+    @Test
+    func `simplified Chinese history selector uses quota duration without changing conversations`() {
+        CodexBarLocalizationOverride.$appLanguage.withValue("zh-Hans") {
+            let now = Date(timeIntervalSince1970: 1_700_000_000)
+            let histories = [
+                PlanUtilizationSeriesHistory(
+                    name: .session,
+                    windowMinutes: 300,
+                    entries: [PlanUtilizationHistoryEntry(capturedAt: now, usedPercent: 10, resetsAt: nil)]),
+                PlanUtilizationSeriesHistory(
+                    name: .weekly,
+                    windowMinutes: 7 * 24 * 60,
+                    entries: [PlanUtilizationHistoryEntry(capturedAt: now, usedPercent: 20, resetsAt: nil)]),
+            ]
+            let snapshot = UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 10,
+                    windowMinutes: 300,
+                    resetsAt: nil,
+                    resetDescription: nil),
+                secondary: RateWindow(
+                    usedPercent: 20,
+                    windowMinutes: 7 * 24 * 60,
+                    resetsAt: nil,
+                    resetDescription: nil),
+                updatedAt: now)
+            let model = PlanUtilizationHistoryChartMenuView._modelSnapshotForTesting(
+                histories: histories,
+                provider: .claude,
+                snapshot: snapshot)
+
+            #expect(model.visibleSeriesTitles == ["5 小时", "每周"])
+            #expect(String(format: L("Session %@"), "abc123") == "会话 abc123")
+        }
+    }
+
+    @Test
     func `descriptor account labels use selected localization`() throws {
         try CodexBarLocalizationOverride.$appLanguage.withValue("zh-Hant") {
             let suite = "PopupLocalizationTests-descriptor"
@@ -47,7 +103,87 @@ struct PopupLocalizationTests {
     }
 
     @Test
-    func `inline dashboard labels use selected localization`() throws {
+    func `factory descriptor localizes every time window label`() throws {
+        try CodexBarLocalizationOverride.$appLanguage.withValue("zh-Hans") {
+            let suite = "PopupLocalizationTests-factory-rate-windows"
+            let settings = try Self.makeSettingsStore(suite: suite)
+            let store = UsageStore(
+                fetcher: UsageFetcher(environment: [:]),
+                browserDetection: BrowserDetection(cacheTTL: 0),
+                settings: settings,
+                startupBehavior: .testing)
+            store._setSnapshotForTesting(
+                UsageSnapshot(
+                    primary: RateWindow(usedPercent: 12, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+                    secondary: RateWindow(
+                        usedPercent: 34,
+                        windowMinutes: 10080,
+                        resetsAt: nil,
+                        resetDescription: nil),
+                    tertiary: RateWindow(usedPercent: 56, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+                    updatedAt: Date(),
+                    identity: nil),
+                provider: .factory)
+
+            let descriptor = MenuDescriptor.build(
+                provider: .factory,
+                store: store,
+                settings: settings,
+                account: AccountInfo(email: nil, plan: nil),
+                updateReady: false,
+                includeContextualActions: false)
+            let lines = Self.textLines(from: descriptor)
+
+            #expect(lines.contains { $0.hasPrefix("5 小时:") })
+            #expect(lines.contains { $0.hasPrefix("每周:") })
+            #expect(lines.contains { $0.hasPrefix("每月:") })
+            #expect(!lines.contains { $0.hasPrefix("5-hour:") })
+        }
+    }
+
+    @Test
+    func `OpenRouter localizes only its static cap disclosure`() throws {
+        let disclosure = "Spending cap, not balance"
+        let details = try [ProviderDetailSection(title: "API key", rows: [
+            .init(label: "API key limit", value: "$30.00", secondaryValue: disclosure),
+            .init(label: "API key limit", value: "Unavailable right now", secondaryValue: "Request returned HTTP 403"),
+            .init(label: "API key limit", value: disclosure, secondaryValue: "arbitrary provider value"),
+            .init(label: "Other", value: "$30.00", secondaryValue: disclosure),
+        ])]
+        CodexBarLocalizationOverride.$appLanguage.withValue("de") {
+            let localized = UsageMenuCardView.Model.localizedProviderDetails(details, provider: .openrouter)[0]
+            #expect(localized.rows[0].label == "API-Schlüssellimit")
+            #expect(localized.rows[0].value == "$30.00")
+            #expect(localized.rows[0].secondaryValue == "Ausgabenlimit, kein Guthaben")
+            #expect(localized.rows[1].secondaryValue == "Request returned HTTP 403")
+            #expect(localized.rows[2].value == disclosure)
+            #expect(localized.rows[2].secondaryValue == "arbitrary provider value")
+            #expect(localized.rows[3].secondaryValue == disclosure)
+            let other = UsageMenuCardView.Model.localizedProviderDetails(details, provider: .synthetic)[0]
+            #expect(other.rows[0].secondaryValue == disclosure)
+        }
+    }
+
+    @Test
+    @MainActor
+    func `bundled OpenRouter snapshot preserves used and remaining presentation`() async throws {
+        let snapshot = try await OpenRouterLimitTestSupport.snapshot()
+        try CodexBarLocalizationOverride.$appLanguage.withValue("en") {
+            for showUsed in [true, false] {
+                let model = try OpenRouterLimitTestSupport.model(snapshot, showUsed: showUsed)
+                let metric = try #require(model.metrics.first)
+                #expect(metric.percent == (showUsed ? 0 : 100))
+                #expect(metric.percentStyle == (showUsed ? .used : .left))
+                #expect(UsageMenuCardView.popupMetricTitle(provider: .openrouter, metric: metric) == "API key limit")
+                #expect(model.planText == "Balance: $1.90")
+                #expect(model.providerDetails.flatMap(\.rows).first { $0.label == "API key limit" }?.secondaryValue ==
+                    "Spending cap, not balance")
+            }
+        }
+    }
+
+    @Test
+    func `generic provider details keep canonical labels alongside localized core metrics`() throws {
         try CodexBarLocalizationOverride.$appLanguage.withValue("zh-Hant") {
             let now = Date(timeIntervalSince1970: 1_700_179_200)
             let metadata = try #require(ProviderDefaults.metadata[.openrouter])
@@ -58,6 +194,8 @@ struct PopupLocalizationTests {
                 usedPercent: 40,
                 keyDataFetched: true,
                 keyLimit: 25,
+                keyLimitRemaining: 15,
+                keyLimitReset: "monthly",
                 keyUsage: 10,
                 keyUsageDaily: 1.25,
                 keyUsageWeekly: 7.5,
@@ -85,11 +223,16 @@ struct PopupLocalizationTests {
                 hidePersonalInfo: false,
                 now: now))
 
-            let dashboard = try #require(model.inlineUsageDashboard)
-
-            #expect(dashboard.kpis.map(\.title) == ["餘額", "今天", "週", "月"])
-            #expect(dashboard.points.map(\.label) == ["今天", "週", "月"])
-            #expect(dashboard.detailLines.contains("速率限制: 100 / 10s"))
+            #expect(model.metrics.first?.title == "額度")
+            // After 84a4ca725, generic providers localize section titles and row labels via L();
+            // values and chart point labels stay canonical.
+            let apiKey = try #require(model.providerDetails.first { $0.title == "API 金鑰" })
+            #expect(apiKey.rows.map(\.label) == [
+                "API 金鑰限制", "API key remaining", "API key used", "Reset window",
+                "今天", "本週", "本月", "Rate limit",
+            ])
+            #expect(apiKey.chart?.points.map(\.label) == ["Today", "This week", "This month"])
+            #expect(apiKey.rows.last?.value == "100 requests / 10s")
         }
     }
 
@@ -120,6 +263,15 @@ struct PopupLocalizationTests {
             #expect(disabledSubtitle.contains("鑰匙圈"))
             #expect(!disabledSubtitle.contains("Keychain access"))
             #expect(jsonBundleSubtitle.contains("來自 Windsurf session 的 localStorage JSON"))
+        }
+    }
+
+    @Test
+    func `settings labels use selected localization`() {
+        CodexBarLocalizationOverride.$appLanguage.withValue("zh-Hant") {
+            #expect(KiroMenuBarDisplayMode.hidden.label == "隱藏")
+            #expect(KiroMenuBarDisplayMode.creditsLeft.label == "剩餘額度")
+            #expect(L("(System)") == "（系統）")
         }
     }
 
@@ -179,5 +331,37 @@ struct PopupLocalizationTests {
             guard case let .text(text, _) = entry else { return nil }
             return text
         }
+    }
+
+    private static func makeClaudeMenuCardModel(primaryWindowMinutes: Int) throws -> UsageMenuCardView.Model {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let metadata = try #require(ProviderDefaults.metadata[.claude])
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 10,
+                windowMinutes: primaryWindowMinutes,
+                resetsAt: now.addingTimeInterval(3600),
+                resetDescription: nil),
+            secondary: nil,
+            updatedAt: now)
+        return UsageMenuCardView.Model.make(.init(
+            provider: .claude,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
     }
 }

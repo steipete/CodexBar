@@ -27,9 +27,10 @@ extension SettingsStore {
 
 extension SettingsStore {
     func miMoSettingsSnapshot(tokenOverride: TokenAccountOverride?) -> ProviderSettingsSnapshot.MiMoProviderSettings {
-        _ = tokenOverride
-        return ProviderSettingsSnapshot.MiMoProviderSettings(
-            cookieSource: self.miMoCookieSource,
-            manualCookieHeader: self.miMoCookieHeader)
+        self.resolvedCookieSettings(
+            provider: .mimo,
+            configuredSource: self.miMoCookieSource,
+            configuredHeader: self.miMoCookieHeader,
+            tokenOverride: tokenOverride)
     }
 }

@@ -1,8 +1,6 @@
 import CodexBarCore
-import CodexBarMacroSupport
 import Foundation
 
-@ProviderImplementationRegistration
 struct GroqProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .groq
 
@@ -13,14 +11,12 @@ struct GroqProviderImplementation: ProviderImplementation {
 
     @MainActor
     func observeSettings(_ settings: SettingsStore) {
-        _ = settings.groqAPIKey
+        _ = settings[providerConfig: .groq, field: .apiKey]
     }
 
-    @MainActor
-    func isAvailable(context: ProviderAvailabilityContext) -> Bool {
-        ProviderTokenResolver.groqToken(environment: context.environment) != nil ||
-            !context.settings.groqAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
+    // No `isAvailable` override: when Groq is enabled, the fetch pipeline resolves
+    // the console browser session (primary) or the optional API key (Enterprise
+    // Prometheus fallback). Matches the MiMo cookie provider.
 
     @MainActor
     func settingsFields(context: ProviderSettingsContext) -> [ProviderSettingsFieldDescriptor] {
@@ -28,10 +24,11 @@ struct GroqProviderImplementation: ProviderImplementation {
             ProviderSettingsFieldDescriptor(
                 id: "groq-api-key",
                 title: "API key",
-                subtitle: "Stored in ~/.codexbar/config.json. Metrics require Groq Enterprise Prometheus access.",
+                subtitle: "Usage & spend come from your console.groq.com browser session automatically. " +
+                    "An API key is optional and only adds Enterprise Prometheus metrics.",
                 kind: .secure,
                 placeholder: "gsk_...",
-                binding: context.stringBinding(\.groqAPIKey),
+                binding: context.providerConfigBinding(.apiKey),
                 actions: [],
                 isVisible: nil,
                 onActivate: nil),

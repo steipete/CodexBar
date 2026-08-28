@@ -376,10 +376,10 @@ private final class AntigravityLoopbackServer: @unchecked Sendable {
     private func httpResponse(for callback: AntigravityOAuthCallback) -> Data {
         let success = callback.error == nil && callback.code?.isEmpty == false
         let status = success ? "200 OK" : "400 Bad Request"
-        let title = success ? "Login Successful" : "Login Failed"
+        let title = success ? L("Login Successful") : L("Login Failed")
         let detail = success
-            ? "You can close this window and return to CodexBar."
-            : "You can close this window and try again."
+            ? L("You can close this window and return to CodexBar.")
+            : L("You can close this window and try again.")
         let html = """
         <html>
           <body style="font-family: -apple-system, BlinkMacSystemFont, sans-serif; padding: 32px; text-align: center;">

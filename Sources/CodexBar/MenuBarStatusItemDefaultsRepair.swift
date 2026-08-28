@@ -27,19 +27,28 @@ enum MenuBarStatusItemDefaultsRepair {
         return itemName.hasPrefix(self.legacyAutosavePrefix) || self.isDefaultStatusItemName(itemName)
     }
 
+    static func visibilityDefault(defaults: UserDefaults, autosaveName: String) -> Bool? {
+        guard !autosaveName.isEmpty else { return nil }
+        return self.boolValue(defaults.object(forKey: self.visibilityPrefix + autosaveName))
+    }
+
     private static func isDefaultStatusItemName(_ itemName: String) -> Bool {
         guard itemName.hasPrefix("Item-") else { return false }
         return itemName.dropFirst("Item-".count).allSatisfy(\.isNumber)
     }
 
     private static func isFalse(_ value: Any?) -> Bool {
+        self.boolValue(value) == false
+    }
+
+    private static func boolValue(_ value: Any?) -> Bool? {
         switch value {
         case let number as NSNumber:
-            !number.boolValue
+            number.boolValue
         case let bool as Bool:
-            !bool
+            bool
         default:
-            false
+            nil
         }
     }
 }

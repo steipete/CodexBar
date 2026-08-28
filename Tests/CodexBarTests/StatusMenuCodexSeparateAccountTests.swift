@@ -55,6 +55,7 @@ struct StatusMenuCodexSeparateAccountTests {
 
         #expect(controller.statusItems[.codex] == nil)
         #expect(controller.accountStatusItems.count == 2)
+        var menusWithPlanUsage = 0
         for item in controller.accountStatusItems.values {
             let autosaveName = item.autosaveName ?? ""
             let identifier = item.button?.accessibilityIdentifier() ?? ""
@@ -64,7 +65,16 @@ struct StatusMenuCodexSeparateAccountTests {
             controller.populateMenu(menu, provider: .codex)
             #expect(!menu.items.contains { $0.view is CodexAccountSwitcherView })
             #expect(!menu.items.contains { $0.view is TokenAccountSwitcherView })
+            let titles = Set(menu.items.map(\.title))
+            #expect(titles.contains("Usage Dashboard"))
+            #expect(titles.contains("Status Page"))
+            if titles.contains("Plan Usage") {
+                menusWithPlanUsage += 1
+            }
+            #expect(!titles.contains("Add Account…"))
+            #expect(!titles.contains("System Account"))
         }
+        #expect(menusWithPlanUsage == 1)
     }
 
     private func makeSettings() -> SettingsStore {

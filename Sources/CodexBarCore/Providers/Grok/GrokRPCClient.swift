@@ -6,10 +6,10 @@ import Foundation
 /// but uses `protocolVersion`/`clientCapabilities` for the `initialize` call instead of
 /// `clientInfo`. Billing is fetched via the `x.ai/billing` extension method.
 final class GrokRPCClient: @unchecked Sendable {
-    private static let log = CodexBarLog.logger(LogCategories.grok)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.grok))
 
     private let process = Process()
-    private let stdinPipe = Pipe()
+    private let stdin = RPCChildProcessInput()
     private let stdoutPipe = Pipe()
     private let stderrPipe = Pipe()
     private let initializeTimeoutSeconds: TimeInterval
@@ -47,7 +47,7 @@ final class GrokRPCClient: @unchecked Sendable {
         self.process.environment = env
         self.process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
         self.process.arguments = [resolvedExec] + arguments
-        self.process.standardInput = self.stdinPipe
+        self.process.standardInput = self.stdin.pipe
         self.process.standardOutput = self.stdoutPipe
         self.process.standardError = self.stderrPipe
 
@@ -61,7 +61,9 @@ final class GrokRPCClient: @unchecked Sendable {
 
         let stdoutHandle = self.stdoutPipe.fileHandleForReading
         let stdoutLineContinuation = self.stdoutLineContinuation
-        let stdoutBuffer = LineBuffer()
+        let stdoutBuffer = BoundedLineBuffer()
+        let process = self.process
+        let stdin = self.stdin
         stdoutHandle.readabilityHandler = { handle in
             let data = handle.availableData
             if data.isEmpty {
@@ -69,8 +71,17 @@ final class GrokRPCClient: @unchecked Sendable {
                 stdoutLineContinuation.finish()
                 return
             }
-            let lines = stdoutBuffer.appendAndDrainLines(data)
-            for lineData in lines {
+            let result = stdoutBuffer.appendAndDrainLines(data)
+            if result.didExceedLimit {
+                Self.log.warning("Grok RPC line exceeded memory limit; terminating process")
+                handle.readabilityHandler = nil
+                DispatchQueue.global(qos: .userInitiated).async {
+                    RPCChildProcessTeardown.terminate(process: process, stdin: stdin)
+                }
+                stdoutLineContinuation.finish()
+                return
+            }
+            for lineData in result.lines {
                 stdoutLineContinuation.yield(lineData)
             }
         }
@@ -116,10 +127,8 @@ final class GrokRPCClient: @unchecked Sendable {
     }
 
     func shutdown() {
-        if self.process.isRunning {
-            Self.log.debug("Grok RPC stopping")
-            self.process.terminate()
-        }
+        Self.log.debug("Grok RPC stopping")
+        RPCChildProcessTeardown.terminate(process: self.process, stdin: self.stdin)
     }
 
     // MARK: - JSON-RPC plumbing (mirrors CodexRPCClient)
@@ -182,7 +191,13 @@ final class GrokRPCClient: @unchecked Sendable {
     private func terminateProcessForTimeout(method: String) {
         if self.process.isRunning {
             Self.log.warning("Grok RPC timed out on `\(method)`; terminating process")
-            self.process.terminate()
+        }
+        // Dispatch off the timeout task so the bounded TERM-to-KILL wait cannot delay the timeout
+        // error or let the stdout-EOF failure win the race; `shutdown()` remains the synchronous backstop.
+        let process = self.process
+        let stdin = self.stdin
+        DispatchQueue.global(qos: .userInitiated).async {
+            RPCChildProcessTeardown.terminate(process: process, stdin: stdin)
         }
     }
 
@@ -206,12 +221,16 @@ final class GrokRPCClient: @unchecked Sendable {
         // the on-the-wire shape the grok agent expects.
         let unescaped = String(data: raw, encoding: .utf8)?
             .replacingOccurrences(of: "\\/", with: "/")
-        let data = unescaped.flatMap { $0.data(using: .utf8) } ?? raw
+        var data = unescaped.flatMap { $0.data(using: .utf8) } ?? raw
         if let preview = String(data: data.prefix(200), encoding: .utf8) {
             Self.log.debug("grok rpc -> \(preview)")
         }
-        self.stdinPipe.fileHandleForWriting.write(data)
-        self.stdinPipe.fileHandleForWriting.write(Data([0x0A]))
+        data.append(0x0A)
+        do {
+            try self.stdin.write(data)
+        } catch {
+            throw GrokRPCError.requestFailed("grok agent stdin closed: \(error.localizedDescription)")
+        }
     }
 
     private func readNextMessage() async throws -> [String: Any] {
@@ -241,26 +260,6 @@ final class GrokRPCClient: @unchecked Sendable {
         case let int as Int: int
         case let number as NSNumber: number.intValue
         default: nil
-        }
-    }
-
-    private final class LineBuffer: @unchecked Sendable {
-        private var buffer = Data()
-        private let lock = NSLock()
-
-        func appendAndDrainLines(_ data: Data) -> [Data] {
-            self.lock.lock()
-            defer { lock.unlock() }
-            self.buffer.append(data)
-            var out: [Data] = []
-            while let newline = self.buffer.firstIndex(of: 0x0A) {
-                let lineData = Data(self.buffer[..<newline])
-                self.buffer.removeSubrange(...newline)
-                if !lineData.isEmpty {
-                    out.append(lineData)
-                }
-            }
-            return out
         }
     }
 }

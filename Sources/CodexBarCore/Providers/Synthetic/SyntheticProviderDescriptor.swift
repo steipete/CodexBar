@@ -1,12 +1,16 @@
-import CodexBarMacroSupport
 import Foundation
 
-@ProviderDescriptorRegistration
-@ProviderDescriptorDefinition
 public enum SyntheticProviderDescriptor {
+    public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+    private static let credentials = ProviderCredentialAdapter.apiKey(
+        environmentKey: SyntheticSettingsReader.apiKeyKey,
+        resolve: SyntheticSettingsReader.apiKey,
+        missingCredentialMessage: { _ in SyntheticSettingsError.missingToken.errorDescription })
+
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .synthetic,
+            credentials: self.credentials,
             metadata: ProviderMetadata(
                 id: .synthetic,
                 displayName: "Synthetic",
@@ -19,50 +23,48 @@ public enum SyntheticProviderDescriptor {
                 toggleTitle: "Show Synthetic usage",
                 cliName: "synthetic",
                 defaultEnabled: false,
+                widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
+                sharePlanLabels: ["starter": "Starter", "pro": "Pro", "team": "Team", "enterprise": "Enterprise"],
                 dashboardURL: nil,
                 statusPageURL: nil),
             branding: ProviderBranding(
-                iconStyle: .synthetic,
+                iconStyle: .init(provider: .synthetic),
                 iconResourceName: "ProviderIcon-synthetic",
-                color: ProviderColor(red: 20 / 255, green: 20 / 255, blue: 20 / 255)),
+                color: ProviderColor(red: 20 / 255, green: 20 / 255, blue: 20 / 255),
+                confettiPalette: [
+                    ProviderColor(hex: 0x6366F1),
+                    ProviderColor(hex: 0x3E3E3E),
+                    ProviderColor(hex: 0xF7F6F3),
+                ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Synthetic cost summary is not supported." }),
-            fetchPlan: ProviderFetchPlan(
-                sourceModes: [.auto, .api],
-                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [SyntheticAPIFetchStrategy()] })),
+            presentation: ProviderUsagePresentation(
+                costPresenter: { _ in ProviderCostPresentation(menuCardStyle: .hidden) },
+                menuCard: ProviderMenuCardPresentation(usesSyntheticRollingRegen: true)),
+            fetchPlan: self.fetchPlan(),
             cli: ProviderCLIConfig(
                 name: "synthetic",
                 aliases: ["synthetic.new"],
                 versionDetector: nil))
     }
-}
 
-struct SyntheticAPIFetchStrategy: ProviderFetchStrategy {
-    let id: String = "synthetic.api"
-    let kind: ProviderFetchKind = .apiToken
-
-    func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        Self.resolveToken(environment: context.env) != nil
-    }
-
-    func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        guard let apiKey = Self.resolveToken(environment: context.env) else {
-            throw SyntheticSettingsError.missingToken
-        }
-        let usage = try await SyntheticUsageFetcher.fetchUsage(apiKey: apiKey)
-        return self.makeResult(
-            usage: usage.toUsageSnapshot(),
-            sourceLabel: "api")
-    }
-
-    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
-        false
-    }
-
-    private static func resolveToken(environment: [String: String]) -> String? {
-        ProviderTokenResolver.syntheticToken(environment: environment)
+    private static func fetchPlan() -> ProviderFetchPlan {
+        ProviderFetchPlan(
+            sourceModes: [.auto, .api],
+            pipeline: ProviderFetchPipeline(resolveStrategies: { _ in
+                [ScriptFetchStrategy(
+                    id: "synthetic.js",
+                    provider: .synthetic,
+                    bundledPlugin: "synthetic",
+                    secretKey: SyntheticSettingsReader.apiKeyKey,
+                    sourceLabel: "api",
+                    resolveSecret: { environment in
+                        self.credentials.resolveToken(environment: environment)?.token
+                    },
+                    isEnabled: { _ in true })]
+            }))
     }
 }

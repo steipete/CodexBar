@@ -30,6 +30,15 @@ Set the base URL with `LLM_PROXY_BASE_URL`, or add `enterpriseHost` to the provi
 
 The base URL may point at either the service root or `/v1`; CodexBar normalizes both to `/v1/quota-stats`.
 
+The base URL must use HTTPS unless it names a loopback or private-network address, or a `.local` mDNS host,
+and must not embed credentials because the API key is sent to it as a bearer token. Plain HTTP remains
+available for self-hosted proxies on loopback, RFC 1918, link-local, and IPv6 unique-local networks. A base
+URL that does not meet these rules is rejected, and the provider reports that `LLM_PROXY_BASE_URL` is invalid
+instead of fetching.
+
+The native fetcher remains authoritative. Configured plugin origins cover HTTPS and loopback HTTP, but do not cover
+the existing private-network and `.local` HTTP contract without a broader host network policy.
+
 ## Menu display
 
 - Primary: lowest remaining quota group, rendered as percent used.

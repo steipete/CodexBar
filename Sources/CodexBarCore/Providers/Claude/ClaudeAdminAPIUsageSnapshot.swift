@@ -129,8 +129,28 @@ public struct ClaudeAdminAPIUsageSnapshot: Codable, Equatable, Sendable {
         self.summary(days: 7)
     }
 
+    public var currentDay: Summary {
+        self.summary(forLocalDayContaining: self.updatedAt)
+    }
+
     public var latestDay: Summary {
         self.summary(days: 1)
+    }
+
+    public func summary(forLocalDayContaining date: Date, calendar _: Calendar = .current) -> Summary {
+        let selected = self.daily.filter { bucket in
+            CostUsageBucketInterval.contains(
+                date,
+                startTime: bucket.startTime,
+                endTime: bucket.endTime)
+        }
+        return Summary(
+            costUSD: selected.reduce(0) { $0 + $1.costUSD },
+            inputTokens: selected.reduce(0) { $0 + $1.inputTokens },
+            cacheCreationInputTokens: selected.reduce(0) { $0 + $1.cacheCreationInputTokens },
+            cacheReadInputTokens: selected.reduce(0) { $0 + $1.cacheReadInputTokens },
+            outputTokens: selected.reduce(0) { $0 + $1.outputTokens },
+            totalTokens: selected.reduce(0) { $0 + $1.totalTokens })
     }
 
     public func summary(days: Int) -> Summary {
@@ -176,6 +196,31 @@ public struct ClaudeAdminAPIUsageSnapshot: Codable, Equatable, Sendable {
 
     public func toUsageSnapshot() -> UsageSnapshot {
         let total = self.last30Days
+        let today = self.currentDay
+        let seven = self.last7Days
+        var summaryRows: [ProviderDetailSection.Row] = [
+            .makeRow(label: "Today spend", value: UsageFormatter.usdString(today.costUSD)),
+            .makeRow(label: "7d spend", value: UsageFormatter.usdString(seven.costUSD)),
+            .makeRow(label: "30d spend", value: UsageFormatter.usdString(total.costUSD)),
+            .makeRow(label: "Today tokens", value: Self.countString(today.totalTokens)),
+            .makeRow(label: "30d tokens", value: Self.countString(total.totalTokens)),
+            .makeRow(label: "Cache read", value: Self.countString(total.cacheReadInputTokens)),
+        ]
+        if let topModel = self.topModels.first {
+            summaryRows.append(.makeRow(label: "Top model", value: topModel.name))
+        }
+        var details: [ProviderDetailSection] = [.makeSection(
+            title: "Usage summary",
+            rows: summaryRows,
+            chart: self.daily.isEmpty ? nil : .makeChart(
+                title: "Daily spend",
+                unit: "USD",
+                points: self.daily.map { ($0.day, $0.costUSD) }))]
+        if !self.topCostItems.isEmpty {
+            details.append(.makeSection(title: "Cost items", rows: self.topCostItems.prefix(20).map {
+                .makeRow(label: $0.name, value: UsageFormatter.usdString($0.costUSD))
+            }))
+        }
         return UsageSnapshot(
             primary: nil,
             secondary: nil,
@@ -185,13 +230,17 @@ public struct ClaudeAdminAPIUsageSnapshot: Codable, Equatable, Sendable {
                 currencyCode: "USD",
                 period: "Last 30 days",
                 updatedAt: self.updatedAt),
-            claudeAdminAPIUsage: self,
+            details: details,
             updatedAt: self.updatedAt,
             identity: ProviderIdentitySnapshot(
                 providerID: .claude,
                 accountEmail: nil,
                 accountOrganization: nil,
                 loginMethod: "Admin API"))
+    }
+
+    private static func countString(_ value: Int) -> String {
+        value.formatted(.number.grouping(.automatic).locale(Locale(identifier: "en_US")))
     }
 
     private struct ModelAccumulator {

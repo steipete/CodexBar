@@ -8,6 +8,13 @@ import WebKit
 @Suite(.serialized)
 struct OpenAIDashboardScrapeScriptTests {
     @Test
+    func `readiness probe avoids whole document rendered text extraction`() {
+        #expect(!openAIDashboardReadinessScript.contains("document.body"))
+        #expect(!openAIDashboardReadinessScript.contains("innerText"))
+        #expect(openAIDashboardReadinessScript.contains("textContent"))
+    }
+
+    @Test
     func `scraper returns structured account fields without full html`() async throws {
         if Self.shouldSkipOnCI() { return }
 

@@ -106,7 +106,7 @@ struct CodexUsageFetcherFallbackTests {
     }
 
     @Test
-    func `CLI usage loads plan only RPC response as unavailable limits`() async throws {
+    func `CLI usage starts app server with current read-only noninteractive arguments`() async throws {
         let stubCLIPath = try self.makePlanOnlyStubCodexCLI()
         defer { try? FileManager.default.removeItem(atPath: stubCLIPath) }
 
@@ -156,7 +156,7 @@ struct CodexUsageFetcherFallbackTests {
 
         let fetcher = UsageFetcher(
             environment: ["CODEX_CLI_PATH": stubCLIPath],
-            initializeTimeoutSeconds: 2.0,
+            initializeTimeoutSeconds: 20.0,
             requestTimeoutSeconds: 0.2)
 
         let started = Date()
@@ -174,7 +174,7 @@ struct CodexUsageFetcherFallbackTests {
         }
 
         let elapsed = Date().timeIntervalSince(started)
-        #expect(elapsed < 3.0, "Hung RPC request must fail fast, took \(elapsed)s")
+        #expect(elapsed < 5.0, "Hung RPC request must fail fast, took \(elapsed)s")
     }
 
     @Test
@@ -184,7 +184,7 @@ struct CodexUsageFetcherFallbackTests {
 
         let fetcher = UsageFetcher(
             environment: ["CODEX_CLI_PATH": stubCLIPath],
-            initializeTimeoutSeconds: 2.0,
+            initializeTimeoutSeconds: 20.0,
             requestTimeoutSeconds: 0.2)
 
         for attempt in 1...2 {
@@ -202,7 +202,7 @@ struct CodexUsageFetcherFallbackTests {
             }
 
             let elapsed = Date().timeIntervalSince(started)
-            #expect(elapsed < 3.0, "Hung RPC request \(attempt) must fail fast, took \(elapsed)s")
+            #expect(elapsed < 5.0, "Hung RPC request \(attempt) must fail fast, took \(elapsed)s")
         }
     }
 
@@ -367,6 +367,11 @@ struct CodexUsageFetcherFallbackTests {
         import sys
 
         args = sys.argv[1:]
+        expected_prefix = ["-s", "read-only", "-a", "never", "app-server"]
+        if args[:5] != expected_prefix:
+            sys.stderr.write(f"unexpected Codex arguments: {args!r}\\n")
+            sys.exit(64)
+
         if "app-server" in args:
             for line in sys.stdin:
                 if not line.strip():

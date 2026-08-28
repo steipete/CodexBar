@@ -9,9 +9,15 @@ public struct ProviderTokenAccount: Codable, Identifiable, Sendable {
     /// Stable provider-specific identity (e.g. GitHub `login`) used for
     /// re-auth deduplication. Optional so legacy accounts keep working.
     public let externalIdentifier: String?
+    /// Optional provider-specific usage scope. z.ai uses `personal` / `team`.
+    public let usageScope: String?
     /// Optional provider-specific organization/workspace target. Claude web
     /// sessionKey accounts use this to disambiguate linked Anthropic emails.
+    /// z.ai team accounts use this for the BigModel organization header.
     public let organizationID: String?
+    /// Optional provider-specific workspace/project target. z.ai team accounts
+    /// use this for the BigModel project header.
+    public let workspaceID: String?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -20,7 +26,9 @@ public struct ProviderTokenAccount: Codable, Identifiable, Sendable {
         case addedAt
         case lastUsed
         case externalIdentifier
+        case usageScope
         case organizationID = "organizationId"
+        case workspaceID
     }
 
     public init(
@@ -30,7 +38,9 @@ public struct ProviderTokenAccount: Codable, Identifiable, Sendable {
         addedAt: TimeInterval,
         lastUsed: TimeInterval?,
         externalIdentifier: String? = nil,
-        organizationID: String? = nil)
+        usageScope: String? = nil,
+        organizationID: String? = nil,
+        workspaceID: String? = nil)
     {
         self.id = id
         self.label = label
@@ -38,7 +48,9 @@ public struct ProviderTokenAccount: Codable, Identifiable, Sendable {
         self.addedAt = addedAt
         self.lastUsed = lastUsed
         self.externalIdentifier = externalIdentifier
+        self.usageScope = usageScope
         self.organizationID = organizationID
+        self.workspaceID = workspaceID
     }
 
     public var displayName: String {
@@ -49,9 +61,30 @@ public struct ProviderTokenAccount: Codable, Identifiable, Sendable {
         Self.clean(self.organizationID)
     }
 
+    public var sanitizedUsageScope: String? {
+        Self.clean(self.usageScope)
+    }
+
+    public var sanitizedWorkspaceID: String? {
+        Self.clean(self.workspaceID)
+    }
+
     private static func clean(_ raw: String?) -> String? {
         let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines)
         return (trimmed?.isEmpty ?? true) ? nil : trimmed
+    }
+
+    public func sanitizedForDump() -> ProviderTokenAccount {
+        ProviderTokenAccount(
+            id: self.id,
+            label: self.label,
+            token: "[REDACTED]",
+            addedAt: self.addedAt,
+            lastUsed: self.lastUsed,
+            externalIdentifier: self.externalIdentifier,
+            usageScope: self.usageScope,
+            organizationID: self.organizationID,
+            workspaceID: self.workspaceID)
     }
 }
 
@@ -69,6 +102,13 @@ public struct ProviderTokenAccountData: Codable, Sendable {
     public func clampedActiveIndex() -> Int {
         guard !self.accounts.isEmpty else { return 0 }
         return min(max(self.activeIndex, 0), self.accounts.count - 1)
+    }
+
+    public func sanitizedForDump() -> ProviderTokenAccountData {
+        ProviderTokenAccountData(
+            version: self.version,
+            accounts: self.accounts.map { $0.sanitizedForDump() },
+            activeIndex: self.activeIndex)
     }
 }
 

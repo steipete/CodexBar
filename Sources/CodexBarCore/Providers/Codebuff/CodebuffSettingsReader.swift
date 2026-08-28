@@ -13,12 +13,18 @@ public enum CodebuffSettingsReader {
 
     /// Returns the API base URL, defaulting to the production endpoint.
     public static func apiURL(environment: [String: String] = ProcessInfo.processInfo.environment) -> URL {
-        if let override = environment["CODEBUFF_API_URL"],
-           let url = URL(string: cleaned(override) ?? "")
-        {
-            return url
+        if let override = self.validAPIURL(environment: environment) {
+            return override
         }
         return URL(string: "https://www.codebuff.com")!
+    }
+
+    public static func validateEndpointOverrides(
+        environment: [String: String] = ProcessInfo.processInfo.environment) throws
+    {
+        guard let raw = self.cleaned(environment["CODEBUFF_API_URL"]) else { return }
+        guard ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: raw) == nil else { return }
+        throw CodebuffSettingsError.invalidEndpointOverride("CODEBUFF_API_URL")
     }
 
     /// Returns the auth token from the local credentials file if present.
@@ -59,6 +65,11 @@ public enum CodebuffSettingsReader {
 
         value = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return value.isEmpty ? nil : value
+    }
+
+    private static func validAPIURL(environment: [String: String]) -> URL? {
+        guard let raw = self.cleaned(environment["CODEBUFF_API_URL"]) else { return nil }
+        return ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: raw)
     }
 }
 

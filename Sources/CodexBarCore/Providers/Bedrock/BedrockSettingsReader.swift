@@ -12,6 +12,7 @@ public enum BedrockSettingsReader {
     public static let regionKeys = ["AWS_REGION", "AWS_DEFAULT_REGION"]
     public static let budgetKey = "CODEXBAR_BEDROCK_BUDGET"
     public static let apiURLKey = "CODEXBAR_BEDROCK_API_URL"
+    public static let cloudWatchAPIURLKey = "CODEXBAR_BEDROCK_CLOUDWATCH_API_URL"
     public static let profileKey = "AWS_PROFILE"
     public static let authModeKey = "CODEXBAR_BEDROCK_AUTH_MODE"
     public static let defaultRegion = "us-east-1"

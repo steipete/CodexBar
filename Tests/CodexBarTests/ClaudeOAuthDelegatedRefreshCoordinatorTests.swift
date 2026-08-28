@@ -2,6 +2,23 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
+private final class ClaudeDelegatedTouchCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = 0
+
+    func increment() {
+        self.lock.lock()
+        self.value += 1
+        self.lock.unlock()
+    }
+
+    func count() -> Int {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+        return self.value
+    }
+}
+
 @Suite(.serialized)
 struct ClaudeOAuthDelegatedRefreshCoordinatorTests {
     private enum StubError: Error, LocalizedError {
@@ -32,39 +49,47 @@ struct ClaudeOAuthDelegatedRefreshCoordinatorTests {
     private func withCoordinatorOverrides<T>(
         isolateState: Bool = true,
         cliAvailable: Bool? = nil,
+        promptMode: ClaudeOAuthKeychainPromptMode = .always,
+        keychainAccessDisabled: Bool = false,
         touchAuthPath: (@Sendable (TimeInterval, [String: String]) async throws -> Void)? = nil,
         keychainFingerprint: (@Sendable () -> ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprint?)? = nil,
         operation: () async throws -> T) async rethrows -> T
     {
-        if isolateState {
-            return try await ClaudeOAuthDelegatedRefreshCoordinator.withIsolatedStateForTesting {
+        try await KeychainAccessGate.withTaskOverrideForTesting(keychainAccessDisabled) {
+            try await ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(promptMode) {
+                if isolateState {
+                    return try await ClaudeOAuthDelegatedRefreshCoordinator.withIsolatedStateForTesting {
+                        ClaudeOAuthDelegatedRefreshCoordinator.resetForTesting()
+                        defer { ClaudeOAuthDelegatedRefreshCoordinator.resetForTesting() }
+                        return try await ClaudeOAuthDelegatedRefreshCoordinator
+                            .withKeychainFingerprintOverrideForTesting(
+                                keychainFingerprint)
+                            {
+                                try await ClaudeOAuthDelegatedRefreshCoordinator.withCLIAvailableOverrideForTesting(
+                                    cliAvailable)
+                                {
+                                    try await ClaudeOAuthDelegatedRefreshCoordinator
+                                        .withTouchAuthPathOverrideForTesting(
+                                            touchAuthPath)
+                                        {
+                                            try await operation()
+                                        }
+                                }
+                            }
+                    }
+                }
                 ClaudeOAuthDelegatedRefreshCoordinator.resetForTesting()
                 defer { ClaudeOAuthDelegatedRefreshCoordinator.resetForTesting() }
                 return try await ClaudeOAuthDelegatedRefreshCoordinator.withKeychainFingerprintOverrideForTesting(
                     keychainFingerprint)
                 {
-                    try await ClaudeOAuthDelegatedRefreshCoordinator.withCLIAvailableOverrideForTesting(
-                        cliAvailable)
-                    {
+                    try await ClaudeOAuthDelegatedRefreshCoordinator.withCLIAvailableOverrideForTesting(cliAvailable) {
                         try await ClaudeOAuthDelegatedRefreshCoordinator.withTouchAuthPathOverrideForTesting(
                             touchAuthPath)
                         {
                             try await operation()
                         }
                     }
-                }
-            }
-        }
-        ClaudeOAuthDelegatedRefreshCoordinator.resetForTesting()
-        defer { ClaudeOAuthDelegatedRefreshCoordinator.resetForTesting() }
-        return try await ClaudeOAuthDelegatedRefreshCoordinator.withKeychainFingerprintOverrideForTesting(
-            keychainFingerprint)
-        {
-            try await ClaudeOAuthDelegatedRefreshCoordinator.withCLIAvailableOverrideForTesting(cliAvailable) {
-                try await ClaudeOAuthDelegatedRefreshCoordinator.withTouchAuthPathOverrideForTesting(
-                    touchAuthPath)
-                {
-                    try await operation()
                 }
             }
         }
@@ -122,6 +147,81 @@ struct ClaudeOAuthDelegatedRefreshCoordinatorTests {
         })
 
         #expect(outcome == .cliUnavailable)
+    }
+
+    @Test(arguments: [
+        (ClaudeOAuthKeychainPromptMode.onlyOnUserAction, false),
+        (ClaudeOAuthKeychainPromptMode.never, false),
+        (ClaudeOAuthKeychainPromptMode.always, true),
+    ])
+    func `background refresh never launches delegated Claude CLI without Keychain opt in`(
+        promptMode: ClaudeOAuthKeychainPromptMode,
+        keychainAccessDisabled: Bool) async
+    {
+        let touches = ClaudeDelegatedTouchCounter()
+        let outcome = await self.withCoordinatorOverrides(
+            cliAvailable: true,
+            promptMode: promptMode,
+            keychainAccessDisabled: keychainAccessDisabled,
+            touchAuthPath: { _, _ in touches.increment() },
+            operation: {
+                await ProviderInteractionContext.$current.withValue(.background) {
+                    await ClaudeOAuthDelegatedRefreshCoordinator.attempt(
+                        now: Date(timeIntervalSince1970: 20001),
+                        timeout: 0.1)
+                }
+            })
+
+        #expect(outcome == .skippedByPromptPolicy)
+        #expect(touches.count() == 0)
+    }
+
+    @Test
+    func `opaque delegated CLI honors stored prompt mode when read strategy effective mode differs`() async {
+        let touches = ClaudeDelegatedTouchCounter()
+        let backgroundOutcome = await ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
+            .securityCLIExperimental)
+        {
+            #expect(ClaudeOAuthKeychainPromptPreference.effectiveMode() == .always)
+            return await self.withCoordinatorOverrides(
+                cliAvailable: true,
+                promptMode: .onlyOnUserAction,
+                touchAuthPath: { _, _ in touches.increment() },
+                operation: {
+                    await ProviderInteractionContext.$current.withValue(.background) {
+                        await ClaudeOAuthDelegatedRefreshCoordinator.attempt(
+                            now: Date(timeIntervalSince1970: 20002),
+                            timeout: 0.1)
+                    }
+                })
+        }
+
+        #expect(backgroundOutcome == .skippedByPromptPolicy)
+        #expect(touches.count() == 0)
+
+        let userOutcome = await ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
+            .securityCLIExperimental)
+        {
+            await self.withCoordinatorOverrides(
+                cliAvailable: true,
+                promptMode: .onlyOnUserAction,
+                touchAuthPath: { _, _ in touches.increment() },
+                operation: {
+                    await ClaudeOAuthCredentialsStore.withSecurityCLIReadOverrideForTesting(.data(Data("stub".utf8))) {
+                        await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                            await ClaudeOAuthDelegatedRefreshCoordinator.attempt(
+                                now: Date(timeIntervalSince1970: 20003),
+                                timeout: 0.1)
+                        }
+                    }
+                })
+        }
+
+        guard case .attemptedFailed = userOutcome else {
+            Issue.record("Expected explicit user refresh to launch the delegated CLI")
+            return
+        }
+        #expect(touches.count() == 1)
     }
 
     @Test
@@ -335,6 +435,136 @@ struct ClaudeOAuthDelegatedRefreshCoordinatorTests {
     }
 
     @Test
+    func `user action retries after joining failed background attempt`() async throws {
+        ClaudeOAuthDelegatedRefreshCoordinator.resetForTesting()
+        defer { ClaudeOAuthDelegatedRefreshCoordinator.resetForTesting() }
+
+        actor Gate {
+            private var releaseContinuation: CheckedContinuation<Void, Never>?
+            private var startedContinuation: CheckedContinuation<Void, Never>?
+            private var joinedContinuation: CheckedContinuation<Void, Never>?
+            private var hasStarted = false
+            private var isReleased = false
+            private var hasJoined = false
+
+            func markStarted() {
+                self.hasStarted = true
+                self.startedContinuation?.resume()
+                self.startedContinuation = nil
+            }
+
+            func waitStarted() async {
+                if self.hasStarted { return }
+                await withCheckedContinuation { self.startedContinuation = $0 }
+            }
+
+            func release() {
+                self.isReleased = true
+                self.releaseContinuation?.resume()
+                self.releaseContinuation = nil
+            }
+
+            func waitRelease() async {
+                if self.isReleased { return }
+                await withCheckedContinuation { self.releaseContinuation = $0 }
+            }
+
+            func markJoined() {
+                self.hasJoined = true
+                self.joinedContinuation?.resume()
+                self.joinedContinuation = nil
+            }
+
+            func waitJoined() async {
+                if self.hasJoined { return }
+                await withCheckedContinuation { self.joinedContinuation = $0 }
+            }
+        }
+
+        final class StateBox: @unchecked Sendable {
+            private let lock = NSLock()
+            private var touchCount = 0
+            private var fingerprint = ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprint(
+                modifiedAt: 1,
+                createdAt: 1,
+                persistentRefHash: "before")
+
+            func beginTouch() -> Int {
+                self.lock.lock()
+                defer { self.lock.unlock() }
+                self.touchCount += 1
+                return self.touchCount
+            }
+
+            func markChanged() {
+                self.lock.lock()
+                self.fingerprint = ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprint(
+                    modifiedAt: 2,
+                    createdAt: 2,
+                    persistentRefHash: "after")
+                self.lock.unlock()
+            }
+
+            func snapshot() -> (Int, ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprint) {
+                self.lock.lock()
+                defer { self.lock.unlock() }
+                return (self.touchCount, self.fingerprint)
+            }
+        }
+
+        let gate = Gate()
+        let state = StateBox()
+        let outcomes = try await KeychainAccessGate.withTaskOverrideForTesting(false) {
+            try await ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(.securityFramework) {
+                try await self.withCoordinatorOverrides(
+                    isolateState: false,
+                    cliAvailable: true,
+                    touchAuthPath: { _, _ in
+                        if state.beginTouch() == 1 {
+                            await gate.markStarted()
+                            await gate.waitRelease()
+                            throw StubError.failed
+                        }
+                        state.markChanged()
+                    },
+                    keychainFingerprint: { state.snapshot().1 },
+                    operation: {
+                        await ClaudeOAuthDelegatedRefreshCoordinator
+                            .withUserInitiatedBackgroundJoinObserverForTesting {
+                                Task { await gate.markJoined() }
+                            } operation: {
+                                let background = Task {
+                                    await ProviderInteractionContext.$current.withValue(.background) {
+                                        await ClaudeOAuthDelegatedRefreshCoordinator.attempt(
+                                            now: Date(timeIntervalSince1970: 51000),
+                                            timeout: 2)
+                                    }
+                                }
+                                await gate.waitStarted()
+                                let userInitiated = Task {
+                                    await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                                        await ClaudeOAuthDelegatedRefreshCoordinator.attempt(
+                                            now: Date(timeIntervalSince1970: 51001),
+                                            timeout: 2)
+                                    }
+                                }
+                                await gate.waitJoined()
+                                await gate.release()
+                                return await (background.value, userInitiated.value)
+                            }
+                    })
+            }
+        }
+
+        guard case .attemptedFailed = outcomes.0 else {
+            Issue.record("Expected the background attempt to fail")
+            return
+        }
+        #expect(outcomes.1 == .attemptedSucceeded)
+        #expect(state.snapshot().0 == 2)
+    }
+
+    @Test
     func `experimental strategy does not use security framework fingerprint observation`() async {
         ClaudeOAuthDelegatedRefreshCoordinator.resetForTesting()
         defer { ClaudeOAuthDelegatedRefreshCoordinator.resetForTesting() }
@@ -440,12 +670,15 @@ struct ClaudeOAuthDelegatedRefreshCoordinatorTests {
                     },
                     operation: {
                         await ClaudeOAuthCredentialsStore.withSecurityCLIReadOverrideForTesting(
-                            .dynamic { _ in dataBox.load() })
-                        {
-                            await ClaudeOAuthDelegatedRefreshCoordinator.attempt(
-                                now: Date(timeIntervalSince1970: 61000),
-                                timeout: 0.1)
-                        }
+                            .dynamic { _ in
+                                #expect(
+                                    ClaudeOAuthKeychainPromptPreference.currentTaskOverrideForTesting == .always)
+                                return dataBox.load()
+                            }) {
+                                await ClaudeOAuthDelegatedRefreshCoordinator.attempt(
+                                    now: Date(timeIntervalSince1970: 61000),
+                                    timeout: 0.1)
+                            }
                     })
 
                 #expect(outcome == .attemptedSucceeded)
@@ -563,11 +796,78 @@ struct ClaudeOAuthDelegatedRefreshCoordinatorTests {
                     }
                 })
 
-            guard case .attemptedFailed = outcome else {
-                Issue.record("Expected .attemptedFailed outcome")
-                return
-            }
+            #expect(outcome == .skippedByPromptPolicy)
             #expect(securityReadCounter.count < 1)
+        }
+    }
+
+    @Test
+    func `experimental strategy blocks background mcp O auth but lets user action retry`() async {
+        ClaudeOAuthDelegatedRefreshCoordinator.resetForTesting()
+        defer { ClaudeOAuthDelegatedRefreshCoordinator.resetForTesting() }
+        await KeychainAccessGate.withTaskOverrideForTesting(false) {
+            await ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
+                .securityCLIExperimental)
+            {
+                final class StateBox: @unchecked Sendable {
+                    private let lock = NSLock()
+                    private var touchCount = 0
+
+                    func touch() {
+                        self.lock.lock()
+                        self.touchCount += 1
+                        self.lock.unlock()
+                    }
+
+                    func count() -> Int {
+                        self.lock.lock()
+                        defer { self.lock.unlock() }
+                        return self.touchCount
+                    }
+                }
+
+                let state = StateBox()
+                let mcpOAuthOnly = Data("""
+                {
+                  "mcpOAuth": {
+                    "plugin:slack:slack": { "accessToken": "" }
+                  }
+                }
+                """.utf8)
+                let refreshedCredentials = self.makeCredentialsData(
+                    accessToken: "refreshed-after-user-action",
+                    expiresAt: Date(timeIntervalSinceNow: 3600))
+                let outcomes = await self.withCoordinatorOverrides(
+                    cliAvailable: true,
+                    touchAuthPath: { _, _ in state.touch() },
+                    operation: {
+                        await ClaudeOAuthCredentialsStore.withSecurityCLIReadOverrideForTesting(.dynamic { _ in
+                            state.count() > 0 ? refreshedCredentials : mcpOAuthOnly
+                        }) {
+                            let background = await ProviderInteractionContext.$current.withValue(.background) {
+                                await ClaudeOAuthDelegatedRefreshCoordinator.attempt(
+                                    now: Date(timeIntervalSince1970: 63000),
+                                    timeout: 0.1)
+                            }
+                            let backgroundTouchCount = state.count()
+                            let userInitiated = await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                                await ClaudeOAuthDelegatedRefreshCoordinator.attempt(
+                                    now: Date(timeIntervalSince1970: 63001),
+                                    timeout: 0.1)
+                            }
+                            return (background, backgroundTouchCount, userInitiated)
+                        }
+                    })
+
+                guard case let .attemptedFailed(message) = outcomes.0 else {
+                    Issue.record("Expected background .attemptedFailed outcome")
+                    return
+                }
+                #expect(message.contains("MCP OAuth"))
+                #expect(outcomes.1 == 0)
+                #expect(outcomes.2 == .attemptedSucceeded)
+                #expect(state.count() == 1)
+            }
         }
     }
 }

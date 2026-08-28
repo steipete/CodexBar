@@ -1,9 +1,8 @@
-import CodexBarMacroSupport
 import Foundation
 
-@ProviderDescriptorRegistration
-@ProviderDescriptorDefinition
 public enum KiroProviderDescriptor {
+    public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .kiro,
@@ -19,18 +18,27 @@ public enum KiroProviderDescriptor {
                 toggleTitle: "Show Kiro usage",
                 cliName: "kiro",
                 defaultEnabled: false,
+                widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
+                debugLogUnavailableMessage: "Kiro debug log not yet implemented",
                 dashboardURL: "https://app.kiro.dev/account/usage",
                 statusPageURL: nil,
                 statusLinkURL: "https://health.aws.amazon.com/health/status"),
             branding: ProviderBranding(
-                iconStyle: .kiro,
+                iconStyle: .init(provider: .kiro),
                 iconResourceName: "ProviderIcon-kiro",
-                color: ProviderColor(red: 255 / 255, green: 153 / 255, blue: 0 / 255)),
+                color: ProviderColor(red: 255 / 255, green: 153 / 255, blue: 0 / 255),
+                confettiPalette: [
+                    ProviderColor(hex: 0x8F4AFF),
+                    ProviderColor(hex: 0xCAA9FF),
+                    ProviderColor(hex: 0x2B2B2B),
+                ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Kiro cost summary is not supported." }),
+            presentation: ProviderUsagePresentation(menuCard: ProviderMenuCardPresentation(
+                primaryDetailKind: .kiroCredits)),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .cli],
                 pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [KiroCLIFetchStrategy()] })),

@@ -10,32 +10,11 @@ extension UsageMenuCardView.Model {
         {
             notes.append("\(L("Auth")): \(authMethod)")
         }
-        if let overages = input.snapshot?.kiroUsage?.overagesStatus?
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-            !overages.isEmpty
-        {
-            notes.append("\(L("Overages")): \(overages)")
-        }
-        let overagesEnabled = input.snapshot?.kiroUsage?.overagesStatus?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-            .hasPrefix("enabled") == true
-        if overagesEnabled,
-           let overageCreditsUsed = input.snapshot?.kiroUsage?.overageCreditsUsed
-        {
-            notes.append(
-                "\(L("Overage usage")): \(UsageFormatter.kiroCreditNumber(overageCreditsUsed)) \(L("credits"))")
-        }
-        if overagesEnabled,
-           let estimatedOverageCostUSD = input.snapshot?.kiroUsage?.estimatedOverageCostUSD
-        {
-            notes.append("\(L("Overage cost")): \(UsageFormatter.usdString(estimatedOverageCostUSD))")
-        }
         return notes
     }
 
     static func kiroPlan(snapshot: UsageSnapshot?) -> String? {
-        guard let plan = snapshot?.kiroUsage?.displayPlanName,
+        guard let plan = snapshot?.detailRow(label: "Plan")?.value,
               !plan.isEmpty
         else { return nil }
         return plan

@@ -24,7 +24,11 @@ public enum MiniMaxCookieHeader {
         #"(?i)(?:--cookie|-b)\s*([^\s]+)"#,
     ]
     private static let authorizationPattern = #"(?i)\bauthorization:\s*bearer\s+([A-Za-z0-9._\-+=/]+)"#
-    private static let groupIDPattern = #"(?i)\bgroup[_]?id=([0-9]{4,})"#
+    private static let groupIDPatterns = [
+        #"(?i)\bx-group-id:\s*([0-9]{4,})"#,
+        #"(?i)\bminimax_group_id_v2=([0-9]{4,})"#,
+        #"(?i)\bgroup[_]?id=([0-9]{4,})"#,
+    ]
 
     public static func override(from raw: String?) -> MiniMaxCookieOverride? {
         guard let raw = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -34,7 +38,7 @@ public enum MiniMaxCookieHeader {
         }
         guard let cookie = self.normalized(from: raw) else { return nil }
         let authorizationToken = self.extractFirst(pattern: self.authorizationPattern, text: raw)
-        let groupID = self.extractFirst(pattern: self.groupIDPattern, text: raw)
+        let groupID = self.extractFirst(patterns: self.groupIDPatterns, text: raw)
         return MiniMaxCookieOverride(
             cookieHeader: cookie,
             authorizationToken: authorizationToken,
@@ -101,5 +105,14 @@ public enum MiniMaxCookieHeader {
         }
         let value = text[captureRange].trimmingCharacters(in: .whitespacesAndNewlines)
         return value.isEmpty ? nil : String(value)
+    }
+
+    private static func extractFirst(patterns: [String], text: String) -> String? {
+        for pattern in patterns {
+            if let value = self.extractFirst(pattern: pattern, text: text) {
+                return value
+            }
+        }
+        return nil
     }
 }

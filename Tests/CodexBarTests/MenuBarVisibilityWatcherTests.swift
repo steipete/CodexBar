@@ -111,6 +111,42 @@ struct MenuBarVisibilityWatcherTests {
     }
 
     @Test
+    func `window probe identifies Tahoe Control Center blocked proxy geometry`() {
+        let snapshot = MenuBarStatusItemWindowSnapshot(
+            name: "codexbar-merged",
+            ownerName: "Control Center",
+            bounds: CGRect(x: 0, y: -22, width: 76, height: 22),
+            isOnscreen: true,
+            displayBounds: nil)
+
+        #expect(snapshot.isTahoeBlockedProxy)
+    }
+
+    @Test
+    func `window probe does not classify generic offscreen manager placement as Tahoe proxy`() {
+        let snapshot = MenuBarStatusItemWindowSnapshot(
+            name: "codexbar-merged",
+            ownerName: "Control Center",
+            bounds: CGRect(x: 2023, y: 0, width: 71, height: 24),
+            isOnscreen: true,
+            displayBounds: nil)
+
+        #expect(!snapshot.isTahoeBlockedProxy)
+    }
+
+    @Test
+    func `window probe does not classify stale hidden Control Center record as Tahoe proxy`() {
+        let snapshot = MenuBarStatusItemWindowSnapshot(
+            name: "codexbar-merged",
+            ownerName: "Control Center",
+            bounds: CGRect(x: 0, y: -22, width: 76, height: 22),
+            isOnscreen: false,
+            displayBounds: nil)
+
+        #expect(!snapshot.isTahoeBlockedProxy)
+    }
+
+    @Test
     func `allows visible item attached to a detached screen`() {
         let snapshot = StatusItemVisibilitySnapshot(
             isVisible: true,
@@ -183,6 +219,207 @@ struct MenuBarVisibilityWatcherTests {
             appLaunchedAt: launchedAt,
             now: launchedAt.addingTimeInterval(2),
             snapshots: [blocked]))
+    }
+
+    @Test
+    func `startup recovery retries detached Tahoe proxy corroborated by Control Center geometry`() {
+        let launchedAt = Date(timeIntervalSince1970: 1000)
+        let detachedProxy = StatusItemVisibilitySnapshot(
+            isVisible: true,
+            hasButton: true,
+            hasWindow: true,
+            hasScreen: false,
+            isOnCurrentScreen: false,
+            buttonWidth: 76)
+        let blockedWindow = MenuBarStatusItemWindowSnapshot(
+            name: "codexbar-merged",
+            ownerName: "Control Center",
+            bounds: CGRect(x: 0, y: -22, width: 76, height: 22),
+            isOnscreen: true,
+            displayBounds: nil)
+
+        #expect(!MenuBarVisibilityWatcher.isBlockedSnapshot(snapshot: detachedProxy))
+        #expect(MenuBarVisibilityWatcher.shouldAttemptStartupRecovery(
+            appLaunchedAt: launchedAt,
+            now: launchedAt.addingTimeInterval(2),
+            snapshots: [detachedProxy],
+            windowSnapshots: [blockedWindow],
+            detectTahoeBlockedStatusItem: true))
+    }
+
+    @Test
+    func `startup recovery retries expected hidden Tahoe item with enabled default and no window`() {
+        let launchedAt = Date(timeIntervalSince1970: 1000)
+        let hidden = StatusItemVisibilitySnapshot(
+            isVisible: false,
+            hasButton: true,
+            hasWindow: false,
+            hasScreen: false,
+            buttonWidth: 76)
+        let evidence = StatusItemStartupVisibilityEvidence(
+            autosaveName: "codexbar-merged",
+            expectsVisibility: true,
+            visibilityDefault: true,
+            snapshot: hidden)
+
+        #expect(MenuBarVisibilityWatcher.shouldAttemptStartupRecovery(
+            appLaunchedAt: launchedAt,
+            now: launchedAt.addingTimeInterval(2),
+            snapshots: [hidden],
+            evidence: [evidence],
+            detectTahoeBlockedStatusItem: true))
+    }
+
+    @Test
+    func `startup recovery ignores hidden Tahoe item without app and defaults visibility agreement`() {
+        let launchedAt = Date(timeIntervalSince1970: 1000)
+        let hidden = StatusItemVisibilitySnapshot(
+            isVisible: false,
+            hasButton: true,
+            hasWindow: false,
+            hasScreen: false,
+            buttonWidth: 76)
+        let intentionallyHidden = StatusItemStartupVisibilityEvidence(
+            autosaveName: "codexbar-merged",
+            expectsVisibility: false,
+            visibilityDefault: true,
+            snapshot: hidden)
+        let disabledByUser = StatusItemStartupVisibilityEvidence(
+            autosaveName: "codexbar-merged",
+            expectsVisibility: true,
+            visibilityDefault: false,
+            snapshot: hidden)
+        let unknownDefault = StatusItemStartupVisibilityEvidence(
+            autosaveName: "codexbar-merged",
+            expectsVisibility: true,
+            visibilityDefault: nil,
+            snapshot: hidden)
+
+        for evidence in [intentionallyHidden, disabledByUser, unknownDefault] {
+            #expect(!MenuBarVisibilityWatcher.shouldAttemptStartupRecovery(
+                appLaunchedAt: launchedAt,
+                now: launchedAt.addingTimeInterval(2),
+                snapshots: [hidden],
+                evidence: [evidence],
+                detectTahoeBlockedStatusItem: true))
+        }
+    }
+
+    @Test
+    func `startup recovery ignores hidden item when matching window still exists`() {
+        let launchedAt = Date(timeIntervalSince1970: 1000)
+        let hidden = StatusItemVisibilitySnapshot(
+            isVisible: false,
+            hasButton: true,
+            hasWindow: false,
+            hasScreen: false,
+            buttonWidth: 76)
+        let evidence = StatusItemStartupVisibilityEvidence(
+            autosaveName: "codexbar-merged",
+            expectsVisibility: true,
+            visibilityDefault: true,
+            snapshot: hidden)
+        let existingWindow = MenuBarStatusItemWindowSnapshot(
+            name: "codexbar-merged",
+            ownerName: "Control Center",
+            bounds: CGRect(x: 1500, y: 0, width: 76, height: 24),
+            isOnscreen: true,
+            displayBounds: CGRect(x: 0, y: 0, width: 2056, height: 1329))
+
+        #expect(!MenuBarVisibilityWatcher.shouldAttemptStartupRecovery(
+            appLaunchedAt: launchedAt,
+            now: launchedAt.addingTimeInterval(2),
+            snapshots: [hidden],
+            evidence: [evidence],
+            windowSnapshots: [existingWindow],
+            detectTahoeBlockedStatusItem: true))
+    }
+
+    @Test
+    func `startup recovery ignores stale hidden matching window record`() {
+        let launchedAt = Date(timeIntervalSince1970: 1000)
+        let hidden = StatusItemVisibilitySnapshot(
+            isVisible: false,
+            hasButton: true,
+            hasWindow: false,
+            hasScreen: false,
+            buttonWidth: 76)
+        let evidence = StatusItemStartupVisibilityEvidence(
+            autosaveName: "codexbar-merged",
+            expectsVisibility: true,
+            visibilityDefault: true,
+            snapshot: hidden)
+        let staleWindow = MenuBarStatusItemWindowSnapshot(
+            name: "codexbar-merged",
+            ownerName: "Control Center",
+            bounds: CGRect(x: 1500, y: 0, width: 76, height: 24),
+            isOnscreen: false,
+            displayBounds: CGRect(x: 0, y: 0, width: 2056, height: 1329))
+
+        #expect(MenuBarVisibilityWatcher.shouldAttemptStartupRecovery(
+            appLaunchedAt: launchedAt,
+            now: launchedAt.addingTimeInterval(2),
+            snapshots: [hidden],
+            evidence: [evidence],
+            windowSnapshots: [staleWindow],
+            detectTahoeBlockedStatusItem: true))
+    }
+
+    @Test
+    func `startup recovery keeps hidden no-window detection Tahoe only`() {
+        let launchedAt = Date(timeIntervalSince1970: 1000)
+        let hidden = StatusItemVisibilitySnapshot(
+            isVisible: false,
+            hasButton: true,
+            hasWindow: false,
+            hasScreen: false,
+            buttonWidth: 76)
+        let evidence = StatusItemStartupVisibilityEvidence(
+            autosaveName: "codexbar-merged",
+            expectsVisibility: true,
+            visibilityDefault: true,
+            snapshot: hidden)
+
+        #expect(!MenuBarVisibilityWatcher.shouldAttemptStartupRecovery(
+            appLaunchedAt: launchedAt,
+            now: launchedAt.addingTimeInterval(2),
+            snapshots: [hidden],
+            evidence: [evidence]))
+    }
+
+    @Test
+    func `startup recovery ignores detached live item without Tahoe proxy corroboration`() {
+        let launchedAt = Date(timeIntervalSince1970: 1000)
+        let managed = StatusItemVisibilitySnapshot(
+            isVisible: true,
+            hasButton: true,
+            hasWindow: true,
+            hasScreen: false,
+            isOnCurrentScreen: false,
+            buttonWidth: 18)
+
+        #expect(!MenuBarVisibilityWatcher.shouldAttemptStartupRecovery(
+            appLaunchedAt: launchedAt,
+            now: launchedAt.addingTimeInterval(2),
+            snapshots: [managed],
+            detectTahoeBlockedStatusItem: true))
+    }
+
+    @Test
+    func `startup recovery ignores live item attached to a stale screen`() {
+        let launchedAt = Date(timeIntervalSince1970: 1000)
+        let managed = StatusItemVisibilitySnapshot(
+            isVisible: true,
+            hasButton: true,
+            hasWindow: true,
+            hasScreen: true,
+            isOnCurrentScreen: false,
+            buttonWidth: 18)
+
+        #expect(!MenuBarVisibilityWatcher.shouldAttemptStartupRecovery(
+            appLaunchedAt: launchedAt,
+            now: launchedAt.addingTimeInterval(2),
+            snapshots: [managed]))
     }
 
     @Test

@@ -1,7 +1,9 @@
 import Foundation
-import SweetCookieKit
-
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 #if os(macOS)
+import SweetCookieKit
 
 private let factoryCookieImportOrder: BrowserCookieImportOrder =
     ProviderDefaults.metadata[.factory]?.browserCookieOrder ?? Browser.defaultImportOrder
@@ -132,6 +134,8 @@ public enum FactoryCookieImporter {
         return names.joined(separator: ", ")
     }
 }
+
+#endif
 
 // MARK: - Factory API Models
 
@@ -585,203 +589,6 @@ public struct FactoryStatusSnapshot: Sendable {
     }
 }
 
-// MARK: - Factory Status Probe Error
-
-public enum FactoryStatusProbeError: LocalizedError, Sendable {
-    case notLoggedIn
-    case networkError(String)
-    case parseFailed(String)
-    case noSessionCookie
-
-    public var errorDescription: String? {
-        switch self {
-        case .notLoggedIn:
-            "No usable Droid session found. Log in to app.factory.ai in \(factoryCookieImportOrder.loginHint), " +
-                "then refresh Droid."
-        case let .networkError(msg):
-            "Factory API error: \(msg)"
-        case let .parseFailed(msg):
-            "Could not parse Factory usage: \(msg)"
-        case .noSessionCookie:
-            "No Factory session found. Please log in to app.factory.ai in \(factoryCookieImportOrder.loginHint)."
-        }
-    }
-}
-
-// MARK: - Factory Session Store
-
-public actor FactorySessionStore {
-    public static let shared = FactorySessionStore()
-
-    private var sessionCookies: [HTTPCookie] = []
-    private var bearerToken: String?
-    private var refreshToken: String?
-    private var fileURL: URL
-    private var didLoadFromDisk = false
-
-    private init() {
-        let fm = FileManager.default
-        let appSupport = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? fm.temporaryDirectory
-        let dir = appSupport.appendingPathComponent("CodexBar", isDirectory: true)
-        try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
-        self.fileURL = dir.appendingPathComponent("factory-session.json")
-    }
-
-    public func setCookies(_ cookies: [HTTPCookie]) {
-        self.didLoadFromDisk = true
-        self.sessionCookies = cookies
-        self.saveToDisk()
-    }
-
-    public func getCookies() -> [HTTPCookie] {
-        self.loadFromDiskIfNeeded()
-        return self.sessionCookies
-    }
-
-    public func clearCookies() {
-        self.loadFromDiskIfNeeded()
-        self.didLoadFromDisk = true
-        self.sessionCookies = []
-        self.saveToDisk()
-    }
-
-    public func setBearerToken(_ token: String?) {
-        self.didLoadFromDisk = true
-        self.bearerToken = token
-        self.saveToDisk()
-    }
-
-    public func getBearerToken() -> String? {
-        self.loadFromDiskIfNeeded()
-        return self.bearerToken
-    }
-
-    public func setRefreshToken(_ token: String?) {
-        self.didLoadFromDisk = true
-        self.refreshToken = token
-        self.saveToDisk()
-    }
-
-    public func getRefreshToken() -> String? {
-        self.loadFromDiskIfNeeded()
-        return self.refreshToken
-    }
-
-    public func clearSession() {
-        self.didLoadFromDisk = true
-        self.sessionCookies = []
-        self.bearerToken = nil
-        self.refreshToken = nil
-        try? FileManager.default.removeItem(at: self.fileURL)
-    }
-
-    public func hasValidSession() -> Bool {
-        self.loadFromDiskIfNeeded()
-        return !self.sessionCookies.isEmpty || self.bearerToken != nil || self.refreshToken != nil
-    }
-
-    func resetInMemoryForTesting() {
-        self.sessionCookies = []
-        self.bearerToken = nil
-        self.refreshToken = nil
-        self.didLoadFromDisk = false
-    }
-
-    func useFileURLForTesting(_ fileURL: URL) {
-        self.fileURL = fileURL
-        self.sessionCookies = []
-        self.bearerToken = nil
-        self.refreshToken = nil
-        self.didLoadFromDisk = false
-        try? FileManager.default.removeItem(at: fileURL)
-    }
-
-    private func saveToDisk() {
-        let cookieData = self.sessionCookies.compactMap { cookie -> [String: Any]? in
-            guard let props = cookie.properties else { return nil }
-            var serializable: [String: Any] = [:]
-            for (key, value) in props {
-                let keyString = key.rawValue
-                if let date = value as? Date {
-                    serializable[keyString] = date.timeIntervalSince1970
-                    serializable[keyString + "_isDate"] = true
-                } else if let url = value as? URL {
-                    serializable[keyString] = url.absoluteString
-                    serializable[keyString + "_isURL"] = true
-                } else if JSONSerialization.isValidJSONObject([value]) ||
-                    value is String ||
-                    value is Bool ||
-                    value is NSNumber
-                {
-                    serializable[keyString] = value
-                }
-            }
-            return serializable
-        }
-
-        var payload: [String: Any] = [:]
-        if !cookieData.isEmpty {
-            payload["cookies"] = cookieData
-        }
-        if let bearerToken {
-            payload["bearerToken"] = bearerToken
-        }
-        if let refreshToken {
-            payload["refreshToken"] = refreshToken
-        }
-
-        guard !payload.isEmpty,
-              let data = try? JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted])
-        else {
-            try? FileManager.default.removeItem(at: self.fileURL)
-            return
-        }
-        try? data.write(to: self.fileURL)
-    }
-
-    private func loadFromDisk() {
-        guard let data = try? Data(contentsOf: self.fileURL),
-              let json = try? JSONSerialization.jsonObject(with: data)
-        else { return }
-
-        var cookieArray: [[String: Any]] = []
-        if let dict = json as? [String: Any] {
-            if let stored = dict["cookies"] as? [[String: Any]] {
-                cookieArray = stored
-            }
-            self.bearerToken = dict["bearerToken"] as? String
-            self.refreshToken = dict["refreshToken"] as? String
-        } else if let stored = json as? [[String: Any]] {
-            cookieArray = stored
-        }
-
-        self.sessionCookies = cookieArray.compactMap { props in
-            var cookieProps: [HTTPCookiePropertyKey: Any] = [:]
-            for (key, value) in props {
-                if key.hasSuffix("_isDate") || key.hasSuffix("_isURL") { continue }
-
-                let propKey = HTTPCookiePropertyKey(key)
-
-                if props[key + "_isDate"] as? Bool == true, let interval = value as? TimeInterval {
-                    cookieProps[propKey] = Date(timeIntervalSince1970: interval)
-                } else if props[key + "_isURL"] as? Bool == true, let urlString = value as? String {
-                    cookieProps[propKey] = URL(string: urlString)
-                } else {
-                    cookieProps[propKey] = value
-                }
-            }
-            return HTTPCookie(properties: cookieProps)
-        }
-    }
-
-    private func loadFromDiskIfNeeded() {
-        guard !self.didLoadFromDisk else { return }
-        self.didLoadFromDisk = true
-        self.loadFromDisk()
-    }
-}
-
 // MARK: - Factory Status Probe
 
 public struct FactoryStatusProbe: Sendable {
@@ -835,6 +642,7 @@ public struct FactoryStatusProbe: Sendable {
         cookieHeaderOverride: String? = nil,
         logger: ((String) -> Void)? = nil) async throws -> FactoryStatusSnapshot
     {
+        #if os(macOS)
         let log: (String) -> Void = { msg in logger?("[factory] \(msg)") }
         var lastError: Error?
 
@@ -914,8 +722,14 @@ public struct FactoryStatusProbe: Sendable {
 
         if let lastError { throw lastError }
         throw FactoryStatusProbeError.noSessionCookie
+        #else
+        _ = cookieHeaderOverride
+        _ = logger
+        throw FactoryStatusProbeError.notSupported
+        #endif
     }
 
+    #if os(macOS)
     private enum FetchAttemptResult {
         case success(FactoryStatusSnapshot)
         case failure(Error)
@@ -1209,7 +1023,9 @@ public struct FactoryStatusProbe: Sendable {
         cookies.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
     }
 
-    private func fetchWithCookieHeader(
+    #endif
+
+    func fetchWithCookieHeader(
         _ cookieHeader: String,
         bearerToken: String?,
         baseURL: URL) async throws -> FactoryStatusSnapshot
@@ -1398,6 +1214,7 @@ public struct FactoryStatusProbe: Sendable {
         }
     }
 
+    #if os(macOS)
     private static func baseURLCandidates(default baseURL: URL, cookies: [HTTPCookie]) -> [URL] {
         let cookieDomains = Set(
             cookies.map {
@@ -1436,29 +1253,6 @@ public struct FactoryStatusProbe: Sendable {
             return legacySession
         }
         return accessToken ?? sessionToken
-    }
-
-    private func fetchWithBearerToken(
-        _ bearerToken: String,
-        logger: (String) -> Void) async throws -> FactoryStatusSnapshot
-    {
-        let candidates = [Self.apiBaseURL, self.baseURL]
-        var lastError: Error?
-        for baseURL in candidates {
-            if baseURL != Self.apiBaseURL {
-                logger("Trying Factory bearer base URL: \(baseURL.host ?? baseURL.absoluteString)")
-            }
-            do {
-                return try await self.fetchWithCookieHeader(
-                    "",
-                    bearerToken: bearerToken,
-                    baseURL: baseURL)
-            } catch {
-                lastError = error
-            }
-        }
-        if let lastError { throw lastError }
-        throw FactoryStatusProbeError.notLoggedIn
     }
 
     private func fetchWorkOSAccessToken(
@@ -1609,6 +1403,8 @@ public struct FactoryStatusProbe: Sendable {
         return description.localizedCaseInsensitiveContains("missing refresh token")
     }
 
+    #endif
+
     private func buildSnapshot(
         authInfo: FactoryAuthResponse,
         usageData: FactoryUsageResponse,
@@ -1687,53 +1483,3 @@ private func factoryNormalizedString(_ value: String?) -> String? {
     }
     return value
 }
-
-#else
-
-// MARK: - Factory (Unsupported)
-
-public enum FactoryStatusProbeError: LocalizedError, Sendable {
-    case notSupported
-
-    public var errorDescription: String? {
-        "Factory is only supported on macOS."
-    }
-}
-
-public struct FactoryStatusSnapshot: Sendable {
-    public init() {}
-
-    public func toUsageSnapshot() -> UsageSnapshot {
-        UsageSnapshot(
-            primary: RateWindow(usedPercent: 0, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
-            secondary: nil,
-            tertiary: nil,
-            providerCost: nil,
-            updatedAt: Date(),
-            identity: nil)
-    }
-}
-
-public struct FactoryStatusProbe: Sendable {
-    public init(
-        baseURL: URL = URL(string: "https://app.factory.ai")!,
-        timeout: TimeInterval = 15.0,
-        browserDetection: BrowserDetection,
-        transport: any ProviderHTTPTransport = ProviderHTTPClient.shared)
-    {
-        _ = baseURL
-        _ = timeout
-        _ = browserDetection
-        _ = transport
-    }
-
-    public func fetch(
-        cookieHeaderOverride _: String? = nil,
-        logger: ((String) -> Void)? = nil) async throws -> FactoryStatusSnapshot
-    {
-        _ = logger
-        throw FactoryStatusProbeError.notSupported
-    }
-}
-
-#endif

@@ -15,13 +15,17 @@ extension [Browser] {
     ///
     /// This is intentionally stricter than "app installed": it aims to avoid unnecessary Keychain prompts.
     public func cookieImportCandidates(using detection: BrowserDetection) -> [Browser] {
-        let candidates = self.filter { browser in
+        Array(self.lazyCookieImportCandidates(using: detection))
+    }
+
+    /// Lazily filters browser sources so callers can stop after the first successful cookie import.
+    func lazyCookieImportCandidates(using detection: BrowserDetection) -> some Sequence<Browser> {
+        self.lazy.filter { browser in
             if KeychainAccessGate.isDisabled, browser.usesKeychainForCookieDecryption {
                 return false
             }
-            return detection.isCookieSourceAvailable(browser)
+            return detection.isCookieSourceAvailable(browser) && BrowserCookieAccessGate.shouldAttempt(browser)
         }
-        return candidates.filter { BrowserCookieAccessGate.shouldAttempt($0) }
     }
 
     /// Filters a browser list to sources with usable profile data on disk.
@@ -34,7 +38,7 @@ extension [Browser] {
 extension Browser {
     var usesKeychainForCookieDecryption: Bool {
         switch self {
-        case .safari, .firefox, .zen:
+        case .safari, .firefox, .firefoxBeta, .firefoxDeveloperEdition, .firefoxNightly, .zen:
             return false
         case .chrome, .chromeBeta, .chromeCanary,
              .arc, .arcBeta, .arcCanary,

@@ -2,8 +2,9 @@ import CodexBarCore
 import Foundation
 
 struct CodexUIErrorMapper {
-    private static let codexCLINotSignedInMessage =
-        "Codex CLI is not signed in. Run `codex login --device-auth`, then refresh."
+    private static var codexCLINotSignedInMessage: String {
+        L("Codex CLI is not signed in. Run `codex login --device-auth`, then refresh.")
+    }
 
     static func userFacingMessage(_ raw: String?) -> String? {
         guard let raw, !raw.isEmpty else { return nil }
@@ -20,7 +21,7 @@ struct CodexUIErrorMapper {
         }
 
         if self.looksCodexCLIMissing(lower: lower) {
-            return CodexStatusProbeError.codexNotInstalled.localizedDescription
+            return L("Codex CLI missing. Install via `npm i -g @openai/codex` (or bun install) and restart.")
         }
 
         if self.looksCodexCLILoginRequired(lower: lower) {
@@ -28,24 +29,25 @@ struct CodexUIErrorMapper {
         }
 
         if self.looksExpired(lower: lower) {
-            return "Codex session expired. Sign in again."
+            return L("Codex session expired. Sign in again.")
         }
 
         if lower.contains("frame load interrupted") {
-            return "OpenAI web refresh was interrupted. Refresh OpenAI cookies and try again."
+            return L("OpenAI web refresh was interrupted. Refresh OpenAI cookies and try again.")
         }
 
         if self.looksOpenAIWebTimeout(lower: lower) {
-            return "OpenAI web refresh timed out. Refresh OpenAI cookies and try again."
+            return L("OpenAI web refresh timed out. Refresh OpenAI cookies and try again.")
         }
 
         if self.looksOpenAIWebNetworkError(lower: lower) {
-            return "OpenAI web refresh hit a network error. "
-                + "Check your connection, then refresh OpenAI cookies and try again."
+            return L(
+                "OpenAI web refresh hit a network error. " +
+                    "Check your connection, then refresh OpenAI cookies and try again.")
         }
 
         if self.looksInternalTransport(lower: lower) {
-            return "Codex usage is temporarily unavailable. Try refreshing."
+            return L("Codex usage is temporarily unavailable. Try refreshing.")
         }
 
         return trimmed
@@ -55,20 +57,47 @@ struct CodexUIErrorMapper {
         let cachedMarker = " Cached values from "
         guard let suffixRange = raw.range(of: cachedMarker) else { return nil }
 
-        let suffix = String(raw[suffixRange.lowerBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+        let rawPrefix = String(raw[..<suffixRange.lowerBound])
+        let stamp = self.cachedStamp(raw: raw, suffixRange: suffixRange, marker: cachedMarker)
         if lower.hasPrefix("last codex credits refresh failed:"),
-           let base = self.userFacingMessage(String(raw[..<suffixRange.lowerBound]))
+           let base = self.userFacingMessage(self.failureMessage(
+               rawPrefix: rawPrefix,
+               prefix: "Last Codex credits refresh failed:"))
         {
-            return "\(base) \(suffix)"
+            return "\(base) \(L("Cached values from %@.", stamp))"
         }
 
         if lower.hasPrefix("last openai dashboard refresh failed:"),
-           let base = self.userFacingMessage(String(raw[..<suffixRange.lowerBound]))
+           let base = self.userFacingMessage(self.failureMessage(
+               rawPrefix: rawPrefix,
+               prefix: "Last OpenAI dashboard refresh failed:"))
         {
-            return "\(base) \(suffix)"
+            return "\(base) \(L("Cached values from %@.", stamp))"
         }
 
         return nil
+    }
+
+    private static func failureMessage(rawPrefix: String, prefix: String) -> String {
+        let droppedPrefix = if rawPrefix.lowercased().hasPrefix(prefix.lowercased()) {
+            String(rawPrefix.dropFirst(prefix.count))
+        } else {
+            rawPrefix
+        }
+        var message = droppedPrefix.trimmingCharacters(in: .whitespacesAndNewlines)
+        if message.hasSuffix(".") {
+            message.removeLast()
+        }
+        return message
+    }
+
+    private static func cachedStamp(raw: String, suffixRange: Range<String.Index>, marker: String) -> String {
+        let start = raw.index(suffixRange.lowerBound, offsetBy: marker.count)
+        var stamp = String(raw[start...]).trimmingCharacters(in: .whitespacesAndNewlines)
+        if stamp.hasSuffix(".") {
+            stamp.removeLast()
+        }
+        return stamp
     }
 
     private static func isAlreadyUserFacing(lower: String) -> Bool {
@@ -80,6 +109,7 @@ struct CodexUIErrorMapper {
             || lower.contains("codex credits are still loading")
             || lower.contains("codex account changed; importing browser cookies")
             || lower.contains("codex cli is not signed in.")
+            || lower.contains("chatgpt rate limits are unavailable.")
             || lower.contains("codex session expired. sign in again.")
             || lower.contains("openai web refresh timed out. refresh openai cookies and try again.")
             || lower.contains(
@@ -146,7 +176,12 @@ struct CodexConsumerProjection {
     enum RateLane: String {
         case session
         case weekly
+        case monthly
     }
+
+    static let sessionWindowMinutes = 5 * 60
+    static let weeklyWindowMinutes = 7 * 24 * 60
+    static let monthlyWindowMinutes = 30 * 24 * 60
 
     enum SupplementalMetric: String {
         case codeReview
@@ -168,7 +203,7 @@ struct CodexConsumerProjection {
         let userFacingError: String?
 
         var remaining: Double? {
-            self.snapshot?.remaining
+            self.snapshot?.codexCreditLimit?.remaining ?? self.snapshot?.remaining
         }
     }
 
@@ -188,6 +223,31 @@ struct CodexConsumerProjection {
         let dashboardAttachmentAuthorized: Bool
         let dashboardRequiresLogin: Bool
         let now: Date
+        let showOptionalCreditsAndExtraUsage: Bool
+
+        init(
+            snapshot: UsageSnapshot?,
+            rawUsageError: String?,
+            liveCredits: CreditsSnapshot?,
+            rawCreditsError: String?,
+            liveDashboard: OpenAIDashboardSnapshot?,
+            rawDashboardError: String?,
+            dashboardAttachmentAuthorized: Bool,
+            dashboardRequiresLogin: Bool,
+            now: Date,
+            showOptionalCreditsAndExtraUsage: Bool = true)
+        {
+            self.snapshot = snapshot
+            self.rawUsageError = rawUsageError
+            self.liveCredits = liveCredits
+            self.rawCreditsError = rawCreditsError
+            self.liveDashboard = liveDashboard
+            self.rawDashboardError = rawDashboardError
+            self.dashboardAttachmentAuthorized = dashboardAttachmentAuthorized
+            self.dashboardRequiresLogin = dashboardRequiresLogin
+            self.now = now
+            self.showOptionalCreditsAndExtraUsage = showOptionalCreditsAndExtraUsage
+        }
     }
 
     enum MenuBarFallback {
@@ -209,13 +269,16 @@ struct CodexConsumerProjection {
     private let rateWindowsByLane: [RateLane: RateWindow]
     private let codeReviewRemainingPercent: Double?
     private let codeReviewLimit: RateWindow?
+    private let evaluationTime: Date
 
     static func make(surface: Surface, context: Context) -> CodexConsumerProjection {
         let allowsLiveAdjuncts = surface != .overrideCard
         let dashboardVisibility = self.dashboardVisibility(surface: surface, context: context)
         let dashboard = allowsLiveAdjuncts && dashboardVisibility != .hidden ? context.liveDashboard : nil
 
-        let rateWindowsByLane = self.rateWindowsByLane(snapshot: context.snapshot)
+        let rateWindowsByLane = self.rateWindowsByLane(
+            snapshot: context.snapshot,
+            monthlyCreditLimit: self.monthlyCreditLimit(surface: surface, context: context))
         let visibleRateLanes = self.visibleRateLanes(from: rateWindowsByLane, snapshot: context.snapshot)
         let planUtilizationLanes = self.planUtilizationLanes(from: rateWindowsByLane)
 
@@ -261,18 +324,114 @@ struct CodexConsumerProjection {
             credits: creditsProjection,
             menuBarFallback: self.menuBarFallback(
                 creditsRemaining: creditsProjection?.remaining,
-                rateWindowsByLane: rateWindowsByLane),
+                rateWindowsByLane: rateWindowsByLane,
+                evaluationTime: context.now),
             userFacingErrors: userFacingErrors,
             canShowBuyCredits: canShowBuyCredits,
             hasUsageBreakdown: hasUsageBreakdown,
             hasCreditsHistory: hasCreditsHistory,
             rateWindowsByLane: rateWindowsByLane,
             codeReviewRemainingPercent: dashboardVisibility == .attached ? dashboard?.codeReviewRemainingPercent : nil,
-            codeReviewLimit: dashboardVisibility == .attached ? dashboard?.codeReviewLimit : nil)
+            codeReviewLimit: dashboardVisibility == .attached ? dashboard?.codeReviewLimit : nil,
+            evaluationTime: context.now)
+    }
+
+    func displayedRateLanes(showOptionalCreditsAndExtraUsage: Bool) -> [RateLane] {
+        self.visibleRateLanes.filter { lane in
+            guard lane == .monthly, !showOptionalCreditsAndExtraUsage else { return true }
+            return self.rateWindow(for: lane)?.windowMinutes != nil
+        }
     }
 
     func rateWindow(for lane: RateLane) -> RateWindow? {
+        guard let window = self.rateWindowsByLane[lane] else { return nil }
+        switch lane {
+        case .session:
+            return Self.sessionDisplayWindow(
+                session: window,
+                weekly: self.rateWindowsByLane[.weekly],
+                evaluationTime: self.evaluationTime)
+        case .weekly, .monthly:
+            return window
+        }
+    }
+
+    func sourceRateWindow(for lane: RateLane) -> RateWindow? {
         self.rateWindowsByLane[lane]
+    }
+
+    static func sourceRateWindow(for lane: RateLane, snapshot: UsageSnapshot?) -> RateWindow? {
+        self.rateWindowsByLane(snapshot: snapshot)[lane]
+    }
+
+    func menuBarSelectableRateWindow(for lane: RateLane) -> RateWindow? {
+        guard let window = self.rateWindow(for: lane) else { return nil }
+        guard window.remainingPercent <= 0,
+              let resetAt = window.resetsAt,
+              resetAt <= self.evaluationTime
+        else {
+            return window
+        }
+        return nil
+    }
+
+    /// Automatic keeps the standard session window unless a longer window (e.g. a 30-day
+    /// primary) would hide a genuine weekly quota from the menu bar.
+    func automaticMenuBarWindow() -> RateWindow? {
+        let windows = self.visibleRateLanes.compactMap {
+            self.menuBarSelectableRateWindow(for: $0)
+        }
+        guard let weekly = self.menuBarSelectableRateWindow(for: .weekly),
+              windows.contains(where: {
+                  $0.windowMinutes.map { $0 > Self.weeklyWindowMinutes } ?? false
+              })
+        else {
+            return windows.first
+        }
+        return weekly
+    }
+
+    static func rateTitle(
+        lane: RateLane,
+        windowMinutes: Int?,
+        sessionLabel: String,
+        weeklyLabel: String) -> String
+    {
+        switch windowMinutes {
+        case self.sessionWindowMinutes:
+            L(sessionLabel)
+        case self.weeklyWindowMinutes:
+            L(weeklyLabel)
+        case self.monthlyWindowMinutes:
+            L("Monthly")
+        default:
+            switch lane {
+            case .session:
+                L(sessionLabel)
+            case .weekly:
+                L(weeklyLabel)
+            case .monthly:
+                L("Monthly credit limit")
+            }
+        }
+    }
+
+    var nextMenuBarStateChangeAt: Date? {
+        self.rateWindowsByLane.values.compactMap { window in
+            guard window.remainingPercent <= 0,
+                  let resetAt = window.resetsAt,
+                  resetAt > self.evaluationTime
+            else {
+                return nil
+            }
+            return resetAt
+        }.min()
+    }
+
+    var hasBindingWeeklyCap: Bool {
+        Self.weeklyCapsSession(
+            weekly: self.rateWindowsByLane[.weekly],
+            evaluationTime: self.evaluationTime)
     }
 
     func remainingPercent(for metric: SupplementalMetric) -> Double? {
@@ -295,18 +454,43 @@ struct CodexConsumerProjection {
         return context.dashboardAttachmentAuthorized ? .attached : .displayOnly
     }
 
-    private static func rateWindowsByLane(snapshot: UsageSnapshot?) -> [RateLane: RateWindow] {
-        guard let snapshot else { return [:] }
-
-        var windowsByLane: [RateLane: RateWindow] = [:]
-        let slottedWindows: [(RateLane, RateWindow)] = [
-            self.classifyRateWindow(snapshot.primary, slot: .primary),
-            self.classifyRateWindow(snapshot.secondary, slot: .secondary),
-        ].compactMap(\.self)
-
-        for (lane, window) in slottedWindows {
-            windowsByLane[lane] = window
+    private static func monthlyCreditLimit(
+        surface: Surface,
+        context: Context) -> CodexCreditLimitSnapshot?
+    {
+        switch surface {
+        case .menuBar, .overrideCard:
+            guard context.showOptionalCreditsAndExtraUsage else { return nil }
+            return context.liveCredits?.codexCreditLimit
+        case .liveCard, .widget:
+            return nil
         }
+    }
+
+    private static func rateWindowsByLane(
+        snapshot: UsageSnapshot?,
+        monthlyCreditLimit: CodexCreditLimitSnapshot? = nil) -> [RateLane: RateWindow]
+    {
+        var windowsByLane: [RateLane: RateWindow] = [:]
+        if let snapshot {
+            let slottedWindows: [(RateLane, RateWindow)] = [
+                self.classifyRateWindow(snapshot.primary, slot: .primary),
+                self.classifyRateWindow(snapshot.secondary, slot: .secondary),
+            ].compactMap(\.self)
+
+            for (lane, window) in slottedWindows {
+                windowsByLane[lane] = window
+            }
+            guard windowsByLane.isEmpty, !snapshot.hasRateLimitWindows else {
+                return windowsByLane
+            }
+        }
+        guard let monthlyCreditLimit else { return windowsByLane }
+        windowsByLane[.monthly] = RateWindow(
+            usedPercent: monthlyCreditLimit.usedPercent,
+            windowMinutes: nil,
+            resetsAt: monthlyCreditLimit.resetsAt,
+            resetDescription: nil)
         return windowsByLane
     }
 
@@ -314,7 +498,9 @@ struct CodexConsumerProjection {
         from rateWindowsByLane: [RateLane: RateWindow],
         snapshot: UsageSnapshot?) -> [RateLane]
     {
-        guard let snapshot else { return [] }
+        guard let snapshot else {
+            return rateWindowsByLane[.monthly] == nil ? [] : [.monthly]
+        }
 
         let slottedLanes = [
             self.classifyRateWindow(snapshot.primary, slot: .primary)?.0,
@@ -325,11 +511,14 @@ struct CodexConsumerProjection {
         for lane in slottedLanes where rateWindowsByLane[lane] != nil && !visible.contains(lane) {
             visible.append(lane)
         }
+        if visible.isEmpty, rateWindowsByLane[.monthly] != nil, !snapshot.hasRateLimitWindows {
+            visible.append(.monthly)
+        }
         return visible
     }
 
     private static func planUtilizationLanes(from rateWindowsByLane: [RateLane: RateWindow]) -> [PlanUtilizationLane] {
-        let semanticOrder: [RateLane] = [.session, .weekly]
+        let semanticOrder: [RateLane] = [.session, .weekly, .monthly]
         return semanticOrder.compactMap { lane in
             guard let window = rateWindowsByLane[lane] else { return nil }
             return PlanUtilizationLane(role: self.planUtilizationRole(for: lane), window: window)
@@ -342,7 +531,13 @@ struct CodexConsumerProjection {
             .session
         case .weekly:
             .weekly
+        case .monthly:
+            .monthly
         }
+    }
+
+    static func planUtilizationSeriesNames(snapshot: UsageSnapshot) -> Set<PlanUtilizationSeriesName> {
+        Set(self.rateWindowsByLane(snapshot: snapshot).keys.map { self.planUtilizationRole(for: $0) })
     }
 
     private enum SnapshotSlot {
@@ -354,10 +549,12 @@ struct CodexConsumerProjection {
         guard let window else { return nil }
 
         let lane: RateLane = switch window.windowMinutes {
-        case 300:
+        case Self.sessionWindowMinutes:
             .session
-        case 10080:
+        case Self.weeklyWindowMinutes:
             .weekly
+        case Self.monthlyWindowMinutes:
+            .monthly
         default:
             switch slot {
             case .primary:
@@ -370,18 +567,72 @@ struct CodexConsumerProjection {
         return (lane, window)
     }
 
+    /// When Codex's weekly lane is exhausted, it is the binding cap: session quota cannot be used until
+    /// the weekly window resets, even if the API still reports room in the 5-hour bucket.
+    private static func weeklyCapsSession(weekly: RateWindow?, evaluationTime: Date) -> Bool {
+        guard let weekly else { return false }
+        guard weekly.remainingPercent <= 0 else { return false }
+        return weekly.resetsAt.map { $0 > evaluationTime } ?? true
+    }
+
+    private static func sessionDisplayWindow(
+        session: RateWindow,
+        weekly: RateWindow?,
+        evaluationTime: Date) -> RateWindow
+    {
+        guard self.weeklyCapsSession(weekly: weekly, evaluationTime: evaluationTime) else {
+            return session
+        }
+        let reset = self.bindingReset(
+            session: session,
+            weekly: weekly,
+            evaluationTime: evaluationTime)
+        return RateWindow(
+            usedPercent: max(session.usedPercent, 100),
+            windowMinutes: session.windowMinutes,
+            resetsAt: reset.date,
+            resetDescription: reset.description,
+            nextRegenPercent: session.nextRegenPercent,
+            isSyntheticPlaceholder: session.isSyntheticPlaceholder)
+    }
+
+    private static func bindingReset(
+        session: RateWindow,
+        weekly: RateWindow?,
+        evaluationTime: Date) -> (date: Date?, description: String?)
+    {
+        guard let weekly else { return (nil, nil) }
+        let sessionIsExhausted = session.remainingPercent <= 0 &&
+            (session.resetsAt.map { $0 > evaluationTime } ?? true)
+        guard sessionIsExhausted else {
+            return (weekly.resetsAt, weekly.resetDescription)
+        }
+        guard let sessionReset = session.resetsAt, let weeklyReset = weekly.resetsAt else {
+            return (nil, nil)
+        }
+        if sessionReset > weeklyReset {
+            return (sessionReset, session.resetDescription)
+        }
+        return (weeklyReset, weekly.resetDescription)
+    }
+
     private static func menuBarFallback(
         creditsRemaining: Double?,
-        rateWindowsByLane: [RateLane: RateWindow]) -> MenuBarFallback
+        rateWindowsByLane: [RateLane: RateWindow],
+        evaluationTime: Date) -> MenuBarFallback
     {
         guard let creditsRemaining, creditsRemaining > 0 else { return .none }
-        let hasExhaustedLane = rateWindowsByLane.values.contains { $0.remainingPercent <= 0 }
+        let hasExhaustedLane = rateWindowsByLane.values.contains {
+            $0.remainingPercent <= 0 && ($0.resetsAt.map { $0 > evaluationTime } ?? true)
+        }
         let hasNoRateWindows = rateWindowsByLane.isEmpty
         return (hasExhaustedLane || hasNoRateWindows) ? .creditsBalance : .none
     }
 
     var hasExhaustedRateLane: Bool {
-        self.rateWindowsByLane.values.contains { $0.remainingPercent <= 0 }
+        self.rateWindowsByLane.values.contains {
+            $0.remainingPercent <= 0 && ($0.resetsAt.map { $0 > self.evaluationTime } ?? true)
+        }
     }
 }
 
@@ -391,6 +642,7 @@ extension UsageStore {
         surface: CodexConsumerProjection.Surface,
         snapshotOverride: UsageSnapshot? = nil,
         errorOverride: String? = nil,
+        creditsOverride: CreditsSnapshot? = nil,
         now: Date = Date()) -> CodexConsumerProjection?
     {
         guard provider == .codex else { return nil }
@@ -398,6 +650,7 @@ extension UsageStore {
             surface: surface,
             snapshotOverride: snapshotOverride,
             errorOverride: errorOverride,
+            creditsOverride: creditsOverride,
             now: now)
     }
 
@@ -405,20 +658,24 @@ extension UsageStore {
         surface: CodexConsumerProjection.Surface,
         snapshotOverride: UsageSnapshot? = nil,
         errorOverride: String? = nil,
+        creditsOverride: CreditsSnapshot? = nil,
         now: Date = Date()) -> CodexConsumerProjection
     {
         let snapshot = surface == .overrideCard ? snapshotOverride : snapshotOverride ?? self.snapshots[.codex]
         let rawUsageError = surface == .overrideCard ? errorOverride : errorOverride ?? self.errors[.codex]
+        let liveCredits = surface == .overrideCard ? creditsOverride : self.credits
+        let rawCreditsError = surface == .overrideCard ? nil : self.lastCreditsError
         let context = CodexConsumerProjection.Context(
             snapshot: snapshot,
             rawUsageError: rawUsageError,
-            liveCredits: self.credits,
-            rawCreditsError: self.lastCreditsError,
+            liveCredits: liveCredits,
+            rawCreditsError: rawCreditsError,
             liveDashboard: self.openAIDashboard,
             rawDashboardError: self.lastOpenAIDashboardError,
             dashboardAttachmentAuthorized: self.openAIDashboardAttachmentAuthorized,
             dashboardRequiresLogin: self.openAIDashboardRequiresLogin,
-            now: now)
+            now: now,
+            showOptionalCreditsAndExtraUsage: self.settings.showOptionalCreditsAndExtraUsage)
         return CodexConsumerProjection.make(surface: surface, context: context)
     }
 
@@ -429,5 +686,41 @@ extension UsageStore {
             now: now)
         guard projection.menuBarFallback == .creditsBalance else { return nil }
         return projection.credits?.remaining
+    }
+
+    func codexMenuBarMetricWindow(snapshot: UsageSnapshot, now: Date = Date()) -> RateWindow? {
+        let projection = self.codexConsumerProjection(
+            surface: .menuBar,
+            snapshotOverride: snapshot,
+            now: now)
+        let windows = projection.displayedRateLanes(
+            showOptionalCreditsAndExtraUsage: self.settings.showOptionalCreditsAndExtraUsage).compactMap {
+            projection.menuBarSelectableRateWindow(for: $0)
+        }
+        let first = windows.first
+        let second = windows.dropFirst().first
+
+        switch self.settings.menuBarMetricPreference(for: .codex, snapshot: snapshot) {
+        case .secondary, .tertiary:
+            return second ?? first
+        case .extraUsage:
+            return first
+        case .average:
+            guard self.settings.menuBarMetricSupportsAverage(for: .codex),
+                  let primary = first,
+                  let secondary = second
+            else {
+                return first
+            }
+            let usedPercent = (primary.usedPercent + secondary.usedPercent) / 2
+            return RateWindow(
+                usedPercent: usedPercent, windowMinutes: nil, resetsAt: nil, resetDescription: nil)
+        case .primaryAndSecondary:
+            return windows.prefix(2).max(by: { $0.usedPercent < $1.usedPercent })
+        case .automatic:
+            return projection.automaticMenuBarWindow()
+        case .primary, .monthlyPlan:
+            return first
+        }
     }
 }

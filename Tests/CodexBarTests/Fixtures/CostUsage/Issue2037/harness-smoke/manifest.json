@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "redactionVersion": 1,
+  "familyAlias": "harness-smoke",
+  "files": [
+    {
+      "alias": "parent",
+      "relativePath": "codex-home/sessions/2026/07/11/parent.jsonl",
+      "sourceRole": "active",
+      "leafSessionAlias": "parent-session",
+      "parentSessionAlias": null
+    },
+    {
+      "alias": "child",
+      "relativePath": "codex-home/archived_sessions/child.jsonl",
+      "sourceRole": "archive",
+      "leafSessionAlias": "child-session",
+      "parentSessionAlias": "parent-session"
+    }
+  ],
+  "copiedPrefixes": [
+    {
+      "parentAlias": "parent",
+      "childAlias": "child",
+      "length": 1
+    }
+  ]
+}

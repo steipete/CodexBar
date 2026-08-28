@@ -6,15 +6,81 @@ import SweetCookieKit
 public enum PerplexityCookieImporter {
     private static let importSessionCacheTTL: TimeInterval = 5
     private static let importSessionCache = ImportSessionCache(ttl: importSessionCacheTTL)
-    private static let log = CodexBarLog.logger(LogCategories.perplexityCookie)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.perplexity, scope: "cookie"))
     private static let cookieClient = BrowserCookieClient()
     private static let cookieDomains = ["www.perplexity.ai", "perplexity.ai"]
     private static let cookieImportOrder: BrowserCookieImportOrder =
         ProviderDefaults.metadata[.perplexity]?.browserCookieOrder ?? Browser.defaultImportOrder
-    nonisolated(unsafe) static var importSessionOverrideForTesting:
-        ((BrowserDetection, ((String) -> Void)?) throws -> SessionInfo)?
-    nonisolated(unsafe) static var importSessionsOverrideForTesting:
-        ((BrowserDetection, ((String) -> Void)?) throws -> [SessionInfo])?
+    #if DEBUG
+    final class ImportSessionOverrideStore: @unchecked Sendable {
+        let importSession: (BrowserDetection, ((String) -> Void)?) throws -> SessionInfo
+        private let lock = NSLock()
+        private var cachedSessions: [SessionInfo]?
+
+        init(importSession: @escaping (BrowserDetection, ((String) -> Void)?) throws -> SessionInfo) {
+            self.importSession = importSession
+        }
+
+        func sessions(
+            browserDetection: BrowserDetection,
+            logger: ((String) -> Void)?) throws -> [SessionInfo]
+        {
+            try self.lock.withLock {
+                if let cachedSessions = self.cachedSessions {
+                    return cachedSessions
+                }
+                let sessions = try [self.importSession(browserDetection, logger)]
+                self.cachedSessions = sessions
+                return sessions
+            }
+        }
+    }
+
+    final class ImportSessionsOverrideStore: @unchecked Sendable {
+        let importSessions: (BrowserDetection, ((String) -> Void)?) throws -> [SessionInfo]
+        private let lock = NSLock()
+        private var cachedSessions: [SessionInfo]?
+
+        init(importSessions: @escaping (BrowserDetection, ((String) -> Void)?) throws -> [SessionInfo]) {
+            self.importSessions = importSessions
+        }
+
+        func sessions(
+            browserDetection: BrowserDetection,
+            logger: ((String) -> Void)?) throws -> [SessionInfo]
+        {
+            try self.lock.withLock {
+                if let cachedSessions = self.cachedSessions {
+                    return cachedSessions
+                }
+                let sessions = try self.importSessions(browserDetection, logger)
+                self.cachedSessions = sessions
+                return sessions
+            }
+        }
+    }
+
+    @TaskLocal private static var taskImportSessionOverrideStore: ImportSessionOverrideStore?
+    @TaskLocal private static var taskImportSessionsOverrideStore: ImportSessionsOverrideStore?
+
+    static func withImportSessionOverrideForTesting<T>(
+        _ override: ((BrowserDetection, ((String) -> Void)?) throws -> SessionInfo)?,
+        operation: () async throws -> T) async rethrows -> T
+    {
+        try await self.$taskImportSessionOverrideStore.withValue(override.map(ImportSessionOverrideStore.init)) {
+            try await operation()
+        }
+    }
+
+    static func withImportSessionsOverrideForTesting<T>(
+        _ override: ((BrowserDetection, ((String) -> Void)?) throws -> [SessionInfo])?,
+        operation: () async throws -> T) async rethrows -> T
+    {
+        try await self.$taskImportSessionsOverrideStore.withValue(override.map(ImportSessionsOverrideStore.init)) {
+            try await operation()
+        }
+    }
+    #endif
 
     public struct SessionInfo: Sendable {
         public let cookies: [HTTPCookie]
@@ -38,19 +104,16 @@ public enum PerplexityCookieImporter {
         browserDetection: BrowserDetection = BrowserDetection(),
         logger: ((String) -> Void)? = nil) throws -> [SessionInfo]
     {
+        #if DEBUG
+        if let overrideStore = self.taskImportSessionsOverrideStore {
+            return try overrideStore.sessions(browserDetection: browserDetection, logger: logger)
+        }
+        if let overrideStore = self.taskImportSessionOverrideStore {
+            return try overrideStore.sessions(browserDetection: browserDetection, logger: logger)
+        }
+        #endif
         if let cached = self.cachedImportSessions() {
             return cached
-        }
-        if let override = self.importSessionsOverrideForTesting {
-            let sessions = try override(browserDetection, logger)
-            self.storeImportSessions(sessions)
-            return sessions
-        }
-        if let override = self.importSessionOverrideForTesting {
-            let session = try override(browserDetection, logger)
-            let sessions = [session]
-            self.storeImportSessions(sessions)
-            return sessions
         }
 
         var sessions: [SessionInfo] = []

@@ -96,6 +96,32 @@ struct OpenAIAPICreditBalanceTests {
     }
 
     @Test
+    func `maps unauthorized legacy balance to admin key guidance`() async {
+        let transport = ProviderHTTPTransportStub { request in
+            let url = try #require(request.url)
+            let response = HTTPURLResponse(
+                url: url,
+                statusCode: 401,
+                httpVersion: nil,
+                headerFields: nil)!
+            return (Data("{}".utf8), response)
+        }
+
+        do {
+            _ = try await OpenAIAPICreditBalanceFetcher.fetchBalance(
+                apiKey: "sk-test",
+                session: transport)
+            Issue.record("Expected credential rejection")
+        } catch let error as OpenAIAPICreditBalanceError {
+            #expect(error == .unauthorized)
+            #expect(error.errorDescription?.contains("organization Admin API key") == true)
+            #expect(error.errorDescription?.contains("service-account keys") == true)
+        } catch {
+            Issue.record("Expected OpenAIAPICreditBalanceError, got \(error)")
+        }
+    }
+
+    @Test
     func `falls back to legacy billing when admin usage rejects credentials`() async throws {
         let strategy = OpenAIAPIBalanceFetchStrategy(
             usageFetcher: { _, _ in

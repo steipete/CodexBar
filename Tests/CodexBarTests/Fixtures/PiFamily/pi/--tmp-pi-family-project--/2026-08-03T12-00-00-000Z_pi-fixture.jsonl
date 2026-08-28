@@ -1,0 +1,3 @@
+{"type":"session","version":3,"id":"pi-fixture","timestamp":"2026-08-03T12:00:00.000Z","cwd":"/tmp/pi-family-project"}
+{"type":"message","id":"1","parentId":null,"timestamp":"2026-08-03T12:00:01.000Z","message":{"role":"assistant","content":[]}}
+{"type":"session_info","id":"2","parentId":"1","timestamp":"2026-08-03T12:00:02.000Z","name":"Plain pi fixture"}

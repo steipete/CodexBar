@@ -7,11 +7,11 @@ import Foundation
 /// weekly Codex windows, so we surface them through `UsageSnapshot.extraRateWindows` rather than the core
 /// primary/secondary lanes. When the field is absent the mapper returns an empty list and the snapshot is
 /// unchanged.
-enum CodexAdditionalRateLimitMapper {
+package enum CodexAdditionalRateLimitMapper {
     /// Stable ids/titles for GPT-5.3-Codex-Spark limits so SwiftUI identity stays constant even if the API
     /// label wording shifts. Keep the original 5-hour id for compatibility with the first Spark implementation.
-    static let sparkWindowID = "codex-spark"
-    static let sparkWeeklyWindowID = "codex-spark-weekly"
+    package static let sparkWindowID = "codex-spark"
+    package static let sparkWeeklyWindowID = "codex-spark-weekly"
     static let sparkWindowTitle = "Codex Spark 5-hour"
     static let sparkWeeklyWindowTitle = "Codex Spark Weekly"
 

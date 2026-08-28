@@ -1,5 +1,6 @@
 import CodexBarCore
 import Commander
+import Foundation
 import Testing
 @testable import CodexBarCLI
 
@@ -66,6 +67,34 @@ struct CLIArgumentParsingTests {
     }
 
     @Test
+    func `app auto verifier flag parses through the usage signature`() throws {
+        let signature = CodexBarCLI._usageSignatureForTesting()
+        let parser = CommandParser(signature: signature)
+        let parsed = try parser.parse(arguments: ["--app-auto-verifier"])
+
+        #expect(parsed.flags.contains("appAutoVerifier"))
+    }
+
+    @Test(arguments: [
+        ["--app-auto-verifier", "--account", "Configured"],
+        ["--app-auto-verifier", "--account-index", "1"],
+        ["--app-auto-verifier", "--all-accounts"],
+    ])
+    func `app auto verifier rejects account overrides`(arguments: [String]) throws {
+        let signature = CodexBarCLI._usageSignatureForTesting()
+        let parser = CommandParser(signature: signature)
+        let parsed = try parser.parse(arguments: arguments)
+        let selection = try CodexBarCLI.decodeTokenAccountSelection(from: parsed)
+
+        #expect(parsed.flags.contains("appAutoVerifier"))
+        #expect(CodexBarCLI.appAutoVerifierArgumentError(
+            enabled: true,
+            providers: [.claude],
+            sourceMode: .auto,
+            tokenSelection: selection) != nil)
+    }
+
+    @Test
     func `diagnose accepts json output flag but discards provider logs`() throws {
         let signature = CodexBarCLI._diagnoseSignatureForTesting()
         let parser = CommandParser(signature: signature)
@@ -83,5 +112,46 @@ struct CLIArgumentParsingTests {
         case .stderr, .oslog:
             Issue.record("diagnose should not emit provider logs beside the safe JSON export")
         }
+    }
+
+    @Test
+    func `diagnose accepts explicit redact and output path`() throws {
+        let signature = CodexBarCLI._diagnoseSignatureForTesting()
+        let parser = CommandParser(signature: signature)
+        let parsed = try parser.parse(arguments: [
+            "--provider", "minimax",
+            "--format", "json",
+            "--redact",
+            "--output", "diagnostic.json",
+        ])
+
+        #expect(parsed.flags.contains("redact"))
+        #expect(parsed.options["output"] == ["diagnostic.json"])
+    }
+
+    @Test
+    func `Claude OAuth usage does not detect CLI version`() {
+        #expect(!CodexBarCLI.shouldDetectVersion(
+            provider: .claude,
+            result: self.makeResult(kind: .oauth)))
+        #expect(CodexBarCLI.shouldDetectVersion(
+            provider: .claude,
+            result: self.makeResult(kind: .cli)))
+        #expect(CodexBarCLI.shouldDetectVersion(
+            provider: .codex,
+            result: self.makeResult(kind: .oauth)))
+    }
+
+    private func makeResult(kind: ProviderFetchKind) -> ProviderFetchResult {
+        ProviderFetchResult(
+            usage: UsageSnapshot(
+                primary: nil,
+                secondary: nil,
+                updatedAt: Date(timeIntervalSince1970: 0)),
+            credits: nil,
+            dashboard: nil,
+            sourceLabel: "test",
+            strategyID: "test",
+            strategyKind: kind)
     }
 }

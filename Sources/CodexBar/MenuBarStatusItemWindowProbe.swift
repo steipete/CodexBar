@@ -14,6 +14,16 @@ struct MenuBarStatusItemWindowSnapshot: Equatable, CustomStringConvertible {
         return displayBounds.contains(self.bounds)
     }
 
+    var isTahoeBlockedProxy: Bool {
+        self.ownerName == "Control Center"
+            && self.isOnscreen
+            && abs(self.bounds.minX) <= 1
+            && self.bounds.maxY <= 0
+            && self.bounds.width > 0
+            && self.bounds.height > 0
+            && !self.isWithinDisplayBounds
+    }
+
     var description: String {
         let display = self.displayBounds.map {
             "display=\(Int($0.minX)),\(Int($0.minY)) \(Int($0.width))x\(Int($0.height))"

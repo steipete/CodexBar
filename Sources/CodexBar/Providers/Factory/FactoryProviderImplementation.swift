@@ -1,15 +1,16 @@
+import AppKit
 import CodexBarCore
-import CodexBarMacroSupport
 import Foundation
 import SwiftUI
 
-@ProviderImplementationRegistration
 struct FactoryProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .factory
     let supportsLoginFlow: Bool = true
 
     @MainActor
     func observeSettings(_ settings: SettingsStore) {
+        _ = settings.factoryUsageDataSource
+        _ = settings.factoryAPIKey
         _ = settings.factoryCookieSource
         _ = settings.factoryCookieHeader
     }
@@ -17,6 +18,20 @@ struct FactoryProviderImplementation: ProviderImplementation {
     @MainActor
     func settingsSnapshot(context: ProviderSettingsSnapshotContext) -> ProviderSettingsSnapshotContribution? {
         .factory(context.settings.factorySettingsSnapshot(tokenOverride: context.tokenOverride))
+    }
+
+    @MainActor
+    func defaultSourceLabel(context: ProviderSourceLabelContext) -> String? {
+        context.settings.factoryUsageDataSource.rawValue
+    }
+
+    @MainActor
+    func sourceMode(context: ProviderSourceModeContext) -> ProviderSourceMode {
+        switch context.settings.factoryUsageDataSource {
+        case .api: .api
+        case .web: .web
+        case .auto, .cli, .oauth: .auto
+        }
     }
 
     @MainActor
@@ -35,6 +50,17 @@ struct FactoryProviderImplementation: ProviderImplementation {
 
     @MainActor
     func settingsPickers(context: ProviderSettingsContext) -> [ProviderSettingsPickerDescriptor] {
+        let usageBinding = Binding(
+            get: { context.settings.factoryUsageDataSource.rawValue },
+            set: { raw in
+                context.settings.factoryUsageDataSource = ProviderSourceMode(rawValue: raw) ?? .auto
+            })
+        let usageOptions = [
+            ProviderSettingsPickerOption(id: ProviderSourceMode.auto.rawValue, title: "Auto"),
+            ProviderSettingsPickerOption(id: ProviderSourceMode.api.rawValue, title: "API key"),
+            ProviderSettingsPickerOption(id: ProviderSourceMode.web.rawValue, title: "Browser cookies"),
+        ]
+
         let cookieBinding = Binding(
             get: { context.settings.factoryCookieSource.rawValue },
             set: { raw in
@@ -55,6 +81,20 @@ struct FactoryProviderImplementation: ProviderImplementation {
 
         return [
             ProviderSettingsPickerDescriptor(
+                id: "factory-usage-source",
+                title: "Usage source",
+                subtitle: "Auto tries a Factory API key first, then falls back to cookies/WorkOS on "
+                    + "auth or recoverable API failures.",
+                binding: usageBinding,
+                options: usageOptions,
+                isVisible: nil,
+                onChange: nil,
+                trailingText: {
+                    guard context.settings.factoryUsageDataSource == .auto else { return nil }
+                    let label = context.store.sourceLabel(for: .factory)
+                    return label == "auto" ? nil : label
+                }),
+            ProviderSettingsPickerDescriptor(
                 id: "factory-cookie-source",
                 title: "Cookie source",
                 subtitle: "Automatic imports browser cookies and WorkOS tokens.",
@@ -64,17 +104,37 @@ struct FactoryProviderImplementation: ProviderImplementation {
                 isVisible: nil,
                 onChange: nil,
                 trailingText: {
-                    guard let entry = CookieHeaderCache.load(provider: .factory) else { return nil }
-                    let when = entry.storedAt.relativeDescription()
-                    return "Cached: \(entry.sourceLabel) • \(when)"
+                    ProviderCookieSourceUI.cachedTrailingText(provider: .factory)
                 }),
         ]
     }
 
     @MainActor
     func settingsFields(context: ProviderSettingsContext) -> [ProviderSettingsFieldDescriptor] {
-        _ = context
-        return []
+        [
+            ProviderSettingsFieldDescriptor(
+                id: "factory-api-key",
+                title: "API key",
+                subtitle: "Stored in ~/.codexbar/config.json. You can also provide FACTORY_API_KEY or "
+                    + "~/.factory/.env.",
+                kind: .secure,
+                placeholder: "fk-...",
+                binding: context.stringBinding(\.factoryAPIKey),
+                actions: [
+                    ProviderSettingsActionDescriptor(
+                        id: "factory-open-api-keys",
+                        title: "Open API keys",
+                        style: .link,
+                        isVisible: nil,
+                        perform: {
+                            if let url = URL(string: "https://app.factory.ai/settings/api-keys") {
+                                NSWorkspace.shared.open(url)
+                            }
+                        }),
+                ],
+                isVisible: nil,
+                onActivate: nil),
+        ]
     }
 
     @MainActor
@@ -97,7 +157,10 @@ struct FactoryProviderImplementation: ProviderImplementation {
               cost.period == "Extra usage balance"
         else { return }
 
-        let balance = UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
+        let balance = UsageFormatter.convertedCostString(
+            cost.used,
+            preferredCurrency: context.settings.preferredCurrencyCode,
+            providerCurrency: cost.currencyCode)
         entries.append(.text(L("Extra usage balance: %@", balance), .primary))
     }
 }

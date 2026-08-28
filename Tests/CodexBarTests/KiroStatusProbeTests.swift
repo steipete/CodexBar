@@ -1,8 +1,1068 @@
 import Foundation
 import Testing
 @testable import CodexBarCore
+#if canImport(Darwin)
+import Darwin
+#else
+import Glibc
+#endif
 
+@Suite(.serialized)
 struct KiroStatusProbeTests {
+    @Test
+    func `fetch returns usage when account probe times out`() async throws {
+        let cliURL = try self.makeCLI(
+            """
+            #!/bin/sh
+            if [ "$1" = "whoami" ]; then
+              sleep 5
+              printf 'Logged in with Google\\nEmail: person@example.com\\n'
+              exit 0
+            fi
+
+            if [ "$1" = "chat" ] && [ "$3" = "/usage" ]; then
+              printf 'Estimated Usage | resets on 2026-06-01 | KIRO FREE\\n'
+              printf 'Credits (12.50 of 50 covered in plan)\\n'
+              printf '████████████████████ 25%%\\n'
+              exit 0
+            fi
+
+            if [ "$1" = "chat" ] && [ "$3" = "/context" ]; then
+              exit 0
+            fi
+
+            exit 1
+            """)
+        defer { try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent()) }
+
+        let probe = KiroStatusProbe(cliBinaryResolver: { cliURL.path }, accountProbeTimeout: 0.2)
+        let snapshot = try await probe.fetch()
+
+        #expect(snapshot.planName == "KIRO FREE")
+        #expect(snapshot.creditsUsed == 12.50)
+        #expect(snapshot.accountEmail == nil)
+        #expect(snapshot.authMethod == nil)
+    }
+
+    @Test
+    func `pipe and PTY share the account deadline`() async throws {
+        let cliURL = try self.makeCLI(
+            """
+            #!/bin/sh
+            if [ "$1" = "whoami" ]; then
+              if [ ! -t 1 ]; then
+                sleep 5
+                exit 1
+              fi
+              sleep 0.45
+              printf 'Logged in with Google\nEmail: person@example.com\n'
+              exit 0
+            fi
+            if [ "$1" = "chat" ] && [ "$3" = "/usage" ]; then
+              printf 'Estimated Usage | resets on 2026-06-01 | KIRO FREE\n'
+              printf 'Credits (12.50 of 50 covered in plan)\n'
+              printf '████████████████████ 25%%\n'
+              exit 0
+            fi
+            if [ "$1" = "chat" ] && [ "$3" = "/context" ]; then
+              exit 0
+            fi
+            exit 1
+            """)
+        defer { try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent()) }
+
+        let snapshot = try await KiroStatusProbe(
+            cliBinaryResolver: { cliURL.path },
+            accountProbeTimeout: 0.8,
+            pipeTimeoutCap: 0.4).fetch()
+
+        #expect(snapshot.planName == "KIRO FREE")
+        #expect(snapshot.accountEmail == nil)
+        #expect(snapshot.authMethod == nil)
+    }
+
+    @Test
+    func `accepted pipe output cannot overrun the usage deadline`() async throws {
+        let pipePIDFile = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-kiro-deadline-\(UUID().uuidString).pid")
+        let cliURL = try self.makeCLI(
+            """
+            #!/bin/sh
+            if [ "$1" = "whoami" ]; then
+              printf 'Logged in with Google\nEmail: person@example.com\n'
+              exit 0
+            fi
+            if [ "$1" = "chat" ] && [ "$3" = "/usage" ]; then
+              if [ -t 1 ]; then
+                exit 97
+              fi
+              if [ ! -t 1 ]; then
+                printf '%s\n' "$$" > '\(pipePIDFile.path)'
+                printf 'Estimated Usage | resets on 2026-06-01 | KIRO FREE\n'
+                printf 'Credits (12.50 of 50 covered in plan)\n'
+                printf '████████████████████ 25%%\n'
+                trap '' TERM
+                while true; do sleep 1; done
+              fi
+            fi
+            if [ "$1" = "chat" ] && [ "$3" = "/context" ]; then
+              exit 0
+            fi
+            exit 1
+            """)
+        defer {
+            if let text = try? String(contentsOf: pipePIDFile, encoding: .utf8),
+               let pipePID = pid_t(text.trimmingCharacters(in: .whitespacesAndNewlines))
+            {
+                _ = kill(pipePID, SIGKILL)
+            }
+            try? FileManager.default.removeItem(at: pipePIDFile)
+            try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent())
+        }
+
+        let registry = KiroTestProcessRegistry()
+        let probe = KiroStatusProbe(
+            cliBinaryResolver: { cliURL.path },
+            usageProbeTimeout: 4,
+            pipeTimeoutCap: 2,
+            pipeProcessRegistry: registry.dependencies)
+        let completion = KiroTestCompletionMarker()
+        let task = Task {
+            defer { completion.markCompleted() }
+            return try await probe.fetch()
+        }
+        defer {
+            task.cancel()
+            registry.terminateAll()
+        }
+
+        try await KiroProcessTestSupport.waitForCondition(
+            "the accepted-pipe deadline probe to finish and release all registered processes",
+            timeout: .seconds(20))
+        {
+            completion.isCompleted() && registry.activePIDs().isEmpty
+        }
+        await #expect {
+            _ = try await task.value
+        } throws: { error in
+            guard case KiroStatusProbeError.timeout = error else { return false }
+            return true
+        }
+
+        // A loaded runner may legitimately start PTY fallback before the pipe child gets scheduled. Assert cleanup
+        // at the registry boundary instead of assuming either child executed far enough to create its marker file.
+        let observedPIDs = registry.observedPIDs()
+        #expect(!observedPIDs.isEmpty)
+        #expect(registry.activePIDs().isEmpty)
+        for pid in observedPIDs {
+            #expect(kill(pid, 0) == -1)
+        }
+        if let pipePID = KiroProcessTestSupport.readPID(from: pipePIDFile) {
+            #expect(kill(pipePID, 0) == -1)
+        }
+    }
+
+    @Test
+    func `fetch preserves account info when account probe succeeds`() async throws {
+        let cliURL = try self.makeCLI(
+            """
+            #!/bin/sh
+            if [ "$1" = "whoami" ]; then
+              printf 'Logged in with Google\\nEmail: person@example.com\\n'
+              exit 0
+            fi
+
+            if [ "$1" = "chat" ] && [ "$3" = "/usage" ]; then
+              printf 'Estimated Usage | resets on 2026-06-01 | KIRO FREE\\n'
+              printf 'Credits (12.50 of 50 covered in plan)\\n'
+              printf '████████████████████ 25%%\\n'
+              exit 0
+            fi
+
+            if [ "$1" = "chat" ] && [ "$3" = "/context" ]; then
+              exit 0
+            fi
+
+            exit 1
+            """)
+        defer { try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent()) }
+
+        let probe = KiroProcessTestSupport.makeFunctionalProbe(cliURL: cliURL)
+        let snapshot = try await probe.fetch()
+
+        #expect(snapshot.accountEmail == "person@example.com")
+        #expect(snapshot.authMethod == "Google")
+    }
+}
+
+extension KiroStatusProbeTests {
+    @Test
+    func `fetch supports kiro cli that only completes through pipes`() async throws {
+        let cliURL = try self.makeCLI(
+            """
+            #!/bin/sh
+            if [ -t 1 ]; then
+              sleep 30
+              exit 1
+            fi
+
+            if [ "$1" = "whoami" ]; then
+              printf 'Logged in with Google\nEmail: person@example.com\n'
+              exit 0
+            fi
+
+            if [ "$1" = "chat" ] && [ "$3" = "/usage" ]; then
+              printf 'Estimated Usage | resets on 2026-06-01 | KIRO FREE\n'
+              printf 'Credits (12.50 of 50 covered in plan)\n'
+              printf '████████████████████ 25%%\n'
+              exit 0
+            fi
+
+            if [ "$1" = "chat" ] && [ "$3" = "/context" ]; then
+              exit 0
+            fi
+
+            exit 1
+            """)
+        defer { try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent()) }
+
+        let probe = KiroProcessTestSupport.makeFunctionalProbe(cliURL: cliURL)
+        let snapshot = try await probe.fetch()
+
+        #expect(snapshot.planName == "KIRO FREE")
+        #expect(snapshot.creditsUsed == 12.50)
+        #expect(snapshot.accountEmail == "person@example.com")
+    }
+
+    @Test
+    func `slow pipe remains viable after PTY fallback starts`() async throws {
+        let cliURL = try self.makeCLI(
+            """
+            #!/bin/sh
+            if [ -t 1 ]; then
+              exit 97
+            fi
+            if [ "$1" = "whoami" ]; then
+              printf 'Logged in with Google\nEmail: person@example.com\n'
+              exit 0
+            fi
+            if [ "$1" = "chat" ] && [ "$3" = "/usage" ]; then
+              sleep 1
+              printf 'Estimated Usage | resets on 2026-06-01 | KIRO FREE\n'
+              printf 'Credits (12.50 of 50 covered in plan)\n'
+              printf '████████████████████ 25%%\n'
+              exit 0
+            fi
+            if [ "$1" = "chat" ] && [ "$3" = "/context" ]; then
+              exit 0
+            fi
+            exit 1
+            """)
+        defer { try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent()) }
+
+        let snapshot = try await KiroProcessTestSupport.makeFunctionalProbe(
+            cliURL: cliURL,
+            usageProbeTimeout: 15,
+            pipeTimeoutCap: 0.2).fetch()
+
+        #expect(snapshot.planName == "KIRO FREE")
+    }
+
+    @Test
+    func `fetch falls back to PTY for older kiro cli`() async throws {
+        let cliURL = try self.makeCLI(
+            """
+            #!/bin/sh
+            if [ ! -t 1 ]; then
+              sleep 30
+              exit 1
+            fi
+
+            if [ "$1" = "whoami" ]; then
+              printf 'Logged in with Google\nEmail: person@example.com\n'
+              exit 0
+            fi
+
+            if [ "$1" = "chat" ] && [ "$3" = "/usage" ]; then
+              printf 'Estimated Usage | resets on 2026-06-01 | KIRO FREE\n'
+              printf 'Credits (12.50 of 50 covered in plan)\n'
+              printf '████████████████████ 25%%\n'
+              exit 0
+            fi
+
+            if [ "$1" = "chat" ] && [ "$3" = "/context" ]; then
+              exit 0
+            fi
+
+            exit 1
+            """)
+        defer { try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent()) }
+
+        let probe = KiroProcessTestSupport.makeFunctionalProbe(
+            cliURL: cliURL,
+            pipeTimeoutCap: 0.2)
+        let snapshot = try await probe.fetch()
+
+        #expect(snapshot.planName == "KIRO FREE")
+        #expect(snapshot.creditsUsed == 12.50)
+        #expect(snapshot.accountEmail == "person@example.com")
+    }
+
+    @Test
+    func `fetch falls back to PTY after incomplete pipe output`() async throws {
+        let cliURL = try self.makeCLI(
+            """
+            #!/bin/sh
+            if [ ! -t 1 ]; then
+              if [ "$1" = "whoami" ]; then
+                printf 'Logged in with Google\nEmail: person@example.com\n'
+                exit 0
+              fi
+              if [ "$1" = "chat" ] && [ "$3" = "/usage" ]; then
+                printf 'Plan: loading...\n'
+                exit 0
+              fi
+              if [ "$1" = "chat" ] && [ "$3" = "/context" ]; then
+                exit 0
+              fi
+            fi
+
+            if [ "$1" = "whoami" ]; then
+              printf 'Logged in with Google\nEmail: person@example.com\n'
+              exit 0
+            fi
+            if [ "$1" = "chat" ] && [ "$3" = "/usage" ]; then
+              printf 'Estimated Usage | resets on 2026-06-01 | KIRO FREE\n'
+              printf 'Credits (12.50 of 50 covered in plan)\n'
+              printf '████████████████████ 25%%\n'
+              exit 0
+            fi
+            if [ "$1" = "chat" ] && [ "$3" = "/context" ]; then
+              exit 0
+            fi
+            exit 1
+            """)
+        defer { try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent()) }
+
+        let snapshot = try await KiroProcessTestSupport.makeFunctionalProbe(cliURL: cliURL).fetch()
+
+        #expect(snapshot.planName == "KIRO FREE")
+        #expect(snapshot.creditsUsed == 12.50)
+    }
+
+    @Test
+    func `pipe cleanup finishes before PTY fallback starts`() async throws {
+        let childPIDFile = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-kiro-pipe-child-\(UUID().uuidString).pid")
+        let ptyMarker = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-kiro-pty-fallback-\(UUID().uuidString).started")
+        let cliURL = try self.makeCLI(
+            """
+            #!/bin/sh
+            if [ "$1" = "whoami" ]; then
+              printf 'Logged in with Google\nEmail: person@example.com\n'
+              exit 0
+            fi
+            if [ "$1" = "chat" ] && [ "$3" = "/usage" ]; then
+              if [ ! -t 1 ]; then
+                (trap '' TERM; while true; do sleep 1; done) &
+                child=$!
+                printf '%s\n' "$child" > '\(childPIDFile.path)'
+                printf 'Plan: loading...\n'
+                exit 0
+              fi
+              if test -s '\(childPIDFile.path)' && kill -0 "$(cat '\(childPIDFile.path)')" 2>/dev/null; then
+                printf 'pipe child still running\n' >&2
+                exit 97
+              fi
+              : > '\(ptyMarker.path)'
+              printf 'Estimated Usage | resets on 2026-06-01 | KIRO FREE\n'
+              printf 'Credits (12.50 of 50 covered in plan)\n'
+              printf '████████████████████ 25%%\n'
+              exit 0
+            fi
+            if [ "$1" = "chat" ] && [ "$3" = "/context" ]; then
+              exit 0
+            fi
+            exit 1
+            """)
+        defer {
+            if let text = try? String(contentsOf: childPIDFile, encoding: .utf8),
+               let childPID = pid_t(text.trimmingCharacters(in: .whitespacesAndNewlines))
+            {
+                _ = kill(childPID, SIGKILL)
+            }
+            try? FileManager.default.removeItem(at: childPIDFile)
+            try? FileManager.default.removeItem(at: ptyMarker)
+            try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent())
+        }
+
+        let snapshot = try await KiroProcessTestSupport.makeFunctionalProbe(cliURL: cliURL).fetch()
+
+        #expect(snapshot.planName == "KIRO FREE")
+        #expect(FileManager.default.fileExists(atPath: ptyMarker.path))
+        let childPIDText = try String(contentsOf: childPIDFile, encoding: .utf8)
+        let childPID = try #require(pid_t(childPIDText.trimmingCharacters(in: .whitespacesAndNewlines)))
+        #expect(kill(childPID, 0) == -1)
+    }
+
+    @Test
+    func `shutdown registry terminates an active pipe probe`() async throws {
+        let pipePIDFile = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-kiro-shutdown-\(UUID().uuidString).pid")
+        let cliURL = try self.makeCLI(
+            """
+            #!/bin/sh
+            if [ "$1" = "whoami" ]; then
+              printf 'Logged in with Google\nEmail: person@example.com\n'
+              exit 0
+            fi
+            if [ "$1" = "chat" ] && [ "$3" = "/usage" ]; then
+              if [ -t 1 ]; then
+                exit 97
+              fi
+              printf '%s\n' "$$" > '\(pipePIDFile.path)'
+              printf 'Plan: loading...\n'
+              trap '' TERM
+              while true; do sleep 1; done
+            fi
+            if [ "$1" = "chat" ] && [ "$3" = "/context" ]; then
+              exit 0
+            fi
+            exit 1
+            """)
+
+        let registry = KiroTestProcessRegistry()
+        let probe = KiroProcessTestSupport.makeFunctionalProbe(
+            cliURL: cliURL,
+            processRegistry: registry)
+        let completion = KiroTestCompletionMarker()
+        let task = Task {
+            defer { completion.markCompleted() }
+            return try await probe.fetch()
+        }
+        defer {
+            task.cancel()
+            registry.terminateAll()
+            if let text = try? String(contentsOf: pipePIDFile, encoding: .utf8),
+               let pipePID = pid_t(text.trimmingCharacters(in: .whitespacesAndNewlines))
+            {
+                _ = kill(pipePID, SIGKILL)
+            }
+            try? FileManager.default.removeItem(at: pipePIDFile)
+            try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent())
+        }
+
+        let pipePID = try await KiroProcessTestSupport.waitForPID(in: pipePIDFile)
+        #expect(registry.isRegistered(pipePID))
+
+        registry.terminate(pipePID)
+        try await KiroProcessTestSupport.waitForCondition(
+            "shutdown termination to finish the pipe probe, unregister it, and reap its process",
+            timeout: .seconds(20))
+        {
+            completion.isCompleted()
+                && !registry.isRegistered(pipePID)
+                && registry.didUnregister(pipePID)
+                && kill(pipePID, 0) == -1
+        }
+        await #expect(throws: (any Error).self) {
+            _ = try await task.value
+        }
+
+        #expect(!registry.isRegistered(pipePID))
+        #expect(registry.didUnregister(pipePID))
+        #expect(kill(pipePID, 0) == -1)
+    }
+
+    @Test
+    func `fetch combines pipe stdout with stderr warnings`() async throws {
+        let cliURL = try self.makeCLI(
+            """
+            #!/bin/sh
+            if [ -t 1 ]; then
+              exit 91
+            fi
+            if [ "$1" = "whoami" ]; then
+              printf 'Logged in with Google\nEmail: person@example.com\n'
+              printf 'warning: cached session\n' >&2
+              exit 0
+            fi
+            if [ "$1" = "chat" ] && [ "$3" = "/usage" ]; then
+              printf 'Estimated Usage | resets on 2026-06-01 | KIRO FREE\n'
+              printf 'Credits (12.50 of 50 covered in plan)\n'
+              printf '████████████████████ 25%%\n'
+              printf 'warning: telemetry unavailable\n' >&2
+              exit 0
+            fi
+            if [ "$1" = "chat" ] && [ "$3" = "/context" ]; then
+              exit 0
+            fi
+            exit 1
+            """)
+        defer { try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent()) }
+
+        let snapshot = try await KiroProcessTestSupport.makeFunctionalProbe(cliURL: cliURL).fetch()
+
+        #expect(snapshot.planName == "KIRO FREE")
+        #expect(snapshot.accountEmail == "person@example.com")
+        #expect(snapshot.authMethod == "Google")
+    }
+
+    @Test
+    func `fetch falls back to PTY after pipe requires a terminal`() async throws {
+        let cliURL = try self.makeCLI(
+            """
+            #!/bin/sh
+            if [ ! -t 1 ]; then
+              printf 'terminal required\n' >&2
+              exit 2
+            fi
+            if [ "$1" = "whoami" ]; then
+              printf 'Logged in with Google\nEmail: person@example.com\n'
+              exit 0
+            fi
+            if [ "$1" = "chat" ] && [ "$3" = "/usage" ]; then
+              printf 'Estimated Usage | resets on 2026-06-01 | KIRO FREE\n'
+              printf 'Credits (12.50 of 50 covered in plan)\n'
+              printf '████████████████████ 25%%\n'
+              exit 0
+            fi
+            if [ "$1" = "chat" ] && [ "$3" = "/context" ]; then
+              printf 'Context window: 7.5%% used (estimated)\n'
+              printf '█ Context files 2.5%% (estimated)\n'
+              exit 0
+            fi
+            exit 1
+            """)
+        defer { try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent()) }
+
+        let snapshot = try await KiroProcessTestSupport.makeFunctionalProbe(cliURL: cliURL).fetch()
+
+        #expect(snapshot.planName == "KIRO FREE")
+        #expect(snapshot.accountEmail == "person@example.com")
+        #expect(snapshot.contextUsage?.totalPercentUsed == 7.5)
+        #expect(snapshot.contextUsage?.contextFilesPercent == 2.5)
+    }
+
+    @Test
+    func `pipe auth failure on stderr remains authoritative`() async throws {
+        let cliURL = try self.makeCLI(
+            """
+            #!/bin/sh
+            if [ ! -t 1 ]; then
+              printf 'Opening browser...\n'
+              printf 'Not logged in\n' >&2
+              exit 1
+            fi
+            if [ "$1" = "whoami" ]; then
+              printf 'Logged in with Google\nEmail: person@example.com\n'
+              exit 0
+            fi
+            if [ "$1" = "chat" ] && [ "$3" = "/usage" ]; then
+              printf 'Estimated Usage | resets on 2026-06-01 | KIRO FREE\n'
+              printf 'Credits (12.50 of 50 covered in plan)\n'
+              printf '████████████████████ 25%%\n'
+              exit 0
+            fi
+            if [ "$1" = "chat" ] && [ "$3" = "/context" ]; then
+              exit 0
+            fi
+            exit 1
+            """)
+        defer { try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent()) }
+
+        await #expect {
+            _ = try await KiroProcessTestSupport.makeFunctionalProbe(cliURL: cliURL).fetch()
+        } throws: { error in
+            guard case KiroStatusProbeError.notLoggedIn = error else { return false }
+            return true
+        }
+    }
+
+    @Test
+    func `fetch rejects account markers from failed whoami`() async throws {
+        let whoAmIFailed = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-kiro-failed-whoami-\(UUID().uuidString).started")
+        let cliURL = try self.makeCLI(
+            """
+            #!/bin/sh
+            if [ "$1" = "whoami" ]; then
+              printf 'Logged in with Google\nEmail: person@example.com\n'
+              : > '\(whoAmIFailed.path)'
+              exit 23
+            fi
+
+            if [ "$1" = "chat" ] && [ "$3" = "/usage" ]; then
+              printf 'Estimated Usage | resets on 2026-06-01 | KIRO FREE\n'
+              printf 'Credits (12.50 of 50 covered in plan)\n'
+              printf '████████████████████ 25%%\n'
+              exit 0
+            fi
+
+            if [ "$1" = "chat" ] && [ "$3" = "/context" ]; then
+              exit 0
+            fi
+
+            exit 1
+            """)
+        defer {
+            try? FileManager.default.removeItem(at: whoAmIFailed)
+            try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent())
+        }
+
+        let snapshot = try await KiroProcessTestSupport.makeFunctionalProbe(cliURL: cliURL).fetch()
+        try await KiroProcessTestSupport.waitForFile(whoAmIFailed)
+
+        #expect(snapshot.accountEmail == nil)
+        #expect(snapshot.authMethod == nil)
+    }
+
+    @Test
+    func `fetch rejects valid-looking usage from failed command`() async throws {
+        let whoAmISucceeded = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-kiro-successful-whoami-\(UUID().uuidString).started")
+        let usageFailed = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-kiro-failed-usage-\(UUID().uuidString).started")
+        let cliURL = try self.makeCLI(
+            """
+            #!/bin/sh
+            if [ -t 1 ]; then
+              if [ "$1" = "whoami" ]; then
+                printf 'Logged in with Google\nEmail: person@example.com\n'
+                : > '\(whoAmISucceeded.path)'
+                exit 0
+              fi
+              if [ "$1" = "chat" ] && [ "$3" = "/usage" ]; then
+                printf 'Estimated Usage | resets on 2026-06-01 | KIRO FREE\n'
+                printf 'Credits (12.50 of 50 covered in plan)\n'
+                printf '████████████████████ 25%%\n'
+                exit 0
+              fi
+            fi
+
+            if [ "$1" = "whoami" ]; then
+              printf 'Logged in with Google\nEmail: person@example.com\n'
+              : > '\(whoAmISucceeded.path)'
+              exit 0
+            fi
+
+            if [ "$1" = "chat" ] && [ "$3" = "/usage" ]; then
+              printf 'Estimated Usage | resets on 2026-06-01 | KIRO FREE\n'
+              printf 'Credits (12.50 of 50 covered in plan)\n'
+              printf '████████████████████ 25%%\n'
+              : > '\(usageFailed.path)'
+              exit 23
+            fi
+
+            if [ "$1" = "chat" ] && [ "$3" = "/context" ]; then
+              exit 0
+            fi
+
+            exit 1
+            """)
+        defer {
+            try? FileManager.default.removeItem(at: whoAmISucceeded)
+            try? FileManager.default.removeItem(at: usageFailed)
+            try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent())
+        }
+
+        let probe = KiroProcessTestSupport.makeFunctionalProbe(cliURL: cliURL)
+        await #expect {
+            _ = try await probe.fetch()
+        } throws: { error in
+            guard case KiroStatusProbeError.cliFailed = error else { return false }
+            return true
+        }
+        try await KiroProcessTestSupport.waitForFile(whoAmISucceeded)
+        try await KiroProcessTestSupport.waitForFile(usageFailed)
+    }
+
+    @Test
+    func `fetch preserves not logged in when usage fails without auth detail`() async throws {
+        let cliURL = try self.makeCLI(
+            """
+            #!/bin/sh
+            if [ "$1" = "whoami" ]; then
+              printf 'Not logged in\\n'
+              exit 1
+            fi
+
+            if [ "$1" = "chat" ] && [ "$3" = "/usage" ]; then
+              exit 1
+            fi
+
+            if [ "$1" = "chat" ] && [ "$3" = "/context" ]; then
+              exit 0
+            fi
+
+            exit 1
+            """)
+        defer { try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent()) }
+
+        let probe = KiroProcessTestSupport.makeFunctionalProbe(cliURL: cliURL)
+        await #expect {
+            _ = try await probe.fetch()
+        } throws: { error in
+            guard case KiroStatusProbeError.notLoggedIn = error else { return false }
+            return true
+        }
+    }
+
+    @Test
+    func `fetch preserves not logged in when whoami idles after login marker`() async throws {
+        let cliURL = try self.makeCLI(
+            """
+            #!/bin/sh
+            if [ "$1" = "whoami" ]; then
+              printf 'Not logged in\n'
+              sleep 5
+              exit 1
+            fi
+
+            if [ "$1" = "chat" ] && [ "$3" = "/usage" ]; then
+              exit 1
+            fi
+
+            if [ "$1" = "chat" ] && [ "$3" = "/context" ]; then
+              exit 0
+            fi
+
+            exit 1
+            """)
+        defer { try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent()) }
+
+        let probe = KiroProcessTestSupport.makeFunctionalProbe(cliURL: cliURL)
+        await #expect {
+            _ = try await probe.fetch()
+        } throws: { error in
+            guard case KiroStatusProbeError.notLoggedIn = error else { return false }
+            return true
+        }
+    }
+
+    @Test
+    func `fetch preserves not logged in when usage output cannot be parsed`() async throws {
+        let cliURL = try self.makeCLI(
+            """
+            #!/bin/sh
+            if [ "$1" = "whoami" ]; then
+              printf 'Not logged in\\n'
+              exit 1
+            fi
+
+            if [ "$1" = "chat" ] && [ "$3" = "/usage" ]; then
+              exit 0
+            fi
+
+            if [ "$1" = "chat" ] && [ "$3" = "/context" ]; then
+              exit 0
+            fi
+
+            exit 1
+            """)
+        defer { try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent()) }
+
+        let probe = KiroProcessTestSupport.makeFunctionalProbe(cliURL: cliURL)
+        await #expect {
+            _ = try await probe.fetch()
+        } throws: { error in
+            guard case KiroStatusProbeError.notLoggedIn = error else { return false }
+            return true
+        }
+    }
+
+    @Test
+    func `fetch cancellation during context probe is preserved`() async throws {
+        let contextStarted = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-kiro-context-\(UUID().uuidString).started")
+        let cliURL = try self.makeCLI(
+            """
+            #!/bin/sh
+            if [ "$1" = "whoami" ]; then
+              printf 'Logged in with Google\nEmail: person@example.com\n'
+              exit 0
+            fi
+
+            if [ "$1" = "chat" ] && [ "$3" = "/usage" ]; then
+              printf 'Estimated Usage | resets on 2026-06-01 | KIRO FREE\n'
+              printf 'Credits (12.50 of 50 covered in plan)\n'
+              printf '████████████████████ 25%%\n'
+              exit 0
+            fi
+
+            if [ "$1" = "chat" ] && [ "$3" = "/context" ]; then
+              : > '\(contextStarted.path)'
+              trap '' TERM
+              while true; do sleep 1; done
+            fi
+
+            exit 1
+            """)
+        defer {
+            try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent())
+            try? FileManager.default.removeItem(at: contextStarted)
+        }
+
+        let registry = KiroTestProcessRegistry()
+        let probe = KiroProcessTestSupport.makeFunctionalProbe(
+            cliURL: cliURL,
+            processRegistry: registry)
+        let completion = KiroTestCompletionMarker()
+        let task = Task {
+            defer { completion.markCompleted() }
+            return try await probe.fetch()
+        }
+        defer {
+            task.cancel()
+            registry.terminateAll()
+        }
+
+        try await KiroProcessTestSupport.waitForFile(contextStarted)
+
+        task.cancel()
+        try await KiroProcessTestSupport.waitForCondition(
+            "context cancellation to finish the probe and release all registered processes")
+        {
+            completion.isCompleted() && registry.activePIDs().isEmpty
+        }
+        await #expect(throws: CancellationError.self) {
+            try await task.value
+        }
+    }
+
+    @Test
+    func `cancellation during pipe cleanup wins over an expired context deadline`() async throws {
+        let cleanupStarted = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-kiro-cleanup-\(UUID().uuidString).started")
+        let unblockCleanup = DispatchSemaphore(value: 0)
+        let registry = KiroTestProcessRegistry(
+            blockOnUnregister: 3,
+            blockStartedURL: cleanupStarted,
+            unblock: unblockCleanup)
+        let cliURL = try self.makeCLI(
+            """
+            #!/bin/sh
+            if [ "$1" = "whoami" ]; then
+              printf 'Logged in with Google\nEmail: person@example.com\n'
+              exit 0
+            fi
+            if [ "$1" = "chat" ] && [ "$3" = "/usage" ]; then
+              printf 'Estimated Usage | resets on 2026-06-01 | KIRO FREE\n'
+              printf 'Credits (12.50 of 50 covered in plan)\n'
+              printf '████████████████████ 25%%\n'
+              exit 0
+            fi
+            if [ "$1" = "chat" ] && [ "$3" = "/context" ]; then
+              exit 0
+            fi
+            exit 1
+            """)
+        defer {
+            unblockCleanup.signal()
+            try? FileManager.default.removeItem(at: cleanupStarted)
+            try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent())
+        }
+
+        let probe = KiroProcessTestSupport.makeFunctionalProbe(
+            cliURL: cliURL,
+            contextProbeTimeout: 0.2,
+            processRegistry: registry)
+        let completion = KiroTestCompletionMarker()
+        let task = Task {
+            defer { completion.markCompleted() }
+            return try await probe.fetch()
+        }
+        defer {
+            task.cancel()
+            registry.terminateAll()
+        }
+
+        try await KiroProcessTestSupport.waitForFile(cleanupStarted)
+        task.cancel()
+        try await Task.sleep(for: .milliseconds(250))
+        unblockCleanup.signal()
+
+        try await KiroProcessTestSupport.waitForCondition(
+            "cleanup cancellation to finish the probe and release all registered processes")
+        {
+            completion.isCompleted() && registry.activePIDs().isEmpty
+        }
+        await #expect(throws: CancellationError.self) {
+            try await task.value
+        }
+    }
+
+    @Test
+    func `fetch cancellation while waiting for account probe is preserved`() async throws {
+        let accountStarted = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-kiro-account-\(UUID().uuidString).started")
+        let cliURL = try self.makeCLI(
+            """
+            #!/bin/sh
+            if [ "$1" = "whoami" ]; then
+              : > '\(accountStarted.path)'
+              trap '' TERM
+              while true; do sleep 1; done
+            fi
+
+            if [ "$1" = "chat" ] && [ "$3" = "/usage" ]; then
+              printf 'Estimated Usage | resets on 2026-06-01 | KIRO FREE\\n'
+              printf 'Credits (12.50 of 50 covered in plan)\\n'
+              printf '████████████████████ 25%%\\n'
+              exit 0
+            fi
+
+            if [ "$1" = "chat" ] && [ "$3" = "/context" ]; then
+              exit 0
+            fi
+
+            exit 1
+            """)
+        defer {
+            try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent())
+            try? FileManager.default.removeItem(at: accountStarted)
+        }
+
+        let registry = KiroTestProcessRegistry()
+        let probe = KiroProcessTestSupport.makeFunctionalProbe(
+            cliURL: cliURL,
+            processRegistry: registry)
+        let completion = KiroTestCompletionMarker()
+        let task = Task {
+            defer { completion.markCompleted() }
+            return try await probe.fetch()
+        }
+        defer {
+            task.cancel()
+            registry.terminateAll()
+        }
+
+        try await KiroProcessTestSupport.waitForFile(accountStarted)
+
+        task.cancel()
+        try await KiroProcessTestSupport.waitForCondition(
+            "account cancellation to finish the probe and release all registered processes")
+        {
+            completion.isCompleted() && registry.activePIDs().isEmpty
+        }
+        await #expect(throws: CancellationError.self) {
+            try await task.value
+        }
+    }
+
+    @Test
+    func `fetch returns promptly when usage helper spawns a detached child`() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-kiro-pipe-\(UUID().uuidString)", isDirectory: true)
+        let childPIDFile = root.appendingPathComponent("child.pid")
+        let cliURL = root.appendingPathComponent("kiro-cli")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        defer {
+            if let text = try? String(contentsOf: childPIDFile, encoding: .utf8),
+               let childPID = pid_t(text.trimmingCharacters(in: .whitespacesAndNewlines))
+            {
+                _ = kill(childPID, SIGKILL)
+            }
+        }
+
+        let script = """
+        #!/bin/bash
+        set -e
+        if [ "$1" = "whoami" ]; then
+          printf 'Logged in with Google\\nEmail: person@example.com\\n'
+          exit 0
+        fi
+
+        if [ "$1" = "chat" ] && [ "$3" = "/usage" ]; then
+          /usr/bin/python3 -c '
+        import os
+        import subprocess
+        import sys
+
+        ready_read, ready_write = os.pipe()
+        child = subprocess.Popen(
+            [
+                sys.executable,
+                "-c",
+                "import os,signal,sys,time; "
+                "signal.signal(signal.SIGHUP, signal.SIG_IGN); "
+                "signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+                "handle=open(sys.argv[1], \\\"w\\\"); handle.write(str(os.getpid())); handle.close(); "
+                "os.write(int(sys.argv[2]), b\\\"1\\\"); os.close(int(sys.argv[2])); time.sleep(60)",
+                os.environ["CODEXBAR_TEST_CHILD_PID_FILE"],
+                str(ready_write),
+            ],
+            start_new_session=True,
+            pass_fds=(ready_write,),
+        )
+        os.close(ready_write)
+        if os.read(ready_read, 1) != b"1":
+            raise RuntimeError("detached helper exited before signaling readiness")
+        os.close(ready_read)
+        '
+          test -s "$CODEXBAR_TEST_CHILD_PID_FILE"
+          printf 'Estimated Usage | resets on 2026-06-01 | KIRO FREE\\n'
+          printf 'Credits (12.50 of 50 covered in plan)\\n'
+          printf '████████████████████ 25%%\\n'
+          exit 0
+        fi
+
+        if [ "$1" = "chat" ] && [ "$3" = "/context" ]; then
+          printf 'Context window: 40%% used\\n'; exit 0
+        fi
+
+        exit 1
+        """
+        try script.write(to: cliURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: cliURL.path)
+
+        let previousPIDFile = ProcessInfo.processInfo.environment["CODEXBAR_TEST_CHILD_PID_FILE"]
+        setenv("CODEXBAR_TEST_CHILD_PID_FILE", childPIDFile.path, 1)
+        defer {
+            if let previousPIDFile {
+                setenv("CODEXBAR_TEST_CHILD_PID_FILE", previousPIDFile, 1)
+            } else {
+                unsetenv("CODEXBAR_TEST_CHILD_PID_FILE")
+            }
+        }
+
+        let registry = KiroTestProcessRegistry()
+        let probe = KiroProcessTestSupport.makeFunctionalProbe(
+            cliURL: cliURL,
+            processRegistry: registry)
+        let completion = KiroTestCompletionMarker()
+        let task = Task {
+            defer { completion.markCompleted() }
+            return try await probe.fetch()
+        }
+        defer {
+            task.cancel()
+            registry.terminateAll()
+        }
+        try await KiroProcessTestSupport.waitForCondition(
+            "the detached-child probe to finish without waiting for the 60-second helper",
+            timeout: .seconds(20))
+        {
+            completion.isCompleted() && registry.activePIDs().isEmpty
+        }
+        let snapshot = try await task.value
+
+        let childPID = try await KiroProcessTestSupport.waitForPID(in: childPIDFile)
+        try await KiroProcessTestSupport.waitForExit(
+            of: childPID,
+            timeout: .seconds(20),
+            description: "the detached Kiro usage helper to exit")
+
+        // Keep the optional context probe parseable so this timing check covers detached-child cleanup.
+        #expect(snapshot.planName == "KIRO FREE")
+        #expect(snapshot.creditsUsed == 12.50 && snapshot.contextUsage?.totalPercentUsed == 40)
+        #expect(kill(childPID, 0) == -1)
+    }
+}
+
+extension KiroStatusProbeTests {
     // MARK: - Happy Path Parsing
 
     @Test
@@ -25,6 +1085,16 @@ struct KiroStatusProbeTests {
         #expect(snapshot.bonusCreditsTotal == nil)
         #expect(snapshot.bonusExpiryDays == nil)
         #expect(snapshot.resetsAt != nil)
+    }
+
+    private func makeCLI(_ script: String) throws -> URL {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-kiro-cli-\(UUID().uuidString)", isDirectory: true)
+        let cliURL = root.appendingPathComponent("kiro-cli")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try script.write(to: cliURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: cliURL.path)
+        return cliURL
     }
 
     @Test
@@ -313,8 +1383,8 @@ struct KiroStatusProbeTests {
         #expect(usage.secondary?.usedPercent == 25.0) // 5/20 * 100
         #expect(usage.loginMethod(for: .kiro) == nil)
         #expect(usage.accountOrganization(for: .kiro) == nil)
-        #expect(usage.kiroUsage?.displayPlanName == "Kiro Pro")
-        #expect(usage.kiroUsage?.creditsRemaining == 75)
+        #expect(usage.detailRow(label: "Plan")?.value == "Kiro Pro")
+        #expect(usage.detailRow(label: "Credits left")?.value == "75")
     }
 
     @Test
@@ -475,5 +1545,63 @@ struct KiroStatusProbeTests {
 
         #expect(account.authMethod == nil)
         #expect(account.email == "user@example.com")
+    }
+}
+
+extension KiroStatusProbeTests {
+    @Test
+    func `fetch cancellation while joining account after usage failure is preserved`() async throws {
+        let accountStarted = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-kiro-failed-usage-account-\(UUID().uuidString).started")
+        let usageFailed = accountStarted.appendingPathExtension("usage-failed")
+        let cliURL = try self.makeCLI(
+            """
+            #!/bin/sh
+            if [ "$1" = "whoami" ]; then
+              : > '\(accountStarted.path)'
+              trap '' TERM
+              while true; do sleep 1; done
+            fi
+
+            if [ "$1" = "chat" ] && [ "$3" = "/usage" ]; then
+              : > '\(usageFailed.path)'
+              exit 1
+            fi
+
+            exit 1
+            """)
+        defer {
+            try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent())
+            try? FileManager.default.removeItem(at: accountStarted)
+            try? FileManager.default.removeItem(at: usageFailed)
+        }
+
+        let registry = KiroTestProcessRegistry()
+        let probe = KiroProcessTestSupport.makeFunctionalProbe(
+            cliURL: cliURL,
+            processRegistry: registry)
+        let completion = KiroTestCompletionMarker()
+        let task = Task {
+            defer { completion.markCompleted() }
+            return try await probe.fetch()
+        }
+        defer {
+            task.cancel()
+            registry.terminateAll()
+        }
+
+        try await KiroProcessTestSupport.waitForFile(accountStarted)
+        try await KiroProcessTestSupport.waitForFile(usageFailed)
+        try await Task.sleep(for: .milliseconds(300))
+
+        task.cancel()
+        try await KiroProcessTestSupport.waitForCondition(
+            "failed-usage account-join cancellation to finish and release all registered processes")
+        {
+            completion.isCompleted() && registry.activePIDs().isEmpty
+        }
+        await #expect(throws: CancellationError.self) {
+            try await task.value
+        }
     }
 }

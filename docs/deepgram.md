@@ -83,7 +83,10 @@ codexbar -p dg  # alias
 
 * **DEEPGRAM_API_KEY**: Your Deepgram API key. Required.
 * **DEEPGRAM_PROJECT_ID**: Optional Deepgram project UUID. Leave unset to aggregate all visible projects.
-* **DEEPGRAM_API_URL**: Override the base API URL. Optional, defaults to https://api.deepgram.com/v1.
+* **DEEPGRAM_API_URL**: Override the base API URL. Optional, defaults to `https://api.deepgram.com/v1`.
+  Override values must be explicit HTTPS URLs or bare hosts/paths that CodexBar normalizes to HTTPS. Explicit
+  `http://` URLs fail closed before the Deepgram API key is attached to a request. For local proxy testing, use an
+  HTTPS listener or omit the scheme and let CodexBar normalize the override to HTTPS.
 
 ## Permissions
 

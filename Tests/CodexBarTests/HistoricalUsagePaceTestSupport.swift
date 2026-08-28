@@ -291,7 +291,6 @@ extension HistoricalUsagePaceTests {
             minimaxCookieStore: InMemoryMiniMaxCookieStore(),
             minimaxAPITokenStore: InMemoryMiniMaxAPITokenStore(),
             kimiTokenStore: InMemoryKimiTokenStore(),
-            kimiK2TokenStore: InMemoryKimiK2TokenStore(),
             augmentCookieStore: InMemoryCookieHeaderStore(),
             ampCookieStore: InMemoryCookieHeaderStore(),
             copilotTokenStore: InMemoryCopilotTokenStore(),
@@ -299,12 +298,14 @@ extension HistoricalUsagePaceTests {
         settings.historicalTrackingEnabled = true
         let planHistoryStore = testPlanUtilizationHistoryStore(
             suiteName: "HistoricalUsagePaceTests-\(UUID().uuidString)")
-        return UsageStore(
+        let store = UsageStore(
             fetcher: UsageFetcher(environment: [:]),
             browserDetection: BrowserDetection(cacheTTL: 0),
             settings: settings,
             historicalUsageHistoryStore: historicalUsageHistoryStore,
             planUtilizationHistoryStore: planHistoryStore)
+        store._cancelPlanUtilizationHistoryLoadForTesting()
+        return store
     }
 
     @MainActor
@@ -312,5 +313,22 @@ extension HistoricalUsagePaceTests {
         try self.makeUsageStoreForHistoricalTests(
             suite: suite,
             historicalUsageHistoryStore: HistoricalUsageHistoryStore(fileURL: historyFileURL))
+    }
+
+    @MainActor
+    static func makeStoreAndControllerForMenuBarPaceTests(
+        suite: String) throws -> (UsageStore, StatusItemController)
+    {
+        let store = try self.makeUsageStoreForBackfillTests(
+            suite: suite,
+            historyFileURL: self.makeTempURL())
+        let controller = StatusItemController(
+            store: store,
+            settings: store.settings,
+            account: AccountInfo(email: nil, plan: nil),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: testStatusBar())
+        return (store, controller)
     }
 }

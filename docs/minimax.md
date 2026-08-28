@@ -39,6 +39,8 @@ falls back across the provider's supported web requests when needed.
   - `MINIMAX_HOST=platform.minimaxi.com`
   - `MINIMAX_CODING_PLAN_URL=...` (full URL override)
   - `MINIMAX_REMAINS_URL=...` (full URL override)
+- Security policy: endpoint overrides are only accepted when they use `https://`, omit userinfo, and do not contain encoded host delimiters. Custom HTTPS proxy/test domains continue to work for compatibility, but `http://` endpoints are rejected so cookies and authorization headers are not sent in cleartext.
+- Strict provider-host mode: set `MINIMAX_REQUIRE_PROVIDER_ENDPOINT_OVERRIDES=true` to additionally reject custom proxy/test domains and only accept MiniMax-owned hosts under `minimax.io` or `minimaxi.com`.
 
 ## Cookie capture (optional override)
 - Open the Coding Plan page and DevTools → Network.
@@ -73,6 +75,8 @@ codexbar diagnose --provider minimax --format json --pretty
 
 ### Output
 - Structural diagnostic JSON with provider, source/source mode, auth summary, usage summary, fetch attempts, and error categories.
+- Per-service quota percentages, used values, limits, remaining values, reset metadata, and unlimited state. These are
+  the same non-secret values shown in the menu and help diagnose boosted quota denominators.
 - All sensitive fields (API tokens, cookies, emails, auth headers) are redacted via `LogRedactor`.
 - Errors are mapped to safe categories (`network`, `auth`, `api`, `parse`) with user-friendly descriptions.
 - No raw API responses, raw error messages, tokens, cookies, emails, account IDs, org IDs, or billing history.

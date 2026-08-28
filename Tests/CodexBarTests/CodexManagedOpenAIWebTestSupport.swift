@@ -7,7 +7,7 @@ extension CodexManagedOpenAIWebTests {
     @Test
     func `same account dashboard refresh requests coalesce while one is in flight`() async throws {
         let settings = self.makeSettingsStore(suite: "CodexManagedOpenAIWebTests-refresh-coalesce")
-        let managedHome = FileManager.default.temporaryDirectory
+        let managedHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-openai-web-coalesce-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: managedHome) }
         try Self.writeCodexAuthFile(

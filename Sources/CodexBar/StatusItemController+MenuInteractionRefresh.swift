@@ -5,6 +5,7 @@ import QuartzCore
 extension StatusItemController {
     private static let defaultDeferredMenuInteractionRefreshDelay: Duration = .milliseconds(250)
     private static let slowMenuOperationThreshold: TimeInterval = 0.15
+    private static let slowChartRenderThreshold: TimeInterval = 0.050
 
     #if DEBUG
     private static var deferredMenuInteractionRefreshDelayForTesting: Duration = .milliseconds(250)
@@ -24,6 +25,30 @@ extension StatusItemController {
         #else
         defaultDeferredMenuInteractionRefreshDelay
         #endif
+    }
+
+    struct MenuOperationTrace {
+        let operation: String
+        let startedAt: CFTimeInterval
+    }
+
+    /// Pairs the slow-operation timing log with a watchdog breadcrumb so a hang during
+    /// the operation is attributed to it even when the operation never finishes logging.
+    func beginMenuOperationTrace(
+        _ operation: String,
+        breadcrumb: @autoclosure () -> String) -> MenuOperationTrace
+    {
+        MainThreadActivityBreadcrumb.push(breadcrumb())
+        return MenuOperationTrace(operation: operation, startedAt: CACurrentMediaTime())
+    }
+
+    func endMenuOperationTrace(_ trace: MenuOperationTrace, menu: NSMenu, provider: UsageProvider?) {
+        MainThreadActivityBreadcrumb.pop()
+        self.logMenuOperationDurationIfSlow(
+            trace.operation,
+            startedAt: trace.startedAt,
+            menu: menu,
+            provider: provider)
     }
 
     func logMenuOperationDurationIfSlow(
@@ -46,9 +71,29 @@ extension StatusItemController {
             ])
     }
 
-    func deferMenuInteractionRefreshIfNeeded() {
+    func logChartRenderDurationIfSlow(_ label: String, startedAt: CFTimeInterval) {
+        let elapsed = CACurrentMediaTime() - startedAt
+        guard elapsed >= Self.slowChartRenderThreshold else { return }
+        self.menuLogger.warning(
+            "slow chart render",
+            metadata: [
+                "section": label,
+                "durationMs": String(format: "%.1f", elapsed * 1000),
+            ])
+    }
+
+    func deferMenuInteractionRefreshIfNeeded(providers: [UsageProvider]) {
         guard !self.store.isRefreshing else { return }
-        self.deferredMenuInteractionRefreshPending = true
+        self.deferredMenuInteractionRefreshProviders.formUnion(providers.map(\.instanceID))
+    }
+
+    func clearSatisfiedDeferredMenuInteractionRefreshes(for providers: [ProviderInstanceID]) {
+        for instanceID in providers {
+            guard let provider = instanceID.firstPartyProvider,
+                  !self.store.needsUsageRefreshRetry(for: provider)
+            else { continue }
+            self.deferredMenuInteractionRefreshProviders.remove(instanceID)
+        }
     }
 
     func deferOpenAIDashboardRefreshUntilMenuCloses(reason: String) {
@@ -80,6 +125,20 @@ extension StatusItemController {
                 self.deferredMenuInteractionRefreshTask = nil
                 return
             }
+            let pendingProviders = self.deferredMenuInteractionRefreshProviders
+            let hasProviderRefreshInFlight = pendingProviders.contains {
+                self.store.refreshingProviders.contains($0)
+            }
+            guard !self.store.isRefreshing,
+                  !self.store.hasForcedRefreshEnrichmentInFlight,
+                  !hasProviderRefreshInFlight
+            else {
+                self.deferredMenuInteractionRefreshTask = nil
+                self.scheduleDeferredMenuInteractionRefreshIfNeeded(
+                    delay: Self.defaultDeferredMenuInteractionRefreshDelay)
+                return
+            }
+            self.clearSatisfiedDeferredMenuInteractionRefreshes(for: Array(pendingProviders))
             let shouldRefreshStore = self.deferredMenuInteractionRefreshPending
             let openAIDashboardRefreshReason = self.deferredOpenAIDashboardRefreshReason
             guard shouldRefreshStore || openAIDashboardRefreshReason != nil else {
@@ -90,15 +149,8 @@ extension StatusItemController {
                 self.deferredMenuInteractionRefreshTask = nil
                 return
             }
-            guard !self.store.isRefreshing else {
-                self.deferredMenuInteractionRefreshTask = nil
-                self
-                    .scheduleDeferredMenuInteractionRefreshIfNeeded(delay: Self
-                        .defaultDeferredMenuInteractionRefreshDelay)
-                return
-            }
             self.deferredMenuInteractionRefreshTask = nil
-            self.deferredMenuInteractionRefreshPending = false
+            self.deferredMenuInteractionRefreshProviders.removeAll()
             self.deferredOpenAIDashboardRefreshReason = nil
             #if DEBUG
             self.onDeferredMenuInteractionRefreshForTesting?()

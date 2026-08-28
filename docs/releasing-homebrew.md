@@ -27,7 +27,7 @@ If dispatch fails or is rate-limited, update the files manually.
 In `../homebrew-tap`, update the cask at `Casks/codexbar.rb`:
 - `url` points at the GitHub release asset: `.../releases/download/v<version>/CodexBar-macos-universal-<version>.zip`
 - Update `sha256` to match that zip.
-- Keep `depends_on arch: :arm64` and `depends_on macos: ">= :sonoma"` (CodexBar is macOS 14+).
+- Keep `depends_on macos: ">= :sonoma"` (CodexBar is macOS 14+). Do not add an architecture restriction; the app zip is universal.
 
 ## 2b) Manual formula update
 In `../homebrew-tap`, update the formula at `Formula/codexbar.rb`:
@@ -36,6 +36,7 @@ In `../homebrew-tap`, update the formula at `Formula/codexbar.rb`:
   - macOS: `.../releases/download/v<version>/CodexBarCLI-v<version>-macos-x86_64.tar.gz`
   - Linux: `.../releases/download/v<version>/CodexBarCLI-v<version>-linux-aarch64.tar.gz`
   - Linux: `.../releases/download/v<version>/CodexBarCLI-v<version>-linux-x86_64.tar.gz`
+- Static musl tarballs are also published for manual Linux installs as `linux-musl-aarch64` and `linux-musl-x86_64`; keep the formula on the glibc assets unless intentionally changing its runtime contract.
 - Update all `sha256` values to match those tarballs.
 
 ## 3) Verify install

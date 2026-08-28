@@ -1,8 +1,6 @@
 import CodexBarCore
-import CodexBarMacroSupport
 import Foundation
 
-@ProviderImplementationRegistration
 struct VeniceProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .venice
 

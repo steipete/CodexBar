@@ -99,9 +99,10 @@ struct CopilotLoginFlow {
                 } catch {
                     guard existingAccounts.isEmpty else {
                         let err = NSAlert()
-                        err.messageText = "Could Not Identify GitHub Account"
-                        err.informativeText = "GitHub login succeeded, but CodexBar could not verify which " +
-                            "account it belongs to. Please try again."
+                        err.messageText = L("Could Not Identify GitHub Account")
+                        err.informativeText = L(
+                            "GitHub login succeeded, but CodexBar could not verify which " +
+                                "account it belongs to. Please try again.")
                         err.runModal()
                         return
                     }
@@ -138,20 +139,20 @@ struct CopilotLoginFlow {
                     enabled: true)
 
                 let success = NSAlert()
-                success.messageText = wasRefresh ? "Token Refreshed" : "Account Added"
+                success.messageText = wasRefresh ? L("Token Refreshed") : L("Account Added")
                 success.informativeText = label
                 success.runModal()
             case let .failure(error):
                 guard !(error is CancellationError) else { return }
                 let err = NSAlert()
-                err.messageText = "Login Failed"
+                err.messageText = L("Login Failed")
                 err.informativeText = error.localizedDescription
                 err.runModal()
             }
 
         } catch {
             let err = NSAlert()
-            err.messageText = "Login Failed"
+            err.messageText = L("Login Failed")
             err.informativeText = error.localizedDescription
             err.runModal()
         }

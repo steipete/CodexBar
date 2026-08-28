@@ -6,8 +6,39 @@ import Testing
 
 struct MenuCardProviderRegressionTests {
     @Test
+    func `menu card keeps positive sub percent usage visible`() {
+        let metric = UsageMenuCardView.Model.Metric(
+            id: "sub-percent",
+            title: "Monthly",
+            percent: 0.1,
+            percentStyle: .used,
+            resetText: nil,
+            detailText: nil,
+            detailLeftText: nil,
+            detailRightText: nil,
+            pacePercent: nil,
+            paceOnTop: false)
+
+        #expect(metric.percentLabel == "<1% used")
+    }
+
+    @Test
     func `elevenlabs progress color stays visible in light menus`() {
         #expect(UsageMenuCardView.Model.progressColor(for: .elevenlabs) == Color(nsColor: .labelColor))
+    }
+
+    @Test
+    func `command code progress color uses its contrasting brand accent`() {
+        let branding = ProviderDescriptorRegistry.descriptor(for: .commandcode).branding.color
+        let expected = ProviderColor(hex: 0xA04DFD)
+
+        #expect(branding == expected)
+        #expect(UsageMenuCardView.Model.progressColor(for: .commandcode) == Color(
+            red: expected.red,
+            green: expected.green,
+            blue: expected.blue))
+        #expect(Self.contrastRatio(expected, againstLuminance: 0) >= 3)
+        #expect(Self.contrastRatio(expected, againstLuminance: 1) >= 3)
     }
 
     @Test
@@ -46,7 +77,108 @@ struct MenuCardProviderRegressionTests {
             hidePersonalInfo: false,
             now: now))
 
-        #expect(model.usageNotes == ["Today: $0.12 · This week: $0.74"])
+        let apiKeyRows = try #require(model.providerDetails.first { $0.title == "API key" }?.rows)
+        #expect(apiKeyRows.first { $0.label == "Today" }?.value == "$0.12")
+        #expect(apiKeyRows.first { $0.label == "This week" }?.value == "$0.74")
+    }
+
+    private static func contrastRatio(_ color: ProviderColor, againstLuminance background: Double) -> Double {
+        let components = [color.red, color.green, color.blue].map { component in
+            component <= 0.04045
+                ? component / 12.92
+                : pow((component + 0.055) / 1.055, 2.4)
+        }
+        let foreground = 0.2126 * components[0] + 0.7152 * components[1] + 0.0722 * components[2]
+        return (max(foreground, background) + 0.05) / (min(foreground, background) + 0.05)
+    }
+
+    @Test
+    func `ollama api key model explains browser session quota requirement`() throws {
+        let now = Date()
+        let metadata = try #require(ProviderDefaults.metadata[.ollama])
+        let snapshot = OllamaAPIUsageSnapshot(modelCount: 3, updatedAt: now).toUsageSnapshot()
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .ollama,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            sourceLabel: "api",
+            hidePersonalInfo: false,
+            now: now))
+
+        #expect(model.metrics.isEmpty)
+        #expect(model.placeholder == nil)
+        #expect(model.planText == "API key")
+        #expect(model.usageNotes == [
+            "API key verified. Cloud quotas need browser cookies. Sign in to Ollama.",
+        ])
+    }
+
+    @Test
+    func `wayfinder model shows gateway routing savings and latency`() throws {
+        let now = Date()
+        let metadata = try #require(ProviderDefaults.metadata[.wayfinder])
+        let usage = WayfinderUsageSnapshot(
+            gatewayStatus: "ok",
+            offline: false,
+            dryRun: true,
+            missingKeys: [],
+            modelCount: 2,
+            requests: 14,
+            tokens: 1028,
+            realized: 0.003558,
+            baseline: 0.009252,
+            saved: 0.005694,
+            savedPct: 61.5,
+            priced: true,
+            routes: [
+                .init(name: "local", requests: 10, saved: 0.005694, tokens: 662),
+                .init(name: "cloud", requests: 4, saved: 0, tokens: 366),
+            ],
+            avgDecisionMs: 0.0804,
+            updatedAt: now)
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .wayfinder,
+            metadata: metadata,
+            snapshot: usage.toUsageSnapshot(),
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        let rows = try #require(model.providerDetails.first?.rows)
+        #expect(rows.map(\.label) == ["Gateway", "Routed", "Saved", "Avg decision"])
+        #expect(rows.map(\.value) == [
+            "ok · 2 models · dry run",
+            "local: 10 · cloud: 4",
+            "<$0.01 · 61.5% vs highest-cost route",
+            "0.1 ms",
+        ])
     }
 
     @Test

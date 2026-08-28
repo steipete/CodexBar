@@ -1,5 +1,164 @@
 import AppKit
+import KeyboardShortcuts
 import SwiftUI
+
+/// Colored rounded-square symbol used for app panes in the settings sidebar,
+/// mirroring the System Settings sidebar style.
+struct SettingsIconChip: View {
+    static let side: CGFloat = 20
+
+    let systemImage: String
+    let color: Color
+
+    var body: some View {
+        Image(systemName: self.systemImage)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(.white)
+            .frame(width: Self.side, height: Self.side)
+            .background(
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .fill(LinearGradient(
+                        colors: [self.color.opacity(0.85), self.color],
+                        startPoint: .top,
+                        endPoint: .bottom)))
+            .accessibilityHidden(true)
+    }
+}
+
+/// Two-line label for grouped-form rows that genuinely need a supporting sentence.
+struct SettingsRowLabel: View {
+    let title: String
+    let subtitle: String?
+
+    init(_ title: String, subtitle: String? = nil) {
+        self.title = title
+        self.subtitle = subtitle
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(self.title)
+            if let subtitle, !subtitle.isEmpty {
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+}
+
+/// Section footer for grouped forms. macOS renders bare footer text trailing-aligned
+/// at body size, which reads badly for long captions; this pins it leading at footnote
+/// size in secondary color, matching System Settings captions.
+struct SettingsSectionFooter<Content: View>: View {
+    private let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        self.content
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.leading)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+extension SettingsSectionFooter where Content == Text {
+    init(_ text: String) {
+        self.init { Text(text) }
+    }
+}
+
+@MainActor
+struct OpenMenuShortcutRecorder: NSViewRepresentable {
+    static let preferredWidth: CGFloat = 170
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    func makeNSView(context: Context) -> KeyboardShortcuts.RecorderCocoa {
+        let recorder = KeyboardShortcuts.RecorderCocoa(for: .openMenu)
+        context.coordinator.attach(to: recorder)
+        return recorder
+    }
+
+    func updateNSView(_ nsView: KeyboardShortcuts.RecorderCocoa, context: Context) {
+        nsView.shortcutName = .openMenu
+        context.coordinator.attach(to: nsView)
+    }
+
+    func sizeThatFits(
+        _: ProposedViewSize,
+        nsView: KeyboardShortcuts.RecorderCocoa,
+        context: Context)
+        -> CGSize?
+    {
+        Self.fittedSize(intrinsicHeight: nsView.intrinsicContentSize.height)
+    }
+
+    static func fittedSize(intrinsicHeight: CGFloat) -> CGSize {
+        CGSize(width: self.preferredWidth, height: intrinsicHeight)
+    }
+
+    @MainActor
+    final class Coordinator: NSObject {
+        private weak var recorder: KeyboardShortcuts.RecorderCocoa?
+        private var placeholderUpdateTask: Task<Void, Never>?
+
+        override init() {
+            super.init()
+            let center = NotificationCenter.default
+            center.addObserver(
+                self,
+                selector: #selector(self.textDidBeginEditing(_:)),
+                name: NSControl.textDidBeginEditingNotification,
+                object: nil)
+            center.addObserver(
+                self,
+                selector: #selector(self.textDidEndEditing(_:)),
+                name: NSControl.textDidEndEditingNotification,
+                object: nil)
+        }
+
+        deinit {
+            NotificationCenter.default.removeObserver(self)
+        }
+
+        func attach(to recorder: KeyboardShortcuts.RecorderCocoa) {
+            self.recorder = recorder
+            self.updatePlaceholder(isRecording: recorder.currentEditor() != nil)
+        }
+
+        @objc private func textDidBeginEditing(_ notification: Notification) {
+            guard notification.object as? KeyboardShortcuts.RecorderCocoa === self.recorder else { return }
+            self.updatePlaceholder(isRecording: true)
+        }
+
+        @objc private func textDidEndEditing(_ notification: Notification) {
+            guard notification.object as? KeyboardShortcuts.RecorderCocoa === self.recorder else { return }
+            self.updatePlaceholder(isRecording: false)
+        }
+
+        private func updatePlaceholder(isRecording: Bool) {
+            guard let recorder = self.recorder else { return }
+            let placeholder = L(isRecording ? "press_shortcut" : "record_shortcut")
+            recorder.placeholderString = placeholder
+            self.placeholderUpdateTask?.cancel()
+            self.placeholderUpdateTask = Task { @MainActor [weak self, weak recorder] in
+                guard !Task.isCancelled, let self, let recorder, self.recorder === recorder else { return }
+                recorder.placeholderString = placeholder
+            }
+        }
+    }
+}
+
+// MARK: - Legacy building blocks (Debug pane)
 
 @MainActor
 struct PreferenceToggleRow: View {
@@ -61,31 +220,6 @@ struct SettingsSection<Content: View>: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-    }
-}
-
-@MainActor
-struct AboutLinkRow: View {
-    let icon: String
-    let title: String
-    let url: String
-    @State private var hovering = false
-
-    var body: some View {
-        Button {
-            if let url = URL(string: self.url) { NSWorkspace.shared.open(url) }
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: self.icon)
-                Text(self.title)
-                    .underline(self.hovering, color: .accentColor)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 4)
-            .foregroundColor(.accentColor)
-        }
-        .buttonStyle(.plain)
-        .contentShape(Rectangle())
-        .onHover { self.hovering = $0 }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

@@ -22,7 +22,7 @@ enum MiniMaxAPITokenStoreError: LocalizedError {
 }
 
 struct KeychainMiniMaxAPITokenStore: MiniMaxAPITokenStoring {
-    private static let log = CodexBarLog.logger(LogCategories.minimaxAPITokenStore)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.minimax, scope: "api-token-store"))
 
     private let service = "com.steipete.CodexBar"
     private let account = "minimax-api-token"
@@ -50,7 +50,7 @@ struct KeychainMiniMaxAPITokenStore: MiniMaxAPITokenStoring {
                 account: self.account))
         }
 
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let status = KeychainSecurity.copyMatching(query as CFDictionary, &result)
         if status == errSecItemNotFound {
             return nil
         }
@@ -91,7 +91,7 @@ struct KeychainMiniMaxAPITokenStore: MiniMaxAPITokenStoring {
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
         ]
 
-        let updateStatus = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+        let updateStatus = KeychainSecurity.update(query as CFDictionary, attributes as CFDictionary)
         if updateStatus == errSecSuccess {
             return
         }
@@ -104,7 +104,7 @@ struct KeychainMiniMaxAPITokenStore: MiniMaxAPITokenStoring {
         for (key, value) in attributes {
             addQuery[key] = value
         }
-        let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
+        let addStatus = KeychainSecurity.add(addQuery as CFDictionary, nil)
         guard addStatus == errSecSuccess else {
             Self.log.error("Keychain add failed: \(addStatus)")
             throw MiniMaxAPITokenStoreError.keychainStatus(addStatus)
@@ -118,7 +118,7 @@ struct KeychainMiniMaxAPITokenStore: MiniMaxAPITokenStoring {
             kSecAttrService as String: self.service,
             kSecAttrAccount as String: self.account,
         ]
-        let status = SecItemDelete(query as CFDictionary)
+        let status = KeychainSecurity.delete(query as CFDictionary)
         if status == errSecSuccess || status == errSecItemNotFound {
             return
         }

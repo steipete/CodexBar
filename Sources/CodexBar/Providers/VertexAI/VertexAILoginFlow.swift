@@ -16,7 +16,8 @@ extension StatusItemController {
         let response = alert.runModal()
 
         if response == .alertFirstButtonReturn {
-            Self.openTerminalWithGcloudCommand()
+            self.openTerminal(
+                command: "gcloud auth application-default login --scopes=openid,https://www.googleapis.com/auth/userinfo.email,https://www.googleapis.com/auth/cloud-platform")
         }
 
         // Refresh after user may have logged in
@@ -24,25 +25,6 @@ extension StatusItemController {
         Task { @MainActor in
             try? await Task.sleep(for: .seconds(2))
             await self.store.refresh()
-        }
-    }
-
-    private static func openTerminalWithGcloudCommand() {
-        let script = """
-        tell application "Terminal"
-            activate
-            do script "gcloud auth application-default login --scopes=openid,https://www.googleapis.com/auth/userinfo.email,https://www.googleapis.com/auth/cloud-platform"
-        end tell
-        """
-
-        if let appleScript = NSAppleScript(source: script) {
-            var error: NSDictionary?
-            appleScript.executeAndReturnError(&error)
-            if let error {
-                CodexBarLog.logger(LogCategories.terminal).error(
-                    "Failed to open Terminal",
-                    metadata: ["error": String(describing: error)])
-            }
         }
     }
 }

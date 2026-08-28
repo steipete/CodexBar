@@ -2,68 +2,74 @@ import CodexBarCore
 import Foundation
 
 enum MenuBarMetricWindowResolver {
-    private enum Lane {
-        case primary
-        case secondary
-        case tertiary
-    }
-
     static func rateWindow(
         preference: MenuBarMetricPreference,
         provider: UsageProvider,
         snapshot: UsageSnapshot?,
-        supportsAverage: Bool)
+        supportsAverage: Bool,
+        antigravityPrioritizeExhaustedQuotas: Bool = false,
+        now: Date = Date())
         -> RateWindow?
     {
         guard let snapshot else { return nil }
+        let presentation = ProviderDescriptorRegistry.descriptor(for: provider).presentation
+        let metric = Self.providerMetric(preference)
+        switch presentation.menuBarWindow(context: ProviderMenuBarWindowContext(
+            metric: metric,
+            snapshot: snapshot,
+            supportsAverage: supportsAverage,
+            prioritizesExhaustedQuotas: antigravityPrioritizeExhaustedQuotas,
+            now: now))
+        {
+        case let .resolved(window):
+            return window
+        case .unhandled:
+            break
+        }
         switch preference {
+        case .monthlyPlan:
+            return nil
         case .extraUsage:
             return Self.extraUsageWindow(snapshot: snapshot)
         case .tertiary:
-            return Self.window(in: snapshot, following: Self.tertiaryOrder(for: provider))
+            return Self.requestedWindow(
+                provider: provider,
+                snapshot: snapshot,
+                lanes: presentation.requestedMenuBarLaneOrder(for: .tertiary))
         case .primary:
-            return Self.window(in: snapshot, following: Self.primaryOrder(for: provider))
+            return Self.requestedWindow(
+                provider: provider,
+                snapshot: snapshot,
+                lanes: presentation.requestedMenuBarLaneOrder(for: .primary))
         case .secondary:
-            return Self.window(in: snapshot, following: Self.secondaryOrder(for: provider))
+            return Self.requestedWindow(
+                provider: provider,
+                snapshot: snapshot,
+                lanes: presentation.requestedMenuBarLaneOrder(for: .secondary))
+        case .primaryAndSecondary:
+            // Claude accounts that only expose an enterprise/extra-usage spend limit have no real
+            // session/weekly lanes; surface the spend limit (as `.automatic` does) instead of an empty
+            // or 0% placeholder lane.
+            return Self.mostConstrainedWindow(
+                primary: snapshot.primary,
+                secondary: snapshot.secondary,
+                tertiary: nil)
         case .average:
-            return Self.averageWindow(provider: provider, snapshot: snapshot, supportsAverage: supportsAverage)
+            return Self.averageWindow(snapshot: snapshot, supportsAverage: supportsAverage)
         case .automatic:
-            return Self.automaticWindow(provider: provider, snapshot: snapshot)
+            return Self.automaticWindow(
+                presentation: presentation,
+                snapshot: snapshot,
+                now: now)
         }
     }
 
-    private static func tertiaryOrder(for provider: UsageProvider) -> [Lane] {
-        if provider == .zai {
-            return [.tertiary, .primary, .secondary]
-        }
-        if provider == .perplexity || provider == .cursor || provider == .antigravity {
-            return [.tertiary, .secondary, .primary]
-        }
-        return [.primary, .secondary]
-    }
-
-    private static func primaryOrder(for provider: UsageProvider) -> [Lane] {
-        if provider == .zai {
-            return [.primary, .tertiary, .secondary]
-        }
-        if provider == .perplexity || provider == .antigravity {
-            return [.primary, .secondary, .tertiary]
-        }
-        return [.primary, .secondary]
-    }
-
-    private static func secondaryOrder(for provider: UsageProvider) -> [Lane] {
-        if provider == .zai || provider == .antigravity {
-            return [.secondary, .primary, .tertiary]
-        }
-        if provider == .perplexity {
-            return [.secondary, .tertiary, .primary]
-        }
-        return [.secondary, .primary]
+    static func automaticSelectionPrioritizesExhaustedWindow(for provider: UsageProvider) -> Bool {
+        ProviderDescriptorRegistry.descriptor(for: provider).presentation
+            .automaticSelectionPrioritizesExhaustedWindow
     }
 
     private static func averageWindow(
-        provider: UsageProvider,
         snapshot: UsageSnapshot,
         supportsAverage: Bool)
         -> RateWindow?
@@ -72,9 +78,6 @@ enum MenuBarMetricWindowResolver {
               let primary = snapshot.primary,
               let secondary = snapshot.secondary
         else {
-            if provider == .antigravity {
-                return self.window(in: snapshot, following: [.primary, .secondary, .tertiary])
-            }
             return snapshot.primary ?? snapshot.secondary
         }
 
@@ -82,61 +85,128 @@ enum MenuBarMetricWindowResolver {
         return RateWindow(usedPercent: usedPercent, windowMinutes: nil, resetsAt: nil, resetDescription: nil)
     }
 
-    private static func automaticWindow(provider: UsageProvider, snapshot: UsageSnapshot) -> RateWindow? {
-        if provider == .antigravity {
-            return self.window(in: snapshot, following: [.primary, .secondary, .tertiary])
-        }
-        if provider == .perplexity {
-            return snapshot.automaticPerplexityWindow()
-        }
-        if provider == .zai {
-            return self.mostConstrainedWindow(
-                primary: snapshot.primary,
-                secondary: snapshot.tertiary,
-                tertiary: nil) ?? snapshot.secondary
-        }
-        if provider == .factory || provider == .kimi {
-            return snapshot.secondary ?? snapshot.primary
-        }
-        if provider == .copilot,
-           let primary = snapshot.primary,
-           let secondary = snapshot.secondary
+    private static func automaticWindow(
+        presentation: ProviderUsagePresentation,
+        snapshot: UsageSnapshot,
+        now: Date)
+        -> RateWindow?
+    {
+        _ = now
+        if presentation.automaticSelectionPrioritizesExhaustedWindow,
+           let exhausted = exhaustedWindow(
+               primary: snapshot.primary,
+               secondary: snapshot.secondary,
+               tertiary: snapshot.tertiary)
         {
-            return primary.usedPercent >= secondary.usedPercent ? primary : secondary
-        }
-        if provider == .cursor {
-            return Self.mostConstrainedWindow(
-                primary: snapshot.primary,
-                secondary: snapshot.secondary,
-                tertiary: snapshot.tertiary)
-        }
-        if provider == .claude,
-           Self.shouldUseClaudeSpendLimit(providerCost: snapshot.providerCost, snapshot: snapshot),
-           let extraUsage = Self.extraUsageWindow(snapshot: snapshot)
-        {
-            return extraUsage
+            return exhausted
         }
         return snapshot.primary ?? snapshot.secondary
     }
 
-    private static func window(in snapshot: UsageSnapshot, following lanes: [Lane]) -> RateWindow? {
-        for lane in lanes {
-            if let window = self.window(in: snapshot, lane: lane) {
-                return window
-            }
+    private static func providerMetric(_ preference: MenuBarMetricPreference) -> ProviderMenuBarMetric {
+        switch preference {
+        case .automatic: .automatic
+        case .primary: .primary
+        case .secondary: .secondary
+        case .primaryAndSecondary: .primaryAndSecondary
+        case .tertiary: .tertiary
+        case .extraUsage: .extraUsage
+        case .average: .average
+        case .monthlyPlan: .monthlyPlan
         }
-        return nil
     }
 
-    private static func window(in snapshot: UsageSnapshot, lane: Lane) -> RateWindow? {
-        switch lane {
-        case .primary:
-            snapshot.primary
-        case .secondary:
-            snapshot.secondary
-        case .tertiary:
-            snapshot.tertiary
+    private static let antigravityQuotaSummaryWindowIDPrefix = "antigravity-quota-summary-"
+    /// Picks the binding supported quota-summary lane for the exhausted-first opt-in.
+    static func antigravityQuotaSummaryRankingWindow(
+        snapshot: UsageSnapshot,
+        now: Date)
+        -> RateWindow?
+    {
+        self.rateWindow(
+            preference: .automatic,
+            provider: .antigravity,
+            snapshot: snapshot,
+            supportsAverage: false,
+            antigravityPrioritizeExhaustedQuotas: true,
+            now: now)
+    }
+
+    /// True only when every fully understood quota family has an exhausted binding lane.
+    /// Any incomplete or unfamiliar summary row fails open so automatic provider rotation
+    /// does not hide quota that CodexBar cannot classify safely.
+    static func antigravityQuotaSummaryFamiliesAreAllBlocked(snapshot: UsageSnapshot) -> Bool {
+        let rows = Self.antigravityQuotaSummaryRows(snapshot: snapshot)
+        guard !rows.isEmpty else { return false }
+
+        var familyBlocked: [String: Bool] = [:]
+        for row in rows {
+            guard row.usageKnown,
+                  row.window.usedPercent.isFinite,
+                  Self.isSupportedAntigravityQuotaCadence(row.window.windowMinutes),
+                  let family = Self.antigravityQuotaFamily(for: row)
+            else {
+                return false
+            }
+            familyBlocked[family, default: false] =
+                familyBlocked[family, default: false] || row.window.usedPercent >= 100
         }
+        return !familyBlocked.isEmpty && familyBlocked.values.allSatisfy(\.self)
+    }
+
+    private static let antigravitySupportedQuotaCadences: Set<Int> = [300, 10080]
+
+    private static func isSupportedAntigravityQuotaCadence(_ windowMinutes: Int?) -> Bool {
+        guard let windowMinutes else { return false }
+        return Self.antigravitySupportedQuotaCadences.contains(windowMinutes)
+    }
+
+    private static func antigravityQuotaSummaryRows(snapshot: UsageSnapshot) -> [NamedRateWindow] {
+        snapshot.extraRateWindows?.filter {
+            $0.id.hasPrefix(Self.antigravityQuotaSummaryWindowIDPrefix)
+        } ?? []
+    }
+
+    private static func antigravityQuotaFamily(for row: NamedRateWindow) -> String? {
+        let suffix = row.id.dropFirst(Self.antigravityQuotaSummaryWindowIDPrefix.count)
+        var normalizedSuffix = suffix
+            .lowercased()
+            .replacingOccurrences(of: "_", with: "-")
+        if normalizedSuffix.hasSuffix(" limit") {
+            normalizedSuffix.removeLast(" limit".count)
+        }
+        let cadenceSuffixes: [String]
+        switch row.window.windowMinutes {
+        case 300:
+            cadenceSuffixes = ["-session", "-5h", "-5-hour", "-five hour", "-five-hour"]
+        case 10080:
+            cadenceSuffixes = ["-weekly"]
+        default:
+            return nil
+        }
+
+        guard let cadenceSuffix = cadenceSuffixes.first(where: normalizedSuffix.hasSuffix) else {
+            return nil
+        }
+        let family = normalizedSuffix
+            .dropLast(cadenceSuffix.count)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !family.isEmpty,
+              family.first != "-",
+              family.last != "-",
+              family.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" || $0 == "." })
+        else {
+            return nil
+        }
+        return family
+    }
+
+    private static func requestedWindow(
+        provider _: UsageProvider,
+        snapshot: UsageSnapshot,
+        lanes: [ProviderUsageLane]) -> RateWindow?
+    {
+        ProviderUsagePresentation.window(in: snapshot, following: lanes)
     }
 
     private static func mostConstrainedWindow(
@@ -150,20 +220,35 @@ enum MenuBarMetricWindowResolver {
         return windows.max(by: { $0.usedPercent < $1.usedPercent })
     }
 
-    private static func shouldUseClaudeSpendLimit(
-        providerCost: ProviderCostSnapshot?,
-        snapshot: UsageSnapshot)
-        -> Bool
+    private static func exhaustedWindow(
+        primary: RateWindow?,
+        secondary: RateWindow?,
+        tertiary: RateWindow?)
+        -> RateWindow?
     {
-        guard providerCost?.limit ?? 0 > 0,
-              snapshot.secondary == nil,
-              snapshot.tertiary == nil
-        else { return false }
-        guard let primary = snapshot.primary else { return true }
-        return primary.usedPercent == 0
-            && primary.windowMinutes == 5 * 60
-            && primary.resetsAt == nil
-            && primary.resetDescription == nil
+        [primary, secondary, tertiary]
+            .compactMap(\.self)
+            .first { $0.usedPercent >= 100 }
+    }
+
+    /// The Claude spend-limit window when the account only exposes an enterprise/extra-usage spend limit
+    /// and has no real session/weekly quota lanes (`primary` nil, a `.spendLimit` window, or an explicitly
+    /// marked placeholder). Lets the automatic and combined metrics surface the spend limit instead of an empty
+    /// or 0% placeholder lane. Returns nil for accounts that expose genuine quota lanes.
+    static func claudeSpendLimitWindow(snapshot: UsageSnapshot) -> RateWindow? {
+        let presentation = ProviderDescriptorRegistry.descriptor(for: .claude).presentation
+        switch presentation.menuBarWindow(context: ProviderMenuBarWindowContext(
+            metric: .automatic,
+            snapshot: snapshot,
+            supportsAverage: false,
+            prioritizesExhaustedQuotas: false,
+            now: .now))
+        {
+        case let .resolved(window):
+            return window
+        case .unhandled:
+            return nil
+        }
     }
 
     private static func extraUsageWindow(snapshot: UsageSnapshot?) -> RateWindow? {

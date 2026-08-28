@@ -1,3 +1,11 @@
+---
+summary: "Venice provider setup, API-key balance query, and DIEM/USD balance display."
+read_when:
+  - Adding or modifying the Venice provider
+  - Debugging Venice API-key balance fetching
+  - Explaining Venice setup or balance display
+---
+
 # Venice
 
 [Venice](https://venice.ai) is an AI inference platform that provides API access to various language models.

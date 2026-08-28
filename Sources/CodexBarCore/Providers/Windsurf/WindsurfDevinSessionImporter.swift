@@ -5,12 +5,50 @@ import SweetCookieKit
 
 #if os(macOS)
 enum WindsurfDevinSessionImporter {
-    nonisolated(unsafe) static var importSessionsOverrideForTesting:
-        ((BrowserDetection, ((String) -> Void)?) -> [SessionInfo])?
-    nonisolated(unsafe) static var importPreferredSessionsOverrideForTesting:
-        ((BrowserDetection, ((String) -> Void)?) -> [SessionInfo])?
-    nonisolated(unsafe) static var importFallbackSessionsOverrideForTesting:
-        ((BrowserDetection, ((String) -> Void)?) -> [SessionInfo])?
+    #if DEBUG
+    final class ImportSessionsOverrideStore: @unchecked Sendable {
+        let importSessions: (BrowserDetection, ((String) -> Void)?) -> [SessionInfo]
+
+        init(importSessions: @escaping (BrowserDetection, ((String) -> Void)?) -> [SessionInfo]) {
+            self.importSessions = importSessions
+        }
+    }
+
+    @TaskLocal private static var taskImportSessionsOverrideStore: ImportSessionsOverrideStore?
+    @TaskLocal private static var taskImportPreferredSessionsOverrideStore: ImportSessionsOverrideStore?
+    @TaskLocal private static var taskImportFallbackSessionsOverrideStore: ImportSessionsOverrideStore?
+
+    static func withImportSessionsOverrideForTesting<T>(
+        _ override: ((BrowserDetection, ((String) -> Void)?) -> [SessionInfo])?,
+        operation: () async throws -> T) async rethrows -> T
+    {
+        try await self.$taskImportSessionsOverrideStore.withValue(override.map(ImportSessionsOverrideStore.init)) {
+            try await operation()
+        }
+    }
+
+    static func withImportPreferredSessionsOverrideForTesting<T>(
+        _ override: ((BrowserDetection, ((String) -> Void)?) -> [SessionInfo])?,
+        operation: () async throws -> T) async rethrows -> T
+    {
+        try await self.$taskImportPreferredSessionsOverrideStore.withValue(
+            override.map(ImportSessionsOverrideStore.init))
+        {
+            try await operation()
+        }
+    }
+
+    static func withImportFallbackSessionsOverrideForTesting<T>(
+        _ override: ((BrowserDetection, ((String) -> Void)?) -> [SessionInfo])?,
+        operation: () async throws -> T) async rethrows -> T
+    {
+        try await self.$taskImportFallbackSessionsOverrideStore.withValue(
+            override.map(ImportSessionsOverrideStore.init))
+        {
+            try await operation()
+        }
+    }
+    #endif
     static let defaultPreferredBrowsers: [Browser] = [.chrome]
     static let fallbackBrowsers: [Browser] = [
         .chromeBeta,
@@ -40,9 +78,11 @@ enum WindsurfDevinSessionImporter {
         browserDetection: BrowserDetection,
         logger: ((String) -> Void)? = nil) -> [SessionInfo]
     {
-        if let override = self.importSessionsOverrideForTesting {
+        #if DEBUG
+        if let override = self.taskImportSessionsOverrideStore?.importSessions {
             return override(browserDetection, logger)
         }
+        #endif
 
         let log: (String) -> Void = { msg in logger?("[windsurf-storage] \(msg)") }
         let preferredSessions = self.importSessions(
@@ -70,9 +110,11 @@ enum WindsurfDevinSessionImporter {
         browserDetection: BrowserDetection,
         logger: ((String) -> Void)? = nil) -> [SessionInfo]
     {
-        if let override = self.importPreferredSessionsOverrideForTesting {
+        #if DEBUG
+        if let override = self.taskImportPreferredSessionsOverrideStore?.importSessions {
             return override(browserDetection, logger)
         }
+        #endif
         let log: (String) -> Void = { msg in logger?("[windsurf-storage] \(msg)") }
         return self.importSessions(
             browserDetection: browserDetection,
@@ -84,9 +126,11 @@ enum WindsurfDevinSessionImporter {
         browserDetection: BrowserDetection,
         logger: ((String) -> Void)? = nil) -> [SessionInfo]
     {
-        if let override = self.importFallbackSessionsOverrideForTesting {
+        #if DEBUG
+        if let override = self.taskImportFallbackSessionsOverrideStore?.importSessions {
             return override(browserDetection, logger)
         }
+        #endif
         let log: (String) -> Void = { msg in logger?("[windsurf-storage] \(msg)") }
         return self.importSessions(
             browserDetection: browserDetection,
@@ -148,6 +192,20 @@ enum WindsurfDevinSessionImporter {
         let url: URL
     }
 
+    struct LocalStorageSnapshot: Equatable {
+        let storage: [String: String]
+        let sourceSuffix: String?
+    }
+
+    typealias LocalStorageOriginEntries = (
+        origin: URL,
+        entries: [SweetCookieKit.ChromiumLocalStorageEntry])
+
+    static let localStorageOrigins = [
+        URL(string: "https://app.devin.ai")!,
+        URL(string: "https://windsurf.com")!,
+    ]
+
     private static func importSessions(
         browserDetection: BrowserDetection,
         browsers: [Browser],
@@ -162,10 +220,13 @@ enum WindsurfDevinSessionImporter {
         }
 
         for candidate in candidates {
-            let storage = self.readLocalStorage(from: candidate.url, logger: logger)
-            guard let session = self.session(from: storage, sourceLabel: candidate.label) else { continue }
-            logger("Found Windsurf devin session in \(candidate.label)")
-            sessions.append(session)
+            let snapshots = self.readLocalStorageSnapshots(from: candidate.url, logger: logger)
+            for snapshot in snapshots {
+                let sourceLabel = self.sourceLabel(candidate.label, suffix: snapshot.sourceSuffix)
+                guard let session = self.session(from: snapshot.storage, sourceLabel: sourceLabel) else { continue }
+                logger("Found Windsurf devin session in \(sourceLabel)")
+                sessions.append(session)
+            }
         }
 
         return self.deduplicateSessions(sessions)
@@ -213,35 +274,72 @@ enum WindsurfDevinSessionImporter {
         }
     }
 
-    private static func readLocalStorage(
+    private static func readLocalStorageSnapshots(
         from levelDBURL: URL,
-        logger: ((String) -> Void)? = nil) -> [String: String]
+        logger: ((String) -> Void)? = nil) -> [LocalStorageSnapshot]
     {
-        var storage: [String: String] = [:]
-
-        let entries = SweetCookieKit.ChromiumLocalStorageReader.readEntries(
-            for: "https://windsurf.com",
-            in: levelDBURL,
-            logger: logger)
-
-        for entry in entries where Self.targetKeys.contains(entry.key) {
-            storage[entry.key] = self.decodedStorageValue(entry.value)
-        }
-
-        if storage.count == Self.targetKeys.count {
-            return storage
+        let originEntries = Self.localStorageOrigins.map { origin in
+            let entries = SweetCookieKit.ChromiumLocalStorageReader.readEntries(
+                for: origin.absoluteString,
+                in: levelDBURL,
+                logger: logger)
+            return (origin: origin, entries: entries)
         }
 
         let textEntries = SweetCookieKit.ChromiumLocalStorageReader.readTextEntries(
             in: levelDBURL,
             logger: logger)
+        return self.localStorageSnapshots(from: originEntries, textEntries: textEntries)
+    }
 
-        for entry in textEntries {
+    static func localStorageSnapshots(
+        from originEntries: [LocalStorageOriginEntries],
+        textEntries: [SweetCookieKit.ChromiumLevelDBTextEntry]) -> [LocalStorageSnapshot]
+    {
+        var snapshots = self.localStorageSnapshots(from: originEntries)
+        let textStorage = self.storage(from: textEntries)
+        if textStorage.count == Self.targetKeys.count {
+            snapshots.append(LocalStorageSnapshot(storage: textStorage, sourceSuffix: nil))
+        }
+
+        return snapshots
+    }
+
+    static func localStorageSnapshots(from originEntries: [LocalStorageOriginEntries]) -> [LocalStorageSnapshot] {
+        originEntries.compactMap { originEntry in
+            let storage = self.storage(from: originEntry.entries)
+            guard storage.count == Self.targetKeys.count else { return nil }
+            return LocalStorageSnapshot(
+                storage: storage,
+                sourceSuffix: originEntry.origin.host ?? originEntry.origin.absoluteString)
+        }
+    }
+
+    private static func storage(
+        from entries: [SweetCookieKit.ChromiumLocalStorageEntry]) -> [String: String]
+    {
+        var storage: [String: String] = [:]
+        for entry in entries where storage[entry.key] == nil && Self.targetKeys.contains(entry.key) {
+            storage[entry.key] = self.decodedStorageValue(entry.value)
+        }
+        return storage
+    }
+
+    private static func storage(
+        from entries: [SweetCookieKit.ChromiumLevelDBTextEntry]) -> [String: String]
+    {
+        var storage: [String: String] = [:]
+        for entry in entries {
             guard storage[entry.key] == nil, Self.targetKeys.contains(entry.key) else { continue }
             storage[entry.key] = self.decodedStorageValue(entry.value)
         }
 
         return storage
+    }
+
+    private static func sourceLabel(_ label: String, suffix: String?) -> String {
+        guard let suffix else { return label }
+        return "\(label) (\(suffix))"
     }
 
     private static let targetKeys: Set<String> = [

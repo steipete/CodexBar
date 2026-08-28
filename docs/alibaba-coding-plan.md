@@ -42,7 +42,9 @@ When the RPC endpoint returns `ConsoleNeedLogin`, CodexBar treats that as a cons
 - Override host base: `ALIBABA_CODING_PLAN_HOST`
   - Example: `ALIBABA_CODING_PLAN_HOST=modelstudio.console.alibabacloud.com`
 - Override full quota URL: `ALIBABA_CODING_PLAN_QUOTA_URL`
-  - Example: `ALIBABA_CODING_PLAN_QUOTA_URL=https://example.com/data/api.json?action=...`
+  - Example: `ALIBABA_CODING_PLAN_QUOTA_URL=https://modelstudio.console.alibabacloud.com/data/api.json?action=...`
+- Security policy: endpoint overrides are only accepted when they use `https://`, omit userinfo, and do not contain encoded host delimiters. Custom HTTPS proxy/test domains continue to work for compatibility, but `http://` endpoints are rejected so cookies and API credentials are not sent in cleartext.
+- Strict provider-host mode: set `ALIBABA_CODING_PLAN_REQUIRE_PROVIDER_ENDPOINT_OVERRIDES=true` to additionally reject custom proxy/test domains and only accept the known Alibaba Coding Plan console and RPC hosts.
 
 ## Request headers
 - `Authorization: Bearer <api_key>`

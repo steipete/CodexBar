@@ -1,0 +1,5 @@
+model_provider = "openai"
+
+[model_providers.unused]
+name = "Unused fixture provider"
+requires_openai_auth = false

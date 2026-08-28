@@ -17,11 +17,127 @@ enum AmpUsageParser {
             updatedAt: now)
     }
 
+    static func parse(displayText: String, now: Date = Date()) throws -> AmpUsageSnapshot {
+        let text = TextParsing.stripANSICodes(displayText).replacingOccurrences(of: "**", with: "")
+        let identityPattern = #"(?im)^\s*Signed in as\s+([^\s(]+)(?:\s+\(([^\r\n)]+)\))?\s*$"#
+        let identity = self.captures(in: text, pattern: identityPattern)
+        if identity == nil, self.looksSignedOut(text) {
+            throw AmpUsageError.notLoggedIn
+        }
+
+        let amountPattern = #"([0-9][0-9,]*(?:\.[0-9]+)?)"#
+        let freePattern = #"(?im)^\s*Amp Free:\s*\$?"# + amountPattern +
+            #"\s*/\s*\$?"# + amountPattern +
+            #"\s+remaining(?:\s*\(replenishes\s*\+\$?"# + amountPattern + #"\s*/\s*hour\))?"#
+        let freePercentPattern = #"(?im)^\s*Amp Free:\s*"# + amountPattern +
+            #"\s*%\s+remaining(?:\s+today)?(?:\s*(\(resets\s+daily\)))?"#
+        let subscriptionSuffix = #"\s*"# + amountPattern +
+            #"\s*%\s+other\s+usage\s+and\s+"# + amountPattern +
+            #"\s*%\s+orb\s+usage\s+remaining\s*-\s*resets\s+upon\s+renewal\s+in\s+"# +
+            #"([0-9][0-9,]*)\s+(days?|months?)(?:\s+-\s+https?://\S+)?\s*$"#
+        let subscriptionPatterns = [
+            #"(?im)^\s*Subscription\s+(.+?):"# + subscriptionSuffix,
+            #"(?im)^\s*Amp\s+(.+?)\s+Subscription:"# + subscriptionSuffix,
+        ]
+        let creditsPattern = #"(?im)^\s*Individual credits:\s*\$?"# + amountPattern + #"\s+remaining"#
+        let individualCredits = self.captures(in: text, pattern: creditsPattern)?.first
+            .flatMap(self.number(from:))
+        let workspacePattern = #"(?im)^\s*Workspace\s+(.+?):\s*\$?"# + amountPattern + #"\s+remaining"#
+        let workspaceBalances: [AmpWorkspaceBalance] = self.allCaptures(
+            in: text,
+            pattern: workspacePattern).compactMap { captures -> AmpWorkspaceBalance? in
+            guard captures.count == 2,
+                  let name = self.nonEmpty(captures[0]),
+                  let remaining = self.number(from: captures[1])
+            else { return nil }
+            return AmpWorkspaceBalance(name: name, remaining: remaining)
+        }
+        let freeUsage: FreeTierUsage? = {
+            guard let free = self.captures(in: text, pattern: freePattern),
+                  let remaining = self.number(from: free[0]),
+                  let quota = self.number(from: free[1])
+            else { return nil }
+            let hourlyReplenishment = self.number(from: free[2]) ?? 0
+            let windowHours = hourlyReplenishment > 0
+                ? max(1, (quota / hourlyReplenishment).rounded())
+                : nil
+            return FreeTierUsage(
+                quota: quota,
+                used: max(0, quota - remaining),
+                hourlyReplenishment: hourlyReplenishment,
+                windowHours: windowHours,
+                resetDescription: nil)
+        }()
+        let freePercentUsage: FreeTierUsage? = {
+            guard let free = self.captures(in: text, pattern: freePercentPattern),
+                  let remaining = self.number(from: free[0])
+            else { return nil }
+            let clampedRemaining = min(100, max(0, remaining))
+            return FreeTierUsage(
+                quota: 100,
+                used: 100 - clampedRemaining,
+                hourlyReplenishment: 0,
+                windowHours: 24,
+                resetDescription: self.nonEmpty(free[1]).map { _ in "resets daily" })
+        }()
+        let resolvedFreeUsage = freeUsage ?? freePercentUsage
+        let subscriptionUsage: AmpSubscriptionUsage? = {
+            guard let subscription = subscriptionPatterns.lazy.compactMap({ pattern in
+                self.captures(in: text, pattern: pattern)
+            }).first,
+                subscription.count == 5,
+                let plan = self.nonEmpty(subscription[0]),
+                let otherRemaining = self.number(from: subscription[1]),
+                let orbRemaining = self.number(from: subscription[2]),
+                let renewalValue = Int(subscription[3].replacingOccurrences(of: ",", with: "")),
+                let resetsAt = self.subscriptionResetDate(
+                    value: renewalValue,
+                    unit: subscription[4],
+                    now: now)
+            else { return nil }
+            let unit = subscription[4].lowercased()
+            let singularUnit = unit.hasPrefix("month") ? "month" : "day"
+            let resetDescription = "renews in \(renewalValue) \(singularUnit)\(renewalValue == 1 ? "" : "s")"
+            return AmpSubscriptionUsage(
+                plan: plan,
+                otherUsedPercent: 100 - min(100, max(0, otherRemaining)),
+                orbUsedPercent: 100 - min(100, max(0, orbRemaining)),
+                resetsAt: resetsAt,
+                resetDescription: resetDescription)
+        }()
+        guard resolvedFreeUsage != nil || subscriptionUsage != nil || individualCredits != nil ||
+            !workspaceBalances.isEmpty
+        else {
+            throw AmpUsageError.parseFailed("Missing Amp usage data.")
+        }
+
+        return AmpUsageSnapshot(
+            freeQuota: resolvedFreeUsage?.quota,
+            freeUsed: resolvedFreeUsage?.used,
+            hourlyReplenishment: resolvedFreeUsage?.hourlyReplenishment,
+            windowHours: resolvedFreeUsage?.windowHours,
+            individualCredits: individualCredits,
+            workspaceBalances: workspaceBalances,
+            accountEmail: self.nonEmpty(identity?[0]),
+            accountOrganization: self.nonEmpty(identity?[1]),
+            updatedAt: now,
+            freeResetDescription: resolvedFreeUsage?.resetDescription,
+            subscription: subscriptionUsage)
+    }
+
+    private static func subscriptionResetDate(value: Int, unit: String, now: Date) -> Date? {
+        if unit.lowercased().hasPrefix("month") {
+            return Calendar(identifier: .gregorian).date(byAdding: .month, value: value, to: now)
+        }
+        return now.addingTimeInterval(TimeInterval(value) * 24 * 60 * 60)
+    }
+
     private struct FreeTierUsage {
         let quota: Double
         let used: Double
         let hourlyReplenishment: Double
         let windowHours: Double?
+        let resetDescription: String?
     }
 
     private static func parseFreeTierUsage(_ html: String) -> FreeTierUsage? {
@@ -47,7 +163,8 @@ enum AmpUsageParser {
             quota: quota,
             used: used,
             hourlyReplenishment: hourly,
-            windowHours: windowHours)
+            windowHours: windowHours,
+            resetDescription: nil)
     }
 
     private static func extractObject(named token: String, in text: String) -> String? {
@@ -96,6 +213,41 @@ enum AmpUsageParser {
               let valueRange = Range(match.range(at: 1), in: text)
         else { return nil }
         return Double(text[valueRange])
+    }
+
+    private static func captures(in text: String, pattern: String) -> [String]? {
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+        guard let match = regex.firstMatch(in: text, options: [], range: range) else { return nil }
+
+        return self.captures(in: text, match: match)
+    }
+
+    private static func allCaptures(in text: String, pattern: String) -> [[String]] {
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+        return regex.matches(in: text, options: [], range: range).map { match in
+            self.captures(in: text, match: match)
+        }
+    }
+
+    private static func captures(in text: String, match: NSTextCheckingResult) -> [String] {
+        (1..<match.numberOfRanges).map { index in
+            let captureRange = match.range(at: index)
+            guard captureRange.location != NSNotFound,
+                  let range = Range(captureRange, in: text)
+            else { return "" }
+            return String(text[range]).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+    }
+
+    private static func number(from text: String) -> Double? {
+        Double(text.replacingOccurrences(of: ",", with: ""))
+    }
+
+    private static func nonEmpty(_ text: String?) -> String? {
+        guard let text, !text.isEmpty else { return nil }
+        return text
     }
 
     private static func looksSignedOut(_ html: String) -> Bool {
