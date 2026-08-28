@@ -328,6 +328,8 @@ final class SettingsStore {
         antigravityOAuthCredentialsStore: AntigravityOAuthCredentialsStore = AntigravityOAuthCredentialsStore(),
         performInitialProviderDetection: Bool = !SettingsStore.isRunningTests)
     {
+        // Legacy credential migration must see the saved policy, including shared-defaults fallback.
+        KeychainAccessGate.isDisabled = Self.loadDebugDisableKeychainAccess(userDefaults: userDefaults)
         if !Self.isRunningTests {
             _ = UserProviderPluginRegistry.refresh()
         }
@@ -379,6 +381,7 @@ final class SettingsStore {
         let config = CodexBarConfigMigrator.loadOrMigrate(
             configStore: configStore,
             userDefaults: userDefaults,
+            keychainAccessDisabled: KeychainAccessGate.isExplicitlyDisabled,
             stores: legacyStores)
         self.userDefaults = userDefaults
         self.configStore = configStore
@@ -958,13 +961,17 @@ extension SettingsStore {
         userDefaults.string(forKey: "copilotIconSecondaryWindowID") ?? CopilotIconSecondaryWindowSelection.chat
     }
 
-    private static func loadDebugDisableKeychainAccess(userDefaults: UserDefaults) -> Bool {
+    static func loadDebugDisableKeychainAccess(userDefaults: UserDefaults) -> Bool {
+        self.loadDebugDisableKeychainAccess(
+            userDefaults: userDefaults,
+            sharedDefaults: self.shouldBridgeSharedDefaults(for: userDefaults) ? self.sharedDefaults : nil)
+    }
+
+    static func loadDebugDisableKeychainAccess(userDefaults: UserDefaults, sharedDefaults: UserDefaults?) -> Bool {
         if let stored = userDefaults.object(forKey: "debugDisableKeychainAccess") as? Bool {
             return stored
         }
-        if Self.shouldBridgeSharedDefaults(for: userDefaults),
-           let shared = Self.sharedDefaults?.object(forKey: "debugDisableKeychainAccess") as? Bool
-        {
+        if let shared = sharedDefaults?.object(forKey: "debugDisableKeychainAccess") as? Bool {
             if Self.isRunningTests {
                 userDefaults.set(shared, forKey: "debugDisableKeychainAccess")
             }

@@ -2,6 +2,9 @@
 
 ## 0.56.1 — Unreleased
 
+### Fixed
+- Keychain: apply saved disabled-access preferences before startup credential migration, including shared-defaults fallback, and keep deferred migrations retryable (investigated alongside #3249). Thanks @jaychou0642-create!
+
 ## 0.56.0 — 2026-08-28
 
 ### Added

@@ -64,7 +64,7 @@ struct CodexBarApp: App {
                 "built": buildTimestamp,
             ])
 
-        KeychainAccessGate.isDisabled = UserDefaults.standard.bool(forKey: "debugDisableKeychainAccess")
+        KeychainAccessGate.isDisabled = SettingsStore.loadDebugDisableKeychainAccess(userDefaults: .standard)
         KeychainPromptCoordinator.install()
         if MainThreadHangWatchdog.isEnabledForCurrentProcess {
             MainThreadHangWatchdog.shared.start()
