@@ -161,7 +161,10 @@ class ProcessCleanupTests(unittest.TestCase):
                         with self.assertRaises(KeyboardInterrupt):
                             runner.run_command(command, timeout=8)
                     else:
-                        self.assertEqual(runner.run_command(command, timeout=2), expected)
+                        # Successful fixtures include interpreter startup and ownership polling;
+                        # exact deadline behavior is covered separately with a virtual clock.
+                        timeout = 5 if expected in (0, 23) else 2
+                        self.assertEqual(runner.run_command(command, timeout=timeout), expected)
                 elapsed = time.monotonic() - started
                 self.assertTrue(acknowledged, "fixture identities were not observed before drain")
                 child = int((child_root / "pid").read_text())
@@ -202,8 +205,7 @@ class ProcessCleanupTests(unittest.TestCase):
     def test_success_drains_lingering_child_without_touching_sentinel(self):
         self.exercise("success", 0)
 
-    def test_success_after_delayed_readiness_keeps_the_two_second_budget(self):
-        # One second of startup plus the former 1.2-second ancestry sleep exceeds the command budget.
+    def test_success_after_delayed_readiness_drains_observed_children(self):
         self.exercise("success", 0, ready_delay=1)
 
     def test_success_allows_and_drains_a_separate_session(self):
@@ -220,6 +222,32 @@ class ProcessCleanupTests(unittest.TestCase):
 
     def test_keyboard_interrupt_drains_children_and_propagates(self):
         self.exercise("timeout", None, interrupt=True)
+
+
+class FixtureReadinessTests(unittest.TestCase):
+    def test_delayed_startup_releases_observed_ancestry_within_two_seconds(self):
+        with tempfile.TemporaryDirectory(prefix="codexbar-fixture-readiness-") as directory:
+            root = Path(directory)
+            child = runner.TestProcess(20, 10, 20, (101, 0))
+            clock = [0.0]
+            observed_at = []
+            def spawn(*_args, **_kwargs):
+                self.assertAlmostEqual(clock[0], 1)
+                (root / "ready").write_text(json.dumps(dict(pid=child.pid, birth=child.birth)))
+            def sleep(seconds):
+                clock[0] += seconds
+                if not observed_at and release_observed_fixture(root, {child.pid: child}):
+                    observed_at.append(clock[0])
+            with patch.object(subprocess, "Popen", side_effect=spawn) as popen, \
+                    patch.object(signal, "signal"), \
+                    patch.object(time, "monotonic", side_effect=lambda: clock[0]), \
+                    patch.object(time, "sleep", side_effect=sleep):
+                fixture("success", directory, ready_delay=1)
+            popen.assert_called_once()
+            self.assertEqual(len(observed_at), 1, "fixture exited without observed child ownership")
+            self.assertAlmostEqual(observed_at[0], 1.05)
+            # The former 1.2-second ancestry sleep after one-second startup must fail this budget.
+            self.assertLess(clock[0], 2, "fixture added grace after its child identity was observed")
 
 
 class ProcessIdentityTests(unittest.TestCase):
