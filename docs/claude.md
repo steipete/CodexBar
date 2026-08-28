@@ -132,6 +132,50 @@ Admin API key setup:
   - Remaining Usage credits balance (if enabled).
   - Account email + inferred plan.
 
+## Advanced profile config directories (multi-account)
+
+For setups that keep multiple Claude accounts in separate `CLAUDE_CONFIG_DIR` directories (for example
+t3code-style work/personal profiles), CodexBar can scope Claude usage to one of those directories.
+
+- Preferences → Providers → Claude → "Account directory" manages the list: "Add…" opens a directory chooser
+  (multiple selection, hidden directories visible), and "Remove" drops the currently selected directory.
+  Advanced users can equally edit `providers[].claudeProfileConfigDirs` in `~/.codexbar/config.json`.
+- Each path must be absolute or start with `~/`, and point at a Claude config directory created via
+  `CLAUDE_CONFIG_DIR=<dir> claude login` (it should contain that account's `.claude.json`/`.config.json`).
+  UI-added directories under the home folder are stored home-relative (`~/...`).
+- Selecting a directory in the picker scopes every Claude fetch (OAuth credentials, identity, CLI probes) with that
+  `CLAUDE_CONFIG_DIR`; "Default" keeps the ambient account. Switching triggers a refresh.
+- The Claude section of the menu bar menu shows an "Account Directory" submenu with the same choices whenever
+  directories are configured, so accounts can be switched without opening Settings. The active entry is checkmarked.
+- A selected directory that later leaves the list fails back to the ambient account; profile directories are never
+  copied, reauthenticated, or removed by CodexBar.
+- Credentials: Claude Code stores each non-default `CLAUDE_CONFIG_DIR` profile in its own Keychain item
+  (`Claude Code-credentials-<hash>`, where `<hash>` is the first 8 hex chars of SHA-256 of the absolute config dir
+  path). CodexBar targets the selected profile's item; profile reads never fall back to another profile's
+  credentials. A readable `.credentials.json` inside the directory also works; with neither, the profile falls
+  back to delegated CLI refresh.
+- `claudeProfileConfigDirs` and `claudeActiveSource` are machine-local and never iCloud-synced.
+- Precedence with claude-swap: exactly one account switcher is visible at a time. While claude-swap owns Claude
+  account presentation (its cards replace the ambient Claude card per its existing rules), the Account Directory
+  submenu and settings picker are hidden, so the visible cards and the active switcher always agree. When
+  claude-swap does not own presentation, the account-directory selection scopes the ambient fetch (credentials,
+  identity, CLI probes, local cost). claude-swap's workflow and credentials handling are unchanged; profile
+  directories serve setups without external tooling.
+  A selected profile also excludes home-level pi/OMP session costs, which cannot be attributed to a directory;
+  only the truly unscoped Default fetch merges them (legacy behavior).
+
+Example:
+
+```json
+{
+  "id": "claude",
+  "claudeProfileConfigDirs": [
+    "~/.claude-work",
+    "~/.claude-personal"
+  ]
+}
+```
+
 ## claude-swap accounts (opt-in)
 
 The accepted multi-account design in
@@ -245,6 +289,9 @@ Model-scoped weekly-window proof (synthetic data, no real accounts or credential
   - pi and OMP sessions attribute `anthropic` assistant usage to Claude and bucket it by assistant-turn timestamp, so a
     single pi-compatible session can contribute to multiple models/days.
   - Matching assistant entry IDs within the same session are counted once across roots; distinct turns are retained.
+- Profile scoping: a selected profile config directory (see "Advanced profile config directories") scans that
+  profile's `<dir>/projects` root into its own cache file (`claude-v6-<hash>.json`, same hash-suffix convention as
+  the profile Keychain item) and excludes the ambient pi-compatible session merge, so accounts never blend.
 - Cache:
   - Native + merged provider cache: `~/Library/Caches/CodexBar/cost-usage/claude-v2.json`
   - pi-compatible session cache: `~/Library/Caches/CodexBar/cost-usage/pi-sessions-v7.json`

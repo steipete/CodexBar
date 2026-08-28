@@ -126,7 +126,7 @@ struct MenuContent: View {
             self.actions.openChangelog()
         case .addCodexAccount:
             self.actions.addCodexAccount()
-        case .requestCodexSystemPromotion:
+        case .requestCodexSystemPromotion, .selectClaudeProfileDir:
             return
         case let .addProviderAccount(provider):
             self.actions.switchAccount(provider)

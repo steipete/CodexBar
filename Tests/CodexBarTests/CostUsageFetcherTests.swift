@@ -853,6 +853,7 @@ extension CostUsageFetcherTests {
 
         let snapshot = try await CostUsageFetcher.loadTokenSnapshot(
             provider: .claude,
+            environment: ["HOME": env.root.path],
             now: day,
             allowPricingRefresh: false,
             scannerOptions: nativeOptions,

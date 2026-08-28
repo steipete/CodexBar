@@ -269,8 +269,14 @@ enum PiSessionCostScanner {
         }
         // Reviewed scheduler/report-field and Codex read-view/storage-only transitions leave Pi pricing unchanged.
         // A later parser change must invalidate normally unless separately reviewed for compatibility.
-        let compatiblePricingKeys: Set<String> = CodexParserHash.value == "f8577be489f4c13d"
-            ? Set(["c6c46a376ba16304", "55f640e6bb0ccba4", "21f10143afe00c55"].map { key(parserHash: $0) })
+        let compatiblePricingKeys: Set<String> = CodexParserHash.value == "3a657bea70218d2d"
+            ? Set([
+                "c6c46a376ba16304",
+                "55f640e6bb0ccba4",
+                "21f10143afe00c55",
+                // Claude cost-cache profile scoping; Pi parsing and pricing inputs are unchanged.
+                "f8577be489f4c13d",
+            ].map { key(parserHash: $0) })
             : []
         return ModelsDevPricingContext(
             catalog: modelsDevArtifact?.catalog,

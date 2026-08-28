@@ -1,3 +1,4 @@
+import AppKit
 import CodexBarCore
 import SwiftUI
 
@@ -29,6 +30,8 @@ struct ClaudeProviderImplementation: ProviderImplementation {
         _ = settings.claudeSwapEnabled
         _ = settings.claudeSwapShowSingleAccount
         _ = settings.claudeSwapExecutablePath
+        _ = settings.claudeActiveSource
+        _ = settings.claudeProfileConfigDirs
     }
 
     @MainActor
@@ -56,12 +59,14 @@ struct ClaudeProviderImplementation: ProviderImplementation {
 
     @MainActor
     func defaultSourceLabel(context: ProviderSourceLabelContext) -> String? {
-        context.settings.claudeUsageDataSource.rawValue
+        context.settings.claudeEffectiveUsageDataSource.rawValue
     }
 
     @MainActor
     func sourceMode(context: ProviderSourceModeContext) -> ProviderSourceMode {
-        switch context.settings.claudeUsageDataSource {
+        // Strategy routing must honor the same profile restriction as the settings snapshot: a saved
+        // API/Web source would otherwise bypass the profile's OAuth/CLI-only credential contract.
+        switch context.settings.claudeEffectiveUsageDataSource {
         case .auto: .auto
         case .api: .api
         case .oauth: .oauth
@@ -177,6 +182,17 @@ struct ClaudeProviderImplementation: ProviderImplementation {
         ]
     }
 
+    /// "Default" inherits the app's ambient environment. When the process itself carries a
+    /// `CLAUDE_CONFIG_DIR`, labeling it `~/.claude` would be wrong — show the inherited directory.
+    static func defaultAccountDirectoryTitle(environment: [String: String]) -> String {
+        guard let ambient = environment[ClaudeConfigPaths.configDirectoryEnvironmentKey],
+              !ambient.isEmpty
+        else {
+            return "Default (~/.claude)"
+        }
+        return "Default (\(ClaudeConfigDirScope.abbreviatedConfigDirPath(ambient)), from environment)"
+    }
+
     @MainActor
     private static func claudeSwapStatusText(store: UsageStore, settings: SettingsStore) -> String? {
         guard settings.claudeSwapEnabled else { return nil }
@@ -249,16 +265,24 @@ struct ClaudeProviderImplementation: ProviderImplementation {
         }
 
         return [
+            Self.accountDirectoryPicker(context: context),
             ProviderSettingsPickerDescriptor(
                 id: "claude-usage-source",
                 title: "Usage source",
                 subtitle: "Auto falls back to the next source if the preferred one fails.",
+                dynamicSubtitle: {
+                    guard context.settings.claudeEffectiveUsageDataSource
+                        != context.settings.claudeUsageDataSource
+                    else { return nil }
+                    return "The selected account directory uses profile credentials only, " +
+                        "so this choice runs as Auto (OAuth, then CLI) until Default is selected."
+                },
                 binding: usageBinding,
                 options: usageOptions,
                 isVisible: nil,
                 onChange: nil,
                 trailingText: {
-                    guard context.settings.claudeUsageDataSource == .auto else { return nil }
+                    guard context.settings.claudeEffectiveUsageDataSource == .auto else { return nil }
                     let label = context.store.sourceLabel(for: .claude)
                     return label == "auto" ? nil : label
                 }),
@@ -285,6 +309,92 @@ struct ClaudeProviderImplementation: ProviderImplementation {
                     ProviderCookieSourceUI.cachedTrailingText(provider: .claude)
                 }),
         ]
+    }
+
+    @MainActor
+    private static func accountDirectoryPicker(
+        context: ProviderSettingsContext) -> ProviderSettingsPickerDescriptor
+    {
+        let ambientDirectoryOptionID = "ambient"
+        let accountDirectoryBinding = Binding(
+            get: {
+                switch context.settings.claudeResolvedActiveSource {
+                case .ambient: ambientDirectoryOptionID
+                case let .profileConfigDir(path): path
+                }
+            },
+            set: { raw in
+                let previousSource = context.settings.claudeResolvedActiveSource
+                context.settings.claudeActiveSource = raw == ambientDirectoryOptionID
+                    ? .ambient
+                    : .profileConfigDir(path: raw)
+                context.settings.invalidateClaudeProfileCaches(
+                    around: [previousSource, context.settings.claudeResolvedActiveSource])
+            })
+        let accountDirectoryOptions = [
+            ProviderSettingsPickerOption(
+                id: ambientDirectoryOptionID,
+                title: Self.defaultAccountDirectoryTitle(environment: context.store.environmentBase)),
+        ] + context.settings.claudeProfileConfigDirs.map {
+            ProviderSettingsPickerOption(id: $0, title: ClaudeConfigDirScope.abbreviatedConfigDirPath($0))
+        }
+
+        return ProviderSettingsPickerDescriptor(
+            id: "claude-account-directory",
+            title: "Account directory",
+            subtitle: "Tracks another Claude account by its CLAUDE_CONFIG_DIR directory. " +
+                "Also editable as claudeProfileConfigDirs in ~/.codexbar/config.json.",
+            binding: accountDirectoryBinding,
+            options: accountDirectoryOptions,
+            isVisible: {
+                // Hidden while claude-swap owns account presentation: one switcher stays authoritative.
+                !ClaudeSwapMenuPrecedence.prefersClaudeSwap(
+                    provider: .claude,
+                    accountCount: context.store.claudeSwapAccountSnapshots.count,
+                    showSingleAccount: context.settings.claudeSwapShowSingleAccount)
+            },
+            onChange: { _ in
+                await context.store.refreshProvider(.claude)
+                await context.store.refreshTokenUsageNow(for: .claude, force: true)
+            },
+            trailingActions: [
+                ProviderSettingsActionDescriptor(
+                    id: "claude-account-directory-add",
+                    title: "Add…",
+                    style: .bordered,
+                    isVisible: nil,
+                    perform: { @MainActor in
+                        let panel = NSOpenPanel()
+                        panel.allowsMultipleSelection = true
+                        panel.canChooseDirectories = true
+                        panel.canChooseFiles = false
+                        panel.showsHiddenFiles = true
+                        panel.directoryURL = FileManager.default.homeDirectoryForCurrentUser
+                        panel.message =
+                            "Choose Claude config directories (CLAUDE_CONFIG_DIR profiles)."
+                        guard panel.runModal() == .OK else { return }
+                        for url in panel.urls {
+                            context.settings.addClaudeProfileConfigDir(url.path)
+                        }
+                    }),
+                ProviderSettingsActionDescriptor(
+                    id: "claude-account-directory-remove",
+                    title: "Remove",
+                    style: .bordered,
+                    isVisible: {
+                        if case .profileConfigDir = context.settings.claudeResolvedActiveSource {
+                            return true
+                        }
+                        return false
+                    },
+                    perform: { @MainActor in
+                        guard case let .profileConfigDir(path) = context.settings
+                            .claudeResolvedActiveSource
+                        else { return }
+                        context.settings.removeClaudeProfileConfigDir(path)
+                        await context.store.refreshProvider(.claude)
+                    }),
+            ])
     }
 
     @MainActor
@@ -345,6 +455,41 @@ struct ClaudeProviderImplementation: ProviderImplementation {
                 entries.append(.text("\(label): \(value)", .primary))
             }
         }
+    }
+
+    @MainActor
+    func appendActionMenuEntries(context: ProviderMenuActionContext, entries: inout [ProviderMenuEntry]) {
+        let profileDirs = context.settings.claudeProfileConfigDirs
+        guard !profileDirs.isEmpty else { return }
+        // While claude-swap owns Claude account presentation, a directory switcher would change an
+        // invisible ambient state behind the swap cards; exactly one account switcher stays visible.
+        guard !ClaudeSwapMenuPrecedence.prefersClaudeSwap(
+            provider: context.provider,
+            accountCount: context.store.claudeSwapAccountSnapshots.count,
+            showSingleAccount: context.settings.claudeSwapShowSingleAccount)
+        else { return }
+
+        let activeSource = context.settings.claudeResolvedActiveSource
+        let ambientChecked = activeSource == .ambient
+        var items = [
+            MenuDescriptor.SubmenuItem(
+                title: Self.defaultAccountDirectoryTitle(environment: context.store.environmentBase),
+                action: .selectClaudeProfileDir(path: nil),
+                isEnabled: !ambientChecked,
+                isChecked: ambientChecked),
+        ]
+        for dir in profileDirs {
+            let isChecked = activeSource == .profileConfigDir(path: dir)
+            items.append(MenuDescriptor.SubmenuItem(
+                title: ClaudeConfigDirScope.abbreviatedConfigDirPath(dir),
+                action: .selectClaudeProfileDir(path: dir),
+                isEnabled: !isChecked,
+                isChecked: isChecked))
+        }
+        entries.append(.submenu(
+            "Account Directory",
+            MenuDescriptor.MenuActionSystemImage.systemAccount.rawValue,
+            items))
     }
 
     @MainActor

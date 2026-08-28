@@ -12,7 +12,28 @@ import Security
 
 // swiftlint:disable type_body_length file_length
 public enum ClaudeOAuthCredentialsStore {
-    static let claudeKeychainService = "Claude Code-credentials"
+    static let claudeKeychainDefaultService = "Claude Code-credentials"
+
+    /// Claude Code stores each non-default `CLAUDE_CONFIG_DIR` profile in its own Keychain item whose
+    /// service name carries a config-dir hash suffix. Reads scoped to a profile must target that item;
+    /// the bare service belongs to the default `~/.claude` profile only.
+    @TaskLocal static var claudeKeychainServiceOverride: String?
+
+    static var claudeKeychainService: String {
+        self.claudeKeychainServiceOverride ?? self.claudeKeychainDefaultService
+    }
+
+    static func claudeKeychainService(environment: [String: String]) -> String {
+        let root = ClaudeConfigPaths.configRoot(environment: environment).standardizedFileURL.path
+        var defaultEnvironment = environment
+        defaultEnvironment[ClaudeConfigPaths.configDirectoryEnvironmentKey] = nil
+        let defaultRoot = ClaudeConfigPaths.configRoot(environment: defaultEnvironment)
+            .standardizedFileURL.path
+        guard root != defaultRoot else { return self.claudeKeychainDefaultService }
+        let suffix = self.sha256Hex(Data(root.utf8)).prefix(8)
+        return "\(self.claudeKeychainDefaultService)-\(suffix)"
+    }
+
     /// The pre-profile cache key used by released builds. New entries are scoped to the
     /// one-way credentials-profile identity so one `CLAUDE_CONFIG_DIR` cannot evict another.
     private static let legacyCacheKey = KeychainCacheStore.Key.oauth(provider: .claude)
@@ -293,6 +314,27 @@ public enum ClaudeOAuthCredentialsStore {
             respectKeychainPromptCooldown: Bool,
             allowClaudeKeychainRepairWithoutPrompt: Bool,
             clearInvalidCache: Bool = true) throws -> ClaudeOAuthCredentialRecord
+        {
+            // Every Claude Code Keychain read below must target the profile selected by this
+            // environment; the bare default service would read another account's credentials.
+            try ClaudeOAuthCredentialsStore.$claudeKeychainServiceOverride.withValue(
+                ClaudeOAuthCredentialsStore.claudeKeychainService(environment: environment))
+            {
+                try self.loadRecordWithResolvedKeychainService(
+                    environment: environment,
+                    allowKeychainPrompt: allowKeychainPrompt,
+                    respectKeychainPromptCooldown: respectKeychainPromptCooldown,
+                    allowClaudeKeychainRepairWithoutPrompt: allowClaudeKeychainRepairWithoutPrompt,
+                    clearInvalidCache: clearInvalidCache)
+            }
+        }
+
+        private func loadRecordWithResolvedKeychainService(
+            environment: [String: String],
+            allowKeychainPrompt: Bool,
+            respectKeychainPromptCooldown: Bool,
+            allowClaudeKeychainRepairWithoutPrompt: Bool,
+            clearInvalidCache: Bool) throws -> ClaudeOAuthCredentialRecord
         {
             try self.context.run {
                 let profileIdentifier = self.prepareCachePolicy(environment: environment)

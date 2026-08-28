@@ -130,6 +130,8 @@ extension StatusItemController {
             "addCodexAccount:\(self.codexAddAccountSubtitle() ?? "")"
         case let .requestCodexSystemPromotion(id):
             "requestCodexSystemPromotion:\(id)"
+        case let .selectClaudeProfileDir(path):
+            "selectClaudeProfileDir:\(path ?? "ambient")"
         case let .addProviderAccount(provider):
             "addProviderAccount:\(provider.rawValue)"
         case let .switchAccount(provider):

@@ -539,6 +539,26 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         }
     }
 
+    @objc func selectClaudeProfileDirFromMenu(_ sender: NSMenuItem) {
+        let rawPath = sender.representedObject as? String ?? ""
+        let previousSource = self.settings.claudeResolvedActiveSource
+        self.settings.claudeActiveSource = rawPath.isEmpty
+            ? .ambient
+            : .profileConfigDir(path: rawPath)
+        self.settings.invalidateClaudeProfileCaches(
+            around: [previousSource, self.settings.claudeResolvedActiveSource])
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                // Provider-specific by design: switching the Claude account directory refreshes Claude
+                // usage and force-rescans its profile-scoped local cost logs, which `refreshProvider`
+                // alone never does.
+                await self.store.refreshProvider(.claude)
+                await self.store.refreshTokenUsageNow(for: .claude, force: true)
+            }
+        }
+    }
+
     @objc func runSwitchAccount(_ sender: NSMenuItem) {
         if self.loginTask != nil {
             self.loginLogger.info("Switch Account tap ignored: login already in-flight")

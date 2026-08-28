@@ -68,6 +68,7 @@ struct MenuDescriptor {
         case changelog
         case addCodexAccount
         case requestCodexSystemPromotion(UUID)
+        case selectClaudeProfileDir(path: String?)
         case addProviderAccount(UsageProvider)
         case switchAccount(UsageProvider)
         case openTerminal(command: String)
@@ -778,7 +779,7 @@ extension MenuDescriptor.MenuAction {
         case .statusPage: MenuDescriptor.MenuActionSystemImage.statusPage.rawValue
         case .changelog: MenuDescriptor.MenuActionSystemImage.changelog.rawValue
         case .addCodexAccount, .addProviderAccount: MenuDescriptor.MenuActionSystemImage.addAccount.rawValue
-        case .requestCodexSystemPromotion:
+        case .requestCodexSystemPromotion, .selectClaudeProfileDir:
             nil
         case .switchAccount: MenuDescriptor.MenuActionSystemImage.switchAccount.rawValue
         case .openTerminal: MenuDescriptor.MenuActionSystemImage.openTerminal.rawValue

@@ -196,6 +196,15 @@ struct ProviderRegistry {
                 env = CodexHomeScope.scopedEnvironment(base: env, codexHome: profileHomePath)
             }
         }
+        // Provider-specific by design: an explicit Claude profile selection scopes every Claude fetch
+        // (OAuth credentials, identity, CLI probes) to that account's CLAUDE_CONFIG_DIR. Claude fetch
+        // strategies rebuild their fetchers from this environment, so no fetcher rebuild is needed here.
+        if provider == .claude,
+           let profileConfigDir = settings.profileClaudeConfigDir(
+               forActiveSource: settings.claudeResolvedActiveSource)
+        {
+            env = ClaudeConfigDirScope.scopedEnvironment(base: env, configDir: profileConfigDir)
+        }
         return env
     }
 

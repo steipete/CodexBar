@@ -464,11 +464,16 @@ public struct CostUsageFetcher: Sendable {
             overrideScannerOptions,
             provider: provider,
             codexHomePath: codexHomePath)
+        Self.applyClaudeProfileScope(
+            to: &options,
+            provider: provider,
+            environment: environment)
         // Rolling window is inclusive, so a 30-day display starts 29 days before `now`.
         let since = options.calendar.date(byAdding: .day, value: -(clampedHistoryDays - 1), to: now) ?? now
-        let scopedCodexHomePath = codexHomePath?.trimmingCharacters(in: .whitespacesAndNewlines)
-        // Provider-specific by design: scoped Codex homes exclude ambient Pi sessions from managed-profile totals.
-        let shouldMergePiUsage = provider != .codex || scopedCodexHomePath?.isEmpty != false
+        let shouldMergePiUsage = Self.shouldMergePiUsage(
+            provider: provider,
+            codexHomePath: codexHomePath,
+            claudeConfigDirSelected: environment[ClaudeConfigPaths.configDirectoryEnvironmentKey]?.isEmpty == false)
         await Self.refreshPricingIfAllowed(
             options: PricingRefreshOptions(
                 provider: provider,
@@ -564,6 +569,45 @@ public struct CostUsageFetcher: Sendable {
         let piOptions: PiSessionCostScanner.Options
     }
 
+    /// Provider-specific by design: scoped Codex homes and selected Claude config directories exclude
+    /// ambient Pi sessions from profile totals. Home-level pi/OMP sessions cannot be attributed to any
+    /// specific directory, so they merge only into the truly unscoped default Claude fetch.
+    private static func shouldMergePiUsage(
+        provider: UsageProvider,
+        codexHomePath: String?,
+        claudeConfigDirSelected: Bool) -> Bool
+    {
+        switch provider {
+        case .codex: codexHomePath?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false
+        case .claude: !claudeConfigDirSelected
+        default: true
+        }
+    }
+
+    /// A scoped Claude profile scans that profile's projects roots into a profile-partitioned cache;
+    /// the ambient scanner environment would silently blend accounts. Roots always come from the passed
+    /// environment: explicitly selecting the default `~/.claude` directory must still beat an ambient
+    /// `CLAUDE_CONFIG_DIR` inherited by the process. Returns the profile scope key.
+    @discardableResult
+    static func applyClaudeProfileScope(
+        to options: inout CostUsageScanner.Options,
+        provider: UsageProvider,
+        environment: [String: String]) -> String?
+    {
+        // Provider-specific by design: only Claude partitions local log scans by config-dir profile.
+        guard provider == .claude else { return nil }
+        let scopeKey = CostUsageScanner.claudeCacheScopeKey(environment: environment)
+        if options.claudeProjectsRoots == nil {
+            options.claudeProjectsRoots = CostUsageScanner.defaultClaudeProjectsRoots(
+                options: options,
+                environment: environment)
+        }
+        if options.claudeCacheScopeKey == nil {
+            options.claudeCacheScopeKey = scopeKey
+        }
+        return scopeKey
+    }
+
     private static func loadLocalTokenScanResult(
         provider: UsageProvider,
         since: Date,
@@ -630,7 +674,8 @@ public struct CostUsageFetcher: Sendable {
                 }
             }
             if options.includePiSessions,
-               provider == .claude || (provider == .codex && options.shouldMergePiUsage)
+               options.shouldMergePiUsage,
+               provider == .claude || provider == .codex
             {
                 let piReport = try PiSessionCostScanner.loadDailyReportCancellable(
                     provider: provider,

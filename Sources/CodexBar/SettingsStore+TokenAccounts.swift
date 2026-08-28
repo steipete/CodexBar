@@ -22,6 +22,13 @@ extension SettingsStore {
     /// Cursor keeps saved manual credentials when browser login switches back to Automatic, but those credentials
     /// stay passive until the user explicitly selects one again.
     func effectiveSelectedTokenAccount(for provider: UsageProvider) -> ProviderTokenAccount? {
+        // Provider-specific by design: an explicitly selected Claude profile config directory owns the
+        // fetch credentials, so a saved token account must not override the checkmarked directory.
+        if provider == .claude,
+           self.profileClaudeConfigDir(forActiveSource: self.claudeResolvedActiveSource) != nil
+        {
+            return nil
+        }
         let support = TokenAccountSupportCatalog.support(for: provider)
         if support?.selectedAccountRequiresManualCookieSource == true,
            (self.providerConfig(for: provider)?.cookieSource ?? .auto) == .auto

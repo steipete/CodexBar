@@ -19,4 +19,14 @@ extension ProviderConfig {
     public var sanitizedClaudeSwapExecutablePath: String? {
         Self.clean(self.claudeSwapExecutablePath)
     }
+
+    public var claudeActiveSource: ClaudeActiveSource? {
+        get { self.extensionValue(forKey: "claudeActiveSource") }
+        set { self.setExtensionValue(newValue, forKey: "claudeActiveSource") }
+    }
+
+    public var claudeProfileConfigDirs: [String]? {
+        get { self.extensionValue(forKey: "claudeProfileConfigDirs") }
+        set { self.setExtensionValue(newValue, forKey: "claudeProfileConfigDirs") }
+    }
 }

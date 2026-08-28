@@ -75,7 +75,9 @@ extension UsageStore {
         let timeoutSeconds = self.tokenFetchTimeout
         // Provider-specific by design: the Codex ledger owns pricing refresh while Bedrock resolves AWS environment.
         let allowPricingRefresh = provider != .codex || !self.settings.codexLocalSessionCostLedgerEnabled
-        let environment = provider == .bedrock
+        // Claude scopes its local session logs by `CLAUDE_CONFIG_DIR`, so a selected profile must scan that
+        // profile's `projects` root instead of the ambient one.
+        let environment = provider == .bedrock || provider == .claude
             ? ProviderRegistry.makeEnvironment(
                 base: self.environmentBase,
                 provider: provider,

@@ -694,6 +694,23 @@ extension CostUsageScanner {
         return inventory
     }
 
+    /// Non-nil only when `CLAUDE_CONFIG_DIR` selects a non-default profile: the first 8 hex chars of
+    /// SHA-256 of the absolute config root, matching the Keychain service suffix convention.
+    static func claudeCacheScopeKey(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
+    {
+        guard let configured = environment[ClaudeConfigPaths.configDirectoryEnvironmentKey],
+              !configured.isEmpty
+        else { return nil }
+        let root = ClaudeConfigPaths.configRoot(environment: environment).standardizedFileURL.path
+        var defaultEnvironment = environment
+        defaultEnvironment[ClaudeConfigPaths.configDirectoryEnvironmentKey] = nil
+        let defaultRoot = ClaudeConfigPaths.configRoot(environment: defaultEnvironment)
+            .standardizedFileURL.path
+        guard root != defaultRoot else { return nil }
+        return String(ClaudeOAuthCredentialsStore.sha256Hex(Data(root.utf8)).prefix(8))
+    }
+
     static func loadClaudeDaily(
         provider: UsageProvider,
         range: CostUsageDayRange,
@@ -705,7 +722,10 @@ extension CostUsageScanner {
         let inventory = try Self.inventoryClaudeRoots(roots, checkCancellation: checkCancellation)
         try checkCancellation?()
 
-        let cacheURL = CostUsageClaudeCacheIO.cacheFileURL(provider: provider, cacheRoot: options.cacheRoot)
+        let cacheURL = CostUsageClaudeCacheIO.cacheFileURL(
+            provider: provider,
+            cacheRoot: options.cacheRoot,
+            scopeKey: options.claudeCacheScopeKey)
         let canonicalCachePath = cacheURL.standardizedFileURL.resolvingSymlinksInPath().path
         let cacheArtifactStamp = CostUsageClaudeFileStamp.read(at: cacheURL)
         let pricingURL = ModelsDevCache.cacheFileURL(cacheRoot: options.cacheRoot)
@@ -732,6 +752,7 @@ extension CostUsageScanner {
         var cache = CostUsageClaudeCacheIO.load(
             provider: provider,
             cacheRoot: options.cacheRoot,
+            scopeKey: options.claudeCacheScopeKey,
             calendar: range.calendar)
         let nowMs = Int64(now.timeIntervalSince1970 * 1000)
         let refreshMs = Int64(max(0, options.refreshMinIntervalSeconds) * 1000)
@@ -817,6 +838,7 @@ extension CostUsageScanner {
                 provider: provider,
                 cache: cache,
                 cacheRoot: options.cacheRoot,
+                scopeKey: options.claudeCacheScopeKey,
                 calendar: range.calendar,
                 checkCancellation: checkCancellation)
         } else {

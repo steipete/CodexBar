@@ -161,6 +161,9 @@ enum CostUsageScanner {
         var calendar: Calendar
         var refreshMinIntervalSeconds: TimeInterval = 60
         var claudeLogProviderFilter: ClaudeLogProviderFilter = .all
+        /// Partitions the Claude cost cache per `CLAUDE_CONFIG_DIR` profile. Nil scans the default profile
+        /// into the unsuffixed legacy cache file.
+        var claudeCacheScopeKey: String?
         /// Force a full rescan, ignoring per-file cache and incremental offsets.
         var forceRescan: Bool = false
         /// Maximum bounded slice read from one Codex rollout per refresh. Larger files

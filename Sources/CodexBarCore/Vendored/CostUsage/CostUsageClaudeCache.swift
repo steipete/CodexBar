@@ -195,20 +195,22 @@ enum CostUsageClaudeCacheIO {
     // Provider-specific by design: Claude/Vertex cost caching still uses the legacy JSON artifact pending its own
     // migration (see #2760).
 
-    static func cacheFileURL(provider: UsageProvider, cacheRoot: URL? = nil) -> URL {
+    static func cacheFileURL(provider: UsageProvider, cacheRoot: URL? = nil, scopeKey: String? = nil) -> URL {
         precondition(provider == .claude || provider == .vertexai)
         let root = cacheRoot ?? self.defaultCacheRoot()
+        let scopeSuffix = scopeKey.map { "-\($0)" } ?? ""
         return root
             .appendingPathComponent("cost-usage", isDirectory: true)
-            .appendingPathComponent("\(provider.rawValue)-v6.json", isDirectory: false)
+            .appendingPathComponent("\(provider.rawValue)-v6\(scopeSuffix).json", isDirectory: false)
     }
 
     static func load(
         provider: UsageProvider,
         cacheRoot: URL? = nil,
+        scopeKey: String? = nil,
         calendar: Calendar? = nil) -> CostUsageCache
     {
-        let url = self.cacheFileURL(provider: provider, cacheRoot: cacheRoot)
+        let url = self.cacheFileURL(provider: provider, cacheRoot: cacheRoot, scopeKey: scopeKey)
         guard let data = try? Data(contentsOf: url) else { return CostUsageCache() }
         #if DEBUG
         CostUsageScanner.recordClaudeScanWork(.cacheDecode)
@@ -226,10 +228,11 @@ enum CostUsageClaudeCacheIO {
         provider: UsageProvider,
         cache: CostUsageCache,
         cacheRoot: URL? = nil,
+        scopeKey: String? = nil,
         calendar: Calendar = .current,
         checkCancellation: CostUsageScanner.CancellationCheck? = nil) throws -> CostUsageClaudeFileStamp?
     {
-        let url = self.cacheFileURL(provider: provider, cacheRoot: cacheRoot)
+        let url = self.cacheFileURL(provider: provider, cacheRoot: cacheRoot, scopeKey: scopeKey)
         var cache = cache
         cache.timeZoneIdentifier = calendar.timeZone.identifier
         #if DEBUG
