@@ -74,8 +74,9 @@ struct OpenRouterMultiAccountTests {
     @Test
     func `catalog entry exposes OpenRouter accounts in provider settings`() throws {
         let support = try #require(TokenAccountSupportCatalog.support(for: .openrouter))
-        #expect(support.title == "API keys")
-        #expect(support.subtitle == "Store multiple OpenRouter API keys.")
+        #expect(support.title == "Inference API keys")
+        #expect(support.subtitle ==
+            "Store multiple OpenRouter inference keys. Management keys also work here on the official API.")
         #expect(support.placeholder == "sk-or-v1-...")
         #expect(!support.requiresManualCookieSource)
         #expect(support.cookieName == nil)

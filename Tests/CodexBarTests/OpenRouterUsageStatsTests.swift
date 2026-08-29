@@ -223,6 +223,68 @@ struct OpenRouterPluginGoldenTests {
     }
 
     @Test
+    func `management key in standard slot fetches activity on official API`() async throws {
+        let requests = OpenRouterRequestRecorder()
+        let activityBody = #"""
+        {"data":[{
+          "date":"2026-08-17", "model":"openai/gpt-5.6",
+          "prompt_tokens":1000, "completion_tokens":250, "reasoning_tokens":100,
+          "requests":3, "usage":1.5
+        }]}
+        """#
+        let runtime = try ProviderPluginRuntime(
+            bundledPlugin: "openrouter",
+            transport: ProviderHTTPTransportHandler { request in
+                await requests.append(request)
+                let path = request.url?.path ?? ""
+                if path.hasSuffix("/activity") {
+                    return try Self.response(request, body: activityBody)
+                }
+                if path.hasSuffix("/key") {
+                    return try Self.response(request, body: #"{"data":{"is_management_key":true}}"#)
+                }
+                return try Self.response(request, body: Self.defaultCreditsBody)
+            })
+
+        let usage = try await runtime.fetchUsage(
+            secrets: [OpenRouterSettingsReader.envKey: "management-key"],
+            now: Date(timeIntervalSince1970: 1_787_079_600))
+        let activityRequests = await requests.requests.filter { $0.url?.path.hasSuffix("/activity") == true }
+
+        #expect(activityRequests.count == 2)
+        #expect(activityRequests.allSatisfy { $0.url?.host == "openrouter.ai" })
+        #expect(activityRequests.allSatisfy {
+            $0.value(forHTTPHeaderField: "Authorization") == "Bearer management-key"
+        })
+        #expect(usage.costUsage?.last30DaysTokens == 1250)
+        #expect(usage.detailRow(label: "Tracked tokens")?.value == "1,250")
+        #expect(usage.detailRow(label: "Models")?.secondaryValue == "openai/gpt-5.6")
+    }
+
+    @Test
+    func `custom API cannot promote standard key to management activity`() async throws {
+        let requests = OpenRouterRequestRecorder()
+        let runtime = try ProviderPluginRuntime(
+            bundledPlugin: "openrouter",
+            transport: ProviderHTTPTransportHandler { request in
+                await requests.append(request)
+                if request.url?.path.hasSuffix("/key") == true {
+                    return try Self.response(request, body: #"{"data":{"is_management_key":true}}"#)
+                }
+                return try Self.response(request, body: Self.defaultCreditsBody)
+            })
+
+        let usage = try await runtime.fetchUsage(
+            settings: [OpenRouterSettingsReader.apiURLEnvironmentKey: "https://proxy.example/api/v1"],
+            secrets: [OpenRouterSettingsReader.envKey: "proxy-key"])
+        let activityRequests = await requests.requests.filter { $0.url?.path.hasSuffix("/activity") == true }
+
+        #expect(activityRequests.isEmpty)
+        #expect(usage.costUsage == nil)
+        #expect(usage.detailRow(label: "Last 30 days")?.secondaryValue == "Management API key not configured")
+    }
+
+    @Test
     func `activity requests the latest completed UTC day`() async throws {
         let requests = OpenRouterRequestRecorder()
         let activityBody = #"""
@@ -470,6 +532,13 @@ struct OpenRouterPluginGoldenTests {
         #expect(abs((cost.last30DaysCostUSD ?? -1) - 39.79) < 1e-9)
         #expect(cost.last30DaysCostUSD?.isFinite == true)
         #expect(cost.daily.count == 2)
+        #expect(usage.detailRow(label: "Tracked tokens")?.value == "555")
+        #expect(usage.detailRow(label: "Tracked tokens")?.secondaryValue == "402 input · 153 output")
+        #expect(usage.detailRow(label: "Requests")?.value == "7")
+        #expect(usage.detailRow(label: "Spend")?.value == "$39.79")
+        #expect(usage.detailRow(label: "Models")?.value == "3")
+        #expect(usage.detailRow(label: "Models")?.secondaryValue ==
+            "anthropic/claude-opus-4.1, openai/gpt-5.6, x-ai/grok-4")
 
         let august17 = try #require(cost.daily.first { $0.date == "2026-08-17" })
         #expect(august17.inputTokens == 102)
