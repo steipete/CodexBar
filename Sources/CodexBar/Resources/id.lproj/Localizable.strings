@@ -675,6 +675,9 @@
 "surprise_me_subtitle" = "Centang jika Anda suka agen bersenang-senang di atas sana.";
 "hide_personal_info_title" = "Sembunyikan informasi pribadi";
 "hide_personal_info_subtitle" = "Samarkan alamat email di menu bar dan antarmuka menu.";
+"hide_cost_history_identity_subtitle" = "Juga sembunyikan nama dan jalur proyek/sumber dalam riwayat biaya tanpa mengubah data tersimpan.";
+"Project %d" = "Proyek %d";
+"Source %d" = "Sumber %d";
 "show_provider_storage_usage_title" = "Tampilkan penggunaan penyimpanan penyedia";
 "show_provider_storage_usage_subtitle" = "Tampilkan penggunaan disk lokal di menu. Memindai path milik penyedia di latar belakang.";
 "section_keychain_access" = "Akses Keychain";

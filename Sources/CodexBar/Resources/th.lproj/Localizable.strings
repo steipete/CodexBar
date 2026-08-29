@@ -673,6 +673,9 @@
 "surprise_me_subtitle" = "ตรวจสอบว่าคุณชอบให้ตัวแทนของคุณสนุกสนานที่นั่นหรือไม่";
 "hide_personal_info_title" = "ซ่อนข้อมูลส่วนบุคคล";
 "hide_personal_info_subtitle" = "ปิดบังที่อยู่อีเมลในแถบเมนูและ UI เมนู";
+"hide_cost_history_identity_subtitle" = "ซ่อนชื่อและเส้นทางของโปรเจกต์และแหล่งข้อมูลในประวัติค่าใช้จ่ายด้วย โดยไม่เปลี่ยนข้อมูลที่บันทึกไว้";
+"Project %d" = "โปรเจกต์ %d";
+"Source %d" = "แหล่งข้อมูล %d";
 "show_provider_storage_usage_title" = "แสดงการใช้พื้นที่เก็บข้อมูลของผู้ให้บริการ";
 "show_provider_storage_usage_subtitle" = "แสดงการใช้ดิสก์ในเครื่องในเมนู สแกนเส้นทางที่รู้จักโดยผู้ให้บริการในเบื้องหลัง";
 "section_keychain_access" = "การเข้าถึง Keychain";

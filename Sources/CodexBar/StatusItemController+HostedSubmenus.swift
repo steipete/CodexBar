@@ -290,6 +290,7 @@ extension StatusItemController {
         return .costHistory(CostHistoryChartMenuView.renderFingerprint(
             from: snapshot,
             provider: provider,
+            hidePersonalInfo: self.settings.hidePersonalInfo,
             displayCurrencyCode: displayConversion.currencyCode,
             displayCostMultiplier: displayConversion.multiplier))
     }
@@ -441,6 +442,7 @@ extension StatusItemController {
             windowLabel: tokenSnapshot.historyLabel,
             projects: provider == .codex ? tokenSnapshot.projects : [],
             sessions: provider == .codex ? tokenSnapshot.sessions : [],
+            hidePersonalInfo: self.settings.hidePersonalInfo,
             width: width)
         let hosting = MenuHostingView(rootView: chartView)
         hosting.applyMeasuredHeight(

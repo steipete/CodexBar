@@ -665,6 +665,9 @@
 "surprise_me_subtitle" = "讓選單列上的 Agent 多一點變化。";
 "hide_personal_info_title" = "隱藏個人資訊";
 "hide_personal_info_subtitle" = "在選單列和選單介面中隱藏電子郵件地址。";
+"hide_cost_history_identity_subtitle" = "同時隱藏費用歷史中的專案和來源名稱及路徑，不變更已儲存的資料。";
+"Project %d" = "專案 %d";
+"Source %d" = "來源 %d";
 "show_provider_storage_usage_title" = "顯示提供者儲存使用量";
 "show_provider_storage_usage_subtitle" = "在選單中顯示本機磁碟使用量。會在背景掃描已知的提供者專用路徑。";
 "section_keychain_access" = "鑰匙圈存取";

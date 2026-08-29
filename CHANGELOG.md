@@ -3,6 +3,7 @@
 ## 0.56.1 — Unreleased
 
 ### Fixed
+- Privacy: honor “Hide personal information” for project/source names and paths in cost history and project names in Usage & Spend, preserving costs, tokens, and stored data (#3262). Thanks @vinschger!
 - Docs: document existing z.ai credit quotas and explain how to configure independent provider widgets.
 - Antigravity: expose the existing local token-history reader through CLI cost, serve, and dashboard selection, preserving unknown dollar costs and distinguishing unavailable from empty history in text output (investigated alongside #3266). Thanks @chid!
 - Docs: clarify the Codex cost-history refresh floor and explain that Manual stops recurring refreshes, not startup or pending catch-up scans.

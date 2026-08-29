@@ -35,7 +35,9 @@ struct AdvancedPane: View {
 
             Section {
                 Toggle(isOn: self.$settings.hidePersonalInfo) {
-                    SettingsRowLabel(L("hide_personal_info_title"), subtitle: L("hide_personal_info_subtitle"))
+                    SettingsRowLabel(
+                        L("hide_personal_info_title"),
+                        subtitle: L("hide_personal_info_subtitle") + " " + L("hide_cost_history_identity_subtitle"))
                 }
 
                 Toggle(isOn: self.$settings.debugDisableKeychainAccess) {
@@ -71,7 +73,9 @@ struct AdvancedPane: View {
 
 extension AdvancedPane {
     private func installCLI() async {
-        if self.isInstallingCLI { return }
+        if self.isInstallingCLI {
+            return
+        }
         self.isInstallingCLI = true
         defer { self.isInstallingCLI = false }
 
