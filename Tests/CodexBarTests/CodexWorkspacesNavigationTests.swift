@@ -104,7 +104,7 @@ struct CodexWorkspacesNavigationTests {
         #expect(window.styleMask.contains(.closable))
         #expect(window.styleMask.contains(.miniaturizable))
         #expect(window.styleMask.contains(.resizable))
-        #expect(window.minSize == NSSize(width: 980, height: 640))
+        #expect(window.contentMinSize == NSSize(width: 980, height: 640))
         #expect(window.contentView?.frame.size == NSSize(width: 1380, height: 780))
         #expect(window.tabbingMode == .disallowed)
         #expect(!window.isReleasedWhenClosed)

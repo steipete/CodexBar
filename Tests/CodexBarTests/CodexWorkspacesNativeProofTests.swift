@@ -82,7 +82,7 @@ final class CodexWorkspacesNativeProofTests: XCTestCase {
         try self.waitUntil { self.workspaceWindows().contains(where: { $0.isVisible && $0.isKeyWindow }) }
         let window = try XCTUnwrap(self.workspaceWindows().first)
         XCTAssertEqual(window.title, L("Workspaces"))
-        XCTAssertEqual(window.minSize, NSSize(width: 980, height: 640))
+        XCTAssertEqual(window.contentMinSize, NSSize(width: 980, height: 640))
         XCTAssertEqual(window.contentView?.frame.size, NSSize(width: 1380, height: 780))
         XCTAssertEqual(self.workspaceWindows().count, 1)
         try self.receipt("presented", window: window, gateEnabled: gateEnabled, directory: directory)
@@ -105,6 +105,7 @@ final class CodexWorkspacesNativeProofTests: XCTestCase {
         try self.waitUntil { !window.isMiniaturized && window.isVisible && window.isKeyWindow }
         XCTAssertEqual(self.workspaceWindows().count, 1)
         XCTAssertTrue(self.workspaceWindows().first === window)
+        XCTAssertEqual(window.contentMinSize, NSSize(width: 980, height: 640))
         try self.receipt("reopened", window: window, gateEnabled: gateEnabled, directory: directory)
         try self.waitUntil { self.hasAcknowledgement("reopened", directory: directory) }
     }
