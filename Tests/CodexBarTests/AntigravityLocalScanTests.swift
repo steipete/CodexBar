@@ -13,14 +13,21 @@ struct AntigravityLocalScanTests {
     @Test(arguments: [499, 500, 501])
     func `database cap distinguishes below exactly and above limit`(count: Int) throws {
         let fixture = try Fixture()
-        for index in 0..<count {
-            try fixture.database("session-\(index)")
+        let seed = try fixture.database("session-0")
+        // The cap counts distinct files; copy the closed empty database instead of committing 500 schemas.
+        for index in 1..<count {
+            try FileManager.default.copyItem(
+                at: seed,
+                to: seed.deletingLastPathComponent().appendingPathComponent("session-\(index).db"))
         }
         var limits = AntigravityLocalReader.Limits()
         limits.duration = 60
         let report = try fixture.report(limits: limits)
         #expect(report.coverage == (count <= 500 ? .complete : .partial))
         #expect(report.statistics.files == min(count, 500))
+        #expect(report.statistics.rows == 0)
+        #expect(report.statistics.sqliteHandlesOpened == min(count, 500))
+        #expect(report.statistics.sqliteHandlesClosed == report.statistics.sqliteHandlesOpened)
     }
 
     @Test
