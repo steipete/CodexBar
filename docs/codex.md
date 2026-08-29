@@ -200,7 +200,11 @@ Example:
     Scanner and save operations still load the complete state; fresh database opens retain integrity validation.
   - Saved day/model aggregates group each file's usage rows in one pass per aggregate build. Packed token totals,
     authoritative costs (including zero), and standard/priority estimation buckets retain their existing meanings.
-- Window: configurable 1-365 day rolling history, with a 60s minimum refresh interval.
+- Window: configurable 1-365 day rolling history.
+- App cadence: regular timer-driven local-history refreshes have a 15-minute minimum (30 minutes in Low Power Mode).
+  Manual disables the recurring refresh timer, not all scan activity: startup refreshes and pending Codex catch-up can
+  still scan local history. Faster provider refreshes still update quota/status. The scanner's default 60-second
+  debounce is a separate internal limit, bypassed by forced scans and catch-up passes; it is not the app's refresh cadence.
 - Inline cost charts preserve a slot for every day in that window, using the selected cost-bucket time zone and the snapshot's date. Missing days are zero only after history coverage is established; unscanned days and entries without prices remain unknown. Long windows fit within the menu width without dropping dates.
 - While a bounded refresh catches up with new session history, established totals remain visible only for the same
   account, history window, and bucket time zone. An incomplete first scan never borrows another account's totals.
