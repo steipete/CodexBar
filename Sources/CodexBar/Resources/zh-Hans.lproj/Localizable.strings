@@ -641,6 +641,9 @@
 "surprise_me_subtitle" = "看看你是否喜欢你的智能体在上面找点乐子。";
 "hide_personal_info_title" = "隐藏个人信息";
 "hide_personal_info_subtitle" = "在菜单栏和菜单界面中隐藏电子邮件地址。";
+"hide_cost_history_identity_subtitle" = "同时隐藏费用历史中的项目和来源名称及路径，不更改已存储的数据。";
+"Project %d" = "项目 %d";
+"Source %d" = "来源 %d";
 "show_provider_storage_usage_title" = "显示提供商存储用量";
 "show_provider_storage_usage_subtitle" = "在菜单中显示本地磁盘用量。会在后台扫描已知的提供商自有路径。";
 "section_keychain_access" = "钥匙串访问";

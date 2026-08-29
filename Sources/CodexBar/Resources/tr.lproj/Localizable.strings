@@ -674,6 +674,9 @@
 "surprise_me_subtitle" = "Ajanlarınızın yukarıda biraz eğlenmesini istiyorsanız işaretleyin.";
 "hide_personal_info_title" = "Kişisel bilgileri gizle";
 "hide_personal_info_subtitle" = "Menü çubuğu ve menü arayüzünde e-posta adreslerini gizle.";
+"hide_cost_history_identity_subtitle" = "Kaydedilen verileri değiştirmeden maliyet geçmişindeki proje ve kaynak adlarını ve yollarını da gizler.";
+"Project %d" = "Proje %d";
+"Source %d" = "Kaynak %d";
 "show_provider_storage_usage_title" = "Sağlayıcı depolama kullanımını göster";
 "show_provider_storage_usage_subtitle" = "Menülerde yerel disk kullanımını göster. Bilinen sağlayıcıya ait yolları arka planda tarar.";
 "section_keychain_access" = "Anahtar Zinciri erişimi";

@@ -667,6 +667,9 @@
 "surprise_me_subtitle" = "Kontrollera om du vill att agenterna ska få leka lite där uppe.";
 "hide_personal_info_title" = "Dölj personuppgifter";
 "hide_personal_info_subtitle" = "Maskera e-postadresser i menyraden och menygränssnittet.";
+"hide_cost_history_identity_subtitle" = "Döljer även projekt- och källnamn samt sökvägar i kostnadshistoriken utan att ändra lagrade data.";
+"Project %d" = "Projekt %d";
+"Source %d" = "Källa %d";
 "show_provider_storage_usage_title" = "Visa leverantörers lagringsanvändning";
 "show_provider_storage_usage_subtitle" = "Visa lokal diskanvändning i menyer. Söker igenom kända leverantörsägda sökvägar i bakgrunden.";
 "section_keychain_access" = "Åtkomst till Nyckelring";

@@ -676,6 +676,9 @@
 "surprise_me_subtitle" = "Sprawdź, czy lubisz, gdy twoi agenci trochę się tam bawią.";
 "hide_personal_info_title" = "Ukryj dane osobowe";
 "hide_personal_info_subtitle" = "Ukrywa adresy e-mail na pasku menu i w interfejsie menu.";
+"hide_cost_history_identity_subtitle" = "Ukrywa też nazwy i ścieżki projektów oraz źródeł w historii kosztów, bez zmiany zapisanych danych.";
+"Project %d" = "Projekt %d";
+"Source %d" = "Źródło %d";
 "show_provider_storage_usage_title" = "Pokaż użycie dysku dostawców";
 "show_provider_storage_usage_subtitle" = "Pokazuje lokalne zużycie dysku w menu. Skanuje znane ścieżki dostawców w tle.";
 "section_keychain_access" = "Dostęp do pęku kluczy";

@@ -664,6 +664,9 @@
 "surprise_me_subtitle" = "Kiểm tra xem bạn có thích các đại lý của mình vui vẻ ở đó không.";
 "hide_personal_info_title" = "Ẩn thông tin cá nhân";
 "hide_personal_info_subtitle" = "Địa chỉ email tối nghĩa trong thanh menu và giao diện người dùng menu.";
+"hide_cost_history_identity_subtitle" = "Đồng thời ẩn tên và đường dẫn dự án/nguồn trong lịch sử chi phí mà không thay đổi dữ liệu đã lưu.";
+"Project %d" = "Dự án %d";
+"Source %d" = "Nguồn %d";
 "show_provider_storage_usage_title" = "Hiển thị Nhà cung cấp bộ nhớ Mức sử dụng";
 "show_provider_storage_usage_subtitle" = "Hiển thị ổ đĩa cục bộ Mức sử dụng trong menu. Quét các đường dẫn thuộc quyền sở hữu của Nhà cung cấp đã biết ở chế độ nền.";
 "section_keychain_access" = "Keychain quyền truy cập";

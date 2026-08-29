@@ -26,10 +26,11 @@ struct CodexWorkspacesNavigationTests {
     }
 
     @Test
-    func `workspaces action is Codex only and requires an explicit descriptor opt in`() {
-        let settings = self.makeSettings()
-        settings.costUsageEnabled = false
-        let store = self.makeStore(settings: settings)
+    func `workspaces action is Codex only and requires an explicit descriptor opt in`() throws {
+        let fixture = try CodexWorkspacesNavigationFixture()
+        defer { fixture.cleanup() }
+        let settings = fixture.settings
+        let store = fixture.store
 
         let defaultCodex = self.makeDescriptor(provider: .codex, store: store, settings: settings)
         #expect(self.workspacesActions(in: defaultCodex).isEmpty)
@@ -61,10 +62,12 @@ struct CodexWorkspacesNavigationTests {
 
     @Test
     func `native Workspaces action remains view free and has a stable identity`() throws {
-        let settings = self.makeSettings()
-        let store = self.makeStore(settings: settings)
-        let controller = self.makeController(settings: settings, store: store)
-        defer { controller.releaseStatusItemsForTesting() }
+        let fixture = try CodexWorkspacesNavigationFixture()
+        let controller = fixture.makeController()
+        defer {
+            controller.releaseStatusItemsForTesting()
+            fixture.cleanup()
+        }
 
         let descriptor = controller.makeMenuDescriptor(
             provider: .codex,
@@ -102,36 +105,12 @@ struct CodexWorkspacesNavigationTests {
         #expect(window.styleMask.contains(.miniaturizable))
         #expect(window.styleMask.contains(.resizable))
         #expect(window.minSize == NSSize(width: 980, height: 640))
+        #expect(window.contentView?.frame.size == NSSize(width: 1380, height: 780))
         #expect(window.tabbingMode == .disallowed)
         #expect(!window.isReleasedWhenClosed)
         #expect(!window.isRestorable)
+        #expect(window.frameAutosaveName.isEmpty)
         #expect(window.contentViewController != nil)
-    }
-
-    private func makeSettings() -> SettingsStore {
-        let settings = testSettingsStore(suiteName: "CodexWorkspacesNavigationTests")
-        settings.statusChecksEnabled = false
-        return settings
-    }
-
-    private func makeStore(settings: SettingsStore) -> UsageStore {
-        let environment = Self.isolatedEnvironment()
-        return UsageStore(
-            fetcher: UsageFetcher(environment: environment),
-            browserDetection: BrowserDetection(cacheTTL: 0),
-            settings: settings,
-            startupBehavior: .testing,
-            environmentBase: environment)
-    }
-
-    private func makeController(settings: SettingsStore, store: UsageStore) -> StatusItemController {
-        StatusItemController(
-            store: store,
-            settings: settings,
-            account: AccountInfo(email: nil, plan: nil),
-            updater: DisabledUpdaterController(),
-            preferencesSelection: PreferencesSelection(),
-            statusBar: .system)
     }
 
     private func makeDescriptor(
@@ -154,16 +133,5 @@ struct CodexWorkspacesNavigationTests {
             guard case let .action(title, .openCodexWorkspaces) = entry else { return nil }
             return title
         }
-    }
-
-    private static func isolatedEnvironment() -> [String: String] {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("codexbar-tests", isDirectory: true)
-            .appendingPathComponent(UUID().uuidString, isDirectory: true)
-        return [
-            "HOME": root.path,
-            "CODEX_HOME": root.appendingPathComponent(".codex", isDirectory: true).path,
-            "XDG_CONFIG_HOME": root.appendingPathComponent(".config", isDirectory: true).path,
-        ]
     }
 }

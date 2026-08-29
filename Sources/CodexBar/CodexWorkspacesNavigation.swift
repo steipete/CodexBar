@@ -2,27 +2,9 @@ import AppKit
 import Foundation
 import SwiftUI
 
-enum CodexWorkspacesMenuAvailability {
-    static let environmentKey = "CODEXBAR_ENABLE_WORKSPACES_MENU"
-
-    static var isEnabledForCurrentProcess: Bool {
-        self.isEnabled(environment: ProcessInfo.processInfo.environment)
-    }
-
-    static func isEnabled(environment: [String: String]) -> Bool {
-        #if DEBUG
-        return environment[self.environmentKey] == "1"
-        #else
-        _ = environment
-        return false
-        #endif
-    }
-}
-
 enum CodexWorkspacesWindowIdentity {
     static let menuItem = "codexWorkspaces"
     static let window = "com.steipete.codexbar.workspaces"
-    static let frameAutosaveName = "CodexBar.WorkspacesWindow"
 }
 
 @MainActor
@@ -59,11 +41,12 @@ final class CodexWorkspacesWindowController: NSWindowController {
         window.tabbingMode = .disallowed
         window.isReleasedWhenClosed = false
         window.isRestorable = false
-        window.contentViewController = NSHostingController(rootView: CodexWorkspacesWindowShell())
-        if !window.setFrameUsingName(CodexWorkspacesWindowIdentity.frameAutosaveName) {
-            window.center()
-        }
-        window.setFrameAutosaveName(CodexWorkspacesWindowIdentity.frameAutosaveName)
+        let hostingController = NSHostingController(rootView: CodexWorkspacesWindowShell())
+        // The native window owns sizing; the empty state must not replace its bounds.
+        hostingController.sizingOptions = []
+        window.contentViewController = hostingController
+        window.setContentSize(Self.defaultSize)
+        window.center()
         super.init(window: window)
     }
 

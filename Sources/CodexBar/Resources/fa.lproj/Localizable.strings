@@ -674,6 +674,9 @@
 "surprise_me_subtitle" = "بررسی کن که آیا دوست داری مأمورانت آنجا خوش بگذرانند یا نه.";
 "hide_personal_info_title" = "مخفی کردن اطلاعات شخصی";
 "hide_personal_info_subtitle" = "آدرس های ایمیل مبهم در نوار منو و رابط کاربری منو.";
+"hide_cost_history_identity_subtitle" = "نام و مسیر پروژه‌ها و منابع را در تاریخچهٔ هزینه‌ها نیز بدون تغییر داده‌های ذخیره‌شده پنهان می‌کند.";
+"Project %d" = "پروژهٔ %d";
+"Source %d" = "منبع %d";
 "show_provider_storage_usage_title" = "استفاده از ذخیره سازی ارائه دهنده را نمایش دهید";
 "show_provider_storage_usage_subtitle" = "استفاده محلی از دیسک را در منوها نمایش دهید. مسیرهای شناخته شده متعلق به ارائه دهندگان را در پس زمینه اسکن می کند.";
 "section_keychain_access" = "دسترسی Keychain";
