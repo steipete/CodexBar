@@ -12,9 +12,10 @@ read_when:
 - `WidgetSnapshotStore` writes compact JSON snapshots to the app-group container.
 - Widgets read the snapshot and render usage/credits/history states.
 - The app writes snapshots after the main refresh pipeline and token-usage refreshes; narrow single-provider refresh paths may wait for the next snapshot write.
-- Automatic provider refresh is the sole periodic trigger for token/cost refreshes; the token/cost TTL only determines
-  eligibility when that refresh runs. Automatic local-history scans have a 15-minute minimum (30 minutes in low-power
-  mode), while Manual disables automatic scans. The floor limits repeated local-history work and extra WidgetKit reload
+- Scheduled provider refreshes trigger regular token/cost refreshes; the token/cost TTL determines eligibility when
+  that refresh runs. Timer-driven local-history refreshes have a 15-minute minimum (30 minutes in low-power mode).
+  Manual disables the recurring refresh timer, not all scan activity: startup refreshes and pending Codex catch-up can
+  still scan local history. The floor limits repeated local-history work and extra WidgetKit reload
   requests without changing provider usage/status freshness or the user-selected provider refresh cadence.
 - Claude local cost/token history remains eligible for widget snapshots when its account does not expose numeric
   session or weekly quota data.

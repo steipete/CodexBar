@@ -247,4 +247,6 @@ grep -Fq "test-list stderr marker" "${TEMP_DIR}/list-failure.log"
 grep -Eq -- '- Discovery seconds: 0\.[1-9]' "${TEMP_DIR}/list-failure.log"
 grep -Fq '| Discovered selections | `0` |' "${GITHUB_STEP_SUMMARY}"
 
+python3 "${ROOT_DIR}/Scripts/test_swift_test_process_cleanup.py"
+
 echo "Swift test sharding tests passed."

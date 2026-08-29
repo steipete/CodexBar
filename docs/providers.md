@@ -26,6 +26,11 @@ card. Range choices are 7 / 30 / 90 days and All (the scan window is 365 days). 
 unless a source also reports plan-metered spend, in which case both columns appear. Day buckets use a pinned IANA
 timezone stored when cost tracking is first enabled.
 
+Regular token-history publications also refresh outdated independent Usage & Spend sources, including Claude,
+through their own 365-day scan. The dashboard never substitutes the shorter menu history for that scan. Updates
+arriving during a scan coalesce into a follow-up; a failed attempt waits for a new token publication or manual
+dashboard refresh before retrying. Codex account-cache ownership and provider-derived spend sources are unchanged.
+
 Native cost-history sources are the descriptors that advertise token-cost support: Codex, Claude, OpenAI Admin,
 Mistral, AWS Bedrock, Vertex AI, Cursor, and OpenCode Go. Providers without that contract are omitted instead of
 appearing as empty subscriptions. Each native currency has its own total, ranking, and daily chart; CodexBar never

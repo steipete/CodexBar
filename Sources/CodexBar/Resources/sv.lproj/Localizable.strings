@@ -1438,6 +1438,7 @@
 "More" = "Mer";
 
 /* Provider Plugins */
+"Plugins" = "Plugins";
 "Install…" = "Installera…";
 "Install plugin" = "Installera plugin";
 "Copies a JavaScript or TypeScript file into the plugins directory." = "Kopierar en JavaScript- eller TypeScript-fil till pluginmappen.";

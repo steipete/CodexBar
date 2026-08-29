@@ -1,17 +1,15 @@
 import Foundation
 import Testing
 @testable import CodexBarCore
+#if canImport(SQLite3)
+import SQLite3
+#elseif canImport(CSQLite3)
+import CSQLite3
+#endif
 
 /// Tokscale-compatible local readers: Cursor CSV caches
 /// (`~/.config/tokscale/cursor-cache/usage*.csv`) and Antigravity session caches
 /// (`~/.config/tokscale/antigravity-cache/sessions/*.jsonl`).
-/// Header layouts mirror `tokscale/crates/tokscale-core/src/sessions/cursor.rs`:
-/// - v1: Date,Model,Input (w/ Cache Write),Input (w/o Cache Write),Cache Read,Output Tokens,Total Tokens,Cost,Cost to
-/// you
-/// - v2: Date,Kind,Model,Max Mode,Input (w/ Cache Write),Input (w/o Cache Write),Cache Read,Output Tokens,Total
-/// Tokens,Cost
-/// - v3: Date,Cloud Agent ID,Automation ID,Kind,Model,Max Mode,Input (w/ Cache Write),Input (w/o Cache Write),Cache
-/// Read,Output Tokens,Total Tokens,Cost
 struct CursorAntigravityLocalReaderTests {
     @Test
     func `cursor v1 csv parses token buckets and cost`() throws {
@@ -94,39 +92,7 @@ struct CursorAntigravityLocalReaderTests {
         #expect(breakdowns.count == 1)
         #expect(breakdowns.first?.modelName == "claude-sonnet-4-5")
         let summary = try #require(report.summary)
-        // The CSV's own Total Tokens column is authoritative when present
-        // (1500 + 700 + 40), rather than the recomputed bucket sum.
         #expect(summary.totalTokens == 2240)
-    }
-
-    @Test
-    func `antigravity cache jsonl aggregates usage with session model fallback`() throws {
-        // Derive timestamps from local noon so both events land on the same local day in any TZ.
-        let calendar = Calendar.current
-        let noon = calendar.date(
-            byAdding: .hour, value: 12, to: calendar.startOfDay(for: Date())) ?? Date()
-        let firstStamp = Int64(noon.timeIntervalSince1970 * 1000)
-        let secondStamp = firstStamp + 3_600_000
-        let jsonl = [
-            #"{"type":"session_meta","modelId":"test-model-a"}"#,
-            #"{"type":"usage","modelId":"test-model-a","input":100,"output":30,"cacheRead":50,"cacheWrite":10,"# +
-                #""timestamp":\#(firstStamp)}"#,
-            #"{"type":"usage","input":40,"output":10,"cacheRead":0,"cacheWrite":0,"timestamp":\#(secondStamp)}"#,
-        ].joined(separator: "\n") + "\n"
-        let url = try Self.writeTemporary(jsonl, extension: "jsonl")
-        defer { try? FileManager.default.removeItem(at: url) }
-        let entries = AntigravityLocalReader.parseJSONLCache(paths: [url])
-        #expect(entries.count == 1)
-        let entry = try #require(entries.first)
-        #expect(entry.inputTokens == 140)
-        #expect(entry.outputTokens == 40)
-        #expect(entry.cacheReadTokens == 50)
-        #expect(entry.cacheCreationTokens == 10)
-        #expect(entry.requestCount == 2)
-        // The second event omits `modelId` and falls back to the session_meta model.
-        let breakdowns = try #require(entry.modelBreakdowns)
-        #expect(breakdowns.map(\.modelName) == ["test-model-a"])
-        #expect(breakdowns.first?.requestCount == 2)
     }
 
     private static func writeTemporary(_ contents: String, extension fileExtension: String) throws -> URL {

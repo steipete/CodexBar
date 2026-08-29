@@ -36,6 +36,8 @@ public struct ProviderTokenCostConfig: Sendable {
     public let showsRequestHistory: Bool
     public let hintPlacement: ProviderTokenCostHintPlacement
     public let chartEstimateDisclaimer: ProviderTokenCostHint?
+    /// Keep calendar slots for missing dates; coverage determines whether their costs are known.
+    public let preservesCalendarDaysInCharts: Bool
 
     public init(
         supportsTokenCost: Bool,
@@ -50,7 +52,8 @@ public struct ProviderTokenCostConfig: Sendable {
         primaryValue: ProviderTokenCostPrimaryValue = .session,
         showsRequestHistory: Bool = true,
         hintPlacement: ProviderTokenCostHintPlacement = .afterRequestHistory,
-        chartEstimateDisclaimer: ProviderTokenCostHint? = nil)
+        chartEstimateDisclaimer: ProviderTokenCostHint? = nil,
+        preservesCalendarDaysInCharts: Bool = false)
     {
         self.supportsTokenCost = supportsTokenCost
         self.noDataMessage = noDataMessage
@@ -65,6 +68,7 @@ public struct ProviderTokenCostConfig: Sendable {
         self.showsRequestHistory = showsRequestHistory
         self.hintPlacement = hintPlacement
         self.chartEstimateDisclaimer = chartEstimateDisclaimer
+        self.preservesCalendarDaysInCharts = preservesCalendarDaysInCharts
     }
 }
 

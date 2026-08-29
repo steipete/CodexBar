@@ -862,6 +862,20 @@ extension CostUsagePricing {
     ]
 
     static func claudeModelsDevPricingTargets(for rawModel: String) -> [(providerID: String, modelID: String)] {
+        var targets = self.claudeUnaliasedModelsDevPricingTargets(for: rawModel)
+        // Claude's documented context-window alias stays inside Kimi Code, after every exact route match.
+        if targets.contains(where: {
+            $0.providerID == "kimi-for-coding"
+                && $0.modelID.trimmingCharacters(in: .whitespacesAndNewlines) == "k3[1m]"
+        }) {
+            targets.append(("kimi-for-coding", "k3"))
+        }
+        return targets
+    }
+
+    private static func claudeUnaliasedModelsDevPricingTargets(
+        for rawModel: String) -> [(providerID: String, modelID: String)]
+    {
         let trimmed = rawModel.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return [] }
         if let slash = trimmed.firstIndex(of: "/") {
@@ -908,7 +922,7 @@ extension CostUsagePricing {
         if ["gemini-", "gemma-", "deep-research-", "veo-", "lyria-"].contains(where: model.hasPrefix) {
             return ["google"]
         }
-        if model == "kimi-for-coding" || model == "k3" || model.hasPrefix("k3-") {
+        if model == "kimi-for-coding" || model == "k3" || model == "k3[1m]" || model.hasPrefix("k3-") {
             return ["kimi-for-coding"]
         }
         if model.hasPrefix("kimi-") || model.hasPrefix("moonshot-") {

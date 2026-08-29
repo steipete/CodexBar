@@ -1918,7 +1918,7 @@ extension CostUsagePerformanceGateTests {
                             + #""model":"\#(model)"}}}"#)
                 }
             }
-            let fileURL = try env.writeCodexSessionFile(
+            let fileURL = try env.seedCodexSessionFile(
                 day: day,
                 filename: "session-\(fileIndex).jsonl",
                 contents: lines.joined(separator: "\n") + "\n")

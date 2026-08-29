@@ -1441,6 +1441,7 @@
 "More" = "Daha fazla";
 
 /* Provider Plugins */
+"Plugins" = "Plugins";
 "Install…" = "Yükle…";
 "Install plugin" = "Eklenti yükle";
 "Copies a JavaScript or TypeScript file into the plugins directory." = "Bir JavaScript veya TypeScript dosyasını eklentiler dizinine kopyalar.";

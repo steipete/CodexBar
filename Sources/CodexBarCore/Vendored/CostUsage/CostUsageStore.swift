@@ -77,6 +77,8 @@ actor CostUsageStore {
         parserHash: CodexParserHash.value)
     static let cacheGeneration = "sqlite:\(CostUsageStore.schemaVersion)"
     static let compatiblePredecessorParserHashes: Set<String> = [
+        "f8577be489f4c13d", // Claude-only pricing aliases leave native Codex rows, cursors, and reports unchanged.
+        "21f10143afe00c55", // Read-view retry presence leaves parsed rows and persisted scanner state unchanged.
         "55f640e6bb0ccba4", // Cursor's optional coverage field leaves native rows and retained reports unchanged.
         "c6c46a376ba16304", // 0.55.1 scheduler transition; rows and scoped retained reports are unchanged.
         "dd19ffa2dcfa8d47", // Current main before report-window scoping; persisted rows unchanged.
@@ -171,6 +173,15 @@ extension CostUsageStore {
     nonisolated func syncLoadCodexCache(calendar: Calendar) -> CostUsageCache {
         self.syncWithStoreIsolation { store in
             store.loadCodexCache(calendar: calendar)
+        }
+    }
+
+    nonisolated func syncLoadCodexReadView(
+        calendar: Calendar,
+        purpose: CostUsageStoreReadPurpose) -> CostUsageStoreReadView
+    {
+        self.syncWithStoreIsolation { store in
+            store.loadCodexReadView(calendar: calendar, purpose: purpose)
         }
     }
 
@@ -369,7 +380,7 @@ extension CostUsageStore {
             guard state.isCurrent || state.canAdoptPredecessor else {
                 throw StoreError.incompatibleSchema
             }
-            try Self.validateDatabaseIntegrity(database)
+            try Self.validateDatabaseIntegrity(database, recorder: self.scopedReadWorkRecorderForTesting)
             try Self.execute(database, "COMMIT")
         } catch {
             try? Self.execute(database, "ROLLBACK")
@@ -387,7 +398,7 @@ extension CostUsageStore {
             guard lockedState.isCurrent || lockedState.canAdoptPredecessor else {
                 throw StoreError.incompatibleSchema
             }
-            try Self.validateDatabaseIntegrity(database)
+            try Self.validateDatabaseIntegrity(database, recorder: self.scopedReadWorkRecorderForTesting)
             if lockedState.canAdoptPredecessor {
                 try self.adoptCompatiblePredecessor(database, storedHash: lockedState.storedHash)
             }
@@ -420,7 +431,11 @@ extension CostUsageStore {
         return (storedHash, isCurrent, canAdoptPredecessor)
     }
 
-    private static func validateDatabaseIntegrity(_ database: OpaquePointer) throws {
+    private static func validateDatabaseIntegrity(
+        _ database: OpaquePointer,
+        recorder: CostUsageStoreReadWorkRecorder?) throws
+    {
+        recorder?.recordIntegrityCheck()
         guard try self.scalarText(database, "PRAGMA quick_check") == "ok" else {
             throw StoreError.invalidData
         }

@@ -256,6 +256,11 @@ struct CostUsageCodexPreviousReport: Codable, Equatable {
     }
 }
 
+struct CostUsageCodexRetryBufferPresence: Codable, Equatable, Sendable {
+    var subagent = false
+    var unresolvedFork = false
+}
+
 struct CostUsageFileUsage: Codable, Equatable {
     var mtimeUnixMs: Int64
     var size: Int64
@@ -297,10 +302,19 @@ struct CostUsageFileUsage: Codable, Equatable {
     var codexJSONLResumeState: CostUsageJsonl.ResumeState?
     var codexBufferedSubagentLines: [CostUsageScanner.CodexBufferedFastLine]?
     var codexBufferedUnresolvedForkLines: [CostUsageScanner.CodexBufferedFastLine]?
+    /// Only the store's private read-view adapter uses presence without loading replay bodies.
+    var codexReadRetryBufferPresence: CostUsageCodexRetryBufferPresence?
+
+    var hasBufferedCodexSubagentLines: Bool {
+        self.codexReadRetryBufferPresence?.subagent ?? (self.codexBufferedSubagentLines?.isEmpty == false)
+    }
+
+    var hasBufferedCodexUnresolvedForkLines: Bool {
+        self.codexReadRetryBufferPresence?.unresolvedFork ?? (self.codexBufferedUnresolvedForkLines?.isEmpty == false)
+    }
 
     var hasBufferedCodexForkRetryLines: Bool {
-        self.codexBufferedSubagentLines?.isEmpty == false
-            || self.codexBufferedUnresolvedForkLines?.isEmpty == false
+        self.hasBufferedCodexSubagentLines || self.hasBufferedCodexUnresolvedForkLines
     }
 }
 

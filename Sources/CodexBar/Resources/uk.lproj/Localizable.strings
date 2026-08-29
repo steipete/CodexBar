@@ -1439,6 +1439,7 @@
 "More" = "Більше";
 
 /* Provider Plugins */
+"Plugins" = "Plugins";
 "Install…" = "Встановити…";
 "Install plugin" = "Встановити плагін";
 "Copies a JavaScript or TypeScript file into the plugins directory." = "Копіює файл JavaScript або TypeScript до каталогу плагінів.";

@@ -93,6 +93,11 @@ Example:
 - Uses an off-screen `WKWebView` with a per-account `WKWebsiteDataStore`.
   - Store key: deterministic UUID from the normalized email.
 - WebKit store can hold multiple accounts concurrently.
+- Each WebView acquisition keeps ownership across asynchronous page preparation. Explicit store eviction invalidates
+  that store's pending preparations, so stale success, failure, or timeout retry cannot displace a replacement view.
+  Evict-all invalidates all pending preparations; ordinary lease release does not invalidate concurrent temporary views.
+- Leases retain their cleanup owner independently of the cache and release only once. Validated pages still support
+  the brief reuse handoff; other releases schedule the existing deferred WebKit cleanup, including temporary views.
 - Cookie import (Automatic mode, when WebKit store has no matching session or login required):
   1) Safari: `~/Library/Cookies/Cookies.binarycookies`
   2) Chrome/Chromium forks: `~/Library/Application Support/Google/Chrome/*/Cookies`
@@ -187,9 +192,20 @@ Example:
   - Native conversation rows reuse the corrected cached per-file totals and existing pricing tables. They are hidden
     when pi-compatible usage joins the aggregate because the native-only rows would not reconcile with the merged total.
 - Cache:
-  - Native + merged provider cache: `~/Library/Caches/CodexBar/cost-usage/codex-v11.json`
-  - pi-compatible session cache: `~/Library/Caches/CodexBar/cost-usage/pi-sessions-v7.json`
-- Window: configurable 1-365 day rolling history, with a 60s minimum refresh interval.
+  - Native session store: `~/Library/Caches/CodexBar/cost-usage/cost-usage.sqlite`
+  - pi-compatible session cache: `~/Library/Caches/CodexBar/cost-usage/pi-sessions-v8.json`
+  - Catch-up status reads progress metadata without loading historical usage JSON or replay bodies. Cached reports
+    retain row-level pricing evidence and project/session details, but omit raw token snapshots, accumulator state,
+    and replay bodies. File cursor metadata, including JSONL resume state, remains available for progress tracking.
+    Scanner and save operations still load the complete state; fresh database opens retain integrity validation.
+  - Saved day/model aggregates group each file's usage rows in one pass per aggregate build. Packed token totals,
+    authoritative costs (including zero), and standard/priority estimation buckets retain their existing meanings.
+- Window: configurable 1-365 day rolling history.
+- App cadence: regular timer-driven local-history refreshes have a 15-minute minimum (30 minutes in Low Power Mode).
+  Manual disables the recurring refresh timer, not all scan activity: startup refreshes and pending Codex catch-up can
+  still scan local history. Faster provider refreshes still update quota/status. The scanner's default 60-second
+  debounce is a separate internal limit, bypassed by forced scans and catch-up passes; it is not the app's refresh cadence.
+- Inline cost charts preserve a slot for every day in that window, using the selected cost-bucket time zone and the snapshot's date. Missing days are zero only after history coverage is established; unscanned days and entries without prices remain unknown. Long windows fit within the menu width without dropping dates.
 - While a bounded refresh catches up with new session history, established totals remain visible only for the same
   account, history window, and bucket time zone. An incomplete first scan never borrows another account's totals.
 - Pending local-history files receive a turn before fresh work, within the existing byte and duration limits.

@@ -330,6 +330,73 @@ struct InlineCostHistoryDashboardLabelTests {
     }
 
     @Test
+    func `Codex inline cost history preserves zero value calendar days`() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .current
+        let now = try #require(calendar.date(from: DateComponents(
+            year: 2026,
+            month: 8,
+            day: 24,
+            hour: 12)))
+        let metadata = try #require(ProviderDefaults.metadata[.codex])
+        let tokenSnapshot = CostUsageTokenSnapshot(
+            sessionTokens: 400,
+            sessionCostUSD: 4,
+            last30DaysTokens: 700,
+            last30DaysCostUSD: 7,
+            historyDays: 4,
+            daily: [
+                CostUsageDailyReport.Entry(
+                    date: "2026-08-21",
+                    inputTokens: 250,
+                    outputTokens: 50,
+                    totalTokens: 300,
+                    costUSD: 3,
+                    modelsUsed: ["test-model"],
+                    modelBreakdowns: nil),
+                CostUsageDailyReport.Entry(
+                    date: "2026-08-24",
+                    inputTokens: 350,
+                    outputTokens: 50,
+                    totalTokens: 400,
+                    costUSD: 4,
+                    modelsUsed: ["test-model"],
+                    modelBreakdowns: nil),
+            ],
+            updatedAt: now)
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .codex,
+            metadata: metadata,
+            snapshot: UsageSnapshot(primary: nil, secondary: nil, updatedAt: now),
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: tokenSnapshot,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: true,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        let points = try #require(model.inlineUsageDashboard?.points)
+        #expect(points.map(\.id) == ["2026-08-21", "2026-08-22", "2026-08-23", "2026-08-24"])
+        #expect(points.map(\.value) == [3, 0, 0, 4])
+        #expect(points.map(\.accessibilityValue) == [
+            "2026-08-21: $3.00",
+            "2026-08-22: $0.00",
+            "2026-08-23: $0.00",
+            "2026-08-24: $4.00",
+        ])
+    }
+
+    @Test
     func `cursor metered-only snapshot remains visible in inline dashboard`() throws {
         let now = Date(timeIntervalSince1970: 1_700_179_200)
         let metadata = try #require(ProviderDefaults.metadata[.cursor])

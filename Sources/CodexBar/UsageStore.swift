@@ -188,6 +188,10 @@ final class UsageStore {
     var tokenSnapshotPublicationRevisions: [ProviderInstanceID: UInt64] = [:]
     var spendDashboardTokenPublications: [ProviderInstanceID: TokenSnapshotPublication] = [:]
     var spendDashboardTokenPublicationRevisions: [ProviderInstanceID: UInt64] = [:]
+    @ObservationIgnored var spendDashboardTokenIncorporatedTriggers:
+        [ProviderInstanceID: SpendDashboardTokenRefreshTrigger] = [:]
+    @ObservationIgnored var spendDashboardTokenFailedTriggers:
+        [ProviderInstanceID: SpendDashboardTokenRefreshTrigger] = [:]
     var spendDashboardPublication = SpendDashboardPublication.empty
     @ObservationIgnored var sharedSpendDashboardControllerStorage: SpendDashboardController?
     @ObservationIgnored var sharedSpendDashboardObservationStarted = false
@@ -329,7 +333,7 @@ final class UsageStore {
     @ObservationIgnored let sessionQuotaLogger = CodexBarLog.logger(LogCategories.sessionQuota)
     // Provider-specific by design: OpenAI web and Augment runtime diagnostics have dedicated app-owned log streams.
     @ObservationIgnored let openAIWebLogger = CodexBarLog.logger(LogCategories.provider(.openai, scope: "web"))
-    @ObservationIgnored private let tokenCostLogger = CodexBarLog.logger(LogCategories.tokenCost)
+    @ObservationIgnored let tokenCostLogger = CodexBarLog.logger(LogCategories.tokenCost)
     @ObservationIgnored let augmentLogger = CodexBarLog.logger(LogCategories.provider(.augment))
     @ObservationIgnored let providerLogger = CodexBarLog.logger(LogCategories.providers)
     @ObservationIgnored let adaptiveRefreshLogger = CodexBarLog.logger(LogCategories.adaptiveRefresh)
@@ -430,7 +434,7 @@ final class UsageStore {
     @ObservationIgnored var lastTokenFetchScope: [ProviderInstanceID: String] = [:]
     @ObservationIgnored var lastSpendDashboardTokenFetchAt: [ProviderInstanceID: Date] = [:]
     @ObservationIgnored var lastSpendDashboardTokenFetchScope: [ProviderInstanceID: String] = [:]
-    @ObservationIgnored var spendDashboardTokenRefreshInFlight: Set<ProviderInstanceID> = []
+    var spendDashboardTokenRefreshInFlight: Set<ProviderInstanceID> = []
     @ObservationIgnored var planUtilizationHistory: [ProviderInstanceID: PlanUtilizationHistoryBuckets] = [:]
     @ObservationIgnored var sessionEquivalentBurnCache: [ProviderInstanceID: SessionEquivalentBurnCacheEntry] = [:]
     @ObservationIgnored var sessionEquivalentHistoryScanCount: Int = 0
@@ -1552,7 +1556,7 @@ extension UsageStore {
             self.lastTokenFetchScope[provider.instanceID] = completedCostScopeSignature
             self.startCodexCostCatchUpIfNeeded(afterRefreshing: provider)
 
-            guard !snapshot.daily.isEmpty || snapshot.meteredCostUSD != nil else {
+            if try self.regularTokenSnapshotIsConfirmedEmpty(snapshot, for: provider) {
                 self.publishConfirmedEmptyTokenSnapshot(for: provider)
                 self.tokenErrors[provider.instanceID] = Self.tokenCostNoDataMessage(for: provider)
                 self.tokenFailureGates[provider.instanceID]?.recordSuccess()
@@ -1626,25 +1630,6 @@ extension UsageStore {
         self.lastTokenFetchScope.removeValue(forKey: provider.instanceID)
         self.lastSpendDashboardTokenFetchAt.removeValue(forKey: provider.instanceID)
         self.lastSpendDashboardTokenFetchScope.removeValue(forKey: provider.instanceID)
-    }
-
-    private func logTokenUsageSuccess(
-        provider: UsageProvider,
-        snapshot: CostUsageTokenSnapshot,
-        historyDays: Int,
-        startedAt: Date)
-    {
-        let durationText = String(format: "%.2f", Date().timeIntervalSince(startedAt))
-        let sessionCost = snapshot.sessionCostUSD
-            .map { UsageFormatter.currencyString($0, currencyCode: snapshot.currencyCode) } ?? "—"
-        let monthCost = snapshot.last30DaysCostUSD
-            .map { UsageFormatter.currencyString($0, currencyCode: snapshot.currencyCode) } ?? "—"
-        let message =
-            "cost usage success provider=\(provider.rawValue) " +
-            "duration=\(durationText)s " +
-            "today=\(sessionCost) " +
-            "historyDays=\(historyDays) windowCost=\(monthCost)"
-        self.tokenCostLogger.info(message)
     }
 
     private func clearTokenFetchMetadataIfMatching(

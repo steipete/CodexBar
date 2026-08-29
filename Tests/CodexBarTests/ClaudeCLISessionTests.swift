@@ -53,15 +53,18 @@ struct ClaudeCLISessionTests {
         #expect(missingFirst != missingSecond)
     }
 
-    @Test
-    func `profile environment launches and identifies the reusable session`() async throws {
+    @Test(arguments: [0.0, 0.5])
+    func `profile environment launches and identifies the reusable session`(responseDelay: TimeInterval) async throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("codexbar-claude-environment-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
 
         let logURL = directory.appendingPathComponent("launches.log")
-        let cliURL = try Self.makeEnvironmentEchoingClaudeCLI(in: directory, logURL: logURL)
+        let cliURL = try Self.makeEnvironmentEchoingClaudeCLI(
+            in: directory,
+            logURL: logURL,
+            responseDelay: responseDelay)
         let session = ClaudeCLISession()
         let firstConfig = directory.appendingPathComponent("profile-a", isDirectory: true)
         let firstSecureStorage = directory.appendingPathComponent("secure-a", isDirectory: true)
@@ -84,27 +87,21 @@ struct ClaudeCLISessionTests {
         secondEnvironment["HOME"] = secondHome.path
 
         do {
-            let first = try await session.capture(
-                subcommand: "/status",
+            let first = try await Self.captureProfileStatus(
+                session: session,
                 binary: cliURL.path,
                 timeout: 2,
-                environment: firstEnvironment,
-                idleTimeout: 0.1,
-                settleAfterStop: 0)
-            let second = try await session.capture(
-                subcommand: "/status",
+                environment: firstEnvironment)
+            let second = try await Self.captureProfileStatus(
+                session: session,
                 binary: cliURL.path,
                 timeout: 2,
-                environment: secondEnvironment,
-                idleTimeout: 0.1,
-                settleAfterStop: 0)
-            let reused = try await session.capture(
-                subcommand: "/status",
+                environment: secondEnvironment)
+            let reused = try await Self.captureProfileStatus(
+                session: session,
                 binary: cliURL.path,
                 timeout: 2,
-                environment: secondEnvironment,
-                idleTimeout: 0.1,
-                settleAfterStop: 0)
+                environment: secondEnvironment)
             await session.reset()
 
             #expect(first.contains("Account: \(firstConfig.path)"))
@@ -146,30 +143,27 @@ struct ClaudeCLISessionTests {
         secondEnvironment["CLAUDE_CONFIG_DIR"] = secondConfig.path
 
         let firstTask = Task {
-            try await session.capture(
-                subcommand: "/status",
+            try await Self.captureProfileStatus(
+                session: session,
                 binary: cliURL.path,
                 timeout: 5,
-                environment: firstEnvironment,
-                idleTimeout: 0.1,
-                settleAfterStop: 0)
+                environment: firstEnvironment)
         }
         do {
             try await Self.waitForLaunchCount(1, at: logURL)
         } catch {
             firstTask.cancel()
+            _ = await firstTask.result
             await session.reset()
             throw error
         }
 
         let secondTask = Task {
-            try await session.capture(
-                subcommand: "/status",
+            try await Self.captureProfileStatus(
+                session: session,
                 binary: cliURL.path,
                 timeout: 5,
-                environment: secondEnvironment,
-                idleTimeout: 0.1,
-                settleAfterStop: 0)
+                environment: secondEnvironment)
         }
 
         do {
@@ -183,6 +177,8 @@ struct ClaudeCLISessionTests {
         } catch {
             firstTask.cancel()
             secondTask.cancel()
+            _ = await firstTask.result
+            _ = await secondTask.result
             await session.reset()
             throw error
         }
@@ -250,8 +246,32 @@ struct ClaudeCLISessionTests {
         #expect(first == second)
     }
 
-    private static func makeEnvironmentEchoingClaudeCLI(in directory: URL, logURL: URL) throws -> URL {
+    private static func captureProfileStatus(
+        session: ClaudeCLISession,
+        binary: String,
+        timeout: TimeInterval,
+        environment: [String: String]) async throws -> String
+    {
+        let configDirectory = try #require(environment["CLAUDE_CONFIG_DIR"])
+        // PTY echo is not the fixture response; these tests check profile ownership, not idle latency.
+        return try await session.capture(
+            subcommand: "/status",
+            binary: binary,
+            timeout: timeout,
+            environment: environment,
+            idleTimeout: nil,
+            stopOnSubstrings: ["Account: \(configDirectory)"],
+            settleAfterStop: 0)
+    }
+
+    private static func makeEnvironmentEchoingClaudeCLI(
+        in directory: URL,
+        logURL: URL,
+        responseDelay: TimeInterval = 0) throws -> URL
+    {
         let url = directory.appendingPathComponent("claude")
+        // Delay the response, not startup, so PTY echo arrives before the old 0.1-second idle window expires.
+        let delayCommand = responseDelay > 0 ? "/bin/sleep \(responseDelay)" : ""
         let script = """
         #!/bin/sh
         printf 'start:%s:%s:%s\n' \
@@ -261,6 +281,7 @@ struct ClaudeCLISessionTests {
         while IFS= read -r line; do
           case "$line" in
             *"/status"*)
+              \(delayCommand)
               printf 'Account: %s\n' "$CLAUDE_CONFIG_DIR"
               ;;
           esac

@@ -1440,6 +1440,7 @@
 "More" = "Mehr";
 
 /* Provider Plugins */
+"Plugins" = "Plugins";
 "Install…" = "Installieren…";
 "Install plugin" = "Plugin installieren";
 "Copies a JavaScript or TypeScript file into the plugins directory." = "Kopiert eine JavaScript- oder TypeScript-Datei in das Plugin-Verzeichnis.";

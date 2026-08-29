@@ -84,7 +84,8 @@ public enum CodexProviderDescriptor {
                 showsHintInProviderDetails: true,
                 historyTitleStyle: .compact,
                 hintPlacement: .beforeRequestHistory,
-                chartEstimateDisclaimer: .localized("codex_api_estimate_hint")),
+                chartEstimateDisclaimer: .localized("codex_api_estimate_hint"),
+                preservesCalendarDaysInCharts: true),
             pace: ProviderPaceCapability(
                 primary: .session(maximumMinutes: 300),
                 secondary: .weekly,

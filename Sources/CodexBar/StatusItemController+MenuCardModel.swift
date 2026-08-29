@@ -163,6 +163,7 @@ extension StatusItemController {
             paceVisible: self.settings.paceVisible,
             usesLiveSubtitle: surface == .liveCard,
             preferredCurrencyCode: self.settings.preferredCurrencyCode,
+            costUsageBucketCalendar: self.settings.costUsageBucketCalendar,
             now: now)
         return UsageMenuCardView.Model.make(input).applyingUsageItemVisibility(
             hiddenItemIDs: self.settings.hiddenUsageItemIDs(for: target))

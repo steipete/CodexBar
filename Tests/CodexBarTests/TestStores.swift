@@ -121,6 +121,18 @@ func testConfigStore(suiteName: String, reset: Bool = true) -> CodexBarConfigSto
 }
 
 @MainActor
+func testConfigWithAllProvidersDisabled() -> CodexBarConfig {
+    let metadata = ProviderRegistry.shared.metadata
+    var config = CodexBarConfig.makeDefault(metadata: metadata)
+    for index in config.providers.indices {
+        guard let provider = config.providers[index].id.firstPartyProvider,
+              metadata[provider] != nil else { continue }
+        config.providers[index].enabled = false
+    }
+    return config
+}
+
+@MainActor
 func testSettingsStore(
     suiteName: String,
     tokenAccountStore: any ProviderTokenAccountStoring = InMemoryTokenAccountStore(),

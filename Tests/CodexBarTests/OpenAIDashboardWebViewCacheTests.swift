@@ -19,6 +19,41 @@ struct OpenAIDashboardWebViewCacheTests {
 
     // MARK: - Data Store Identity Tests
 
+    @Test(arguments: [false, true], WebViewPreparationCompletion.allCases)
+    func `suspended acquire completion keeps replacement owned`(
+        reuse: Bool,
+        completion: WebViewPreparationCompletion) async throws
+    {
+        if self.shouldSkipOnCI() { return }
+        for _ in 0..<3 {
+            let fixture = WebViewAcquisitionFixture(path: reuse ? .reused : .new)
+            defer { fixture.cache.clearAllForTesting() }
+            let acquireA = fixture.start()
+            let pausedA = await fixture.preparation.next()
+            fixture.cache.evict(websiteDataStore: fixture.store)
+            let acquireB = fixture.start()
+            let pausedB = await fixture.preparation.next()
+            #expect(pausedA.webView !== pausedB.webView)
+            fixture.preparation.rejectFurtherPreparations = true
+            if completion == .cancelledTask { acquireA.task?.cancel() }
+            pausedA.finish(completion.result)
+            await acquireA.wait()
+            acquireA.expectCancellation()
+            #expect(fixture.cache.cachedWebViewForTesting(for: fixture.store) === pausedB.webView)
+            #expect(fixture.preparation.callCount == 2, "Invalidated work must not retry")
+            #expect(fixture.cache.activeAcquisitionCountForTesting == 1)
+            fixture.expectCleanup(pausedA.webView)
+            pausedB.finish(.success(()))
+            await acquireB.wait()
+            let leaseB = try #require(acquireB.lease)
+            leaseB.release()
+            leaseB.release()
+            fixture.expectCleanup(pausedB.webView)
+            #expect(fixture.cache.entryCount == 0)
+            #expect(fixture.cache.activeAcquisitionCountForTesting == 0)
+        }
+    }
+
     @Test
     func `navigation retry uses only remaining shared deadline`() throws {
         let start = Date(timeIntervalSinceReferenceDate: 1000)
@@ -600,6 +635,421 @@ struct OpenAIDashboardWebViewCacheTests {
 
         cache.clearAllForTesting()
         OpenAIDashboardWebsiteDataStore.clearCacheForTesting()
+    }
+}
+
+extension OpenAIDashboardWebViewCacheTests {
+    @Test(arguments: WebViewAcquisitionPath.allCases, [false, true])
+    func `task cancellation rejects successful preparation and timeout retry`(
+        path: WebViewAcquisitionPath,
+        timeout: Bool) async
+    {
+        if self.shouldSkipOnCI() { return }
+        let fixture = WebViewAcquisitionFixture(path: path)
+        defer { fixture.cache.clearAllForTesting() }
+        let acquire = fixture.start()
+        let paused = await fixture.preparation.next()
+        fixture.preparation.rejectFurtherPreparations = true
+        acquire.task?.cancel()
+        paused.finish(timeout ? .failure(URLError(.timedOut)) : .success(()))
+        await acquire.wait()
+        acquire.expectCancellation()
+        #expect(fixture.preparation.callCount == 1)
+        #expect(fixture.cache.activeAcquisitionCountForTesting == 0)
+        fixture.expectCleanup(paused.webView)
+        if path == .temporary {
+            #expect(fixture.cache.cachedWebViewForTesting(for: fixture.store) === fixture.seededWebView)
+        } else {
+            #expect(!fixture.cache.hasCachedEntry(for: fixture.store))
+        }
+    }
+
+    @Test(arguments: [false, true])
+    func `temporary preparation survives normal cached lease release including retry`(retry: Bool) async throws {
+        if self.shouldSkipOnCI() { return }
+        let fixture = WebViewAcquisitionFixture()
+        defer { fixture.cache.clearAllForTesting() }
+        let cached = fixture.start()
+        let cachedPreparation = await fixture.preparation.next()
+        let temporary = fixture.start()
+        var paused = await fixture.preparation.next()
+        cachedPreparation.finish(.success(()))
+        await cached.wait()
+        let cachedLease = try #require(cached.lease)
+        cachedLease.release()
+        #expect(!fixture.cache.hasCachedEntry(for: fixture.store))
+        if retry {
+            paused.finish(.failure(URLError(.timedOut)))
+            let retried = await fixture.preparation.next()
+            fixture.expectCleanup(paused.webView)
+            #expect(retried.webView !== paused.webView)
+            #expect(retried.timeout <= paused.timeout)
+            paused = retried
+        }
+        fixture.preparation.rejectFurtherPreparations = true
+        paused.finish(.success(()))
+        await temporary.wait()
+        let temporaryLease = try #require(temporary.lease)
+        #expect(!fixture.cache.hasCachedEntry(for: fixture.store), "Temporary retry must stay temporary")
+        temporaryLease.setPreserveLoadedPageOnRelease(true)
+        temporaryLease.release()
+        temporaryLease.release()
+        fixture.expectCleanup(cachedPreparation.webView)
+        fixture.expectCleanup(paused.webView)
+        #expect(fixture.cache.activeAcquisitionCountForTesting == 0)
+    }
+
+    @Test(arguments: [false, true], [false, true])
+    func `explicit invalidation reaches temporary preparation after cached lease release`(
+        evictAll: Bool,
+        timeout: Bool) async throws
+    {
+        if self.shouldSkipOnCI() { return }
+        let fixture = WebViewAcquisitionFixture()
+        defer { fixture.cache.clearAllForTesting() }
+        let cached = fixture.start()
+        let cachedPreparation = await fixture.preparation.next()
+        cachedPreparation.finish(.success(()))
+        await cached.wait()
+        let cachedLease = try #require(cached.lease)
+        let temporary = fixture.start()
+        let paused = await fixture.preparation.next()
+        cachedLease.release()
+        if evictAll {
+            fixture.cache.evictAll()
+        } else {
+            fixture.cache.evict(websiteDataStore: fixture.store)
+        }
+        fixture.expectCleanup(paused.webView)
+        fixture.preparation.rejectFurtherPreparations = true
+        paused.finish(timeout ? .failure(URLError(.timedOut)) : .success(()))
+        await temporary.wait()
+        temporary.expectCancellation()
+        #expect(fixture.preparation.callCount == 2)
+        #expect(fixture.cache.entryCount == 0)
+        #expect(fixture.cache.activeAcquisitionCountForTesting == 0)
+        fixture.expectCleanup(paused.webView)
+    }
+
+    @Test(arguments: [false, true])
+    func `explicit invalidation is scoped to its store unless evicting all`(evictAll: Bool) async throws {
+        if self.shouldSkipOnCI() { return }
+        let fixture = WebViewAcquisitionFixture()
+        defer { fixture.cache.clearAllForTesting() }
+        let otherStore = WKWebsiteDataStore.nonPersistent()
+        let acquireA = fixture.start()
+        let pausedA = await fixture.preparation.next()
+        let acquireOther = fixture.start(store: otherStore)
+        let pausedOther = await fixture.preparation.next()
+        if evictAll {
+            fixture.cache.evictAll()
+        } else {
+            fixture.cache.evict(websiteDataStore: fixture.store)
+        }
+        fixture.preparation.rejectFurtherPreparations = true
+        pausedA.finish(.success(()))
+        pausedOther.finish(.success(()))
+        await acquireA.wait()
+        await acquireOther.wait()
+        acquireA.expectCancellation()
+        if evictAll {
+            acquireOther.expectCancellation()
+        } else {
+            let lease = try #require(acquireOther.lease)
+            #expect(fixture.cache.cachedWebViewForTesting(for: otherStore) === lease.webView)
+            lease.release()
+        }
+        fixture.expectCleanup(pausedA.webView)
+        fixture.expectCleanup(pausedOther.webView)
+        #expect(fixture.cache.entryCount == 0)
+        #expect(fixture.cache.activeAcquisitionCountForTesting == 0)
+    }
+
+    @Test(arguments: WebViewAcquisitionPath.allCases, [false, true])
+    func `active timeout retries once within original deadline`(
+        path: WebViewAcquisitionPath,
+        success: Bool) async throws
+    {
+        if self.shouldSkipOnCI() { return }
+        let fixture = WebViewAcquisitionFixture(path: path)
+        defer { fixture.cache.clearAllForTesting() }
+        let acquire = fixture.start()
+        let first = await fixture.preparation.next()
+        first.finish(.failure(URLError(.timedOut)))
+        let retry = await fixture.preparation.next()
+        #expect(first.webView !== retry.webView)
+        #expect(retry.timeout > 0 && retry.timeout <= first.timeout)
+        #expect(!retry.canReuseLoadedPage)
+        fixture.expectCleanup(first.webView)
+        fixture.preparation.rejectFurtherPreparations = true
+        retry.finish(success ? .success(()) : .failure(URLError(.timedOut)))
+        await acquire.wait()
+        if success {
+            let lease = try #require(acquire.lease)
+            lease.release()
+        } else {
+            #expect((acquire.error as? URLError)?.code == .timedOut)
+        }
+        #expect(fixture.preparation.callCount == 2)
+        #expect(fixture.cache.activeAcquisitionCountForTesting == 0)
+        fixture.expectCleanup(retry.webView)
+    }
+
+    @Test(arguments: WebViewAcquisitionPath.allCases)
+    func `disabled timeout retry does not prepare another view`(path: WebViewAcquisitionPath) async {
+        if self.shouldSkipOnCI() { return }
+        let fixture = WebViewAcquisitionFixture(path: path)
+        defer { fixture.cache.clearAllForTesting() }
+        let acquire = fixture.start(allowTimeoutRetry: false)
+        let paused = await fixture.preparation.next()
+        fixture.preparation.rejectFurtherPreparations = true
+        paused.finish(.failure(URLError(.timedOut)))
+        await acquire.wait()
+        #expect((acquire.error as? URLError)?.code == .timedOut)
+        #expect(fixture.preparation.callCount == 1)
+        #expect(fixture.cache.activeAcquisitionCountForTesting == 0)
+        fixture.expectCleanup(paused.webView)
+    }
+
+    @Test(arguments: WebViewAcquisitionPath.allCases, [false, true])
+    func `ordinary preparation failure and cancellation never retry`(
+        path: WebViewAcquisitionPath,
+        cancellation: Bool) async
+    {
+        if self.shouldSkipOnCI() { return }
+        let fixture = WebViewAcquisitionFixture(path: path)
+        defer { fixture.cache.clearAllForTesting() }
+        let acquire = fixture.start()
+        let paused = await fixture.preparation.next()
+        fixture.preparation.rejectFurtherPreparations = true
+        paused.finish(cancellation ? .failure(CancellationError()) : .failure(URLError(.cannotConnectToHost)))
+        await acquire.wait()
+        if cancellation {
+            acquire.expectCancellation()
+        } else {
+            #expect((acquire.error as? URLError)?.code == .cannotConnectToHost)
+        }
+        #expect(fixture.preparation.callCount == 1)
+        #expect(fixture.cache.activeAcquisitionCountForTesting == 0)
+        fixture.expectCleanup(paused.webView)
+    }
+
+    @Test(arguments: WebViewAcquisitionPath.allCases)
+    func `invalidation during timeout retry preserves replacement`(path: WebViewAcquisitionPath) async throws {
+        if self.shouldSkipOnCI() { return }
+        let fixture = WebViewAcquisitionFixture(path: path)
+        defer { fixture.cache.clearAllForTesting() }
+        let acquire = fixture.start()
+        let first = await fixture.preparation.next()
+        first.finish(.failure(URLError(.timedOut)))
+        let retry = await fixture.preparation.next()
+        fixture.cache.evict(websiteDataStore: fixture.store)
+        let replacement = fixture.start()
+        let pausedReplacement = await fixture.preparation.next()
+        fixture.preparation.rejectFurtherPreparations = true
+        retry.finish(.success(()))
+        await acquire.wait()
+        acquire.expectCancellation()
+        #expect(fixture.cache.cachedWebViewForTesting(for: fixture.store) === pausedReplacement.webView)
+        pausedReplacement.finish(.success(()))
+        await replacement.wait()
+        let lease = try #require(replacement.lease)
+        lease.release()
+        fixture.expectCleanup(first.webView)
+        fixture.expectCleanup(retry.webView)
+        fixture.expectCleanup(pausedReplacement.webView)
+        #expect(fixture.preparation.callCount == 3)
+        #expect(fixture.cache.activeAcquisitionCountForTesting == 0)
+    }
+
+    @Test(arguments: WebViewAcquisitionPath.allCases)
+    func `lease owns cleanup after cache deallocation`(path: WebViewAcquisitionPath) async throws {
+        if self.shouldSkipOnCI() { return }
+        var cache: OpenAIDashboardWebViewCache? = OpenAIDashboardWebViewCache()
+        let cacheIsAlive = { [weak cache] in cache != nil }
+        let store = WKWebsiteDataStore.nonPersistent()
+        var hosts: [ObjectIdentifier: AnyObject] = [:]
+        cache?.prepareForTesting = { _, _, _ in }
+        cache?.didCreateWebViewForTesting = { webView, host in hosts[ObjectIdentifier(webView)] = host }
+        if path != .new {
+            cache?.cacheEntryForTesting(websiteDataStore: store, isBusy: path == .temporary)
+        }
+        let url = try #require(URL(string: "https://example.invalid/usage"))
+        let lease = try #require(try await cache?.acquire(
+            websiteDataStore: store,
+            usageURL: url,
+            logger: nil,
+            preserveLoadedPageOnRelease: true))
+        if path == .temporary { cache?.evict(websiteDataStore: store) }
+        cache = nil
+        #expect(!cacheIsAlive(), "Lease must not retain its cache")
+        let host = try #require(hosts[ObjectIdentifier(lease.webView)])
+        #expect(!WebKitTeardown.isScheduledForTesting(host))
+        lease.release()
+        lease.release()
+        #expect(WebKitTeardown.isScheduledForTesting(host))
+        #expect(OpenAIDashboardWebViewCache.cleanupRequestCountForTesting(host) == 1)
+    }
+
+    @Test(arguments: [false, true])
+    func `released or evicted lease cannot change replacement ownership`(evict: Bool) async throws {
+        if self.shouldSkipOnCI() { return }
+        let fixture = WebViewAcquisitionFixture()
+        defer { fixture.cache.clearAllForTesting() }
+        let first = fixture.start(preserveLoadedPage: true)
+        let firstPreparation = await fixture.preparation.next()
+        firstPreparation.finish(.success(()))
+        await first.wait()
+        let firstLease = try #require(first.lease)
+        if evict {
+            fixture.cache.evict(websiteDataStore: fixture.store)
+        } else {
+            firstLease.release()
+            #expect(fixture.cache.hasPreservedPageForTesting(for: fixture.store))
+        }
+        let second = fixture.start()
+        let secondPreparation = await fixture.preparation.next()
+        #expect(secondPreparation.canReuseLoadedPage == !evict)
+        #expect((firstPreparation.webView === secondPreparation.webView) == !evict)
+        if !evict { firstLease.setPreserveLoadedPageOnRelease(false) }
+        firstLease.release()
+        firstLease.release()
+        #expect(fixture.cache.cachedWebViewForTesting(for: fixture.store) === secondPreparation.webView)
+        let secondHost = try #require(fixture.hosts[ObjectIdentifier(secondPreparation.webView)])
+        #expect(!WebKitTeardown.isScheduledForTesting(secondHost))
+        secondPreparation.finish(.success(()))
+        await second.wait()
+        let secondLease = try #require(second.lease)
+        secondLease.release()
+        fixture.expectCleanup(firstPreparation.webView)
+        fixture.expectCleanup(secondPreparation.webView)
+        #expect(fixture.cache.entryCount == 0)
+    }
+}
+
+enum WebViewAcquisitionPath: CaseIterable {
+    case new, reused, temporary
+}
+
+enum WebViewPreparationCompletion: CaseIterable {
+    case failure, cancellation, timeout, success, cancelledTask
+
+    var result: Result<Void, Error> {
+        switch self {
+        case .failure: .failure(URLError(.cannotConnectToHost))
+        case .cancellation: .failure(CancellationError())
+        case .timeout: .failure(URLError(.timedOut))
+        case .success, .cancelledTask: .success(())
+        }
+    }
+}
+
+@MainActor
+private final class WebViewAcquisitionFixture {
+    let cache = OpenAIDashboardWebViewCache()
+    let store = WKWebsiteDataStore.nonPersistent()
+    let preparation = WebViewPreparationGate()
+    var hosts: [ObjectIdentifier: AnyObject] = [:]
+    var seededWebView: WKWebView?
+
+    init(path: WebViewAcquisitionPath = .new) {
+        self.cache.prepareForTesting = self.preparation.prepare
+        self.cache.didCreateWebViewForTesting = { [weak self] webView, host in
+            self?.hosts[ObjectIdentifier(webView)] = host
+        }
+        if path != .new {
+            self.seededWebView = self.cache.cacheEntryForTesting(
+                websiteDataStore: self.store,
+                isBusy: path == .temporary)
+        }
+    }
+
+    func start(
+        store: WKWebsiteDataStore? = nil,
+        allowTimeoutRetry: Bool = true,
+        preserveLoadedPage: Bool = false) -> WebViewAcquireResult
+    {
+        let result = WebViewAcquireResult()
+        let store = store ?? self.store
+        result.task = Task { @MainActor [cache] in
+            do {
+                result.lease = try await cache.acquire(
+                    websiteDataStore: store,
+                    usageURL: URL(string: "https://example.invalid/usage")!,
+                    logger: nil,
+                    allowTimeoutRetry: allowTimeoutRetry,
+                    preserveLoadedPageOnRelease: preserveLoadedPage)
+            } catch {
+                result.error = error
+            }
+        }
+        return result
+    }
+
+    func expectCleanup(_ webView: WKWebView, sourceLocation: SourceLocation = #_sourceLocation) {
+        guard let host = self.hosts[ObjectIdentifier(webView)] else {
+            Issue.record("Missing host", sourceLocation: sourceLocation)
+            return
+        }
+        #expect(WebKitTeardown.isScheduledForTesting(host), sourceLocation: sourceLocation)
+        #expect(OpenAIDashboardWebViewCache.cleanupRequestCountForTesting(host) == 1, sourceLocation: sourceLocation)
+    }
+}
+
+@MainActor
+private final class WebViewAcquireResult {
+    var lease: OpenAIDashboardWebViewLease?
+    var error: Error?
+    var task: Task<Void, Never>?
+
+    func wait() async {
+        await self.task?.value
+        self.task = nil
+    }
+
+    func expectCancellation(sourceLocation: SourceLocation = #_sourceLocation) {
+        #expect(self.lease == nil, sourceLocation: sourceLocation)
+        #expect(self.error is CancellationError, sourceLocation: sourceLocation)
+        self.lease?.release()
+    }
+}
+
+@MainActor
+private final class WebViewPreparationGate {
+    @MainActor
+    struct Preparation {
+        let webView: WKWebView
+        let timeout: TimeInterval
+        let canReuseLoadedPage: Bool
+        let finish: (Result<Void, Error>) -> Void
+    }
+
+    var rejectFurtherPreparations = false
+    private(set) var callCount = 0
+    private var pending: [Preparation] = []
+    private var waiter: CheckedContinuation<Preparation, Never>?
+
+    func prepare(_ webView: WKWebView, timeout: TimeInterval, canReuseLoadedPage: Bool) async throws {
+        self.callCount += 1
+        if self.rejectFurtherPreparations { throw URLError(.cannotConnectToHost) }
+        try await withCheckedThrowingContinuation { continuation in
+            let preparation = Preparation(
+                webView: webView,
+                timeout: timeout,
+                canReuseLoadedPage: canReuseLoadedPage,
+                finish: { continuation.resume(with: $0) })
+            if let waiter = self.waiter {
+                self.waiter = nil
+                waiter.resume(returning: preparation)
+            } else {
+                self.pending.append(preparation)
+            }
+        }
+    }
+
+    func next() async -> Preparation {
+        if !self.pending.isEmpty { return self.pending.removeFirst() }
+        return await withCheckedContinuation { self.waiter = $0 }
     }
 }
 

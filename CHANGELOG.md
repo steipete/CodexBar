@@ -1,19 +1,44 @@
 # Changelog
 
-## 0.55.2 — Unreleased
+## 0.56.1 — Unreleased
 
 ### Fixed
-- Cursor: estimate omitted API-rate costs from cached or bundled pricing, preserve invalid-cost coverage and compatible history caches, and separate Overview history coverage from missing subscriptions (#3129). Thanks @Yuxin-Qiao!
-- OpenRouter: label the API key spending limit consistently and clarify that it is a cap, not the separate account balance (#3158). Thanks @vinschger!
-- Codex: refresh local session cost estimates when global cost tracking is off, without repeatedly rejecting successful scans as stale. Thanks @vinschger!
-- Codex: fairly resume older partial session files during busy local cost scans without increasing scan limits or rebuilding compatible caches (#3207). Thanks @IchenDEV!
-- Menu bar: label the All providers preview as the default and disclose enabled providers with saved overrides, with a targeted “Use all-providers layout” action (#3210). Thanks @Sedrak-Hovhannisyan!
-- Claude: respect the used/remaining fill preference for capped Extra Usage, so an exhausted cap is empty in remaining mode (#3213). Thanks @vinschger!
-- Codex: clear stale connectivity errors after an authorized successful fetch even when weekly usage is withheld, including persisted and stacked-account errors (#3214). Thanks @olddonkey!
-- Antigravity: select the most constrained known quota independently for session and weekly menu-bar layout tokens, so unused model families no longer mask consumed quota (#3206). Thanks @foobra!
-- Codex: honor native access-token JWT expiry before the eight-day refresh age so valid OAuth usage keeps model-specific limits, while preserving CLI-owned refresh and external-source behavior (#3221, #3222). Thanks @anagnorisis2peripeteia!
-- OpenCode Go: preserve API percentage units so 1% usage no longer appears as 100%, including local-history overlays (#3216). Thanks @rodrigoalma!
-- CLI install: block inherited shell functions and startup hooks before helper validation and failure handling, and use absolute tools and a clean administrator-command environment while retaining approval and both existing symlink destinations (#3205, #3217).
+- Docs: clarify the Codex cost-history refresh floor and explain that Manual stops recurring refreshes, not startup or pending catch-up scans.
+- Codex: preserve calendar spacing in inline cost charts, keep unscanned and unpriced days unknown, honor the selected bucket time zone, and fit year-long histories within the menu (#3232). Thanks @findwangdi!
+- Claude: price the documented Kimi `k3[1m]` context alias in local usage reports, including freshly downloaded prices, without changing model names or mixing provider catalogs; refresh affected Pi costs while preserving native Codex caches (investigated alongside #2374). Thanks @joeVenner!
+- Localization: translate missing Catalan iCloud, spend, and Plugins sidebar labels, restore the Projects translation, and align command labels and instructions with their UI roles (#3245). Thanks @pmontp19!
+- Keychain: apply saved disabled-access preferences before startup credential migration, including shared-defaults fallback, and keep deferred migrations retryable (investigated alongside #3249). Thanks @jaychou0642-create!
+
+### Performance
+- Codex: build saved cost aggregates in one pass per file instead of rescanning history for every day/model, preserving costs and token totals (investigated alongside #3247). Thanks @robertoecf!
+
+## 0.56.0 — 2026-08-28
+
+### Added
+- Antigravity: track token history directly from supported local SQLite conversations, without requiring a tokscale export; unavailable history stays distinct from zero usage, and dollar-cost estimates are not inferred (#3212). Thanks @Yuxin-Qiao!
+- Cursor: estimate API-rate costs when usage events omit prices, using cached or bundled pricing while keeping unknown costs unpriced and estimates separate from Cursor-metered charges (#3129). Thanks @Yuxin-Qiao!
+
+### Fixed
+- Cursor: show empty cost-history windows without a decoding error, while preserving incomplete-history and malformed-response checks.
+- Codex: honor the native access token's expiry so valid OAuth sessions keep model-specific limits, while leaving credential refresh under CLI ownership (#3221, #3222). Thanks @anagnorisis2peripeteia!
+- Codex: clear stale connectivity errors after a successful fetch, even when weekly usage cannot yet be published, including persisted and stacked-account errors (#3214). Thanks @olddonkey!
+- Grok: keep usage, identity, and plan on the same account when a native login changes during billing; cookie-based usage no longer picks up unrelated auth-file metadata.
+- Codex: prevent stale OpenAI dashboard preparation and timeout retries from displacing replacement views, and preserve cleanup when views leave the cache (#3252).
+- Usage & Spend: keep 365-day histories fresh after regular usage updates without losing older rows or starting overlapping scans (investigated alongside #3209, #3176). Thanks @vinschger!
+- Overview: preserve known history-day coverage when another selected subscription has no spend data, while keeping incomplete totals marked partial (#3129). Thanks @Yuxin-Qiao!
+- Codex: refresh local session cost estimates when global cost tracking is off instead of repeatedly rejecting successful scans as stale. Thanks @vinschger!
+- Codex: finish older partial session histories during busy cost scans without increasing scan limits or rebuilding compatible caches (#3207). Thanks @IchenDEV!
+- OpenCode Go: show API percentages at their correct scale, so 1% usage no longer appears as 100%, including local-history overlays (#3216). Thanks @rodrigoalma!
+- Antigravity: show the most constrained known quota separately for session and weekly menu-bar values, so unused model families do not hide consumed quota (#3206). Thanks @foobra!
+- Claude: honor the used/remaining fill preference for capped Extra Usage, so an exhausted cap is empty in remaining mode (#3213). Thanks @vinschger!
+- OpenRouter: consistently label the API key spending limit as a cap, separate from the account balance (#3158). Thanks @vinschger!
+- Menu bar: clarify that All providers is the default layout, show saved provider overrides, and offer “Use all-providers layout” to remove those overrides (#3210). Thanks @Sedrak-Hovhannisyan!
+
+### Performance
+- Codex: reduce the work needed to load cached cost reports, including project and session details, without loading raw scanner state (#3247). Thanks @robertoecf!
+
+### Security
+- CLI install: isolate helper validation and administrator commands from inherited shell functions and startup hooks, while preserving the existing approval flow and install locations (#3205, #3217).
 
 ## 0.55.1 — 2026-08-25
 
