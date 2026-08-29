@@ -298,7 +298,7 @@ public enum BrowserCookieAccessGate {
             switch KeychainAccessPreflight.checkGenericPassword(service: label.service, account: label.account) {
             case .allowed:
                 return false
-            case .interactionRequired:
+            case .interactionRequired, .temporarilyUnavailable:
                 return true
             case .notFound, .failure:
                 continue
@@ -361,7 +361,7 @@ public enum BrowserCookieAccessGate {
             switch KeychainAccessPreflight.checkGenericPassword(service: label.service, account: label.account) {
             case .allowed:
                 return true
-            case .interactionRequired:
+            case .interactionRequired, .temporarilyUnavailable:
                 return false
             case .notFound, .failure:
                 continue

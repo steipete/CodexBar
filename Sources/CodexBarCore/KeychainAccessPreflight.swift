@@ -86,9 +86,21 @@ public enum KeychainPromptHandler {
 public enum KeychainAccessPreflight {
     public enum Outcome: Sendable {
         case allowed
+        /// The item is readable, but its decrypt ACL does not trust the current executable.
         case interactionRequired
+        /// The attribute-only query could not complete without UI, for example while Keychain is locked.
+        case temporarilyUnavailable
         case notFound
         case failure(Int)
+
+        public var requiresInteraction: Bool {
+            switch self {
+            case .interactionRequired, .temporarilyUnavailable:
+                true
+            case .allowed, .failure, .notFound:
+                false
+            }
+        }
     }
 
     private struct GenericPasswordKey: Hashable {
@@ -210,7 +222,7 @@ public enum KeychainAccessPreflight {
             self.log.info(
                 "Keychain preflight requires interaction",
                 metadata: ["service": service])
-            return .interactionRequired
+            return .temporarilyUnavailable
         default:
             self.log.warning(
                 "Keychain preflight failed",

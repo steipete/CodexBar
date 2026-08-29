@@ -394,7 +394,7 @@ struct CookieHeaderCacheTests {
             {
             case .missing:
                 #expect(true)
-            case .found, .temporarilyUnavailable, .invalid:
+            case .found, .interactionRequired, .temporarilyUnavailable, .invalid:
                 #expect(Bool(false), "Expected temporary miss not to migrate legacy cache")
             }
         }
@@ -418,7 +418,7 @@ struct CookieHeaderCacheTests {
             switch KeychainCacheStore.load(key: key, as: CookieHeaderCache.Entry.self) {
             case .missing:
                 #expect(true)
-            case .found, .temporarilyUnavailable, .invalid:
+            case .found, .interactionRequired, .temporarilyUnavailable, .invalid:
                 #expect(Bool(false), "Expected invalid cookie cache to be cleared")
             }
         }
@@ -927,3 +927,45 @@ struct CookieHeaderCacheTests {
         }
     }
 }
+
+#if os(macOS)
+extension CookieHeaderCacheTests {
+    @Test
+    func `loadForDisplay does not repeatedly validate a cache ACL that needs authorization`() async throws {
+        CookieHeaderCache.resetDisplayCacheForTesting()
+        defer { CookieHeaderCache.resetDisplayCacheForTesting() }
+
+        let provider: UsageProvider = .cursor
+        let preflightCount = LockIsolated(0)
+        try await KeychainCacheStore.withServiceOverrideForTesting("cache-preflight-loop-\(UUID().uuidString)") {
+            try await KeychainAccessGate.withTaskOverrideForTesting(false) {
+                try await KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { _, _ in
+                    preflightCount.setValue(preflightCount.value + 1)
+                    return .interactionRequired
+                } operation: {
+                    try await CookieHeaderCache.withDisplayUnavailableRetryIntervalOverrideForTesting(0.01) {
+                        let first = KeychainCacheStore.withRealKeychainPathForTesting {
+                            CookieHeaderCache.loadForDisplay(provider: provider)
+                        }
+                        #expect(first == nil)
+                        #expect(preflightCount.value == 1)
+
+                        try await Task.sleep(for: .milliseconds(20))
+                        for _ in 0..<100 {
+                            _ = KeychainCacheStore.withRealKeychainPathForTesting {
+                                CookieHeaderCache.loadForDisplay(provider: provider)
+                            }
+                            if preflightCount.value > 1 { break }
+                            try await Task.sleep(for: .milliseconds(5))
+                        }
+
+                        #expect(
+                            preflightCount.value == 1,
+                            "An ACL authorization failure must not trigger automatic Security.framework revalidation")
+                    }
+                }
+            }
+        }
+    }
+}
+#endif
