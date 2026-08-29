@@ -199,6 +199,7 @@ Example:
     and replay bodies. File cursor metadata, including JSONL resume state, remains available for progress tracking.
     Scanner and save operations still load the complete state; fresh database opens retain integrity validation.
 - Window: configurable 1-365 day rolling history, with a 60s minimum refresh interval.
+- Inline cost charts preserve a slot for every day in that window, using the selected cost-bucket time zone and the snapshot's date. Missing days are zero only after history coverage is established; unscanned days and entries without prices remain unknown. Long windows fit within the menu width without dropping dates.
 - While a bounded refresh catches up with new session history, established totals remain visible only for the same
   account, history window, and bucket time zone. An incomplete first scan never borrows another account's totals.
 - Pending local-history files receive a turn before fresh work, within the existing byte and duration limits.

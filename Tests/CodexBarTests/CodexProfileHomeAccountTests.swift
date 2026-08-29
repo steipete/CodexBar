@@ -190,11 +190,36 @@ struct CodexProfileHomeAccountTests {
         #expect(fixture.store.tokenSnapshot(for: .codex) == profileBSnapshot)
         #expect(completedModel.tokenUsage?.sessionLine.contains("$34") == true)
         #expect(completedModel.tokenUsage?.sessionLine.contains("$12") == false)
-        #expect(completedModel.inlineUsageDashboard?.points.map(\.value) == [34])
+        let completedPoints = try #require(completedModel.inlineUsageDashboard?.points)
+        #expect(completedPoints.count == 30)
+        #expect(completedPoints.last?.id == "2026-08-21")
+        #expect(completedPoints.last?.value == 34)
         #expect(completedModel.inlineUsageDashboard?.detailLines
             .contains { $0.contains("fictional-profile-b") } == true)
         #expect(completedModel.inlineUsageDashboard?.detailLines
             .contains { $0.contains("fictional-profile-a") } == false)
+    }
+
+    @Test
+    @MainActor
+    func `provider details chart uses the pinned cost bucket calendar`() throws {
+        let fixture = try Self.makeProfileHomeCostFixture(suite: "CodexProfileHomeAccountTests-chart-calendar")
+        defer { fixture.cleanup() }
+        fixture.settings.costUsageBucketTimeZoneIdentifier = "Pacific/Kiritimati"
+        let now = try #require(ISO8601DateFormatter().date(from: "2026-08-24T12:30:00Z"))
+        let snapshot = CostUsageTokenSnapshot(
+            sessionTokens: 100,
+            sessionCostUSD: 3,
+            last30DaysTokens: 100,
+            last30DaysCostUSD: 3,
+            historyDays: 1,
+            daily: [InlineCostCalendarFixture.entry("2026-08-25", cost: 3)],
+            updatedAt: now)
+        fixture.store._setTokenSnapshotForTesting(snapshot, provider: .codex)
+        let model = ProvidersPane(settings: fixture.settings, store: fixture.store)
+            ._test_menuCardModel(for: .codex)
+        #expect(model.inlineUsageDashboard?.points.map(\.id) == ["2026-08-25"])
+        #expect(model.inlineUsageDashboard?.points.map(\.value) == [3])
     }
 
     @Test
@@ -217,7 +242,10 @@ struct CodexProfileHomeAccountTests {
             ._test_menuCardModel(for: .codex)
         #expect(fixture.store.tokenSnapshot(for: .codex) == ambientSnapshot)
         #expect(model.tokenUsage?.sessionLine.contains("$56") == true)
-        #expect(model.inlineUsageDashboard?.points.map(\.value) == [56])
+        let points = try #require(model.inlineUsageDashboard?.points)
+        #expect(points.count == 30)
+        #expect(points.last?.id == "2026-08-21")
+        #expect(points.last?.value == 56)
     }
 
     @Test
@@ -544,7 +572,14 @@ struct CodexProfileHomeAccountTests {
     }
 
     private static func costSnapshot(cost: Double, tokens: Int, model: String) -> CostUsageTokenSnapshot {
-        CostUsageTokenSnapshot(
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .current
+        let updatedAt = calendar.date(from: DateComponents(
+            year: 2026,
+            month: 8,
+            day: 21,
+            hour: 12)) ?? Date(timeIntervalSince1970: 1_787_313_600)
+        return CostUsageTokenSnapshot(
             sessionTokens: tokens,
             sessionCostUSD: cost,
             last30DaysTokens: tokens,
@@ -560,7 +595,7 @@ struct CodexProfileHomeAccountTests {
                     modelName: model,
                     costUSD: cost,
                     totalTokens: tokens)])],
-            updatedAt: Date())
+            updatedAt: updatedAt)
     }
 
     private static func writeCodexAuthFile(
