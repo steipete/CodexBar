@@ -1440,6 +1440,7 @@
 "More" = "多";
 
 /* Provider Plugins */
+"Plugins" = "Plugins";
 "Install…" = "インストール…";
 "Install plugin" = "プラグインをインストール";
 "Copies a JavaScript or TypeScript file into the plugins directory." = "JavaScript または TypeScript ファイルをプラグインディレクトリにコピーします。";

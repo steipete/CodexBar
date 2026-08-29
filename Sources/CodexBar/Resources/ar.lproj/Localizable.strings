@@ -1443,6 +1443,7 @@
 "More" = "أكثر";
 
 /* Provider Plugins */
+"Plugins" = "Plugins";
 "Install…" = "تثبيت…";
 "Install plugin" = "تثبيت إضافة";
 "Copies a JavaScript or TypeScript file into the plugins directory." = "ينسخ ملف JavaScript أو TypeScript إلى مجلد الإضافات.";

@@ -1439,6 +1439,7 @@
 "More" = "Meer";
 
 /* Provider Plugins */
+"Plugins" = "Plugins";
 "Install…" = "Installeren…";
 "Install plugin" = "Plug-in installeren";
 "Copies a JavaScript or TypeScript file into the plugins directory." = "Kopieert een JavaScript- of TypeScript-bestand naar de map met plug-ins.";
