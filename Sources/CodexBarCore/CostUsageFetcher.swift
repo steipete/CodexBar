@@ -756,7 +756,11 @@ public struct CostUsageFetcher: Sendable {
                     return true
                 }
             }
-            return false
+            // An earlier group may refresh the shared catalog without resolving its own alias.
+            let catalog = ModelsDevCache.load(now: request.now, cacheRoot: request.cacheRoot).artifact?.catalog
+            return request.targets.contains {
+                catalog?.pricing(providerID: $0.providerID, modelID: $0.modelID) != nil
+            }
         }
 
         if inBackground {
@@ -1293,7 +1297,9 @@ public struct CostUsageFetcher: Sendable {
             var sum = 0
             for t in daily.data.compactMap(\.totalTokens) {
                 let (res, overflow) = sum.addingReportingOverflow(t)
-                if overflow { return nil }
+                if overflow {
+                    return nil
+                }
                 sum = res
             }
             return sum

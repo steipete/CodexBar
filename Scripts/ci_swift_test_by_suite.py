@@ -121,6 +121,8 @@ if sys.platform == "darwin":
     _libproc = ctypes.CDLL("/usr/lib/libproc.dylib", use_errno=True)
     _libproc.proc_pidinfo.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_uint64, ctypes.c_void_p, ctypes.c_int]
     _libproc.proc_pidinfo.restype = ctypes.c_int
+    _libproc.proc_listpids.argtypes = [ctypes.c_uint32, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_int]
+    _libproc.proc_listpids.restype = ctypes.c_int
     _proc_signal_with_audittoken = getattr(_libproc, "proc_signal_with_audittoken", None)
     if _proc_signal_with_audittoken is not None:
         _proc_signal_with_audittoken.argtypes = [ctypes.POINTER(AuditToken), ctypes.c_int]
@@ -181,12 +183,41 @@ def test_process(pid: int) -> TestProcess | None:
         raise OSError(errno.EIO, f"Incomplete process metadata for PID {pid}") from error
 
 
+def test_process_ids() -> set[int]:
+    # Native enumeration avoids launching ps during every ownership/cleanup poll.
+    if sys.platform == "darwin":
+        ctypes.set_errno(0)
+        size = _libproc.proc_listpids(1, 0, None, 0)  # PROC_ALL_PIDS; result is bytes, not a PID count.
+        if size <= 0 or size % ctypes.sizeof(ctypes.c_int):
+            raise OSError(ctypes.get_errno() or errno.EIO, "Cannot size process inventory")
+        capacity = size // ctypes.sizeof(ctypes.c_int) + 128
+        for _ in range(4):
+            if capacity > (2**31 - 1) // ctypes.sizeof(ctypes.c_int):
+                raise OSError(errno.EOVERFLOW, "Process inventory exceeds native buffer size")
+            pids = (ctypes.c_int * capacity)()
+            ctypes.set_errno(0)
+            size = _libproc.proc_listpids(1, 0, pids, ctypes.sizeof(pids))
+            if size <= 0 or size % ctypes.sizeof(ctypes.c_int) or size > ctypes.sizeof(pids):
+                raise OSError(ctypes.get_errno() or errno.EIO, "Cannot enumerate process inventory")
+            if size < ctypes.sizeof(pids):
+                return {pid for pid in pids[: size // ctypes.sizeof(ctypes.c_int)] if pid > 0}
+            # A full buffer may omit descendants; retry growth instead of accepting a partial inventory.
+            capacity *= 2
+        raise OSError(errno.EAGAIN, "Process inventory kept growing during enumeration")
+    if sys.platform.startswith("linux"):
+        return {
+            int(path.name) for path in Path("/proc").iterdir()
+            if path.name.isascii() and path.name.isdecimal() and int(path.name) > 0
+        }
+    raise RuntimeError("Swift test process containment requires macOS or Linux")
+
+
 def test_process_snapshot(required: Iterable[int] = ()) -> dict[int, TestProcess]:
     # Numeric metadata only; never inspect command lines or environments of peer jobs.
-    pids = subprocess.check_output(["ps", "-axo", "pid="], text=True, timeout=2).split()
+    pids = test_process_ids()
     required = set(required)
     snapshot = {}
-    for pid in {int(pid) for pid in pids} | required:
+    for pid in pids | required:
         try:
             info = test_process(pid)
         except OSError:
