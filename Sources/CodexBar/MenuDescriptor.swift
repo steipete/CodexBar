@@ -44,6 +44,7 @@ struct MenuDescriptor {
         case changelog = "list.bullet.rectangle"
         case addAccount = "plus"
         case systemAccount = "person.crop.circle"
+        case workspaces = "folder"
         case switchAccount = "key"
         case openTerminal = "terminal"
         case loginToProvider = "arrow.right.square"
@@ -72,6 +73,7 @@ struct MenuDescriptor {
         case switchAccount(UsageProvider)
         case openTerminal(command: String)
         case loginToProvider(url: String)
+        case openCodexWorkspaces
         case settings
         case about
         case quit
@@ -90,6 +92,7 @@ struct MenuDescriptor {
         codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator? = nil,
         updateReady: Bool,
         includeContextualActions: Bool = true,
+        codexWorkspacesMenuEnabled: Bool = false,
         agentSessionsEnabled: Bool = false,
         agentSessionLabelStyle: AgentSessionLabelStyle = .project,
         localAgentSessions: [AgentSession] = [],
@@ -133,12 +136,15 @@ struct MenuDescriptor {
         }
 
         if includeContextualActions {
+            let codexActionContext = CodexActionContext(
+                managedAccountCoordinator: managedCodexAccountCoordinator,
+                accountPromotionCoordinator: codexAccountPromotionCoordinator,
+                workspacesMenuEnabled: codexWorkspacesMenuEnabled)
             let actions = Self.actionsSection(
                 for: provider,
                 store: store,
                 account: account,
-                managedCodexAccountCoordinator: managedCodexAccountCoordinator,
-                codexAccountPromotionCoordinator: codexAccountPromotionCoordinator)
+                codexActionContext: codexActionContext)
             if !actions.entries.isEmpty {
                 sections.append(actions)
             }
@@ -543,12 +549,17 @@ struct MenuDescriptor {
         return nil
     }
 
+    private struct CodexActionContext {
+        let managedAccountCoordinator: ManagedCodexAccountCoordinator?
+        let accountPromotionCoordinator: CodexAccountPromotionCoordinator?
+        let workspacesMenuEnabled: Bool
+    }
+
     private static func actionsSection(
         for provider: UsageProvider?,
         store: UsageStore,
         account: AccountInfo,
-        managedCodexAccountCoordinator: ManagedCodexAccountCoordinator?,
-        codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator?) -> Section
+        codexActionContext: CodexActionContext) -> Section
     {
         var entries: [Entry] = []
         let targetProvider = provider ?? store.enabledFirstPartyProviders().first
@@ -586,8 +597,9 @@ struct MenuDescriptor {
                 store: store,
                 settings: store.settings,
                 account: fallbackAccount,
-                managedCodexAccountCoordinator: managedCodexAccountCoordinator,
-                codexAccountPromotionCoordinator: codexAccountPromotionCoordinator)
+                managedCodexAccountCoordinator: codexActionContext.managedAccountCoordinator,
+                codexAccountPromotionCoordinator: codexActionContext.accountPromotionCoordinator,
+                codexWorkspacesMenuEnabled: codexActionContext.workspacesMenuEnabled)
             ProviderCatalog.implementation(for: targetProvider)?
                 .appendActionMenuEntries(context: actionContext, entries: &entries)
         }
@@ -783,6 +795,7 @@ extension MenuDescriptor.MenuAction {
         case .switchAccount: MenuDescriptor.MenuActionSystemImage.switchAccount.rawValue
         case .openTerminal: MenuDescriptor.MenuActionSystemImage.openTerminal.rawValue
         case .loginToProvider: MenuDescriptor.MenuActionSystemImage.loginToProvider.rawValue
+        case .openCodexWorkspaces: MenuDescriptor.MenuActionSystemImage.workspaces.rawValue
         case .copyError: MenuDescriptor.MenuActionSystemImage.copyError.rawValue
         case .focusAgentSession:
             nil

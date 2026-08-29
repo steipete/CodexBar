@@ -239,6 +239,7 @@
 "No cost history data." = "コスト履歴データがありません。";
 "No data available" = "データがありません";
 "No data yet" = "まだデータがありません";
+"Workspaces" = "ワークスペース";
 "No enabled providers available for Overview." = "概要に表示できる有効なプロバイダがありません。";
 "No providers selected" = "プロバイダが選択されていません";
 "No token accounts yet." = "トークンアカウントはまだありません。";

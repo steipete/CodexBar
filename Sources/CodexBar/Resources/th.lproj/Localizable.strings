@@ -224,6 +224,7 @@
 "No cost history data." = "ไม่มีข้อมูลประวัติค่าใช้จ่าย";
 "No data available" = "ไม่มีข้อมูล";
 "No data yet" = "ยังไม่มีข้อมูล";
+"Workspaces" = "พื้นที่ทำงาน";
 "No enabled providers available for Overview." = "ไม่มีผู้ให้บริการที่เปิดใช้งานสําหรับภาพรวม";
 "No providers selected" = "ไม่มีผู้ให้บริการที่เลือก";
 "No token accounts yet." = "ยังไม่มีบัญชีโทเค็น";

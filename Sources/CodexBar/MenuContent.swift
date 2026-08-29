@@ -138,6 +138,8 @@ struct MenuContent: View {
             if let urlObj = URL(string: url) {
                 NSWorkspace.shared.open(urlObj)
             }
+        case .openCodexWorkspaces:
+            CodexWorkspacesPresenter.shared.present()
         case .settings:
             self.actions.openSettings()
         case .about:

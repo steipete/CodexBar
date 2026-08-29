@@ -239,6 +239,7 @@
 "No cost history data." = "Немає даних історії витрат.";
 "No data available" = "Немає даних";
 "No data yet" = "Даних ще немає";
+"Workspaces" = "Робочі простори";
 "No enabled providers available for Overview." = "Немає активованих постачальників, доступних для огляду.";
 "No providers selected" = "Не вибрано жодного постачальника";
 "No token accounts yet." = "Жетонів ще немає.";
