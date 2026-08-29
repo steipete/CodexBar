@@ -60,6 +60,8 @@ Usage source picker:
   Automatic mode also suppresses unscoped CLI fallback whenever a managed workspace is selected. Explicit
   managed-account workspace selection is stored in CodexBar's private managed-account metadata; it never edits the
   source `auth.json` or publishes an `account_id` change back to another application's credential file.
+- Reusing OpenCode OAuth enables remote account quota, not OpenCode session token/cost ingestion. See
+  [OpenCode with Codex or OpenAI](opencode.md#using-opencode-with-codex-or-openai) for the current history boundary.
 
 ### Advanced profile-home accounts
 - Managed Codex accounts remain the default multi-account path.
