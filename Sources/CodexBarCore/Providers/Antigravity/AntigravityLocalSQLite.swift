@@ -241,8 +241,12 @@ extension AntigravityLocalReader {
             let payload = SQLitePayload(statement: statement)
             progress.budget.statistics.materializedPayloadBytes += payload.byteCount
             stepProgress.rows += 1
+            // The optional pass keeps its own per-database ceilings, but every row it touches still
+            // belongs to the job-wide budget: charge it before the step limits get a chance to stop.
+            try progress.budget.chargeRow()
             let count = Int(sqlite3_column_int64(statement, 1))
             let attemptedBytes = max(count, payload.byteCount)
+            try progress.budget.chargeBytes(attemptedBytes)
             guard stepProgress.rows <= stepProgress.rowLimit,
                   attemptedBytes <= stepProgress.byteLimit - stepProgress.bytes
             else { break }

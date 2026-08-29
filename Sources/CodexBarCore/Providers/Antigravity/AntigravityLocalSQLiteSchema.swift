@@ -23,7 +23,10 @@ extension AntigravityLocalReader {
         var tables = SupportedTables()
         while true {
             try budget.check()
-            guard sqlite3_step(statement) == SQLITE_ROW else { break }
+            let step = sqlite3_step(statement)
+            if step == SQLITE_DONE { break }
+            // A SQLITE_CORRUPT/SQLITE_IOERR termination is not an exhaustive listing: fail closed.
+            guard step == SQLITE_ROW else { return SupportedTables() }
             entries += 1
             budget.statistics.schemaEntries += 1
             guard entries <= budget.limits.schemaEntries else { throw ScanFailure.exhausted }

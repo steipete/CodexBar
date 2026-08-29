@@ -168,6 +168,29 @@ struct AntigravityLocalScanTests {
     }
 
     @Test
+    func `optional steps scan charges its rows and bytes against the shared job budget`() throws {
+        let fixture = try Fixture()
+        let stepUUID = "budgeted-step-uuid"
+        let genBlob = Fixture.blobWithRootEnvelope(stepUUID: stepUUID, seconds: nil)
+        let stepBlob = Fixture.stepMetadataBlob(stepUUID: stepUUID, seconds: 1_787_832_000)
+        try fixture.database(blobs: [genBlob], stepBlobs: [stepBlob])
+
+        #expect(try fixture.report().coverage == .complete)
+
+        var limits = AntigravityLocalReader.Limits()
+        limits.rows = 1
+        let rowBound = try fixture.report(limits: limits)
+        #expect(rowBound.coverage == .partial)
+        #expect(rowBound.statistics.rows == 2)
+
+        limits = AntigravityLocalReader.Limits()
+        limits.bytes = genBlob.count
+        let byteBound = try fixture.report(limits: limits)
+        #expect(byteBound.coverage == .partial)
+        #expect(byteBound.statistics.attemptedBytes == genBlob.count + stepBlob.count)
+    }
+
+    @Test
     func `recursive aggregate view is rejected without executing its payload query`() throws {
         let fixture = try Fixture()
         let url = try fixture.database()
