@@ -198,7 +198,8 @@ extension CostUsageStore {
             persistedFiles += 1
             Self.saveCycleCheckpointForTesting?(persistedFiles)
         }
-        _ = self.replaceDayAggregates(Self.globalAggregates(cache: cache))
+        _ = self.replaceDayAggregates(Self.globalAggregates(
+            cache: cache, recorder: self.scopedReadWorkRecorderForTesting))
         _ = self.setMetadata(Self.metadata(cache: cache, calendar: calendar))
         _ = self.setDiscoveryState(Self.discoveryState(cache.codexSessionDiscovery))
         _ = self.setLookbackState(Self.lookbackState(cache.codexActiveLookbackState))
@@ -910,7 +911,8 @@ extension CostUsageStore {
         case .replace:
             _ = self.replaceUsageRows(path: path, rows: rows)
         }
-        _ = self.replaceFileDayAggregates(path: path, aggregates: Self.fileAggregates(usage))
+        _ = self.replaceFileDayAggregates(path: path, aggregates: Self.fileAggregates(
+            usage, recorder: self.scopedReadWorkRecorderForTesting))
         _ = self.upsertForkLineage(CostUsageStoreForkLineage(
             path: path,
             sessionID: usage.sessionId,
@@ -991,7 +993,10 @@ extension CostUsageStore {
             reportUntilKey: untilKey)
     }
 
-    private static func fileAggregates(_ usage: CostUsageFileUsage) -> [CostUsageStoreDayAggregate] {
+    private static func fileAggregates(
+        _ usage: CostUsageFileUsage,
+        recorder: CostUsageStoreReadWorkRecorder?) -> [CostUsageStoreDayAggregate]
+    {
         var keys = Set<DayModelKey>()
         func addKeys(_ map: [String: [String: some Any]]?) {
             for (day, models) in map ?? [:] {
@@ -1007,54 +1012,49 @@ extension CostUsageStore {
         addKeys(usage.codexPriorityCostNanos)
         addKeys(usage.codexStandardTokens)
         addKeys(usage.codexPriorityTokens)
+        var values: [DayModelKey: CostUsageStoreDayAggregate] = [:]
         for row in usage.codexRows ?? [] {
-            keys.insert(DayModelKey(day: row.day, model: row.model))
+            recorder?.recordAggregateGroupingRowVisit()
+            let key = DayModelKey(day: row.day, model: row.model)
+            keys.insert(key)
+            var aggregate = values[key] ?? .zero(day: row.day, model: row.model)
+            aggregate.reasoningTokens += Int64(row.reasoning ?? 0)
+            aggregate.requestCount += 1
+            let isPriority = row.pricingMode == "priority"
+            let total = Int64(max(0, row.input) + max(0, row.output))
+            if isPriority {
+                aggregate.priorityTokens += total
+            } else {
+                aggregate.standardTokens += total
+            }
+            if let cost = row.knownCostNanos {
+                aggregate.authoritativeCostNanos += cost
+            } else if isPriority {
+                aggregate.priorityInputTokens += Int64(row.input)
+                aggregate.priorityCachedTokens += Int64(row.cached)
+                aggregate.priorityOutputTokens += Int64(row.output)
+            } else {
+                aggregate.standardInputTokens += Int64(row.input)
+                aggregate.standardCachedTokens += Int64(row.cached)
+                aggregate.standardOutputTokens += Int64(row.output)
+            }
+            values[key] = aggregate
         }
         return keys.map { key in
+            var aggregate = values[key] ?? .zero(day: key.day, model: key.model)
+            // Packed totals remain authoritative; rows supply pricing and request detail only.
             let packed = usage.days[key.day]?[key.model] ?? []
-            let rows = (usage.codexRows ?? []).filter { $0.day == key.day && $0.model == key.model }
-            var aggregate = CostUsageStoreDayAggregate(
-                day: key.day,
-                model: key.model,
-                inputTokens: Int64(packed[safe: 0] ?? 0),
-                cachedTokens: Int64(packed[safe: 1] ?? 0),
-                outputTokens: Int64(packed[safe: 2] ?? 0),
-                reasoningTokens: Int64(rows.compactMap(\.reasoning).reduce(0, +)),
-                requestCount: Int64(rows.count),
-                authoritativeCostNanos: 0,
-                standardInputTokens: 0,
-                standardCachedTokens: 0,
-                standardOutputTokens: 0,
-                priorityInputTokens: 0,
-                priorityCachedTokens: 0,
-                priorityOutputTokens: 0,
-                standardTokens: 0,
-                priorityTokens: 0)
-            for row in rows {
-                let isPriority = row.pricingMode == "priority"
-                let total = Int64(max(0, row.input) + max(0, row.output))
-                if isPriority {
-                    aggregate.priorityTokens += total
-                } else {
-                    aggregate.standardTokens += total
-                }
-                if let cost = row.knownCostNanos {
-                    aggregate.authoritativeCostNanos += cost
-                } else if isPriority {
-                    aggregate.priorityInputTokens += Int64(row.input)
-                    aggregate.priorityCachedTokens += Int64(row.cached)
-                    aggregate.priorityOutputTokens += Int64(row.output)
-                } else {
-                    aggregate.standardInputTokens += Int64(row.input)
-                    aggregate.standardCachedTokens += Int64(row.cached)
-                    aggregate.standardOutputTokens += Int64(row.output)
-                }
-            }
+            aggregate.inputTokens = Int64(packed[safe: 0] ?? 0)
+            aggregate.cachedTokens = Int64(packed[safe: 1] ?? 0)
+            aggregate.outputTokens = Int64(packed[safe: 2] ?? 0)
             return aggregate
         }.sorted { ($0.day, $0.model) < ($1.day, $1.model) }
     }
 
-    private static func globalAggregates(cache: CostUsageCache) -> [CostUsageStoreDayAggregate] {
+    private static func globalAggregates(
+        cache: CostUsageCache,
+        recorder: CostUsageStoreReadWorkRecorder?) -> [CostUsageStoreDayAggregate]
+    {
         var values: [DayModelKey: CostUsageStoreDayAggregate] = [:]
         for (day, models) in cache.days {
             for (model, packed) in models {
@@ -1066,7 +1066,7 @@ extension CostUsageStore {
             }
         }
         for usage in cache.files.values {
-            for aggregate in self.fileAggregates(usage) {
+            for aggregate in self.fileAggregates(usage, recorder: recorder) {
                 let key = DayModelKey(day: aggregate.day, model: aggregate.model)
                 guard var value = values[key] else { continue }
                 value.reasoningTokens += aggregate.reasoningTokens

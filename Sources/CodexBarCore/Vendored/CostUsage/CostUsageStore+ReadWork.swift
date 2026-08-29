@@ -21,6 +21,7 @@ struct CostUsageStoreReadWorkMetrics: Codable, Equatable, Sendable {
     var accumulatorRows = 0
     var readViewConversions = 0
     var readViewConversionsInTransaction = 0
+    var aggregateGroupingRowVisits = 0
 }
 
 /// Opt-in diagnostic counters for one owned database; never installed in production.
@@ -95,6 +96,10 @@ final class CostUsageStoreReadWorkRecorder: @unchecked Sendable {
 
     func recordIntegrityCheck() {
         self.lock.withLock { self.metrics.integrityChecks += 1 }
+    }
+
+    func recordAggregateGroupingRowVisit() {
+        self.lock.withLock { self.metrics.aggregateGroupingRowVisits += 1 }
     }
 }
 

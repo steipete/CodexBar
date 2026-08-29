@@ -8,6 +8,9 @@
 - Localization: translate missing Catalan iCloud, spend, and Plugins sidebar labels, restore the Projects translation, and align command labels and instructions with their UI roles (#3245). Thanks @pmontp19!
 - Keychain: apply saved disabled-access preferences before startup credential migration, including shared-defaults fallback, and keep deferred migrations retryable (investigated alongside #3249). Thanks @jaychou0642-create!
 
+### Performance
+- Codex: build saved cost aggregates in one pass per file instead of rescanning history for every day/model, preserving costs and token totals (investigated alongside #3247). Thanks @robertoecf!
+
 ## 0.56.0 — 2026-08-28
 
 ### Added
