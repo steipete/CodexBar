@@ -102,10 +102,23 @@ struct CodexWorkspacesNavigationTests {
         #expect(window.styleMask.contains(.miniaturizable))
         #expect(window.styleMask.contains(.resizable))
         #expect(window.minSize == NSSize(width: 980, height: 640))
+        #expect(window.contentMinSize == window.contentRect(
+            forFrameRect: NSRect(origin: .zero, size: window.minSize)).size)
         #expect(window.tabbingMode == .disallowed)
         #expect(!window.isReleasedWhenClosed)
         #expect(!window.isRestorable)
         #expect(window.contentViewController != nil)
+    }
+
+    @Test
+    func `restored Workspaces frame cannot be smaller than its minimum size`() {
+        let restored = NSRect(x: 120, y: 240, width: 400, height: 177)
+        let constrained = CodexWorkspacesWindowController.constrainedFrame(
+            restored,
+            minimumSize: NSSize(width: 980, height: 640))
+
+        #expect(constrained.origin == restored.origin)
+        #expect(constrained.size == NSSize(width: 980, height: 640))
     }
 
     private func makeSettings() -> SettingsStore {
