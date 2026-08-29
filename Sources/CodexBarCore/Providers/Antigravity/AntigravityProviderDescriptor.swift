@@ -82,7 +82,8 @@ public enum AntigravityProviderDescriptor {
                     resolveFallbackError: self.resolveFallbackError)),
             cli: ProviderCLIConfig(
                 name: "antigravity",
-                versionDetector: nil))
+                versionDetector: nil,
+                supportsCostCommand: true))
     }
 
     private static let quotaSummaryPrefix = "antigravity-quota-summary-"

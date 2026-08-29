@@ -259,6 +259,10 @@ Both overrides and `HOME` come from the same refresh environment. Declared roots
 discovery still visits only the immediate entries of the recognized directories. This is machine-local token history,
 not account attribution or dollar pricing. No language server, provider CLI, browser, credentials, or network is used.
 
+Use `codexbar cost --provider antigravity --format json` to read this same local history from the CLI.
+The cost endpoint and dashboard also include it when Antigravity is selected. Token counts do not imply known dollar
+costs, and these entry points do not expand the supported timestamp layouts described below.
+
 SQLite is authoritative when present. An unreadable root, malformed database, unsupported event layout, or exhausted
 budget never authorizes replacement by a smaller/stale JSONL cache. Complete empty databases and complete histories
 outside the selected window establish empty history; absent sources and partial scans do not. Partial reports remain

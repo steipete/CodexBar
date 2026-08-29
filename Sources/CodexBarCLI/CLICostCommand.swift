@@ -163,6 +163,10 @@ extension CodexBarCLI {
         useColor: Bool) -> String
     {
         let name = ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
+        // Provider-specific by design: Antigravity exposes token history, not priced estimates.
+        if provider == .antigravity {
+            return Self.renderLocalTokenHistoryText(name: name, snapshot: snapshot, useColor: useColor)
+        }
         // Provider-specific by design: Codex cost is explicitly an API-equivalent local-session estimate.
         let title = provider == .codex
             ? "\(name) API-equivalent estimate (not billed)"
@@ -200,6 +204,30 @@ extension CodexBarCLI {
         return [header, todayLine, monthLine, meteredLine, hintLine]
             .compactMap(\.self)
             .joined(separator: "\n")
+    }
+
+    private static func renderLocalTokenHistoryText(
+        name: String,
+        snapshot: CostUsageTokenSnapshot,
+        useColor: Bool) -> String
+    {
+        let header = Self.costHeaderLine("\(name) Token History", useColor: useColor)
+        let hint = "Local token history · dollar costs unavailable"
+        guard snapshot.historyCoverageIsEstablished else {
+            return [header, "Local token history is unavailable or incomplete.", hint].joined(separator: "\n")
+        }
+        let today = snapshot.sessionTokens.map { "\(UsageFormatter.tokenCountString($0)) tokens" } ?? "—"
+        let total = snapshot.last30DaysTokens.map { "\(UsageFormatter.tokenCountString($0)) tokens" } ?? "—"
+        let historyLabel = snapshot.historyLabel
+            ?? (snapshot.historyDays == 1 ? "Today" : "Last \(snapshot.historyDays) days")
+        let lines: [String?] = [
+            header,
+            "Today: \(today)",
+            snapshot.historyDays == 1 ? nil : "\(historyLabel): \(total)",
+            snapshot.daily.isEmpty ? "No token usage found in the selected period." : nil,
+            hint,
+        ]
+        return lines.compactMap(\.self).joined(separator: "\n")
     }
 
     private static func renderProjectCostText(header: String, snapshot: CostUsageTokenSnapshot) -> String {
