@@ -36,9 +36,7 @@ extension CostUsageScanner {
     private static let requestMarker = "websocket request:"
 
     static func defaultCodexPriorityDatabaseURL() -> URL {
-        CodexHomeScope
-            .ambientHomeURL(env: [:])
-            .appendingPathComponent("logs_2.sqlite", isDirectory: false)
+        CodexPriorityDatabasePath.defaultURL()
     }
 
     static func resolvedCodexPriorityDatabaseURL(_ databaseURL: URL?) -> URL {

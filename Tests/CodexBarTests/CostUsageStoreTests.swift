@@ -20,33 +20,25 @@ struct CostUsageStoreTests {
     /// The subprocess coverage in `CostUsageStoreExecutorIsolationTests` exercises the legacy
     /// runtime path that an in-process test cannot select.
     @Test
-    func `sync bridges are callable from a plain thread`() throws {
+    func `sync bridges are callable from a plain thread`() async throws {
         let fixture = try StoreFixture()
         defer { fixture.remove() }
         let store = CostUsageStore(cacheRoot: fixture.root)
 
-        final class Outcome: @unchecked Sendable {
-            var loadedScanStamp: Int64?
-            var savedRowCount: Int?
+        // Keep fixture cleanup behind worker completion without blocking the cooperative pool.
+        let (loadedScanStamp, savedRowCount): (Int64, Int) = await withCheckedContinuation { continuation in
+            Thread {
+                let loaded = store.syncLoadCodexCache(calendar: .current)
+                let saved = store.syncSaveCodexCache(
+                    loaded,
+                    calendar: .current,
+                    requestedScanWindow: (sinceKey: "2026-08-01", untilKey: "2026-08-03"))
+                continuation.resume(returning: (loaded.lastScanUnixMs, saved.rowCount))
+            }.start()
         }
-        let outcome = Outcome()
-        let finished = DispatchSemaphore(value: 0)
 
-        let thread = Thread {
-            let loaded = store.syncLoadCodexCache(calendar: .current)
-            outcome.loadedScanStamp = loaded.lastScanUnixMs
-            let saved = store.syncSaveCodexCache(
-                loaded,
-                calendar: .current,
-                requestedScanWindow: (sinceKey: "2026-08-01", untilKey: "2026-08-03"))
-            outcome.savedRowCount = saved.rowCount
-            finished.signal()
-        }
-        thread.start()
-
-        #expect(finished.wait(timeout: .now() + 30) == .success)
-        #expect(outcome.loadedScanStamp == 0)
-        #expect((outcome.savedRowCount ?? -1) >= 0)
+        #expect(loadedScanStamp == 0)
+        #expect(savedRowCount >= 0)
     }
 
     @Test
@@ -1009,11 +1001,13 @@ extension CostUsageStoreTests {
         "21f10143afe00c55",
         "f8577be489f4c13d",
         "d9a91f31d0addc15",
+        "7b1b44d62a411215",
     ])
     func `compatible predecessor parser hash adopts without rebuilding`(predecessorHash: String) async throws {
         let fixture = try StoreFixture()
         defer { fixture.remove() }
         #expect(CostUsageStore.compatiblePredecessorParserHashes == [
+            "7b1b44d62a411215",
             "d9a91f31d0addc15",
             "f8577be489f4c13d",
             "21f10143afe00c55",

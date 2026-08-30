@@ -231,6 +231,12 @@ compiles the actual policy and detector with optimization and without `DEBUG`, t
 scoped-child, and non-test decisions against synthetic temporary files. It does not build or exercise
 the complete release CLI, refresh a real account, or establish isolation for other providers.
 
+The same runtime and inherited Codex-file isolation signal also redirects the scanner's default priority trace
+database to a process-local, nonexistent temporary path before consulting the user home. Supplying a fixture
+session root alone does not select a trace database. Tests exercising priority metadata should pass an explicitly
+owned `codexTraceDatabaseURL`; these overrides and the production `~/.codex/logs_2.sqlite` default are unchanged.
+The optimized child-policy proof above also verifies this fallback, independently of Keychain opt-ins.
+
 ### Provider session fixtures
 
 Cursor, Augment, Factory, and Notion session stores select a process-local temporary directory under Swift Testing

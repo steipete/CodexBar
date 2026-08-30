@@ -77,6 +77,7 @@ actor CostUsageStore {
         parserHash: CodexParserHash.value)
     static let cacheGeneration = "sqlite:\(CostUsageStore.schemaVersion)"
     static let compatiblePredecessorParserHashes: Set<String> = [
+        "7b1b44d62a411215", // Test-only trace isolation leaves production parsing and stored history unchanged.
         "d9a91f31d0addc15", // Drain abandoned discovery without changing parsed rows or stored history.
         "f8577be489f4c13d", // Claude-only pricing aliases leave native Codex rows, cursors, and reports unchanged.
         "21f10143afe00c55", // Read-view retry presence leaves parsed rows and persisted scanner state unchanged.
