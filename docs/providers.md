@@ -125,6 +125,7 @@ complete when the available scan window covers fewer days.
 - CLI RPC default: `codex ... app-server` JSON-RPC (`account/read`, `account/rateLimits/read`).
 - CLI PTY: manual diagnostics/parser coverage only; automatic refresh does not launch bare Codex TUI.
 - Local cost usage: scans `CODEX_HOME` (or `~/.codex`) `sessions` and sibling `archived_sessions` JSONL files for the configured history window.
+- Completed cost catch-up publishes validated cached history without starting another scan. Native and included Pi/OMP caches must cover the requested window; unavailable or incompatible history preserves existing totals until a later refresh. Token timestamps retain the actual cache scan time. This does not resolve catch-up that remains pending while an active log continuously grows.
 - Status: Statuspage.io (OpenAI).
 - Details: `docs/codex.md`.
 
