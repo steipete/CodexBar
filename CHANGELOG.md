@@ -6,6 +6,7 @@
 - Menu bar: add an opt-in notch usage overlay with provider tiles, agent-session summaries, and a shortcut, keeping neighboring menu extras clickable (#3164). Thanks @wdmitchelluk!
 
 ### Fixed
+- Tests: isolate Cursor, Augment, Factory, and Notion saved sessions from user files, including test child processes, while preserving production storage and owner-only permissions.
 - Codex: publish completed cost catch-up from validated caches without starting another scan, preserve actual scan timestamps, and retain prior totals when native or Pi/OMP history is unavailable (partial follow-up to #3243). Thanks @zhulijin1991!
 - Antigravity: reuse a running `agy` by its verified executable path even when its command line uses a bare name, and preserve CLI sign-in guidance when an IDE fallback has no CSRF token (follow-up to #3146). Thanks @haixing23!
 - Codex: add redacted weekly-reset diagnostic reasons for candidate admission, expiry, and account-scoped storage requests without changing reset publication rules (investigated alongside #3248). Thanks @kcharlan!

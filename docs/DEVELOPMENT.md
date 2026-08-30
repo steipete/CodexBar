@@ -231,6 +231,22 @@ compiles the actual policy and detector with optimization and without `DEBUG`, t
 scoped-child, and non-test decisions against synthetic temporary files. It does not build or exercise
 the complete release CLI, refresh a real account, or establish isolation for other providers.
 
+### Provider session fixtures
+
+Cursor, Augment, Factory, and Notion session stores select a process-local temporary directory under Swift Testing
+or XCTest, before creating directories, loading saved files, or repairing permissions. The runtime guard is also
+compiled in release builds; allowing real Keychain access does not disable this file isolation. Production filenames
+and owner-only persistence remain unchanged.
+
+Persistence tests should construct stores with an explicitly owned `fileURL` and clean up that fixture. Use fresh
+writer/reader instances to prove disk reloads. The sharded runner exports `CODEXBAR_TEST_SESSION_FILE_ISOLATION=1`
+for child processes; direct test commands that launch children should export it too. This covers these four default
+session stores, not arbitrary file access or provider-owned credential databases.
+
+`bash Scripts/test_provider_session_file_isolation.sh` compiles the actual path policy and runtime detector with
+optimization and without `DEBUG`, then verifies inherited child isolation and unchanged production-relative paths
+against fake Application Support files. It does not launch the app, read real sessions, or exercise a full release CLI.
+
 ### WebView ownership regressions
 
 `OpenAIDashboardWebViewCacheTests` uses explicit nonpersistent stores and a DEBUG preparation seam to suspend
