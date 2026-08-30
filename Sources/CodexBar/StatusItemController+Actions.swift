@@ -664,7 +664,23 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
             return
         }
 
-        if Self.executeAppleScript(terminal.appleScript(command: command)) {
+        // Provider-specific by design: this is Warp terminal routing, not Warp usage-provider policy.
+        if terminal == .warp {
+            Task { @MainActor in
+                do {
+                    try await TerminalApp.launchWarp(command: command)
+                } catch {
+                    CodexBarLog.logger(LogCategories.terminal).warning(
+                        "Warp launch failed, falling back to Terminal.app",
+                        metadata: ["error": error.localizedDescription])
+                    Self.openTerminalInDefaultTerminal(command: command)
+                }
+            }
+            return
+        }
+
+        guard let script = terminal.appleScript(command: command) else { return }
+        if Self.executeAppleScript(script) {
             return
         }
         guard terminal != .terminal else { return }
@@ -676,7 +692,8 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
     }
 
     private static func openTerminalInDefaultTerminal(command: String) {
-        self.executeAppleScript(TerminalApp.terminal.appleScript(command: command))
+        guard let script = TerminalApp.terminal.appleScript(command: command) else { return }
+        self.executeAppleScript(script)
     }
 
     /// Executes an AppleScript and returns `true` on success, `false` on failure.

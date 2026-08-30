@@ -6,6 +6,8 @@ enum TerminalApp: String, CaseIterable, Identifiable {
     case terminal
     case iTerm
     case ghostty
+    /// Provider-specific by design: "warp" is a terminal app here, not the Warp usage provider.
+    case warp
 
     var id: String {
         self.rawValue
@@ -16,6 +18,7 @@ enum TerminalApp: String, CaseIterable, Identifiable {
         case .terminal: "Terminal"
         case .iTerm: "iTerm"
         case .ghostty: "Ghostty"
+        case .warp: "Warp"
         }
     }
 
@@ -24,6 +27,7 @@ enum TerminalApp: String, CaseIterable, Identifiable {
         case .terminal: "com.apple.Terminal"
         case .iTerm: "com.googlecode.iterm2"
         case .ghostty: "com.mitchellh.ghostty"
+        case .warp: "dev.warp.Warp-Stable"
         }
     }
 
@@ -95,7 +99,7 @@ enum TerminalApp: String, CaseIterable, Identifiable {
         self.allCases.filter { $0 == selected || $0.isInstalled(applicationURL: applicationURL) }
     }
 
-    func appleScript(command: String) -> String {
+    func appleScript(command: String) -> String? {
         let escaped = Self.escapeForAppleScript(command)
         return switch self {
         case .terminal:
@@ -125,6 +129,9 @@ enum TerminalApp: String, CaseIterable, Identifiable {
                 new window with configuration {initial input:"\(escaped)" & linefeed}
             end tell
             """
+        // Provider-specific by design: Warp's terminal app has no AppleScript launcher.
+        case .warp:
+            nil
         }
     }
 
@@ -132,5 +139,102 @@ enum TerminalApp: String, CaseIterable, Identifiable {
         command
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
+    }
+
+    static func warpTabConfig(name: String, command: String, directory: String) -> String {
+        """
+        name = "\(name)"
+
+        [[panes]]
+        id = "main"
+        type = "terminal"
+        directory = "\(self.escapeForTOML(directory))"
+        commands = ["\(self.escapeForTOML(command))"]
+        """
+    }
+
+    @MainActor
+    static func launchWarp(command: String) async throws {
+        let workspace = NSWorkspace.shared
+        guard let schemeURL = URL(string: "warp://"),
+              let applicationURL = workspace.urlForApplication(toOpen: schemeURL)
+        else {
+            throw NSError(
+                domain: "TerminalApp",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Warp is not installed"])
+        }
+
+        let resolvedApplicationURL = applicationURL.resolvingSymlinksInPath().standardizedFileURL
+        let isRunning = workspace.runningApplications.contains {
+            $0.bundleURL?.resolvingSymlinksInPath().standardizedFileURL == resolvedApplicationURL
+        }
+        try await self.launchWarp(
+            command: command,
+            homeDirectory: FileManager.default.homeDirectoryForCurrentUser,
+            applicationURL: applicationURL,
+            isRunning: isRunning,
+            launchApplication: {
+                let configuration = NSWorkspace.OpenConfiguration()
+                configuration.activates = true
+                _ = try await workspace.openApplication(at: $0, configuration: configuration)
+            },
+            openURL: { workspace.open($0) },
+            sleep: { try await Task.sleep(for: $0) })
+    }
+
+    @MainActor
+    // swiftlint:disable:next function_parameter_count
+    static func launchWarp(
+        command: String,
+        homeDirectory: URL,
+        applicationURL: URL,
+        isRunning: Bool,
+        launchApplication: (URL) async throws -> Void,
+        openURL: (URL) -> Bool,
+        sleep: (Duration) async throws -> Void) async throws
+    {
+        let name = "codexbar-\(UUID().uuidString.lowercased())"
+        guard let deepLink = URL(string: "warp://tab_config/\(name)") else {
+            throw NSError(domain: "TerminalApp", code: 2)
+        }
+        let configFile = homeDirectory
+            .appendingPathComponent(".warp/tab_configs")
+            .appendingPathComponent("\(name).toml")
+        try FileManager.default.createDirectory(
+            at: configFile.deletingLastPathComponent(),
+            withIntermediateDirectories: true)
+
+        do {
+            try self.warpTabConfig(name: name, command: command, directory: homeDirectory.path)
+                .write(to: configFile, atomically: true, encoding: .utf8)
+            if !isRunning {
+                try await launchApplication(applicationURL)
+                try await sleep(.seconds(3))
+            }
+            guard openURL(deepLink) else {
+                throw NSError(
+                    domain: "TerminalApp",
+                    code: 3,
+                    userInfo: [NSLocalizedDescriptionKey: "Warp refused the tab config URL"])
+            }
+        } catch {
+            try? FileManager.default.removeItem(at: configFile)
+            throw error
+        }
+
+        Task.detached {
+            try? await Task.sleep(for: .seconds(30))
+            try? FileManager.default.removeItem(at: configFile)
+        }
+    }
+
+    private static func escapeForTOML(_ value: String) -> String {
+        value
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+            .replacingOccurrences(of: "\n", with: "\\n")
+            .replacingOccurrences(of: "\r", with: "\\r")
+            .replacingOccurrences(of: "\t", with: "\\t")
     }
 }

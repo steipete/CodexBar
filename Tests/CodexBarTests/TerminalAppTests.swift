@@ -50,11 +50,6 @@ struct TerminalAppTests {
     }
 
     @Test
-    func `only three cases exist`() {
-        #expect(TerminalApp.allCases.count == 3)
-    }
-
-    @Test
     func `installed terminals always include Terminal and detected alternatives`() {
         let iTermURL = URL(fileURLWithPath: "/Applications/iTerm.app")
         let installed = TerminalApp.installed { bundleIdentifier in
@@ -70,6 +65,16 @@ struct TerminalAppTests {
         }
 
         #expect(withGhostty == [.terminal, .ghostty])
+    }
+
+    @Test
+    func `installed Warp uses its native launcher`() throws {
+        let warp = try #require(TerminalApp(rawValue: "warp"))
+        let warpURL = URL(fileURLWithPath: "/Applications/Warp.app")
+
+        #expect(warp.bundleIdentifier == "dev.warp.Warp-Stable")
+        #expect(TerminalApp.installed { $0 == warp.bundleIdentifier ? warpURL : nil } == [.terminal, warp])
+        #expect(warp.appleScript(command: "claude") == nil)
     }
 
     @Test
@@ -125,11 +130,84 @@ struct TerminalAppTests {
     }
 
     @Test
-    func `builds terminal-specific launch scripts`() {
+    func `builds escaped Warp tab config`() {
+        let config = TerminalApp.warpTabConfig(
+            name: "codexbar-test",
+            command: "echo \"hi\" && printf 'a\\b\nc\td\r'",
+            directory: #"/tmp/dir "quote"\slash"#)
+
+        #expect(config == #"""
+        name = "codexbar-test"
+
+        [[panes]]
+        id = "main"
+        type = "terminal"
+        directory = "/tmp/dir \"quote\"\\slash"
+        commands = ["echo \"hi\" && printf 'a\\b\nc\td\r'"]
+        """#)
+    }
+
+    @Test
+    @MainActor
+    func `running Warp receives a native tab config`() async throws {
+        let home = FileManager.default.temporaryDirectory
+            .appendingPathComponent("TerminalAppTests-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: home) }
+        let appURL = URL(fileURLWithPath: "/Applications/Warp.app")
+        var launched = false
+        var openedURL: URL?
+
+        try await TerminalApp.launchWarp(
+            command: "claude",
+            homeDirectory: home,
+            applicationURL: appURL,
+            isRunning: true,
+            launchApplication: { _ in launched = true },
+            openURL: {
+                openedURL = $0
+                return true
+            },
+            sleep: { _ in })
+
+        #expect(launched == false)
+        #expect(openedURL?.absoluteString.hasPrefix("warp://tab_config/codexbar-") == true)
+        let files = try FileManager.default.contentsOfDirectory(
+            at: home.appendingPathComponent(".warp/tab_configs"),
+            includingPropertiesForKeys: nil)
+        let content = try String(contentsOf: #require(files.first), encoding: .utf8)
+        #expect(content.contains(#"commands = ["claude"]"#))
+    }
+
+    @Test
+    @MainActor
+    func `cold Warp launches before routing the tab config`() async throws {
+        let home = FileManager.default.temporaryDirectory
+            .appendingPathComponent("TerminalAppTests-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: home) }
+        let appURL = URL(fileURLWithPath: "/Applications/Warp.app")
+        var events: [String] = []
+
+        try await TerminalApp.launchWarp(
+            command: "claude",
+            homeDirectory: home,
+            applicationURL: appURL,
+            isRunning: false,
+            launchApplication: { _ in events.append("launch") },
+            openURL: { _ in
+                events.append("open")
+                return true
+            },
+            sleep: { _ in events.append("sleep") })
+
+        #expect(events == ["launch", "sleep", "open"])
+    }
+
+    @Test
+    func `builds terminal-specific launch scripts`() throws {
         let command = #"echo "hello""#
-        let terminalScript = TerminalApp.terminal.appleScript(command: command)
-        let iTermScript = TerminalApp.iTerm.appleScript(command: command)
-        let ghosttyScript = TerminalApp.ghostty.appleScript(command: command)
+        let terminalScript = try #require(TerminalApp.terminal.appleScript(command: command))
+        let iTermScript = try #require(TerminalApp.iTerm.appleScript(command: command))
+        let ghosttyScript = try #require(TerminalApp.ghostty.appleScript(command: command))
 
         #expect(terminalScript.contains(#"tell application "Terminal""#))
         #expect(terminalScript.contains(#"do script "echo \"hello\"""#))
