@@ -244,6 +244,8 @@ struct MenuDescriptor {
             let resetStyle = settings.resetTimeDisplayStyle
             let labels = Self.rateWindowLabels(provider: provider, metadata: meta, snapshot: snap)
             let presentation = ProviderDescriptorRegistry.descriptor(for: provider).presentation
+            let paceVisible = settings.paceVisible && ProviderDescriptorRegistry.descriptor(for: provider).pace
+                .allowsPace(dataConfidence: snap.dataConfidence)
             if let primary = snap.primary {
                 let primaryDetail = primary.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines)
                 let primaryDescriptionIsDetail = presentation.menu.usesPrimaryDescriptionAsDetail(snapshot: snap)
@@ -277,14 +279,14 @@ struct MenuDescriptor {
                 {
                     entries.append(.text(primaryDetail, .secondary))
                 }
-                if settings.paceVisible,
+                if paceVisible,
                    presentation.menu.showsPrimaryWeeklyPace,
-                   let pace = store.weeklyPace(provider: provider, window: primary)
+                   let pace = store.weeklyPace(provider: provider, window: primary, dataConfidence: snap.dataConfidence)
                 {
                     let paceSummary = UsagePaceText.weeklySummary(provider: provider, pace: pace)
                     entries.append(.text(paceSummary, .secondary))
                 }
-                if settings.paceVisible,
+                if paceVisible,
                    let paceSummary = UsagePaceText.sessionSummary(provider: provider, window: primary)
                 {
                     entries.append(.text(paceSummary, .secondary))
@@ -317,8 +319,8 @@ struct MenuDescriptor {
                 {
                     entries.append(.text(detail, .secondary))
                 }
-                if settings.paceVisible,
-                   let pace = store.weeklyPace(provider: provider, window: weekly)
+                if paceVisible,
+                   let pace = store.weeklyPace(provider: provider, window: weekly, dataConfidence: snap.dataConfidence)
                 {
                     let paceSummary = UsagePaceText.weeklySummary(provider: provider, pace: pace)
                     entries.append(.text(paceSummary, .secondary))
