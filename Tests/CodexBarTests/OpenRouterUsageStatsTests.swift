@@ -561,6 +561,35 @@ struct OpenRouterPluginGoldenTests {
         #expect(abs((model.costUSD ?? -1) - 12.345) < 1e-9)
     }
 
+    @Test
+    func `activity bounds card model summary while retaining complete cost data`() async throws {
+        let models = [
+            "provider/alpha-model-with-a-very-long-descriptive-name-01",
+            "provider/beta-model-with-a-very-long-descriptive-name-02",
+            "provider/gamma-model-with-a-very-long-descriptive-name-03",
+        ]
+        let rows = models.enumerated().map { index, model in
+            """
+            {"date":"2026-08-17","model":"\(model)","endpoint_id":"endpoint-\(index)",
+             "prompt_tokens":100,"completion_tokens":50,"reasoning_tokens":10,"requests":2,"usage":1.25}
+            """
+        }.joined(separator: ",")
+        let usage = try await Self.fetch(
+            activityBody: "{\"data\":[\(rows)]}",
+            now: Date(timeIntervalSince1970: 1_787_079_600))
+        let modelRow = try #require(usage.detailRow(label: "Models"))
+        let summary = try #require(modelRow.secondaryValue)
+        let day = try #require(usage.costUsage?.daily.first)
+
+        #expect(modelRow.value == "3")
+        #expect(summary == "\(models[0]) · +2 more")
+        #expect(summary.count <= ProviderDetailSection.maximumStringLength)
+        #expect(day.modelsUsed == models)
+        #expect(day.modelBreakdowns?.map(\.modelName) == models)
+        #expect(usage.costUsage?.last30DaysTokens == 450)
+        #expect(usage.costUsage?.last30DaysRequests == 6)
+    }
+
     @Test(arguments: ["2026-08-23", "2026-08-23 00:00:00"])
     func `activity accepts date and datetime rows and normalizes their UTC day`(activityDate: String) async throws {
         let activityBody = #"""
@@ -682,6 +711,20 @@ struct OpenRouterPluginGoldenTests {
           {
             "date":"2026-08-17", "model":"openai/gpt-5.6",
             "prompt_tokens":5000000000000000000, "completion_tokens":0, "reasoning_tokens":0,
+            "requests":1, "usage":1
+          }
+        ]}
+        """#,
+        #"""
+        {"data":[
+          {
+            "date":"2026-08-17", "model":"openai/gpt-5.6", "endpoint_id":"input",
+            "prompt_tokens":5000000000000000, "completion_tokens":0, "reasoning_tokens":0,
+            "requests":1, "usage":1
+          },
+          {
+            "date":"2026-08-17", "model":"openai/gpt-5.6", "endpoint_id":"output",
+            "prompt_tokens":0, "completion_tokens":5000000000000000, "reasoning_tokens":0,
             "requests":1, "usage":1
           }
         ]}

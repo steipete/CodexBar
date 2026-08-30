@@ -66,7 +66,7 @@ defineProvider({
     function degradationReason(error) {
       const message = error && typeof error.message === "string" ? error.message : String(error);
       if (/timed out|-1001/i.test(message)) return "Request timed out";
-      if (/json|parse|invalid|must be|conflict|duplicate/i.test(message)) return "Response was invalid";
+      if (/json|parse|invalid|must be|conflict|duplicate|overflow|exceed/i.test(message)) return "Response was invalid";
       return "Request failed";
     }
     try {
@@ -239,6 +239,7 @@ defineProvider({
             if (
               !Number.isSafeInteger(aggregateInputTokens) ||
               !Number.isSafeInteger(aggregateOutputTokens) ||
+              !Number.isSafeInteger(aggregateInputTokens + aggregateOutputTokens) ||
               !Number.isSafeInteger(aggregateReasoningTokens) ||
               !Number.isSafeInteger(aggregateRequests)
             ) {
@@ -325,6 +326,17 @@ defineProvider({
 
     const currency = (value) => `$${Math.max(0, value).toFixed(2)}`;
     const integer = (value) => String(value).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    const modelSummary = (models) => {
+      if (!models.length) return "No model names returned";
+      const maximumLength = 120;
+      for (let count = models.length; count > 0; count -= 1) {
+        const suffix = count < models.length ? ` · +${models.length - count} more` : "";
+        const candidate = `${models.slice(0, count).join(", ")}${suffix}`;
+        if (candidate.length <= maximumLength) return candidate;
+      }
+      // Individual Activity model names are already capped at 64 characters, so this is defensive only.
+      return `${models.length} models`;
+    };
     const details = [
       {
         title: "Credits",
@@ -390,7 +402,6 @@ defineProvider({
     }
 
     if (costUsage && activitySummary) {
-      const modelNames = activitySummary.models.join(", ");
       details.push({
         title: "Activity (last 30 completed UTC days)",
         rows: [
@@ -404,7 +415,7 @@ defineProvider({
           {
             label: "Models",
             value: integer(activitySummary.models.length),
-            secondaryValue: modelNames || "No model names returned",
+            secondaryValue: modelSummary(activitySummary.models),
           },
         ],
       });
