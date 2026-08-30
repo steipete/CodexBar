@@ -184,10 +184,11 @@ extension CodexAccountScopedRefreshTests {
                     attempts: [])
             })
         #expect(admission.outcome == nil)
-        store.persistCodexWeeklyResetPublicationCandidate(
+        let persistenceDecision = store.persistCodexWeeklyResetPublicationCandidate(
             admission.pendingCandidate,
             expectedGuard: store.freshCodexAccountScopedRefreshGuard(),
             previousSnapshot: previous)
+        #expect(persistenceDecision == .storeRequested)
 
         #expect(store.codexAccountSnapshots.count == 1)
         #expect(store.codexAccountSnapshots.first?.weeklyResetCandidate == nil)
@@ -249,10 +250,14 @@ extension CodexAccountScopedRefreshTests {
             createdAt: now,
             snapshot: ownerSnapshot)
 
-        store.persistCodexWeeklyResetPublicationCandidate(
+        #expect(store.persistCodexWeeklyResetPublicationCandidate(
+            candidate, expectedGuard: nil, previousSnapshot: ownerSnapshot) == .missingExpectedGuard)
+        #expect(store.codexAccountSnapshots.count == 1)
+        let persistenceDecision = store.persistCodexWeeklyResetPublicationCandidate(
             candidate,
             expectedGuard: store.freshCodexAccountScopedRefreshGuard(),
             previousSnapshot: ownerSnapshot)
+        #expect(persistenceDecision == .storeRequested)
 
         #expect(store.codexAccountSnapshots.count == 2)
         #expect(store.codexAccountSnapshots.first { $0.id == sibling.id }?.snapshot?.secondary?.usedPercent == 42)
@@ -826,12 +831,12 @@ extension CodexAccountScopedRefreshTests {
                 capturedAt: now.addingTimeInterval(-1899),
                 expiresAt: expiry),
             dataConfidence: .exact)
-        let candidate = try #require(CodexWeeklyResetConfirmation.makeDelayedCandidate(
+        let candidate = try #require(CodexWeeklyResetConfirmation.evaluateDelayedCandidateCreation(
             previous: previous,
             initial: initial,
             confirmation: confirmation,
             sourceEvidence: .allExactOAuth,
-            observedAt: initial.updatedAt))
+            observedAt: initial.updatedAt).candidate)
         let expiredLow = self.codexWeeklySnapshot(
             email: email,
             weeklyUsedPercent: 0.5,

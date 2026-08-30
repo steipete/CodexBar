@@ -42,6 +42,11 @@ Usage source picker:
 - Suspicious weekly resets keep the last trusted usage while confirmation is pending. A successful refresh for the
   same account and workspace clears stale connectivity errors even when the reading is withheld; failed, cancelled,
   or superseded refreshes do not clear them. Cached usage, credits, and other accounts remain unchanged.
+- Debug logs in `codex-weekly-reset-publication` include fixed reason codes for delayed-candidate
+  creation, pruning, revalidation, and account-scoped storage requests. They distinguish source/confidence,
+  timing, boundary, identity/plan compatibility, and credit-inventory failures without logging account or credit
+  identifiers. Codes describe the first rejected prerequisite; they do not relax confirmation policy or prove the
+  cause of a past stale reading. `storeRequested` means the file-store call was made, not that a disk write succeeded.
 - `additional_rate_limits[]` (model-specific limits such as GPT-5.3-Codex-Spark) map to named
   `UsageSnapshot.extraRateWindows` entries. Spark uses stable `codex-spark` / `codex-spark-weekly` ids and
   `Codex Spark 5-hour` / `Codex Spark Weekly` titles. When the field is absent, the snapshot is unchanged.

@@ -664,12 +664,12 @@ extension CodexWeeklyResetConfirmationTests {
                 status: .available,
                 capturedAt: self.capturedAt.addingTimeInterval(2),
                 expiresAt: expiry))
-        let candidate = try #require(CodexWeeklyResetConfirmation.makeDelayedCandidate(
+        let candidate = try #require(CodexWeeklyResetConfirmation.evaluateDelayedCandidateCreation(
             previous: previous,
             initial: initial,
             confirmation: confirmation,
             sourceEvidence: .allExactOAuth,
-            observedAt: initial.updatedAt))
+            observedAt: initial.updatedAt).candidate)
         #expect(candidate.firstObservedAt == initial.updatedAt)
         #expect(candidate.createdAt == initial.updatedAt)
 
@@ -699,26 +699,26 @@ extension CodexWeeklyResetConfirmationTests {
                 expiresAt: expiry))
 
         #expect(
-            CodexWeeklyResetConfirmation.delayedCandidateDecision(
+            CodexWeeklyResetConfirmation.evaluateDelayedCandidate(
                 previous: previous,
                 candidate: candidate,
                 current: tooSoon,
                 currentIsExactOAuth: true,
-                observedAt: tooSoon.updatedAt) == .retainCandidate)
+                observedAt: tooSoon.updatedAt).decision == .retainCandidate)
         #expect(
-            CodexWeeklyResetConfirmation.delayedCandidateDecision(
+            CodexWeeklyResetConfirmation.evaluateDelayedCandidate(
                 previous: previous,
                 candidate: candidate,
                 current: laterRefresh,
                 currentIsExactOAuth: true,
-                observedAt: laterRefresh.updatedAt) == .publishCurrent)
+                observedAt: laterRefresh.updatedAt).decision == .publishCurrent)
         #expect(
-            CodexWeeklyResetConfirmation.delayedCandidateDecision(
+            CodexWeeklyResetConfirmation.evaluateDelayedCandidate(
                 previous: previous,
                 candidate: candidate,
                 current: expiredRefresh,
                 currentIsExactOAuth: true,
-                observedAt: expiredRefresh.updatedAt) == .discardCandidate)
+                observedAt: expiredRefresh.updatedAt).decision == .discardCandidate)
     }
 
     @Test
@@ -746,50 +746,50 @@ extension CodexWeeklyResetConfirmationTests {
                 status: .available,
                 capturedAt: self.capturedAt.addingTimeInterval(2),
                 expiresAt: expiry))
-        let candidate = try #require(CodexWeeklyResetConfirmation.makeDelayedCandidate(
+        let candidate = try #require(CodexWeeklyResetConfirmation.evaluateDelayedCandidateCreation(
             previous: previous,
             initial: initial,
             confirmation: confirmation,
             sourceEvidence: .allExactOAuth,
-            observedAt: self.capturedAt))
+            observedAt: self.capturedAt).candidate)
         let validUntil = self.capturedAt.addingTimeInterval(30 * 60)
         let expiredAt = validUntil.addingTimeInterval(1)
 
-        #expect(CodexWeeklyResetConfirmation.shouldRetainDelayedCandidate(candidate, observedAt: validUntil))
-        #expect(!CodexWeeklyResetConfirmation.shouldRetainDelayedCandidate(candidate, observedAt: expiredAt))
-        #expect(!CodexWeeklyResetConfirmation.shouldRetainDelayedCandidate(
+        #expect(CodexWeeklyResetConfirmation.delayedCandidateRejection(candidate, observedAt: validUntil) == nil)
+        #expect(!(CodexWeeklyResetConfirmation.delayedCandidateRejection(candidate, observedAt: expiredAt) == nil))
+        #expect(!(CodexWeeklyResetConfirmation.delayedCandidateRejection(
             candidate,
-            observedAt: self.capturedAt.addingTimeInterval(-1)))
-        #expect(CodexWeeklyResetConfirmation.delayedCandidateDecision(
+            observedAt: self.capturedAt.addingTimeInterval(-1)) == nil))
+        #expect(CodexWeeklyResetConfirmation.evaluateDelayedCandidate(
             previous: previous,
             candidate: candidate,
             current: confirmation,
             currentIsExactOAuth: true,
-            observedAt: self.capturedAt.addingTimeInterval(60)) == .retainCandidate)
-        #expect(CodexWeeklyResetConfirmation.delayedCandidateDecision(
+            observedAt: self.capturedAt.addingTimeInterval(60)).decision == .retainCandidate)
+        #expect(CodexWeeklyResetConfirmation.evaluateDelayedCandidate(
             previous: previous,
             candidate: candidate,
             current: confirmation,
             currentIsExactOAuth: true,
-            observedAt: expiredAt) == .discardCandidate)
-        #expect(CodexWeeklyResetConfirmation.delayedCandidateDecision(
+            observedAt: expiredAt).decision == .discardCandidate)
+        #expect(CodexWeeklyResetConfirmation.evaluateDelayedCandidate(
             previous: previous,
             candidate: candidate,
             current: initial,
             currentIsExactOAuth: true,
-            observedAt: expiredAt) == .discardCandidate)
-        #expect(CodexWeeklyResetConfirmation.delayedCandidateDecision(
+            observedAt: expiredAt).decision == .discardCandidate)
+        #expect(CodexWeeklyResetConfirmation.evaluateDelayedCandidate(
             previous: previous,
             candidate: candidate,
             current: confirmation,
             currentIsExactOAuth: false,
-            observedAt: self.capturedAt.addingTimeInterval(30)) == .discardCandidate)
-        #expect(CodexWeeklyResetConfirmation.delayedCandidateDecision(
+            observedAt: self.capturedAt.addingTimeInterval(30)).decision == .discardCandidate)
+        #expect(CodexWeeklyResetConfirmation.evaluateDelayedCandidate(
             previous: previous,
             candidate: candidate,
             current: self.identified(confirmation, email: "other@example.com", plan: "pro"),
             currentIsExactOAuth: true,
-            observedAt: self.capturedAt.addingTimeInterval(30)) == .discardCandidate)
+            observedAt: self.capturedAt.addingTimeInterval(30)).decision == .discardCandidate)
     }
 
     @Test
@@ -817,12 +817,12 @@ extension CodexWeeklyResetConfirmationTests {
                 status: .available,
                 capturedAt: self.capturedAt.addingTimeInterval(2),
                 expiresAt: expiry))
-        let candidate = try #require(CodexWeeklyResetConfirmation.makeDelayedCandidate(
+        let candidate = try #require(CodexWeeklyResetConfirmation.evaluateDelayedCandidateCreation(
             previous: previous,
             initial: initial,
             confirmation: confirmation,
             sourceEvidence: .allExactOAuth,
-            observedAt: self.capturedAt))
+            observedAt: self.capturedAt).candidate)
         let futureProviderObservation = self.exactIdentifiedSnapshot(
             offset: 120,
             weeklyUsed: 0.5,
@@ -832,29 +832,29 @@ extension CodexWeeklyResetConfirmationTests {
                 capturedAt: self.capturedAt.addingTimeInterval(120),
                 expiresAt: expiry))
 
-        #expect(CodexWeeklyResetConfirmation.delayedCandidateDecision(
+        #expect(CodexWeeklyResetConfirmation.evaluateDelayedCandidate(
             previous: previous,
             candidate: candidate,
             current: futureProviderObservation,
             currentIsExactOAuth: true,
-            observedAt: self.capturedAt.addingTimeInterval(59)) == .retainCandidate)
-        #expect(CodexWeeklyResetConfirmation.delayedCandidateDecision(
+            observedAt: self.capturedAt.addingTimeInterval(59)).decision == .retainCandidate)
+        #expect(CodexWeeklyResetConfirmation.evaluateDelayedCandidate(
             previous: previous,
             candidate: candidate,
             current: futureProviderObservation,
             currentIsExactOAuth: true,
-            observedAt: self.capturedAt.addingTimeInterval(60)) == .publishCurrent)
+            observedAt: self.capturedAt.addingTimeInterval(60)).decision == .publishCurrent)
 
         let futureCandidate = CodexWeeklyResetPublicationCandidate(
             firstObservedAt: initial.updatedAt,
             createdAt: self.capturedAt.addingTimeInterval(1),
             snapshot: confirmation)
-        #expect(CodexWeeklyResetConfirmation.delayedCandidateDecision(
+        #expect(CodexWeeklyResetConfirmation.evaluateDelayedCandidate(
             previous: previous,
             candidate: futureCandidate,
             current: futureProviderObservation,
             currentIsExactOAuth: true,
-            observedAt: self.capturedAt) == .discardCandidate)
+            observedAt: self.capturedAt).decision == .discardCandidate)
     }
 
     @Test
@@ -904,11 +904,11 @@ extension CodexWeeklyResetConfirmationTests {
                 capturedAt: self.capturedAt.addingTimeInterval(2),
                 expiresAt: expiry))
 
-        #expect(CodexWeeklyResetConfirmation.makeDelayedCandidate(
+        #expect(CodexWeeklyResetConfirmation.evaluateDelayedCandidateCreation(
             previous: previous,
             initial: initial,
             confirmation: confirmation,
-            sourceEvidence: .allExactOAuth) != nil)
+            sourceEvidence: .allExactOAuth).candidate != nil)
     }
 
     @Test
@@ -943,11 +943,11 @@ extension CodexWeeklyResetConfirmationTests {
                 capturedAt: self.capturedAt.addingTimeInterval(2),
                 expiresAt: expiry))
 
-        #expect(CodexWeeklyResetConfirmation.makeDelayedCandidate(
+        #expect(CodexWeeklyResetConfirmation.evaluateDelayedCandidateCreation(
             previous: previous,
             initial: initial,
             confirmation: confirmation,
-            sourceEvidence: .allExactOAuth) == nil)
+            sourceEvidence: .allExactOAuth).candidate == nil)
     }
 
     @Test
@@ -976,7 +976,7 @@ extension CodexWeeklyResetConfirmationTests {
                 capturedAt: self.capturedAt.addingTimeInterval(2),
                 expiresAt: expiry))
 
-        #expect(CodexWeeklyResetConfirmation.makeDelayedCandidate(
+        #expect(CodexWeeklyResetConfirmation.evaluateDelayedCandidateCreation(
             previous: previous,
             initial: initial,
             confirmation: self.exactIdentifiedSnapshot(
@@ -987,15 +987,15 @@ extension CodexWeeklyResetConfirmationTests {
                     status: .available,
                     capturedAt: self.capturedAt.addingTimeInterval(2),
                     expiresAt: expiry)),
-            sourceEvidence: .allExactOAuth) == nil)
-        #expect(CodexWeeklyResetConfirmation.makeDelayedCandidate(
+            sourceEvidence: .allExactOAuth).candidate == nil)
+        #expect(CodexWeeklyResetConfirmation.evaluateDelayedCandidateCreation(
             previous: previous.withCodexResetCredits(self.resetCredits(
                 status: .available,
                 capturedAt: self.capturedAt,
                 expiresAt: expiry)),
             initial: initial,
             confirmation: confirmation,
-            sourceEvidence: .allExactOAuth) == nil)
+            sourceEvidence: .allExactOAuth).candidate == nil)
     }
 }
 

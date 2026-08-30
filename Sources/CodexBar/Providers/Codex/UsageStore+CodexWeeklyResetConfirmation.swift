@@ -11,7 +11,7 @@ extension UsageStore {
         var withheldSuccess: ProviderFetchResult?
     }
 
-    private struct CodexWeeklyResetPublicationTrace {
+    struct CodexWeeklyResetPublicationTrace {
         let previousSnapshot: UsageSnapshot?
         let missingWindowBackfillSnapshot: UsageSnapshot?
         let publicationBaseline: UsageSnapshot?
@@ -37,8 +37,13 @@ extension UsageStore {
         observedAt: Date = CodexWeeklyResetConfirmation.observationDate,
         fetchConfirmation: @escaping CodexWeeklyConfirmationFetch) async -> CodexWeeklyResetPublicationAdmission
     {
-        var candidateForRetry = pendingCandidate.flatMap {
-            CodexWeeklyResetConfirmation.shouldRetainDelayedCandidate($0, observedAt: observedAt) ? $0 : nil
+        var candidateForRetry: CodexWeeklyResetPublicationCandidate? = pendingCandidate.flatMap {
+            if let reason = CodexWeeklyResetConfirmation.delayedCandidateRejection($0, observedAt: observedAt) {
+                Self.logCodexWeeklyResetCandidateDecision(
+                    stage: "candidateRetention", decision: "discardCandidate", reason: reason)
+                return nil
+            }
+            return $0
         }
         guard case let .success(rawInitialResult) = initialOutcome.result else {
             return CodexWeeklyResetPublicationAdmission(outcome: initialOutcome, pendingCandidate: candidateForRetry)
@@ -94,7 +99,7 @@ extension UsageStore {
         }
 
         if let pendingCandidate = candidateForRetry {
-            let delayedDecision = CodexWeeklyResetConfirmation.delayedCandidateDecision(
+            let evaluation = CodexWeeklyResetConfirmation.evaluateDelayedCandidate(
                 previous: previousSnapshot,
                 candidate: pendingCandidate,
                 current: rawInitialSnapshot,
@@ -102,14 +107,15 @@ extension UsageStore {
                 observedAt: observedAt)
             Self.logCodexWeeklyResetPublicationDecision(
                 stage: "delayedConfirmation",
-                decision: String(describing: delayedDecision),
+                decision: String(describing: evaluation.decision),
+                reason: evaluation.reason,
                 trace: CodexWeeklyResetPublicationTrace(
                     previousSnapshot: previousSnapshot,
                     missingWindowBackfillSnapshot: missingWindowBackfillSnapshot,
                     publicationBaseline: publicationBaseline,
                     initialSnapshot: rawInitialSnapshot,
                     confirmationSnapshot: pendingCandidate.snapshot))
-            switch delayedDecision {
+            switch evaluation.decision {
             case .publishCurrent:
                 return CodexWeeklyResetPublicationAdmission(
                     outcome: publicationInitialOutcome,
@@ -173,22 +179,43 @@ extension UsageStore {
                 outcome: confirmationOutcome,
                 pendingCandidate: nil)
         case .preservePrevious:
-            let candidate = CodexWeeklyResetConfirmation.makeDelayedCandidate(
-                previous: previousSnapshot,
-                initial: rawInitialSnapshot,
-                confirmation: confirmationSnapshot,
-                sourceEvidence: .init(
-                    previousIsExactOAuth: previousSourceLabel?
-                        .trimmingCharacters(in: .whitespacesAndNewlines)
-                        .lowercased() == "oauth",
-                    initialIsExactOAuth: Self.isExactCodexOAuthResult(rawInitialResult),
-                    confirmationIsExactOAuth: Self.isExactCodexOAuthResult(confirmationResult)),
+            let candidate = Self.makeCodexDelayedCandidate(
+                previousSourceLabel: previousSourceLabel,
+                initialResult: rawInitialResult,
+                confirmationResult: confirmationResult,
+                trace: confirmationTrace,
                 observedAt: observedAt)
             return CodexWeeklyResetPublicationAdmission(
                 outcome: nil,
                 pendingCandidate: candidate,
                 withheldSuccess: confirmationResult)
         }
+    }
+
+    private nonisolated static func makeCodexDelayedCandidate(
+        previousSourceLabel: String?,
+        initialResult: ProviderFetchResult,
+        confirmationResult: ProviderFetchResult,
+        trace: CodexWeeklyResetPublicationTrace,
+        observedAt: Date) -> CodexWeeklyResetPublicationCandidate?
+    {
+        let evaluation = CodexWeeklyResetConfirmation.evaluateDelayedCandidateCreation(
+            previous: trace.previousSnapshot,
+            initial: trace.initialSnapshot,
+            confirmation: confirmationResult.usage.scoped(to: .codex),
+            sourceEvidence: .init(
+                previousIsExactOAuth: previousSourceLabel?
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .lowercased() == "oauth",
+                initialIsExactOAuth: Self.isExactCodexOAuthResult(initialResult),
+                confirmationIsExactOAuth: Self.isExactCodexOAuthResult(confirmationResult)),
+            observedAt: observedAt)
+        Self.logCodexWeeklyResetPublicationDecision(
+            stage: "candidateCreation",
+            decision: evaluation.candidate == nil ? "rejected" : "created",
+            reason: evaluation.reason,
+            trace: trace)
+        return evaluation.candidate
     }
 
     private nonisolated static func codexMissingWeeklyAdmission(
@@ -241,13 +268,17 @@ extension UsageStore {
         observedAt: Date) -> CodexWeeklyResetPublicationCandidate?
     {
         guard let candidate else { return nil }
-        let decision = CodexWeeklyResetConfirmation.delayedCandidateDecision(
+        let evaluation = CodexWeeklyResetConfirmation.evaluateDelayedCandidate(
             previous: previousSnapshot,
             candidate: candidate,
             current: initialSnapshot,
             currentIsExactOAuth: Self.isExactCodexOAuthResult(initialResult),
             observedAt: observedAt)
-        return decision == .discardCandidate ? nil : candidate
+        Self.logCodexWeeklyResetCandidateDecision(
+            stage: "preservedInitialCandidate",
+            decision: String(describing: evaluation.decision),
+            reason: evaluation.reason)
+        return evaluation.decision == .discardCandidate ? nil : candidate
     }
 
     private nonisolated static func logCodexWeeklyResetInitialDecision(
@@ -278,12 +309,38 @@ extension UsageStore {
     private nonisolated static func logCodexWeeklyResetPublicationDecision(
         stage: String,
         decision: String,
+        reason: CodexWeeklyResetConfirmation.Reason? = nil,
         trace: CodexWeeklyResetPublicationTrace)
+    {
+        CodexBarLog.logger(LogCategories.provider(.codex, scope: "weekly-reset-publication")).debug(
+            "Codex weekly reset publication decision",
+            metadata: self.codexWeeklyResetPublicationMetadata(
+                stage: stage, decision: decision, reason: reason, trace: trace))
+    }
+
+    private nonisolated static func logCodexWeeklyResetCandidateDecision(
+        stage: String,
+        decision: String,
+        reason: CodexWeeklyResetConfirmation.Reason)
+    {
+        CodexBarLog.logger(LogCategories.provider(.codex, scope: "weekly-reset-publication")).debug(
+            "Codex weekly reset candidate decision",
+            metadata: ["stage": stage, "decision": decision, "reason": reason.rawValue])
+    }
+
+    nonisolated static func codexWeeklyResetPublicationMetadata(
+        stage: String,
+        decision: String,
+        reason: CodexWeeklyResetConfirmation.Reason? = nil,
+        trace: CodexWeeklyResetPublicationTrace) -> [String: String]
     {
         var metadata: [String: String] = [
             "stage": stage,
             "decision": decision,
         ]
+        if let reason {
+            metadata["reason"] = reason.rawValue
+        }
         Self.appendCodexWeeklyResetTrace(
             snapshot: trace.previousSnapshot,
             prefix: "previousSnapshot",
@@ -317,9 +374,7 @@ extension UsageStore {
                     .trimmingCharacters(in: .whitespacesAndNewlines)
                     .lowercased()
             })
-        CodexBarLog.logger(LogCategories.provider(.codex, scope: "weekly-reset-publication")).debug(
-            "Codex weekly reset publication decision",
-            metadata: metadata)
+        return metadata
     }
 
     private nonisolated static func codexWeeklyResetCompatibility(
