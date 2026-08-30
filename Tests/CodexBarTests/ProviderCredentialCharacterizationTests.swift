@@ -211,6 +211,7 @@ struct ProviderCredentialCharacterizationTests {
             (.litellm, "LITELLM_API_KEY"),
             (.sub2api, "SUB2API_API_KEY"),
             (.ibmbob, "BOBSHELL_API_KEY"),
+            (.aihubmix, "AIHUBMIX_ACCESS_KEY"),
             (.grok, "GROK_OAUTH_TOKEN"),
         ]
         let cookieProviders: [UsageProvider] = [
@@ -283,7 +284,7 @@ struct ProviderCredentialCharacterizationTests {
             (.neuralwatt, "NEURALWATT_API_KEY"), (.groq, "GROQ_API_KEY"),
             (.llmproxy, "LLM_PROXY_API_KEY"), (.litellm, "LITELLM_API_KEY"),
             (.sub2api, "SUB2API_API_KEY"), (.antigravity, "ANTIGRAVITY_OAUTH_CREDENTIALS_JSON"),
-            (.ibmbob, "BOBSHELL_API_KEY"),
+            (.ibmbob, "BOBSHELL_API_KEY"), (.aihubmix, "AIHUBMIX_ACCESS_KEY"),
         ]
         let account = ProviderTokenAccount(
             id: UUID(), label: "fixture", token: "account-token", addedAt: 0, lastUsed: nil)

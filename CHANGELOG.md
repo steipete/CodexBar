@@ -76,6 +76,7 @@
 - OpenRouter: accept timestamp-shaped Activity API dates so exact 30-day spend history loads again (#3174).
 - Amp: parse bold Markdown usage labels from the latest CLI while preserving compatibility with older plain-text output (#3171).
 - OpenCode Go: expose a Monthly % lane token for custom menu bar layouts once the monthly window has been observed (#3175).
+- AIHubMix: show the prepaid USD balance in the menu bar instead of an empty dash.
 
 ### Performance
 - Grok: keep menu opening responsive by reusing published local-session totals and moving filesystem scans off the main thread (#3195).
@@ -83,6 +84,9 @@
 
 ### Usage & Spend
 - Added AED (UAE dirham) to the display currency options (#3186). Thanks @samiashi!
+
+### Providers
+- AIHubMix: read prepaid USD balance from the Manage Key `/api/user/self` endpoint.
 
 ### Localization
 - Settings: keep the keyboard shortcut recorder in the selected app language while recording and after editing (#3190). Thanks @endless7!

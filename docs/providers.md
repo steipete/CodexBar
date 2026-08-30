@@ -8,7 +8,7 @@ read_when:
 
 # Providers
 
-CodexBar currently registers 69 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
+CodexBar currently registers 70 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
 OpenCode vs OpenCode Go, because the auth source and quota shape differ.
 
 ## Fetch strategies (current)
@@ -117,6 +117,7 @@ complete when the available scan window covers fewer days.
 | Zed | Zed editor Keychain session → `cloud.zed.dev/client/users/me` for plan and quota data (`local`). |
 | Notion AI | Browser cookies → workspace resolution and the AI usage allowance API (`web`). |
 | IBM Bob | API key from config/env → profile and per-team Bobcoin budget APIs (`api`). |
+| AIHubMix | Manage Key from config/env → account balance from `/api/user/self` (`api`). |
 
 ## Codex
 - App Auto: OAuth API first; falls back to CLI only when OAuth credentials are missing or auth/refresh is invalid.
@@ -643,5 +644,11 @@ JavaScriptCore is the macOS rollback engine. The committed `.js` is generated fr
 - Notion credits (Custom Agents, Workers) are a separate meter and are not read.
 - Status: `https://status.notion.so/` (link only).
 - Details: `docs/notion.md`.
+
+## AIHubMix
+- Manage Key from Settings, token accounts, `AIHUBMIX_ACCESS_KEY`, or `AIHUBMIX_TOKEN`. Inference API keys (`sk-`) are not accepted.
+- Reads remaining and used USD from `GET https://aihubmix.com/api/user/self` (`quota / 500000` and `used_quota / 500000`).
+- Prepaid money is not a quota; no session or weekly meters are synthesized.
+- Details: `docs/aihubmix.md`.
 
 See also: `docs/provider.md` for architecture notes.
