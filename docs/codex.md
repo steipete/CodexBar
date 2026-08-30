@@ -218,6 +218,9 @@ Example:
   account, history window, and bucket time zone. An incomplete first scan never borrows another account's totals.
 - Pending local-history files receive a turn before fresh work, within the existing byte and duration limits.
   Unfinished files rotate behind waiting work, and the queue survives restarts without rebuilding compatible caches.
+- Parent-session discovery also resumes within those limits after the requesting fork files leave both scan roots.
+  Stale pending path associations are reconciled in the existing cache; surviving forks with missing parents still
+  retain their unresolved usage instead of being counted as complete.
 
 ### Usage & Spend account rows
 
