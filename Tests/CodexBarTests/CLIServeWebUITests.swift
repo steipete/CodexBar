@@ -1,3 +1,4 @@
+import CodexBarCore
 import Commander
 import Foundation
 import Testing
@@ -24,8 +25,11 @@ struct CLIServeWebUITests {
         let html = self.html
         // The placeholder must be substituted at render time with a JSON map.
         #expect(!html.contains("__PROVIDER_ICON_URLS__"))
-        #expect(html.contains("/icons/ProviderIcon-claude.svg"))
-        #expect(CLIServeWebUI.iconResponse(name: "ProviderIcon-claude") != nil)
+        for descriptor in ProviderDescriptorRegistry.all {
+            let resourceName = descriptor.branding.iconResourceName
+            #expect(html.contains("/icons/\(resourceName).svg"))
+            #expect(CLIServeWebUI.iconResponse(name: resourceName) != nil)
+        }
         #expect(CLIServeWebUI.iconResponse(name: "ProviderIcon-nonexistent") == nil)
         #expect(CLIServeWebUI.iconResponse(name: "../etc/passwd") == nil)
     }
