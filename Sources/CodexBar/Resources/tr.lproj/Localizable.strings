@@ -224,6 +224,7 @@
 "No cost history data." = "Maliyet geçmişi verisi yok.";
 "No data available" = "Kullanılabilir veri yok";
 "No data yet" = "Henüz veri yok";
+"Workspaces" = "Çalışma Alanları";
 "No enabled providers available for Overview." = "Genel Bakış için etkin sağlayıcı yok.";
 "No providers selected" = "Sağlayıcı seçilmedi";
 "No token accounts yet." = "Henüz token hesabı yok.";

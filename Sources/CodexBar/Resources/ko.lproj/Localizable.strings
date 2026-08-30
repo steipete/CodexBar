@@ -240,6 +240,7 @@
 "No cost history data." = "비용 기록 데이터가 없습니다.";
 "No data available" = "사용 가능한 데이터 없음";
 "No data yet" = "아직 데이터 없음";
+"Workspaces" = "작업 공간";
 "No enabled providers available for Overview." = "개요에 사용할 수 있는 공급자가 없습니다.";
 "No providers selected" = "선택된 공급자 없음";
 "No token accounts yet." = "아직 토큰 계정이 없습니다.";

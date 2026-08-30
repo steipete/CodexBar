@@ -241,6 +241,7 @@
 "No cost history data." = "Нет истории расходов.";
 "No data available" = "Нет доступных данных";
 "No data yet" = "Данных пока нет";
+"Workspaces" = "Рабочие пространства";
 "No enabled providers available for Overview." = "Нет включённых провайдеров для обзора.";
 "No providers selected" = "Провайдеры не выбраны";
 "No token accounts yet." = "Токен-аккаунтов пока нет.";
