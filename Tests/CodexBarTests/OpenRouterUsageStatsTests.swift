@@ -4,6 +4,11 @@ import Testing
 @testable import CodexBarCore
 
 struct OpenRouterPluginGoldenTests {
+    @Test
+    func `usage dashboard opens OpenRouter activity`() {
+        #expect(OpenRouterProviderDescriptor.descriptor.metadata.dashboardURL == "https://openrouter.ai/activity")
+    }
+
     @Test(arguments: BundledPluginTestSupport.engines)
     func `key caps remain independent of account balance`(engine: ProviderPluginEngineKind) async throws {
         let fixtures: [(body: String, limit: String, used: Double?, remaining: String?)] = [
