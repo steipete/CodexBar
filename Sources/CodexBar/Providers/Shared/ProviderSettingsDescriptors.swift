@@ -191,6 +191,28 @@ struct ProviderSettingsTokenAccountsDescriptor: Identifiable {
     let reloadFromDisk: () -> Void
 }
 
+/// Binding wrapper for the menu bar items row shared by token-account and
+/// Codex managed-account settings. Owns the visibility gate (`nil` hides the row).
+@MainActor
+struct AccountMenuBarDisplayModeSetting {
+    let binding: Binding<AccountMenuBarDisplayMode>
+
+    init?(
+        settings: SettingsStore,
+        provider: UsageProvider,
+        accountCount: Int,
+        onChange: ((AccountMenuBarDisplayMode) -> Void)? = nil)
+    {
+        guard accountCount > 1 else { return nil }
+        self.binding = Binding(
+            get: { settings.accountMenuBarDisplayMode(for: provider) },
+            set: { mode in
+                settings.setAccountMenuBarDisplayMode(mode, for: provider)
+                onChange?(mode)
+            })
+    }
+}
+
 /// Shared organizations descriptor rendered in the Providers settings pane.
 ///
 /// Used by providers that let the user opt in to additional account scopes

@@ -67,6 +67,12 @@ extension ProvidersPane {
         self.tokenAccountDescriptor(for: provider)
     }
 
+    func _test_accountMenuBarDisplayModeSetting(
+        for provider: UsageProvider) -> AccountMenuBarDisplayModeSetting?
+    {
+        self.accountMenuBarDisplayModeSetting(for: provider)
+    }
+
     func _test_menuCardModel(for provider: UsageProvider) -> UsageMenuCardView.Model {
         self.menuCardModel(for: provider)
     }

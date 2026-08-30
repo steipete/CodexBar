@@ -173,7 +173,8 @@ extension UsageStore {
     func shouldFetchAllTokenAccounts(provider: UsageProvider, accounts: [ProviderTokenAccount]) -> Bool {
         guard TokenAccountSupportCatalog.support(for: provider) != nil else { return false }
         guard self.settings.effectiveSelectedTokenAccount(for: provider) != nil else { return false }
-        return self.settings.multiAccountMenuLayout == .stacked && accounts.count > 1
+        let separateItems = self.settings.accountMenuBarDisplayMode(for: provider) == .separate
+        return (separateItems || self.settings.multiAccountMenuLayout == .stacked) && accounts.count > 1
     }
 
     func shouldFetchAllCodexVisibleAccounts() -> Bool {
@@ -181,7 +182,9 @@ extension UsageStore {
         // every row and then reject its whoami identity against other accounts.
         guard !self.shouldUseAmbientCodexPATForUsage() else { return false }
         let projection = self.freshCodexVisibleAccountProjectionForAccountRefresh()
-        return self.settings.multiAccountMenuLayout == .stacked && projection.visibleAccounts.count > 1
+        let separateItems = self.settings.accountMenuBarDisplayMode(for: .codex) == .separate
+        return (separateItems || self.settings.multiAccountMenuLayout == .stacked) &&
+            projection.visibleAccounts.count > 1
     }
 
     func shouldUseAmbientCodexPATForUsage() -> Bool {
@@ -207,10 +210,12 @@ extension UsageStore {
 
     func refreshCodexVisibleAccountsForMenu(generation: UInt64? = nil) async {
         let projection = self.freshCodexVisibleAccountProjectionForAccountRefresh()
-        let accounts = self.limitedCodexVisibleAccounts(
-            projection.visibleAccounts,
-            snapshots: self.codexAccountSnapshots,
-            activeVisibleAccountID: projection.activeVisibleAccountID)
+        let accounts = self.settings.accountMenuBarDisplayMode(for: .codex) == .separate
+            ? projection.visibleAccounts
+            : self.limitedCodexVisibleAccounts(
+                projection.visibleAccounts,
+                snapshots: self.codexAccountSnapshots,
+                activeVisibleAccountID: projection.activeVisibleAccountID)
         guard accounts.count > 1 else {
             self.codexAccountSnapshots = []
             return
@@ -572,7 +577,9 @@ extension UsageStore {
             }
             return
         }
-        let limitedAccounts = self.limitedTokenAccounts(accounts, selected: selectedAccount)
+        let limitedAccounts = self.settings.accountMenuBarDisplayMode(for: provider) == .separate
+            ? accounts
+            : self.limitedTokenAccounts(accounts, selected: selectedAccount)
         let effectiveSelected = selectedAccount
 
         // Capture the prior per-account snapshot state so we can preserve last-good

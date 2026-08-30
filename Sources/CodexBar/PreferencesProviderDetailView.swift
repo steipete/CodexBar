@@ -18,6 +18,7 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
     let settingsToggles: [ProviderSettingsToggleDescriptor]
     let settingsFields: [ProviderSettingsFieldDescriptor]
     let settingsActions: [ProviderSettingsActionsDescriptor]
+    let settingsMenuBarItems: AccountMenuBarDisplayModeSetting?
     let settingsTokenAccounts: ProviderSettingsTokenAccountsDescriptor?
     let settingsOrganizations: ProviderSettingsOrganizationsDescriptor?
     let errorDisplay: ProviderErrorDisplay?
@@ -38,6 +39,7 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
         settingsToggles: [ProviderSettingsToggleDescriptor],
         settingsFields: [ProviderSettingsFieldDescriptor],
         settingsActions: [ProviderSettingsActionsDescriptor] = [],
+        settingsMenuBarItems: AccountMenuBarDisplayModeSetting? = nil,
         settingsTokenAccounts: ProviderSettingsTokenAccountsDescriptor?,
         settingsOrganizations: ProviderSettingsOrganizationsDescriptor? = nil,
         errorDisplay: ProviderErrorDisplay?,
@@ -57,6 +59,7 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
         self.settingsToggles = settingsToggles
         self.settingsFields = settingsFields
         self.settingsActions = settingsActions
+        self.settingsMenuBarItems = settingsMenuBarItems
         self.settingsTokenAccounts = settingsTokenAccounts
         self.settingsOrganizations = settingsOrganizations
         self.errorDisplay = errorDisplay
@@ -150,10 +153,13 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
                 }
             }
 
-            if !self.menuBarSettingsPickers.isEmpty {
+            if !self.menuBarSettingsPickers.isEmpty || self.settingsMenuBarItems != nil {
                 Section {
                     ForEach(self.menuBarSettingsPickers) { picker in
                         ProviderSettingsPickerRowView(picker: picker)
+                    }
+                    if let menuBarItems = self.settingsMenuBarItems {
+                        MenuBarItemsRow(setting: menuBarItems)
                     }
                 } header: {
                     Text(L("provider_section_menu_bar"))

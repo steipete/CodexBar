@@ -564,6 +564,31 @@ extension View {
     }
 }
 
+/// Row for choosing whether a multi-account provider shows one combined
+/// menu bar item or one item per account.
+@MainActor
+struct MenuBarItemsRow: View {
+    let setting: AccountMenuBarDisplayModeSetting
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Text(L("Menu bar items"))
+                .font(.subheadline.weight(.semibold))
+                .frame(width: ProviderSettingsMetrics.pickerLabelWidth, alignment: .leading)
+
+            Picker("", selection: self.setting.binding) {
+                Text(L("One for provider")).tag(AccountMenuBarDisplayMode.combined)
+                Text(L("One per account")).tag(AccountMenuBarDisplayMode.separate)
+            }
+            .labelsHidden()
+            .pickerStyle(.segmented)
+            .controlSize(.small)
+
+            Spacer(minLength: 0)
+        }
+    }
+}
+
 @MainActor
 struct ProviderSettingsOrganizationsRowView: View {
     let descriptor: ProviderSettingsOrganizationsDescriptor

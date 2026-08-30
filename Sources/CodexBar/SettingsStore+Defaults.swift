@@ -406,6 +406,15 @@ extension SettingsStore {
         }
     }
 
+    var accountMenuBarDisplayModesRaw: [String: String] {
+        get { self.defaultsState.accountMenuBarDisplayModesRaw }
+        set {
+            self.defaultsState.accountMenuBarDisplayModesRaw = newValue
+            self.userDefaults.set(newValue, forKey: "accountMenuBarDisplayModes")
+            self.noteBackgroundWorkSettingsChanged()
+        }
+    }
+
     var menuBarLayout: MenuBarLayout {
         get {
             self.defaultsState.storedMenuBarLayout ?? MenuBarLayout.migrated(

@@ -123,6 +123,19 @@ extension String {
 }
 
 extension SettingsStore {
+    func accountMenuBarDisplayMode(for provider: UsageProvider) -> AccountMenuBarDisplayMode {
+        guard !self.mergeIcons else { return .combined }
+        let rawValue = self.accountMenuBarDisplayModesRaw[provider.rawValue] ?? ""
+        return AccountMenuBarDisplayMode(rawValue: rawValue) ?? .combined
+    }
+
+    func setAccountMenuBarDisplayMode(_ mode: AccountMenuBarDisplayMode, for provider: UsageProvider) {
+        self.accountMenuBarDisplayModesRaw[provider.rawValue] = mode.rawValue
+        if mode == .separate {
+            self.mergeIcons = false
+        }
+    }
+
     var menuBarIconStyle: MenuBarIconStyle {
         get {
             if self.menuBarShowsBrandIconWithPercent {

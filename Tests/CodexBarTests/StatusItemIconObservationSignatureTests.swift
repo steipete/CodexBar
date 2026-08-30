@@ -308,6 +308,31 @@ struct StatusItemIconObservationSignatureTests {
     }
 
     @Test
+    func `store icon observation signature changes when account snapshot changes`() {
+        let (_, store, controller) = self.makeController(
+            suiteName: "StatusItemIconObservationSignatureTests-account-snapshot")
+        defer { controller.releaseStatusItemsForTesting() }
+        let account = ProviderTokenAccount(
+            id: UUID(),
+            label: "Account",
+            token: "token",
+            addedAt: 0,
+            lastUsed: nil)
+        let baseline = controller.storeIconObservationSignature()
+
+        store.accountSnapshots[UsageProvider.claude.instanceID] = [
+            TokenAccountUsageSnapshot(
+                account: account,
+                snapshot: Self.makeSnapshot(provider: .claude, email: "account@example.com"),
+                error: nil,
+                sourceLabel: nil,
+                cacheKey: "fixture"),
+        ]
+
+        #expect(controller.storeIconObservationSignature() != baseline)
+    }
+
+    @Test
     func `store icon observation signature changes when hide critters toggles`() {
         let (settings, _, controller) = self.makeController(
             suiteName: "StatusItemIconObservationSignatureTests-hide-critters")

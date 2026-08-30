@@ -233,8 +233,13 @@ struct CodexConsumerProjectionCharacterizationTests {
         store.credits = CreditsSnapshot(remaining: 42.5, events: [], updatedAt: Date())
 
         let displayText = controller.menuBarDisplayText(for: .codex, snapshot: snapshot)
+        let accountScopedDisplayText = controller.menuBarDisplayText(
+            for: .codex,
+            snapshot: snapshot,
+            accountScoped: true)
 
         #expect(displayText == "42.5")
+        #expect(accountScopedDisplayText == nil)
     }
 
     @Test

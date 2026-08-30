@@ -45,41 +45,10 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     private static let defaultMenuRefreshEnabled = !SettingsStore.isRunningTests
     private(set) static var menuRefreshEnabled = !SettingsStore.isRunningTests
     static let quotaWarningFlashDuration: TimeInterval = 60
-    private nonisolated static let statusItemAccessibilityTitle = "CodexBar"
-    private nonisolated static let debugStatusItemAccessibilityTitle = "CodexBar Debug"
-    private nonisolated static let statusItemAccessibilityIdentifierPrefix = "CodexBar.StatusItem"
+    nonisolated static let statusItemAccessibilityTitle = "CodexBar"
+    nonisolated static let debugStatusItemAccessibilityTitle = "CodexBar Debug"
+    nonisolated static let statusItemAccessibilityIdentifierPrefix = "CodexBar.StatusItem"
     private nonisolated static let mergedLegacyDefaultItemIndex = 0
-
-    enum StatusItemIdentity {
-        case merged
-        case provider(ProviderInstanceID)
-
-        var autosaveName: String {
-            switch self {
-            case .merged:
-                "codexbar-merged"
-            case let .provider(provider):
-                "codexbar-\(provider.rawValue)"
-            }
-        }
-
-        var accessibilityIdentifier: String {
-            switch self {
-            case .merged:
-                StatusItemController.statusItemAccessibilityIdentifierPrefix
-            case let .provider(provider):
-                "\(StatusItemController.statusItemAccessibilityIdentifierPrefix).\(provider.rawValue)"
-            }
-        }
-    }
-
-    nonisolated static func isDebugApp(bundleIdentifier: String?) -> Bool {
-        bundleIdentifier?.contains(".debug") == true
-    }
-
-    nonisolated static func statusItemAccessibilityTitle(isDebugApp: Bool) -> String {
-        isDebugApp ? self.debugStatusItemAccessibilityTitle : self.statusItemAccessibilityTitle
-    }
 
     #if DEBUG
     var menuRefreshEnabledOverrideForTesting: Bool?
@@ -95,26 +64,6 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             ManagedCodexAccountCoordinator,
             CodexAccountPromotionCoordinator)
         -> StatusItemControlling
-    // swiftlint:disable:next function_parameter_count
-    static func makeDefaultController(
-        store: UsageStore,
-        settings: SettingsStore,
-        account: AccountInfo,
-        updater: UpdaterProviding,
-        selection: PreferencesSelection,
-        managedCodexAccountCoordinator: ManagedCodexAccountCoordinator,
-        codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator)
-        -> StatusItemControlling
-    {
-        StatusItemController(
-            store: store,
-            settings: settings,
-            account: account,
-            updater: updater,
-            preferencesSelection: selection,
-            managedCodexAccountCoordinator: managedCodexAccountCoordinator,
-            codexAccountPromotionCoordinator: codexAccountPromotionCoordinator)
-    }
 
     static let defaultFactory: Factory = StatusItemController.makeDefaultController
 
@@ -142,10 +91,13 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     let menuRefreshEnabledForController: Bool
     var statusItem: NSStatusItem
     var statusItems: [ProviderInstanceID: NSStatusItem] = [:]
+    var accountStatusItems: [AccountStatusItemKey: NSStatusItem] = [:]
+    var accountStatusItemContexts: [AccountStatusItemKey: AccountStatusItemContext] = [:]
     /// App intent survives Tahoe changing `NSStatusItem.isVisible` after Control Center rejects its scene.
     var expectedVisibleStatusItemAutosaveNames: Set<String> = []
     var lastMenuProvider: ProviderInstanceID?
     var menuProviders: [ObjectIdentifier: ProviderInstanceID] = [:]
+    var menuAccountStatusItemKeys: [ObjectIdentifier: AccountStatusItemKey] = [:]
     var menuSession = MenuSessionCoordinator<ObjectIdentifier>()
     var menuReadinessSignatures: [ObjectIdentifier: String] = [:]
     let hostedSubviewRenderSignatures = NSMapTable<NSMenu, HostedSubviewRenderSignatureBox>.weakToStrongObjects()
@@ -158,6 +110,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var rootOpenHandledMenuObservationSignature: String?
     var mergedMenu: NSMenu?
     var providerMenus: [ProviderInstanceID: NSMenu] = [:]
+    var accountMenus: [AccountStatusItemKey: NSMenu] = [:]
     var fallbackMenu: NSMenu?
     var openMenus: [ObjectIdentifier: NSMenu] = [:]
     var menuRefreshTasks: [ObjectIdentifier: Task<Void, Never>] = [:]
@@ -305,6 +258,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var deferredMergedIconRenderAfterTracking = false
     var lastAppliedMergedIconRenderSignature: String?
     var lastAppliedProviderIconRenderSignatures: [ProviderInstanceID: String] = [:]
+    var lastAppliedAccountIconRenderSignatures: [AccountStatusItemKey: String] = [:]
     let menuBarLayoutRenderer = MenuBarLayoutRenderer()
     var lastObservedStoreIconWorkSignature: String?
     var iconPerfRefreshCycleMetrics: IconPerfRefreshCycleMetrics?
@@ -314,31 +268,6 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var screenChangeVisibilityTask: Task<Void, Never>?
     let loginLogger = CodexBarLog.logger(LogCategories.login)
     let menuLogger = CodexBarLog.logger(LogCategories.app)
-    static func makeStatusItem(
-        statusBar: NSStatusBar,
-        identity: StatusItemIdentity,
-        defaults: UserDefaults,
-        legacyDefaultItemIndex: Int?,
-        onCreated: ((NSStatusItem) -> Void)? = nil)
-        -> NSStatusItem
-    {
-        MenuBarStatusItemPlacementPreflight.prepare(
-            defaults: defaults,
-            autosaveName: identity.autosaveName,
-            legacyDefaultItemIndex: legacyDefaultItemIndex)
-        let item = statusBar.statusItem(withLength: NSStatusItem.variableLength)
-        onCreated?(item)
-        item.autosaveName = identity.autosaveName
-        if let button = item.button {
-            let title = self.statusItemAccessibilityTitle(
-                isDebugApp: self.isDebugApp(bundleIdentifier: Bundle.main.bundleIdentifier))
-            // Ensure the icon is rendered at 1:1 without resampling (crisper edges for template images).
-            button.imageScaling = .scaleNone
-            button.setAccessibilityIdentifier(identity.accessibilityIdentifier)
-            button.setAccessibilityTitle(title)
-        }
-        return item
-    }
 
     struct BlinkState {
         var nextBlink: Date
@@ -743,6 +672,9 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             self.attachMenus()
         } else {
             UsageProvider.allCases.forEach { self.applyIcon(for: $0, phase: phase) }
+            for (key, context) in self.accountStatusItemContexts {
+                self.applyIcon(for: key, context: context, phase: phase)
+            }
             self.attachMenus(fallback: self.fallbackProvider)
         }
         self.updateAnimationState()
@@ -768,8 +700,12 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         for provider in Array(self.statusItems.keys) {
             self.removeProviderStatusItem(for: provider)
         }
+        for key in Array(self.accountStatusItems.keys) {
+            self.removeAccountStatusItem(for: key)
+        }
         self.lastAppliedMergedIconRenderSignature = nil
         self.lastAppliedProviderIconRenderSignatures.removeAll()
+        self.lastAppliedAccountIconRenderSignatures.removeAll()
         self.updateVisibility()
         self.updateIcons()
     }
@@ -791,20 +727,36 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             for provider in Array(self.statusItems.keys) {
                 self.removeProviderStatusItem(for: provider)
             }
+            for key in Array(self.accountStatusItems.keys) {
+                self.removeAccountStatusItem(for: key)
+            }
             self.attachMenus()
         } else {
             self.statusItem.isVisible = false
             let fallback = self.fallbackProvider
+            var desiredAccountContexts: [AccountStatusItemKey: AccountStatusItemContext] = [:]
             for provider in self.settings.orderedFirstPartyProviders() {
                 let isEnabled = self.isEnabled(provider)
                 let shouldBeVisible = isEnabled || fallback == provider || force
-                if shouldBeVisible {
+                let accountContexts = isEnabled ? self.separateAccountContexts(for: provider) : [:]
+                if shouldBeVisible, !accountContexts.isEmpty {
+                    self.removeProviderStatusItem(for: provider)
+                    for (key, context) in accountContexts {
+                        desiredAccountContexts[key] = context
+                        let item = self.lazyAccountStatusItem(for: key, context: context)
+                        item.isVisible = true
+                        expectedVisibleAutosaveNames.insert(item.autosaveName)
+                    }
+                } else if shouldBeVisible {
                     let item = self.lazyStatusItem(for: provider)
                     item.isVisible = true
                     expectedVisibleAutosaveNames.insert(item.autosaveName)
                 } else {
                     self.removeProviderStatusItem(for: provider)
                 }
+            }
+            for key in Array(self.accountStatusItems.keys) where desiredAccountContexts[key] == nil {
+                self.removeAccountStatusItem(for: key)
             }
             self.attachMenus(fallback: fallback)
         }
@@ -838,12 +790,11 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
 
     private func attachMenus(fallback: UsageProvider? = nil) {
         for provider in UsageProvider.allCases {
-            // Only access/create the status item if it's actually needed
-            let shouldHaveItem = self.isEnabled(provider) || fallback == provider
+            let hasSeparateAccounts = self.accountStatusItemContexts.values.contains { $0.provider == provider }
+            let shouldHaveItem = (self.isEnabled(provider) || fallback == provider) && !hasSeparateAccounts
 
             if shouldHaveItem {
                 let item = self.lazyStatusItem(for: provider)
-
                 if self.isEnabled(provider) {
                     if self.providerMenus[provider.instanceID] == nil {
                         self.providerMenus[provider.instanceID] = self.makeMenu(for: provider)
@@ -862,6 +813,17 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
                 }
             } else if let item = self.statusItems[provider.instanceID] {
                 item.menu = nil
+            }
+        }
+        for (key, item) in self.accountStatusItems {
+            guard let context = self.accountStatusItemContexts[key] else { continue }
+            if self.accountMenus[key] == nil {
+                let menu = self.makeMenu(for: context.provider)
+                self.accountMenus[key] = menu
+                self.menuAccountStatusItemKeys[ObjectIdentifier(menu)] = key
+            }
+            if item.menu !== self.accountMenus[key] {
+                item.menu = self.accountMenus[key]
             }
         }
         self.prepareAttachedClosedMenusIfNeeded()
@@ -906,6 +868,17 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         item.menu = nil
         self.lastAppliedProviderIconRenderSignatures.removeValue(forKey: instanceID)
         self.statusBar.removeStatusItem(item)
+    }
+
+    func clearPersistentMenuTracking(_ menu: NSMenu) {
+        let menuID = ObjectIdentifier(menu)
+        if menuID == self.providerSwitcherShortcutMenuID {
+            self.removeProviderSwitcherShortcutMonitor()
+        }
+        self.menuProviders.removeValue(forKey: menuID)
+        self.menuAccountStatusItemKeys.removeValue(forKey: menuID)
+        self.clearMergedSwitcherContentCache(for: menu)
+        self.removeMenuLifecycleState(menuID)
     }
 
     func isVisible(_ provider: UsageProvider) -> Bool {
@@ -1021,7 +994,10 @@ extension StatusItemController {
         #if DEBUG
         guard !self.isReleasedForTesting else { return }
         #endif
-        let visibleItems = ([self.statusItem] + Array(self.statusItems.values)).filter(\.isVisible)
+        let visibleItems = (
+            [self.statusItem] +
+                Array(self.statusItems.values) +
+                Array(self.accountStatusItems.values)).filter(\.isVisible)
         for item in visibleItems {
             item.isVisible = false
         }

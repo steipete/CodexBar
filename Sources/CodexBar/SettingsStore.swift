@@ -152,6 +152,11 @@ enum MultiAccountMenuLayout: String, CaseIterable, Identifiable {
     }
 }
 
+enum AccountMenuBarDisplayMode: String, CaseIterable {
+    case combined
+    case separate
+}
+
 enum WorkdayTickAppearance: String, CaseIterable, Identifiable {
     case hidden
     case subtle
@@ -538,7 +543,7 @@ extension SettingsStore {
             ?? KiroMenuBarDisplayMode.automatic.rawValue
         let historicalTrackingEnabled = userDefaults.object(forKey: "historicalTrackingEnabled") as? Bool ?? false
         let multiAccountMenuLayoutRaw = Self.loadMultiAccountMenuLayoutRaw(userDefaults: userDefaults)
-        let resolvedPreferences = Self.loadMenuBarMetricPreferences(userDefaults: userDefaults)
+        let (resolvedPreferences, accountMenuBarDisplayModesRaw) = Self.loadProviderMenuPreferences(userDefaults)
         let storedMenuBarLayout = Self.loadMenuBarLayout(userDefaults: userDefaults)
         let menuBarLayoutConditionals = Self.loadMenuBarLayoutConditionals(userDefaults: userDefaults)
         let menuBarLayoutOverridesRaw = Self.loadMenuBarLayoutOverrides(userDefaults: userDefaults)
@@ -684,6 +689,7 @@ extension SettingsStore {
             historicalTrackingEnabled: historicalTrackingEnabled,
             multiAccountMenuLayoutRaw: multiAccountMenuLayoutRaw,
             menuBarMetricPreferencesRaw: resolvedPreferences,
+            accountMenuBarDisplayModesRaw: accountMenuBarDisplayModesRaw,
             storedMenuBarLayout: storedMenuBarLayout,
             menuBarLayoutConditionals: menuBarLayoutConditionals,
             menuBarLayoutOverridesRaw: menuBarLayoutOverridesRaw,
@@ -833,6 +839,15 @@ extension SettingsStore {
         (
             session: userDefaults.object(forKey: "confettiOnSessionLimitResetsEnabled") as? Bool ?? false,
             weekly: userDefaults.object(forKey: "confettiOnWeeklyLimitResetsEnabled") as? Bool ?? false)
+    }
+
+    private static func loadProviderMenuPreferences(
+        _ userDefaults: UserDefaults) -> (metrics: [String: String], accountDisplayModes: [String: String])
+    {
+        let metrics = Self.loadMenuBarMetricPreferences(userDefaults: userDefaults)
+        let accountDisplayModes =
+            userDefaults.dictionary(forKey: "accountMenuBarDisplayModes") as? [String: String] ?? [:]
+        return (metrics, accountDisplayModes)
     }
 
     private static func loadMenuBarMetricPreferences(userDefaults: UserDefaults) -> [String: String] {

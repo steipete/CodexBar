@@ -21,6 +21,9 @@ extension StatusItemController {
                 .map { self.providerStoreIconObservationSignature(for: $0, showBrandPercent: showBrandPercent) }
                 .joined(separator: "||")
         }
+        let accountSignatures = mergeIcons
+            ? ""
+            : self.accountStoreIconObservationSignature(showBrandPercent: showBrandPercent)
         return [
             "merge=\(mergeIcons ? "1" : "0")",
             "visible=\(visibleProviders)",
@@ -31,6 +34,7 @@ extension StatusItemController {
             "hideCritters=\(self.settings.menuBarHidesCritters ? "1" : "0")",
             "needsAnimation=\(self.needsMenuBarIconAnimation() ? "1" : "0")",
             providerSignatures,
+            accountSignatures,
         ].joined(separator: "|")
     }
 
@@ -83,6 +87,59 @@ extension StatusItemController {
             "layoutBalance=\(layoutBalanceSignature ?? "nil")",
             "layoutLanes=\(layoutLaneSignature ?? "nil")",
             "layoutCondWindows=\(layoutConditionalWindowSignature ?? "nil")",
+        ].joined(separator: "|")
+    }
+
+    private func accountStoreIconObservationSignature(showBrandPercent: Bool) -> String {
+        let tokenSignatures = self.store.accountSnapshots
+            .sorted { $0.key.rawValue < $1.key.rawValue }
+            .flatMap { instanceID, snapshots -> [String] in
+                guard let provider = instanceID.firstPartyProvider else { return [] }
+                return snapshots.map {
+                    self.accountStoreIconObservationSignature(
+                        id: "\(instanceID.rawValue):\($0.account.id.uuidString.lowercased())",
+                        provider: provider,
+                        snapshot: $0.snapshot,
+                        error: $0.error,
+                        showBrandPercent: showBrandPercent)
+                }
+            }
+        let codexSignatures = self.store.codexAccountSnapshots.map {
+            self.accountStoreIconObservationSignature(
+                id: "codex:\($0.id)",
+                provider: .codex,
+                snapshot: $0.snapshot,
+                error: $0.error,
+                showBrandPercent: showBrandPercent)
+        }
+        return (tokenSignatures + codexSignatures)
+            .sorted()
+            .joined(separator: "||")
+    }
+
+    private func accountStoreIconObservationSignature(
+        id: String,
+        provider: UsageProvider,
+        snapshot: UsageSnapshot?,
+        error: String?,
+        showBrandPercent: Bool) -> String
+    {
+        let style = self.store.style(for: provider)
+        let resolved = self.resolvedMenuBarIconPercents(
+            provider: provider,
+            snapshot: snapshot,
+            style: style,
+            showUsed: self.settings.usageBarsShowUsed)
+        let displayText = showBrandPercent && snapshot != nil
+            ? self.menuBarDisplayText(for: provider, snapshot: snapshot, accountScoped: true)
+            : nil
+        return [
+            id,
+            "style=\(style.rawValue)",
+            "primary=\(Self.iconSignatureValue(resolved?.primary))",
+            "credits=nil",
+            "error=\(error == nil ? "0" : "1")",
+            "text=\(displayText ?? "nil")",
         ].joined(separator: "|")
     }
 

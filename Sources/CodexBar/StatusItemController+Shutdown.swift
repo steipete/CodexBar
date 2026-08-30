@@ -91,9 +91,11 @@ extension StatusItemController {
         self.measuredStandardMenuWidthCache.removeAll(keepingCapacity: false)
         self.mergedSwitcherContentCaches.removeAll(keepingCapacity: false)
         self.menuProviders.removeAll(keepingCapacity: false)
+        self.menuAccountStatusItemKeys.removeAll(keepingCapacity: false)
         self.menuReadinessSignatures.removeAll(keepingCapacity: false)
         self.menuIdentitySignatures.removeAll(keepingCapacity: false)
         self.providerMenus.removeAll(keepingCapacity: false)
+        self.accountMenus.removeAll(keepingCapacity: false)
         self.mergedMenu = nil
         self.fallbackMenu = nil
     }
@@ -107,7 +109,14 @@ extension StatusItemController {
             self.statusBar.removeStatusItem(item)
         }
         self.statusItems.removeAll(keepingCapacity: false)
+        for item in self.accountStatusItems.values {
+            item.menu = nil
+            self.statusBar.removeStatusItem(item)
+        }
+        self.accountStatusItems.removeAll(keepingCapacity: false)
+        self.accountStatusItemContexts.removeAll(keepingCapacity: false)
         self.lastAppliedProviderIconRenderSignatures.removeAll(keepingCapacity: false)
+        self.lastAppliedAccountIconRenderSignatures.removeAll(keepingCapacity: false)
     }
 
     #if DEBUG

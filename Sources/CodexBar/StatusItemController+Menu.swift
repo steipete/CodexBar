@@ -194,7 +194,8 @@ extension StatusItemController {
 
         let isPersistentMenu = menu === self.mergedMenu ||
             menu === self.fallbackMenu ||
-            self.providerMenus.values.contains { $0 === menu }
+            self.providerMenus.values.contains { $0 === menu } ||
+            self.accountMenus.values.contains { $0 === menu }
         if !isPersistentMenu {
             self.removeMenuTrackingState(key)
         } else if self.menuNeedsRefresh(menu) {
@@ -245,6 +246,7 @@ extension StatusItemController {
         // tab switch attaches pre-rendered rows; no-ops for closed or non-merged menus.
         defer { self.scheduleMergedSwitcherSiblingWarmup(for: menu) }
 
+        guard !self.populateAccountMenuIfNeeded(menu) else { return }
         let enabledProviders = self.store.enabledFirstPartyProvidersForDisplay()
         let includesOverview = self.includesOverviewTab(enabledProviders: enabledProviders)
         let switcherSelection = self.shouldMergeIcons && enabledProviders.count > 1
@@ -778,7 +780,7 @@ extension StatusItemController {
         return false
     }
 
-    private func addOpenAIWebItemsIfNeeded(
+    func addOpenAIWebItemsIfNeeded(
         to menu: NSMenu,
         currentProvider: UsageProvider,
         context: OpenAIWebContext,
@@ -1278,7 +1280,7 @@ extension StatusItemController {
         return enabledProviders
     }
 
-    private func addMenuCardSections(
+    func addMenuCardSections(
         to menu: NSMenu,
         model: UsageMenuCardView.Model,
         layoutModel: UsageMenuCardView.Model,
@@ -1569,7 +1571,7 @@ extension StatusItemController {
     /// genuinely coupled here, not coincidentally aliased. The name is deliberately broader than
     /// "top-pane submenu" — opencodego satisfies this via its collapsible "Cost" row, not a
     /// provider-native top-pane submenu like openai/mistral.
-    private func requiresSectionedMenuForProviderDerivedCost(provider: UsageProvider) -> Bool {
+    func requiresSectionedMenuForProviderDerivedCost(provider: UsageProvider) -> Bool {
         UsageStore.tokenCostRequiresProviderSnapshot(provider) &&
             self.tokenSnapshotForCostHistorySubmenu(provider: provider)?.daily.isEmpty == false
     }

@@ -22,14 +22,17 @@ extension StatusItemController {
         planOverride: String? = nil,
         subtitleOverride: String? = nil,
         sourceLabelOverride: String? = nil,
-        creditsOverride: CreditsSnapshot? = nil) -> UsageMenuCardView.Model?
+        creditsOverride: CreditsSnapshot? = nil,
+        allowsProviderDataForAccountOverride: Bool = false) -> UsageMenuCardView.Model?
     {
         // Provider-specific by design: Codex is the historical card fallback when no enabled provider is available.
         let target = provider ?? self.store.enabledFirstPartyProvidersForDisplay().first ?? .codex
         let metadata = self.store.metadata(for: target)
 
         let usesOverrideCard = forceOverrideCard || snapshotOverride != nil || errorOverride != nil
-        let surface: CodexConsumerProjection.Surface = if usesOverrideCard {
+        let surface: CodexConsumerProjection.Surface = if usesOverrideCard &&
+            !allowsProviderDataForAccountOverride
+        {
             .overrideCard
         } else {
             .liveCard
@@ -93,13 +96,15 @@ extension StatusItemController {
         let sourceLabel = sourceLabelOverride ?? (surface == .liveCard ? self.store.sourceLabel(for: target) : nil)
         // Provider-specific by design: Kilo's automatic source mode is surfaced as card fallback context.
         let kiloAutoMode = target == .kilo && self.settings.kiloUsageDataSource == .auto
-        let (weeklyPace, sessionEquivalentForecast) = self.resolvePaceAndForecast(
+        let resolvedPaceAndForecast = self.resolvePaceAndForecast(
             target: target,
             snapshot: snapshot,
             codexProjection: codexProjection,
             usesOverrideCard: surface == .overrideCard,
             historySelectionOverride: historySelectionOverride,
             now: now)
+        let weeklyPace = surface == .overrideCard ? nil : resolvedPaceAndForecast.weeklyPace
+        let sessionEquivalentForecast = resolvedPaceAndForecast.sessionEquivalentForecast
         let fallbackAccount = accountOverride
             ?? (metadata.usesAccountFallback
                 ? self.store.accountInfo(for: target)

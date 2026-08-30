@@ -48,6 +48,8 @@ extension UsageStore {
         _ = self.claudeSwapAccountSnapshots
         _ = self.claudeSwapRevision
         _ = self.errors
+        _ = self.accountSnapshots
+        _ = self.codexAccountSnapshots
         _ = self.diagnostics
         _ = self.knownLimitsAvailabilityByProvider
         _ = self.credits

@@ -38,6 +38,7 @@ struct SettingsDefaultsState {
     var historicalTrackingEnabled: Bool
     var multiAccountMenuLayoutRaw: String
     var menuBarMetricPreferencesRaw: [String: String]
+    var accountMenuBarDisplayModesRaw: [String: String]
     var storedMenuBarLayout: MenuBarLayout?
     var menuBarLayoutConditionals: [MenuBarLayoutConditional]
     var menuBarLayoutOverridesRaw: [String: MenuBarLayout]

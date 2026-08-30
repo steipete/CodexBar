@@ -222,6 +222,73 @@ struct StatusItemControllerSplitLifecycleTests {
     }
 
     @Test
+    func `separate token accounts create private stable items and restore provider item`() throws {
+        let (settings, controller) = try self.makeSplitController()
+        defer { controller.releaseStatusItemsForTesting() }
+
+        settings.addTokenAccount(
+            provider: .claude,
+            label: "alice.private@example.com",
+            token: "secret-token-one")
+        settings.addTokenAccount(
+            provider: .claude,
+            label: "Team Secret Label",
+            token: "secret-token-two")
+        let accounts = settings.tokenAccounts(for: .claude)
+        settings.hidePersonalInfo = true
+        settings.setAccountMenuBarDisplayMode(.separate, for: .claude)
+        controller.handleProviderConfigChange(reason: "separate-accounts")
+
+        #expect(controller.statusItems[.claude] == nil)
+        #expect(controller.accountStatusItems.count == 2)
+        let identities = controller.accountStatusItems.values.compactMap(\.autosaveName)
+        #expect(identities.count == 2)
+        #expect(Set(identities).count == 2)
+        for identity in identities {
+            #expect(!identity.contains("alice.private@example.com"))
+            #expect(!identity.contains("Team Secret Label"))
+            #expect(!identity.contains("secret-token"))
+        }
+        for item in controller.accountStatusItems.values {
+            let identifier = item.button?.accessibilityIdentifier() ?? ""
+            let accessibilityTitle = item.button?.accessibilityTitle() ?? ""
+            let tooltip = item.button?.toolTip ?? ""
+            #expect(!identifier.contains("alice.private@example.com"))
+            #expect(!identifier.contains("Team Secret Label"))
+            #expect(!identifier.contains("secret-token"))
+            #expect(!accessibilityTitle.contains("alice.private@example.com"))
+            #expect(!tooltip.contains("alice.private@example.com"))
+        }
+
+        let removed = try #require(accounts.last)
+        settings.removeTokenAccount(provider: .claude, accountID: removed.id)
+        controller.handleProviderConfigChange(reason: "account-removed")
+
+        #expect(controller.accountStatusItems.isEmpty)
+        #expect(controller.accountMenus.isEmpty)
+        #expect(controller.menuAccountStatusItemKeys.isEmpty)
+        #expect(controller.statusItems[.claude] != nil)
+    }
+
+    @Test
+    func `separate token account menu has one card and no account switcher`() throws {
+        let (settings, controller) = try self.makeSplitController()
+        defer { controller.releaseStatusItemsForTesting() }
+
+        settings.addTokenAccount(provider: .claude, label: "First", token: "token-one")
+        settings.addTokenAccount(provider: .claude, label: "Second", token: "token-two")
+        settings.setAccountMenuBarDisplayMode(.separate, for: .claude)
+        controller.handleProviderConfigChange(reason: "separate-account-menu")
+
+        let accountMenu = try #require(controller.accountMenus.values.first)
+        controller.populateMenu(accountMenu, provider: .claude)
+
+        #expect(!accountMenu.items.contains { $0.view is TokenAccountSwitcherView })
+        #expect(!accountMenu.items.contains { $0.view is CodexAccountSwitcherView })
+        #expect(accountMenu.items.count(where: { ($0.representedObject as? String) == "accountMenuCard" }) <= 1)
+    }
+
+    @Test
     func `status item placement preflight leaves fresh install placement unset`() throws {
         let suite = "StatusItemControllerSplitLifecycleTests-placement-missing-\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))

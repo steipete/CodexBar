@@ -585,6 +585,28 @@ final class StatusMenuTokenAccountSwitcherTests: XCTestCase {
         XCTAssertEqual(rebuildCount, 2)
     }
 
+    func test_separateModeFetchesAllAccountsBeyondStackedCap() {
+        let settings = self.makeSettings()
+        self.enableOnlyClaude(settings)
+        for index in 0..<(UsageStore.tokenAccountMenuSnapshotLimit + 3) {
+            settings.addTokenAccount(provider: .claude, label: "Account \(index)", token: "token-\(index)")
+        }
+        let store = UsageStore(
+            fetcher: UsageFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        let accounts = settings.tokenAccounts(for: .claude)
+
+        settings.multiAccountMenuLayout = .segmented
+        XCTAssertFalse(store.shouldFetchAllTokenAccounts(provider: .claude, accounts: accounts))
+
+        settings.setAccountMenuBarDisplayMode(.separate, for: .claude)
+        XCTAssertTrue(store.shouldFetchAllTokenAccounts(provider: .claude, accounts: accounts))
+        XCTAssertEqual(
+            settings.accountMenuBarDisplayMode(for: .claude),
+            .separate)
+    }
+
     func test_tokenAccountSwitchUsesSelectedAccountCacheWhileRefreshIsInFlight() async throws {
         self.disableMenuCardsForTesting()
         StatusItemController.setMenuRefreshEnabledForTesting(true)
@@ -723,7 +745,6 @@ final class StatusMenuTokenAccountSwitcherTests: XCTestCase {
         settings.addTokenAccount(provider: .claude, label: "Primary", token: "p1")
         settings.addTokenAccount(provider: .claude, label: "Secondary", token: "p2")
         settings.setActiveTokenAccountIndex(0, for: .claude)
-
         let store = UsageStore(
             fetcher: UsageFetcher(),
             browserDetection: BrowserDetection(cacheTTL: 0),
