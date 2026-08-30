@@ -50,6 +50,48 @@ public struct CostUsageWindowSummary: Sendable, Equatable {
     }
 }
 
+/// A quota window derived from local cost history.
+///
+/// When `resetAt` is known, windows line up with the live Weekly bar rather than a rolling
+/// calendar "last 7 days". Observed extra resets (official rollover plus a banked reset) become
+/// additional boundaries. Hour buckets split a reset day at the reset instant; each hour belongs
+/// to exactly one window. Daily-only snapshots fall back to exclusive day membership so a
+/// boundary calendar day is never counted twice.
+public struct CostUsageQuotaWeek: Sendable, Equatable {
+    public let offset: Int
+    public let start: Date
+    public let end: Date
+    public let totalTokens: Int?
+    public let totalCostUSD: Double?
+    public let entryCount: Int
+
+    public var isCurrent: Bool {
+        self.offset == 0
+    }
+
+    /// True when this window is within a day of the nominal 7×24h weekly quota.
+    public var isNominalWeek: Bool {
+        abs(self.end.timeIntervalSince(self.start) - TimeInterval(CostUsageTokenSnapshot.quotaWeekMinutes * 60))
+            < 24 * 60 * 60
+    }
+
+    public init(
+        offset: Int,
+        start: Date,
+        end: Date,
+        totalTokens: Int?,
+        totalCostUSD: Double?,
+        entryCount: Int)
+    {
+        self.offset = offset
+        self.start = start
+        self.end = end
+        self.totalTokens = totalTokens
+        self.totalCostUSD = totalCostUSD
+        self.entryCount = entryCount
+    }
+}
+
 /// An estimated local Codex conversation total derived from one session log.
 /// This is intentionally distinct from account-level billing or quota data.
 public struct CostUsageSessionBreakdown: Sendable, Equatable, Identifiable {
@@ -129,7 +171,8 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
     public let daily: [CostUsageDailyReport.Entry]
     public let projects: [CostUsageProjectBreakdown]
     public let sessions: [CostUsageSessionBreakdown]
-    /// Per-request hour buckets. Empty for native Codex/Claude day logs; OpenCodex fills this.
+    /// Per-request hour buckets. Native Codex/Claude fill this from event timestamps so weekly
+    /// quota windows can split a mid-day reset; OpenCodex fills it from usage.jsonl.
     public let hourly: [CostUsageHourlyEntry]
     public let updatedAt: Date
 
@@ -242,6 +285,222 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
             .filter { $0 < self.historyDays }
             .sorted()
             .map { self.summary(forLastDays: $0, calendar: calendar) }
+    }
+
+    public static let quotaWeekMinutes = 7 * 24 * 60
+
+    /// Buckets local cost into consecutive quota windows.
+    ///
+    /// Pass the live Weekly `resetsAt` / `windowMinutes` to match the quota bar. When reset
+    /// metadata is missing, windows fall back to rolling calendar weeks ending tomorrow.
+    /// Hour entries use half-open `[start, end)` membership so a reset-day hour is never
+    /// counted in two weeks. Daily-only history uses the day's start instant the same way.
+    ///
+    /// `observedNextResets` are previously published Weekly `resetsAt` values (for example from
+    /// plan-utilization samples). An elapsed stored next-reset is treated as a real reset instant,
+    /// so an official rollover and a later banked reset on the same day become two windows instead
+    /// of one 7-day block. `observedResetInstants` are known start times such as a redeemed
+    /// reset-credit `redeemedAt`.
+    public func quotaWeekSummaries(
+        resetAt: Date?,
+        windowMinutes: Int? = nil,
+        observedNextResets: [Date] = [],
+        observedResetInstants: [Date] = [],
+        weekCount: Int = 4,
+        now: Date? = nil,
+        calendar: Calendar = .current) -> [CostUsageQuotaWeek]
+    {
+        let calendar = CostUsageLocalDay.gregorianCalendar(matching: calendar)
+        let now = now ?? self.updatedAt
+        let duration = TimeInterval(Self.normalizedQuotaWeekMinutes(windowMinutes) * 60)
+        let currentEnd = Self.currentQuotaWeekEnd(
+            resetAt: resetAt,
+            duration: duration,
+            now: now,
+            calendar: calendar)
+        let historyStart = calendar.date(
+            byAdding: .day,
+            value: -(max(1, self.historyDays) - 1),
+            to: calendar.startOfDay(for: self.updatedAt)) ?? self.updatedAt
+        let usesHourly = !self.hourly.isEmpty
+        let indexedDays: [(start: Date, entry: CostUsageDailyReport.Entry)] = usesHourly
+            ? []
+            : self.daily.compactMap { entry in
+                guard let dayKey = Self.localDayKey(for: entry.date, calendar: calendar),
+                      let dayStart = CostUsageLocalDay.date(fromKey: dayKey, calendar: calendar)
+                else { return nil }
+                return (dayStart, entry)
+            }
+
+        let count = max(1, min(weekCount, 8))
+        let boundaries = Self.quotaWeekBoundaries(
+            currentEnd: currentEnd,
+            duration: duration,
+            observedNextResets: observedNextResets,
+            observedResetInstants: observedResetInstants,
+            weekCount: count)
+        var weeks: [CostUsageQuotaWeek] = []
+        weeks.reserveCapacity(count)
+        var offset = 0
+        var endIndex = boundaries.count - 1
+        while offset < count, endIndex > 0 {
+            let end = boundaries[endIndex]
+            let start = boundaries[endIndex - 1]
+            endIndex -= 1
+            if offset > 0, end <= historyStart {
+                break
+            }
+            if usesHourly {
+                let hours = self.hourly.filter { hour in
+                    hour.hour >= start && hour.hour < end
+                }
+                let costs = hours.compactMap(\.costUSD)
+                let tokens = hours.compactMap(\.totalTokens)
+                weeks.append(CostUsageQuotaWeek(
+                    offset: offset,
+                    start: start,
+                    end: end,
+                    totalTokens: Self.summedInts(tokens),
+                    totalCostUSD: costs.isEmpty ? nil : costs.reduce(0, +),
+                    entryCount: hours.count))
+            } else {
+                let entries = indexedDays.compactMap { day -> CostUsageDailyReport.Entry? in
+                    guard day.start >= start, day.start < end else { return nil }
+                    return day.entry
+                }
+                let costs = entries.compactMap(\.costUSD)
+                let tokens = entries.compactMap(\.totalTokens)
+                weeks.append(CostUsageQuotaWeek(
+                    offset: offset,
+                    start: start,
+                    end: end,
+                    totalTokens: Self.summedInts(tokens),
+                    totalCostUSD: costs.isEmpty ? nil : costs.reduce(0, +),
+                    entryCount: entries.count))
+            }
+            offset += 1
+        }
+        return weeks
+    }
+
+    public static let quotaWeekBoundaryTolerance: TimeInterval = 2 * 60
+
+    /// Reconstructs quota-window edges from the live next reset plus any previously observed
+    /// Weekly `resetsAt` values or known reset instants.
+    public static func quotaWeekBoundaries(
+        liveNextReset: Date?,
+        observedNextResets: [Date],
+        observedResetInstants: [Date] = [],
+        windowMinutes: Int? = nil,
+        weekCount: Int = 4,
+        now: Date,
+        calendar: Calendar = .current) -> [Date]
+    {
+        let calendar = CostUsageLocalDay.gregorianCalendar(matching: calendar)
+        let duration = TimeInterval(self.normalizedQuotaWeekMinutes(windowMinutes) * 60)
+        let currentEnd = self.currentQuotaWeekEnd(
+            resetAt: liveNextReset,
+            duration: duration,
+            now: now,
+            calendar: calendar)
+        return self.quotaWeekBoundaries(
+            currentEnd: currentEnd,
+            duration: duration,
+            observedNextResets: observedNextResets,
+            observedResetInstants: observedResetInstants,
+            weekCount: max(1, min(weekCount, 8)))
+    }
+
+    private static func quotaWeekBoundaries(
+        currentEnd: Date,
+        duration: TimeInterval,
+        observedNextResets: [Date],
+        observedResetInstants: [Date],
+        weekCount: Int) -> [Date]
+    {
+        var dates: [Date] = [currentEnd, currentEnd.addingTimeInterval(-duration)]
+        dates.reserveCapacity(weekCount + 1 + observedNextResets.count * 2 + observedResetInstants.count)
+        for next in observedNextResets {
+            dates.append(next)
+            dates.append(next.addingTimeInterval(-duration))
+        }
+        dates.append(contentsOf: observedResetInstants)
+        let latestAllowed = currentEnd.addingTimeInterval(self.quotaWeekBoundaryTolerance)
+        var unique = self.uniqueSortedDates(dates, tolerance: self.quotaWeekBoundaryTolerance)
+            .filter { $0 <= latestAllowed }
+        if unique.last.map({ abs($0.timeIntervalSince(currentEnd)) < self.quotaWeekBoundaryTolerance }) != true {
+            unique.append(currentEnd)
+            unique = self.uniqueSortedDates(unique, tolerance: self.quotaWeekBoundaryTolerance)
+        }
+        let needed = weekCount + 1
+        var previousCount = -1
+        while unique.count < needed, duration > 0, unique.count != previousCount, let oldest = unique.first {
+            previousCount = unique.count
+            unique.insert(oldest.addingTimeInterval(-duration), at: 0)
+            unique = self.uniqueSortedDates(unique, tolerance: self.quotaWeekBoundaryTolerance)
+        }
+        return unique
+    }
+
+    private static func uniqueSortedDates(_ dates: [Date], tolerance: TimeInterval) -> [Date] {
+        let sorted = dates.sorted()
+        var unique: [Date] = []
+        unique.reserveCapacity(sorted.count)
+        for date in sorted {
+            if let last = unique.last, abs(date.timeIntervalSince(last)) < tolerance {
+                continue
+            }
+            unique.append(date)
+        }
+        return unique
+    }
+
+    public static func normalizedQuotaWeekMinutes(_ windowMinutes: Int?) -> Int {
+        let week = self.quotaWeekMinutes
+        guard let windowMinutes, (week - 24 * 60)...(week + 24 * 60) ~= windowMinutes else {
+            return week
+        }
+        return windowMinutes
+    }
+
+    public static func quotaWeekReset(from window: RateWindow?) -> Date? {
+        guard let window else { return nil }
+        if let minutes = window.windowMinutes {
+            let week = self.quotaWeekMinutes
+            guard (week - 24 * 60)...(week + 24 * 60) ~= minutes else { return nil }
+        }
+        return window.resetsAt
+    }
+
+    private static func currentQuotaWeekEnd(
+        resetAt: Date?,
+        duration: TimeInterval,
+        now: Date,
+        calendar: Calendar) -> Date
+    {
+        guard duration > 0 else {
+            return calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now)) ?? now
+        }
+        if let resetAt {
+            if resetAt > now {
+                return resetAt
+            }
+            let elapsed = now.timeIntervalSince(resetAt)
+            let periods = floor(elapsed / duration) + 1
+            return resetAt.addingTimeInterval(periods * duration)
+        }
+        return calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now)) ?? now
+    }
+
+    private static func summedInts(_ values: [Int]) -> Int? {
+        guard !values.isEmpty else { return nil }
+        var sum = 0
+        for value in values {
+            let (result, overflowed) = sum.addingReportingOverflow(value)
+            if overflowed { return nil }
+            sum = result
+        }
+        return sum
     }
 
     public static func latestEntry(in entries: [CostUsageDailyReport.Entry]) -> CostUsageDailyReport.Entry? {
@@ -673,6 +932,7 @@ public struct CostUsageDailyReport: Sendable, Decodable {
 
     public let data: [Entry]
     public let summary: Summary?
+    public let hourly: [CostUsageHourlyEntry]
 
     private enum CodingKeys: String, CodingKey {
         case type
@@ -684,6 +944,7 @@ public struct CostUsageDailyReport: Sendable, Decodable {
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.hourly = []
 
         if container.contains(.type) {
             _ = try container.decode(String.self, forKey: .type)
@@ -707,9 +968,10 @@ public struct CostUsageDailyReport: Sendable, Decodable {
         }
     }
 
-    public init(data: [Entry], summary: Summary?) {
+    public init(data: [Entry], summary: Summary?, hourly: [CostUsageHourlyEntry] = []) {
         self.data = data
         self.summary = summary
+        self.hourly = hourly
     }
 }
 
@@ -862,14 +1124,82 @@ extension CostUsageDailyReport {
         }
     }
 
-    public func merged(with other: CostUsageDailyReport) -> CostUsageDailyReport {
-        Self.merged([self, other])
+    public func merged(with other: CostUsageDailyReport, calendar: Calendar = .current) -> CostUsageDailyReport {
+        Self.merged([self, other], calendar: calendar)
     }
 
-    public static func merged(_ reports: [CostUsageDailyReport]) -> CostUsageDailyReport {
+    public static func merged(
+        _ reports: [CostUsageDailyReport],
+        calendar: Calendar = .current) -> CostUsageDailyReport
+    {
         let entries = self.mergedEntries(from: reports)
         guard !entries.isEmpty else { return CostUsageDailyReport(data: [], summary: nil) }
-        return CostUsageDailyReport(data: entries, summary: self.mergedSummary(from: entries))
+        return CostUsageDailyReport(
+            data: entries,
+            summary: self.mergedSummary(from: entries),
+            hourly: self.mergedHourly(from: reports, calendar: calendar))
+    }
+
+    private struct HourlyAccumulator {
+        var totalTokens = 0
+        var sawTokens = false
+        var costUSD = 0.0
+        var sawCost = false
+
+        mutating func add(_ entry: CostUsageHourlyEntry) {
+            if let tokens = entry.totalTokens {
+                self.totalTokens += tokens
+                self.sawTokens = true
+            }
+            if let costUSD = entry.costUSD {
+                self.costUSD += costUSD
+                self.sawCost = true
+            }
+        }
+
+        func build(hour: Date) -> CostUsageHourlyEntry {
+            CostUsageHourlyEntry(
+                hour: hour,
+                totalTokens: self.sawTokens ? self.totalTokens : nil,
+                costUSD: self.sawCost ? self.costUSD : nil)
+        }
+    }
+
+    private static func mergedHourly(
+        from reports: [CostUsageDailyReport],
+        calendar: Calendar) -> [CostUsageHourlyEntry]
+    {
+        let hasHourly = reports.contains { !$0.hourly.isEmpty }
+        guard hasHourly else { return [] }
+        var buckets: [Date: HourlyAccumulator] = [:]
+        for report in reports {
+            let hours = report.hourly.isEmpty
+                ? self.synthesizedHourly(from: report.data, calendar: calendar)
+                : report.hourly
+            for entry in hours {
+                var accumulator = buckets[entry.hour] ?? HourlyAccumulator()
+                accumulator.add(entry)
+                buckets[entry.hour] = accumulator
+            }
+        }
+        return buckets.keys.sorted().map { hour in
+            buckets[hour, default: HourlyAccumulator()].build(hour: hour)
+        }
+    }
+
+    private static func synthesizedHourly(
+        from entries: [Entry],
+        calendar: Calendar) -> [CostUsageHourlyEntry]
+    {
+        entries.compactMap { entry in
+            guard entry.costUSD != nil || entry.totalTokens != nil,
+                  let dayStart = CostUsageLocalDay.date(fromKey: entry.date, calendar: calendar)
+            else { return nil }
+            return CostUsageHourlyEntry(
+                hour: dayStart,
+                totalTokens: entry.totalTokens,
+                costUSD: entry.costUSD)
+        }
     }
 
     private static func mergedEntries(from reports: [CostUsageDailyReport]) -> [Entry] {
@@ -1264,5 +1594,18 @@ enum CostUsageLocalDay {
         let month = components.month ?? 0
         let day = components.day ?? 0
         return String(format: "%04d-%02d-%02d", year, month, day)
+    }
+
+    static func date(fromKey key: String, calendar: Calendar = .current) -> Date? {
+        let parts = key.split(separator: "-")
+        guard parts.count == 3,
+              let year = Int(parts[0]),
+              let month = Int(parts[1]),
+              let day = Int(parts[2])
+        else { return nil }
+        return Self.gregorianCalendar(matching: calendar).date(from: DateComponents(
+            year: year,
+            month: month,
+            day: day))
     }
 }

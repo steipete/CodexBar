@@ -479,12 +479,16 @@ extension UsageMenuCardView.Model {
             current.valueStyle == candidate.valueStyle &&
                 current.kpis.count == candidate.kpis.count &&
                 current.points.count == candidate.points.count &&
+                current.quotaWindows.count == candidate.quotaWindows.count &&
                 current.detailLines.count == candidate.detailLines.count &&
                 zip(current.kpis, candidate.kpis).allSatisfy {
                     $0.title == $1.title && $0.emphasis == $1.emphasis
                 } &&
                 zip(current.points, candidate.points).allSatisfy {
                     $0.id == $1.id && $0.label == $1.label
+                } &&
+                zip(current.quotaWindows, candidate.quotaWindows).allSatisfy {
+                    $0.title == $1.title && $0.range == $1.range
                 }
         default:
             false

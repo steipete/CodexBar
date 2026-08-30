@@ -880,6 +880,11 @@
 "usage_percent_suffix_used" = "verbraucht";
 "Store multiple DeepSeek API keys." = "Speichern Sie mehrere DeepSeek-API-Schlüssel.";
 "This week" = "Diese Woche";
+"Last week" = "Letzte Woche";
+"%d weeks ago" = "vor %d Wochen";
+"Previous window" = "Vorheriges Fenster";
+"%d windows ago" = "vor %d Fenstern";
+"Recent windows" = "Letzte Fenster";
 "Week" = "Woche";
 "Month" = "Monat";
 "Models" = "Modelle";

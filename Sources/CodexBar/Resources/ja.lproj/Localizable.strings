@@ -879,6 +879,11 @@
 "usage_percent_suffix_used" = "使用済み";
 "Store multiple DeepSeek API keys." = "複数の DeepSeek API キーを保存します。";
 "This week" = "今週";
+"Last week" = "先週";
+"%d weeks ago" = "%d週間前";
+"Previous window" = "前のウィンドウ";
+"%d windows ago" = "%dウィンドウ前";
+"Recent windows" = "最近のウィンドウ";
 "Week" = "週";
 "Month" = "月";
 "Models" = "モデル";

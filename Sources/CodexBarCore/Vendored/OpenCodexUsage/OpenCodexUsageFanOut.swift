@@ -44,9 +44,9 @@ public enum OpenCodexUsageFanOut {
         calendar: Calendar) -> CostUsageTokenSnapshot
     {
         let mergedReport = CostUsageDailyReport.merged([
-            CostUsageDailyReport(data: base.daily, summary: nil),
-            CostUsageDailyReport(data: supplement.daily, summary: nil),
-        ])
+            CostUsageDailyReport(data: base.daily, summary: nil, hourly: base.hourly),
+            CostUsageDailyReport(data: supplement.daily, summary: nil, hourly: supplement.hourly),
+        ], calendar: calendar)
         var sessions = base.sessions
         var sessionIDs = Set(sessions.map(\.id))
         for session in supplement.sessions where sessionIDs.insert(session.id).inserted {

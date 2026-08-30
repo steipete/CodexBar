@@ -898,6 +898,11 @@
 "Latest billing day" = "最新帳單日";
 "Latest billing day (%@)" = "最新帳單日（%@）";
 "This week" = "本週";
+"Last week" = "上週";
+"%d weeks ago" = "%d 週前";
+"Previous window" = "上一視窗";
+"%d windows ago" = "%d 個視窗前";
+"Recent windows" = "最近視窗";
 "Week" = "週";
 "Month" = "月";
 "Models" = "模型";

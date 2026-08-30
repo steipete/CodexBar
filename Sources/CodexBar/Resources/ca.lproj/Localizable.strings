@@ -895,6 +895,11 @@
 "Latest billing day" = "Últim dia de facturació";
 "Latest billing day (%@)" = "Últim dia de facturació (%@)";
 "This week" = "Aquesta setmana";
+"Last week" = "La setmana passada";
+"%d weeks ago" = "fa %d setmanes";
+"Previous window" = "Finestra anterior";
+"%d windows ago" = "fa %d finestres";
+"Recent windows" = "Finestres recents";
 "This month" = "Aquest mes";
 "Week" = "Setmana";
 "Month" = "Mes";

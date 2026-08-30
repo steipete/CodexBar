@@ -22,11 +22,20 @@ struct InlineUsageDashboardModel: Equatable {
         case points
     }
 
+    struct QuotaWindow: Equatable, Identifiable {
+        let id: String
+        let title: String
+        let range: String
+        let value: String
+    }
+
     let accessibilityLabel: String
     let valueStyle: ValueStyle
     let kpis: [KPI]
     let points: [Point]
     let detailLines: [String]
+    /// Codex/Claude weekly quota windows, newest first. Empty for other cost dashboards.
+    var quotaWindows: [QuotaWindow] = []
     /// Provider branding color used to fill the mini usage bars. When nil the bars fall back to a
     /// neutral palette derived from `valueStyle`.
     var barColor: Color?
@@ -103,7 +112,11 @@ extension UsageMenuCardView.Model {
                 snapshot: tokenSnapshot,
                 comparisonPeriodsEnabled: input.costComparisonPeriodsEnabled,
                 preferredCurrencyCode: input.preferredCurrencyCode,
-                calendar: input.costUsageBucketCalendar)
+                calendar: input.costUsageBucketCalendar,
+                weeklyWindow: input.snapshot?.secondary,
+                observedNextResets: input.observedWeeklyNextResets,
+                observedResetInstants: Self.redeemedWeeklyResetInstants(from: input.snapshot),
+                now: input.now)
         }
         if menuCard.supportsInlineTokenCostDashboard,
            input.costSummaryInlineEnabled,
@@ -115,7 +128,11 @@ extension UsageMenuCardView.Model {
                 snapshot: tokenSnapshot,
                 comparisonPeriodsEnabled: input.costComparisonPeriodsEnabled,
                 preferredCurrencyCode: input.preferredCurrencyCode,
-                calendar: input.costUsageBucketCalendar)
+                calendar: input.costUsageBucketCalendar,
+                weeklyWindow: input.snapshot?.secondary,
+                observedNextResets: input.observedWeeklyNextResets,
+                observedResetInstants: Self.redeemedWeeklyResetInstants(from: input.snapshot),
+                now: input.now)
         }
         return nil
     }
@@ -131,12 +148,20 @@ extension UsageMenuCardView.Model {
             tokenSnapshot: input.tokenSnapshot)
     }
 
+    static func showsQuotaWeekCost(for provider: UsageProvider) -> Bool {
+        provider == .codex || provider == .claude
+    }
+
     private static func costHistoryInlineDashboard(
         provider: UsageProvider,
         snapshot: CostUsageTokenSnapshot,
         comparisonPeriodsEnabled: Bool,
         preferredCurrencyCode: String,
-        calendar: Calendar) -> InlineUsageDashboardModel
+        calendar: Calendar,
+        weeklyWindow: RateWindow?,
+        observedNextResets: [Date] = [],
+        observedResetInstants: [Date] = [],
+        now: Date? = nil) -> InlineUsageDashboardModel
     {
         let displayCurrencyCode = UsageFormatter.convertedCost(
             0,
@@ -204,6 +229,28 @@ extension UsageMenuCardView.Model {
         let latest = CostUsageTokenSnapshot.latestEntry(in: snapshot.daily)
         let usesLatestPrimary = tokenCost.primaryValue == .latestDaily
         let primaryCostUSD = usesLatestPrimary ? latest?.costUSD : snapshot.sessionCostUSD
+        let quotaWeeks = Self.showsQuotaWeekCost(for: provider) && historyDays >= 7
+            ? snapshot.quotaWeekSummaries(
+                resetAt: CostUsageTokenSnapshot.quotaWeekReset(from: weeklyWindow),
+                windowMinutes: weeklyWindow?.windowMinutes,
+                observedNextResets: observedNextResets,
+                observedResetInstants: observedResetInstants,
+                now: now,
+                calendar: calendar)
+            : []
+        let currentWeek = quotaWeeks.first { $0.isCurrent }
+        let insertWeekKPIs = currentWeek != nil && historyDays > 7 && snapshot.last30DaysRequests == nil
+        let relabelHistoryAsWeek = currentWeek != nil && historyDays == 7 && snapshot.last30DaysRequests == nil
+        let weekCostTitle = L("This week")
+        let weekTokenTitle = L("%@ tokens", L("This week"))
+        let weekCostValue = currentWeek?.totalCostUSD.map(convertedString) ?? "—"
+        let weekTokenValue = currentWeek?.totalTokens.map(UsageFormatter.tokenCountString) ?? "—"
+
+        let quotaWindowRows: [InlineUsageDashboardModel.QuotaWindow] = quotaWeeks.compactMap { week in
+            guard week.isCurrent || week.entryCount > 0 else { return nil }
+            let cost = week.totalCostUSD.map(convertedString) ?? "—"
+            return Self.quotaWindowRow(week: week, cost: cost, calendar: calendar)
+        }
         var details: [String] = []
         if comparisonPeriodsEnabled {
             details.append(contentsOf: snapshot.comparisonSummaries().map {
@@ -242,28 +289,42 @@ extension UsageMenuCardView.Model {
             "%@: %@",
             providerName,
             accessibilityCostLabel)
-        var kpis = [
-            InlineUsageDashboardModel.KPI(
-                title: usesLatestPrimary ? L("Latest") : L("Today"),
-                value: primaryCostUSD.map(convertedString) ?? "—",
-                emphasis: true),
-            .init(
-                title: historyTitle,
-                value: snapshot.last30DaysCostUSD
-                    .map(convertedString) ?? "—",
-                emphasis: false),
-        ]
+        let todayKPI = InlineUsageDashboardModel.KPI(
+            title: usesLatestPrimary ? L("Latest") : L("Today"),
+            value: primaryCostUSD.map(convertedString) ?? "—",
+            emphasis: true)
+        let historyCostKPI = InlineUsageDashboardModel.KPI(
+            title: relabelHistoryAsWeek ? weekCostTitle : historyTitle,
+            value: relabelHistoryAsWeek
+                ? weekCostValue
+                : snapshot.last30DaysCostUSD.map(convertedString) ?? "—",
+            emphasis: relabelHistoryAsWeek)
         let tokenHistoryKPI = InlineUsageDashboardModel.KPI(
-            title: tokenHistoryTitle,
-            value: snapshot.last30DaysTokens.map(UsageFormatter.tokenCountString) ?? "—",
+            title: relabelHistoryAsWeek ? weekTokenTitle : tokenHistoryTitle,
+            value: relabelHistoryAsWeek
+                ? weekTokenValue
+                : snapshot.last30DaysTokens.map(UsageFormatter.tokenCountString) ?? "—",
             emphasis: false)
         let trailingKPIs = Self.costHistoryTrailingKPIs(snapshot: snapshot, latest: latest)
-        if snapshot.last30DaysRequests == nil {
-            kpis.append(contentsOf: trailingKPIs)
-            kpis.append(tokenHistoryKPI)
+        var kpis: [InlineUsageDashboardModel.KPI]
+        if insertWeekKPIs, let latestTokensKPI = trailingKPIs.first {
+            kpis = [
+                todayKPI,
+                .init(title: weekCostTitle, value: weekCostValue, emphasis: true),
+                latestTokensKPI,
+                .init(title: weekTokenTitle, value: weekTokenValue, emphasis: false),
+                historyCostKPI,
+                tokenHistoryKPI,
+            ]
         } else {
-            kpis.append(tokenHistoryKPI)
-            kpis.append(contentsOf: trailingKPIs)
+            kpis = [todayKPI, historyCostKPI]
+            if snapshot.last30DaysRequests == nil {
+                kpis.append(contentsOf: trailingKPIs)
+                kpis.append(tokenHistoryKPI)
+            } else {
+                kpis.append(tokenHistoryKPI)
+                kpis.append(contentsOf: trailingKPIs)
+            }
         }
         if provider == .cursor, let meteredCostUSD = snapshot.meteredCostUSD {
             kpis.insert(
@@ -279,8 +340,76 @@ extension UsageMenuCardView.Model {
             kpis: kpis,
             points: points,
             detailLines: details)
+        model.quotaWindows = quotaWindowRows
         model.currencyCode = displayCurrencyCode
         return model
+    }
+
+    private static func redeemedWeeklyResetInstants(from snapshot: UsageSnapshot?) -> [Date] {
+        snapshot?.codexResetCredits?.credits.compactMap { credit in
+            guard credit.status == .redeemed else { return nil }
+            return credit.redeemedAt
+        } ?? []
+    }
+
+    private static func quotaWindowRow(
+        week: CostUsageQuotaWeek,
+        cost: String,
+        calendar: Calendar) -> InlineUsageDashboardModel.QuotaWindow
+    {
+        let value: String = if let totalTokens = week.totalTokens {
+            "\(cost) · \(UsageFormatter.tokenCountString(totalTokens))"
+        } else {
+            cost
+        }
+        return InlineUsageDashboardModel.QuotaWindow(
+            id: "\(week.offset)-\(Int(week.start.timeIntervalSince1970))",
+            title: Self.quotaWeekHistoryLabel(week: week),
+            range: Self.quotaWindowRangeLabel(start: week.start, end: week.end, calendar: calendar),
+            value: value)
+    }
+
+    static func quotaWindowRangeLabel(
+        start: Date,
+        end: Date,
+        calendar: Calendar,
+        locale: Locale = codexBarLocalizedResourceLocale()) -> String
+    {
+        let startDay = calendar.dateComponents([.year, .month, .day], from: start)
+        let endDay = calendar.dateComponents([.year, .month, .day], from: end)
+        let sameDay = startDay.year == endDay.year
+            && startDay.month == endDay.month
+            && startDay.day == endDay.day
+        let sameYear = startDay.year == endDay.year
+        func formatter(template: String) -> DateFormatter {
+            let formatter = DateFormatter()
+            formatter.locale = locale
+            formatter.calendar = calendar
+            formatter.timeZone = calendar.timeZone
+            formatter.setLocalizedDateFormatFromTemplate(template)
+            return formatter
+        }
+        if sameDay {
+            let startText = formatter(template: "MMMdjmm").string(from: start)
+            let endText = formatter(template: "jmm").string(from: end)
+            return "\(startText) – \(endText)"
+        }
+        let template = sameYear ? "MMMdjmm" : "yMMMdjmm"
+        let rangeFormatter = formatter(template: template)
+        return "\(rangeFormatter.string(from: start)) – \(rangeFormatter.string(from: end))"
+    }
+
+    private static func quotaWeekHistoryLabel(week: CostUsageQuotaWeek) -> String {
+        switch week.offset {
+        case 0:
+            return L("This week")
+        case 1:
+            return week.isNominalWeek ? L("Last week") : L("Previous window")
+        default:
+            return week.isNominalWeek
+                ? L("%d weeks ago", week.offset)
+                : L("%d windows ago", week.offset)
+        }
     }
 
     private static func costHistoryTrailingKPIs(
@@ -424,6 +553,9 @@ struct InlineUsageDashboardContent: View {
                     .accessibilityElement(children: .contain)
                     .accessibilityLabel(self.model.accessibilityLabel)
             }
+            if !self.model.quotaWindows.isEmpty {
+                self.quotaWindows
+            }
             self.detailLines
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -440,6 +572,38 @@ struct InlineUsageDashboardContent: View {
         {
             ForEach(Array(self.model.kpis.enumerated()), id: \.offset) { _, kpi in
                 KPIBlock(title: kpi.title, value: kpi.value, emphasis: kpi.emphasis)
+            }
+        }
+    }
+
+    private var quotaWindows: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(L("Recent windows"))
+                .font(.caption2)
+                .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+            ForEach(self.model.quotaWindows) { window in
+                VStack(alignment: .leading, spacing: 1) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(window.title)
+                            .font(.caption)
+                            .foregroundStyle(MenuHighlightStyle.primary(self.isHighlighted))
+                            .lineLimit(1)
+                        Spacer(minLength: 8)
+                        Text(window.value)
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(MenuHighlightStyle.primary(self.isHighlighted))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                            .monospacedDigit()
+                    }
+                    Text(window.range)
+                        .font(.caption2)
+                        .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
+                .accessibilityElement(children: .combine)
             }
         }
     }

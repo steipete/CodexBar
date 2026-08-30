@@ -2,6 +2,9 @@
 
 ## 0.56.1 — Unreleased
 
+### Added
+- Codex and Claude: show this week's local cost and tokens next to Today, split at the live Weekly reset instant rather than double-counting the reset calendar day, with a Recent windows list (range, cost, tokens) under the daily chart. Official and banked resets observed on the same day become separate windows when a prior Weekly `resetsAt` or redeemed reset credit is still on file.
+
 ### Fixed
 - Antigravity: reuse a running `agy` by its verified executable path even when its command line uses a bare name, and preserve CLI sign-in guidance when an IDE fallback has no CSRF token (follow-up to #3146). Thanks @haixing23!
 - Codex: add redacted weekly-reset diagnostic reasons for candidate admission, expiry, and account-scoped storage requests without changing reset publication rules (investigated alongside #3248). Thanks @kcharlan!

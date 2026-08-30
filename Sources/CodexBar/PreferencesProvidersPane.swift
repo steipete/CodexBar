@@ -610,7 +610,11 @@ struct ProvidersPane: View {
             workdayTickAppearance: self.settings.workdayTickAppearance,
             paceVisible: self.settings.paceVisible,
             costUsageBucketCalendar: self.settings.costUsageBucketCalendar,
-            now: now)
+            now: now,
+            observedWeeklyNextResets: self.store.planUtilizationHistorySelection(for: provider)
+                .histories
+                .first { $0.name == .weekly }?
+                .entries.compactMap(\.resetsAt) ?? [])
         return UsageMenuCardView.Model.make(input)
     }
 

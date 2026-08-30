@@ -873,13 +873,27 @@ extension CostUsageScanner {
             pricingArtifactStamp: artifactStamps.pricing)
     }
 
-    private static func buildClaudeReportFromCache(
+    static func buildClaudeReportFromCache(
+        cache: CostUsageCache,
+        range: CostUsageDayRange,
+        now: Date = Date(),
+        modelsDevCacheRoot: URL? = nil) -> CostUsageDailyReport
+    {
+        self.buildClaudeReportFromCache(
+            cache: cache,
+            range: range,
+            modelsDevCatalogResolver: ClaudeModelsDevCatalogResolver(now: now, cacheRoot: modelsDevCacheRoot),
+            modelsDevCacheRoot: modelsDevCacheRoot)
+    }
+
+    static func buildClaudeReportFromCache(
         cache: CostUsageCache,
         range: CostUsageDayRange,
         modelsDevCatalogResolver: ClaudeModelsDevCatalogResolver,
         modelsDevCacheRoot: URL? = nil) -> CostUsageDailyReport
     {
         var entries: [CostUsageDailyReport.Entry] = []
+        var hourlyBuckets: [Date: HourlyBucket] = [:]
         var totalInput = 0
         var totalOutput = 0
         var totalCacheRead = 0
@@ -927,6 +941,21 @@ extension CostUsageScanner {
                 aggregate.unresolved = true
             }
             repricedCosts[key] = aggregate
+
+            guard CostUsageDayRange.isInRange(
+                dayKey: row.dayKey,
+                since: range.sinceKey,
+                until: range.untilKey)
+            else { continue }
+            let timestamp = self.date(fromUnixMs: row.timestampUnixMs)
+                ?? CostUsageLocalDay.date(fromKey: row.dayKey, calendar: range.calendar)
+            guard let timestamp else { continue }
+            let hour = self.hourStart(for: timestamp, calendar: range.calendar)
+            var bucket = hourlyBuckets[hour] ?? HourlyBucket()
+            bucket.add(
+                tokens: row.input + row.cacheRead + row.cacheCreate + row.output,
+                costUSD: cost)
+            hourlyBuckets[hour] = bucket
         }
 
         let dayKeys = cache.days.keys.sorted().filter {
@@ -1018,6 +1047,9 @@ extension CostUsageScanner {
                 totalTokens: totalTokens,
                 totalCostUSD: costSeen ? totalCost : nil)
 
-        return CostUsageDailyReport(data: entries, summary: summary)
+        return CostUsageDailyReport(
+            data: entries,
+            summary: summary,
+            hourly: self.sortedHourlyEntries(hourlyBuckets))
     }
 }
