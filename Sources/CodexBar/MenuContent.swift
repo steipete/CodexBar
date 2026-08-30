@@ -139,7 +139,7 @@ struct MenuContent: View {
                 NSWorkspace.shared.open(urlObj)
             }
         case .openCodexWorkspaces:
-            CodexWorkspacesPresenter.shared.present()
+            CodexWorkspacesPresenter.shared.present(store: self.store, settings: self.settings)
         case .settings:
             self.actions.openSettings()
         case .about:
