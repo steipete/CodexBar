@@ -2,6 +2,9 @@
 
 ## 0.56.1 — Unreleased
 
+### Added
+- Menu bar: add an opt-in notch usage overlay with provider tiles, agent-session summaries, and a shortcut, keeping neighboring menu extras clickable (#3164). Thanks @wdmitchelluk!
+
 ### Fixed
 - Antigravity: reuse a running `agy` by its verified executable path even when its command line uses a bare name, and preserve CLI sign-in guidance when an IDE fallback has no CSRF token (follow-up to #3146). Thanks @haixing23!
 - Codex: add redacted weekly-reset diagnostic reasons for candidate admission, expiry, and account-scoped storage requests without changing reset publication rules (investigated alongside #3248). Thanks @kcharlan!

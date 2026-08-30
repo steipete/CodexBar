@@ -53,7 +53,8 @@ Everything is configured in its own settings page: **Settings → Notch**.
   ceiling — plus the stack's spacing and padding. Measuring a separate copy instead drifts from what
   SwiftUI lays out, which showed up as content stuck behind a scroll no matter how high the ceiling
   was raised. The total is still bounded by 90% of the screen height and the screen width less a
-  margin.
+  margin. The interactive content frame is anchored below the camera housing's bottom edge, outside
+  both auxiliary menu-bar areas, including when the display has a nonzero origin.
 - The frame is re-measured while the panel is open: `applyExpandedFrame` wraps the measurement in
   `withObservationTracking`, so a snapshot landing after the panel opened resizes it. Without that
   the panel keeps its opening size and late-arriving bars are stuck behind a scroll.
@@ -61,20 +62,24 @@ Everything is configured in its own settings page: **Settings → Notch**.
   content's ideal size as window constraints and a long provider list grows the panel off-screen.
 
 ## Hover and hotkey
-- One borderless, non-activating `NSPanel` at `.statusBar` level lives for as long as the feature is
-  enabled and a notched screen exists. It never becomes key or main.
+- Two borderless, non-activating `NSPanel` windows share one controller. A camera-housing-sized
+  tracking trigger stays in the notch; the wider interactive content window starts below the menu
+  strip and is hidden while collapsed. Neither becomes key or main. Expanding never widens the
+  notch trigger or covers neighboring menu extras.
 - Hover is detected by an `NSTrackingArea` (`.activeAlways`, `.inVisibleRect`,
   `.mouseEnteredAndExited`) on the hosting view — no global event monitor, so no Accessibility
   permission.
-- `mouseEntered` → 0.35s dwell → expand. `mouseExited` → 0.4s grace (cancelled by re-entry) →
-  collapse, then restore the collapsed frame after the animation.
+- Entering either surface starts a 0.35s dwell before expansion. Leaving both starts a 0.4s grace
+  period, cancelled by re-entry. Crossing between the trigger and content preserves hover ownership.
+  Collapse immediately disables content mouse handling, then hides that window after the animation;
+  its hide task is separate from hover grace so a re-entry cannot leave an invisible click target.
 - `NotchHotkeyState` is the pure decision table for the shortcut: toggle flips on each press and
   survives key release; hold expands on press and collapses on release unless the pointer is inside,
   in which case hover takes over. While the shortcut holds the panel, losing the pointer cannot
   collapse it.
 - `NotchUsageOverlayController` observes the setting and
   `NSApplication.didChangeScreenParametersNotification`; turning the setting off or losing the
-  notched screen tears the panel down without a relaunch.
+  notched screen cancels all pending transitions and tears both windows down without a relaunch.
 
 ## Bars
 `NotchUsageOverlayModel.make(store:settings:agentSessions:)` walks

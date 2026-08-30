@@ -26,6 +26,7 @@ final class NotchUsageOverlayController {
 
     private let store: UsageStore
     private let settings: SettingsStore
+    private let notchedScreen: () -> NSScreen?
     private let viewState = NotchUsageOverlayViewState()
 
     /// Owned by `StatusItemController`; the overlay reads its published sessions instead of
@@ -38,19 +39,30 @@ final class NotchUsageOverlayController {
     }
 
     private var panel: NotchHoverPanel?
+    private var triggerPanel: NotchHoverPanel?
     private weak var screen: NSScreen?
     private var screenParametersObserver: NSObjectProtocol?
     private var hoverTask: Task<Void, Never>?
     private var collapseTask: Task<Void, Never>?
+    private var hideTask: Task<Void, Never>?
     private var isStarted = false
     private var hotkeyHandlersInstalled = false
-    private var isPointerInside = false
+    private var hoverState = NotchHoverState()
+    private var isPointerInside: Bool {
+        self.hoverState.isInside
+    }
+
     /// Owns hold/toggle semantics; while it is holding, losing the pointer must not collapse.
     private var hotkeyState = NotchHotkeyState()
 
-    init(store: UsageStore, settings: SettingsStore) {
+    init(
+        store: UsageStore,
+        settings: SettingsStore,
+        notchedScreen: @escaping () -> NSScreen? = { NotchGeometry.notchedScreen() })
+    {
         self.store = store
         self.settings = settings
+        self.notchedScreen = notchedScreen
     }
 
     func start() {
@@ -71,7 +83,9 @@ final class NotchUsageOverlayController {
     }
 
     func stop() {
-        guard self.isStarted || self.panel != nil || self.hotkeyHandlersInstalled else { return }
+        guard self.isStarted || self.panel != nil || self.triggerPanel != nil || self.hotkeyHandlersInstalled else {
+            return
+        }
         self.isStarted = false
         self.removeHotkeyHandlers()
         self.hoverTask?.cancel()
@@ -170,26 +184,24 @@ final class NotchUsageOverlayController {
     private func updateActivation() {
         guard self.isStarted,
               self.settings.notchUsageSummaryEnabled,
-              let notchedScreen = NotchGeometry.notchedScreen(),
+              let notchedScreen = self.notchedScreen(),
               let notchRect = NotchGeometry.notchRect(for: notchedScreen)
         else {
             self.closePanel()
             return
         }
 
-        let panelOnTargetScreen = self.panel != nil && self.screen === notchedScreen
+        let panelOnTargetScreen = self.panel != nil && self.triggerPanel != nil && self.screen === notchedScreen
+        if panelOnTargetScreen {
+            self.triggerPanel?.setFrame(self.collapsedFrame(notchRect: notchRect, screen: notchedScreen), display: true)
+        }
         switch Self.existingPanelUpdate(
             hasPanelOnTargetScreen: panelOnTargetScreen,
             isExpanded: self.viewState.isExpanded)
         {
         case .collapsedFrame:
-            self.viewState.notchHeight = notchRect.height
-            self.panel?.setFrame(
-                self.collapsedFrame(notchRect: notchRect, screen: notchedScreen),
-                display: true)
             return
         case .expandedFrame:
-            self.viewState.notchHeight = notchRect.height
             self.applyExpandedFrame()
             return
         case .recreate:
@@ -198,7 +210,6 @@ final class NotchUsageOverlayController {
 
         self.closePanel()
         self.screen = notchedScreen
-        self.viewState.notchHeight = notchRect.height
         self.createPanel(
             screen: notchedScreen,
             collapsedFrame: self.collapsedFrame(notchRect: notchRect, screen: notchedScreen))
@@ -210,21 +221,44 @@ final class NotchUsageOverlayController {
             settings: self.settings,
             agentSessions: self.agentSessions,
             viewState: self.viewState)
+        self.panel = self.makePanel(
+            screen: screen,
+            frame: NotchGeometry.expandedContentFrame(
+                screenFrame: screen.frame,
+                notchRect: collapsedFrame,
+                contentSize: CGSize(width: collapsedFrame.width, height: 1)),
+            rootView: rootView,
+            region: .content)
+        self.panel?.ignoresMouseEvents = true
+        self.triggerPanel = self.makePanel(
+            screen: screen,
+            frame: collapsedFrame,
+            rootView: Color.clear,
+            region: .trigger)
+        self.triggerPanel?.orderFrontRegardless()
+    }
+
+    private func makePanel(
+        screen: NSScreen,
+        frame: CGRect,
+        rootView: some View,
+        region: NotchHoverState.Region) -> NotchHoverPanel
+    {
         let hostingView = NotchHoverHostingView(rootView: rootView)
         // Without this the hosting view installs its content's ideal size as window constraints and
         // a tall provider list grows the panel past the screen; the controller owns the frame.
         hostingView.sizingOptions = []
         hostingView.onMouseEntered = { [weak self] in
-            self?.handleMouseEntered()
+            self?.handleMouseEntered(region: region)
         }
         hostingView.onMouseExited = { [weak self] in
-            self?.handleMouseExited()
+            self?.handleMouseExited(region: region)
         }
         hostingView.wantsLayer = true
         hostingView.layer?.backgroundColor = NSColor.clear.cgColor
 
         let panel = NotchHoverPanel(
-            contentRect: collapsedFrame,
+            contentRect: frame,
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false,
@@ -245,13 +279,15 @@ final class NotchUsageOverlayController {
         panel.hidesOnDeactivate = false
         panel.becomesKeyOnlyIfNeeded = false
         panel.isExcludedFromWindowsMenu = true
-        panel.setFrame(collapsedFrame, display: false)
-        panel.orderFrontRegardless()
-        self.panel = panel
+        panel.setFrame(frame, display: false)
+        return panel
     }
 
-    private func handleMouseEntered() {
-        self.isPointerInside = true
+    private func handleMouseEntered(region: NotchHoverState.Region) {
+        guard self.isStarted, self.panel != nil, self.triggerPanel != nil,
+              region != .content || self.viewState.isExpanded,
+              self.hoverState.update(region, isInside: true) == .entered
+        else { return }
         self.collapseTask?.cancel()
         self.collapseTask = nil
         guard !self.viewState.isExpanded else { return }
@@ -267,8 +303,8 @@ final class NotchUsageOverlayController {
         }
     }
 
-    private func handleMouseExited() {
-        self.isPointerInside = false
+    private func handleMouseExited(region: NotchHoverState.Region) {
+        guard self.hoverState.update(region, isInside: false) == .exited else { return }
         if !self.viewState.isExpanded {
             self.hoverTask?.cancel()
             self.hoverTask = nil
@@ -289,8 +325,18 @@ final class NotchUsageOverlayController {
     }
 
     private func expandPanel() {
+        guard let panel = self.panel, self.triggerPanel != nil else { return }
+        self.hoverTask?.cancel()
+        self.hoverTask = nil
+        self.collapseTask?.cancel()
+        self.collapseTask = nil
+        self.hideTask?.cancel()
+        self.hideTask = nil
         self.viewState.isExpanded = true
         self.applyExpandedFrame()
+        panel.ignoresMouseEvents = false
+        panel.orderFrontRegardless()
+        self.hoverState.update(.content, isInside: panel.frame.contains(NSEvent.mouseLocation))
     }
 
     /// Usage snapshots keep arriving while the panel is open, so the frame is re-measured whenever
@@ -316,26 +362,27 @@ final class NotchUsageOverlayController {
     }
 
     private func collapsePanel() {
-        guard let panel = self.panel,
-              let screen = self.screen,
-              let notchRect = NotchGeometry.notchRect(for: screen)
-        else { return }
+        guard let panel = self.panel else { return }
 
+        self.hoverTask?.cancel()
+        self.hoverTask = nil
+        self.collapseTask?.cancel()
+        self.collapseTask = nil
+        self.hideTask?.cancel()
         self.viewState.isExpanded = false
-        let collapsedFrame = self.collapsedFrame(notchRect: notchRect, screen: screen)
-        self.collapseTask = Task { @MainActor [weak self, weak panel] in
+        // The closing animation must never leave an invisible mouse-active window behind.
+        panel.ignoresMouseEvents = true
+        self.hoverState.update(.content, isInside: false)
+        self.hideTask = Task { @MainActor [weak self, weak panel] in
             do {
                 try await Task.sleep(for: Self.collapseAnimation)
             } catch {
                 return
             }
-            // Restore whenever the panel is still collapsed. Gating this on pointer position
-            // instead would let a shortcut-collapse under a hovering pointer keep the expanded
-            // frame alive as an invisible click trap; a re-expansion flips `isExpanded` back
-            // (and cancels this task), so it can never fight a reopened panel.
-            guard let self, let panel, !Task.isCancelled, !self.viewState.isExpanded
+            guard let self, let panel, !Task.isCancelled, !self.viewState.isExpanded, self.panel === panel
             else { return }
-            panel.setFrame(collapsedFrame, display: true)
+            panel.orderOut(nil)
+            self.hideTask = nil
         }
     }
 
@@ -344,15 +391,19 @@ final class NotchUsageOverlayController {
         self.hoverTask = nil
         self.collapseTask?.cancel()
         self.collapseTask = nil
-        self.isPointerInside = false
+        self.hideTask?.cancel()
+        self.hideTask = nil
+        self.hoverState.clear()
         self.viewState.gridContentHeight = 0
         self.viewState.bandContentHeight = 0
         self.hotkeyState.clear()
         self.viewState.isExpanded = false
-        if let panel = self.panel {
+        let panels = [self.panel, self.triggerPanel].compactMap(\.self)
+        self.panel = nil
+        self.triggerPanel = nil
+        for panel in panels {
             panel.orderOut(nil)
             panel.close()
-            self.panel = nil
         }
         self.screen = nil
     }
@@ -397,14 +448,12 @@ final class NotchUsageOverlayController {
             contentHeight += min(bandNatural, CGFloat(self.settings.notchSessionsMaxHeight))
                 + NotchUsageOverlayContent.sectionSpacing
         }
-        contentHeight += NotchUsageOverlayContent.bottomPadding
+        contentHeight += NotchUsageOverlayContent.topPadding + NotchUsageOverlayContent.bottomPadding
 
-        let height = min(notchRect.height + contentHeight + Self.panelInset, screen.frame.height * 0.9)
-        let x = min(
-            max(notchRect.midX - width / 2, screen.frame.minX),
-            screen.frame.maxX - width)
-        let y = max(screen.frame.minY, screen.frame.maxY - height)
-        return CGRect(x: x, y: y, width: width, height: height)
+        return NotchGeometry.expandedContentFrame(
+            screenFrame: screen.frame,
+            notchRect: notchRect,
+            contentSize: CGSize(width: width, height: contentHeight + Self.panelInset))
     }
 
     /// Room the rounded background leaves inside the panel.
@@ -439,7 +488,7 @@ private final class NotchHoverPanel: NSPanel {
     }
 }
 
-private final class NotchHoverHostingView: NSHostingView<NotchUsageOverlayView> {
+private final class NotchHoverHostingView<Content: View>: NSHostingView<Content> {
     var onMouseEntered: (() -> Void)?
     var onMouseExited: (() -> Void)?
     private var trackingArea: NSTrackingArea?
