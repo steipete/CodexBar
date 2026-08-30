@@ -91,9 +91,6 @@
 - **Gemini shutdown guidance**: Google's consumer-tier shutdown response surfaces the Antigravity migration path again instead of a bare `HTTP 403` (#3139).
 - **Codex token parity with tokscale**: local token counts now match tokscale on cached usage, out-of-order events, and bare usage rows (#3120).
 
-### Added
-- Added an opt-in notch usage summary with its own Settings → Notch page: hovering the camera notch on a built-in display (or pressing an optional shortcut, toggle or hold) expands a dashboard with one tile per enabled provider — first-party and user plugins — showing up to four bars each: session, weekly, tertiary, and one extra window falling back to spend or Codex monthly credits. Tiles flow into a configurable number of columns, optionally with matched row heights, and drag-to-reorder controls their order. Running agent sessions get their own section: a full-width band above or below the providers, spread over the same columns. The provider grid and the session band each have their own maximum height, so one can scroll without pushing the other out of view, and the panel measures itself as usage lands. Off by default; the collapsed hover target is confined to the camera housing so menu extras stay clickable.
-
 ### Fixed
 - Gemini: recognize Google's live consumer-tier shutdown — an HTTP 200 `loadCodeAssist` body whose `ineligibleTiers` carries `UNSUPPORTED_CLIENT` — instead of surfacing the follow-up quota call as a bare `HTTP 403`, so the Antigravity migration guidance and the **Enable Antigravity provider** action appear; the login action also stops deleting `~/.gemini/oauth_creds.json` to launch a sign-in Google rejects (#3139). Thanks @betive37!
 - Merged Warp icons keep a present-but-unused bonus lane visible and an exhausted bonus in the missing-secondary layout, matching direct Warp rendering; the visible-zero sentinel now survives the renderer's tenth-percent cache quantization (#3165, #3166). Thanks @akshayprabhu200!
