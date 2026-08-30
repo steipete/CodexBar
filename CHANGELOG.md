@@ -1,27 +1,37 @@
 # Changelog
 
-## 0.56.1 — Unreleased
+## 0.56.2 — Unreleased
 
 ### Added
 - Menu bar: add an opt-in notch usage overlay with provider tiles, agent-session summaries, and a shortcut, keeping neighboring menu extras clickable (#3164). Thanks @wdmitchelluk!
 
 ### Fixed
 - Tests: isolate Cursor, Augment, Factory, and Notion saved sessions from user files, including test child processes, while preserving production storage and owner-only permissions.
-- Codex: publish completed cost catch-up from validated caches without starting another scan, preserve actual scan timestamps, and retain prior totals when native or Pi/OMP history is unavailable (partial follow-up to #3243). Thanks @zhulijin1991!
-- Antigravity: reuse a running `agy` by its verified executable path even when its command line uses a bare name, and preserve CLI sign-in guidance when an IDE fallback has no CSRF token (follow-up to #3146). Thanks @haixing23!
-- Codex: add redacted weekly-reset diagnostic reasons for candidate admission, expiry, and account-scoped storage requests without changing reset publication rules (investigated alongside #3248). Thanks @kcharlan!
-- Docs: distinguish OpenCode-backed Codex OAuth quota from unsupported OpenCode session cost imports, preserving existing provider and account boundaries (investigated alongside #3273). Thanks @pedrommone!
-- Privacy: honor “Hide personal information” for project/source names and paths in cost history and project names in Usage & Spend, preserving costs, tokens, and stored data (#3262). Thanks @vinschger!
-- Docs: document existing z.ai credit quotas and explain how to configure independent provider widgets.
-- Antigravity: expose the existing local token-history reader through CLI cost, serve, and dashboard selection, preserving unknown dollar costs and distinguishing unavailable from empty history in text output (investigated alongside #3266). Thanks @chid!
-- Docs: clarify the Codex cost-history refresh floor and explain that Manual stops recurring refreshes, not startup or pending catch-up scans.
-- Codex: preserve calendar spacing in inline cost charts, keep unscanned and unpriced days unknown, honor the selected bucket time zone, and fit year-long histories within the menu (#3232). Thanks @findwangdi!
-- Claude: price the documented Kimi `k3[1m]` context alias in local usage reports, including freshly downloaded prices, without changing model names or mixing provider catalogs; refresh affected Pi costs while preserving native Codex caches (investigated alongside #2374). Thanks @joeVenner!
-- Localization: translate missing Catalan iCloud, spend, and Plugins sidebar labels, restore the Projects translation, and align command labels and instructions with their UI roles (#3245). Thanks @pmontp19!
-- Keychain: apply saved disabled-access preferences before startup credential migration, including shared-defaults fallback, and keep deferred migrations retryable (investigated alongside #3249). Thanks @jaychou0642-create!
+
+## 0.56.1 — 2026-08-30
 
 ### Performance
-- Codex: build saved cost aggregates in one pass per file instead of rescanning history for every day/model, preserving costs and token totals (investigated alongside #3247). Thanks @robertoecf!
+- Codex: load saved cost totals in one pass per file instead of rescanning history for every day and model, preserving costs and token totals (follow-up to #3247). Thanks @robertoecf!
+
+### Fixed
+- Menu bar: preserve measured card heights across cached provider tabs, preventing plugin cards from clipping on the first tab switch after launch.
+- Privacy: honor “Hide personal information” for project/source names and paths in cost history and project names in Usage & Spend, preserving costs, tokens, and stored data (#3262). Thanks @vinschger!
+- Codex: show completed cost catch-up without starting another scan, preserve scan timestamps, and retain prior totals when native or Pi/OMP history is unavailable (partial follow-up to #3243). Thanks @zhulijin1991!
+- Codex: preserve calendar spacing in inline cost charts, keep unscanned and unpriced days unknown, honor the selected time zone, and fit year-long histories within the menu (#3232). Thanks @findwangdi!
+- Keychain: honor saved disabled-access preferences before startup credential migration, including shared settings, and keep deferred migrations retryable (investigated alongside #3249). Thanks @jaychou0642-create!
+- Antigravity: recognize an already-running `agy` even when its command line uses a bare name, and preserve CLI sign-in guidance when the IDE fallback is unavailable (follow-up to #3146). Thanks @haixing23!
+- Antigravity: make existing local token history available in CLI cost, serve, and dashboard selection, keeping unknown dollar costs and unavailable history distinct from zero usage (investigated alongside #3266). Thanks @chid!
+- Cursor: correctly decode BOM-less ASCII UTF-16LE app-token database values without changing other decoding or cached-account fallback rules (extracted from #2398). Thanks @markmay!
+- Claude: price the documented Kimi `k3[1m]` context alias in local usage reports and refresh affected Pi costs, without changing model names or native Codex caches (investigated alongside #2374). Thanks @joeVenner!
+- Localization: translate missing Catalan iCloud, spend, and Plugins sidebar labels, restore the Projects translation, and align command labels and instructions with their UI roles (#3245). Thanks @pmontp19!
+
+### Diagnostics
+- Codex: add redacted weekly-reset diagnostics for candidate admission, expiry, and account-scoped storage requests; reset publication rules are unchanged (investigated alongside #3248). Thanks @kcharlan!
+
+### Documentation
+- Clarify the Codex cost-history refresh floor and explain that Manual stops recurring refreshes, not startup or pending catch-up scans.
+- Distinguish OpenCode-backed Codex OAuth quota from unsupported OpenCode session cost imports, preserving provider and account boundaries (investigated alongside #3273). Thanks @pedrommone!
+- Document existing z.ai credit quotas and explain how to configure independent provider widgets.
 
 ## 0.56.0 — 2026-08-28
 

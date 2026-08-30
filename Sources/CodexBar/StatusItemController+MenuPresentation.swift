@@ -91,6 +91,7 @@ extension MenuCardHighlighting {
 @MainActor
 protocol MenuCardMeasuring: AnyObject {
     func measuredHeight(width: CGFloat) -> CGFloat
+    func applyMeasuredSize(width: CGFloat, height: CGFloat)
 }
 
 @MainActor
@@ -176,6 +177,7 @@ final class MenuRowContainerView: NSView, MenuCardHighlighting, MenuCardMeasurin
     let highlightState: MenuCardHighlightState
     let interactiveRegionStore: MenuCardInteractiveRegionStore
     private let hosting: MenuRowContentHostingView
+    private var measuredSize: NSSize?
     private var selectionView: NSVisualEffectView?
     private var tintFilter: CIFilter?
     private(set) var allowsMenuHighlight: Bool
@@ -201,7 +203,28 @@ final class MenuRowContainerView: NSView, MenuCardHighlighting, MenuCardMeasurin
 
     override var intrinsicContentSize: NSSize {
         let width = self.frame.width > 0 ? self.frame.width : NSView.noIntrinsicMetric
-        return NSSize(width: width, height: self.hosting.intrinsicContentSize.height)
+        return NSSize(width: width, height: self.measuredSize?.height ?? self.hosting.intrinsicContentSize.height)
+    }
+
+    override func setFrameSize(_ newSize: NSSize) {
+        let widthChanged = newSize.width != self.frame.width
+        if widthChanged {
+            self.measuredSize = nil
+        }
+        super.setFrameSize(newSize)
+        if widthChanged {
+            self.invalidateIntrinsicContentSize()
+        }
+    }
+
+    /// NSMenu uses intrinsic height even when a cached row has an explicit frame. Publish the
+    /// measurement here so a detached SwiftUI host cannot shrink the row on its first attachment.
+    func applyMeasuredSize(width: CGFloat, height: CGFloat) {
+        let size = NSSize(width: width, height: max(1, ceil(height)))
+        self.setFrameSize(size)
+        self.measuredSize = size
+        self.invalidateIntrinsicContentSize()
+        self.needsLayout = true
     }
 
     init(
@@ -237,6 +260,7 @@ final class MenuRowContainerView: NSView, MenuCardHighlighting, MenuCardMeasurin
     /// Rebuilds the erased SwiftUI root around this container's own state and interaction store.
     /// The outer NSView never detaches, even when switching between GPU and SwiftUI highlight modes.
     func replant(_ payload: MenuCardRowPayload, refreshMonitor: MenuCardRefreshMonitor?) {
+        self.measuredSize = nil
         self.rowPayload = payload
         self.allowsMenuHighlight = payload.allowsMenuHighlight
         self.containsInteractiveControls = payload.containsInteractiveControls

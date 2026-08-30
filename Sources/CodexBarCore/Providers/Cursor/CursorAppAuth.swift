@@ -306,6 +306,17 @@ struct CursorAppAuthStore: CursorAppAuthSessionProviding {
         case SQLITE_BLOB:
             guard let bytes = sqlite3_column_blob(stmt, index) else { return nil }
             let data = Data(bytes: bytes, count: Int(sqlite3_column_bytes(stmt, index)))
+            // ASCII UTF16LE is also valid UTF8 with NULs, so the fallback below cannot recognize it.
+            if data.count.isMultiple(of: 2),
+               stride(from: 0, to: data.count, by: 2).allSatisfy({
+                   (1..<128).contains(data[$0]) && data[$0 + 1] == 0
+               }),
+               let decoded = String(data: data, encoding: .utf16LittleEndian),
+               // Keep invalid-but-present tokens present: a missing session permits cached-account fallback.
+               !decoded.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            {
+                return decoded
+            }
             return String(data: data, encoding: .utf8)
                 ?? String(data: data, encoding: .utf16LittleEndian)
         default:
