@@ -43,7 +43,7 @@ struct NotchUsageSettingsTests {
             fetcher: UsageFetcher(),
             browserDetection: BrowserDetection(cacheTTL: 0),
             settings: settings)
-        let controller = NotchUsageOverlayController(store: usageStore, settings: settings)
+        let controller = NotchUsageOverlayController(store: usageStore, settings: settings, notchedScreen: { nil })
         let originalShortcut = KeyboardShortcuts.getShortcut(for: .showNotchOverlay)
 
         KeyboardShortcuts.removeHandler(for: .showNotchOverlay)

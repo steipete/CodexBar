@@ -5,7 +5,6 @@ import SwiftUI
 @Observable
 final class NotchUsageOverlayViewState {
     var isExpanded = false
-    var notchHeight: CGFloat = 0
     /// Height the provider grid wants at the panel's current width, reported from inside its
     /// scroll view where nothing clamps it. Zero until the first report.
     var gridContentHeight: CGFloat = 0
@@ -32,12 +31,14 @@ struct NotchBandHeightKey: PreferenceKey {
 /// Builds the two sections of the panel — the provider grid and the session band. Not a view
 /// itself: the live view and the controller's first-frame estimate both compose ``grid`` and
 /// ``band`` directly, so each section keeps its own height budget.
+@MainActor
 struct NotchUsageOverlayContent {
     /// Caps a single tile so one long provider message cannot stretch the whole panel.
     static let maximumTileWidth: CGFloat = 320
     static let columnSpacing: CGFloat = 14
     static let horizontalPadding: CGFloat = 14
     static let bottomPadding: CGFloat = 14
+    static let topPadding: CGFloat = 14
     /// Gap the panel stack puts between the band and the grid.
     static let sectionSpacing: CGFloat = 10
 
@@ -213,25 +214,22 @@ struct NotchUsageOverlayView: View {
             agentSessions: self.agentSessions)
         ZStack(alignment: .top) {
             if self.viewState.isExpanded {
-                VStack(alignment: .leading, spacing: 0) {
-                    Color.clear
-                        .frame(height: self.viewState.notchHeight)
-                    self.expanded(content: NotchUsageOverlayContent(model: model))
-                }
-                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                .padding(.horizontal, 4)
-                .padding(.bottom, 4)
-                .transition(.scale(scale: 0.4, anchor: .top).combined(with: .opacity))
-                .onPreferenceChange(NotchGridHeightKey.self) { height in
-                    MainActor.assumeIsolated {
-                        self.viewState.gridContentHeight = height
+                self.expanded(content: NotchUsageOverlayContent(model: model))
+                    .padding(.top, NotchUsageOverlayContent.topPadding)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .padding(.horizontal, 4)
+                    .padding(.bottom, 4)
+                    .transition(.scale(scale: 0.4, anchor: .top).combined(with: .opacity))
+                    .onPreferenceChange(NotchGridHeightKey.self) { height in
+                        MainActor.assumeIsolated {
+                            self.viewState.gridContentHeight = height
+                        }
                     }
-                }
-                .onPreferenceChange(NotchBandHeightKey.self) { height in
-                    MainActor.assumeIsolated {
-                        self.viewState.bandContentHeight = height
+                    .onPreferenceChange(NotchBandHeightKey.self) { height in
+                        MainActor.assumeIsolated {
+                            self.viewState.bandContentHeight = height
+                        }
                     }
-                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
