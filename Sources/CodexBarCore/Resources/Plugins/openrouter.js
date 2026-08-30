@@ -115,11 +115,21 @@ defineProvider({
       return degradationReason(error);
     }
 
+    function isOfficialAPIBase(value) {
+      const match = /^([A-Za-z][A-Za-z0-9+.-]*):\/\/([^/?#]+)(\/[^?#]*)?$/.exec(value);
+      if (!match) return false;
+      const scheme = match[1].toLowerCase();
+      const authority = match[2].toLowerCase();
+      const path = match[3] || "";
+      return (
+        scheme === "https" && (authority === "openrouter.ai" || authority === "openrouter.ai:443") && path === "/api/v1"
+      );
+    }
+
     // OpenRouter exposes the credential kind through /key. Accept a management key from the
     // legacy API-key slot only on the official API origin; a custom endpoint must never be able
     // to redirect that credential to OpenRouter Activity by claiming it is a management key.
-    const standardKeyIsOfficialManagementKey =
-      base === "https://openrouter.ai/api/v1" && keyData && keyData.is_management_key === true;
+    const standardKeyIsOfficialManagementKey = isOfficialAPIBase(base) && keyData && keyData.is_management_key === true;
     const activityCredentialConfigured = managementKeyConfigured || standardKeyIsOfficialManagementKey;
 
     if (!activityCredentialConfigured) {

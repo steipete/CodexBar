@@ -222,8 +222,12 @@ struct OpenRouterPluginGoldenTests {
         #expect(ordinary.allSatisfy { $0.value(forHTTPHeaderField: "Authorization") == "Bearer standard-key" })
     }
 
-    @Test
-    func `management key in standard slot fetches activity on official API`() async throws {
+    @Test(arguments: [
+        "https://openrouter.ai/api/v1",
+        "https://openrouter.ai:443/api/v1",
+        "HTTPS://OPENROUTER.AI/api/v1/",
+    ])
+    func `management key in standard slot fetches activity on official API`(apiURL: String) async throws {
         let requests = OpenRouterRequestRecorder()
         let activityBody = #"""
         {"data":[{
@@ -247,6 +251,7 @@ struct OpenRouterPluginGoldenTests {
             })
 
         let usage = try await runtime.fetchUsage(
+            settings: [OpenRouterSettingsReader.apiURLEnvironmentKey: apiURL],
             secrets: [OpenRouterSettingsReader.envKey: "management-key"],
             now: Date(timeIntervalSince1970: 1_787_079_600))
         let activityRequests = await requests.requests.filter { $0.url?.path.hasSuffix("/activity") == true }
@@ -261,8 +266,11 @@ struct OpenRouterPluginGoldenTests {
         #expect(usage.detailRow(label: "Models")?.secondaryValue == "openai/gpt-5.6")
     }
 
-    @Test
-    func `custom API cannot promote standard key to management activity`() async throws {
+    @Test(arguments: [
+        "https://proxy.example/api/v1",
+        "https://openrouter.ai:444/api/v1",
+    ])
+    func `custom API cannot promote standard key to management activity`(apiURL: String) async throws {
         let requests = OpenRouterRequestRecorder()
         let runtime = try ProviderPluginRuntime(
             bundledPlugin: "openrouter",
@@ -275,7 +283,7 @@ struct OpenRouterPluginGoldenTests {
             })
 
         let usage = try await runtime.fetchUsage(
-            settings: [OpenRouterSettingsReader.apiURLEnvironmentKey: "https://proxy.example/api/v1"],
+            settings: [OpenRouterSettingsReader.apiURLEnvironmentKey: apiURL],
             secrets: [OpenRouterSettingsReader.envKey: "proxy-key"])
         let activityRequests = await requests.requests.filter { $0.url?.path.hasSuffix("/activity") == true }
 
