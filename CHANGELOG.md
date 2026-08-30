@@ -2,6 +2,9 @@
 
 ## 0.56.2 — Unreleased
 
+### Fixed
+- Settings: keep pane titles readable above scrolling content on macOS Tahoe, without changing the edge-to-edge sidebar (#3253, fixes #3235). Thanks @ravsau!
+
 ## 0.56.1 — 2026-08-30
 
 ### Performance

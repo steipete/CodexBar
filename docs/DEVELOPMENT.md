@@ -106,6 +106,14 @@ CodexBar/
 
 ## Common Tasks
 
+### Settings Window Layout
+
+Keep title and scrolling policy at the shared Settings detail boundary. On macOS Tahoe,
+`SettingsDetailScrollEdgeEffect` places the pane title in a top safe-area bar and applies the native
+soft scroll-edge effect; older systems retain the native window title. `SettingsWindowAppearance`
+owns native title visibility for both initial creation and later appearance updates. Keep updating
+`NSWindow.title` even when hidden, and preserve the full-size content view for the edge-to-edge sidebar.
+
 ### Add a New Provider
 See the canonical [provider authoring guide](provider.md#adding-a-new-provider) for the complete flow.
 

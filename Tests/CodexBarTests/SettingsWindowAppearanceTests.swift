@@ -222,6 +222,47 @@ struct SettingsWindowAppearanceTests {
     }
 
     @Test
+    func `settings window uses the custom detail title on macOS 26`() {
+        let bridge = SettingsWindowAppearanceView()
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 400, height: 300),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false)
+
+        window.contentView = bridge
+
+        let expectedVisibility: NSWindow.TitleVisibility = if #available(macOS 26.0, *) {
+            .hidden
+        } else {
+            .visible
+        }
+        #expect(window.titleVisibility == expectedVisibility)
+        #expect(SettingsWindowAppearance.titleVisibility == expectedVisibility)
+    }
+
+    @Test
+    func `pane switches retain the native title while restoring its visibility policy`() {
+        let bridge = SettingsWindowAppearanceView()
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 800, height: 540),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false)
+        window.contentView = bridge
+
+        bridge.refreshWindowAppearance(for: .light, windowTitle: "General")
+        #expect(window.title == "General")
+        window.titleVisibility = SettingsWindowAppearance.titleVisibility == .hidden ? .visible : .hidden
+
+        bridge.refreshWindowAppearance(for: .dark, windowTitle: "Advanced")
+        #expect(window.title == "Advanced")
+        #expect(window.titleVisibility == SettingsWindowAppearance.titleVisibility)
+        #expect(window.titlebarAppearsTransparent)
+        #expect(window.styleMask.contains(.fullSizeContentView))
+    }
+
+    @Test
     func `repeated theme updates cannot leave an explicit appearance`() {
         let resetCapture = ResetCapture()
         let bridge = SettingsWindowAppearanceView { resetCapture.actions.append($0) }

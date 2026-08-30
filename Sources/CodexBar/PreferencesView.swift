@@ -108,6 +108,7 @@ struct PreferencesView: View {
                 .ignoresSafeArea()
 
             self.detailView
+                .modifier(SettingsDetailScrollEdgeEffect(title: self.selection.pane.title))
                 .frame(
                     maxWidth: SettingsPane.detailMaxWidth,
                     maxHeight: .infinity,
@@ -202,6 +203,26 @@ struct PreferencesView: View {
     }
 }
 
+private struct SettingsDetailScrollEdgeEffect: ViewModifier {
+    let title: String
+
+    func body(content: Content) -> some View {
+        if #available(macOS 26.0, *) {
+            content
+                .scrollEdgeEffectStyle(.soft, for: .top)
+                .safeAreaBar(edge: .top, spacing: 0) {
+                    Text(self.title)
+                        .font(.headline)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 12)
+                }
+        } else {
+            content
+        }
+    }
+}
+
 @MainActor
 enum SettingsWindowSizing {
     static func enforceMinimumSize(_ window: NSWindow) {
@@ -253,6 +274,15 @@ enum SettingsWindowStageBehavior {
 enum SettingsWindowAppearance {
     typealias ResetAction = @MainActor @Sendable () -> Void
     typealias ResetScheduler = @MainActor @Sendable (@escaping ResetAction) -> Void
+
+    static var titleVisibility: NSWindow.TitleVisibility {
+        // Tahoe renders the title inside the detail's safe-area bar, above scrolling content.
+        if #available(macOS 26.0, *) {
+            .hidden
+        } else {
+            .visible
+        }
+    }
 
     static func refresh(
         _ window: NSWindow,
@@ -375,8 +405,9 @@ final class SettingsWindowAppearanceView: NSView {
         if !window.titlebarAppearsTransparent {
             window.titlebarAppearsTransparent = true
         }
-        if window.titleVisibility != .visible {
-            window.titleVisibility = .visible
+        let expectedTitleVisibility = SettingsWindowAppearance.titleVisibility
+        if window.titleVisibility != expectedTitleVisibility {
+            window.titleVisibility = expectedTitleVisibility
         }
         if window.titlebarSeparatorStyle != .none {
             window.titlebarSeparatorStyle = .none
