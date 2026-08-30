@@ -230,6 +230,79 @@ struct AntigravityWarmAgyReuseTests {
     }
 
     @Test
+    func `warm reuse matches verified executable identity rather than argv spelling`() async throws {
+        let cases: [(command: String, executable: String?, reuses: Bool)] = [
+            ("agy", "/selected/agy", true),
+            ("agy --debug", "/selected/agy", true),
+            ("/selected/agy", "/other/agy", false),
+            ("agy", nil, false),
+            ("/selected/agy", nil, true),
+            ("/selected/agy-helper", nil, false),
+            ("/selected/agy", "agy", false),
+        ]
+        for fixture in cases {
+            let listeningPIDs = AntigravityWarmLockedValues<Int>()
+            let result = try await AntigravityCLIHTTPSFetchStrategy.tryWarmAgyFetch(
+                timeout: 2,
+                expectedBinaryPath: "/selected/agy",
+                dependencies: .init(
+                    processInfos: { _ in
+                        try AntigravityStatusProbe.processInfos(fromEntries: [.init(
+                            pid: 6150, command: fixture.command, executablePath: fixture.executable)])
+                    },
+                    listeningPorts: { pid, _ in
+                        listeningPIDs.append(pid)
+                        return [56789]
+                    },
+                    fetchSnapshot: { _, _ in Self.usableSnapshot(email: "selected@example.com") }))
+
+            #expect((result != nil) == fixture.reuses)
+            #expect(listeningPIDs.value == (fixture.reuses ? [6150] : []))
+        }
+    }
+
+    @Test
+    func `process scan keeps kernel identity separate from argv and preserves csrf checks`() throws {
+        let entries: [AntigravityStatusProbe.ProcessEntry] = [
+            .init(pid: 200, command: "agy --debug", executablePath: "/selected/agy"),
+            .init(
+                pid: 201,
+                command: "/Applications/Antigravity.app/language_server --app_data_dir antigravity",
+                executablePath: "/Applications/Antigravity.app/language_server"),
+        ]
+        let results = try AntigravityStatusProbe.processInfos(fromEntries: entries)
+
+        #expect(results.count == 1)
+        #expect(results.first?.commandLine == "agy --debug")
+        #expect(results.first?.executablePath == "/selected/agy")
+        #expect(throws: AntigravityStatusProbeError.missingCSRFToken) {
+            try AntigravityStatusProbe.processInfos(fromEntries: entries, scope: .appOnly)
+        }
+    }
+
+    @Test
+    func `warm reuse matches a selected symlink to the kernel executable path`() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("agy-identity-\(UUID())")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let executable = root.appendingPathComponent("actual agy")
+        let selected = root.appendingPathComponent("agy")
+        try Data("synthetic executable identity".utf8).write(to: executable)
+        try FileManager.default.createSymbolicLink(at: selected, withDestinationURL: executable)
+        let processes = try AntigravityStatusProbe.processInfos(fromEntries: [.init(
+            pid: 6150, command: "agy", executablePath: executable.resolvingSymlinksInPath().path)])
+        let result = try await AntigravityCLIHTTPSFetchStrategy.tryWarmAgyFetch(
+            timeout: 2,
+            expectedBinaryPath: selected.path,
+            dependencies: .init(
+                processInfos: { _ in processes },
+                listeningPorts: { _, _ in [56789] },
+                fetchSnapshot: { _, _ in Self.usableSnapshot(email: "selected@example.com") }))
+
+        #expect(result?.accountEmail == "selected@example.com")
+    }
+
+    @Test
     func `warm probe deadline is shared across discovery and candidates`() async throws {
         let clock = AntigravityWarmTestClock(date: Date(timeIntervalSince1970: 100))
         let listeningPortsCallCount = AntigravityWarmLockedCounter()

@@ -3,6 +3,7 @@
 ## 0.56.1 — Unreleased
 
 ### Fixed
+- Antigravity: reuse a running `agy` by its verified executable path even when its command line uses a bare name, and preserve CLI sign-in guidance when an IDE fallback has no CSRF token (follow-up to #3146). Thanks @haixing23!
 - Codex: add redacted weekly-reset diagnostic reasons for candidate admission, expiry, and account-scoped storage requests without changing reset publication rules (investigated alongside #3248). Thanks @kcharlan!
 - Docs: distinguish OpenCode-backed Codex OAuth quota from unsupported OpenCode session cost imports, preserving existing provider and account boundaries (investigated alongside #3273). Thanks @pedrommone!
 - Privacy: honor “Hide personal information” for project/source names and paths in cost history and project names in Usage & Spend, preserving costs, tokens, and stored data (#3262). Thanks @vinschger!
