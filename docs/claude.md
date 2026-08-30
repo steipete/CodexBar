@@ -247,6 +247,7 @@ Model-scoped weekly-window proof (synthetic data, no real accounts or credential
   - Matching assistant entry IDs within the same session are counted once across roots; distinct turns are retained.
 - Cache:
   - Native provider cache: `~/Library/Caches/CodexBar/cost-usage/claude-v6.json`
+  - Report memo: `~/Library/Caches/CodexBar/cost-usage/claude-v6.report-memo.json` (source stamps + daily report; reused across launches when transcripts and pricing are unchanged)
   - pi-compatible session cache: `~/Library/Caches/CodexBar/cost-usage/pi-sessions-v7.json`
 
 ## Key files

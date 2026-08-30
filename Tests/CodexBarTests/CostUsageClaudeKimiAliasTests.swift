@@ -148,10 +148,10 @@ struct CostUsageClaudeKimiAliasTests {
             #expect(row.totalTokens == 160)
             #expect(try abs(#require(row.costUSD) - 0.000385) < 1e-12)
             let metrics = recorder.snapshot()
-            #expect(metrics.cacheDecodes == 1)
+            #expect(metrics.cacheDecodes == (cold ? 0 : 1))
             #expect(metrics.transcriptParses == 0)
             #expect(metrics.cacheEncodes == 0)
-            #expect(metrics.repricedRows == 1)
+            #expect(metrics.repricedRows == (cold ? 0 : 1))
             #expect(try Data(contentsOf: cacheURL) == cacheBefore)
         }
     }

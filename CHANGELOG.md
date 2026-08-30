@@ -20,6 +20,7 @@
 
 ### Performance
 - Codex: build saved cost aggregates in one pass per file instead of rescanning history for every day/model, preserving costs and token totals (investigated alongside #3247). Thanks @robertoecf!
+- Claude: persist the local-cost report memo next to `claude-v6.json` so an unchanged transcript inventory skips the full JSON cache decode after launch (investigated alongside #3247).
 
 ## 0.56.0 — 2026-08-28
 

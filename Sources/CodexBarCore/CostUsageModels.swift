@@ -359,8 +359,8 @@ public struct CostUsageProjectSourceBreakdown: Sendable, Equatable {
     }
 }
 
-public struct CostUsageDailyReport: Sendable, Decodable {
-    public struct ModelBreakdown: Sendable, Decodable, Equatable {
+public struct CostUsageDailyReport: Sendable, Codable {
+    public struct ModelBreakdown: Sendable, Codable, Equatable {
         public let modelName: String
         public let costUSD: Double?
         public let totalTokens: Int?
@@ -443,9 +443,26 @@ public struct CostUsageDailyReport: Sendable, Decodable {
             self.standardTokens = standardTokens
             self.priorityTokens = priorityTokens
         }
+
+        public func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(self.modelName, forKey: .modelName)
+            try container.encodeIfPresent(self.costUSD, forKey: .costUSD)
+            try container.encodeIfPresent(self.totalTokens, forKey: .totalTokens)
+            try container.encodeIfPresent(self.requestCount, forKey: .requestCount)
+            try container.encodeIfPresent(self.inputTokens, forKey: .inputTokens)
+            try container.encodeIfPresent(self.outputTokens, forKey: .outputTokens)
+            try container.encodeIfPresent(self.cacheReadTokens, forKey: .cacheReadTokens)
+            try container.encodeIfPresent(self.cacheCreationTokens, forKey: .cacheCreationTokens)
+            try container.encodeIfPresent(self.reasoningTokens, forKey: .reasoningTokens)
+            try container.encodeIfPresent(self.standardCostUSD, forKey: .standardCostUSD)
+            try container.encodeIfPresent(self.priorityCostUSD, forKey: .priorityCostUSD)
+            try container.encodeIfPresent(self.standardTokens, forKey: .standardTokens)
+            try container.encodeIfPresent(self.priorityTokens, forKey: .priorityTokens)
+        }
     }
 
-    public struct Entry: Sendable, Decodable, Equatable {
+    public struct Entry: Sendable, Codable, Equatable {
         public let date: String
         public let inputTokens: Int?
         public let cacheReadTokens: Int?
@@ -591,6 +608,25 @@ public struct CostUsageDailyReport: Sendable, Decodable {
             self.pricedRequestCount = pricedRequestCount
         }
 
+        public func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(self.date, forKey: .date)
+            try container.encodeIfPresent(self.inputTokens, forKey: .inputTokens)
+            try container.encodeIfPresent(self.cacheReadTokens, forKey: .cacheReadTokens)
+            try container.encodeIfPresent(self.cacheCreationTokens, forKey: .cacheCreationTokens)
+            try container.encodeIfPresent(self.outputTokens, forKey: .outputTokens)
+            try container.encodeIfPresent(self.reasoningTokens, forKey: .reasoningTokens)
+            try container.encodeIfPresent(self.totalTokens, forKey: .totalTokens)
+            try container.encodeIfPresent(self.requestCount, forKey: .requestCount)
+            try container.encodeIfPresent(self.costUSD, forKey: .costUSD)
+            try container.encodeIfPresent(self.modelsUsed, forKey: .modelsUsed)
+            try container.encodeIfPresent(self.modelBreakdowns, forKey: .modelBreakdowns)
+            try container.encodeIfPresent(self.unpricedRequestCount, forKey: .unpricedRequestCount)
+            try container.encodeIfPresent(self.pricedRequestCount, forKey: .pricedRequestCount)
+            try container.encodeIfPresent(self.unmeteredRequestCount, forKey: .unmeteredRequestCount)
+            try container.encodeIfPresent(self.estimatedRequestCount, forKey: .estimatedRequestCount)
+        }
+
         private static func decodeModelsUsed(from container: KeyedDecodingContainer<CodingKeys>) -> [String]? {
             func decodeStringList(_ key: CodingKeys) -> [String]? {
                 (try? container.decodeIfPresent([String].self, forKey: key)).flatMap(\.self)
@@ -613,7 +649,7 @@ public struct CostUsageDailyReport: Sendable, Decodable {
         }
     }
 
-    public struct Summary: Sendable, Decodable, Equatable {
+    public struct Summary: Sendable, Codable, Equatable {
         public let totalInputTokens: Int?
         public let totalOutputTokens: Int?
         public let cacheReadTokens: Int?
@@ -669,6 +705,17 @@ public struct CostUsageDailyReport: Sendable, Decodable {
                 try container.decodeIfPresent(Double.self, forKey: .totalCostUSD)
                 ?? container.decodeIfPresent(Double.self, forKey: .totalCost)
         }
+
+        public func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encodeIfPresent(self.totalInputTokens, forKey: .totalInputTokens)
+            try container.encodeIfPresent(self.totalOutputTokens, forKey: .totalOutputTokens)
+            try container.encodeIfPresent(self.cacheReadTokens, forKey: .cacheReadTokens)
+            try container.encodeIfPresent(self.cacheCreationTokens, forKey: .cacheCreationTokens)
+            try container.encodeIfPresent(self.reasoningTokens, forKey: .reasoningTokens)
+            try container.encodeIfPresent(self.totalTokens, forKey: .totalTokens)
+            try container.encodeIfPresent(self.totalCostUSD, forKey: .totalCostUSD)
+        }
     }
 
     public let data: [Entry]
@@ -710,6 +757,13 @@ public struct CostUsageDailyReport: Sendable, Decodable {
     public init(data: [Entry], summary: Summary?) {
         self.data = data
         self.summary = summary
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode("codexbar-claude-report-memo", forKey: .type)
+        try container.encode(self.data, forKey: .data)
+        try container.encodeIfPresent(self.summary, forKey: .summary)
     }
 }
 

@@ -37,14 +37,15 @@ struct SpendDashboardFreshnessScannerTests {
         #expect(fixture.store.tokenSnapshot(for: .claude)?.daily.map(\.date) == ["2026-07-15"])
         #expect(fixture.store.tokenSnapshot(for: .claude)?.historyDays == 30)
 
-        // Claude persists JSON. Evict its memo and prove a cold read reuses that file without parsing transcripts.
+        // Claude persists a report memo. Evict the in-memory copy and prove a cold read reuses it
+        // without decoding the JSON cache or parsing transcripts.
         let cacheURL = CostUsageClaudeCacheIO.cacheFileURL(provider: .claude, cacheRoot: fixture.env.cacheRoot)
         #expect(FileManager.default.fileExists(atPath: cacheURL.path))
         CostUsageScanner.evictClaudeReportMemoForTesting(provider: .claude, cacheRoot: fixture.env.cacheRoot)
         let beforeCold = scanner.recorder.snapshot()
         let cold = try await scanner.load(days: 365)
         #expect(cold.daily == fixture.store.spendDashboardPublication.inputs.first?.snapshot.daily)
-        #expect(scanner.recorder.snapshot().cacheDecodes == beforeCold.cacheDecodes + 1)
+        #expect(scanner.recorder.snapshot().cacheDecodes == beforeCold.cacheDecodes)
         #expect(scanner.recorder.snapshot().transcriptParses == beforeCold.transcriptParses)
 
         let tomorrow = try #require(ISO8601DateFormatter().date(from: "2026-07-16T00:01:00Z"))

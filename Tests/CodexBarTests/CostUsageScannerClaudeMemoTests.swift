@@ -24,7 +24,27 @@ struct CostUsageScannerClaudeMemoTests {
     }
 
     @Test
-    func `cold process reuses unchanged files from the persisted cache`() throws {
+    func `cold process reuses the persisted report memo without decoding the cache`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 1)
+        _ = try self.writeEvent(env: env, day: day, path: "project/first.jsonl", id: "first", input: 10)
+        _ = try self.writeEvent(env: env, day: day, path: "project/second.jsonl", id: "second", input: 20)
+        let options = self.options(env: env)
+        let initial = self.load(day: day, options: options)
+        let memoURL = CostUsageClaudeReportMemo.reportMemoFileURL(cacheFileURL: self.cacheURL(env: env))
+        #expect(FileManager.default.fileExists(atPath: memoURL.path))
+        CostUsageScanner.evictClaudeReportMemoForTesting(provider: .claude, cacheRoot: env.cacheRoot)
+
+        let (restarted, metrics) = self.recordedLoad(day: day, options: options)
+
+        #expect(restarted.data == initial.data)
+        #expect(restarted.summary == initial.summary)
+        #expect(metrics == CostUsageScanner.ClaudeScanWorkMetrics())
+    }
+
+    @Test
+    func `missing persisted memo still decodes the cache without parsing transcripts`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
         let day = try env.makeLocalNoon(year: 2026, month: 7, day: 1)
@@ -33,6 +53,7 @@ struct CostUsageScannerClaudeMemoTests {
         let options = self.options(env: env)
         let initial = self.load(day: day, options: options)
         CostUsageScanner.evictClaudeReportMemoForTesting(provider: .claude, cacheRoot: env.cacheRoot)
+        CostUsageScanner.evictPersistedClaudeReportMemoForTesting(provider: .claude, cacheRoot: env.cacheRoot)
 
         let (restarted, metrics) = self.recordedLoad(day: day, options: options)
 
