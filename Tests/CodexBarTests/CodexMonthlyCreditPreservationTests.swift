@@ -349,6 +349,7 @@ extension CodexAccountScopedRefreshTests {
             canReauthenticate: false,
             canRemove: false)
         let usage = self.codexSnapshot(email: "biz@example.com", usedPercent: 12)
+        let candidate = CodexWeeklyResetPublicationCandidate(firstObservedAt: usage.updatedAt, snapshot: usage)
         store._setSnapshotForTesting(usage, provider: .codex)
         store.codexAccountSnapshots = [
             CodexAccountUsageSnapshot(
@@ -356,7 +357,8 @@ extension CodexAccountScopedRefreshTests {
                 snapshot: usage,
                 error: nil,
                 sourceLabel: "api",
-                credits: nil),
+                credits: nil,
+                weeklyResetCandidate: candidate),
         ]
         let published = CreditsSnapshot(
             remaining: 0,
@@ -374,12 +376,14 @@ extension CodexAccountScopedRefreshTests {
         await store.refreshCreditsIfNeeded()
         #expect(store.credits?.codexCreditLimit?.limit == 1000)
         #expect(store.codexAccountSnapshots.first?.credits?.codexCreditLimit?.used == 27)
+        #expect(store.codexAccountSnapshots.first?.weeklyResetCandidate?.createdAt == candidate.createdAt)
 
         store.credits = nil
         store.lastCreditsSnapshot = nil
         store.lastCreditsSource = .none
         store.persistPublishedCodexCreditsIntoAccountSnapshotsIfNeeded()
         #expect(store.codexAccountSnapshots.first?.credits == nil)
+        #expect(store.codexAccountSnapshots.first?.weeklyResetCandidate?.createdAt == candidate.createdAt)
     }
 
     @Test

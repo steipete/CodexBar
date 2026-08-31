@@ -77,19 +77,47 @@ extension CodexAccountScopedRefreshTests {
             settings: settings,
             suite: suite,
             snapshotStore: snapshotStore)
+        let refreshedCredits = CreditsSnapshot(remaining: 17, events: [], updatedAt: now)
+        var creditsLoadCount = 0
+        firstLowStore._test_codexCreditsLoaderOverride = {
+            creditsLoadCount += 1
+            return refreshedCredits
+        }
+        defer {
+            firstLowStore._test_codexCreditsLoaderOverride = nil
+            firstLowStore.cancelCodexPlanHistoryBackfill()
+        }
         self.installContextualCodexProvider(on: firstLowStore, sourceLabel: "oauth", kind: .oauth) { _ in
             try await firstLowLoader.load()
         }
+        var candidateAfterUsage: CodexWeeklyResetPublicationCandidate?
+        var candidateAfterCredits: CodexWeeklyResetPublicationCandidate?
         await CodexWeeklyResetConfirmation.$observationDateOverride.withValue(initialLow.updatedAt) {
-            await firstLowStore.refreshProvider(.codex, allowDisabled: true)
+            await firstLowStore.refreshCodexAccountScopedState(allowDisabled: true) { phase in
+                switch phase {
+                case .usage:
+                    candidateAfterUsage = firstLowStore.codexAccountSnapshots.first?.weeklyResetCandidate
+                case .credits:
+                    candidateAfterCredits = firstLowStore.codexAccountSnapshots.first?.weeklyResetCandidate
+                default:
+                    break
+                }
+            }
         }
 
+        #expect(creditsLoadCount == 1)
+        let admittedCandidate = try #require(candidateAfterUsage)
         #expect(firstLowStore.snapshots[.codex]?.updatedAt == prior.updatedAt)
         let persistedCandidate = try #require(snapshotStore.load(
             for: settings.codexVisibleAccountProjection.visibleAccounts).first)
         #expect(persistedCandidate.snapshot?.updatedAt == prior.updatedAt)
+        #expect(persistedCandidate.credits?.remaining == refreshedCredits.remaining)
         #expect(persistedCandidate.weeklyResetCandidate?.snapshot.updatedAt == confirmedLow.updatedAt)
         #expect(persistedCandidate.weeklyResetCandidate?.createdAt == initialLow.updatedAt)
+        let retainedCandidate = try #require(candidateAfterCredits)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        #expect(try encoder.encode(retainedCandidate) == encoder.encode(admittedCandidate))
 
         let laterLoader = SequencedCodexSnapshotLoader(steps: [.success(laterLow)])
         let relaunchedStore = self.makeCodexWeeklyPublicationStore(

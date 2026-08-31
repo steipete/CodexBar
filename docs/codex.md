@@ -42,6 +42,9 @@ Usage source picker:
 - Suspicious weekly resets keep the last trusted usage while confirmation is pending. A successful refresh for the
   same account and workspace clears stale connectivity errors even when the reading is withheld; failed, cancelled,
   or superseded refreshes do not clear them. Cached usage, credits, and other accounts remain unchanged.
+- Credits-only updates preserve pending weekly-reset evidence in memory and account-snapshot storage, including
+  when published credits are cleared. Candidate admission, expiry, boundary tolerances, and account guards remain
+  unchanged; preserving evidence does not make an otherwise incompatible reset eligible for publication.
 - Debug logs in `codex-weekly-reset-publication` include fixed reason codes for delayed-candidate
   creation, pruning, revalidation, and account-scoped storage requests. They distinguish source/confidence,
   timing, boundary, identity/plan compatibility, and credit-inventory failures without logging account or credit
