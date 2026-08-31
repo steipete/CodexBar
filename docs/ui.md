@@ -71,6 +71,10 @@ model-generic token label while the rendered menu-bar prefix and accessibility l
 - Claude capped Extra Usage follows the used/remaining fill preference; spending amounts and “% used” copy stay unchanged.
 - Codex OpenAI web extras: code review remaining and usage breakdown render when dashboard data is attached.
 - Token accounts: optional account switcher bar or stacked account cards (up to 6) when multiple manual tokens exist.
+- Token/cost, credit-usage breakdown, credits-history, and plan-history chart date labels retain their full text width
+  in narrow menus. Credits and plan history reserve plot-edge space to avoid clipping; token/cost and usage-breakdown
+  charts retain their automatic scale range. Shared styling uses a
+  bar-centered anchor, and each chart retains its own date formatting, domain, and tick-selection behavior.
 - Provider storage usage is opt-in from Advanced settings. When enabled, overview rows and provider detail cards can show
   local provider-owned storage totals, with a submenu for path breakdowns and copyable paths.
 

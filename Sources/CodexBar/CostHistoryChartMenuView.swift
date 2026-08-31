@@ -187,9 +187,8 @@ struct CostHistoryChartMenuView: View {
                         AxisTick().foregroundStyle(Color.clear)
                         if let date = value.as(Date.self) {
                             AxisValueLabel(anchor: ChartAxisLabelLayout.barCenteredAnchor) {
-                                Text(date, format: .dateTime.month(.abbreviated).day())
-                                    .font(.caption2)
-                                    .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
+                                ChartAxisLabelLayout.dateLabel(
+                                    Text(date, format: .dateTime.month(.abbreviated).day()))
                             }
                         }
                     }

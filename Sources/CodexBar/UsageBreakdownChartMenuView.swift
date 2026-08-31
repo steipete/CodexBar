@@ -94,9 +94,8 @@ struct UsageBreakdownChartMenuView: View {
                         AxisTick().foregroundStyle(Color.clear)
                         if let date = value.as(Date.self) {
                             AxisValueLabel(anchor: ChartAxisLabelLayout.barCenteredAnchor) {
-                                Text(date, format: .dateTime.month(.abbreviated).day())
-                                    .font(.caption2)
-                                    .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
+                                ChartAxisLabelLayout.dateLabel(
+                                    Text(date, format: .dateTime.month(.abbreviated).day()))
                             }
                         }
                     }
@@ -172,8 +171,12 @@ struct UsageBreakdownChartMenuView: View {
     }
 
     static func presentationState(hasSummary: Bool, hasChartPoints: Bool) -> PresentationState {
-        if hasChartPoints { return .chart }
-        if hasSummary { return .totalsOnly }
+        if hasChartPoints {
+            return .chart
+        }
+        if hasSummary {
+            return .totalsOnly
+        }
         return .empty
     }
 
@@ -242,7 +245,9 @@ struct UsageBreakdownChartMenuView: View {
             dayDates.append((dayKey: day.day, date: date))
             if day.totalCreditsUsed > 0 {
                 if let cur = peak {
-                    if day.totalCreditsUsed > cur.creditsUsed { peak = (date, day.totalCreditsUsed) }
+                    if day.totalCreditsUsed > cur.creditsUsed {
+                        peak = (date, day.totalCreditsUsed)
+                    }
                 } else {
                     peak = (date, day.totalCreditsUsed)
                 }
@@ -288,7 +293,9 @@ struct UsageBreakdownChartMenuView: View {
 
         return totals
             .sorted { lhs, rhs in
-                if lhs.value == rhs.value { return lhs.key < rhs.key }
+                if lhs.value == rhs.value {
+                    return lhs.key < rhs.key
+                }
                 return lhs.value > rhs.value
             }
             .map(\.key)
@@ -360,7 +367,9 @@ struct UsageBreakdownChartMenuView: View {
         geo: GeometryProxy)
     {
         guard let location else {
-            if self.selectedDayKey != nil { self.selectedDayKey = nil }
+            if self.selectedDayKey != nil {
+                self.selectedDayKey = nil
+            }
             return
         }
 
@@ -412,7 +421,9 @@ struct UsageBreakdownChartMenuView: View {
 
         let services = day.services
             .sorted { lhs, rhs in
-                if lhs.creditsUsed == rhs.creditsUsed { return lhs.service < rhs.service }
+                if lhs.creditsUsed == rhs.creditsUsed {
+                    return lhs.service < rhs.service
+                }
                 return lhs.creditsUsed > rhs.creditsUsed
             }
             .prefix(3)

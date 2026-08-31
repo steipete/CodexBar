@@ -54,14 +54,18 @@ struct CreditsHistoryChartMenuView: View {
                 }
                 .chartYAxis(.hidden)
                 .chartXAxis {
-                    AxisMarks(values: model.axisDates) { _ in
+                    AxisMarks(values: model.axisDates) { value in
                         AxisGridLine().foregroundStyle(Color.clear)
                         AxisTick().foregroundStyle(Color.clear)
-                        AxisValueLabel(format: .dateTime.month(.abbreviated).day())
-                            .font(.caption2)
-                            .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
+                        if let date = value.as(Date.self) {
+                            AxisValueLabel(anchor: ChartAxisLabelLayout.barCenteredAnchor) {
+                                ChartAxisLabelLayout.dateLabel(
+                                    Text(date.formatted(.dateTime.month(.abbreviated).day())))
+                            }
+                        }
                     }
                 }
+                .chartXScale(range: .plotDimension(padding: ChartAxisLabelLayout.dateLabelEdgePadding))
                 .chartLegend(.hidden)
                 .frame(height: 130)
                 .accessibilityLabel(L("Credits history chart"))

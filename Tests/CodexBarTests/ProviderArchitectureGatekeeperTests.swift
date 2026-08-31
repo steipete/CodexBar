@@ -1709,7 +1709,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact shared construct dispatches a provider-owned capability at the generic integration boundary."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/CostHistoryChartMenuView.swift",
-            line: 1116,
+            line: 1115,
             anchor: "let projects = provider == .codex ? snapshot.projects : []",
             expectedProviderIDs: ["codex"],
             expectedReferenceCount: 2,
