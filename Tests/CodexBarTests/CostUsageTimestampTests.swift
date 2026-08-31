@@ -104,7 +104,10 @@ struct CostUsageTimestampTests {
             until: #require(Self.historicalDate("2026-03-31T00:00:00Z")),
             calendar: calendar)
         let parsed = try CostUsageScanner.parseClaudeFileCancellable(
-            fileURL: file, range: range, providerFilter: .all, modelsDevCacheRoot: env.cacheRoot)
+            fileURL: file,
+            range: range,
+            providerFilter: .all,
+            pricingResolver: CostUsagePricing.ClaudeResolver(now: Date(), cacheRoot: env.cacheRoot))
         #expect(parsed.rows.count == timestamps.count)
         var expectedDays: [String: [String: [Int]]] = [:]
         for (index, text) in timestamps.enumerated() {

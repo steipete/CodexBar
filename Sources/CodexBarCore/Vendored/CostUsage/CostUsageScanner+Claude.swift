@@ -86,14 +86,15 @@ extension CostUsageScanner {
         modelsDevCatalog: ModelsDevCatalog? = nil,
         modelsDevCacheRoot: URL? = nil) -> ClaudeParseResult
     {
-        (
+        let pricingResolver = modelsDevCatalog.map { CostUsagePricing.ClaudeResolver(catalog: $0) }
+            ?? CostUsagePricing.ClaudeResolver(now: Date(), cacheRoot: modelsDevCacheRoot)
+        return (
             try? self.parseClaudeFileCancellable(
                 fileURL: fileURL,
                 range: range,
                 providerFilter: providerFilter,
                 startOffset: startOffset,
-                modelsDevCatalog: modelsDevCatalog,
-                modelsDevCacheRoot: modelsDevCacheRoot,
+                pricingResolver: pricingResolver,
                 checkCancellation: nil)) ?? ClaudeParseResult(days: [:], rows: [], parsedBytes: startOffset)
     }
 
@@ -102,14 +103,13 @@ extension CostUsageScanner {
         range: CostUsageDayRange,
         providerFilter: ClaudeLogProviderFilter,
         startOffset: Int64 = 0,
-        modelsDevCatalog: ModelsDevCatalog? = nil,
-        modelsDevCacheRoot: URL? = nil,
+        pricingResolver: CostUsagePricing.ClaudeResolver,
         checkCancellation: CancellationCheck? = nil) throws -> ClaudeParseResult
     {
         func add(dayKey: String, model: String, tokens: ClaudeTokens, days: inout [String: [String: [Int]]]) {
             guard CostUsageDayRange.isInRange(dayKey: dayKey, since: range.scanSinceKey, until: range.scanUntilKey)
             else { return }
-            let normModel = CostUsagePricing.normalizeClaudeModel(model)
+            let normModel = pricingResolver.normalize(model)
             var dayModels = days[dayKey] ?? [:]
             var packed = dayModels[normModel] ?? [0, 0, 0, 0, 0, 0, 0, 0]
             packed[0] = (packed[safe: 0] ?? 0) + tokens.input
@@ -193,16 +193,14 @@ extension CostUsageScanner {
                             return
                         }
 
-                        let cost = CostUsagePricing.claudeCostUSD(
+                        let cost = pricingResolver.costUSD(
                             model: model,
                             inputTokens: input,
                             cacheReadInputTokens: cacheRead,
                             cacheCreationInputTokens: cacheCreate,
                             cacheCreationInputTokens1h: cacheCreate1h,
                             outputTokens: output,
-                            pricingDate: timestamp,
-                            modelsDevCatalog: modelsDevCatalog,
-                            modelsDevCacheRoot: modelsDevCacheRoot)
+                            pricingDate: timestamp)
                         let costNanos = cost.map { Int(($0 * costScale).rounded()) } ?? 0
                         let tokens = ClaudeTokens(
                             input: input,
@@ -225,7 +223,7 @@ extension CostUsageScanner {
                             ?? obj["session_id"] as? String
                             ?? (obj["metadata"] as? [String: Any])?["sessionId"] as? String
                             ?? (message["metadata"] as? [String: Any])?["sessionId"] as? String
-                        let normalizedModel = CostUsagePricing.normalizeClaudeModel(model)
+                        let normalizedModel = pricingResolver.normalize(model)
                         let row = ClaudeUsageRow(
                             dayKey: dayKey,
                             model: normalizedModel,
@@ -542,27 +540,6 @@ extension CostUsageScanner {
         return [rootPath]
     }
 
-    private final class ClaudeModelsDevCatalogResolver {
-        private let now: Date
-        private let cacheRoot: URL?
-        private var catalog: ModelsDevCatalog?
-
-        init(now: Date, cacheRoot: URL?) {
-            self.now = now
-            self.cacheRoot = cacheRoot
-        }
-
-        func resolve() -> ModelsDevCatalog {
-            if let catalog = self.catalog {
-                return catalog
-            }
-            let catalog = CostUsagePricing.modelsDevCatalog(now: self.now, cacheRoot: self.cacheRoot)
-                ?? ModelsDevCatalog(providers: [:])
-            self.catalog = catalog
-            return catalog
-        }
-    }
-
     private struct ClaudeSourceFile {
         let url: URL
         let stamp: CostUsageClaudeFileStamp
@@ -582,8 +559,7 @@ extension CostUsageScanner {
         let providerFilter: ClaudeLogProviderFilter
         let forceFullScan: Bool
         let changedPaths: Set<String>
-        let modelsDevCatalogResolver: ClaudeModelsDevCatalogResolver
-        let modelsDevCacheRoot: URL?
+        let pricingResolver: CostUsagePricing.ClaudeResolver
         let checkCancellation: CancellationCheck?
 
         init(
@@ -592,8 +568,7 @@ extension CostUsageScanner {
             providerFilter: ClaudeLogProviderFilter,
             forceFullScan: Bool,
             changedPaths: Set<String>,
-            modelsDevCatalogResolver: ClaudeModelsDevCatalogResolver,
-            modelsDevCacheRoot: URL?,
+            pricingResolver: CostUsagePricing.ClaudeResolver,
             checkCancellation: CancellationCheck?)
         {
             self.cache = cache
@@ -601,8 +576,7 @@ extension CostUsageScanner {
             self.providerFilter = providerFilter
             self.forceFullScan = forceFullScan
             self.changedPaths = changedPaths
-            self.modelsDevCatalogResolver = modelsDevCatalogResolver
-            self.modelsDevCacheRoot = modelsDevCacheRoot
+            self.pricingResolver = pricingResolver
             self.checkCancellation = checkCancellation
         }
     }
@@ -625,6 +599,7 @@ extension CostUsageScanner {
             return
         }
 
+        state.pricingResolver.prepareCatalog()
         if let cached = state.cache.files[path], !state.forceFullScan {
             let startOffset = cached.parsedBytes ?? cached.size
             let canIncremental = size > cached.size && startOffset > 0 && startOffset <= size
@@ -638,8 +613,7 @@ extension CostUsageScanner {
                     range: state.range,
                     providerFilter: state.providerFilter,
                     startOffset: startOffset,
-                    modelsDevCatalog: state.modelsDevCatalogResolver.resolve(),
-                    modelsDevCacheRoot: state.modelsDevCacheRoot,
+                    pricingResolver: state.pricingResolver,
                     checkCancellation: state.checkCancellation)
                 let mergedRows = Self.mergeClaudeRows(existing: cached.claudeRows ?? [], delta: delta.rows)
                 state.cache.files[path] = Self.makeClaudeFileUsage(
@@ -658,8 +632,7 @@ extension CostUsageScanner {
             fileURL: url,
             range: state.range,
             providerFilter: state.providerFilter,
-            modelsDevCatalog: state.modelsDevCatalogResolver.resolve(),
-            modelsDevCacheRoot: state.modelsDevCacheRoot,
+            pricingResolver: state.pricingResolver,
             checkCancellation: state.checkCancellation)
         let usage = Self.makeClaudeFileUsage(
             mtimeMs: mtimeMs,
@@ -761,7 +734,7 @@ extension CostUsageScanner {
             && !cacheArtifactChanged
             && !scanConfigurationChanged
         let shouldMutateCache = shouldRefresh && (!hasStableProcessBaseline || options.forceRescan || windowExpanded)
-        let modelsDevCatalogResolver = ClaudeModelsDevCatalogResolver(now: now, cacheRoot: options.cacheRoot)
+        let pricingResolver = CostUsagePricing.ClaudeResolver(now: now, cacheRoot: options.cacheRoot)
 
         if shouldMutateCache {
             try checkCancellation?()
@@ -781,8 +754,7 @@ extension CostUsageScanner {
                 providerFilter: providerFilter,
                 forceFullScan: options.forceRescan || windowExpanded || scanConfigurationChanged,
                 changedPaths: changedPaths,
-                modelsDevCatalogResolver: modelsDevCatalogResolver,
-                modelsDevCacheRoot: options.cacheRoot,
+                pricingResolver: pricingResolver,
                 checkCancellation: checkCancellation)
 
             for path in inventory.files.keys.sorted() {
@@ -812,8 +784,7 @@ extension CostUsageScanner {
         let report = Self.buildClaudeReportFromCache(
             cache: cache,
             range: range,
-            modelsDevCatalogResolver: modelsDevCatalogResolver,
-            modelsDevCacheRoot: options.cacheRoot)
+            pricingResolver: pricingResolver)
         try checkCancellation?()
 
         let committedCacheStamp: CostUsageClaudeFileStamp? = if shouldMutateCache {
@@ -880,8 +851,7 @@ extension CostUsageScanner {
     private static func buildClaudeReportFromCache(
         cache: CostUsageCache,
         range: CostUsageDayRange,
-        modelsDevCatalogResolver: ClaudeModelsDevCatalogResolver,
-        modelsDevCacheRoot: URL? = nil) -> CostUsageDailyReport
+        pricingResolver: CostUsagePricing.ClaudeResolver) -> CostUsageDailyReport
     {
         var entries: [CostUsageDailyReport.Entry] = []
         var totalInput = 0
@@ -894,7 +864,9 @@ extension CostUsageScanner {
         let costScale = 1_000_000_000.0
         var repricedCosts: [ClaudeDayModelKey: ClaudeRepricedCost] = [:]
         let rows = Self.reconciledClaudeRows(cache: cache)
-        let modelsDevCatalog = rows.isEmpty ? nil : modelsDevCatalogResolver.resolve()
+        if !rows.isEmpty {
+            pricingResolver.prepareCatalog()
+        }
 
         for row in rows {
             #if DEBUG
@@ -904,7 +876,7 @@ extension CostUsageScanner {
             var aggregate = repricedCosts[key] ?? ClaudeRepricedCost()
             aggregate.sampleCount += 1
             let isPriced = row.costPriced ?? (row.costNanos > 0)
-            let currentPricingCost = CostUsagePricing.claudeCostUSD(
+            let currentPricingCost = pricingResolver.costUSD(
                 model: row.model,
                 inputTokens: row.input,
                 cacheReadInputTokens: row.cacheRead,
@@ -913,9 +885,7 @@ extension CostUsageScanner {
                 outputTokens: row.output,
                 pricingDate: row.timestampUnixMs.map {
                     Date(timeIntervalSince1970: Double($0) / 1000)
-                },
-                modelsDevCatalog: modelsDevCatalog,
-                modelsDevCacheRoot: modelsDevCacheRoot)
+                })
             let cost: Double? = if isPriced, row.costNanos == 0 {
                 0
             } else if let currentPricingCost {

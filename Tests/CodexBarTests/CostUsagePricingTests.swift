@@ -165,7 +165,8 @@ struct CostUsagePricingTests {
             model: "gpt-5.1-codex-max",
             inputTokens: 100,
             cachedInputTokens: 10,
-            outputTokens: 5)
+            outputTokens: 5,
+            modelsDevCatalog: ModelsDevCatalog(providers: [:]))
         #expect(cost != nil)
     }
 
@@ -175,7 +176,8 @@ struct CostUsagePricingTests {
             model: "gpt-5.3-codex",
             inputTokens: 100,
             cachedInputTokens: 10,
-            outputTokens: 5)
+            outputTokens: 5,
+            modelsDevCatalog: ModelsDevCatalog(providers: [:]))
         #expect(cost != nil)
     }
 
@@ -185,12 +187,14 @@ struct CostUsagePricingTests {
             model: "gpt-5.4-mini-2026-03-17",
             inputTokens: 100,
             cachedInputTokens: 10,
-            outputTokens: 5)
+            outputTokens: 5,
+            modelsDevCatalog: ModelsDevCatalog(providers: [:]))
         let nano = CostUsagePricing.codexCostUSD(
             model: "gpt-5.4-nano",
             inputTokens: 100,
             cachedInputTokens: 10,
-            outputTokens: 5)
+            outputTokens: 5,
+            modelsDevCatalog: ModelsDevCatalog(providers: [:]))
 
         #expect(mini != nil)
         #expect(nano != nil)
@@ -1095,7 +1099,8 @@ extension CostUsagePricingTests {
             inputTokens: 10,
             cacheReadInputTokens: 0,
             cacheCreationInputTokens: 0,
-            outputTokens: 5)
+            outputTokens: 5,
+            modelsDevCatalog: ModelsDevCatalog(providers: [:]))
         #expect(cost != nil)
     }
 
@@ -1106,7 +1111,8 @@ extension CostUsagePricingTests {
             inputTokens: 10,
             cacheReadInputTokens: 0,
             cacheCreationInputTokens: 0,
-            outputTokens: 5)
+            outputTokens: 5,
+            modelsDevCatalog: ModelsDevCatalog(providers: [:]))
         #expect(cost != nil)
     }
 
@@ -1117,7 +1123,8 @@ extension CostUsagePricingTests {
             inputTokens: 10,
             cacheReadInputTokens: 0,
             cacheCreationInputTokens: 0,
-            outputTokens: 5)
+            outputTokens: 5,
+            modelsDevCatalog: ModelsDevCatalog(providers: [:]))
         let expected = (10.0 * 5e-6) + (5.0 * 2.5e-5)
         #expect(cost == expected)
     }
@@ -1292,7 +1299,8 @@ extension CostUsagePricingTests {
             inputTokens: 100,
             cacheReadInputTokens: 500,
             cacheCreationInputTokens: 0,
-            outputTokens: 40)
+            outputTokens: 40,
+            modelsDevCatalog: ModelsDevCatalog(providers: [:]))
         #expect(cost == nil)
     }
 

@@ -934,7 +934,8 @@ struct CostUsageScannerTests {
         let firstParse = CostUsageScanner.parseClaudeFile(
             fileURL: fileURL,
             range: range,
-            providerFilter: .all)
+            providerFilter: .all,
+            modelsDevCacheRoot: env.cacheRoot)
         #expect(firstParse.parsedBytes > 0)
 
         let second: [String: Any] = [
@@ -956,7 +957,8 @@ struct CostUsageScannerTests {
             fileURL: fileURL,
             range: range,
             providerFilter: .all,
-            startOffset: firstParse.parsedBytes)
+            startOffset: firstParse.parsedBytes,
+            modelsDevCacheRoot: env.cacheRoot)
         let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: day)
         let packed = delta.days[dayKey]?[normalized] ?? []
         #expect(packed.count >= 4)

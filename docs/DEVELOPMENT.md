@@ -239,6 +239,31 @@ predicate used about half the CPU on ordinary nested metadata. Every daily token
 matched, including the existing unset public request counts. Fixture generation was outside timing;
 wall time was recorded separately under host load. These results do not measure idle-app CPU.
 
+Claude and Vertex scans share one synchronous invocation-owned pricing resolver across full/append file
+parsing, row/day normalization, and report repricing. It lazily snapshots the catalog, including an empty
+sentinel for unavailable artifacts, at the existing changed-file and nonempty-report preparation points.
+An exact report memo hit and an empty inventory with no rows do not load it. The internal standalone
+parser now owns one snapshot per parse, optionally supplied explicitly; the cancellable parser takes
+that owner directly. It does not reread pricing artifacts between rows.
+
+Normalization and positive/negative catalog lookup memos use exact decoded UTF-8 keys, preserving
+Unicode spelling, dated raw versus stored identities, and non-idempotent normalization. Each memo
+retains at most 1,024 entries per invocation; after saturation, uncached inputs still resolve normally.
+This bounds entry growth, not model-string bytes or scan work. Every row still selects its own dated
+tariff and context tier and runs the existing monetary arithmetic. Historical pricing short-circuits
+before model lookup. Independent scalar Pi/Cursor/direct pricing retains its uncached resolution path.
+Both callers share one private tariff-selection helper whose nonescaping lazy lookup closure runs only
+after historical selection. The scalar calls the original normalizer and lookup directly; the scan
+resolver supplies memoized resolution. Both use the original monetary calculation.
+
+DEBUG Claude scan metrics count normalization cache misses and actual catalog-model lookups with
+positive/negative outcomes; the first lookup still normalizes internally. `repricedRows` continues to
+count all rows. Measure through the synchronous scoped recorder because the public dispatch queue
+does not inherit TaskLocal instrumentation. Resolver and scanner memo tests exercise cross-file reuse,
+snapshot replacement, saturation, exact spelling, and report-only repricing against synthetic fixtures.
+The shared pricing source changes the generated Codex parser hash, but Codex algorithms are unchanged;
+`6366caa15c925349` remains an explicitly tested compatible predecessor.
+
 ### Adaptive refresh fixtures
 
 Heuristics and timer tests seed disabled providers through `testSettingsStore(config:)`, which saves the
