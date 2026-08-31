@@ -202,10 +202,25 @@ Claude scans of 20,000 messages (5,237,780 bytes) had median CPU time of 3.430 â
 wall time of 5.838 â†’ 2.107 seconds, with identical emitted token/cost totals and daily output. This
 measures ingestion through the public fetcher, not idle-app CPU or the entire Codex scan pipeline.
 
-Timestamp and append improvements do not eliminate all scan costs. Full SQLite cache reconstruction
-still decodes usage rows and rebuilds checkpoints, including semantic save comparisons under the writer
-lock. Priority trace aggregation also remains. Removing those costs needs separate ownership and
-concurrency proof; changing provider refresh cadence or scan budgets does not address them.
+Native Codex scans carry an opaque receipt from load to save. `CostUsageStore` owns one decoded persisted
+baseline and compact file/count metadata, releasing it on save, superseding loads, mutations, failures,
+or scan exit (including cancellation and debounce). Abandoned receipts also release through the actor.
+No raw historical SQL snapshot or transaction stays alive across JSONL scanning. Filesystem/device,
+anchor, and pending catch-up reconciliation rerun for comparisons; decoded reuse never freezes them.
+
+Reuse requires the same connection generation and database inode, SQLite's open-file identity check,
+same-connection `data_version`, own `total_changes`, and schema/parser metadata. Observations bracket
+a successfully committed short read transaction. Save checks again under `BEGIN IMMEDIATE`, after
+unchanged-path retention; external changes request a rescan without overwriting current content.
+Retention that rewrites identical metadata requires a fresh locked semantic comparison. Existing callers
+without a receipt read a fresh baseline at save and cannot establish freshness back to an earlier load.
+
+`CostUsageStoreReadWorkTests` counts full load/save cycles: an uncontended unchanged receipt cycle reads
+one full snapshot and decodes each usage row once, with one freshness write and no aggregate grouping
+visits. Synthetic interleavings cover writer races, mutations, retention, replacement and receipt lifetime.
+Initial decoding, semantic equality, filesystem reconciliation, report generation and priority aggregation
+still cost work proportional to retained history. These counters do not measure installed-app idle CPU;
+refresh cadence, scan budgets, timestamp parsing and incremental-order validation are unchanged.
 
 ### Adaptive refresh fixtures
 
