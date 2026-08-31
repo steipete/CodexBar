@@ -425,7 +425,7 @@ extension CostUsageScanner {
         }
     }
 
-    private static func isVertexAIUsageEntry(obj: [String: Any]) -> Bool {
+    static func isVertexAIUsageEntry(obj: [String: Any]) -> Bool {
         // Primary detection: Vertex AI message IDs and request IDs have "vrtx" prefix
         // e.g., "msg_vrtx_0154LUXjFVzQGUca3yK2RUeo", "req_vrtx_011CWjK86SWeFuXqZKUtgB1H"
         if let message = obj["message"] as? [String: Any],
@@ -449,30 +449,8 @@ extension CostUsageScanner {
             return true
         }
 
-        // Fallback: check for explicit Vertex AI metadata fields
-        var candidates: [[String: Any]] = [obj]
-        if let metadata = obj["metadata"] as? [String: Any] {
-            candidates.append(metadata)
-        }
-        if let request = obj["request"] as? [String: Any] {
-            candidates.append(request)
-        }
-        if let context = obj["context"] as? [String: Any] {
-            candidates.append(context)
-        }
-        if let client = obj["client"] as? [String: Any] {
-            candidates.append(client)
-        }
-        if let message = obj["message"] as? [String: Any] {
-            if let metadata = message["metadata"] as? [String: Any] {
-                candidates.append(metadata)
-            }
-            if let request = message["request"] as? [String: Any] {
-                candidates.append(request)
-            }
-        }
-
-        return candidates.contains { Self.containsVertexAIMetadata(in: $0) }
+        // The recursive walk already includes root and message metadata, requests, context, and client.
+        return Self.containsVertexAIMetadata(in: obj)
     }
 
     /// Detects Vertex AI model names by format.
@@ -487,13 +465,12 @@ extension CostUsageScanner {
 
     private static func containsVertexAIMetadata(in dict: [String: Any]) -> Bool {
         for (key, value) in dict {
-            let lowerKey = key.lowercased()
-            if lowerKey.contains("vertex") || lowerKey.contains("gcp") {
+            if self.containsClaudeVertexMarker(key, includeGCP: true) {
                 return true
             }
-            if Self.vertexProviderKeys.contains(lowerKey),
+            if self.vertexProviderKeys.contains(key.lowercased()),
                let text = value as? String,
-               Self.stringLooksVertex(text)
+               containsClaudeVertexMarker(text)
             {
                 return true
             }
@@ -523,8 +500,35 @@ extension CostUsageScanner {
         return false
     }
 
-    private static func stringLooksVertex(_ value: String) -> Bool {
-        value.lowercased().contains("vertex")
+    private static func containsClaudeVertexMarker(_ value: String, includeGCP: Bool = false) -> Bool {
+        let asciiMatch = value.utf8.withContiguousStorageIfAvailable { bytes -> Bool? in
+            // Validate the entire decoded string before matching: a later combining scalar can
+            // change Foundation's substring semantics even when the marker itself is ASCII.
+            guard bytes.allSatisfy({ $0 < 0x80 }) else { return nil }
+            for index in bytes.indices {
+                let first = bytes[index] | 0x20
+                if first == 0x76, index + 5 < bytes.count, // vertex
+                   bytes[index + 1] | 0x20 == 0x65,
+                   bytes[index + 2] | 0x20 == 0x72,
+                   bytes[index + 3] | 0x20 == 0x74,
+                   bytes[index + 4] | 0x20 == 0x65,
+                   bytes[index + 5] | 0x20 == 0x78
+                {
+                    return true
+                }
+                if includeGCP, first == 0x67, index + 2 < bytes.count, // gcp
+                   bytes[index + 1] | 0x20 == 0x63,
+                   bytes[index + 2] | 0x20 == 0x70
+                {
+                    return true
+                }
+            }
+            return false
+        }.flatMap(\.self)
+        if let asciiMatch { return asciiMatch }
+
+        let lower = value.lowercased()
+        return lower.contains("vertex") || (includeGCP && lower.contains("gcp"))
     }
 
     private static func claudeRootCandidates(for rootPath: String) -> [String] {

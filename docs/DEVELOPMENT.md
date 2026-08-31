@@ -222,6 +222,23 @@ Initial decoding, semantic equality, filesystem reconciliation, report generatio
 still cost work proportional to retained history. These counters do not measure installed-app idle CPU;
 refresh cadence, scan budgets, timestamp parsing and incremental-order validation are unchanged.
 
+Claude/Vertex metadata classification searches decoded ASCII strings with case-folded bytes, keeping
+the original Foundation lowercase/substring predicate for non-ASCII or noncontiguous strings. Check
+the whole string for ASCII before matching; combining characters after a marker can affect the old
+predicate. The recursive dictionary/array walk still visits the same content, but no longer repeats
+root/message metadata subtrees already visited through the root. `CostUsageClaudeVertexClassifierTests`
+compares with the frozen old predicate and checks complete filtered rows, daily tokens/costs, and reports,
+including decoded JSON escapes, Unicode boundaries, nested arrays, and false/numeric metadata flags.
+Claude-only source files are excluded from the Codex parser hash, so this optimization does not
+invalidate native Codex caches or change predecessor adoption.
+
+A second optimized synthetic check against main `354191af9` used three fresh-cache scans per provider
+with 32–128 KiB text bodies. Median CPU decreased by 3–18% across Claude/Vertex cases (the 3% case is
+small); a separate long-provider-string stress case decreased by 73–75%. The isolated decoded metadata
+predicate used about half the CPU on ordinary nested metadata. Every daily token component and cost
+matched, including the existing unset public request counts. Fixture generation was outside timing;
+wall time was recorded separately under host load. These results do not measure idle-app CPU.
+
 ### Adaptive refresh fixtures
 
 Heuristics and timer tests seed disabled providers through `testSettingsStore(config:)`, which saves the
