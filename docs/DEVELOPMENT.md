@@ -182,6 +182,31 @@ reads after setup has closed each file. This avoids per-file atomic publication 
 without changing corpus contents or scan budgets. The shared atomic fixture writer remains available
 for replacement and publication tests.
 
+### Cost scanner CPU regressions
+
+Profile the cost-scan queue separately from the main thread. A busy background scan that later settles
+does not establish an infinite loop. Native timestamp conversion uses Foundation's modern ISO parser
+for strict RFC3339 input, retaining the previous formatter's millisecond truncation and rounding.
+Historical spellings and malformed input keep the formatter fallback. Claude reuses the parsed date
+for local day projection only on the strict path.
+
+`CostUsageTimestampTests` compares exact dates with the prior formatter and checks local days, DST,
+deduplication, and dated pricing. `CostUsageTimestampOrderTests` and `CostUsageStoreCutoverTests` count
+timestamp comparisons: a known ordered prefix needs only the append boundary and new events; unknown
+prefixes get one cancellable validation. Keep these assertions deterministic rather than timing gates.
+Run these alongside scanner, cancellation, bounded-progress, fork, and performance-gate suites with
+the test harness's Keychain and credential-file isolation enabled.
+
+An optimized synthetic check on 2026-08-30 compared main `5a18e8ee9` with this change: three cold
+Claude scans of 20,000 messages (5,237,780 bytes) had median CPU time of 3.430 → 1.273 seconds and
+wall time of 5.838 → 2.107 seconds, with identical emitted token/cost totals and daily output. This
+measures ingestion through the public fetcher, not idle-app CPU or the entire Codex scan pipeline.
+
+Timestamp and append improvements do not eliminate all scan costs. Full SQLite cache reconstruction
+still decodes usage rows and rebuilds checkpoints, including semantic save comparisons under the writer
+lock. Priority trace aggregation also remains. Removing those costs needs separate ownership and
+concurrency proof; changing provider refresh cadence or scan budgets does not address them.
+
 ### Adaptive refresh fixtures
 
 Heuristics and timer tests seed disabled providers through `testSettingsStore(config:)`, which saves the

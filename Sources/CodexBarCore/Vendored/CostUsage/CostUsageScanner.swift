@@ -56,6 +56,7 @@ enum CostUsageScanner {
     struct CodexScanWorkMetrics: Equatable, Sendable {
         var usageRowsProcessed: Int
         var usageRowsRepriced: Int
+        var tokenTimestampComparisons: Int
         var cacheAliasEntriesIndexed: Int
         var cacheAliasLookups: Int
         var cacheAliasCandidatesVisited: Int
@@ -70,6 +71,7 @@ enum CostUsageScanner {
         private let lock = NSLock()
         private var processed = 0
         private var repriced = 0
+        private var tokenTimestampComparisons = 0
         private var cacheAliasEntriesIndexed = 0
         private var cacheAliasLookups = 0
         private var cacheAliasCandidatesVisited = 0
@@ -85,6 +87,10 @@ enum CostUsageScanner {
             self.processed += max(0, processed)
             self.repriced += max(0, repriced)
             self.lock.unlock()
+        }
+
+        func recordTokenTimestampComparison() {
+            self.lock.withLock { self.tokenTimestampComparisons += 1 }
         }
 
         func recordCacheAliasIndex(entries: Int) {
@@ -141,6 +147,7 @@ enum CostUsageScanner {
             return CodexScanWorkMetrics(
                 usageRowsProcessed: self.processed,
                 usageRowsRepriced: self.repriced,
+                tokenTimestampComparisons: self.tokenTimestampComparisons,
                 cacheAliasEntriesIndexed: self.cacheAliasEntriesIndexed,
                 cacheAliasLookups: self.cacheAliasLookups,
                 cacheAliasCandidatesVisited: self.cacheAliasCandidatesVisited,
@@ -869,25 +876,6 @@ enum CostUsageScanner {
             lastCheckpointOffset = endOffset
         }
         return checkpoints + appended
-    }
-
-    static func codexTokenTimestampsAreMonotonic(
-        _ events: [CostUsageCodexTokenSnapshot]) -> Bool
-    {
-        guard events.count > 1 else { return true }
-        for (previous, current) in zip(events, events.dropFirst()) {
-            let isOrdered: Bool = if let previousDate = Self.dateFromTimestamp(previous.timestamp),
-                                     let currentDate = Self.dateFromTimestamp(current.timestamp)
-            {
-                previousDate <= currentDate
-            } else {
-                previous.timestamp <= current.timestamp
-            }
-            if !isOrdered {
-                return false
-            }
-        }
-        return true
     }
 
     struct CodexScanResources {

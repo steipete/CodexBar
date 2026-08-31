@@ -172,11 +172,11 @@ extension CostUsageScanner {
                         else { return }
                         guard Self.matchesClaudeProviderFilter(obj: obj, filter: providerFilter) else { return }
 
-                        guard let tsText = obj["timestamp"] as? String, let timestamp = Self.dateFromTimestamp(tsText)
+                        guard let tsText = obj["timestamp"] as? String,
+                              let parsedTimestamp = Self.claudeTimestampAndDayKey(tsText, calendar: range.calendar)
                         else { return }
-                        guard let dayKey = Self.dayKeyFromTimestamp(tsText, calendar: range.calendar)
-                            ?? Self.dayKeyFromParsedISO(tsText, calendar: range.calendar)
-                        else { return }
+                        let timestamp = parsedTimestamp.date
+                        let dayKey = parsedTimestamp.dayKey
 
                         guard let message = obj["message"] as? [String: Any] else { return }
                         guard let model = message["model"] as? String else { return }

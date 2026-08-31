@@ -4,6 +4,8 @@
 
 ### Added
 - Menu bar: add an opt-in notch usage overlay with provider tiles, agent-session summaries, and a shortcut, keeping neighboring menu extras clickable (#3164). Thanks @wdmitchelluk!
+### Performance
+- Local costs: reduce background CPU spent parsing native session timestamps and validating appended Codex history, preserving timestamp precision, daily totals, and fork accounting.
 
 ### Fixed
 - Tests: isolate Cursor, Augment, Factory, and Notion saved sessions from user files, including test child processes, while preserving production storage and owner-only permissions.
