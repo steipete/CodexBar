@@ -10,6 +10,7 @@ public struct HuggingFaceSettingsReader: Sendable {
     ]
     public static let tokenPathEnvironmentKey = "HF_TOKEN_PATH"
     public static let homeEnvironmentKey = "HF_HOME"
+    public static let cacheHomeEnvironmentKey = "XDG_CACHE_HOME"
 
     public static func apiKey(
         environment: [String: String] = ProcessInfo.processInfo.environment,
@@ -41,8 +42,13 @@ public struct HuggingFaceSettingsReader: Sendable {
             return URL(fileURLWithPath: NSString(string: hfHome).expandingTildeInPath, isDirectory: true)
                 .appendingPathComponent("token", isDirectory: false)
         }
-        return homeDirectory
-            .appendingPathComponent(".cache", isDirectory: true)
+        // huggingface_hub derives its default home from XDG_CACHE_HOME before ~/.cache.
+        let cacheRoot: URL = if let xdgCacheHome = self.cleaned(environment[self.cacheHomeEnvironmentKey]) {
+            URL(fileURLWithPath: NSString(string: xdgCacheHome).expandingTildeInPath, isDirectory: true)
+        } else {
+            homeDirectory.appendingPathComponent(".cache", isDirectory: true)
+        }
+        return cacheRoot
             .appendingPathComponent("huggingface", isDirectory: true)
             .appendingPathComponent("token", isDirectory: false)
     }

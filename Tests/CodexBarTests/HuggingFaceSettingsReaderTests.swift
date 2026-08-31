@@ -87,6 +87,40 @@ struct HuggingFaceSettingsReaderTests {
     }
 
     @Test
+    func `xdg cache home is used when hf home is unset`() throws {
+        let directory = try Self.makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try Self.writeTokenFile(
+            at: directory.appendingPathComponent("xdg-cache/huggingface/token"),
+            contents: "hf_xdg_token")
+
+        let environment = ["XDG_CACHE_HOME": directory.appendingPathComponent("xdg-cache").path]
+        #expect(HuggingFaceSettingsReader.apiKey(
+            environment: environment,
+            homeDirectory: Self.emptyHome()) == "hf_xdg_token")
+    }
+
+    @Test
+    func `hf home override wins over xdg cache home`() throws {
+        let directory = try Self.makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try Self.writeTokenFile(
+            at: directory.appendingPathComponent("hf-home/token"),
+            contents: "hf_home_token")
+        try Self.writeTokenFile(
+            at: directory.appendingPathComponent("xdg-cache/huggingface/token"),
+            contents: "hf_xdg_token")
+
+        let environment = [
+            "HF_HOME": directory.appendingPathComponent("hf-home").path,
+            "XDG_CACHE_HOME": directory.appendingPathComponent("xdg-cache").path,
+        ]
+        #expect(HuggingFaceSettingsReader.apiKey(
+            environment: environment,
+            homeDirectory: Self.emptyHome()) == "hf_home_token")
+    }
+
+    @Test
     func `returns nil when nothing is configured`() throws {
         let home = try Self.makeTempDirectory()
         defer { try? FileManager.default.removeItem(at: home) }

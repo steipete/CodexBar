@@ -23,8 +23,8 @@ export HF_TOKEN="your-access-token"
 ```
 
 Token sources, in precedence order: CodexBar settings (`CODEXBAR_HUGGINGFACE_API_KEY`), `HF_TOKEN`,
-`HUGGING_FACE_HUB_TOKEN`, then the token saved by `hf auth login` (`$HF_TOKEN_PATH`, `$HF_HOME/token`, or
-`~/.cache/huggingface/token`).
+`HUGGING_FACE_HUB_TOKEN`, then the token saved by `hf auth login` (`$HF_TOKEN_PATH`, `$HF_HOME/token`,
+`$XDG_CACHE_HOME/huggingface/token`, or `~/.cache/huggingface/token`).
 
 Classic `read` tokens can read billing. Fine-grained tokens must have the **Billing read** permission or the billing
 endpoints return HTTP 403, which CodexBar surfaces with a pointer to this requirement.
