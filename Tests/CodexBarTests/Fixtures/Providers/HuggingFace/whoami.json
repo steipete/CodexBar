@@ -1,0 +1,10 @@
+{
+  "type": "user",
+  "id": "user-1",
+  "name": "codexbar-tester",
+  "fullname": "CodexBar Tester",
+  "email": "tester@example.com",
+  "isPro": true,
+  "periodEnd": 1756684800,
+  "orgs": []
+}
