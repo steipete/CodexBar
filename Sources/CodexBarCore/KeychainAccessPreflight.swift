@@ -88,7 +88,8 @@ public enum KeychainAccessPreflight {
         case allowed
         /// The item is readable, but its decrypt ACL does not trust the current executable.
         case interactionRequired
-        /// The attribute-only query could not complete without UI, for example while Keychain is locked.
+        /// The check could not complete without UI (for example a locked keychain), or the decrypt
+        /// ACL could not be inspected; unlike `interactionRequired`, nothing proved a stable rejection.
         case temporarilyUnavailable
         case notFound
         case failure(Int)
@@ -203,16 +204,27 @@ public enum KeychainAccessPreflight {
         let status = KeychainSecurity.copyMatching(query as CFDictionary, &result)
         switch status {
         case errSecSuccess:
-            guard let item = self.keychainItem(fromPreflightResult: result),
-                  self.decryptACLAllowsCurrentProcess(item: item)
-            else {
+            guard let item = self.keychainItem(fromPreflightResult: result) else {
+                self.log.info(
+                    "Keychain preflight could not inspect the item's decrypt ACL",
+                    metadata: ["service": service])
+                return .temporarilyUnavailable
+            }
+            switch self.evaluateDecryptACL(item: item) {
+            case .allowed:
+                self.log.debug("Keychain preflight allowed", metadata: ["service": service])
+                return .allowed
+            case .rejected:
                 self.log.info(
                     "Keychain preflight requires interaction for the current process",
                     metadata: ["service": service])
                 return .interactionRequired
+            case .indeterminate:
+                self.log.info(
+                    "Keychain preflight could not inspect the item's decrypt ACL",
+                    metadata: ["service": service])
+                return .temporarilyUnavailable
             }
-            self.log.debug("Keychain preflight allowed", metadata: ["service": service])
-            return .allowed
         case errSecItemNotFound:
             self.log.debug(
                 "Keychain preflight not found",
@@ -274,7 +286,16 @@ public enum KeychainAccessPreflight {
         return unsafeDowncast(value as AnyObject, to: SecKeychainItem.self)
     }
 
-    private static func decryptACLAllowsCurrentProcess(item: SecKeychainItem) -> Bool {
+    /// `.rejected` means validation ran to completion and no trusted application matched this
+    /// executable — a stable outcome. `.indeterminate` means inspection itself failed and the
+    /// result may differ on retry.
+    private enum DecryptACLEvaluation {
+        case allowed
+        case rejected
+        case indeterminate
+    }
+
+    private static func evaluateDecryptACL(item: SecKeychainItem) -> DecryptACLEvaluation {
         guard let copyItemAccess = self.securityFunction(
             named: "SecKeychainItemCopyAccess",
             as: SecKeychainItemCopyAccessFunction.self),
@@ -284,7 +305,7 @@ public enum KeychainAccessPreflight {
             let copyACLContents = self.securityFunction(
                 named: "SecACLCopyContents",
                 as: SecACLCopyContentsFunction.self)
-        else { return false }
+        else { return .indeterminate }
 
         var access: SecAccess?
         guard copyItemAccess(item, &access) == errSecSuccess,
@@ -292,16 +313,18 @@ public enum KeychainAccessPreflight {
               let rawACLs = copyMatchingACLs(access, kSecACLAuthorizationDecrypt)?.takeRetainedValue(),
               let acls = rawACLs as? [SecACL],
               !acls.isEmpty
-        else { return false }
+        else { return .indeterminate }
 
         let currentPaths = KeychainCacheStore.invokingApplicationPathsForCacheAccess()
-        guard !currentPaths.isEmpty else { return false }
+        guard !currentPaths.isEmpty else { return .indeterminate }
 
+        var inspectionIncomplete = false
         for acl in acls {
             var applications: CFArray?
             var description: CFString?
             var selector = SecKeychainPromptSelector()
             guard copyACLContents(acl, &applications, &description, &selector) == errSecSuccess else {
+                inspectionIncomplete = true
                 continue
             }
             guard let applications else {
@@ -309,11 +332,14 @@ public enum KeychainAccessPreflight {
                     trustedApplicationValidationResults: nil,
                     promptSelector: selector)
                 {
-                    return true
+                    return .allowed
                 }
                 continue
             }
-            guard let trustedApplications = applications as? [SecTrustedApplication] else { continue }
+            guard let trustedApplications = applications as? [SecTrustedApplication] else {
+                inspectionIncomplete = true
+                continue
+            }
             let validationResults = trustedApplications.flatMap { application in
                 currentPaths.map { currentPath in
                     self.trustedApplication(application, validatesExecutableAt: currentPath)
@@ -323,10 +349,10 @@ public enum KeychainAccessPreflight {
                 trustedApplicationValidationResults: validationResults,
                 promptSelector: selector)
             {
-                return true
+                return .allowed
             }
         }
-        return false
+        return inspectionIncomplete ? .indeterminate : .rejected
     }
 
     static func trustedApplication(

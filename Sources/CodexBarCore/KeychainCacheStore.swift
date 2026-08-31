@@ -129,7 +129,7 @@ public enum KeychainCacheStore {
             self.cacheInteractionRequired(for: key)
             return .interactionRequired
         case .temporarilyUnavailable:
-            self.log.info("Keychain cache temporarily locked (\(key.account)), will retry on next access")
+            self.log.info("Keychain cache temporarily unavailable (\(key.account)), will retry on next access")
             return .temporarilyUnavailable
         case .notFound:
             return .missing
