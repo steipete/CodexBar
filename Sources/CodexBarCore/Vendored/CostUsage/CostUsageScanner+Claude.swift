@@ -886,7 +886,7 @@ extension CostUsageScanner {
             modelsDevCacheRoot: modelsDevCacheRoot)
     }
 
-    static func buildClaudeReportFromCache(
+    private static func buildClaudeReportFromCache(
         cache: CostUsageCache,
         range: CostUsageDayRange,
         modelsDevCatalogResolver: ClaudeModelsDevCatalogResolver,
@@ -894,6 +894,7 @@ extension CostUsageScanner {
     {
         var entries: [CostUsageDailyReport.Entry] = []
         var hourlyBuckets: [Date: HourlyBucket] = [:]
+        var quotaSliceBuckets: [Date: HourlyBucket] = [:]
         var totalInput = 0
         var totalOutput = 0
         var totalCacheRead = 0
@@ -947,15 +948,15 @@ extension CostUsageScanner {
                 since: range.sinceKey,
                 until: range.untilKey)
             else { continue }
-            let timestamp = self.date(fromUnixMs: row.timestampUnixMs)
-                ?? CostUsageLocalDay.date(fromKey: row.dayKey, calendar: range.calendar)
-            guard let timestamp else { continue }
+            guard let timestamp = self.date(fromUnixMs: row.timestampUnixMs) else { continue }
             let hour = self.hourStart(for: timestamp, calendar: range.calendar)
-            var bucket = hourlyBuckets[hour] ?? HourlyBucket()
-            bucket.add(
-                tokens: row.input + row.cacheRead + row.cacheCreate + row.output,
-                costUSD: cost)
-            hourlyBuckets[hour] = bucket
+            let tokens = row.input + row.cacheRead + row.cacheCreate + row.output
+            var hourly = hourlyBuckets[hour] ?? HourlyBucket()
+            var timed = quotaSliceBuckets[timestamp] ?? HourlyBucket()
+            hourly.add(tokens: tokens, costUSD: cost)
+            timed.add(tokens: tokens, costUSD: cost)
+            hourlyBuckets[hour] = hourly
+            quotaSliceBuckets[timestamp] = timed
         }
 
         let dayKeys = cache.days.keys.sorted().filter {
@@ -1050,6 +1051,7 @@ extension CostUsageScanner {
         return CostUsageDailyReport(
             data: entries,
             summary: summary,
-            hourly: self.sortedHourlyEntries(hourlyBuckets))
+            hourly: self.sortedHourlyEntries(hourlyBuckets),
+            quotaSlices: self.sortedQuotaSlices(quotaSliceBuckets))
     }
 }

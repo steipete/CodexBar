@@ -1327,6 +1327,7 @@ public struct CostUsageFetcher: Sendable {
             projects: projects,
             sessions: sessions,
             hourly: daily.hourly,
+            quotaSlices: daily.quotaSlices,
             updatedAt: updatedAt ?? now)
     }
 

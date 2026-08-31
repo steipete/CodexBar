@@ -477,7 +477,7 @@ struct InlineCostHistoryDashboardLabelTests {
     @Test
     func `codex and claude show this week KPIs and previous week history`() throws {
         var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
         let now = try #require(calendar.date(from: DateComponents(
             timeZone: calendar.timeZone,
             year: 2026,
@@ -492,9 +492,9 @@ struct InlineCostHistoryDashboardLabelTests {
             hour: 15)))
         let metadata = try #require(ProviderDefaults.metadata[.codex])
         let tokenSnapshot = CostUsageTokenSnapshot(
-            sessionTokens: 1_000,
+            sessionTokens: 1000,
             sessionCostUSD: 10,
-            last30DaysTokens: 1_400,
+            last30DaysTokens: 1400,
             last30DaysCostUSD: 14,
             historyDays: 30,
             daily: [
@@ -515,14 +515,14 @@ struct InlineCostHistoryDashboardLabelTests {
                     date: "2026-07-13",
                     inputTokens: 800,
                     outputTokens: 200,
-                    totalTokens: 1_000,
+                    totalTokens: 1000,
                     costUSD: 10,
                     modelsUsed: ["gpt-5.4"],
                     modelBreakdowns: [
                         CostUsageDailyReport.ModelBreakdown(
                             modelName: "gpt-5.4",
                             costUSD: 10,
-                            totalTokens: 1_000),
+                            totalTokens: 1000),
                     ]),
             ],
             updatedAt: now)
@@ -587,7 +587,7 @@ struct InlineCostHistoryDashboardLabelTests {
     @Test
     func `quota window range labels use the reset instant and collapse same-day windows`() throws {
         var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
         let locale = Locale(identifier: "en_US")
         let start = try #require(calendar.date(from: DateComponents(
             timeZone: calendar.timeZone,
@@ -629,7 +629,7 @@ struct InlineCostHistoryDashboardLabelTests {
     @Test
     func `codex recent windows lists a short previous window after a banked reset`() throws {
         var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
         let now = try #require(calendar.date(from: DateComponents(
             timeZone: calendar.timeZone,
             year: 2026,

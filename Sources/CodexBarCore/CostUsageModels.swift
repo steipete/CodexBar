@@ -54,9 +54,8 @@ public struct CostUsageWindowSummary: Sendable, Equatable {
 ///
 /// When `resetAt` is known, windows line up with the live Weekly bar rather than a rolling
 /// calendar "last 7 days". Observed extra resets (official rollover plus a banked reset) become
-/// additional boundaries. Hour buckets split a reset day at the reset instant; each hour belongs
-/// to exactly one window. Daily-only snapshots fall back to exclusive day membership so a
-/// boundary calendar day is never counted twice.
+/// additional boundaries. Exact quota slices split a reset day at the reset instant. Coarser hour
+/// or day data is included only when its whole interval belongs to one window.
 public struct CostUsageQuotaWeek: Sendable, Equatable {
     public let offset: Int
     public let start: Date
@@ -135,6 +134,7 @@ public struct CostUsageSessionBreakdown: Sendable, Equatable, Identifiable {
     }
 }
 
+/// An hour-aligned bucket used by spend charts and legacy quota history.
 public struct CostUsageHourlyEntry: Sendable, Equatable {
     public let hour: Date
     public let totalTokens: Int?
@@ -142,6 +142,22 @@ public struct CostUsageHourlyEntry: Sendable, Equatable {
 
     public init(hour: Date, totalTokens: Int?, costUSD: Double?) {
         self.hour = hour
+        self.totalTokens = totalTokens
+        self.costUSD = costUSD
+    }
+}
+
+/// An exact event-time slice used to project local usage across quota reset boundaries.
+///
+/// Unlike ``CostUsageHourlyEntry``, `timestamp` is not rounded to a calendar hour. A nil metric
+/// means that metric is unknown for the event and must not be presented as a complete total.
+public struct CostUsageTimedEntry: Sendable, Equatable {
+    public let timestamp: Date
+    public let totalTokens: Int?
+    public let costUSD: Double?
+
+    public init(timestamp: Date, totalTokens: Int?, costUSD: Double?) {
+        self.timestamp = timestamp
         self.totalTokens = totalTokens
         self.costUSD = costUSD
     }
@@ -171,9 +187,10 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
     public let daily: [CostUsageDailyReport.Entry]
     public let projects: [CostUsageProjectBreakdown]
     public let sessions: [CostUsageSessionBreakdown]
-    /// Per-request hour buckets. Native Codex/Claude fill this from event timestamps so weekly
-    /// quota windows can split a mid-day reset; OpenCodex fills it from usage.jsonl.
+    /// Hour-aligned buckets for spend charts and legacy quota history.
     public let hourly: [CostUsageHourlyEntry]
+    /// Exact event-time slices for quota-window projection. Empty for legacy/coarse providers.
+    public let quotaSlices: [CostUsageTimedEntry]
     public let updatedAt: Date
 
     public init(
@@ -194,6 +211,7 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
         projects: [CostUsageProjectBreakdown] = [],
         sessions: [CostUsageSessionBreakdown] = [],
         hourly: [CostUsageHourlyEntry] = [],
+        quotaSlices: [CostUsageTimedEntry] = [],
         updatedAt: Date)
     {
         self.sessionTokens = sessionTokens
@@ -214,6 +232,7 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
         self.projects = projects
         self.sessions = sessions
         self.hourly = hourly
+        self.quotaSlices = quotaSlices
         self.updatedAt = updatedAt
     }
 
@@ -287,222 +306,6 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
             .map { self.summary(forLastDays: $0, calendar: calendar) }
     }
 
-    public static let quotaWeekMinutes = 7 * 24 * 60
-
-    /// Buckets local cost into consecutive quota windows.
-    ///
-    /// Pass the live Weekly `resetsAt` / `windowMinutes` to match the quota bar. When reset
-    /// metadata is missing, windows fall back to rolling calendar weeks ending tomorrow.
-    /// Hour entries use half-open `[start, end)` membership so a reset-day hour is never
-    /// counted in two weeks. Daily-only history uses the day's start instant the same way.
-    ///
-    /// `observedNextResets` are previously published Weekly `resetsAt` values (for example from
-    /// plan-utilization samples). An elapsed stored next-reset is treated as a real reset instant,
-    /// so an official rollover and a later banked reset on the same day become two windows instead
-    /// of one 7-day block. `observedResetInstants` are known start times such as a redeemed
-    /// reset-credit `redeemedAt`.
-    public func quotaWeekSummaries(
-        resetAt: Date?,
-        windowMinutes: Int? = nil,
-        observedNextResets: [Date] = [],
-        observedResetInstants: [Date] = [],
-        weekCount: Int = 4,
-        now: Date? = nil,
-        calendar: Calendar = .current) -> [CostUsageQuotaWeek]
-    {
-        let calendar = CostUsageLocalDay.gregorianCalendar(matching: calendar)
-        let now = now ?? self.updatedAt
-        let duration = TimeInterval(Self.normalizedQuotaWeekMinutes(windowMinutes) * 60)
-        let currentEnd = Self.currentQuotaWeekEnd(
-            resetAt: resetAt,
-            duration: duration,
-            now: now,
-            calendar: calendar)
-        let historyStart = calendar.date(
-            byAdding: .day,
-            value: -(max(1, self.historyDays) - 1),
-            to: calendar.startOfDay(for: self.updatedAt)) ?? self.updatedAt
-        let usesHourly = !self.hourly.isEmpty
-        let indexedDays: [(start: Date, entry: CostUsageDailyReport.Entry)] = usesHourly
-            ? []
-            : self.daily.compactMap { entry in
-                guard let dayKey = Self.localDayKey(for: entry.date, calendar: calendar),
-                      let dayStart = CostUsageLocalDay.date(fromKey: dayKey, calendar: calendar)
-                else { return nil }
-                return (dayStart, entry)
-            }
-
-        let count = max(1, min(weekCount, 8))
-        let boundaries = Self.quotaWeekBoundaries(
-            currentEnd: currentEnd,
-            duration: duration,
-            observedNextResets: observedNextResets,
-            observedResetInstants: observedResetInstants,
-            weekCount: count)
-        var weeks: [CostUsageQuotaWeek] = []
-        weeks.reserveCapacity(count)
-        var offset = 0
-        var endIndex = boundaries.count - 1
-        while offset < count, endIndex > 0 {
-            let end = boundaries[endIndex]
-            let start = boundaries[endIndex - 1]
-            endIndex -= 1
-            if offset > 0, end <= historyStart {
-                break
-            }
-            if usesHourly {
-                let hours = self.hourly.filter { hour in
-                    hour.hour >= start && hour.hour < end
-                }
-                let costs = hours.compactMap(\.costUSD)
-                let tokens = hours.compactMap(\.totalTokens)
-                weeks.append(CostUsageQuotaWeek(
-                    offset: offset,
-                    start: start,
-                    end: end,
-                    totalTokens: Self.summedInts(tokens),
-                    totalCostUSD: costs.isEmpty ? nil : costs.reduce(0, +),
-                    entryCount: hours.count))
-            } else {
-                let entries = indexedDays.compactMap { day -> CostUsageDailyReport.Entry? in
-                    guard day.start >= start, day.start < end else { return nil }
-                    return day.entry
-                }
-                let costs = entries.compactMap(\.costUSD)
-                let tokens = entries.compactMap(\.totalTokens)
-                weeks.append(CostUsageQuotaWeek(
-                    offset: offset,
-                    start: start,
-                    end: end,
-                    totalTokens: Self.summedInts(tokens),
-                    totalCostUSD: costs.isEmpty ? nil : costs.reduce(0, +),
-                    entryCount: entries.count))
-            }
-            offset += 1
-        }
-        return weeks
-    }
-
-    public static let quotaWeekBoundaryTolerance: TimeInterval = 2 * 60
-
-    /// Reconstructs quota-window edges from the live next reset plus any previously observed
-    /// Weekly `resetsAt` values or known reset instants.
-    public static func quotaWeekBoundaries(
-        liveNextReset: Date?,
-        observedNextResets: [Date],
-        observedResetInstants: [Date] = [],
-        windowMinutes: Int? = nil,
-        weekCount: Int = 4,
-        now: Date,
-        calendar: Calendar = .current) -> [Date]
-    {
-        let calendar = CostUsageLocalDay.gregorianCalendar(matching: calendar)
-        let duration = TimeInterval(self.normalizedQuotaWeekMinutes(windowMinutes) * 60)
-        let currentEnd = self.currentQuotaWeekEnd(
-            resetAt: liveNextReset,
-            duration: duration,
-            now: now,
-            calendar: calendar)
-        return self.quotaWeekBoundaries(
-            currentEnd: currentEnd,
-            duration: duration,
-            observedNextResets: observedNextResets,
-            observedResetInstants: observedResetInstants,
-            weekCount: max(1, min(weekCount, 8)))
-    }
-
-    private static func quotaWeekBoundaries(
-        currentEnd: Date,
-        duration: TimeInterval,
-        observedNextResets: [Date],
-        observedResetInstants: [Date],
-        weekCount: Int) -> [Date]
-    {
-        var dates: [Date] = [currentEnd, currentEnd.addingTimeInterval(-duration)]
-        dates.reserveCapacity(weekCount + 1 + observedNextResets.count * 2 + observedResetInstants.count)
-        for next in observedNextResets {
-            dates.append(next)
-            dates.append(next.addingTimeInterval(-duration))
-        }
-        dates.append(contentsOf: observedResetInstants)
-        let latestAllowed = currentEnd.addingTimeInterval(self.quotaWeekBoundaryTolerance)
-        var unique = self.uniqueSortedDates(dates, tolerance: self.quotaWeekBoundaryTolerance)
-            .filter { $0 <= latestAllowed }
-        if unique.last.map({ abs($0.timeIntervalSince(currentEnd)) < self.quotaWeekBoundaryTolerance }) != true {
-            unique.append(currentEnd)
-            unique = self.uniqueSortedDates(unique, tolerance: self.quotaWeekBoundaryTolerance)
-        }
-        let needed = weekCount + 1
-        var previousCount = -1
-        while unique.count < needed, duration > 0, unique.count != previousCount, let oldest = unique.first {
-            previousCount = unique.count
-            unique.insert(oldest.addingTimeInterval(-duration), at: 0)
-            unique = self.uniqueSortedDates(unique, tolerance: self.quotaWeekBoundaryTolerance)
-        }
-        return unique
-    }
-
-    private static func uniqueSortedDates(_ dates: [Date], tolerance: TimeInterval) -> [Date] {
-        let sorted = dates.sorted()
-        var unique: [Date] = []
-        unique.reserveCapacity(sorted.count)
-        for date in sorted {
-            if let last = unique.last, abs(date.timeIntervalSince(last)) < tolerance {
-                continue
-            }
-            unique.append(date)
-        }
-        return unique
-    }
-
-    public static func normalizedQuotaWeekMinutes(_ windowMinutes: Int?) -> Int {
-        let week = self.quotaWeekMinutes
-        guard let windowMinutes, (week - 24 * 60)...(week + 24 * 60) ~= windowMinutes else {
-            return week
-        }
-        return windowMinutes
-    }
-
-    public static func quotaWeekReset(from window: RateWindow?) -> Date? {
-        guard let window else { return nil }
-        if let minutes = window.windowMinutes {
-            let week = self.quotaWeekMinutes
-            guard (week - 24 * 60)...(week + 24 * 60) ~= minutes else { return nil }
-        }
-        return window.resetsAt
-    }
-
-    private static func currentQuotaWeekEnd(
-        resetAt: Date?,
-        duration: TimeInterval,
-        now: Date,
-        calendar: Calendar) -> Date
-    {
-        guard duration > 0 else {
-            return calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now)) ?? now
-        }
-        if let resetAt {
-            if resetAt > now {
-                return resetAt
-            }
-            let elapsed = now.timeIntervalSince(resetAt)
-            let periods = floor(elapsed / duration) + 1
-            return resetAt.addingTimeInterval(periods * duration)
-        }
-        return calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now)) ?? now
-    }
-
-    private static func summedInts(_ values: [Int]) -> Int? {
-        guard !values.isEmpty else { return nil }
-        var sum = 0
-        for value in values {
-            let (result, overflowed) = sum.addingReportingOverflow(value)
-            if overflowed { return nil }
-            sum = result
-        }
-        return sum
-    }
-
     public static func latestEntry(in entries: [CostUsageDailyReport.Entry]) -> CostUsageDailyReport.Entry? {
         entries.compactMap { entry -> (entry: CostUsageDailyReport.Entry, date: Date)? in
             guard let date = CostUsageDateParser.parse(entry.date) else { return nil }
@@ -542,7 +345,7 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
         }
     }
 
-    private static func localDayKey(for rawDate: String, calendar: Calendar) -> String? {
+    fileprivate static func localDayKey(for rawDate: String, calendar: Calendar) -> String? {
         let trimmed = rawDate.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.count >= 10 {
             let prefix = String(trimmed.prefix(10))
@@ -933,6 +736,7 @@ public struct CostUsageDailyReport: Sendable, Decodable {
     public let data: [Entry]
     public let summary: Summary?
     public let hourly: [CostUsageHourlyEntry]
+    public let quotaSlices: [CostUsageTimedEntry]
 
     private enum CodingKeys: String, CodingKey {
         case type
@@ -945,6 +749,7 @@ public struct CostUsageDailyReport: Sendable, Decodable {
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.hourly = []
+        self.quotaSlices = []
 
         if container.contains(.type) {
             _ = try container.decode(String.self, forKey: .type)
@@ -968,10 +773,16 @@ public struct CostUsageDailyReport: Sendable, Decodable {
         }
     }
 
-    public init(data: [Entry], summary: Summary?, hourly: [CostUsageHourlyEntry] = []) {
+    public init(
+        data: [Entry],
+        summary: Summary?,
+        hourly: [CostUsageHourlyEntry] = [],
+        quotaSlices: [CostUsageTimedEntry] = [])
+    {
         self.data = data
         self.summary = summary
         self.hourly = hourly
+        self.quotaSlices = quotaSlices
     }
 }
 
@@ -979,8 +790,10 @@ extension CostUsageDailyReport {
     private struct BreakdownAccumulator {
         var totalTokens: Int = 0
         var sawTotalTokens = false
+        var totalTokensAreComplete = true
         var costUSD: Double = 0
         var sawCost = false
+        var costIsComplete = true
         var standardCostUSD: Double = 0
         var sawStandardCost = false
         var priorityCostUSD: Double = 0
@@ -992,12 +805,34 @@ extension CostUsageDailyReport {
 
         mutating func add(_ breakdown: ModelBreakdown) {
             if let totalTokens = breakdown.totalTokens {
-                self.totalTokens += totalTokens
-                self.sawTotalTokens = true
+                if totalTokens < 0 {
+                    self.totalTokensAreComplete = false
+                } else {
+                    let (sum, overflowed) = self.totalTokens.addingReportingOverflow(totalTokens)
+                    if overflowed {
+                        self.totalTokensAreComplete = false
+                    } else {
+                        self.totalTokens = sum
+                        self.sawTotalTokens = true
+                    }
+                }
+            } else if (breakdown.requestCount ?? 0) > 0 || (breakdown.costUSD ?? 0) > 0 {
+                self.totalTokensAreComplete = false
             }
             if let costUSD = breakdown.costUSD {
-                self.costUSD += costUSD
-                self.sawCost = true
+                if !costUSD.isFinite || costUSD < 0 {
+                    self.costIsComplete = false
+                } else {
+                    let sum = self.costUSD + costUSD
+                    if sum.isFinite {
+                        self.costUSD = sum
+                        self.sawCost = true
+                    } else {
+                        self.costIsComplete = false
+                    }
+                }
+            } else if (breakdown.totalTokens ?? 0) > 0 || (breakdown.requestCount ?? 0) > 0 {
+                self.costIsComplete = false
             }
             if let standardCostUSD = breakdown.standardCostUSD {
                 self.standardCostUSD += standardCostUSD
@@ -1020,8 +855,8 @@ extension CostUsageDailyReport {
         func build(modelName: String) -> ModelBreakdown {
             ModelBreakdown(
                 modelName: modelName,
-                costUSD: self.sawCost ? self.costUSD : nil,
-                totalTokens: self.sawTotalTokens ? self.totalTokens : nil,
+                costUSD: self.sawCost && self.costIsComplete ? self.costUSD : nil,
+                totalTokens: self.sawTotalTokens && self.totalTokensAreComplete ? self.totalTokens : nil,
                 standardCostUSD: self.sawStandardCost ? self.standardCostUSD : nil,
                 priorityCostUSD: self.sawPriorityCost ? self.priorityCostUSD : nil,
                 standardTokens: self.sawStandardTokens ? self.standardTokens : nil,
@@ -1040,17 +875,45 @@ extension CostUsageDailyReport {
         var sawOutputTokens = false
         var totalTokens: Int = 0
         var sawTotalTokens = false
-        var derivedTotalTokensWithoutExplicitTotal: Int = 0
+        var totalTokensAreComplete = true
         var costUSD: Double = 0
         var sawCost = false
+        var costIsComplete = true
         var modelsUsed: Set<String> = []
         var breakdowns: [String: BreakdownAccumulator] = [:]
+        var coverage = CostUsageCoverageCounts()
 
         mutating func add(_ entry: Entry) {
+            let hasTokenComponents = entry.inputTokens != nil
+                || entry.cacheReadTokens != nil
+                || entry.cacheCreationTokens != nil
+                || entry.outputTokens != nil
+            let hasInvalidTokenComponent = [
+                entry.inputTokens,
+                entry.cacheReadTokens,
+                entry.cacheCreationTokens,
+                entry.outputTokens,
+            ].contains { value in
+                value.map { $0 < 0 } ?? false
+            }
             let entryDerivedTotalTokens = (entry.inputTokens ?? 0)
                 + (entry.cacheReadTokens ?? 0)
                 + (entry.cacheCreationTokens ?? 0)
                 + (entry.outputTokens ?? 0)
+            let resolvedTotalTokens = entry.totalTokens
+                ?? (hasTokenComponents ? entryDerivedTotalTokens : nil)
+            let coverage = entry.coverageCounts
+            let hasActiveBreakdown = entry.modelBreakdowns?.contains(where: { breakdown in
+                (breakdown.totalTokens ?? 0) > 0
+                    || (breakdown.requestCount ?? 0) > 0
+                    || (breakdown.costUSD ?? 0) > 0
+            }) == true
+            let hasActivity = (resolvedTotalTokens ?? 0) > 0
+                || (entry.requestCount ?? 0) > 0
+                || (entry.costUSD ?? 0) > 0
+                || coverage.total > 0
+                || hasActiveBreakdown
+                || entry.modelsUsed?.isEmpty == false
             if let inputTokens = entry.inputTokens {
                 self.inputTokens += inputTokens
                 self.sawInputTokens = true
@@ -1067,16 +930,46 @@ extension CostUsageDailyReport {
                 self.outputTokens += outputTokens
                 self.sawOutputTokens = true
             }
-            if let totalTokens = entry.totalTokens {
-                self.totalTokens += totalTokens
-                self.sawTotalTokens = true
-            } else if entryDerivedTotalTokens > 0 {
-                self.derivedTotalTokensWithoutExplicitTotal += entryDerivedTotalTokens
+            if hasInvalidTokenComponent {
+                self.totalTokensAreComplete = false
+            } else if let resolvedTotalTokens {
+                if resolvedTotalTokens < 0 {
+                    self.totalTokensAreComplete = false
+                } else {
+                    let (sum, overflowed) = self.totalTokens.addingReportingOverflow(resolvedTotalTokens)
+                    if overflowed {
+                        self.totalTokensAreComplete = false
+                    } else {
+                        self.totalTokens = sum
+                        self.sawTotalTokens = true
+                    }
+                }
+            } else if hasActivity {
+                self.totalTokensAreComplete = false
             }
+            let hasUnknownBreakdownCost = entry.modelBreakdowns?.contains(where: { breakdown in
+                breakdown.costUSD == nil
+                    && ((breakdown.totalTokens ?? 0) > 0 || (breakdown.requestCount ?? 0) > 0)
+            }) == true
             if let costUSD = entry.costUSD {
-                self.costUSD += costUSD
-                self.sawCost = true
+                if !costUSD.isFinite || costUSD < 0 {
+                    self.costIsComplete = false
+                } else {
+                    let sum = self.costUSD + costUSD
+                    if sum.isFinite {
+                        self.costUSD = sum
+                        self.sawCost = true
+                    } else {
+                        self.costIsComplete = false
+                    }
+                }
+            } else if hasActivity {
+                self.costIsComplete = false
             }
+            if hasUnknownBreakdownCost {
+                self.costIsComplete = false
+            }
+            self.coverage.merge(coverage)
             if let modelsUsed = entry.modelsUsed {
                 self.modelsUsed.formUnion(modelsUsed)
             }
@@ -1091,17 +984,9 @@ extension CostUsageDailyReport {
         }
 
         func build(date: String) -> Entry {
-            let derivedTotalTokens = self.inputTokens
-                + self.cacheReadTokens
-                + self.cacheCreationTokens
-                + self.outputTokens
-            let totalTokens: Int? = if self.sawTotalTokens {
-                self.totalTokens + self.derivedTotalTokensWithoutExplicitTotal
-            } else if derivedTotalTokens > 0 {
-                derivedTotalTokens
-            } else {
-                nil
-            }
+            let totalTokens = self.sawTotalTokens && self.totalTokensAreComplete
+                ? self.totalTokens
+                : nil
             let modelBreakdowns: [ModelBreakdown]? = {
                 guard !self.breakdowns.isEmpty else { return nil }
                 return CostUsageDailyReport.sortedModelBreakdowns(
@@ -1118,9 +1003,13 @@ extension CostUsageDailyReport {
                 cacheReadTokens: self.sawCacheReadTokens ? self.cacheReadTokens : nil,
                 cacheCreationTokens: self.sawCacheCreationTokens ? self.cacheCreationTokens : nil,
                 totalTokens: totalTokens,
-                costUSD: self.sawCost ? self.costUSD : nil,
+                costUSD: self.sawCost && self.costIsComplete ? self.costUSD : nil,
                 modelsUsed: modelsUsed,
-                modelBreakdowns: modelBreakdowns)
+                modelBreakdowns: modelBreakdowns,
+                unpricedRequestCount: self.coverage.unpriced > 0 ? self.coverage.unpriced : nil,
+                unmeteredRequestCount: self.coverage.unmetered > 0 ? self.coverage.unmetered : nil,
+                estimatedRequestCount: self.coverage.estimated > 0 ? self.coverage.estimated : nil,
+                pricedRequestCount: self.coverage.priced > 0 ? self.coverage.priced : nil)
         }
     }
 
@@ -1132,36 +1021,64 @@ extension CostUsageDailyReport {
         _ reports: [CostUsageDailyReport],
         calendar: Calendar = .current) -> CostUsageDailyReport
     {
-        let entries = self.mergedEntries(from: reports)
-        guard !entries.isEmpty else { return CostUsageDailyReport(data: [], summary: nil) }
+        let entries = self.mergedEntries(from: reports, calendar: calendar)
+        let mergedHourly = self.mergedHourly(from: reports, calendar: calendar)
+        let mergedQuotaSlices = self.mergedQuotaSlices(from: reports)
+        guard !entries.isEmpty || !mergedHourly.isEmpty || !mergedQuotaSlices.isEmpty else {
+            return CostUsageDailyReport(data: [], summary: nil)
+        }
         return CostUsageDailyReport(
             data: entries,
-            summary: self.mergedSummary(from: entries),
-            hourly: self.mergedHourly(from: reports, calendar: calendar))
+            summary: entries.isEmpty ? nil : self.mergedSummary(from: entries),
+            hourly: mergedHourly,
+            quotaSlices: mergedQuotaSlices)
     }
 
-    private struct HourlyAccumulator {
+    private struct TemporalAccumulator {
         var totalTokens = 0
         var sawTokens = false
+        var tokensAreComplete = true
         var costUSD = 0.0
         var sawCost = false
+        var costIsComplete = true
 
-        mutating func add(_ entry: CostUsageHourlyEntry) {
-            if let tokens = entry.totalTokens {
-                self.totalTokens += tokens
-                self.sawTokens = true
+        mutating func add(totalTokens: Int?, costUSD: Double?) {
+            if let totalTokens {
+                let (sum, overflowed) = self.totalTokens.addingReportingOverflow(totalTokens)
+                if overflowed {
+                    self.tokensAreComplete = false
+                } else {
+                    self.totalTokens = sum
+                    self.sawTokens = true
+                }
+            } else {
+                self.tokensAreComplete = false
             }
-            if let costUSD = entry.costUSD {
-                self.costUSD += costUSD
-                self.sawCost = true
+            if let costUSD, costUSD.isFinite {
+                let sum = self.costUSD + costUSD
+                if sum.isFinite {
+                    self.costUSD = sum
+                    self.sawCost = true
+                } else {
+                    self.costIsComplete = false
+                }
+            } else {
+                self.costIsComplete = false
             }
         }
 
         func build(hour: Date) -> CostUsageHourlyEntry {
             CostUsageHourlyEntry(
                 hour: hour,
-                totalTokens: self.sawTokens ? self.totalTokens : nil,
-                costUSD: self.sawCost ? self.costUSD : nil)
+                totalTokens: self.sawTokens && self.tokensAreComplete ? self.totalTokens : nil,
+                costUSD: self.sawCost && self.costIsComplete ? self.costUSD : nil)
+        }
+
+        func build(timestamp: Date) -> CostUsageTimedEntry {
+            CostUsageTimedEntry(
+                timestamp: timestamp,
+                totalTokens: self.sawTokens && self.tokensAreComplete ? self.totalTokens : nil,
+                costUSD: self.sawCost && self.costIsComplete ? self.costUSD : nil)
         }
     }
 
@@ -1169,46 +1086,74 @@ extension CostUsageDailyReport {
         from reports: [CostUsageDailyReport],
         calendar: Calendar) -> [CostUsageHourlyEntry]
     {
-        let hasHourly = reports.contains { !$0.hourly.isEmpty }
+        let hasHourly = reports.contains { !$0.hourly.isEmpty || !$0.quotaSlices.isEmpty }
         guard hasHourly else { return [] }
-        var buckets: [Date: HourlyAccumulator] = [:]
+        var buckets: [Date: TemporalAccumulator] = [:]
         for report in reports {
-            let hours = report.hourly.isEmpty
-                ? self.synthesizedHourly(from: report.data, calendar: calendar)
-                : report.hourly
-            for entry in hours {
-                var accumulator = buckets[entry.hour] ?? HourlyAccumulator()
-                accumulator.add(entry)
-                buckets[entry.hour] = accumulator
+            var reportHours = Set<Date>()
+            for entry in report.hourly {
+                let hour = calendar.dateInterval(of: .hour, for: entry.hour)?.start ?? entry.hour
+                reportHours.insert(hour)
+                var accumulator = buckets[hour] ?? TemporalAccumulator()
+                accumulator.add(totalTokens: entry.totalTokens, costUSD: entry.costUSD)
+                buckets[hour] = accumulator
+            }
+
+            // An exact-only source still contributes to the merged chart hour. This is a true
+            // event aggregation (not a daily/midnight synthesis) and ensures merged hourly is a
+            // superset before quota projection subtracts exact values to find legacy residuals.
+            var exactByHour: [Date: TemporalAccumulator] = [:]
+            for entry in report.quotaSlices {
+                let hour = calendar.dateInterval(of: .hour, for: entry.timestamp)?.start
+                    ?? entry.timestamp
+                guard !reportHours.contains(hour) else { continue }
+                var accumulator = exactByHour[hour] ?? TemporalAccumulator()
+                accumulator.add(totalTokens: entry.totalTokens, costUSD: entry.costUSD)
+                exactByHour[hour] = accumulator
+            }
+            for (hour, exact) in exactByHour {
+                let entry = exact.build(timestamp: hour)
+                var accumulator = buckets[hour] ?? TemporalAccumulator()
+                accumulator.add(totalTokens: entry.totalTokens, costUSD: entry.costUSD)
+                buckets[hour] = accumulator
             }
         }
         return buckets.keys.sorted().map { hour in
-            buckets[hour, default: HourlyAccumulator()].build(hour: hour)
+            buckets[hour, default: TemporalAccumulator()].build(hour: hour)
         }
     }
 
-    private static func synthesizedHourly(
-        from entries: [Entry],
-        calendar: Calendar) -> [CostUsageHourlyEntry]
+    private static func mergedQuotaSlices(
+        from reports: [CostUsageDailyReport]) -> [CostUsageTimedEntry]
     {
-        entries.compactMap { entry in
-            guard entry.costUSD != nil || entry.totalTokens != nil,
-                  let dayStart = CostUsageLocalDay.date(fromKey: entry.date, calendar: calendar)
-            else { return nil }
-            return CostUsageHourlyEntry(
-                hour: dayStart,
-                totalTokens: entry.totalTokens,
-                costUSD: entry.costUSD)
+        let hasQuotaSlices = reports.contains { !$0.quotaSlices.isEmpty }
+        guard hasQuotaSlices else { return [] }
+        var buckets: [Date: TemporalAccumulator] = [:]
+        for report in reports {
+            for entry in report.quotaSlices {
+                var accumulator = buckets[entry.timestamp] ?? TemporalAccumulator()
+                accumulator.add(totalTokens: entry.totalTokens, costUSD: entry.costUSD)
+                buckets[entry.timestamp] = accumulator
+            }
+        }
+        return buckets.keys.sorted().map { timestamp in
+            buckets[timestamp, default: TemporalAccumulator()].build(timestamp: timestamp)
         }
     }
 
-    private static func mergedEntries(from reports: [CostUsageDailyReport]) -> [Entry] {
+    private static func mergedEntries(
+        from reports: [CostUsageDailyReport],
+        calendar: Calendar) -> [Entry]
+    {
         var dayAccumulators: [String: EntryAccumulator] = [:]
         for report in reports {
             for entry in report.data {
-                var accumulator = dayAccumulators[entry.date] ?? EntryAccumulator()
+                let rawDate = entry.date.trimmingCharacters(in: .whitespacesAndNewlines)
+                let dayKey = CostUsageTokenSnapshot.localDayKey(for: rawDate, calendar: calendar)
+                    ?? rawDate
+                var accumulator = dayAccumulators[dayKey] ?? EntryAccumulator()
                 accumulator.add(entry)
-                dayAccumulators[entry.date] = accumulator
+                dayAccumulators[dayKey] = accumulator
             }
         }
 
@@ -1231,8 +1176,10 @@ extension CostUsageDailyReport {
         var sawTotalCacheCreationTokens = false
         var totalTokens = 0
         var sawTotalTokens = false
+        var totalTokensAreComplete = true
         var totalCostUSD = 0.0
         var sawTotalCostUSD = false
+        var totalCostIsComplete = true
 
         for entry in entries {
             if let inputTokens = entry.inputTokens {
@@ -1252,12 +1199,26 @@ extension CostUsageDailyReport {
                 sawTotalCacheCreationTokens = true
             }
             if let entryTotalTokens = entry.totalTokens {
-                totalTokens += entryTotalTokens
-                sawTotalTokens = true
+                let (sum, overflowed) = totalTokens.addingReportingOverflow(entryTotalTokens)
+                if overflowed {
+                    totalTokensAreComplete = false
+                } else {
+                    totalTokens = sum
+                    sawTotalTokens = true
+                }
+            } else {
+                totalTokensAreComplete = false
             }
             if let costUSD = entry.costUSD {
-                totalCostUSD += costUSD
-                sawTotalCostUSD = true
+                let sum = totalCostUSD + costUSD
+                if sum.isFinite {
+                    totalCostUSD = sum
+                    sawTotalCostUSD = true
+                } else {
+                    totalCostIsComplete = false
+                }
+            } else {
+                totalCostIsComplete = false
             }
         }
 
@@ -1266,8 +1227,8 @@ extension CostUsageDailyReport {
             totalOutputTokens: sawTotalOutputTokens ? totalOutputTokens : nil,
             cacheReadTokens: sawTotalCacheReadTokens ? totalCacheReadTokens : nil,
             cacheCreationTokens: sawTotalCacheCreationTokens ? totalCacheCreationTokens : nil,
-            totalTokens: sawTotalTokens ? totalTokens : nil,
-            totalCostUSD: sawTotalCostUSD ? totalCostUSD : nil)
+            totalTokens: sawTotalTokens && totalTokensAreComplete ? totalTokens : nil,
+            totalCostUSD: sawTotalCostUSD && totalCostIsComplete ? totalCostUSD : nil)
     }
 
     private static func sortedModelBreakdowns(_ breakdowns: [ModelBreakdown]) -> [ModelBreakdown] {

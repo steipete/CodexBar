@@ -1,6 +1,6 @@
-import CodexBarCore
 import Foundation
 import Testing
+@testable import CodexBarCore
 
 struct CostUsageQuotaWeekLinuxTests {
     @Test
@@ -35,8 +35,8 @@ struct CostUsageQuotaWeekLinuxTests {
             historyDays: 30,
             daily: [
                 Self.entry(day: "2026-07-08", cost: 4, tokens: 400),
-                Self.entry(day: "2026-07-13", cost: 10, tokens: 1_000),
-                Self.entry(day: "2026-07-20", cost: 99, tokens: 9_900),
+                Self.entry(day: "2026-07-13", cost: 10, tokens: 1000),
+                Self.entry(day: "2026-07-20", cost: 99, tokens: 9900),
             ],
             updatedAt: now)
 
@@ -48,7 +48,7 @@ struct CostUsageQuotaWeekLinuxTests {
         let previous = weeks.first { $0.offset == 1 }
 
         #expect(current?.totalCostUSD == 10)
-        #expect(current?.totalTokens == 1_000)
+        #expect(current?.totalTokens == 1000)
         #expect(previous?.totalCostUSD == 4)
         #expect(previous?.totalTokens == 400)
         #expect(weeks.contains { $0.totalCostUSD == 99 } == false)
@@ -68,9 +68,26 @@ struct CostUsageQuotaWeekLinuxTests {
 
         let weeks = snapshot.quotaWeekSummaries(resetAt: staleReset, calendar: Self.utcCalendar)
         #expect(weeks.first?.isCurrent == true)
-        #expect(weeks.first?.end > now)
+        #expect((weeks.first?.end ?? .distantPast) > now)
         #expect(weeks.first?.totalCostUSD == 8)
         #expect(weeks.first { $0.offset == 1 }?.totalCostUSD == 3)
+    }
+
+    @Test
+    func `live reset wins over a nearby earlier observed reset`() {
+        let liveReset = Self.utcDate(year: 2026, month: 7, day: 18, hour: 15)
+        let observedReset = liveReset.addingTimeInterval(-60)
+        let now = observedReset.addingTimeInterval(30)
+
+        let boundaries = CostUsageTokenSnapshot.quotaWeekBoundaries(
+            liveNextReset: liveReset,
+            observedNextResets: [observedReset],
+            weekCount: 2,
+            now: now,
+            calendar: Self.utcCalendar)
+
+        #expect(boundaries.last == liveReset)
+        #expect((boundaries.last ?? .distantPast) > now)
     }
 
     @Test
@@ -86,7 +103,7 @@ struct CostUsageQuotaWeekLinuxTests {
     }
 
     @Test
-    func `daily fallback assigns a reset day to exactly one week`() {
+    func `daily fallback fails closed when a reset splits a calendar day`() {
         let now = Self.utcDate(year: 2026, month: 7, day: 12, hour: 12)
         let resetAt = Self.utcDate(year: 2026, month: 7, day: 18, hour: 15)
         let snapshot = Self.snapshot(
@@ -104,11 +121,10 @@ struct CostUsageQuotaWeekLinuxTests {
         let current = weeks.first { $0.isCurrent }
         let previous = weeks.first { $0.offset == 1 }
 
-        #expect(current?.totalCostUSD == 2)
-        #expect(current?.totalTokens == 200)
-        #expect(previous?.totalCostUSD == 6)
-        #expect(previous?.totalTokens == 600)
-        #expect((current?.totalCostUSD ?? 0) + (previous?.totalCostUSD ?? 0) == 8)
+        #expect(current?.totalCostUSD == nil)
+        #expect(current?.totalTokens == nil)
+        #expect(previous?.totalCostUSD == nil)
+        #expect(previous?.totalTokens == nil)
     }
 
     @Test
@@ -159,7 +175,7 @@ struct CostUsageQuotaWeekLinuxTests {
         }
         let snapshot = Self.snapshot(
             historyDays: 30,
-            daily: [Self.entry(day: "2026-07-15", cost: Double(hours.count), tokens: hours.count * 10)],
+            daily: [],
             hourly: hours,
             updatedAt: now)
 
@@ -171,6 +187,68 @@ struct CostUsageQuotaWeekLinuxTests {
         let cost = weeks.compactMap(\.totalCostUSD).reduce(0, +)
         #expect(counted == hours.count)
         #expect(cost == Double(hours.count))
+    }
+
+    @Test
+    func `partial hourly coverage preserves complete daily totals across quota windows`() {
+        let now = Self.utcDate(year: 2026, month: 7, day: 15, hour: 12)
+        let resetAt = Self.utcDate(year: 2026, month: 7, day: 18, hour: 15)
+        let snapshot = Self.snapshot(
+            historyDays: 30,
+            daily: [
+                Self.entry(day: "2026-07-08", cost: 4, tokens: 400),
+                Self.entry(day: "2026-07-13", cost: 10, tokens: 1000),
+            ],
+            hourly: [
+                // Only part of the current day's known daily total has hour-level evidence.
+                CostUsageHourlyEntry(
+                    hour: Self.utcDate(year: 2026, month: 7, day: 13, hour: 12),
+                    totalTokens: 600,
+                    costUSD: 6),
+            ],
+            updatedAt: now)
+
+        let weeks = snapshot.quotaWeekSummaries(
+            resetAt: resetAt,
+            windowMinutes: CostUsageTokenSnapshot.quotaWeekMinutes,
+            calendar: Self.utcCalendar)
+        let current = weeks.first { $0.isCurrent }
+        let previous = weeks.first { $0.offset == 1 }
+
+        #expect(current?.totalCostUSD == 10)
+        #expect(current?.totalTokens == 1000)
+        #expect(previous?.totalCostUSD == 4)
+        #expect(previous?.totalTokens == 400)
+        #expect(weeks.compactMap(\.totalCostUSD).reduce(0, +) == 14)
+        #expect(weeks.compactMap(\.totalTokens).reduce(0, +) == 1400)
+    }
+
+    @Test
+    func `unknown hourly cost keeps the quota window total unknown`() {
+        let now = Self.utcDate(year: 2026, month: 7, day: 15, hour: 12)
+        let resetAt = Self.utcDate(year: 2026, month: 7, day: 18, hour: 15)
+        let snapshot = Self.snapshot(
+            historyDays: 30,
+            daily: [Self.entry(day: "2026-07-13", cost: nil, tokens: 300)],
+            hourly: [
+                CostUsageHourlyEntry(
+                    hour: Self.utcDate(year: 2026, month: 7, day: 13, hour: 10),
+                    totalTokens: 100,
+                    costUSD: 2),
+                CostUsageHourlyEntry(
+                    hour: Self.utcDate(year: 2026, month: 7, day: 13, hour: 11),
+                    totalTokens: 200,
+                    costUSD: nil),
+            ],
+            updatedAt: now)
+
+        let current = snapshot.quotaWeekSummaries(
+            resetAt: resetAt,
+            windowMinutes: CostUsageTokenSnapshot.quotaWeekMinutes,
+            calendar: Self.utcCalendar).first { $0.isCurrent }
+
+        #expect(current?.totalCostUSD == nil)
+        #expect(current?.totalTokens == 300)
     }
 
     @Test
@@ -186,7 +264,7 @@ struct CostUsageQuotaWeekLinuxTests {
     }
 
     @Test
-    func `merged report keeps hourly buckets and synthesizes daily-only sources`() {
+    func `merged report keeps real hourly data without synthesizing midnight residuals`() {
         let hour = Self.utcDate(year: 2026, month: 7, day: 11, hour: 15)
         let native = CostUsageDailyReport(
             data: [
@@ -215,13 +293,311 @@ struct CostUsageQuotaWeekLinuxTests {
             summary: nil)
 
         let merged = CostUsageDailyReport.merged([native, pi], calendar: Self.utcCalendar)
-        #expect(merged.hourly.count == 2)
+        #expect(merged.hourly.count == 1)
         let resetHour = merged.hourly.first { $0.hour == hour }
         let midnight = merged.hourly.first { $0.hour == Self.utcDate(year: 2026, month: 7, day: 11, hour: 0) }
         #expect(resetHour?.costUSD == 1.2)
         #expect(resetHour?.totalTokens == 120)
-        #expect(midnight?.costUSD == 0.3)
-        #expect(midnight?.totalTokens == 15)
+        #expect(midnight == nil)
+
+        let now = Self.utcDate(year: 2026, month: 7, day: 11, hour: 20)
+        let snapshot = CostUsageFetcher.tokenSnapshot(
+            from: merged,
+            now: now,
+            historyDays: 30,
+            calendar: Self.utcCalendar)
+        #expect(snapshot.hourly == native.hourly)
+        let current = snapshot.quotaWeekSummaries(
+            resetAt: Self.utcDate(year: 2026, month: 7, day: 12, hour: 0),
+            windowMinutes: CostUsageTokenSnapshot.quotaWeekMinutes,
+            now: now,
+            calendar: Self.utcCalendar).first { $0.isCurrent }
+
+        #expect(current?.totalCostUSD == 1.5)
+        #expect(current?.totalTokens == 135)
+    }
+
+    @Test
+    func `merged daily normalizes day-only and ISO dates to one local day`() {
+        let calendar = Self.losAngelesCalendar
+        let merged = CostUsageDailyReport.merged(
+            [
+                CostUsageDailyReport(
+                    data: [Self.entry(day: "2026-07-11", cost: 1, tokens: 100)],
+                    summary: nil),
+                CostUsageDailyReport(
+                    data: [
+                        // Provider day labels retain their YYYY-MM-DD prefix when timestamp-shaped.
+                        Self.entry(day: "2026-07-11T23:30:00Z", cost: 2, tokens: 200),
+                    ],
+                    summary: nil),
+            ],
+            calendar: calendar)
+
+        #expect(merged.data.count == 1)
+        #expect(merged.data.first?.date == "2026-07-11")
+        #expect(merged.data.first?.totalTokens == 300)
+        #expect(merged.data.first?.costUSD == 3)
+        #expect(merged.summary?.totalTokens == 300)
+        #expect(merged.summary?.totalCostUSD == 3)
+
+        let now = Self.isoDate("2026-07-12T06:45:00Z")
+        let snapshot = CostUsageFetcher.tokenSnapshot(
+            from: merged,
+            now: now,
+            historyDays: 30,
+            calendar: calendar)
+        let current = snapshot.quotaWeekSummaries(
+            resetAt: Self.isoDate("2026-07-12T07:00:00Z"),
+            windowMinutes: CostUsageTokenSnapshot.quotaWeekMinutes,
+            now: now,
+            calendar: calendar).first { $0.isCurrent }
+
+        #expect(current?.totalTokens == 300)
+        #expect(current?.totalCostUSD == 3)
+    }
+
+    @Test
+    func `fall-back repeated hours keep exact and residual evidence separate`() {
+        let calendar = Self.losAngelesCalendar
+        let firstHour = Self.isoDate("2026-11-01T08:00:00Z")
+        let secondHour = Self.isoDate("2026-11-01T09:00:00Z")
+        let firstEvent = Self.isoDate("2026-11-01T08:15:00Z")
+        let secondEvent = Self.isoDate("2026-11-01T09:15:00Z")
+        #expect(calendar.component(.hour, from: firstEvent) == 1)
+        #expect(calendar.component(.hour, from: secondEvent) == 1)
+        #expect(firstHour != secondHour)
+
+        let newer = CostUsageDailyReport(
+            data: [],
+            summary: nil,
+            hourly: [
+                CostUsageHourlyEntry(hour: firstHour, totalTokens: 100, costUSD: 1),
+                CostUsageHourlyEntry(hour: secondHour, totalTokens: 200, costUSD: 2),
+            ],
+            quotaSlices: [
+                CostUsageTimedEntry(timestamp: firstEvent, totalTokens: 100, costUSD: 1),
+                CostUsageTimedEntry(timestamp: secondEvent, totalTokens: 200, costUSD: 2),
+            ])
+        let legacy = CostUsageDailyReport(
+            data: [],
+            summary: nil,
+            hourly: [
+                CostUsageHourlyEntry(hour: firstHour, totalTokens: 300, costUSD: 3),
+                CostUsageHourlyEntry(hour: secondHour, totalTokens: 500, costUSD: 5),
+            ])
+
+        let merged = CostUsageDailyReport.merged([newer, legacy], calendar: calendar)
+        #expect(merged.hourly.count == 2)
+        let firstBucket = merged.hourly.first { $0.hour == firstHour }
+        let secondBucket = merged.hourly.first { $0.hour == secondHour }
+        #expect(firstBucket?.totalTokens == 400)
+        #expect(firstBucket?.costUSD == 4)
+        #expect(secondBucket?.totalTokens == 700)
+        #expect(secondBucket?.costUSD == 7)
+        #expect(merged.quotaSlices == newer.quotaSlices)
+
+        let now = Self.isoDate("2026-11-01T10:30:00Z")
+        let snapshot = CostUsageFetcher.tokenSnapshot(
+            from: merged,
+            now: now,
+            historyDays: 30,
+            calendar: calendar)
+        let weeks = snapshot.quotaWeekSummaries(
+            resetAt: secondHour,
+            windowMinutes: CostUsageTokenSnapshot.quotaWeekMinutes,
+            now: now,
+            calendar: calendar)
+        let current = weeks.first { $0.isCurrent }
+        let previous = weeks.first { $0.offset == 1 }
+
+        #expect(current?.totalTokens == 700)
+        #expect(current?.totalCostUSD == 7)
+        #expect(previous?.totalTokens == 400)
+        #expect(previous?.totalCostUSD == 4)
+    }
+
+    @Test
+    func `new exact and hourly data combines with legacy hourly without double counting`() {
+        let hour = Self.utcDate(year: 2026, month: 7, day: 11, hour: 10)
+        let exactTimestamp = Self.utcDate(year: 2026, month: 7, day: 11, hour: 10, minute: 15)
+        let newer = CostUsageDailyReport(
+            data: [],
+            summary: nil,
+            hourly: [
+                CostUsageHourlyEntry(hour: hour, totalTokens: 100, costUSD: 1),
+            ],
+            quotaSlices: [
+                CostUsageTimedEntry(timestamp: exactTimestamp, totalTokens: 100, costUSD: 1),
+            ])
+        let legacyHourly = CostUsageDailyReport(
+            data: [],
+            summary: nil,
+            hourly: [
+                CostUsageHourlyEntry(hour: hour, totalTokens: 300, costUSD: 3),
+            ])
+
+        let merged = CostUsageDailyReport.merged(
+            [newer, legacyHourly],
+            calendar: Self.utcCalendar)
+        #expect(merged.data.isEmpty)
+        #expect(merged.quotaSlices == newer.quotaSlices)
+        #expect(merged.hourly == [
+            CostUsageHourlyEntry(hour: hour, totalTokens: 400, costUSD: 4),
+        ])
+
+        let now = Self.utcDate(year: 2026, month: 7, day: 11, hour: 12)
+        let snapshot = CostUsageFetcher.tokenSnapshot(
+            from: merged,
+            now: now,
+            historyDays: 30,
+            calendar: Self.utcCalendar)
+        let previous = snapshot.quotaWeekSummaries(
+            resetAt: Self.utcDate(year: 2026, month: 7, day: 11, hour: 11),
+            windowMinutes: CostUsageTokenSnapshot.quotaWeekMinutes,
+            now: now,
+            calendar: Self.utcCalendar).first { $0.offset == 1 }
+
+        // Projection keeps the exact event plus only the hourly-minus-exact legacy residual.
+        #expect(previous?.totalTokens == 400)
+        #expect(previous?.totalCostUSD == 4)
+    }
+
+    @Test
+    func `exact-only report combines with legacy hourly without daily rows`() {
+        let hour = Self.utcDate(year: 2026, month: 7, day: 11, hour: 10)
+        let exactTimestamp = Self.utcDate(year: 2026, month: 7, day: 11, hour: 10, minute: 15)
+        let merged = CostUsageDailyReport.merged(
+            [
+                CostUsageDailyReport(
+                    data: [],
+                    summary: nil,
+                    quotaSlices: [
+                        CostUsageTimedEntry(timestamp: exactTimestamp, totalTokens: 100, costUSD: 1),
+                    ]),
+                CostUsageDailyReport(
+                    data: [],
+                    summary: nil,
+                    hourly: [
+                        CostUsageHourlyEntry(hour: hour, totalTokens: 300, costUSD: 3),
+                    ]),
+            ],
+            calendar: Self.utcCalendar)
+
+        #expect(merged.data.isEmpty)
+        #expect(merged.hourly == [
+            CostUsageHourlyEntry(hour: hour, totalTokens: 400, costUSD: 4),
+        ])
+        let now = Self.utcDate(year: 2026, month: 7, day: 11, hour: 12)
+        let snapshot = CostUsageFetcher.tokenSnapshot(
+            from: merged,
+            now: now,
+            historyDays: 30,
+            calendar: Self.utcCalendar)
+        let previous = snapshot.quotaWeekSummaries(
+            resetAt: Self.utcDate(year: 2026, month: 7, day: 11, hour: 11),
+            windowMinutes: CostUsageTokenSnapshot.quotaWeekMinutes,
+            now: now,
+            calendar: Self.utcCalendar).first { $0.offset == 1 }
+
+        #expect(previous?.totalTokens == 400)
+        #expect(previous?.totalCostUSD == 4)
+    }
+
+    @Test
+    func `reset inside a mixed exact and legacy residual hour fails closed`() {
+        let hour = Self.utcDate(year: 2026, month: 7, day: 11, hour: 10)
+        let exactTimestamp = Self.utcDate(year: 2026, month: 7, day: 11, hour: 10, minute: 15)
+        let merged = CostUsageDailyReport.merged(
+            [
+                CostUsageDailyReport(
+                    data: [],
+                    summary: nil,
+                    hourly: [
+                        CostUsageHourlyEntry(hour: hour, totalTokens: 100, costUSD: 1),
+                    ],
+                    quotaSlices: [
+                        CostUsageTimedEntry(timestamp: exactTimestamp, totalTokens: 100, costUSD: 1),
+                    ]),
+                CostUsageDailyReport(
+                    data: [],
+                    summary: nil,
+                    hourly: [
+                        CostUsageHourlyEntry(hour: hour, totalTokens: 300, costUSD: 3),
+                    ]),
+            ],
+            calendar: Self.utcCalendar)
+
+        let now = Self.utcDate(year: 2026, month: 7, day: 11, hour: 12)
+        let snapshot = CostUsageFetcher.tokenSnapshot(
+            from: merged,
+            now: now,
+            historyDays: 30,
+            calendar: Self.utcCalendar)
+        let weeks = snapshot.quotaWeekSummaries(
+            resetAt: Self.utcDate(year: 2026, month: 7, day: 11, hour: 10, minute: 30),
+            windowMinutes: CostUsageTokenSnapshot.quotaWeekMinutes,
+            now: now,
+            calendar: Self.utcCalendar)
+        let current = weeks.first { $0.offset == 0 }
+        let previous = weeks.first { $0.offset == 1 }
+
+        #expect(current?.totalTokens == nil)
+        #expect(current?.totalCostUSD == nil)
+        #expect(previous?.totalTokens == nil)
+        #expect(previous?.totalCostUSD == nil)
+    }
+
+    @Test
+    func `merged daily cost stays unknown when active source omits cost and coverage counts`() {
+        let merged = CostUsageDailyReport.merged([
+            CostUsageDailyReport(
+                data: [Self.entry(day: "2026-07-11", cost: 1, tokens: 100)],
+                summary: nil),
+            CostUsageDailyReport(
+                data: [Self.entry(day: "2026-07-11", cost: nil, tokens: 200)],
+                summary: nil),
+        ])
+
+        #expect(merged.data.count == 1)
+        #expect(merged.data.first?.totalTokens == 300)
+        #expect(merged.data.first?.costUSD == nil)
+        #expect(merged.summary?.totalTokens == 300)
+        #expect(merged.summary?.totalCostUSD == nil)
+
+        let snapshot = CostUsageFetcher.tokenSnapshot(
+            from: merged,
+            now: Self.utcDate(year: 2026, month: 7, day: 11, hour: 12),
+            historyDays: 30,
+            calendar: Self.utcCalendar)
+        #expect(snapshot.last30DaysTokens == 300)
+        #expect(snapshot.last30DaysCostUSD == nil)
+    }
+
+    @Test
+    func `merged daily tokens stay unknown when active source omits tokens and coverage counts`() {
+        let merged = CostUsageDailyReport.merged([
+            CostUsageDailyReport(
+                data: [Self.entry(day: "2026-07-11", cost: 1, tokens: 100)],
+                summary: nil),
+            CostUsageDailyReport(
+                data: [Self.entry(day: "2026-07-11", cost: 2, tokens: nil)],
+                summary: nil),
+        ])
+
+        #expect(merged.data.count == 1)
+        #expect(merged.data.first?.totalTokens == nil)
+        #expect(merged.data.first?.costUSD == 3)
+        #expect(merged.summary?.totalTokens == nil)
+        #expect(merged.summary?.totalCostUSD == 3)
+
+        let snapshot = CostUsageFetcher.tokenSnapshot(
+            from: merged,
+            now: Self.utcDate(year: 2026, month: 7, day: 11, hour: 12),
+            historyDays: 30,
+            calendar: Self.utcCalendar)
+        #expect(snapshot.last30DaysTokens == nil)
+        #expect(snapshot.last30DaysCostUSD == 3)
     }
 
     @Test
@@ -277,18 +653,20 @@ struct CostUsageQuotaWeekLinuxTests {
         hourly: [CostUsageHourlyEntry] = [],
         updatedAt: Date) -> CostUsageTokenSnapshot
     {
-        CostUsageTokenSnapshot(
+        let tokens = daily.compactMap(\.totalTokens)
+        let costs = daily.compactMap(\.costUSD)
+        return CostUsageTokenSnapshot(
             sessionTokens: daily.last?.totalTokens,
             sessionCostUSD: daily.last?.costUSD,
-            last30DaysTokens: daily.compactMap(\.totalTokens).reduce(0, +),
-            last30DaysCostUSD: daily.compactMap(\.costUSD).reduce(0, +),
+            last30DaysTokens: tokens.isEmpty ? nil : tokens.reduce(0, +),
+            last30DaysCostUSD: costs.isEmpty ? nil : costs.reduce(0, +),
             historyDays: historyDays,
             daily: daily,
             hourly: hourly,
             updatedAt: updatedAt)
     }
 
-    private static func entry(day: String, cost: Double, tokens: Int) -> CostUsageDailyReport.Entry {
+    private static func entry(day: String, cost: Double?, tokens: Int?) -> CostUsageDailyReport.Entry {
         CostUsageDailyReport.Entry(
             date: day,
             inputTokens: nil,
@@ -299,7 +677,7 @@ struct CostUsageQuotaWeekLinuxTests {
             modelBreakdowns: nil)
     }
 
-    private static func utcDate(year: Int, month: Int, day: Int, hour: Int) -> Date {
+    private static func utcDate(year: Int, month: Int, day: Int, hour: Int, minute: Int = 0) -> Date {
         var components = DateComponents()
         components.calendar = self.utcCalendar
         components.timeZone = TimeZone(secondsFromGMT: 0)
@@ -307,12 +685,23 @@ struct CostUsageQuotaWeekLinuxTests {
         components.month = month
         components.day = day
         components.hour = hour
+        components.minute = minute
         return components.date!
+    }
+
+    private static func isoDate(_ value: String) -> Date {
+        ISO8601DateFormatter().date(from: value)!
     }
 
     private static var utcCalendar: Calendar {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        return calendar
+    }
+
+    private static var losAngelesCalendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/Los_Angeles")!
         return calendar
     }
 }

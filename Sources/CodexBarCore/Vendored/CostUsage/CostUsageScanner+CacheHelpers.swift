@@ -1382,91 +1382,6 @@ extension CostUsageScanner {
         return out
     }
 
-    struct HourlyBucket {
-        var totalTokens = 0
-        var sawTokens = false
-        var costUSD = 0.0
-        var sawCost = false
-
-        mutating func add(tokens: Int, costUSD: Double?) {
-            if tokens != 0 {
-                self.totalTokens += tokens
-                self.sawTokens = true
-            }
-            if let costUSD {
-                self.costUSD += costUSD
-                self.sawCost = true
-            }
-        }
-
-        func entry(hour: Date) -> CostUsageHourlyEntry {
-            CostUsageHourlyEntry(
-                hour: hour,
-                totalTokens: self.sawTokens ? self.totalTokens : nil,
-                costUSD: self.sawCost ? self.costUSD : nil)
-        }
-    }
-
-    static func hourStart(for timestamp: Date, calendar: Calendar) -> Date {
-        calendar.dateInterval(of: .hour, for: timestamp)?.start ?? timestamp
-    }
-
-    static func date(fromUnixMs millis: Int64?) -> Date? {
-        millis.map { Date(timeIntervalSince1970: Double($0) / 1000) }
-    }
-
-    static func sortedHourlyEntries(_ buckets: [Date: HourlyBucket]) -> [CostUsageHourlyEntry] {
-        buckets.keys.sorted().map { hour in
-            (buckets[hour] ?? HourlyBucket()).entry(hour: hour)
-        }
-    }
-
-    static func addCodexHourly(
-        rows: [CodexUsageRow],
-        billedCostUSD: Double?,
-        calendar: Calendar,
-        into buckets: inout [Date: HourlyBucket])
-    {
-        struct Share {
-            let hour: Date
-            let tokens: Int
-        }
-
-        var shares: [Share] = []
-        var tokenTotal = 0
-        for row in rows {
-            let tokens = max(0, row.input) + max(0, row.output)
-            let timestamp = self.date(fromUnixMs: row.timestampUnixMs)
-                ?? CostUsageLocalDay.date(fromKey: row.day, calendar: calendar)
-            guard let timestamp else { continue }
-            let hour = self.hourStart(for: timestamp, calendar: calendar)
-            shares.append(Share(hour: hour, tokens: tokens))
-            tokenTotal += tokens
-            var bucket = buckets[hour] ?? HourlyBucket()
-            bucket.add(tokens: tokens, costUSD: nil)
-            buckets[hour] = bucket
-        }
-        guard let billedCostUSD, !shares.isEmpty else { return }
-        if tokenTotal <= 0 {
-            let hour = shares[0].hour
-            var bucket = buckets[hour] ?? HourlyBucket()
-            bucket.add(tokens: 0, costUSD: billedCostUSD)
-            buckets[hour] = bucket
-            return
-        }
-        var remaining = billedCostUSD
-        for index in shares.indices {
-            let share = shares[index]
-            let portion = index == shares.indices.last
-                ? remaining
-                : billedCostUSD * Double(share.tokens) / Double(tokenTotal)
-            var bucket = buckets[share.hour] ?? HourlyBucket()
-            bucket.add(tokens: 0, costUSD: portion)
-            buckets[share.hour] = bucket
-            remaining -= portion
-        }
-    }
-
     static func buildCodexReportFromCache(
         cache: CostUsageCache,
         range: CostUsageDayRange,
@@ -1488,7 +1403,7 @@ extension CostUsageScanner {
                 priorityTurns: priorityTurns)
         }
         var entries: [CostUsageDailyReport.Entry] = []
-        var hourlyBuckets: [Date: HourlyBucket] = [:]
+        var temporalBuckets = TemporalBuckets()
         var (totalInput, totalCacheRead, totalOutput, totalReasoning, totalTokens) = (0, 0, 0, 0, 0)
         var (totalCost, costSeen) = (0.0, false)
 
@@ -1560,8 +1475,9 @@ extension CostUsageScanner {
                 Self.addCodexHourly(
                     rows: pricing.rowsByDayModel[day]?[breakdown.modelName] ?? [],
                     billedCostUSD: breakdown.costUSD,
+                    pricing: pricing,
                     calendar: range.calendar,
-                    into: &hourlyBuckets)
+                    into: &temporalBuckets)
             }
             totalInput += entry.inputTokens ?? 0
             totalCacheRead += entry.cacheReadTokens ?? 0
@@ -1587,7 +1503,8 @@ extension CostUsageScanner {
         return CostUsageDailyReport(
             data: entries,
             summary: summary,
-            hourly: self.sortedHourlyEntries(hourlyBuckets))
+            hourly: self.sortedHourlyEntries(temporalBuckets.hourly),
+            quotaSlices: self.sortedQuotaSlices(temporalBuckets.quotaSlices))
     }
 
     static func sortedModelBreakdowns(_ breakdowns: [CostUsageDailyReport.ModelBreakdown])

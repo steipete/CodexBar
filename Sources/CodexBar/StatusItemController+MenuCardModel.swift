@@ -288,13 +288,12 @@ extension StatusItemController {
         historySelection: PlanUtilizationHistorySelection?,
         usesOverrideCard: Bool) -> [Date]
     {
-        let selection: PlanUtilizationHistorySelection
-        if let historySelection {
-            selection = historySelection
+        let selection: PlanUtilizationHistorySelection = if let historySelection {
+            historySelection
         } else if usesOverrideCard, let snapshot {
-            selection = self.store.planUtilizationHistorySelection(for: provider, snapshotOverride: snapshot)
+            self.store.planUtilizationHistorySelection(for: provider, snapshotOverride: snapshot)
         } else {
-            selection = self.store.planUtilizationHistorySelection(for: provider)
+            self.store.planUtilizationHistorySelection(for: provider)
         }
         return selection.histories
             .first { $0.name == .weekly }?
