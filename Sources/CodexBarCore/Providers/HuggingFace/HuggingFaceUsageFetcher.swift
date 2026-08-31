@@ -302,3 +302,87 @@ private enum InferenceCreditsOverride {
             periodEnd: periodEnd)
     }
 }
+
+extension HuggingFaceUsageSnapshot {
+    public func toUsageSnapshot() -> UsageSnapshot {
+        let gaugeLimitUSD: Double? = if self.credits.includedUSD > 0 {
+            self.credits.includedUSD
+        } else {
+            self.credits.limitUSD
+        }
+        var usedPercent = 0.0
+        if let gaugeLimitUSD, gaugeLimitUSD > 0 {
+            usedPercent = min(100, max(0, self.credits.usedUSD / gaugeLimitUSD * 100))
+        }
+
+        var creditRows: [ProviderDetailSection.Row] = [
+            ProviderDetailSection.Row.makeRow(label: "Spend", value: Self.usd(self.credits.usedUSD)),
+        ]
+        if self.credits.includedUSD > 0 {
+            creditRows.append(.makeRow(label: "Included credits", value: Self.usd(self.credits.includedUSD)))
+        }
+        if let limitUSD = self.credits.limitUSD {
+            creditRows.append(.makeRow(label: "Spending limit", value: Self.usd(limitUSD)))
+        }
+        if let requestCount = self.credits.requestCount {
+            creditRows.append(.makeRow(label: "Requests", value: String(requestCount)))
+        }
+        var sections: [ProviderDetailSection] = [
+            .makeSection(title: "Inference Providers", rows: creditRows),
+        ]
+
+        var secondary: RateWindow?
+        if let zeroGPU = self.zeroGPU, zeroGPU.totalSeconds > 0 {
+            let usedSeconds = max(0, zeroGPU.totalSeconds - zeroGPU.remainingSeconds)
+            secondary = RateWindow(
+                usedPercent: min(100, max(0, usedSeconds / zeroGPU.totalSeconds * 100)),
+                windowMinutes: nil,
+                resetsAt: zeroGPU.resetsAt,
+                resetDescription: "ZeroGPU quota")
+            sections.append(.makeSection(title: "ZeroGPU", rows: [
+                .makeRow(label: "GPU time used", value: Self.gpuMinutes(usedSeconds)),
+                .makeRow(label: "GPU time remaining", value: Self.gpuMinutes(zeroGPU.remainingSeconds)),
+            ]))
+        }
+
+        var providerCost: ProviderCostSnapshot?
+        if let gaugeLimitUSD, gaugeLimitUSD > 0 {
+            providerCost = ProviderCostSnapshot(
+                used: self.credits.usedUSD,
+                limit: gaugeLimitUSD,
+                currencyCode: "USD",
+                resetsAt: self.credits.periodEnd,
+                updatedAt: self.updatedAt)
+        }
+
+        let resetDescription = gaugeLimitUSD.map {
+            "\(Self.usd(self.credits.usedUSD)) of \(Self.usd($0)) credits used"
+        }
+        return UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: usedPercent,
+                windowMinutes: ProviderPaceCapability.monthlyWindowSentinelMinutes,
+                resetsAt: self.credits.periodEnd,
+                resetDescription: resetDescription),
+            secondary: secondary,
+            providerCost: providerCost,
+            details: sections,
+            updatedAt: self.updatedAt,
+            identity: ProviderIdentitySnapshot(
+                providerID: .huggingface,
+                accountEmail: self.identity?.email,
+                accountOrganization: self.identity.map { $0.isPro ? "PRO" : "Free" },
+                loginMethod: "API token",
+                accountID: self.identity?.username),
+            dataConfidence: .exact)
+    }
+
+    private static func usd(_ value: Double) -> String {
+        String(format: "$%.2f", value)
+    }
+
+    private static func gpuMinutes(_ seconds: Double) -> String {
+        let minutes = seconds / 60
+        return minutes >= 10 ? String(format: "%.0f min", minutes) : String(format: "%.1f min", minutes)
+    }
+}

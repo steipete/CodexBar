@@ -192,6 +192,98 @@ struct HuggingFaceUsageFetcherTests {
         }
     }
 
+    @Test
+    func `credits map to primary window and provider cost`() {
+        let snapshot = HuggingFaceUsageSnapshot(
+            credits: .init(
+                usedUSD: 0.45,
+                includedUSD: 2.0,
+                limitUSD: nil,
+                requestCount: 128,
+                periodEnd: Date(timeIntervalSince1970: 1_756_684_800)),
+            zeroGPU: nil,
+            identity: .init(username: "codexbar-tester", email: "tester@example.com", isPro: true),
+            updatedAt: Date(timeIntervalSince1970: 1_756_600_000))
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(usage.primary?.usedPercent == 22.5)
+        #expect(usage.primary?.resetsAt == Date(timeIntervalSince1970: 1_756_684_800))
+        #expect(usage.secondary == nil)
+        #expect(usage.providerCost?.used == 0.45)
+        #expect(usage.providerCost?.limit == 2.0)
+        #expect(usage.providerCost?.currencyCode == "USD")
+        #expect(usage.identity?.accountID == "codexbar-tester")
+        #expect(usage.identity?.accountEmail == "tester@example.com")
+        #expect(usage.identity?.accountOrganization == "PRO")
+        #expect(usage.dataConfidence == .exact)
+    }
+
+    @Test
+    func `missing included credits gauge against the spending limit`() {
+        let snapshot = HuggingFaceUsageSnapshot(
+            credits: .init(usedUSD: 1.25, includedUSD: 0, limitUSD: 5.0, requestCount: nil, periodEnd: nil),
+            zeroGPU: nil,
+            identity: nil,
+            updatedAt: Date(timeIntervalSince1970: 1_756_600_000))
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(usage.primary?.usedPercent == 25.0)
+        #expect(usage.providerCost?.limit == 5.0)
+    }
+
+    @Test
+    func `no included credits and no limit yields zero percent and no cost`() {
+        let snapshot = HuggingFaceUsageSnapshot(
+            credits: .init(usedUSD: 0.3, includedUSD: 0, limitUSD: nil, requestCount: nil, periodEnd: nil),
+            zeroGPU: nil,
+            identity: nil,
+            updatedAt: Date(timeIntervalSince1970: 1_756_600_000))
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(usage.primary?.usedPercent == 0)
+        #expect(usage.providerCost == nil)
+        #expect(usage.details.first?.rows.first?.value == "$0.30")
+    }
+
+    @Test
+    func `zero gpu maps to secondary window and detail section`() {
+        let snapshot = HuggingFaceUsageSnapshot(
+            credits: .init(usedUSD: 0.45, includedUSD: 2.0, limitUSD: nil, requestCount: nil, periodEnd: nil),
+            zeroGPU: .init(
+                totalSeconds: 1500,
+                remainingSeconds: 900,
+                resetsAt: Date(timeIntervalSince1970: 1_756_663_200)),
+            identity: nil,
+            updatedAt: Date(timeIntervalSince1970: 1_756_600_000))
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(usage.secondary?.usedPercent == 40.0)
+        #expect(usage.secondary?.resetsAt == Date(timeIntervalSince1970: 1_756_663_200))
+        #expect(usage.details.count == 2)
+        #expect(usage.details.last?.title == "ZeroGPU")
+    }
+
+    @Test
+    func `usage percent clamps at one hundred`() {
+        let snapshot = HuggingFaceUsageSnapshot(
+            credits: .init(usedUSD: 3.7, includedUSD: 2.0, limitUSD: nil, requestCount: nil, periodEnd: nil),
+            zeroGPU: nil,
+            identity: nil,
+            updatedAt: Date(timeIntervalSince1970: 1_756_600_000))
+        #expect(snapshot.toUsageSnapshot().primary?.usedPercent == 100)
+    }
+
+    @Test
+    func `descriptor registers api strategy token accounts and branding`() {
+        let descriptor = ProviderDescriptorRegistry.descriptor(for: .huggingface)
+        #expect(descriptor.metadata.displayName == "Hugging Face")
+        #expect(descriptor.metadata.dashboardURL == "https://huggingface.co/settings/billing")
+        #expect(descriptor.metadata.widgetSelectable == false)
+        #expect(descriptor.branding.iconResourceName == "ProviderIcon-huggingface")
+        #expect(descriptor.fetchPlan.sourceModes == Set([.auto, .api]))
+        #expect(descriptor.credentials?.tokenAccountSupport != nil)
+    }
+
     // MARK: - Helpers
 
     private static func transport(
