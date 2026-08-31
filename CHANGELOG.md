@@ -5,6 +5,9 @@
 ### Performance
 - Claude and Vertex AI: reuse model normalization and pricing lookups within each local scan, including unknown models, while preserving per-request dated and context-tier pricing.
 
+### Fixed
+- Usage & Spend: keep stalled or failed Codex catch-up paused until explicit Refresh, preventing background synchronization from restarting CPU-heavy scans (partial fix for #3316). Thanks @heyajulia!
+
 ## 0.56.2 — 2026-08-31
 
 ### Added
