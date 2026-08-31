@@ -6,6 +6,7 @@
 - Local costs: reduce background CPU spent parsing native session timestamps and validating appended Codex history, preserving timestamp precision, daily totals, and fork accounting.
 
 ### Fixed
+- z.ai: abbreviate million- and billion-scale model token totals with M/B while preserving exact chart data (#3308).
 - Codex: preserve pending weekly-reset evidence through credits-only refreshes so eligible low-usage confirmations survive relaunch (partial fix for #3248). Thanks @kcharlan!
 - Agent sessions: stop Codex metadata enrichment and Pi/OMP path resolution when the scan budget expires, and honor the same deadline during Claude Desktop root discovery.
 - Codex: recover cost-history catch-up when removed fork files leave abandoned parent discovery in an existing cache, preserving stored totals and unresolved-fork accounting (partial fix for #2815). Thanks @xiehaibin18!

@@ -132,6 +132,17 @@ struct ZaiProviderTests {
     }
 
     @Test
+    func `plugin compacts large model token totals without changing chart values`() async throws {
+        let snapshot = try await Self.pluginSnapshot(
+            quotaFixture: Self.quotaFixture,
+            modelUsageFixture: Self.largeModelUsageFixture)
+        let hourly = try #require(snapshot.details.first { $0.title == "Hourly tokens" })
+
+        #expect(hourly.rows.map(\.value) == ["5.3B", "491M", "76.1M", "999999"])
+        #expect(hourly.chart?.points.map(\.value) == [5_868_199_724])
+    }
+
+    @Test
     func `plugin preserves explicit MCP duration`() async throws {
         let snapshot = try await Self.pluginSnapshot(quotaFixture: Self.explicitTimeLimitFixture)
 
@@ -194,11 +205,14 @@ struct ZaiProviderTests {
         return (Data(body.utf8), response)
     }
 
-    private static func pluginSnapshot(quotaFixture: String) async throws -> UsageSnapshot {
+    private static func pluginSnapshot(
+        quotaFixture: String,
+        modelUsageFixture: String = Self.modelUsageFixture) async throws -> UsageSnapshot
+    {
         let transport = ProviderHTTPTransportHandler { request in
             let body = request.url?.path.hasSuffix("/quota/limit") == true
                 ? quotaFixture
-                : Self.modelUsageFixture
+                : modelUsageFixture
             return try Self.response(request: request, body: body)
         }
         return try await ProviderPluginRuntime(bundledPlugin: "zai", transport: transport).fetchUsage(
@@ -238,6 +252,15 @@ struct ZaiProviderTests {
       "x_time":["2026-08-02 08:00","2026-08-02 09:00"],
       "modelDataList":[{"modelName":"glm-4.6","tokensUsage":[100,null]},
       {"modelName":"glm-4.5","tokensUsage":[50,25]}]}}
+    """#
+
+    private static let largeModelUsageFixture = #"""
+    {"code":200,"msg":"success","success":true,"data":{
+      "x_time":["2026-08-02 08:00"],
+      "modelDataList":[{"modelName":"GLM-5.3","tokensUsage":[5300000000]},
+      {"modelName":"GLM-5.3-Flash","tokensUsage":[491075408]},
+      {"modelName":"GLM-5.2","tokensUsage":[76124317]},
+      {"modelName":"GLM-4.6","tokensUsage":[999999]}]}}
     """#
 
     private static let emptyModelUsageFixture =

@@ -244,6 +244,15 @@ defineProvider({
       } catch {}
     }
 
+    function compactTokenCount(value) {
+      const divisor = value >= 1_000_000_000 ? 1_000_000_000 : value >= 1_000_000 ? 1_000_000 : null;
+      if (divisor === null) return String(value);
+      const suffix = divisor === 1_000_000_000 ? "B" : "M";
+      const digits = value >= divisor * 100 ? 0 : value >= divisor * 10 ? 1 : 2;
+      const scaled = (value / divisor).toFixed(digits);
+      return `${scaled.replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "")}${suffix}`;
+    }
+
     async function modelUsage(daysBack) {
       const end = ctx.date.now();
       const start = new Date(end);
@@ -299,7 +308,10 @@ defineProvider({
         if (usage.points.length) {
           result.details.push({
             title,
-            rows: usage.totals.slice(0, 20).map((item) => ({ label: item.name, value: String(item.tokens) })),
+            rows: usage.totals.slice(0, 20).map((item) => ({
+              label: item.name,
+              value: compactTokenCount(item.tokens),
+            })),
             chart: { kind: "bars", title, unit: "tokens", points: usage.points },
           });
         }
