@@ -355,8 +355,12 @@ extension HuggingFaceUsageSnapshot {
                 updatedAt: self.updatedAt)
         }
 
-        let resetDescription = gaugeLimitUSD.map {
-            "\(Self.usd(self.credits.usedUSD)) of \(Self.usd($0)) credits used"
+        let resetDescription: String? = if self.credits.includedUSD > 0 {
+            "\(Self.usd(self.credits.usedUSD)) of \(Self.usd(self.credits.includedUSD)) credits used"
+        } else if let limitUSD = self.credits.limitUSD, limitUSD > 0 {
+            "\(Self.usd(self.credits.usedUSD)) of \(Self.usd(limitUSD)) limit used"
+        } else {
+            nil
         }
         return UsageSnapshot(
             primary: RateWindow(

@@ -22,7 +22,7 @@ struct HuggingFaceUsageFetcherTests {
         #expect(snapshot.credits.includedUSD == 2.0)
         #expect(snapshot.credits.limitUSD == nil)
         #expect(snapshot.credits.requestCount == 128)
-        #expect(snapshot.credits.periodEnd == Date(timeIntervalSince1970: 1_756_684_800))
+        #expect(snapshot.credits.periodEnd == Date(timeIntervalSince1970: 1_756_700_000))
         #expect(snapshot.zeroGPU?.totalSeconds == 1500)
         #expect(snapshot.zeroGPU?.remainingSeconds == 900)
         #expect(snapshot.identity?.username == "codexbar-tester")
@@ -45,13 +45,13 @@ struct HuggingFaceUsageFetcherTests {
 
     @Test
     func `whoami period end wins over usage period end`() async throws {
-        // whoami.json periodEnd (1756684800 = 2025-09-01T00:00:00Z) and the
-        // usage-v2-pro.json ISO periodEnd name the same instant; assert the resolved
-        // date matches that epoch exactly.
+        // whoami.json's periodEnd (1756700000) deliberately differs from
+        // usage-v2-pro.json's ISO periodEnd (1756684800 = 2025-09-01T00:00:00Z);
+        // assert the resolved date is the whoami value, proving the override runs.
         let snapshot = try await HuggingFaceUsageFetcher._fetchUsageForTesting(
             apiKey: "hf_fixture",
             transport: Self.transport(recorder: HuggingFaceRequestRecorder()))
-        #expect(snapshot.credits.periodEnd == Date(timeIntervalSince1970: 1_756_684_800))
+        #expect(snapshot.credits.periodEnd == Date(timeIntervalSince1970: 1_756_700_000))
     }
 
     @Test
@@ -65,6 +65,19 @@ struct HuggingFaceUsageFetcherTests {
         #expect(snapshot.credits.usedUSD == 1.25)
         #expect(snapshot.credits.includedUSD == 0)
         #expect(snapshot.credits.limitUSD == 5.0)
+    }
+
+    @Test
+    func `no included credits and no limit decode through the fetch path`() async throws {
+        let transport = Self.transport(
+            recorder: HuggingFaceRequestRecorder(),
+            usageFixture: "usage-v2-no-included")
+        let snapshot = try await HuggingFaceUsageFetcher._fetchUsageForTesting(
+            apiKey: "hf_fixture",
+            transport: transport)
+        #expect(snapshot.credits.usedUSD == 0.3)
+        #expect(snapshot.credits.includedUSD == 0)
+        #expect(snapshot.credits.limitUSD == nil)
     }
 
     @Test
@@ -208,6 +221,7 @@ struct HuggingFaceUsageFetcherTests {
 
         #expect(usage.primary?.usedPercent == 22.5)
         #expect(usage.primary?.resetsAt == Date(timeIntervalSince1970: 1_756_684_800))
+        #expect(usage.primary?.resetDescription == "$0.45 of $2.00 credits used")
         #expect(usage.secondary == nil)
         #expect(usage.providerCost?.used == 0.45)
         #expect(usage.providerCost?.limit == 2.0)
@@ -229,6 +243,7 @@ struct HuggingFaceUsageFetcherTests {
 
         #expect(usage.primary?.usedPercent == 25.0)
         #expect(usage.providerCost?.limit == 5.0)
+        #expect(usage.primary?.resetDescription == "$1.25 of $5.00 limit used")
     }
 
     @Test
