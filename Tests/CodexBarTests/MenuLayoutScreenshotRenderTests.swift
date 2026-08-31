@@ -856,6 +856,80 @@ final class MenuLayoutScreenshotRenderTests: XCTestCase {
 }
 
 extension MenuLayoutScreenshotRenderTests {
+    func test_renderSingularResetLabelProof() throws {
+        guard let dir = ProcessInfo.processInfo.environment["CODEXBAR_RESET_LABEL_SCREENSHOT_DIR"] else {
+            throw XCTSkip("Set CODEXBAR_RESET_LABEL_SCREENSHOT_DIR to render the reset label proof.")
+        }
+        UsageFormatter.setLocalizationProvider { $0 }
+        defer { UsageFormatter.clearLocalizationProvider() }
+        let expected = ProcessInfo.processInfo.environment["CODEXBAR_RESET_LABEL_EXPECTED"]
+            ?? "Resets Jul 10 at 2:59am (Europe/Prague)"
+        let metadata = try XCTUnwrap(ProviderDefaults.metadata[.claude])
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            extraRateWindows: [NamedRateWindow(
+                id: "claude-weekly-scoped-example",
+                title: "Example Model only",
+                window: RateWindow(
+                    usedPercent: 68,
+                    windowMinutes: 10080,
+                    resetsAt: nil,
+                    resetDescription: "Reset Jul 10 at 2:59am (Europe/Prague)"))],
+            updatedAt: Self.now)
+        let directory = URL(fileURLWithPath: dir, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+
+        for style in [ResetTimeDisplayStyle.countdown, .absolute] {
+            let model = UsageMenuCardView.Model.make(.init(
+                provider: .claude,
+                metadata: metadata,
+                snapshot: snapshot,
+                credits: nil,
+                creditsError: nil,
+                dashboard: nil,
+                dashboardError: nil,
+                tokenSnapshot: nil,
+                tokenError: nil,
+                account: AccountInfo(email: nil, plan: nil),
+                isRefreshing: false,
+                lastError: nil,
+                usageBarsShowUsed: true,
+                resetTimeDisplayStyle: style,
+                tokenCostUsageEnabled: false,
+                showOptionalCreditsAndExtraUsage: false,
+                hidePersonalInfo: true,
+                paceVisible: false,
+                usesLiveSubtitle: false,
+                now: Self.now))
+            XCTAssertEqual(model.metrics.count, 1)
+            XCTAssertEqual(model.metrics.first?.resetText, expected)
+            for dark in [false, true] {
+                let view = AnyView(UsageMenuCardUsageSectionView(
+                    model: model,
+                    layoutModel: model,
+                    showBottomDivider: false,
+                    bottomPadding: 12,
+                    width: Self.width)
+                    .environment(\.locale, Locale(identifier: "en_US_POSIX"))
+                    .environment(\.colorScheme, dark ? .dark : .light)
+                    .environment(\.accessibilityEnabled, true)
+                    .background(Color(nsColor: .windowBackgroundColor)))
+                let hosting = NSHostingView(rootView: view)
+                hosting.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+                let stem = "reset-label-\(style.rawValue)-\(dark ? "dark" : "light")"
+                let png = try XCTUnwrap(Self.pngData(hosting: hosting))
+                try png.write(to: directory.appendingPathComponent("\(stem).png"))
+                let accessibility = Self.accessibilityText(hosting)
+                XCTAssertTrue(accessibility.contains(expected), accessibility)
+                try accessibility.write(
+                    to: directory.appendingPathComponent("\(stem)-accessibility.txt"),
+                    atomically: true,
+                    encoding: .utf8)
+            }
+        }
+    }
+
     fileprivate static func pngDataWithWindow(hosting: NSHostingView<AnyView>) -> Data? {
         // Native List rows need a window to materialize, but it never needs to be ordered onscreen.
         let size = hosting.fittingSize
