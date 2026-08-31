@@ -3,6 +3,34 @@
     <channel>
         <title>CodexBar</title>
         <item>
+            <title>0.56.2</title>
+            <pubDate>Mon, 31 Aug 2026 04:50:58 -0700</pubDate>
+            <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
+            <sparkle:version>133</sparkle:version>
+            <sparkle:shortVersionString>0.56.2</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[<h2>CodexBar 0.56.2</h2>
+<h3>Performance</h3>
+<ul>
+<li>Local costs: reduce background CPU spent parsing native session timestamps and validating appended Codex history, preserving timestamp precision, daily totals, and fork accounting.</li>
+<li>Codex: reduce repeated decoding of cached cost history during scans, while preserving stored totals and checking for database and filesystem changes.</li>
+<li>Claude and Vertex AI: reduce CPU spent reading local transcript metadata, preserving provider detection, Unicode handling, and token/cost totals.</li>
+</ul>
+<h3>Fixed</h3>
+<ul>
+<li>Local costs: preserve token breakdowns, reasoning, request counts, and pricing coverage when combining reports or reopening cached history. Thanks @Pjhhhhh!</li>
+<li>Codex: recover cost-history catch-up when removed fork files leave abandoned parent discovery in an existing cache, preserving stored totals and unresolved-fork accounting (partial fix for #2815). Thanks @xiehaibin18!</li>
+<li>Codex: preserve pending weekly-reset evidence through credits-only refreshes so eligible low-usage confirmations survive relaunch (partial fix for #3248). Thanks @kcharlan!</li>
+<li>Charts: keep endpoint dates readable in token/cost, credit-usage, credits-history, and plan-history submenus (partial fix for #3209). Thanks @vinschger!</li>
+<li>Agent sessions: stop Codex metadata enrichment and Pi/OMP path resolution when the scan budget expires, and honor the same deadline during Claude Desktop root discovery.</li>
+<li>OpenCode Go: omit misleading pace and run-out advice for locally estimated quotas while preserving percentages, resets, and cost history (partial fix for #3286). Thanks @Akagilnc!</li>
+<li>OpenRouter: open Activity from Usage Dashboard instead of credit settings (#3290). Thanks @akshayprabhu200!</li>
+</ul>
+<p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
+]]></description>
+            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.56.2/CodexBar-macos-universal-0.56.2.zip" length="67994843" type="application/octet-stream" sparkle:edSignature="DVEZH+XJR3/M+OTGPirdrzSLRnV2CVadI9ihiIgM9J65IiXXhc9vNi6wNkExJ4tvgbh0YXuNKdTM/eHPi2jeAw=="/>
+        </item>
+        <item>
             <title>0.56.1</title>
             <pubDate>Sun, 30 Aug 2026 03:19:17 -0700</pubDate>
             <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
@@ -82,54 +110,6 @@
 <p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
 ]]></description>
             <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.56.0/CodexBar-macos-universal-0.56.0.zip" length="70460465" type="application/octet-stream" sparkle:edSignature="Joscdf02sF8CvZpWKIY4mkD3uDLP5S1ieZriBwIacLsXx7YSUEy73zqZeIDorF+C8ruY287Nz68k9+rPso8UAA=="/>
-        </item>
-        <item>
-            <title>0.55.1</title>
-            <pubDate>Tue, 25 Aug 2026 23:12:48 -0700</pubDate>
-            <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
-            <sparkle:version>130</sparkle:version>
-            <sparkle:shortVersionString>0.55.1</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <description><![CDATA[<h2>CodexBar 0.55.1</h2>
-<h3>Highlights</h3>
-<ul>
-<li><strong>Codex weekly resets recover cleanly</strong>: early backend resets refresh open usage cards without mixing accounts, spending reset credits, or losing confirmation across relaunches (#3177, #3189).</li>
-<li><strong>Codex spend stays visible during catch-up</strong>: established totals remain accurate while newer local session history finishes processing, without rebuilding existing caches (#3051, #3114).</li>
-<li><strong>Grok menus stay responsive</strong>: local session scans no longer block menu opening, and bearer billing restores real usage without losing account context (#3181, #3195).</li>
-<li><strong>Bailian CLI Token Plan support</strong>: signed-in Alibaba accounts now load region-aware 5-hour and weekly quotas directly from the CLI, with browser fallback (#3020, #3080).</li>
-<li><strong>Fireworks billing spend restored</strong>: real 30-day API spending appears even when local cost summaries are disabled (#3183, #3185).</li>
-</ul>
-<h3>Fixed</h3>
-<ul>
-<li>Claude: retry failed claude-swap version detection, ignore superseded startup probes, and clear stale adapter versions when disabled (#3126).</li>
-<li>Alibaba Token Plan: try the signed-in Bailian CLI before browser cookies, with isolated subprocess credentials and region-aware 5-hour/weekly quotas (#3020, #3080). Thanks @Hek846!</li>
-<li>Codex: preserve established local spend totals while newer session history catches up, without crossing accounts, history windows, or time zones; upgrade existing spend caches in place (#3051). Thanks @mauriciopolvora!</li>
-<li>Codex: refresh open usage cards in place after weekly resets without clipping reset details or mixing account identities (#3168, #3189). Thanks @Zihao-Qi!</li>
-<li>Codex: recover weekly usage after early backend resets without spending a reset credit, preserve account-scoped confirmation across relaunch, and expire stale observations safely (#3177, #3179). Thanks @Zihao-Qi!</li>
-<li>Grok: recover the usage bar from bearer billing when credits expose only a period, preserve the authoritative reset, and explain genuinely unavailable usage without switching accounts (#3181). Thanks @olddonkey!</li>
-<li>Spend dashboard: finish the final local Codex history file promptly while the dashboard is visible, preserve explicit background and stop choices, and keep existing usage caches intact (#3114). Thanks @Yuxin-Qiao!</li>
-<li>Fireworks: show real 30-day API billing spend even when local cost summaries are disabled (#3183, #3185). Thanks @dhalarewich!</li>
-<li>OpenRouter: accept timestamp-shaped Activity API dates so exact 30-day spend history loads again (#3174).</li>
-<li>Amp: parse bold Markdown usage labels from the latest CLI while preserving compatibility with older plain-text output (#3171).</li>
-<li>OpenCode Go: expose a Monthly % lane token for custom menu bar layouts once the monthly window has been observed (#3175).</li>
-</ul>
-<h3>Performance</h3>
-<ul>
-<li>Grok: keep menu opening responsive by reusing published local-session totals and moving filesystem scans off the main thread (#3195).</li>
-<li>OpenCodex: parse only newly appended usage-log entries instead of rebuilding the entire cache on every refresh, cutting memory use while preserving compatibility with older app versions (#3140). Thanks @olddonkey!</li>
-</ul>
-<h3>Usage &amp; Spend</h3>
-<ul>
-<li>Added AED (UAE dirham) to the display currency options (#3186). Thanks @samiashi!</li>
-</ul>
-<h3>Localization</h3>
-<ul>
-<li>Settings: keep the keyboard shortcut recorder in the selected app language while recording and after editing (#3190). Thanks @endless7!</li>
-<li>Turkish: improve translations throughout settings and provider views, including the previously untranslated iCloud sync section (#3178). Thanks @husodrn46!</li>
-</ul>
-<p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
-]]></description>
-            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.55.1/CodexBar-macos-universal-0.55.1.zip" length="67073552" type="application/octet-stream" sparkle:edSignature="bWoQA8W3rLQRKimm2RfaCMPdvi8ghmIAobLL+jHGx9ob6fUBz7vXSgNSFJ0xzQu63u1fr1y895cmGIGA2i8KCA=="/>
         </item>
         <item>
             <title>0.14.0</title>
