@@ -81,7 +81,9 @@ struct CopilotLoginFlow {
                 let label: String
                 let identity: CopilotUsageFetcher.GitHubUserIdentity?
                 do {
-                    let resolvedIdentity = try await CopilotUsageFetcher.fetchGitHubIdentity(token: token)
+                    let resolvedIdentity = try await CopilotUsageFetcher.fetchGitHubIdentity(
+                        token: token,
+                        enterpriseHost: enterpriseHost)
                     let resolvedUsername = resolvedIdentity.login
                     let planSuffix: String
                     do {
@@ -116,7 +118,12 @@ struct CopilotLoginFlow {
                 let matchedExisting = await Self.matchExistingAccount(
                     existingAccounts: existingAccounts,
                     identity: identity,
-                    label: label)
+                    label: label,
+                    legacyIdentityResolver: { account in
+                        try? await CopilotUsageFetcher.fetchGitHubIdentity(
+                            token: account.token,
+                            enterpriseHost: enterpriseHost)
+                    })
                 let externalIdentifier = identity.map(Self.externalIdentifier)
                 let wasRefresh = matchedExisting != nil
                 if let existing = matchedExisting {

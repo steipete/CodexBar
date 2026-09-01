@@ -29,6 +29,65 @@ struct CopilotUsageFetcherTests {
     }
 
     @Test
+    func `fetchGitHubIdentity uses enterprise API host`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            #expect(request.value(forHTTPHeaderField: "Authorization") == "token test-token-placeholder")
+            let response = try HTTPURLResponse(
+                url: #require(request.url),
+                statusCode: 200,
+                httpVersion: "HTTP/1.1",
+                headerFields: ["Content-Type": "application/json"])!
+            return (Data(#"{"login":"enterprise-user","id":456}"#.utf8), response)
+        }
+
+        let identity = try await CopilotUsageFetcher.fetchGitHubIdentity(
+            token: "test-token-placeholder",
+            enterpriseHost: "https://octocorp.ghe.com/login",
+            transport: transport)
+
+        #expect(identity.login == "enterprise-user")
+        #expect(identity.id == 456)
+        let requests = await transport.requests()
+        #expect(requests.first?.url?.absoluteString == "https://api.octocorp.ghe.com/user")
+    }
+
+    @Test
+    func `fetch omits GitHub API version header for enterprise usage`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            #expect(request.url?.absoluteString == "https://api.octocorp.ghe.com/copilot_internal/user")
+            #expect(request.value(forHTTPHeaderField: "X-Github-Api-Version") == nil)
+            let response = try HTTPURLResponse(
+                url: #require(request.url),
+                statusCode: 200,
+                httpVersion: "HTTP/1.1",
+                headerFields: ["Content-Type": "application/json"])!
+            let data = Data(
+                """
+                {
+                  "copilot_plan": "business",
+                  "quota_snapshots": {
+                    "premium_interactions": {
+                      "entitlement": 100,
+                      "remaining": 75,
+                      "percent_remaining": 75,
+                      "quota_id": "premium_interactions"
+                    }
+                  }
+                }
+                """.utf8)
+            return (data, response)
+        }
+        let fetcher = CopilotUsageFetcher(
+            token: "test-token-placeholder",
+            enterpriseHost: "octocorp.ghe.com",
+            transport: transport)
+
+        let snapshot = try await fetcher.fetch()
+
+        #expect(snapshot.primary?.usedPercent == 25)
+    }
+
+    @Test
     func `fetch returns unavailable snapshot for business token billing placeholders`() async throws {
         let transport = ProviderHTTPTransportStub { request in
             #expect(request.value(forHTTPHeaderField: "Authorization") == "token test-token-placeholder")

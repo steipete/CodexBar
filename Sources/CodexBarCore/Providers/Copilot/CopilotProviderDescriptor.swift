@@ -178,7 +178,9 @@ struct CopilotAPIFetchStrategy: ProviderFetchStrategy {
         token: String,
         settings: ProviderSettingsSnapshot.CopilotProviderSettings) async throws -> String
     {
-        let identity = try await CopilotUsageFetcher.fetchGitHubIdentity(token: token)
+        let identity = try await CopilotUsageFetcher.fetchGitHubIdentity(
+            token: token,
+            enterpriseHost: settings.enterpriseHost)
         let tokenIdentifier = CopilotBudgetWebFetcher.normalizedGitHubAccountIdentifier(for: identity)
         if let selectedIdentifier = Self.normalizedBudgetAccountIdentifier(settings.selectedAccountExternalIdentifier),
            selectedIdentifier != tokenIdentifier.lowercased(),

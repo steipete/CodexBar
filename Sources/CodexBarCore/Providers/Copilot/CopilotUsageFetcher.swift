@@ -116,16 +116,24 @@ public struct CopilotUsageFetcher: Sendable {
             identity: identity)
     }
 
-    public static func fetchGitHubUsername(token: String) async throws -> String {
-        try await self.fetchGitHubIdentity(token: token).login
+    public static func fetchGitHubUsername(
+        token: String,
+        enterpriseHost: String? = nil)
+        async throws -> String
+    {
+        try await self.fetchGitHubIdentity(token: token, enterpriseHost: enterpriseHost).login
     }
 
     public static func fetchGitHubIdentity(
         token: String,
+        enterpriseHost: String? = nil,
         transport: any ProviderHTTPTransport = ProviderHTTPClient.shared)
         async throws -> GitHubUserIdentity
     {
-        guard let url = URL(string: "https://api.github.com/user") else {
+        guard let url = CopilotDeviceFlow.makeRequestURL(
+            host: self.apiHost(enterpriseHost: enterpriseHost),
+            path: "/user")
+        else {
             throw URLError(.badURL)
         }
         var request = URLRequest(url: url)
@@ -148,7 +156,9 @@ public struct CopilotUsageFetcher: Sendable {
         request.setValue("vscode/1.96.2", forHTTPHeaderField: "Editor-Version")
         request.setValue("copilot-chat/0.26.7", forHTTPHeaderField: "Editor-Plugin-Version")
         request.setValue("GitHubCopilotChat/0.26.7", forHTTPHeaderField: "User-Agent")
-        request.setValue("2025-04-01", forHTTPHeaderField: "X-Github-Api-Version")
+        if CopilotDeviceFlow.normalizedHost(self.enterpriseHost) == CopilotDeviceFlow.defaultHost {
+            request.setValue("2025-04-01", forHTTPHeaderField: "X-Github-Api-Version")
+        }
     }
 
     static func makeRateWindow(
