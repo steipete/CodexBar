@@ -8,19 +8,11 @@ public enum MuseCookieImporter {
     private static let cookieClient = BrowserCookieClient()
     private static let cookieDomains = [
         "dev.meta.ai",
-        "ai.developer.meta.com",
-        "developer.meta.com",
-        "www.meta.ai",
         "meta.ai",
-        // Comet/FB infra — dev.meta.ai auth rides on facebook.com cookies (c_user/xs/datr/fb_dtsg)
-        "facebook.com",
-        "www.facebook.com",
-        "meta.com",
-        "www.meta.com",
     ]
 
     private static let sessionCookieNames: Set<String> = [
-        "sessionid", "session_id", "session_token", "c_user", "xs", "fbsr", "datr",
+        "ecto_1_sess", "llm_sess", "sessionid", "session_id", "session_token",
     ]
 
     /// Destination for which the Cookie header will be sent. Filters to preserve
@@ -33,6 +25,8 @@ public enum MuseCookieImporter {
     public struct SessionInfo: Sendable {
         public let cookies: [HTTPCookie]
         public let sourceLabel: String
+        public let dashboardURL: URL?
+        public let userAgent: String?
 
         public var cookieHeader: String {
             self.cookies.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
@@ -41,18 +35,24 @@ public enum MuseCookieImporter {
 
     public static func importCookieHeader(
         browserDetection: BrowserDetection,
+        preferredBrowsers: [Browser]? = nil,
         logger: ((String) -> Void)? = nil) throws -> SessionInfo?
     {
-        let sessions = try self.importSessions(browserDetection: browserDetection, logger: logger)
-        return sessions.max(by: { $0.cookies.count < $1.cookies.count })
+        try self.importSessions(
+            browserDetection: browserDetection,
+            preferredBrowsers: preferredBrowsers,
+            logger: logger).first
     }
 
     public static func importSessions(
         browserDetection: BrowserDetection,
+        preferredBrowsers: [Browser]? = nil,
         logger: ((String) -> Void)? = nil) throws -> [SessionInfo]
     {
-        let order = ProviderDefaults.metadata[.muse]?.browserCookieOrder ?? Browser.defaultImportOrder
+        let order = self.resolvedImportOrder(preferredBrowsers)
         let candidates = order.cookieImportCandidates(using: browserDetection)
+        let log: (String) -> Void = { message in logger?("[muse-cookie] \(message)") }
+        log("Cookie import candidates: \(candidates.map(\.displayName).joined(separator: ", "))")
         var sessions: [SessionInfo] = []
         for browser in candidates {
             do {
@@ -76,15 +76,103 @@ public enum MuseCookieImporter {
                     let cookies = BrowserCookieClient.makeHTTPCookies(filteredRecords, origin: query.origin)
                     let headerCookies = cookies
                         .filter { !$0.value.isEmpty && $0.expiresDate.map { $0 > Date() } ?? true }
-                    guard !headerCookies.isEmpty else { continue }
-                    sessions.append(SessionInfo(cookies: headerCookies, sourceLabel: source.label))
+                    guard self.hasAuthenticatedSessionCookie(headerCookies) else {
+                        log("Skipping \(source.label): missing Muse session cookie")
+                        continue
+                    }
+                    let cookieNames = Set(headerCookies.map(\.name)).sorted().joined(separator: ", ")
+                    log("Found \(headerCookies.count) Muse cookies in \(source.label): \(cookieNames)")
+                    sessions.append(SessionInfo(
+                        cookies: headerCookies,
+                        sourceLabel: source.label,
+                        dashboardURL: MuseDashboardURLResolver.mostRecentURL(
+                            profileDirectory: URL(fileURLWithPath: source.store.profile.id)),
+                        userAgent: self.chromiumUserAgent(browser: browser)))
                 }
             } catch {
+                BrowserCookieAccessGate.recordIfNeeded(error)
                 self.log.debug("Muse cookie import failed for \(browser.displayName): \(error)")
+                log("\(browser.displayName) cookie import failed: \(error.localizedDescription)")
                 continue
             }
         }
         return sessions
+    }
+
+    static func resolvedImportOrder(_ preferredBrowsers: [Browser]?) -> [Browser] {
+        if let preferredBrowsers, !preferredBrowsers.isEmpty {
+            return preferredBrowsers
+        }
+        return ProviderDefaults.metadata[.muse]?.browserCookieOrder ?? Browser.defaultImportOrder
+    }
+
+    static func preferredBrowsers(for source: MuseBrowserSource) -> [Browser]? {
+        switch source {
+        case .auto: nil
+        case .chrome: [.chrome]
+        case .brave: [.brave]
+        }
+    }
+
+    static func dashboardURL(
+        sourceLabel: String,
+        browserDetection: BrowserDetection,
+        preferredBrowsers: [Browser]?) -> URL?
+    {
+        let candidates = self.resolvedImportOrder(preferredBrowsers).cookieImportCandidates(using: browserDetection)
+        for browser in candidates {
+            guard let store = self.cookieClient.stores(for: browser).first(where: { $0.label == sourceLabel }) else {
+                continue
+            }
+            if let url = MuseDashboardURLResolver.mostRecentURL(
+                profileDirectory: URL(fileURLWithPath: store.profile.id))
+            {
+                return url
+            }
+        }
+        return nil
+    }
+
+    static func userAgent(
+        sourceLabel: String,
+        browserDetection: BrowserDetection,
+        preferredBrowsers: [Browser]?) -> String?
+    {
+        let candidates = self.resolvedImportOrder(preferredBrowsers).cookieImportCandidates(using: browserDetection)
+        for browser in candidates {
+            guard self.cookieClient.stores(for: browser).contains(where: { $0.label == sourceLabel }) else {
+                continue
+            }
+            return self.chromiumUserAgent(browser: browser)
+        }
+        return nil
+    }
+
+    static func chromiumUserAgent(browser: Browser) -> String? {
+        let appName = browser.appBundleName + ".app"
+        let roots = [
+            URL(fileURLWithPath: "/Applications", isDirectory: true),
+            FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Applications", isDirectory: true),
+        ]
+        for root in roots {
+            let bundleURL = root.appendingPathComponent(appName, isDirectory: true)
+            guard let bundle = Bundle(url: bundleURL),
+                  let version = bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String,
+                  let major = version.split(separator: ".").first,
+                  major.allSatisfy(\.isNumber)
+            else { continue }
+            return self.chromiumUserAgent(majorVersion: String(major))
+        }
+        return nil
+    }
+
+    static func chromiumUserAgent(majorVersion: String) -> String {
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/\(majorVersion).0.0.0 Safari/537.36"
+    }
+
+    static func hasAuthenticatedSessionCookie(_ cookies: [HTTPCookie]) -> Bool {
+        cookies.contains { self.sessionCookieNames.contains($0.name.lowercased()) }
     }
 
     // MARK: - Cookie isolation (testable) — preserves BrowserCookieRecord.scope

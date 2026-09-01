@@ -47,6 +47,16 @@ extension SettingsStore {
         }
     }
 
+    var museBrowserSource: MuseBrowserSource {
+        get { self.configSnapshot.providerConfig(for: .muse)?.museBrowserSource ?? .auto }
+        set {
+            self.updateProviderConfig(provider: .muse) { entry in
+                entry.museBrowserSource = newValue == .auto ? nil : newValue
+            }
+            self.logProviderModeChange(provider: .muse, field: "browserSource", value: newValue.rawValue)
+        }
+    }
+
     func ensureMuseAPITokenLoaded() {}
 
     var hasMuseAPIToken: Bool {
@@ -74,6 +84,7 @@ extension SettingsStore {
             tokenOverride: nil)
         return ProviderSettingsSnapshot.MuseProviderSettings(
             baseURL: self.configuredMuseBaseURL,
+            browserSource: self.museBrowserSource,
             cookieSource: cookie.cookieSource,
             manualCookieHeader: cookie.manualCookieHeader)
     }

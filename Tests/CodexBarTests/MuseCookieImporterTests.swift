@@ -6,6 +6,14 @@ import Testing
 import SweetCookieKit
 
 struct MuseCookieImporterTests {
+    @Test
+    func `uses an explicitly selected browser instead of prompting the automatic first candidate`() {
+        #expect(MuseCookieImporter.preferredBrowsers(for: .auto) == nil)
+        #expect(MuseCookieImporter.preferredBrowsers(for: .chrome) == [.chrome])
+        #expect(MuseCookieImporter.preferredBrowsers(for: .brave) == [.brave])
+        #expect(MuseCookieImporter.resolvedImportOrder([.brave]) == [.brave])
+    }
+
     // MARK: - Helpers
 
     private func makeCookie(
@@ -27,12 +35,12 @@ struct MuseCookieImporterTests {
         return try #require(HTTPCookie(properties: props))
     }
 
-    // MARK: - P2: Chrome-only default
+    // MARK: - P2: Chrome + Brave default (Chrome preferred, Brave fallback)
 
     @Test
     func `muse automatic cookie import defaults to chrome only`() {
-        #expect(ProviderDefaults.metadata[.muse]?.browserCookieOrder == [.chrome])
-        #expect(MuseProviderDescriptor.descriptor.metadata.browserCookieOrder == [.chrome])
+        #expect(ProviderDefaults.metadata[.muse]?.browserCookieOrder == [.chrome, .brave])
+        #expect(MuseProviderDescriptor.descriptor.metadata.browserCookieOrder == [.chrome, .brave])
     }
 
     // MARK: - P1: Cookie isolation
@@ -109,6 +117,24 @@ struct MuseCookieImporterTests {
         let header = filtered.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
         #expect(header.contains("llm_sess=ABC"))
         #expect(!header.contains("fr=FBFB"))
+    }
+
+    @Test
+    func `recognizes current Muse browser session cookies`() throws {
+        let llm = try makeCookie(domain: "dev.meta.ai", name: "llm_sess", value: "current")
+        let ecto = try makeCookie(domain: "dev.meta.ai", name: "ecto_1_sess", value: "current")
+        let unrelated = try makeCookie(domain: "dev.meta.ai", name: "datr", value: "not-auth")
+
+        #expect(MuseCookieImporter.hasAuthenticatedSessionCookie([llm]))
+        #expect(MuseCookieImporter.hasAuthenticatedSessionCookie([ecto]))
+        #expect(!MuseCookieImporter.hasAuthenticatedSessionCookie([unrelated]))
+    }
+
+    @Test
+    func `builds a chromium user agent from the selected browser major version`() {
+        let userAgent = MuseCookieImporter.chromiumUserAgent(majorVersion: "152")
+        #expect(userAgent.contains("Chrome/152.0.0.0"))
+        #expect(!userAgent.contains("Brave"))
     }
 
     @Test

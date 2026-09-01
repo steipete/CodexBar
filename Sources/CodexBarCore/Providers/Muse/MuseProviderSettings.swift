@@ -1,22 +1,32 @@
 import Foundation
 
+public enum MuseBrowserSource: String, Codable, CaseIterable, Sendable {
+    case auto
+    case chrome
+    case brave
+}
+
 public struct MuseProviderSettings: Sendable, ProviderCookieSettings {
     public let baseURL: String?
+    public let browserSource: MuseBrowserSource
     public let cookieSource: ProviderCookieSource
     public let manualCookieHeader: String?
 
     public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?) {
         self.baseURL = nil
+        self.browserSource = .auto
         self.cookieSource = cookieSource
         self.manualCookieHeader = manualCookieHeader
     }
 
     public init(
         baseURL: String? = nil,
+        browserSource: MuseBrowserSource = .auto,
         cookieSource: ProviderCookieSource = .auto,
         manualCookieHeader: String? = nil)
     {
         self.baseURL = baseURL
+        self.browserSource = browserSource
         self.cookieSource = cookieSource
         self.manualCookieHeader = manualCookieHeader
     }

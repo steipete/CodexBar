@@ -56,7 +56,8 @@ extension CodexBarCLI {
                     descriptor: descriptor,
                     config: config,
                     tokenContext: tokenContext,
-                    browserDetection: browserDetection)
+                    browserDetection: browserDetection,
+                    verbose: values.flags.contains("verbose"))
             })
 
         Self.printCookieRefreshResults(results, output: output)
@@ -185,7 +186,8 @@ extension CodexBarCLI {
         descriptor: ProviderDescriptor,
         config: CodexBarConfig,
         tokenContext: TokenAccountCLIContext,
-        browserDetection: BrowserDetection) async -> CookieRefreshResult
+        browserDetection: BrowserDetection,
+        verbose: Bool) async -> CookieRefreshResult
     {
         let provider = descriptor.id
         if let result = Self.cookieRefreshSkipResult(descriptor: descriptor, config: config) {
@@ -204,7 +206,7 @@ extension CodexBarCLI {
                 includeOptionalUsage: false,
                 webTimeout: 60,
                 webDebugDumpHTML: false,
-                verbose: false,
+                verbose: verbose,
                 env: environment,
                 settings: tokenContext.settingsSnapshot(for: provider, account: nil),
                 fetcher: tokenContext.fetcher(base: UsageFetcher(), provider: provider, env: environment),

@@ -3,43 +3,43 @@ import Foundation
 import FoundationNetworking
 #endif
 
-// Team usage via dev.meta.ai GraphQL — reverse-engineered from HAR 2026-08-15.
-// The dashboard at https://dev.meta.ai/usage/?project_id=...&team_id=...
-// loads via POST https://dev.meta.ai/api/graphql/ with
-//   fb_api_caller_class=RelayModern
-//   fb_api_req_friendly_name=LLMDCUsageQuery
-//   doc_id=27710687895239709
-//   variables={api_key_id, end_date, model_id, start_date, team_id, timezone, ...}
-// Auth is browser cookies (dev.meta.ai). We replicate the request with
-// Cookie header + standard Comet headers; dynamic __* tokens are best-effort
-// (extracted from HTML when available) but many deployments accept minimal
-// GraphQL body alone.
+// Team usage via the Relay operation used by dev.meta.ai. Authentication comes
+// from the user's current browser profile. Request-scoped Comet values are read
+// from the matching dashboard HTML and are never replayed from a captured HAR.
 
 public enum MuseWebUsageFetcher: Sendable {
     private static let log = CodexBarLog.logger(LogCategories.provider(.muse, scope: "web-usage"))
-    private static let dashboardURL = URL(string: "https://dev.meta.ai/usage")!
+    // Meta's client router canonicalizes the bare path to a team/project-qualified URL.
+    // The non-canonical path currently returns HTTP 500 outside a browser instead of redirecting.
+    private static let defaultDashboardURL = URL(string: "https://dev.meta.ai/usage/")!
+    private static let defaultBootstrapURL = URL(string: "https://dev.meta.ai/")!
     private static let graphQLURL = URL(string: "https://dev.meta.ai/api/graphql/")!
-    // doc_id for LLMDCUsageQuery — stable in HAR; if Meta rotates it we
-    // fall back to HTML/legacy parsing and surface parseFailed
-    private static let usageDocID = "27710687895239709"
-    private static let fallbackDocIDAlt = "27710687895239709"
+    private static let usageDocID = "28117303444603430"
+    private static let defaultBrowserUserAgent =
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36"
 
     public static func fetchUsage(
         cookieHeader: String,
         timeout: TimeInterval = 15,
+        dashboardURL: URL? = nil,
+        userAgent: String? = nil,
         transport: any ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> UsageSnapshot
     {
+        let dashboardURL = dashboardURL ?? self.defaultDashboardURL
         // 1) Try GraphQL usage (primary)
         if let snap = try await self.fetchViaGraphQL(
             cookieHeader: cookieHeader,
             timeout: timeout,
+            dashboardURL: dashboardURL,
+            userAgent: userAgent,
             transport: transport)
         {
             return snap
         }
         // 2) Fallback: fetch HTML and look for embedded usage (kept for diagnostics)
-        var htmlRequest = URLRequest(url: self.dashboardURL, timeoutInterval: timeout)
-        htmlRequest.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
+        var htmlRequest = URLRequest(url: dashboardURL, timeoutInterval: timeout)
+        self.applyBrowserHeaders(to: &htmlRequest, cookieHeader: cookieHeader, userAgent: userAgent)
         htmlRequest.setValue(
             "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             forHTTPHeaderField: "Accept")
@@ -48,7 +48,7 @@ public enum MuseWebUsageFetcher: Sendable {
             if htmlResponse.statusCode == 401 || htmlResponse.statusCode == 403 {
                 throw MuseUsageError.apiError("HTTP \(htmlResponse.statusCode) — invalid dev.meta.ai session")
             }
-            throw MuseUsageError.apiError("HTTP \(htmlResponse.statusCode) at /usage")
+            throw MuseUsageError.apiError("HTTP \(htmlResponse.statusCode) at /usage/")
         }
         if let snap = try self.parseDashboardHTML(data: htmlResponse.data) { return snap }
         throw MuseUsageError
@@ -61,93 +61,76 @@ public enum MuseWebUsageFetcher: Sendable {
     private static func fetchViaGraphQL(
         cookieHeader: String,
         timeout: TimeInterval,
+        dashboardURL: URL,
+        userAgent: String?,
         transport: any ProviderHTTPTransport) async throws -> UsageSnapshot?
     {
-        // Fetch dashboard HTML first to harvest dynamic Comet tokens and team_id.
-        // If that fetch fails we still attempt GraphQL with a minimal body.
-        var teamId: String?
-        var lsd: String?
-        var fbDtsg: String?
-        var rev: String?
-        var hsi: String?
-        do {
-            var req = URLRequest(url: self.dashboardURL, timeoutInterval: timeout)
-            req.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
-            req.setValue(
-                "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                forHTTPHeaderField: "Accept")
-            let resp = try await transport.response(for: req)
-            if (200..<300).contains(resp.statusCode), let html = String(data: resp.data, encoding: .utf8) {
-                teamId = self.extractTeamId(from: html)
-                lsd = self.extractLSD(from: html)
-                fbDtsg = self.extractFbDtsg(from: html)
-                rev = self.extractRev(from: html)
-                hsi = self.extractHsi(from: html)
-                if teamId == nil {
-                    teamId = self.extractTeamId(from: resp.data)
-                }
-            }
-        } catch {
-            self.log.debug("Muse GraphQL prefetch HTML failed: \(error)")
+        let bootstrapData = try await self.fetchBootstrapHTML(
+            cookieHeader: cookieHeader,
+            timeout: timeout,
+            dashboardURL: dashboardURL,
+            userAgent: userAgent,
+            transport: transport)
+        guard let html = String(data: bootstrapData, encoding: .utf8) else {
+            throw MuseUsageError.parseFailed("Invalid UTF-8 response from dev.meta.ai")
+        }
+        guard let teamID = self.extractTeamId(from: html) ?? self.queryValue(named: "team_id", in: dashboardURL) else {
+            throw MuseUsageError.apiError(
+                "The selected browser session has no dev.meta.ai team. Open Team usage in that browser first.")
         }
 
-        // If we still have no teamId, try to discover via a lightweight
-        // settings query could be added here. For now, surface a clear error
-        // so callers fall back to API-key probe rather than 400-looping.
-        guard let tid = teamId else {
-            self.log.debug("Muse GraphQL: no team_id found in HTML — skipping GraphQL, falling back to HTML parse")
-            return nil
-        }
-
-        let dates = self.weekWindow(timeZone: TimeZone(identifier: "America/Chicago") ?? .current)
+        let dates = self.recentSevenDayWindow(timeZone: .current)
         let variables: [String: Any] = [
             "api_key_id": NSNull(),
             "end_date": dates.end,
             "model_id": NSNull(),
+            "month": NSNull(),
             "start_date": dates.start,
-            "team_id": tid,
-            "timezone": "America/Chicago",
+            "team_id": teamID,
             "__relay_internal__pv__Usage_ShouldIncludeBatchMetricsrelayprovider": false,
             "__relay_internal__pv__Usage_ShouldIncludeCostMetricsrelayprovider": true,
+            "__relay_internal__pv__Usage_ShouldIncludeImageMetricsrelayprovider": true,
+            "__relay_internal__pv__Usage_ShouldIncludeSubscriptionQuotarelayprovider": true,
         ]
         guard let variablesJSON = try? JSONSerialization.data(withJSONObject: variables),
               let variablesString = String(data: variablesJSON, encoding: .utf8) else { return nil }
 
-        // No hard-coded HAR fallbacks — only use tokens extracted from the active
-        // HTML session. If extraction fails, omit the param and let the request
-        // either succeed minimally or fall back to the API probe.
         var bodyParams: [String: String] = [
+            "__a": "1",
             "fb_api_caller_class": "RelayModern",
             "fb_api_req_friendly_name": "LLMDCUsageQuery",
             "server_timestamps": "true",
             "variables": variablesString,
             "doc_id": self.usageDocID,
         ]
-        if let l = lsd { bodyParams["lsd"] = l }
-        if let d = fbDtsg { bodyParams["fb_dtsg"] = d }
-        if let r = rev {
-            bodyParams["__rev"] = r
-            bodyParams["__spin_r"] = r
+        let lsd = self.extractLSD(from: html)
+        if let lsd { bodyParams["lsd"] = lsd }
+        if let fbDtsg = self.extractFbDtsg(from: html) {
+            bodyParams["fb_dtsg"] = fbDtsg
+            bodyParams["jazoest"] = self.jazoest(for: fbDtsg)
         }
-        if let h = hsi { bodyParams["__hsi"] = h }
-        // Omit empty fb_dtsg if we didn't find one — some sessions work without it
-        if bodyParams["fb_dtsg"]?.isEmpty == true { bodyParams.removeValue(forKey: "fb_dtsg") }
+        if let actorID = self.extractActorID(from: html) {
+            bodyParams["av"] = actorID
+            bodyParams["__user"] = actorID
+        }
+        if let rev = self.extractRev(from: html) { bodyParams["__rev"] = rev }
+        if let hsi = self.extractHsi(from: html) { bodyParams["__hsi"] = hsi }
 
-        let bodyString = bodyParams.map { k, v in
-            "\(k)=\(v.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? v)"
-        }.joined(separator: "&")
-        guard let bodyData = bodyString.data(using: .utf8) else { return nil }
+        guard let bodyData = self.formData(bodyParams) else { return nil }
 
         var request = URLRequest(url: self.graphQLURL, timeoutInterval: timeout)
         request.httpMethod = "POST"
         request.httpBody = bodyData
-        request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
+        self.applyBrowserHeaders(to: &request, cookieHeader: cookieHeader, userAgent: userAgent)
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         request.setValue("*/*", forHTTPHeaderField: "Accept")
-        request.setValue("https://dev.meta.ai/usage", forHTTPHeaderField: "Referer")
+        request.setValue(dashboardURL.absoluteString, forHTTPHeaderField: "Referer")
         request.setValue("https://dev.meta.ai", forHTTPHeaderField: "Origin")
+        request.setValue("same-origin", forHTTPHeaderField: "Sec-Fetch-Site")
+        request.setValue("cors", forHTTPHeaderField: "Sec-Fetch-Mode")
+        request.setValue("empty", forHTTPHeaderField: "Sec-Fetch-Dest")
         request.setValue("LLMDCUsageQuery", forHTTPHeaderField: "X-FB-Friendly-Name")
-        if let l = lsd { request.setValue(l, forHTTPHeaderField: "X-FB-LSD") }
+        if let lsd { request.setValue(lsd, forHTTPHeaderField: "X-FB-LSD") }
 
         let response = try await transport.response(for: request)
         if response.statusCode == 401 || response.statusCode == 403 {
@@ -155,24 +138,111 @@ public enum MuseWebUsageFetcher: Sendable {
         }
         guard (200..<300).contains(response.statusCode) else {
             self.log.error("Muse GraphQL returned HTTP \(response.statusCode)")
-            // Don't throw — let caller fall back to HTML
-            return nil
+            throw MuseUsageError.apiError("HTTP \(response.statusCode) from dev.meta.ai GraphQL")
         }
         // Response may be JSON or JS-wrapped JSON (for(...);). Strip prefix.
         let data = self.stripJSWrapper(response.data)
+        self.log.debug("Muse GraphQL response shape: \(self.responseShape(data))")
         if let snap = try self.parseUsageGraphQL(data: data) { return snap }
-        // Log a snippet for diagnostics (capped)
-        if let raw = String(data: data, encoding: .utf8) {
-            self.log.debug("Muse GraphQL parseFailed, snippet: \(raw.prefix(600))")
+        if let graphQLError = self.graphQLError(from: data) {
+            self.log.error("Muse GraphQL rejected the request: \(graphQLError)")
+            throw MuseUsageError.apiError(graphQLError)
         }
+        if let snap = try self.parseDashboardHTML(data: bootstrapData) { return snap }
+        self.log.debug("Muse GraphQL returned no recognized usage payload")
         return nil
     }
 
-    private static func weekWindow(timeZone: TimeZone) -> (start: String, end: String) {
+    private static func fetchBootstrapHTML(
+        cookieHeader: String,
+        timeout: TimeInterval,
+        dashboardURL: URL,
+        userAgent: String?,
+        transport: any ProviderHTTPTransport) async throws -> Data
+    {
+        let dashboardResponse = try await self.fetchHTML(
+            url: dashboardURL,
+            cookieHeader: cookieHeader,
+            timeout: timeout,
+            userAgent: userAgent,
+            transport: transport)
+        if (200..<300).contains(dashboardResponse.statusCode) {
+            return dashboardResponse.data
+        }
+        if dashboardResponse.statusCode == 401 || dashboardResponse.statusCode == 403 {
+            throw MuseUsageError.apiError(
+                "HTTP \(dashboardResponse.statusCode) — invalid dev.meta.ai browser session")
+        }
+
+        // The usage page is a client-side route. Meta currently returns HTTP 500
+        // when it is requested directly outside the browser navigation that created
+        // the SPA, even though the same browser session is valid. Bootstrap Comet
+        // tokens from the app shell and retain the scoped usage URL as the Referer.
+        let rootResponse = try await self.fetchHTML(
+            url: self.scopedBootstrapURL(dashboardURL: dashboardURL),
+            cookieHeader: cookieHeader,
+            timeout: timeout,
+            userAgent: userAgent,
+            transport: transport)
+        if (200..<300).contains(rootResponse.statusCode) {
+            return rootResponse.data
+        }
+        if rootResponse.statusCode == 401 || rootResponse.statusCode == 403 {
+            throw MuseUsageError.apiError(
+                "HTTP \(rootResponse.statusCode) — invalid dev.meta.ai browser session")
+        }
+
+        // Meta may reject document navigation from URLSession while still accepting
+        // its Relay endpoint with the same browser cookies. The scoped route carries
+        // the team identity, so continue without optional Comet tokens in that case.
+        if self.queryValue(named: "team_id", in: dashboardURL) != nil,
+           self.queryValue(named: "project_id", in: dashboardURL) != nil
+        {
+            return Data()
+        }
+        throw MuseUsageError.apiError("HTTP \(dashboardResponse.statusCode) at /usage/")
+    }
+
+    private static func fetchHTML(
+        url: URL,
+        cookieHeader: String,
+        timeout: TimeInterval,
+        userAgent: String?,
+        transport: any ProviderHTTPTransport) async throws -> ProviderHTTPResponse
+    {
+        var request = URLRequest(url: url, timeoutInterval: timeout)
+        self.applyBrowserHeaders(to: &request, cookieHeader: cookieHeader, userAgent: userAgent)
+        request.setValue(
+            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            forHTTPHeaderField: "Accept")
+        request.setValue("1", forHTTPHeaderField: "Upgrade-Insecure-Requests")
+        request.setValue("none", forHTTPHeaderField: "Sec-Fetch-Site")
+        request.setValue("navigate", forHTTPHeaderField: "Sec-Fetch-Mode")
+        request.setValue("?1", forHTTPHeaderField: "Sec-Fetch-User")
+        request.setValue("document", forHTTPHeaderField: "Sec-Fetch-Dest")
+        request.setValue("?0", forHTTPHeaderField: "Sec-CH-UA-Mobile")
+        request.setValue(#""macOS""#, forHTTPHeaderField: "Sec-CH-UA-Platform")
+        request.setValue(self.clientHints(userAgent: userAgent), forHTTPHeaderField: "Sec-CH-UA")
+        request.setValue("u=0, i", forHTTPHeaderField: "Priority")
+        return try await transport.response(for: request)
+    }
+
+    static func scopedBootstrapURL(dashboardURL: URL) -> URL {
+        guard let dashboard = URLComponents(url: dashboardURL, resolvingAgainstBaseURL: false) else {
+            return self.defaultBootstrapURL
+        }
+        var root = URLComponents()
+        root.scheme = "https"
+        root.host = "dev.meta.ai"
+        root.path = "/"
+        root.queryItems = dashboard.queryItems?.filter { $0.name == "team_id" || $0.name == "project_id" }
+        return root.url ?? self.defaultBootstrapURL
+    }
+
+    private static func recentSevenDayWindow(timeZone: TimeZone) -> (start: String, end: String) {
         var cal = Calendar(identifier: .gregorian)
         cal.timeZone = timeZone
-        let now = Date()
-        let end = cal.startOfDay(for: now)
+        let end = cal.startOfDay(for: Date())
         let start = cal.date(byAdding: .day, value: -6, to: end) ?? end
         let fmt = DateFormatter()
         fmt.calendar = cal
@@ -181,74 +251,150 @@ public enum MuseWebUsageFetcher: Sendable {
         return (fmt.string(from: start), fmt.string(from: end))
     }
 
+    private static func applyBrowserHeaders(
+        to request: inout URLRequest,
+        cookieHeader: String,
+        userAgent: String?)
+    {
+        request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
+        request.setValue(userAgent ?? self.defaultBrowserUserAgent, forHTTPHeaderField: "User-Agent")
+        request.setValue("en-US,en;q=0.9", forHTTPHeaderField: "Accept-Language")
+    }
+
+    private static func clientHints(userAgent: String?) -> String {
+        let userAgent = userAgent ?? self.defaultBrowserUserAgent
+        let majorVersion = self.firstCapture(in: userAgent, patterns: [#"Chrome/(\d+)"#]) ?? "152"
+        return #""Not_A Brand";v="99", "Chromium";v="\#(majorVersion)""#
+    }
+
+    static func formData(_ values: [String: String]) -> Data? {
+        var components = URLComponents()
+        components.queryItems = values.sorted { $0.key < $1.key }.map {
+            URLQueryItem(name: $0.key, value: $0.value)
+        }
+        return components.percentEncodedQuery?.data(using: .utf8)
+    }
+
+    static func graphQLError(from data: Data) -> String? {
+        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+        if let errors = object["errors"] as? [[String: Any]],
+           let first = errors.first,
+           let message = first["message"] as? String
+        {
+            if let code = first["code"] as? Int {
+                return "GraphQL \(code): \(message)"
+            }
+            return "GraphQL: \(message)"
+        }
+        if let code = object["error"] as? Int, code != 0 {
+            let summary = object["errorSummary"] as? String
+            let description = object["errorDescription"] as? String
+            let message = [summary, description]
+                .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+                .joined(separator: ": ")
+            return message.isEmpty ? "GraphQL \(code)" : "GraphQL \(code): \(message)"
+        }
+        return nil
+    }
+
+    static func jazoest(for token: String) -> String {
+        "2\(token.unicodeScalars.reduce(0) { $0 + Int($1.value) })"
+    }
+
+    static func queryValue(named name: String, in url: URL) -> String? {
+        URLComponents(url: url, resolvingAgainstBaseURL: false)?
+            .queryItems?
+            .first(where: { $0.name == name })?
+            .value
+    }
+
     static func stripJSWrapper(_ data: Data) -> Data {
         guard let s = String(data: data, encoding: .utf8) else { return data }
         let trimmed = s.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.hasPrefix("for(;;);") {
-            let after = String(trimmed.dropFirst("for(;;);".count))
-            return Data(after.utf8)
+        if let guardRange = trimmed.range(
+            of: #"^for\s*\(\s*;;\s*\)\s*;"#,
+            options: .regularExpression)
+        {
+            return Data(trimmed[guardRange.upperBound...].utf8)
         }
         return data
     }
 
+    static func responseShape(_ data: Data) -> String {
+        func shape(_ value: Any, depth: Int = 0) -> String {
+            guard depth < 4 else { return "…" }
+            if let dictionary = value as? [String: Any] {
+                let contents = dictionary.keys.sorted().prefix(24).map { key in
+                    "\(key):\(shape(dictionary[key] as Any, depth: depth + 1))"
+                }.joined(separator: ",")
+                return "{\(contents)}"
+            }
+            if let array = value as? [Any] {
+                let first = array.first.map { shape($0, depth: depth + 1) } ?? "empty"
+                return "[count=\(array.count),first=\(first)]"
+            }
+            if value is NSNull { return "null" }
+            if value is String { return "string" }
+            if value is NSNumber { return "number" }
+            return String(describing: type(of: value))
+        }
+
+        if let object = try? JSONSerialization.jsonObject(with: data) {
+            return shape(object)
+        }
+        let lines = data.split(separator: 0x0A).filter { !$0.isEmpty }
+        let lineShapes = lines.prefix(8).map { line -> String in
+            if let object = try? JSONSerialization.jsonObject(with: Data(line)) {
+                return shape(object)
+            }
+            return "non-json"
+        }
+        let prefix = data.prefix(16).map { String(format: "%02x", $0) }.joined()
+        return "bytes=\(data.count),hexPrefix=\(prefix),lines=[\(lineShapes.joined(separator: ","))]"
+    }
+
     static func parseUsageGraphQL(data: Data) throws -> UsageSnapshot? {
-        // Muse LLMD-C shape: data.team.{requests_metrics,input_token_metrics,output_token_metrics,spend_cost_metrics}
+        // Muse LLMD-C shape: data.team.spend_cost_metrics. Token and request metrics are intentionally ignored:
+        // Muse is pay-as-you-go, so spend is the user-facing usage signal.
         if let snap = parseTeamUsage(data: data) { return snap }
-        guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+        guard let object = try? JSONSerialization.jsonObject(with: data) else { return nil }
         /// Common Comet shape: {data: {viewer: {team: {usage: {...}}}}} or {data: {llmdc_usage: {...}}}
-        /// We recursively search for token/cost keys.
-        func findMetrics(
-            _ dict: [String: Any],
-            depth: Int = 0) -> (tokens: Double?, cost: Double?, requests: Double?)?
-        {
+        /// We recursively search only for cost keys.
+        func findCost(_ value: Any, depth: Int = 0) -> Double? {
             if depth > 8 { return nil }
-            var tokens: Double?
-            var cost: Double?
-            var requests: Double?
-            for (k, v) in dict {
-                let lk = k.lowercased()
-                if lk.contains("total_tokens") || lk == "totaltokens" || lk == "total_tokens_used" {
-                    if let d = v as? Double { tokens = d }
-                    if tokens == nil, let i = v as? Int { tokens = Double(i) }
-                    if tokens == nil, let s = v as? String, let d = Double(s) { tokens = d }
-                }
-                if lk.contains("cost") || lk == "total_cost" || lk == "amount" {
-                    if let d = v as? Double { cost = d }
-                    if cost == nil, let i = v as? Int { cost = Double(i) }
-                    if cost == nil, let s = v as? String, let d = Double(s) { cost = d }
-                }
-                if lk.contains("request"), lk.contains("count") || lk.contains("total") {
-                    if let d = v as? Double { requests = d }
-                    if requests == nil, let i = v as? Int { requests = Double(i) }
-                }
-                if let nested = v as? [String: Any], let found = findMetrics(nested, depth: depth + 1) {
-                    tokens = tokens ?? found.tokens; cost = cost ?? found.cost; requests = requests ?? found.requests
-                }
-                if let arr = v as? [[String: Any]] {
-                    for e in arr {
-                        if let found = findMetrics(e, depth: depth + 1) {
-                            tokens = tokens ?? found.tokens; cost = cost ?? found.cost; requests = requests ?? found
-                                .requests
-                        }
+            if let dictionary = value as? [String: Any] {
+                for (key, nested) in dictionary {
+                    let normalizedKey = key.lowercased()
+                    if normalizedKey.contains("cost") || normalizedKey == "amount" {
+                        if let cost = nested as? Double { return cost }
+                        if let cost = nested as? Int { return Double(cost) }
+                        if let string = nested as? String, let cost = Double(string) { return cost }
                     }
                 }
+                for nested in dictionary.values {
+                    if let cost = findCost(nested, depth: depth + 1) { return cost }
+                }
+            } else if let array = value as? [Any] {
+                for nested in array {
+                    if let cost = findCost(nested, depth: depth + 1) { return cost }
+                }
             }
-            if tokens != nil || cost != nil || requests != nil { return (tokens, cost, requests) }
             return nil
         }
         // Also handle top-level array shape from relay-ef batch
-        if let arr = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
+        if let arr = object as? [[String: Any]] {
             for e in arr {
-                if let m = findMetrics(e),
-                   m.tokens != nil || m.cost != nil { return Self.snapshot(from: m) }
+                if let cost = findCost(e) { return Self.spendSnapshot(cost: cost) }
             }
         }
-        if let metrics = findMetrics(obj), metrics.tokens != nil || metrics.cost != nil || metrics.requests != nil {
-            return Self.snapshot(from: metrics)
+        guard let obj = object as? [String: Any] else { return nil }
+        if let cost = findCost(obj) {
+            return Self.spendSnapshot(cost: cost)
         }
         // Fallback: look inside "data" key one level deeper
-        if let dataDict = obj["data"] as? [String: Any], let metrics = findMetrics(dataDict) {
-            return Self.snapshot(from: metrics)
+        if let dataDict = obj["data"] as? [String: Any], let cost = findCost(dataDict) {
+            return Self.spendSnapshot(cost: cost)
         }
         return nil
     }
@@ -256,9 +402,32 @@ public enum MuseWebUsageFetcher: Sendable {
     // MARK: - LLMD-C team usage (meta.ai)
 
     static func parseTeamUsage(data: Data) -> UsageSnapshot? {
-        guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let dataDict = obj["data"] as? [String: Any],
-              let team = dataDict["team"] as? [String: Any] else { return nil }
+        guard let object = try? JSONSerialization.jsonObject(with: data) else { return nil }
+
+        let metricsKeys = ["spend_cost_metrics"]
+        func findTeam(in value: Any, depth: Int = 0) -> [String: Any]? {
+            guard depth <= 10 else { return nil }
+            if let dictionary = value as? [String: Any] {
+                if metricsKeys.contains(where: { dictionary[$0] != nil }) {
+                    return dictionary
+                }
+                if let team = dictionary["team"] as? [String: Any],
+                   metricsKeys.contains(where: { team[$0] != nil })
+                {
+                    return team
+                }
+                for nested in dictionary.values {
+                    if let team = findTeam(in: nested, depth: depth + 1) { return team }
+                }
+            } else if let array = value as? [Any] {
+                for nested in array {
+                    if let team = findTeam(in: nested, depth: depth + 1) { return team }
+                }
+            }
+            return nil
+        }
+
+        guard let team = findTeam(in: object) else { return nil }
 
         func sumCategorical(in metricsKey: String, identifier: String) -> Double? {
             guard let arr = team[metricsKey] as? [[String: Any]] else { return nil }
@@ -286,137 +455,94 @@ public enum MuseWebUsageFetcher: Sendable {
             return nil
         }
 
-        let requests = sumCategorical(in: "requests_metrics", identifier: "num_requests")
-        let promptTokens = sumCategorical(in: "input_token_metrics", identifier: "num_prompt_tokens")
-        let outputTokens = sumCategorical(in: "output_token_metrics", identifier: "num_completion_tokens")
-        let totalTokens = (promptTokens ?? 0) + (outputTokens ?? 0)
-        let cost = sumCategorical(in: "spend_cost_metrics", identifier: "usage_billable_cost")
-
-        guard requests != nil || promptTokens != nil || outputTokens != nil || cost != nil else { return nil }
-
-        var parts: [String] = []
-        if let r = requests {
-            let rStr = Self.localizedCount(Int(r))
-            parts.append("\(rStr) requests")
+        guard let cost = sumCategorical(in: "spend_cost_metrics", identifier: "usage_billable_cost") else {
+            return nil
         }
-        if totalTokens > 0 {
-            let tStr = UsageFormatter.tokenCountString(Int(totalTokens))
-            parts.append("\(tStr) tokens")
-        }
-        if let c = cost, c > 0 {
-            let cStr = Self.localizedCost(c)
-            parts.append(cStr)
-        }
-        let login = parts.isEmpty ? "Team usage" : "Team usage: \(parts.joined(separator: " · "))"
-        let identity = ProviderIdentitySnapshot(
-            providerID: .muse,
-            accountEmail: nil,
-            accountOrganization: nil,
-            loginMethod: login)
 
-        // Build daily history for detail view and tokenUsage sparkline
-        let dailyPoints: [(dayKey: String, totalTokens: Int?, costUSD: Double?)] = {
-            var byDay: [String: (tokens: Int?, cost: Double?)] = [:]
-            func collectTokens(_ key: String, _ ident: String) {
-                guard let arr = team[key] as? [[String: Any]] else { return }
-                for entry in arr where (entry["identifier"] as? String) == ident {
-                    guard let cat = entry["categorical_data"] as? [[String: Any]] else { continue }
-                    for p in cat {
-                        guard let k = p["category"] as? String else { continue }
-                        let v = p["value"]
-                        var tokens: Int?
-                        if let i = v as? Int { tokens = i }
-                        if tokens == nil, let d = v as? Double { tokens = Int(d) }
-                        let cur = byDay[k] ?? (nil, nil)
-                        byDay[k] = (tokens, cur.cost)
-                    }
-                }
-            }
-            func collectPrompt() {
-                collectTokens("input_token_metrics", "num_prompt_tokens")
-            }
-            func collectOutput() {
-                guard let arr = team["output_token_metrics"] as? [[String: Any]] else { return }
-                for entry in arr where (entry["identifier"] as? String) == "num_completion_tokens" {
-                    guard let cat = entry["categorical_data"] as? [[String: Any]] else { continue }
-                    for p in cat {
-                        guard let k = p["category"] as? String else { continue }
-                        let add: Int? = (p["value"] as? Int) ?? (p["value"] as? Double).map { Int($0) }
-                        let cur = byDay[k] ?? (nil, nil)
-                        let newTokens = (cur.tokens ?? 0) + (add ?? 0)
-                        byDay[k] = (newTokens == 0 && cur.tokens == nil ? add : newTokens, cur.cost)
-                    }
-                }
-            }
-            func collectCost() {
-                guard let arr = team["spend_cost_metrics"] as? [[String: Any]] else { return }
-                for entry in arr where (entry["identifier"] as? String) == "usage_billable_cost" {
-                    guard let cat = entry["categorical_data"] as? [[String: Any]] else { continue }
-                    for p in cat {
-                        guard let k = p["category"] as? String else { continue }
-                        let dict = p["value"] as? [String: Any]
-                        let cents: Double? = (dict?["amount_with_offset"] as? String).flatMap(Double.init)
-                            ?? (dict?["amount_with_offset"] as? Int).map { Double($0) }
-                        let usd = cents.map { $0 / 100.0 }
-                        let cur = byDay[k] ?? (nil, nil)
-                        byDay[k] = (cur.tokens, usd)
-                    }
-                }
-            }
-            collectPrompt(); collectOutput(); collectCost()
-            return byDay.map { k, v in (dayKey: k, totalTokens: v.tokens, costUSD: v.cost) }
-                .sorted { $0.dayKey < $1.dayKey }
-        }()
+        let dailyPoints = Self.dailyCostPoints(from: team)
 
         let detailRows: [ProviderDetailSection.Row] = dailyPoints.compactMap { pt in
-            let tok = pt.totalTokens.map { UsageFormatter.tokenCountString($0) + " tokens" } ?? "—"
-            let usd = pt.costUSD.map { Self.localizedCost($0) } ?? "—"
-            return try? ProviderDetailSection.Row(label: pt.dayKey, value: "\(tok) · \(usd)")
+            try? ProviderDetailSection.Row(label: pt.dayKey, value: Self.localizedCost(pt.costUSD))
         }
         let detail: [ProviderDetailSection] = {
             guard !detailRows.isEmpty else { return [] }
-            return (try? ProviderDetailSection(title: "Daily usage", rows: detailRows)).map { [$0] } ?? []
+            return (try? ProviderDetailSection(title: "Daily spend", rows: detailRows)).map { [$0] } ?? []
         }()
 
-        // Surface totals as cost snapshot (balanceOnly provider — bars stay empty)
+        let now = Date()
         return UsageSnapshot(
             primary: nil,
             secondary: nil,
             tertiary: nil,
-            providerCost: cost.map {
-                ProviderCostSnapshot(
-                    used: $0,
-                    limit: $0,
-                    currencyCode: "USD",
-                    updatedAt: Date())
-            },
+            providerCost: ProviderCostSnapshot(
+                used: cost,
+                limit: 0,
+                currencyCode: "USD",
+                period: "Last 7 days",
+                updatedAt: now),
             details: detail,
-            updatedAt: Date(),
-            identity: identity)
+            updatedAt: now,
+            identity: nil)
     }
 
-    private static func snapshot(from metrics: (tokens: Double?, cost: Double?, requests: Double?)) -> UsageSnapshot {
-        var parts: [String] = []
-        if let t = metrics.tokens {
-            parts.append("\(UsageFormatter.tokenCountString(Int(t))) tokens")
+    private static func dailyCostPoints(from team: [String: Any])
+        -> [(dayKey: String, costUSD: Double)]
+    {
+        guard let metrics = team["spend_cost_metrics"] as? [[String: Any]] else { return [] }
+        var byDay: [String: Double] = [:]
+        for entry in metrics where (entry["identifier"] as? String) == "usage_billable_cost" {
+            guard let categoricalData = entry["categorical_data"] as? [[String: Any]] else { continue }
+            for point in categoricalData {
+                guard let day = point["category"] as? String,
+                      let value = point["value"] as? [String: Any]
+                else { continue }
+                let cents = (value["amount_with_offset"] as? String).flatMap(Double.init)
+                    ?? (value["amount_with_offset"] as? Int).map(Double.init)
+                if let cents {
+                    byDay[day] = cents / 100.0
+                }
+            }
         }
-        if let c = metrics.cost { parts.append(Self.localizedCost(c)) }
-        if let r = metrics.requests {
-            parts.append("\(Self.localizedCount(Int(r))) req")
+        return byDay.map { (dayKey: $0.key, costUSD: $0.value) }
+            .sorted { $0.dayKey < $1.dayKey }
+    }
+
+    static func parseRenderedDashboardText(_ text: String) -> UsageSnapshot? {
+        func capture(_ pattern: String) -> String? {
+            guard let expression = try? NSRegularExpression(pattern: pattern),
+                  let match = expression.firstMatch(
+                      in: text,
+                      range: NSRange(text.startIndex..<text.endIndex, in: text)),
+                  match.numberOfRanges > 1,
+                  let range = Range(match.range(at: 1), in: text)
+            else { return nil }
+            return String(text[range])
         }
-        let login = parts.isEmpty ? "Team usage" : "Team usage: \(parts.joined(separator: " · "))"
-        let identity = ProviderIdentitySnapshot(
-            providerID: .muse,
-            accountEmail: nil,
-            accountOrganization: nil,
-            loginMethod: login)
+
+        func decimal(_ value: String?) -> Double? {
+            value.flatMap { Double($0.replacingOccurrences(of: ",", with: "")) }
+        }
+
+        guard let spend = decimal(capture(#"(?m)^\$([0-9][0-9,.]*)\s*\nSpend \(USD\)$"#)) else {
+            return nil
+        }
+        return Self.spendSnapshot(cost: spend)
+    }
+
+    private static func spendSnapshot(cost: Double) -> UsageSnapshot {
+        let now = Date()
         return UsageSnapshot(
             primary: nil,
             secondary: nil,
             tertiary: nil,
-            providerCost: nil,
-            updatedAt: Date(),
-            identity: identity)
+            providerCost: ProviderCostSnapshot(
+                used: cost,
+                limit: 0,
+                currencyCode: "USD",
+                period: "Last 7 days",
+                updatedAt: now),
+            updatedAt: now,
+            identity: nil)
     }
 
     // MARK: - Helpers for token extraction from HTML
@@ -452,34 +578,30 @@ public enum MuseWebUsageFetcher: Sendable {
     }
 
     static func extractLSD(from html: String) -> String? {
-        if let r = html.range(of: #""LSD"\s*,\s*\[\]\s*,\s*\{"token"\s*:\s*"([^"]+)""#, options: .regularExpression) {
-            let sub = String(html[r])
-            if let m = sub.range(of: #""token"\s*:\s*"([^"]+)""#, options: .regularExpression) {
-                let t = String(sub[m])
-                return t.components(separatedBy: "\"").dropLast(1).last
-            }
-        }
-        // fallback: lsd=....
-        if let r = html.range(of: #"\"lsd\"\s*:\s*\"([^\"]+)\""#, options: .regularExpression) {
-            let sub = String(html[r])
-            if let m = sub.range(of: #"[A-Za-z0-9_-]{6,}"#, options: .regularExpression) { return String(sub[m]) }
-        }
-        return nil
+        self.firstCapture(in: html, patterns: [
+            #""LSD"\s*,\s*\[\]\s*,\s*\{"token"\s*:\s*"([^"]+)""#,
+            #""LSD".{0,240}"token"\s*:\s*"([^"]+)""#,
+            #""lsd"\s*:\s*"([^"]+)""#,
+        ])
     }
 
     static func extractFbDtsg(from html: String) -> String? {
-        // fb_dtsg or DTSG token
-        if let r = html.range(of: #"\"dtsg\"\s*:\s*\{"token"\s*:\s*"([^"]+)""#, options: .regularExpression) {
-            let sub = String(html[r])
-            // extract quoted value
-            let comps = sub.components(separatedBy: "\"")
-            if let idx = comps.firstIndex(of: "token"), idx + 2 < comps.count { return comps[idx + 2] }
-        }
-        if let r = html.range(of: #"fb_dtsg[^"]*"([^"]{10,})"#, options: .regularExpression) {
-            let sub = String(html[r])
-            if let m = sub.range(of: #"[A-Za-z0-9:_-]{10,}"#, options: .regularExpression) { return String(sub[m]) }
-        }
-        return nil
+        self.firstCapture(in: html, patterns: [
+            #""DTSGInitialData".{0,320}"token"\s*:\s*"([^"]+)""#,
+            #""DTSG".{0,320}"token"\s*:\s*"([^"]+)""#,
+            #""dtsg"\s*:\s*\{"token"\s*:\s*"([^"]+)""#,
+            #""fb_dtsg"\s*:\s*"([^"]{10,})""#,
+        ])
+    }
+
+    static func extractActorID(from html: String) -> String? {
+        guard let value = self.firstCapture(in: html, patterns: [
+            #""USER_ID"\s*:\s*"(\d{5,})""#,
+            #""ACCOUNT_ID"\s*:\s*"(\d{5,})""#,
+            #""actorID"\s*:\s*"(\d{5,})""#,
+            #""actor_id"\s*:\s*"(\d{5,})""#,
+        ]), value != "0" else { return nil }
+        return value
     }
 
     static func extractRev(from html: String) -> String? {
@@ -502,46 +624,17 @@ public enum MuseWebUsageFetcher: Sendable {
         return nil
     }
 
-    static func parseUsageAPI(data: Data) throws -> UsageSnapshot? {
-        // Kept for legacy fallback — same as before
-        guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
-        let totalKeys = ["total_tokens", "totalTokens", "total_tokens_used", "total"]
-        let inputKeys = ["input_tokens", "inputTokens"]
-        let outputKeys = ["output_tokens", "outputTokens"]
-        var total: Double?
-        var input: Double?
-        var output: Double?
-        for k in totalKeys {
-            if let v = obj[k] as? Double { total = v; break }; if let v = obj[k] as? Int { total = Double(v); break }
+    private static func firstCapture(in value: String, patterns: [String]) -> String? {
+        let searchRange = NSRange(value.startIndex..<value.endIndex, in: value)
+        for pattern in patterns {
+            guard let expression = try? NSRegularExpression(pattern: pattern),
+                  let match = expression.firstMatch(in: value, range: searchRange),
+                  match.numberOfRanges > 1,
+                  let range = Range(match.range(at: 1), in: value)
+            else { continue }
+            return String(value[range])
         }
-        for k in inputKeys {
-            if let v = obj[k] as? Double { input = v; break }; if let v = obj[k] as? Int { input = Double(v); break }
-        }
-        for k in outputKeys {
-            if let v = obj[k] as? Double { output = v; break }; if let v = obj[k] as? Int { output = Double(v); break }
-        }
-        if total == nil, let nested = obj["data"] as? [String: Any] {
-            for k in totalKeys {
-                if let v = nested[k] as? Double { total = v; break }; if let v = nested[k] as? Int {
-                    total = Double(v); break
-                }
-            }
-        }
-        guard let t = total ?? (input != nil || output != nil ? (input ?? 0) + (output ?? 0) : nil),
-              t > 0 else { return nil }
-        let login = "Team usage: \(UsageFormatter.tokenCountString(Int(t))) tokens"
-        let identity = ProviderIdentitySnapshot(
-            providerID: .muse,
-            accountEmail: nil,
-            accountOrganization: nil,
-            loginMethod: login)
-        return UsageSnapshot(
-            primary: nil,
-            secondary: nil,
-            tertiary: nil,
-            providerCost: nil,
-            updatedAt: Date(),
-            identity: identity)
+        return nil
     }
 
     static func parseDashboardHTML(data: Data) throws -> UsageSnapshot? {
@@ -552,13 +645,6 @@ public enum MuseWebUsageFetcher: Sendable {
     }
 
     // MARK: - Formatting
-
-    private static func localizedCount(_ value: Int) -> String {
-        let f = NumberFormatter()
-        f.numberStyle = .decimal
-        f.locale = Locale.current
-        return f.string(from: NSNumber(value: value)) ?? "\(value)"
-    }
 
     private static func localizedCost(_ value: Double) -> String {
         let f = NumberFormatter()

@@ -16,6 +16,7 @@ struct MuseProviderImplementation: ProviderImplementation {
         _ = settings.museAPIToken
         _ = settings.museBaseURL
         _ = settings.museCookieSource
+        _ = settings.museBrowserSource
         _ = settings.museCookieHeader
     }
 
@@ -62,6 +63,11 @@ struct MuseProviderImplementation: ProviderImplementation {
                 manual: "Paste Cookie header from dev.meta.ai → DevTools → Network → usage XHR.",
                 off: "Muse cookies disabled.")
         }
+        let browserBinding = Binding(
+            get: { context.settings.museBrowserSource.rawValue },
+            set: { raw in
+                context.settings.museBrowserSource = MuseBrowserSource(rawValue: raw) ?? .auto
+            })
         return [
             ProviderSettingsPickerDescriptor(
                 id: "muse-cookie-source",
@@ -73,6 +79,18 @@ struct MuseProviderImplementation: ProviderImplementation {
                 isVisible: nil,
                 onChange: nil,
                 trailingText: { ProviderCookieSourceUI.cachedTrailingText(provider: .muse) }),
+            ProviderSettingsPickerDescriptor(
+                id: "muse-browser-source",
+                title: "Browser",
+                subtitle: "Choose the browser that is signed in to dev.meta.ai.",
+                binding: browserBinding,
+                options: [
+                    ProviderSettingsPickerOption(id: MuseBrowserSource.auto.rawValue, title: "Automatic"),
+                    ProviderSettingsPickerOption(id: MuseBrowserSource.chrome.rawValue, title: "Google Chrome"),
+                    ProviderSettingsPickerOption(id: MuseBrowserSource.brave.rawValue, title: "Brave Browser"),
+                ],
+                isVisible: { context.settings.museCookieSource == .auto },
+                onChange: nil),
         ]
     }
 
