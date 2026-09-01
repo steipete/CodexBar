@@ -647,10 +647,11 @@ extension UsageStore {
             appendWindow(snapshot.secondary, name: .weekly)
             appendWindow(snapshot.tertiary, name: .monthly)
         case .mimo, .stepfun, .ollama:
-            // Ollama's primary window is the monthly sentinel on new pages and the legacy
-            // 5-hour session on pages still rendering the old windows.
             if snapshot.primary?.windowMinutes == ProviderPaceCapability.monthlyWindowSentinelMinutes {
                 appendWindow(snapshot.primary, name: .monthly)
+                if provider == .ollama {
+                    appendWindow(snapshot.secondary, name: .weekly)
+                }
             } else {
                 appendGenericSessionEquivalentWindows()
             }

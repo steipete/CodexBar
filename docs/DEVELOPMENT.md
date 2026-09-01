@@ -141,7 +141,16 @@ finishes (`waitid` with `WNOWAIT`), preventing reuse of its PID/session. Observe
 leaders can establish ownership of orphaned session members only while a matching live or unreaped
 birth identity still anchors that session. Known descendants retain their identities after reparenting;
 empty completed sessions retire. If an observed session loses its anchor while unaccounted live members
-remain, cleanup fails without adopting or signaling those uncertain PIDs. Unavailable metadata for a
+remain, observation may retain that session as pending only while the direct command is still wait-owned
+and running. A nested runner can then finish draining its own child: its unreaped wait handle is not
+signal authority for the outer observer, and macOS may hide the exited leader's metadata. Pending members
+remain birth-checked even if they change sessions. Uncertainty also follows observed descendants and peers
+of a live matching pending session leader, with compatible birth ordering; those identities remain pending
+after reparenting or session migration. Unreadable pending metadata fails closed; confirmed exits or replaced
+pending births retire without claiming replacements. Pending status grants no ownership or signal authority.
+Command exit and every cleanup path require session continuity and fail if uncertainty remains; a detected
+replacement session-leader birth still fails immediately, even during observation.
+No observation or cleanup deadline is extended. Unavailable metadata for a
 known identity also fails cleanup; an unreadable unrelated peer does not abort enumeration.
 For the direct child, confirmed metadata absence (ESRCH/ENOENT) can precede a waitable exit on
 Darwin. Its unreaped wait handle retains ownership while ordinary polling continues within the
@@ -173,9 +182,14 @@ files and self-expiry, with final cleanup restricted to their unreaped direct ch
 
 Process-cleanup fixtures keep ancestry alive until the real ownership refresh observes matching ready
 child identities (and the session-tree grandchild), then acknowledges a private fixture gate before drain.
-The direct `waitid` fixture uses the same handshake without reaping its root. Immediate cases and a controlled
-one-second readiness delay retain the two-second command budget; startup no longer adds a fixed 1.2-second
-ancestry sleep. Gate waits are bounded and stop-file aware; helper self-expiry remains 20 seconds.
+The direct `waitid` fixture uses the same handshake without reaping its root. Success/failure fixtures keep
+their five-second command budget; timeout fixtures keep two seconds. A virtual-clock readiness test proves
+one-second startup adds no fixed ancestry sleep. Gate waits are bounded and stop-file aware; helper
+self-expiry remains 20 seconds.
+The nested failure regression gates the inner drain and controls outer snapshots: the outer observer
+sees a live session leader first, then its previously unseen orphan with the exited leader hidden.
+Only the inner wait owner drains that orphan; the outer runner must complete without claiming it.
+Contract tests also require unresolved sessions to fail at cleanup and reject reused leader births.
 
 Cost performance and fair-scheduling corpora use exclusive initial fixture creation: the scanner only
 reads after setup has closed each file. This avoids per-file atomic publication and durability work

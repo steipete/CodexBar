@@ -1,8 +1,7 @@
 import Foundation
 
 enum OllamaUsageParser {
-    // The 2026-08 settings page only renders "Monthly usage" (dollar-based); the legacy
-    // Session/Hourly/Weekly labels stay for accounts still showing the old windows.
+    // Current settings use monthly credits; retain legacy usage labels for older pages.
     private static let monthlyUsageLabel = "Monthly usage"
     private static let legacyPrimaryUsageLabels = ["Session usage", "Hourly usage"]
     private static let primaryUsageLabels = [monthlyUsageLabel] + legacyPrimaryUsageLabels
@@ -96,16 +95,15 @@ enum OllamaUsageParser {
 
         guard let usedPercent = self.parsePercent(in: window) else { return nil }
         let resetsAt = self.parseISODate(in: window)
-        let windowMinutes: Int?
-        switch label {
+        let windowMinutes: Int? = switch label {
         case self.monthlyUsageLabel:
             // Monthly windows carry the 30-day sentinel duration; pace resolves the real
             // calendar month from the reset date via the resetWindowPace rule.
-            windowMinutes = ProviderPaceCapability.monthlyWindowSentinelMinutes
+            ProviderPaceCapability.monthlyWindowSentinelMinutes
         case "Session usage":
-            windowMinutes = 5 * 60
+            5 * 60
         default:
-            windowMinutes = nil
+            nil
         }
         return UsageBlock(
             usedPercent: usedPercent,
@@ -147,10 +145,10 @@ enum OllamaUsageParser {
         return nil
     }
 
-    /// The new monthly page meters dollar credits ("$7.50 of $60 used"); convert to a
-    /// percentage so the shared rate-window presentation keeps working.
+    /// Convert included dollar credits to quota utilization, not a spend estimate.
     private static func parseDollarUsedPercent(in text: String) -> Double? {
-        let pattern = #"\$([0-9][0-9,]*(?:\.[0-9]+)?)\s+of\s+\$([0-9][0-9,]*(?:\.[0-9]+)?)\s+used"#
+        let amount = #"((?:[0-9]{1,3}(?:,[0-9]{3})+|[0-9]+)(?:\.[0-9]+)?)"#
+        let pattern = #"\$\#(amount)\s+of\s+\$\#(amount)\s+used"#
         guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
             return nil
         }
@@ -160,14 +158,12 @@ enum OllamaUsageParser {
               let usedRange = Range(match.range(at: 1), in: text),
               let limitRange = Range(match.range(at: 2), in: text)
         else { return nil }
-        let used = self.dollarAmount(String(text[usedRange]))
-        let limit = self.dollarAmount(String(text[limitRange]))
-        guard limit > 0 else { return nil }
-        return used / limit * 100
-    }
-
-    private static func dollarAmount(_ raw: String) -> Double {
-        Double(raw.replacingOccurrences(of: ",", with: "")) ?? 0
+        guard let used = Double(text[usedRange].replacingOccurrences(of: ",", with: "")),
+              let limit = Double(text[limitRange].replacingOccurrences(of: ",", with: "")),
+              used.isFinite, limit.isFinite, limit > 0
+        else { return nil }
+        let percent = used / limit * 100
+        return percent.isFinite ? percent : nil
     }
 
     private static func parseISODate(in text: String) -> Date? {

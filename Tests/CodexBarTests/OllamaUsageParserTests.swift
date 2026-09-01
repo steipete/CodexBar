@@ -208,7 +208,7 @@ struct OllamaUsageParserTests {
 
     @Test
     func `parses monthly dollar usage from new settings HTML`() throws {
-        // 2026-08 改版后的真实页面结构：月度美元计量 + data-time 月度重置点。
+        // Captured monthly-credit markup includes line breaks inside closing tags.
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let html = """
         <div>
@@ -299,8 +299,48 @@ struct OllamaUsageParserTests {
         #expect(snapshot.monthlyUsedPercent == 25)
     }
 
+    @Test(arguments: [
+        "$1,25 of $5,000 used",
+        "$1,,250 of $5,000 used",
+        "$1,250 of $5,00 used",
+        "$\(String(repeating: "9", count: 400)) of $60 used",
+        "$7.50 of $\(String(repeating: "9", count: 400)) used",
+        "$\(String(repeating: "9", count: 308)) of $0.01 used",
+    ])
+    func `invalid monthly dollar amounts require a valid meter fallback`(dollarUsage: String) throws {
+        let html = """
+        <div>
+          <span>Monthly usage</span>
+          <span>\(dollarUsage)</span>
+        </div>
+        """
+
+        #expect {
+            try OllamaUsageParser.parse(html: html)
+        } throws: { error in
+            guard case OllamaUsageError.parseFailed = error else { return false }
+            return true
+        }
+
+        let snapshot = try OllamaUsageParser.parse(html: html + #"<div style="width: 17%;"></div>"#)
+        #expect(snapshot.monthlyUsedPercent == 17)
+    }
+
     @Test
-    func `legacy session page still maps weekly to secondary window`() throws {
+    func `invalid monthly dollars do not borrow the next usage blocks meter`() throws {
+        let html = """
+        <div><span>Monthly usage</span><span>$1,25 of $60 used</span></div>
+        <div><span>Weekly usage</span><div style="width: 42%;"></div></div>
+        """
+
+        let snapshot = try OllamaUsageParser.parse(html: html)
+
+        #expect(snapshot.monthlyUsedPercent == nil)
+        #expect(snapshot.weeklyUsedPercent == 42)
+    }
+
+    @Test
+    func `legacy session only page keeps the session primary window`() throws {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let html = """
         <div>

@@ -1,9 +1,81 @@
-import CodexBarCore
 import Foundation
 import Testing
 @testable import CodexBar
+@testable import CodexBarCore
 
 struct PlanUtilizationHistoryChartMenuViewTests {
+    @Test
+    func `ollama monthly transition filters old tabs without discarding saved history`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let histories = [
+            PlanUtilizationSeriesHistory(
+                name: .session,
+                windowMinutes: 300,
+                entries: [.init(capturedAt: now, usedPercent: 20, resetsAt: nil)]),
+            PlanUtilizationSeriesHistory(
+                name: .weekly,
+                windowMinutes: 10080,
+                entries: [.init(capturedAt: now, usedPercent: 40, resetsAt: nil)]),
+            PlanUtilizationSeriesHistory(
+                name: .monthly,
+                windowMinutes: 43200,
+                entries: [.init(capturedAt: now, usedPercent: 12.5, resetsAt: nil)]),
+        ]
+        let savedData = try JSONEncoder().encode(histories)
+        let savedHistories = try JSONDecoder().decode([PlanUtilizationSeriesHistory].self, from: savedData)
+        let legacy = try OllamaUsageParser.parse(html: """
+        <div><span>Session usage</span><span>20% used</span></div>
+        <div><span>Weekly usage</span><span>40% used</span></div>
+        """, now: now).toUsageSnapshot()
+        let monthly = try OllamaUsageParser.parse(html: """
+        <div><span>Monthly usage</span><span>$7.50 of $60 used</span></div>
+        """, now: now).toUsageSnapshot()
+        let presentation = OllamaProviderDescriptor.descriptor.presentation
+
+        #expect(presentation.planUtilizationSeries(snapshot: legacy) == [.weekly])
+        #expect(presentation.planUtilizationSeries(snapshot: monthly) == [.monthly])
+
+        let legacyBefore = PlanUtilizationHistoryChartMenuView._modelSnapshotForTesting(
+            histories: savedHistories,
+            provider: .ollama,
+            snapshot: legacy)
+        #expect(legacyBefore.visibleSeries == ["weekly:10080"])
+        #expect(legacyBefore.usedPercents.contains(40))
+
+        let monthlyModel = PlanUtilizationHistoryChartMenuView._modelSnapshotForTesting(
+            selectedSeriesRawValue: legacyBefore.selectedSeries,
+            histories: savedHistories,
+            provider: .ollama,
+            snapshot: monthly)
+        #expect(monthlyModel.visibleSeries == ["monthly:43200"])
+        #expect(monthlyModel.selectedSeries == "monthly:43200")
+        #expect(monthlyModel.usedPercents.contains(12.5))
+
+        let legacyAfter = PlanUtilizationHistoryChartMenuView._modelSnapshotForTesting(
+            selectedSeriesRawValue: monthlyModel.selectedSeries,
+            histories: savedHistories,
+            provider: .ollama,
+            snapshot: legacy)
+        #expect(legacyAfter == legacyBefore)
+        #expect(savedHistories == histories)
+
+        let withoutCurrentSnapshot = PlanUtilizationHistoryChartMenuView._modelSnapshotForTesting(
+            histories: savedHistories,
+            provider: .ollama)
+        #expect(withoutCurrentSnapshot.visibleSeries == ["session:300", "weekly:10080", "monthly:43200"])
+    }
+
+    @Test
+    func `ollama monthly history retains a currently reported weekly lane`() throws {
+        let snapshot = try OllamaUsageParser.parse(html: """
+        <div><span>Monthly usage</span><span>$7.50 of $60 used</span></div>
+        <div><span>Weekly usage</span><span>40% used</span></div>
+        """).toUsageSnapshot()
+
+        #expect(OllamaProviderDescriptor.descriptor.presentation.planUtilizationSeries(snapshot: snapshot)
+            == [.monthly, .weekly])
+    }
+
     @Test
     func `merged entries preserve first occurrence order while removing duplicates`() {
         let first = PlanUtilizationHistoryEntry(
