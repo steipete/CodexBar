@@ -64,7 +64,7 @@ public enum OpenRouterProviderDescriptor {
                 widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
-                dashboardURL: "https://openrouter.ai/settings/credits",
+                dashboardURL: "https://openrouter.ai/activity",
                 statusPageURL: nil,
                 statusLinkURL: "https://status.openrouter.ai"),
             branding: ProviderBranding(

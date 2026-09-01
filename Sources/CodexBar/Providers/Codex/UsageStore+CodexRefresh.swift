@@ -323,7 +323,8 @@ extension UsageStore {
             snapshot: row.snapshot,
             error: row.error,
             sourceLabel: row.sourceLabel,
-            credits: self.credits)
+            credits: self.credits,
+            weeklyResetCandidate: row.weeklyResetCandidate)
         self.codexAccountUsageSnapshotStore?.store(self.codexAccountSnapshots)
     }
 

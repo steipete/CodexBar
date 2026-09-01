@@ -48,6 +48,8 @@ shows the credits balance and labels the API key limit as unavailable with a saf
 
 ## Display
 
+The **Usage Dashboard** menu action opens [OpenRouter Activity](https://openrouter.ai/activity) for request and spending history.
+
 The OpenRouter menu card shows:
 
 - **Primary meter**: API key limit usage when the key has a configured limit

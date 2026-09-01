@@ -672,13 +672,11 @@ public actor CursorSessionStore {
     private var hasLoadedFromDisk = false
     private let fileURL: URL
 
-    private init() {
-        let fm = FileManager.default
-        let appSupport = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? fm.temporaryDirectory
-        let dir = appSupport.appendingPathComponent("CodexBar", isDirectory: true)
-        try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
-        self.fileURL = dir.appendingPathComponent("cursor-session.json")
+    init(fileURL: URL? = nil) {
+        self.fileURL = fileURL ?? ProviderSessionStoreFile.url(for: "cursor-session.json")
+        guard fileURL == nil else { return }
+        try? FileManager.default.createDirectory(
+            at: self.fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
 
         // Load saved cookies on init
         Task { await self.loadFromDiskIfNeeded() }
@@ -714,16 +712,6 @@ public actor CursorSessionStore {
         self.pruneExpiredCookies()
         return !self.sessionCookies.isEmpty
     }
-
-    #if DEBUG
-    func resetForTesting(clearDisk: Bool = true) {
-        self.hasLoadedFromDisk = false
-        self.sessionCookies = []
-        if clearDisk {
-            try? FileManager.default.removeItem(at: self.fileURL)
-        }
-    }
-    #endif
 
     private func loadFromDiskIfNeeded() {
         guard !self.hasLoadedFromDisk else { return }

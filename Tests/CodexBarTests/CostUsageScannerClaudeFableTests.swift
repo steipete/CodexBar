@@ -35,7 +35,8 @@ struct CostUsageScannerClaudeFableTests {
         let parsed = CostUsageScanner.parseClaudeFile(
             fileURL: fileURL,
             range: CostUsageScanner.CostUsageDayRange(since: day, until: day),
-            providerFilter: .all)
+            providerFilter: .all,
+            modelsDevCacheRoot: env.cacheRoot)
 
         #expect(parsed.rows.count == 1)
         #expect(parsed.rows[0].model == "claude-fable-5")
@@ -76,7 +77,8 @@ struct CostUsageScannerClaudeFableTests {
         let parsed = CostUsageScanner.parseClaudeFile(
             fileURL: fileURL,
             range: CostUsageScanner.CostUsageDayRange(since: day, until: day),
-            providerFilter: .all)
+            providerFilter: .all,
+            modelsDevCacheRoot: env.cacheRoot)
 
         #expect(parsed.rows.count == 1)
         #expect(parsed.rows[0].input == 100)
@@ -124,7 +126,8 @@ struct CostUsageScannerClaudeFableTests {
         let parsed = CostUsageScanner.parseClaudeFile(
             fileURL: fileURL,
             range: CostUsageScanner.CostUsageDayRange(since: day, until: day),
-            providerFilter: .all)
+            providerFilter: .all,
+            modelsDevCacheRoot: env.cacheRoot)
 
         #expect(parsed.rows.count == 1)
         #expect(parsed.rows[0].cacheCreate == 30)

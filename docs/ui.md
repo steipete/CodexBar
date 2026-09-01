@@ -73,6 +73,10 @@ model-generic token label while the rendered menu-bar prefix and accessibility l
 - Codex and Claude cost cards: a Recent windows list under the daily bars shows each quota window's
   range, cost, and tokens (This week, Last week / Previous window), split at official and banked resets.
 - Token accounts: optional account switcher bar or stacked account cards (up to 6) when multiple manual tokens exist.
+- Token/cost, credit-usage breakdown, credits-history, and plan-history chart date labels retain their full text width
+  in narrow menus. Credits and plan history reserve plot-edge space to avoid clipping; token/cost and usage-breakdown
+  charts retain their automatic scale range. Shared styling uses a
+  bar-centered anchor, and each chart retains its own date formatting, domain, and tick-selection behavior.
 - Provider storage usage is opt-in from Advanced settings. When enabled, overview rows and provider detail cards can show
   local provider-owned storage totals, with a submenu for path breakdowns and copyable paths.
 

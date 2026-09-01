@@ -15,6 +15,7 @@ read_when:
 - Toggle: Settings → Advanced → “Check provider status”.
 - `UsageStore` polls status and stores `ProviderStatus` for indicator/description.
 - Menu shows incident summary + freshness; icon overlays indicator.
+- Cached provider tabs retain their own status components and website links, including on the first switch after opening the merged menu; providers without a curated component submenu keep a plain website link.
 
 ## Workspace incidents
 - Feed: `https://www.google.com/appsstatus/dashboard/incidents.json`.

@@ -42,6 +42,9 @@ Usage source picker:
 - Suspicious weekly resets keep the last trusted usage while confirmation is pending. A successful refresh for the
   same account and workspace clears stale connectivity errors even when the reading is withheld; failed, cancelled,
   or superseded refreshes do not clear them. Cached usage, credits, and other accounts remain unchanged.
+- Credits-only updates preserve pending weekly-reset evidence in memory and account-snapshot storage, including
+  when published credits are cleared. Candidate admission, expiry, boundary tolerances, and account guards remain
+  unchanged; preserving evidence does not make an otherwise incompatible reset eligible for publication.
 - Debug logs in `codex-weekly-reset-publication` include fixed reason codes for delayed-candidate
   creation, pruning, revalidation, and account-scoped storage requests. They distinguish source/confidence,
   timing, boundary, identity/plan compatibility, and credit-inventory failures without logging account or credit
@@ -204,20 +207,32 @@ Example:
   - Catch-up status reads progress metadata without loading historical usage JSON or replay bodies. Cached reports
     retain row-level pricing evidence and project/session details, but omit raw token snapshots, accumulator state,
     and replay bodies. File cursor metadata, including JSONL resume state, remains available for progress tracking.
-    Scanner and save operations still load the complete state; fresh database opens retain integrity validation.
+    A native scan loads complete state once and carries a single-use receipt to save. The store reuses decoded
+    rows only while the same connection, database identity and SQLite change observations remain valid,
+    checking again under the writer lock. Filesystem/anchor and catch-up reconciliation still run at comparison
+    time; a concurrent database change requests a rescan. Fresh database opens retain integrity validation.
   - Saved day/model aggregates group each file's usage rows in one pass per aggregate build. Packed token totals,
     authoritative costs (including zero), and standard/priority estimation buckets retain their existing meanings.
+  - Priority trace scans resume after ordinary log pruning when enough distributed content anchors still match;
+    changed source rows, replaced databases, or insufficient matching anchors require a fresh scan. Temporary
+    trace-database failures retain the last validated report pricing and leave scan freshness unchanged for retry.
+    Successful historical queries update their own pricing window independently of the live scan cursor, including
+    results with no priority turns; validated pricing outside that window remains intact.
 - Window: configurable 1-365 day rolling history.
 - App cadence: regular timer-driven local-history refreshes have a 15-minute minimum (30 minutes in Low Power Mode).
   Manual disables the recurring refresh timer, not all scan activity: startup refreshes and pending Codex catch-up can
   still scan local history. Faster provider refreshes still update quota/status. The scanner's default 60-second
   debounce is a separate internal limit, bypassed by forced scans and catch-up passes; it is not the app's refresh cadence.
+- Usage & Spend catch-up remains inactive after a no-progress or error pause until you choose **Refresh** in the dashboard toolbar or catch-up panel. Opening the dashboard or receiving background updates does not retry those terminal pauses. Low-power and thermal pauses can still recover automatically; this retry policy does not change cached history or token accounting.
 - Inline cost charts preserve a slot for every day in that window, using the selected cost-bucket time zone and the snapshot's date. Missing days are zero only after history coverage is established; unscanned days and entries without prices remain unknown. Long windows fit within the menu width without dropping dates.
 - **Hide personal information** replaces project/source names with numbered labels and hides their paths in the cost-history submenu; Usage & Spend also masks project names. Costs, tokens, grouping, and stored history are unchanged, and disabling the setting restores the original labels. This is display masking, not data deletion or export sanitization.
 - While a bounded refresh catches up with new session history, established totals remain visible only for the same
   account, history window, and bucket time zone. An incomplete first scan never borrows another account's totals.
 - Pending local-history files receive a turn before fresh work, within the existing byte and duration limits.
   Unfinished files rotate behind waiting work, and the queue survives restarts without rebuilding compatible caches.
+- Parent-session discovery also resumes within those limits after the requesting fork files leave both scan roots.
+  Stale pending path associations are reconciled in the existing cache; surviving forks with missing parents still
+  retain their unresolved usage instead of being counted as complete.
 
 ### Usage & Spend account rows
 
