@@ -844,6 +844,7 @@
 "usage_percent_suffix_used" = "已使用";
 "Store multiple DeepSeek API keys." = "存储多个 DeepSeek API 密钥。";
 "This week" = "本周";
+"Current window" = "当前窗口";
 "Last week" = "上周";
 "%d weeks ago" = "%d 周前";
 "Previous window" = "上一窗口";

@@ -854,6 +854,7 @@
 "usage_percent_suffix_used" = "사용";
 "Store multiple DeepSeek API keys." = "여러 DeepSeek API 키를 저장합니다.";
 "This week" = "이번 주";
+"Current window" = "현재 구간";
 "Last week" = "지난주";
 "%d weeks ago" = "%d주 전";
 "Previous window" = "이전 구간";

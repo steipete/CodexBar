@@ -3,7 +3,7 @@
 ## 0.56.3 — Unreleased
 
 ### Added
-- Codex and Claude: show this week's local cost and tokens next to Today, split at the live Weekly reset instant rather than double-counting the reset calendar day, with a Recent windows list (range, cost, tokens) under the daily chart. Official and banked resets observed on the same day become separate windows when a prior Weekly `resetsAt` or redeemed reset credit is still on file.
+- Codex and Claude: show the current quota window's local cost and tokens next to Today, split at the live Weekly reset instant rather than double-counting the reset calendar day, with a Recent windows list (range, cost, tokens) under the daily chart. Labels stay window-based (Current / Previous / N windows ago) even when a window is a full seven days, because Codex can reset more than once per week. Official and banked resets observed on the same day become separate windows when a prior Weekly `resetsAt` or redeemed reset credit is still on file.
 
 ### Performance
 - Claude and Vertex AI: reuse decoded metadata containers and remove unused per-file daily aggregation, preserving Unicode-key handling, provider classification, and persisted token/cost totals.

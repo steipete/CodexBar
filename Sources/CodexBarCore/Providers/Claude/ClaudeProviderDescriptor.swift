@@ -211,7 +211,8 @@ public enum ClaudeProviderDescriptor {
                     costVisibilityResolver: { context in
                         context.showOptionalUsage || context.snapshot?.loginMethod(for: .claude) == "Admin API"
                     },
-                    supportsInlineTokenCostDashboard: true),
+                    supportsInlineTokenCostDashboard: true,
+                    showsQuotaWeekCost: true),
                 optionalDetails: ProviderOptionalDetailsPresentation(
                     costSummaryTitles: ["Usage summary", "Cost items"])),
             fetchPlan: ProviderFetchPlan(

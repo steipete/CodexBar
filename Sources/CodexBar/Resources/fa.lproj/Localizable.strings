@@ -888,6 +888,7 @@
 "usage_percent_suffix_used" = "استفاده شده";
 "Store multiple DeepSeek API keys." = "چند کلید DeepSeek API را ذخیره کنید.";
 "This week" = "این هفته";
+"Current window" = "پنجره فعلی";
 "Last week" = "هفته گذشته";
 "%d weeks ago" = "%d هفته پیش";
 "Previous window" = "پنجره قبلی";

@@ -173,12 +173,12 @@ struct InlineCostHistoryDashboardLabelTests {
 
         let sevenDays = makeModel(historyDays: 7)
         #expect(sevenDays.inlineUsageDashboard?.kpis.map(\.title) == [
-            "Today", "This week", "Latest tokens", "This week tokens",
+            "Today", "Current window", "Latest tokens", "Current window tokens",
         ])
 
         let thirtyDays = makeModel(historyDays: 30)
         #expect(thirtyDays.inlineUsageDashboard?.kpis.map(\.title) == [
-            "Today", "This week", "Latest tokens", "This week tokens", "30d cost", "30d tokens",
+            "Today", "Current window", "Latest tokens", "Current window tokens", "30d cost", "30d tokens",
         ])
     }
 
@@ -228,7 +228,7 @@ struct InlineCostHistoryDashboardLabelTests {
             now: now))
 
         #expect(model.inlineUsageDashboard?.kpis.map(\.title) == [
-            "Today", "This week", "Latest tokens", "This week tokens", "This month", "This month tokens",
+            "Today", "Current window", "Latest tokens", "Current window tokens", "This month", "This month tokens",
         ])
     }
 
@@ -287,9 +287,9 @@ struct InlineCostHistoryDashboardLabelTests {
         #expect(dashboard.accessibilityLabel == "Codex: 30d cost")
         #expect(dashboard.kpis.map(\.title) == [
             "Today",
-            "This week",
+            "Current window",
             "Latest tokens",
-            "This week tokens",
+            "Current window tokens",
             "30d",
             "30d tokens",
         ])
@@ -475,7 +475,7 @@ struct InlineCostHistoryDashboardLabelTests {
     }
 
     @Test
-    func `codex and claude show this week KPIs and previous week history`() throws {
+    func `codex and claude show current-window KPIs and previous-window history`() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
         let now = try #require(calendar.date(from: DateComponents(
@@ -562,9 +562,9 @@ struct InlineCostHistoryDashboardLabelTests {
         let dashboard = try #require(model.inlineUsageDashboard)
         #expect(dashboard.kpis.map(\.title) == [
             "Today",
-            "This week",
+            "Current window",
             "Latest tokens",
-            "This week tokens",
+            "Current window tokens",
             "30d",
             "30d tokens",
         ])
@@ -576,8 +576,8 @@ struct InlineCostHistoryDashboardLabelTests {
             "$14.00",
             "1.4K",
         ])
-        #expect(dashboard.detailLines.contains { $0.contains("Last week") } == false)
-        #expect(dashboard.quotaWindows.map(\.title) == ["This week", "Last week"])
+        #expect(dashboard.detailLines.contains { $0.contains("Previous window") } == false)
+        #expect(dashboard.quotaWindows.map(\.title) == ["Current window", "Previous window"])
         #expect(dashboard.quotaWindows.map(\.value) == ["$10.00 · 1K", "$4.00 · 400"])
         let currentRange = try #require(dashboard.quotaWindows.first?.range)
         #expect(currentRange.contains("11"))
@@ -726,9 +726,9 @@ struct InlineCostHistoryDashboardLabelTests {
 
         let dashboard = try #require(model.inlineUsageDashboard)
         #expect(dashboard.quotaWindows.map(\.title) == [
-            "This week",
+            "Current window",
             "Previous window",
-            "2 weeks ago",
+            "2 windows ago",
         ])
         #expect(dashboard.quotaWindows.map(\.value) == [
             "$3.00 · 300",

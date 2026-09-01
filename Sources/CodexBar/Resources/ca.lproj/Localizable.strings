@@ -895,6 +895,7 @@
 "Latest billing day" = "Últim dia de facturació";
 "Latest billing day (%@)" = "Últim dia de facturació (%@)";
 "This week" = "Aquesta setmana";
+"Current window" = "Finestra actual";
 "Last week" = "La setmana passada";
 "%d weeks ago" = "fa %d setmanes";
 "Previous window" = "Finestra anterior";

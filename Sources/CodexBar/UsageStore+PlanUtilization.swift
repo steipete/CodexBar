@@ -856,7 +856,7 @@ extension UsageStore {
         accountKey?.hasPrefix(self.claudeOAuthPlanUtilizationAccountKeyPrefix) == true
     }
 
-    private nonisolated static func planUtilizationIdentityAccountKey(
+    nonisolated static func planUtilizationIdentityAccountKey(
         provider: UsageProvider,
         snapshot: UsageSnapshot) -> String?
     {

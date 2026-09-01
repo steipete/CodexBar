@@ -9,7 +9,8 @@ extension CostUsageTokenSnapshot {
     /// metadata is missing, windows fall back to rolling calendar weeks ending tomorrow.
     /// Exact slices use half-open `[start, end)` membership so an event is never counted in two
     /// windows. Legacy hour buckets and daily residuals are treated as intervals; if a reset cuts
-    /// such a coarse interval, the affected metric fails closed instead of guessing its side.
+    /// such a coarse interval, that interval is omitted instead of guessing its side. Other days
+    /// and fully contained buckets in the same window still count.
     ///
     /// `observedNextResets` are previously published Weekly `resetsAt` values (for example from
     /// plan-utilization samples). An elapsed stored next-reset is treated as a real reset instant,
@@ -47,9 +48,9 @@ extension CostUsageTokenSnapshot {
         let boundaries = Self.quotaWeekBoundaries(
             currentEnd: currentEnd,
             duration: duration,
-            observedNextResets: observedNextResets,
-            observedResetInstants: observedResetInstants,
-            weekCount: count)
+            observed: (observedNextResets, observedResetInstants),
+            weekCount: count,
+            now: now)
         var weeks: [CostUsageQuotaWeek] = []
         weeks.reserveCapacity(count)
         var offset = 0
@@ -80,7 +81,8 @@ extension CostUsageTokenSnapshot {
     public static let quotaWeekBoundaryTolerance: TimeInterval = 2 * 60
 
     /// Reconstructs quota-window edges from the live next reset plus any previously observed
-    /// Weekly `resetsAt` values or known reset instants.
+    /// Weekly `resetsAt` values or known reset instants. Future observed next-reset values
+    /// contribute their nominal window start, but are not treated as reset instants until elapsed.
     public static func quotaWeekBoundaries(
         liveNextReset: Date?,
         observedNextResets: [Date],
@@ -100,25 +102,31 @@ extension CostUsageTokenSnapshot {
         return self.quotaWeekBoundaries(
             currentEnd: currentEnd,
             duration: duration,
-            observedNextResets: observedNextResets,
-            observedResetInstants: observedResetInstants,
-            weekCount: max(1, min(weekCount, 8)))
+            observed: (observedNextResets, observedResetInstants),
+            weekCount: max(1, min(weekCount, 8)),
+            now: now)
     }
 
     private static func quotaWeekBoundaries(
         currentEnd: Date,
         duration: TimeInterval,
-        observedNextResets: [Date],
-        observedResetInstants: [Date],
-        weekCount: Int) -> [Date]
+        observed: (nextResets: [Date], resetInstants: [Date]),
+        weekCount: Int,
+        now: Date) -> [Date]
     {
         var dates: [Date] = [currentEnd, currentEnd.addingTimeInterval(-duration)]
-        dates.reserveCapacity(weekCount + 1 + observedNextResets.count * 2 + observedResetInstants.count)
-        for next in observedNextResets {
-            dates.append(next)
+        dates.reserveCapacity(weekCount + 1 + observed.nextResets.count * 2 + observed.resetInstants.count)
+        for next in observed.nextResets {
+            // A persisted `resetsAt` in the future is still useful for recovering the
+            // corresponding historical window start, but it has not happened yet and must not
+            // split the live current window. Once it has elapsed, it is a real reset instant
+            // (including an early/banked reset) and becomes an additional boundary.
             dates.append(next.addingTimeInterval(-duration))
+            if next <= now.addingTimeInterval(self.quotaWeekBoundaryTolerance) {
+                dates.append(next)
+            }
         }
-        dates.append(contentsOf: observedResetInstants)
+        dates.append(contentsOf: observed.resetInstants)
         let latestAllowed = currentEnd.addingTimeInterval(self.quotaWeekBoundaryTolerance)
         var unique = self.uniqueSortedDates(dates, tolerance: self.quotaWeekBoundaryTolerance)
             .filter { $0 <= latestAllowed }
@@ -430,9 +438,7 @@ extension CostUsageTokenSnapshot {
 
         for day in days where day.overlaps(start: start, end: end) {
             let tokenContribution = self.projectQuotaTokens(day: day, start: start, end: end)
-            if !tokenContribution.isValid {
-                tokensAreValid = false
-            } else if tokenContribution.sawValue {
+            if tokenContribution.isValid, tokenContribution.sawValue {
                 let (sum, overflowed) = totalTokens.addingReportingOverflow(tokenContribution.value)
                 if overflowed {
                     tokensAreValid = false
@@ -443,9 +449,7 @@ extension CostUsageTokenSnapshot {
             }
 
             let costContribution = self.projectQuotaCost(day: day, start: start, end: end)
-            if !costContribution.isValid {
-                costIsValid = false
-            } else if costContribution.sawValue {
+            if costContribution.isValid, costContribution.sawValue {
                 let sum = totalCost + costContribution.value
                 if sum.isFinite {
                     totalCost = sum
@@ -590,10 +594,12 @@ extension CostUsageTokenSnapshot {
         var total = 0
         var sawValue = false
         for slice in slices where slice.overlaps(start: start, end: end) {
-            guard let tokens = slice.totalTokens, tokens >= 0 else {
-                return QuotaTokenContribution(isValid: false, sawValue: false, value: 0, usedDaily: false)
+            // A reset that cuts a coarse hour/day interval cannot be assigned to one window.
+            // Drop that interval only; known events and fully contained buckets still count.
+            if !slice.isContained(start: start, end: end) {
+                continue
             }
-            if !slice.isContained(start: start, end: end), tokens != 0 {
+            guard let tokens = slice.totalTokens, tokens >= 0 else {
                 return QuotaTokenContribution(isValid: false, sawValue: false, value: 0, usedDaily: false)
             }
             let (sum, overflowed) = total.addingReportingOverflow(tokens)
@@ -614,10 +620,10 @@ extension CostUsageTokenSnapshot {
         var total = 0.0
         var sawValue = false
         for slice in slices where slice.overlaps(start: start, end: end) {
-            guard let cost = slice.costUSD, cost.isFinite, cost >= 0 else {
-                return QuotaCostContribution(isValid: false, sawValue: false, value: 0, usedDaily: false)
+            if !slice.isContained(start: start, end: end) {
+                continue
             }
-            if !slice.isContained(start: start, end: end), cost != 0 {
+            guard let cost = slice.costUSD, cost.isFinite, cost >= 0 else {
                 return QuotaCostContribution(isValid: false, sawValue: false, value: 0, usedDaily: false)
             }
             total += cost

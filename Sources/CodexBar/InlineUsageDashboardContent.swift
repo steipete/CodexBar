@@ -131,7 +131,7 @@ extension UsageMenuCardView.Model {
     }
 
     static func showsQuotaWeekCost(for provider: UsageProvider) -> Bool {
-        provider == .codex || provider == .claude
+        ProviderDescriptorRegistry.descriptor(for: provider).presentation.menuCard.showsQuotaWeekCost
     }
 
     private struct CostHistoryQuotaPresentation {
@@ -287,8 +287,8 @@ extension UsageMenuCardView.Model {
             snapshot: snapshot,
             historyDays: historyDays,
             convertedString: convertedString)
-        let weekCostTitle = L("This week")
-        let weekTokenTitle = L("%@ tokens", L("This week"))
+        let weekCostTitle = L("Current window")
+        let weekTokenTitle = L("%@ tokens", L("Current window"))
         let details = Self.costHistoryDetailLines(
             input: input,
             snapshot: snapshot,
@@ -412,13 +412,11 @@ extension UsageMenuCardView.Model {
     private static func quotaWeekHistoryLabel(week: CostUsageQuotaWeek) -> String {
         switch week.offset {
         case 0:
-            L("This week")
+            L("Current window")
         case 1:
-            week.isNominalWeek ? L("Last week") : L("Previous window")
+            L("Previous window")
         default:
-            week.isNominalWeek
-                ? L("%d weeks ago", week.offset)
-                : L("%d windows ago", week.offset)
+            L("%d windows ago", week.offset)
         }
     }
 

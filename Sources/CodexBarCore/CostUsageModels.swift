@@ -880,7 +880,7 @@ extension CostUsageDailyReport {
         func build(modelName: String) -> ModelBreakdown {
             ModelBreakdown(
                 modelName: modelName,
-                costUSD: self.sawCost && self.costIsComplete ? self.costUSD : nil,
+                costUSD: self.sawCost ? self.costUSD : nil,
                 totalTokens: self.sawTotalTokens && self.totalTokensAreComplete ? self.totalTokens : nil,
                 requestCount: self.requestCount.value,
                 inputTokens: self.tokenMix.inputTokens,
@@ -945,7 +945,6 @@ extension CostUsageDailyReport {
                 + (entry.outputTokens ?? 0)
             let resolvedTotalTokens = entry.totalTokens
                 ?? (hasTokenComponents ? entryDerivedTotalTokens : nil)
-            let coverage = entry.coverageCounts
             let hasActiveBreakdown = entry.modelBreakdowns?.contains(where: { breakdown in
                 (breakdown.totalTokens ?? 0) > 0
                     || (breakdown.requestCount ?? 0) > 0
@@ -954,7 +953,6 @@ extension CostUsageDailyReport {
             let hasActivity = (resolvedTotalTokens ?? 0) > 0
                 || (entry.requestCount ?? 0) > 0
                 || (entry.costUSD ?? 0) > 0
-                || coverage.total > 0
                 || hasActiveBreakdown
                 || entry.modelsUsed?.isEmpty == false
             if let inputTokens = entry.inputTokens {

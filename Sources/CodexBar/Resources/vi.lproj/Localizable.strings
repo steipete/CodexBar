@@ -878,6 +878,7 @@
 "usage_percent_suffix_used" = "đã sử dụng";
 "Store multiple DeepSeek API keys." = "Lưu trữ nhiều khóa DeepSeek API.";
 "This week" = "Tuần này";
+"Current window" = "Cửa sổ hiện tại";
 "Last week" = "Tuần trước";
 "%d weeks ago" = "%d tuần trước";
 "Previous window" = "Cửa sổ trước";

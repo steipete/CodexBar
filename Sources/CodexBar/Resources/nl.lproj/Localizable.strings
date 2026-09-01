@@ -882,6 +882,7 @@
 "usage_percent_suffix_used" = "gebruikt";
 "Store multiple DeepSeek API keys." = "Bewaar meerdere DeepSeek API-sleutels.";
 "This week" = "Deze week";
+"Current window" = "Huidig venster";
 "Last week" = "Vorige week";
 "%d weeks ago" = "%d weken geleden";
 "Previous window" = "Vorig venster";

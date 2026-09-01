@@ -816,8 +816,7 @@ extension CostUsageScanner {
         self.buildClaudeReportFromCache(
             cache: cache,
             range: range,
-            modelsDevCatalogResolver: ClaudeModelsDevCatalogResolver(now: now, cacheRoot: modelsDevCacheRoot),
-            modelsDevCacheRoot: modelsDevCacheRoot)
+            pricingResolver: CostUsagePricing.ClaudeResolver(now: now, cacheRoot: modelsDevCacheRoot))
     }
 
     private static func buildClaudeReportFromCache(

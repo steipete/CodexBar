@@ -168,8 +168,7 @@ extension StatusItemController {
             observedWeeklyNextResets: self.observedWeeklyNextResets(
                 for: target,
                 snapshot: snapshot,
-                historySelection: historySelectionOverride,
-                usesOverrideCard: surface == .overrideCard))
+                historySelection: historySelectionOverride))
         return UsageMenuCardView.Model.make(input)
     }
 
@@ -293,19 +292,15 @@ extension StatusItemController {
     private func observedWeeklyNextResets(
         for provider: UsageProvider,
         snapshot: UsageSnapshot?,
-        historySelection: PlanUtilizationHistorySelection?,
-        usesOverrideCard: Bool) -> [Date]
+        historySelection: PlanUtilizationHistorySelection?) -> [Date]
     {
-        let selection: PlanUtilizationHistorySelection = if let historySelection {
-            historySelection
-        } else if usesOverrideCard, let snapshot {
-            self.store.planUtilizationHistorySelection(for: provider, snapshotOverride: snapshot)
-        } else {
-            self.store.planUtilizationHistorySelection(for: provider)
+        guard ProviderDescriptorRegistry.descriptor(for: provider).presentation.menuCard.showsQuotaWeekCost else {
+            return []
         }
-        return selection.histories
-            .first { $0.name == .weekly }?
-            .entries.compactMap(\.resetsAt) ?? []
+        return self.store.weeklyQuotaWindowResetDates(
+            for: provider,
+            snapshot: snapshot,
+            historySelection: historySelection)
     }
 
     private func quotaWarningMarkerThresholds(provider: UsageProvider, window: QuotaWarningWindow) -> [Int] {

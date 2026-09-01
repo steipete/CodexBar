@@ -619,10 +619,10 @@ struct ProvidersPane: View {
             paceVisible: self.settings.paceVisible,
             costUsageBucketCalendar: self.settings.costUsageBucketCalendar,
             now: now,
-            observedWeeklyNextResets: self.store.planUtilizationHistorySelection(for: provider)
-                .histories
-                .first { $0.name == .weekly }?
-                .entries.compactMap(\.resetsAt) ?? [])
+            observedWeeklyNextResets: ProviderDescriptorRegistry.descriptor(for: provider)
+                .presentation.menuCard.showsQuotaWeekCost
+                ? self.store.weeklyQuotaWindowResetDates(for: provider)
+                : [])
         return UsageMenuCardView.Model.make(input)
     }
 

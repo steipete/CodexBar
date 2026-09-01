@@ -103,7 +103,7 @@ struct CostUsageQuotaWeekLinuxTests {
     }
 
     @Test
-    func `daily fallback fails closed when a reset splits a calendar day`() {
+    func `daily fallback omits a split calendar day and keeps contained neighbors`() {
         let now = Self.utcDate(year: 2026, month: 7, day: 12, hour: 12)
         let resetAt = Self.utcDate(year: 2026, month: 7, day: 18, hour: 15)
         let snapshot = Self.snapshot(
@@ -121,8 +121,8 @@ struct CostUsageQuotaWeekLinuxTests {
         let current = weeks.first { $0.isCurrent }
         let previous = weeks.first { $0.offset == 1 }
 
-        #expect(current?.totalCostUSD == nil)
-        #expect(current?.totalTokens == nil)
+        #expect(current?.totalCostUSD == 2)
+        #expect(current?.totalTokens == 200)
         #expect(previous?.totalCostUSD == nil)
         #expect(previous?.totalTokens == nil)
     }
@@ -505,7 +505,7 @@ struct CostUsageQuotaWeekLinuxTests {
     }
 
     @Test
-    func `reset inside a mixed exact and legacy residual hour fails closed`() {
+    func `reset inside a mixed exact and legacy residual hour keeps the exact event`() {
         let hour = Self.utcDate(year: 2026, month: 7, day: 11, hour: 10)
         let exactTimestamp = Self.utcDate(year: 2026, month: 7, day: 11, hour: 10, minute: 15)
         let merged = CostUsageDailyReport.merged(
@@ -542,10 +542,10 @@ struct CostUsageQuotaWeekLinuxTests {
         let current = weeks.first { $0.offset == 0 }
         let previous = weeks.first { $0.offset == 1 }
 
+        #expect(previous?.totalTokens == 100)
+        #expect(previous?.totalCostUSD == 1)
         #expect(current?.totalTokens == nil)
         #expect(current?.totalCostUSD == nil)
-        #expect(previous?.totalTokens == nil)
-        #expect(previous?.totalCostUSD == nil)
     }
 
     @Test
@@ -645,6 +645,39 @@ struct CostUsageQuotaWeekLinuxTests {
         #expect(beforeOfficial?.end == official)
         #expect(beforeOfficial?.totalCostUSD == 1)
         #expect(beforeOfficial?.isNominalWeek == true)
+    }
+
+    @Test
+    func `future observed reset contributes history start without splitting live window`() {
+        let now = Self.utcDate(year: 2026, month: 7, day: 18, hour: 12)
+        let observedNext = Self.utcDate(year: 2026, month: 7, day: 23, hour: 15)
+        let liveNext = Self.utcDate(year: 2026, month: 7, day: 24, hour: 15)
+        let previousEvent = Self.utcDate(year: 2026, month: 7, day: 16, hour: 16)
+        let currentEvent = Self.utcDate(year: 2026, month: 7, day: 17, hour: 16)
+        let snapshot = Self.snapshot(
+            historyDays: 30,
+            daily: [],
+            hourly: [
+                CostUsageHourlyEntry(hour: previousEvent, totalTokens: 200, costUSD: 2),
+                CostUsageHourlyEntry(hour: currentEvent, totalTokens: 300, costUSD: 3),
+            ],
+            updatedAt: now)
+
+        let weeks = snapshot.quotaWeekSummaries(
+            resetAt: liveNext,
+            windowMinutes: CostUsageTokenSnapshot.quotaWeekMinutes,
+            observedNextResets: [observedNext],
+            now: now,
+            calendar: Self.utcCalendar)
+        let current = weeks.first { $0.isCurrent }
+        let previous = weeks.first { $0.offset == 1 }
+
+        #expect(current?.start == Self.utcDate(year: 2026, month: 7, day: 17, hour: 15))
+        #expect(current?.end == liveNext)
+        #expect(current?.totalTokens == 300)
+        #expect(previous?.start == Self.utcDate(year: 2026, month: 7, day: 16, hour: 15))
+        #expect(previous?.end == current?.start)
+        #expect(previous?.totalTokens == 200)
     }
 
     private static func snapshot(
