@@ -19,6 +19,7 @@ public struct ProviderDebugPaneCapabilities: Sendable {
 
 // swiftformat:disable sortDeclarations
 public enum UsageProvider: String, CaseIterable, Sendable, Codable {
+    case muse
     case codex
     case openai
     case azureopenai

@@ -3,6 +3,7 @@
 // First-party spellings keep call sites concise while their values remain validated instance IDs.
 // swiftformat:disable sortDeclarations
 extension ProviderInstanceID {
+    public static let muse = UsageProvider.muse.instanceID
     public static let codex = UsageProvider.codex.instanceID
     public static let openai = UsageProvider.openai.instanceID
     public static let azureopenai = UsageProvider.azureopenai.instanceID

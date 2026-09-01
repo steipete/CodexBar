@@ -238,6 +238,11 @@ public enum ProviderVersionDetector {
         return nil
     }
 
+    public static func museVersion() -> String? {
+        guard let path = TTYCommandRunner.which(MuseProviderDescriptor.descriptor.cli.name) else { return nil }
+        return Self.run(path: path, args: ["--version"])
+    }
+
     public static func geminiVersion() -> String? {
         let env = ProcessInfo.processInfo.environment
         guard let path = BinaryLocator.resolveGeminiBinary(env: env, loginPATH: nil)
