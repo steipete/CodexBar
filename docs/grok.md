@@ -84,12 +84,19 @@ The grok.com billing gRPC-web endpoint remains a best-effort fallback.
      that omit `subscription_tier_display` all drop the plan overlay and fall
      back to the OIDC SuperGrok label. There is no process-lifetime tier cache.
 4) **grok.com billing gRPC-web fallback** (best-effort)
-   - POSTs `GetGrokCreditsConfigRequest { usage_period_type: WEEKLY }` (gRPC-web
-     binary frame `00 00 00 00 02 08 02`) to
+   - POSTs `GetGrokCreditsConfigRequest { exclude_legacy_monthly_usage: false }`
+     (gRPC-web binary frame `00 00 00 00 02 08 00`) to
      `https://grok.com/grok_api_v2.GrokBuildBilling/GetGrokCreditsConfig`.
-     grok.com now rejects a zero-length request message with `grpc-status 13`
-     ("Missing request message."); proto3 would omit a zero-valued `UNSPECIFIED`
-     enum, so the weekly period is sent explicitly.
+     Explicitly encoding the default boolean supplies a nonempty protobuf message
+     for the reported `grpc-status 13` ("Missing request message.") rejection,
+     without excluding legacy monthly usage or selecting a billing period.
+     The current public web-client descriptor defines field 1 as this boolean,
+     not a weekly/monthly enum, and the web client requests `{}`. False preserves
+     that implicit proto3 default; whether the nonempty encoding restores the
+     affected account's response still requires live confirmation.
+     Protocol references: the public [billing descriptor](https://cdn.grok.com/_next/static/chunks/32g78bk5hhe1q.js),
+     [web billing query](https://cdn.grok.com/_next/static/chunks/062ueaj23tfo3.js)
+     (checked 2026-09-01), and [proto3 field presence](https://protobuf.dev/programming-guides/field_presence/).
    - This endpoint now requires the browser-held Web Key Exchange (WKE) keypair.
      Cookie-only authentication can fail with gRPC status 16 and
      `no-credentials`; signing in through Chrome alone cannot provide that proof
@@ -113,12 +120,10 @@ The grok.com billing gRPC-web endpoint remains a best-effort fallback.
    - Parses the returned protobuf enough to recover used percent and
      reset timestamp, accepting both gRPC-web frames and the raw protobuf form
      returned by some successful requests. A current billing period with an
-     omitted proto3 `credit_usage_percent` is treated as zero usage. When that
-     period also declares a per-period limit (varint fields `[1,4,2]`/`[1,5,2]`
-     with no used amount, the Weekly SuperGrok Heavy limit frame), the zero is
-     wire-published rather than inferred and is eligible for the step-3 adoption
-     rule. This keeps billing visible when `grok agent stdio` returns
-     `Method not found`.
+     omitted proto3 `credit_usage_percent` is treated as zero usage only on this
+     surface; it is not wire-published and cannot replace an unknown proxy percent.
+     Nonzero timestamp nanoseconds at `[1,4,2]`/`[1,5,2]` do not change that rule.
+     This keeps billing visible when `grok agent stdio` returns `Method not found`.
 5) **Local session signals** (informational fallback)
    - Walks `~/.grok/sessions/<encoded-cwd>/<session-id>/signals.json` files (last 30 days).
    - Aggregates `totalTokensBeforeCompaction`, `contextTokensUsed`, `modelsUsed`,
