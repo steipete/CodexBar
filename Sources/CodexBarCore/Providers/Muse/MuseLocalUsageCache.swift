@@ -4,8 +4,8 @@ import Foundation
 ///
 /// Session logs are append-only and dominated by telemetry the reader discards, so re-reading an
 /// unchanged file on every refresh is pure waste. Each entry stores the file's size and modification
-/// time alongside the per-day totals it contributed; a file whose size and mtime both match is reused
-/// without opening it, turning a full rescan into a stat of each path.
+/// time alongside the turns it recorded; a file whose size and mtime both match is reused without
+/// opening it, turning a full rescan into a stat of each path.
 struct MuseLocalUsageCache: Codable {
     struct DayTotals: Codable, Equatable {
         var inputTokens: Int
@@ -38,12 +38,28 @@ struct MuseLocalUsageCache: Codable {
         }
     }
 
+    /// One recorded turn, kept per event rather than pre-aggregated per file.
+    ///
+    /// Aggregating a file's turns before caching would make overlap unresolvable: a log holding one
+    /// already-counted event alongside unique ones could only be taken whole or dropped whole, and
+    /// dropping it would silently under-report. Per-event rows let deduplication skip exactly the
+    /// repeated ids and keep the rest.
+    struct Event: Codable, Equatable {
+        var id: String
+        var day: String
+        var model: String
+        var inputTokens: Int
+        var outputTokens: Int
+        var cacheReadTokens: Int
+        var cacheWriteTokens: Int
+        var reasoningTokens: Int
+        var totalTokens: Int
+    }
+
     struct FileEntry: Codable {
         var size: Int
         var modifiedAtMs: Int64
-        /// Event ids this file contributed, so a turn copied into a second log is still counted once.
-        var eventIDs: [String]
-        var days: [String: DayTotals]
+        var events: [Event]
         var isComplete: Bool
     }
 
@@ -54,7 +70,7 @@ struct MuseLocalUsageCache: Codable {
 
 enum MuseLocalUsageCacheIO {
     /// Artifact schema version; bump when the parser or the stored shape changes.
-    private static let artifactVersion = 1
+    private static let artifactVersion = 2
 
     private static func defaultCacheRoot() -> URL {
         let root = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!

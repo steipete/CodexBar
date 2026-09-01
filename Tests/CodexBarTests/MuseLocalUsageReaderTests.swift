@@ -202,6 +202,32 @@ struct MuseLocalUsageReaderTests {
         #expect(result.report.data.first?.requestCount == 1)
     }
 
+    /// A second log may hold one already-counted turn alongside unique ones. Dropping the whole file
+    /// on that overlap would silently under-report; only the repeated id may be skipped.
+    @Test
+    func `a partially overlapping log keeps its unique turns`() throws {
+        let shared = Self.record(
+            id: "shared-event",
+            recordedAt: Self.baseMicros,
+            kind: "model_completed",
+            usage: Self.modelTurnUsage)
+        let unique = Self.record(
+            id: "unique-event",
+            recordedAt: Self.baseMicros,
+            kind: "model_completed",
+            usage: Self.cachedTurnUsage)
+        let root = try Self.makeTree([
+            (day: "2026-08-31", session: "sess-1", lines: [shared]),
+            (day: "2026-08-31", session: "sess-2", lines: [shared, unique]),
+        ])
+        let result = try Self.read(root: root)
+
+        let entry = try #require(result.report.data.first)
+        // The shared turn counts once; the second log's unique turn is still counted.
+        #expect(entry.requestCount == 2)
+        #expect(entry.totalTokens == 76453)
+    }
+
     @Test
     func `an unknown schema version is ignored rather than guessed at`() throws {
         let line = Self.record(

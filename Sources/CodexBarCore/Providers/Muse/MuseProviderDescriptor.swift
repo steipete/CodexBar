@@ -160,7 +160,7 @@ struct MuseLocalFetchStrategy: ProviderFetchStrategy {
         return self.makeResult(
             usage: snapshot.toUsageSnapshot(),
             sourceLabel: "local",
-            diagnostic: "Muse reports quota only through API rate-limit headers; set META_API_KEY for usage.")
+            diagnostic: "Token usage comes from local Muse session logs; an API key only validates identity.")
     }
 
     func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {

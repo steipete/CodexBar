@@ -199,12 +199,36 @@ enum MuseLocalUsageReader {
         }
 
         let parsed = try self.parseSessionLog(url: url, budget: budget)
-        var days: [String: MuseLocalUsageCache.DayTotals] = [:]
-        var eventIDs: [String] = []
-        for event in parsed.events {
-            eventIDs.append(event.id)
-            let key = CostUsageLocalDay.key(from: event.recordedAt, calendar: calendar)
-            var totals = days[key] ?? MuseLocalUsageCache.DayTotals()
+        let events = parsed.events.map { event in
+            MuseLocalUsageCache.Event(
+                id: event.id,
+                day: CostUsageLocalDay.key(from: event.recordedAt, calendar: calendar),
+                model: event.model,
+                inputTokens: event.inputTokens,
+                outputTokens: event.outputTokens,
+                cacheReadTokens: event.cacheReadTokens,
+                cacheWriteTokens: event.cacheWriteTokens,
+                reasoningTokens: event.reasoningTokens,
+                totalTokens: event.totalTokens)
+        }
+        return MuseLocalUsageCache.FileEntry(
+            size: size,
+            modifiedAtMs: modifiedAtMs,
+            events: events,
+            isComplete: parsed.isComplete)
+    }
+
+    /// Adds a file's turns, skipping only the individual ids another log already contributed.
+    private static func accumulate(
+        entry: MuseLocalUsageCache.FileEntry,
+        into days: inout [String: MuseLocalUsageCache.DayTotals],
+        seenEventIDs: inout Set<String>)
+    {
+        for event in entry.events {
+            // The record id is unique per durable event, so a turn copied into a second log is counted
+            // once while that log's other turns still count.
+            guard seenEventIDs.insert(event.id).inserted else { continue }
+            var totals = days[event.day] ?? MuseLocalUsageCache.DayTotals()
             totals.inputTokens += event.inputTokens
             totals.outputTokens += event.outputTokens
             totals.cacheReadTokens += event.cacheReadTokens
@@ -213,42 +237,7 @@ enum MuseLocalUsageReader {
             totals.totalTokens += event.totalTokens
             totals.requestCount += 1
             totals.models[event.model, default: 0] += event.totalTokens
-            days[key] = totals
-        }
-        return MuseLocalUsageCache.FileEntry(
-            size: size,
-            modifiedAtMs: modifiedAtMs,
-            eventIDs: eventIDs,
-            days: days,
-            isComplete: parsed.isComplete)
-    }
-
-    /// Adds a file's cached totals, skipping any turn already contributed by another log.
-    private static func accumulate(
-        entry: MuseLocalUsageCache.FileEntry,
-        into days: inout [String: MuseLocalUsageCache.DayTotals],
-        seenEventIDs: inout Set<String>)
-    {
-        // The record id is unique per durable event, so a copied log cannot double-count.
-        let isDuplicate = entry.eventIDs.contains { seenEventIDs.contains($0) }
-        for id in entry.eventIDs {
-            seenEventIDs.insert(id)
-        }
-        guard !isDuplicate else { return }
-
-        for (day, totals) in entry.days {
-            var merged = days[day] ?? MuseLocalUsageCache.DayTotals()
-            merged.inputTokens += totals.inputTokens
-            merged.outputTokens += totals.outputTokens
-            merged.cacheReadTokens += totals.cacheReadTokens
-            merged.cacheWriteTokens += totals.cacheWriteTokens
-            merged.reasoningTokens += totals.reasoningTokens
-            merged.totalTokens += totals.totalTokens
-            merged.requestCount += totals.requestCount
-            for (model, tokens) in totals.models {
-                merged.models[model, default: 0] += tokens
-            }
-            days[day] = merged
+            days[event.day] = totals
         }
     }
 
