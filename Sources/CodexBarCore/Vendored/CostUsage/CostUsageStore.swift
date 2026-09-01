@@ -132,6 +132,7 @@ actor CostUsageStore {
     nonisolated let databaseURL: URL
     private let expectedSchemaVersion: Int32
     private let expectedParserHash: String
+    private let busyTimeoutMilliseconds: Int32
     private var connection: SQLiteConnection?
     private var failureGeneration = UUID()
     var retainedCodexBaseline: RetainedCodexBaseline?
@@ -148,7 +149,8 @@ actor CostUsageStore {
     init(
         cacheRoot: URL? = nil,
         schemaVersion: Int32 = CostUsageStore.schemaVersion,
-        parserHash: String = CodexParserHash.value)
+        parserHash: String = CodexParserHash.value,
+        busyTimeoutMilliseconds: Int32 = 5000)
     {
         let root = cacheRoot ?? FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
             .appendingPathComponent("CodexBar", isDirectory: true)
@@ -157,6 +159,7 @@ actor CostUsageStore {
             .appendingPathComponent(Self.databaseFilename, isDirectory: false)
         self.expectedSchemaVersion = schemaVersion
         self.expectedParserHash = parserHash
+        self.busyTimeoutMilliseconds = busyTimeoutMilliseconds
     }
 
     static func combinedSchemaVersion(base: Int, parserHash: String) -> Int32 {
@@ -488,7 +491,7 @@ extension CostUsageStore {
             throw StoreError.sqlite(result)
         }
         do {
-            try Self.configure(opened)
+            try Self.configure(opened, busyTimeoutMilliseconds: self.busyTimeoutMilliseconds)
             if existed {
                 try self.validateExistingDatabase(opened)
             } else {
@@ -812,8 +815,8 @@ extension CostUsageStore {
 // MARK: - SQLite primitives
 
 extension CostUsageStore {
-    static func configure(_ database: OpaquePointer) throws {
-        guard sqlite3_busy_timeout(database, 5000) == SQLITE_OK else {
+    static func configure(_ database: OpaquePointer, busyTimeoutMilliseconds: Int32) throws {
+        guard sqlite3_busy_timeout(database, busyTimeoutMilliseconds) == SQLITE_OK else {
             throw self.sqliteError(database)
         }
         try self.execute(database, "PRAGMA foreign_keys=ON")
