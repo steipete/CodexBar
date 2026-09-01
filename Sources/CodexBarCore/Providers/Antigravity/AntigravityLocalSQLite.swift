@@ -104,7 +104,7 @@ extension AntigravityLocalReader {
         let supported = try self.hasSupportedSQLiteTable(database, budget: budget)
         if let failure = progress.failure { throw failure }
         guard supported else { return SourceResult(isComplete: false) }
-        let sessionTimestamp = try self.readSessionTimestamp(database, budget: budget)
+        let sessionTimestampMs = try self.readSessionTimestamp(database, budget: budget)
         sqlite3_limit(database, SQLITE_LIMIT_LENGTH, Int32(maximumValueBytes))
         var statement: OpaquePointer?
         defer { sqlite3_finalize(statement) }
@@ -120,14 +120,11 @@ extension AntigravityLocalReader {
         if let failure = progress.failure { throw failure }
         guard prepared == SQLITE_OK, let statement else { return SourceResult(isComplete: false) }
         sqlite3_bind_int64(statement, 1, Int64(min(budget.limits.rowsPerDatabase, 10000) + 1))
-        let rows = try self.readRows(
+        return try self.readRows(
             statement,
             session: url.deletingPathExtension().lastPathComponent,
-            sessionTimestampMs: sessionTimestamp.timestampMs,
+            sessionTimestampMs: sessionTimestampMs,
             progress: progress)
-        var result = rows
-        result.isComplete = result.isComplete && sessionTimestamp.isComplete
-        return result
         #else
         return SourceResult(isComplete: false)
         #endif
@@ -201,7 +198,7 @@ extension AntigravityLocalReader {
 
     private static func readSessionTimestamp(
         _ database: OpaquePointer,
-        budget: Budget) throws -> (timestampMs: Int64?, isComplete: Bool)
+        budget: Budget) throws -> Int64?
     {
         var statement: OpaquePointer?
         defer { sqlite3_finalize(statement) }
@@ -215,28 +212,24 @@ extension AntigravityLocalReader {
             nil) == SQLITE_OK,
             let statement
         else {
-            return (nil, true)
+            return nil
         }
         let step = sqlite3_step(statement)
-        guard step == SQLITE_ROW else {
-            return step == SQLITE_DONE ? (nil, true) : (nil, false)
-        }
+        guard step == SQLITE_ROW else { return nil }
         guard sqlite3_column_type(statement, 0) == SQLITE_BLOB,
               let pointer = sqlite3_column_blob(statement, 0)
         else {
-            return (nil, false)
+            return nil
         }
         let count = Int(sqlite3_column_bytes(statement, 0))
-        guard count > 0 else { return (nil, false) }
+        guard count > 0 else { return nil }
         try budget.chargeBytes(count)
         let bytes = Array(UnsafeBufferPointer(
             start: pointer.assumingMemoryBound(to: UInt8.self), count: count))
         do {
-            return try (
-                AntigravityProtoReader.sessionCreatedTimestampMs(bytes, checkCancellation: budget.check),
-                true)
+            return try AntigravityProtoReader.sessionCreatedTimestampMs(bytes, checkCancellation: budget.check)
         } catch AntigravityLocalReader.ScanFailure.invalid {
-            return (nil, false)
+            return nil
         }
     }
     #endif

@@ -127,6 +127,30 @@ struct AntigravityLocalReaderTests {
     }
 
     @Test
+    func `malformed fallback metadata does not invalidate legacy timestamps`() throws {
+        let fixture = try Fixture()
+        try fixture.database(
+            blobs: [Fixture.blob()],
+            sessionMetadataBlob: [0x12, 0x02, 0x08])
+
+        let report = try fixture.report()
+        #expect(report.coverage == .complete)
+        #expect(report.report.summary?.totalTokens == 198)
+    }
+
+    @Test
+    func `modern rows with malformed fallback metadata remain partial`() throws {
+        let fixture = try Fixture()
+        try fixture.database(
+            blobs: [Fixture.modernBlob()],
+            sessionMetadataBlob: [0x12, 0x02, 0x08])
+
+        let report = try fixture.report()
+        #expect(report.coverage == .partial)
+        #expect(report.report.summary == nil)
+    }
+
+    @Test
     func `legacy event timestamps take precedence over session creation time`() throws {
         let fixture = try Fixture()
         try fixture.database(

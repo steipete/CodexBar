@@ -65,7 +65,8 @@ final class AntigravityLocalFixture: Sendable {
         _ session: String = "session-a",
         rootIndex: Int = 0,
         blobs: [[UInt8]] = [],
-        createdSeconds: UInt64? = nil) throws -> URL
+        createdSeconds: UInt64? = nil,
+        sessionMetadataBlob: [UInt8]? = nil) throws -> URL
     {
         let directory = self.context.databaseRoots[rootIndex]
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -76,11 +77,12 @@ final class AntigravityLocalFixture: Sendable {
         for (index, blob) in blobs.enumerated() {
             try Self.insert(database, row: Int64(index), blob: blob)
         }
-        if let createdSeconds {
+        let metadata = sessionMetadataBlob ?? createdSeconds.map { Self.message(2, Self.varint(1, $0)) }
+        if let metadata {
             try Self.execute(
                 database,
                 "CREATE TABLE trajectory_metadata_blob (id TEXT PRIMARY KEY, data BLOB)")
-            try Self.insertSessionMetadata(database, createdSeconds: createdSeconds)
+            try Self.insertSessionMetadata(database, metadata: metadata)
         }
         return url
     }
@@ -124,7 +126,7 @@ final class AntigravityLocalFixture: Sendable {
         guard result == SQLITE_DONE else { throw AntigravityLocalReader.ScanFailure.invalid }
     }
 
-    private static func insertSessionMetadata(_ database: OpaquePointer, createdSeconds: UInt64) throws {
+    private static func insertSessionMetadata(_ database: OpaquePointer, metadata: [UInt8]) throws {
         var statement: OpaquePointer?
         defer { sqlite3_finalize(statement) }
         guard sqlite3_prepare_v2(
@@ -134,7 +136,6 @@ final class AntigravityLocalFixture: Sendable {
             &statement,
             nil) == SQLITE_OK else { throw AntigravityLocalReader.ScanFailure.invalid }
         sqlite3_bind_text(statement, 1, "main", -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
-        let metadata = self.message(2, self.varint(1, createdSeconds))
         let result = metadata.withUnsafeBytes { bytes in
             sqlite3_bind_blob(statement, 2, bytes.baseAddress, Int32(metadata.count), nil)
             return sqlite3_step(statement)
