@@ -224,6 +224,7 @@
 "No cost history data." = "Nessun dato storico costi.";
 "No data available" = "Nessun dato disponibile";
 "No data yet" = "Nessun dato";
+"Workspaces" = "Spazi di lavoro";
 "No enabled providers available for Overview." = "Nessun provider abilitato disponibile per la Panoramica.";
 "No providers selected" = "Nessun provider selezionato";
 "No token accounts yet." = "Nessun account token al momento.";
@@ -675,6 +676,9 @@
 "surprise_me_subtitle" = "Per chi apprezza un po' di personalità dagli agenti.";
 "hide_personal_info_title" = "Nascondi informazioni personali";
 "hide_personal_info_subtitle" = "Oscura gli indirizzi email nella barra menu e nell'interfaccia menu.";
+"hide_cost_history_identity_subtitle" = "Nasconde anche nomi e percorsi di progetti e origini nella cronologia dei costi, senza modificare i dati salvati.";
+"Project %d" = "Progetto %d";
+"Source %d" = "Origine %d";
 "show_provider_storage_usage_title" = "Mostra spazio usato dai provider";
 "show_provider_storage_usage_subtitle" = "Mostra l'uso disco locale nei menu. Scansiona in background i percorsi dei provider.";
 "section_keychain_access" = "Accesso Portachiavi";

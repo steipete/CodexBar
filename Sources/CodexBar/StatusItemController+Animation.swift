@@ -960,7 +960,11 @@ extension StatusItemController {
                 combinedLanes: combinedLanes,
                 percentWindow: percentWindow)
             pace = paceWindow.flatMap { window in
-                self.store.weeklyPace(provider: provider, window: window, now: now)
+                self.store.weeklyPace(
+                    provider: provider,
+                    window: window,
+                    dataConfidence: snapshot?.dataConfidence ?? .unknown,
+                    now: now)
             }
         case .resetTime:
             return MenuBarDisplayText.displayText(

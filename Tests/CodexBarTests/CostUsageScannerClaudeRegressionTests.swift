@@ -54,7 +54,8 @@ struct CostUsageScannerClaudeRegressionTests {
         let parsed = CostUsageScanner.parseClaudeFile(
             fileURL: fileURL,
             range: CostUsageScanner.CostUsageDayRange(since: day, until: day),
-            providerFilter: .all)
+            providerFilter: .all,
+            modelsDevCacheRoot: env.cacheRoot)
 
         #expect(parsed.rows.count == 1)
         #expect(parsed.rows[0].sessionId == "parse-session")
@@ -106,7 +107,8 @@ struct CostUsageScannerClaudeRegressionTests {
         let parsed = CostUsageScanner.parseClaudeFile(
             fileURL: fileURL,
             range: CostUsageScanner.CostUsageDayRange(since: day, until: day),
-            providerFilter: .all)
+            providerFilter: .all,
+            modelsDevCacheRoot: env.cacheRoot)
 
         #expect(parsed.rows.count == 2)
         #expect(parsed.rows.map(\.input).sorted() == [11, 13])
@@ -145,7 +147,8 @@ struct CostUsageScannerClaudeRegressionTests {
         let parsed = CostUsageScanner.parseClaudeFile(
             fileURL: fileURL,
             range: CostUsageScanner.CostUsageDayRange(since: day, until: day),
-            providerFilter: .all)
+            providerFilter: .all,
+            modelsDevCacheRoot: env.cacheRoot)
 
         #expect(parsed.rows.count == 1)
         #expect(parsed.rows[0].model == "claude-opus-4-7")
@@ -193,7 +196,8 @@ struct CostUsageScannerClaudeRegressionTests {
         let parsed = CostUsageScanner.parseClaudeFile(
             fileURL: fileURL,
             range: CostUsageScanner.CostUsageDayRange(since: day, until: day),
-            providerFilter: .all)
+            providerFilter: .all,
+            modelsDevCacheRoot: env.cacheRoot)
 
         #expect(parsed.rows.count == 1)
         #expect(parsed.rows[0].model == "claude-opus-4-8")
@@ -763,13 +767,15 @@ struct CostUsageScannerClaudeRegressionTests {
             inputTokens: 1000,
             cacheReadInputTokens: 100,
             cacheCreationInputTokens: 50,
-            outputTokens: 25)
+            outputTokens: 25,
+            modelsDevCatalog: ModelsDevCatalog(providers: [:]))
         let datedCost = CostUsagePricing.claudeCostUSD(
             model: "claude-sonnet-4-6-20260219",
             inputTokens: 1000,
             cacheReadInputTokens: 100,
             cacheCreationInputTokens: 50,
-            outputTokens: 25)
+            outputTokens: 25,
+            modelsDevCatalog: ModelsDevCatalog(providers: [:]))
 
         #expect(baseCost != nil)
         #expect(datedCost != nil)

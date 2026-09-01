@@ -20,33 +20,25 @@ struct CostUsageStoreTests {
     /// The subprocess coverage in `CostUsageStoreExecutorIsolationTests` exercises the legacy
     /// runtime path that an in-process test cannot select.
     @Test
-    func `sync bridges are callable from a plain thread`() throws {
+    func `sync bridges are callable from a plain thread`() async throws {
         let fixture = try StoreFixture()
         defer { fixture.remove() }
         let store = CostUsageStore(cacheRoot: fixture.root)
 
-        final class Outcome: @unchecked Sendable {
-            var loadedScanStamp: Int64?
-            var savedRowCount: Int?
+        // Keep fixture cleanup behind worker completion without blocking the cooperative pool.
+        let (loadedScanStamp, savedRowCount): (Int64, Int) = await withCheckedContinuation { continuation in
+            Thread {
+                let loaded = store.syncLoadCodexCache(calendar: .current)
+                let saved = store.syncSaveCodexCache(
+                    loaded,
+                    calendar: .current,
+                    requestedScanWindow: (sinceKey: "2026-08-01", untilKey: "2026-08-03"))
+                continuation.resume(returning: (loaded.lastScanUnixMs, saved.rowCount))
+            }.start()
         }
-        let outcome = Outcome()
-        let finished = DispatchSemaphore(value: 0)
 
-        let thread = Thread {
-            let loaded = store.syncLoadCodexCache(calendar: .current)
-            outcome.loadedScanStamp = loaded.lastScanUnixMs
-            let saved = store.syncSaveCodexCache(
-                loaded,
-                calendar: .current,
-                requestedScanWindow: (sinceKey: "2026-08-01", untilKey: "2026-08-03"))
-            outcome.savedRowCount = saved.rowCount
-            finished.signal()
-        }
-        thread.start()
-
-        #expect(finished.wait(timeout: .now() + 30) == .success)
-        #expect(outcome.loadedScanStamp == 0)
-        #expect((outcome.savedRowCount ?? -1) >= 0)
+        #expect(loadedScanStamp == 0)
+        #expect(savedRowCount >= 0)
     }
 
     @Test
@@ -1003,16 +995,30 @@ extension CostUsageStoreTests {
 
 extension CostUsageStoreTests {
     @Test(arguments: [
+        "7e293e8fc9e25700",
+        "494eee446bb2e5f9",
+        "6366caa15c925349",
+        "4a593b5d59c7bcf3",
+        "b77d4ec72e14ea63",
         "cfd84d13ad7d4cfa",
         "c6c46a376ba16304",
         "55f640e6bb0ccba4",
         "21f10143afe00c55",
         "f8577be489f4c13d",
+        "d9a91f31d0addc15",
+        "7b1b44d62a411215",
     ])
     func `compatible predecessor parser hash adopts without rebuilding`(predecessorHash: String) async throws {
         let fixture = try StoreFixture()
         defer { fixture.remove() }
         #expect(CostUsageStore.compatiblePredecessorParserHashes == [
+            "7e293e8fc9e25700",
+            "494eee446bb2e5f9",
+            "6366caa15c925349",
+            "4a593b5d59c7bcf3",
+            "b77d4ec72e14ea63",
+            "7b1b44d62a411215",
+            "d9a91f31d0addc15",
             "f8577be489f4c13d",
             "21f10143afe00c55",
             "55f640e6bb0ccba4",
@@ -1131,6 +1137,58 @@ extension CostUsageStoreTests {
         #expect(loaded.codexPriorityTurnKeys == ["turn-a": "priority"])
         #expect(loaded.codexPriorityTurnIDsByDay == ["2026-05-10": ["turn-a"]])
         #expect(loaded.codexPriorityTurnsCursor == nil)
+        let connection = try SQLiteTestConnection(url: fixture.databaseURL, readOnly: true)
+        #expect(try connection.scalarInt(
+            "SELECT COUNT(*) FROM meta WHERE key = 'parser_hash' AND value = '\(CodexParserHash.value)'") == 1)
+    }
+
+    @Test
+    func `main parser hash adopts legacy priority cursor payload without rebuilding`() async throws {
+        let fixture = try StoreFixture()
+        defer { fixture.remove() }
+        let predecessorHash = "494eee446bb2e5f9"
+        let predecessorVersion = CostUsageStore.combinedSchemaVersion(
+            base: CostUsageStore.baseSchemaVersion,
+            parserHash: predecessorHash)
+        let predecessor = CostUsageStore(
+            cacheRoot: fixture.root,
+            schemaVersion: predecessorVersion,
+            parserHash: predecessorHash)
+        var metadata = CostUsageStoreMetadata.empty
+        metadata.priorityTurnStatePayload = Data(#"""
+        {
+          "turnKeys": {"2026-08-31": "priority"},
+          "turnIDsByDay": {"2026-08-31": ["turn-a"]},
+          "turnsCursor": {
+            "databasePath": "/private/tmp/logs_2.sqlite",
+            "coverageSinceEpoch": 0,
+            "lastRowID": 8,
+            "fileIdentity": 42,
+            "anchorRowID": 8,
+            "anchorDigest": "legacy-terminal-digest",
+            "turns": {"turn-a": {"threadID": "thread-a", "turnID": "turn-a"}},
+            "requestSourcesByTurnID": {},
+            "priorityCompletedModelsByTurnID": {},
+            "completedModelsByTurnID": {},
+            "completedTurnIDInsertionOrder": [],
+            "completedTurnIDInsertionOrderStartIndex": 0
+          }
+        }
+        """#.utf8)
+        #expect(await predecessor.setMetadata(metadata))
+
+        let current = CostUsageStore(cacheRoot: fixture.root)
+        let loaded = current.syncLoadCodexCache(calendar: .current)
+        let cursor = try #require(loaded.codexPriorityTurnsCursor)
+
+        #expect(await current.fetchMetadata() == metadata)
+        #expect(await current.rebuildCount == 0)
+        #expect(cursor.anchors == nil)
+        #expect(loaded.codexResolvedPriorityTurns == nil)
+        #expect(cursor.anchorRowID == 8)
+        #expect(cursor.anchorDigest == "legacy-terminal-digest")
+        #expect(cursor.turns.keys.sorted() == ["turn-a"])
+        #expect(cursor.requestSourcesByTurnID.isEmpty)
         let connection = try SQLiteTestConnection(url: fixture.databaseURL, readOnly: true)
         #expect(try connection.scalarInt(
             "SELECT COUNT(*) FROM meta WHERE key = 'parser_hash' AND value = '\(CodexParserHash.value)'") == 1)

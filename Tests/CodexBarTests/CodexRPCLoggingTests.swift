@@ -35,7 +35,7 @@ struct CodexRPCLoggingTests {
         environment: [String: String]) throws -> (status: Int32, stderr: Data)
     {
         let process = Process()
-        process.executableURL = self.cliExecutableURL
+        process.executableURL = TestBuildProducts.executableURL(named: "CodexBarCLI")
         process.arguments = ["usage", "--provider", "codex", "--source", "cli", "--json"] + arguments
         process.environment = ProcessInfo.processInfo.environment.merging(environment) { _, override in override }
 
@@ -45,14 +45,6 @@ struct CodexRPCLoggingTests {
         try process.run()
         process.waitUntilExit()
         return (process.terminationStatus, stderr.fileHandleForReading.readDataToEndOfFile())
-    }
-
-    private static var cliExecutableURL: URL {
-        URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent(".build/debug/CodexBarCLI")
     }
 
     private static let stubScript = """

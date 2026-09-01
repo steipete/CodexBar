@@ -24,8 +24,8 @@ enum CostUsageScanner {
     /// this value records that lineage exists but this rollout owns its counter or suffix.
     static let codexForkDependencyNotRequiredKey = "mode:lineage-only:v1"
 
-    static func resetCodexDirectoryCursorsForTesting() {
-        self.codexDirectoryCursorRegistry.reset()
+    static func resetCodexDirectoryCursorsForTesting(under root: URL) {
+        self.codexDirectoryCursorRegistry.reset(under: root)
     }
 
     final class CodexSessionHeadParseObserverStore: @unchecked Sendable {
@@ -56,6 +56,7 @@ enum CostUsageScanner {
     struct CodexScanWorkMetrics: Equatable, Sendable {
         var usageRowsProcessed: Int
         var usageRowsRepriced: Int
+        var tokenTimestampComparisons: Int
         var cacheAliasEntriesIndexed: Int
         var cacheAliasLookups: Int
         var cacheAliasCandidatesVisited: Int
@@ -70,6 +71,7 @@ enum CostUsageScanner {
         private let lock = NSLock()
         private var processed = 0
         private var repriced = 0
+        private var tokenTimestampComparisons = 0
         private var cacheAliasEntriesIndexed = 0
         private var cacheAliasLookups = 0
         private var cacheAliasCandidatesVisited = 0
@@ -85,6 +87,10 @@ enum CostUsageScanner {
             self.processed += max(0, processed)
             self.repriced += max(0, repriced)
             self.lock.unlock()
+        }
+
+        func recordTokenTimestampComparison() {
+            self.lock.withLock { self.tokenTimestampComparisons += 1 }
         }
 
         func recordCacheAliasIndex(entries: Int) {
@@ -141,6 +147,7 @@ enum CostUsageScanner {
             return CodexScanWorkMetrics(
                 usageRowsProcessed: self.processed,
                 usageRowsRepriced: self.repriced,
+                tokenTimestampComparisons: self.tokenTimestampComparisons,
                 cacheAliasEntriesIndexed: self.cacheAliasEntriesIndexed,
                 cacheAliasLookups: self.cacheAliasLookups,
                 cacheAliasCandidatesVisited: self.cacheAliasCandidatesVisited,
@@ -435,7 +442,9 @@ enum CostUsageScanner {
         let previousTotal = previous.input + previous.output + previous.cached + (previous.reasoning ?? 0)
         let currentTotal = current.input + current.output + current.cached + (current.reasoning ?? 0)
         let lastTotal = last.input + last.output + last.cached + (last.reasoning ?? 0)
-        if previousTotal <= 0 || currentTotal <= 0 || lastTotal <= 0 { return false }
+        if previousTotal <= 0 || currentTotal <= 0 || lastTotal <= 0 {
+            return false
+        }
         return currentTotal * 100 >= previousTotal * 98
             || currentTotal + lastTotal * 2 >= previousTotal
     }
@@ -869,25 +878,6 @@ enum CostUsageScanner {
         return checkpoints + appended
     }
 
-    static func codexTokenTimestampsAreMonotonic(
-        _ events: [CostUsageCodexTokenSnapshot]) -> Bool
-    {
-        guard events.count > 1 else { return true }
-        for (previous, current) in zip(events, events.dropFirst()) {
-            let isOrdered: Bool = if let previousDate = Self.dateFromTimestamp(previous.timestamp),
-                                     let currentDate = Self.dateFromTimestamp(current.timestamp)
-            {
-                previousDate <= currentDate
-            } else {
-                previous.timestamp <= current.timestamp
-            }
-            if !isOrdered {
-                return false
-            }
-        }
-        return true
-    }
-
     struct CodexScanResources {
         let fileIndex: CodexSessionFileIndex
         let inheritedResolver: CodexInheritedTotalsResolver
@@ -1056,6 +1046,7 @@ enum CostUsageScanner {
         let priorityTurnKeys: [String: String]
         let priorityTurnIDsByDay: [String: [String]]
         let inspectedPriorityTurns: Bool
+        let priorityValidationPending: Bool
         let priorityTurnsCursor: CodexPriorityTurnsPersistedCursor?
         let priorityMetadataChanged: Bool
         let priorityTurnsChanged: Bool
@@ -1134,17 +1125,32 @@ enum CostUsageScanner {
                 && (!self.discovery.pendingSessionIds.isEmpty || self.discovery.headScan != nil)
         }
 
+        func resumePendingDiscovery() throws {
+            guard !self.discovery.isComplete else { return }
+            guard !self.discovery.pendingSessionIds.isEmpty else {
+                // A normal file scan may have resolved the last request through remember().
+                self.discovery.headScan = nil
+                return
+            }
+            _ = try self.resumeDiscovery()
+        }
+
         func remember(fileURL: URL, sessionId: String?) {
             guard let sessionId, !sessionId.isEmpty else { return }
             let path = fileURL.standardizedFileURL.path
             self.discovery.filePathBySessionId[sessionId] = path
+            self.resolveRequest(sessionId: sessionId)
+            self.discovery.fileStamps[path] = Self.fileStamp(fileURL: fileURL)
+        }
+
+        private func resolveRequest(sessionId: String) {
             self.discovery.missingSessionIds.removeAll { $0 == sessionId }
             self.discovery.pendingSessionIds.removeAll { $0 == sessionId }
-            self.discovery.fileStamps[path] = Self.fileStamp(fileURL: fileURL)
         }
 
         func lookup(sessionId: String) throws -> Lookup {
             if let cached = self.cachedFileURL(for: sessionId) {
+                self.resolveRequest(sessionId: sessionId)
                 return .found(cached)
             }
 
@@ -1171,10 +1177,20 @@ enum CostUsageScanner {
                 }
             }
 
-            if !self.discovery.pendingSessionIds.contains(sessionId) {
+            // A tiny budget may have classified this ID while finalizing other requests.
+            let alreadyClassified = self.hasScannedInventory && self.discovery.missingSessionIds.contains(sessionId)
+            if !alreadyClassified, !self.discovery.pendingSessionIds.contains(sessionId) {
                 self.discovery.pendingSessionIds.append(sessionId)
+                self.discovery.isComplete = false
             }
-            return try self.resumeDiscovery(requestedSessionId: sessionId)
+            guard try self.resumeDiscovery(requestedSessionId: sessionId) else { return .deferred }
+            if let cached = self.cachedFileURL(for: sessionId) {
+                self.resolveRequest(sessionId: sessionId)
+                return .found(cached)
+            }
+            return .missing(dependencyKey: Self.missingDependencyKey(
+                sessionId: sessionId,
+                generation: self.discovery.generation ?? "unknown"))
         }
 
         private func cachedFileURL(for sessionId: String) -> URL? {
@@ -1193,31 +1209,30 @@ enum CostUsageScanner {
             }
         }
 
-        private func resumeDiscovery(requestedSessionId: String) throws -> Lookup {
+        private var hasScannedInventory: Bool {
+            self.discovery.headScan == nil
+                && self.discovery.nextFileIndex >= self.discovery.filePaths.count
+                && self.discovery.nextDirectoryIndex >= self.discovery.directoryPaths.count
+        }
+
+        private func resumeDiscovery(requestedSessionId: String? = nil) throws -> Bool {
             while true {
                 try self.checkCancellation?()
-                if let cached = self.cachedFileURL(for: requestedSessionId) {
-                    return .found(cached)
+                if let requestedSessionId, self.cachedFileURL(for: requestedSessionId) != nil {
+                    return true
                 }
 
                 if self.discovery.nextFileIndex < self.discovery.filePaths.count {
-                    guard try self.scanNextFileHead() else { return .deferred }
+                    guard try self.scanNextFileHead() else { return false }
                     continue
                 }
 
                 if self.discovery.nextDirectoryIndex < self.discovery.directoryPaths.count {
-                    guard try self.enumerateNextDirectory() else { return .deferred }
+                    guard try self.enumerateNextDirectory() else { return false }
                     continue
                 }
 
-                self.finishDiscovery()
-                if let cached = self.cachedFileURL(for: requestedSessionId) {
-                    return .found(cached)
-                }
-                let generation = self.discovery.generation ?? "unknown"
-                return .missing(dependencyKey: Self.missingDependencyKey(
-                    sessionId: requestedSessionId,
-                    generation: generation))
+                return try self.finishDiscovery()
             }
         }
 
@@ -1226,6 +1241,14 @@ enum CostUsageScanner {
             let fileURL = URL(fileURLWithPath: path)
             let metadata = CostUsageScanner.codexFileMetadata(fileURL: fileURL)
             guard metadata.fileId != nil else {
+                if let scanBudget = self.scanBudget {
+                    switch scanBudget.admit(workBytes: 1) {
+                    case let .allow(allowance):
+                        scanBudget.complete(admittedWorkBytes: allowance, actualWorkBytes: allowance)
+                    case .deferBudget:
+                        return false
+                    }
+                }
                 self.advancePastHead(path: path, stamp: nil)
                 return true
             }
@@ -1238,7 +1261,7 @@ enum CostUsageScanner {
             let remainingBytes = max(0, metadata.size - startOffset)
             let admittedBytes: Int64
             if let scanBudget = self.scanBudget {
-                switch scanBudget.admit(workBytes: remainingBytes) {
+                switch scanBudget.admit(workBytes: max(1, remainingBytes)) {
                 case let .allow(allowance): admittedBytes = allowance
                 case .deferBudget: return false
                 }
@@ -1255,10 +1278,11 @@ enum CostUsageScanner {
                 checkCancellation: self.checkCancellation)
             self.scanBudget?.complete(
                 admittedWorkBytes: admittedBytes,
-                actualWorkBytes: result.bytesRead)
+                actualWorkBytes: max(1, result.bytesRead))
 
             if let sessionId = result.sessionId, !sessionId.isEmpty {
                 self.discovery.filePathBySessionId[sessionId] = path
+                self.discovery.missingSessionIds.removeAll { $0 == sessionId }
                 self.advancePastHead(path: path, stamp: Self.fileStamp(metadata: metadata))
                 return true
             }
@@ -1346,24 +1370,37 @@ enum CostUsageScanner {
             self.discovery.directoryPaths.append(path)
         }
 
-        private func finishDiscovery() {
+        private func finishDiscovery() throws -> Bool {
+            var processedCount = 0
+            defer { self.discovery.pendingSessionIds.removeFirst(processedCount) }
+            for sessionId in self.discovery.pendingSessionIds {
+                try self.checkCancellation?()
+                if let scanBudget = self.scanBudget {
+                    switch scanBudget.admit(workBytes: 1) {
+                    case let .allow(allowance):
+                        scanBudget.complete(admittedWorkBytes: allowance, actualWorkBytes: allowance)
+                    case .deferBudget:
+                        return false
+                    }
+                }
+                // Cached mappings can outlive files already passed by the discovery cursor.
+                if self.cachedFileURL(for: sessionId) == nil,
+                   !self.discovery.missingSessionIds.contains(sessionId)
+                {
+                    self.discovery.missingSessionIds.append(sessionId)
+                }
+                processedCount += 1
+            }
             let generation = Self.discoveryGeneration(
                 roots: self.discovery.roots,
                 directoryStamps: self.discovery.directoryStamps)
             self.discovery.generation = generation
-            for sessionId in self.discovery.pendingSessionIds
-                where self.discovery.filePathBySessionId[sessionId] == nil
-            {
-                if !self.discovery.missingSessionIds.contains(sessionId) {
-                    self.discovery.missingSessionIds.append(sessionId)
-                }
-            }
             self.discovery.missingSessionIds.sort()
-            self.discovery.pendingSessionIds.removeAll()
             self.discovery.directoryPaths = self.discovery.directoryStamps.keys.sorted()
             self.discovery.nextDirectoryIndex = self.discovery.directoryPaths.count
             self.discovery.validationDirectoryIndex = 0
             self.discovery.isComplete = true
+            return true
         }
 
         private func validateInventory() throws -> InventoryValidation {
@@ -1887,7 +1924,6 @@ enum CostUsageScanner {
     }
 
     struct ClaudeParseResult {
-        let days: [String: [String: [Int]]]
         let rows: [ClaudeUsageRow]
         let parsedBytes: Int64
     }
@@ -2249,6 +2285,37 @@ enum CostUsageScanner {
         return out.isEmpty ? nil : out
     }
 
+    private static func validatedPriorityTurns(
+        cache: CostUsageCache,
+        calendar: Calendar) -> [String: CodexPriorityTurnMetadata]
+    {
+        if let resolved = cache.codexResolvedPriorityTurns { return resolved }
+        // Older caches only have a resume cursor. A historical scan may have superseded its
+        // pricing, so adopt only days whose published classification still matches the cursor.
+        let turns = cache.codexPriorityTurnsCursor?.turns ?? [:]
+        let keys = Self.codexPriorityTurnKeys(turns, calendar: calendar)
+        return turns.filter { _, turn in
+            guard let day = Self.codexPriorityDayKey(turn, calendar: calendar) else { return false }
+            return keys[day] == cache.codexPriorityTurnKeys?[day]
+        }
+    }
+
+    private static func mergeResolvedPriorityTurns(
+        existing: [String: CodexPriorityTurnMetadata],
+        new: [String: CodexPriorityTurnMetadata],
+        range: CostUsageDayRange,
+        retainedSinceKey: String,
+        retainedUntilKey: String) -> [String: CodexPriorityTurnMetadata]
+    {
+        var out = existing.filter { _, turn in
+            guard let day = Self.codexPriorityDayKey(turn, calendar: range.calendar) else { return false }
+            return CostUsageDayRange.isInRange(dayKey: day, since: retainedSinceKey, until: retainedUntilKey)
+                && !CostUsageDayRange.isInRange(dayKey: day, since: range.scanSinceKey, until: range.scanUntilKey)
+        }
+        out.merge(new) { _, replacement in replacement }
+        return out
+    }
+
     private static func mergePriorityTurnIDsByDay(
         existing: [String: [String]]?,
         new: [String: [String]],
@@ -2536,10 +2603,13 @@ enum CostUsageScanner {
                 visits: visits)
         }
 
-        func reset() {
+        func reset(under root: URL) {
+            let roots = Set([root.standardizedFileURL.path, root.resolvingSymlinksInPath().standardizedFileURL.path])
             self.lock.lock()
-            self.cursors.removeAll()
-            self.lock.unlock()
+            defer { self.lock.unlock() }
+            for path in self.cursors.keys where roots.contains(where: { path == $0 || path.hasPrefix($0 + "/") }) {
+                self.cursors.removeValue(forKey: path)
+            }
         }
     }
 
@@ -5249,7 +5319,7 @@ enum CostUsageScanner {
         let pricingKeyChanged = cache.codexPricingKey != codexPricingKey
         let codexPriorityMetadataKey = Self.codexPriorityMetadataKey(databaseURL: options.codexTraceDatabaseURL)
         let hasPriorityMetadata = codexPriorityMetadataKey.hasPrefix("sqlite:")
-        let priorityMetadataChanged = Self.codexPriorityMetadataChanged(
+        let detectedPriorityMetadataChanged = Self.codexPriorityMetadataChanged(
             old: cache.codexPriorityMetadataKey,
             new: codexPriorityMetadataKey)
         let turnIDCacheMigrationPathKeys = hasPriorityMetadata ? Set(cache.files.compactMap { path, usage in
@@ -5267,7 +5337,7 @@ enum CostUsageScanner {
             || needsPricingMetadataMigration
             || needsProjectMetadataMigration
             || needsTurnIDCacheMigration
-            || priorityMetadataChanged
+            || detectedPriorityMetadataChanged
             || refreshMs == 0
             || cache.lastScanUnixMs == 0
             || nowMs - cache.lastScanUnixMs > refreshMs
@@ -5281,22 +5351,30 @@ enum CostUsageScanner {
                     databaseURL: resolvedPriorityDatabaseURL)
             }
         }
-        let priorityTurns = shouldInspectPriorityTurns ? Self.codexPriorityTurns(
+        let previouslyObservedDatabase = cache.codexPriorityMetadataKey
+            == "sqlite:\(resolvedPriorityDatabaseURL.standardizedFileURL.path)"
+        let priorityResolution = shouldInspectPriorityTurns ? Self.resolveCodexPriorityTurns(
             databaseURL: resolvedPriorityDatabaseURL,
             sinceDayKey: range.scanSinceKey,
-            untilDayKey: range.scanUntilKey) : [:]
-        let priorityTurnsCursor = shouldInspectPriorityTurns
+            untilDayKey: range.scanUntilKey,
+            expectExistingDatabase: previouslyObservedDatabase) : nil
+        let priorityTurns = priorityResolution?.turns
+            ?? Self.validatedPriorityTurns(cache: cache, calendar: range.calendar)
+        let priorityValidationPending = priorityResolution?.validationPending ?? false
+        let priorityMetadataChanged = detectedPriorityMetadataChanged && !priorityValidationPending
+        let priorityTurnsCursor = shouldInspectPriorityTurns && !priorityValidationPending
             ? Self.codexPriorityTurnsPersistedCursor(databaseURL: resolvedPriorityDatabaseURL)
             : nil
         let priorityTurnKeys = Self.codexPriorityTurnKeys(priorityTurns, calendar: range.calendar)
         let priorityTurnIDsByDay = Self.codexPriorityTurnIDsByDay(priorityTurns, calendar: range.calendar)
         let priorityTurnsChanged = shouldInspectPriorityTurns
+            && !priorityValidationPending
             && hasPriorityMetadata
             && Self.codexPriorityTurnKeysChanged(
                 old: cache.codexPriorityTurnKeys,
                 new: priorityTurnKeys,
                 range: range)
-        let changedPriorityTurnIDs = shouldInspectPriorityTurns && hasPriorityMetadata
+        let changedPriorityTurnIDs = shouldInspectPriorityTurns && !priorityValidationPending && hasPriorityMetadata
             ? Self.changedPriorityTurnIDs(
                 old: cache.codexPriorityTurnIDsByDay,
                 new: priorityTurnIDsByDay,
@@ -5322,6 +5400,7 @@ enum CostUsageScanner {
             || needsTurnIDCacheMigration
             || priorityMetadataChanged
             || priorityTurnsChanged
+            || priorityValidationPending
             || refreshMs == 0
             || cache.lastScanUnixMs == 0
             || nowMs - cache.lastScanUnixMs > refreshMs
@@ -5342,6 +5421,7 @@ enum CostUsageScanner {
             priorityTurnKeys: priorityTurnKeys,
             priorityTurnIDsByDay: priorityTurnIDsByDay,
             inspectedPriorityTurns: shouldInspectPriorityTurns,
+            priorityValidationPending: priorityValidationPending,
             priorityTurnsCursor: priorityTurnsCursor,
             priorityMetadataChanged: priorityMetadataChanged,
             priorityTurnsChanged: priorityTurnsChanged,
@@ -5396,12 +5476,17 @@ enum CostUsageScanner {
               !sourceCache.days.isEmpty
         else { return nil }
 
+        let priorityTurns = if plan.priorityValidationPending {
+            Self.validatedPriorityTurns(cache: sourceCache, calendar: range.calendar)
+        } else {
+            plan.priorityTurns
+        }
         let report = self.buildCodexReportFromCache(
             cache: sourceCache,
             range: range,
             modelsDevCatalog: plan.modelsDevCatalog,
             modelsDevCacheRoot: options.cacheRoot,
-            priorityTurns: plan.priorityTurns)
+            priorityTurns: priorityTurns)
         return CostUsageCodexPreviousReport(
             report: report,
             cache: sourceCache,
@@ -5428,6 +5513,7 @@ enum CostUsageScanner {
     private static func saveCodexCache(
         _ cache: inout CostUsageCache,
         store: CostUsageStore,
+        receipt: CostUsageStore.CodexBaselineReceipt,
         range: CostUsageDayRange,
         previousReport: CostUsageCodexPreviousReport?)
     {
@@ -5439,7 +5525,8 @@ enum CostUsageScanner {
             calendar: range.calendar,
             requestedScanWindow: (sinceKey: range.scanSinceKey, untilKey: range.scanUntilKey),
             reportWindow: (sinceKey: range.sinceKey, untilKey: range.untilKey),
-            skipIdenticalContent: true)
+            skipIdenticalContent: true,
+            receipt: receipt)
         if saveResult.catchUpRequired {
             cache.codexScanCatchUpPending = true
             cache.codexPreviousReport = previousReport
@@ -5454,6 +5541,7 @@ enum CostUsageScanner {
         checkCancellation: CancellationCheck?) throws -> CostUsageDailyReport
     {
         let loadedCache = Self.loadCodexCache(options: options, range: range)
+        defer { loadedCache.release() }
         var cache = loadedCache.cache
         let nowMs = Int64(now.timeIntervalSince1970 * 1000)
         let plan = Self.makeCodexRefreshPlan(cache: cache, range: range, now: now, nowMs: nowMs, options: options)
@@ -5462,6 +5550,21 @@ enum CostUsageScanner {
             range: range,
             plan: plan,
             options: options)
+
+        // A transient trace-database failure must not make this refresh look complete. Keep the
+        // last published cache (including its freshness timestamp and durable priority cursor)
+        // untouched so the next refresh retries validation against the same baseline.
+        if plan.priorityValidationPending {
+            guard cache.roots == plan.rootsFingerprint,
+                  cache.timeZoneIdentifier == range.calendar.timeZone.identifier
+            else { return CostUsageDailyReport(data: [], summary: nil) }
+            return previousReport?.report ?? Self.buildCodexReportFromCache(
+                cache: cache,
+                range: range,
+                modelsDevCatalog: plan.modelsDevCatalog,
+                modelsDevCacheRoot: options.cacheRoot,
+                priorityTurns: Self.validatedPriorityTurns(cache: cache, calendar: range.calendar))
+        }
 
         if plan.shouldRefresh {
             try checkCancellation?()
@@ -5801,6 +5904,8 @@ enum CostUsageScanner {
                 }
             }
 
+            try fileIndex.resumePendingDiscovery()
+
             let shouldRetainWiderWindow = !options.forceRescan && !plan
                 .priorityMetadataChanged && !plan.needsTurnIDCacheMigration && !plan.needsProjectMetadataMigration
             let retainedSinceKey = shouldRetainWiderWindow
@@ -5856,6 +5961,17 @@ enum CostUsageScanner {
                 || cache.files.values.contains { $0.hasBufferedCodexForkRetryLines }
             cache.codexScanCatchUpPending = catchUpPending
             cache.codexPreviousReport = catchUpPending ? previousReport : nil
+            if plan.inspectedPriorityTurns {
+                // Report pricing follows each successful inspected window, including an empty
+                // historical result. The independent live cursor remains suitable for resume.
+                cache.codexResolvedPriorityTurns = Self.mergeResolvedPriorityTurns(
+                    existing: shouldRetainWiderWindow
+                        ? Self.validatedPriorityTurns(cache: cache, calendar: range.calendar) : [:],
+                    new: plan.priorityTurns,
+                    range: range,
+                    retainedSinceKey: retainedSinceKey,
+                    retainedUntilKey: retainedUntilKey)
+            }
             if plan.hasPriorityMetadata {
                 cache.codexPriorityTurnKeys = Self.mergePriorityTurnKeys(
                     existing: shouldRetainWiderWindow ? cache.codexPriorityTurnKeys : nil,
@@ -5880,6 +5996,7 @@ enum CostUsageScanner {
             Self.saveCodexCache(
                 &cache,
                 store: loadedCache.store,
+                receipt: loadedCache.receipt,
                 range: range,
                 previousReport: previousReport)
         }

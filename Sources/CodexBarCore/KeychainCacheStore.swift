@@ -48,6 +48,8 @@ public enum KeychainCacheStore {
     @TaskLocal private static var forceRealKeychainPath = false
     #if DEBUG
     @TaskLocal private static var operationRecorder: OperationRecorder?
+    @TaskLocal static var taskInteractionRequiredNowOverride: Date?
+    @TaskLocal static var taskInteractionRequiredRetryIntervalOverride: TimeInterval?
 
     enum Operation: Equatable, Sendable {
         case load
@@ -85,11 +87,11 @@ public enum KeychainCacheStore {
     private nonisolated(unsafe) static var testStore: [TestStoreKey: Data]?
     private nonisolated(unsafe) static var implicitTestStore: [TestStoreKey: Data] = [:]
     private nonisolated(unsafe) static var testStoreRefCount = 0
-    // Background operations cannot repair an ACL that rejects this executable. Remember that
-    // result for the process lifetime so every refresh path—not only display rendering—avoids
-    // repeating the same Security.framework validation and allocation.
+    // Repeated legacy ACL validation can accumulate Security.framework allocations. Share a cooldown
+    // across every cache operation, while still recovering after an external repair without a restart.
     private static let interactionRequiredCacheLock = NSLock()
-    private nonisolated(unsafe) static var interactionRequiredKeys: Set<TestStoreKey> = []
+    private nonisolated(unsafe) static var interactionRequiredRetryDates: [TestStoreKey: Date] = [:]
+    private static let interactionRequiredRetryInterval: TimeInterval = 5 * 60
 
     public static func load<Entry: Codable>(
         key: Key,
@@ -904,17 +906,44 @@ public enum KeychainCacheStore {
 
 extension KeychainCacheStore {
     fileprivate static func interactionRequiredIsCached(for key: Key) -> Bool {
+        self.interactionRequiredRetryDate(for: key) != nil
+    }
+
+    static func interactionRequiredRetryDate(for key: Key) -> Date? {
         self.interactionRequiredCacheLock.withLock {
-            self.interactionRequiredKeys.contains(
-                TestStoreKey(service: self.serviceName, account: key.account))
+            let cacheKey = TestStoreKey(service: self.serviceName, account: key.account)
+            guard let retryDate = self.interactionRequiredRetryDates[cacheKey] else { return nil }
+            guard self.interactionRequiredNow < retryDate else {
+                self.interactionRequiredRetryDates.removeValue(forKey: cacheKey)
+                return nil
+            }
+            return retryDate
         }
     }
 
     fileprivate static func cacheInteractionRequired(for key: Key) {
         self.interactionRequiredCacheLock.withLock {
-            _ = self.interactionRequiredKeys.insert(
-                TestStoreKey(service: self.serviceName, account: key.account))
+            self.interactionRequiredRetryDates[TestStoreKey(service: self.serviceName, account: key.account)] =
+                self.interactionRequiredNow.addingTimeInterval(self.currentInteractionRequiredRetryInterval)
         }
+    }
+
+    private static var interactionRequiredNow: Date {
+        #if DEBUG
+        if let override = self.taskInteractionRequiredNowOverride {
+            return override
+        }
+        #endif
+        return Date()
+    }
+
+    private static var currentInteractionRequiredRetryInterval: TimeInterval {
+        #if DEBUG
+        if let override = self.taskInteractionRequiredRetryIntervalOverride {
+            return override
+        }
+        #endif
+        return self.interactionRequiredRetryInterval
     }
 }
 

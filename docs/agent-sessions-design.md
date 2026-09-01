@@ -23,6 +23,8 @@ Pi-family processes are handed to one `PiFamilySessionScanner`:
 
 The Pi-family scan receives its own directory entry/time budget, preserving the independent Codex rollout and Claude transcript budgets. Header reads are bounded, pi name lookup uses bounded head/tail windows, future modification dates are clamped to scan time, and displayed titles are stripped of control characters and limited to 64 Unicode scalars.
 
+The same deadline also gates work after enumeration: file-type inspection, Codex modification-time reads, Pi-family path canonicalization, and queued Claude Desktop root probes stop starting work once their budget expires. An in-flight filesystem call can still finish after the deadline; this is a best-effort work budget, not an interruptible wall-clock timeout. Entry counts, depth limits, root selection, and PID-only fallback behavior are unchanged.
+
 ## Presentation and focus
 
 The menu uses `⌘` for Codex, `✦` for Claude Code, and `π` for the Pi family. Pi rows show their dialect tag (`pi` or `omp`) rather than a second provider name. The CLI table includes a `DIALECT` column. Project labels remain the default because descriptive titles can contain sensitive text.

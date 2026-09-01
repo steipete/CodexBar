@@ -10,6 +10,62 @@ import XCTest
 ///   CODEXBAR_SPEND_PROOF_DIR=.github/pr-proof swift test --filter SpendDashboardScreenshotRenderTests
 @MainActor
 final class SpendDashboardScreenshotRenderTests: XCTestCase {
+    func test_renderCostHistoryPrivacyScreenshots() throws {
+        guard let dir = ProcessInfo.processInfo.environment["CODEXBAR_COST_PRIVACY_PROOF_DIR"] else {
+            throw XCTSkip("Set CODEXBAR_COST_PRIVACY_PROOF_DIR to render synthetic cost-history privacy proof.")
+        }
+        let directory = URL(fileURLWithPath: dir, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let now = try XCTUnwrap(Self.gmtCalendar.date(from: DateComponents(year: 2026, month: 8, day: 29)))
+        let daily = [Self.entry(day: "2026-08-29", cost: 12.5, tokens: 42000, model: "gpt-5.4")]
+        let project = CostUsageProjectBreakdown(
+            name: "Example Client",
+            path: "/Users/example/Projects/example-client",
+            totalTokens: 42000,
+            totalCostUSD: 12.5,
+            daily: daily,
+            modelBreakdowns: nil,
+            sources: [CostUsageProjectSourceBreakdown(
+                name: "Example Worktree",
+                path: "/Users/example/Worktrees/example-branch",
+                totalTokens: 42000,
+                totalCostUSD: 12.5,
+                daily: daily,
+                modelBreakdowns: nil)])
+        let snapshot = CostUsageTokenSnapshot(
+            sessionTokens: 42000,
+            sessionCostUSD: 12.5,
+            last30DaysTokens: 42000,
+            last30DaysCostUSD: 12.5,
+            daily: daily,
+            projects: [project],
+            updatedAt: now)
+        let model = SpendDashboardModel.build(
+            inputs: [.init(provider: .codex, displayName: "Codex", snapshot: snapshot)],
+            requestedDays: 30,
+            now: now,
+            calendar: Self.gmtCalendar)
+        let group = try XCTUnwrap(model.groups.first)
+        let menu = CostHistoryChartMenuView(
+            provider: .codex,
+            daily: daily,
+            totalCostUSD: 12.5,
+            projects: [project],
+            hidePersonalInfo: true,
+            width: 400)
+        let dashboard = SpendDashboardCurrencySection(group: group, requestedDays: 30, hidePersonalInfo: true)
+        for (name, view) in [
+            ("menu", AnyView(menu.frame(width: 400))),
+            ("dashboard", AnyView(dashboard.padding(24).frame(width: 760))),
+        ] {
+            let image = try XCTUnwrap(Self.pngData(for: AnyView(view
+                    .environment(\.locale, Locale(identifier: "en_US_POSIX"))
+                    .environment(\.timeZone, Self.gmtCalendar.timeZone)
+                    .background(Color(nsColor: .windowBackgroundColor)))))
+            try image.write(to: directory.appendingPathComponent("\(name).png"))
+        }
+    }
+
     func test_renderUsageSpendRangeScreenshots() throws {
         guard let dir = ProcessInfo.processInfo.environment["CODEXBAR_SPEND_PROOF_DIR"] else {
             throw XCTSkip("Set CODEXBAR_SPEND_PROOF_DIR to render Usage & Spend proof screenshots.")

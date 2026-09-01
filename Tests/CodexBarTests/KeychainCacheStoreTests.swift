@@ -10,7 +10,7 @@ struct KeychainCacheStoreTests {
     }
 
     @Test
-    func `tests suppress real keychain access by default`() {
+    func `s suppress real keychain access by default`() {
         guard ProcessInfo.processInfo.environment["CODEXBAR_ALLOW_TEST_KEYCHAIN_ACCESS"] != "1" else { return }
 
         #expect(KeychainCacheStore.canUseRealKeychainForTesting == false)
@@ -204,6 +204,71 @@ struct KeychainCacheStoreTests {
                 Issue.record("Expected an unsafe cache item to remain unavailable")
             }
         }
+    }
+
+    @Test
+    func `ACL cooldown expires without reads writes or clears extending its deadline`() {
+        let service = "cache-preflight-expiry-\(UUID().uuidString)"
+        let key = KeychainCacheStore.Key(category: "test", identifier: UUID().uuidString)
+        let now = Date(timeIntervalSince1970: 1000)
+        let preflightCount = LockIsolated(0)
+        let entry = TestEntry(value: "test", storedAt: now)
+        KeychainCacheStore.withServiceOverrideForTesting(service) {
+            KeychainCacheStore.withRealKeychainPathForTesting {
+                KeychainAccessGate.withTaskOverrideForTesting(false) {
+                    KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { _, _ in
+                        preflightCount.setValue(preflightCount.value + 1)
+                        return preflightCount.value == 1 ? .interactionRequired : .notFound
+                    } operation: {
+                        KeychainCacheStore.$taskInteractionRequiredNowOverride.withValue(now) {
+                            _ = KeychainCacheStore.load(key: key, as: TestEntry.self)
+                        }
+                        KeychainCacheStore.$taskInteractionRequiredNowOverride.withValue(now.addingTimeInterval(299)) {
+                            _ = KeychainCacheStore.load(key: key, as: TestEntry.self)
+                            #expect(!KeychainCacheStore.storeResult(key: key, entry: entry))
+                            #expect(KeychainCacheStore.clearResult(key: key) == .failed)
+                            #expect(KeychainCacheStore.interactionRequiredRetryDate(for: key) ==
+                                now.addingTimeInterval(300))
+                            #expect(preflightCount.value == 1)
+                        }
+                        KeychainCacheStore.$taskInteractionRequiredNowOverride.withValue(now.addingTimeInterval(300)) {
+                            guard case .missing = KeychainCacheStore.load(key: key, as: TestEntry.self) else {
+                                Issue.record("An externally removed cache item should recover after the cooldown")
+                                return
+                            }
+                            #expect(preflightCount.value == 2)
+                            #expect(KeychainCacheStore.interactionRequiredRetryDate(for: key) == nil)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    func `ACL cooldown is isolated by service and account`() {
+        let service = "cache-preflight-isolation-\(UUID().uuidString)"
+        let key = KeychainCacheStore.Key(category: "test", identifier: UUID().uuidString)
+        let otherKey = KeychainCacheStore.Key(category: "test", identifier: UUID().uuidString)
+        let preflightCount = LockIsolated(0)
+        KeychainCacheStore.withRealKeychainPathForTesting {
+            KeychainAccessGate.withTaskOverrideForTesting(false) {
+                KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { _, _ in
+                    preflightCount.setValue(preflightCount.value + 1)
+                    return .interactionRequired
+                } operation: {
+                    for candidateService in [service, "\(service)-other"] {
+                        KeychainCacheStore.withServiceOverrideForTesting(candidateService) {
+                            for candidateKey in [key, otherKey] {
+                                _ = KeychainCacheStore.load(key: candidateKey, as: TestEntry.self)
+                                _ = KeychainCacheStore.load(key: candidateKey, as: TestEntry.self)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        #expect(preflightCount.value == 4)
     }
 
     @Test

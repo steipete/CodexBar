@@ -42,6 +42,11 @@ when CodexBar itself has not changed.
 The item's accessibility class controls when its data is available, such as after the first unlock. It does not grant
 a changed executable access and does not repair a code-signature ACL mismatch.
 
+If a CodexBar-owned cache item's legacy ACL rejects the installed app, cache reads, writes, and clears share a
+five-minute cooldown. This limits repeated Security.framework validation and associated memory growth. After repairing
+or removing the stale cache item in Keychain Access, the next access after that cooldown rechecks it without requiring
+an app restart. A temporarily locked Keychain or an incomplete ACL validation remains retryable sooner.
+
 ## Allow Once and Always Allow
 
 - **Allow Once** authorizes the current request or session. A later explicit import or repair may ask again.

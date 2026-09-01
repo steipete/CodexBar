@@ -165,11 +165,12 @@ public enum UsageFormatter {
         if let desc = window.resetDescription {
             let trimmed = desc.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { return nil }
-            if trimmed.lowercased().hasPrefix("resets in ") {
-                return self.localized("Resets in %@", String(trimmed.dropFirst("Resets in ".count)))
+            let lowercased = trimmed.lowercased()
+            for prefix in ["resets in ", "reset in "] where lowercased.hasPrefix(prefix) {
+                return self.localized("Resets in %@", String(trimmed.dropFirst(prefix.count)))
             }
-            if trimmed.lowercased().hasPrefix("resets ") {
-                return self.localized("Resets %@", String(trimmed.dropFirst("Resets ".count)))
+            for prefix in ["resets ", "reset "] where lowercased.hasPrefix(prefix) {
+                return self.localized("Resets %@", String(trimmed.dropFirst(prefix.count)))
             }
             return self.localized("Resets %@", trimmed)
         }

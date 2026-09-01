@@ -265,18 +265,24 @@ public enum KeychainAccessPreflight {
         return query
     }
 
-    static func decryptACLAllowsCurrentProcess(
-        trustedApplicationValidationResults: [Bool]?,
-        promptSelector: SecKeychainPromptSelector) -> Bool
+    static func evaluateDecryptACL(
+        trustedApplicationValidationStatuses: [OSStatus?]?,
+        promptSelector: SecKeychainPromptSelector) -> DecryptACLEvaluation
     {
         // Any non-zero selector can require authentication based on the caller's signature state.
         // A background preflight cannot prove that condition safe, so fail closed.
-        guard promptSelector.rawValue == 0 else { return false }
+        guard promptSelector.rawValue == 0 else { return .rejected }
         // A nil application list means the ACL does not restrict callers. For an explicit list, at least one
         // stored code-signing requirement must validate against the invoking executable. A path match alone is
         // insufficient: legacy ACLs can retain an old build's signature at the same path and still show UI.
-        guard let trustedApplicationValidationResults else { return true }
-        return trustedApplicationValidationResults.contains(true)
+        guard let trustedApplicationValidationStatuses else { return .allowed }
+        if trustedApplicationValidationStatuses.contains(errSecSuccess) {
+            return .allowed
+        }
+        // The legacy validator reports a completed signature mismatch as CSSMERR_CSP_VERIFY_FAILED.
+        // Missing symbols and other errors cannot establish that the ACL rejects this executable.
+        return trustedApplicationValidationStatuses.allSatisfy { $0 == OSStatus(CSSMERR_CSP_VERIFY_FAILED) }
+            ? .rejected : .indeterminate
     }
 
     private static func keychainItem(fromPreflightResult result: AnyObject?) -> SecKeychainItem? {
@@ -289,7 +295,7 @@ public enum KeychainAccessPreflight {
     /// `.rejected` means validation ran to completion and no trusted application matched this
     /// executable — a stable outcome. `.indeterminate` means inspection itself failed and the
     /// result may differ on retry.
-    private enum DecryptACLEvaluation {
+    enum DecryptACLEvaluation: Equatable {
         case allowed
         case rejected
         case indeterminate
@@ -328,9 +334,9 @@ public enum KeychainAccessPreflight {
                 continue
             }
             guard let applications else {
-                if self.decryptACLAllowsCurrentProcess(
-                    trustedApplicationValidationResults: nil,
-                    promptSelector: selector)
+                if self.evaluateDecryptACL(
+                    trustedApplicationValidationStatuses: nil,
+                    promptSelector: selector) == .allowed
                 {
                     return .allowed
                 }
@@ -345,11 +351,16 @@ public enum KeychainAccessPreflight {
                     self.trustedApplication(application, validatesExecutableAt: currentPath)
                 }
             }
-            if self.decryptACLAllowsCurrentProcess(
-                trustedApplicationValidationResults: validationResults,
+            switch self.evaluateDecryptACL(
+                trustedApplicationValidationStatuses: validationResults,
                 promptSelector: selector)
             {
+            case .allowed:
                 return .allowed
+            case .indeterminate:
+                inspectionIncomplete = true
+            case .rejected:
+                break
             }
         }
         return inspectionIncomplete ? .indeterminate : .rejected
@@ -357,13 +368,13 @@ public enum KeychainAccessPreflight {
 
     static func trustedApplication(
         _ application: SecTrustedApplication,
-        validatesExecutableAt path: String) -> Bool
+        validatesExecutableAt path: String) -> OSStatus?
     {
         guard let validate = self.securityFunction(
             named: "SecTrustedApplicationValidateWithPath",
             as: SecTrustedApplicationValidateWithPathFunction.self)
-        else { return false }
-        return path.withCString { validate(application, $0) == errSecSuccess }
+        else { return nil }
+        return path.withCString { validate(application, $0) }
     }
 
     private typealias SecKeychainItemCopyAccessFunction = @convention(c) (

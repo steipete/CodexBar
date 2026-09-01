@@ -147,6 +147,24 @@ struct CostUsageScannerCodexPriorityTests {
             coverageSinceEpoch: 0)
         let warmPlan = try Self.queryPlan(db: db, query: warmQuery, bindings: [1, 0])
         #expect(warmPlan.contains { $0.contains("USING INTEGER PRIMARY KEY") })
+
+        let anchorSelectionPlan = try Self.queryPlan(
+            db: db,
+            query: CostUsageScanner._test_codexPriorityAnchorSelectionQuery(),
+            bindings: [1])
+        #expect(anchorSelectionPlan.contains { $0.contains("USING INTEGER PRIMARY KEY") })
+
+        let anchorMinimumPlan = try Self.queryPlan(
+            db: db,
+            query: CostUsageScanner._test_codexPriorityAnchorMinimumQuery(),
+            bindings: [1])
+        #expect(anchorMinimumPlan.contains { $0.contains("USING INTEGER PRIMARY KEY") })
+
+        let anchorLookupPlan = try Self.queryPlan(
+            db: db,
+            query: CostUsageScanner._test_codexPriorityAnchorLookupQuery(),
+            bindings: [1])
+        #expect(anchorLookupPlan.contains { $0.contains("USING INTEGER PRIMARY KEY") })
     }
 
     @Test
@@ -389,6 +407,10 @@ struct CostUsageScannerCodexPriorityTests {
         #expect(pruned["turn-a"]?.threadID == "thread-old")
         #expect(pruned["turn-a"]?.model == "completed-old")
         #expect(pruned["turn-b"]?.model == "request-model")
+
+        CostUsageScanner._test_resetCodexPriorityTurnsMemo(forPath: dbURL.path)
+        let cold = CostUsageScanner.codexPriorityTurns(databaseURL: dbURL)
+        #expect(pruned == cold)
     }
 
     @Test
@@ -415,6 +437,7 @@ struct CostUsageScannerCodexPriorityTests {
             coverageSinceEpoch: 0,
             lastRowID: 0,
             fileIdentity: nil,
+            anchors: [],
             turns: [:],
             requestSourcesByTurnID: [:],
             priorityCompletedModelsByTurnID: [:],

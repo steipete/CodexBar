@@ -224,7 +224,8 @@ public enum AntigravityProviderDescriptor {
 
     static func resolveFallbackError(_ previous: Error?, _ current: Error) -> Error {
         if (previous as? AntigravityStatusProbeError) == .authenticationRequired,
-           (current as? AntigravityStatusProbeError) == .notRunning
+           let currentProbeError = current as? AntigravityStatusProbeError,
+           currentProbeError == .notRunning || currentProbeError == .missingCSRFToken
         {
             return previous ?? current
         }
@@ -414,7 +415,7 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
 
         for info in cliProcesses {
             if let expectedBinaryPath {
-                guard Self.commandLine(info.commandLine, matchesBinaryPath: expectedBinaryPath)
+                guard Self.process(info, matchesBinaryPath: expectedBinaryPath)
                 else {
                     continue
                 }
@@ -469,13 +470,21 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
         return remaining > 0 ? remaining : nil
     }
 
-    private static func commandLine(_ commandLine: String, matchesBinaryPath binaryPath: String) -> Bool {
+    private static func process(
+        _ info: AntigravityStatusProbe.ProcessInfoResult,
+        matchesBinaryPath binaryPath: String) -> Bool
+    {
         let candidates = [
             URL(fileURLWithPath: binaryPath).standardizedFileURL.path,
             URL(fileURLWithPath: binaryPath).resolvingSymlinksInPath().standardizedFileURL.path,
         ]
+        if let executablePath = info.executablePath {
+            // argv[0] may be just "agy" or misleading; a known kernel path owns executable identity.
+            guard executablePath.hasPrefix("/") else { return false }
+            return candidates.contains(URL(fileURLWithPath: executablePath).standardizedFileURL.path)
+        }
         return candidates.contains { candidate in
-            commandLine == candidate || commandLine.hasPrefix("\(candidate) ")
+            info.commandLine == candidate || info.commandLine.hasPrefix("\(candidate) ")
         }
     }
 

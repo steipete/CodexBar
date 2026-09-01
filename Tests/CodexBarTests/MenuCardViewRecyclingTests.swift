@@ -151,12 +151,12 @@ extension StatusMenuTests {
             ]),
         ]
 
-        let narrowWidth = controller.measuredMenuCardWidth(for: [narrow])
-        let stableWidth = controller.measuredMenuCardWidth(for: [narrow, wide])
+        let narrowWidth = controller.measuredMenuCardWidth(for: [(.codex, narrow)])
+        let stableWidth = controller.measuredMenuCardWidth(for: [(.codex, narrow), (.claude, wide)])
 
         #expect(narrowWidth == StatusItemController.menuCardBaseWidth)
         #expect(stableWidth > narrowWidth)
-        #expect(controller.measuredMenuCardWidth(for: [wide, narrow]) == stableWidth)
+        #expect(controller.measuredMenuCardWidth(for: [(.claude, wide), (.codex, narrow)]) == stableWidth)
     }
 
     @Test

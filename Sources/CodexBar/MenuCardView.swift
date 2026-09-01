@@ -937,8 +937,10 @@ extension UsageMenuCardView.Model {
             account: input.account,
             override: input.planOverride,
             metadata: input.metadata)
+        let paceVisible = input.paceVisible && ProviderDescriptorRegistry.descriptor(for: input.provider).pace
+            .allowsPace(dataConfidence: input.snapshot?.dataConfidence ?? .unknown)
         let metrics = Self.redactedMetrics(
-            Self.paceGatedMetrics(Self.metrics(input: input), paceVisible: input.paceVisible),
+            Self.paceGatedMetrics(Self.metrics(input: input), paceVisible: paceVisible),
             provider: input.provider,
             hidePersonalInfo: input.hidePersonalInfo)
         let openAIAPIUsage = input.snapshot?.openAIAPIUsage

@@ -23,20 +23,9 @@ public actor NotionSessionStore {
     private var hasLoadedFromDisk = false
     private let fileURL: URL
 
-    private init() {
-        let fm = FileManager.default
-        let appSupport = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? fm.temporaryDirectory
-        self.fileURL = appSupport
-            .appendingPathComponent("CodexBar", isDirectory: true)
-            .appendingPathComponent("notion-session.json")
+    init(fileURL: URL? = nil) {
+        self.fileURL = fileURL ?? ProviderSessionStoreFile.url(for: "notion-session.json")
     }
-
-    #if DEBUG
-    init(fileURL: URL) {
-        self.fileURL = fileURL
-    }
-    #endif
 
     public func setSession(tokenV2: String, sourceLabel: String) {
         let token = tokenV2.trimmingCharacters(in: .whitespacesAndNewlines)

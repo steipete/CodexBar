@@ -1063,7 +1063,7 @@ extension CostUsageScanner {
         let mergedTokenSnapshots = isBufferedForkResume && startOffset == input.metadata.size
             ? (migratedCached.codexTokenSnapshots ?? [])
             : (migratedCached.codexTokenSnapshots ?? []) + delta.tokenSnapshots
-        cache.files[input.metadata.path] = Self.makeFileUsage(
+        cache.files[input.metadata.path] = try Self.makeFileUsage(
             mtimeUnixMs: input.metadata.mtimeUnixMs,
             size: input.metadata.size,
             days: mergedDays,
@@ -1115,7 +1115,12 @@ extension CostUsageScanner {
                     to: migratedCached.codexTokenCheckpoints ?? [],
                     startingEventIndex: migratedCached.codexTokenSnapshots?.count ?? 0,
                     initialState: initialAccumulatorState),
-            codexTokenTimestampsMonotonic: Self.codexTokenTimestampsAreMonotonic(mergedTokenSnapshots),
+            codexTokenTimestampsMonotonic: Self.appendingCodexTokenTimestampsAreMonotonic(
+                isBufferedForkResume && startOffset == input.metadata.size ? [] : delta.tokenSnapshots,
+                to: migratedCached.codexTokenSnapshots ?? [],
+                prefixIsMonotonic: migratedCached.codexTokenTimestampsMonotonic,
+                checkCancellation: context.checkCancellation,
+                workRecorder: context.workRecorder),
             codexTokenIndexAnchor: Self.codexTokenIndexAnchor(
                 fileURL: input.fileURL,
                 indexedBytes: delta.parsedBytes),
@@ -1201,7 +1206,7 @@ extension CostUsageScanner {
             range: context.range,
             priorityTurns: context.resources.priorityTurns)
 
-        cache.files[input.metadata.path] = Self.makeFileUsage(
+        cache.files[input.metadata.path] = try Self.makeFileUsage(
             mtimeUnixMs: input.metadata.mtimeUnixMs,
             size: input.metadata.size,
             days: usageDays,
@@ -1252,7 +1257,10 @@ extension CostUsageScanner {
                 priorityTurns: context.resources.priorityTurns),
             codexTokenSnapshots: parsed.tokenSnapshots,
             codexTokenCheckpoints: Self.codexTokenCheckpoints(for: parsed.tokenSnapshots),
-            codexTokenTimestampsMonotonic: Self.codexTokenTimestampsAreMonotonic(parsed.tokenSnapshots),
+            codexTokenTimestampsMonotonic: Self.codexTokenTimestampsAreMonotonic(
+                parsed.tokenSnapshots,
+                checkCancellation: context.checkCancellation,
+                workRecorder: context.workRecorder),
             codexTokenIndexAnchor: Self.codexTokenIndexAnchor(
                 fileURL: input.fileURL,
                 indexedBytes: parsed.parsedBytes),
@@ -1387,11 +1395,12 @@ extension CostUsageScanner {
         range: CostUsageDayRange,
         modelsDevCatalog: ModelsDevCatalog? = nil,
         modelsDevCacheRoot: URL? = nil,
-        priorityTurns: [String: CodexPriorityTurnMetadata] = [:],
+        priorityTurns: [String: CodexPriorityTurnMetadata]? = nil,
         modelsDevCatalogLoader: (URL?) -> ModelsDevCatalog? = {
             CostUsagePricing.modelsDevCatalog(cacheRoot: $0)
         }) -> CostUsageDailyReport
     {
+        let priorityTurns = priorityTurns ?? cache.codexResolvedPriorityTurns ?? [:]
         let catalogResolver = CodexModelsDevCatalogResolver(
             catalog: modelsDevCatalog,
             cacheRoot: modelsDevCacheRoot)

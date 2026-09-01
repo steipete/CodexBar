@@ -69,6 +69,10 @@ check_sparkle_signing_paths() {
   "${ROOT_DIR}/Scripts/test_sparkle_signing_paths.sh"
 }
 
+check_mimo_usage_script() {
+  python3 "${ROOT_DIR}/Scripts/test_mimo_usage.py"
+}
+
 check_swift_test_sharding() {
   "${ROOT_DIR}/Scripts/test_swift_test_sharding.sh"
 }
@@ -126,6 +130,7 @@ run_portable_checks() {
   check_release_dsym_paths
   check_release_checksum
   check_sparkle_signing_paths
+  check_mimo_usage_script
   check_swift_test_sharding
   check_ci_path_gate
   check_homebrew_tap_wait

@@ -610,9 +610,7 @@ struct PlanUtilizationHistoryChartMenuView: View {
         for point: Point,
         windowMinutes: Int) -> some View
     {
-        Text(point.date.formatted(self.axisFormat(windowMinutes: windowMinutes)))
-            .font(.caption2)
-            .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
+        ChartAxisLabelLayout.dateLabel(Text(point.date.formatted(self.axisFormat(windowMinutes: windowMinutes))))
     }
 
     private nonisolated static func axisFormat(windowMinutes: Int) -> Date.FormatStyle {
@@ -743,11 +741,12 @@ struct PlanUtilizationHistoryChartMenuView: View {
             Chart {
                 self.utilizationChartContent(model: model)
             }
-            .chartXScale(domain: xDomain)
+            .chartXScale(domain: xDomain, range: .plotDimension(padding: ChartAxisLabelLayout.dateLabelEdgePadding))
         } else {
             Chart {
                 self.utilizationChartContent(model: model)
             }
+            .chartXScale(range: .plotDimension(padding: ChartAxisLabelLayout.dateLabelEdgePadding))
         }
     }
 

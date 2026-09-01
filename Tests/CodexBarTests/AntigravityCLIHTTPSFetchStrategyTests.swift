@@ -985,8 +985,10 @@ struct AntigravityCLIHTTPSFetchStrategyTests {
 }
 
 extension AntigravityCLIHTTPSFetchStrategyTests {
-    @Test
-    func `missing IDE cannot replace actionable signed out CLI error`() async {
+    @Test(arguments: [AntigravityStatusProbeError.notRunning, .missingCSRFToken])
+    func `unavailable IDE cannot replace actionable signed out CLI error`(
+        ideError: AntigravityStatusProbeError) async
+    {
         let pipeline = ProviderFetchPipeline(
             resolveStrategies: { _ in
                 [
@@ -995,7 +997,7 @@ extension AntigravityCLIHTTPSFetchStrategyTests {
                         error: .authenticationRequired),
                     AntigravityFallbackFixtureStrategy(
                         id: "antigravity.ide-local",
-                        error: .notRunning),
+                        error: ideError),
                 ]
             },
             resolveFallbackError: AntigravityProviderDescriptor.resolveFallbackError)

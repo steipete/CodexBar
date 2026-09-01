@@ -61,11 +61,18 @@ struct CostUsageStoreReadWorkTests {
         var refreshed = fixture.canonical
         refreshed.lastScanUnixMs += 1000
         let before = await fixture.store.persistenceWriteMetricsForTesting()
-        let (unchanged, _) = await Self.measure("unchanged-save", fixture: fixture, recorder: recorder) {
+        let (unchanged, unchangedWork) = await Self.measure(
+            "unchanged-save-without-receipt",
+            fixture: fixture,
+            recorder: recorder)
+        {
             fixture.save(refreshed)
         }
         let after = await fixture.store.persistenceWriteMetricsForTesting()
         #expect(!unchanged.catchUpRequired)
+        #expect(unchangedWork.fullSnapshotReads == 1)
+        #expect(unchangedWork.usageRowDecodeAttempts == fixture.rowCount)
+        #expect(unchangedWork.aggregateGroupingRowVisits == 0)
         #expect(unchanged.deletedRows == 0)
         #expect(after.rows - before.rows == 1)
         #expect(fixture.store.syncLoadCodexCache(calendar: fixture.calendar) == refreshed)

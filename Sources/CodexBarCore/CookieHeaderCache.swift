@@ -955,7 +955,7 @@ extension CookieHeaderCache {
         if let current = self.displayCache[key] {
             return current.entry
         }
-        self.displayCache[key] = self.blockedDisplaySnapshot(entry: nil)
+        self.displayCache[key] = self.blockedDisplaySnapshot(key: key, entry: nil)
         return nil
     }
 
@@ -965,14 +965,12 @@ extension CookieHeaderCache {
         guard self.displayGenerations[key, default: 0] == generation,
               let current = self.displayCache[key]
         else { return }
-        self.displayCache[key] = self.blockedDisplaySnapshot(entry: current.entry)
+        self.displayCache[key] = self.blockedDisplaySnapshot(key: key, entry: current.entry)
     }
 
-    private static func blockedDisplaySnapshot(entry: Entry?) -> DisplaySnapshot {
-        // A background display read cannot resolve an ACL authorization failure. Keep the
-        // snapshot until an in-process mutation invalidates it instead of repeatedly asking
-        // Security.framework the same question.
-        DisplaySnapshot(entry: entry, refreshAfter: .distantFuture)
+    private static func blockedDisplaySnapshot(key: KeychainCacheStore.Key, entry: Entry?) -> DisplaySnapshot {
+        // Use the cache owner's existing deadline; display reads must never extend the cooldown.
+        DisplaySnapshot(entry: entry, refreshAfter: KeychainCacheStore.interactionRequiredRetryDate(for: key) ?? Date())
     }
 
     private static func currentEntryMatches(
