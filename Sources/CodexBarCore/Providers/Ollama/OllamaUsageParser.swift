@@ -1,7 +1,11 @@
 import Foundation
 
 enum OllamaUsageParser {
-    private static let primaryUsageLabels = ["Session usage", "Hourly usage"]
+    // The 2026-08 settings page only renders "Monthly usage" (dollar-based); the legacy
+    // Session/Hourly/Weekly labels stay for accounts still showing the old windows.
+    private static let monthlyUsageLabel = "Monthly usage"
+    private static let legacyPrimaryUsageLabels = ["Session usage", "Hourly usage"]
+    private static let primaryUsageLabels = [monthlyUsageLabel] + legacyPrimaryUsageLabels
     private static let usageLabels = primaryUsageLabels + ["Weekly usage"]
 
     enum ParseFailure: Equatable {
@@ -28,10 +32,11 @@ enum OllamaUsageParser {
     static func parseClassified(html: String, now: Date = Date()) -> ClassifiedParseResult {
         let plan = self.parsePlanName(html)
         let email = self.parseAccountEmail(html)
-        let session = self.parseUsageBlock(labels: self.primaryUsageLabels, html: html)
+        let monthly = self.parseUsageBlock(label: self.monthlyUsageLabel, html: html)
+        let session = self.parseUsageBlock(labels: Self.legacyPrimaryUsageLabels, html: html)
         let weekly = self.parseUsageBlock(label: "Weekly usage", html: html)
 
-        if session == nil, weekly == nil {
+        if monthly == nil, session == nil, weekly == nil {
             if self.looksSignedOut(html) {
                 return .failure(.notLoggedIn)
             }
@@ -41,6 +46,8 @@ enum OllamaUsageParser {
         return .success(OllamaUsageSnapshot(
             planName: plan,
             accountEmail: email,
+            monthlyUsedPercent: monthly?.usedPercent,
+            monthlyResetsAt: monthly?.resetsAt,
             sessionUsedPercent: session?.usedPercent,
             weeklyUsedPercent: weekly?.usedPercent,
             sessionResetsAt: session?.resetsAt,
@@ -56,11 +63,21 @@ enum OllamaUsageParser {
     }
 
     private static func parsePlanName(_ html: String) -> String? {
-        let pattern = #"Cloud Usage\s*</span>\s*<span[^>]*>([^<]+)</span>"#
-        guard let raw = self.firstCapture(in: html, pattern: pattern, options: [.dotMatchesLineSeparators])
-        else { return nil }
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
+        // The new heading is "Included usage <plan>"; its closing tag renders as
+        // "</span\n>", so the pattern intentionally omits the final ">".
+        let patterns = [
+            #"Included usage\s*</span>\s*<span[^>]*>([^<]+)</span"#,
+            #"Cloud Usage\s*</span>\s*<span[^>]*>([^<]+)</span>"#,
+        ]
+        for pattern in patterns {
+            guard let raw = self.firstCapture(in: html, pattern: pattern, options: [.dotMatchesLineSeparators])
+            else { continue }
+            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                return trimmed
+            }
+        }
+        return nil
     }
 
     private static func parseAccountEmail(_ html: String) -> String? {
@@ -79,7 +96,17 @@ enum OllamaUsageParser {
 
         guard let usedPercent = self.parsePercent(in: window) else { return nil }
         let resetsAt = self.parseISODate(in: window)
-        let windowMinutes = label == "Session usage" ? 5 * 60 : nil
+        let windowMinutes: Int?
+        switch label {
+        case self.monthlyUsageLabel:
+            // Monthly windows carry the 30-day sentinel duration; pace resolves the real
+            // calendar month from the reset date via the resetWindowPace rule.
+            windowMinutes = ProviderPaceCapability.monthlyWindowSentinelMinutes
+        case "Session usage":
+            windowMinutes = 5 * 60
+        default:
+            windowMinutes = nil
+        }
         return UsageBlock(
             usedPercent: usedPercent,
             resetsAt: resetsAt,
@@ -110,11 +137,37 @@ enum OllamaUsageParser {
         if let raw = self.firstCapture(in: text, pattern: usedPattern, options: [.caseInsensitive]) {
             return Double(raw)
         }
+        if let dollarPercent = self.parseDollarUsedPercent(in: text) {
+            return dollarPercent
+        }
         let widthPattern = #"width:\s*([0-9]+(?:\.[0-9]+)?)%"#
         if let raw = self.firstCapture(in: text, pattern: widthPattern, options: [.caseInsensitive]) {
             return Double(raw)
         }
         return nil
+    }
+
+    /// The new monthly page meters dollar credits ("$7.50 of $60 used"); convert to a
+    /// percentage so the shared rate-window presentation keeps working.
+    private static func parseDollarUsedPercent(in text: String) -> Double? {
+        let pattern = #"\$([0-9][0-9,]*(?:\.[0-9]+)?)\s+of\s+\$([0-9][0-9,]*(?:\.[0-9]+)?)\s+used"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
+            return nil
+        }
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+        guard let match = regex.firstMatch(in: text, options: [], range: range),
+              match.numberOfRanges > 2,
+              let usedRange = Range(match.range(at: 1), in: text),
+              let limitRange = Range(match.range(at: 2), in: text)
+        else { return nil }
+        let used = self.dollarAmount(String(text[usedRange]))
+        let limit = self.dollarAmount(String(text[limitRange]))
+        guard limit > 0 else { return nil }
+        return used / limit * 100
+    }
+
+    private static func dollarAmount(_ raw: String) -> Double {
+        Double(raw.replacingOccurrences(of: ",", with: "")) ?? 0
     }
 
     private static func parseISODate(in text: String) -> Date? {

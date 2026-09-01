@@ -457,6 +457,11 @@ extension UsageStore {
             {
                 return dyn
             }
+            if provider == .ollama,
+               let dyn = OllamaProviderDescriptor.primaryLabel(window: snapshot.primary)
+            {
+                return dyn
+            }
             return metadata?.sessionLabel ?? "Session"
         }()
         let secondaryTitle = if provider == .amp {

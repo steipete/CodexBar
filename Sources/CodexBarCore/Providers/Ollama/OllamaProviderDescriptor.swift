@@ -24,6 +24,8 @@ public enum OllamaProviderDescriptor {
             metadata: ProviderMetadata(
                 id: .ollama,
                 displayName: "Ollama",
+                // Monthly snapshots relabel the primary lane via `primaryLabel`; the
+                // static label keeps legacy 5-hour-window pages showing "Session".
                 sessionLabel: "Session",
                 weeklyLabel: "Weekly",
                 opusLabel: nil,
@@ -52,11 +54,29 @@ public enum OllamaProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Ollama cost summary is not supported." }),
+            // The primary window is a monthly dollar credit that resets on the subscription
+            // start day: pace resolves the real calendar month from the reset date via
+            // resetWindowPace (same as Notion). The legacy 5-hour/weekly lanes stay for
+            // pages that still render the old windows, and the session pace rule excludes
+            // the monthly sentinel so the menu never scores it as a flat 30 days.
             pace: ProviderPaceCapability(
+                resetWindowPace: .windowDuration(minutes: ProviderPaceCapability.monthlyWindowSentinelMinutes),
+                inferredMonthlyDuration: .windowDuration(minutes: ProviderPaceCapability.monthlyWindowSentinelMinutes),
                 primary: .session(maximumMinutes: 300, requiresDuration: true),
                 secondary: .weeklyWithDuration,
-                sessionPaceWindowRule: .windowDurationPresent),
-            presentation: ProviderUsagePresentation(menuCard: ProviderMenuCardPresentation(
+                sessionPaceWindowRule: .custom { window, _ in
+                    guard let minutes = window.windowMinutes else { return false }
+                    return minutes <= 300
+                }),
+            presentation: ProviderUsagePresentation(
+                rateWindowLabeler: { metadata, snapshot, _ in
+                    ProviderRateWindowLabels(
+                        primary: Self.primaryLabel(window: snapshot.primary) ?? metadata.sessionLabel,
+                        secondary: metadata.weeklyLabel,
+                        tertiary: metadata.opusLabel ?? "Sonnet",
+                        showsTertiary: metadata.supportsOpus)
+                },
+                menuCard: ProviderMenuCardPresentation(
                 usageNotesResolver: { context in
                     guard context.snapshot?.identity?.loginMethod == "API key" else { return .unhandled }
                     return .localized([
@@ -82,6 +102,14 @@ public enum OllamaProviderDescriptor {
                     } == true
                     return settings?.ollama?.cookieSource == .off || hasEnvironmentToken
                 }))
+    }
+
+    /// Monthly windows carry the 30-day sentinel duration in the primary lane, so the
+    /// lane label follows the window: "Monthly" on new settings pages, the static
+    /// "Session" (returned as nil here) on legacy 5-hour-window pages.
+    public static func primaryLabel(window: RateWindow?) -> String? {
+        guard window?.windowMinutes == ProviderPaceCapability.monthlyWindowSentinelMinutes else { return nil }
+        return "Monthly"
     }
 
     private static func resolveStrategies(context: ProviderFetchContext) async -> [any ProviderFetchStrategy] {

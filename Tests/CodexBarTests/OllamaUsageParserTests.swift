@@ -205,4 +205,120 @@ struct OllamaUsageParserTests {
         #expect(snapshot.sessionUsedPercent == 1.2)
         #expect(snapshot.weeklyUsedPercent == 3.4)
     }
+
+    @Test
+    func `parses monthly dollar usage from new settings HTML`() throws {
+        // 2026-08 改版后的真实页面结构：月度美元计量 + data-time 月度重置点。
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let html = """
+        <div>
+          <h2 class="text-xl font-medium flex items-center space-x-2">
+            <span>Included usage</span>
+            <span
+              class="text-xs font-normal px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-600 capitalize"
+              >pro</span
+            >
+          </h2>
+          <h2 id="header-email">user@example.com</h2>
+          <div>
+            <div class="flex justify-between mb-2">
+              <span class="text-sm">Monthly usage</span>
+              <span class="text-sm "
+                >$7.50 of $60 used</span
+              >
+            </div>
+            <div class="relative group" data-usage-meter>
+              <div
+                class="relative h-3 overflow-hidden rounded-full bg-neutral-200"
+                data-usage-track
+                aria-label="Monthly usage $7.50 of $60 used"
+              >
+                <div class="flex h-full overflow-hidden bg-neutral-950" style="width: 12.5%; ">
+                </div>
+              </div>
+            </div>
+            <div
+              class="text-xs text-neutral-500 mt-1 local-time"
+              data-time="2026-09-30T15:14:29Z"
+            >
+              Resets in 4 weeks.
+            </div>
+          </div>
+        </div>
+        """
+
+        let snapshot = try OllamaUsageParser.parse(html: html, now: now)
+
+        #expect(snapshot.planName == "pro")
+        #expect(snapshot.accountEmail == "user@example.com")
+        #expect(snapshot.monthlyUsedPercent == 12.5)
+        #expect(snapshot.sessionUsedPercent == nil)
+        #expect(snapshot.weeklyUsedPercent == nil)
+
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        let expectedReset = formatter.date(from: "2026-09-30T15:14:29Z")
+        #expect(snapshot.monthlyResetsAt == expectedReset)
+
+        let usage = snapshot.toUsageSnapshot()
+        #expect(usage.primary?.windowMinutes == ProviderPaceCapability.monthlyWindowSentinelMinutes)
+        #expect(usage.primary?.usedPercent == 12.5)
+        #expect(usage.primary?.resetsAt == expectedReset)
+        #expect(usage.secondary == nil)
+        #expect(usage.identity?.loginMethod == "pro")
+    }
+
+    @Test
+    func `monthly dollar usage handles thousands separators`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let html = """
+        <div>
+          <span>Monthly usage</span>
+          <span>$1,250 of $5,000 used</span>
+        </div>
+        """
+
+        let snapshot = try OllamaUsageParser.parse(html: html, now: now)
+
+        #expect(snapshot.monthlyUsedPercent == 25)
+    }
+
+    @Test
+    func `monthly dollar usage with zero limit falls back to meter width`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let html = """
+        <div>
+          <span>Monthly usage</span>
+          <span>$0 of $0 used</span>
+          <div style="width: 25%; "></div>
+        </div>
+        """
+
+        let snapshot = try OllamaUsageParser.parse(html: html, now: now)
+
+        #expect(snapshot.monthlyUsedPercent == 25)
+    }
+
+    @Test
+    func `legacy session page still maps weekly to secondary window`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let html = """
+        <div>
+          <span>Cloud Usage</span>
+          <span>free</span>
+          <span>Session usage</span>
+          <span>0.1% used</span>
+          <div class="local-time" data-time="2026-01-30T18:00:00Z">Resets in 3 hours</div>
+        </div>
+        """
+
+        let snapshot = try OllamaUsageParser.parse(html: html, now: now)
+
+        #expect(snapshot.monthlyUsedPercent == nil)
+        #expect(snapshot.sessionUsedPercent == 0.1)
+
+        let usage = snapshot.toUsageSnapshot()
+        #expect(usage.primary?.windowMinutes == 5 * 60)
+        #expect(usage.secondary == nil)
+    }
 }
