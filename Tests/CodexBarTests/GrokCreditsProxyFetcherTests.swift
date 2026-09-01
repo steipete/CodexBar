@@ -54,7 +54,7 @@ struct GrokCreditsProxyFetcherTests {
     }
 
     @Test
-    func `unified billing without a published percent keeps subscription usage unknown`() throws {
+    func `unified billing without a published percent keeps subscription usage unknown`() async throws {
         let snapshot = try GrokCreditsProxyFetcher.parseSnapshot(
             Data(
                 """
@@ -78,9 +78,17 @@ struct GrokCreditsProxyFetcherTests {
         let expectedReset = try Self.date("2026-09-07T12:35:57.056343+00:00")
         // Zero on-demand spending does not establish the included subscription usage.
         #expect(snapshot.usedPercent == nil)
-        #expect(!snapshot.usedPercentIsWirePublished)
         #expect(snapshot.resetsAt == expectedReset)
         #expect(snapshot.subscriptionTier == nil)
+
+        let result = try await GrokOAuthFetchStrategy.resolvingUnknownUsage(
+            snapshot,
+            credentials: Self.credentials,
+            grpcBilling: { _ in GrokWebBillingSnapshot(usedPercent: 35, resetsAt: nil) })
+
+        #expect(result.snapshot.usedPercent == 35)
+        #expect(result.snapshot.resetsAt == expectedReset)
+        #expect(result.sourceLabel == "grok-web")
     }
 
     @Test
@@ -103,7 +111,6 @@ struct GrokCreditsProxyFetcherTests {
                 """.utf8))
 
         #expect(snapshot.usedPercent == nil)
-        #expect(!snapshot.usedPercentIsWirePublished)
     }
 
     @Test
