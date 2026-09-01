@@ -75,7 +75,7 @@ struct GrokCreditsProxyFetcherTests {
                 }
                 """.utf8))
 
-        let expectedReset = try Self.date("2026-09-07T12:35:57Z")
+        let expectedReset = try Self.date("2026-09-07T12:35:57.056343+00:00")
         // Zero on-demand spending does not establish the included subscription usage.
         #expect(snapshot.usedPercent == nil)
         #expect(!snapshot.usedPercentIsWirePublished)
