@@ -48,7 +48,7 @@ struct ClaudeUsageDelegatedRefreshEnvironmentTests {
             return try ClaudeOAuthCredentials.parse(data: entry.data).accessToken
         case .missing:
             return nil
-        case .invalid, .temporarilyUnavailable:
+        case .interactionRequired, .invalid, .temporarilyUnavailable:
             Issue.record("Expected a valid or missing profile cache entry")
             return nil
         }

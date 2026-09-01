@@ -303,11 +303,10 @@ extension CostUsageStoreReadWorkTests {
         #expect(await fixture.store.readSnapshot().files.count == fixture.fileCount)
     }
 
-    @Test
-    func `schema adoption invalidates a predecessor connection receipt`() async throws {
+    @Test(arguments: ["4a593b5d59c7bcf3", "7e293e8fc9e25700", "e0b0319de43e22d7"])
+    func `schema adoption invalidates a predecessor connection receipt`(predecessorHash: String) async throws {
         let fixture = try ReadWorkFixture(fileCount: 2, rowsPerFile: 4)
         defer { fixture.remove() }
-        let predecessorHash = "4a593b5d59c7bcf3"
         let predecessorVersion = CostUsageStore.combinedSchemaVersion(
             base: CostUsageStore.baseSchemaVersion, parserHash: predecessorHash)
         let writer = try BaselineSQLiteConnection(url: fixture.store.databaseURL)

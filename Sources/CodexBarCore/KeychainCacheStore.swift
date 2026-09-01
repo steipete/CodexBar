@@ -22,6 +22,8 @@ public enum KeychainCacheStore {
     public enum LoadResult<Entry> {
         case found(Entry)
         case missing
+        /// The item exists, but its ACL cannot authorize this process without showing UI.
+        case interactionRequired
         case temporarilyUnavailable
         case invalid
     }
@@ -46,6 +48,8 @@ public enum KeychainCacheStore {
     @TaskLocal private static var forceRealKeychainPath = false
     #if DEBUG
     @TaskLocal private static var operationRecorder: OperationRecorder?
+    @TaskLocal static var taskInteractionRequiredNowOverride: Date?
+    @TaskLocal static var taskInteractionRequiredRetryIntervalOverride: TimeInterval?
 
     enum Operation: Equatable, Sendable {
         case load
@@ -83,6 +87,11 @@ public enum KeychainCacheStore {
     private nonisolated(unsafe) static var testStore: [TestStoreKey: Data]?
     private nonisolated(unsafe) static var implicitTestStore: [TestStoreKey: Data] = [:]
     private nonisolated(unsafe) static var testStoreRefCount = 0
+    // Repeated legacy ACL validation can accumulate Security.framework allocations. Share a cooldown
+    // across every cache operation, while still recovering after an external repair without a restart.
+    private static let interactionRequiredCacheLock = NSLock()
+    private nonisolated(unsafe) static var interactionRequiredRetryDates: [TestStoreKey: Date] = [:]
+    private static let interactionRequiredRetryInterval: TimeInterval = 5 * 60
 
     public static func load<Entry: Codable>(
         key: Key,
@@ -107,6 +116,7 @@ public enum KeychainCacheStore {
         }
         guard self.canUseRealKeychain else { return .missing }
         #if os(macOS)
+        guard !self.interactionRequiredIsCached(for: key) else { return .interactionRequired }
         // Requesting secret bytes can surface a legacy ACL prompt even when the query carries
         // `kSecUseAuthenticationUIFail`. Probe attributes and the item reference first, then ask
         // for data only when the decrypt ACL already trusts this exact executable without UI.
@@ -118,6 +128,10 @@ public enum KeychainCacheStore {
             break
         case .interactionRequired:
             self.log.info("Keychain cache item is unavailable without interaction (\(key.account))")
+            self.cacheInteractionRequired(for: key)
+            return .interactionRequired
+        case .temporarilyUnavailable:
+            self.log.info("Keychain cache temporarily unavailable (\(key.account)), will retry on next access")
             return .temporarilyUnavailable
         case .notFound:
             return .missing
@@ -181,6 +195,7 @@ public enum KeychainCacheStore {
         }
         guard self.canUseRealKeychain else { return false }
         #if os(macOS)
+        guard !self.interactionRequiredIsCached(for: key) else { return false }
         let encoder = Self.makeEncoder()
         guard let data = try? encoder.encode(entry) else {
             self.log.error("Failed to encode keychain cache (\(key.account))")
@@ -195,6 +210,10 @@ public enum KeychainCacheStore {
             break
         case .interactionRequired:
             self.log.info("Keychain cache store requires interaction (\(key.account)); skipping")
+            self.cacheInteractionRequired(for: key)
+            return false
+        case .temporarilyUnavailable:
+            self.log.info("Keychain cache store temporarily unavailable (\(key.account)); skipping")
             return false
         case let .failure(status):
             self.log.error("Keychain cache store preflight failed (\(key.account)): \(status)")
@@ -275,6 +294,7 @@ public enum KeychainCacheStore {
         }
         guard self.canUseRealKeychain else { return .failed }
         #if os(macOS)
+        guard !self.interactionRequiredIsCached(for: key) else { return .failed }
         switch KeychainAccessPreflight.checkGenericPassword(
             service: self.serviceName,
             account: key.account)
@@ -285,6 +305,10 @@ public enum KeychainCacheStore {
             return .missing
         case .interactionRequired:
             self.log.info("Keychain cache delete requires interaction (\(key.account)); skipping")
+            self.cacheInteractionRequired(for: key)
+            return .failed
+        case .temporarilyUnavailable:
+            self.log.info("Keychain cache delete temporarily unavailable (\(key.account))")
             return .failed
         case let .failure(status):
             self.log.error("Keychain cache delete preflight failed (\(key.account)): \(status)")
@@ -877,6 +901,49 @@ public enum KeychainCacheStore {
         let identifier = String(account.dropFirst(prefix.count))
         guard !identifier.isEmpty else { return nil }
         return Key(category: category, identifier: identifier)
+    }
+}
+
+extension KeychainCacheStore {
+    fileprivate static func interactionRequiredIsCached(for key: Key) -> Bool {
+        self.interactionRequiredRetryDate(for: key) != nil
+    }
+
+    static func interactionRequiredRetryDate(for key: Key) -> Date? {
+        self.interactionRequiredCacheLock.withLock {
+            let cacheKey = TestStoreKey(service: self.serviceName, account: key.account)
+            guard let retryDate = self.interactionRequiredRetryDates[cacheKey] else { return nil }
+            guard self.interactionRequiredNow < retryDate else {
+                self.interactionRequiredRetryDates.removeValue(forKey: cacheKey)
+                return nil
+            }
+            return retryDate
+        }
+    }
+
+    fileprivate static func cacheInteractionRequired(for key: Key) {
+        self.interactionRequiredCacheLock.withLock {
+            self.interactionRequiredRetryDates[TestStoreKey(service: self.serviceName, account: key.account)] =
+                self.interactionRequiredNow.addingTimeInterval(self.currentInteractionRequiredRetryInterval)
+        }
+    }
+
+    private static var interactionRequiredNow: Date {
+        #if DEBUG
+        if let override = self.taskInteractionRequiredNowOverride {
+            return override
+        }
+        #endif
+        return Date()
+    }
+
+    private static var currentInteractionRequiredRetryInterval: TimeInterval {
+        #if DEBUG
+        if let override = self.taskInteractionRequiredRetryIntervalOverride {
+            return override
+        }
+        #endif
+        return self.interactionRequiredRetryInterval
     }
 }
 

@@ -92,6 +92,16 @@ Example:
 }
 ```
 
+### Same-email workspace labels
+
+Account settings, the System Account picker, and the menu switcher retain the workspace name when it is available.
+If the same email and workspace label would appear more than once (including missing names or the “Personal” fallback),
+CodexBar adds a stable eight-character hash of the workspace identity. The hash stays the same when selecting or promoting
+that workspace and never exposes the full provider identifier. This is display-only; stored account metadata and
+credential selection are unchanged. Separate profile homes for the same workspace also include a hashed source identity,
+so their labels stay distinct without exposing paths. Compact switcher buttons keep the discriminator visible when space
+is limited, using additional rows when needed.
+
 ### OpenAI web dashboard (optional, off by default)
 - Enable it in Preferences -> Providers -> Codex -> OpenAI web extras.
 - It exists for dashboard-only extras such as code review remaining, usage breakdown, and credits history.

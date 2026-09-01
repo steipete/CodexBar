@@ -376,6 +376,46 @@ extension UsageStore {
             updatedAt: snapshot.updatedAt)
     }
 
+    private nonisolated static func widgetPrimaryTitle(
+        provider: UsageProvider,
+        snapshot: UsageSnapshot,
+        metadata: ProviderMetadata?) -> String
+    {
+        // Legacy request-based Cursor plans track a request quota, not the token-based "Total" pool.
+        if provider == .cursor, snapshot.detailRow(label: "Request quota") != nil {
+            return "Requests"
+        }
+        if provider == .grok,
+           let dyn = GrokProviderDescriptor.displayLabel(window: snapshot.primary)
+        {
+            return dyn
+        }
+        if provider == .doubao,
+           let dyn = DoubaoProviderDescriptor.primaryLabel(window: snapshot.primary)
+        {
+            return dyn
+        }
+        if provider == .amp,
+           let dyn = AmpProviderDescriptor.primaryLabel(snapshot: snapshot)
+        {
+            return dyn
+        }
+        if provider == .crof {
+            return CrofProviderDescriptor.primaryLabel(snapshot: snapshot)
+        }
+        if provider == .alibabatokenplan,
+           let dyn = AlibabaTokenPlanProviderDescriptor.primaryLabel(window: snapshot.primary)
+        {
+            return dyn
+        }
+        if provider == .ollama,
+           let dyn = OllamaProviderDescriptor.primaryLabel(window: snapshot.primary)
+        {
+            return dyn
+        }
+        return metadata?.sessionLabel ?? "Session"
+    }
+
     private func widgetUsageRows(
         provider: UsageProvider,
         snapshot: UsageSnapshot,
@@ -429,36 +469,7 @@ extension UsageStore {
             return rows
         }
 
-        let primaryTitle: String = {
-            // Legacy request-based Cursor plans track a request quota, not the token-based "Total" pool.
-            if provider == .cursor, snapshot.detailRow(label: "Request quota") != nil {
-                return "Requests"
-            }
-            if provider == .grok,
-               let dyn = GrokProviderDescriptor.displayLabel(window: snapshot.primary)
-            {
-                return dyn
-            }
-            if provider == .doubao,
-               let dyn = DoubaoProviderDescriptor.primaryLabel(window: snapshot.primary)
-            {
-                return dyn
-            }
-            if provider == .amp,
-               let dyn = AmpProviderDescriptor.primaryLabel(snapshot: snapshot)
-            {
-                return dyn
-            }
-            if provider == .crof {
-                return CrofProviderDescriptor.primaryLabel(snapshot: snapshot)
-            }
-            if provider == .alibabatokenplan,
-               let dyn = AlibabaTokenPlanProviderDescriptor.primaryLabel(window: snapshot.primary)
-            {
-                return dyn
-            }
-            return metadata?.sessionLabel ?? "Session"
-        }()
+        let primaryTitle = Self.widgetPrimaryTitle(provider: provider, snapshot: snapshot, metadata: metadata)
         let secondaryTitle = if provider == .amp {
             AmpProviderDescriptor.secondaryLabel(snapshot: snapshot) ?? metadata?.weeklyLabel ?? "Weekly"
         } else if provider == .alibabatokenplan {

@@ -856,6 +856,90 @@ final class MenuLayoutScreenshotRenderTests: XCTestCase {
 }
 
 extension MenuLayoutScreenshotRenderTests {
+    func test_renderOllamaMonthlyCompatibilityProof() throws {
+        guard let dir = ProcessInfo.processInfo.environment["CODEXBAR_OLLAMA_MONTHLY_SCREENSHOT_DIR"] else {
+            throw XCTSkip("Set CODEXBAR_OLLAMA_MONTHLY_SCREENSHOT_DIR to render the Ollama compatibility proof.")
+        }
+        UsageFormatter.setLocalizationProvider { $0 }
+        defer { UsageFormatter.clearLocalizationProvider() }
+        let now = Date(timeIntervalSince1970: 1_789_473_600)
+        let html = """
+        <h2><span>Included usage</span><span>pro</span
+        ></h2>
+        <div>
+          <span>Monthly usage</span><span>$7.50 of $60 used</span>
+          <div style="width: 12.5%;"></div>
+          <div data-time="2026-09-30T15:14:29Z">Resets in 2 weeks.</div>
+        </div>
+        """
+        var snapshot: UsageSnapshot?
+        var failure: String?
+        do {
+            snapshot = try OllamaUsageParser.parse(html: html, now: now).toUsageSnapshot()
+        } catch {
+            failure = OllamaUIErrorMapper.userFacingMessage(error.localizedDescription)
+        }
+        let model = try UsageMenuCardView.Model.make(.init(
+            provider: .ollama,
+            metadata: XCTUnwrap(ProviderDefaults.metadata[.ollama]),
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: failure,
+            usageBarsShowUsed: true,
+            resetTimeDisplayStyle: .absolute,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: false,
+            hidePersonalInfo: true,
+            paceVisible: false,
+            usesLiveSubtitle: false,
+            now: now))
+        // Only the assertions change for a baseline capture; input and production rendering stay identical.
+        let expectsMissing = ProcessInfo.processInfo.environment["CODEXBAR_OLLAMA_MONTHLY_EXPECT_MISSING"] == "1"
+        if expectsMissing {
+            XCTAssertNil(snapshot)
+            XCTAssertTrue(failure?.contains("Missing Ollama usage data") == true)
+            XCTAssertTrue(model.metrics.isEmpty)
+        } else {
+            XCTAssertNil(failure)
+            XCTAssertEqual(snapshot?.primary?.usedPercent, 12.5)
+            XCTAssertEqual(model.metrics.map(\.title), ["Monthly"])
+            XCTAssertEqual(model.metrics.first?.percent, 12.5)
+        }
+        let directory = URL(fileURLWithPath: dir, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        for dark in [false, true] {
+            let view = try AnyView(UsageMenuCardView(model: model, width: Self.width)
+                .environment(\.locale, Locale(identifier: "en_US_POSIX"))
+                .environment(\.timeZone, XCTUnwrap(TimeZone(secondsFromGMT: 0)))
+                .environment(\.colorScheme, dark ? .dark : .light)
+                .environment(\.displayScale, 2)
+                .environment(\.accessibilityEnabled, true)
+                .background(Color(nsColor: .windowBackgroundColor)))
+            let hosting = NSHostingView(rootView: view)
+            hosting.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+            let stem = "ollama-monthly-\(dark ? "dark" : "light")"
+            let png = try XCTUnwrap(Self.pngData(hosting: hosting))
+            try png.write(to: directory.appendingPathComponent("\(stem).png"))
+            let accessibility = Self.accessibilityText(hosting)
+            XCTAssertTrue(
+                accessibility.contains(expectsMissing ? "Missing Ollama usage data" : "Monthly"),
+                accessibility)
+            try accessibility.write(
+                to: directory.appendingPathComponent("\(stem)-accessibility.txt"),
+                atomically: true,
+                encoding: .utf8)
+        }
+    }
+}
+
+extension MenuLayoutScreenshotRenderTests {
     func test_renderSingularResetLabelProof() throws {
         guard let dir = ProcessInfo.processInfo.environment["CODEXBAR_RESET_LABEL_SCREENSHOT_DIR"] else {
             throw XCTSkip("Set CODEXBAR_RESET_LABEL_SCREENSHOT_DIR to render the reset label proof.")

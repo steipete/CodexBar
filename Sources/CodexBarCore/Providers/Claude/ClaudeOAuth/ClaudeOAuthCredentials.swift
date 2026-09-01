@@ -383,7 +383,7 @@ public enum ClaudeOAuthCredentialsStore {
                         ClaudeOAuthCredentialsError.decodeFailed,
                         profileIdentifier: profileIdentifier,
                         clearInvalidCache: clearInvalidCache)
-                case .temporarilyUnavailable:
+                case .interactionRequired, .temporarilyUnavailable:
                     cacheTemporarilyUnavailable = true
                     lastError = ClaudeOAuthCredentialsError.readFailed("CodexBar cache is temporarily unavailable.")
                 case .missing:
@@ -818,7 +818,7 @@ public enum ClaudeOAuthCredentialsStore {
                                 }
                             case .missing, .invalid:
                                 shouldClearKeychainCache = true
-                            case .temporarilyUnavailable:
+                            case .interactionRequired, .temporarilyUnavailable:
                                 shouldClearKeychainCache = false
                                 shouldSaveFileFingerprint = false
                             }
@@ -912,7 +912,7 @@ public enum ClaudeOAuthCredentialsStore {
                         owner: entry.owner ?? .claudeCLI,
                         source: .cacheKeychain)
                     return isRefreshableOrValid(record)
-                case .temporarilyUnavailable:
+                case .interactionRequired, .temporarilyUnavailable:
                     if ClaudeOAuthCredentialsStore.hasPendingCodexBarOAuthKeychainCacheClear(
                         profileIdentifier: profileIdentifier)
                     {
@@ -2747,7 +2747,7 @@ public enum ClaudeOAuthCredentialsStore {
                             legacyCleanupPending = !self.clearLegacyCacheKeychain()
                         case .found, .missing:
                             legacyRecheckPending = false
-                        case .temporarilyUnavailable:
+                        case .interactionRequired, .temporarilyUnavailable:
                             legacyRecheckPending = true
                         }
                         if legacyCleanupPending {
@@ -2792,12 +2792,13 @@ public enum ClaudeOAuthCredentialsStore {
                     return
                 case .missing:
                     break
-                case .invalid, .temporarilyUnavailable:
+                case .interactionRequired, .invalid, .temporarilyUnavailable:
                     result = loaded
                     return
                 }
                 if legacyRecheckPending {
-                    switch KeychainCacheStore.load(key: self.legacyCacheKey, as: CacheEntry.self) {
+                    let legacyLoaded = KeychainCacheStore.load(key: self.legacyCacheKey, as: CacheEntry.self)
+                    switch legacyLoaded {
                     case let .found(entry)
                         where self.legacyCacheEntry(entry, isAttributableTo: profileIdentifier):
                         legacyRecheckPending = false
@@ -2813,11 +2814,11 @@ public enum ClaudeOAuthCredentialsStore {
                         legacyRecheckPending = false
                         result = loaded
                         return
-                    case .temporarilyUnavailable:
+                    case .interactionRequired, .temporarilyUnavailable:
                         result = if case .found = loaded {
                             loaded
                         } else {
-                            .temporarilyUnavailable
+                            legacyLoaded
                         }
                         return
                     }
@@ -3318,7 +3319,7 @@ extension ClaudeOAuthCredentialsStore {
         let mode = ClaudeOAuthKeychainPromptPreference.current()
         guard self.shouldAllowClaudeCodeKeychainAccess(mode: mode, allowKeychainPrompt: false) else { return false }
         return switch KeychainAccessPreflight.checkGenericPassword(service: self.claudeKeychainService, account: nil) {
-        case .interactionRequired:
+        case .interactionRequired, .temporarilyUnavailable:
             true
         case .failure:
             // If preflight fails, we can't be sure whether interaction is required (or if the preflight itself

@@ -501,7 +501,7 @@ struct GrokCreditsProxyFetcherTests {
     }
 
     @Test
-    func `an inferred grok dot com zero never becomes a published percent`() async throws {
+    func `an unclassified grok dot com zero leaves usage unknown`() async throws {
         let reset = Date(timeIntervalSince1970: 1_800_000_003)
         let result = try await GrokOAuthFetchStrategy.resolvingUnknownUsage(
             GrokWebBillingSnapshot(
@@ -510,16 +510,38 @@ struct GrokCreditsProxyFetcherTests {
                 subscriptionTier: "SuperGrok Heavy"),
             credentials: Self.credentials,
             grpcBilling: { _ in
-                // The shape grok.com returns when its frame carries no percentage field at all.
                 GrokWebBillingSnapshot(
                     usedPercent: 0,
-                    resetsAt: nil,
+                    resetsAt: reset,
                     usedPercentIsWirePublished: false)
             })
 
         #expect(result.snapshot.usedPercent == nil)
         #expect(result.snapshot.resetsAt == reset)
         #expect(result.snapshot.subscriptionTier == "SuperGrok Heavy")
+        #expect(result.sourceLabel == "grok-cli-proxy")
+    }
+
+    @Test
+    func `an inferred grok dot com percent above zero is still refused`() async throws {
+        let reset = Date(timeIntervalSince1970: 1_800_000_003)
+        let result = try await GrokOAuthFetchStrategy.resolvingUnknownUsage(
+            GrokWebBillingSnapshot(
+                usedPercent: nil,
+                resetsAt: reset,
+                subscriptionTier: "SuperGrok Heavy"),
+            credentials: Self.credentials,
+            grpcBilling: { _ in
+                // No parser produces this today. Only the no-usage-yet zero carries frame
+                // evidence, so any other inferred reading stays unknown rather than published.
+                GrokWebBillingSnapshot(
+                    usedPercent: 20,
+                    resetsAt: nil,
+                    usedPercentIsWirePublished: false)
+            })
+
+        #expect(result.snapshot.usedPercent == nil)
+        #expect(result.snapshot.resetsAt == reset)
         #expect(result.sourceLabel == "grok-cli-proxy")
     }
 

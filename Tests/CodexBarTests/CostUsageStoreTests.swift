@@ -70,6 +70,17 @@ struct CostUsageStoreTests {
     }
 
     @Test
+    func `new database accepts a fixture busy timeout`() async throws {
+        let fixture = try StoreFixture()
+        defer { fixture.remove() }
+        let configuration = await CostUsageStore(
+            cacheRoot: fixture.root,
+            busyTimeoutMilliseconds: 25).configuration()
+
+        #expect(configuration?.busyTimeoutMilliseconds == 25)
+    }
+
+    @Test
     func `new database enables foreign keys`() async throws {
         let fixture = try StoreFixture()
         defer { fixture.remove() }
@@ -618,7 +629,7 @@ extension CostUsageStoreTests {
     func `identical scanner save reports retry while the writer lock is unavailable`() async throws {
         let fixture = try StoreFixture()
         defer { fixture.remove() }
-        let store = CostUsageStore(cacheRoot: fixture.root)
+        let store = CostUsageStore(cacheRoot: fixture.root, busyTimeoutMilliseconds: 25)
         let path = "/rollouts/locked-save.jsonl"
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
@@ -882,7 +893,7 @@ extension CostUsageStoreTests {
     func `held writer lock makes freshness advance fail soft without rebuilding`() async throws {
         let fixture = try StoreFixture()
         defer { fixture.remove() }
-        let store = CostUsageStore(cacheRoot: fixture.root)
+        let store = CostUsageStore(cacheRoot: fixture.root, busyTimeoutMilliseconds: 25)
         var metadata = Self.metadata()
         metadata.catchUpPending = false
         #expect(await store.setMetadata(metadata))
@@ -995,6 +1006,7 @@ extension CostUsageStoreTests {
 
 extension CostUsageStoreTests {
     @Test(arguments: [
+        "e0b0319de43e22d7",
         "7e293e8fc9e25700",
         "494eee446bb2e5f9",
         "6366caa15c925349",
@@ -1012,6 +1024,7 @@ extension CostUsageStoreTests {
         let fixture = try StoreFixture()
         defer { fixture.remove() }
         #expect(CostUsageStore.compatiblePredecessorParserHashes == [
+            "e0b0319de43e22d7",
             "7e293e8fc9e25700",
             "494eee446bb2e5f9",
             "6366caa15c925349",
@@ -1041,7 +1054,24 @@ extension CostUsageStoreTests {
             cacheRoot: fixture.root,
             schemaVersion: predecessorVersion,
             parserHash: predecessorHash)
-        let file = Self.file(path: "/rollouts/compatible.jsonl", day: "2026-08-01")
+        let input = fixture.root.appendingPathComponent("compatible.jsonl")
+        let partial = Data("{}\n{\"body\":\"unfinished".utf8)
+        try partial.write(to: input)
+        let progress = try CostUsageJsonl.scanBounded(
+            fileURL: input,
+            maxLineBytes: 1024,
+            prefixBytes: 1024,
+            maxBytesToRead: nil,
+            resumeState: nil,
+            onLine: { _ in })
+        let resume = try #require(progress.resumeState)
+        var file = Self.file(path: input.path, day: "2026-08-01")
+        file.size = Int64(partial.count)
+        file.parsedBytes = progress.committedOffset
+        file.anchor = nil
+        file.scanState.targetSize = file.size
+        file.scanState.isComplete = false
+        file.scanState.resumePayload = try JSONEncoder().encode(resume)
         let token = Self.snapshot(path: file.path, eventIndex: 0)
         let usageRow = CostUsageStoreUsageRow(path: file.path, rowIndex: 0, payload: Data([8, 9, 10]))
         let aggregate = Self.aggregate(day: "2026-08-01", model: "gpt-5.6-sol", scale: 1)
@@ -1078,6 +1108,23 @@ extension CostUsageStoreTests {
         let connection = try SQLiteTestConnection(url: fixture.databaseURL, readOnly: true)
         #expect(try connection.scalarInt(
             "SELECT COUNT(*) FROM meta WHERE key = 'parser_hash' AND value = '\(CodexParserHash.value)'") == 1)
+        let adoptedFile = try #require(await current.fetchFile(path: file.path))
+        let adoptedResume = try JSONDecoder().decode(
+            CostUsageJsonl.ResumeState.self,
+            from: #require(adoptedFile.scanState.resumePayload))
+        #expect(adoptedResume == resume)
+        try (partial + Data("\"}\n".utf8)).write(to: input)
+        var resumedLines: [Data] = []
+        let resumed = try CostUsageJsonl.scanBounded(
+            fileURL: input,
+            maxLineBytes: 1024,
+            prefixBytes: 1024,
+            maxBytesToRead: nil,
+            resumeState: adoptedResume,
+            onLine: { resumedLines.append($0.bytes) })
+        #expect(resumedLines == [Data(#"{"body":"unfinished"}"#.utf8)])
+        #expect(resumed.committedOffset == Int64(partial.count + 3))
+        #expect(resumed.resumeState == nil)
     }
 
     @Test(arguments: ["8050a4faf4fddb96", "dd19ffa2dcfa8d47"])
@@ -2090,11 +2137,11 @@ extension CostUsageStoreTests {
     func `write lock held by another process skips the write instead of deleting the store`() async throws {
         let fixture = try StoreFixture()
         defer { fixture.remove() }
-        let store = CostUsageStore(cacheRoot: fixture.root)
+        let store = CostUsageStore(cacheRoot: fixture.root, busyTimeoutMilliseconds: 25)
         #expect(await store.upsertFile(Self.file(path: "/rollouts/one.jsonl", day: "2026-08-01")))
 
         // The CLI cost command scans through CostUsageFetcher and therefore opens its own
-        // writable store connection. Hold that cross-process lock past the 5s busy timeout.
+        // writable store connection. Hold that cross-process lock past this fixture's short busy timeout.
         let holder = try SQLiteTestConnection(url: store.databaseURL)
         try holder.execute("BEGIN IMMEDIATE")
         try holder.execute("INSERT OR REPLACE INTO meta(key, value) VALUES ('holder', '1')")
