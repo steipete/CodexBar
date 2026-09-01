@@ -54,7 +54,7 @@ struct GrokCreditsProxyFetcherTests {
     }
 
     @Test
-    func `unified billing zero on demand credits reports wire published zero percent`() throws {
+    func `unified billing without a published percent keeps subscription usage unknown`() throws {
         let snapshot = try GrokCreditsProxyFetcher.parseSnapshot(
             Data(
                 """
@@ -76,8 +76,9 @@ struct GrokCreditsProxyFetcherTests {
                 """.utf8))
 
         let expectedReset = try Self.date("2026-09-07T12:35:57Z")
-        #expect(snapshot.usedPercent == 0)
-        #expect(snapshot.usedPercentIsWirePublished)
+        // Zero on-demand spending does not establish the included subscription usage.
+        #expect(snapshot.usedPercent == nil)
+        #expect(!snapshot.usedPercentIsWirePublished)
         #expect(snapshot.resetsAt == expectedReset)
         #expect(snapshot.subscriptionTier == nil)
     }
