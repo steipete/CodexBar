@@ -551,9 +551,9 @@ extension CostUsageTokenSnapshot {
             break
         }
         guard day.isContained(start: start, end: end) else {
-            // A reset that cuts a coarse daily total cannot be assigned to one window.
-            // Drop that day only; fully contained neighbors still count.
-            return QuotaTokenContribution(isValid: true, sawValue: false, value: 0, usedDaily: false)
+            // A reset that cuts a coarse daily total cannot assign that remainder, but exact
+            // timestamped slices on either side still belong to their windows.
+            return self.projectTokenSlices(day.slices, start: start, end: end)
         }
         return QuotaTokenContribution(isValid: true, sawValue: true, value: dailyTokens, usedDaily: true)
     }
@@ -582,9 +582,9 @@ extension CostUsageTokenSnapshot {
             break
         }
         guard day.isContained(start: start, end: end) else {
-            // A reset that cuts a coarse daily total cannot be assigned to one window.
-            // Drop that day only; fully contained neighbors still count.
-            return QuotaCostContribution(isValid: true, sawValue: false, value: 0, usedDaily: false)
+            // A reset that cuts a coarse daily total cannot assign that remainder, but exact
+            // timestamped slices on either side still belong to their windows.
+            return self.projectCostSlices(day.slices, start: start, end: end)
         }
         return QuotaCostContribution(isValid: true, sawValue: true, value: dailyCost, usedDaily: true)
     }

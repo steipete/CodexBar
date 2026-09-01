@@ -255,6 +255,47 @@ struct CostUsageQuotaWeekLinuxTests {
     }
 
     @Test
+    func `reset-day Pi daily residual keeps native timestamped slices`() {
+        let now = Self.utcDate(year: 2026, month: 7, day: 12, hour: 12)
+        let resetAt = Self.utcDate(year: 2026, month: 7, day: 11, hour: 15)
+        let before = Self.utcDate(year: 2026, month: 7, day: 11, hour: 14, minute: 20)
+        let afterEvent = Self.utcDate(year: 2026, month: 7, day: 11, hour: 16, minute: 10)
+        let native = CostUsageDailyReport(
+            data: [Self.entry(day: "2026-07-11", cost: 6, tokens: 600)],
+            summary: nil,
+            quotaSlices: [
+                CostUsageTimedEntry(timestamp: before, totalTokens: 200, costUSD: 2),
+                CostUsageTimedEntry(timestamp: afterEvent, totalTokens: 400, costUSD: 4),
+            ])
+        let pi = CostUsageDailyReport(
+            data: [Self.entry(day: "2026-07-11", cost: 3, tokens: 300)],
+            summary: nil)
+        let merged = CostUsageDailyReport.merged([native, pi], calendar: Self.utcCalendar)
+        #expect(merged.data.first?.totalTokens == 900)
+        #expect(merged.data.first?.costUSD == 9)
+        #expect(merged.quotaSlices.count == 2)
+
+        let snapshot = CostUsageFetcher.tokenSnapshot(
+            from: merged,
+            now: now,
+            historyDays: 30,
+            calendar: Self.utcCalendar)
+        let weeks = snapshot.quotaWeekSummaries(
+            resetAt: resetAt,
+            windowMinutes: CostUsageTokenSnapshot.quotaWeekMinutes,
+            now: now,
+            calendar: Self.utcCalendar)
+        let current = weeks.first { $0.isCurrent }
+        let previous = weeks.first { $0.offset == 1 }
+
+        #expect(previous?.totalCostUSD == 2)
+        #expect(previous?.totalTokens == 200)
+        #expect(current?.totalCostUSD == 4)
+        #expect(current?.totalTokens == 400)
+        #expect((current?.totalCostUSD ?? 0) + (previous?.totalCostUSD ?? 0) == 6)
+    }
+
+    @Test
     func `hourly membership is exclusive across adjacent weeks`() {
         let now = Self.utcDate(year: 2026, month: 7, day: 15, hour: 12)
         let resetAt = Self.utcDate(year: 2026, month: 7, day: 18, hour: 15)
