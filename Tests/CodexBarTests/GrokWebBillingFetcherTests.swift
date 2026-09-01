@@ -667,6 +667,76 @@ struct GrokWebBillingFetcherTests {
         // no-usage-yet reading and must never travel as a published percent.
         #expect(!snapshot.usedPercentIsWirePublished)
     }
+}
+
+extension GrokWebBillingFetcherTests {
+    @Test
+    func `fractional billing timestamps do not publish a usage percent`() async throws {
+        // Captured frame from #3336. The nonzero [1,4,2]/[1,5,2] varints are timestamp
+        // nanoseconds, not limits or usage; the frame has no credit_usage_percent field.
+        let data = Data([
+            0x00, 0x00, 0x00, 0x00, 0x44, 0x0A, 0x42, 0x12,
+            0x00, 0x1A, 0x00, 0x22, 0x0B, 0x08, 0xAD, 0xEA,
+            0xD5, 0xD4, 0x06, 0x10, 0xD8, 0xF3, 0xEE, 0x1A,
+            0x2A, 0x0B, 0x08, 0xAD, 0xDF, 0xFA, 0xD4, 0x06,
+            0x10, 0xD8, 0xF3, 0xEE, 0x1A, 0x42, 0x1C, 0x08,
+            0x02, 0x12, 0x0B, 0x08, 0xAD, 0xEA, 0xD5, 0xD4,
+            0x06, 0x10, 0xD8, 0xF3, 0xEE, 0x1A, 0x1A, 0x0B,
+            0x08, 0xAD, 0xDF, 0xFA, 0xD4, 0x06, 0x10, 0xD8,
+            0xF3, 0xEE, 0x1A, 0x58, 0x01, 0x62, 0x00, 0x68,
+            0x01, 0x80, 0x00, 0x00, 0x00, 0x0F, 0x67, 0x72,
+            0x70, 0x63, 0x2D, 0x73, 0x74, 0x61, 0x74, 0x75,
+            0x73, 0x3A, 0x30, 0x0D, 0x0A,
+        ])
+
+        let snapshot = try GrokWebBillingFetcher.parseGRPCWebResponse(
+            data,
+            now: Date(timeIntervalSince1970: 1_788_000_000))
+
+        #expect(snapshot.usedPercent == 0)
+        #expect(snapshot.resetsAt == Date(timeIntervalSince1970: 1_788_784_557))
+        #expect(snapshot.subscriptionTier == nil)
+        #expect(!snapshot.usedPercentIsWirePublished)
+
+        let proxy = GrokWebBillingSnapshot(
+            usedPercent: nil,
+            resetsAt: Date(timeIntervalSince1970: 1_788_700_000),
+            subscriptionTier: "SuperGrok Heavy")
+        let result = try await GrokOAuthFetchStrategy.resolvingUnknownUsage(
+            proxy,
+            credentials: Self.credentials,
+            grpcBilling: { _ in snapshot })
+
+        #expect(result.snapshot == proxy)
+        #expect(result.sourceLabel == "grok-cli-proxy")
+        let usage = GrokUsageSnapshot(
+            billing: nil,
+            webBilling: result.snapshot,
+            credentials: Self.credentials,
+            localSummary: nil,
+            cliVersion: nil,
+            updatedAt: Date(timeIntervalSince1970: 1_788_000_000)).toUsageSnapshot()
+        #expect(usage.primary == nil)
+        #expect(usage.loginMethod(for: .grok) == "SuperGrok Heavy")
+    }
+
+    @Test(arguments: [Float(0), Float(20)])
+    func `parsed wire percentages replace unknown proxy usage`(percent: Float) async throws {
+        let snapshot = try GrokWebBillingFetcher.parseGRPCWebResponse(
+            Self.grpcFrame(Self.protobufPayload(usedPercent: percent, resetEpoch: 1_800_604_803)),
+            now: Date(timeIntervalSince1970: 1_799_000_000))
+        let proxyReset = Date(timeIntervalSince1970: 1_800_000_003)
+        let result = try await GrokOAuthFetchStrategy.resolvingUnknownUsage(
+            GrokWebBillingSnapshot(usedPercent: nil, resetsAt: proxyReset, subscriptionTier: "SuperGrok Heavy"),
+            credentials: Self.credentials,
+            grpcBilling: { _ in snapshot })
+
+        #expect(snapshot.usedPercentIsWirePublished)
+        #expect(result.snapshot.usedPercent == Double(percent))
+        #expect(result.snapshot.resetsAt == proxyReset)
+        #expect(result.snapshot.subscriptionTier == "SuperGrok Heavy")
+        #expect(result.sourceLabel == "grok-web")
+    }
 
     @Test
     func `parses omitted zero percent with current billing period`() throws {
@@ -770,7 +840,7 @@ struct GrokWebBillingFetcherTests {
             endpoint: endpoint)
 
         #expect(GrokWebBillingStubURLProtocol.requests.count == 1)
-        #expect(GrokWebBillingStubURLProtocol.requestBodies == [Data([0x00, 0x00, 0x00, 0x00, 0x00])])
+        #expect(GrokWebBillingStubURLProtocol.requestBodies == [Data([0x00, 0x00, 0x00, 0x00, 0x02, 0x08, 0x00])])
         #expect(snapshot.usedPercent == 55.5)
         #expect(snapshot.resetsAt == Date(timeIntervalSince1970: TimeInterval(reset)))
     }
@@ -816,6 +886,10 @@ struct GrokWebBillingFetcherTests {
 
         #expect(attempts.current() == 2)
         #expect(GrokWebBillingStubURLProtocol.requests.count == 2)
+        #expect(GrokWebBillingStubURLProtocol.requests.allSatisfy { $0.timeoutInterval == 15 })
+        #expect(GrokWebBillingStubURLProtocol.requestBodies == Array(
+            repeating: Data([0x00, 0x00, 0x00, 0x00, 0x02, 0x08, 0x00]),
+            count: 2))
         #expect(snapshot.usedPercent == 25)
         #expect(snapshot.resetsAt == Date(timeIntervalSince1970: TimeInterval(reset)))
     }
@@ -920,6 +994,7 @@ extension GrokWebBillingFetcherTests {
             #expect(request.value(forHTTPHeaderField: "Cookie") == "sso=session; sso-rw=session")
             #expect(request.value(forHTTPHeaderField: "Authorization") == nil)
             #expect(request.value(forHTTPHeaderField: "x-user-agent") == "connect-es/2.1.1")
+            #expect(request.timeoutInterval == 15)
             let response = HTTPURLResponse(
                 url: endpoint,
                 statusCode: 200,
@@ -935,6 +1010,7 @@ extension GrokWebBillingFetcherTests {
             endpoint: endpoint)
 
         #expect(snapshot.usedPercent == 9)
+        #expect(GrokWebBillingStubURLProtocol.requestBodies == [Data([0x00, 0x00, 0x00, 0x00, 0x02, 0x08, 0x00])])
     }
 
     @Test
@@ -955,6 +1031,7 @@ extension GrokWebBillingFetcherTests {
         GrokWebBillingStubURLProtocol.handler = { request in
             #expect(request.value(forHTTPHeaderField: "Cookie") == "sso=session")
             #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer token-123")
+            #expect(request.timeoutInterval == 15)
             let response = HTTPURLResponse(
                 url: endpoint,
                 statusCode: 200,
@@ -970,6 +1047,7 @@ extension GrokWebBillingFetcherTests {
             endpoint: endpoint)
 
         #expect(snapshot.usedPercent == 9)
+        #expect(GrokWebBillingStubURLProtocol.requestBodies == [Data([0x00, 0x00, 0x00, 0x00, 0x02, 0x08, 0x00])])
     }
 
     @Test

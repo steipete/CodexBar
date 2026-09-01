@@ -116,6 +116,10 @@ public enum GrokWebBillingFetcher {
         URL(string: "https://grok.com/grok_api_v2.GrokBuildBilling/GetGrokCreditsConfig")!
     private static let requestTimeoutSeconds: TimeInterval = 15
 
+    /// Explicit field 1 = false (exclude_legacy_monthly_usage) keeps the request nonempty
+    /// without changing the default billing semantics. This field is not a period selector.
+    private static let creditsConfigRequest = Data([0x00, 0x00, 0x00, 0x00, 0x02, 0x08, 0x00])
+
     public static func fetch(
         credentials: GrokCredentials,
         session transport: any ProviderHTTPTransport = ProviderHTTPClient.shared,
@@ -208,7 +212,7 @@ public enum GrokWebBillingFetcher {
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
         request.timeoutInterval = Self.requestTimeoutSeconds
-        request.httpBody = Data([0x00, 0x00, 0x00, 0x00, 0x00])
+        request.httpBody = Self.creditsConfigRequest
         if let authorizationHeader {
             request.setValue(authorizationHeader, forHTTPHeaderField: "Authorization")
         }

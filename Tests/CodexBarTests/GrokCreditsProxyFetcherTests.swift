@@ -54,6 +54,66 @@ struct GrokCreditsProxyFetcherTests {
     }
 
     @Test
+    func `unified billing without a published percent keeps subscription usage unknown`() async throws {
+        let snapshot = try GrokCreditsProxyFetcher.parseSnapshot(
+            Data(
+                """
+                {
+                  "config": {
+                    "isUnifiedBillingUser": true,
+                    "currentPeriod": {
+                      "type": "USAGE_PERIOD_TYPE_WEEKLY",
+                      "start": "2026-08-31T12:35:57.056343+00:00",
+                      "end": "2026-09-07T12:35:57.056343+00:00"
+                    },
+                    "onDemandCap": { "val": 0 },
+                    "onDemandUsed": { "val": 0 },
+                    "prepaidBalance": { "val": 0 },
+                    "topUpMethod": "TOP_UP_METHOD_SAVED_PAYMENT_METHOD",
+                    "billingPeriodEnd": "2026-09-07T12:35:57.056343+00:00"
+                  }
+                }
+                """.utf8))
+
+        let expectedReset = try Self.date("2026-09-07T12:35:57.056343+00:00")
+        // Zero on-demand spending does not establish the included subscription usage.
+        #expect(snapshot.usedPercent == nil)
+        #expect(snapshot.resetsAt == expectedReset)
+        #expect(snapshot.subscriptionTier == nil)
+
+        let result = try await GrokOAuthFetchStrategy.resolvingUnknownUsage(
+            snapshot,
+            credentials: Self.credentials,
+            grpcBilling: { _ in GrokWebBillingSnapshot(usedPercent: 35, resetsAt: nil) })
+
+        #expect(result.snapshot.usedPercent == 35)
+        #expect(result.snapshot.resetsAt == expectedReset)
+        #expect(result.sourceLabel == "grok-web")
+    }
+
+    @Test
+    func `period only proxy payload without unified flag stays unknown`() throws {
+        let snapshot = try GrokCreditsProxyFetcher.parseSnapshot(
+            Data(
+                """
+                {
+                  "config": {
+                    "currentPeriod": {
+                      "type": "USAGE_PERIOD_TYPE_WEEKLY",
+                      "start": "2026-08-31T12:35:57.056343+00:00",
+                      "end": "2026-09-07T12:35:57.056343+00:00"
+                    },
+                    "onDemandCap": { "val": 0 },
+                    "onDemandUsed": { "val": 0 },
+                    "billingPeriodEnd": "2026-09-07T12:35:57.056343+00:00"
+                  }
+                }
+                """.utf8))
+
+        #expect(snapshot.usedPercent == nil)
+    }
+
+    @Test
     func `derives percent from on demand cap and usage`() throws {
         let snapshot = try GrokCreditsProxyFetcher.parseSnapshot(
             Data(
