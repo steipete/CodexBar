@@ -54,6 +54,58 @@ struct GrokCreditsProxyFetcherTests {
     }
 
     @Test
+    func `unified billing zero on demand credits reports wire published zero percent`() throws {
+        let snapshot = try GrokCreditsProxyFetcher.parseSnapshot(
+            Data(
+                """
+                {
+                  "config": {
+                    "isUnifiedBillingUser": true,
+                    "currentPeriod": {
+                      "type": "USAGE_PERIOD_TYPE_WEEKLY",
+                      "start": "2026-08-31T12:35:57.056343+00:00",
+                      "end": "2026-09-07T12:35:57.056343+00:00"
+                    },
+                    "onDemandCap": { "val": 0 },
+                    "onDemandUsed": { "val": 0 },
+                    "prepaidBalance": { "val": 0 },
+                    "topUpMethod": "TOP_UP_METHOD_SAVED_PAYMENT_METHOD",
+                    "billingPeriodEnd": "2026-09-07T12:35:57.056343+00:00"
+                  }
+                }
+                """.utf8))
+
+        let expectedReset = try Self.date("2026-09-07T12:35:57Z")
+        #expect(snapshot.usedPercent == 0)
+        #expect(snapshot.usedPercentIsWirePublished)
+        #expect(snapshot.resetsAt == expectedReset)
+        #expect(snapshot.subscriptionTier == nil)
+    }
+
+    @Test
+    func `period only proxy payload without unified flag stays unknown`() throws {
+        let snapshot = try GrokCreditsProxyFetcher.parseSnapshot(
+            Data(
+                """
+                {
+                  "config": {
+                    "currentPeriod": {
+                      "type": "USAGE_PERIOD_TYPE_WEEKLY",
+                      "start": "2026-08-31T12:35:57.056343+00:00",
+                      "end": "2026-09-07T12:35:57.056343+00:00"
+                    },
+                    "onDemandCap": { "val": 0 },
+                    "onDemandUsed": { "val": 0 },
+                    "billingPeriodEnd": "2026-09-07T12:35:57.056343+00:00"
+                  }
+                }
+                """.utf8))
+
+        #expect(snapshot.usedPercent == nil)
+        #expect(!snapshot.usedPercentIsWirePublished)
+    }
+
+    @Test
     func `derives percent from on demand cap and usage`() throws {
         let snapshot = try GrokCreditsProxyFetcher.parseSnapshot(
             Data(

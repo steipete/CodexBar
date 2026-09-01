@@ -78,6 +78,22 @@ public enum GrokCreditsProxyFetcher {
                 subscriptionTier: subscriptionTier)
         }
 
+        // A unified-billing account with no on-demand credits (cap 0 / used 0) has no credit
+        // usage to report — the grok.com Usage page shows 0% used for the weekly period. The
+        // missing `creditUsagePercent` here is the proto3 zero-omission, not unknown usage, so
+        // this zero is wire-published and can fill the usage bar.
+        if config.isUnifiedBillingUser == true,
+           config.onDemandCap?.val == 0,
+           config.onDemandUsed?.val == 0,
+           resetsAt != nil
+        {
+            return GrokWebBillingSnapshot(
+                usedPercent: 0,
+                resetsAt: resetsAt,
+                subscriptionTier: subscriptionTier,
+                usedPercentIsWirePublished: true)
+        }
+
         if resetsAt != nil {
             return GrokWebBillingSnapshot(
                 usedPercent: nil,
@@ -110,6 +126,7 @@ public enum GrokCreditsProxyFetcher {
         let onDemandCap: CreditsAmount?
         let onDemandUsed: CreditsAmount?
         let subscriptionTier: String?
+        let isUnifiedBillingUser: Bool?
     }
 
     private struct CurrentPeriod: Decodable {
