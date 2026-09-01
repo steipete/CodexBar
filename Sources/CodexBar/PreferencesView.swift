@@ -10,6 +10,7 @@ enum SettingsPane: Hashable {
     case notifications
     case menuBar
     case menu
+    case notch
     case advanced
     case hooks
     case plugins
@@ -35,6 +36,7 @@ enum SettingsPane: Hashable {
         case .notifications: L("tab_notifications")
         case .menuBar: L("tab_menu_bar")
         case .menu: L("tab_menu")
+        case .notch: L("tab_notch")
         case .advanced: L("tab_advanced")
         case .hooks: L("tab_hooks")
         case .plugins: L("Plugins")
@@ -171,6 +173,8 @@ struct PreferencesView: View {
             MenuBarPane(settings: self.settings, store: self.store)
         case .menu:
             MenuPane(settings: self.settings, store: self.store)
+        case .notch:
+            NotchPane(settings: self.settings, store: self.store)
         case .advanced:
             AdvancedPane(settings: self.settings, store: self.store)
         case .hooks:

@@ -4,6 +4,16 @@ struct SettingsDefaultsState {
     var refreshFrequency: RefreshFrequency
     var adaptiveActivityScanConsent: AdaptiveActivityScanConsent
     var refreshAllProvidersOnMenuOpen: Bool
+    var notchUsageSummaryEnabled: Bool
+    var notchHiddenProviderIDsRaw: [String]
+    var notchItemOrderRaw: [String]
+    var notchColumnCount: Int
+    var notchMatchesRowHeights: Bool
+    var notchProvidersMaxHeight: Double
+    var notchSessionsMaxHeight: Double
+    var notchShowsAgentSessions: Bool
+    var notchSessionsPlacementRaw: String
+    var notchHotkeyModeRaw: String
     var launchAtLogin: Bool
     var debugMenuEnabled: Bool
     var debugDisableKeychainAccess: Bool
