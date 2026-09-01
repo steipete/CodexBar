@@ -70,6 +70,7 @@ public enum OllamaProviderDescriptor {
                         tertiary: metadata.opusLabel ?? "Sonnet",
                         showsTertiary: metadata.supportsOpus)
                 },
+                // Retain saved history, but chart only currently reported quota periods.
                 planUtilizationSeriesResolver: { snapshot in
                     guard snapshot.primary?.windowMinutes == ProviderPaceCapability.monthlyWindowSentinelMinutes else {
                         return ProviderUsagePresentation.standardPlanUtilizationSeries(snapshot: snapshot)

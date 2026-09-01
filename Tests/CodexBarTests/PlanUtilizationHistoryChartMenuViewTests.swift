@@ -157,4 +157,76 @@ struct PlanUtilizationHistoryChartMenuViewTests {
         #expect(model.visibleSeries == ["weekly:10080"])
         #expect(model.selectedSeries == "weekly:10080")
     }
+
+    @Test
+    func `ollama monthly snapshot filters saved legacy windows out of the history chart`() {
+        let legacyWeekly = PlanUtilizationSeriesHistory(
+            name: .weekly,
+            windowMinutes: 10080,
+            entries: [
+                PlanUtilizationHistoryEntry(
+                    capturedAt: Date(timeIntervalSince1970: 1_700_000_000),
+                    usedPercent: 42,
+                    resetsAt: nil),
+            ])
+        let legacySession = PlanUtilizationSeriesHistory(
+            name: .session,
+            windowMinutes: 300,
+            entries: [
+                PlanUtilizationHistoryEntry(
+                    capturedAt: Date(timeIntervalSince1970: 1_700_000_000),
+                    usedPercent: 17,
+                    resetsAt: nil),
+            ])
+        let monthly = PlanUtilizationSeriesHistory(
+            name: .monthly,
+            windowMinutes: ProviderPaceCapability.monthlyWindowSentinelMinutes,
+            entries: [
+                PlanUtilizationHistoryEntry(
+                    capturedAt: Date(timeIntervalSince1970: 1_700_000_000),
+                    usedPercent: 7,
+                    resetsAt: Date(timeIntervalSince1970: 1_700_100_000)),
+            ])
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 7,
+                windowMinutes: ProviderPaceCapability.monthlyWindowSentinelMinutes,
+                resetsAt: Date(timeIntervalSince1970: 1_700_100_000),
+                resetDescription: nil),
+            secondary: nil,
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000))
+
+        let model = PlanUtilizationHistoryChartMenuView._modelSnapshotForTesting(
+            histories: [legacyWeekly, legacySession, monthly],
+            provider: .ollama,
+            snapshot: snapshot)
+
+        #expect(model.visibleSeries == ["monthly:\(ProviderPaceCapability.monthlyWindowSentinelMinutes)"])
+        #expect(model.selectedSeries == "monthly:\(ProviderPaceCapability.monthlyWindowSentinelMinutes)")
+    }
+
+    @Test
+    func `ollama legacy snapshot keeps the weekly history series visible`() {
+        let legacyWeekly = PlanUtilizationSeriesHistory(
+            name: .weekly,
+            windowMinutes: 10080,
+            entries: [
+                PlanUtilizationHistoryEntry(
+                    capturedAt: Date(timeIntervalSince1970: 1_700_000_000),
+                    usedPercent: 42,
+                    resetsAt: nil),
+            ])
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 42, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 42, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000))
+
+        let model = PlanUtilizationHistoryChartMenuView._modelSnapshotForTesting(
+            histories: [legacyWeekly],
+            provider: .ollama,
+            snapshot: snapshot)
+
+        #expect(model.visibleSeries == ["weekly:10080"])
+        #expect(model.selectedSeries == "weekly:10080")
+    }
 }
