@@ -25,6 +25,8 @@ struct AntigravityLocalReaderTests {
         #expect(report.report.data.first?.date == "2026-08-27")
         #expect(report.report.data.first?.inputTokens == 111)
         #expect(report.report.data.first?.outputTokens == 30)
+        #expect(report.report.data.first?.cacheReadTokens == 50)
+        #expect(report.report.data.first?.cacheCreationTokens == 0)
         #expect(report.report.data.first?.reasoningTokens == 7)
         #expect(report.report.data.first?.modelBreakdowns?.first?.modelName == "unknown")
         #expect(try await fixture.snapshot().last30DaysTokens == 198)
@@ -88,6 +90,115 @@ struct AntigravityLocalReaderTests {
         #expect(snapshot.costProvenance == .unknown)
         #expect(snapshot.daily.allSatisfy { $0.costUSD == nil })
         #expect(snapshot.daily.flatMap { $0.modelBreakdowns ?? [] }.allSatisfy { $0.costUSD == nil })
+    }
+
+    @Test
+    func `modern opaque timestamp rows use the trusted session creation time`() async throws {
+        let fixture = try Fixture()
+        #expect(try AntigravityProtoReader.parseTurn(Fixture.modernBlob())?.timestampMs == nil)
+        try fixture.database(
+            blobs: [Fixture.modernBlob()],
+            createdSeconds: UInt64(Fixture.now.timeIntervalSince1970))
+
+        let report = try fixture.report()
+        #expect(report.coverage == .complete)
+        #expect(report.report.summary?.totalTokens == 198)
+        #expect(report.report.data.first?.inputTokens == 111)
+        #expect(report.report.data.first?.outputTokens == 30)
+        #expect(report.report.data.first?.cacheReadTokens == 50)
+        #expect(report.report.data.first?.cacheCreationTokens == 0)
+        #expect(report.report.data.first?.reasoningTokens == 7)
+        #expect(report.report.data.first?.date == "2026-08-27")
+
+        let snapshot = try await fixture.snapshot()
+        #expect(snapshot.historyCoverageIsEstablished)
+        #expect(snapshot.last30DaysTokens == 198)
+        #expect(snapshot.last30DaysCostUSD == nil)
+    }
+
+    @Test
+    func `modern rows without a trusted session timestamp remain partial`() throws {
+        let fixture = try Fixture()
+        try fixture.database(blobs: [Fixture.modernBlob()])
+
+        let report = try fixture.report()
+        #expect(report.coverage == .partial)
+        #expect(report.report.summary == nil)
+    }
+
+    @Test
+    func `legacy event timestamps take precedence over session creation time`() throws {
+        let fixture = try Fixture()
+        try fixture.database(
+            blobs: [Fixture.blob(seconds: UInt64(Fixture.now.timeIntervalSince1970) - 86400)],
+            createdSeconds: UInt64(Fixture.now.timeIntervalSince1970))
+
+        let report = try fixture.report()
+        #expect(report.coverage == .complete)
+        #expect(report.report.data.first?.date == "2026-08-26")
+    }
+
+    @Test
+    func `unrecognized generation timestamp shapes produce partial coverage`() throws {
+        let fixture = try Fixture()
+        let wrongMarker = Fixture.modernBlob(
+            response: "unrecognized-timestamp-shape",
+            timestampMarker: 2,
+            timestampPayload: [1, 2, 3, 4, 5, 6, 7, 8])
+        let shortPayload = Fixture.modernBlob(
+            response: "short-timestamp-payload",
+            timestampPayload: [1, 2, 3, 4, 5, 6, 7])
+        let longPayload = Fixture.modernBlob(
+            response: "long-timestamp-payload",
+            timestampPayload: [1, 2, 3, 4, 5, 6, 7, 8, 9])
+        try fixture.database(
+            blobs: [wrongMarker, shortPayload, longPayload],
+            createdSeconds: UInt64(Fixture.now.timeIntervalSince1970))
+
+        let report = try fixture.report()
+        #expect(report.coverage == .partial)
+        #expect(report.report.summary == nil)
+    }
+
+    @Test
+    func `conversation aggregate rows do not invalidate generation history`() throws {
+        let fixture = try Fixture()
+        let usage = Fixture.message(4, Fixture.varint(1, 11))
+        let aggregates = [1, 2].map { field in
+            Fixture.message(1, Fixture.message(field, Fixture.varint(1, 1)) + usage)
+        }
+        try fixture.database(blobs: [Fixture.blob()] + aggregates)
+
+        let report = try fixture.report()
+        #expect(report.coverage == .complete)
+        #expect(report.report.summary?.totalTokens == 198)
+    }
+
+    @Test(arguments: [1, 2])
+    func `wrong wire conversation fields produce partial coverage`(field: Int) throws {
+        let fixture = try Fixture()
+        try fixture.database(blobs: [Fixture.conversationMarkerBlob(marker: Fixture.varint(field, 1))])
+
+        let report = try fixture.report()
+        #expect(report.coverage == .partial)
+        #expect(report.report.summary == nil)
+    }
+
+    @Test
+    func `conversation marker with generation evidence remains token history`() throws {
+        let fixture = try Fixture()
+        try fixture.database(
+            blobs: [Fixture.conversationMarkerBlob(includeGeneration: true)],
+            createdSeconds: UInt64(Fixture.now.timeIntervalSince1970))
+
+        let report = try fixture.report()
+        #expect(report.coverage == .complete)
+        let entry = try #require(report.report.data.first)
+        #expect(entry.inputTokens == 111)
+        #expect(entry.outputTokens == 30)
+        #expect(entry.cacheReadTokens == 50)
+        #expect(entry.cacheCreationTokens == 0)
+        #expect(entry.reasoningTokens == 7)
     }
 
     @Test

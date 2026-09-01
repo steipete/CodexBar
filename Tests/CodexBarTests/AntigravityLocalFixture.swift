@@ -10,7 +10,7 @@ import CSQLite3
 /// Synthetic, not a private capture. Independent schema and JSONL producer provenance:
 /// https://github.com/junhoyeo/tokscale/tree/62ca1eb1677556972ba963fdfa3a41ab23c1eb4b
 /// crates/tokscale-core/src/sessions/antigravity_cli.rs records six DBs / 140 turns:
-/// usage #9 text + #10 thinking == #3 total output. The opaque 1.1.18 time inference is NOT used.
+/// usage #9 text + #10 thinking == #3 total output. The opaque 1.1.18 payload is never decoded.
 /// The separate producer in crates/tokscale-cli/src/antigravity.rs emits sessionId and retry usage.
 final class AntigravityLocalFixture: Sendable {
     static let now = Date(timeIntervalSince1970: 1_787_832_000) // 2026-08-27 12:00 UTC
@@ -64,7 +64,8 @@ final class AntigravityLocalFixture: Sendable {
     func database(
         _ session: String = "session-a",
         rootIndex: Int = 0,
-        blobs: [[UInt8]] = []) throws -> URL
+        blobs: [[UInt8]] = [],
+        createdSeconds: UInt64? = nil) throws -> URL
     {
         let directory = self.context.databaseRoots[rootIndex]
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -74,6 +75,12 @@ final class AntigravityLocalFixture: Sendable {
         try Self.execute(database, "CREATE TABLE gen_metadata (idx INTEGER PRIMARY KEY, data BLOB)")
         for (index, blob) in blobs.enumerated() {
             try Self.insert(database, row: Int64(index), blob: blob)
+        }
+        if let createdSeconds {
+            try Self.execute(
+                database,
+                "CREATE TABLE trajectory_metadata_blob (id TEXT PRIMARY KEY, data BLOB)")
+            try Self.insertSessionMetadata(database, createdSeconds: createdSeconds)
         }
         return url
     }
@@ -112,6 +119,24 @@ final class AntigravityLocalFixture: Sendable {
         sqlite3_bind_int64(statement, 1, row)
         let result = blob.withUnsafeBytes { bytes in
             sqlite3_bind_blob(statement, 2, bytes.baseAddress, Int32(blob.count), nil)
+            return sqlite3_step(statement)
+        }
+        guard result == SQLITE_DONE else { throw AntigravityLocalReader.ScanFailure.invalid }
+    }
+
+    private static func insertSessionMetadata(_ database: OpaquePointer, createdSeconds: UInt64) throws {
+        var statement: OpaquePointer?
+        defer { sqlite3_finalize(statement) }
+        guard sqlite3_prepare_v2(
+            database,
+            "INSERT INTO trajectory_metadata_blob (id, data) VALUES (?, ?)",
+            -1,
+            &statement,
+            nil) == SQLITE_OK else { throw AntigravityLocalReader.ScanFailure.invalid }
+        sqlite3_bind_text(statement, 1, "main", -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+        let metadata = self.message(2, self.varint(1, createdSeconds))
+        let result = metadata.withUnsafeBytes { bytes in
+            sqlite3_bind_blob(statement, 2, bytes.baseAddress, Int32(metadata.count), nil)
             return sqlite3_step(statement)
         }
         guard result == SQLITE_DONE else { throw AntigravityLocalReader.ScanFailure.invalid }
@@ -157,6 +182,40 @@ final class AntigravityLocalFixture: Sendable {
         if let model { chat += self.message(19, Array(model.utf8)) }
         if let label { chat += self.message(21, Array(label.utf8)) }
         return self.message(1, chat)
+    }
+
+    static func modernBlob(
+        model: String? = "fixture-modern-model",
+        label: String? = "Fixture modern model",
+        response: String? = "modern-response",
+        timestampMarker: UInt64 = UInt64.max,
+        timestampPayload: [UInt8] = [8, 1, 2, 3, 4, 5, 6, 7]) -> [UInt8]
+    {
+        var usage = self.varint(1, 11) + self.varint(2, 100) + self.varint(5, 50)
+            + self.varint(9, 30) + self.varint(10, 7)
+        if let response { usage += self.message(11, Array(response.utf8)) }
+        var chat = self.message(4, usage)
+        // agy 1.1.18 keeps #2 as an unset sentinel and stores an opaque eight-byte
+        // timestamp payload in #10. The production reader dates this at session start.
+        chat += self.message(9, self.varint(2, timestampMarker) + self.message(10, timestampPayload))
+        if let model { chat += self.message(19, Array(model.utf8)) }
+        if let label { chat += self.message(21, Array(label.utf8)) }
+        return self.message(1, chat)
+    }
+
+    static func conversationMarkerBlob(
+        marker: [UInt8]? = nil,
+        includeGeneration: Bool = false) -> [UInt8]
+    {
+        let markerField = marker ?? self.message(1, self.varint(1, 1))
+        var conversation = markerField + self.message(4, self.varint(1, 11))
+        if includeGeneration {
+            let usage = self.varint(1, 11) + self.varint(2, 100) + self.varint(5, 50)
+                + self.varint(9, 30) + self.varint(10, 7)
+            let generation = self.varint(2, UInt64.max) + self.message(10, [8, 1, 2, 3, 4, 5, 6, 7])
+            conversation += self.message(4, usage) + self.message(9, generation)
+        }
+        return self.message(1, conversation)
     }
 
     static let cacheUsage =

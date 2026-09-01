@@ -278,17 +278,22 @@ Overflowed aggregate totals remain unknown rather than becoming saturated or wra
 
 The schema evidence is [Tokscale's pinned SQLite parser](https://github.com/junhoyeo/tokscale/blob/62ca1eb1677556972ba963fdfa3a41ab23c1eb4b/crates/tokscale-core/src/sessions/antigravity_cli.rs),
 whose header records six databases and 140 turns. SQLite usage fields 1 + 2 are input, 5 is cache read,
-9 is text output, and 10 is thinking output: text and thinking are separate counts. Historical model IDs are retained;
-missing models stay unknown unless an unambiguous raw label maps to a model within the same session.
+9 is text output, and 10 is reasoning output: text and reasoning are separate counts. SQLite has no independently
+verified cache-write field, so cache write remains 0/unknown and no value is inferred. Historical model IDs are
+retained; missing models stay unknown unless an unambiguous raw label maps to a model within the same session.
 Conflicting mappings remain unresolved. Every repeated known protobuf envelope is validated and merged.
 The supported database layout is an ordinary `gen_metadata` table with stored `idx` and `data` columns.
 Extra ordinary columns and `WITHOUT ROWID` tables are supported; views, virtual tables, and generated/hidden columns
 are rejected before querying payloads. Schema inspection and the payload scan share one read transaction.
 Inspection uses `sqlite_master` and `table_xinfo`; SQLite builds without that pragma cannot establish coverage.
+Current CLI databases may also contain a validated aggregate conversation row; it is ignored as non-generation data.
 
-Supported SQLite event time is `chatModel.#9.#4` containing protobuf seconds/nanos. Session creation, file modification,
-and refresh time are never substitutes. The opaque agy 1.1.18 timestamp layout remains unsupported: the pinned parser
-explicitly labels its newer interpretation an inference. See [the session-start misattribution report](https://github.com/junhoyeo/tokscale/issues/1184).
+Supported SQLite event time is the legacy `chatModel.#9.#4` protobuf seconds/nanos timestamp. The narrowly recognized
+modern fallback is `chatModel.#9.#2 == UInt64.max` with exactly eight opaque bytes in `chatModel.#9.#10`; it uses
+`trajectory_metadata_blob.#2` as the session-created timestamp. The opaque bytes are never decoded. Unknown timestamp
+layouts remain unsupported and make coverage partial. Fallback daily placement is approximate for sessions spanning
+multiple days. File modification and refresh time are never substitutes. See
+[the session-start misattribution report](https://github.com/junhoyeo/tokscale/issues/1184).
 
 SQLite session identity is the original database filename stem, with `gen_metadata.idx` identifying rows. Copies
 retaining that session name deduplicate across recognized roots; ID-less rows at different indices remain distinct.
