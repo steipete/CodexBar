@@ -28,6 +28,100 @@ struct CostUsageQuotaWeekLinuxTests {
     }
 
     @Test
+    func `sparse observed resets fill nominal weekly boundaries inside the gap`() {
+        let live = Self.utcDate(year: 2026, month: 9, day: 30, hour: 15)
+        let observed = Self.utcDate(year: 2026, month: 8, day: 30, hour: 15)
+        let now = Self.utcDate(year: 2026, month: 9, day: 15, hour: 12)
+        let boundaries = CostUsageTokenSnapshot.quotaWeekBoundaries(
+            liveNextReset: live,
+            observedNextResets: [observed],
+            weekCount: 4,
+            now: now,
+            calendar: Self.utcCalendar)
+
+        #expect(boundaries.contains(observed))
+        #expect(boundaries.contains(Self.utcDate(year: 2026, month: 9, day: 6, hour: 15)))
+        #expect(boundaries.contains(Self.utcDate(year: 2026, month: 9, day: 13, hour: 15)))
+        #expect(boundaries.contains(Self.utcDate(year: 2026, month: 9, day: 20, hour: 15)))
+        #expect(boundaries.contains(live))
+        #expect(zip(boundaries, boundaries.dropFirst()).contains { earlier, later in
+            earlier == observed && later == live
+        } == false)
+    }
+
+    @Test
+    func `fallback week boundaries stay on local midnight after DST fall-back`() {
+        let calendar = Self.losAngelesCalendar
+        let now = Self.losAngelesDate(year: 2026, month: 11, day: 3, hour: 12)
+        let currentEnd = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now))!
+        let currentStart = calendar.date(byAdding: .day, value: -7, to: currentEnd)!
+        let durationStart = currentEnd.addingTimeInterval(
+            -TimeInterval(CostUsageTokenSnapshot.quotaWeekMinutes * 60))
+        #expect(calendar.component(.hour, from: currentStart) == 0)
+        #expect(calendar.component(.hour, from: durationStart) != 0)
+
+        let boundaries = CostUsageTokenSnapshot.quotaWeekBoundaries(
+            liveNextReset: nil,
+            observedNextResets: [],
+            weekCount: 2,
+            now: now,
+            calendar: calendar)
+        #expect(boundaries.last == currentEnd)
+        #expect(boundaries.contains(currentStart))
+        #expect(calendar.component(.hour, from: boundaries[boundaries.count - 2]) == 0)
+
+        let snapshot = Self.snapshot(
+            historyDays: 30,
+            daily: [Self.entry(day: "2026-10-28", cost: 4, tokens: 400)],
+            updatedAt: now)
+        let current = snapshot.quotaWeekSummaries(resetAt: nil, now: now, calendar: calendar)
+            .first { $0.isCurrent }
+        #expect(current?.start == currentStart)
+        #expect(current?.totalCostUSD == 4)
+        #expect(current?.totalTokens == 400)
+    }
+
+    @Test
+    func `invalid day contributions fail closed instead of summing partial window cost`() {
+        let now = Self.utcDate(year: 2026, month: 7, day: 15, hour: 12)
+        let resetAt = Self.utcDate(year: 2026, month: 7, day: 18, hour: 15)
+        let snapshot = Self.snapshot(
+            historyDays: 30,
+            daily: [
+                Self.entry(day: "2026-07-13", cost: 10, tokens: 1000),
+                Self.entry(day: "2026-07-14", cost: nil, tokens: 200),
+            ],
+            updatedAt: now)
+
+        let current = snapshot.quotaWeekSummaries(
+            resetAt: resetAt,
+            windowMinutes: CostUsageTokenSnapshot.quotaWeekMinutes,
+            calendar: Self.utcCalendar).first { $0.isCurrent }
+
+        #expect(current?.totalCostUSD == nil)
+        #expect(current?.totalTokens == 1200)
+    }
+
+    @Test
+    func `quota windows that start before scanned history are omitted`() {
+        let snapshot = Self.snapshot(
+            historyDays: 7,
+            daily: [
+                Self.entry(day: "2026-07-10", cost: 2, tokens: 20),
+                Self.entry(day: "2026-07-13", cost: 5, tokens: 50),
+            ],
+            updatedAt: Self.utcDate(year: 2026, month: 7, day: 15, hour: 12))
+
+        let weeks = snapshot.quotaWeekSummaries(
+            resetAt: Self.utcDate(year: 2026, month: 7, day: 18, hour: 15),
+            windowMinutes: CostUsageTokenSnapshot.quotaWeekMinutes,
+            calendar: Self.utcCalendar)
+        #expect(weeks.map(\.offset) == [0])
+        #expect(weeks.first?.totalCostUSD == 5)
+        #expect(weeks.first?.totalTokens == 50)
+    }
+
+    @Test
     func `quota weeks align to the live weekly reset instead of calendar last 7 days`() {
         let now = Self.utcDate(year: 2026, month: 7, day: 15, hour: 12)
         let resetAt = Self.utcDate(year: 2026, month: 7, day: 18, hour: 15)
@@ -708,6 +802,17 @@ struct CostUsageQuotaWeekLinuxTests {
             costUSD: cost,
             modelsUsed: nil,
             modelBreakdowns: nil)
+    }
+
+    private static func losAngelesDate(year: Int, month: Int, day: Int, hour: Int = 0) -> Date {
+        var components = DateComponents()
+        components.calendar = self.losAngelesCalendar
+        components.timeZone = TimeZone(identifier: "America/Los_Angeles")
+        components.year = year
+        components.month = month
+        components.day = day
+        components.hour = hour
+        return components.date!
     }
 
     private static func utcDate(year: Int, month: Int, day: Int, hour: Int, minute: Int = 0) -> Date {

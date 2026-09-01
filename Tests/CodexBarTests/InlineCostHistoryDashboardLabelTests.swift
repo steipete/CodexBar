@@ -585,6 +585,95 @@ struct InlineCostHistoryDashboardLabelTests {
     }
 
     @Test
+    func `claude weekly primary still aligns quota-window cost to the live reset`() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+        let now = try #require(calendar.date(from: DateComponents(
+            timeZone: calendar.timeZone,
+            year: 2026,
+            month: 7,
+            day: 15,
+            hour: 12)))
+        let resetAt = try #require(calendar.date(from: DateComponents(
+            timeZone: calendar.timeZone,
+            year: 2026,
+            month: 7,
+            day: 18,
+            hour: 15)))
+        let metadata = try #require(ProviderDefaults.metadata[.claude])
+        let tokenSnapshot = CostUsageTokenSnapshot(
+            sessionTokens: 1000,
+            sessionCostUSD: 10,
+            last30DaysTokens: 1400,
+            last30DaysCostUSD: 14,
+            historyDays: 30,
+            daily: [
+                CostUsageDailyReport.Entry(
+                    date: "2026-07-08",
+                    inputTokens: 300,
+                    outputTokens: 100,
+                    totalTokens: 400,
+                    costUSD: 4,
+                    modelsUsed: ["claude-opus-4"],
+                    modelBreakdowns: [
+                        CostUsageDailyReport.ModelBreakdown(
+                            modelName: "claude-opus-4",
+                            costUSD: 4,
+                            totalTokens: 400),
+                    ]),
+                CostUsageDailyReport.Entry(
+                    date: "2026-07-13",
+                    inputTokens: 800,
+                    outputTokens: 200,
+                    totalTokens: 1000,
+                    costUSD: 10,
+                    modelsUsed: ["claude-opus-4"],
+                    modelBreakdowns: [
+                        CostUsageDailyReport.ModelBreakdown(
+                            modelName: "claude-opus-4",
+                            costUSD: 10,
+                            totalTokens: 1000),
+                    ]),
+            ],
+            updatedAt: now)
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .claude,
+            metadata: metadata,
+            snapshot: UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 50,
+                    windowMinutes: CostUsageTokenSnapshot.quotaWeekMinutes,
+                    resetsAt: resetAt,
+                    resetDescription: nil),
+                secondary: nil,
+                updatedAt: now),
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: tokenSnapshot,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: true,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            costUsageBucketCalendar: calendar,
+            now: now))
+
+        let dashboard = try #require(model.inlineUsageDashboard)
+        #expect(dashboard.quotaWindows.map(\.title) == ["Current window", "Previous window"])
+        #expect(dashboard.quotaWindows.map(\.value) == ["$10.00 · 1K", "$4.00 · 400"])
+        let currentRange = try #require(dashboard.quotaWindows.first?.range)
+        #expect(currentRange.contains("11"))
+        #expect(currentRange.contains("18"))
+    }
+
+    @Test
     func `quota window range labels use the reset instant and collapse same-day windows`() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))

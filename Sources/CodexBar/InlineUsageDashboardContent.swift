@@ -134,6 +134,12 @@ extension UsageMenuCardView.Model {
         ProviderDescriptorRegistry.descriptor(for: provider).presentation.menuCard.showsQuotaWeekCost
     }
 
+    private static func weeklyQuotaWindow(from input: Input) -> RateWindow? {
+        guard let snapshot = input.snapshot else { return nil }
+        return ProviderDescriptorRegistry.descriptor(for: input.provider)
+            .presentation.semanticWindows(snapshot: snapshot).weekly
+    }
+
     private struct CostHistoryQuotaPresentation {
         let rows: [InlineUsageDashboardModel.QuotaWindow]
         let insertsKPIs: Bool
@@ -148,10 +154,11 @@ extension UsageMenuCardView.Model {
         historyDays: Int,
         convertedString: (Double) -> String) -> CostHistoryQuotaPresentation
     {
+        let weeklyWindow = Self.weeklyQuotaWindow(from: input)
         let quotaWeeks = Self.showsQuotaWeekCost(for: input.provider) && historyDays >= 7
             ? snapshot.quotaWeekSummaries(
-                resetAt: CostUsageTokenSnapshot.quotaWeekReset(from: input.snapshot?.secondary),
-                windowMinutes: input.snapshot?.secondary?.windowMinutes,
+                resetAt: CostUsageTokenSnapshot.quotaWeekReset(from: weeklyWindow),
+                windowMinutes: weeklyWindow?.windowMinutes,
                 observedNextResets: input.observedWeeklyNextResets,
                 observedResetInstants: Self.redeemedWeeklyResetInstants(from: input.snapshot),
                 now: input.now,

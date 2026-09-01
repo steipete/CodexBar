@@ -327,6 +327,51 @@ struct CostUsageDailyReportMergeTests {
     }
 
     @Test
+    func `merged model breakdowns drop cost when one source is unpriced`() {
+        let priced = CostUsageDailyReport(
+            data: [
+                CostUsageDailyReport.Entry(
+                    date: "2026-04-04",
+                    inputTokens: nil,
+                    outputTokens: nil,
+                    totalTokens: 130,
+                    costUSD: 1.25,
+                    modelsUsed: ["gpt-5.4"],
+                    modelBreakdowns: [
+                        CostUsageDailyReport.ModelBreakdown(
+                            modelName: "gpt-5.4",
+                            costUSD: 1.25,
+                            totalTokens: 130),
+                    ]),
+            ],
+            summary: nil)
+        let unpriced = CostUsageDailyReport(
+            data: [
+                CostUsageDailyReport.Entry(
+                    date: "2026-04-04",
+                    inputTokens: nil,
+                    outputTokens: nil,
+                    totalTokens: 50,
+                    requestCount: 1,
+                    costUSD: nil,
+                    modelsUsed: ["gpt-5.4"],
+                    modelBreakdowns: [
+                        CostUsageDailyReport.ModelBreakdown(
+                            modelName: "gpt-5.4",
+                            costUSD: nil,
+                            totalTokens: 50,
+                            requestCount: 1),
+                    ]),
+            ],
+            summary: nil)
+
+        let merged = priced.merged(with: unpriced)
+        #expect(merged.data.first?.costUSD == nil)
+        #expect(merged.data.first?.modelBreakdowns?.first?.costUSD == nil)
+        #expect(merged.data.first?.modelBreakdowns?.first?.totalTokens == 180)
+    }
+
+    @Test
     func `merged report unions days and orders model breakdowns deterministically`() {
         let first = CostUsageDailyReport(
             data: [

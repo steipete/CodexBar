@@ -15,8 +15,9 @@ extension CostUsageTokenSnapshot {
     /// `observedNextResets` are previously published Weekly `resetsAt` values (for example from
     /// plan-utilization samples). An elapsed stored next-reset is treated as a real reset instant,
     /// so an official rollover and a later banked reset on the same day become two windows instead
-    /// of one 7-day block. `observedResetInstants` are known start times such as a redeemed
-    /// reset-credit `redeemedAt`.
+    /// of one 7-day block. Gaps larger than one quota week between those observed resets are filled
+    /// with nominal weekly boundaries. `observedResetInstants` are known start times such as a
+    /// redeemed reset-credit `redeemedAt`.
     public func quotaWeekSummaries(
         resetAt: Date?,
         windowMinutes: Int? = nil,
@@ -47,10 +48,13 @@ extension CostUsageTokenSnapshot {
         let count = max(1, min(weekCount, 8))
         let boundaries = Self.quotaWeekBoundaries(
             currentEnd: currentEnd,
-            duration: duration,
             observed: (observedNextResets, observedResetInstants),
             weekCount: count,
-            now: now)
+            now: now,
+            stride: QuotaWeekStride(
+                duration: duration,
+                calendar: calendar,
+                usesCalendarFallback: resetAt == nil))
         var weeks: [CostUsageQuotaWeek] = []
         weeks.reserveCapacity(count)
         var offset = 0
@@ -59,7 +63,9 @@ extension CostUsageTokenSnapshot {
             let end = boundaries[endIndex]
             let start = boundaries[endIndex - 1]
             endIndex -= 1
-            if offset > 0, end <= historyStart {
+            // A window that starts before scanned history would report a truncated slice as a
+            // complete older week. Keep the current window (it is the live quota) and drop the rest.
+            if offset > 0, start < historyStart {
                 break
             }
             let projection = Self.projectQuotaWindow(
@@ -101,27 +107,47 @@ extension CostUsageTokenSnapshot {
             calendar: calendar)
         return self.quotaWeekBoundaries(
             currentEnd: currentEnd,
-            duration: duration,
             observed: (observedNextResets, observedResetInstants),
             weekCount: max(1, min(weekCount, 8)),
-            now: now)
+            now: now,
+            stride: QuotaWeekStride(
+                duration: duration,
+                calendar: calendar,
+                usesCalendarFallback: liveNextReset == nil))
+    }
+
+    private struct QuotaWeekStride {
+        let duration: TimeInterval
+        let calendar: Calendar
+        let usesCalendarFallback: Bool
+
+        func step(from date: Date, weeks: Int) -> Date {
+            if self.usesCalendarFallback {
+                return self.calendar.date(byAdding: .day, value: 7 * weeks, to: date)
+                    ?? date.addingTimeInterval(self.duration * TimeInterval(weeks))
+            }
+            return date.addingTimeInterval(self.duration * TimeInterval(weeks))
+        }
     }
 
     private static func quotaWeekBoundaries(
         currentEnd: Date,
-        duration: TimeInterval,
         observed: (nextResets: [Date], resetInstants: [Date]),
         weekCount: Int,
-        now: Date) -> [Date]
+        now: Date,
+        stride: QuotaWeekStride) -> [Date]
     {
-        var dates: [Date] = [currentEnd, currentEnd.addingTimeInterval(-duration)]
+        var dates: [Date] = [
+            currentEnd,
+            stride.step(from: currentEnd, weeks: -1),
+        ]
         dates.reserveCapacity(weekCount + 1 + observed.nextResets.count * 2 + observed.resetInstants.count)
         for next in observed.nextResets {
             // A persisted `resetsAt` in the future is still useful for recovering the
             // corresponding historical window start, but it has not happened yet and must not
             // split the live current window. Once it has elapsed, it is a real reset instant
             // (including an early/banked reset) and becomes an additional boundary.
-            dates.append(next.addingTimeInterval(-duration))
+            dates.append(stride.step(from: next, weeks: -1))
             if next <= now.addingTimeInterval(self.quotaWeekBoundaryTolerance) {
                 dates.append(next)
             }
@@ -135,14 +161,37 @@ extension CostUsageTokenSnapshot {
         unique.removeAll { abs($0.timeIntervalSince(currentEnd)) < self.quotaWeekBoundaryTolerance }
         unique.append(currentEnd)
         unique.sort()
+        unique = self.fillQuotaWeekBoundaryGaps(unique, stride: stride)
         let needed = weekCount + 1
         var previousCount = -1
-        while unique.count < needed, duration > 0, unique.count != previousCount, let oldest = unique.first {
+        while unique.count < needed, stride.duration > 0, unique.count != previousCount, let oldest = unique.first {
             previousCount = unique.count
-            unique.insert(oldest.addingTimeInterval(-duration), at: 0)
+            unique.insert(stride.step(from: oldest, weeks: -1), at: 0)
             unique = self.uniqueSortedDates(unique, tolerance: self.quotaWeekBoundaryTolerance)
         }
         return unique
+    }
+
+    /// Insert nominal weekly ticks inside gaps larger than one quota week, so a 30-day hole
+    /// between observed resets does not collapse into a single "previous window". Gaps shorter
+    /// than `duration` (official plus banked reset on the same day) stay intact.
+    private static func fillQuotaWeekBoundaryGaps(_ dates: [Date], stride: QuotaWeekStride) -> [Date] {
+        guard dates.count >= 2, stride.duration > 0 else { return dates }
+        var filled: [Date] = []
+        filled.reserveCapacity(dates.count)
+        filled.append(dates[0])
+        for later in dates.dropFirst() {
+            var cursor = filled[filled.count - 1]
+            while true {
+                let next = stride.step(from: cursor, weeks: 1)
+                if next <= cursor { break }
+                if later.timeIntervalSince(next) <= self.quotaWeekBoundaryTolerance { break }
+                filled.append(next)
+                cursor = next
+            }
+            filled.append(later)
+        }
+        return self.uniqueSortedDates(filled, tolerance: self.quotaWeekBoundaryTolerance)
     }
 
     private static func uniqueSortedDates(_ dates: [Date], tolerance: TimeInterval) -> [Date] {
@@ -438,7 +487,9 @@ extension CostUsageTokenSnapshot {
 
         for day in days where day.overlaps(start: start, end: end) {
             let tokenContribution = self.projectQuotaTokens(day: day, start: start, end: end)
-            if tokenContribution.isValid, tokenContribution.sawValue {
+            if !tokenContribution.isValid {
+                tokensAreValid = false
+            } else if tokenContribution.sawValue {
                 let (sum, overflowed) = totalTokens.addingReportingOverflow(tokenContribution.value)
                 if overflowed {
                     tokensAreValid = false
@@ -449,7 +500,9 @@ extension CostUsageTokenSnapshot {
             }
 
             let costContribution = self.projectQuotaCost(day: day, start: start, end: end)
-            if costContribution.isValid, costContribution.sawValue {
+            if !costContribution.isValid {
+                costIsValid = false
+            } else if costContribution.sawValue {
                 let sum = totalCost + costContribution.value
                 if sum.isFinite {
                     totalCost = sum
@@ -498,7 +551,9 @@ extension CostUsageTokenSnapshot {
             break
         }
         guard day.isContained(start: start, end: end) else {
-            return QuotaTokenContribution(isValid: false, sawValue: false, value: 0, usedDaily: false)
+            // A reset that cuts a coarse daily total cannot be assigned to one window.
+            // Drop that day only; fully contained neighbors still count.
+            return QuotaTokenContribution(isValid: true, sawValue: false, value: 0, usedDaily: false)
         }
         return QuotaTokenContribution(isValid: true, sawValue: true, value: dailyTokens, usedDaily: true)
     }
@@ -527,7 +582,9 @@ extension CostUsageTokenSnapshot {
             break
         }
         guard day.isContained(start: start, end: end) else {
-            return QuotaCostContribution(isValid: false, sawValue: false, value: 0, usedDaily: false)
+            // A reset that cuts a coarse daily total cannot be assigned to one window.
+            // Drop that day only; fully contained neighbors still count.
+            return QuotaCostContribution(isValid: true, sawValue: false, value: 0, usedDaily: false)
         }
         return QuotaCostContribution(isValid: true, sawValue: true, value: dailyCost, usedDaily: true)
     }

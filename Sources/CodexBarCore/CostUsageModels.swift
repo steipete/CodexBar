@@ -880,7 +880,7 @@ extension CostUsageDailyReport {
         func build(modelName: String) -> ModelBreakdown {
             ModelBreakdown(
                 modelName: modelName,
-                costUSD: self.sawCost ? self.costUSD : nil,
+                costUSD: self.sawCost && self.costIsComplete ? self.costUSD : nil,
                 totalTokens: self.sawTotalTokens && self.totalTokensAreComplete ? self.totalTokens : nil,
                 requestCount: self.requestCount.value,
                 inputTokens: self.tokenMix.inputTokens,
