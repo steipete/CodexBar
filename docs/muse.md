@@ -51,8 +51,10 @@ model turns. Three things keep a refresh cheap:
 
 - Day directories outside the requested history window are skipped without opening a log.
 - Lines without an `input_tokens` field are rejected before JSON parsing.
-- Each file's size, modification time, and per-day totals are cached in
-  `~/Library/Caches/CodexBar/cost-usage/muse-sessions-v1.json`, so an unchanged log is never reread.
+- Each file's size, modification time, and the individual turns it recorded are cached in
+  `~/Library/Caches/CodexBar/cost-usage/muse-sessions-v2.json`, so an unchanged log is never reread.
+  Turns are stored per event rather than pre-aggregated, so a log that repeats one already-counted
+  turn still contributes its remaining unique ones.
 
 On that tree a cold scan took 16 s and a warm scan 0.26 s, for identical totals. A scan that exhausts
 its budget keeps the files it finished and reports partial coverage, so the next refresh resumes.
