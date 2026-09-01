@@ -76,6 +76,16 @@ public enum OllamaProviderDescriptor {
                         tertiary: metadata.opusLabel ?? "Sonnet",
                         showsTertiary: metadata.supportsOpus)
                 },
+                // Saved legacy Session/Weekly history must not be charted next to the new
+                // billing period: filter the history to the series matching the active
+                // window shape (the default resolver returns nil for the monthly-only
+                // snapshot, which the chart reads as "no filter").
+                planUtilizationSeriesResolver: { snapshot in
+                    if snapshot.primary?.windowMinutes == ProviderPaceCapability.monthlyWindowSentinelMinutes {
+                        return [.monthly]
+                    }
+                    return ProviderUsagePresentation.standardPlanUtilizationSeries(snapshot: snapshot)
+                },
                 menuCard: ProviderMenuCardPresentation(
                 usageNotesResolver: { context in
                     guard context.snapshot?.identity?.loginMethod == "API key" else { return .unhandled }
