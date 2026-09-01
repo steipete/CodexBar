@@ -669,6 +669,35 @@ struct GrokWebBillingFetcherTests {
     }
 
     @Test
+    func `parses live weekly limit billing response as zero percent`() throws {
+        // Capture from grok.com on 2026-09-01: `GetGrokCreditsConfigRequest { usage_period_type:
+        // WEEKLY }` → Weekly SuperGrok Heavy Limit, 0% used, reset Sep 7 2026 12:35:57Z.
+        // The frame declares a per-period limit with no used amount ([1,4,2]/[1,5,2] > 0), so the
+        // zero usage is a wire-published value, unlike a period-only frame with unknown usage.
+        let data = Data([
+            0x00, 0x00, 0x00, 0x00, 0x44, 0x0A, 0x42, 0x12,
+            0x00, 0x1A, 0x00, 0x22, 0x0B, 0x08, 0xAD, 0xEA,
+            0xD5, 0xD4, 0x06, 0x10, 0xD8, 0xF3, 0xEE, 0x1A,
+            0x2A, 0x0B, 0x08, 0xAD, 0xDF, 0xFA, 0xD4, 0x06,
+            0x10, 0xD8, 0xF3, 0xEE, 0x1A, 0x42, 0x1C, 0x08,
+            0x02, 0x12, 0x0B, 0x08, 0xAD, 0xEA, 0xD5, 0xD4,
+            0x06, 0x10, 0xD8, 0xF3, 0xEE, 0x1A, 0x1A, 0x0B,
+            0x08, 0xAD, 0xDF, 0xFA, 0xD4, 0x06, 0x10, 0xD8,
+            0xF3, 0xEE, 0x1A, 0x58, 0x01, 0x62, 0x00, 0x68,
+            0x01, 0x80, 0x00, 0x00, 0x00, 0x0F, 0x67, 0x72,
+            0x70, 0x63, 0x2D, 0x73, 0x74, 0x61, 0x74, 0x75,
+            0x73, 0x3A, 0x30, 0x0D, 0x0A,
+        ])
+
+        let snapshot = try GrokWebBillingFetcher.parseGRPCWebResponse(
+            data,
+            now: Date(timeIntervalSince1970: 1_788_000_000))
+
+        #expect(snapshot.usedPercent == 0)
+        #expect(snapshot.resetsAt == Date(timeIntervalSince1970: 1_788_784_557))
+        #expect(snapshot.subscriptionTier == nil)
+        #expect(snapshot.usedPercentIsWirePublished)
+    }
     func `parses omitted zero percent with current billing period`() throws {
         let data = Data([
             0x00, 0x00, 0x00, 0x00, 0x2A, 0x0A, 0x28, 0x12,
@@ -770,7 +799,7 @@ struct GrokWebBillingFetcherTests {
             endpoint: endpoint)
 
         #expect(GrokWebBillingStubURLProtocol.requests.count == 1)
-        #expect(GrokWebBillingStubURLProtocol.requestBodies == [Data([0x00, 0x00, 0x00, 0x00, 0x00])])
+        #expect(GrokWebBillingStubURLProtocol.requestBodies == [Data([0x00, 0x00, 0x00, 0x00, 0x02, 0x08, 0x02])])
         #expect(snapshot.usedPercent == 55.5)
         #expect(snapshot.resetsAt == Date(timeIntervalSince1970: TimeInterval(reset)))
     }

@@ -8,6 +8,7 @@
 - Codex: avoid repeated full scans after trace-log pruning, while retaining the latest validated cost history through temporary trace-database failures (#3318). Thanks @brzvsk!
 
 ### Fixed
+- Grok: restore the grok.com billing fetch, which grok.com now rejects when it receives an empty request message (`grpc-status 13`); the client sends the weekly usage period explicitly. SuperGrok Heavy weekly-limit responses that declare a per-period limit without a used amount are now treated as a wire-published 0% instead of unknown usage, so the menu usage bar returns instead of an unavailable-usage diagnostic.
 - Menu bar: keep status components and website links scoped to their provider when switching cached tabs, preventing Claude status from appearing under Grok or Codex (#3320). Thanks @gianpaj!
 - Usage & Spend: keep stalled or failed Codex catch-up paused until explicit Refresh, preventing background synchronization from restarting CPU-heavy scans (partial fix for #3316). Thanks @heyajulia!
 - Xiaomi MiMo: prevent overlapping local usage tracker updates from colliding on a shared temporary cache file, preserving atomic publication (#3321). Thanks @Lucenx9!

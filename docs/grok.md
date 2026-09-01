@@ -84,8 +84,12 @@ The grok.com billing gRPC-web endpoint remains a best-effort fallback.
      that omit `subscription_tier_display` all drop the plan overlay and fall
      back to the OIDC SuperGrok label. There is no process-lifetime tier cache.
 4) **grok.com billing gRPC-web fallback** (best-effort)
-   - POSTs an empty gRPC-web protobuf request to
+   - POSTs `GetGrokCreditsConfigRequest { usage_period_type: WEEKLY }` (gRPC-web
+     binary frame `00 00 00 00 02 08 02`) to
      `https://grok.com/grok_api_v2.GrokBuildBilling/GetGrokCreditsConfig`.
+     grok.com now rejects a zero-length request message with `grpc-status 13`
+     ("Missing request message."); proto3 would omit a zero-valued `UNSPECIFIED`
+     enum, so the weekly period is sent explicitly.
    - This endpoint now requires the browser-held Web Key Exchange (WKE) keypair.
      Cookie-only authentication can fail with gRPC status 16 and
      `no-credentials`; signing in through Chrome alone cannot provide that proof
@@ -109,8 +113,12 @@ The grok.com billing gRPC-web endpoint remains a best-effort fallback.
    - Parses the returned protobuf enough to recover used percent and
      reset timestamp, accepting both gRPC-web frames and the raw protobuf form
      returned by some successful requests. A current billing period with an
-     omitted proto3 `credit_usage_percent` is treated as zero usage. This keeps
-     billing visible when `grok agent stdio` returns `Method not found`.
+     omitted proto3 `credit_usage_percent` is treated as zero usage. When that
+     period also declares a per-period limit (varint fields `[1,4,2]`/`[1,5,2]`
+     with no used amount, the Weekly SuperGrok Heavy limit frame), the zero is
+     wire-published rather than inferred and is eligible for the step-3 adoption
+     rule. This keeps billing visible when `grok agent stdio` returns
+     `Method not found`.
 5) **Local session signals** (informational fallback)
    - Walks `~/.grok/sessions/<encoded-cwd>/<session-id>/signals.json` files (last 30 days).
    - Aggregates `totalTokensBeforeCompaction`, `contextTokensUsed`, `modelsUsed`,

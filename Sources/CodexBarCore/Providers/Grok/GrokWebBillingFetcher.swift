@@ -116,6 +116,17 @@ public enum GrokWebBillingFetcher {
         URL(string: "https://grok.com/grok_api_v2.GrokBuildBilling/GetGrokCreditsConfig")!
     private static let requestTimeoutSeconds: TimeInterval = 15
 
+    /// `GetGrokCreditsConfigRequest { usage_period_type: WEEKLY }` carried as a
+    /// grpc-web frame (flags byte, big-endian payload length, payload `08 02`).
+    ///
+    /// grok.com's billing API rejects a zero-length request message with
+    /// `grpc-status 13` ("Missing request message."), so the empty frame that
+    /// this client previously sent is refused. The web client serializes the
+    /// active usage period explicitly; proto3 omits zero-valued fields, so
+    /// UNSPECIFIED would serialize to an empty message the API also rejects.
+    /// SuperGrok plans are displayed as weekly limits.
+    private static let weeklyCreditsConfigRequest = Data([0x00, 0x00, 0x00, 0x00, 0x02, 0x08, 0x02])
+
     public static func fetch(
         credentials: GrokCredentials,
         session transport: any ProviderHTTPTransport = ProviderHTTPClient.shared,
@@ -207,8 +218,7 @@ public enum GrokWebBillingFetcher {
     {
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
-        request.timeoutInterval = Self.requestTimeoutSeconds
-        request.httpBody = Data([0x00, 0x00, 0x00, 0x00, 0x00])
+        request.httpBody = Self.weeklyCreditsConfigRequest
         if let authorizationHeader {
             request.setValue(authorizationHeader, forHTTPHeaderField: "Authorization")
         }
@@ -305,15 +315,25 @@ public enum GrokWebBillingFetcher {
             field.path.starts(with: [1, 6])
                 || (field.path == [1, 8, 1] && (field.value == 1 || field.value == 2))
         }
+        // A period that declares a per-period bound with an empty used amount is a fully
+        // determined zero-usage response (Weekly SuperGrok Heavy limit frame): the wire
+        // publishes the period limit at [1,4,2]/[1,5,2] and carries no used amount at all.
+        // That zero is real, unlike a period-only frame with no limit, which stays unknown.
+        let hasDefinedPeriodLimit = scan.varintFields.contains { field in
+            (field.path == [1, 4, 2] || field.path == [1, 5, 2])
+                && field.value > 0 && field.value < 1_000_000_000_000
+        }
         let noUsageYet =
             parsedPercent == nil && scan.fixed32Fields.isEmpty && reset != nil && hasUsagePeriod
+        let zeroUsageIsWirePublished =
+            parsedPercent != nil || (noUsageYet && hasDefinedPeriodLimit)
         guard let percent = parsedPercent ?? (noUsageYet ? 0 : nil) else {
             throw GrokWebBillingError.parseFailed
         }
         return GrokWebBillingSnapshot(
             usedPercent: percent,
             resetsAt: reset,
-            usedPercentIsWirePublished: parsedPercent != nil)
+            usedPercentIsWirePublished: zeroUsageIsWirePublished)
     }
 
     static func looksLikeProtobufPayload(_ data: Data) -> Bool {
