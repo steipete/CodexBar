@@ -5,18 +5,10 @@ import Testing
 import FoundationNetworking
 #endif
 
-/// Muse reads quota from the rate-limit headers the Meta Model API documents at
-/// https://dev.meta.ai/docs/pricing-rate-limits. The Model API publishes no usage, billing, or
-/// account endpoint, so these tests pin the header mapping, the endpoint the key is sent to, and the
-/// local identity file rather than any speculative JSON body.
+/// The Meta Model API publishes no usage, billing, or account endpoint, so the API path only validates
+/// a key. These tests pin the endpoint the key is sent to, the host it must never leave, and the local
+/// identity file. Token usage is covered by ``MuseLocalUsageReaderTests``.
 struct MuseProviderTests {
-    private static let defaultHeaders = [
-        "x-ratelimit-limit-tokens": "3000000",
-        "x-ratelimit-remaining-tokens": "2250000",
-        "x-ratelimit-limit-requests": "100",
-        "x-ratelimit-remaining-requests": "75",
-    ]
-
     // MARK: - Credentials
 
     @Test
@@ -85,7 +77,7 @@ struct MuseProviderTests {
 
     @Test
     func `fetch requests only the documented read-only models endpoint`() async throws {
-        let transport = MuseScriptedTransport(results: [.response(statusCode: 200, headers: Self.defaultHeaders)])
+        let transport = MuseScriptedTransport(results: [.response(statusCode: 200, headers: [:])])
         _ = try await MuseUsageFetcher.fetchUsage(
             apiKey: "key",
             baseURL: #require(URL(string: "https://api.meta.ai/v1")),
@@ -100,7 +92,7 @@ struct MuseProviderTests {
 
     @Test
     func `fetch keeps the credential on the configured host`() async throws {
-        let transport = MuseScriptedTransport(results: [.response(statusCode: 200, headers: Self.defaultHeaders)])
+        let transport = MuseScriptedTransport(results: [.response(statusCode: 200, headers: [:])])
         _ = try await MuseUsageFetcher.fetchUsage(
             apiKey: "gateway-key",
             baseURL: #require(URL(string: "https://proxy.internal/v1")),
@@ -111,32 +103,9 @@ struct MuseProviderTests {
         #expect(!hosts.contains("api.meta.ai"))
     }
 
+    /// A successful key check reports identity only; Muse exposes no free quota to report.
     @Test
-    func `rate-limit headers map onto token and request windows`() async throws {
-        let transport = MuseScriptedTransport(results: [.response(statusCode: 200, headers: Self.defaultHeaders)])
-        let snapshot = try await MuseUsageFetcher.fetchUsage(apiKey: "key", transport: transport)
-
-        let tokens = try #require(snapshot.primary)
-        #expect(tokens.usedPercent == 25)
-        #expect(tokens.windowMinutes == 1)
-
-        let requests = try #require(snapshot.secondary)
-        #expect(requests.usedPercent == 25)
-        #expect(requests.windowMinutes == 1)
-    }
-
-    @Test
-    func `usage percent stays clamped when a header reports more than the limit`() async throws {
-        let transport = MuseScriptedTransport(results: [.response(statusCode: 200, headers: [
-            "x-ratelimit-limit-tokens": "1000",
-            "x-ratelimit-remaining-tokens": "-500",
-        ])])
-        let snapshot = try await MuseUsageFetcher.fetchUsage(apiKey: "key", transport: transport)
-        #expect(snapshot.primary?.usedPercent == 100)
-    }
-
-    @Test
-    func `a response without rate-limit headers yields identity without inventing a window`() async throws {
+    func `a successful key check yields identity without any usage window`() async throws {
         let transport = MuseScriptedTransport(results: [.response(statusCode: 200, headers: [:])])
         let localAuth = MuseLocalAuth(
             accountEmail: "dev@example.com",
@@ -152,19 +121,6 @@ struct MuseProviderTests {
         #expect(snapshot.secondary == nil)
         #expect(snapshot.accountEmail == "dev@example.com")
         #expect(snapshot.plan == "Meta account")
-    }
-
-    @Test
-    func `a zero or malformed limit produces no window`() async throws {
-        let transport = MuseScriptedTransport(results: [.response(statusCode: 200, headers: [
-            "x-ratelimit-limit-tokens": "0",
-            "x-ratelimit-remaining-tokens": "0",
-            "x-ratelimit-limit-requests": "not-a-number",
-            "x-ratelimit-remaining-requests": "5",
-        ])])
-        let snapshot = try await MuseUsageFetcher.fetchUsage(apiKey: "key", transport: transport)
-        #expect(snapshot.primary == nil)
-        #expect(snapshot.secondary == nil)
     }
 
     @Test
@@ -190,12 +146,12 @@ struct MuseProviderTests {
     @Test
     func `server and transport failures surface instead of a placeholder snapshot`() async {
         let serverError = MuseScriptedTransport(results: [.response(statusCode: 500, headers: [:])])
-        await #expect(throws: MuseUsageError.networkError("Muse usage request failed (HTTP 500).")) {
+        await #expect(throws: MuseUsageError.networkError("Muse key check failed (HTTP 500).")) {
             try await MuseUsageFetcher.fetchUsage(apiKey: "key", transport: serverError)
         }
 
         let notFound = MuseScriptedTransport(results: [.response(statusCode: 404, headers: [:])])
-        await #expect(throws: MuseUsageError.networkError("Muse usage request failed (HTTP 404).")) {
+        await #expect(throws: MuseUsageError.networkError("Muse key check failed (HTTP 404).")) {
             try await MuseUsageFetcher.fetchUsage(apiKey: "key", transport: notFound)
         }
 
@@ -292,8 +248,9 @@ struct MuseProviderTests {
         #expect(descriptor.metadata.cliName == "muse")
         #expect(descriptor.metadata.dashboardURL == "https://dev.meta.ai")
         #expect(descriptor.metadata.changelogURL == "https://dev.meta.ai/docs/muse-code/changelog")
-        // Muse exposes no cost endpoint, and no version probe is spawned for it.
-        #expect(!descriptor.tokenCost.supportsTokenCost)
+        // Token history comes from local session logs; no version probe is spawned.
+        #expect(descriptor.tokenCost.supportsTokenCost)
+        #expect(descriptor.tokenCost.supportsTokenSnapshot)
         #expect(descriptor.cli.versionDetector == nil)
     }
 

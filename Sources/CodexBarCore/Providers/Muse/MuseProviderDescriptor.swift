@@ -53,8 +53,9 @@ public enum MuseProviderDescriptor {
                 ],
                 burnDownWidgetColor: ProviderColor(red: 6 / 255, green: 104 / 255, blue: 225 / 255)),
             tokenCost: ProviderTokenCostConfig(
-                supportsTokenCost: false,
-                noDataMessage: { "Muse does not publish a cost endpoint. Set META_API_KEY or run `muse login`." }),
+                supportsTokenCost: true,
+                noDataMessage: { "No Muse session logs found yet. Run `muse` once to record local usage." },
+                supportsTokenSnapshot: true),
             fetchPlan: self.fetchPlan(),
             cli: ProviderCLIConfig(
                 name: "muse",

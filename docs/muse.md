@@ -1,5 +1,5 @@
 ---
-summary: "Muse provider data sources: Meta Model API rate-limit headers and the local muse login metadata."
+summary: "Muse provider data sources: local session-log token usage and the muse login metadata."
 read_when:
   - Debugging Muse usage/availability
   - Updating Muse API endpoints
@@ -8,42 +8,73 @@ read_when:
 
 # Muse provider
 
-Muse Code is Meta's terminal coding agent, backed by the Meta Model API. CodexBar reads its quota from
-the rate-limit headers the Model API documents, and its account identity from the metadata `muse login`
+Muse Code is Meta's terminal coding agent, backed by the Meta Model API. CodexBar reads its token usage
+from the session logs the CLI writes locally, and its account identity from the metadata `muse login`
 writes to disk.
 
 ## Where the numbers come from
 
-The Meta Model API publishes **no usage, billing, credits, or account endpoint**. The documented
-surface is `POST /v1/responses`, `POST /v1/chat/completions`, `POST /v1/messages`, `/v1/files`,
-`GET /v1/models`, and `GET /v1/status`
-([API reference](https://dev.meta.ai/docs/api-reference)).
+**Token usage comes from local session logs.** Muse Code records every model turn to
+`~/.local/share/muse/sessions/<YYYY>/<MM>/<DD>/<session>/session.jsonl`, so CodexBar derives the same
+local token history it already builds for Claude and Codex — no network call, no credential, and no
+Keychain access. `XDG_DATA_HOME` is honoured.
 
-What it does document is a set of rate-limit response headers returned with successful responses
-([pricing and rate limits](https://dev.meta.ai/docs/pricing-rate-limits)):
+Counted records are `model_completed` and `automated_review_completed`. Two other record kinds also
+carry a `usage` object and are deliberately excluded:
 
-| Header | Window |
+- `resource_usage_sampled` — CPU and RSS gauges, not tokens.
+- `workflow_child_lifecycle` — a child workflow's rollup, whose turns are already recorded on their own.
+
+An unrecognized kind carrying token counts downgrades coverage to partial rather than disappearing from
+the totals.
+
+### Token math
+
+A turn totals `input_tokens + output_tokens`. Verified across 1,431 recorded events, without exception:
+
+| Relation | Meaning |
 | --- | --- |
-| `x-ratelimit-limit-tokens` / `x-ratelimit-remaining-tokens` | Tokens per minute, per team |
-| `x-ratelimit-limit-requests` / `x-ratelimit-remaining-requests` | Requests per minute, per team |
+| `reasoning_tokens` ≤ `output_tokens` | reasoning is part of output |
+| `cached_tokens` ≤ `input_tokens` | cached is part of input |
+| `cached_tokens` == `cache_read_tokens` | the two counters are the same value |
 
-CodexBar therefore issues one `GET {baseURL}/models` — the cheapest documented read-only call, so a
-refresh never spends tokens — and derives both windows from its response headers. Limits apply per
-team, not per key.
+Adding the cache or reasoning counters would double-count badly — one sampled turn reported 41,201
+cached tokens against a 41,231-token input. The `automated_review_completed` shape carries its own
+`total_tokens`, which equalled `input + output` in every observed event.
 
-## Data sources + selection order
+Costs are not reported. The logs record tokens, not billed amounts, and Meta prices per tier.
 
-- **Auto**: API when a key is present, otherwise the local login for identity only.
-- **API**: `META_API_KEY` or `MODEL_API_KEY` from the environment, a token account, or the key stored
-  in `~/.codexbar/config.json`. This is the only source that can report quota.
-- **CLI**: `~/.config/muse/auth.json`, written by `muse login` / `muse auth set`. Supplies the account
-  email and login method. It cannot report quota, because the rate-limit headers only accompany an
-  authenticated API request.
+### Scanning cost
 
-Muse exposes no non-interactive auth-status command — `muse auth` offers only `auth set` — so login
-state is read from that file rather than inferred from a CLI exit code. Only the plaintext metadata is
-parsed; the credential itself stays in the Keychain and is never read, so refreshing Muse never raises
-a Keychain prompt.
+Session trees get large: a sampled tree held 883 MB across 4,388 logs, of which only 1,235 records were
+model turns. Three things keep a refresh cheap:
+
+- Day directories outside the requested history window are skipped without opening a log.
+- Lines without an `input_tokens` field are rejected before JSON parsing.
+- Each file's size, modification time, and per-day totals are cached in
+  `~/Library/Caches/CodexBar/cost-usage/muse-sessions-v1.json`, so an unchanged log is never reread.
+
+On that tree a cold scan took 16 s and a warm scan 0.26 s, for identical totals. A scan that exhausts
+its budget keeps the files it finished and reports partial coverage, so the next refresh resumes.
+
+## Quota
+
+CodexBar does not display a Muse quota, because there is no free way to read one.
+
+The Meta Model API publishes no usage, billing, or account endpoint. Its documented surface is
+`POST /v1/responses`, `POST /v1/chat/completions`, `POST /v1/messages`, `/v1/files`, `GET /v1/models`,
+and `GET /v1/status` ([API reference](https://dev.meta.ai/docs/api-reference)); every other path tested
+with a valid key returned `404`, indistinguishable from a nonexistent one.
+
+The documented `x-ratelimit-limit-tokens`, `x-ratelimit-remaining-tokens`,
+`x-ratelimit-limit-requests` and `x-ratelimit-remaining-requests` headers
+([pricing and rate limits](https://dev.meta.ai/docs/pricing-rate-limits)) are real, but they ride only
+on billed inference responses — `GET /v1/models` and `GET /v1/status` return none. Reading them would
+mean issuing a billed completion on every refresh, which would also consume the very limit it reports.
+They describe a per-minute rate limit rather than a standing budget, so they would read at or near 0%
+except during a burst.
+
+An API key is still useful: it is validated with a free `GET /v1/models` (200 versus 401).
 
 ## API key
 
@@ -51,6 +82,7 @@ a Keychain prompt.
   variable the Meta Model API SDKs read).
 - Config file: `~/.codexbar/config.json` → `providers[].apiKey` for instance `muse`, or `tokenAccounts`.
 - CLI: `printf '%s' "$META_API_KEY" | codexbar config set-api-key --provider muse --stdin`.
+- Used only to validate the key; usage never depends on it.
 - Base URL override: `MUSE_BASE_URL`. The key is sent to this host as a bearer token, so the override is
   validated like every other provider endpoint — HTTPS anywhere, HTTP only for loopback and
   private-network gateways, never with embedded credentials. An override that fails validation surfaces
@@ -67,10 +99,11 @@ a Keychain prompt.
 
 ## Key files
 
+- Local token usage: `Sources/CodexBarCore/Providers/Muse/MuseLocalUsageReader.swift`, `Sources/CodexBarCore/Providers/Muse/MuseLocalUsageCache.swift`
 - Descriptor and strategies: `Sources/CodexBarCore/Providers/Muse/MuseProviderDescriptor.swift`
 - Settings: `Sources/CodexBarCore/Providers/Muse/MuseSettingsReader.swift`, `Sources/CodexBar/Providers/Muse/MuseSettingsStore.swift`
 - Local login metadata: `Sources/CodexBarCore/Providers/Muse/MuseLocalAuthReader.swift`
 - Fetch: `Sources/CodexBarCore/Providers/Muse/MuseUsageFetcher.swift`, `Sources/CodexBarCore/Providers/Muse/MuseUsageSnapshot.swift`
 - Implementation: `Sources/CodexBar/Providers/Muse/MuseProviderImplementation.swift`
 - Icon: `Sources/CodexBar/Resources/ProviderIcon-muse.svg`
-- Tests: `Tests/CodexBarTests/MuseProviderTests.swift`
+- Tests: `Tests/CodexBarTests/MuseProviderTests.swift`, `Tests/CodexBarTests/MuseLocalUsageReaderTests.swift`
