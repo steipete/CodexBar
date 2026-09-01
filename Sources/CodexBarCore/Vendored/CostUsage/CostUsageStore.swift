@@ -80,6 +80,7 @@ actor CostUsageStore {
         parserHash: CodexParserHash.value)
     static let cacheGeneration = "sqlite:\(CostUsageStore.schemaVersion)"
     static let compatiblePredecessorParserHashes: Set<String> = [
+        "e0b0319de43e22d7", // LF-span scanning preserves exact bytes, persisted checkpoints, rows, and reports.
         "7e293e8fc9e25700", // Optional priority validation metadata preserves native usage rows.
         "494eee446bb2e5f9", // Removing unused Claude parser days leaves native Codex semantics unchanged.
         "6366caa15c925349", // Claude invocation pricing memos leave native Codex parsing and pricing unchanged.

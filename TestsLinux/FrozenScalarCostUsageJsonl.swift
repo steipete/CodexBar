@@ -1,13 +1,10 @@
-import Foundation
-#if canImport(Darwin)
-import Darwin
-#elseif canImport(Glibc)
-import Glibc
-#elseif canImport(Musl)
-import Musl
-#endif
+// Frozen e236a21bc27b4caf7bb0ff151059131c332b0ded scalar scanner.
+// Only the enum name and test-module import differ from that production source; do not modernize.
+@testable import CodexBarCore
 
-enum CostUsageJsonl {
+import Foundation
+
+enum FrozenScalarCostUsageJsonl {
     struct Line {
         let bytes: Data
         let wasTruncated: Bool
@@ -132,18 +129,6 @@ enum CostUsageJsonl {
         private var escaping = false
         private var sawNonWhitespace = false
         private var scalarState = ScalarState.notScalar
-
-        /// Persisted Codable checkpoints can contain unusual counters. Preserve the scalar updater
-        /// when skipping could bypass checked depth arithmetic or literal indexing.
-        func canSkipTerminatedSpanUpdates(count: Int) -> Bool {
-            guard self.containerDepth >= 0, self.containerDepth <= Int.max - count else { return false }
-            switch self.scalarState {
-            case let .trueLiteral(matched), let .falseLiteral(matched), let .nullLiteral(matched):
-                return matched >= 0
-            case .notScalar, .number, .invalid:
-                return true
-            }
-        }
 
         mutating func reset() {
             self = Self()
@@ -423,37 +408,21 @@ enum CostUsageJsonl {
                 chunk.withUnsafeBytes { rawBuffer in
                     guard let base = rawBuffer.bindMemory(to: UInt8.self).baseAddress else { return }
                     var segmentStart = 0
-                    while segmentStart < rawBuffer.count {
-                        #if canImport(Darwin) || canImport(Glibc) || canImport(Musl)
-                        guard let newline = memchr(
-                            base.advanced(by: segmentStart),
-                            0x0A,
-                            rawBuffer.count - segmentStart) else { break }
-                        let index = base.distance(to: newline.assumingMemoryBound(to: UInt8.self))
-                        #else
-                        var index = segmentStart
-                        while index < rawBuffer.count, base[index] != 0x0A {
-                            index += 1
-                        }
-                        guard index < rawBuffer.count else { break }
-                        #endif
-                        // A negative decoded line count can keep tail state alive across the flush.
-                        if lineBytes < 0 || !jsonTailState.canSkipTerminatedSpanUpdates(count: index - segmentStart) {
-                            for byteIndex in segmentStart..<index {
-                                jsonTailState.append(base[byteIndex])
-                            }
-                        }
-                        appendSegment(base.advanced(by: segmentStart), count: index - segmentStart)
-                        let lineEndOffset = chunkStartOffset + Int64(index + 1)
-                        flushLine(endOffset: lineEndOffset)
-                        committedOffset = lineEndOffset
-                        lineStartOffset = committedOffset
-                        segmentStart = index + 1
-                    }
-                    if segmentStart < rawBuffer.count {
-                        for index in segmentStart..<rawBuffer.count {
+                    var index = 0
+                    while index < rawBuffer.count {
+                        if base[index] == 0x0A {
+                            appendSegment(base.advanced(by: segmentStart), count: index - segmentStart)
+                            let lineEndOffset = chunkStartOffset + Int64(index + 1)
+                            flushLine(endOffset: lineEndOffset)
+                            committedOffset = lineEndOffset
+                            lineStartOffset = committedOffset
+                            segmentStart = index + 1
+                        } else {
                             jsonTailState.append(base[index])
                         }
+                        index += 1
+                    }
+                    if segmentStart < rawBuffer.count {
                         appendSegment(base.advanced(by: segmentStart), count: rawBuffer.count - segmentStart)
                     }
                 }

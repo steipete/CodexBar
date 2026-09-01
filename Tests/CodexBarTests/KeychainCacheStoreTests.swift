@@ -10,7 +10,7 @@ struct KeychainCacheStoreTests {
     }
 
     @Test
-    func `tests suppress real keychain access by default`() {
+    func `s suppress real keychain access by default`() {
         guard ProcessInfo.processInfo.environment["CODEXBAR_ALLOW_TEST_KEYCHAIN_ACCESS"] != "1" else { return }
 
         #expect(KeychainCacheStore.canUseRealKeychainForTesting == false)
@@ -23,7 +23,7 @@ struct KeychainCacheStoreTests {
         switch KeychainCacheStore.load(key: key, as: TestEntry.self) {
         case let .found(loaded):
             #expect(loaded == entry)
-        case .missing, .temporarilyUnavailable, .invalid:
+        case .interactionRequired, .missing, .temporarilyUnavailable, .invalid:
             #expect(Bool(false), "Expected implicit test cache entry")
         }
     }
@@ -79,7 +79,7 @@ struct KeychainCacheStoreTests {
         switch KeychainCacheStore.load(key: key, as: TestEntry.self) {
         case let .found(loaded):
             #expect(loaded == entry)
-        case .missing, .temporarilyUnavailable, .invalid:
+        case .interactionRequired, .missing, .temporarilyUnavailable, .invalid:
             #expect(Bool(false), "Expected keychain cache entry")
         }
     }
@@ -100,7 +100,7 @@ struct KeychainCacheStoreTests {
         switch KeychainCacheStore.load(key: key, as: TestEntry.self) {
         case let .found(loaded):
             #expect(loaded == second)
-        case .missing, .temporarilyUnavailable, .invalid:
+        case .interactionRequired, .missing, .temporarilyUnavailable, .invalid:
             #expect(Bool(false), "Expected overwritten keychain cache entry")
         }
     }
@@ -119,7 +119,7 @@ struct KeychainCacheStoreTests {
         switch KeychainCacheStore.load(key: key, as: TestEntry.self) {
         case .missing:
             #expect(true)
-        case .found, .temporarilyUnavailable, .invalid:
+        case .found, .interactionRequired, .temporarilyUnavailable, .invalid:
             #expect(Bool(false), "Expected keychain cache entry to be cleared")
         }
     }
@@ -172,17 +172,22 @@ struct KeychainCacheStoreTests {
         let service = "cache-preflight-\(UUID().uuidString)"
         let key = KeychainCacheStore.Key(category: "test", identifier: UUID().uuidString)
         let observed = LockIsolated<(String, String?)?>(nil)
+        let preflightCount = LockIsolated(0)
 
-        let result: KeychainCacheStore.LoadResult<TestEntry> = KeychainCacheStore.withServiceOverrideForTesting(
+        let results: [KeychainCacheStore.LoadResult<TestEntry>] = KeychainCacheStore.withServiceOverrideForTesting(
             service)
         {
             KeychainCacheStore.withRealKeychainPathForTesting {
                 KeychainAccessGate.withTaskOverrideForTesting(false) {
                     KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { candidateService, account in
                         observed.setValue((candidateService, account))
+                        preflightCount.setValue(preflightCount.value + 1)
                         return .interactionRequired
                     } operation: {
-                        KeychainCacheStore.load(key: key, as: TestEntry.self)
+                        [
+                            KeychainCacheStore.load(key: key, as: TestEntry.self),
+                            KeychainCacheStore.load(key: key, as: TestEntry.self),
+                        ]
                     }
                 }
             }
@@ -190,11 +195,114 @@ struct KeychainCacheStoreTests {
 
         #expect(observed.value?.0 == service)
         #expect(observed.value?.1 == key.account)
-        switch result {
-        case .temporarilyUnavailable:
-            break
-        case .found, .invalid, .missing:
-            Issue.record("Expected an unsafe cache item to remain unavailable")
+        #expect(preflightCount.value == 1)
+        for result in results {
+            switch result {
+            case .interactionRequired:
+                break
+            case .found, .invalid, .missing, .temporarilyUnavailable:
+                Issue.record("Expected an unsafe cache item to remain unavailable")
+            }
+        }
+    }
+
+    @Test
+    func `ACL cooldown expires without reads writes or clears extending its deadline`() {
+        let service = "cache-preflight-expiry-\(UUID().uuidString)"
+        let key = KeychainCacheStore.Key(category: "test", identifier: UUID().uuidString)
+        let now = Date(timeIntervalSince1970: 1000)
+        let preflightCount = LockIsolated(0)
+        let entry = TestEntry(value: "test", storedAt: now)
+        KeychainCacheStore.withServiceOverrideForTesting(service) {
+            KeychainCacheStore.withRealKeychainPathForTesting {
+                KeychainAccessGate.withTaskOverrideForTesting(false) {
+                    KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { _, _ in
+                        preflightCount.setValue(preflightCount.value + 1)
+                        return preflightCount.value == 1 ? .interactionRequired : .notFound
+                    } operation: {
+                        KeychainCacheStore.$taskInteractionRequiredNowOverride.withValue(now) {
+                            _ = KeychainCacheStore.load(key: key, as: TestEntry.self)
+                        }
+                        KeychainCacheStore.$taskInteractionRequiredNowOverride.withValue(now.addingTimeInterval(299)) {
+                            _ = KeychainCacheStore.load(key: key, as: TestEntry.self)
+                            #expect(!KeychainCacheStore.storeResult(key: key, entry: entry))
+                            #expect(KeychainCacheStore.clearResult(key: key) == .failed)
+                            #expect(KeychainCacheStore.interactionRequiredRetryDate(for: key) ==
+                                now.addingTimeInterval(300))
+                            #expect(preflightCount.value == 1)
+                        }
+                        KeychainCacheStore.$taskInteractionRequiredNowOverride.withValue(now.addingTimeInterval(300)) {
+                            guard case .missing = KeychainCacheStore.load(key: key, as: TestEntry.self) else {
+                                Issue.record("An externally removed cache item should recover after the cooldown")
+                                return
+                            }
+                            #expect(preflightCount.value == 2)
+                            #expect(KeychainCacheStore.interactionRequiredRetryDate(for: key) == nil)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    func `ACL cooldown is isolated by service and account`() {
+        let service = "cache-preflight-isolation-\(UUID().uuidString)"
+        let key = KeychainCacheStore.Key(category: "test", identifier: UUID().uuidString)
+        let otherKey = KeychainCacheStore.Key(category: "test", identifier: UUID().uuidString)
+        let preflightCount = LockIsolated(0)
+        KeychainCacheStore.withRealKeychainPathForTesting {
+            KeychainAccessGate.withTaskOverrideForTesting(false) {
+                KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { _, _ in
+                    preflightCount.setValue(preflightCount.value + 1)
+                    return .interactionRequired
+                } operation: {
+                    for candidateService in [service, "\(service)-other"] {
+                        KeychainCacheStore.withServiceOverrideForTesting(candidateService) {
+                            for candidateKey in [key, otherKey] {
+                                _ = KeychainCacheStore.load(key: candidateKey, as: TestEntry.self)
+                                _ = KeychainCacheStore.load(key: candidateKey, as: TestEntry.self)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        #expect(preflightCount.value == 4)
+    }
+
+    @Test
+    func `temporarily unavailable preflight remains retryable`() {
+        let service = "cache-preflight-retry-\(UUID().uuidString)"
+        let key = KeychainCacheStore.Key(category: "test", identifier: UUID().uuidString)
+        let preflightCount = LockIsolated(0)
+
+        let results: [KeychainCacheStore.LoadResult<TestEntry>] = KeychainCacheStore.withServiceOverrideForTesting(
+            service)
+        {
+            KeychainCacheStore.withRealKeychainPathForTesting {
+                KeychainAccessGate.withTaskOverrideForTesting(false) {
+                    KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { _, _ in
+                        preflightCount.setValue(preflightCount.value + 1)
+                        return .temporarilyUnavailable
+                    } operation: {
+                        [
+                            KeychainCacheStore.load(key: key, as: TestEntry.self),
+                            KeychainCacheStore.load(key: key, as: TestEntry.self),
+                        ]
+                    }
+                }
+            }
+        }
+
+        #expect(preflightCount.value == 2)
+        for result in results {
+            switch result {
+            case .temporarilyUnavailable:
+                break
+            case .found, .interactionRequired, .invalid, .missing:
+                Issue.record("Expected temporary preflight failure to remain retryable")
+            }
         }
     }
 
@@ -213,7 +321,7 @@ struct KeychainCacheStoreTests {
         switch result {
         case .missing:
             break
-        case .found, .temporarilyUnavailable, .invalid:
+        case .found, .interactionRequired, .temporarilyUnavailable, .invalid:
             Issue.record("Expected a missing preflight item to skip the secret-data query")
         }
     }
@@ -223,7 +331,11 @@ struct KeychainCacheStoreTests {
         let key = KeychainCacheStore.Key(category: "test", identifier: UUID().uuidString)
         let entry = TestEntry(value: "blocked", storedAt: Date(timeIntervalSince1970: 0))
         let recorder = KeychainCacheStore.OperationRecorder()
-        let preflight: (String, String?) -> KeychainAccessPreflight.Outcome = { _, _ in .interactionRequired }
+        let preflightCount = LockIsolated(0)
+        let preflight: (String, String?) -> KeychainAccessPreflight.Outcome = { _, _ in
+            preflightCount.setValue(preflightCount.value + 1)
+            return .interactionRequired
+        }
 
         KeychainCacheStore.withRealKeychainPathForTesting {
             KeychainAccessGate.withTaskOverrideForTesting(false) {
@@ -237,6 +349,7 @@ struct KeychainCacheStoreTests {
         }
 
         #expect(recorder.operations == [.store, .clear])
+        #expect(preflightCount.value == 1)
     }
 
     @Test
@@ -249,7 +362,7 @@ struct KeychainCacheStoreTests {
         switch result {
         case .temporarilyUnavailable:
             #expect(true)
-        case .found, .missing, .invalid:
+        case .found, .interactionRequired, .missing, .invalid:
             #expect(Bool(false), "Expected temporary keychain lock to be retry-later")
         }
     }
@@ -276,7 +389,7 @@ struct KeychainCacheStoreTests {
             switch KeychainCacheStore.load(key: key, as: TestEntry.self) {
             case .temporarilyUnavailable:
                 #expect(true)
-            case .found, .missing, .invalid:
+            case .found, .interactionRequired, .missing, .invalid:
                 #expect(Bool(false), "Expected override to run before test store")
             }
         }
@@ -284,7 +397,7 @@ struct KeychainCacheStoreTests {
         switch KeychainCacheStore.load(key: key, as: TestEntry.self) {
         case let .found(loaded):
             #expect(loaded == entry)
-        case .missing, .temporarilyUnavailable, .invalid:
+        case .interactionRequired, .missing, .temporarilyUnavailable, .invalid:
             #expect(Bool(false), "Expected override not to mutate test store")
         }
     }
@@ -308,7 +421,7 @@ struct KeychainCacheStoreTests {
                     switch KeychainCacheStore.load(key: key, as: TestEntry.self) {
                     case let .found(loaded):
                         #expect(loaded == entry)
-                    case .missing, .temporarilyUnavailable, .invalid:
+                    case .interactionRequired, .missing, .temporarilyUnavailable, .invalid:
                         #expect(Bool(false), "Expected in-process memory cache entry")
                     }
                     #expect(KeychainCacheStore.keys(category: "cookie").contains(key))
@@ -316,7 +429,7 @@ struct KeychainCacheStoreTests {
                     switch KeychainCacheStore.load(key: key, as: TestEntry.self) {
                     case .missing:
                         break
-                    case .found, .temporarilyUnavailable, .invalid:
+                    case .found, .interactionRequired, .temporarilyUnavailable, .invalid:
                         #expect(Bool(false), "Expected memory cache entry to be cleared")
                     }
                 }

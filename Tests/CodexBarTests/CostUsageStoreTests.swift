@@ -1006,6 +1006,7 @@ extension CostUsageStoreTests {
 
 extension CostUsageStoreTests {
     @Test(arguments: [
+        "e0b0319de43e22d7",
         "7e293e8fc9e25700",
         "494eee446bb2e5f9",
         "6366caa15c925349",
@@ -1023,6 +1024,7 @@ extension CostUsageStoreTests {
         let fixture = try StoreFixture()
         defer { fixture.remove() }
         #expect(CostUsageStore.compatiblePredecessorParserHashes == [
+            "e0b0319de43e22d7",
             "7e293e8fc9e25700",
             "494eee446bb2e5f9",
             "6366caa15c925349",
@@ -1052,7 +1054,24 @@ extension CostUsageStoreTests {
             cacheRoot: fixture.root,
             schemaVersion: predecessorVersion,
             parserHash: predecessorHash)
-        let file = Self.file(path: "/rollouts/compatible.jsonl", day: "2026-08-01")
+        let input = fixture.root.appendingPathComponent("compatible.jsonl")
+        let partial = Data("{}\n{\"body\":\"unfinished".utf8)
+        try partial.write(to: input)
+        let progress = try CostUsageJsonl.scanBounded(
+            fileURL: input,
+            maxLineBytes: 1024,
+            prefixBytes: 1024,
+            maxBytesToRead: nil,
+            resumeState: nil,
+            onLine: { _ in })
+        let resume = try #require(progress.resumeState)
+        var file = Self.file(path: input.path, day: "2026-08-01")
+        file.size = Int64(partial.count)
+        file.parsedBytes = progress.committedOffset
+        file.anchor = nil
+        file.scanState.targetSize = file.size
+        file.scanState.isComplete = false
+        file.scanState.resumePayload = try JSONEncoder().encode(resume)
         let token = Self.snapshot(path: file.path, eventIndex: 0)
         let usageRow = CostUsageStoreUsageRow(path: file.path, rowIndex: 0, payload: Data([8, 9, 10]))
         let aggregate = Self.aggregate(day: "2026-08-01", model: "gpt-5.6-sol", scale: 1)
@@ -1089,6 +1108,23 @@ extension CostUsageStoreTests {
         let connection = try SQLiteTestConnection(url: fixture.databaseURL, readOnly: true)
         #expect(try connection.scalarInt(
             "SELECT COUNT(*) FROM meta WHERE key = 'parser_hash' AND value = '\(CodexParserHash.value)'") == 1)
+        let adoptedFile = try #require(await current.fetchFile(path: file.path))
+        let adoptedResume = try JSONDecoder().decode(
+            CostUsageJsonl.ResumeState.self,
+            from: #require(adoptedFile.scanState.resumePayload))
+        #expect(adoptedResume == resume)
+        try (partial + Data("\"}\n".utf8)).write(to: input)
+        var resumedLines: [Data] = []
+        let resumed = try CostUsageJsonl.scanBounded(
+            fileURL: input,
+            maxLineBytes: 1024,
+            prefixBytes: 1024,
+            maxBytesToRead: nil,
+            resumeState: adoptedResume,
+            onLine: { resumedLines.append($0.bytes) })
+        #expect(resumedLines == [Data(#"{"body":"unfinished"}"#.utf8)])
+        #expect(resumed.committedOffset == Int64(partial.count + 3))
+        #expect(resumed.resumeState == nil)
     }
 
     @Test(arguments: ["8050a4faf4fddb96", "dd19ffa2dcfa8d47"])

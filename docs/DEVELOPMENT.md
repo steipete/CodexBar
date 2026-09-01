@@ -198,6 +198,34 @@ for replacement and publication tests.
 
 ### Cost scanner CPU regressions
 
+`CostUsageJsonl` finds complete physical LF spans with bounded libc `memchr` on Darwin, Glibc, and
+Musl, using the same span algorithm with scalar LF search elsewhere. Borrowed pointers stay inside
+the current `withUnsafeBytes` call; search counts and distances fit the existing 256 KiB read chunk.
+Complete spans keep the original prefix-copy and flush path. Unfinished chunk suffixes still run the
+original scalar JSON tail updater, preserving exact resumable state and EOF validation. CR bytes,
+empty-line offsets, independent prefix/max limits, budgets, and cancellation/stop ordering are unchanged.
+
+Persisted Codable checkpoints are a compatibility boundary, including unusual decoded counters.
+Skipping tail updates requires a nonnegative line count, safe container-depth arithmetic for the span,
+and nonnegative literal indices. Otherwise the same scalar updater runs before the existing flush;
+this preserves its checked operations and state when the flush does not reset a negative line count.
+Do not replace this guard with checkpoint normalization or a new corrupt-cache recovery policy.
+
+`CostUsageJsonlDifferentialTests` in the portable `TestsLinux` target compares exact bytes, offsets,
+sorted full Codable state, callback order, and error domain/code with the frozen e236a21b scalar scanner.
+Its bounded default matrix covers every short-input split, threshold/chunk boundaries, mutations,
+cross-version resumes, and safe unusual checkpoints. Keep that oracle frozen and the older scanner
+oracle independently useful. Full optimized scratch parity must copy the final production source;
+prototype results alone do not carry forward through formatting or edits. Scanner parity does not
+establish pipeline performance; signed optimized builds and synthetic pipeline timing are separate proof.
+
+The shared scanner remains a parser-hash input. Published `e0b0319de43e22d7` is the immediate tested
+compatible predecessor because LF-span scanning preserves persisted semantics, including the priority
+cursor changes in #3318. The earlier `7e293e8fc9e25700` and existing predecessors remain supported.
+Native adoption retains rows and checkpoints while invalidating old connection receipts.
+Pi/OMP still reparses once when the hash changes,
+with and without a catalog; subsequent unchanged reads use the current cache. No pricing-key alias is added.
+
 Profile the cost-scan queue separately from the main thread. A busy background scan that later settles
 does not establish an infinite loop. Native timestamp conversion uses Foundation's modern ISO parser
 for strict RFC3339 input, retaining the previous formatter's millisecond truncation and rounding.
