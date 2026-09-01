@@ -104,6 +104,7 @@ extension AntigravityLocalReader {
         let supported = try self.hasSupportedSQLiteTable(database, budget: budget)
         if let failure = progress.failure { throw failure }
         guard supported else { return SourceResult(isComplete: false) }
+        let trajectoryStartTimestampMs = try self.readTrajectoryStartTimestamp(database, budget: budget)
         sqlite3_limit(database, SQLITE_LIMIT_LENGTH, Int32(maximumValueBytes))
         var statement: OpaquePointer?
         defer { sqlite3_finalize(statement) }
@@ -120,7 +121,10 @@ extension AntigravityLocalReader {
         guard prepared == SQLITE_OK, let statement else { return SourceResult(isComplete: false) }
         sqlite3_bind_int64(statement, 1, Int64(min(budget.limits.rowsPerDatabase, 10000) + 1))
         return try self.readRows(
-            statement, session: url.deletingPathExtension().lastPathComponent, progress: progress)
+            statement,
+            session: url.deletingPathExtension().lastPathComponent,
+            trajectoryStartTimestampMs: trajectoryStartTimestampMs,
+            progress: progress)
         #else
         return SourceResult(isComplete: false)
         #endif
@@ -130,6 +134,7 @@ extension AntigravityLocalReader {
     private static func readRows(
         _ statement: OpaquePointer,
         session: String,
+        trajectoryStartTimestampMs: Int64?,
         progress: SQLProgress) throws -> SourceResult
     {
         let budget = progress.budget
@@ -173,16 +178,59 @@ extension AntigravityLocalReader {
                 continue
             }
             // Validate exactly once while the single SQL snapshot is held; buffer only typed events.
-            guard let turn = try AntigravityProtoReader.parseTurn(bytes, checkCancellation: budget.check),
-                  let event = Event(
-                      session: session, row: row, turn: turn, cacheWrite: 0)
+            guard let turn = try AntigravityProtoReader.parseTurn(
+                bytes,
+                trajectoryStartTimestampMs: trajectoryStartTimestampMs,
+                checkCancellation: budget.check)
             else {
+                result.isComplete = false
+                continue
+            }
+            if turn.isConversationAggregate { continue }
+            guard let event = Event(session: session, row: row, turn: turn, cacheWrite: 0) else {
                 result.isComplete = false
                 continue
             }
             result.events.append(event)
         }
         return result
+    }
+
+    private static func readTrajectoryStartTimestamp(
+        _ database: OpaquePointer,
+        budget: Budget) throws -> Int64?
+    {
+        var statement: OpaquePointer?
+        defer { sqlite3_finalize(statement) }
+        // This table is absent in older Antigravity databases. Its timestamp is the base for
+        // the relative per-turn timestamp used by current Antigravity databases.
+        guard sqlite3_prepare_v2(
+            database,
+            "SELECT data FROM main.trajectory_metadata_blob ORDER BY id LIMIT 1",
+            -1,
+            &statement,
+            nil) == SQLITE_OK,
+            let statement
+        else {
+            return nil
+        }
+        let step = sqlite3_step(statement)
+        guard step == SQLITE_ROW else { return nil }
+        guard sqlite3_column_type(statement, 0) == SQLITE_BLOB,
+              let pointer = sqlite3_column_blob(statement, 0)
+        else {
+            return nil
+        }
+        let count = Int(sqlite3_column_bytes(statement, 0))
+        guard count > 0 else { return nil }
+        try budget.chargeBytes(count)
+        let bytes = Array(UnsafeBufferPointer(
+            start: pointer.assumingMemoryBound(to: UInt8.self), count: count))
+        do {
+            return try AntigravityProtoReader.trajectoryStartTimestampMs(bytes, checkCancellation: budget.check)
+        } catch AntigravityLocalReader.ScanFailure.invalid {
+            return nil
+        }
     }
     #endif
 }

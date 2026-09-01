@@ -25,6 +25,8 @@ struct AntigravityLocalReaderTests {
         #expect(report.report.data.first?.date == "2026-08-27")
         #expect(report.report.data.first?.inputTokens == 111)
         #expect(report.report.data.first?.outputTokens == 30)
+        #expect(report.report.data.first?.cacheReadTokens == 50)
+        #expect(report.report.data.first?.cacheCreationTokens == 0)
         #expect(report.report.data.first?.reasoningTokens == 7)
         #expect(report.report.data.first?.modelBreakdowns?.first?.modelName == "unknown")
         #expect(try await fixture.snapshot().last30DaysTokens == 198)
@@ -88,6 +90,177 @@ struct AntigravityLocalReaderTests {
         #expect(snapshot.costProvenance == .unknown)
         #expect(snapshot.daily.allSatisfy { $0.costUSD == nil })
         #expect(snapshot.daily.flatMap { $0.modelBreakdowns ?? [] }.allSatisfy { $0.costUSD == nil })
+    }
+
+    @Test
+    func `modern relative timestamps add elapsed milliseconds to the trajectory base`() throws {
+        let baseSeconds = UInt64(Fixture.now.timeIntervalSince1970)
+        let metadata = Fixture.sessionMetadata(createdSeconds: baseSeconds, nanos: 456_789_000)
+        let baseMilliseconds = try #require(
+            try AntigravityProtoReader.trajectoryStartTimestampMs(metadata))
+        let turn = try #require(try AntigravityProtoReader.parseTurn(
+            Fixture.modernBlob(elapsedMilliseconds: 1234),
+            trajectoryStartTimestampMs: baseMilliseconds))
+
+        #expect(baseMilliseconds == Int64(baseSeconds) * 1000 + 456)
+        #expect(turn.timestampMs == baseMilliseconds + 1234)
+    }
+
+    @Test
+    func `zero elapsed milliseconds are proto3 elided and date at the trajectory base`() throws {
+        let baseMilliseconds = Int64(Fixture.now.timeIntervalSince1970 * 1000)
+        let relativeTimestamp = Fixture.relativeTimestamp(elapsedMilliseconds: 0, contextWindow: 256_000)
+        #expect(relativeTimestamp == Fixture.varint(4, 256_000))
+        let turn = try #require(try AntigravityProtoReader.parseTurn(
+            Fixture.modernBlob(elapsedMilliseconds: 0, contextWindow: 256_000),
+            trajectoryStartTimestampMs: baseMilliseconds))
+        #expect(turn.timestampMs == baseMilliseconds)
+    }
+
+    @Test
+    func `modern relative timestamp rows are dated from trajectory metadata`() async throws {
+        let fixture = try Fixture()
+        try fixture.database(
+            blobs: [Fixture.modernBlob(elapsedMilliseconds: 1234)],
+            createdSeconds: UInt64(Fixture.now.timeIntervalSince1970),
+            createdNanos: 456_789_000)
+
+        let report = try fixture.report()
+        #expect(report.coverage == .complete)
+        #expect(report.report.summary?.totalTokens == 198)
+        #expect(report.report.data.first?.inputTokens == 111)
+        #expect(report.report.data.first?.outputTokens == 30)
+        #expect(report.report.data.first?.cacheReadTokens == 50)
+        #expect(report.report.data.first?.cacheCreationTokens == 0)
+        #expect(report.report.data.first?.reasoningTokens == 7)
+        #expect(report.report.data.first?.date == "2026-08-27")
+
+        let snapshot = try await fixture.snapshot()
+        #expect(snapshot.historyCoverageIsEstablished)
+        #expect(snapshot.last30DaysTokens == 198)
+        #expect(snapshot.last30DaysCostUSD == nil)
+    }
+
+    @Test
+    func `modern rows without a trajectory base remain partial`() throws {
+        let fixture = try Fixture()
+        try fixture.database(blobs: [Fixture.modernBlob()])
+
+        let report = try fixture.report()
+        #expect(report.coverage == .partial)
+        #expect(report.report.summary == nil)
+    }
+
+    @Test
+    func `malformed trajectory metadata does not invalidate legacy timestamps`() throws {
+        let fixture = try Fixture()
+        try fixture.database(
+            blobs: [Fixture.blob()],
+            sessionMetadataBlob: [0x12, 0x02, 0x08])
+
+        let report = try fixture.report()
+        #expect(report.coverage == .complete)
+        #expect(report.report.summary?.totalTokens == 198)
+    }
+
+    @Test
+    func `modern rows with malformed trajectory metadata remain partial`() throws {
+        let fixture = try Fixture()
+        try fixture.database(
+            blobs: [Fixture.modernBlob()],
+            sessionMetadataBlob: [0x12, 0x02, 0x08])
+
+        let report = try fixture.report()
+        #expect(report.coverage == .partial)
+        #expect(report.report.summary == nil)
+    }
+
+    @Test
+    func `legacy event timestamps take precedence over modern relative timestamps`() throws {
+        let fixture = try Fixture()
+        try fixture.database(
+            blobs: [Fixture.modernBlob(
+                elapsedMilliseconds: 5000,
+                legacySeconds: UInt64(Fixture.now.timeIntervalSince1970) - 86400)],
+            createdSeconds: UInt64(Fixture.now.timeIntervalSince1970))
+
+        let report = try fixture.report()
+        #expect(report.coverage == .complete)
+        #expect(report.report.data.first?.date == "2026-08-26")
+    }
+
+    @Test
+    func `malformed wrong-wire and overflowing relative timestamps fail closed`() throws {
+        let fixture = try Fixture()
+        let malformedOffset = Fixture.modernBlob(
+            response: "malformed-offset",
+            generationFields: Fixture.message(10, [0x08, 0x80]))
+        let wrongWireOffset = Fixture.modernBlob(
+            response: "wrong-wire-offset",
+            generationFields: Fixture.message(10, Fixture.message(1, [1]) + Fixture.varint(4, 128_000)))
+        let wrongWireContext = Fixture.modernBlob(
+            response: "wrong-wire-context",
+            generationFields: Fixture.message(10, Fixture.varint(1, 1) + Fixture.message(4, [1])))
+        let wrongMarker = Fixture.modernBlob(
+            response: "wrong-marker",
+            generationMarker: 2)
+        let overflowingOffset = Fixture.modernBlob(
+            response: "overflowing-offset",
+            elapsedMilliseconds: UInt64.max)
+        try fixture.database(
+            blobs: [
+                malformedOffset,
+                wrongWireOffset,
+                wrongWireContext,
+                wrongMarker,
+                overflowingOffset,
+            ],
+            createdSeconds: UInt64(Fixture.now.timeIntervalSince1970))
+
+        let report = try fixture.report()
+        #expect(report.coverage == .partial)
+        #expect(report.report.summary == nil)
+    }
+
+    @Test
+    func `conversation aggregate rows do not invalidate generation history`() throws {
+        let fixture = try Fixture()
+        let usage = Fixture.message(4, Fixture.varint(1, 11))
+        let aggregates = [1, 2].map { field in
+            Fixture.message(1, Fixture.message(field, Fixture.varint(1, 1)) + usage)
+        }
+        try fixture.database(blobs: [Fixture.blob()] + aggregates)
+
+        let report = try fixture.report()
+        #expect(report.coverage == .complete)
+        #expect(report.report.summary?.totalTokens == 198)
+    }
+
+    @Test(arguments: [1, 2])
+    func `wrong wire conversation fields produce partial coverage`(field: Int) throws {
+        let fixture = try Fixture()
+        try fixture.database(blobs: [Fixture.conversationMarkerBlob(marker: Fixture.varint(field, 1))])
+
+        let report = try fixture.report()
+        #expect(report.coverage == .partial)
+        #expect(report.report.summary == nil)
+    }
+
+    @Test
+    func `conversation marker with generation evidence remains token history`() throws {
+        let fixture = try Fixture()
+        try fixture.database(
+            blobs: [Fixture.conversationMarkerBlob(includeGeneration: true)],
+            createdSeconds: UInt64(Fixture.now.timeIntervalSince1970))
+
+        let report = try fixture.report()
+        #expect(report.coverage == .complete)
+        let entry = try #require(report.report.data.first)
+        #expect(entry.inputTokens == 111)
+        #expect(entry.outputTokens == 30)
+        #expect(entry.cacheReadTokens == 50)
+        #expect(entry.cacheCreationTokens == 0)
+        #expect(entry.reasoningTokens == 7)
     }
 
     @Test
