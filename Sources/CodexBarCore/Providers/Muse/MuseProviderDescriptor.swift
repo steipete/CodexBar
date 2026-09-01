@@ -5,7 +5,6 @@ public enum MuseProviderDescriptor {
 
     private static let credentials = ProviderCredentialAdapter.apiKey(
         environmentKey: MuseSettingsReader.apiKeyEnvironmentKeys[0],
-        precedence: .environment,
         environmentHasValue: { MuseSettingsReader.apiKey(environment: $0) != nil },
         resolve: MuseSettingsReader.apiKey,
         tokenAccountSupport: TokenAccountSupport(
@@ -25,8 +24,8 @@ public enum MuseProviderDescriptor {
                 id: .muse,
                 displayName: "Muse",
                 shortDisplayName: "Muse",
-                sessionLabel: "Session",
-                weeklyLabel: "Weekly",
+                sessionLabel: "Tokens",
+                weeklyLabel: "Requests",
                 opusLabel: nil,
                 supportsOpus: false,
                 supportsCredits: false,
@@ -37,17 +36,12 @@ public enum MuseProviderDescriptor {
                 widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
-                sharePlanLabels: [
-                    "free": "Free",
-                    "pro": "Pro",
-                    "team": "Team",
-                    "enterprise": "Enterprise",
-                ],
+                sharePlanLabels: [:],
                 dashboardURL: "https://dev.meta.ai",
-                subscriptionDashboardURL: "https://accountscenter.meta.com/muse_code/",
-                changelogURL: "https://github.com/meta/muse-code/releases",
+                subscriptionDashboardURL: "https://dev.meta.ai/docs/pricing-rate-limits",
+                changelogURL: "https://dev.meta.ai/docs/muse-code/changelog",
                 statusPageURL: nil,
-                statusLinkURL: "https://developers.facebook.com/status/"),
+                statusLinkURL: nil),
             branding: ProviderBranding(
                 iconStyle: .init(provider: .muse),
                 iconResourceName: "ProviderIcon-muse",
@@ -60,13 +54,13 @@ public enum MuseProviderDescriptor {
                 burnDownWidgetColor: ProviderColor(red: 6 / 255, green: 104 / 255, blue: 225 / 255)),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
-                noDataMessage: { "Muse cost summary is not yet available. Set META_API_KEY or run `muse login`." }),
+                noDataMessage: { "Muse does not publish a cost endpoint. Set META_API_KEY or run `muse login`." }),
             fetchPlan: self.fetchPlan(),
             cli: ProviderCLIConfig(
                 name: "muse",
                 aliases: ["muse-code"],
-                binaryLocator: { BinaryLocator.resolveMuseBinary() },
-                versionDetector: { _ in Self.detectVersion() },
+                binaryLocator: nil,
+                versionDetector: nil,
                 supportsCostCommand: false))
     }
 
@@ -77,35 +71,26 @@ public enum MuseProviderDescriptor {
     }
 
     private static func resolveStrategies(context: ProviderFetchContext) async -> [any ProviderFetchStrategy] {
-        // CLI strategy is fallback when no API key is present but CLI is installed.
         let hasKey = MuseSettingsReader.apiKey(environment: context.env) != nil
-        let hasCLI = BinaryLocator.resolveMuseBinary() != nil
 
         switch context.sourceMode {
         case .api:
             return [MuseAPIFetchStrategy()]
         case .cli:
-            return hasCLI ? [MuseCLIFetchStrategy()] : []
+            return [MuseLocalFetchStrategy()]
         case .auto:
+            // Only the API key can produce quota; the local login supplies identity when it cannot.
             if hasKey {
-                return [MuseAPIFetchStrategy()]
+                return [MuseAPIFetchStrategy(), MuseLocalFetchStrategy()]
             }
-            if hasCLI {
-                return [MuseCLIFetchStrategy()]
+            if MuseLocalAuthReader.read() != nil {
+                return [MuseLocalFetchStrategy()]
             }
-            // Keep strategy available so missing-credentials surfaces as friendly error.
+            // No credentials anywhere: keep the API strategy so the miss surfaces as a friendly error.
             return [MuseAPIFetchStrategy()]
         case .web, .oauth:
             return []
         }
-    }
-
-    private static func detectVersion() -> String? {
-        guard let binary = BinaryLocator.resolveMuseBinary() else { return nil }
-        let result = ShellCommand.run(binary, args: ["--version"], timeoutSeconds: 5)
-        guard result.exitCode == 0 else { return nil }
-        let output = (result.stdout + result.stderr).trimmingCharacters(in: .whitespacesAndNewlines)
-        return output.isEmpty ? nil : output
     }
 }
 
@@ -119,7 +104,7 @@ struct MuseAPIFetchStrategy: ProviderFetchStrategy {
     }
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        // Always available so missing-credentials error is user-friendly.
+        // Always available so a missing key surfaces as an actionable error rather than an empty menu.
         true
     }
 
@@ -127,98 +112,57 @@ struct MuseAPIFetchStrategy: ProviderFetchStrategy {
         guard let apiKey = MuseSettingsReader.apiKey(environment: context.env) else {
             throw MuseUsageError.missingCredentials
         }
-        let baseURL = MuseSettingsReader.baseURL(environment: context.env)
+        let localAuth = MuseLocalAuthReader.read()
+        let baseURL = try MuseSettingsReader.baseURL(environment: context.env, localAuth: localAuth)
         let snapshot = try await MuseUsageFetcher.fetchUsage(
             apiKey: apiKey,
             baseURL: baseURL,
+            localAuth: localAuth,
             transport: self.transport)
         return self.makeResult(usage: snapshot.toUsageSnapshot(), sourceLabel: "api")
     }
 
-    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
-        false
+    /// Fall back to the local identity only when the key itself is the problem; a network or endpoint
+    /// failure must stay visible instead of being papered over with an identity card.
+    func shouldFallback(on error: Error, context _: ProviderFetchContext) -> Bool {
+        guard let error = error as? MuseUsageError else { return false }
+        switch error {
+        case .missingCredentials, .invalidAPIKey:
+            return MuseLocalAuthReader.read() != nil
+        case .invalidEndpointOverride, .usageUnavailable, .networkError:
+            return false
+        }
     }
 }
 
-struct MuseCLIFetchStrategy: ProviderFetchStrategy {
-    let id = "muse.cli"
-    let kind: ProviderFetchKind = .cli
+/// Identity from the credential metadata `muse login` writes to `~/.config/muse/auth.json`.
+///
+/// Muse exposes no non-interactive auth-status command (`muse auth` only offers `auth set`), so login
+/// state is read from that file rather than inferred from a CLI exit code. Reporting quota is not
+/// possible here: the rate-limit headers only accompany an authenticated API call.
+struct MuseLocalFetchStrategy: ProviderFetchStrategy {
+    let id = "muse.local"
+    let kind: ProviderFetchKind = .localProbe
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        BinaryLocator.resolveMuseBinary() != nil
+        MuseLocalAuthReader.read() != nil
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        guard let binary = BinaryLocator.resolveMuseBinary() else {
+        guard let localAuth = MuseLocalAuthReader.read() else {
             throw MuseUsageError.missingCredentials
         }
-        // Check that CLI is authenticated — `muse login` stores in Keychain.
-        // We do not parse quota from CLI yet; return identity-only snapshot
-        // that proves CLI is installed and reachable.
-        let versionResult = ShellCommand.run(binary, args: ["--version"], timeoutSeconds: 5)
-        let version = (versionResult.stdout + versionResult.stderr)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-
-        let loginCheck = ShellCommand.run(binary, args: ["auth", "--help"], timeoutSeconds: 5)
-        let isAuthenticated = loginCheck.exitCode == 0
-
         let snapshot = MuseUsageSnapshot(
-            primary: nil,
-            secondary: nil,
-            accountEmail: nil,
-            plan: isAuthenticated ? "Muse CLI (\(version))" : "CLI (not logged in)",
+            accountEmail: localAuth.accountEmail,
+            plan: localAuth.loginMethod,
             updatedAt: Date())
-
-        if !isAuthenticated, MuseSettingsReader.apiKey(environment: context.env) == nil {
-            throw MuseUsageError.missingCredentials
-        }
-
-        return self.makeResult(usage: snapshot.toUsageSnapshot(), sourceLabel: "cli")
+        return self.makeResult(
+            usage: snapshot.toUsageSnapshot(),
+            sourceLabel: "local",
+            diagnostic: "Muse reports quota only through API rate-limit headers; set META_API_KEY for usage.")
     }
 
     func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
         false
-    }
-}
-
-/// Minimal shell helper local to Muse.
-private enum ShellCommand {
-    struct Result {
-        let stdout: String
-        let stderr: String
-        let exitCode: Int32
-    }
-
-    static func run(_ executable: String, args: [String], timeoutSeconds: Int) -> Result {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: executable)
-        process.arguments = args
-
-        let stdoutPipe = Pipe()
-        let stderrPipe = Pipe()
-        process.standardOutput = stdoutPipe
-        process.standardError = stderrPipe
-
-        do {
-            try process.run()
-        } catch {
-            return Result(stdout: "", stderr: error.localizedDescription, exitCode: 127)
-        }
-
-        let timeout = DispatchTime.now() + .seconds(timeoutSeconds)
-        while process.isRunning, DispatchTime.now() < timeout {
-            Thread.sleep(forTimeInterval: 0.05)
-        }
-        if process.isRunning {
-            process.terminate()
-            return Result(stdout: "", stderr: "timed out", exitCode: 124)
-        }
-
-        let stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-        let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
-        return Result(
-            stdout: String(data: stdoutData, encoding: .utf8) ?? "",
-            stderr: String(data: stderrData, encoding: .utf8) ?? "",
-            exitCode: process.terminationStatus)
     }
 }

@@ -3,12 +3,31 @@ import Foundation
 import FoundationNetworking
 #endif
 
+/// Reads Muse quota from the Meta Model API.
+///
+/// The Model API publishes no usage or billing endpoint (see the endpoint list in
+/// https://dev.meta.ai/docs/api-reference). What it does document is a set of rate-limit response
+/// headers returned alongside successful responses, so quota is read from the headers of the
+/// cheapest documented read-only call, `GET /v1/models`, rather than from a request that would
+/// spend tokens.
 public enum MuseUsageFetcher {
     private static let requestTimeoutSeconds: TimeInterval = 15
 
+    /// https://dev.meta.ai/docs/pricing-rate-limits
+    enum RateLimitHeader {
+        static let limitTokens = "x-ratelimit-limit-tokens"
+        static let remainingTokens = "x-ratelimit-remaining-tokens"
+        static let limitRequests = "x-ratelimit-limit-requests"
+        static let remainingRequests = "x-ratelimit-remaining-requests"
+    }
+
+    /// Documented limits are per minute, per team.
+    private static let windowMinutes = 1
+
     public static func fetchUsage(
         apiKey: String,
-        baseURL: URL = MuseSettingsReader.baseURL(),
+        baseURL: URL = MuseSettingsReader.defaultBaseURL,
+        localAuth: MuseLocalAuth? = nil,
         transport: any ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> MuseUsageSnapshot
     {
         let trimmed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -16,72 +35,23 @@ public enum MuseUsageFetcher {
             throw MuseUsageError.missingCredentials
         }
 
-        // Try to fetch account/usage from Meta API. If the endpoint is not yet
-        // published or returns non-2xx, fall back to a minimal snapshot that
-        // proves the key is present. This keeps the provider useful on day one
-        // while allowing a real quota fetch once Meta publishes the endpoint.
-        if let snapshot = try await self.tryFetchQuota(apiKey: trimmed, baseURL: baseURL, transport: transport) {
-            return snapshot
-        }
-
-        // Fallback: key is present but no quota endpoint responded.
-        // Return identity-only snapshot so the menu shows "API key configured".
-        return MuseUsageSnapshot(
-            primary: nil,
-            secondary: nil,
-            accountEmail: nil,
-            plan: "API Key",
-            updatedAt: Date())
-    }
-
-    private static func tryFetchQuota(
-        apiKey: String,
-        baseURL: URL,
-        transport: any ProviderHTTPTransport) async throws -> MuseUsageSnapshot?
-    {
-        // Candidate endpoints — Meta has not published a stable usage endpoint yet.
-        // We probe a small list and treat 404/501 as "not available".
-        let candidates = [
-            baseURL.appendingPathComponent("usage"),
-            baseURL.appendingPathComponent("billing/usage"),
-            baseURL.appendingPathComponent("me"),
-            URL(string: "https://api.meta.ai/v1/usage")!,
-        ]
-
-        for url in candidates {
-            do {
-                let snapshot = try await self.fetchFromURL(url, apiKey: apiKey, transport: transport)
-                if snapshot != nil {
-                    return snapshot
-                }
-            } catch let error as MuseUsageError {
-                // Invalid key should surface immediately.
-                if case .invalidAPIKey = error {
-                    throw error
-                }
-                continue
-            } catch {
-                continue
-            }
-        }
-        return nil
-    }
-
-    private static func fetchFromURL(
-        _ url: URL,
-        apiKey: String,
-        transport: any ProviderHTTPTransport) async throws -> MuseUsageSnapshot?
-    {
-        var request = URLRequest(url: url)
+        var request = URLRequest(url: baseURL.appendingPathComponent("models"))
         request.httpMethod = "GET"
         request.timeoutInterval = self.requestTimeoutSeconds
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(trimmed)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue("CodexBar/1.0 (Muse)", forHTTPHeaderField: "User-Agent")
 
-        let (data, response) = try await transport.data(for: request)
+        let response: URLResponse
+        do {
+            (_, response) = try await transport.data(for: request)
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            throw MuseUsageError.networkError(error.localizedDescription)
+        }
+
         guard let http = response as? HTTPURLResponse else {
-            throw MuseUsageError.networkError("Invalid response")
+            throw MuseUsageError.networkError("Muse returned an unexpected response.")
         }
 
         switch http.statusCode {
@@ -89,107 +59,49 @@ public enum MuseUsageFetcher {
             break
         case 401, 403:
             throw MuseUsageError.invalidAPIKey
-        case 404, 501:
-            return nil
         default:
-            throw MuseUsageError.networkError("HTTP \(http.statusCode)")
+            throw MuseUsageError.networkError("Muse usage request failed (HTTP \(http.statusCode)).")
         }
 
-        // Try to parse a flexible JSON shape. We support multiple possible
-        // server schemas so we can adapt once Meta publishes the real one.
-        return self.parseSnapshot(data: data)
-    }
-
-    static func parseSnapshot(data: Data) -> MuseUsageSnapshot? {
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return nil
-        }
-
-        // Common patterns: {usage:{...}}, {data:{...}}, or flat.
-        let root = (json["data"] as? [String: Any]) ?? json
-        let usage = (root["usage"] as? [String: Any]) ?? root
-
-        var primary: RateWindow?
-        var secondary: RateWindow?
-
-        if let session = usage["session"] as? [String: Any] ?? usage["five_hour"] as? [String: Any] {
-            primary = self.rateWindow(from: session, label: "Session")
-        } else if let used = usage["used_percent"] as? Double {
-            primary = RateWindow(usedPercent: used, windowMinutes: nil, resetsAt: nil, resetDescription: nil)
-        }
-
-        if let weekly = usage["weekly"] as? [String: Any] ?? usage["seven_day"] as? [String: Any] {
-            secondary = self.rateWindow(from: weekly, label: "Weekly")
-        }
-
-        let email = (root["email"] as? String) ?? (root["account"] as? [String: Any])?["email"] as? String
-        let plan = (root["plan"] as? String) ?? (root["tier"] as? String) ?? (root["subscription"] as? String)
-
-        // If we parsed nothing useful, return nil to try next endpoint.
-        if primary == nil, secondary == nil, email == nil, plan == nil {
-            // Check for flat balance style: {balance, limit}
-            if let balance = root["balance"] as? Double, let limit = root["limit"] as? Double, limit > 0 {
-                let used = max(0, min(100, ((limit - balance) / limit) * 100))
-                primary = RateWindow(usedPercent: used, windowMinutes: nil, resetsAt: nil, resetDescription: nil)
-                return MuseUsageSnapshot(primary: primary, accountEmail: email, plan: plan, updatedAt: Date())
-            }
-            return nil
-        }
-
+        let windows = self.rateWindows(from: http)
         return MuseUsageSnapshot(
-            primary: primary,
-            secondary: secondary,
-            accountEmail: email,
-            plan: plan,
+            primary: windows.tokens,
+            secondary: windows.requests,
+            accountEmail: localAuth?.accountEmail,
+            plan: localAuth?.loginMethod ?? "API key",
             updatedAt: Date())
     }
 
-    private static func rateWindow(from dict: [String: Any], label _: String) -> RateWindow? {
-        let used: Double? = (dict["used_percent"] as? Double)
-            ?? (dict["usedPercent"] as? Double)
-            ?? (dict["percent_used"] as? Double)
-            ?? {
-                if let used = dict["used"] as? Double, let limit = dict["limit"] as? Double, limit > 0 {
-                    return (used / limit) * 100
-                }
-                if let remaining = dict["remaining_percent"] as? Double {
-                    return 100 - remaining
-                }
-                return nil
-            }()
-
-        guard let percent = used else { return nil }
-
-        var resetsAt: Date?
-        if let resetStr = dict["resets_at"] as? String ?? dict["resetsAt"] as? String {
-            resetsAt = ISO8601DateFormatter().date(from: resetStr) ?? Self.parseDate(resetStr)
-        } else if let resetInterval = dict["reset_in_seconds"] as? Double {
-            resetsAt = Date().addingTimeInterval(resetInterval)
-        }
-
-        let resetDescription = dict["reset_description"] as? String ?? dict["resetDescription"] as? String
-        let windowMinutes = dict["window_minutes"] as? Int ?? dict["windowMinutes"] as? Int
-
-        return RateWindow(
-            usedPercent: max(0, min(100, percent)),
-            windowMinutes: windowMinutes,
-            resetsAt: resetsAt,
-            resetDescription: resetDescription)
+    /// Maps the documented rate-limit headers onto token and request windows.
+    ///
+    /// A response without the headers yields no windows; the caller still has a verified-credential
+    /// identity to show, because the request itself succeeded.
+    static func rateWindows(from response: HTTPURLResponse) -> (tokens: RateWindow?, requests: RateWindow?) {
+        (
+            tokens: self.window(
+                limit: self.headerValue(response, RateLimitHeader.limitTokens),
+                remaining: self.headerValue(response, RateLimitHeader.remainingTokens)),
+            requests: self.window(
+                limit: self.headerValue(response, RateLimitHeader.limitRequests),
+                remaining: self.headerValue(response, RateLimitHeader.remainingRequests)))
     }
 
-    private static func parseDate(_ string: String) -> Date? {
-        let formatters: [DateFormatter] = {
-            let f1 = DateFormatter()
-            f1.dateFormat = "yyyy-MM-dd'T'HH:mm:ssZ"
-            f1.locale = Locale(identifier: "en_US_POSIX")
-            let f2 = DateFormatter()
-            f2.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSZ"
-            f2.locale = Locale(identifier: "en_US_POSIX")
-            return [f1, f2]
-        }()
-        for f in formatters {
-            if let d = f.date(from: string) { return d }
+    private static func headerValue(_ response: HTTPURLResponse, _ name: String) -> Double? {
+        guard let raw = response.value(forHTTPHeaderField: name)?
+            .trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty
+        else {
+            return nil
         }
-        return nil
+        return Double(raw)
+    }
+
+    private static func window(limit: Double?, remaining: Double?) -> RateWindow? {
+        guard let limit, let remaining, limit > 0 else { return nil }
+        let used = ((limit - remaining) / limit) * 100
+        return RateWindow(
+            usedPercent: max(0, min(100, used)),
+            windowMinutes: self.windowMinutes,
+            resetsAt: nil,
+            resetDescription: nil)
     }
 }

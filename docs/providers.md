@@ -120,7 +120,7 @@ complete when the available scan window covers fewer days.
 | Zed | Zed editor Keychain session → `cloud.zed.dev/client/users/me` for plan and quota data (`local`). |
 | Notion AI | Browser cookies → workspace resolution and the AI usage allowance API (`web`). |
 | IBM Bob | API key from config/env → profile and per-team Bobcoin budget APIs (`api`). |
-| Muse | API key `META_API_KEY`/`MUSE_API_KEY` or token accounts (`api`) → probing `api.meta.ai/v1/usage` candidates, falling back to CLI `muse --version`/`auth` reachability (`cli`). |
+| Muse | API key `META_API_KEY`/`MODEL_API_KEY` or token accounts → `GET /v1/models` on the Meta Model API, reading the documented `x-ratelimit-*` headers for per-minute token and request windows (`api`); `~/.config/muse/auth.json` supplies account identity (`local`). |
 
 ## Codex
 - App Auto: OAuth API first; falls back to CLI only when OAuth credentials are missing or auth/refresh is invalid.

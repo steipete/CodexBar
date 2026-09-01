@@ -14,7 +14,6 @@ struct MuseProviderImplementation: ProviderImplementation {
     @MainActor
     func observeSettings(_ settings: SettingsStore) {
         _ = settings.museAPIToken
-        _ = settings.museBaseURL
     }
 
     @MainActor
@@ -22,11 +21,14 @@ struct MuseProviderImplementation: ProviderImplementation {
         if MuseSettingsReader.apiKey(environment: context.environment) != nil {
             return true
         }
-        if BinaryLocator.resolveMuseBinary() != nil {
+        if !context.settings.museAPIToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return true
         }
-        context.settings.ensureMuseAPITokenLoaded()
-        return !context.settings.museAPIToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        // A rejected MUSE_BASE_URL must still reach the fetch path so the override error is visible.
+        if MuseSettingsReader.hasBaseURLOverride(environment: context.environment) {
+            return true
+        }
+        return MuseLocalAuthReader.read() != nil
     }
 
     @MainActor
@@ -35,7 +37,7 @@ struct MuseProviderImplementation: ProviderImplementation {
             ProviderSettingsFieldDescriptor(
                 id: "muse-api-key",
                 title: "API key",
-                subtitle: "Stored in ~/.codexbar/config.json. Paste META_API_KEY from https://dev.meta.ai or run `muse login`.",
+                subtitle: "Stored in ~/.codexbar/config.json. Create a key at https://dev.meta.ai, or run `muse login`.",
                 kind: .secure,
                 placeholder: "Paste META_API_KEY…",
                 binding: context.stringBinding(\.museAPIToken),
@@ -52,7 +54,7 @@ struct MuseProviderImplementation: ProviderImplementation {
                         }),
                 ],
                 isVisible: nil,
-                onActivate: { context.settings.ensureMuseAPITokenLoaded() }),
+                onActivate: nil),
         ]
     }
 

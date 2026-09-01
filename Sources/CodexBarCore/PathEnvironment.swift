@@ -348,31 +348,6 @@ public enum BinaryLocator {
             home: home)
     }
 
-    public static func resolveMuseBinary(
-        env: [String: String] = ProcessInfo.processInfo.environment,
-        loginPATH: [String]? = LoginShellPathCache.shared.current,
-        commandV: (String, String?, TimeInterval, FileManager) -> String? = ShellCommandLocator.commandV,
-        aliasResolver: (String, String?, TimeInterval, FileManager, String) -> String? = ShellCommandLocator
-            .resolveAlias,
-        fileManager: FileManager = .default,
-        home: String = NSHomeDirectory()) -> String?
-    {
-        self.resolveBinary(
-            name: "muse",
-            overrideKey: "MUSE_CLI_PATH",
-            env: env,
-            loginPATH: loginPATH,
-            commandV: commandV,
-            aliasResolver: aliasResolver,
-            wellKnownPaths: [
-                "\(home)/.local/bin/muse",
-                "/opt/homebrew/bin/muse",
-                "/usr/local/bin/muse",
-            ],
-            fileManager: fileManager,
-            home: home)
-    }
-
     // swiftlint:disable function_parameter_count
     private static func resolveBinary(
         name: String,
