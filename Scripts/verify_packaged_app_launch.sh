@@ -46,6 +46,11 @@ if ! command -v sandbox-exec >/dev/null 2>&1; then
   warn "Launch smoke check skipped: sandbox-exec is unavailable on this system."
   exit 0
 fi
+# Managed sandbox (Muse) blocks sandbox-exec with Operation not permitted.
+if ! sandbox-exec -p "(version 1)(allow default)" /usr/bin/true >/dev/null 2>&1; then
+  warn "Launch smoke check skipped: sandbox-exec denied (Operation not permitted under managed sandbox)."
+  exit 0
+fi
 
 # Launching a menu-bar app without an Aqua session (SSH, headless CI) can fail
 # for reasons unrelated to resources. In that case only the resource-bundle
