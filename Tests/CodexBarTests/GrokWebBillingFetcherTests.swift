@@ -81,13 +81,10 @@ struct GrokWebBillingFetcherTests {
 
     @Test
     func `cookie authenticated web billing does not reuse auth file identity`() {
-        #expect(GrokWebFetchStrategy.credentialsForWebBillingSnapshot(
-            credentials: Self.credentials,
-            authenticatedByAuthFile: false) == nil)
-        #expect(GrokWebFetchStrategy.credentialsForWebBillingSnapshot(
-            credentials: Self.credentials,
-            authenticatedByAuthFile: true)?
-            .email == "grok@example.com")
+        #expect(GrokWebBillingAuthContext.cookie("sso=winning").credentials == nil)
+        #expect(GrokWebBillingAuthContext.cookie("sso=winning").cookieHeader == "sso=winning")
+        #expect(GrokWebBillingAuthContext.oauth(Self.credentials).credentials?.email == "grok@example.com")
+        #expect(GrokWebBillingAuthContext.oauth(Self.credentials).cookieHeader == nil)
     }
 
     @Test
@@ -403,12 +400,12 @@ struct GrokWebBillingFetcherTests {
         let result = try await GrokWebFetchStrategy.isolated.fetch(
             Self.webContext(grokHome: nil),
             webBilling: { _ in
-                (
-                    GrokWebBillingSnapshot(
+                GrokWebBillingResult(
+                    snapshot: GrokWebBillingSnapshot(
                         usedPercent: 0,
                         resetsAt: Date(timeIntervalSince1970: 1_800_000_003)),
-                    "Chrome",
-                    false)
+                    sourceLabel: "Chrome",
+                    authContext: .cookie("sso=winning"))
             },
             settingsTier: { _ in
                 asked.setValue(true)
@@ -426,12 +423,12 @@ struct GrokWebBillingFetcherTests {
         let result = try await GrokWebFetchStrategy.isolated.fetch(
             Self.webContext(grokHome: nil),
             webBilling: { _ in
-                (
-                    GrokWebBillingSnapshot(
+                GrokWebBillingResult(
+                    snapshot: GrokWebBillingSnapshot(
                         usedPercent: 0,
                         resetsAt: Date(timeIntervalSince1970: 1_800_000_003)),
-                    "grok-cli-proxy",
-                    true)
+                    sourceLabel: "grok-cli-proxy",
+                    authContext: .oauth(Self.credentials))
             },
             settingsTier: { _ in "SuperGrok Heavy" })
 
@@ -458,16 +455,17 @@ struct GrokWebBillingFetcherTests {
         }
         """#
         try Data(auth.utf8).write(to: grokHome.appendingPathComponent("auth.json"))
+        let credentials = try GrokCredentialsStore.load(env: ["GROK_HOME": grokHome.path])
 
         let result = try await GrokWebFetchStrategy.isolated.fetch(
             Self.webContext(grokHome: grokHome),
             webBilling: { _ in
-                (
-                    GrokWebBillingSnapshot(
+                GrokWebBillingResult(
+                    snapshot: GrokWebBillingSnapshot(
                         usedPercent: nil,
                         resetsAt: Date(timeIntervalSince1970: 1_800_000_003)),
-                    "grok-cli-proxy",
-                    true)
+                    sourceLabel: "grok-cli-proxy",
+                    authContext: .oauth(credentials))
             },
             settingsTier: { _ in "SuperGrok Heavy" })
 
@@ -480,22 +478,22 @@ struct GrokWebBillingFetcherTests {
     }
 
     @Test
-    func `web strategy keeps credits when settings enrichment fails`() async throws {
+    func `web strategy keeps credits and OAuth identity when settings enrichment fails`() async throws {
         let result = try await GrokWebFetchStrategy.isolated.fetch(
             Self.webContext(grokHome: nil),
             webBilling: { _ in
-                (
-                    GrokWebBillingSnapshot(
+                GrokWebBillingResult(
+                    snapshot: GrokWebBillingSnapshot(
                         usedPercent: 18,
                         resetsAt: Date(timeIntervalSince1970: 1_800_000_003)),
-                    "grok-cli-proxy",
-                    true)
+                    sourceLabel: "grok-cli-proxy",
+                    authContext: .oauth(Self.credentials))
             },
             settingsTier: { _ in nil })
 
         #expect(result.sourceLabel == "grok-cli-proxy")
         #expect(result.usage.primary?.usedPercent == 18)
-        #expect(result.usage.loginMethod(for: .grok) == nil)
+        #expect(result.usage.loginMethod(for: .grok) == "SuperGrok")
     }
 
     @Test

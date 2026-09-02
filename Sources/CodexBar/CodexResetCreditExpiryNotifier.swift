@@ -39,7 +39,7 @@ struct CodexResetCreditExpiryNotifier {
             credits: expiringCredits,
             availableCount: expiringCredits.count,
             updatedAt: now)
-        guard let presentation = CodexResetCreditsPresentation.make(
+        guard let presentation = LimitResetCreditsPresentation.make(
             snapshot: expiringSnapshot,
             resetStyle: resetStyle,
             now: now)

@@ -147,17 +147,6 @@ extension UsageStore {
     }
 }
 
-private struct TokenAccountFetchResult {
-    let index: Int
-    let account: ProviderTokenAccount
-    let outcome: ProviderFetchOutcome
-}
-
-private struct CodexManagedVisibleAccountRuntimeState {
-    let authFingerprint: String?
-    let workspaceAccountID: String?
-}
-
 extension UsageStore {
     static let tokenAccountMenuSnapshotLimit = 6
 
@@ -634,6 +623,12 @@ extension UsageStore {
                 self.accountSnapshots[provider.instanceID] = snapshots
             }
         }
+
+        self.scheduleSupplementalUsageUpdates(
+            provider: provider,
+            results: results,
+            selectedAccountID: effectiveSelected.id,
+            generation: generation)
 
         if let selectedOutcome, let resolvedSelectedAccount {
             await self.applySelectedOutcome(
@@ -1541,6 +1536,11 @@ extension UsageStore {
                 return backfilled
             }
             guard let backfilled else { return }
+            self.scheduleSupplementalUsageUpdate(
+                provider: provider,
+                result: result,
+                generation: generation,
+                accountID: account?.id)
             await self.recordPlanUtilizationHistorySample(
                 provider: provider,
                 snapshot: backfilled,

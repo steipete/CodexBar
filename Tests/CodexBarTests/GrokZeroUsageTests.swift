@@ -175,9 +175,7 @@ struct GrokZeroUsageTests {
         expiresAt: .distantFuture,
         createTime: nil)
 
-    private static func resolve(_ snapshot: GrokWebBillingSnapshot) async throws -> (
-        snapshot: GrokWebBillingSnapshot, sourceLabel: String, authenticatedByAuthFile: Bool)
-    {
+    private static func resolve(_ snapshot: GrokWebBillingSnapshot) async throws -> GrokWebBillingResult {
         try await GrokOAuthFetchStrategy.resolvingUnknownUsage(
             GrokWebBillingSnapshot(usedPercent: nil, resetsAt: self.proxyReset, subscriptionTier: "SuperGrok Heavy"),
             credentials: self.credentials,

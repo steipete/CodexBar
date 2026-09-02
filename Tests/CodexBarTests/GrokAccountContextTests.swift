@@ -15,7 +15,10 @@ struct GrokAccountContextTests {
                 let credentials = try capturedCredentials.get()
                 #expect(credentials.accessToken == "fake-token-a")
                 await gate.suspend()
-                return (GrokWebBillingSnapshot(usedPercent: 37, resetsAt: nil), "grok-cli-proxy", true)
+                return GrokWebBillingResult(
+                    snapshot: GrokWebBillingSnapshot(usedPercent: 37, resetsAt: nil),
+                    sourceLabel: "grok-cli-proxy",
+                    authContext: .oauth(credentials))
             } settingsTier: { credentials in
                 #expect(credentials?.accessToken == "fake-token-a")
                 #expect(credentials?.email == "a@example.com")
@@ -95,9 +98,13 @@ struct GrokAccountContextTests {
             try await GrokWebFetchStrategy.isolated.fetch(fixture.context(sourceMode: .web)) { _ in
                 await gate.suspend()
                 if teamRejection { throw GrokWebBillingError.teamUsageUnsupported }
-                return (
-                    GrokWebBillingSnapshot(usedPercent: 23, resetsAt: nil, subscriptionTier: "Cookie Plan"),
-                    "manual-cookie", false)
+                return GrokWebBillingResult(
+                    snapshot: GrokWebBillingSnapshot(
+                        usedPercent: 23,
+                        resetsAt: nil,
+                        subscriptionTier: "Cookie Plan"),
+                    sourceLabel: "manual-cookie",
+                    authContext: .cookie("sso=test"))
             } settingsTier: { credentials in
                 tierCalls.setValue(tierCalls.value + 1)
                 Self.expectAccountA(credentials)

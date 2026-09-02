@@ -182,7 +182,7 @@ struct UsageMenuCardView: View {
         var creditsProgressPercent: Double?, creditsScaleText: String?
         let creditsHintText: String?
         let creditsHintCopyText: String?
-        var codexResetCredits: CodexResetCreditsPresentation?
+        var limitResetCredits: LimitResetCreditsPresentation?
         let providerCost: ProviderCostSection?
         let tokenUsage: TokenUsageSection?
         let placeholder: String?
@@ -702,11 +702,11 @@ private struct UsageMenuCardUsageContentView: View {
             } else {
                 self.metricRows(self.model.metrics)
             }
-            if let resetCredits = self.model.codexResetCredits {
+            if let resetCredits = self.model.limitResetCredits {
                 if !self.model.metrics.isEmpty, self.showsSectionDividers {
                     Divider()
                 }
-                CodexResetCreditsContent(presentation: resetCredits)
+                LimitResetCreditsContent(presentation: resetCredits)
             }
             if let dashboard = self.model.inlineUsageDashboard {
                 InlineUsageDashboardContent(model: dashboard)
@@ -716,7 +716,7 @@ private struct UsageMenuCardUsageContentView: View {
             } else if !self.model.usageNotes.isEmpty {
                 UsageNotesContent(notes: self.model.usageNotes)
             } else if let placeholder = self.model.placeholder, self.model.metrics.isEmpty,
-                      self.model.codexResetCredits == nil
+                      self.model.limitResetCredits == nil
             {
                 Text(placeholder)
                     .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
@@ -1027,7 +1027,7 @@ extension UsageMenuCardView.Model {
             creditsScaleText: creditsScaleText,
             creditsHintText: codexCreditLimitDetail ?? redacted.creditsHintText,
             creditsHintCopyText: codexCreditLimitDetail ?? redacted.creditsHintCopyText,
-            codexResetCredits: Self.codexResetCredits(input: input),
+            limitResetCredits: Self.limitResetCredits(input: input),
             providerCost: providerCost,
             tokenUsage: tokenUsage,
             placeholder: placeholder,
@@ -1049,6 +1049,16 @@ extension UsageMenuCardView.Model {
                 details.removeAll { section in
                     section.title.map(policy.hiddenTitlesWithoutOptionalUsage.contains) == true
                 }
+            }
+        }
+        if input.provider == .grok {
+            details = details.compactMap { section in
+                let rows = section.rows.filter { $0.label != "Limit Reset Credits" }
+                guard !rows.isEmpty || section.chart != nil else { return nil }
+                return try? ProviderDetailSection(
+                    title: section.title,
+                    rows: rows,
+                    chart: section.chart)
             }
         }
         if input.provider == .sub2api {

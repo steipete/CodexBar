@@ -387,7 +387,7 @@ struct ProviderMetricsInlineView: View {
         let infoRows = Self.infoRows(for: self.model, openAIWebDiagnostic: self.openAIWebDiagnostic)
         let hasProviderCost = self.model.providerCost?.showsInProviderDetails == true
         let hasTokenUsage = self.model.tokenUsage != nil
-        let hasResetCredits = self.model.codexResetCredits != nil
+        let hasResetCredits = self.model.limitResetCredits != nil
 
         if !hasMetrics, !hasUsageNotes, !hasProviderCost, infoRows.isEmpty, !hasTokenUsage, !hasResetCredits {
             Text(self.placeholderText)
@@ -417,8 +417,8 @@ struct ProviderMetricsInlineView: View {
                 ProviderDetailInfoRow(label: row.label, value: row.value)
             }
 
-            if let resetCredits = self.model.codexResetCredits {
-                ProviderCodexResetCreditsInlineRow(presentation: resetCredits)
+            if let resetCredits = self.model.limitResetCredits {
+                ProviderLimitResetCreditsInlineRow(presentation: resetCredits)
             }
 
             if let providerCost = self.model.providerCost, providerCost.showsInProviderDetails {
@@ -528,13 +528,13 @@ private struct ProviderMetricInlineRow: View {
     }
 }
 
-private struct ProviderCodexResetCreditsInlineRow: View {
-    let presentation: CodexResetCreditsPresentation
+private struct ProviderLimitResetCreditsInlineRow: View {
+    let presentation: LimitResetCreditsPresentation
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(L("Limit Reset Credits"))
+                Text(self.presentation.title)
                     .font(.subheadline.weight(.semibold))
                 Spacer(minLength: 8)
                 Text(self.presentation.text)

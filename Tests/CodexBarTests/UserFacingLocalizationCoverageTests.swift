@@ -169,6 +169,29 @@ struct UserFacingLocalizationCoverageTests {
     }
 
     @Test
+    func `grok reset coupon count and expiry localize at presentation`() throws {
+        let details = try [
+            ProviderDetailSection(
+                rows: [
+                    .init(
+                        label: "Limit Reset Credits",
+                        value: "2 available",
+                        secondaryValue: "Expires 12 Sep"),
+                ]),
+        ]
+
+        let localizedPresentation = CodexBarLocalizationOverride.$appLanguage.withValue("ru") {
+            LimitResetCreditsPresentation.make(details: details)
+        }
+
+        let presentation = try #require(localizedPresentation)
+        #expect(presentation.accessibilityLabel.contains("Кредиты сброса лимита"))
+        #expect(presentation.text == "2 доступен")
+        #expect(presentation.expirySummaryText == "12 Sep")
+        #expect(presentation.helpText == "1. Истекает 12 Sep")
+    }
+
+    @Test
     func `spend dashboard model breakdown state stays precise and localized`() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

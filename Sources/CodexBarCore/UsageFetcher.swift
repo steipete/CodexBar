@@ -154,6 +154,8 @@ public struct UsageSnapshot: Codable, Sendable {
     public let opencodegoUsage: OpenCodeGoUsageSnapshot?
     public let openAIAPIUsage: OpenAIAPIUsageSnapshot?
     public let codexResetCredits: CodexRateLimitResetCreditsSnapshot?
+    /// Live-only display inventory. Grok redemption token identifiers are intentionally excluded.
+    public let grokResetCredits: GrokRateLimitResetCreditsSnapshot?
     public let mistralUsage: MistralUsageSnapshot?
     /// Live-only marker for optional Command Code subscription lookup failure.
     public let commandCodeSubscriptionEnrichmentUnavailable: Bool
@@ -200,6 +202,7 @@ public struct UsageSnapshot: Codable, Sendable {
         opencodegoUsage: OpenCodeGoUsageSnapshot? = nil,
         openAIAPIUsage: OpenAIAPIUsageSnapshot? = nil,
         codexResetCredits: CodexRateLimitResetCreditsSnapshot? = nil,
+        grokResetCredits: GrokRateLimitResetCreditsSnapshot? = nil,
         mistralUsage: MistralUsageSnapshot? = nil,
         commandCodeSubscriptionEnrichmentUnavailable: Bool = false,
         commandCodeHasSubscriptionPlan: Bool = false,
@@ -225,6 +228,7 @@ public struct UsageSnapshot: Codable, Sendable {
         self.opencodegoUsage = opencodegoUsage
         self.openAIAPIUsage = openAIAPIUsage
         self.codexResetCredits = codexResetCredits
+        self.grokResetCredits = grokResetCredits
         self.mistralUsage = mistralUsage
         self.commandCodeSubscriptionEnrichmentUnavailable = commandCodeSubscriptionEnrichmentUnavailable
         self.commandCodeHasSubscriptionPlan = commandCodeHasSubscriptionPlan
@@ -242,6 +246,22 @@ public struct UsageSnapshot: Codable, Sendable {
 
     public func withCodexResetCredits(_ resetCredits: CodexRateLimitResetCreditsSnapshot?) -> UsageSnapshot {
         self.replacing(codexResetCredits: .value(resetCredits))
+    }
+
+    public func withGrokResetCredits(_ resetCredits: GrokRateLimitResetCreditsSnapshot?) -> UsageSnapshot {
+        self.replacing(
+            details: .value(Self.removingGrokResetCreditDetails(from: self.details)),
+            grokResetCredits: .value(resetCredits))
+    }
+
+    private static func removingGrokResetCreditDetails(
+        from details: [ProviderDetailSection]) -> [ProviderDetailSection]
+    {
+        details.compactMap { section -> ProviderDetailSection? in
+            let rows = section.rows.filter { $0.label != GrokRateLimitResetCreditsSnapshot.detailLabel }
+            guard !rows.isEmpty || section.chart != nil else { return nil }
+            return .makeSection(title: section.title, rows: rows, chart: section.chart)
+        }
     }
 
     public func withSubscriptionMetadata(expiresAt: Date?, renewsAt: Date?) -> UsageSnapshot {
@@ -262,14 +282,35 @@ public struct UsageSnapshot: Codable, Sendable {
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        let decodedIdentity: ProviderIdentitySnapshot?
+        if let identity = try container.decodeIfPresent(ProviderIdentitySnapshot.self, forKey: .identity) {
+            decodedIdentity = identity
+        } else {
+            let email = try container.decodeIfPresent(String.self, forKey: .accountEmail)
+            let organization = try container.decodeIfPresent(String.self, forKey: .accountOrganization)
+            let loginMethod = try container.decodeIfPresent(String.self, forKey: .loginMethod)
+            if email != nil || organization != nil || loginMethod != nil {
+                decodedIdentity = ProviderIdentitySnapshot(
+                    providerID: nil,
+                    accountEmail: email,
+                    accountOrganization: organization,
+                    loginMethod: loginMethod)
+            } else {
+                decodedIdentity = nil
+            }
+        }
         self.primary = try container.decodeIfPresent(RateWindow.self, forKey: .primary)
         self.secondary = try container.decodeIfPresent(RateWindow.self, forKey: .secondary)
         self.tertiary = try container.decodeIfPresent(RateWindow.self, forKey: .tertiary)
         self.extraRateWindows = try container.decodeIfPresent([NamedRateWindow].self, forKey: .extraRateWindows)
         self.providerCost = try container.decodeIfPresent(ProviderCostSnapshot.self, forKey: .providerCost)
         self.costUsage = nil // Live-only provider history; refresh from the authoritative source.
-        self.details = try container.decodeIfPresent([ProviderDetailSection].self, forKey: .details) ?? []
-        try ProviderDetailSection.validateSections(self.details)
+        let details = try container.decodeIfPresent([ProviderDetailSection].self, forKey: .details) ?? []
+        try ProviderDetailSection.validateSections(details)
+        // Provider-specific by design: only native Grok snapshots used this legacy reset-credit detail row.
+        self.details = decodedIdentity?.providerID == .grok
+            ? Self.removingGrokResetCreditDetails(from: details)
+            : details
         self.deepseekDetailedUsageState = .notRequested // Live-only fetch state
         self.deepseekPlatformProfiles = [] // Live-only browser profile catalog
         self.opencodegoUsage = nil // Not persisted, fetched fresh each time
@@ -277,6 +318,7 @@ public struct UsageSnapshot: Codable, Sendable {
         self.codexResetCredits = try container.decodeIfPresent(
             CodexRateLimitResetCreditsSnapshot.self,
             forKey: .codexResetCredits)
+        self.grokResetCredits = nil // Live-only inventory; refresh without persisting redemption state.
         self.mistralUsage = try container.decodeIfPresent(MistralUsageSnapshot.self, forKey: .mistralUsage)
         self.commandCodeSubscriptionEnrichmentUnavailable = false // Live-only fetch state
         self.commandCodeHasSubscriptionPlan = false // Live-only fetch state
@@ -289,22 +331,7 @@ public struct UsageSnapshot: Codable, Sendable {
         } else {
             self.dataConfidence = .unknown
         }
-        if let identity = try container.decodeIfPresent(ProviderIdentitySnapshot.self, forKey: .identity) {
-            self.identity = identity
-        } else {
-            let email = try container.decodeIfPresent(String.self, forKey: .accountEmail)
-            let organization = try container.decodeIfPresent(String.self, forKey: .accountOrganization)
-            let loginMethod = try container.decodeIfPresent(String.self, forKey: .loginMethod)
-            if email != nil || organization != nil || loginMethod != nil {
-                self.identity = ProviderIdentitySnapshot(
-                    providerID: nil,
-                    accountEmail: email,
-                    accountOrganization: organization,
-                    loginMethod: loginMethod)
-            } else {
-                self.identity = nil
-            }
-        }
+        self.identity = decodedIdentity
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -473,6 +500,7 @@ public struct UsageSnapshot: Codable, Sendable {
         deepseekDetailedUsageState: Replacement<DeepSeekDetailedUsageState> = .unchanged,
         deepseekPlatformProfiles: Replacement<[DeepSeekPlatformProfile]> = .unchanged,
         codexResetCredits: Replacement<CodexRateLimitResetCreditsSnapshot?> = .unchanged,
+        grokResetCredits: Replacement<GrokRateLimitResetCreditsSnapshot?> = .unchanged,
         subscriptionExpiresAt: Replacement<Date?> = .unchanged,
         subscriptionRenewsAt: Replacement<Date?> = .unchanged,
         identity: Replacement<ProviderIdentitySnapshot?> = .unchanged,
@@ -491,6 +519,7 @@ public struct UsageSnapshot: Codable, Sendable {
             opencodegoUsage: self.opencodegoUsage,
             openAIAPIUsage: self.openAIAPIUsage,
             codexResetCredits: codexResetCredits.resolving(self.codexResetCredits),
+            grokResetCredits: grokResetCredits.resolving(self.grokResetCredits),
             mistralUsage: self.mistralUsage,
             commandCodeSubscriptionEnrichmentUnavailable: self.commandCodeSubscriptionEnrichmentUnavailable,
             commandCodeHasSubscriptionPlan: self.commandCodeHasSubscriptionPlan,

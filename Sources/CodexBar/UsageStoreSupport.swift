@@ -42,6 +42,35 @@ struct ProviderRefreshPublicationContext {
     let allowDisabled: Bool
 }
 
+struct TokenAccountFetchResult {
+    let index: Int
+    let account: ProviderTokenAccount
+    let outcome: ProviderFetchOutcome
+}
+
+struct CodexAccountFetchResult {
+    let index: Int
+    let account: CodexVisibleAccount
+    let outcome: ProviderFetchOutcome?
+    let limitResetOwnerKey: CodexLimitResetOwnerKey?
+}
+
+struct CodexAccountFetchRequest {
+    let index: Int
+    let account: CodexVisibleAccount
+    let previousSnapshot: UsageSnapshot?
+    let missingWindowBackfillSnapshot: UsageSnapshot?
+    let limitResetOwnerKey: CodexLimitResetOwnerKey?
+    let descriptor: ProviderDescriptor
+    let context: ProviderFetchContext
+    let resetCreditsFetcher: UsageStore.CodexResetCreditsFetcher
+}
+
+struct CodexManagedVisibleAccountRuntimeState {
+    let authFingerprint: String?
+    let workspaceAccountID: String?
+}
+
 /// A single component/service row on a statuspage.io-style status page
 /// (e.g. "Codex API", "CLI", "FedRAMP") with its current state. A row with non-empty
 /// `children` is a component group and renders as an expandable dropdown.

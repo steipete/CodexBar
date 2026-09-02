@@ -6,9 +6,9 @@ extension UsageMenuCardView.Model {
         _ details: [ProviderDetailSection],
         provider: UsageProvider) -> [ProviderDetailSection]
     {
-        // Provider-specific by design: DeepSeek, z.ai, and Kiro rewrite unit phrasing.
+        // Provider-specific by design: DeepSeek, z.ai, Kiro, and Grok rewrite value phrasing.
         // Other providers localize section titles and row labels through the shared catalog; values stay canonical.
-        guard provider == .deepseek || provider == .zai || provider == .kiro else {
+        guard provider == .deepseek || provider == .zai || provider == .kiro || provider == .grok else {
             return details.compactMap { section in
                 let rows = section.rows.compactMap { row in
                     try? ProviderDetailSection.Row(
@@ -97,8 +97,8 @@ extension UsageMenuCardView.Model {
         return L("Resets every 5 hours")
     }
 
-    /// Provider-specific by design: DeepSeek, z.ai, and Kiro detail values carry provider-owned unit phrasing that
-    /// localizes at the presentation boundary without touching other providers.
+    /// Provider-specific by design: DeepSeek, z.ai, Kiro, and Grok detail values carry provider-owned
+    /// unit phrasing that localizes at the presentation boundary without touching other providers.
     private static func localizedProviderDetailValue(_ value: String, provider: UsageProvider) -> String {
         switch provider {
         case .deepseek:
@@ -107,9 +107,28 @@ extension UsageMenuCardView.Model {
             self.localizedZaiValue(value)
         case .kiro:
             self.localizedKiroCapPhrase(value)
+        case .grok:
+            self.localizedGrokResetValue(value)
         default:
             value
         }
+    }
+
+    private static func localizedGrokResetValue(_ value: String) -> String {
+        if value == "1 available" {
+            return L("1 available")
+        }
+        let availableSuffix = " available"
+        if value.hasSuffix(availableSuffix),
+           let count = Int(value.dropLast(availableSuffix.count))
+        {
+            return L("%d available", count)
+        }
+        let expiryPrefix = "Expires "
+        if value.hasPrefix(expiryPrefix) {
+            return L("Expires %@", String(value.dropFirst(expiryPrefix.count)))
+        }
+        return value
     }
 
     private static func localizedKiroCapPhrase(_ value: String) -> String {

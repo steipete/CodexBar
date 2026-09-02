@@ -20,7 +20,7 @@ extension UsageMenuCardView.Model {
             "creditsRemaining=\(self.creditsRemaining.map(String.init(describing:)) ?? "nil")",
             MenuCardHeightFingerprint.field("creditsHint", self.creditsHintText),
             MenuCardHeightFingerprint.field("creditsCopy", self.creditsHintCopyText),
-            "codexResetCredits=\(self.codexResetCredits?.heightFingerprint ?? "")",
+            "limitResetCredits=\(self.limitResetCredits?.heightFingerprint ?? "")",
             "metrics=\(MenuCardHeightFingerprint.join(self.metrics.map(\.heightFingerprint)))",
             "notes=\(notesFingerprint)",
             "providerDetails=\(self.providerDetails.heightFingerprint)",
@@ -152,7 +152,7 @@ extension UsageMenuCardView.Model.TokenUsageSection {
     }
 }
 
-extension CodexResetCreditsPresentation {
+extension LimitResetCreditsPresentation {
     fileprivate var heightFingerprint: String {
         MenuCardHeightFingerprint.join([
             MenuCardHeightFingerprint.field("text", self.text),
