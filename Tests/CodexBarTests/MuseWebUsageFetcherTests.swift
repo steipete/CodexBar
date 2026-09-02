@@ -12,9 +12,9 @@ struct MuseWebUsageFetcherTests {
         7d
         $3.08
         Spend (USD)
-        294.1M
+        1.3B
         Input tokens
-        1.5M
+        3.3M
         Output tokens
         3.0k
         Requests
@@ -24,6 +24,10 @@ struct MuseWebUsageFetcherTests {
         #expect(snapshot.providerCost?.used == 3.08)
         #expect(snapshot.providerCost?.limit == 0)
         #expect(snapshot.providerCost?.period == "Last 7 days")
+        #expect(snapshot.details.first?.title == "Usage summary")
+        #expect(snapshot.details.first?.rows.first?.label == "Tokens")
+        #expect(snapshot.details.first?.rows.first?.value == "1.3B")
+        #expect(snapshot.details.first?.rows.first?.secondaryValue == "1.3B input · 3.3M output")
         #expect(snapshot.identity == nil)
     }
 
@@ -255,8 +259,12 @@ struct MuseWebUsageFetcherTests {
         #expect(snapshot.providerCost?.limit == 0)
         #expect(snapshot.providerCost?.period == "Last 7 days")
         #expect(snapshot.identity == nil)
-        #expect(snapshot.details.first?.title == "Daily spend")
-        #expect(snapshot.details.first?.rows.map(\.value) == ["$1.83", "$1.25"])
+        #expect(snapshot.details.first?.title == "Usage summary")
+        #expect(snapshot.details.first?.rows.first?.label == "Tokens")
+        #expect(snapshot.details.first?.rows.first?.value == "125")
+        #expect(snapshot.details.first?.rows.first?.secondaryValue == "100 input · 25 output")
+        #expect(snapshot.details.last?.title == "Daily spend")
+        #expect(snapshot.details.last?.rows.map(\.value) == ["$1.83", "$1.25"])
     }
 
     @Test

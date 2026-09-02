@@ -355,8 +355,8 @@ public enum MuseWebUsageFetcher: Sendable {
     }
 
     static func parseUsageGraphQL(data: Data) throws -> UsageSnapshot? {
-        // Muse LLMD-C shape: data.team.spend_cost_metrics. Token and request metrics are intentionally ignored:
-        // Muse is pay-as-you-go, so spend is the user-facing usage signal.
+        // Muse LLMD-C shape: data.team.spend_cost_metrics. Spend remains the primary pay-as-you-go signal;
+        // token metrics are retained as menu details when the response includes them.
         if let snap = parseTeamUsage(data: data) { return snap }
         guard let object = try? JSONSerialization.jsonObject(with: data) else { return nil }
         /// Common Comet shape: {data: {viewer: {team: {usage: {...}}}}} or {data: {llmdc_usage: {...}}}
@@ -458,16 +458,19 @@ public enum MuseWebUsageFetcher: Sendable {
         guard let cost = sumCategorical(in: "spend_cost_metrics", identifier: "usage_billable_cost") else {
             return nil
         }
+        let inputTokens = sumCategorical(in: "input_token_metrics", identifier: "num_prompt_tokens")
+        let outputTokens = sumCategorical(in: "output_token_metrics", identifier: "num_completion_tokens")
 
         let dailyPoints = Self.dailyCostPoints(from: team)
 
         let detailRows: [ProviderDetailSection.Row] = dailyPoints.compactMap { pt in
             try? ProviderDetailSection.Row(label: pt.dayKey, value: Self.localizedCost(pt.costUSD))
         }
-        let detail: [ProviderDetailSection] = {
+        let spendDetails: [ProviderDetailSection] = {
             guard !detailRows.isEmpty else { return [] }
             return (try? ProviderDetailSection(title: "Daily spend", rows: detailRows)).map { [$0] } ?? []
         }()
+        let details = Self.tokenDetails(inputTokens: inputTokens, outputTokens: outputTokens) + spendDetails
 
         let now = Date()
         return UsageSnapshot(
@@ -480,7 +483,7 @@ public enum MuseWebUsageFetcher: Sendable {
                 currencyCode: "USD",
                 period: "Last 7 days",
                 updatedAt: now),
-            details: detail,
+            details: details,
             updatedAt: now,
             identity: nil)
     }
@@ -526,10 +529,21 @@ public enum MuseWebUsageFetcher: Sendable {
         guard let spend = decimal(capture(#"(?m)^\$([0-9][0-9,.]*)\s*\nSpend \(USD\)$"#)) else {
             return nil
         }
-        return Self.spendSnapshot(cost: spend)
+        let inputTokens = Self.compactCount(
+            capture(#"(?mi)^([0-9][0-9,.]*\s*[KMB]?)\s*\nInput tokens$"#))
+        let outputTokens = Self.compactCount(
+            capture(#"(?mi)^([0-9][0-9,.]*\s*[KMB]?)\s*\nOutput tokens$"#))
+        return Self.spendSnapshot(
+            cost: spend,
+            inputTokens: inputTokens,
+            outputTokens: outputTokens)
     }
 
-    private static func spendSnapshot(cost: Double) -> UsageSnapshot {
+    private static func spendSnapshot(
+        cost: Double,
+        inputTokens: Double? = nil,
+        outputTokens: Double? = nil) -> UsageSnapshot
+    {
         let now = Date()
         return UsageSnapshot(
             primary: nil,
@@ -541,8 +555,68 @@ public enum MuseWebUsageFetcher: Sendable {
                 currencyCode: "USD",
                 period: "Last 7 days",
                 updatedAt: now),
+            details: Self.tokenDetails(inputTokens: inputTokens, outputTokens: outputTokens),
             updatedAt: now,
             identity: nil)
+    }
+
+    private static func compactCount(_ rawValue: String?) -> Double? {
+        guard var value = rawValue?
+            .replacingOccurrences(of: ",", with: "")
+            .replacingOccurrences(of: " ", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+            !value.isEmpty
+        else { return nil }
+
+        let multiplier = switch value.last?.uppercased() {
+        case "K": 1000.0
+        case "M": 1_000_000.0
+        case "B": 1_000_000_000.0
+        default: 1.0
+        }
+        if multiplier != 1 { value.removeLast() }
+        guard let number = Double(value), number.isFinite, number >= 0 else { return nil }
+        return number * multiplier
+    }
+
+    private static func tokenDetails(
+        inputTokens: Double?,
+        outputTokens: Double?) -> [ProviderDetailSection]
+    {
+        let input = Self.tokenCount(inputTokens)
+        let output = Self.tokenCount(outputTokens)
+        let total: Int
+        switch (input, output) {
+        case let (.some(input), .some(output)):
+            let result = input.addingReportingOverflow(output)
+            guard !result.overflow else { return [] }
+            total = result.partialValue
+        case let (.some(input), nil):
+            total = input
+        case let (nil, .some(output)):
+            total = output
+        case (nil, nil):
+            return []
+        }
+
+        let breakdown = [
+            input.map { "\(UsageFormatter.tokenCountString($0)) input" },
+            output.map { "\(UsageFormatter.tokenCountString($0)) output" },
+        ].compactMap(\.self).joined(separator: " · ")
+        let row = ProviderDetailSection.makeRow(
+            label: "Tokens",
+            value: UsageFormatter.tokenCountString(total),
+            secondaryValue: breakdown)
+        return [.makeSection(title: "Usage summary", rows: [row])]
+    }
+
+    private static func tokenCount(_ value: Double?) -> Int? {
+        guard let value,
+              value.isFinite,
+              value >= 0,
+              value <= Double(Int.max)
+        else { return nil }
+        return Int(value.rounded())
     }
 
     // MARK: - Helpers for token extraction from HTML
