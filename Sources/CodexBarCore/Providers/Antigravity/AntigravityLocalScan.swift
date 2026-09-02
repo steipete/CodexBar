@@ -53,6 +53,8 @@ extension AntigravityLocalReader {
         var schemaBytes = 0
         var sqliteHandlesOpened = 0
         var sqliteHandlesClosed = 0
+        var stepRows = 0
+        var stepAttemptedBytes = 0
     }
 
     enum ScanFailure: Error {
@@ -95,6 +97,19 @@ extension AntigravityLocalReader {
             try self.check()
             self.statistics.rows += 1
             guard self.statistics.rows <= self.limits.rows else { throw ScanFailure.exhausted }
+        }
+
+        func chargeStepRow() throws {
+            try self.check()
+            self.statistics.stepRows += 1
+            guard self.statistics.stepRows <= self.limits.rows else { throw ScanFailure.exhausted }
+        }
+
+        func chargeStepBytes(_ count: Int) throws {
+            try self.check()
+            let (attempted, overflow) = self.statistics.stepAttemptedBytes.addingReportingOverflow(count)
+            self.statistics.stepAttemptedBytes = overflow ? Int.max : attempted
+            guard !overflow, attempted <= self.limits.bytes else { throw ScanFailure.exhausted }
         }
 
         func chargeSchemaBytes(_ count: Int) throws {
