@@ -1,6 +1,6 @@
 # Real behavior proof — Antigravity modern timestamp join (agy 1.1.18+)
 
-**Head:** `6ccd0c7f5` (steps `metadata.#1` via `bot_id`)
+**Head:** `fix/antigravity-linux-token-history` (current, verified 2026-09-02 18:32 UTC)
 **Date:** 2026-09-02 18:32 UTC
 **Environment:** `agy 1.1.23` `~/.gemini/antigravity-cli/conversations/*.db` (46 DBs)
 
