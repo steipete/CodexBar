@@ -642,8 +642,11 @@ extension SettingsStore {
         let iCloudSyncIncludeSecrets = userDefaults.object(forKey: "iCloudSyncIncludeSecrets") as? Bool ?? true
         let iCloudSyncSnapshotsEnabled = userDefaults.object(forKey: "iCloudSyncSnapshotsEnabled") as? Bool ?? true
         let iCloudSyncShowFleetAccounts = userDefaults.object(forKey: "iCloudSyncShowFleetAccounts") as? Bool ?? true
-        let iCloudSyncDeviceID = userDefaults.string(forKey: "iCloudSyncDeviceID") ?? UUID().uuidString.lowercased()
-        if userDefaults.string(forKey: "iCloudSyncDeviceID") == nil {
+        let persistedDeviceID = userDefaults.string(forKey: "iCloudSyncDeviceID")
+        let iCloudSyncDeviceID = CloudSyncDeviceIdentity.resolve(
+            persisted: persistedDeviceID,
+            hardwareUUID: CloudSyncDeviceIdentity.hardwareUUID())
+        if persistedDeviceID != iCloudSyncDeviceID {
             userDefaults.set(iCloudSyncDeviceID, forKey: "iCloudSyncDeviceID")
         }
         return SettingsDefaultsState(

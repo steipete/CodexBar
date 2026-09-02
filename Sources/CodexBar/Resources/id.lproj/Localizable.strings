@@ -18,14 +18,17 @@
 "Sign in to iCloud in System Settings to enable sync." = "Sign in to iCloud in System Settings to enable sync.";
 "iCloud access is restricted on this Mac." = "iCloud access is restricted on this Mac.";
 "Sync is paused: another Mac uses a newer version of CodexBar. Update to resume." = "Sync is paused: another Mac uses a newer version of CodexBar. Update to resume.";
+"Sync is not running yet. Try again in a moment." = "Sinkronisasi belum berjalan. Coba lagi sebentar lagi.";
 "Last successful fetch" = "Last successful fetch";
 "Last successful push" = "Last successful push";
 "Never" = "Never";
 "Macs" = "Macs";
 "No synced Macs yet." = "No synced Macs yet.";
 "Secrets use iCloud end-to-end encryption via encryptedValues. Hooks and machine-local paths never sync." = "Secrets use iCloud end-to-end encryption via encryptedValues. Hooks and machine-local paths never sync.";
+"Turn on iCloud Sync to remove a Mac." = "Aktifkan iCloud Sync untuk menghapus Mac.";
 "Last seen %@" = "Last seen %@";
 "This Mac" = "This Mac";
+"Remove %@ and its usage snapshots from iCloud?" = "Hapus %@ dan snapshot penggunaannya dari iCloud?";
 "another Mac" = "another Mac";
 "%dm ago" = "%dm ago";
 "%dh ago" = "%dh ago";

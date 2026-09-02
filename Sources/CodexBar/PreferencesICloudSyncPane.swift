@@ -5,6 +5,7 @@ import SwiftUI
 struct ICloudSyncPane: View {
     @Bindable var settings: SettingsStore
     @Bindable var state: CloudSyncState
+    @State private var deviceToRemove: DeviceSyncPayload?
     private static let securityFootnote =
         "Secrets use iCloud end-to-end encryption via encryptedValues. " +
         "Hooks and machine-local paths never sync."
@@ -57,6 +58,12 @@ struct ICloudSyncPane: View {
                     value: self.relativeTime(self.state.status.lastSuccessfulPushAt))
             } header: {
                 Text(L("Status"))
+            } footer: {
+                if let lastError = self.state.status.lastError {
+                    SettingsSectionFooter {
+                        Text(lastError).foregroundStyle(.red)
+                    }
+                }
             }
 
             Section {
@@ -68,16 +75,65 @@ struct ICloudSyncPane: View {
                     ForEach(self.devices, id: \.deviceID) { device in
                         ICloudSyncDeviceRow(
                             device: device,
-                            isCurrentDevice: device.deviceID == self.settings.iCloudSyncDeviceID)
+                            isCurrentDevice: device.deviceID == self.settings.iCloudSyncDeviceID,
+                            canRemove: self.settings.iCloudSyncEnabled && self.syncCanRun,
+                            onRemove: { self.deviceToRemove = device })
                     }
                 }
             } header: {
                 Text(L("Macs"))
             } footer: {
-                SettingsSectionFooter(L(Self.securityFootnote))
+                SettingsSectionFooter(self.macsFootnote)
             }
         }
         .formStyle(.grouped)
+        .confirmationDialog(
+            self.removalPrompt,
+            isPresented: self.removalPromptBinding,
+            titleVisibility: .visible)
+        {
+            Button(L("Remove"), role: .destructive) {
+                if let device = self.deviceToRemove {
+                    self.state.removeDevice?(device.deviceID)
+                }
+                self.deviceToRemove = nil
+            }
+            Button(L("Cancel"), role: .cancel) { self.deviceToRemove = nil }
+        } message: {
+            // Two Macs can share a host name, which is the case this issue is about, so the
+            // dialog has to say which row it means. Relative dates collide; absolute ones do not.
+            if let device = self.deviceToRemove {
+                Text(String(
+                    format: L("Last seen %@"),
+                    device.lastSeen.formatted(date: .abbreviated, time: .shortened)))
+            }
+        }
+    }
+
+    /// A device row stays visible with syncing off, so the footer has to say why its remove
+    /// button is dead: the delete has to reach CloudKit, which needs the engine running. The
+    /// other two reasons a row cannot be removed — a paused sync and an unavailable iCloud
+    /// account — already show their own message further up, so this covers only the setting.
+    private var macsFootnote: String {
+        guard !self.settings.iCloudSyncEnabled, !self.devices.isEmpty else {
+            return L(Self.securityFootnote)
+        }
+        return L(Self.securityFootnote) + " " + L("Turn on iCloud Sync to remove a Mac.")
+    }
+
+    private var removalPrompt: String {
+        guard let device = self.deviceToRemove else { return "" }
+        return L("Remove %@ and its usage snapshots from iCloud?", device.hostName)
+    }
+
+    private var removalPromptBinding: Binding<Bool> {
+        Binding(
+            get: { self.deviceToRemove != nil },
+            set: { presented in
+                if !presented {
+                    self.deviceToRemove = nil
+                }
+            })
     }
 
     private var syncCanBeEnabled: Bool {
@@ -147,6 +203,8 @@ struct ICloudSyncPane: View {
 private struct ICloudSyncDeviceRow: View {
     let device: DeviceSyncPayload
     let isCurrentDevice: Bool
+    let canRemove: Bool
+    let onRemove: () -> Void
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -165,6 +223,12 @@ private struct ICloudSyncDeviceRow: View {
                     .padding(.vertical, 2)
                     .background(.quaternary, in: Capsule())
             }
+            Button(action: self.onRemove) {
+                Image(systemName: "trash")
+            }
+            .buttonStyle(.borderless)
+            .disabled(!self.canRemove)
+            .help(L("Remove"))
         }
     }
 }

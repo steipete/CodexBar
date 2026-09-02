@@ -19,7 +19,7 @@ struct CloudSyncPersistence: Sendable {
         var preferencesDirty: Bool
         var fleetDevices: [String: DeviceSyncPayload]
         var fleetSnapshots: [String: AccountSnapshotSyncPayload]
-        var pendingSnapshotDeletes: Set<String>
+        var pendingRecordDeletes: Set<String>
         var pendingPredecessorDeletes: [String: Set<String>]
 
         init(
@@ -31,7 +31,7 @@ struct CloudSyncPersistence: Sendable {
             preferencesDirty: Bool = false,
             fleetDevices: [String: DeviceSyncPayload] = [:],
             fleetSnapshots: [String: AccountSnapshotSyncPayload] = [:],
-            pendingSnapshotDeletes: Set<String> = [],
+            pendingRecordDeletes: Set<String> = [],
             pendingPredecessorDeletes: [String: Set<String>] = [:])
         {
             self.stateSerialization = stateSerialization
@@ -42,7 +42,7 @@ struct CloudSyncPersistence: Sendable {
             self.preferencesDirty = preferencesDirty
             self.fleetDevices = fleetDevices
             self.fleetSnapshots = fleetSnapshots
-            self.pendingSnapshotDeletes = pendingSnapshotDeletes
+            self.pendingRecordDeletes = pendingRecordDeletes
             self.pendingPredecessorDeletes = pendingPredecessorDeletes
         }
 
@@ -55,7 +55,7 @@ struct CloudSyncPersistence: Sendable {
             case preferencesDirty
             case fleetDevices
             case fleetSnapshots
-            case pendingSnapshotDeletes
+            case pendingRecordDeletes = "pendingSnapshotDeletes"
             case pendingPredecessorDeletes
         }
 
@@ -85,9 +85,9 @@ struct CloudSyncPersistence: Sendable {
             self.fleetSnapshots = try container.decodeIfPresent(
                 [String: AccountSnapshotSyncPayload].self,
                 forKey: .fleetSnapshots) ?? [:]
-            self.pendingSnapshotDeletes = try container.decodeIfPresent(
+            self.pendingRecordDeletes = try container.decodeIfPresent(
                 Set<String>.self,
-                forKey: .pendingSnapshotDeletes) ?? []
+                forKey: .pendingRecordDeletes) ?? []
             self.pendingPredecessorDeletes = try container.decodeIfPresent(
                 [String: Set<String>].self,
                 forKey: .pendingPredecessorDeletes) ?? [:]

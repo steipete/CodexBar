@@ -18,14 +18,17 @@
 "Sign in to iCloud in System Settings to enable sync." = "Accedi a iCloud in Impostazioni di Sistema per abilitare la sincronizzazione.";
 "iCloud access is restricted on this Mac." = "L’accesso a iCloud è limitato su questo Mac.";
 "Sync is paused: another Mac uses a newer version of CodexBar. Update to resume." = "La sincronizzazione è in pausa: un altro Mac usa una versione più recente di CodexBar. Aggiorna per riprendere.";
+"Sync is not running yet. Try again in a moment." = "La sincronizzazione non è ancora attiva. Riprova tra un momento.";
 "Last successful fetch" = "Ultimo recupero riuscito";
 "Last successful push" = "Ultimo invio riuscito";
 "Never" = "Mai";
 "Macs" = "Computer Mac";
 "No synced Macs yet." = "Nessun Mac sincronizzato.";
 "Secrets use iCloud end-to-end encryption via encryptedValues. Hooks and machine-local paths never sync." = "I segreti usano la crittografia end-to-end di iCloud tramite encryptedValues. Gli hook e i percorsi locali non vengono mai sincronizzati.";
+"Turn on iCloud Sync to remove a Mac." = "Attiva la Sincronizzazione iCloud per rimuovere un Mac.";
 "Last seen %@" = "Ultima attività: %@";
 "This Mac" = "Questo Mac";
+"Remove %@ and its usage snapshots from iCloud?" = "Rimuovere %@ e le sue istantanee di utilizzo da iCloud?";
 "another Mac" = "un altro Mac";
 "%dm ago" = "%dm fa";
 "%dh ago" = "%dh fa";

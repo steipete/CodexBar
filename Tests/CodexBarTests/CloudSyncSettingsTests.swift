@@ -162,7 +162,7 @@ struct CloudSyncSettingsTests {
 
         #expect(envelope.dirtyProviders.isEmpty)
         #expect(!envelope.preferencesDirty)
-        #expect(envelope.pendingSnapshotDeletes.isEmpty)
+        #expect(envelope.pendingRecordDeletes.isEmpty)
     }
 
     @Test
@@ -173,10 +173,10 @@ struct CloudSyncSettingsTests {
         let fileURL = directory.appendingPathComponent("engine-state.json")
         let persistence = CloudSyncPersistence(fileURL: fileURL)
         var envelope = CloudSyncPersistence.Envelope(stateSerialization: nil, encodedSystemFields: [:])
-        envelope.pendingSnapshotDeletes = ["snap-claude-old-device-id"]
+        envelope.pendingRecordDeletes = ["snap-claude-old-device-id"]
         try persistence.save(envelope)
 
-        #expect(persistence.load().pendingSnapshotDeletes == ["snap-claude-old-device-id"])
+        #expect(persistence.load().pendingRecordDeletes == ["snap-claude-old-device-id"])
     }
 
     @Test

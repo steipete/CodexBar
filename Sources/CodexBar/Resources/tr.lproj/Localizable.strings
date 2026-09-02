@@ -18,14 +18,17 @@
 "Sign in to iCloud in System Settings to enable sync." = "Eşzamanlamayı etkinleştirmek için Sistem Ayarları'nda iCloud'a giriş yapın.";
 "iCloud access is restricted on this Mac." = "Bu Mac'te iCloud erişimi kısıtlı.";
 "Sync is paused: another Mac uses a newer version of CodexBar. Update to resume." = "Eşzamanlama duraklatıldı: başka bir Mac daha yeni bir CodexBar sürümü kullanıyor. Devam etmek için güncelleyin.";
+"Sync is not running yet. Try again in a moment." = "Eşitleme henüz çalışmıyor. Birazdan tekrar deneyin.";
 "Last successful fetch" = "Son başarılı veri alma";
 "Last successful push" = "Son başarılı gönderme";
 "Never" = "Asla";
 "Macs" = "Mac'ler";
 "No synced Macs yet." = "Henüz eşzamanlanan Mac yok.";
 "Secrets use iCloud end-to-end encryption via encryptedValues. Hooks and machine-local paths never sync." = "Gizli bilgiler encryptedValues aracılığıyla iCloud uçtan uca şifrelemesiyle korunur. Kancalar ve makineye özgü yollar hiçbir zaman eşzamanlanmaz.";
+"Turn on iCloud Sync to remove a Mac." = "Bir Mac’i kaldırmak için iCloud eşzamanlamayı açın.";
 "Last seen %@" = "Son görülme: %@";
 "This Mac" = "Bu Mac";
+"Remove %@ and its usage snapshots from iCloud?" = "%@ ve kullanım anlık görüntüleri iCloud'dan kaldırılsın mı?";
 "another Mac" = "başka bir Mac";
 "%dm ago" = "%d dk önce";
 "%dh ago" = "%d sa önce";

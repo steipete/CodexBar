@@ -421,6 +421,119 @@ struct CloudSyncSnapshotMigrationDeleteRetryTests {
         #expect(retryable == ["snap-obsolete"])
     }
 
+    @Test
+    func `a failed Device Record delete is not retried`() {
+        let zoneID = CloudSyncEngine.zoneID
+        func recordID(_ name: String) -> CKRecord.ID {
+            CKRecord.ID(recordName: name, zoneID: zoneID)
+        }
+        let stale = DeviceSyncPayload.recordName(for: "stale")
+        let gone = DeviceSyncPayload.recordName(for: "gone")
+
+        let failures: [CKRecord.ID: CKError] = [
+            recordID(stale): Self.cloudKitError(.networkFailure),
+            recordID(gone): Self.cloudKitError(.unknownItem),
+            recordID("snapshot-stale"): Self.cloudKitError(.networkFailure),
+        ]
+
+        #expect(
+            CloudSyncSnapshotMigration.retryableFailedDeletes(failures).map(\.recordName) ==
+                ["snapshot-stale"])
+        #expect(CloudSyncSnapshotMigration.finishedFailedDeleteNames(failures) == [stale, gone])
+    }
+
+    @Test
+    func `a device row goes only when CloudKit confirms the delete`() {
+        let zoneID = CloudSyncEngine.zoneID
+        func recordID(_ name: String) -> CKRecord.ID {
+            CKRecord.ID(recordName: name, zoneID: zoneID)
+        }
+        let confirmed = DeviceSyncPayload.recordName(for: "confirmed")
+        let alreadyGone = DeviceSyncPayload.recordName(for: "already-gone")
+        let refused = DeviceSyncPayload.recordName(for: "refused")
+
+        let names = CloudSyncSnapshotMigration.confirmedDeletedNames(
+            deletedIDs: [recordID(confirmed)],
+            failures: [
+                recordID(alreadyGone): Self.cloudKitError(.unknownItem),
+                recordID(refused): Self.cloudKitError(.permissionFailure),
+                recordID("snapshot-offline"): Self.cloudKitError(.networkFailure),
+            ])
+
+        #expect(names == [confirmed, alreadyGone])
+    }
+
+    @Test
+    func `snapshots of a removed device go with it`() {
+        func snapshot(deviceID: String) -> AccountSnapshotSyncPayload {
+            AccountSnapshotSyncPayload(
+                provider: .codex,
+                deviceID: deviceID,
+                accountIdentity: "acct",
+                displayLabel: "owner@example.com",
+                usage: UsageSnapshot(
+                    primary: nil,
+                    secondary: nil,
+                    updatedAt: Date(timeIntervalSince1970: 100),
+                    identity: nil))
+        }
+        let removed = snapshot(deviceID: "removed")
+        let kept = snapshot(deviceID: "kept")
+
+        // CloudKit can confirm the Device Record delete and terminally reject one of its snapshot
+        // deletes in the same batch, leaving a snapshot with no Macs row to remove it from.
+        let orphans = CloudSyncDeviceRemoval.orphanedSnapshotNames(
+            removedNames: [DeviceSyncPayload.recordName(for: "removed")],
+            snapshots: [removed.recordName: removed, kept.recordName: kept])
+
+        #expect(orphans == [removed.recordName])
+    }
+
+    @Test
+    func `queueing a delete leaves the fleet row until the delete lands`() {
+        let recordName = DeviceSyncPayload.recordName(for: "stale")
+        var envelope = CloudSyncPersistence.Envelope(stateSerialization: nil, encodedSystemFields: [:])
+        envelope.fleetDevices[recordName] = DeviceSyncPayload(
+            deviceID: "stale",
+            hostName: "Old Mac",
+            model: "Mac16,1",
+            appVersion: "1.0",
+            lastSeen: .distantPast)
+        envelope.encodedSystemFields[recordName] = Data()
+        var hashes = [recordName: "hash"]
+        var desiredRecords: [CKRecord.ID: CKRecord] = [:]
+
+        let recordIDs = CloudSyncSnapshotMigration.dropPushState(
+            [recordName],
+            hashes: &hashes,
+            envelope: &envelope,
+            desiredRecords: &desiredRecords,
+            zoneID: CloudSyncEngine.zoneID)
+
+        #expect(recordIDs.map(\.recordName) == [recordName])
+        #expect(hashes.isEmpty)
+        #expect(envelope.encodedSystemFields[recordName] == nil)
+        #expect(envelope.fleetDevices[recordName] != nil)
+    }
+
+    @Test
+    func `a Device Record delete that will not be retried is reported`() {
+        let zoneID = CloudSyncEngine.zoneID
+        func recordID(_ name: String) -> CKRecord.ID {
+            CKRecord.ID(recordName: name, zoneID: zoneID)
+        }
+
+        let failures: [CKRecord.ID: CKError] = [
+            recordID(DeviceSyncPayload.recordName(for: "stale")): Self.cloudKitError(.networkFailure),
+            recordID(DeviceSyncPayload.recordName(for: "gone")): Self.cloudKitError(.unknownItem),
+            recordID("snapshot-stale"): Self.cloudKitError(.networkFailure),
+        ]
+
+        #expect(
+            CloudSyncSnapshotMigration.reportableFailedDeletes(failures).map(\.code) ==
+                [.networkFailure])
+    }
+
     private static func cloudKitError(_ code: CKError.Code, retryAfter: TimeInterval? = nil) -> CKError {
         var userInfo: [String: Any] = [:]
         if let retryAfter {

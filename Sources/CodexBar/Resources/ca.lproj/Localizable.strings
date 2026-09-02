@@ -18,14 +18,17 @@
 "Sign in to iCloud in System Settings to enable sync." = "Inicieu la sessió d'iCloud a Configuració del Sistema per activar la sincronització.";
 "iCloud access is restricted on this Mac." = "iCloud access is restricted on this Mac.";
 "Sync is paused: another Mac uses a newer version of CodexBar. Update to resume." = "La sincronització està aturada: un altre Mac utilitza una versió més recent de CodexBar. Actualitzeu per reprendre-la.";
+"Sync is not running yet. Try again in a moment." = "La sincronització encara no s'està executant. Torna-ho a provar d'aquí a un moment.";
 "Last successful fetch" = "Última baixada correcta";
 "Last successful push" = "Última pujada correcta";
 "Never" = "Mai";
 "Macs" = "Macs";
 "No synced Macs yet." = "Encara no hi ha cap Mac sincronitzat.";
 "Secrets use iCloud end-to-end encryption via encryptedValues. Hooks and machine-local paths never sync." = "Els secrets utilitzen el xifratge d'extrem a extrem d'iCloud (encryptedValues). Els hooks i les rutes locals del Mac mai no se sincronitzen.";
+"Turn on iCloud Sync to remove a Mac." = "Activeu la Sincronització amb iCloud per eliminar un Mac.";
 "Last seen %@" = "Última connexió: %@";
 "This Mac" = "Aquest Mac";
+"Remove %@ and its usage snapshots from iCloud?" = "Vols eliminar %@ i les seves instantànies d'ús d'iCloud?";
 "another Mac" = "un altre Mac";
 "%dm ago" = "fa %dm";
 "%dh ago" = "fa %dh";

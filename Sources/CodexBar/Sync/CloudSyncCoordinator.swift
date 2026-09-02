@@ -14,6 +14,7 @@ final class CloudSyncCoordinator {
     private var snapshotObserver: NSObjectProtocol?
     private var accountObserver: NSObjectProtocol?
     private var resumeTask: Task<Void, Never>?
+    private var rehydrateTask: Task<Void, Never>?
     private var observedEnabled: Bool
 
     init(
@@ -35,6 +36,13 @@ final class CloudSyncCoordinator {
 
     func start() {
         self.observeSettings()
+        // The Macs list has to render with syncing off, or there is nothing to remove a stale
+        // device from. Local persistence only; the fleet menu cards stay gated on the setting.
+        self.rehydrateTask = Task { await self.engine.rehydrateFleetStateIfNeeded() }
+        self.state.removeDevice = { [weak self] deviceID in
+            guard let self else { return }
+            Task { await self.engine.removeDevice(deviceID: deviceID) }
+        }
         self.configObserver = NotificationCenter.default.addObserver(
             forName: .codexbarProviderConfigDidChange,
             object: self.settings,
@@ -102,6 +110,8 @@ final class CloudSyncCoordinator {
             NotificationCenter.default.removeObserver(accountObserver)
         }
         self.resumeTask?.cancel()
+        self.rehydrateTask?.cancel()
+        self.state.removeDevice = nil
         self.configObserver = nil
         self.localFileConfigObserver = nil
         self.snapshotObserver = nil

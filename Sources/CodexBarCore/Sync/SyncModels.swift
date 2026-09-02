@@ -166,8 +166,20 @@ public struct DeviceSyncPayload: Codable, Sendable {
         self.lastSeen = lastSeen
     }
 
+    private static let recordNamePrefix = "device-"
+
+    public static func recordName(for deviceID: String) -> String {
+        self.recordNamePrefix + deviceID
+    }
+
+    /// A Device Record delete is attempted once and never retried, so the delete paths have to
+    /// tell a Device Record apart from a Usage Snapshot by record name alone.
+    public static func isRecordName(_ recordName: String) -> Bool {
+        recordName.hasPrefix(self.recordNamePrefix)
+    }
+
     public var recordName: String {
-        "device-\(self.deviceID)"
+        Self.recordName(for: self.deviceID)
     }
 }
 
