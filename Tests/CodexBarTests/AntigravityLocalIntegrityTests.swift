@@ -92,6 +92,39 @@ struct AntigravityLocalIntegrityTests {
         #expect(snapshot.daily.isEmpty)
     }
 
+    @Test(arguments: [
+        "view",
+        "virtual",
+        "generated-data",
+    ])
+    func `computed trajectory metadata tables are rejected before querying payloads`(layout: String) async throws {
+        let fixture = try Fixture()
+        let url = try fixture.database(
+            blobs: [Fixture.modernBlob()],
+            createdSeconds: UInt64(Fixture.now.timeIntervalSince1970))
+        let database = try Fixture.open(url)
+        defer { sqlite3_close(database) }
+        try Fixture.execute(database, "ALTER TABLE trajectory_metadata_blob RENAME TO backing_metadata")
+        let sql = switch layout {
+        case "view":
+            "CREATE VIEW trajectory_metadata_blob AS SELECT id, data FROM backing_metadata"
+        case "generated-data":
+            """
+            CREATE TABLE trajectory_metadata_blob (id TEXT PRIMARY KEY, payload BLOB, data BLOB AS (payload) VIRTUAL);
+            INSERT INTO trajectory_metadata_blob (id, payload) SELECT id, data FROM backing_metadata;
+            """
+        default:
+            "CREATE VIRTUAL TABLE trajectory_metadata_blob USING fts5(id, data); " +
+                "INSERT INTO trajectory_metadata_blob VALUES ('main', 'invalid')"
+        }
+        try Fixture.execute(database, sql)
+        let report = try fixture.report()
+        #expect(report.coverage == .partial)
+        #expect(report.statistics.rows == 0)
+        #expect(report.statistics.attemptedBytes == 0)
+        #expect(report.statistics.materializedPayloadBytes == 0)
+    }
+
     @Test(arguments: ["ordinary", "extra-column", "without-rowid"])
     func `stored ordinary SQLite tables remain supported`(layout: String) throws {
         let fixture = try Fixture()
