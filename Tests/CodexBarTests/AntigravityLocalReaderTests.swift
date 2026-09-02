@@ -472,11 +472,127 @@ struct AntigravityLocalReaderTests {
     }
 
     @Test
-    func `field 2 root envelope with reused step UUID consumes step timestamps in order`() throws {
+    func `field 2 root envelope with reused step UUID follows stored idx order`() throws {
         let fixture = try Fixture()
         let stepUUID = "reused-step-uuid"
         let first = Fixture.blobWithRootEnvelope(stepUUID: stepUUID, seconds: nil)
-        let second = Fixture.blobWithRootEnvelope(stepUUID: stepUUID, seconds: nil)
+        let second = Fixture.blobWithRootEnvelope(stepUUID: stepUUID, input: 200, seconds: nil)
+        let beforeMidnight = Fixture.stepMetadataBlob(stepUUID: stepUUID, seconds: 1_787_875_140)
+        let afterMidnight = Fixture.stepMetadataBlob(stepUUID: stepUUID, seconds: 1_787_875_260)
+        let url = try fixture.database(blobs: [first, second])
+        let database = try Fixture.open(url)
+        defer { sqlite3_close(database) }
+        try Fixture.execute(database, "CREATE TABLE steps (idx INTEGER, metadata BLOB)")
+        try Fixture.insertStep(database, row: 20, blob: afterMidnight)
+        try Fixture.insertStep(database, row: 10, blob: beforeMidnight)
+
+        let report = try fixture.report()
+
+        #expect(report.coverage == .complete)
+        #expect(report.report.data.map(\.date) == ["2026-08-27", "2026-08-28"])
+        #expect(report.report.data.map(\.requestCount) == [1, 1])
+        #expect(report.report.data.map(\.inputTokens) == [111, 211])
+    }
+
+    @Test
+    func `step lookup selects the lowest idx even when it was inserted later`() throws {
+        let fixture = try Fixture()
+        let stepUUID = "extra-step-uuid"
+        let turn = Fixture.blobWithRootEnvelope(stepUUID: stepUUID, seconds: nil)
+        let beforeMidnight = Fixture.stepMetadataBlob(stepUUID: stepUUID, seconds: 1_787_875_140)
+        let afterMidnight = Fixture.stepMetadataBlob(stepUUID: stepUUID, seconds: 1_787_875_260)
+        let url = try fixture.database(blobs: [turn])
+        let database = try Fixture.open(url)
+        defer { sqlite3_close(database) }
+        try Fixture.execute(database, "CREATE TABLE steps (idx INTEGER, metadata BLOB)")
+        try Fixture.insertStep(database, row: 20, blob: afterMidnight)
+        try Fixture.insertStep(database, row: 10, blob: beforeMidnight)
+
+        let report = try fixture.report()
+
+        #expect(report.coverage == .complete)
+        #expect(report.report.data.map(\.date) == ["2026-08-27"])
+    }
+
+    @Test
+    func `duplicate step indices fail closed instead of choosing scan order`() throws {
+        let fixture = try Fixture()
+        let stepUUID = "duplicate-step-uuid"
+        let turn = Fixture.blobWithRootEnvelope(stepUUID: stepUUID, seconds: nil)
+        let first = Fixture.stepMetadataBlob(stepUUID: stepUUID, seconds: 1_787_875_140)
+        let second = Fixture.stepMetadataBlob(stepUUID: stepUUID, seconds: 1_787_875_260)
+        let url = try fixture.database(blobs: [turn])
+        let database = try Fixture.open(url)
+        defer { sqlite3_close(database) }
+        try Fixture.execute(database, "CREATE TABLE steps (idx INTEGER, metadata BLOB)")
+        try Fixture.insertStep(database, row: 10, blob: first)
+        try Fixture.insertStep(database, row: 10, blob: second)
+
+        let report = try fixture.report()
+
+        #expect(report.coverage == .partial)
+        #expect(report.report.data.isEmpty)
+    }
+
+    @Test
+    func `missing timestamp at the lowest matching step idx fails closed`() throws {
+        let fixture = try Fixture()
+        let stepUUID = "missing-lowest-step-uuid"
+        let turn = Fixture.blobWithRootEnvelope(stepUUID: stepUUID, seconds: nil)
+        let missingTimestamp = Fixture.message(12, Array(stepUUID.utf8))
+        let laterTimestamp = Fixture.stepMetadataBlob(stepUUID: stepUUID, seconds: 1_787_875_260)
+        let url = try fixture.database(blobs: [turn])
+        let database = try Fixture.open(url)
+        defer { sqlite3_close(database) }
+        try Fixture.execute(database, "CREATE TABLE steps (idx INTEGER, metadata BLOB)")
+        try Fixture.insertStep(database, row: 10, blob: missingTimestamp)
+        try Fixture.insertStep(database, row: 20, blob: laterTimestamp)
+
+        let report = try fixture.report()
+
+        #expect(report.coverage == .partial)
+        #expect(report.report.data.isEmpty)
+    }
+
+    @Test
+    func `malformed matching step cannot turn one timestamp into shared coverage`() throws {
+        let fixture = try Fixture()
+        let stepUUID = "malformed-shared-step-uuid"
+        let turns = (0..<2).map { _ in Fixture.blobWithRootEnvelope(stepUUID: stepUUID, seconds: nil) }
+        let valid = Fixture.stepMetadataBlob(stepUUID: stepUUID, seconds: 1_787_875_140)
+        let invalid = Fixture.stepMetadataBlob(
+            stepUUID: stepUUID,
+            seconds: 1_787_875_260,
+            nanos: 1_000_000_000)
+        try fixture.database(blobs: turns, stepBlobs: [valid, invalid])
+
+        let report = try fixture.report()
+
+        #expect(report.coverage == .partial)
+        #expect(report.report.data.isEmpty)
+    }
+
+    @Test
+    func `multiple timestamps cannot be guessed across more reused turns`() throws {
+        let fixture = try Fixture()
+        let stepUUID = "ambiguous-reused-step-uuid"
+        let turns = (0..<3).map { _ in Fixture.blobWithRootEnvelope(stepUUID: stepUUID, seconds: nil) }
+        let first = Fixture.stepMetadataBlob(stepUUID: stepUUID, seconds: 1_787_875_140)
+        let second = Fixture.stepMetadataBlob(stepUUID: stepUUID, seconds: 1_787_875_260)
+        try fixture.database(blobs: turns, stepBlobs: [first, second])
+
+        let report = try fixture.report()
+
+        #expect(report.coverage == .partial)
+        #expect(report.report.data.isEmpty)
+    }
+
+    @Test
+    func `embedded reused step occurrence keeps later pending timestamp aligned`() throws {
+        let fixture = try Fixture()
+        let stepUUID = "mixed-timestamp-step-uuid"
+        let first = Fixture.blobWithRootEnvelope(stepUUID: stepUUID, seconds: 1_787_875_140)
+        let second = Fixture.blobWithRootEnvelope(stepUUID: stepUUID, input: 200, seconds: nil)
         let beforeMidnight = Fixture.stepMetadataBlob(stepUUID: stepUUID, seconds: 1_787_875_140)
         let afterMidnight = Fixture.stepMetadataBlob(stepUUID: stepUUID, seconds: 1_787_875_260)
         try fixture.database(blobs: [first, second], stepBlobs: [beforeMidnight, afterMidnight])
@@ -485,7 +601,7 @@ struct AntigravityLocalReaderTests {
 
         #expect(report.coverage == .complete)
         #expect(report.report.data.map(\.date) == ["2026-08-27", "2026-08-28"])
-        #expect(report.report.data.map(\.requestCount) == [1, 1])
+        #expect(report.report.data.map(\.inputTokens) == [111, 211])
     }
 
     @Test

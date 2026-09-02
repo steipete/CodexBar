@@ -168,19 +168,24 @@ struct AntigravityProtoReader {
     {
         var stepUUID: String?
         var time = Timestamp()
+        var timestampIsValid = true
         do {
             try self.fields(bytes[...], checkCancellation: checkCancellation) { field in
                 switch field.number {
                 case 1:
-                    try self.parseTimestampField(
-                        field.message(), time: &time, checkCancellation: checkCancellation)
+                    do {
+                        try self.parseTimestampField(
+                            field.message(), time: &time, checkCancellation: checkCancellation)
+                    } catch AntigravityLocalReader.ScanFailure.invalid {
+                        timestampIsValid = false
+                    }
                 case 12:
                     stepUUID = try field.string()
                 default:
                     break
                 }
             }
-            let ms = try time.milliseconds()
+            let ms = timestampIsValid ? try time.milliseconds() : nil
             return (stepUUID, ms)
         } catch AntigravityLocalReader.ScanFailure.invalid {
             return nil

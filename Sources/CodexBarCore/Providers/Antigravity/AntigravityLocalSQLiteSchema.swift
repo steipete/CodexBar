@@ -7,52 +7,53 @@ import CSQLite3
 
 #if canImport(SQLite3) || canImport(CSQLite3)
 extension AntigravityLocalReader {
-    struct SupportedTables {
-        var hasGenMetadata = false
-        var hasSteps = false
-    }
-
-    static func supportedSQLiteTables(_ database: OpaquePointer, budget: Budget) throws -> SupportedTables {
+    static func hasSupportedSQLiteTable(_ database: OpaquePointer, budget: Budget) throws -> Bool {
         var statement: OpaquePointer?
         defer { sqlite3_finalize(statement) }
+        // sqlite_master works on older SQLite versions too. Virtual tables and views have no root b-tree page.
         let query = "SELECT name, type, rootpage FROM main.sqlite_master LIMIT ?"
         guard sqlite3_prepare_v2(database, query, -1, &statement, nil) == SQLITE_OK,
-              let statement else { return SupportedTables() }
+              let statement else { return false }
         sqlite3_bind_int64(statement, 1, Int64(min(budget.limits.schemaEntries, 128) + 1))
         var entries = 0
-        var tables = SupportedTables()
         while true {
             try budget.check()
             let step = sqlite3_step(statement)
-            if step == SQLITE_DONE { break }
-            // A SQLITE_CORRUPT/SQLITE_IOERR termination is not an exhaustive listing: fail closed.
-            guard step == SQLITE_ROW else { return SupportedTables() }
+            guard step == SQLITE_ROW else { return false }
             entries += 1
             budget.statistics.schemaEntries += 1
             guard entries <= budget.limits.schemaEntries else { throw ScanFailure.exhausted }
             let name = try self.schemaText(statement, column: 0, budget: budget)
             let type = try self.schemaText(statement, column: 1, budget: budget)
-            if name?.lowercased() == "gen_metadata" {
-                if type == "table", sqlite3_column_type(statement, 2) == SQLITE_INTEGER,
-                   sqlite3_column_int64(statement, 2) > 0,
-                   try self.hasStoredSQLiteColumns(database, budget: budget)
-                {
-                    tables.hasGenMetadata = true
-                }
-            } else if name?.lowercased() == "steps" {
-                if type == "table", sqlite3_column_type(statement, 2) == SQLITE_INTEGER,
-                   sqlite3_column_int64(statement, 2) > 0,
-                   try self.hasStoredStepsColumns(database, budget: budget)
-                {
-                    tables.hasSteps = true
-                }
-            }
+            guard name?.lowercased() == "gen_metadata" else { continue }
+            guard type == "table", sqlite3_column_type(statement, 2) == SQLITE_INTEGER,
+                  sqlite3_column_int64(statement, 2) > 0 else { return false }
+            return try self.hasStoredSQLiteColumns(database, budget: budget)
         }
-        return tables
     }
 
-    static func hasSupportedSQLiteTable(_ database: OpaquePointer, budget: Budget) throws -> Bool {
-        try self.supportedSQLiteTables(database, budget: budget).hasGenMetadata
+    static func hasSupportedStepsTable(_ database: OpaquePointer, budget: Budget) throws -> Bool {
+        var statement: OpaquePointer?
+        defer { sqlite3_finalize(statement) }
+        let query = "SELECT name, type, rootpage FROM main.sqlite_master LIMIT ?"
+        guard sqlite3_prepare_v2(database, query, -1, &statement, nil) == SQLITE_OK,
+              let statement else { return false }
+        sqlite3_bind_int64(statement, 1, Int64(min(budget.limits.schemaEntries, 128) + 1))
+        var entries = 0
+        while true {
+            try budget.check()
+            let step = sqlite3_step(statement)
+            guard step == SQLITE_ROW else { return false }
+            entries += 1
+            budget.statistics.schemaEntries += 1
+            guard entries <= budget.limits.schemaEntries else { throw ScanFailure.exhausted }
+            let name = try self.schemaText(statement, column: 0, budget: budget)
+            let type = try self.schemaText(statement, column: 1, budget: budget)
+            guard name?.lowercased() == "steps" else { continue }
+            guard type == "table", sqlite3_column_type(statement, 2) == SQLITE_INTEGER,
+                  sqlite3_column_int64(statement, 2) > 0 else { return false }
+            return try self.hasStoredStepsColumns(database, budget: budget)
+        }
     }
 
     private static func hasStoredStepsColumns(_ database: OpaquePointer, budget: Budget) throws -> Bool {
@@ -65,7 +66,7 @@ extension AntigravityLocalReader {
         while true {
             try budget.check()
             let step = sqlite3_step(statement)
-            if step == SQLITE_DONE { return columns.isSuperset(of: ["metadata"]) }
+            if step == SQLITE_DONE { return columns.isSuperset(of: ["idx", "metadata"]) }
             guard step == SQLITE_ROW else { return false }
             count += 1
             budget.statistics.schemaColumns += 1
