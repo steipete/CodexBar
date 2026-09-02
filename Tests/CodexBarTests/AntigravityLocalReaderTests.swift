@@ -264,6 +264,23 @@ struct AntigravityLocalReaderTests {
     }
 
     @Test
+    func `trajectory metadata bytes are charged to database and materialized byte limits`() throws {
+        let fixture = try Fixture()
+        let metadata = Fixture.sessionMetadata(createdSeconds: UInt64(Fixture.now.timeIntervalSince1970))
+        let blob = Fixture.modernBlob()
+        try fixture.database(blobs: [blob], sessionMetadataBlob: metadata)
+
+        var limits = AntigravityLocalReader.Limits()
+        let report = try fixture.report(limits: limits)
+        #expect(report.coverage == .complete)
+        #expect(report.statistics.materializedPayloadBytes == blob.count + metadata.count)
+
+        limits.databaseBytes = metadata.count - 1
+        let exhausted = try fixture.report(limits: limits)
+        #expect(exhausted.coverage == .partial)
+    }
+
+    @Test
     func `complete empty out of window absent and corrupt sources remain distinct`() async throws {
         let fixture = try Fixture()
         #expect(try fixture.report().coverage == .unavailable)

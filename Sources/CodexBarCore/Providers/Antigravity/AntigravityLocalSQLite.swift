@@ -104,7 +104,7 @@ extension AntigravityLocalReader {
         let supported = try self.hasSupportedSQLiteTable(database, budget: budget)
         if let failure = progress.failure { throw failure }
         guard supported else { return SourceResult(isComplete: false) }
-        let trajectoryStartTimestampMs = try self.readTrajectoryStartTimestamp(database, budget: budget)
+        let trajectoryStartTimestampMs = try self.readTrajectoryStartTimestamp(database, progress: progress)
         sqlite3_limit(database, SQLITE_LIMIT_LENGTH, Int32(maximumValueBytes))
         var statement: OpaquePointer?
         defer { sqlite3_finalize(statement) }
@@ -198,8 +198,9 @@ extension AntigravityLocalReader {
 
     private static func readTrajectoryStartTimestamp(
         _ database: OpaquePointer,
-        budget: Budget) throws -> Int64?
+        progress: SQLProgress) throws -> Int64?
     {
+        let budget = progress.budget
         var statement: OpaquePointer?
         defer { sqlite3_finalize(statement) }
         // This table is absent in older Antigravity databases. Its timestamp is the base for
@@ -222,8 +223,13 @@ extension AntigravityLocalReader {
             return nil
         }
         let count = Int(sqlite3_column_bytes(statement, 0))
-        guard count > 0 else { return nil }
+        guard count > 0, count <= budget.limits.blobBytes else { return nil }
         try budget.chargeBytes(count)
+        guard count <= budget.limits.databaseBytes - progress.databaseBytes else {
+            throw ScanFailure.exhausted
+        }
+        progress.databaseBytes += count
+        budget.statistics.materializedPayloadBytes += count
         let bytes = Array(UnsafeBufferPointer(
             start: pointer.assumingMemoryBound(to: UInt8.self), count: count))
         do {
