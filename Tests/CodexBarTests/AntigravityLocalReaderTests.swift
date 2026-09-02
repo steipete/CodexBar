@@ -326,6 +326,23 @@ struct AntigravityLocalReaderTests {
     }
 
     @Test
+    func `large step metadata above 64 KiB remains readable`() throws {
+        let fixture = try Fixture()
+        let bot = "bot-large-meta"
+        // Valid timestamp + bot_id plus large unknown field to exceed 64 KiB but stay within 16 MiB blob limit
+        let largePadding = Array(repeating: UInt8(0x41), count: 70 * 1024)
+        let largeStep = Fixture.stepMetadata(botID: bot) + Fixture.message(99, largePadding)
+        #expect(largeStep.count > 64 * 1024)
+        #expect(largeStep.count < 16 * 1024 * 1024)
+        try fixture.database(
+            blobs: [Fixture.modernBlob(botID: bot, seconds: nil)],
+            stepMetadatas: [largeStep])
+        let report = try fixture.report()
+        #expect(report.coverage == .complete)
+        #expect(report.report.summary?.totalTokens == 198)
+    }
+
+    @Test
     func `complete empty out of window absent and corrupt sources remain distinct`() async throws {
         let fixture = try Fixture()
         #expect(try fixture.report().coverage == .unavailable)

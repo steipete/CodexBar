@@ -104,8 +104,8 @@ extension AntigravityLocalReader {
         let supported = try self.hasSupportedSQLiteTable(database, budget: budget)
         if let failure = progress.failure { throw failure }
         guard supported else { return SourceResult(isComplete: false) }
-        let stepTimestamps = try self.readStepTimestamps(database, progress: progress)
         sqlite3_limit(database, SQLITE_LIMIT_LENGTH, Int32(maximumValueBytes))
+        let stepTimestamps = try self.readStepTimestamps(database, progress: progress)
         var statement: OpaquePointer?
         defer { sqlite3_finalize(statement) }
         // length(BLOB) reads its size without loading the payload. The non-deterministic limit is
