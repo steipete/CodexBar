@@ -52,17 +52,42 @@ public enum OllamaProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Ollama cost summary is not supported." }),
+            // Resolve monthly pace from calendar reset boundaries, not a fixed 30-day session.
             pace: ProviderPaceCapability(
+                resetWindowPace: .windowDuration(minutes: ProviderPaceCapability.monthlyWindowSentinelMinutes),
+                inferredMonthlyDuration: .windowDuration(minutes: ProviderPaceCapability.monthlyWindowSentinelMinutes),
                 primary: .session(maximumMinutes: 300, requiresDuration: true),
                 secondary: .weeklyWithDuration,
-                sessionPaceWindowRule: .windowDurationPresent),
-            presentation: ProviderUsagePresentation(menuCard: ProviderMenuCardPresentation(
-                usageNotesResolver: { context in
-                    guard context.snapshot?.identity?.loginMethod == "API key" else { return .unhandled }
-                    return .localized([
-                        "API key verified. Cloud quotas need browser cookies. Sign in to Ollama.",
-                    ])
-                })),
+                sessionPaceWindowRule: .custom { window, _ in
+                    guard let minutes = window.windowMinutes else { return false }
+                    return minutes <= 300
+                }),
+            presentation: ProviderUsagePresentation(
+                rateWindowLabeler: { metadata, snapshot, _ in
+                    ProviderRateWindowLabels(
+                        primary: Self.primaryLabel(window: snapshot.primary) ?? metadata.sessionLabel,
+                        secondary: metadata.weeklyLabel,
+                        tertiary: metadata.opusLabel ?? "Sonnet",
+                        showsTertiary: metadata.supportsOpus)
+                },
+                // Retain saved history, but chart only currently reported quota periods.
+                planUtilizationSeriesResolver: { snapshot in
+                    guard snapshot.primary?.windowMinutes == ProviderPaceCapability.monthlyWindowSentinelMinutes else {
+                        return ProviderUsagePresentation.standardPlanUtilizationSeries(snapshot: snapshot)
+                    }
+                    var series: Set<ProviderPlanUtilizationSeries> = [.monthly]
+                    if snapshot.secondary != nil {
+                        series.insert(.weekly)
+                    }
+                    return series
+                },
+                menuCard: ProviderMenuCardPresentation(
+                    usageNotesResolver: { context in
+                        guard context.snapshot?.identity?.loginMethod == "API key" else { return .unhandled }
+                        return .localized([
+                            "API key verified. Cloud quotas need browser cookies. Sign in to Ollama.",
+                        ])
+                    })),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web, .api],
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
@@ -82,6 +107,12 @@ public enum OllamaProviderDescriptor {
                     } == true
                     return settings?.ollama?.cookieSource == .off || hasEnvironmentToken
                 }))
+    }
+
+    /// Keep legacy labels unless the primary window carries the monthly sentinel.
+    public static func primaryLabel(window: RateWindow?) -> String? {
+        guard window?.windowMinutes == ProviderPaceCapability.monthlyWindowSentinelMinutes else { return nil }
+        return "Monthly"
     }
 
     private static func resolveStrategies(context: ProviderFetchContext) async -> [any ProviderFetchStrategy] {

@@ -12,6 +12,7 @@ cd "${ROOT_DIR}"
 # Inherited by release-built tests and arbitrary CLI children as well as the test runner.
 export CODEXBAR_TEST_CODEX_FILE_ISOLATION=1
 unset CODEXBAR_TEST_CODEX_FILE_FIXTURES
+export CODEXBAR_TEST_SESSION_FILE_ISOLATION=1
 
 # Defense in depth: test processes also self-detect, but keep this explicit so runner changes cannot
 # expose the user's login Keychain. Deliberate isolated Keychain tests must opt in by setting the allow flag.

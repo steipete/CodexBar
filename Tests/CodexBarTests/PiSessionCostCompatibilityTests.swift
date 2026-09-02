@@ -15,7 +15,12 @@ private final class PiSessionParseCounter: @unchecked Sendable {
 }
 
 struct PiSessionCostCompatibilityTests {
-    @Test(arguments: [false, true], ["c6c46a376ba16304", "55f640e6bb0ccba4", "21f10143afe00c55", "f8577be489f4c13d"])
+    @Test(
+        arguments: [false, true],
+        [
+            "c6c46a376ba16304", "55f640e6bb0ccba4", "21f10143afe00c55", "f8577be489f4c13d", "494eee446bb2e5f9",
+            "7e293e8fc9e25700", "e0b0319de43e22d7",
+        ])
     func `parser changes reprice pi and omp while current caches preserve independent invalidation`(
         catalogPresent: Bool, predecessorHash: String) throws
     {

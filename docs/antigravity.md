@@ -117,7 +117,14 @@ When the Antigravity 2.0 app is running:
      - `--extension_server_csrf_token <token>` (preferred HTTP fallback token when present).
 
 2. **Port discovery**
-   - Command: `lsof -nP -iTCP -sTCP:LISTEN -a -p <pid>`.
+   - macOS uses kernel process-socket enumeration.
+   - Linux tries `lsof -nP -iTCP -sTCP:LISTEN -a -p <pid>`, then process-scoped `/proc` discovery if
+     `lsof` is missing, fails to launch or exits unsuccessfully, or reports no listeners. Namespace warnings from
+     `lsof` therefore do not prevent discovery when `/proc` remains readable. Cancellation and hard subprocess limits
+     still propagate. If neither source finds a listener, CLI readiness polling continues within its existing deadline
+     and retains the last discovery diagnostic if startup never succeeds. An endpoint readiness failure takes
+     precedence once a listener has been reached.
+   - `/proc/<pid>/fd` socket inodes are matched only against the same process's `net/tcp` and `net/tcp6` tables.
    - All listening ports are probed.
 
 3. **Connect port probe (HTTPS)**
@@ -149,7 +156,7 @@ When source mode is `auto` or `cli` and the desktop local probe fails, CodexBar 
 
 CodexBar launches `agy` in a PTY because the CLI exposes its quota server only while the interactive process is alive.
 The implementation still does **not** scrape terminal output; it only keeps the process alive, drains discarded PTY
-rendering, discovers listening ports with `lsof`, and probes the local HTTPS server:
+rendering, uses the same platform-specific port discovery described above, and probes the local HTTPS server:
 
 - First: `POST https://127.0.0.1:<port>/exa.language_server_pb.LanguageServerService/RetrieveUserQuotaSummary`
 - Fallback 1: `POST https://127.0.0.1:<port>/exa.language_server_pb.LanguageServerService/GetUserStatus`
@@ -165,6 +172,11 @@ Differences from the desktop local probe:
   returns parseable usage for the selected account. CodexBar-owned pids are excluded from external reuse so managed
   probe/idle lifecycle accounting stays balanced; if no eligible external server answers, CodexBar uses its managed
   session as before.
+- On macOS, external reuse matches the selected binary against the kernel executable path, not the spelling of
+  `argv[0]`; a bare `agy` command can match, but a conflicting executable cannot. Platforms without that identity
+  retain the absolute command-path check. User/account and managed-process exclusions are unchanged.
+- If `agy` is signed out, an unavailable or tokenless IDE fallback keeps the actionable Terminal sign-in guidance.
+  A successful fallback still supplies usage, and more specific later errors retain their normal precedence.
 - Readiness is endpoint-based: CodexBar retries until one of the quota endpoints parses, because fresh `agy`
   processes can bind a port before the quota service is initialized.
 - App runtime uses a bounded warm session: `agy` is kept alive briefly after a refresh, then stopped on idle. CLI runtime
@@ -259,6 +271,10 @@ Both overrides and `HOME` come from the same refresh environment. Declared roots
 discovery still visits only the immediate entries of the recognized directories. This is machine-local token history,
 not account attribution or dollar pricing. No language server, provider CLI, browser, credentials, or network is used.
 
+Use `codexbar cost --provider antigravity --format json` to read this same local history from the CLI.
+The cost endpoint and dashboard also include it when Antigravity is selected. Token counts do not imply known dollar
+costs, and these entry points do not expand the supported timestamp layouts described below.
+
 SQLite is authoritative when present. An unreadable root, malformed database, unsupported event layout, or exhausted
 budget never authorizes replacement by a smaller/stale JSONL cache. Complete empty databases and complete histories
 outside the selected window establish empty history; absent sources and partial scans do not. Partial reports remain
@@ -324,7 +340,8 @@ cancellation. The fixtures are synthetic and source-linked, not private captures
 
 ## Constraints
 - Internal protocol; fields may change.
-- Requires `lsof` for local/CLI port detection.
+- Linux local/CLI port detection requires working `lsof` output or readable process-scoped `/proc` socket metadata;
+  macOS uses kernel process-socket enumeration.
 - Local HTTPS uses a self-signed cert; the probe allows insecure TLS only for loopback hosts.
 
 ## Key files

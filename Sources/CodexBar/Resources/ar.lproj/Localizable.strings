@@ -224,6 +224,7 @@
 "No cost history data." = "بيانات تاريخ مجانية.";
 "No data available" = "لا توجد بيانات متاحة";
 "No data yet" = "لا توجد بيانات حتى الآن";
+"Workspaces" = "مساحات العمل";
 "No enabled providers available for Overview." = "لا يوجد مزودون مفعلون متاحون للنظرة العامة.";
 "No providers selected" = "لم يتم اختيار أي مقدمي خدمة";
 "No token accounts yet." = "لا توجد حسابات رمزية حتى الآن.";
@@ -673,6 +674,9 @@
 "surprise_me_subtitle" = "تحقق إذا كنت تحب وكلائنك يستمتعون هناك.";
 "hide_personal_info_title" = "إخفاء المعلومات الشخصية";
 "hide_personal_info_subtitle" = "عناوين بريد إلكتروني غامضة في شريط القائمة وواجهة القائمة.";
+"hide_cost_history_identity_subtitle" = "إخفاء أسماء المشاريع والمصادر ومساراتها في سجل التكاليف أيضًا، دون تغيير البيانات المخزنة.";
+"Project %d" = "المشروع %d";
+"Source %d" = "المصدر %d";
 "show_provider_storage_usage_title" = "عرض استخدام التخزين لمزود الخدمة";
 "show_provider_storage_usage_subtitle" = "عرض استخدام القرص المحلي في القوائم. يمسح المسارات المعروفة المملوكة لمزود الخدمة في الخلفية.";
 "section_keychain_access" = "Keychain الوصول";

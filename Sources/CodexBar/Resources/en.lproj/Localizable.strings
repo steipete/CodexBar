@@ -204,6 +204,7 @@
 "No cost history data." = "No cost history data.";
 "No data available" = "No data available";
 "No data yet" = "No data yet";
+"Workspaces" = "Workspaces";
 "No enabled providers available for Overview." = "No enabled providers available for Overview.";
 "No providers selected" = "No providers selected";
 "No token accounts yet." = "No token accounts yet.";
@@ -653,6 +654,9 @@
 "surprise_me_subtitle" = "Check if you like your agents having some fun up there.";
 "hide_personal_info_title" = "Hide personal information";
 "hide_personal_info_subtitle" = "Obscure email addresses in the menu bar and menu UI.";
+"hide_cost_history_identity_subtitle" = "Also hide cost-history project/source names and paths without changing stored data.";
+"Project %d" = "Project %d";
+"Source %d" = "Source %d";
 "show_provider_storage_usage_title" = "Show provider storage usage";
 "show_provider_storage_usage_subtitle" = "Show local disk usage in menus. Scans known provider-owned paths in the background.";
 "section_keychain_access" = "Keychain access";

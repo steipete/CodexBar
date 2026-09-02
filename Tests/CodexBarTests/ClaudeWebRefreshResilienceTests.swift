@@ -5,6 +5,44 @@ import Testing
 
 struct ClaudeWebRefreshResilienceTests {
     @Test
+    func `web challenge respects failure gate while keeping prior Claude snapshot`() async throws {
+        try await ClaudeOAuthCredentialsStore.withIsolatedCredentialsFileTrackingForTesting {
+            let tempDir = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString, isDirectory: true)
+            try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+            let fileURL = tempDir.appendingPathComponent("missing-credentials.json")
+
+            try await ClaudeOAuthCredentialsStore.withCredentialsURLOverrideForTesting(fileURL) {
+                let prior = Self.makePriorSnapshot()
+                let store = try await MainActor.run {
+                    try Self.makeStore(
+                        suite: "ClaudeWebRefreshResilienceTests-web-challenge",
+                        prior: prior,
+                        strategy: ClaudeCloudflareChallengeFetchStrategy())
+                }
+
+                await store.refreshProvider(.claude)
+                let firstResult = await MainActor.run {
+                    (
+                        updatedAt: store.snapshot(for: .claude)?.updatedAt,
+                        hasError: store.error(for: .claude) != nil)
+                }
+                #expect(firstResult.updatedAt == prior.updatedAt)
+                #expect(!firstResult.hasError)
+
+                await store.refreshProvider(.claude)
+                let secondResult = await MainActor.run {
+                    (
+                        updatedAt: store.snapshot(for: .claude)?.updatedAt,
+                        error: store.error(for: .claude))
+                }
+                #expect(secondResult.updatedAt == prior.updatedAt)
+                #expect(secondResult.error == ClaudeCloudflareChallengeStubError().localizedDescription)
+            }
+        }
+    }
+
+    @Test
     func `web unauthorized respects failure gate while keeping prior Claude snapshot`() async throws {
         try await ClaudeOAuthCredentialsStore.withIsolatedCredentialsFileTrackingForTesting {
             let tempDir = FileManager.default.temporaryDirectory
@@ -232,5 +270,30 @@ private struct ClaudeWebParseFailureFetchStrategy: ProviderFetchStrategy {
 
     func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
         false
+    }
+}
+
+private struct ClaudeCloudflareChallengeFetchStrategy: ProviderFetchStrategy {
+    let id = "test.claude-web-cloudflare-challenge"
+    let kind: ProviderFetchKind = .web
+
+    func isAvailable(_: ProviderFetchContext) async -> Bool {
+        true
+    }
+
+    func fetch(_: ProviderFetchContext) async throws -> ProviderFetchResult {
+        throw ClaudeCloudflareChallengeStubError()
+    }
+
+    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
+        false
+    }
+}
+
+private struct ClaudeCloudflareChallengeStubError: LocalizedError {
+    var errorDescription: String? {
+        "claude.ai is behind a Cloudflare challenge, often caused by VPN or datacenter networks. " +
+            "Re-authenticating will not help. Switch Claude Usage source to OAuth in Settings " +
+            "(Usage credits balance will be unavailable), or try a different network."
     }
 }

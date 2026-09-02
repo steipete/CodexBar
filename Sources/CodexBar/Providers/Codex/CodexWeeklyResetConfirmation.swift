@@ -233,127 +233,164 @@ struct CodexWeeklyResetConfirmation: Sendable {
         return .publishConfirmation
     }
 
-    static func makeDelayedCandidate(
+    static func evaluateDelayedCandidateCreation(
         previous: UsageSnapshot?,
         initial: UsageSnapshot,
         confirmation: UsageSnapshot,
         sourceEvidence: SourceEvidence,
-        observedAt: Date? = nil) -> CodexWeeklyResetPublicationCandidate?
+        observedAt: Date? = nil) -> CandidateCreation
     {
         let observedAt = observedAt ?? self.observationDate
         guard sourceEvidence.previousIsExactOAuth,
               sourceEvidence.initialIsExactOAuth,
-              sourceEvidence.confirmationIsExactOAuth,
-              let previous,
-              previous.dataConfidence == .exact,
+              sourceEvidence.confirmationIsExactOAuth
+        else { return .rejected(.sourceNotExactOAuth) }
+        guard let previous else { return .rejected(.missingPreviousSnapshot) }
+        guard previous.dataConfidence == .exact,
               initial.dataConfidence == .exact,
-              confirmation.dataConfidence == .exact,
-              isFinite(previous.updatedAt),
-              isFinite(initial.updatedAt),
-              isFinite(confirmation.updatedAt),
-              isFinite(observedAt),
-              initial.updatedAt > previous.updatedAt,
-              confirmation.updatedAt > initial.updatedAt,
-              let previousWeekly = CodexConsumerProjection.sourceRateWindow(for: .weekly, snapshot: previous),
+              confirmation.dataConfidence == .exact
+        else { return .rejected(.confidenceNotExact) }
+        guard self.isFinite(previous.updatedAt),
+              self.isFinite(initial.updatedAt),
+              self.isFinite(confirmation.updatedAt),
+              self.isFinite(observedAt)
+        else { return .rejected(.invalidObservationTime) }
+        guard initial.updatedAt > previous.updatedAt,
+              confirmation.updatedAt > initial.updatedAt
+        else { return .rejected(.nonMonotonicObservationTime) }
+        guard let previousWeekly = CodexConsumerProjection.sourceRateWindow(for: .weekly, snapshot: previous),
               let initialWeekly = CodexConsumerProjection.sourceRateWindow(for: .weekly, snapshot: initial),
-              let confirmationWeekly = CodexConsumerProjection.sourceRateWindow(for: .weekly, snapshot: confirmation),
-              previousWeekly.usedPercent.isFinite,
-              previousWeekly.usedPercent > Self.resetThreshold,
-              initialWeekly.usedPercent.isFinite,
-              initialWeekly.usedPercent <= Self.resetThreshold,
-              confirmationWeekly.usedPercent.isFinite,
-              confirmationWeekly.usedPercent <= Self.resetThreshold,
-              let previousBoundary = validResetBoundary(previousWeekly, capturedAt: previous.updatedAt),
+              let confirmationWeekly = CodexConsumerProjection.sourceRateWindow(for: .weekly, snapshot: confirmation)
+        else { return .rejected(.missingWeeklyWindow) }
+        guard previousWeekly.usedPercent.isFinite else { return .rejected(.invalidWeeklyUsage) }
+        guard previousWeekly.usedPercent > Self.resetThreshold else { return .rejected(.resetThresholdMismatch) }
+        guard initialWeekly.usedPercent.isFinite else { return .rejected(.invalidWeeklyUsage) }
+        guard initialWeekly.usedPercent <= Self.resetThreshold else { return .rejected(.resetThresholdMismatch) }
+        guard confirmationWeekly.usedPercent.isFinite else { return .rejected(.invalidWeeklyUsage) }
+        guard confirmationWeekly.usedPercent <= Self.resetThreshold else { return .rejected(.resetThresholdMismatch) }
+        guard let previousBoundary = validResetBoundary(previousWeekly, capturedAt: previous.updatedAt),
               let initialBoundary = validResetBoundary(initialWeekly, capturedAt: initial.updatedAt),
               let confirmationBoundary = validResetBoundary(
                   confirmationWeekly,
-                  capturedAt: confirmation.updatedAt),
-              abs(initialBoundary.timeIntervalSince(confirmationBoundary))
-              < resetEquivalenceToleranceSeconds,
-              isSupportedDelayedBoundary(previous: previousBoundary, current: initialBoundary),
-              isSupportedDelayedBoundary(previous: previousBoundary, current: confirmationBoundary),
-              haveCompatibleAccountIdentities(previous, initial, confirmation),
-              haveCompatiblePlans(previous, initial, confirmation),
-              haveStablePositiveCreditInventory(previous, initial, confirmation)
+                  capturedAt: confirmation.updatedAt)
+        else { return .rejected(.invalidResetBoundary) }
+        guard abs(initialBoundary.timeIntervalSince(confirmationBoundary)) < self.resetEquivalenceToleranceSeconds
         else {
-            return nil
+            return .rejected(.inconsistentResetBoundary)
         }
-        return CodexWeeklyResetPublicationCandidate(
+        guard self.isSupportedDelayedBoundary(previous: previousBoundary, current: initialBoundary),
+              self.isSupportedDelayedBoundary(previous: previousBoundary, current: confirmationBoundary)
+        else { return .rejected(.unsupportedResetBoundary) }
+        guard self.haveCompatibleAccountIdentities(previous, initial, confirmation) else {
+            return .rejected(.accountMismatch)
+        }
+        guard self.haveCompatiblePlans(previous, initial, confirmation) else { return .rejected(.planMismatch) }
+        if let reason = positiveCreditInventoryRejection(previous, initial, confirmation) {
+            return .rejected(reason)
+        }
+        return .created(CodexWeeklyResetPublicationCandidate(
             firstObservedAt: initial.updatedAt,
             createdAt: observedAt,
-            snapshot: confirmation)
+            snapshot: confirmation))
     }
 
-    static func delayedCandidateDecision(
+    static func evaluateDelayedCandidate(
         previous: UsageSnapshot?,
         candidate: CodexWeeklyResetPublicationCandidate,
         current: UsageSnapshot,
         currentIsExactOAuth: Bool,
-        observedAt: Date? = nil) -> DelayedCandidateDecision
+        observedAt: Date? = nil) -> DelayedEvaluation
     {
         let observedAt = observedAt ?? self.observationDate
+        if let reason = self.delayedCandidateRejection(
+            candidate, observedAt: observedAt, currentUpdatedAt: current.updatedAt)
+        {
+            return DelayedEvaluation(decision: .discardCandidate, reason: reason)
+        }
+        let age = observedAt.timeIntervalSince(candidate.createdAt)
+        guard currentIsExactOAuth else {
+            return DelayedEvaluation(decision: .discardCandidate, reason: .sourceNotExactOAuth)
+        }
+        guard let previous else {
+            return DelayedEvaluation(decision: .discardCandidate, reason: .missingPreviousSnapshot)
+        }
+        guard previous.dataConfidence == .exact,
+              candidate.snapshot.dataConfidence == .exact,
+              current.dataConfidence == .exact
+        else { return DelayedEvaluation(decision: .discardCandidate, reason: .confidenceNotExact) }
+        guard let previousWeekly = CodexConsumerProjection.sourceRateWindow(for: .weekly, snapshot: previous),
+              let candidateWeekly = CodexConsumerProjection.sourceRateWindow(
+                  for: .weekly,
+                  snapshot: candidate.snapshot),
+              let currentWeekly = CodexConsumerProjection.sourceRateWindow(for: .weekly, snapshot: current)
+        else { return DelayedEvaluation(decision: .discardCandidate, reason: .missingWeeklyWindow) }
+        guard previousWeekly.usedPercent.isFinite else {
+            return DelayedEvaluation(decision: .discardCandidate, reason: .invalidWeeklyUsage)
+        }
+        guard previousWeekly.usedPercent > Self.resetThreshold else {
+            return DelayedEvaluation(decision: .discardCandidate, reason: .resetThresholdMismatch)
+        }
+        guard candidateWeekly.usedPercent.isFinite else {
+            return DelayedEvaluation(decision: .discardCandidate, reason: .invalidWeeklyUsage)
+        }
+        guard candidateWeekly.usedPercent <= Self.resetThreshold else {
+            return DelayedEvaluation(decision: .discardCandidate, reason: .resetThresholdMismatch)
+        }
+        guard currentWeekly.usedPercent.isFinite else {
+            return DelayedEvaluation(decision: .discardCandidate, reason: .invalidWeeklyUsage)
+        }
+        guard currentWeekly.usedPercent <= Self.resetThreshold else {
+            return DelayedEvaluation(decision: .discardCandidate, reason: .resetThresholdMismatch)
+        }
+        guard let previousBoundary = Self.validResetBoundary(previousWeekly, capturedAt: previous.updatedAt),
+              let candidateBoundary = Self.validResetBoundary(
+                  candidateWeekly,
+                  capturedAt: candidate.snapshot.updatedAt),
+              let currentBoundary = Self.validResetBoundary(currentWeekly, capturedAt: current.updatedAt)
+        else { return DelayedEvaluation(decision: .discardCandidate, reason: .invalidResetBoundary) }
+        guard abs(candidateBoundary.timeIntervalSince(currentBoundary)) < Self.resetEquivalenceToleranceSeconds else {
+            return DelayedEvaluation(decision: .discardCandidate, reason: .inconsistentResetBoundary)
+        }
+        guard Self.isSupportedDelayedBoundary(previous: previousBoundary, current: candidateBoundary),
+              Self.isSupportedDelayedBoundary(previous: previousBoundary, current: currentBoundary)
+        else { return DelayedEvaluation(decision: .discardCandidate, reason: .unsupportedResetBoundary) }
+        guard Self.haveCompatibleAccountIdentities(previous, candidate.snapshot, current) else {
+            return DelayedEvaluation(decision: .discardCandidate, reason: .accountMismatch)
+        }
+        guard Self.haveCompatiblePlans(previous, candidate.snapshot, current) else {
+            return DelayedEvaluation(decision: .discardCandidate, reason: .planMismatch)
+        }
+        if let reason = Self.positiveCreditInventoryRejection(previous, candidate.snapshot, current) {
+            return DelayedEvaluation(decision: .discardCandidate, reason: reason)
+        }
+        guard current.updatedAt > candidate.snapshot.updatedAt else {
+            return DelayedEvaluation(decision: .retainCandidate, reason: .staleObservation)
+        }
+        return age >= Self.delayedCandidateMinimumAge
+            ? DelayedEvaluation(decision: .publishCurrent, reason: .confirmedObservation)
+            : DelayedEvaluation(decision: .retainCandidate, reason: .minimumDelay)
+    }
+
+    static func delayedCandidateRejection(
+        _ candidate: CodexWeeklyResetPublicationCandidate,
+        observedAt: Date,
+        currentUpdatedAt: Date? = nil) -> Reason?
+    {
         guard candidate.evidenceVersion == CodexWeeklyResetPublicationCandidate.currentEvidenceVersion else {
-            return .discardCandidate
+            return .evidenceVersionMismatch
         }
         guard self.isFinite(candidate.firstObservedAt),
               self.isFinite(candidate.createdAt),
               self.isFinite(candidate.snapshot.updatedAt),
-              self.isFinite(current.updatedAt),
+              currentUpdatedAt.map(self.isFinite) ?? true,
               self.isFinite(observedAt)
         else {
-            return .discardCandidate
+            return .invalidObservationTime
         }
         let age = observedAt.timeIntervalSince(candidate.createdAt)
-        guard age >= 0, age <= Self.delayedCandidateMaximumAge else { return .discardCandidate }
-        guard currentIsExactOAuth,
-              let previous,
-              previous.dataConfidence == .exact,
-              candidate.snapshot.dataConfidence == .exact,
-              current.dataConfidence == .exact,
-              let previousWeekly = CodexConsumerProjection.sourceRateWindow(for: .weekly, snapshot: previous),
-              let candidateWeekly = CodexConsumerProjection.sourceRateWindow(
-                  for: .weekly,
-                  snapshot: candidate.snapshot),
-              let currentWeekly = CodexConsumerProjection.sourceRateWindow(for: .weekly, snapshot: current),
-              previousWeekly.usedPercent.isFinite,
-              previousWeekly.usedPercent > Self.resetThreshold,
-              candidateWeekly.usedPercent.isFinite,
-              candidateWeekly.usedPercent <= Self.resetThreshold,
-              currentWeekly.usedPercent.isFinite,
-              currentWeekly.usedPercent <= Self.resetThreshold,
-              let previousBoundary = Self.validResetBoundary(previousWeekly, capturedAt: previous.updatedAt),
-              let candidateBoundary = Self.validResetBoundary(
-                  candidateWeekly,
-                  capturedAt: candidate.snapshot.updatedAt),
-              let currentBoundary = Self.validResetBoundary(currentWeekly, capturedAt: current.updatedAt),
-              abs(candidateBoundary.timeIntervalSince(currentBoundary))
-              < Self.resetEquivalenceToleranceSeconds,
-              Self.isSupportedDelayedBoundary(previous: previousBoundary, current: candidateBoundary),
-              Self.isSupportedDelayedBoundary(previous: previousBoundary, current: currentBoundary),
-              Self.haveCompatibleAccountIdentities(previous, candidate.snapshot, current),
-              Self.haveCompatiblePlans(previous, candidate.snapshot, current),
-              Self.haveStablePositiveCreditInventory(previous, candidate.snapshot, current)
-        else {
-            return .discardCandidate
-        }
-        guard current.updatedAt > candidate.snapshot.updatedAt else { return .retainCandidate }
-        return age >= Self.delayedCandidateMinimumAge ? .publishCurrent : .retainCandidate
-    }
-
-    static func shouldRetainDelayedCandidate(
-        _ candidate: CodexWeeklyResetPublicationCandidate,
-        observedAt: Date) -> Bool
-    {
-        guard candidate.evidenceVersion == CodexWeeklyResetPublicationCandidate.currentEvidenceVersion,
-              self.isFinite(candidate.firstObservedAt),
-              self.isFinite(candidate.createdAt),
-              self.isFinite(candidate.snapshot.updatedAt),
-              self.isFinite(observedAt)
-        else {
-            return false
-        }
-        let age = observedAt.timeIntervalSince(candidate.createdAt)
-        return age >= 0 && age <= self.delayedCandidateMaximumAge
+        guard age >= 0 else { return .futureCandidate }
+        guard age <= self.delayedCandidateMaximumAge else { return .expiredCandidate }
+        return nil
     }
 
     private static func haveCompatibleAccountIdentities(_ snapshots: UsageSnapshot...) -> Bool {
@@ -373,15 +410,14 @@ struct CodexWeeklyResetConfirmation: Sendable {
         return plans.allSatisfy { $0 == first }
     }
 
-    private static func haveStablePositiveCreditInventory(_ snapshots: UsageSnapshot...) -> Bool {
+    private static func positiveCreditInventoryRejection(_ snapshots: UsageSnapshot...) -> Reason? {
         let creditSnapshots = snapshots.compactMap(\.codexResetCredits)
-        guard creditSnapshots.count == snapshots.count,
-              creditSnapshots.allSatisfy({ Self.isFinite($0.updatedAt) }),
-              zip(creditSnapshots, creditSnapshots.dropFirst()).allSatisfy({ pair in
-                  pair.1.updatedAt >= pair.0.updatedAt
-              })
-        else {
-            return false
+        guard creditSnapshots.count == snapshots.count else { return .missingCreditInventory }
+        guard creditSnapshots.allSatisfy({ Self.isFinite($0.updatedAt) }) else { return .invalidCreditObservationTime }
+        guard zip(creditSnapshots, creditSnapshots.dropFirst()).allSatisfy({ pair in
+            pair.1.updatedAt >= pair.0.updatedAt
+        }) else {
+            return .nonMonotonicCreditObservationTime
         }
         let inventories = creditSnapshots.map { credits -> [AvailableCreditIdentity]? in
             let available = credits.availableCredits(at: credits.updatedAt)
@@ -405,12 +441,12 @@ struct CodexWeeklyResetConfirmation: Sendable {
                 return (lhs.expiresAt ?? .distantPast) < (rhs.expiresAt ?? .distantPast)
             }
         }
-        guard let firstInventory = inventories.first,
-              let first = firstInventory
+        guard let firstInventory = inventories.first, let first = firstInventory,
+              inventories.allSatisfy({ $0 != nil })
         else {
-            return false
+            return .inconsistentAvailableCreditCount
         }
-        return inventories.allSatisfy { $0 == first }
+        return inventories.allSatisfy { $0 == first } ? nil : .changedCreditInventory
     }
 
     private static func isSupportedDelayedBoundary(previous: Date, current: Date) -> Bool {

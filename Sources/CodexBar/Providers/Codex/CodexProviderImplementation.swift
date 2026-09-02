@@ -270,6 +270,10 @@ struct CodexProviderImplementation: ProviderImplementation {
 
     @MainActor
     func appendActionMenuEntries(context: ProviderMenuActionContext, entries: inout [ProviderMenuEntry]) {
+        if context.codexWorkspacesMenuEnabled {
+            entries.append(.action(L("Workspaces"), .openCodexWorkspaces))
+        }
+
         let projection = context.settings.codexVisibleAccountProjection
         guard !projection.visibleAccounts.isEmpty else { return }
 

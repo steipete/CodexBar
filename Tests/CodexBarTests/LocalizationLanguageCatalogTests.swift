@@ -118,6 +118,21 @@ struct LocalizationLanguageCatalogTests {
     }
 
     @Test
+    func `Workspaces is localized in every app language`() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let resourcesURL = root.appendingPathComponent("Sources/CodexBar/Resources")
+
+        for language in AppLanguage.allCases where language != .system {
+            let url = resourcesURL.appendingPathComponent("\(language.rawValue).lproj/Localizable.strings")
+            let catalog = try #require(NSDictionary(contentsOf: url) as? [String: String])
+            #expect(catalog["Workspaces"]?.isEmpty == false)
+        }
+    }
+
+    @Test
     func `language picker labels use stable native names`() {
         let expected: [AppLanguage: String] = [
             .system: "System",

@@ -893,7 +893,7 @@ struct CostUsageBoundedProgressTests {
                     + #"{"total_token_usage":{"input_tokens":100,"cached_input_tokens":20,"output_tokens":10},"#
                     + #""model":"openai/gpt-5.2-codex"}}}"#,
             ]
-            try fileURLs.append(env.writeCodexSessionFile(
+            try fileURLs.append(env.seedCodexSessionFile(
                 day: day,
                 filename: String(format: "progress-%04d.jsonl", index),
                 contents: lines.joined(separator: "\n") + "\n"))

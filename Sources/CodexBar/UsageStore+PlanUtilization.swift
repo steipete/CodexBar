@@ -646,9 +646,12 @@ extension UsageStore {
             appendWindow(snapshot.primary, name: .session)
             appendWindow(snapshot.secondary, name: .weekly)
             appendWindow(snapshot.tertiary, name: .monthly)
-        case .mimo, .stepfun:
+        case .mimo, .stepfun, .ollama:
             if snapshot.primary?.windowMinutes == ProviderPaceCapability.monthlyWindowSentinelMinutes {
                 appendWindow(snapshot.primary, name: .monthly)
+                if provider == .ollama {
+                    appendWindow(snapshot.secondary, name: .weekly)
+                }
             } else {
                 appendGenericSessionEquivalentWindows()
             }

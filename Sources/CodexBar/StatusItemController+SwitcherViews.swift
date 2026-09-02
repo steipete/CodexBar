@@ -1349,13 +1349,23 @@ final class CodexAccountSwitcherView: NSView {
         self.accounts = accounts
         self.onSelect = onSelect
         self.selectedAccountID = selectedAccountID ?? accounts.first?.id ?? ""
-        let useTwoRows = accounts.count > 3
-        let rows = useTwoRows ? 2 : 1
-        let height = self.rowHeight * CGFloat(rows) + (useTwoRows ? self.rowSpacing : 0)
+        var columns = max(1, accounts.count > 3 ? Int(ceil(Double(accounts.count) / 2)) : accounts.count)
+        let font = self.buttonFont
+        let discriminatorWidth = accounts.compactMap(\.displayDiscriminator).map {
+            ceil(($0 as NSString).size(withAttributes: [.font: font]).width)
+        }.max()
+        if let discriminatorWidth {
+            let contentWidth = max(0, width - self.buttonSideInset * 2)
+            let minimumButtonWidth = discriminatorWidth + self.buttonHorizontalPadding
+            let fittingColumns = Int((contentWidth + self.rowSpacing) / (minimumButtonWidth + self.rowSpacing))
+            columns = min(columns, max(1, fittingColumns))
+        }
+        let rows = max(1, Int(ceil(Double(accounts.count) / Double(columns))))
+        let height = self.rowHeight * CGFloat(rows) + self.rowSpacing * CGFloat(rows - 1)
         self.preferredSize = NSSize(width: width, height: height)
         super.init(frame: NSRect(x: 0, y: 0, width: width, height: height))
         self.wantsLayer = true
-        self.buildButtons(useTwoRows: useTwoRows)
+        self.buildButtons(columns: columns)
         self.updateButtonStyles()
     }
 
@@ -1372,14 +1382,11 @@ final class CodexAccountSwitcherView: NSView {
         self.preferredSize
     }
 
-    private func buildButtons(useTwoRows: Bool) {
-        let perRow = useTwoRows ? Int(ceil(Double(self.accounts.count) / 2.0)) : self.accounts.count
-        let rows: [[CodexVisibleAccount]] = {
-            if !useTwoRows { return [self.accounts] }
-            let first = Array(self.accounts.prefix(perRow))
-            let second = Array(self.accounts.dropFirst(perRow))
-            return [first, second]
-        }()
+    private func buildButtons(columns: Int) {
+        let rows: [[CodexVisibleAccount]] = self.accounts.isEmpty ? [[]] : stride(
+            from: 0, to: self.accounts.count, by: columns).map { start in
+            Array(self.accounts[start..<min(start + columns, self.accounts.count)])
+        }
         let stack = NSStackView()
         stack.orientation = .vertical
         stack.alignment = .width
@@ -1425,8 +1432,7 @@ final class CodexAccountSwitcherView: NSView {
             stack.trailingAnchor.constraint(equalTo: self.trailingAnchor, constant: -self.buttonSideInset),
             stack.topAnchor.constraint(equalTo: self.topAnchor),
             stack.bottomAnchor.constraint(equalTo: self.bottomAnchor),
-            stack.heightAnchor.constraint(equalToConstant: self.rowHeight * CGFloat(rows.count) +
-                (useTwoRows ? self.rowSpacing : 0)),
+            stack.heightAnchor.constraint(equalToConstant: self.preferredSize.height),
         ])
     }
 
@@ -1441,6 +1447,13 @@ final class CodexAccountSwitcherView: NSView {
         let availableTextWidth = max(24, buttonWidth - self.buttonHorizontalPadding)
         if self.textWidth(account.menuDisplayName) <= availableTextWidth {
             return account.menuDisplayName
+        }
+
+        if let discriminator = account.displayDiscriminator {
+            let suffix = "|\(discriminator)"
+            let emailWidth = max(0, availableTextWidth - self.textWidth(suffix))
+            guard emailWidth > self.textWidth("…") else { return discriminator }
+            return "\(self.truncateMiddle(account.email, toFit: emailWidth))\(suffix)"
         }
 
         guard let workspace = account.menuWorkspaceLabel else {

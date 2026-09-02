@@ -9,31 +9,37 @@ extension StatusItemController {
         selectedProvider: UsageProvider?,
         descriptor: MenuDescriptor) -> CGFloat
     {
-        let sectionSets: [[MenuDescriptor.Section]] = if self.shouldMergeIcons, providers.count > 1 {
+        let sectionSets: [(provider: UsageProvider?, sections: [MenuDescriptor.Section])] = if self.shouldMergeIcons,
+                                                                                               providers.count > 1
+        {
             providers.map { provider in
                 if provider == selectedProvider {
-                    return descriptor.sections
+                    return (provider, descriptor.sections)
                 }
-                return self.makeMenuDescriptor(
+                return (provider, self.makeMenuDescriptor(
                     provider: provider,
-                    includeContextualActions: true).sections
+                    includeContextualActions: true).sections)
             }
         } else {
-            [descriptor.sections]
+            [(selectedProvider, descriptor.sections)]
         }
         return self.measuredMenuCardWidth(for: sectionSets)
     }
 
-    func measuredMenuCardWidth(for sectionSets: [[MenuDescriptor.Section]]) -> CGFloat {
+    func measuredMenuCardWidth(
+        for sectionSets: [(provider: UsageProvider?, sections: [MenuDescriptor.Section])]) -> CGFloat
+    {
         let baselineWidth = Self.menuCardBaseWidth
-        return sectionSets.reduce(baselineWidth) { width, sections in
-            max(width, self.measuredStandardMenuWidth(for: sections, baseWidth: baselineWidth))
+        return sectionSets.reduce(baselineWidth) { width, entry in
+            max(width, self.measuredStandardMenuWidth(
+                for: entry.sections, baseWidth: baselineWidth, provider: entry.provider))
         }
     }
 
     func makeMenuDescriptor(
         provider: UsageProvider?,
-        includeContextualActions: Bool) -> MenuDescriptor
+        includeContextualActions: Bool,
+        codexWorkspacesMenuEnabled: Bool = CodexWorkspacesMenuAvailability.isEnabledForCurrentProcess) -> MenuDescriptor
     {
         MenuDescriptor.build(
             provider: provider,
@@ -44,21 +50,27 @@ extension StatusItemController {
             codexAccountPromotionCoordinator: self.codexAccountPromotionCoordinator,
             updateReady: self.updater.updateStatus.isUpdateReady,
             includeContextualActions: includeContextualActions,
+            codexWorkspacesMenuEnabled: codexWorkspacesMenuEnabled,
             agentSessionsEnabled: self.settings.agentSessionsEnabled,
             agentSessionLabelStyle: self.settings.agentSessionLabelStyle,
             localAgentSessions: self.agentSessions.localSessions,
             remoteAgentHosts: self.agentSessions.remoteHosts)
     }
 
-    func measuredStandardMenuWidth(for sections: [MenuDescriptor.Section], baseWidth: CGFloat) -> CGFloat {
-        let cacheKey = self.measuredStandardMenuWidthCacheKey(for: sections, baseWidth: baseWidth)
+    func measuredStandardMenuWidth(
+        for sections: [MenuDescriptor.Section],
+        baseWidth: CGFloat,
+        provider: UsageProvider? = nil) -> CGFloat
+    {
+        let cacheKey = self.measuredStandardMenuWidthCacheKey(
+            for: sections, baseWidth: baseWidth, provider: provider)
         if let cached = self.measuredStandardMenuWidthCache[cacheKey] {
             return cached
         }
 
         let measuringMenu = NSMenu()
         measuringMenu.autoenablesItems = false
-        self.addActionableSections(sections, to: measuringMenu, width: baseWidth)
+        self.addActionableSections(sections, to: measuringMenu, width: baseWidth, provider: provider)
         let measured = ceil(measuringMenu.size.width)
         if self.measuredStandardMenuWidthCache.count >= Self.measuredStandardMenuWidthCacheLimit {
             self.measuredStandardMenuWidthCache.removeAll(keepingCapacity: true)
@@ -69,10 +81,12 @@ extension StatusItemController {
 
     private func measuredStandardMenuWidthCacheKey(
         for sections: [MenuDescriptor.Section],
-        baseWidth: CGFloat) -> String
+        baseWidth: CGFloat,
+        provider: UsageProvider?) -> String
     {
         var parts = [
             "base=\(Int((baseWidth * 100).rounded()))",
+            "status=\(self.store.statusChecksEnabled):\(provider?.rawValue ?? "none")",
             "font=\(Self.menuCardHeightTextScaleToken())",
             self.menuLocalizationSignature(),
         ]
@@ -138,8 +152,12 @@ extension StatusItemController {
             "openTerminal:\(command)"
         case let .loginToProvider(url):
             "loginToProvider:\(url)"
+        case .openCodexWorkspaces:
+            CodexWorkspacesWindowIdentity.menuItem
         case .settings:
             "settings"
+        case let .providerSettings(provider):
+            "providerSettings:\(provider.rawValue)"
         case .about:
             "about"
         case .quit:

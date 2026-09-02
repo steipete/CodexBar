@@ -138,8 +138,12 @@ struct MenuContent: View {
             if let urlObj = URL(string: url) {
                 NSWorkspace.shared.open(urlObj)
             }
+        case .openCodexWorkspaces:
+            CodexWorkspacesPresenter.shared.present()
         case .settings:
             self.actions.openSettings()
+        case let .providerSettings(provider):
+            self.actions.openProviderSettings(provider)
         case .about:
             self.actions.openAbout()
         case .quit:
@@ -163,6 +167,7 @@ struct MenuActions {
     let switchAccount: (UsageProvider) -> Void
     let openTerminal: (String) -> Void
     let openSettings: () -> Void
+    let openProviderSettings: (UsageProvider) -> Void
     let openAbout: () -> Void
     let quit: () -> Void
     let copyError: (String) -> Void

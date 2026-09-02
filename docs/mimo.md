@@ -81,6 +81,8 @@ This fallback is **implicit opt-in**: it only activates when `~/.codexbar/mimo-l
 
 3. Trigger updates either on each wrapper invocation (recommended — call `mimo-usage --update` post-exec from your MiMo CLI launcher) or via a `launchd` / `cron` job every 5 minutes.
 
+   Overlapping updates use separate temporary files and atomically replace the cache; a failed write leaves the previous cache intact.
+
 4. CodexBar picks up the file on its next refresh. The MiMo card displays `Xiaomi MiMo (local)` with a `Local · <today> · <week> · <lifetime> · <sessions>` summary and the cache's actual update time. Local activity is not rendered as a quota percentage. The `Balance updates / Daily billing finalizes` footer is suppressed for `local` source since neither applies. Because CodexBar only reads this cache (it never regenerates it), a summary whose cache has not refreshed within 12 hours gets a `stale <age>` marker (e.g. `stale 34d`) so a frozen tracker is not misread as live usage — re-run `mimo-usage --update`, or add the scheduled job in step 3, to clear it.
 
 ### Wrapper integration example

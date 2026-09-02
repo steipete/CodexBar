@@ -224,6 +224,7 @@
 "No credits history data." = "No hi ha dades d'historial de crèdits.";
 "No data available" = "No hi ha dades disponibles";
 "No data yet" = "Encara no hi ha dades";
+"Workspaces" = "Espais de treball";
 "No enabled providers available for Overview." = "No hi ha proveïdors activats disponibles per al Resum.";
 "No providers selected" = "No hi ha cap proveïdor seleccionat";
 "No token accounts yet." = "Encara no hi ha comptes amb token.";
@@ -651,6 +652,9 @@
 "surprise_me_subtitle" = "Activeu-ho si us agrada que els vostres agents es diverteixin allà dalt.";
 "hide_personal_info_title" = "Amagueu la informació personal";
 "hide_personal_info_subtitle" = "Amagueu les adreces de correu a la barra de menús i a la interfície del menú.";
+"hide_cost_history_identity_subtitle" = "Amaga també els noms i camins dels projectes i orígens de l’historial de costos, sense modificar les dades desades.";
+"Project %d" = "Projecte %d";
+"Source %d" = "Origen %d";
 "show_provider_storage_usage_title" = "Mostreu l'ús d'emmagatzematge del proveïdor";
 "show_provider_storage_usage_subtitle" = "Mostreu l'ús de disc local als menús. Analitza en segon pla els camins coneguts del proveïdor.";
 "section_keychain_access" = "Accés al Clauer";

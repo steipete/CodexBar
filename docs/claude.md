@@ -131,6 +131,10 @@ Admin API key setup:
   - Extra usage spend/limit (if enabled).
   - Remaining Usage credits balance (if enabled).
   - Account email + inferred plan.
+- A Cloudflare challenge on `claude.ai` is a network-path restriction, not a stale-cookie signal. CodexBar keeps the
+  cached cookie and prior quota snapshot, identifies the challenge, and links to Settings. Select OAuth for live
+  quota windows on that network (the web-only Usage credits balance is unavailable), or try a different network.
+  Explicit Web mode remains terminal and never reads OAuth credentials as a fallback.
 
 ## claude-swap accounts (opt-in)
 
@@ -215,6 +219,7 @@ Model-scoped weekly-window proof (synthetic data, no real accounts or credential
 - Parsing (`ClaudeStatusProbe`):
   - Strips ANSI, locates "Current session" + "Current week" headers.
   - Extracts percent left/used and reset text near those headers.
+  - When a reset date cannot be parsed, the menu preserves its description and normalizes leading `Reset` or `Resets` labels once, including scoped weekly limits.
   - Parses `Account:` and `Org:` lines when present.
   - Surfaces CLI errors (e.g. token expired) directly.
   - Some Education and organization-managed subscriptions return only a subscription notice, with no numeric

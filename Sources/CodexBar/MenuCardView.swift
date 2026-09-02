@@ -587,6 +587,8 @@ private struct MetricRow: View {
             .lineLimit(lineLimit)
             .fixedSize(horizontal: false, vertical: true)
             .hidden()
+            // Freeze the measured height, but let updates use the entire metric row width.
+            .frame(maxWidth: .infinity, alignment: .leading)
             .overlay(alignment: .topLeading) {
                 if let text, !text.isEmpty {
                     Text(text)
@@ -594,7 +596,6 @@ private struct MetricRow: View {
                         .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
                         .lineLimit(lineLimit)
                         .truncationMode(.tail)
-                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
             .clipped()
@@ -937,8 +938,10 @@ extension UsageMenuCardView.Model {
             account: input.account,
             override: input.planOverride,
             metadata: input.metadata)
+        let paceVisible = input.paceVisible && ProviderDescriptorRegistry.descriptor(for: input.provider).pace
+            .allowsPace(dataConfidence: input.snapshot?.dataConfidence ?? .unknown)
         let metrics = Self.redactedMetrics(
-            Self.paceGatedMetrics(Self.metrics(input: input), paceVisible: input.paceVisible),
+            Self.paceGatedMetrics(Self.metrics(input: input), paceVisible: paceVisible),
             provider: input.provider,
             hidePersonalInfo: input.hidePersonalInfo)
         let openAIAPIUsage = input.snapshot?.openAIAPIUsage

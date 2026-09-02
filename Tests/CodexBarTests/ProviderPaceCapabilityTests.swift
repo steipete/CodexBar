@@ -160,7 +160,7 @@ struct ProviderPaceCapabilityTests {
         case .zai:
             return window.windowMinutes == self.monthlyWindowSentinelMinutes
                 && window.resetDescription == "MCP"
-        case .alibaba, .alibabatokenplan, .amp, .commandcode, .doubao, .mimo, .notion, .opencodego, .stepfun:
+        case .alibaba, .alibabatokenplan, .amp, .commandcode, .doubao, .mimo, .notion, .ollama, .opencodego, .stepfun:
             return window.windowMinutes == self.monthlyWindowSentinelMinutes
         default:
             return false
@@ -177,7 +177,7 @@ struct ProviderPaceCapabilityTests {
         case .zai:
             window.windowMinutes == self.monthlyWindowSentinelMinutes
                 && window.resetDescription == "MCP"
-        case .alibaba, .alibabatokenplan, .amp, .commandcode, .doubao, .mimo, .notion, .opencodego, .stepfun:
+        case .alibaba, .alibabatokenplan, .amp, .commandcode, .doubao, .mimo, .notion, .ollama, .opencodego, .stepfun:
             window.windowMinutes == self.monthlyWindowSentinelMinutes
         default:
             false

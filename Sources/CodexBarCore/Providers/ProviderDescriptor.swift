@@ -231,6 +231,7 @@ public struct ProviderPaceCapability: Sendable {
     public let tertiary: ProviderStandardPaceLane?
     public let showsHeadroomHint: Bool
     public let sessionPaceWindowRule: ProviderPaceWindowRule
+    public let allowsEstimatedUsage: Bool
 
     public init(
         resetWindowPace: ProviderPaceWindowRule = .unsupported,
@@ -239,7 +240,8 @@ public struct ProviderPaceCapability: Sendable {
         secondary: ProviderStandardPaceLane? = nil,
         tertiary: ProviderStandardPaceLane? = nil,
         showsHeadroomHint: Bool = false,
-        sessionPaceWindowRule: ProviderPaceWindowRule = .unsupported)
+        sessionPaceWindowRule: ProviderPaceWindowRule = .unsupported,
+        allowsEstimatedUsage: Bool = true)
     {
         self.resetWindowPace = resetWindowPace
         self.inferredMonthlyDuration = inferredMonthlyDuration
@@ -248,6 +250,11 @@ public struct ProviderPaceCapability: Sendable {
         self.tertiary = tertiary
         self.showsHeadroomHint = showsHeadroomHint
         self.sessionPaceWindowRule = sessionPaceWindowRule
+        self.allowsEstimatedUsage = allowsEstimatedUsage
+    }
+
+    public func allowsPace(dataConfidence: UsageDataConfidence) -> Bool {
+        self.allowsEstimatedUsage || dataConfidence != .estimated
     }
 
     public func supportsResetWindowPace(window: RateWindow, now: Date) -> Bool {

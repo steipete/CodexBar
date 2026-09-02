@@ -54,10 +54,18 @@ struct Proof {
         if args[1] == "production" {
             precondition(!CodexCredentialFileAccess.isTestContext)
             precondition(CodexCredentialFileAccess.permits(URL(fileURLWithPath: "/fictitious/auth.json")))
+            precondition(CodexPriorityDatabasePath.defaultURL(codexHome: { root })
+                == root.appendingPathComponent("logs_2.sqlite"))
             return
         }
         let allowed = args[1] != "deny"
         precondition(CodexCredentialFileAccess.isTestContext)
+        let trace = CodexPriorityDatabasePath.defaultURL(codexHome: {
+            fatalError("Isolated trace resolution consulted the user home")
+        })
+        precondition(trace.deletingLastPathComponent().lastPathComponent.hasPrefix("codexbar-cost-trace-tests-"))
+        precondition(trace.lastPathComponent == "logs_2.sqlite")
+        precondition(CodexPriorityDatabasePath.defaultURL() == trace)
         precondition(CodexCredentialFileAccess.fileExists(at: childFile) == allowed)
         if allowed {
             let data = try CodexCredentialFileAccess.read(at: childFile)
@@ -75,6 +83,8 @@ SWIFT
 
 swiftc -O -parse-as-library \
   "$ROOT_DIR/Sources/CodexBarCore/CodexCredentialFileAccess.swift" \
+  "$ROOT_DIR/Sources/CodexBarCore/CodexPriorityDatabasePath.swift" \
+  "$ROOT_DIR/Sources/CodexBarCore/CodexHomeScope.swift" \
   "$ROOT_DIR/Sources/CodexBarCore/KeychainSecurity.swift" \
   "$PROOF_DIR/Proof.swift" -o "$PROOF_DIR/codex-file-child"
 "$PROOF_DIR/codex-file-child" launch "$PROOF_DIR/fixtures"

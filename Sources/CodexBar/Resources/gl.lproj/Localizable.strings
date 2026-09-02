@@ -222,6 +222,7 @@
 "No credits history data." = "Non hai datos de historial de créditos.";
 "No data available" = "Non hai datos dispoñibles";
 "No data yet" = "Aínda non hai datos";
+"Workspaces" = "Espazos de traballo";
 "No enabled providers available for Overview." = "Non hai provedores activados dispoñibles para o Resumo.";
 "No providers selected" = "Non se seleccionou ningún provedor";
 "No token accounts yet." = "Aínda non hai contas con token.";
@@ -646,6 +647,9 @@
 "surprise_me_subtitle" = "Actívao se che gusta que os teus axentes se divirtan aí arriba.";
 "hide_personal_info_title" = "Ocultar información persoal";
 "hide_personal_info_subtitle" = "Oculta os enderezos de correo na barra de menús e na interface do menú.";
+"hide_cost_history_identity_subtitle" = "Oculta tamén os nomes e rutas de proxectos e fontes no historial de custos, sen modificar os datos gardados.";
+"Project %d" = "Proxecto %d";
+"Source %d" = "Fonte %d";
 "show_provider_storage_usage_title" = "Amosar o uso de almacenamento do provedor";
 "show_provider_storage_usage_subtitle" = "Amosa o uso do disco local nos menús. Analiza en segundo plano as rutas coñecidas do provedor.";
 "section_keychain_access" = "Acceso ao Chaveiro";

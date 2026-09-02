@@ -26,6 +26,12 @@ read_when:
   Claude quota data is available.
 - If no snapshot is available, widgets fall back to preview/empty data.
 
+Tests must opt into snapshot persistence with an in-memory save override or a test-owned snapshot URL.
+Neither opt-in reloads WidgetKit timelines. Production still awaits the file save before requesting a reload;
+the save/reload helper accepts an explicit test-mode decision and reload callback so tests can verify that ordering
+with temporary files and a fake callback, without changing process-wide test isolation. The per-store reload callback
+also lets persistence integration tests count reload attempts without calling WidgetKit.
+
 ## Extension
 - `Sources/CodexBarWidget` contains timeline + views.
 - `WidgetExtension/CodexBarWidgetExtension.xcodeproj` builds those sources as the packaged macOS WidgetKit app extension.
@@ -38,6 +44,8 @@ read_when:
 - **CodexBar Metric** (`CodexBarCompactWidget`): compact credits/today-cost/30-day-cost widget, small only.
 - **CodexBar Burn Down** (`CodexBarBurnDownWidget`): configurable session or weekly burn-down chart, medium only.
 - **CodexBar Burn Down (Combined)** (`CodexBarCombinedBurnDownWidget`): session and weekly burn-down charts, medium only.
+
+Switcher widgets share one remembered provider selection, so switching one updates all Switcher widgets. To keep Claude and Codex visible side by side, add two **CodexBar Usage** widgets and configure each widget's **Provider** separately. Usage widgets read their own configured provider instead of the shared Switcher selection.
 
 ## Provider picker support
 The configurable provider widgets currently expose:

@@ -239,6 +239,7 @@
 "No cost history data." = "Немає даних історії витрат.";
 "No data available" = "Немає даних";
 "No data yet" = "Даних ще немає";
+"Workspaces" = "Робочі простори";
 "No enabled providers available for Overview." = "Немає активованих постачальників, доступних для огляду.";
 "No providers selected" = "Не вибрано жодного постачальника";
 "No token accounts yet." = "Жетонів ще немає.";
@@ -667,6 +668,9 @@
 "surprise_me_subtitle" = "Перевірте, чи подобається вам, що ваші агенти розважаються там.";
 "hide_personal_info_title" = "Приховати особисту інформацію";
 "hide_personal_info_subtitle" = "Незрозумілі адреси електронної пошти на панелі меню та інтерфейсі меню.";
+"hide_cost_history_identity_subtitle" = "Також приховує назви та шляхи проєктів і джерел в історії витрат, не змінюючи збережені дані.";
+"Project %d" = "Проєкт %d";
+"Source %d" = "Джерело %d";
 "show_provider_storage_usage_title" = "Показати використання сховища постачальника";
 "show_provider_storage_usage_subtitle" = "Показати використання локального диска в меню. Сканує відомі шляхи, що належать провайдеру, у фоновому режимі.";
 "section_keychain_access" = "Доступ через брелок";

@@ -82,7 +82,8 @@ public enum AntigravityProviderDescriptor {
                     resolveFallbackError: self.resolveFallbackError)),
             cli: ProviderCLIConfig(
                 name: "antigravity",
-                versionDetector: nil))
+                versionDetector: nil,
+                supportsCostCommand: true))
     }
 
     private static let quotaSummaryPrefix = "antigravity-quota-summary-"
@@ -223,7 +224,8 @@ public enum AntigravityProviderDescriptor {
 
     static func resolveFallbackError(_ previous: Error?, _ current: Error) -> Error {
         if (previous as? AntigravityStatusProbeError) == .authenticationRequired,
-           (current as? AntigravityStatusProbeError) == .notRunning
+           let currentProbeError = current as? AntigravityStatusProbeError,
+           currentProbeError == .notRunning || currentProbeError == .missingCSRFToken
         {
             return previous ?? current
         }
@@ -413,7 +415,7 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
 
         for info in cliProcesses {
             if let expectedBinaryPath {
-                guard Self.commandLine(info.commandLine, matchesBinaryPath: expectedBinaryPath)
+                guard Self.process(info, matchesBinaryPath: expectedBinaryPath)
                 else {
                     continue
                 }
@@ -468,13 +470,21 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
         return remaining > 0 ? remaining : nil
     }
 
-    private static func commandLine(_ commandLine: String, matchesBinaryPath binaryPath: String) -> Bool {
+    private static func process(
+        _ info: AntigravityStatusProbe.ProcessInfoResult,
+        matchesBinaryPath binaryPath: String) -> Bool
+    {
         let candidates = [
             URL(fileURLWithPath: binaryPath).standardizedFileURL.path,
             URL(fileURLWithPath: binaryPath).resolvingSymlinksInPath().standardizedFileURL.path,
         ]
+        if let executablePath = info.executablePath {
+            // argv[0] may be just "agy" or misleading; a known kernel path owns executable identity.
+            guard executablePath.hasPrefix("/") else { return false }
+            return candidates.contains(URL(fileURLWithPath: executablePath).standardizedFileURL.path)
+        }
         return candidates.contains { candidate in
-            commandLine == candidate || commandLine.hasPrefix("\(candidate) ")
+            info.commandLine == candidate || info.commandLine.hasPrefix("\(candidate) ")
         }
     }
 
@@ -665,6 +675,7 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
         dependencies: SnapshotWaitDependencies) async throws -> AntigravityStatusSnapshot
     {
         var lastFetchError: Error?
+        var lastPortDiscoveryError: Error?
         while dependencies.now() < deadline {
             try await Self.checkAuthenticationPrompt(dependencies)
             let remaining = deadline.timeIntervalSince(dependencies.now())
@@ -672,6 +683,10 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
             let ports: [Int]
             do {
                 ports = try await dependencies.listeningPorts(Int(pid), portProbeTimeout)
+            } catch let error as AntigravityPortDiscoveryPendingError {
+                try Task.checkCancellation()
+                lastPortDiscoveryError = error.underlyingError
+                ports = []
             } catch {
                 guard Self.isNoListeningPortsError(error) else {
                     try await Self.checkAuthenticationPrompt(dependencies)
@@ -729,6 +744,9 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
         try await Self.checkAuthenticationPrompt(dependencies)
         if let lastFetchError {
             throw lastFetchError
+        }
+        if let lastPortDiscoveryError {
+            throw lastPortDiscoveryError
         }
         Self.log.warning("Antigravity CLI HTTPS: no ports found for pid \(pid)")
         throw AntigravityStatusProbeError.portDetectionFailed(

@@ -900,6 +900,55 @@ struct CLISnapshotTests {
     }
 
     @Test
+    func `labels Ollama monthly sentinel window as Monthly and legacy window as Session`() {
+        let now = Date()
+        let monthly = UsageSnapshot(
+            primary: .init(
+                usedPercent: 20,
+                windowMinutes: ProviderPaceCapability.monthlyWindowSentinelMinutes,
+                resetsAt: now.addingTimeInterval(20 * 24 * 3600),
+                resetDescription: nil),
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: now)
+
+        let monthlyOutput = CLIRenderer.renderText(
+            provider: .ollama,
+            snapshot: monthly,
+            credits: nil,
+            context: RenderContext(
+                header: "Ollama (web)",
+                status: nil,
+                useColor: false,
+                resetStyle: .countdown))
+
+        #expect(monthlyOutput.contains("Monthly: 80% left"))
+
+        let legacy = UsageSnapshot(
+            primary: .init(
+                usedPercent: 10,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(4 * 3600),
+                resetDescription: nil),
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: now)
+
+        let legacyOutput = CLIRenderer.renderText(
+            provider: .ollama,
+            snapshot: legacy,
+            credits: nil,
+            context: RenderContext(
+                header: "Ollama (web)",
+                status: nil,
+                useColor: false,
+                resetStyle: .countdown))
+
+        #expect(legacyOutput.contains("Session: 90% left"))
+        #expect(!legacyOutput.contains("Monthly:"))
+    }
+
+    @Test
     func `renders session pace line when session window has reset`() {
         let now = Date()
         let snap = UsageSnapshot(

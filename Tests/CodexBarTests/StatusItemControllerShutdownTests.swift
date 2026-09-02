@@ -136,6 +136,27 @@ struct StatusItemControllerShutdownTests {
     }
 
     @Test
+    func `provider settings action opens the requested provider pane`() {
+        let controller = self.makeController()
+        defer {
+            StatusItemController.menuCardRenderingEnabled = !SettingsStore.isRunningTests
+            StatusItemController.resetMenuRefreshEnabledForTesting()
+        }
+        var requestedPane: SettingsPane?
+        controller.setSettingsOpenHandler { requestedPane = $0 }
+
+        let (selector, representedObject) = controller.selector(for: .providerSettings(.claude))
+        #expect(selector == #selector(StatusItemController.showProviderSettings(_:)))
+        #expect(representedObject as? String == UsageProvider.claude.rawValue)
+
+        let item = NSMenuItem(title: "Open Claude Settings…", action: selector, keyEquivalent: "")
+        item.representedObject = representedObject
+        controller.showProviderSettings(item)
+
+        #expect(requestedPane == .provider(UsageProvider.claude.instanceID))
+    }
+
+    @Test
     func `app shutdown cancels forced enrichment`() async {
         let controller = self.makeController()
         defer {
