@@ -55,13 +55,19 @@ extension AntigravityLocalReader {
         #if canImport(SQLite3) || canImport(CSQLite3)
         var database: OpaquePointer?
         let opened = sqlite3_open_v2(url.path, &database, SQLITE_OPEN_READONLY, nil)
-        if database != nil { budget.statistics.sqliteHandlesOpened += 1 }
+        if database != nil {
+            budget.statistics.sqliteHandlesOpened += 1
+        }
         guard opened == SQLITE_OK, let database else {
-            if let database, sqlite3_close(database) == SQLITE_OK { budget.statistics.sqliteHandlesClosed += 1 }
+            if let database, sqlite3_close(database) == SQLITE_OK {
+                budget.statistics.sqliteHandlesClosed += 1
+            }
             return SourceResult(isComplete: false)
         }
         defer {
-            if sqlite3_close(database) == SQLITE_OK { budget.statistics.sqliteHandlesClosed += 1 }
+            if sqlite3_close(database) == SQLITE_OK {
+                budget.statistics.sqliteHandlesClosed += 1
+            }
         }
         let progress = SQLProgress(budget: budget)
         // Also bound SQLite's own intermediate values, before step can materialize a hostile record/view.
@@ -98,11 +104,15 @@ extension AntigravityLocalReader {
         }
         // Ordinary read-only SQLite permits WAL read-mark coordination; it does not promise unchanged SHM bytes.
         guard sqlite3_exec(database, "BEGIN DEFERRED", nil, nil, nil) == SQLITE_OK else {
-            if let failure = progress.failure { throw failure }
+            if let failure = progress.failure {
+                throw failure
+            }
             return SourceResult(isComplete: false)
         }
         let supported = try self.hasSupportedSQLiteTable(database, budget: budget)
-        if let failure = progress.failure { throw failure }
+        if let failure = progress.failure {
+            throw failure
+        }
         guard supported else { return SourceResult(isComplete: false) }
         sqlite3_limit(database, SQLITE_LIMIT_LENGTH, Int32(maximumValueBytes))
         var statement: OpaquePointer?
@@ -116,17 +126,24 @@ extension AntigravityLocalReader {
         FROM main.gen_metadata NOT INDEXED LIMIT ?
         """
         let prepared = sqlite3_prepare_v2(database, query, -1, &statement, nil)
-        if let failure = progress.failure { throw failure }
+        if let failure = progress.failure {
+            throw failure
+        }
         guard prepared == SQLITE_OK, let activeStatement = statement else { return SourceResult(isComplete: false) }
         sqlite3_bind_int64(activeStatement, 1, Int64(min(budget.limits.rowsPerDatabase, 10000) + 1))
         let session = url.deletingPathExtension().lastPathComponent
         var rows = try self.readRows(activeStatement, session: session, progress: progress)
         if !rows.pendingTimestampRows.isEmpty {
+            // Positional recovery is safe only when every generation row participated in the occurrence list.
+            // A malformed row can still carry a reused step UUID, so partial primary scans must not realign later rows.
+            guard rows.source.isComplete else { return rows.source }
             // Release the gen_metadata cursor before the optional steps pass reuses the same snapshot.
             sqlite3_finalize(activeStatement)
             statement = nil
             let hasSteps = try self.hasSupportedStepsTable(database, budget: budget)
-            if let failure = progress.failure { throw failure }
+            if let failure = progress.failure {
+                throw failure
+            }
             if hasSteps {
                 var neededStepUUIDCounts: [String: Int] = [:]
                 for stepUUID in Set(rows.pendingTimestampRows.map(\.stepUUID)) {
@@ -136,13 +153,17 @@ extension AntigravityLocalReader {
                     database,
                     neededStepUUIDCounts: neededStepUUIDCounts,
                     progress: progress)
+                guard stepScan.isComplete else {
+                    rows.source.isComplete = false
+                    return rows.source
+                }
                 let recoveredCount = self.appendRecoveredEvents(
                     to: &rows.source,
                     session: session,
                     pendingRows: rows.pendingTimestampRows,
                     stepTimestamps: stepScan.timestamps,
                     stepOccurrenceRows: rows.stepOccurrenceRows)
-                if !stepScan.isComplete || recoveredCount < rows.pendingTimestampRows.count {
+                if recoveredCount < rows.pendingTimestampRows.count {
                     rows.source.isComplete = false
                 }
             } else {
@@ -243,7 +264,9 @@ extension AntigravityLocalReader {
         FROM main.steps NOT INDEXED WHERE metadata IS NOT NULL
         """
         let prepared = sqlite3_prepare_v2(database, query, -1, &statement, nil)
-        if let failure = progress.failure { throw failure }
+        if let failure = progress.failure {
+            throw failure
+        }
         guard prepared == SQLITE_OK, let statement else {
             return StepTimestampScan(timestamps: [:], isComplete: false)
         }
@@ -253,7 +276,9 @@ extension AntigravityLocalReader {
         while true {
             try progress.budget.check()
             let step = sqlite3_step(statement)
-            if let failure = progress.failure { throw failure }
+            if let failure = progress.failure {
+                throw failure
+            }
             if step == SQLITE_DONE {
                 isComplete = true
                 break
@@ -324,8 +349,12 @@ extension AntigravityLocalReader {
         while true {
             try budget.check()
             let step = sqlite3_step(statement)
-            if let failure = progress.failure { throw failure }
-            if step == SQLITE_DONE { break }
+            if let failure = progress.failure {
+                throw failure
+            }
+            if step == SQLITE_DONE {
+                break
+            }
             guard step == SQLITE_ROW else {
                 result.isComplete = false
                 break

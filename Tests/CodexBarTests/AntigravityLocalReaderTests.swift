@@ -416,7 +416,9 @@ struct AntigravityLocalReaderTests {
             var checks = 0
             let budget = AntigravityLocalReader.Budget(limits: .init(), cancellation: {
                 checks += 1
-                if checks == 2 { throw expected }
+                if checks == 2 {
+                    throw expected
+                }
             })
             do {
                 _ = try AntigravityLocalReader.readJSONL([path], budget: budget)
@@ -602,6 +604,40 @@ struct AntigravityLocalReaderTests {
         #expect(report.coverage == .complete)
         #expect(report.report.data.map(\.date) == ["2026-08-27", "2026-08-28"])
         #expect(report.report.data.map(\.inputTokens) == [111, 211])
+    }
+
+    @Test
+    func `unparseable generation occurrence cannot shift a later reused step timestamp`() throws {
+        let fixture = try Fixture()
+        let stepUUID = "unparseable-generation-step-uuid"
+        let invalidChat = Fixture.message(4, Fixture.varint(2, UInt64.max))
+        let malformed = Fixture.message(4, Array(stepUUID.utf8)) + Fixture.message(1, invalidChat)
+        let validPending = Fixture.blobWithRootEnvelope(stepUUID: stepUUID, input: 200, seconds: nil)
+        let beforeMidnight = Fixture.stepMetadataBlob(stepUUID: stepUUID, seconds: 1_787_875_140)
+        let afterMidnight = Fixture.stepMetadataBlob(stepUUID: stepUUID, seconds: 1_787_875_260)
+        try fixture.database(
+            blobs: [malformed, validPending],
+            stepBlobs: [beforeMidnight, afterMidnight])
+
+        let report = try fixture.report()
+
+        #expect(report.coverage == .partial)
+        #expect(report.report.data.isEmpty)
+    }
+
+    @Test
+    func `unparseable step occurrence cannot shift later timestamps`() throws {
+        let fixture = try Fixture()
+        let stepUUID = "unparseable-step-occurrence-uuid"
+        let turns = (0..<2).map { _ in Fixture.blobWithRootEnvelope(stepUUID: stepUUID, seconds: nil) }
+        let malformed = Fixture.message(12, Array(stepUUID.utf8)) + [0x0A, 0x80]
+        let valid = Fixture.stepMetadataBlob(stepUUID: stepUUID, seconds: 1_787_875_260)
+        try fixture.database(blobs: turns, stepBlobs: [malformed, valid])
+
+        let report = try fixture.report()
+
+        #expect(report.coverage == .partial)
+        #expect(report.report.data.isEmpty)
     }
 
     @Test
