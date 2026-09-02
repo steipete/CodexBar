@@ -1,7 +1,7 @@
 # Real behavior proof — Antigravity modern timestamp join (agy 1.1.18+)
 
-**Head:** `905ea9494` (steps `metadata.#1` via `bot_id`)
-**Date:** 2026-09-02 17:12 UTC
+**Head:** `5fa21de1f` (steps `metadata.#1` via `bot_id`)
+**Date:** 2026-09-02 18:02 UTC
 **Environment:** `agy 1.1.23` `~/.gemini/antigravity-cli/conversations/*.db` (46 DBs)
 
 ## Production reader (AntigravityLocalReader) — redacted
@@ -12,7 +12,7 @@ let result = try AntigravityLocalReader.makeDailyReportWithStatus(
     context: context, calendar: .current, limits: .init())
 print(result.coverage)     // complete
 print(result.report.data)  // 39 DBs, 9597 completed turns
-print(result.statistics)   // rows 19194 (9597 steps + 9597 gens), materialized ~2.1 MB
+print(result.statistics)   // rows 9597, stepRows 9597, materialized ~2.1 MB
 ```
 
 **Before fix (main, legacy only):** `coverage: partial` for modern DBs — `1.9.4` absent, `1.9.10.1` misread as elapsed, history empty for `agy 1.1.18+`.
