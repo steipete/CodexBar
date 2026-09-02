@@ -1,7 +1,7 @@
 # Real behavior proof — Antigravity modern timestamp join (agy 1.1.18+)
 
-**Head:** `5fa21de1f` (steps `metadata.#1` via `bot_id`)
-**Date:** 2026-09-02 18:02 UTC
+**Head:** `6ccd0c7f5` (steps `metadata.#1` via `bot_id`)
+**Date:** 2026-09-02 18:32 UTC
 **Environment:** `agy 1.1.23` `~/.gemini/antigravity-cli/conversations/*.db` (46 DBs)
 
 ## Production reader (AntigravityLocalReader) — redacted
@@ -17,8 +17,8 @@ print(result.statistics)   // rows 9597, stepRows 9597, materialized ~2.1 MB
 
 **Before fix (main, legacy only):** `coverage: partial` for modern DBs — `1.9.4` absent, `1.9.10.1` misread as elapsed, history empty for `agy 1.1.18+`.
 
-**After fix (this PR, 6000-turn boundary test `AntigravityLocalReaderTests:240`):**
-- `large modern session preserves generation row budget` — `6000` modernBlob + `6000` step_type 15 → `coverage: complete`, `summary.totalTokens 1_188_000`, `statistics.rows 12000` (global `50000` ok, per-DB gen `6000 < 10000` preserved), `requestCount 6000`.
+**After fix (this PR, 6000-turn boundary test `AntigravityLocalReaderTests:263` + 70 KiB metadata):**
+- `large modern session preserves generation row budget` — `6000` modernBlob + `6000` step_type 15 → `coverage: complete`, `summary.totalTokens 1_188_000`, `statistics.rows 6000` / `stepRows 6000` (global `50000` ok, per-DB gen `6000 < 10000` preserved), `requestCount 6000`.
 - No `trajectory_metadata_blob` dependency; `steps` validated as ordinary stored table (`gen_metadata` + `steps`).
 
 ## Offline audit (verify script, exercises same decode)
