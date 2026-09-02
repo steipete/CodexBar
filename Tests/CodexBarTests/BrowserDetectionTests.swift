@@ -585,6 +585,7 @@ struct BrowserDetectionTests {
         let detection = BrowserDetection(
             homeDirectory: temp.path,
             cacheTTL: 600,
+            now: Date.init,
             fileExists: { path in
                 if path == "/Applications/Google Chrome.app" {
                     return installed.withLock { $0 }
@@ -593,7 +594,9 @@ struct BrowserDetectionTests {
             },
             directoryContents: { path in
                 try? FileManager.default.contentsOfDirectory(atPath: path)
-            })
+            },
+            applicationURLs: { _ in [] },
+            profileAccessIssue: { _ in nil })
 
         #expect(detection.isCookieSourceAvailable(.chrome))
         installed.withLock { $0 = false }

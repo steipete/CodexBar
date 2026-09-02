@@ -8,6 +8,7 @@ private struct CodexCostCatchUpContext {
     let scopeSignature: String
     let providerConfigRevision: UInt64
     let costUsageSettingsRevision: UInt64
+    let cliProxyAPIAttributionGuard: CLIProxyAPIAttributionPublicationGuard
 }
 
 private enum CodexCostCatchUpPublicationError: LocalizedError {
@@ -47,13 +48,10 @@ extension UsageStore {
 
         self.cancelCodexCostCatchUp()
         let token = UUID()
-        let context = CodexCostCatchUpContext(
-            token: token,
-            codexHomePath: scope.codexHomePath,
-            historyDays: self.settings.costUsageHistoryDays,
-            scopeSignature: scopeSignature,
-            providerConfigRevision: self.settings.providerConfigRevision(for: .codex),
-            costUsageSettingsRevision: self.settings.costUsageSettingsRevision)
+        let codexHomePath = scope.codexHomePath
+        let historyDays = self.settings.costUsageHistoryDays
+        let providerConfigRevision = self.settings.providerConfigRevision(for: .codex)
+        let costUsageSettingsRevision = self.settings.costUsageSettingsRevision
         self.codexCostCatchUpToken = token
         self.codexCostCatchUpScopeSignature = scopeSignature
         self.codexCostCatchUpMode = mode
@@ -62,6 +60,14 @@ extension UsageStore {
         let priority: TaskPriority = mode == .accelerated ? .utility : .background
         self.codexCostCatchUpTask = Task(priority: priority) { @MainActor [weak self] in
             guard let self else { return }
+            let context = await CodexCostCatchUpContext(
+                token: token,
+                codexHomePath: codexHomePath,
+                historyDays: historyDays,
+                scopeSignature: scopeSignature,
+                providerConfigRevision: providerConfigRevision,
+                costUsageSettingsRevision: costUsageSettingsRevision,
+                cliProxyAPIAttributionGuard: self.captureCLIProxyAPIAttributionPublicationGuard())
             defer {
                 if self.codexCostCatchUpToken == token {
                     self.codexCostCatchUpTask = nil
@@ -119,7 +125,7 @@ extension UsageStore {
     }
 
     private func runCodexCostCatchUp(context: CodexCostCatchUpContext) async {
-        while self.codexCostCatchUpContextIsCurrent(context) {
+        while await self.codexCostCatchUpContextIsCurrent(context) {
             var status = await self.loadCodexCostCatchUpStatus(codexHomePath: context.codexHomePath)
             self.publishCodexCostCatchUpActivity(
                 status: status,
@@ -130,7 +136,7 @@ extension UsageStore {
                 (nil, [status.progressKey])
             while status.pending {
                 do {
-                    guard self.codexCostCatchUpContextIsCurrent(context) else { return }
+                    guard await self.codexCostCatchUpContextIsCurrent(context) else { return }
                     if self.codexCostCatchUpStopRequested {
                         self.publishCodexCostCatchUpActivity(
                             status: status,
@@ -161,7 +167,7 @@ extension UsageStore {
                     }
 
                     try Task.checkCancellation()
-                    guard self.codexCostCatchUpContextIsCurrent(context) else { return }
+                    guard await self.codexCostCatchUpContextIsCurrent(context) else { return }
                     if self.codexCostCatchUpStopRequested {
                         self.publishCodexCostCatchUpActivity(
                             status: status,
@@ -191,7 +197,7 @@ extension UsageStore {
                         Double(durationComponents.seconds)
                             + Double(durationComponents.attoseconds) / 1_000_000_000_000_000_000)
                     didAdvance = true
-                    guard self.codexCostCatchUpContextIsCurrent(context) else { return }
+                    guard await self.codexCostCatchUpContextIsCurrent(context) else { return }
                     self.publishCodexCostCatchUpActivity(
                         status: nextStatus,
                         context: context,
@@ -229,7 +235,7 @@ extension UsageStore {
                 }
             }
 
-            guard self.codexCostCatchUpContextIsCurrent(context) else { return }
+            guard await self.codexCostCatchUpContextIsCurrent(context) else { return }
             guard didAdvance else {
                 self.publishCodexCostCatchUpActivity(
                     status: status,
@@ -265,7 +271,7 @@ extension UsageStore {
             now: now,
             context: context)
         try Task.checkCancellation()
-        guard self.codexCostCatchUpContextIsCurrent(context),
+        guard await self.codexCostCatchUpContextIsCurrent(context),
               self.tokenSnapshotPublicationRevision(for: .codex) == publicationRevision
         else {
             throw CancellationError()
@@ -316,7 +322,18 @@ extension UsageStore {
             .map { ($0.snapshot, $0.lastRefreshAt, $0.staleSnapshotUpdatedAt) }
     }
 
-    private func codexCostCatchUpContextIsCurrent(_ context: CodexCostCatchUpContext) -> Bool {
+    private func codexCostCatchUpContextIsCurrent(_ context: CodexCostCatchUpContext) async -> Bool {
+        guard self.codexCostCatchUpContextStateIsCurrent(context),
+              await self.cliProxyAPIAttributionPublicationIsCurrentOffMain(
+                  context.cliProxyAPIAttributionGuard,
+                  for: .codex)
+        else {
+            return false
+        }
+        return self.codexCostCatchUpContextStateIsCurrent(context)
+    }
+
+    private func codexCostCatchUpContextStateIsCurrent(_ context: CodexCostCatchUpContext) -> Bool {
         !Task.isCancelled
             && self.codexCostCatchUpToken == context.token
             && self.settings.providerConfigRevision(for: .codex) == context.providerConfigRevision

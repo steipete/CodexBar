@@ -24,6 +24,194 @@ struct CostUsageScannerClaudeMemoTests {
     }
 
     @Test
+    func `memo hit rejects a proxy generation change after capture`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 1)
+        _ = try self.writeEvent(env: env, day: day, path: "project/session.jsonl", id: "first", input: 10)
+        let options = self.options(env: env)
+        _ = self.load(day: day, options: options)
+
+        #expect(throws: CancellationError.self) {
+            _ = try CostUsageScanner.withClaudeReportMemoHitObserverForTesting {
+                let generationUpdate = CostUsageCacheLocations.prepareCLIProxyAPIConfigurationGenerationUpdate(
+                    stateRoot: env.cacheRoot,
+                    fileManager: .default)
+                #expect(generationUpdate != nil)
+                if let generationUpdate {
+                    #expect(CostUsageCacheLocations.commitCLIProxyAPIConfigurationGenerationUpdate(
+                        generationUpdate,
+                        fileManager: .default))
+                }
+            } operation: {
+                try CostUsageScanner.loadDailyReportCancellable(
+                    provider: .claude,
+                    since: day,
+                    until: day,
+                    now: day,
+                    options: options,
+                    checkCancellation: nil)
+            }
+        }
+    }
+
+    @Test
+    func `memo hit rejects disconnect isolation after capture`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 1)
+        _ = try self.writeEvent(env: env, day: day, path: "project/session.jsonl", id: "first", input: 10)
+        let options = self.options(env: env)
+        _ = self.load(day: day, options: options)
+
+        #expect(throws: CancellationError.self) {
+            _ = try CostUsageScanner.withClaudeReportMemoHitObserverForTesting {
+                #expect(CostUsageCacheLocations.setCLIProxyAPIExplicitlyDisconnected(
+                    true,
+                    stateRoot: env.cacheRoot))
+            } operation: {
+                try CostUsageScanner.loadDailyReportCancellable(
+                    provider: .claude,
+                    since: day,
+                    until: day,
+                    now: day,
+                    options: options,
+                    checkCancellation: nil)
+            }
+        }
+
+        let disconnected = try CostUsageScanner.loadDailyReportCancellable(
+            provider: .claude,
+            since: day,
+            until: day,
+            now: day,
+            options: options,
+            checkCancellation: nil)
+        #expect(disconnected.data.first?.totalTokens == 10)
+        #expect(disconnected.data.first?.modelBreakdowns?.first?.attribution?.route != .cliProxyAPI)
+    }
+
+    @Test
+    func `memo hit rejects telemetry change after capture`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 1)
+        _ = try self.writeEvent(env: env, day: day, path: "project/session.jsonl", id: "first", input: 10)
+        let options = self.options(env: env)
+        _ = self.load(day: day, options: options)
+        let usageRecord = CLIProxyAPIUsageRecord(
+            timestamp: day,
+            provider: "codex",
+            executorType: "CodexExecutor",
+            model: "gpt-5.5",
+            alias: "gpt-5.5",
+            endpoint: "/v1/messages",
+            authType: "oauth",
+            requestID: "memo-hit-request",
+            tokens: .init(input: 10, output: 0, total: 10))
+
+        #expect(throws: CancellationError.self) {
+            _ = try CostUsageScanner.withClaudeCLIProxyAPIAttributionCaptureObserverForTesting {
+                #expect(CLIProxyAPIUsageCacheIO.merge([usageRecord], cacheRoot: env.cacheRoot, now: day) == 1)
+            } operation: {
+                try CostUsageScanner.loadDailyReportCancellable(
+                    provider: .claude,
+                    since: day,
+                    until: day,
+                    now: day,
+                    options: options,
+                    checkCancellation: nil)
+            }
+        }
+    }
+
+    @Test
+    func `memo hit rejects proxy routing input change after capture`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 1)
+        _ = try self.writeEvent(env: env, day: day, path: "project/session.jsonl", id: "first", input: 10)
+        let cliProxyHome = env.root.appendingPathComponent("cli-proxy-api", isDirectory: true)
+        try FileManager.default.createDirectory(at: cliProxyHome, withIntermediateDirectories: true)
+        let configurationURL = cliProxyHome.appendingPathComponent("config.yaml")
+        try Data("codex-api-key: []\n".utf8).write(to: configurationURL)
+        var options = self.options(env: env)
+        options.cliProxyAPIHome = cliProxyHome
+        _ = self.load(day: day, options: options)
+
+        #expect(throws: CancellationError.self) {
+            _ = try CostUsageScanner.withClaudeReportMemoHitObserverForTesting {
+                try? Data("openai-compatibility: []\n".utf8).write(to: configurationURL, options: [.atomic])
+            } operation: {
+                try CostUsageScanner.loadDailyReportCancellable(
+                    provider: .claude,
+                    since: day,
+                    until: day,
+                    now: day,
+                    options: options,
+                    checkCancellation: nil)
+            }
+        }
+    }
+
+    @Test
+    func `telemetry appended after resolver capture rejects stale attribution`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 1)
+        _ = try self.writeEvent(
+            env: env,
+            day: day,
+            path: "proxy/session.jsonl",
+            id: "proxy",
+            input: 100,
+            model: "gpt-5.5")
+        let cliProxyHome = env.root.appendingPathComponent("cli-proxy-api", isDirectory: true)
+        let cliProxyLogs = cliProxyHome.appendingPathComponent("logs", isDirectory: true)
+        try FileManager.default.createDirectory(at: cliProxyLogs, withIntermediateDirectories: true)
+        let requestLog = """
+        === REQUEST INFO ===
+        URL: /v1/messages
+        Timestamp: \(env.isoString(for: day))
+        === HEADERS ===
+        X-Claude-Code-Session-Id: session-proxy
+        === REQUEST BODY ===
+        {"model":"gpt-5.5"}
+        === API RESPONSE ===
+        """
+        try Data(requestLog.utf8).write(to: cliProxyLogs.appendingPathComponent("request.log"))
+        var options = self.options(env: env)
+        options.cliProxyAPIHome = cliProxyHome
+        let usageRecord = CLIProxyAPIUsageRecord(
+            timestamp: day,
+            provider: "codex",
+            executorType: "CodexExecutor",
+            model: "gpt-5.5",
+            alias: "gpt-5.5",
+            endpoint: "/v1/messages",
+            authType: "oauth",
+            requestID: "proxy-request",
+            tokens: .init(input: 100, output: 0, total: 100))
+
+        #expect(throws: CancellationError.self) {
+            _ = try CostUsageScanner.withClaudeCLIProxyAPIAttributionCaptureObserverForTesting {
+                #expect(CLIProxyAPIUsageCacheIO.merge([usageRecord], cacheRoot: env.cacheRoot, now: day) == 1)
+            } operation: {
+                try CostUsageScanner.loadDailyReportCancellable(
+                    provider: .claude,
+                    since: day,
+                    until: day,
+                    now: day,
+                    options: options,
+                    checkCancellation: nil)
+            }
+        }
+        let refreshed = self.load(day: day, options: options)
+
+        #expect(refreshed.data.first?.modelBreakdowns?.first?.attribution?.upstream?.provider == "codex")
+    }
+
+    @Test
     func `cold process reuses unchanged files from the persisted cache`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }

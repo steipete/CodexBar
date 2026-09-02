@@ -10,7 +10,7 @@ struct CostUsageClaudeKimiAliasTests {
     private static let aliases = ["k3[1m]", "kimi-coding/k3[1m]", "kimi-for-coding/k3[1m]"]
 
     @Test(arguments: Self.aliases)
-    func `documented Claude Kimi alias resolves without changing recorded identity`(model: String) async throws {
+    func `documented Claude Kimi alias prices without entering Claude snapshot`(model: String) async throws {
         let fixture = try AliasFixture(model: model)
         defer { fixture.environment.cleanup() }
         let catalog = try Self.catalog(["kimi-for-coding": ["k3": Self.rates]])
@@ -23,10 +23,7 @@ struct CostUsageClaudeKimiAliasTests {
         #expect(row.totalTokens == 160)
         #expect(try abs(#require(row.costUSD) - 0.000385) < 1e-12)
         let snapshot = try await fixture.snapshot()
-        let snapshotRow = try #require(snapshot.daily.first?.modelBreakdowns?.first)
-        #expect(snapshotRow.modelName == model)
-        #expect(snapshotRow.totalTokens == 160)
-        #expect(try abs(#require(snapshotRow.costUSD) - 0.000385) < 1e-12)
+        #expect(snapshot.daily.isEmpty)
         #expect(CostUsagePricing.normalizeClaudeModel(model) == model)
     }
 
@@ -113,11 +110,12 @@ struct CostUsageClaudeKimiAliasTests {
             scannerOptions: fixture.options,
             modelsDevClient: ModelsDevClient(transport: transport))
 
-        let row = try #require(snapshot.daily.first?.modelBreakdowns?.first)
+        #expect(snapshot.daily.isEmpty)
+        #expect(await transport.requestCount == 1)
+        let row = try #require(fixture.report().data.first?.modelBreakdowns?.first)
         #expect(row.modelName == model)
         #expect(row.totalTokens == 160)
         #expect(try abs(#require(row.costUSD) - 0.000385) < 1e-12)
-        #expect(await transport.requestCount == 1)
     }
 
     @Test

@@ -283,6 +283,115 @@ struct UsageStoreCachedTokenHydrationTests {
         #expect(store.tokenLastAttemptAt(for: .codex) == nil)
     }
 
+    @Test
+    func `cache clear wins over in flight cached codex hydration`() async throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let settings = Self.makeCodexOnlySettings(historyDays: 1)
+        let options = CostUsageScanner.Options(cacheRoot: env.cacheRoot)
+        let store = UsageStore(
+            fetcher: UsageFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            costUsageFetcher: CostUsageFetcher(scannerOptions: options),
+            settings: settings,
+            startupBehavior: .testing,
+            environmentBase: [:])
+        let gate = CachedTokenHydrationGate()
+        store._test_cachedCodexTokenSnapshotLoaderOverride = { _, _, _ in
+            await gate.enter()
+            return (Self.cachedTokenSnapshot(), Date(), nil)
+        }
+
+        let hydration = store.hydrateCachedTokenSnapshots()
+        await gate.waitForStart()
+        let artifactDirectory = env.cacheRoot.appendingPathComponent("cost-usage", isDirectory: true)
+        try FileManager.default.createDirectory(at: artifactDirectory, withIntermediateDirectories: true)
+        let clearResult = CostUsageCacheLocations.clearAllCostUsageCaches(
+            in: [artifactDirectory],
+            stateRoot: env.cacheRoot,
+            fileManager: .default)
+        await gate.release()
+        await hydration?.value
+
+        #expect(clearResult.errorDescription == nil)
+        #expect(store.tokenSnapshot(for: .codex) == nil)
+        #expect(store.tokenLastAttemptAt(for: .codex) == nil)
+    }
+
+    @Test
+    func `disconnect isolation wins over in flight cached codex hydration`() async throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let settings = Self.makeCodexOnlySettings(historyDays: 1)
+        let options = CostUsageScanner.Options(cacheRoot: env.cacheRoot)
+        let store = UsageStore(
+            fetcher: UsageFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            costUsageFetcher: CostUsageFetcher(scannerOptions: options),
+            settings: settings,
+            startupBehavior: .testing,
+            environmentBase: [:])
+        let gate = CachedTokenHydrationGate()
+        store._test_cachedCodexTokenSnapshotLoaderOverride = { _, _, _ in
+            await gate.enter()
+            return (Self.cachedTokenSnapshot(), Date(), nil)
+        }
+
+        let hydration = store.hydrateCachedTokenSnapshots()
+        await gate.waitForStart()
+        #expect(CostUsageCacheLocations.setCLIProxyAPIExplicitlyDisconnected(
+            true,
+            stateRoot: env.cacheRoot))
+        await gate.release()
+        await hydration?.value
+
+        #expect(store.tokenSnapshot(for: .codex) == nil)
+        #expect(store.tokenLastAttemptAt(for: .codex) == nil)
+    }
+
+    @Test
+    func `telemetry import wins over in flight cached codex hydration`() async throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let now = Date(timeIntervalSince1970: 1_775_000_000)
+        let settings = Self.makeCodexOnlySettings(historyDays: 1)
+        let options = CostUsageScanner.Options(cacheRoot: env.cacheRoot)
+        let store = UsageStore(
+            fetcher: UsageFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            costUsageFetcher: CostUsageFetcher(scannerOptions: options),
+            settings: settings,
+            startupBehavior: .testing,
+            environmentBase: [:])
+        let gate = CachedTokenHydrationGate()
+        store._test_cachedCodexTokenSnapshotLoaderOverride = { _, _, _ in
+            await gate.enter()
+            return (Self.cachedTokenSnapshot(), Date(), nil)
+        }
+
+        let hydration = store.hydrateCachedTokenSnapshots(now: now)
+        await gate.waitForStart()
+        #expect(CLIProxyAPIUsageCacheIO.merge(
+            [
+                CLIProxyAPIUsageRecord(
+                    timestamp: now,
+                    provider: "codex",
+                    model: "gpt-5.4",
+                    alias: "gpt-5.4",
+                    endpoint: "POST /v1/messages",
+                    authType: "oauth",
+                    requestID: "hydration-race",
+                    tokens: .init(input: 10, output: 20, total: 30)),
+            ],
+            cacheRoot: env.cacheRoot,
+            now: now) == 1)
+        await gate.release()
+        await hydration?.value
+
+        #expect(store.tokenSnapshot(for: .codex) == nil)
+        #expect(store.tokenLastAttemptAt(for: .codex) == nil)
+    }
+
     private static func makeCodexOnlySettings(historyDays: Int) -> SettingsStore {
         let suite = "UsageStoreCachedTokenHydrationTests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!

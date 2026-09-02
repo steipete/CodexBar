@@ -68,6 +68,7 @@
 - Cursor: estimate API-rate costs when usage events omit prices, using cached or bundled pricing while keeping unknown costs unpriced and estimates separate from Cursor-metered charges (#3129). Thanks @Yuxin-Qiao!
 
 ### Fixed
+- CLIProxyAPI attribution: identify Claude Code requests from uniquely matching management-queue telemetry even when CLIProxyAPI request-file logging is disabled, so routed Codex models display their upstream and `CLIProxyAPI via Claude Code` provenance.
 - Cursor: show empty cost-history windows without a decoding error, while preserving incomplete-history and malformed-response checks.
 - Codex: honor the native access token's expiry so valid OAuth sessions keep model-specific limits, while leaving credential refresh under CLI ownership (#3221, #3222). Thanks @anagnorisis2peripeteia!
 - Codex: clear stale connectivity errors after a successful fetch, even when weekly usage cannot yet be published, including persisted and stacked-account errors (#3214). Thanks @olddonkey!

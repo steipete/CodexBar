@@ -53,6 +53,12 @@ enum CostUsageScanner {
         case excludeVertexAI
     }
 
+    enum ClaudeAttributionFilter {
+        case all
+        case codexBackendOnly
+        case excludeCodexBackend
+    }
+
     struct CodexScanWorkMetrics: Equatable, Sendable {
         var usageRowsProcessed: Int
         var usageRowsRepriced: Int
@@ -168,6 +174,8 @@ enum CostUsageScanner {
         var calendar: Calendar
         var refreshMinIntervalSeconds: TimeInterval = 60
         var claudeLogProviderFilter: ClaudeLogProviderFilter = .all
+        var claudeAttributionFilter: ClaudeAttributionFilter = .all
+        var cliProxyAPIHome: URL?
         /// Force a full rescan, ignoring per-file cache and incremental offsets.
         var forceRescan: Bool = false
         /// Maximum bounded slice read from one Codex rollout per refresh. Larger files
@@ -190,6 +198,8 @@ enum CostUsageScanner {
             codexTraceDatabaseURL: URL? = nil,
             calendar: Calendar = .current,
             claudeLogProviderFilter: ClaudeLogProviderFilter = .all,
+            claudeAttributionFilter: ClaudeAttributionFilter = .all,
+            cliProxyAPIHome: URL? = nil,
             forceRescan: Bool = false,
             maxCodexSessionFileBytes: Int64 = 256 * 1024 * 1024,
             maxCodexScanBytesPerRefresh: Int64 = 512 * 1024 * 1024,
@@ -203,6 +213,8 @@ enum CostUsageScanner {
             self.codexTraceDatabaseURL = codexTraceDatabaseURL
             self.calendar = calendar
             self.claudeLogProviderFilter = claudeLogProviderFilter
+            self.claudeAttributionFilter = claudeAttributionFilter
+            self.cliProxyAPIHome = cliProxyAPIHome
             self.forceRescan = forceRescan
             self.maxCodexSessionFileBytes = max(0, maxCodexSessionFileBytes)
             self.maxCodexScanBytesPerRefresh = max(0, maxCodexScanBytesPerRefresh)
@@ -1949,6 +1961,43 @@ enum CostUsageScanner {
         let output: Int
         let costNanos: Int
         let costPriced: Bool?
+        let attribution: CostUsageAttribution?
+
+        init(
+            dayKey: String,
+            model: String,
+            sessionId: String?,
+            messageId: String?,
+            requestId: String?,
+            timestampUnixMs: Int64?,
+            isSidechain: Bool,
+            pathRole: ClaudePathRole,
+            input: Int,
+            cacheRead: Int,
+            cacheCreate: Int,
+            cacheCreate1h: Int?,
+            output: Int,
+            costNanos: Int,
+            costPriced: Bool?,
+            attribution: CostUsageAttribution? = nil)
+        {
+            self.dayKey = dayKey
+            self.model = model
+            self.sessionId = sessionId
+            self.messageId = messageId
+            self.requestId = requestId
+            self.timestampUnixMs = timestampUnixMs
+            self.isSidechain = isSidechain
+            self.pathRole = pathRole
+            self.input = input
+            self.cacheRead = cacheRead
+            self.cacheCreate = cacheCreate
+            self.cacheCreate1h = cacheCreate1h
+            self.output = output
+            self.costNanos = costNanos
+            self.costPriced = costPriced
+            self.attribution = attribution
+        }
     }
 
     static func loadDailyReport(

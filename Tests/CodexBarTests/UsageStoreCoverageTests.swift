@@ -133,7 +133,7 @@ struct UsageStoreCoverageTests {
     }
 
     @Test
-    func `cursor auto credential resolution cannot relax a changed history window`() throws {
+    func `cursor auto credential resolution cannot relax a changed history window`() async throws {
         let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-cursor-history-race")
         settings.costUsageEnabled = true
         settings.costUsageHistoryDays = 30
@@ -163,17 +163,16 @@ struct UsageStoreCoverageTests {
             historyDays: 30,
             source: .auto,
             credentialFingerprint: "unresolved")
-        let revision = store.providerPublicationRevision(for: .cursor)
-        let providerConfigRevision = settings.providerConfigRevision(for: .cursor)
+        let publicationGuard = await store.tokenRefreshPublicationGuard(for: .cursor)
         settings.costUsageHistoryDays = 7
 
-        #expect(!store.tokenRefreshPublicationIsCurrent(
+        let publicationIsCurrent = await store.tokenRefreshPublicationIsCurrent(
             provider: .cursor,
-            publicationRevision: revision,
-            providerConfigRevision: providerConfigRevision,
+            publicationGuard: publicationGuard,
             historyDays: 30,
             costScopeSignature: initialSignature,
-            fetchedCredentialScopeFingerprint: fingerprint))
+            fetchedCredentialScopeFingerprint: fingerprint)
+        #expect(!publicationIsCurrent)
     }
 
     @Test

@@ -16,6 +16,13 @@ extension UsageStore {
             && provider != .codex
     }
 
+    nonisolated static func spendDashboardTokenUsageNeedsCLIProxyAPIAttributionGuard(
+        _ provider: UsageProvider) -> Bool
+    {
+        // Provider-specific by design: only Claude and Codex snapshots can contain CLIProxyAPI attribution.
+        provider == .claude || provider == .codex
+    }
+
     func spendDashboardTokenSnapshotPublicationForCurrentConfig(
         for provider: UsageProvider) -> CurrentProviderConfigTokenPublication?
     {
@@ -121,6 +128,13 @@ extension UsageStore {
             return
         }
 
+        let cliProxyAPIAttributionGuard: CLIProxyAPIAttributionPublicationGuard? = if Self
+            .spendDashboardTokenUsageNeedsCLIProxyAPIAttributionGuard(provider)
+        {
+            await self.captureCLIProxyAPIAttributionPublicationGuard()
+        } else {
+            nil
+        }
         do {
             let snapshot = try await self.loadTokenUsageSnapshot(
                 provider: provider,
@@ -136,10 +150,11 @@ extension UsageStore {
                 initialSignature: costScopeSignature,
                 snapshot: snapshot,
                 includeSettingsRevision: false)
-            guard self.spendDashboardTokenRefreshPublicationIsCurrent(
+            guard await self.spendDashboardTokenRefreshPublicationIsCurrent(
                 provider: provider,
                 publicationRevision: publicationRevision,
                 providerConfigRevision: providerConfigRevision,
+                cliProxyAPIAttributionGuard: cliProxyAPIAttributionGuard,
                 costScopeSignature: costScopeSignature,
                 fetchedCredentialScopeFingerprint: snapshot.credentialScopeFingerprint)
             else {
@@ -166,10 +181,11 @@ extension UsageStore {
             }
             self.publishSpendDashboardTokenSnapshot(snapshot, for: provider)
         } catch {
-            guard self.spendDashboardTokenRefreshPublicationIsCurrent(
+            guard await self.spendDashboardTokenRefreshPublicationIsCurrent(
                 provider: provider,
                 publicationRevision: publicationRevision,
                 providerConfigRevision: providerConfigRevision,
+                cliProxyAPIAttributionGuard: cliProxyAPIAttributionGuard,
                 costScopeSignature: costScopeSignature)
             else {
                 self.clearSpendDashboardTokenFetchMetadataIfMatching(
@@ -234,11 +250,18 @@ extension UsageStore {
         provider: UsageProvider,
         publicationRevision: ProviderPublicationRevision,
         providerConfigRevision: UInt64,
+        cliProxyAPIAttributionGuard: CLIProxyAPIAttributionPublicationGuard?,
         costScopeSignature: String,
-        fetchedCredentialScopeFingerprint: String? = nil) -> Bool
+        fetchedCredentialScopeFingerprint: String? = nil) async -> Bool
     {
+        let cliProxyAPIAttributionIsCurrent = if let cliProxyAPIAttributionGuard {
+            await self.cliProxyAPIAttributionPublicationIsCurrentOffMain(cliProxyAPIAttributionGuard, for: provider)
+        } else {
+            true
+        }
         guard self.providerPublicationRevisionIsCurrent(publicationRevision, for: provider),
               self.settings.providerConfigRevision(for: provider) == providerConfigRevision,
+              cliProxyAPIAttributionIsCurrent,
               self.settings.costUsageEnabled,
               self.isEnabled(provider)
         else {

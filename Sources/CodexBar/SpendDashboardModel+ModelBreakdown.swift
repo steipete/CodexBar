@@ -7,6 +7,7 @@ extension SpendDashboardModel {
     private struct ModelKey: Hashable {
         let provider: UsageProvider
         let modelName: String
+        let attribution: CostUsageAttribution?
     }
 
     private struct ModelAccumulator {
@@ -44,7 +45,10 @@ extension SpendDashboardModel {
                 for breakdown in breakdowns {
                     let name = breakdown.modelName.trimmingCharacters(in: .whitespacesAndNewlines)
                     guard !name.isEmpty else { continue }
-                    let key = ModelKey(provider: input.provider, modelName: name)
+                    let key = ModelKey(
+                        provider: input.provider,
+                        modelName: name,
+                        attribution: breakdown.attribution)
                     var aggregate = aggregates[key] ?? ModelAccumulator(
                         providerName: input.modelProviderName,
                         tokens: 0,
@@ -90,7 +94,8 @@ extension SpendDashboardModel {
                 modelName: key.modelName,
                 totalTokens: value.sawTokens && !value.invalidTokens && !value.overflowedTokens ? value.tokens : nil,
                 totalCost: value.sawCost && !value.invalidCost && !value.overflowedCost ? value.cost : nil,
-                tokenMix: value.mix)
+                tokenMix: value.mix,
+                attribution: key.attribution)
         }
         .sorted { lhs, rhs in
             switch (lhs.totalCost, rhs.totalCost) {
@@ -101,7 +106,11 @@ extension SpendDashboardModel {
                 if lhs.providerName != rhs.providerName {
                     return lhs.providerName < rhs.providerName
                 }
-                return lhs.modelName < rhs.modelName
+                if lhs.modelName != rhs.modelName {
+                    return lhs.modelName < rhs.modelName
+                }
+                return (lhs.attribution?.deterministicSortKey ?? "")
+                    < (rhs.attribution?.deterministicSortKey ?? "")
             }
         }
         .enumerated()
@@ -113,7 +122,8 @@ extension SpendDashboardModel {
                 modelName: row.modelName,
                 totalTokens: row.totalTokens,
                 totalCost: row.totalCost,
-                tokenMix: row.tokenMix)
+                tokenMix: row.tokenMix,
+                attribution: row.attribution)
         }
         return ModelSummary(rows: rows, completeness: completeness)
     }

@@ -85,7 +85,9 @@ extension SpendDashboardSource {
         // Provider-specific by design: OpenCodex fan-out merges into the native Codex subscription row when exactly one
         // exists.
         if provider == .codex {
-            let codexIndices = inputs.indices.filter { inputs[$0].provider == .codex }
+            let codexIndices = inputs.indices.filter {
+                inputs[$0].provider == .codex && inputs[$0].sourceKind == .native
+            }
             guard codexIndices.count == 1 else { return nil }
             return codexIndices.first
         }

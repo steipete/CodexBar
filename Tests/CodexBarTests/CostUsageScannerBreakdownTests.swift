@@ -6538,7 +6538,12 @@ struct CostUsageScannerBreakdownTests {
             CostUsageDailyReport.ModelBreakdown(
                 modelName: "claude-sonnet-4-20250514",
                 costUSD: report.data[0].costUSD,
-                totalTokens: 355),
+                totalTokens: 355,
+                requestCount: 1,
+                inputTokens: 200,
+                outputTokens: 80,
+                cacheReadTokens: 25,
+                cacheCreationTokens: 50),
         ])
         #expect((report.data[0].costUSD ?? 0) > 0)
     }

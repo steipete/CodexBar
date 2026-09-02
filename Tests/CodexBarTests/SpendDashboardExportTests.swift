@@ -61,6 +61,53 @@ struct SpendDashboardExportTests {
         #expect(json.contains("\"provenance\""))
     }
 
+    @Test
+    func `proxy model exports its upstream identity and route`() throws {
+        let now = Date(timeIntervalSince1970: 1_784_179_200)
+        let attribution = CostUsageAttribution(
+            client: .claudeCode,
+            route: .cliProxyAPI,
+            modelProvider: .anthropic,
+            upstream: .init(
+                provider: "Codex",
+                authType: .oauth,
+                model: " gpt-5.4 "),
+            evidence: [.cliProxyRequestLog, .cliProxyUsageTelemetry, .modelProvider])
+        let group = SpendDashboardModel.CurrencyGroup(
+            currencyCode: "USD",
+            providers: [],
+            models: [
+                SpendDashboardModel.ModelRow(
+                    rank: 1,
+                    provider: .claude,
+                    providerName: "Claude",
+                    modelName: "claude-sonnet-4",
+                    totalTokens: 42,
+                    totalCost: 1.25,
+                    attribution: attribution),
+            ],
+            dailyPoints: [],
+            totalTokens: 42,
+            totalCost: 1.25,
+            coveredDayCount: 1,
+            chartDomain: now...now,
+            modelHistoryCompleteness: .complete)
+        let model = SpendDashboardModel(requestedDays: 1, groups: [group])
+
+        let data = try SpendDashboardJSONExporter.encodedData(model: model, hiddenSourceIDs: [])
+        let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let groups = try #require(object["groups"] as? [[String: Any]])
+        let models = try #require(groups.first?["models"] as? [[String: Any]])
+        let exported = try #require(models.first)
+        let exportedAttribution = try #require(exported["attribution"] as? [String: Any])
+        let upstream = try #require(exportedAttribution["upstream"] as? [String: Any])
+
+        #expect(exported["provider"] as? String == "codex")
+        #expect(exported["modelName"] as? String == "gpt-5.4")
+        #expect(exportedAttribution["route"] as? String == "cliProxyAPI")
+        #expect(upstream["provider"] as? String == "Codex")
+    }
+
     @MainActor
     @Test
     func `copy writes JSON to the pasteboard`() throws {

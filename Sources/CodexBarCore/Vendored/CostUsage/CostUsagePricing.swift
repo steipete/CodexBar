@@ -1,5 +1,6 @@
 import Foundation
 
+// swiftlint:disable:next type_body_length
 enum CostUsagePricing {
     private static let codexPriorityInputTokenLimit = 272_000
     static let codexUnattributedModel = "unknown"
@@ -534,6 +535,27 @@ enum CostUsagePricing {
         self.normalizeCodexModel(raw) == self.codexUnattributedModel
     }
 
+    static func isOpenAIModel(
+        _ model: String,
+        modelsDevCatalog: ModelsDevCatalog? = nil,
+        modelsDevCacheRoot: URL? = nil) -> Bool
+    {
+        if self.isBundledOpenAIModel(model) {
+            return true
+        }
+        return self.modelsDevLookup(
+            providerID: self.codexModelsDevProviderID,
+            model: model,
+            catalog: modelsDevCatalog,
+            cacheRoot: modelsDevCacheRoot) != nil
+    }
+
+    static func isBundledOpenAIModel(_ model: String) -> Bool {
+        let normalized = self.normalizeCodexModel(model)
+        // Provider-specific by design: native OpenAI models first consult the bundled Codex pricing table.
+        return normalized != self.codexUnattributedModel && self.codex[normalized] != nil
+    }
+
     static func codexDisplayLabel(model: String) -> String? {
         let key = self.normalizeCodexModel(model)
         return self.codex[key]?.displayLabel
@@ -730,6 +752,31 @@ enum CostUsagePricing {
             + (Double(cached) * cachedInputRate)
             + (Double(cacheWrite) * cacheWriteRate)
             + (Double(max(0, outputTokens)) * outputRate)
+    }
+
+    static func claudeProxyCodexCostUSD(
+        model: String,
+        inputTokens: Int,
+        cacheReadInputTokens: Int,
+        cacheCreationInputTokens: Int,
+        outputTokens: Int,
+        modelsDevCatalog: ModelsDevCatalog? = nil,
+        modelsDevCacheRoot: URL? = nil) -> Double?
+    {
+        let uncachedInput = max(0, inputTokens)
+        let cachedInput = max(0, cacheReadInputTokens)
+        let cacheWriteInput = max(0, cacheCreationInputTokens)
+        let totalInput = [uncachedInput, cachedInput, cacheWriteInput].reduce(0) { total, component in
+            total > Int.max - component ? Int.max : total + component
+        }
+        return self.codexCostUSD(
+            model: model,
+            inputTokens: totalInput,
+            cachedInputTokens: cachedInput,
+            outputTokens: outputTokens,
+            cacheWriteInputTokens: cacheWriteInput,
+            modelsDevCatalog: modelsDevCatalog,
+            modelsDevCacheRoot: modelsDevCacheRoot)
     }
 
     static func claudeCostUSD(
@@ -1059,5 +1106,43 @@ extension CostUsagePricing {
         let matchedProviderIDs = Set(matches.map(\.pricing.providerID))
         guard matchedProviderIDs.count == 1 else { return nil }
         return matches.first
+    }
+
+    static func claudeModelsDevResolvedProviderID(
+        model: String,
+        catalog: ModelsDevCatalog?,
+        cacheRoot: URL?) -> String?
+    {
+        self.claudeModelsDevLookup(
+            model: model,
+            catalog: catalog,
+            cacheRoot: cacheRoot)?.pricing.providerID
+    }
+}
+
+extension CostUsagePricing {
+    static func claudeProxyGoogleCostUSD(
+        model: String,
+        inputTokens: Int,
+        cacheReadInputTokens: Int,
+        cacheCreationInputTokens: Int,
+        outputTokens: Int,
+        modelsDevCatalog: ModelsDevCatalog? = nil,
+        modelsDevCacheRoot: URL? = nil) -> Double?
+    {
+        guard let lookup = self.modelsDevLookup(
+            providerID: "google",
+            model: model,
+            catalog: modelsDevCatalog,
+            cacheRoot: modelsDevCacheRoot)
+        else { return nil }
+        return self.claudeCostUSD(
+            pricing: lookup.pricing,
+            tokens: ClaudeCostTokens(
+                input: inputTokens,
+                cacheRead: cacheReadInputTokens,
+                cacheCreation: cacheCreationInputTokens,
+                cacheCreation1h: 0,
+                output: outputTokens))
     }
 }

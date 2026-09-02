@@ -2,8 +2,21 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
+// swiftlint:disable file_length
+
 @Suite(.serialized)
 struct CostUsageFetcherTests {
+    @Test
+    func `regular refresh options preserve the default proxy home`() {
+        let options = CostUsageFetcher().resolvedTokenSnapshotScannerOptions(
+            provider: .claude,
+            codexHomePath: nil,
+            calendar: nil)
+
+        #expect(options.cliProxyAPIHome == FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".cli-proxy-api", isDirectory: true))
+    }
+
     @Test
     func `native codex sessions survive when pi usage is present but pi merge is disabled`() async throws {
         let env = try CostUsageTestEnvironment()
@@ -881,8 +894,624 @@ extension CostUsageFetcherTests {
             CostUsageDailyReport.ModelBreakdown(
                 modelName: "claude-sonnet-4-6",
                 costUSD: nativeCost + piCost,
-                totalTokens: 205),
+                totalTokens: 205,
+                requestCount: 1,
+                inputTokens: 100,
+                outputTokens: 20,
+                cacheReadTokens: 5,
+                cacheCreationTokens: 10),
         ])
+    }
+
+    @Test
+    func `claude code proxy usage belongs to codex and keeps route attribution`() async throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 24)
+        let proxyAssistant: [String: Any] = [
+            "type": "assistant",
+            "timestamp": env.isoString(for: day),
+            "sessionId": "session-proxy",
+            "requestId": "request-proxy",
+            "message": [
+                "id": "message-proxy",
+                "model": "claude-sonnet-4-6",
+                "usage": [
+                    "input_tokens": 100,
+                    "cache_creation_input_tokens": 10,
+                    "cache_read_input_tokens": 20,
+                    "output_tokens": 5,
+                ],
+            ],
+        ]
+        let nativeClaudeAssistant: [String: Any] = [
+            "type": "assistant",
+            "timestamp": env.isoString(for: day.addingTimeInterval(1)),
+            "sessionId": "session-proxy",
+            "requestId": "request-claude",
+            "message": [
+                "id": "message-claude",
+                "model": "claude-sonnet-4-6",
+                "usage": [
+                    "input_tokens": 50,
+                    "cache_creation_input_tokens": 5,
+                    "cache_read_input_tokens": 5,
+                    "output_tokens": 10,
+                ],
+            ],
+        ]
+        _ = try env.writeClaudeProjectFile(
+            relativePath: "proxy/session.jsonl",
+            contents: env.jsonl([proxyAssistant, nativeClaudeAssistant]))
+        let cliProxyHome = env.root.appendingPathComponent("cli-proxy-api", isDirectory: true)
+        let cliProxyLogs = cliProxyHome.appendingPathComponent("logs", isDirectory: true)
+        try FileManager.default.createDirectory(at: cliProxyLogs, withIntermediateDirectories: true)
+        try Data(#"{"type":"codex","access_token":"must-not-be-exposed"}"#.utf8)
+            .write(to: cliProxyHome.appendingPathComponent("codex-auth.json"))
+        let proxyLog = """
+        === REQUEST INFO ===
+        URL: /v1/messages
+        Timestamp: \(env.isoString(for: day))
+        === HEADERS ===
+        X-Claude-Code-Session-Id: session-proxy
+        === REQUEST BODY ===
+        {"model":"claude-sonnet-4-6"}
+        === API RESPONSE ===
+        """
+        try Data(proxyLog.utf8).write(to: cliProxyLogs.appendingPathComponent("request.log"))
+        CLIProxyAPIUsageCacheIO.merge(
+            [
+                CLIProxyAPIUsageRecord(
+                    timestamp: day,
+                    provider: "codex",
+                    executorType: "CodexExecutor",
+                    model: "gpt-5.5",
+                    alias: "claude-sonnet-4-6",
+                    endpoint: "/v1/messages",
+                    authType: "oauth",
+                    requestID: "cliproxy-request-proxy",
+                    tokens: .init(
+                        input: 100,
+                        output: 5,
+                        cacheRead: 20,
+                        cacheCreation: 10,
+                        total: 135)),
+            ],
+            cacheRoot: env.cacheRoot,
+            now: day)
+
+        let options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: [env.claudeProjectsRoot],
+            cacheRoot: env.cacheRoot,
+            cliProxyAPIHome: cliProxyHome)
+        let codex = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .codex,
+            now: day,
+            allowPricingRefresh: false,
+            includePiSessions: false,
+            scannerOptions: options)
+        let scopedHome = env.root.appendingPathComponent("managed-codex-home", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: scopedHome.appendingPathComponent("sessions", isDirectory: true),
+            withIntermediateDirectories: true)
+        let scopedCodex = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .codex,
+            now: day,
+            codexHomePath: scopedHome.path,
+            allowPricingRefresh: false,
+            includePiSessions: false,
+            scannerOptions: options)
+        let claude = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .claude,
+            now: day,
+            allowPricingRefresh: false,
+            includePiSessions: false,
+            scannerOptions: options)
+        let cachedCodex = try #require(await CostUsageFetcher.loadCachedCodexTokenSnapshot(
+            now: day,
+            scannerOptions: options))
+        let cachedScopedCodex = await CostUsageFetcher.loadCachedCodexTokenSnapshot(
+            now: day,
+            codexHomePath: scopedHome.path,
+            allowScopedCodexHome: true,
+            includePiSessions: false,
+            includeProjectAndSessionBreakdowns: false,
+            scannerOptions: options)
+
+        let expectedCodexCost = try #require(CostUsagePricing.claudeProxyCodexCostUSD(
+            model: "gpt-5.5",
+            inputTokens: 100,
+            cacheReadInputTokens: 20,
+            cacheCreationInputTokens: 10,
+            outputTokens: 5))
+        let codexBreakdown = try #require(codex.daily.first?.modelBreakdowns?.first)
+        #expect(codex.daily.first?.totalTokens == 135)
+        #expect(abs((codex.daily.first?.costUSD ?? 0) - expectedCodexCost) < 0.000001)
+        #expect(codexBreakdown.modelName == "claude-sonnet-4-6")
+        #expect(codexBreakdown.attribution == CostUsageAttribution(
+            client: .claudeCode,
+            route: .cliProxyAPI,
+            modelProvider: .anthropic,
+            upstream: .init(
+                provider: "codex",
+                authType: .oauth,
+                model: "gpt-5.5",
+                executorType: "CodexExecutor"),
+            evidence: [.cliProxyRequestLog, .cliProxyUsageTelemetry, .modelProvider]))
+        #expect(codex.projects.map(\.name) == ["Claude Code via CLIProxyAPI"])
+        #expect(scopedCodex.daily.isEmpty)
+        #expect(scopedCodex.projects.isEmpty)
+
+        #expect(claude.daily.first?.totalTokens == 70)
+        #expect(claude.daily.first?.modelsUsed == ["claude-sonnet-4-6"])
+        #expect(claude.daily.first?.modelBreakdowns?.first?.attribution == nil)
+
+        #expect(cachedCodex.daily.first?.totalTokens == 135)
+        #expect(cachedCodex.daily.first?.modelBreakdowns?.first?.attribution == codexBreakdown.attribution)
+        #expect(cachedScopedCodex?.daily.isEmpty == true)
+        #expect(cachedScopedCodex?.last30DaysTokens == 0)
+
+        try FileManager.default.removeItem(at: cliProxyLogs)
+        try FileManager.default.removeItem(at: cliProxyHome.appendingPathComponent("codex-auth.json"))
+        let cachedAfterLogRotation = try #require(await CostUsageFetcher.loadCachedCodexTokenSnapshot(
+            now: day,
+            scannerOptions: options))
+        #expect(cachedAfterLogRotation.daily.first?.totalTokens == 135)
+        #expect(cachedAfterLogRotation.daily.first?.modelBreakdowns?.first?.attribution == codexBreakdown.attribution)
+    }
+
+    @Test
+    func `proxy and pi usage keep distinct synthetic projects`() async throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 24)
+        _ = try env.writeClaudeProjectFile(
+            relativePath: "proxy/session.jsonl",
+            contents: env.jsonl([[
+                "type": "assistant",
+                "timestamp": env.isoString(for: day),
+                "sessionId": "session-proxy",
+                "requestId": "request-proxy",
+                "message": [
+                    "id": "message-proxy",
+                    "model": "gpt-5.5",
+                    "usage": ["input_tokens": 100, "output_tokens": 5],
+                ],
+            ]]))
+        _ = try env.writePiSessionFile(
+            relativePath: "2026-07-24T10-00-00-000Z_pi.jsonl",
+            contents: env.jsonl([[
+                "type": "message",
+                "timestamp": env.isoString(for: day.addingTimeInterval(1)),
+                "message": [
+                    "role": "assistant",
+                    "provider": "openai-codex",
+                    "model": "openai/gpt-5.4",
+                    "timestamp": Int(day.addingTimeInterval(1).timeIntervalSince1970 * 1000),
+                    "usage": ["input": 50, "output": 5, "totalTokens": 55],
+                ],
+            ]]))
+        let cliProxyHome = env.root.appendingPathComponent("cli-proxy-api", isDirectory: true)
+        let cliProxyLogs = cliProxyHome.appendingPathComponent("logs", isDirectory: true)
+        try FileManager.default.createDirectory(at: cliProxyLogs, withIntermediateDirectories: true)
+        try Data(#"{"type":"codex"}"#.utf8)
+            .write(to: cliProxyHome.appendingPathComponent("codex-auth.json"))
+        let proxyLog = """
+        === REQUEST INFO ===
+        URL: /v1/messages
+        Timestamp: \(env.isoString(for: day))
+        === HEADERS ===
+        X-Claude-Code-Session-Id: session-proxy
+        === REQUEST BODY ===
+        {"model":"gpt-5.5"}
+        === API RESPONSE ===
+        """
+        try Data(proxyLog.utf8).write(to: cliProxyLogs.appendingPathComponent("request.log"))
+        let options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: [env.claudeProjectsRoot],
+            cacheRoot: env.cacheRoot,
+            cliProxyAPIHome: cliProxyHome)
+        let piOptions = PiSessionCostScanner.Options(
+            piSessionsRoot: env.piSessionsRoot,
+            cacheRoot: env.cacheRoot,
+            refreshMinIntervalSeconds: 0)
+
+        let snapshot = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .codex,
+            now: day,
+            allowPricingRefresh: false,
+            scannerOptions: options,
+            piScannerOptions: piOptions)
+
+        #expect(snapshot.projects.count == 2)
+        #expect(Set(snapshot.projects.map(\.name)) == [
+            "Claude Code via CLIProxyAPI",
+            CostUsageProjectBreakdown.unknownProjectName,
+        ])
+        #expect(snapshot.projects.allSatisfy { $0.path == nil })
+        #expect(snapshot.projects.allSatisfy { $0.sources.map(\.name) == [$0.name] })
+    }
+
+    @Test
+    func `codex supplemental scan requires proxy evidence`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let cliProxyHome = env.root.appendingPathComponent("cli-proxy-api", isDirectory: true)
+        let options = CostUsageScanner.Options(
+            cacheRoot: env.cacheRoot,
+            cliProxyAPIHome: cliProxyHome)
+
+        #expect(!CostUsageFetcher.hasCodexProxyEvidence(options: options))
+
+        let logs = cliProxyHome.appendingPathComponent("logs", isDirectory: true)
+        try FileManager.default.createDirectory(at: logs, withIntermediateDirectories: true)
+        try Data().write(to: logs.appendingPathComponent("request.log"))
+
+        #expect(CostUsageFetcher.hasCodexProxyEvidence(options: options))
+    }
+
+    @Test
+    func `explicit disconnect suppresses surviving proxy logs`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let cliProxyHome = env.root.appendingPathComponent("cli-proxy-api", isDirectory: true)
+        let options = CostUsageScanner.Options(
+            cacheRoot: env.cacheRoot,
+            cliProxyAPIHome: cliProxyHome)
+        let logs = cliProxyHome.appendingPathComponent("logs", isDirectory: true)
+        try FileManager.default.createDirectory(at: logs, withIntermediateDirectories: true)
+        try Data().write(to: logs.appendingPathComponent("request.log"))
+        #expect(CostUsageFetcher.hasCodexProxyEvidence(options: options))
+
+        #expect(CostUsageCacheLocations.setCLIProxyAPIExplicitlyDisconnected(
+            true,
+            stateRoot: env.cacheRoot))
+        #expect(!CostUsageFetcher.hasCodexProxyEvidence(options: options))
+    }
+
+    @Test
+    func `explicit disconnect keeps proxy routed usage in Claude totals`() async throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 24)
+        _ = try env.writeClaudeProjectFile(
+            relativePath: "disconnected-proxy/session.jsonl",
+            contents: env.jsonl([[
+                "type": "assistant",
+                "timestamp": env.isoString(for: day),
+                "sessionId": "disconnected-proxy-session",
+                "requestId": "disconnected-proxy-request",
+                "message": [
+                    "id": "disconnected-proxy-message",
+                    "model": "claude-sonnet-4-6",
+                    "usage": ["input_tokens": 100, "output_tokens": 5],
+                ],
+            ]]))
+        let cliProxyHome = env.root.appendingPathComponent("cli-proxy-api", isDirectory: true)
+        let logs = cliProxyHome.appendingPathComponent("logs", isDirectory: true)
+        try FileManager.default.createDirectory(at: logs, withIntermediateDirectories: true)
+        try Data(#"{"type":"codex","access_token":"must-not-be-exposed"}"#.utf8)
+            .write(to: cliProxyHome.appendingPathComponent("codex-auth.json"))
+        let proxyLog = """
+        === REQUEST INFO ===
+        URL: /v1/messages
+        Timestamp: \(env.isoString(for: day))
+        === HEADERS ===
+        X-Claude-Code-Session-Id: disconnected-proxy-session
+        === REQUEST BODY ===
+        {"model":"claude-sonnet-4-6"}
+        === API RESPONSE ===
+        """
+        try Data(proxyLog.utf8).write(to: logs.appendingPathComponent("request.log"))
+        let options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: [env.claudeProjectsRoot],
+            cacheRoot: env.cacheRoot,
+            cliProxyAPIHome: cliProxyHome)
+        #expect(CostUsageCacheLocations.setCLIProxyAPIExplicitlyDisconnected(
+            true,
+            stateRoot: env.cacheRoot))
+
+        let claude = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .claude,
+            now: day,
+            allowPricingRefresh: false,
+            includePiSessions: false,
+            scannerOptions: options)
+        let codex = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .codex,
+            now: day,
+            allowPricingRefresh: false,
+            includePiSessions: false,
+            scannerOptions: options)
+        let cachedCodex = await CostUsageFetcher.loadCachedCodexTokenSnapshot(
+            now: day,
+            scannerOptions: options)
+
+        #expect(claude.daily.first?.totalTokens == 105)
+        #expect(claude.daily.first?.modelBreakdowns?.first?.attribution == nil)
+        #expect(codex.daily.isEmpty)
+        #expect(cachedCodex?.daily.isEmpty == true)
+        #expect(cachedCodex?.last30DaysTokens == 0)
+    }
+
+    @Test
+    func `openai model without proxy evidence stays out of codex totals`() async throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 24)
+        _ = try env.writeClaudeProjectFile(
+            relativePath: "unresolved/session.jsonl",
+            contents: env.jsonl([[
+                "type": "assistant",
+                "timestamp": env.isoString(for: day),
+                "sessionId": "unmatched-session",
+                "requestId": "request-unresolved",
+                "message": [
+                    "id": "message-unresolved",
+                    "model": "gpt-5.5",
+                    "usage": ["input_tokens": 100, "output_tokens": 5],
+                ],
+            ]]))
+        let cliProxyHome = env.root.appendingPathComponent("cli-proxy-api", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: cliProxyHome.appendingPathComponent("logs", isDirectory: true),
+            withIntermediateDirectories: true)
+        try Data(#"{"type":"codex"}"#.utf8)
+            .write(to: cliProxyHome.appendingPathComponent("codex-auth.json"))
+        let options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: [env.claudeProjectsRoot],
+            cacheRoot: env.cacheRoot,
+            cliProxyAPIHome: cliProxyHome)
+
+        let codex = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .codex,
+            now: day,
+            allowPricingRefresh: false,
+            includePiSessions: false,
+            scannerOptions: options)
+        let claude = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .claude,
+            now: day,
+            allowPricingRefresh: false,
+            includePiSessions: false,
+            scannerOptions: options)
+
+        #expect(codex.daily.isEmpty)
+        #expect(claude.daily.isEmpty)
+    }
+
+    @Test
+    func `proxy route without a confirmed upstream stays out of provider totals`() async throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 24)
+        _ = try env.writeClaudeProjectFile(
+            relativePath: "unresolved-proxy/session.jsonl",
+            contents: env.jsonl([[
+                "type": "assistant",
+                "timestamp": env.isoString(for: day),
+                "sessionId": "unresolved-proxy-session",
+                "requestId": "unresolved-proxy-request",
+                "message": [
+                    "id": "unresolved-proxy-message",
+                    "model": "gpt-5.5",
+                    "usage": ["input_tokens": 100, "output_tokens": 5],
+                ],
+            ]]))
+        let cliProxyHome = env.root.appendingPathComponent("cli-proxy-api", isDirectory: true)
+        let logs = cliProxyHome.appendingPathComponent("logs", isDirectory: true)
+        try FileManager.default.createDirectory(at: logs, withIntermediateDirectories: true)
+        let proxyLog = """
+        === REQUEST INFO ===
+        URL: /v1/messages
+        Timestamp: \(env.isoString(for: day))
+        === HEADERS ===
+        X-Claude-Code-Session-Id: unresolved-proxy-session
+        === REQUEST BODY ===
+        {"model":"gpt-5.5"}
+        === API RESPONSE ===
+        """
+        try Data(proxyLog.utf8).write(to: logs.appendingPathComponent("request.log"))
+        let options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: [env.claudeProjectsRoot],
+            cacheRoot: env.cacheRoot,
+            cliProxyAPIHome: cliProxyHome)
+
+        let codex = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .codex,
+            now: day,
+            allowPricingRefresh: false,
+            includePiSessions: false,
+            scannerOptions: options)
+        let claude = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .claude,
+            now: day,
+            allowPricingRefresh: false,
+            includePiSessions: false,
+            scannerOptions: options)
+
+        #expect(codex.daily.isEmpty)
+        #expect(claude.daily.isEmpty)
+    }
+
+    @Test
+    func `cliproxy request log does not cover a distant resumed turn`() async throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 24)
+        func assistant(seconds: TimeInterval, requestID: String) -> [String: Any] {
+            [
+                "type": "assistant",
+                "timestamp": env.isoString(for: day.addingTimeInterval(seconds)),
+                "sessionId": "session-proxy",
+                "requestId": requestID,
+                "message": [
+                    "id": "message-\(requestID)",
+                    "model": "gpt-5.5",
+                    "usage": ["input_tokens": 100, "output_tokens": 5],
+                ],
+            ]
+        }
+        _ = try env.writeClaudeProjectFile(
+            relativePath: "stable-proxy/session.jsonl",
+            contents: env.jsonl([
+                assistant(seconds: 0, requestID: "first"),
+                assistant(seconds: 3 * 60 * 60, requestID: "second"),
+            ]))
+        let cliProxyHome = env.root.appendingPathComponent("cli-proxy-api", isDirectory: true)
+        let cliProxyLogs = cliProxyHome.appendingPathComponent("logs", isDirectory: true)
+        try FileManager.default.createDirectory(at: cliProxyLogs, withIntermediateDirectories: true)
+        try Data(#"{"type":"codex","disabled":false,"access_token":"must-not-be-exposed"}"#.utf8)
+            .write(to: cliProxyHome.appendingPathComponent("codex-auth.json"))
+        let proxyLog = """
+        === REQUEST INFO ===
+        URL: /v1/messages
+        Timestamp: \(env.isoString(for: day))
+        === HEADERS ===
+        X-Claude-Code-Session-Id: session-proxy
+        === REQUEST BODY ===
+        {"model":"gpt-5.5"}
+        === API RESPONSE ===
+        """
+        try Data(proxyLog.utf8).write(to: cliProxyLogs.appendingPathComponent("request.log"))
+        let options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: [env.claudeProjectsRoot],
+            cacheRoot: env.cacheRoot,
+            cliProxyAPIHome: cliProxyHome)
+
+        let codex = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .codex,
+            now: day,
+            allowPricingRefresh: false,
+            includePiSessions: false,
+            scannerOptions: options)
+        let claude = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .claude,
+            now: day,
+            allowPricingRefresh: false,
+            includePiSessions: false,
+            scannerOptions: options)
+
+        let breakdown = try #require(codex.daily.first?.modelBreakdowns?.first)
+        #expect(codex.daily.first?.totalTokens == 105)
+        #expect(codex.daily.first?.modelBreakdowns?.count == 1)
+        #expect(breakdown.modelName == "gpt-5.5")
+        #expect(breakdown.attribution?.route == .cliProxyAPI)
+        #expect(breakdown.attribution?.upstream == .init(
+            provider: "codex",
+            authType: .oauth,
+            model: "gpt-5.5"))
+        #expect(breakdown.attribution?.evidence.contains(.cliProxyAuthInventory) == true)
+        #expect(claude.daily.isEmpty)
+    }
+
+    @Test
+    func `claude report preserves only anthropic proxy backend attribution`() async throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 24)
+        func assistant(sessionID: String, requestID: String, model: String, seconds: TimeInterval) -> [String: Any] {
+            [
+                "type": "assistant",
+                "timestamp": env.isoString(for: day.addingTimeInterval(seconds)),
+                "sessionId": sessionID,
+                "requestId": requestID,
+                "message": [
+                    "id": "message-\(requestID)",
+                    "model": model,
+                    "usage": ["input_tokens": 10, "output_tokens": 2],
+                ],
+            ]
+        }
+        _ = try env.writeClaudeProjectFile(
+            relativePath: "multi-backend/session.jsonl",
+            contents: env.jsonl([
+                assistant(sessionID: "session-gemini", requestID: "gemini", model: "gemini-3-pro", seconds: 0),
+                assistant(
+                    sessionID: "session-claude",
+                    requestID: "claude",
+                    model: "claude-sonnet-4-6",
+                    seconds: 1),
+            ]))
+
+        let cliProxyHome = env.root.appendingPathComponent("cli-proxy-api", isDirectory: true)
+        let logs = cliProxyHome.appendingPathComponent("logs", isDirectory: true)
+        try FileManager.default.createDirectory(at: logs, withIntermediateDirectories: true)
+        try Data(#"{"type":"gemini"}"#.utf8)
+            .write(to: cliProxyHome.appendingPathComponent("gemini-auth.json"))
+        try Data(#"{"type":"claude"}"#.utf8)
+            .write(to: cliProxyHome.appendingPathComponent("claude-auth.json"))
+        for (name, sessionID, model, seconds) in [
+            ("gemini", "session-gemini", "gemini-3-pro", 0.0),
+            ("claude", "session-claude", "claude-sonnet-4-6", 1.0),
+        ] {
+            let log = """
+            === REQUEST INFO ===
+            URL: /v1/messages
+            Timestamp: \(env.isoString(for: day.addingTimeInterval(seconds)))
+            === HEADERS ===
+            X-Claude-Code-Session-Id: \(sessionID)
+            === REQUEST BODY ===
+            {"model":"\(model)"}
+            === API RESPONSE ===
+            """
+            try Data(log.utf8).write(to: logs.appendingPathComponent("\(name).log"))
+        }
+        CLIProxyAPIUsageCacheIO.merge(
+            [
+                CLIProxyAPIUsageRecord(
+                    timestamp: day,
+                    provider: "gemini",
+                    executorType: "GeminiExecutor",
+                    model: "gemini-3-pro",
+                    alias: "gemini-3-pro",
+                    endpoint: "/v1/messages",
+                    authType: "oauth",
+                    requestID: "cliproxy-gemini",
+                    tokens: .init(input: 10, output: 2, total: 12)),
+                CLIProxyAPIUsageRecord(
+                    timestamp: day.addingTimeInterval(1),
+                    provider: "claude",
+                    executorType: "ClaudeExecutor",
+                    model: "claude-sonnet-4-6",
+                    alias: "claude-sonnet-4-6",
+                    endpoint: "/v1/messages",
+                    authType: "oauth",
+                    requestID: "cliproxy-claude",
+                    tokens: .init(input: 10, output: 2, total: 12)),
+            ],
+            cacheRoot: env.cacheRoot,
+            now: day.addingTimeInterval(1))
+
+        let options = CostUsageScanner.Options(
+            claudeProjectsRoots: [env.claudeProjectsRoot],
+            cacheRoot: env.cacheRoot,
+            cliProxyAPIHome: cliProxyHome)
+        let snapshot = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .claude,
+            now: day,
+            allowPricingRefresh: false,
+            includePiSessions: false,
+            scannerOptions: options)
+
+        let breakdowns = try #require(snapshot.daily.first?.modelBreakdowns)
+        let claude = try #require(breakdowns.first { $0.modelName == "claude-sonnet-4-6" })
+        #expect(claude.attribution?.route == .cliProxyAPI)
+        #expect(claude.attribution?.upstream?.provider == "claude")
+        #expect(claude.attribution?.upstream?.authType == .oauth)
+        #expect(breakdowns.contains { $0.modelName == "gemini-3-pro" } == false)
     }
 
     @Test

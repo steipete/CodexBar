@@ -359,6 +359,143 @@ public struct CostUsageProjectSourceBreakdown: Sendable, Equatable {
     }
 }
 
+public struct CostUsageAttribution: Sendable, Codable, Equatable, Hashable {
+    public enum Client: String, Sendable, Codable, Hashable {
+        case claudeCode
+    }
+
+    public enum Route: String, Sendable, Codable, Hashable {
+        case unknown
+        case cliProxyAPI
+    }
+
+    public enum ModelProvider: String, Sendable, Codable, Hashable {
+        case openAI
+        case anthropic
+        case google
+        case other
+        case unknown
+    }
+
+    public struct Upstream: Sendable, Codable, Equatable, Hashable {
+        public enum AuthType: String, Sendable, Codable, Hashable {
+            case oauth
+            case apiKey
+            case unknown
+        }
+
+        public let provider: String
+        public let authType: AuthType
+        public let model: String?
+        public let executorType: String?
+
+        public init(
+            provider: String,
+            authType: AuthType,
+            model: String? = nil,
+            executorType: String? = nil)
+        {
+            self.provider = provider
+            self.authType = authType
+            self.model = model
+            self.executorType = executorType
+        }
+
+        public var isCodex: Bool {
+            // Provider-specific by design: CLIProxyAPI stores upstream provider identity as an external raw string.
+            self.provider.trimmingCharacters(in: .whitespacesAndNewlines)
+                .caseInsensitiveCompare("codex") == .orderedSame
+        }
+
+        public var isAnthropic: Bool {
+            // Provider-specific by design: CLIProxyAPI may identify Anthropic with either external raw name.
+            switch self.provider.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+            case "anthropic", "claude": true
+            default: false
+            }
+        }
+
+        public var providerDisplayName: String {
+            // Provider-specific by design: external CLIProxyAPI provider IDs map to stable user-facing names.
+            switch self.provider.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+            case "codex": "Codex"
+            case "claude": "Claude"
+            case "gemini": "Gemini"
+            case "gemini-interactions": "Gemini Interactions"
+            case "aistudio": "AI Studio"
+            case "vertex": "Vertex AI"
+            case "antigravity": "Antigravity"
+            case "xai": "xAI"
+            case "kimi": "Kimi"
+            case "openrouter": "OpenRouter"
+            case let provider where provider.isEmpty: "Unknown"
+            case let provider: provider
+            }
+        }
+
+        public var authDisplayName: String? {
+            switch self.authType {
+            case .oauth: "OAuth"
+            case .apiKey: "API key"
+            case .unknown: nil
+            }
+        }
+
+        public var displayName: String {
+            guard let authDisplayName else { return self.providerDisplayName }
+            return "\(self.providerDisplayName) \(authDisplayName)"
+        }
+    }
+
+    public enum Evidence: String, Sendable, Codable, Hashable {
+        case cliProxyAuthInventory
+        case cliProxyModelAlias
+        case modelProvider
+        case cliProxyRequestLog
+        case cliProxyUsageTelemetry
+    }
+
+    public let client: Client
+    public let route: Route
+    public let modelProvider: ModelProvider
+    public let upstream: Upstream?
+    public let evidence: [Evidence]
+
+    public init(
+        client: Client,
+        route: Route,
+        modelProvider: ModelProvider = .unknown,
+        upstream: Upstream? = nil,
+        evidence: [Evidence] = [])
+    {
+        self.client = client
+        self.route = route
+        self.modelProvider = modelProvider
+        self.upstream = upstream
+        self.evidence = evidence
+    }
+
+    package var deterministicSortKey: String {
+        let fields = [
+            self.client.rawValue,
+            self.route.rawValue,
+            self.modelProvider.rawValue,
+            self.upstream == nil ? "0" : "1",
+            self.upstream?.provider ?? "",
+            self.upstream?.authType.rawValue ?? "",
+            self.upstream?.model == nil ? "0" : "1",
+            self.upstream?.model ?? "",
+            self.upstream?.executorType == nil ? "0" : "1",
+            self.upstream?.executorType ?? "",
+            String(self.evidence.count),
+        ] + self.evidence.map(\.rawValue)
+
+        return fields
+            .map { "\($0.utf8.count):\($0)" }
+            .joined()
+    }
+}
+
 public struct CostUsageDailyReport: Sendable, Decodable {
     public struct ModelBreakdown: Sendable, Decodable, Equatable {
         public let modelName: String
@@ -374,6 +511,7 @@ public struct CostUsageDailyReport: Sendable, Decodable {
         public let priorityCostUSD: Double?
         public let standardTokens: Int?
         public let priorityTokens: Int?
+        public let attribution: CostUsageAttribution?
 
         private enum CodingKeys: String, CodingKey {
             case modelName
@@ -391,6 +529,7 @@ public struct CostUsageDailyReport: Sendable, Decodable {
             case priorityCostUSD
             case standardTokens
             case priorityTokens
+            case attribution
         }
 
         public init(from decoder: Decoder) throws {
@@ -412,6 +551,7 @@ public struct CostUsageDailyReport: Sendable, Decodable {
             self.priorityCostUSD = try container.decodeIfPresent(Double.self, forKey: .priorityCostUSD)
             self.standardTokens = try container.decodeIfPresent(Int.self, forKey: .standardTokens)
             self.priorityTokens = try container.decodeIfPresent(Int.self, forKey: .priorityTokens)
+            self.attribution = try container.decodeIfPresent(CostUsageAttribution.self, forKey: .attribution)
         }
 
         public init(
@@ -427,7 +567,8 @@ public struct CostUsageDailyReport: Sendable, Decodable {
             standardCostUSD: Double? = nil,
             priorityCostUSD: Double? = nil,
             standardTokens: Int? = nil,
-            priorityTokens: Int? = nil)
+            priorityTokens: Int? = nil,
+            attribution: CostUsageAttribution? = nil)
         {
             self.modelName = modelName
             self.costUSD = costUSD
@@ -442,6 +583,7 @@ public struct CostUsageDailyReport: Sendable, Decodable {
             self.priorityCostUSD = priorityCostUSD
             self.standardTokens = standardTokens
             self.priorityTokens = priorityTokens
+            self.attribution = attribution
         }
     }
 
@@ -718,46 +860,63 @@ public struct CostUsageDailyReport: Sendable, Decodable {
 }
 
 extension CostUsageDailyReport {
-    private struct OptionalCountAccumulator {
-        private(set) var value: Int?
-        private var overflowed = false
+    private struct IntegerAccumulator {
+        private(set) var value = 0
+        private(set) var sawValue = false
+        private(set) var overflowed = false
 
-        mutating func add(_ incoming: Int?) {
-            guard let incoming, incoming >= 0, !self.overflowed else { return }
-            let (sum, overflow) = (self.value ?? 0).addingReportingOverflow(incoming)
-            self.value = overflow ? nil : sum
-            self.overflowed = overflow
+        mutating func add(_ value: Int?) {
+            guard let value else { return }
+            self.sawValue = true
+            guard !self.overflowed else { return }
+            let result = self.value.addingReportingOverflow(value)
+            if result.overflow {
+                self.overflowed = true
+            } else {
+                self.value = result.partialValue
+            }
+        }
+
+        mutating func markOverflow() {
+            self.sawValue = true
+            self.overflowed = true
+        }
+
+        var result: Int? {
+            self.sawValue && !self.overflowed ? self.value : nil
         }
     }
 
+    private struct BreakdownKey: Hashable {
+        let modelName: String
+        let attribution: CostUsageAttribution?
+    }
+
     private struct BreakdownAccumulator {
-        var tokenMix = CostUsageTokenMix()
-        var requestCount = OptionalCountAccumulator()
-        var totalTokens: Int = 0
-        var sawTotalTokens = false
+        var totalTokens = IntegerAccumulator()
+        var requestCount = IntegerAccumulator()
+        var inputTokens = IntegerAccumulator()
+        var outputTokens = IntegerAccumulator()
+        var cacheReadTokens = IntegerAccumulator()
+        var cacheCreationTokens = IntegerAccumulator()
+        var reasoningTokens = IntegerAccumulator()
         var costUSD: Double = 0
         var sawCost = false
         var standardCostUSD: Double = 0
         var sawStandardCost = false
         var priorityCostUSD: Double = 0
         var sawPriorityCost = false
-        var standardTokens: Int = 0
-        var sawStandardTokens = false
-        var priorityTokens: Int = 0
-        var sawPriorityTokens = false
+        var standardTokens = IntegerAccumulator()
+        var priorityTokens = IntegerAccumulator()
 
         mutating func add(_ breakdown: ModelBreakdown) {
-            self.tokenMix.merge(CostUsageTokenMix(
-                inputTokens: breakdown.inputTokens,
-                outputTokens: breakdown.outputTokens,
-                cacheReadTokens: breakdown.cacheReadTokens,
-                cacheCreationTokens: breakdown.cacheCreationTokens,
-                reasoningTokens: breakdown.reasoningTokens))
+            self.totalTokens.add(breakdown.totalTokens)
             self.requestCount.add(breakdown.requestCount)
-            if let totalTokens = breakdown.totalTokens {
-                self.totalTokens += totalTokens
-                self.sawTotalTokens = true
-            }
+            self.inputTokens.add(breakdown.inputTokens)
+            self.outputTokens.add(breakdown.outputTokens)
+            self.cacheReadTokens.add(breakdown.cacheReadTokens)
+            self.cacheCreationTokens.add(breakdown.cacheCreationTokens)
+            self.reasoningTokens.add(breakdown.reasoningTokens)
             if let costUSD = breakdown.costUSD {
                 self.costUSD += costUSD
                 self.sawCost = true
@@ -770,57 +929,51 @@ extension CostUsageDailyReport {
                 self.priorityCostUSD += priorityCostUSD
                 self.sawPriorityCost = true
             }
-            if let standardTokens = breakdown.standardTokens {
-                self.standardTokens += standardTokens
-                self.sawStandardTokens = true
-            }
-            if let priorityTokens = breakdown.priorityTokens {
-                self.priorityTokens += priorityTokens
-                self.sawPriorityTokens = true
-            }
+            self.standardTokens.add(breakdown.standardTokens)
+            self.priorityTokens.add(breakdown.priorityTokens)
         }
 
-        func build(modelName: String) -> ModelBreakdown {
+        func build(key: BreakdownKey) -> ModelBreakdown {
             ModelBreakdown(
-                modelName: modelName,
+                modelName: key.modelName,
                 costUSD: self.sawCost ? self.costUSD : nil,
-                totalTokens: self.sawTotalTokens ? self.totalTokens : nil,
-                requestCount: self.requestCount.value,
-                inputTokens: self.tokenMix.inputTokens,
-                outputTokens: self.tokenMix.outputTokens,
-                cacheReadTokens: self.tokenMix.cacheReadTokens,
-                cacheCreationTokens: self.tokenMix.cacheCreationTokens,
-                reasoningTokens: self.tokenMix.reasoningTokens,
+                totalTokens: self.totalTokens.result,
+                requestCount: self.requestCount.result,
+                inputTokens: self.inputTokens.result,
+                outputTokens: self.outputTokens.result,
+                cacheReadTokens: self.cacheReadTokens.result,
+                cacheCreationTokens: self.cacheCreationTokens.result,
+                reasoningTokens: self.reasoningTokens.result,
                 standardCostUSD: self.sawStandardCost ? self.standardCostUSD : nil,
                 priorityCostUSD: self.sawPriorityCost ? self.priorityCostUSD : nil,
-                standardTokens: self.sawStandardTokens ? self.standardTokens : nil,
-                priorityTokens: self.sawPriorityTokens ? self.priorityTokens : nil)
+                standardTokens: self.standardTokens.result,
+                priorityTokens: self.priorityTokens.result,
+                attribution: key.attribution)
         }
     }
 
     private struct EntryAccumulator {
-        var reasoningTokens = OptionalCountAccumulator()
-        var requestCount = OptionalCountAccumulator()
+        var inputTokens = IntegerAccumulator()
+        var cacheReadTokens = IntegerAccumulator()
+        var cacheCreationTokens = IntegerAccumulator()
+        var outputTokens = IntegerAccumulator()
+        var reasoningTokens = IntegerAccumulator()
+        var totalTokens = IntegerAccumulator()
+        var derivedTotalTokensWithoutExplicitTotal = IntegerAccumulator()
+        var requestCount = IntegerAccumulator()
         var coverage = CostUsageCoverageAccumulator()
         var entryCount = 0
         var hasExplicitCoverage = false
-        var inputTokens: Int = 0
-        var sawInputTokens = false
-        var cacheReadTokens: Int = 0
-        var sawCacheReadTokens = false
-        var cacheCreationTokens: Int = 0
-        var sawCacheCreationTokens = false
-        var outputTokens: Int = 0
-        var sawOutputTokens = false
-        var totalTokens: Int = 0
-        var sawTotalTokens = false
-        var derivedTotalTokensWithoutExplicitTotal: Int = 0
         var costUSD: Double = 0
         var sawCost = false
         var modelsUsed: Set<String> = []
-        var breakdowns: [String: BreakdownAccumulator] = [:]
+        var breakdowns: [BreakdownKey: BreakdownAccumulator] = [:]
 
         mutating func add(_ entry: Entry) {
+            self.inputTokens.add(entry.inputTokens)
+            self.cacheReadTokens.add(entry.cacheReadTokens)
+            self.cacheCreationTokens.add(entry.cacheCreationTokens)
+            self.outputTokens.add(entry.outputTokens)
             self.reasoningTokens.add(entry.reasoningTokens)
             self.requestCount.add(entry.requestCount)
             // Classify each source before combining costs: a priced source cannot price another source's missing rows.
@@ -829,31 +982,19 @@ extension CostUsageDailyReport {
             self.hasExplicitCoverage = self.hasExplicitCoverage
                 || entry.pricedRequestCount != nil || entry.unpricedRequestCount != nil
                 || entry.unmeteredRequestCount != nil || entry.estimatedRequestCount != nil
-            let entryDerivedTotalTokens = (entry.inputTokens ?? 0)
-                + (entry.cacheReadTokens ?? 0)
-                + (entry.cacheCreationTokens ?? 0)
-                + (entry.outputTokens ?? 0)
-            if let inputTokens = entry.inputTokens {
-                self.inputTokens += inputTokens
-                self.sawInputTokens = true
-            }
-            if let cacheReadTokens = entry.cacheReadTokens {
-                self.cacheReadTokens += cacheReadTokens
-                self.sawCacheReadTokens = true
-            }
-            if let cacheCreationTokens = entry.cacheCreationTokens {
-                self.cacheCreationTokens += cacheCreationTokens
-                self.sawCacheCreationTokens = true
-            }
-            if let outputTokens = entry.outputTokens {
-                self.outputTokens += outputTokens
-                self.sawOutputTokens = true
-            }
             if let totalTokens = entry.totalTokens {
-                self.totalTokens += totalTokens
-                self.sawTotalTokens = true
-            } else if entryDerivedTotalTokens > 0 {
-                self.derivedTotalTokensWithoutExplicitTotal += entryDerivedTotalTokens
+                self.totalTokens.add(totalTokens)
+            } else {
+                var derivedTotalTokens = IntegerAccumulator()
+                derivedTotalTokens.add(entry.inputTokens)
+                derivedTotalTokens.add(entry.cacheReadTokens)
+                derivedTotalTokens.add(entry.cacheCreationTokens)
+                derivedTotalTokens.add(entry.outputTokens)
+                if derivedTotalTokens.overflowed {
+                    self.derivedTotalTokensWithoutExplicitTotal.markOverflow()
+                } else if let value = derivedTotalTokens.result, value > 0 {
+                    self.derivedTotalTokensWithoutExplicitTotal.add(value)
+                }
             }
             if let costUSD = entry.costUSD {
                 self.costUSD += costUSD
@@ -864,22 +1005,23 @@ extension CostUsageDailyReport {
             }
             if let modelBreakdowns = entry.modelBreakdowns {
                 for breakdown in modelBreakdowns {
-                    var accumulator = self.breakdowns[breakdown.modelName] ?? BreakdownAccumulator()
+                    let key = BreakdownKey(
+                        modelName: breakdown.modelName,
+                        attribution: breakdown.attribution)
+                    var accumulator = self.breakdowns[key] ?? BreakdownAccumulator()
                     accumulator.add(breakdown)
-                    self.breakdowns[breakdown.modelName] = accumulator
+                    self.breakdowns[key] = accumulator
                     self.modelsUsed.insert(breakdown.modelName)
                 }
             }
         }
 
         func build(date: String) -> Entry {
-            let derivedTotalTokens = self.inputTokens
-                + self.cacheReadTokens
-                + self.cacheCreationTokens
-                + self.outputTokens
-            let totalTokens: Int? = if self.sawTotalTokens {
-                self.totalTokens + self.derivedTotalTokensWithoutExplicitTotal
-            } else if derivedTotalTokens > 0 {
+            let totalTokens: Int? = if self.totalTokens.sawValue {
+                Self.combinedResult(self.totalTokens, self.derivedTotalTokensWithoutExplicitTotal)
+            } else if let derivedTotalTokens = self.derivedTotalTokensWithoutExplicitTotal.result,
+                      derivedTotalTokens > 0
+            {
                 derivedTotalTokens
             } else {
                 nil
@@ -888,21 +1030,21 @@ extension CostUsageDailyReport {
                 guard !self.breakdowns.isEmpty else { return nil }
                 return CostUsageDailyReport.sortedModelBreakdowns(
                     self.breakdowns
-                        .map { modelName, accumulator in
-                            accumulator.build(modelName: modelName)
+                        .map { key, accumulator in
+                            accumulator.build(key: key)
                         })
             }()
             let modelsUsed = self.modelsUsed.isEmpty ? nil : self.modelsUsed.sorted()
             let includeCoverage = self.entryCount > 1 || self.hasExplicitCoverage
             return Entry(
                 date: date,
-                inputTokens: self.sawInputTokens ? self.inputTokens : nil,
-                outputTokens: self.sawOutputTokens ? self.outputTokens : nil,
-                cacheReadTokens: self.sawCacheReadTokens ? self.cacheReadTokens : nil,
-                cacheCreationTokens: self.sawCacheCreationTokens ? self.cacheCreationTokens : nil,
-                reasoningTokens: self.reasoningTokens.value,
+                inputTokens: self.inputTokens.result,
+                outputTokens: self.outputTokens.result,
+                cacheReadTokens: self.cacheReadTokens.result,
+                cacheCreationTokens: self.cacheCreationTokens.result,
+                reasoningTokens: self.reasoningTokens.result,
                 totalTokens: totalTokens,
-                requestCount: self.requestCount.value,
+                requestCount: self.requestCount.result,
                 costUSD: self.sawCost ? self.costUSD : nil,
                 modelsUsed: modelsUsed,
                 modelBreakdowns: modelBreakdowns,
@@ -910,6 +1052,17 @@ extension CostUsageDailyReport {
                 unmeteredRequestCount: includeCoverage ? self.coverage.exact?.unmetered : nil,
                 estimatedRequestCount: includeCoverage ? self.coverage.exact?.estimated : nil,
                 pricedRequestCount: includeCoverage ? self.coverage.exact?.priced : nil)
+        }
+
+        private static func combinedResult(
+            _ lhs: IntegerAccumulator,
+            _ rhs: IntegerAccumulator) -> Int?
+        {
+            guard !lhs.overflowed, !rhs.overflowed else { return nil }
+            var combined = IntegerAccumulator()
+            combined.add(lhs.result)
+            combined.add(rhs.result)
+            return combined.result
         }
     }
 
@@ -942,42 +1095,22 @@ extension CostUsageDailyReport {
     }
 
     private static func mergedSummary(from entries: [Entry]) -> Summary {
-        var reasoningTokens = OptionalCountAccumulator()
-        var totalInputTokens = 0
-        var sawTotalInputTokens = false
-        var totalOutputTokens = 0
-        var sawTotalOutputTokens = false
-        var totalCacheReadTokens = 0
-        var sawTotalCacheReadTokens = false
-        var totalCacheCreationTokens = 0
-        var sawTotalCacheCreationTokens = false
-        var totalTokens = 0
-        var sawTotalTokens = false
+        var totalInputTokens = IntegerAccumulator()
+        var totalOutputTokens = IntegerAccumulator()
+        var totalCacheReadTokens = IntegerAccumulator()
+        var totalCacheCreationTokens = IntegerAccumulator()
+        var totalReasoningTokens = IntegerAccumulator()
+        var totalTokens = IntegerAccumulator()
         var totalCostUSD = 0.0
         var sawTotalCostUSD = false
 
         for entry in entries {
-            reasoningTokens.add(entry.reasoningTokens)
-            if let inputTokens = entry.inputTokens {
-                totalInputTokens += inputTokens
-                sawTotalInputTokens = true
-            }
-            if let outputTokens = entry.outputTokens {
-                totalOutputTokens += outputTokens
-                sawTotalOutputTokens = true
-            }
-            if let cacheReadTokens = entry.cacheReadTokens {
-                totalCacheReadTokens += cacheReadTokens
-                sawTotalCacheReadTokens = true
-            }
-            if let cacheCreationTokens = entry.cacheCreationTokens {
-                totalCacheCreationTokens += cacheCreationTokens
-                sawTotalCacheCreationTokens = true
-            }
-            if let entryTotalTokens = entry.totalTokens {
-                totalTokens += entryTotalTokens
-                sawTotalTokens = true
-            }
+            totalInputTokens.add(entry.inputTokens)
+            totalOutputTokens.add(entry.outputTokens)
+            totalCacheReadTokens.add(entry.cacheReadTokens)
+            totalCacheCreationTokens.add(entry.cacheCreationTokens)
+            totalReasoningTokens.add(entry.reasoningTokens)
+            totalTokens.add(entry.totalTokens)
             if let costUSD = entry.costUSD {
                 totalCostUSD += costUSD
                 sawTotalCostUSD = true
@@ -985,12 +1118,12 @@ extension CostUsageDailyReport {
         }
 
         return Summary(
-            totalInputTokens: sawTotalInputTokens ? totalInputTokens : nil,
-            totalOutputTokens: sawTotalOutputTokens ? totalOutputTokens : nil,
-            cacheReadTokens: sawTotalCacheReadTokens ? totalCacheReadTokens : nil,
-            cacheCreationTokens: sawTotalCacheCreationTokens ? totalCacheCreationTokens : nil,
-            reasoningTokens: reasoningTokens.value,
-            totalTokens: sawTotalTokens ? totalTokens : nil,
+            totalInputTokens: totalInputTokens.result,
+            totalOutputTokens: totalOutputTokens.result,
+            cacheReadTokens: totalCacheReadTokens.result,
+            cacheCreationTokens: totalCacheCreationTokens.result,
+            reasoningTokens: totalReasoningTokens.result,
+            totalTokens: totalTokens.result,
             totalCostUSD: sawTotalCostUSD ? totalCostUSD : nil)
     }
 
@@ -1008,7 +1141,12 @@ extension CostUsageDailyReport {
                 return lhsTokens > rhsTokens
             }
 
-            return lhs.modelName > rhs.modelName
+            if lhs.modelName != rhs.modelName {
+                return lhs.modelName > rhs.modelName
+            }
+            let lhsAttribution = lhs.attribution?.deterministicSortKey ?? ""
+            let rhsAttribution = rhs.attribution?.deterministicSortKey ?? ""
+            return lhsAttribution > rhsAttribution
         }
     }
 }

@@ -173,6 +173,7 @@ enum CLILocalHTTPRequestParseError: Error, Equatable {
 
 enum CLIHTTPStatus {
     case ok
+    case temporaryRedirect
     case badRequest
     case unauthorized
     case forbidden
@@ -183,6 +184,7 @@ enum CLIHTTPStatus {
     var code: Int {
         switch self {
         case .ok: 200
+        case .temporaryRedirect: 307
         case .badRequest: 400
         case .unauthorized: 401
         case .forbidden: 403
@@ -196,6 +198,7 @@ enum CLIHTTPStatus {
     var reason: String {
         switch self {
         case .ok: "OK"
+        case .temporaryRedirect: "Temporary Redirect"
         case .badRequest: "Bad Request"
         case .unauthorized: "Unauthorized"
         case .forbidden: "Forbidden"

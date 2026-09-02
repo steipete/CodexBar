@@ -207,6 +207,88 @@ struct ShareStatsTests {
     }
 
     @Test
+    func `proxy only dashboard remains shareable without presenting proxy as a subscription`() throws {
+        let group = SpendDashboardModel.CurrencyGroup(
+            currencyCode: "USD",
+            providers: [
+                SpendDashboardModel.ProviderRow(
+                    id: SpendDashboardSource.codexProxySourceID,
+                    rank: 1,
+                    provider: .codex,
+                    displayName: "Codex · CLIProxyAPI",
+                    totalTokens: 30,
+                    totalCost: 1.5,
+                    coveredDayCount: 1),
+            ],
+            models: [],
+            projects: [],
+            dailyPoints: [],
+            totalTokens: 30,
+            totalCost: 1.5,
+            coveredDayCount: 1,
+            chartDomain: Self.date...Self.date,
+            modelHistoryCompleteness: .complete)
+
+        let payload = try #require(ShareStatsBuilder.make(
+            model: SpendDashboardModel(requestedDays: 1, groups: [group])))
+
+        #expect(payload.providers.count == 1)
+        #expect(payload.providers.first?.providerName == "Codex · CLIProxyAPI")
+        #expect(payload.providers.first?.subscriptionName == nil)
+        #expect(payload.providers.first?.estimatedCost == 1.5)
+    }
+
+    @Test
+    func `proxy share model uses the sanitized upstream model family`() throws {
+        let attribution = CostUsageAttribution(
+            client: .claudeCode,
+            route: .cliProxyAPI,
+            modelProvider: .anthropic,
+            upstream: .init(
+                provider: "codex",
+                authType: .oauth,
+                model: "gpt-5.4"),
+            evidence: [.cliProxyRequestLog, .cliProxyUsageTelemetry, .modelProvider])
+        let group = SpendDashboardModel.CurrencyGroup(
+            currencyCode: "USD",
+            providers: [
+                SpendDashboardModel.ProviderRow(
+                    id: "codex",
+                    rank: 1,
+                    provider: .codex,
+                    displayName: "Codex",
+                    totalTokens: 42,
+                    totalCost: 1.25,
+                    coveredDayCount: 1),
+            ],
+            models: [
+                SpendDashboardModel.ModelRow(
+                    rank: 1,
+                    provider: .claude,
+                    providerName: "Claude",
+                    modelName: "claude-sonnet-4",
+                    totalTokens: 42,
+                    totalCost: 1.25,
+                    attribution: attribution),
+            ],
+            projects: [],
+            dailyPoints: [],
+            totalTokens: 42,
+            totalCost: 1.25,
+            coveredDayCount: 1,
+            chartDomain: Self.date...Self.date,
+            modelHistoryCompleteness: .complete)
+
+        let payload = try #require(ShareStatsBuilder.make(
+            model: SpendDashboardModel(requestedDays: 1, groups: [group])))
+        let sharedModel = try #require(payload.topModels.first)
+
+        #expect(sharedModel.provider == .codex)
+        #expect(sharedModel.providerName == "Codex")
+        #expect(sharedModel.modelName == "GPT")
+    }
+
+    @Test
     func `cost only models do not enter token usage rankings`() throws {
         let model = SpendDashboardModel(requestedDays: 7, groups: [
             SpendDashboardModel.CurrencyGroup(

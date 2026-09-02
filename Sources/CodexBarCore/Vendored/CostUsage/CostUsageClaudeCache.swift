@@ -32,6 +32,9 @@ struct CostUsageClaudeFileStamp: Equatable, Sendable {
 struct CostUsageClaudeReportMemoKey: Equatable, Sendable {
     let provider: UsageProvider
     let providerFilter: String
+    let attributionFilter: String
+    let cliProxyAPIConfigurationGeneration: String?
+    let cliProxyAPIAttributionEnabled: Bool
     let sinceKey: String
     let untilKey: String
     let scanSinceKey: String
@@ -40,11 +43,13 @@ struct CostUsageClaudeReportMemoKey: Equatable, Sendable {
     let roots: [String]
     let cacheArtifactStamp: CostUsageClaudeFileStamp?
     let pricingArtifactStamp: CostUsageClaudeFileStamp?
+    let cliProxyUsageArtifactStamp: CostUsageClaudeFileStamp?
+    let cliProxyAPIInputArtifactFingerprint: [String: CostUsageClaudeFileStamp]?
 
     var scanConfiguration: ScanConfiguration {
         ScanConfiguration(
             provider: self.provider,
-            providerFilter: self.providerFilter,
+            providerFilter: "\(self.providerFilter)|\(self.attributionFilter)",
             timeZoneIdentifier: self.timeZoneIdentifier,
             roots: self.roots)
     }

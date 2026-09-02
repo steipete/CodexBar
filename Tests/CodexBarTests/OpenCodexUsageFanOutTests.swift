@@ -121,6 +121,19 @@ struct OpenCodexUsageFanOutTests {
         ]
         #expect(SpendDashboardSource.preferredMergeIndex(for: .codex, in: singleCodex) == 0)
 
+        let proxyOnly = [
+            SpendDashboardModel.ProviderInput(
+                id: SpendDashboardSource.codexProxySourceID,
+                provider: .codex,
+                displayName: "Codex · CLIProxyAPI",
+                snapshot: dummySnapshot,
+                sourceKind: .cliProxyAPI),
+        ]
+        #expect(SpendDashboardSource.preferredMergeIndex(for: .codex, in: proxyOnly) == nil)
+
+        let nativeAndProxy = singleCodex + proxyOnly
+        #expect(SpendDashboardSource.preferredMergeIndex(for: .codex, in: nativeAndProxy) == 0)
+
         let multipleCodex = [
             SpendDashboardModel.ProviderInput(
                 id: "codex:acct-1",

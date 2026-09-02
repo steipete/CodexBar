@@ -6,6 +6,7 @@ struct SpendDashboardModel: Equatable, Sendable {
     enum SourceKind: String, Sendable, Equatable {
         case native
         case openCodex
+        case cliProxyAPI
     }
 
     static let openCodexSourceID = "opencodex"
@@ -75,6 +76,12 @@ struct SpendDashboardModel: Equatable, Sendable {
     }
 
     struct ModelRow: Identifiable, Equatable, Sendable {
+        struct ID: Hashable, Sendable {
+            let provider: UsageProvider
+            let modelName: String
+            let attribution: CostUsageAttribution?
+        }
+
         let rank: Int
         let provider: UsageProvider
         let providerName: String
@@ -82,9 +89,10 @@ struct SpendDashboardModel: Equatable, Sendable {
         let totalTokens: Int?
         let totalCost: Double?
         let tokenMix: CostUsageTokenMix
+        let attribution: CostUsageAttribution?
 
-        var id: String {
-            "\(self.provider.rawValue):\(self.modelName)"
+        var id: ID {
+            ID(provider: self.provider, modelName: self.modelName, attribution: self.attribution)
         }
 
         init(
@@ -94,7 +102,8 @@ struct SpendDashboardModel: Equatable, Sendable {
             modelName: String,
             totalTokens: Int?,
             totalCost: Double?,
-            tokenMix: CostUsageTokenMix = CostUsageTokenMix())
+            tokenMix: CostUsageTokenMix = CostUsageTokenMix(),
+            attribution: CostUsageAttribution? = nil)
         {
             self.rank = rank
             self.provider = provider
@@ -103,6 +112,7 @@ struct SpendDashboardModel: Equatable, Sendable {
             self.totalTokens = totalTokens
             self.totalCost = totalCost
             self.tokenMix = tokenMix
+            self.attribution = attribution
         }
     }
 

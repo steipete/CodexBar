@@ -7,6 +7,28 @@ import Testing
 
 struct CostUsageFetcherUnknownModelPricingTests {
     @Test
+    func `resolved upstream model does not reuse a cached alias price`() {
+        #expect(CostUsageScanner.resolvedClaudeRowCost(
+            wasPriced: true,
+            cachedCostNanos: 1_000_000_000,
+            cachedPricingModel: "claude-priced-alias",
+            pricingModel: "unpriced-upstream",
+            currentCost: nil) == nil)
+        #expect(CostUsageScanner.resolvedClaudeRowCost(
+            wasPriced: true,
+            cachedCostNanos: 1_000_000_000,
+            cachedPricingModel: "claude-priced-alias",
+            pricingModel: "claude-priced-alias",
+            currentCost: nil) == 1)
+        #expect(CostUsageScanner.resolvedClaudeRowCost(
+            wasPriced: true,
+            cachedCostNanos: 1_000_000_000,
+            cachedPricingModel: "claude-priced-alias",
+            pricingModel: "priced-upstream",
+            currentCost: 2) == 2)
+    }
+
+    @Test
     func `fetcher reprices an unknown model after an on demand catalog refresh`() async throws {
         let fixture = try UnknownModelPricingFixture()
         defer { fixture.environment.cleanup() }
@@ -68,7 +90,7 @@ struct CostUsageFetcherUnknownModelPricingTests {
     }
 
     @Test
-    func `fetcher reprices a bare claude vendor model after an on demand catalog refresh`() async throws {
+    func `claude snapshot excludes a bare foreign provider model after catalog refresh`() async throws {
         let fixture = try UnknownModelPricingFixture()
         defer { fixture.environment.cleanup() }
         let assistant: [String: Any] = [
@@ -97,9 +119,149 @@ struct CostUsageFetcherUnknownModelPricingTests {
             modelsDevClient: ModelsDevClient(transport: CostUsageFetcherModelsDevTransport(
                 data: fixture.refreshedCatalog)))
 
-        let breakdown = try #require(snapshot.daily.first?.modelBreakdowns?.first)
-        #expect(breakdown.modelName == "deepseek-v4-flash")
-        #expect(abs((breakdown.costUSD ?? 0) - 0.0000168) < 0.0000001)
+        #expect(!(snapshot.daily
+                .flatMap { $0.modelBreakdowns ?? [] }
+                .contains { $0.modelName == "deepseek-v4-flash" }))
+    }
+
+    @Test
+    func `claude snapshot retains a bare model with ambiguous catalog ownership`() async throws {
+        let fixture = try UnknownModelPricingFixture()
+        defer { fixture.environment.cleanup() }
+        let assistant: [String: Any] = [
+            "type": "assistant",
+            "timestamp": fixture.environment.isoString(for: fixture.day),
+            "message": [
+                "model": "shared-model",
+                "usage": [
+                    "input_tokens": 100,
+                    "cache_creation_input_tokens": 0,
+                    "cache_read_input_tokens": 0,
+                    "output_tokens": 10,
+                ],
+            ],
+        ]
+        _ = try fixture.environment.writeClaudeProjectFile(
+            relativePath: "project-a/ambiguous-provider-model.jsonl",
+            contents: fixture.environment.jsonl([assistant]))
+        var options = fixture.options
+        options.claudeAttributionFilter = .excludeCodexBackend
+        let ambiguousCatalog = Data("""
+        {
+          "openai": {
+            "id": "openai",
+            "models": { "shared-model": { "id": "shared-model", "cost": { "input": 2, "output": 8 } } }
+          },
+          "anthropic": {
+            "id": "anthropic",
+            "models": { "shared-model": { "id": "shared-model", "cost": { "input": 3, "output": 15 } } }
+          }
+        }
+        """.utf8)
+
+        let snapshot = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .claude,
+            now: fixture.day,
+            refreshPricingInBackground: false,
+            includePiSessions: false,
+            scannerOptions: options,
+            modelsDevClient: ModelsDevClient(transport: CostUsageFetcherModelsDevTransport(
+                data: ambiguousCatalog)))
+
+        #expect(snapshot.daily
+            .flatMap { $0.modelBreakdowns ?? [] }
+            .contains { $0.modelName == "shared-model" })
+    }
+
+    @Test
+    func `claude cached ownership follows catalog ambiguity changes`() throws {
+        let fixture = try UnknownModelPricingFixture()
+        defer { fixture.environment.cleanup() }
+        let model = "shared-cached-model"
+        let assistant: [String: Any] = [
+            "type": "assistant",
+            "timestamp": fixture.environment.isoString(for: fixture.day),
+            "message": [
+                "model": model,
+                "usage": [
+                    "input_tokens": 100,
+                    "cache_creation_input_tokens": 0,
+                    "cache_read_input_tokens": 0,
+                    "output_tokens": 10,
+                ],
+            ],
+        ]
+        _ = try fixture.environment.writeClaudeProjectFile(
+            relativePath: "project-a/cached-ambiguous-provider-model.jsonl",
+            contents: fixture.environment.jsonl([assistant]))
+        var options = fixture.options
+        options.claudeAttributionFilter = .excludeCodexBackend
+        options.refreshMinIntervalSeconds = 0
+        let openAICatalog = try Self.catalog(model: model, providerIDs: ["openai"])
+        #expect(ModelsDevCache.save(
+            catalog: openAICatalog,
+            fetchedAt: fixture.day,
+            cacheRoot: fixture.environment.cacheRoot))
+
+        let foreign = CostUsageScanner.loadDailyReport(
+            provider: .claude,
+            since: fixture.day,
+            until: fixture.day,
+            now: fixture.day,
+            options: options)
+        #expect(!foreign.data.contains { $0.modelBreakdowns?.contains { $0.modelName == model } == true })
+
+        let ambiguousCatalog = try Self.catalog(model: model, providerIDs: ["openai", "anthropic"])
+        #expect(ModelsDevCache.save(
+            catalog: ambiguousCatalog,
+            fetchedAt: fixture.day.addingTimeInterval(1),
+            cacheRoot: fixture.environment.cacheRoot))
+        options.refreshMinIntervalSeconds = 3600
+
+        let ambiguous = CostUsageScanner.loadDailyReport(
+            provider: .claude,
+            since: fixture.day,
+            until: fixture.day,
+            now: fixture.day.addingTimeInterval(1),
+            options: options)
+        #expect(ambiguous.data.contains { $0.modelBreakdowns?.contains { $0.modelName == model } == true })
+    }
+
+    @Test
+    func `claude snapshot excludes a resolved foreign provider model`() async throws {
+        let fixture = try UnknownModelPricingFixture()
+        defer { fixture.environment.cleanup() }
+        let assistant: [String: Any] = [
+            "type": "assistant",
+            "timestamp": fixture.environment.isoString(for: fixture.day),
+            "message": [
+                "model": "deepseek/deepseek-v4-flash",
+                "usage": [
+                    "input_tokens": 100,
+                    "cache_creation_input_tokens": 0,
+                    "cache_read_input_tokens": 0,
+                    "output_tokens": 10,
+                ],
+            ],
+        ]
+        _ = try fixture.environment.writeClaudeProjectFile(
+            relativePath: "project-a/foreign-provider-model.jsonl",
+            contents: fixture.environment.jsonl([assistant]))
+        var options = fixture.options
+        options.claudeAttributionFilter = .excludeCodexBackend
+
+        let snapshot = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .claude,
+            now: fixture.day,
+            refreshPricingInBackground: false,
+            includePiSessions: false,
+            scannerOptions: options,
+            modelsDevClient: ModelsDevClient(transport: CostUsageFetcherModelsDevTransport(
+                data: fixture.refreshedCatalog)))
+
+        #expect(!(snapshot.daily
+                .flatMap { $0.modelBreakdowns ?? [] }
+                .contains { $0.modelName == "deepseek/deepseek-v4-flash" }))
     }
 
     @Test
@@ -137,6 +299,18 @@ struct CostUsageFetcherUnknownModelPricingTests {
 
         #expect(snapshot.daily.first?.totalTokens == 110)
         #expect(snapshot.daily.first?.modelBreakdowns?.map(\.modelName) == ["gpt-new"])
+    }
+
+    private static func catalog(model: String, providerIDs: [String]) throws -> ModelsDevCatalog {
+        let providers = providerIDs.map { providerID in
+            """
+            "\(providerID)": {
+              "id": "\(providerID)",
+              "models": { "\(model)": { "id": "\(model)", "cost": { "input": 2, "output": 8 } } }
+            }
+            """
+        }.joined(separator: ",")
+        return try JSONDecoder().decode(ModelsDevCatalog.self, from: Data("{\(providers)}".utf8))
     }
 
     @Test
@@ -272,6 +446,215 @@ struct CostUsageFetcherUnknownModelPricingTests {
         #expect(snapshot.sessionTokens == (includePiSessions ? 170 : 110))
         #expect(snapshot.last30DaysTokens == (includePiSessions ? 170 : 110))
         #expect(await counter.requestCount == 0)
+    }
+
+    @Test
+    func `proxy-only fetcher refreshes pricing for the resolved upstream model`() async throws {
+        let environment = try CostUsageTestEnvironment()
+        defer { environment.cleanup() }
+        let day = try environment.makeLocalNoon(year: 2026, month: 7, day: 24)
+        let alias = "claude-proxy-alias"
+        let freshCatalog = try JSONDecoder().decode(ModelsDevCatalog.self, from: Data("""
+        {
+          "openai": {
+            "id": "openai",
+            "models": { "gpt-old": { "id": "gpt-old", "cost": { "input": 1, "output": 4 } } }
+          }
+        }
+        """.utf8))
+        ModelsDevCache.save(
+            catalog: freshCatalog,
+            fetchedAt: day.addingTimeInterval(-901),
+            cacheRoot: environment.cacheRoot)
+
+        _ = try environment.writeClaudeProjectFile(
+            relativePath: "proxy/unknown-model.jsonl",
+            contents: environment.jsonl([[
+                "type": "assistant",
+                "timestamp": environment.isoString(for: day),
+                "sessionId": "session-proxy",
+                "requestId": "request-proxy",
+                "message": [
+                    "id": "message-proxy",
+                    "model": "\(alias)",
+                    "usage": ["input_tokens": 100, "output_tokens": 10],
+                ],
+            ]]))
+        let cliProxyHome = environment.root.appendingPathComponent("cli-proxy-api", isDirectory: true)
+        let cliProxyLogs = cliProxyHome.appendingPathComponent("logs", isDirectory: true)
+        try FileManager.default.createDirectory(at: cliProxyLogs, withIntermediateDirectories: true)
+        try Data(#"{"type":"codex"}"#.utf8)
+            .write(to: cliProxyHome.appendingPathComponent("codex-auth.json"))
+        let proxyLog = """
+        === REQUEST INFO ===
+        URL: /v1/messages
+        Timestamp: \(environment.isoString(for: day))
+        === HEADERS ===
+        X-Claude-Code-Session-Id: session-proxy
+        === REQUEST BODY ===
+        {"model":"\(alias)"}
+        === API RESPONSE ===
+        """
+        try Data(proxyLog.utf8).write(to: cliProxyLogs.appendingPathComponent("request.log"))
+        CLIProxyAPIUsageCacheIO.merge(
+            [
+                CLIProxyAPIUsageRecord(
+                    timestamp: day,
+                    provider: "codex",
+                    executorType: "CodexExecutor",
+                    model: "gpt-new",
+                    alias: alias,
+                    endpoint: "/v1/messages",
+                    authType: "oauth",
+                    requestID: "cliproxy-request",
+                    tokens: .init(input: 100, output: 10, total: 110)),
+            ],
+            cacheRoot: environment.cacheRoot,
+            now: day)
+        let options = CostUsageScanner.Options(
+            claudeProjectsRoots: [environment.claudeProjectsRoot],
+            cacheRoot: environment.cacheRoot,
+            cliProxyAPIHome: cliProxyHome)
+        let refreshedCatalog = Data("""
+        {
+          "openai": {
+            "id": "openai",
+            "models": { "gpt-new": { "id": "gpt-new", "cost": { "input": 2, "output": 8 } } }
+          },
+          "anthropic": {
+            "id": "anthropic",
+            "models": { "claude-new": { "id": "claude-new", "cost": { "input": 3, "output": 15 } } }
+          }
+        }
+        """.utf8)
+
+        let snapshot = try await CostUsageFetcher(scannerOptions: options).loadCodexProxyTokenSnapshot(
+            now: day,
+            forceRefresh: true,
+            refreshPricingInBackground: false,
+            modelsDevClient: ModelsDevClient(transport: CostUsageFetcherModelsDevTransport(
+                data: refreshedCatalog)))
+
+        let breakdown = try #require(snapshot.daily.first?.modelBreakdowns?.first)
+        #expect(breakdown.modelName == alias)
+        #expect(breakdown.attribution?.upstream?.model == "gpt-new")
+        #expect(abs((breakdown.costUSD ?? 0) - 0.00028) < 0.0000001)
+    }
+
+    @Test(arguments: [
+        ("claude-new", "claude", "ClaudeExecutor", 0.00045, true),
+        ("gpt-new", "openrouter", "OpenAICompatExecutor", 0.00028, false),
+        ("gemma-new", "gemini", nil, 0.00036, false),
+    ])
+    func `claude fetch retains only anthropic proxy upstreams`(
+        upstreamModel: String,
+        upstreamProvider: String,
+        executorType: String?,
+        expectedCost: Double,
+        shouldInclude: Bool) async throws
+    {
+        let environment = try CostUsageTestEnvironment()
+        defer { environment.cleanup() }
+        let day = try environment.makeLocalNoon(year: 2026, month: 7, day: 24)
+        let alias = "claude-proxy-alias"
+        let staleCatalog = try JSONDecoder().decode(ModelsDevCatalog.self, from: Data("""
+        {
+          "openai": {
+            "id": "openai",
+            "models": { "gpt-old": { "id": "gpt-old", "cost": { "input": 1, "output": 4 } } }
+          },
+          "anthropic": {
+            "id": "anthropic",
+            "models": { "claude-old": { "id": "claude-old", "cost": { "input": 3, "output": 15 } } }
+          }
+        }
+        """.utf8))
+        ModelsDevCache.save(
+            catalog: staleCatalog,
+            fetchedAt: day.addingTimeInterval(-901),
+            cacheRoot: environment.cacheRoot)
+
+        _ = try environment.writeClaudeProjectFile(
+            relativePath: "proxy/openrouter-unknown-model.jsonl",
+            contents: environment.jsonl([[
+                "type": "assistant",
+                "timestamp": environment.isoString(for: day),
+                "sessionId": "session-openrouter",
+                "requestId": "request-openrouter",
+                "message": [
+                    "id": "message-openrouter",
+                    "model": "\(alias)",
+                    "usage": ["input_tokens": 100, "output_tokens": 10],
+                ],
+            ]]))
+        let cliProxyHome = environment.root.appendingPathComponent("cli-proxy-api", isDirectory: true)
+        let cliProxyLogs = cliProxyHome.appendingPathComponent("logs", isDirectory: true)
+        try FileManager.default.createDirectory(at: cliProxyLogs, withIntermediateDirectories: true)
+        let proxyLog = """
+        === REQUEST INFO ===
+        URL: /v1/messages
+        Timestamp: \(environment.isoString(for: day))
+        === HEADERS ===
+        X-Claude-Code-Session-Id: session-openrouter
+        === REQUEST BODY ===
+        {"model":"\(alias)"}
+        === API RESPONSE ===
+        """
+        try Data(proxyLog.utf8).write(to: cliProxyLogs.appendingPathComponent("request.log"))
+        CLIProxyAPIUsageCacheIO.merge(
+            [
+                CLIProxyAPIUsageRecord(
+                    timestamp: day,
+                    provider: upstreamProvider,
+                    executorType: executorType,
+                    model: upstreamModel,
+                    alias: alias,
+                    endpoint: "/v1/messages",
+                    authType: "api_key",
+                    requestID: "cliproxy-openrouter-\(upstreamModel)",
+                    tokens: .init(input: 100, output: 10, total: 110)),
+            ],
+            cacheRoot: environment.cacheRoot,
+            now: day)
+        let options = CostUsageScanner.Options(
+            claudeProjectsRoots: [environment.claudeProjectsRoot],
+            cacheRoot: environment.cacheRoot,
+            cliProxyAPIHome: cliProxyHome)
+        let refreshedCatalog = Data("""
+        {
+          "openai": {
+            "id": "openai",
+            "models": { "gpt-new": { "id": "gpt-new", "cost": { "input": 2, "output": 8 } } }
+          },
+          "anthropic": {
+            "id": "anthropic",
+            "models": { "claude-new": { "id": "claude-new", "cost": { "input": 3, "output": 15 } } }
+          },
+          "google": {
+            "id": "google",
+            "models": { "gemma-new": { "id": "gemma-new", "cost": { "input": 2.5, "output": 11 } } }
+          }
+        }
+        """.utf8)
+
+        let snapshot = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .claude,
+            now: day,
+            refreshPricingInBackground: false,
+            includePiSessions: false,
+            scannerOptions: options,
+            modelsDevClient: ModelsDevClient(transport: CostUsageFetcherModelsDevTransport(
+                data: refreshedCatalog)))
+
+        guard shouldInclude else {
+            #expect(snapshot.daily.isEmpty)
+            return
+        }
+        let breakdown = try #require(snapshot.daily.first?.modelBreakdowns?.first)
+        #expect(breakdown.modelName == alias)
+        #expect(breakdown.attribution?.upstream?.provider == upstreamProvider)
+        #expect(breakdown.attribution?.upstream?.model == upstreamModel)
+        #expect(abs((breakdown.costUSD ?? 0) - expectedCost) < 0.0000001)
     }
 
     @Test

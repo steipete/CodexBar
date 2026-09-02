@@ -29,6 +29,21 @@ struct ModelsDevPricingTests {
     }
 
     @Test
+    func `ambiguous bare model ownership remains unknown`() throws {
+        let catalog = try Self.fixtureCatalog()
+
+        #expect(CostUsagePricing.modelProvider(
+            for: "shared-model",
+            modelsDevCatalog: catalog) == .unknown)
+        #expect(CostUsagePricing.modelProvider(
+            for: "openai/shared-model",
+            modelsDevCatalog: catalog) == .openAI)
+        #expect(CostUsagePricing.modelProvider(
+            for: "anthropic/shared-model",
+            modelsDevCatalog: catalog) == .anthropic)
+    }
+
+    @Test
     func `does not fall back across providers`() throws {
         let catalog = try Self.fixtureCatalog()
 
@@ -50,6 +65,75 @@ struct ModelsDevPricingTests {
         #expect(anthropic.normalizedModelID == "claude-sonnet-4-6")
         #expect(vertex.normalizedModelID == "claude-sonnet-4-6")
         #expect(vertex.pricing.inputCostPerToken == 3.1 / 1_000_000.0)
+    }
+
+    @Test
+    func `classifies google catalog aliases before claude pricing`() throws {
+        let catalog = try Self.catalog("""
+        {
+          "google": {
+            "id": "google",
+            "models": {
+              "proxy-gemini-alias": {
+                "id": "proxy-gemini-alias",
+                "cost": { "input": 2, "output": 10 }
+              }
+            }
+          }
+        }
+        """)
+
+        #expect(CostUsagePricing.modelProvider(
+            for: "proxy-gemini-alias",
+            modelsDevCatalog: catalog) == .google)
+    }
+
+    @Test
+    func `classifies catalog models by their resolved provider`() throws {
+        let catalog = try Self.catalog("""
+        {
+          "anthropic": {
+            "id": "anthropic",
+            "models": {
+              "claude-sonnet-4-6": {
+                "id": "claude-sonnet-4-6",
+                "cost": { "input": 3, "output": 15 }
+              }
+            }
+          },
+          "deepseek": {
+            "id": "deepseek",
+            "models": {
+              "deepseek-v4": {
+                "id": "deepseek-v4",
+                "cost": { "input": 0.14, "output": 0.28 }
+              }
+            }
+          },
+          "minimax": {
+            "id": "minimax",
+            "models": {
+              "minimax-m2.5": {
+                "id": "minimax-m2.5",
+                "cost": { "input": 0.2, "output": 0.4 }
+              }
+            }
+          }
+        }
+        """)
+
+        #expect(CostUsagePricing.modelProvider(
+            for: "anthropic/claude-sonnet-4-6",
+            modelsDevCatalog: catalog) == .anthropic)
+        #expect(CostUsagePricing.modelProvider(
+            for: "deepseek/deepseek-v4",
+            modelsDevCatalog: catalog) == .other)
+        #expect(CostUsagePricing.modelProvider(
+            for: "deepseek-v4",
+            modelsDevCatalog: catalog) == .other)
+        #expect(CostUsagePricing.modelProvider(
+            for: "minimax/minimax-m2.5",
+            modelsDevCatalog: catalog) == .other)
     }
 
     @Test

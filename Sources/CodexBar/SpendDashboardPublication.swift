@@ -5,6 +5,7 @@ struct SpendSourcePublication: Sendable, Equatable {
     enum Role: Sendable, Equatable {
         case subscription
         case enrichment
+        case supplemental
     }
 
     enum State: Sendable, Equatable {
@@ -54,7 +55,12 @@ struct SpendDashboardPublication: Sendable {
             source.state == .staleLastKnown ? source.id : nil
         })
         let inputs = self.inputs.filter { input in
-            (providerScope?.contains(input.provider) ?? true) && !staleSourceIDs.contains(input.id)
+            // Provider-specific by design: CLIProxyAPI attribution supplements Claude usage scopes.
+            let isInProviderScope = providerScope.map { scope in
+                scope.contains(input.provider) ||
+                    (input.sourceKind == .cliProxyAPI && scope.contains(.claude))
+            } ?? true
+            return isInProviderScope && !staleSourceIDs.contains(input.id)
         }
         return SpendDashboardModel.build(
             inputs: inputs,

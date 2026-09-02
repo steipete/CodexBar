@@ -2,6 +2,16 @@ import Charts
 import CodexBarCore
 import SwiftUI
 
+private func claudeCodeModelProviderText(_ provider: CostUsageAttribution.ModelProvider) -> String {
+    switch provider {
+    case .openAI: "OpenAI model via Claude Code"
+    case .anthropic: "Anthropic model via Claude Code"
+    case .google: "Google model via Claude Code"
+    case .other: "Other model provider via Claude Code"
+    case .unknown: "Unknown model provider via Claude Code"
+    }
+}
+
 @MainActor
 // swiftlint:disable:next type_body_length
 struct CostHistoryChartMenuView: View {
@@ -729,7 +739,7 @@ struct CostHistoryChartMenuView: View {
     }
 
     private static func hasModeSubtitle(_ item: CostUsageDailyReport.ModelBreakdown) -> Bool {
-        item.standardCostUSD != nil || item.priorityCostUSD != nil
+        item.attribution != nil || item.standardCostUSD != nil || item.priorityCostUSD != nil
     }
 
     private static func detailRowsViewportHeight(rowCount: Int, rowHeight: CGFloat) -> CGFloat {
@@ -930,26 +940,6 @@ struct CostHistoryChartMenuView: View {
             }
     }
 
-    static func orderedBreakdownItems(
-        _ breakdown: [CostUsageDailyReport.ModelBreakdown]) -> [CostUsageDailyReport.ModelBreakdown]
-    {
-        breakdown.sorted { lhs, rhs in
-            let lCost = lhs.costUSD ?? -1
-            let rCost = rhs.costUSD ?? -1
-            if lCost != rCost {
-                return lCost > rCost
-            }
-
-            let lTokens = lhs.totalTokens ?? -1
-            let rTokens = rhs.totalTokens ?? -1
-            if lTokens != rTokens {
-                return lTokens > rTokens
-            }
-
-            return lhs.modelName > rhs.modelName
-        }
-    }
-
     static func detailViewportRowCount(itemCount: Int) -> Int {
         min(max(itemCount, 0), self.maxVisibleDetailLines)
     }
@@ -972,6 +962,19 @@ struct CostHistoryChartMenuView: View {
 
     private func modelBreakdownModeSubtitle(_ item: CostUsageDailyReport.ModelBreakdown) -> String? {
         var parts: [String] = []
+        if let attribution = item.attribution {
+            switch attribution.route {
+            case .cliProxyAPI:
+                let route = if let upstream = attribution.upstream {
+                    "\(upstream.displayName) · CLIProxyAPI via Claude Code"
+                } else {
+                    "CLIProxyAPI via Claude Code"
+                }
+                parts.append(route)
+            case .unknown:
+                parts.append(claudeCodeModelProviderText(attribution.modelProvider))
+            }
+        }
         if let standardCost = item.standardCostUSD {
             var standardPart = "\(L("Std")) \(self.costString(standardCost))"
             if let standardTokens = item.standardTokens {
@@ -1022,6 +1025,32 @@ struct CostHistoryChartMenuView: View {
 }
 
 extension CostHistoryChartMenuView {
+    static func orderedBreakdownItems(
+        _ breakdown: [CostUsageDailyReport.ModelBreakdown]) -> [CostUsageDailyReport.ModelBreakdown]
+    {
+        breakdown.sorted { lhs, rhs in
+            let lCost = lhs.costUSD ?? -1
+            let rCost = rhs.costUSD ?? -1
+            if lCost != rCost {
+                return lCost > rCost
+            }
+
+            let lTokens = lhs.totalTokens ?? -1
+            let rTokens = rhs.totalTokens ?? -1
+            if lTokens != rTokens {
+                return lTokens > rTokens
+            }
+
+            if lhs.modelName != rhs.modelName {
+                return lhs.modelName > rhs.modelName
+            }
+
+            let lhsAttribution = lhs.attribution?.deterministicSortKey ?? ""
+            let rhsAttribution = rhs.attribution?.deterministicSortKey ?? ""
+            return lhsAttribution > rhsAttribution
+        }
+    }
+
     static func projectIdentity(
         _ project: CostUsageProjectBreakdown,
         ordinal: Int,
@@ -1070,6 +1099,7 @@ extension CostHistoryChartMenuView {
 
     struct VisibleModelBreakdownFingerprint: Equatable {
         let modelName: String
+        let attribution: CostUsageAttribution?
         let costBitPattern: UInt64?
         let totalTokens: Int?
         let standardCostBitPattern: UInt64?
@@ -1163,6 +1193,7 @@ extension CostHistoryChartMenuView {
                     models: session.modelBreakdowns.map { item in
                         VisibleModelBreakdownFingerprint(
                             modelName: item.modelName,
+                            attribution: item.attribution,
                             costBitPattern: item.costUSD.map(\.bitPattern),
                             totalTokens: item.totalTokens,
                             standardCostBitPattern: item.standardCostUSD.map(\.bitPattern),
@@ -1182,6 +1213,7 @@ extension CostHistoryChartMenuView {
             modelBreakdowns: self.orderedBreakdownItems(entry.modelBreakdowns ?? []).map { item in
                 VisibleModelBreakdownFingerprint(
                     modelName: item.modelName,
+                    attribution: item.attribution,
                     costBitPattern: item.costUSD.map(\.bitPattern),
                     totalTokens: item.totalTokens,
                     standardCostBitPattern: item.standardCostUSD.map(\.bitPattern),
