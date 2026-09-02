@@ -191,6 +191,23 @@ struct AntigravityLocalScanTests {
     }
 
     @Test
+    func `sparse steps table with unrelated leading steps resolves complete coverage`() throws {
+        let fixture = try Fixture()
+        let stepUUID = "sparse-step-uuid"
+        let genBlob = Fixture.blobWithRootEnvelope(stepUUID: stepUUID, seconds: nil)
+        var stepBlobs = (0..<300).map { _ in
+            Fixture.stepMetadataBlob(stepUUID: "unrelated-\(UUID().uuidString)", seconds: 1_787_832_000)
+        }
+        stepBlobs.append(Fixture.stepMetadataBlob(stepUUID: stepUUID, seconds: 1_787_832_000))
+        try fixture.database(blobs: [genBlob], stepBlobs: stepBlobs)
+
+        let report = try fixture.report()
+
+        #expect(report.coverage == .complete)
+        #expect(report.report.data.first?.date == "2026-08-27")
+    }
+
+    @Test
     func `recursive aggregate view is rejected without executing its payload query`() throws {
         let fixture = try Fixture()
         let url = try fixture.database()

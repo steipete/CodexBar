@@ -489,6 +489,23 @@ struct AntigravityLocalReaderTests {
     }
 
     @Test
+    func `field 2 root envelope with multi-turn steps sharing step timestamp aggregates complete coverage`() throws {
+        let fixture = try Fixture()
+        let stepUUID = "shared-step-uuid"
+        let turn1 = Fixture.blobWithRootEnvelope(stepUUID: stepUUID, seconds: nil)
+        let turn2 = Fixture.blobWithRootEnvelope(stepUUID: stepUUID, seconds: nil)
+        let turn3 = Fixture.blobWithRootEnvelope(stepUUID: stepUUID, seconds: nil)
+        let stepBlob = Fixture.stepMetadataBlob(stepUUID: stepUUID, seconds: 1_787_832_000)
+        try fixture.database(blobs: [turn1, turn2, turn3], stepBlobs: [stepBlob])
+
+        let report = try fixture.report()
+
+        #expect(report.coverage == .complete)
+        #expect(report.report.data.first?.requestCount == 3)
+        #expect(report.report.data.first?.date == "2026-08-27")
+    }
+
+    @Test
     func `field 2 root envelope with embedded timestamp in field 9 aggregates complete coverage`() async throws {
         let fixture = try Fixture()
         let genBlob = Fixture.blobWithRootEnvelope(

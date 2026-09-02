@@ -125,10 +125,13 @@ extension AntigravityLocalReader {
             // Release the gen_metadata cursor before the optional steps pass reuses the same snapshot.
             sqlite3_finalize(activeStatement)
             statement = nil
-            let neededStepUUIDs = Set(rows.pendingTimestampRows.map(\.stepUUID))
+            var neededStepUUIDCounts: [String: Int] = [:]
+            for pending in rows.pendingTimestampRows {
+                neededStepUUIDCounts[pending.stepUUID, default: 0] += 1
+            }
             let stepTimestamps = try self.readStepTimestamps(
                 database,
-                neededStepUUIDs: neededStepUUIDs,
+                neededStepUUIDCounts: neededStepUUIDCounts,
                 progress: progress)
             let recoveredCount = self.appendRecoveredEvents(
                 to: &rows.source,
@@ -174,22 +177,20 @@ extension AntigravityLocalReader {
                 self.budget.limits.bytes - self.budget.statistics.attemptedBytes)
         }
 
-        init(budget: Budget, neededStepUUIDCount: Int) {
+        init(budget: Budget) {
             self.budget = budget
-            self.rowLimit = min(budget.limits.rowsPerDatabase, max(neededStepUUIDCount * 32, 256), 10000)
-            self.byteLimit = min(
-                budget.limits.databaseBytes,
-                max(budget.limits.blobBytes, neededStepUUIDCount * 64 * 1024))
+            self.rowLimit = min(budget.limits.rowsPerDatabase, 10000)
+            self.byteLimit = budget.limits.databaseBytes
         }
     }
 
     private static func readStepTimestamps(
         _ database: OpaquePointer,
-        neededStepUUIDs: Set<String>,
+        neededStepUUIDCounts: [String: Int],
         progress: SQLProgress) throws -> [String: [Int64]]
     {
-        guard !neededStepUUIDs.isEmpty else { return [:] }
-        let stepProgress = StepScanProgress(budget: progress.budget, neededStepUUIDCount: neededStepUUIDs.count)
+        guard !neededStepUUIDCounts.isEmpty else { return [:] }
+        let stepProgress = StepScanProgress(budget: progress.budget)
         let registered = sqlite3_create_function_v2(
             database,
             "antigravity_step_payload_limit",
@@ -256,10 +257,10 @@ extension AntigravityLocalReader {
             else { continue }
             if let (stepUUID, timestampMs) = try AntigravityProtoReader.parseStepMetadata(
                 bytes, checkCancellation: progress.budget.check),
-                let stepUUID, neededStepUUIDs.contains(stepUUID), let timestampMs
+                let stepUUID, neededStepUUIDCounts[stepUUID] != nil, let timestampMs
             {
                 stepTimestamps[stepUUID, default: []].append(timestampMs)
-                if stepTimestamps.values.reduce(0, { $0 + $1.count }) >= stepProgress.rowLimit {
+                if neededStepUUIDCounts.allSatisfy({ (stepTimestamps[$0.key]?.count ?? 0) >= $0.value }) {
                     break
                 }
             }
@@ -340,13 +341,12 @@ extension AntigravityLocalReader {
         var offsets: [String: Int] = [:]
         var recoveredCount = 0
         for pending in pendingRows {
+            guard let timestamps = stepTimestamps[pending.stepUUID], !timestamps.isEmpty else { continue }
             let offset = offsets[pending.stepUUID, default: 0]
-            guard let timestamps = stepTimestamps[pending.stepUUID],
-                  timestamps.indices.contains(offset)
-            else { continue }
             offsets[pending.stepUUID] = offset + 1
             var turn = pending.turn
-            turn.timestampMs = timestamps[offset]
+            turn.timestampMs = timestamps.indices
+                .contains(offset) ? timestamps[offset] : timestamps[timestamps.count - 1]
             if let event = Event(session: session, row: pending.row, turn: turn, cacheWrite: 0) {
                 source.events.append(event)
                 recoveredCount += 1
