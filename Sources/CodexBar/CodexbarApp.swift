@@ -109,6 +109,11 @@ struct CodexBarApp: App {
             EmptyView()
         }
         .commands {
+            CommandGroup(replacing: .appInfo) {
+                Button(L("About CodexBar")) {
+                    self.appDelegate.openSettings(pane: .about)
+                }
+            }
             CommandGroup(replacing: .appSettings) {
                 Button(self.settingsMenuTitle) {
                     self.appDelegate.openSettings(pane: nil)
