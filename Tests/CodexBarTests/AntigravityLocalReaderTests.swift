@@ -282,8 +282,47 @@ struct AntigravityLocalReaderTests {
         let report = try fixture.report()
         #expect(report.coverage == .complete)
         #expect(report.report.summary?.totalTokens == count * 198)
-        #expect(report.statistics.rows == count * 2) // steps + generations counted globally, but per-database gen budget preserved
+        #expect(report.statistics.rows == count) // steps use separate allowance; only generations count toward 50k aggregate
         #expect(report.report.data.first?.requestCount == count)
+    }
+
+    @Test
+    func `aggregate modern history preserves global budget across databases`() throws {
+        // Three modern DBs each with 10k turns share the 50k aggregate; steps must not consume it.
+        let perDB = 10_000
+        let dbs = 3
+        var fixtures: [Fixture] = []
+        for db in 0..<dbs {
+            let fixture = try Fixture()
+            var blobs: [[UInt8]] = []
+            var steps: [[UInt8]] = []
+            for i in 0..<perDB {
+                let bot = "bot-agg-\(db)-\(i)"
+                blobs.append(Fixture.modernBlob(botID: bot, seconds: nil))
+                steps.append(Fixture.stepMetadata(
+                    botID: bot,
+                    seconds: UInt64(Fixture.now.timeIntervalSince1970) + UInt64(i),
+                    nanos: 0))
+            }
+            // Use distinct session names via separate fixtures (separate HOME roots)
+            try fixture.database(blobs: blobs, stepMetadatas: steps)
+            fixtures.append(fixture)
+        }
+        // Merge via first fixture's report which discovers all three roots? Instead, directly aggregate via Budget.
+        // Use the first fixture's environment which only sees one DB; to test aggregate, use a shared root.
+        let shared = try Fixture()
+        let sharedRoot = shared.context.databaseRoots[0]
+        for (idx, f) in fixtures.enumerated() {
+            let src = f.context.databaseRoots[0].appendingPathComponent("session-a.db")
+            let dst = sharedRoot.appendingPathComponent("session-\(idx).db")
+            try FileManager.default.createDirectory(at: sharedRoot, withIntermediateDirectories: true)
+            try FileManager.default.copyItem(at: src, to: dst)
+        }
+        let report = try shared.report()
+        #expect(report.coverage == .complete)
+        #expect(report.report.summary?.totalTokens == dbs * perDB * 198)
+        #expect(report.statistics.rows == dbs * perDB)
+        #expect(report.report.data.first?.requestCount == dbs * perDB)
     }
 
     @Test

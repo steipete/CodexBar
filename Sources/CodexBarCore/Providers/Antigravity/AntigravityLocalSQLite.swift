@@ -227,11 +227,11 @@ extension AntigravityLocalReader {
             guard step == SQLITE_ROW else { break }
             let payload = SQLitePayload(statement: statement, column: 1)
             budget.statistics.materializedPayloadBytes += payload.byteCount
+            // Steps have a separate per-database and global allowance so modern
+            // histories do not halve the established 50k/128MiB aggregate generation capacity.
             stepRows += 1
-            try budget.chargeRow()
             let count = Int(sqlite3_column_int64(statement, 0))
             let attemptedBytes = max(count, payload.byteCount)
-            try budget.chargeBytes(attemptedBytes)
             guard stepRows <= budget.limits.rowsPerDatabase,
                   attemptedBytes <= budget.limits.databaseBytes - stepBytes
             else {
