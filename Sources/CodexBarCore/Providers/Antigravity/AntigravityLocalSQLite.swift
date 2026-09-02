@@ -25,14 +25,20 @@ extension AntigravityLocalReader {
         var failure: Error?
         var databaseBytes = 0
         var databaseRows = 0
+        var stepDatabaseBytes = 0
+        var stepDatabaseRows = 0
 
         var payloadLimit: Int {
             guard self.budget.statistics.rows < self.budget.limits.rows,
-                  self.databaseRows < self.budget.limits.rowsPerDatabase else { return 0 }
+                  self.budget.statistics.stepRows < self.budget.limits.rows,
+                  self.databaseRows < self.budget.limits.rowsPerDatabase,
+                  self.stepDatabaseRows < self.budget.limits.rowsPerDatabase else { return 0 }
             return min(
                 self.budget.limits.blobBytes,
                 self.budget.limits.databaseBytes - self.databaseBytes,
-                self.budget.limits.bytes - self.budget.statistics.attemptedBytes)
+                self.budget.limits.databaseBytes - self.stepDatabaseBytes,
+                self.budget.limits.bytes - self.budget.statistics.attemptedBytes,
+                self.budget.limits.bytes - self.budget.statistics.stepAttemptedBytes)
         }
 
         init(budget: Budget) {
@@ -217,8 +223,6 @@ extension AntigravityLocalReader {
         }
         sqlite3_bind_int64(statement, 1, Int64(min(budget.limits.rowsPerDatabase, 10000) + 1))
         var timestamps: [String: Int64] = [:]
-        var stepRows = 0
-        var stepBytes = 0
         while true {
             try budget.check()
             let step = sqlite3_step(statement)
@@ -229,17 +233,17 @@ extension AntigravityLocalReader {
             budget.statistics.materializedPayloadBytes += payload.byteCount
             // Steps have a separate per-database and global allowance so modern
             // histories do not halve the established 50k/128MiB aggregate generation capacity.
-            stepRows += 1
+            progress.stepDatabaseRows += 1
             try budget.chargeStepRow()
             let count = Int(sqlite3_column_int64(statement, 0))
             let attemptedBytes = max(count, payload.byteCount)
             try budget.chargeStepBytes(attemptedBytes)
-            guard stepRows <= budget.limits.rowsPerDatabase,
-                  attemptedBytes <= budget.limits.databaseBytes - stepBytes
+            guard progress.stepDatabaseRows <= budget.limits.rowsPerDatabase,
+                  attemptedBytes <= budget.limits.databaseBytes - progress.stepDatabaseBytes
             else {
                 throw ScanFailure.exhausted
             }
-            stepBytes += attemptedBytes
+            progress.stepDatabaseBytes += attemptedBytes
             guard count > 0, count <= budget.limits.blobBytes,
                   let bytes = payload.copy(declaredCount: count, limit: budget.limits.blobBytes)
             else {
