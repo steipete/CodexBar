@@ -35,22 +35,11 @@ public struct CodeRabbitUsageSnapshot: Sendable, Equatable {
 
     public func toUsageSnapshot(now: Date = Date()) -> UsageSnapshot {
         _ = now
-        let primary: RateWindow? = {
-            if let periodResets {
-                return RateWindow(
-                    usedPercent: 0,
-                    windowMinutes: ProviderPaceCapability.monthlyWindowSentinelMinutes,
-                    resetsAt: periodResets,
-                    resetDescription: self.periodResetsRaw.map { "resets \($0)" })
-            }
-            return nil
-        }()
-
         let identity = ProviderIdentitySnapshot(
             providerID: .coderabbit,
             accountEmail: self.accountEmail,
             accountOrganization: self.organization,
-            loginMethod: self.plan ?? (self.organization != nil ? "CodeRabbit" : nil))
+            loginMethod: self.makeLoginMethod())
 
         var rows: [ProviderDetailSection.Row] = []
         if let reviewsCount = self.reviewsCount {
@@ -71,12 +60,30 @@ public struct CodeRabbitUsageSnapshot: Sendable, Equatable {
             : [.makeSection(title: "Billing", rows: rows)]
 
         return UsageSnapshot(
-            primary: primary,
+            primary: nil,
             secondary: nil,
             tertiary: nil,
             providerCost: nil,
             details: details,
+            subscriptionRenewsAt: self.periodResets,
             updatedAt: self.updatedAt,
             identity: identity)
+    }
+
+    private func makeLoginMethod() -> String? {
+        var parts: [String] = []
+        if let plan = self.plan, !plan.isEmpty {
+            parts.append(plan)
+        }
+        if let reviewsCount = self.reviewsCount {
+            parts.append("\(reviewsCount) \(reviewsCount == 1 ? "review" : "reviews")")
+        }
+        if parts.isEmpty {
+            if self.organization != nil {
+                return "CodeRabbit"
+            }
+            return nil
+        }
+        return parts.joined(separator: " · ")
     }
 }

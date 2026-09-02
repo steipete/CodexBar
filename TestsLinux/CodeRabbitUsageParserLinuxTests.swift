@@ -43,10 +43,10 @@ struct CodeRabbitUsageParserLinuxTests {
         #expect(snapshot.updatedAt == now)
 
         let usage = snapshot.toUsageSnapshot(now: now)
-        #expect(usage.primary?.usedPercent == 0)
-        #expect(usage.primary?.resetsAt == snapshot.periodResets)
-        #expect(usage.primary?.resetDescription == "resets 2026-09-30")
+        #expect(usage.primary == nil)
+        #expect(usage.subscriptionRenewsAt == snapshot.periodResets)
         #expect(usage.identity?.accountOrganization == "MonkeyMed")
+        #expect(usage.identity?.loginMethod == "25 reviews")
         #expect(usage.detailRow(label: "Reviews")?.value == "25")
         #expect(usage.detailRow(label: "Organization")?.value == "MonkeyMed")
         #expect(usage.detailRow(label: "Usage billing")?.value == "inactive")
@@ -102,7 +102,7 @@ struct CodeRabbitUsageParserLinuxTests {
         let usage = snapshot.toUsageSnapshot(now: now)
         #expect(usage.identity?.accountEmail == "alice@example.com")
         #expect(usage.identity?.accountOrganization == "Acme Corp")
-        #expect(usage.identity?.loginMethod == "Pro")
+        #expect(usage.identity?.loginMethod == "Pro · 42 reviews")
     }
 
     @Test

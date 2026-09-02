@@ -21,6 +21,7 @@ public enum CodeRabbitProviderDescriptor {
                 widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
+                balanceOnly: true,
                 dashboardURL: "https://app.coderabbit.ai",
                 statusPageURL: nil,
                 statusLinkURL: "https://status.coderabbit.ai"),
