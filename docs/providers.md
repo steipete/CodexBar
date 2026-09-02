@@ -8,7 +8,7 @@ read_when:
 
 # Providers
 
-CodexBar currently registers 69 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
+CodexBar currently registers 70 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
 OpenCode vs OpenCode Go, because the auth source and quota shape differ.
 
 ## Fetch strategies (current)
@@ -646,5 +646,11 @@ JavaScriptCore is the macOS rollback engine. The committed `.js` is generated fr
 - Notion credits (Custom Agents, Workers) are a separate meter and are not read.
 - Status: `https://status.notion.so/` (link only).
 - Details: `docs/notion.md`.
+
+## CodeRabbit
+- CLI probe executing `coderabbit usage` (and optionally `coderabbit auth status`).
+- Reads billing period reset date, active/inactive usage billing state, review count, and organization.
+- Authentication managed via `coderabbit auth login` (`~/.coderabbit/auth.json`).
+- Details: `docs/coderabbit.md`.
 
 See also: `docs/provider.md` for architecture notes.
