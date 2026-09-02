@@ -988,10 +988,6 @@ extension CostUsageDailyReport {
             } else if hasActivity {
                 self.totalTokensAreComplete = false
             }
-            let hasUnknownBreakdownCost = entry.modelBreakdowns?.contains(where: { breakdown in
-                breakdown.costUSD == nil
-                    && ((breakdown.totalTokens ?? 0) > 0 || (breakdown.requestCount ?? 0) > 0)
-            }) == true
             if let costUSD = entry.costUSD {
                 if !costUSD.isFinite || costUSD < 0 {
                     self.costIsComplete = false
@@ -1005,9 +1001,6 @@ extension CostUsageDailyReport {
                     }
                 }
             } else if hasActivity {
-                self.costIsComplete = false
-            }
-            if hasUnknownBreakdownCost {
                 self.costIsComplete = false
             }
             if let modelsUsed = entry.modelsUsed {
@@ -1046,13 +1039,31 @@ extension CostUsageDailyReport {
                 reasoningTokens: self.reasoningTokens.value,
                 totalTokens: totalTokens,
                 requestCount: self.requestCount.value,
-                costUSD: self.sawCost && self.costIsComplete ? self.costUSD : nil,
+                costUSD: self.resolvedCostUSD(),
                 modelsUsed: modelsUsed,
                 modelBreakdowns: modelBreakdowns,
                 unpricedRequestCount: includeCoverage ? self.coverage.exact?.unpriced : nil,
                 unmeteredRequestCount: includeCoverage ? self.coverage.exact?.unmetered : nil,
                 estimatedRequestCount: includeCoverage ? self.coverage.exact?.estimated : nil,
                 pricedRequestCount: includeCoverage ? self.coverage.exact?.priced : nil)
+        }
+
+        /// Keep independently priced models when a sibling model or source has no list price.
+        /// Same-model priced+unpriced overlays still drop that model's contribution.
+        private func resolvedCostUSD() -> Double? {
+            if !self.breakdowns.isEmpty {
+                var total = 0.0
+                var sawPricedModel = false
+                for accumulator in self.breakdowns.values {
+                    guard accumulator.sawCost, accumulator.costIsComplete else { continue }
+                    let sum = total + accumulator.costUSD
+                    guard sum.isFinite else { return nil }
+                    total = sum
+                    sawPricedModel = true
+                }
+                return sawPricedModel ? total : nil
+            }
+            return self.sawCost && self.costIsComplete ? self.costUSD : nil
         }
     }
 

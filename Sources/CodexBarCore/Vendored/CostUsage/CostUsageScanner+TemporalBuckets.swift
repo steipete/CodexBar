@@ -37,16 +37,10 @@ extension CostUsageScanner {
             }
         }
 
-        mutating func markCostUnknown() {
-            self.costIsComplete = false
-        }
-
         mutating func add(tokens: Int, costUSD: Double?) {
             self.addTokens(tokens)
             if let costUSD {
                 self.addCost(costUSD)
-            } else {
-                self.markCostUnknown()
             }
         }
 
@@ -124,15 +118,8 @@ extension CostUsageScanner {
             let hour = self.hourStart(for: timestamp, calendar: calendar)
             var hourly = buckets.hourly[hour] ?? HourlyBucket()
             var timed = buckets.quotaSlices[timestamp] ?? HourlyBucket()
-            hourly.addTokens(share.tokens)
-            timed.addTokens(share.tokens)
-            if let allocation = allocations[index] {
-                hourly.addCost(allocation)
-                timed.addCost(allocation)
-            } else {
-                hourly.markCostUnknown()
-                timed.markCostUnknown()
-            }
+            hourly.add(tokens: share.tokens, costUSD: allocations[index])
+            timed.add(tokens: share.tokens, costUSD: allocations[index])
             buckets.hourly[hour] = hourly
             buckets.quotaSlices[timestamp] = timed
         }

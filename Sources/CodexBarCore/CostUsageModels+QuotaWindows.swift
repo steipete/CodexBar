@@ -309,8 +309,6 @@ extension CostUsageTokenSnapshot {
                 } else {
                     self.costIsComplete = false
                 }
-            } else {
-                self.costIsComplete = false
             }
         }
 
@@ -591,15 +589,7 @@ extension CostUsageTokenSnapshot {
 
     private static func completeDailyCost(_ daily: CostUsageDailyReport.Entry) -> Double? {
         guard let cost = daily.costUSD, cost.isFinite, cost >= 0 else { return nil }
-        guard max(0, daily.unpricedRequestCount ?? 0) == 0,
-              max(0, daily.unmeteredRequestCount ?? 0) == 0
-        else { return nil }
-        if daily.modelBreakdowns?.contains(where: { breakdown in
-            breakdown.costUSD == nil
-                && ((breakdown.totalTokens ?? 0) > 0 || (breakdown.requestCount ?? 0) > 0)
-        }) == true {
-            return nil
-        }
+        guard max(0, daily.unmeteredRequestCount ?? 0) == 0 else { return nil }
         return cost
     }
 
@@ -681,6 +671,11 @@ extension CostUsageTokenSnapshot {
                 continue
             }
             guard let cost = slice.costUSD, cost.isFinite, cost >= 0 else {
+                // Point-in-time events without a list price (Codex auto-review) stay out of the
+                // priced subtotal. A coarse hour with unknown cost still fail-closes the window.
+                if slice.end == nil {
+                    continue
+                }
                 return QuotaCostContribution(isValid: false, sawValue: false, value: 0, usedDaily: false)
             }
             total += cost

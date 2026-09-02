@@ -50,11 +50,11 @@ struct CostUsageQuotaWeekLinuxTests {
     }
 
     @Test
-    func `fallback week boundaries stay on local midnight after DST fall-back`() {
+    func `fallback week boundaries stay on local midnight after DST fall-back`() throws {
         let calendar = Self.losAngelesCalendar
         let now = Self.losAngelesDate(year: 2026, month: 11, day: 3, hour: 12)
-        let currentEnd = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now))!
-        let currentStart = calendar.date(byAdding: .day, value: -7, to: currentEnd)!
+        let currentEnd = try #require(calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now)))
+        let currentStart = try #require(calendar.date(byAdding: .day, value: -7, to: currentEnd))
         let durationStart = currentEnd.addingTimeInterval(
             -TimeInterval(CostUsageTokenSnapshot.quotaWeekMinutes * 60))
         #expect(calendar.component(.hour, from: currentStart) == 0)
@@ -384,6 +384,103 @@ struct CostUsageQuotaWeekLinuxTests {
 
         #expect(current?.totalCostUSD == nil)
         #expect(current?.totalTokens == 300)
+    }
+
+    @Test
+    func `quota window keeps priced subtotal when a sibling model is unpriced`() {
+        let now = Self.utcDate(year: 2026, month: 7, day: 15, hour: 12)
+        let native = CostUsageDailyReport(
+            data: [
+                CostUsageDailyReport.Entry(
+                    date: "2026-07-13",
+                    inputTokens: nil,
+                    outputTokens: nil,
+                    totalTokens: 600,
+                    costUSD: 4,
+                    modelsUsed: ["codex-auto-review", "gpt-5.6-sol"],
+                    modelBreakdowns: [
+                        CostUsageDailyReport.ModelBreakdown(
+                            modelName: "gpt-5.6-sol",
+                            costUSD: 4,
+                            totalTokens: 400),
+                        CostUsageDailyReport.ModelBreakdown(
+                            modelName: "codex-auto-review",
+                            costUSD: nil,
+                            totalTokens: 200),
+                    ]),
+            ],
+            summary: nil)
+        let merged = CostUsageDailyReport.merged(
+            [native, CostUsageDailyReport(data: [], summary: nil)],
+            calendar: Self.utcCalendar)
+        #expect(merged.data.first?.costUSD == 4)
+        #expect(merged.data.first?.modelBreakdowns?.first { $0.modelName == "codex-auto-review" }?.costUSD == nil)
+
+        let snapshot = CostUsageFetcher.tokenSnapshot(
+            from: merged,
+            now: now,
+            historyDays: 30,
+            calendar: Self.utcCalendar)
+        let current = snapshot.quotaWeekSummaries(
+            resetAt: Self.utcDate(year: 2026, month: 7, day: 18, hour: 15),
+            windowMinutes: CostUsageTokenSnapshot.quotaWeekMinutes,
+            calendar: Self.utcCalendar).first { $0.isCurrent }
+
+        #expect(current?.totalCostUSD == 4)
+        #expect(current?.totalTokens == 600)
+        #expect(snapshot.last30DaysCostUSD == 4)
+    }
+
+    @Test
+    func `reset-day unpriced exact slices keep priced events in the window`() {
+        let now = Self.utcDate(year: 2026, month: 7, day: 12, hour: 12)
+        let resetAt = Self.utcDate(year: 2026, month: 7, day: 11, hour: 15)
+        let before = Self.utcDate(year: 2026, month: 7, day: 11, hour: 14, minute: 20)
+        let afterPriced = Self.utcDate(year: 2026, month: 7, day: 11, hour: 16, minute: 10)
+        let afterUnpriced = Self.utcDate(year: 2026, month: 7, day: 11, hour: 16, minute: 40)
+        let native = CostUsageDailyReport(
+            data: [
+                CostUsageDailyReport.Entry(
+                    date: "2026-07-11",
+                    inputTokens: nil,
+                    outputTokens: nil,
+                    totalTokens: 700,
+                    costUSD: 6,
+                    modelsUsed: ["codex-auto-review", "gpt-5.6-sol"],
+                    modelBreakdowns: [
+                        CostUsageDailyReport.ModelBreakdown(
+                            modelName: "gpt-5.6-sol",
+                            costUSD: 6,
+                            totalTokens: 600),
+                        CostUsageDailyReport.ModelBreakdown(
+                            modelName: "codex-auto-review",
+                            costUSD: nil,
+                            totalTokens: 100),
+                    ]),
+            ],
+            summary: nil,
+            quotaSlices: [
+                CostUsageTimedEntry(timestamp: before, totalTokens: 200, costUSD: 2),
+                CostUsageTimedEntry(timestamp: afterPriced, totalTokens: 400, costUSD: 4),
+                CostUsageTimedEntry(timestamp: afterUnpriced, totalTokens: 100, costUSD: nil),
+            ])
+        let snapshot = CostUsageFetcher.tokenSnapshot(
+            from: native,
+            now: now,
+            historyDays: 30,
+            calendar: Self.utcCalendar)
+        let weeks = snapshot.quotaWeekSummaries(
+            resetAt: resetAt,
+            windowMinutes: CostUsageTokenSnapshot.quotaWeekMinutes,
+            now: now,
+            calendar: Self.utcCalendar)
+        let current = weeks.first { $0.isCurrent }
+        let previous = weeks.first { $0.offset == 1 }
+
+        #expect(previous?.totalCostUSD == 2)
+        #expect(previous?.totalTokens == 200)
+        #expect(current?.totalCostUSD == 4)
+        #expect(current?.totalTokens == 500)
     }
 
     @Test
