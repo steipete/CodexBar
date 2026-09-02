@@ -93,16 +93,16 @@ extension AntigravityLocalReader {
         let byteCount: Int
         private let pointer: UnsafeRawPointer?
 
-        init(statement: OpaquePointer) {
-            let isBlob = sqlite3_column_type(statement, 2) == SQLITE_BLOB
-            self.pointer = isBlob ? sqlite3_column_blob(statement, 2) : nil
-            self.byteCount = isBlob ? Int(sqlite3_column_bytes(statement, 2)) : 0
+        init(statement: OpaquePointer, column: Int32 = 2) {
+            let isBlob = sqlite3_column_type(statement, column) == SQLITE_BLOB
+            self.pointer = isBlob ? sqlite3_column_blob(statement, column) : nil
+            self.byteCount = isBlob ? Int(sqlite3_column_bytes(statement, column)) : 0
         }
 
         func copy(declaredCount: Int, limit: Int) -> [UInt8]? {
             guard self.byteCount > 0, self.byteCount == declaredCount, self.byteCount <= limit,
                   let pointer = self.pointer else { return nil }
-            // Both pointer and count belong to column 2. Never use a separate SQL expression as a buffer length.
+            // Both pointer and count belong to the same BLOB column. Never use a separate SQL expression as a buffer length.
             return Array(UnsafeBufferPointer(start: pointer.assumingMemoryBound(to: UInt8.self), count: self.byteCount))
         }
     }

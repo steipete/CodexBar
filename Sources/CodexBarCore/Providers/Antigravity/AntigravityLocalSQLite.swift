@@ -223,7 +223,7 @@ extension AntigravityLocalReader {
             if let failure = progress.failure { throw failure }
             if step == SQLITE_DONE { break }
             guard step == SQLITE_ROW else { break }
-            let payload = SQLitePayload(statement: statement)
+            let payload = SQLitePayload(statement: statement, column: 1)
             budget.statistics.materializedPayloadBytes += payload.byteCount
             progress.databaseRows += 1
             try budget.chargeRow()
