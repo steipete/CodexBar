@@ -53,7 +53,7 @@ struct MuseProviderImplementation: ProviderImplementation {
             get: { context.settings.museCookieSource.rawValue },
             set: { raw in context.settings.museCookieSource = ProviderCookieSource(rawValue: raw) ?? .auto })
         let cookieOptions = ProviderCookieSourceUI.options(
-            allowsOff: false,
+            allowsOff: true,
             keychainDisabled: context.settings.debugDisableKeychainAccess)
         let cookieSubtitle: () -> String? = {
             ProviderCookieSourceUI.subtitle(

@@ -38,7 +38,7 @@ struct MuseCookieImporterTests {
     // MARK: - P2: Chrome + Brave default (Chrome preferred, Brave fallback)
 
     @Test
-    func `muse automatic cookie import defaults to chrome only`() {
+    func `muse automatic cookie import tries chrome then brave`() {
         #expect(ProviderDefaults.metadata[.muse]?.browserCookieOrder == [.chrome, .brave])
         #expect(MuseProviderDescriptor.descriptor.metadata.browserCookieOrder == [.chrome, .brave])
     }

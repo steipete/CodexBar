@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import Testing
 @testable import CodexBar
 @testable import CodexBarCore
@@ -6,6 +7,50 @@ import Testing
 @Suite(.serialized)
 @MainActor
 struct MuseProviderImplementationTests {
+    @Test
+    func `cookie source picker exposes api only opt out`() throws {
+        let suite = "MuseProviderImplementationTests-cookie-off-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: testConfigStore(suiteName: suite),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            environmentBase: [:])
+        let context = ProviderSettingsContext(
+            provider: .muse,
+            settings: settings,
+            store: store,
+            boolBinding: { keyPath in
+                Binding(
+                    get: { settings[keyPath: keyPath] },
+                    set: { settings[keyPath: keyPath] = $0 })
+            },
+            stringBinding: { keyPath in
+                Binding(
+                    get: { settings[keyPath: keyPath] },
+                    set: { settings[keyPath: keyPath] = $0 })
+            },
+            statusText: { _ in nil },
+            setStatusText: { _, _ in },
+            lastAppActiveRunAt: { _ in nil },
+            setLastAppActiveRunAt: { _, _ in },
+            requestConfirmation: { _ in })
+
+        let picker = try #require(MuseProviderImplementation().settingsPickers(context: context)
+            .first(where: { $0.id == "muse-cookie-source" }))
+
+        #expect(picker.options.contains(where: { $0.id == ProviderCookieSource.off.rawValue }))
+        picker.binding.wrappedValue = ProviderCookieSource.off.rawValue
+        #expect(settings.museCookieSource == .off)
+        #expect(picker.dynamicSubtitle?() == "Muse cookies disabled.")
+    }
+
     @Test
     func `web-only auto is available without api key`() throws {
         let suite = "MuseProviderImplementationTests-web-auto-\(UUID().uuidString)"

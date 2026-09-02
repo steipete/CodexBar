@@ -20,7 +20,7 @@ Meta's Muse Spark 1.1 is priced at $1.25 / $4.25 per 1M input/output tokens via 
 
 1. **API key** — stored in `~/.codexbar/config.json` or `~/.config/codexbar/config.json`, or via `MUSE_API_KEY` / `META_API_KEY` / `META_MUSE_API_KEY` env. Required for `api` source.
 2. **Base URL** (optional) — default `https://api.meta.ai`. Override via Settings → Providers → Muse → API base URL or `MUSE_API_URL` for proxies.
-3. **Team usage (web, auto)** — `dev.meta.ai/usage` via browser cookies. Settings → Providers → Muse → Team usage: `Auto` imports Chrome/Safari session for `dev.meta.ai`; `Manual` pastes a `Cookie` header from DevTools → Network → usage XHR. Shows total tokens (input/output) and daily Token usage / Requests when the dashboard XHR is captured. Falls back to API when no session.
+3. **Team usage (web, auto)** — `dev.meta.ai/usage` via browser cookies. Settings → Providers → Muse → Team usage: `Auto` imports a Google Chrome or Brave Browser session for `dev.meta.ai`; `Manual` pastes a `Cookie` header from DevTools → Network → usage XHR; `Off` disables browser-session access for API-only use. Shows total tokens (input/output) and daily Token usage / Requests when the dashboard XHR is captured. Falls back to API when no session.
 4. **Validation + balance endpoints (api, probed in order)**:
    - `GET /v1/billing/usage`, `/v1/me/balance`, `/v1/billing/subscription`, `/v1/credits` — balance if present (supports `available_balance`, `balance`, `data.balance`, string or number).
    - `GET /v1/models` — fallback probe that proves key validity and counts models. Returns `API key valid` when billing is unavailable.
