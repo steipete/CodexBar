@@ -17,7 +17,7 @@ struct CodeRabbitUsageParserLinuxTests {
     }
 
     @Test
-    func parsesStandardCodeRabbitUsageText() throws {
+    func `parses standard coderabbit usage text`() throws {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let output = """
         - Fetching usage for the current billing period...
@@ -54,7 +54,7 @@ struct CodeRabbitUsageParserLinuxTests {
     }
 
     @Test
-    func parsesCodeRabbitUsageWithAuthStatusText() throws {
+    func `parses coderabbit usage combined with auth status text`() throws {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let usageOutput = """
         ────────────────────────────────────────
@@ -106,7 +106,7 @@ struct CodeRabbitUsageParserLinuxTests {
     }
 
     @Test
-    func signedOutOutputThrowsNotLoggedIn() {
+    func `signed out output throws notLoggedIn`() {
         let output = "Please log in using `coderabbit auth login` to check your usage."
 
         #expect {
@@ -118,7 +118,7 @@ struct CodeRabbitUsageParserLinuxTests {
     }
 
     @Test
-    func emptyOrInvalidOutputThrowsParseFailed() {
+    func `empty or invalid output throws parseFailed`() {
         let output = "Some random error happened."
 
         #expect {
