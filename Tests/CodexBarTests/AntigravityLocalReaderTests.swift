@@ -174,6 +174,35 @@ struct AntigravityLocalReaderTests {
     }
 
     @Test
+    func `generation field 2 is forward-compatible for both legacy and modern timestamps`() throws {
+        // Main ignored opaque field 2; do not reject non-sentinel values.
+        let legacyFixture = try Fixture()
+        // Legacy timestamp with non-sentinel field 2
+        let legacyNonSentinel = Fixture.blob(
+            botID: "bot-legacy-1",
+            seconds: UInt64(Fixture.now.timeIntervalSince1970),
+            generationMarker: 12345)
+        try legacyFixture.database(blobs: [legacyNonSentinel], createStepsTable: false)
+        let legacyReport = try legacyFixture.report()
+        #expect(legacyReport.coverage == .complete)
+        #expect(legacyReport.report.data.first?.date == "2026-08-27")
+
+        // Modern timestamp via steps with non-sentinel field 2
+        let modernFixture = try Fixture()
+        let modernNonSentinel = Fixture.modernBlob(
+            botID: "bot-modern-non-sentinel",
+            generationMarker: 999)
+        try modernFixture.database(
+            blobs: [modernNonSentinel],
+            stepMetadatas: [Fixture.stepMetadata(
+                botID: "bot-modern-non-sentinel",
+                seconds: UInt64(Fixture.now.timeIntervalSince1970))])
+        let modernReport = try modernFixture.report()
+        #expect(modernReport.coverage == .complete)
+        #expect(modernReport.report.data.first?.date == "2026-08-27")
+    }
+
+    @Test
     func `conversation aggregate rows do not invalidate generation history`() throws {
         let fixture = try Fixture()
         let usage = Fixture.message(4, Fixture.varint(1, 11))
@@ -233,7 +262,7 @@ struct AntigravityLocalReaderTests {
 
     @Test
     func `large modern session preserves generation row budget`() throws {
-        // Regression for ClawSweeper P1: step scan must not halve generation history.
+        // Regression: step scan must not halve generation history.
         // 6000 modern turns => 6000 step_type 15 rows + 6000 gen_metadata rows.
         // With a shared 10k per-database cap the 4001st generation would exhaust.
         let fixture = try Fixture()

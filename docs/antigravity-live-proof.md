@@ -1,7 +1,7 @@
 # Real behavior proof — Antigravity modern timestamp join (agy 1.1.18+)
 
 **Head:** `a2081ae63` (steps `metadata.#1` via `bot_id`)
-**Date:** 2026-09-02 16:38 UTC (after P1 budget fix)
+**Date:** 2026-09-02 16:38 UTC (after budget fix)
 **Environment:** `agy 1.1.23` `~/.gemini/antigravity-cli/conversations/*.db` (46 DBs)
 
 ## Production reader (AntigravityLocalReader) — redacted

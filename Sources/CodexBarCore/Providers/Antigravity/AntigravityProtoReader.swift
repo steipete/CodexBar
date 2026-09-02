@@ -271,9 +271,12 @@ struct AntigravityProtoReader {
                     timestamp: &generation.legacy,
                     checkCancellation: checkCancellation)
             case 2:
-                guard field.wire == 0, field.value == UInt64.max else {
+                // Forward-compatible: main ignored this opaque field; do not reject non-sentinel values.
+                // Retain wire-type validation so malformed wire still fails.
+                guard field.wire == 0 else {
                     throw AntigravityLocalReader.ScanFailure.invalid
                 }
+                _ = try field.integer()
             case 10:
                 // Context meter metadata (.1 context tokens, .4 window limit).
                 break

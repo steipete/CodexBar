@@ -190,7 +190,8 @@ final class AntigravityLocalFixture: Sendable {
         cacheRead: UInt64 = 50,
         reasoning: UInt64 = 7,
         response: String? = nil,
-        seconds: UInt64? = 1_787_832_000) -> [UInt8]
+        seconds: UInt64? = 1_787_832_000,
+        generationMarker: UInt64? = nil) -> [UInt8]
     {
         var usage = self.varint(1, system) + self.varint(2, input) + self.varint(5, cacheRead)
             + self.varint(9, output) + self.varint(10, reasoning)
@@ -198,7 +199,11 @@ final class AntigravityLocalFixture: Sendable {
         if let response { usage += self.message(11, Array(response.utf8)) }
         var chat = self.message(4, usage)
         if let seconds {
-            chat += self.message(9, self.message(4, self.varint(1, seconds) + self.varint(2, 250_000_000)))
+            var generation = self.message(4, self.varint(1, seconds) + self.varint(2, 250_000_000))
+            if let generationMarker { generation = self.varint(2, generationMarker) + generation }
+            chat += self.message(9, generation)
+        } else if let generationMarker {
+            chat += self.message(9, self.varint(2, generationMarker))
         }
         if let model { chat += self.message(19, Array(model.utf8)) }
         if let label { chat += self.message(21, Array(label.utf8)) }
