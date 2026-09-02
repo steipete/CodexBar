@@ -10,7 +10,9 @@ import CSQLite3
 /// Synthetic, not a private capture. Independent schema and JSONL producer provenance:
 /// https://github.com/junhoyeo/tokscale/tree/62ca1eb1677556972ba963fdfa3a41ab23c1eb4b
 /// crates/tokscale-core/src/sessions/antigravity_cli.rs records six DBs / 140 turns:
-/// usage #9 text + #10 thinking == #3 total output. The opaque 1.1.18 time inference is NOT used.
+/// usage #9 text + #10 thinking == #3 total output. Modern timing is recorded in
+/// steps.metadata.#1 (google.protobuf.Timestamp) for step_type = 15 generation steps linked via bot_id,
+/// while path 1.9.10 is context meter metadata (tokens .1 and context window .4).
 /// The separate producer in crates/tokscale-cli/src/antigravity.rs emits sessionId and retry usage.
 final class AntigravityLocalFixture: Sendable {
     static let now = Date(timeIntervalSince1970: 1_787_832_000) // 2026-08-27 12:00 UTC
@@ -64,7 +66,9 @@ final class AntigravityLocalFixture: Sendable {
     func database(
         _ session: String = "session-a",
         rootIndex: Int = 0,
-        blobs: [[UInt8]] = []) throws -> URL
+        blobs: [[UInt8]] = [],
+        stepMetadatas: [[UInt8]]? = nil,
+        createStepsTable: Bool = true) throws -> URL
     {
         let directory = self.context.databaseRoots[rootIndex]
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -74,6 +78,13 @@ final class AntigravityLocalFixture: Sendable {
         try Self.execute(database, "CREATE TABLE gen_metadata (idx INTEGER PRIMARY KEY, data BLOB)")
         for (index, blob) in blobs.enumerated() {
             try Self.insert(database, row: Int64(index), blob: blob)
+        }
+        if createStepsTable {
+            try Self.execute(database, "CREATE TABLE steps (idx INTEGER PRIMARY KEY, step_type INTEGER, metadata BLOB)")
+            let metadatas = stepMetadatas ?? blobs.indices.map { _ in Self.stepMetadata() }
+            for (index, meta) in metadatas.enumerated() {
+                try Self.insertStep(database, row: Int64(index), stepType: 15, metadata: meta)
+            }
         }
         return url
     }
@@ -117,6 +128,39 @@ final class AntigravityLocalFixture: Sendable {
         guard result == SQLITE_DONE else { throw AntigravityLocalReader.ScanFailure.invalid }
     }
 
+    static func insertStep(
+        _ database: OpaquePointer,
+        row: Int64,
+        stepType: Int64 = 15,
+        metadata: [UInt8]) throws
+    {
+        var statement: OpaquePointer?
+        defer { sqlite3_finalize(statement) }
+        guard sqlite3_prepare_v2(
+            database,
+            "INSERT INTO steps (idx, step_type, metadata) VALUES (?, ?, ?)",
+            -1,
+            &statement,
+            nil) == SQLITE_OK else { throw AntigravityLocalReader.ScanFailure.invalid }
+        sqlite3_bind_int64(statement, 1, row)
+        sqlite3_bind_int64(statement, 2, stepType)
+        let result = metadata.withUnsafeBytes { bytes in
+            sqlite3_bind_blob(statement, 3, bytes.baseAddress, Int32(metadata.count), nil)
+            return sqlite3_step(statement)
+        }
+        guard result == SQLITE_DONE else { throw AntigravityLocalReader.ScanFailure.invalid }
+    }
+
+    static func stepMetadata(
+        botID: String = "bot-fixture-1",
+        seconds: UInt64 = 1_787_832_000,
+        nanos: UInt64 = 250_000_000) -> [UInt8]
+    {
+        let timestamp = self.message(1, self.varint(1, seconds) + self.varint(2, nanos))
+        let botInfo = self.message(9, self.message(7, Array(botID.utf8)))
+        return timestamp + botInfo
+    }
+
     static func varint(_ field: Int, _ value: UInt64) -> [UInt8] {
         self.unsigned(UInt64(field << 3)) + self.unsigned(value)
     }
@@ -139,6 +183,7 @@ final class AntigravityLocalFixture: Sendable {
     static func blob(
         model: String? = "fixture-model-a",
         label: String? = "Fixture model",
+        botID: String? = nil,
         system: UInt64 = 11,
         input: UInt64 = 100,
         output: UInt64 = 30,
@@ -149,6 +194,7 @@ final class AntigravityLocalFixture: Sendable {
     {
         var usage = self.varint(1, system) + self.varint(2, input) + self.varint(5, cacheRead)
             + self.varint(9, output) + self.varint(10, reasoning)
+        if let botID { usage += self.message(7, Array(botID.utf8)) }
         if let response { usage += self.message(11, Array(response.utf8)) }
         var chat = self.message(4, usage)
         if let seconds {
@@ -157,6 +203,52 @@ final class AntigravityLocalFixture: Sendable {
         if let model { chat += self.message(19, Array(model.utf8)) }
         if let label { chat += self.message(21, Array(label.utf8)) }
         return self.message(1, chat)
+    }
+
+    static func modernBlob(
+        model: String? = "fixture-modern-model",
+        label: String? = "Fixture modern model",
+        botID: String = "bot-fixture-1",
+        response: String? = "modern-response",
+        contextTokens: UInt64 = 20_000,
+        contextWindow: UInt64 = 128_000,
+        generationMarker: UInt64 = UInt64.max,
+        legacySeconds: UInt64? = nil,
+        legacyNanos: UInt64 = 0) -> [UInt8]
+    {
+        var usage = self.varint(1, 11) + self.varint(2, 100) + self.varint(5, 50)
+            + self.message(7, Array(botID.utf8))
+            + self.varint(9, 30) + self.varint(10, 7)
+        if let response { usage += self.message(11, Array(response.utf8)) }
+        var chat = self.message(4, usage)
+        var generation = self.varint(2, generationMarker)
+        generation += self.message(10, self.varint(1, contextTokens) + self.varint(4, contextWindow))
+        if let legacySeconds {
+            var legacy = self.varint(1, legacySeconds)
+            if legacyNanos > 0 { legacy += self.varint(2, legacyNanos) }
+            generation += self.message(4, legacy)
+        }
+        chat += self.message(9, generation)
+        if let model { chat += self.message(19, Array(model.utf8)) }
+        if let label { chat += self.message(21, Array(label.utf8)) }
+        return self.message(1, chat)
+    }
+
+    static func conversationMarkerBlob(
+        marker: [UInt8]? = nil,
+        includeGeneration: Bool = false) -> [UInt8]
+    {
+        let markerField = marker ?? self.message(1, self.varint(1, 1))
+        var conversation = markerField + self.message(4, self.varint(1, 11))
+        if includeGeneration {
+            let usage = self.varint(1, 11) + self.varint(2, 100) + self.varint(5, 50)
+                + self.message(7, Array("bot-fixture-1".utf8))
+                + self.varint(9, 30) + self.varint(10, 7)
+            let generation = self.varint(2, UInt64.max) + self.message(
+                10, self.varint(1, 20_000) + self.varint(4, 128_000))
+            conversation += self.message(4, usage) + self.message(9, generation)
+        }
+        return self.message(1, conversation)
     }
 
     static let cacheUsage =

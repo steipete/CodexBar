@@ -25,6 +25,8 @@ struct AntigravityLocalReaderTests {
         #expect(report.report.data.first?.date == "2026-08-27")
         #expect(report.report.data.first?.inputTokens == 111)
         #expect(report.report.data.first?.outputTokens == 30)
+        #expect(report.report.data.first?.cacheReadTokens == 50)
+        #expect(report.report.data.first?.cacheCreationTokens == 0)
         #expect(report.report.data.first?.reasoningTokens == 7)
         #expect(report.report.data.first?.modelBreakdowns?.first?.modelName == "unknown")
         #expect(try await fixture.snapshot().last30DaysTokens == 198)
@@ -88,6 +90,145 @@ struct AntigravityLocalReaderTests {
         #expect(snapshot.costProvenance == .unknown)
         #expect(snapshot.daily.allSatisfy { $0.costUSD == nil })
         #expect(snapshot.daily.flatMap { $0.modelBreakdowns ?? [] }.allSatisfy { $0.costUSD == nil })
+    }
+
+    @Test
+    func `modern step metadata associates authoritative timestamp with generation turn via botID`() throws {
+        let expectedSeconds = UInt64(Fixture.now.timeIntervalSince1970)
+        let stepMetaBlob = Fixture.stepMetadata(
+            botID: "bot-test-1", seconds: expectedSeconds, nanos: 456_789_000)
+        let stepMeta = try #require(try AntigravityProtoReader.parseStepMetadata(stepMetaBlob[...]))
+        #expect(stepMeta.botID == "bot-test-1")
+        #expect(stepMeta.timestampMs == Int64(expectedSeconds) * 1000 + 456)
+
+        let turn = try #require(try AntigravityProtoReader.parseTurn(
+            Fixture.modernBlob(botID: "bot-test-1"),
+            stepTimestamps: [stepMeta.botID!: stepMeta.timestampMs!]))
+        #expect(turn.timestampMs == stepMeta.timestampMs)
+    }
+
+    @Test
+    func `modern SQLite generations are dated from steps table metadata`() async throws {
+        let fixture = try Fixture()
+        try fixture.database(
+            blobs: [Fixture.modernBlob(botID: "bot-modern-1")],
+            stepMetadatas: [Fixture.stepMetadata(
+                botID: "bot-modern-1",
+                seconds: UInt64(Fixture.now.timeIntervalSince1970),
+                nanos: 456_789_000)])
+
+        let report = try fixture.report()
+        #expect(report.coverage == .complete)
+        #expect(report.report.summary?.totalTokens == 198)
+        #expect(report.report.data.first?.inputTokens == 111)
+        #expect(report.report.data.first?.outputTokens == 30)
+        #expect(report.report.data.first?.cacheReadTokens == 50)
+        #expect(report.report.data.first?.cacheCreationTokens == 0)
+        #expect(report.report.data.first?.reasoningTokens == 7)
+        #expect(report.report.data.first?.date == "2026-08-27")
+
+        let snapshot = try await fixture.snapshot()
+        #expect(snapshot.historyCoverageIsEstablished)
+        #expect(snapshot.last30DaysTokens == 198)
+        #expect(snapshot.last30DaysCostUSD == nil)
+    }
+
+    @Test
+    func `modern rows without matching step metadata fail closed to partial coverage`() throws {
+        let fixture = try Fixture()
+        try fixture.database(
+            blobs: [Fixture.modernBlob(botID: "bot-unmatched")],
+            stepMetadatas: [Fixture.stepMetadata(botID: "bot-different")])
+
+        let report = try fixture.report()
+        #expect(report.coverage == .partial)
+        #expect(report.report.summary == nil)
+    }
+
+    @Test
+    func `pre-1.1.18 legacy timestamps remain supported when steps table is absent`() throws {
+        let fixture = try Fixture()
+        try fixture.database(
+            blobs: [Fixture.blob()],
+            createStepsTable: false)
+
+        let report = try fixture.report()
+        #expect(report.coverage == .complete)
+        #expect(report.report.summary?.totalTokens == 198)
+    }
+
+    @Test
+    func `legacy generation timestamps take precedence over steps table timestamps`() throws {
+        let fixture = try Fixture()
+        try fixture.database(
+            blobs: [Fixture.modernBlob(
+                botID: "bot-modern-1",
+                legacySeconds: UInt64(Fixture.now.timeIntervalSince1970) - 86400)],
+            stepMetadatas: [Fixture.stepMetadata(
+                botID: "bot-modern-1",
+                seconds: UInt64(Fixture.now.timeIntervalSince1970))])
+
+        let report = try fixture.report()
+        #expect(report.coverage == .complete)
+        #expect(report.report.data.first?.date == "2026-08-26")
+    }
+
+    @Test
+    func `conversation aggregate rows do not invalidate generation history`() throws {
+        let fixture = try Fixture()
+        let usage = Fixture.message(4, Fixture.varint(1, 11))
+        let aggregates = [1, 2].map { field in
+            Fixture.message(1, Fixture.message(field, Fixture.varint(1, 1)) + usage)
+        }
+        try fixture.database(blobs: [Fixture.blob()] + aggregates)
+
+        let report = try fixture.report()
+        #expect(report.coverage == .complete)
+        #expect(report.report.summary?.totalTokens == 198)
+    }
+
+    @Test(arguments: [1, 2])
+    func `wrong wire conversation fields produce partial coverage`(field: Int) throws {
+        let fixture = try Fixture()
+        try fixture.database(blobs: [Fixture.conversationMarkerBlob(marker: Fixture.varint(field, 1))])
+
+        let report = try fixture.report()
+        #expect(report.coverage == .partial)
+        #expect(report.report.summary == nil)
+    }
+
+    @Test
+    func `conversation marker with generation evidence remains token history`() throws {
+        let fixture = try Fixture()
+        try fixture.database(
+            blobs: [Fixture.conversationMarkerBlob(includeGeneration: true)],
+            createdSeconds: UInt64(Fixture.now.timeIntervalSince1970))
+
+        let report = try fixture.report()
+        #expect(report.coverage == .complete)
+        let entry = try #require(report.report.data.first)
+        #expect(entry.inputTokens == 111)
+        #expect(entry.outputTokens == 30)
+        #expect(entry.cacheReadTokens == 50)
+        #expect(entry.cacheCreationTokens == 0)
+        #expect(entry.reasoningTokens == 7)
+    }
+
+    @Test
+    func `step metadata bytes are charged to database and materialized byte limits`() throws {
+        let fixture = try Fixture()
+        let stepMeta = Fixture.stepMetadata(botID: "bot-fixture-1")
+        let blob = Fixture.modernBlob(botID: "bot-fixture-1")
+        try fixture.database(blobs: [blob], stepMetadatas: [stepMeta])
+
+        var limits = AntigravityLocalReader.Limits()
+        let report = try fixture.report(limits: limits)
+        #expect(report.coverage == .complete)
+        #expect(report.statistics.materializedPayloadBytes == blob.count + stepMeta.count)
+
+        limits.databaseBytes = stepMeta.count - 1
+        let exhausted = try fixture.report(limits: limits)
+        #expect(exhausted.coverage == .partial)
     }
 
     @Test

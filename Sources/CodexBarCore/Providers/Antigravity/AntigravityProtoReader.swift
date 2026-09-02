@@ -1,7 +1,8 @@
 import Foundation
 
-/// Decodes only the independently recorded generation layout; no inferred opaque timestamps.
+/// Decodes the independently recorded generation layout, including current relative timestamps.
 struct AntigravityProtoReader {
+    private static let maximumTimestampMs: Int64 = 253_402_300_799_999
     private let bytes: ArraySlice<UInt8>
     private var offset: Int
     private(set) var isMalformed = false
@@ -22,6 +23,7 @@ struct AntigravityProtoReader {
         var output = 0
         var reasoning = 0
         var responseID: String?
+        var botID: String?
     }
 
     struct ParsedTurn: Equatable, Sendable {
@@ -29,6 +31,12 @@ struct AntigravityProtoReader {
         var timestampMs: Int64?
         var model: String?
         var label: String?
+        var isConversationAggregate = false
+    }
+
+    struct StepMetadata: Equatable, Sendable {
+        var botID: String?
+        var timestampMs: Int64?
     }
 
     private struct Timestamp {
@@ -42,6 +50,36 @@ struct AntigravityProtoReader {
             else { throw AntigravityLocalReader.ScanFailure.invalid }
             return seconds * 1000 + nanos / 1_000_000
         }
+    }
+
+    private struct GenerationTimestamp {
+        var legacy = Timestamp()
+        var sawEnvelope = false
+        var sawLegacy = false
+    }
+
+    static func parseStepMetadata(
+        _ rootBytes: ArraySlice<UInt8>,
+        checkCancellation: () throws -> Void = {}) throws -> StepMetadata?
+    {
+        var timestamp = Timestamp()
+        var botID: String?
+        try self.fields(rootBytes, checkCancellation: checkCancellation) { field in
+            switch field.number {
+            case 1:
+                try self.parseTimestamp(
+                    field.message(), timestamp: &timestamp, checkCancellation: checkCancellation)
+            case 9:
+                try self.fields(field.message(), checkCancellation: checkCancellation) { subfield in
+                    if subfield.number == 7 {
+                        botID = try subfield.string()
+                    }
+                }
+            default: break
+            }
+        }
+        guard let timestampMs = try timestamp.milliseconds() else { return nil }
+        return StepMetadata(botID: botID, timestampMs: timestampMs)
     }
 
     struct Field {
@@ -134,10 +172,11 @@ struct AntigravityProtoReader {
 
     static func parseTurn(
         _ rootBytes: [UInt8],
+        stepTimestamps: [String: Int64] = [:],
         checkCancellation: () throws -> Void = {}) throws -> ParsedTurn?
     {
         var turn = ParsedTurn()
-        var time = Timestamp()
+        var generation = GenerationTimestamp()
         var foundChat = false
         do {
             // Repeated singular messages merge, scalars use last-one-wins. Every occurrence is validated.
@@ -145,10 +184,23 @@ struct AntigravityProtoReader {
                 guard field.number == 1 else { return }
                 foundChat = true
                 try self.parseChat(
-                    field.message(), turn: &turn, time: &time, checkCancellation: checkCancellation)
+                    field.message(),
+                    turn: &turn,
+                    generation: &generation,
+                    checkCancellation: checkCancellation)
             }
             guard foundChat else { return nil }
-            turn.timestampMs = try time.milliseconds()
+            turn.isConversationAggregate = turn.isConversationAggregate && !generation.sawEnvelope
+            if generation.sawLegacy {
+                guard let timestampMs = try generation.legacy.milliseconds() else {
+                    throw AntigravityLocalReader.ScanFailure.invalid
+                }
+                turn.timestampMs = timestampMs
+            } else if let botID = turn.usage?.botID, let stepTime = stepTimestamps[botID] {
+                turn.timestampMs = stepTime
+            } else if generation.sawEnvelope {
+                throw AntigravityLocalReader.ScanFailure.invalid
+            }
             return turn
         } catch AntigravityLocalReader.ScanFailure.invalid {
             return nil
@@ -158,17 +210,27 @@ struct AntigravityProtoReader {
     private static func parseChat(
         _ bytes: ArraySlice<UInt8>,
         turn: inout ParsedTurn,
-        time: inout Timestamp,
+        generation: inout GenerationTimestamp,
         checkCancellation: () throws -> Void) throws
     {
         try self.fields(bytes, checkCancellation: checkCancellation) { field in
             switch field.number {
+            case 1, 2:
+                // The final row in current CLI databases contains the accumulated conversation
+                // alongside generation rows in the same table. It has a usage envelope but is not a turn.
+                if try self.isConversationAggregateMarker(field, checkCancellation: checkCancellation) {
+                    turn.isConversationAggregate = true
+                }
             case 4:
                 var usage = turn.usage ?? ParsedUsage()
                 try self.parseUsage(field.message(), usage: &usage, checkCancellation: checkCancellation)
                 turn.usage = usage
             case 9:
-                try self.parseGeneration(field.message(), time: &time, checkCancellation: checkCancellation)
+                generation.sawEnvelope = true
+                try self.parseGeneration(
+                    field.message(),
+                    generation: &generation,
+                    checkCancellation: checkCancellation)
             case 19: turn.model = try field.string()
             case 21: turn.label = try field.string()
             default: break
@@ -186,6 +248,7 @@ struct AntigravityProtoReader {
             case 1: usage.systemPrompt = try field.counter()
             case 2: usage.newInput = try field.counter()
             case 5: usage.cacheRead = try field.counter()
+            case 7: usage.botID = try field.string()
             case 9: usage.output = try field.counter()
             case 10: usage.reasoning = try field.counter()
             case 11: usage.responseID = try field.string()
@@ -196,25 +259,63 @@ struct AntigravityProtoReader {
 
     private static func parseGeneration(
         _ bytes: ArraySlice<UInt8>,
-        time: inout Timestamp,
+        generation: inout GenerationTimestamp,
         checkCancellation: () throws -> Void) throws
     {
         try self.fields(bytes, checkCancellation: checkCancellation) { field in
-            guard field.number == 4 else { return }
-            try self.fields(field.message(), checkCancellation: checkCancellation) { stamp in
-                switch stamp.number {
-                case 1:
-                    let seconds = try stamp.integer()
-                    guard seconds > 0, seconds <= 253_402_300_799 else {
-                        throw AntigravityLocalReader.ScanFailure.invalid
-                    }
-                    time.seconds = seconds
-                case 2:
-                    let nanos = try stamp.integer()
-                    guard nanos <= 999_999_999 else { throw AntigravityLocalReader.ScanFailure.invalid }
-                    time.nanos = nanos
-                default: break
+            switch field.number {
+            case 4:
+                generation.sawLegacy = true
+                try self.parseTimestamp(
+                    field.message(),
+                    timestamp: &generation.legacy,
+                    checkCancellation: checkCancellation)
+            case 2:
+                guard field.wire == 0, field.value == UInt64.max else {
+                    throw AntigravityLocalReader.ScanFailure.invalid
                 }
+            case 10:
+                // Context meter metadata (.1 context tokens, .4 window limit).
+                break
+            default: break
+            }
+        }
+    }
+
+    private static func isConversationAggregateMarker(
+        _ field: Field,
+        checkCancellation: () throws -> Void) throws -> Bool
+    {
+        guard field.wire == 2 else { throw AntigravityLocalReader.ScanFailure.invalid }
+        var hasConversationID = false
+        try self.fields(field.message(), checkCancellation: checkCancellation) { child in
+            if child.number == 1 {
+                guard child.wire == 0 else { throw AntigravityLocalReader.ScanFailure.invalid }
+                _ = try child.integer()
+                hasConversationID = true
+            }
+        }
+        return hasConversationID
+    }
+
+    private static func parseTimestamp(
+        _ bytes: ArraySlice<UInt8>,
+        timestamp: inout Timestamp,
+        checkCancellation: () throws -> Void) throws
+    {
+        try self.fields(bytes, checkCancellation: checkCancellation) { field in
+            switch field.number {
+            case 1:
+                let seconds = try field.integer()
+                guard seconds > 0, seconds <= 253_402_300_799 else {
+                    throw AntigravityLocalReader.ScanFailure.invalid
+                }
+                timestamp.seconds = seconds
+            case 2:
+                let nanos = try field.integer()
+                guard nanos <= 999_999_999 else { throw AntigravityLocalReader.ScanFailure.invalid }
+                timestamp.nanos = nanos
+            default: break
             }
         }
     }

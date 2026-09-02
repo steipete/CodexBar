@@ -292,10 +292,15 @@ The supported database layout is an ordinary `gen_metadata` table with stored `i
 Extra ordinary columns and `WITHOUT ROWID` tables are supported; views, virtual tables, and generated/hidden columns
 are rejected before querying payloads. Schema inspection and the payload scan share one read transaction.
 Inspection uses `sqlite_master` and `table_xinfo`; SQLite builds without that pragma cannot establish coverage.
+Aggregate conversation rows without generation payloads are ignored.
 
-Supported SQLite event time is `chatModel.#9.#4` containing protobuf seconds/nanos. Session creation, file modification,
-and refresh time are never substitutes. The opaque agy 1.1.18 timestamp layout remains unsupported: the pinned parser
-explicitly labels its newer interpretation an inference. See [the session-start misattribution report](https://github.com/junhoyeo/tokscale/issues/1184).
+Supported SQLite event time is either:
+- Legacy absolute timestamps in `chatModel.#9.#4` (`1.9.4`, seconds/nanos).
+- Modern authoritative timestamps in `steps.metadata.#1` (`google.protobuf.Timestamp`, seconds/nanos)
+  for `step_type = 15` generation steps, joined via the generation request ID (`gen_metadata.chatModel.#4.#7`
+  and `steps.metadata.#9.#7`), used by `agy` 1.1.18+.
+
+Missing or malformed timestamps mark event coverage partial. File modification and refresh times are never substitutes.
 
 SQLite session identity is the original database filename stem, with `gen_metadata.idx` identifying rows. Copies
 retaining that session name deduplicate across recognized roots; ID-less rows at different indices remain distinct.

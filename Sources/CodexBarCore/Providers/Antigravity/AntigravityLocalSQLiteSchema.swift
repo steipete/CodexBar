@@ -16,33 +16,58 @@ extension AntigravityLocalReader {
               let statement else { return false }
         sqlite3_bind_int64(statement, 1, Int64(min(budget.limits.schemaEntries, 128) + 1))
         var entries = 0
+        var foundGenMetadata = false
         while true {
             try budget.check()
-            guard sqlite3_step(statement) == SQLITE_ROW else { return false }
+            let step = sqlite3_step(statement)
+            if step == SQLITE_DONE { break }
+            guard step == SQLITE_ROW else { return false }
             entries += 1
             budget.statistics.schemaEntries += 1
             guard entries <= budget.limits.schemaEntries else { throw ScanFailure.exhausted }
-            let name = try self.schemaText(statement, column: 0, budget: budget)
-            let type = try self.schemaText(statement, column: 1, budget: budget)
-            guard name?.lowercased() == "gen_metadata" else { continue }
-            guard type == "table", sqlite3_column_type(statement, 2) == SQLITE_INTEGER,
-                  sqlite3_column_int64(statement, 2) > 0 else { return false }
-            return try self.hasStoredSQLiteColumns(database, budget: budget)
+            guard let name = try self.schemaText(statement, column: 0, budget: budget)?.lowercased(),
+                  let type = try self.schemaText(statement, column: 1, budget: budget)
+            else { continue }
+            let isOrdinaryTable = type == "table" && sqlite3_column_type(statement, 2) == SQLITE_INTEGER
+                && sqlite3_column_int64(statement, 2) > 0
+            if name == "gen_metadata" {
+                guard isOrdinaryTable else { return false }
+                guard try self.hasStoredSQLiteColumns(
+                    database, table: "gen_metadata", requiredColumns: ["idx", "data"], budget: budget)
+                else { return false }
+                foundGenMetadata = true
+            } else if name == "steps" {
+                guard isOrdinaryTable else { return false }
+                guard try self.hasStoredSQLiteColumns(
+                    database, table: "steps", requiredColumns: ["idx", "step_type", "metadata"], budget: budget)
+                else { return false }
+            }
         }
+        return foundGenMetadata
     }
 
-    private static func hasStoredSQLiteColumns(_ database: OpaquePointer, budget: Budget) throws -> Bool {
+    private static func hasStoredSQLiteColumns(
+        _ database: OpaquePointer,
+        table: String,
+        requiredColumns: Set<String>,
+        budget: Budget) throws -> Bool
+    {
         var statement: OpaquePointer?
         defer { sqlite3_finalize(statement) }
         // table_info omits generated columns. An unknown table_xinfo pragma returns no columns: fail closed.
-        guard sqlite3_prepare_v2(database, "PRAGMA main.table_xinfo('gen_metadata')", -1, &statement, nil) == SQLITE_OK,
+        let sql: String = switch table {
+        case "gen_metadata": "PRAGMA main.table_xinfo('gen_metadata')"
+        case "steps": "PRAGMA main.table_xinfo('steps')"
+        default: return false
+        }
+        guard sqlite3_prepare_v2(database, sql, -1, &statement, nil) == SQLITE_OK,
               let statement, sqlite3_column_count(statement) >= 7 else { return false }
         var columns = Set<String>()
         var count = 0
         while true {
             try budget.check()
             let step = sqlite3_step(statement)
-            if step == SQLITE_DONE { return columns.isSuperset(of: ["idx", "data"]) }
+            if step == SQLITE_DONE { return columns.isSuperset(of: requiredColumns) }
             guard step == SQLITE_ROW else { return false }
             count += 1
             budget.statistics.schemaColumns += 1

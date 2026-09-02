@@ -92,6 +92,39 @@ struct AntigravityLocalIntegrityTests {
         #expect(snapshot.daily.isEmpty)
     }
 
+    @Test(arguments: [
+        "view",
+        "virtual",
+        "generated-metadata",
+    ])
+    func `computed steps tables are rejected before querying payloads`(layout: String) async throws {
+        let fixture = try Fixture()
+        let url = try fixture.database(
+            blobs: [Fixture.modernBlob()])
+        let database = try Fixture.open(url)
+        defer { sqlite3_close(database) }
+        try Fixture.execute(database, "ALTER TABLE steps RENAME TO backing_steps")
+        let sql = switch layout {
+        case "view":
+            "CREATE VIEW steps AS SELECT idx, step_type, metadata FROM backing_steps"
+        case "generated-metadata":
+            """
+            CREATE TABLE steps (
+                idx INTEGER PRIMARY KEY, step_type INTEGER, payload BLOB, metadata BLOB AS (payload) VIRTUAL);
+            INSERT INTO steps (idx, step_type, payload) SELECT idx, step_type, metadata FROM backing_steps;
+            """
+        default:
+            "CREATE VIRTUAL TABLE steps USING fts5(idx, step_type, metadata); " +
+                "INSERT INTO steps VALUES (0, 15, 'invalid')"
+        }
+        try Fixture.execute(database, sql)
+        let report = try fixture.report()
+        #expect(report.coverage == .partial)
+        #expect(report.statistics.rows == 0)
+        #expect(report.statistics.attemptedBytes == 0)
+        #expect(report.statistics.materializedPayloadBytes == 0)
+    }
+
     @Test(arguments: ["ordinary", "extra-column", "without-rowid"])
     func `stored ordinary SQLite tables remain supported`(layout: String) throws {
         let fixture = try Fixture()
