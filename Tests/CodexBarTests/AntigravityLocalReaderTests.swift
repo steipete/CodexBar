@@ -232,6 +232,32 @@ struct AntigravityLocalReaderTests {
     }
 
     @Test
+    func `large modern session preserves generation row budget`() throws {
+        // Regression for ClawSweeper P1: step scan must not halve generation history.
+        // 6000 modern turns => 6000 step_type 15 rows + 6000 gen_metadata rows.
+        // With a shared 10k per-database cap the 4001st generation would exhaust.
+        let fixture = try Fixture()
+        let count = 6000
+        var blobs: [[UInt8]] = []
+        var steps: [[UInt8]] = []
+        for i in 0..<count {
+            let bot = "bot-boundary-\(i)"
+            blobs.append(Fixture.modernBlob(botID: bot, seconds: nil))
+            // Use fixture.now + i seconds for deterministic, monotonic clock
+            steps.append(Fixture.stepMetadata(
+                botID: bot,
+                seconds: UInt64(Fixture.now.timeIntervalSince1970) + UInt64(i),
+                nanos: 0))
+        }
+        try fixture.database(blobs: blobs, stepMetadatas: steps)
+        let report = try fixture.report()
+        #expect(report.coverage == .complete)
+        #expect(report.report.summary?.totalTokens == count * 198)
+        #expect(report.statistics.rows == count * 2) // steps + generations counted globally, but per-database gen budget preserved
+        #expect(report.report.data.first?.requestCount == count)
+    }
+
+    @Test
     func `complete empty out of window absent and corrupt sources remain distinct`() async throws {
         let fixture = try Fixture()
         #expect(try fixture.report().coverage == .unavailable)

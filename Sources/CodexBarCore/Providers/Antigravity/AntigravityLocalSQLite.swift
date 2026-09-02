@@ -217,6 +217,8 @@ extension AntigravityLocalReader {
         }
         sqlite3_bind_int64(statement, 1, Int64(min(budget.limits.rowsPerDatabase, 10000) + 1))
         var timestamps: [String: Int64] = [:]
+        var stepRows = 0
+        var stepBytes = 0
         while true {
             try budget.check()
             let step = sqlite3_step(statement)
@@ -225,17 +227,17 @@ extension AntigravityLocalReader {
             guard step == SQLITE_ROW else { break }
             let payload = SQLitePayload(statement: statement, column: 1)
             budget.statistics.materializedPayloadBytes += payload.byteCount
-            progress.databaseRows += 1
+            stepRows += 1
             try budget.chargeRow()
             let count = Int(sqlite3_column_int64(statement, 0))
             let attemptedBytes = max(count, payload.byteCount)
             try budget.chargeBytes(attemptedBytes)
-            guard progress.databaseRows <= budget.limits.rowsPerDatabase,
-                  attemptedBytes <= budget.limits.databaseBytes - progress.databaseBytes
+            guard stepRows <= budget.limits.rowsPerDatabase,
+                  attemptedBytes <= budget.limits.databaseBytes - stepBytes
             else {
                 throw ScanFailure.exhausted
             }
-            progress.databaseBytes += attemptedBytes
+            stepBytes += attemptedBytes
             guard count > 0, count <= budget.limits.blobBytes,
                   let bytes = payload.copy(declaredCount: count, limit: budget.limits.blobBytes)
             else {
