@@ -153,6 +153,14 @@ extension UsageStore {
             guard hasUsage || snapshot.historyCoverageIsEstablished else {
                 throw TokenSnapshotError.historyUnavailable
             }
+            // Hermes local scans can return useful rows while a bounded/corrupt tail leaves the
+            // history incomplete. Keep the last established dashboard publication visible and
+            // mark this trigger failed so the controller renders it as stale and retries only
+            // after new data or an explicit refresh.
+            if self.retainsEstablishedSpendDashboardTokenHistory(snapshot, for: provider) {
+                self.spendDashboardTokenFailedTriggers[provider.instanceID] = trigger
+                return
+            }
             self.lastSpendDashboardTokenFetchScope[provider.instanceID] = completedCostScopeSignature
             self.spendDashboardTokenIncorporatedTriggers[provider.instanceID] = SpendDashboardTokenRefreshTrigger(
                 providerConfigRevision: providerConfigRevision,
@@ -199,6 +207,17 @@ extension UsageStore {
 
     private func publishSpendDashboardConfirmedEmptyTokenSnapshot(for provider: UsageProvider) {
         self.publishSpendDashboardTokenSnapshotState(nil, for: provider)
+    }
+
+    private func retainsEstablishedSpendDashboardTokenHistory(
+        _ snapshot: CostUsageTokenSnapshot,
+        for provider: UsageProvider) -> Bool
+    {
+        provider == .hermes
+            && !snapshot.historyCoverageIsEstablished
+            && !snapshot.daily.isEmpty
+            && self.spendDashboardTokenSnapshotPublicationForCurrentConfig(for: provider)?
+            .snapshot?.historyCoverageIsEstablished == true
     }
 
     #if DEBUG

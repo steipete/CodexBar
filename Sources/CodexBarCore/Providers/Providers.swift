@@ -88,6 +88,7 @@ public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case xai
     case notion
     case ibmbob
+    case hermes
 }
 
 // swiftformat:enable sortDeclarations
@@ -126,6 +127,7 @@ public struct IconStyle: RawRepresentable, Hashable, Sendable, CaseIterable, Cus
     public static let qoder = Self(provider: .qoder)
     public static let warp = Self(provider: .warp)
     public static let perplexity = Self(provider: .perplexity)
+    public static let hermes = Self(provider: .hermes)
     public static let combined = Self(rawValue: "combined")
 }
 

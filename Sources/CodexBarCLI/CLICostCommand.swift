@@ -168,9 +168,20 @@ extension CodexBarCLI {
             return Self.renderLocalTokenHistoryText(name: name, snapshot: snapshot, useColor: useColor)
         }
         // Provider-specific by design: Codex cost is explicitly an API-equivalent local-session estimate.
-        let title = provider == .codex
-            ? "\(name) API-equivalent estimate (not billed)"
-            : "\(name) Cost (API-rate estimate)"
+        // Hermes may expose vendor-metered rows from its local store; do not relabel those as
+        // API-rate estimates merely because the command shares this renderer.
+        let title = if provider == .codex {
+            "\(name) API-equivalent estimate (not billed)"
+        } else {
+            switch snapshot.costProvenance {
+            case .vendorMetered:
+                "\(name) Cost (vendor-metered)"
+            case .mixed:
+                "\(name) Cost (mixed vendor/API-rate)"
+            case .listPriceEstimate, .unknown:
+                "\(name) Cost (API-rate estimate)"
+            }
+        }
         let header = Self.costHeaderLine(title, useColor: useColor)
         if groupBy == .project, provider == .codex {
             return Self.renderProjectCostText(header: header, snapshot: snapshot)
@@ -200,7 +211,7 @@ extension CodexBarCLI {
             return "Cursor-metered: \(amount) (\(historyLabel.lowercased()))"
         }
 
-        let hintLine = Self.costEstimateHint(provider: provider)
+        let hintLine = Self.costEstimateHint(provider: provider, provenance: snapshot.costProvenance)
         return [header, todayLine, monthLine, meteredLine, hintLine]
             .compactMap(\.self)
             .joined(separator: "\n")
@@ -328,6 +339,20 @@ extension CodexBarCLI {
         provider == .codex
             ? "Not a subscription bill or plan value · local usage × public API prices"
             : UsageFormatter.costEstimateHint(provider: provider)
+    }
+
+    private static func costEstimateHint(provider: UsageProvider, provenance: CostProvenance) -> String? {
+        guard provider != .codex else {
+            return self.costEstimateHint(provider: provider)
+        }
+        switch provenance {
+        case .vendorMetered:
+            return "Reported by \(ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName) usage data · vendor-metered"
+        case .mixed:
+            return "Mixed vendor-metered and API-rate estimates"
+        case .listPriceEstimate, .unknown:
+            return self.costEstimateHint(provider: provider)
+        }
     }
 
     private static func costHeaderLine(_ header: String, useColor: Bool) -> String {

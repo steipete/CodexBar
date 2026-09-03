@@ -5,6 +5,32 @@ import Testing
 
 struct InlineCostHistoryDashboardLabelTests {
     @Test
+    func `unknown cost provenance does not claim a local price estimate`() {
+        let snapshot = CostUsageTokenSnapshot(
+            sessionTokens: 12,
+            sessionCostUSD: nil,
+            last30DaysTokens: 12,
+            last30DaysCostUSD: nil,
+            costProvenance: .unknown,
+            daily: [],
+            updatedAt: Date())
+
+        #expect(UsageMenuCardView.Model.tokenUsageHintLines(provider: .hermes, snapshot: snapshot).isEmpty)
+        let meteredSnapshot = CostUsageTokenSnapshot(
+            sessionTokens: 12,
+            sessionCostUSD: 0.12,
+            last30DaysTokens: 12,
+            last30DaysCostUSD: 0.12,
+            costProvenance: .vendorMetered,
+            daily: [],
+            updatedAt: Date())
+        #expect(UsageMenuCardView.Model.tokenUsageHintLines(provider: .xai, snapshot: meteredSnapshot).isEmpty)
+        #expect(UsageMenuCardView.Model.fallbackCostHint(for: .unknown) == nil)
+        #expect(UsageMenuCardView.Model.fallbackCostHint(for: .vendorMetered) == nil)
+        #expect(UsageMenuCardView.Model.fallbackCostHint(for: .listPriceEstimate) != nil)
+    }
+
+    @Test
     func `local cost history Today KPI uses current day session value`() throws {
         let now = Date(timeIntervalSince1970: 1_700_179_200)
         let metadata = try #require(ProviderDefaults.metadata[.claude])
@@ -433,6 +459,54 @@ struct InlineCostHistoryDashboardLabelTests {
         #expect(dashboard.kpis.first?.title == "Cursor-metered")
         #expect(dashboard.kpis.first?.value == "$1.25")
         #expect(dashboard.points.isEmpty)
+    }
+
+    @Test
+    func `Hermes vendor metered cost hint is not an estimate`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_179_200)
+        let metadata = try #require(ProviderDefaults.metadata[.hermes])
+        let tokenSnapshot = CostUsageTokenSnapshot(
+            sessionTokens: 150,
+            sessionCostUSD: 0.12,
+            last30DaysTokens: 150,
+            last30DaysCostUSD: 0.12,
+            costProvenance: .vendorMetered,
+            daily: [
+                CostUsageDailyReport.Entry(
+                    date: "2023-11-15",
+                    inputTokens: 100,
+                    outputTokens: 50,
+                    totalTokens: 150,
+                    costUSD: 0.12,
+                    modelsUsed: ["hermes-test"],
+                    modelBreakdowns: nil),
+            ],
+            updatedAt: now)
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .hermes,
+            metadata: metadata,
+            snapshot: UsageSnapshot(primary: nil, secondary: nil, updatedAt: now),
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: tokenSnapshot,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: true,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        let dashboard = try #require(model.inlineUsageDashboard)
+        #expect(dashboard.detailLines.contains("Plan metered"))
+        #expect(dashboard.detailLines.allSatisfy { !$0.localizedCaseInsensitiveContains("estimate") })
+        #expect(model.tokenUsage?.hintLine == "Plan metered")
     }
 
     @Test

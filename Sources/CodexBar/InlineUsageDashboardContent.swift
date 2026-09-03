@@ -220,7 +220,7 @@ extension UsageMenuCardView.Model {
         if let topModel = Self.topCostModel(from: snapshot.daily) {
             details.append("\(L("Top model")): \(Self.shortModelName(topModel))")
         }
-        let hintLines = Self.tokenUsageHintLines(provider: provider)
+        let hintLines = Self.tokenUsageHintLines(provider: provider, snapshot: snapshot)
         if tokenCost.hintPlacement == .beforeRequestHistory {
             details.append(contentsOf: hintLines)
         }
@@ -232,8 +232,6 @@ extension UsageMenuCardView.Model {
             if tokenCost.hintPlacement == .afterRequestHistory {
                 if hintLines.isEmpty == false {
                     details.append(contentsOf: hintLines)
-                } else {
-                    details.append(L("cost_estimate_hint"))
                 }
             }
         }

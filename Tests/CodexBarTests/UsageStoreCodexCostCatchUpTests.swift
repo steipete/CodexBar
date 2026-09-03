@@ -49,6 +49,46 @@ struct UsageStoreCodexCostCatchUpTests {
     }
 
     @Test
+    func `incomplete Hermes refresh cannot replace an established same-scope snapshot`() throws {
+        let store = try Self.makeStore(suite: "retains-hermes-established")
+        store.publishTokenSnapshot(Self.tokenSnapshot(cost: 3, now: Date()), for: .hermes)
+        let establishedRevision = store.tokenSnapshotPublicationRevision(for: .hermes)
+
+        store.publishTokenSnapshot(
+            Self.tokenSnapshot(
+                cost: 9,
+                now: Date().addingTimeInterval(1),
+                historyCoverageIsEstablished: false),
+            for: .hermes)
+
+        #expect(store.tokenSnapshot(for: .hermes)?.last30DaysCostUSD == 3)
+        #expect(store.tokenSnapshot(for: .hermes)?.historyCoverageIsEstablished == true)
+        #expect(store.tokenSnapshotPublicationRevision(for: .hermes) == establishedRevision)
+    }
+
+    @Test
+    func `incomplete Hermes dashboard refresh retains established publication and marks failure`() async throws {
+        let store = try Self.makeStore(suite: "retains-hermes-dashboard-established")
+        let metadata = try #require(ProviderRegistry.shared.metadata[.hermes])
+        store.settings.setProviderEnabled(provider: .hermes, metadata: metadata, enabled: true)
+        store._setSpendDashboardTokenSnapshotForTesting(Self.tokenSnapshot(cost: 3, now: Date()), for: .hermes)
+        let establishedRevision = store.spendDashboardTokenSnapshotPublicationRevision(for: .hermes)
+        store._test_tokenUsageSnapshotLoaderOverride = { _, _, now, _, _ in
+            Self.tokenSnapshot(cost: 9, now: now, historyCoverageIsEstablished: false)
+        }
+
+        await store.refreshSpendDashboardTokenUsageNow(for: .hermes, force: true)
+
+        let publication = try #require(
+            store.spendDashboardTokenSnapshotPublicationForCurrentConfig(for: .hermes))
+        #expect(publication.snapshot?.last30DaysCostUSD == 3)
+        #expect(publication.snapshot?.historyCoverageIsEstablished == true)
+        #expect(store.spendDashboardTokenSnapshotPublicationRevision(for: .hermes) == establishedRevision)
+        #expect(store.spendDashboardTokenFailedTriggers[.hermes] != nil)
+        #expect(!store.spendDashboardTokenRefreshNeeded(for: .hermes))
+    }
+
+    @Test
     func `bounded catch-up automatically publishes only the final stable snapshot`() async throws {
         let store = try Self.makeStore(suite: "publishes-final")
         var snapshotLoadCount = 0

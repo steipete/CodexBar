@@ -427,6 +427,32 @@ struct CLICostTests {
     }
 
     @Test
+    func `renders Hermes vendor metered cost without an estimate label`() {
+        let snapshot = CostUsageTokenSnapshot(
+            sessionTokens: 150,
+            sessionCostUSD: 0.12,
+            last30DaysTokens: 150,
+            last30DaysCostUSD: 0.12,
+            costProvenance: .vendorMetered,
+            daily: [CostUsageDailyReport.Entry(
+                date: "2023-11-15",
+                inputTokens: 100,
+                outputTokens: 50,
+                totalTokens: 150,
+                costUSD: 0.12,
+                modelsUsed: ["hermes-test"],
+                modelBreakdowns: nil)],
+            updatedAt: Date(timeIntervalSince1970: 0))
+
+        let output = CodexBarCLI.renderCostText(provider: .hermes, snapshot: snapshot, useColor: false)
+
+        #expect(output.contains("Hermes Cost (vendor-metered)"))
+        #expect(output.contains("Reported by Hermes usage data · vendor-metered"))
+        #expect(!output.localizedCaseInsensitiveContains("API-rate estimate"))
+        #expect(!output.localizedCaseInsensitiveContains("Estimated from local logs"))
+    }
+
+    @Test
     func `renders codex project grouped cost text`() {
         let snap = CostUsageTokenSnapshot(
             sessionTokens: 1200,

@@ -385,6 +385,7 @@ public struct CostUsageFetcher: Sendable {
         return options
     }
 
+    // swiftlint:disable:next function_body_length
     static func loadTokenSnapshot(
         provider: UsageProvider,
         environment: [String: String] = ProcessInfo.processInfo.environment,
@@ -409,6 +410,38 @@ public struct CostUsageFetcher: Sendable {
         }
 
         let clampedHistoryDays = max(1, min(365, historyDays))
+
+        // Provider-specific by design: Hermes stores cumulative usage in local SQLite files and
+        // has no remote snapshot endpoint. Keep this branch ahead of the generic transcript scan
+        // so Hermes never falls through to a provider that cannot read its state database.
+        if provider == .hermes {
+            let hermesCalendar = Self.resolvedScannerOptions(
+                overrideScannerOptions,
+                provider: provider,
+                codexHomePath: codexHomePath).calendar
+            let hermesContext = HermesLocalReader.Context(environment: environment)
+            if let local = try await self.loadHermesLocalSnapshot(
+                context: hermesContext,
+                now: now,
+                historyDays: clampedHistoryDays,
+                calendar: hermesCalendar)
+            {
+                return local
+            }
+            // A missing store is a confirmed empty source and should clear stale UI data. A
+            // present-but-unreadable store remains incomplete so the caller can retain a
+            // previously established snapshot until the next successful scan.
+            let storeIsAbsent = HermesLocalReader.localStoreStatus(context: hermesContext) == .absent
+            return Self.tokenSnapshot(
+                from: CostUsageDailyReport(data: [], summary: nil),
+                now: now,
+                historyDays: clampedHistoryDays,
+                calendar: hermesCalendar,
+                historyCoverageIsEstablished: storeIsAbsent,
+                costProvenance: .unknown,
+                sessionRequests: storeIsAbsent ? 0 : nil,
+                last30DaysRequests: storeIsAbsent ? 0 : nil)
+        }
 
         var remoteSnapshot: CostUsageTokenSnapshot?
         var remoteError: Error?
@@ -1267,6 +1300,116 @@ public struct CostUsageFetcher: Sendable {
             costProvenance: .unknown)
     }
 
+    private static func loadHermesLocalSnapshot(
+        context: HermesLocalReader.Context,
+        now: Date,
+        historyDays: Int,
+        calendar: Calendar = .current) async throws -> CostUsageTokenSnapshot?
+    {
+        let cal = calendar
+        let result = try await CostUsageScanExecutor.run { checkCancellation in
+            try HermesLocalReader.makeDailyReportWithStatus(
+                context: context,
+                calendar: cal,
+                checkCancellation: checkCancellation)
+        }
+        guard result.isAvailable else { return nil }
+        let report = result.report
+        guard !report.data.isEmpty else {
+            guard result.isComplete else { return nil }
+            let requests = Self.requestTotals(
+                from: [],
+                now: now,
+                calendar: cal,
+                historyCoverageIsEstablished: true)
+            return Self.tokenSnapshot(
+                from: report,
+                now: now,
+                historyDays: historyDays,
+                calendar: cal,
+                historyCoverageIsEstablished: true,
+                costProvenance: .unknown,
+                sessionRequests: requests.session,
+                last30DaysRequests: requests.history)
+        }
+        let since = cal.date(byAdding: .day, value: -(historyDays - 1), to: cal.startOfDay(for: now)) ?? now
+        let sinceKey = CostUsageLocalDay.key(from: since, calendar: cal)
+        let nowKey = CostUsageLocalDay.key(from: now, calendar: cal)
+        let filtered = report.data.filter { $0.date >= sinceKey && $0.date <= nowKey }
+        let filteredSummary: CostUsageDailyReport.Summary? = filtered.isEmpty ? nil : .init(
+            totalInputTokens: nil,
+            totalOutputTokens: nil,
+            totalTokens: Self.checkedTokenTotal(filtered),
+            totalCostUSD: Self.checkedCostTotal(filtered))
+        let filteredReport = CostUsageDailyReport(data: filtered, summary: filteredSummary)
+        let requests = Self.requestTotals(
+            from: filtered,
+            now: now,
+            calendar: cal,
+            historyCoverageIsEstablished: result.isComplete)
+        return Self.tokenSnapshot(
+            from: filteredReport,
+            now: now,
+            historyDays: historyDays,
+            calendar: cal,
+            historyCoverageIsEstablished: result.isComplete,
+            costProvenance: HermesLocalReader.costProvenance(for: filtered),
+            sessionRequests: requests.session,
+            last30DaysRequests: requests.history)
+    }
+
+    private static func checkedTokenTotal(_ entries: [CostUsageDailyReport.Entry]) -> Int? {
+        var total = 0
+        for value in entries.compactMap(\.totalTokens) {
+            let (next, overflow) = total.addingReportingOverflow(value)
+            guard !overflow else { return nil }
+            total = next
+        }
+        return total
+    }
+
+    private static func checkedCostTotal(_ entries: [CostUsageDailyReport.Entry]) -> Double? {
+        var total = 0.0
+        for value in entries.compactMap(\.costUSD) {
+            let next = total + value
+            guard next.isFinite else { return nil }
+            total = next
+        }
+        return entries.contains { $0.costUSD != nil } ? total : nil
+    }
+
+    private static func requestTotals(
+        from entries: [CostUsageDailyReport.Entry],
+        now: Date,
+        calendar: Calendar,
+        historyCoverageIsEstablished: Bool) -> (session: Int?, history: Int?)
+    {
+        let todayEntry = CostUsageTokenSnapshot.entry(
+            in: entries,
+            forLocalDayContaining: now,
+            calendar: calendar)
+        let session: Int? = if let todayEntry {
+            todayEntry.requestCount
+        } else if historyCoverageIsEstablished {
+            0
+        } else {
+            nil
+        }
+        guard !entries.isEmpty else {
+            return (session, historyCoverageIsEstablished ? 0 : nil)
+        }
+        guard entries.allSatisfy({ $0.requestCount != nil }) else {
+            return (session, nil)
+        }
+        var total = 0
+        for count in entries.compactMap(\.requestCount) {
+            let (next, overflow) = total.addingReportingOverflow(count)
+            guard !overflow else { return (session, nil) }
+            total = next
+        }
+        return (session, total)
+    }
+
     static func tokenSnapshot(
         from daily: CostUsageDailyReport,
         now: Date,
@@ -1280,6 +1423,8 @@ public struct CostUsageFetcher: Sendable {
         historyLabel: String? = nil,
         projects: [CostUsageProjectBreakdown] = [],
         sessions: [CostUsageSessionBreakdown] = [],
+        sessionRequests: Int? = nil,
+        last30DaysRequests: Int? = nil,
         updatedAt: Date? = nil) -> CostUsageTokenSnapshot
     {
         let sessionEntry = useCurrentLocalDayForSession
@@ -1336,8 +1481,10 @@ public struct CostUsageFetcher: Sendable {
         return CostUsageTokenSnapshot(
             sessionTokens: sessionTokens,
             sessionCostUSD: sessionCostUSD,
+            sessionRequests: sessionRequests,
             last30DaysTokens: last30DaysTokens,
             last30DaysCostUSD: last30DaysCostUSD,
+            last30DaysRequests: last30DaysRequests,
             historyDays: historyDays,
             historyCoverageIsEstablished: historyCoverageIsEstablished,
             historyLabel: historyLabel,

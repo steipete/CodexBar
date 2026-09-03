@@ -271,7 +271,7 @@ extension UsageMenuCardView.Model {
                         sourceCurrencyCode: snapshot.currencyCode)
                 }
                 : [],
-            hintLine: Self.tokenUsageHint(provider: provider),
+            hintLine: Self.tokenUsageHint(provider: provider, snapshot: snapshot),
             errorLine: err,
             errorCopyText: (error?.isEmpty ?? true) ? nil : error)
     }
@@ -301,6 +301,11 @@ extension UsageMenuCardView.Model {
         return lines.isEmpty ? nil : lines.joined(separator: "\n")
     }
 
+    static func tokenUsageHint(provider: UsageProvider, snapshot: CostUsageTokenSnapshot?) -> String? {
+        let lines = Self.tokenUsageHintLines(provider: provider, snapshot: snapshot)
+        return lines.isEmpty ? nil : lines.joined(separator: "\n")
+    }
+
     static func tokenUsageHeader(provider _: UsageProvider) -> String {
         L("Cost")
     }
@@ -313,6 +318,37 @@ extension UsageMenuCardView.Model {
             case let .literal(text): L(text)
             }
         }
+    }
+
+    static func tokenUsageHintLines(
+        provider: UsageProvider,
+        snapshot: CostUsageTokenSnapshot?) -> [String]
+    {
+        let explicitLines = Self.tokenUsageHintLines(provider: provider)
+        guard explicitLines.isEmpty, let snapshot else { return explicitLines }
+        return Self.providerCostHint(provider: provider, provenance: snapshot.costProvenance).map { [$0] } ?? []
+    }
+
+    static func fallbackCostHint(for provenance: CostProvenance) -> String? {
+        switch provenance {
+        case .vendorMetered:
+            nil
+        case .mixed:
+            L("Metered and list-price")
+        case .listPriceEstimate:
+            L("cost_estimate_hint")
+        case .unknown:
+            nil
+        }
+    }
+
+    private static func providerCostHint(provider: UsageProvider, provenance: CostProvenance) -> String? {
+        // Hermes is the only provider whose local reader exposes vendor-metered plan usage. Keep
+        // the shared fallback neutral so pay-as-you-go providers such as xAI are not called plans.
+        if provider == .hermes, provenance == .vendorMetered {
+            return L("Plan metered")
+        }
+        return self.fallbackCostHint(for: provenance)
     }
 
     static func costHistoryWindowLabel(days: Int) -> String {
