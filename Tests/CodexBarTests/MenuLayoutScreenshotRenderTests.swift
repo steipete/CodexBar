@@ -1014,6 +1014,117 @@ extension MenuLayoutScreenshotRenderTests {
         }
     }
 
+    func test_renderQuotaWindowCostScreenshots() throws {
+        guard let dir = ProcessInfo.processInfo.environment["CODEXBAR_QUOTA_WINDOW_SCREENSHOT_DIR"] else {
+            throw XCTSkip("Set CODEXBAR_QUOTA_WINDOW_SCREENSHOT_DIR to render quota-window cost screenshots.")
+        }
+        UsageFormatter.setLocalizationProvider { $0 }
+        defer { UsageFormatter.clearLocalizationProvider() }
+
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(
+            timeZone: calendar.timeZone,
+            year: 2026,
+            month: 7,
+            day: 15,
+            hour: 12)))
+        let resetAt = try XCTUnwrap(calendar.date(from: DateComponents(
+            timeZone: calendar.timeZone,
+            year: 2026,
+            month: 7,
+            day: 18,
+            hour: 15)))
+        let tokenSnapshot = CostUsageTokenSnapshot(
+            sessionTokens: 1000,
+            sessionCostUSD: 10,
+            last30DaysTokens: 1400,
+            last30DaysCostUSD: 14,
+            historyDays: 30,
+            daily: [
+                CostUsageDailyReport.Entry(
+                    date: "2026-07-08",
+                    inputTokens: 300,
+                    outputTokens: 100,
+                    totalTokens: 400,
+                    costUSD: 4,
+                    modelsUsed: ["gpt-5.4"],
+                    modelBreakdowns: [
+                        CostUsageDailyReport.ModelBreakdown(
+                            modelName: "gpt-5.4",
+                            costUSD: 4,
+                            totalTokens: 400),
+                    ]),
+                CostUsageDailyReport.Entry(
+                    date: "2026-07-13",
+                    inputTokens: 800,
+                    outputTokens: 200,
+                    totalTokens: 1000,
+                    costUSD: 10,
+                    modelsUsed: ["gpt-5.4"],
+                    modelBreakdowns: [
+                        CostUsageDailyReport.ModelBreakdown(
+                            modelName: "gpt-5.4",
+                            costUSD: 10,
+                            totalTokens: 1000),
+                    ]),
+            ],
+            updatedAt: now)
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 20,
+                windowMinutes: 5 * 60,
+                resetsAt: now.addingTimeInterval(4 * 3600),
+                resetDescription: nil),
+            secondary: RateWindow(
+                usedPercent: 50,
+                windowMinutes: CostUsageTokenSnapshot.quotaWeekMinutes,
+                resetsAt: resetAt,
+                resetDescription: nil),
+            updatedAt: now)
+        let directory = URL(fileURLWithPath: dir, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+
+        for provider in [UsageProvider.codex, .claude] {
+            let metadata = try XCTUnwrap(ProviderDefaults.metadata[provider])
+            let model = UsageMenuCardView.Model.make(.init(
+                provider: provider,
+                metadata: metadata,
+                snapshot: snapshot,
+                credits: nil,
+                creditsError: nil,
+                dashboard: nil,
+                dashboardError: nil,
+                tokenSnapshot: tokenSnapshot,
+                tokenError: nil,
+                account: AccountInfo(email: nil, plan: nil),
+                isRefreshing: false,
+                lastError: nil,
+                usageBarsShowUsed: false,
+                resetTimeDisplayStyle: .countdown,
+                tokenCostUsageEnabled: true,
+                showOptionalCreditsAndExtraUsage: true,
+                hidePersonalInfo: true,
+                costUsageBucketCalendar: calendar,
+                now: now))
+            XCTAssertEqual(
+                model.inlineUsageDashboard?.quotaWindows.map(\.title),
+                ["Current window", "Previous window"])
+            for dark in [false, true] {
+                let view = AnyView(UsageMenuCardView(model: model, width: Self.width)
+                    .environment(\.locale, Locale(identifier: "en_US_POSIX"))
+                    .environment(\.colorScheme, dark ? .dark : .light)
+                    .background(Color(nsColor: .windowBackgroundColor)))
+                let hosting = NSHostingView(rootView: view)
+                hosting.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+                let stem = "quota-window-\(provider.rawValue)-\(dark ? "dark" : "light")"
+                let png = try XCTUnwrap(Self.pngData(hosting: hosting), "render failed for \(stem)")
+                try png.write(to: directory.appendingPathComponent("\(stem).png"), options: .atomic)
+                print("Wrote \(directory.appendingPathComponent("\(stem).png").path)")
+            }
+        }
+    }
+
     fileprivate static func pngDataWithWindow(hosting: NSHostingView<AnyView>) -> Data? {
         // Native List rows need a window to materialize, but it never needs to be ordered onscreen.
         let size = hosting.fittingSize

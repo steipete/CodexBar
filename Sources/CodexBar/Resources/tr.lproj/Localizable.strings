@@ -884,6 +884,12 @@
 "usage_percent_suffix_used" = "kullanıldı";
 "Store multiple DeepSeek API keys." = "Birden fazla DeepSeek API anahtarı depolayın.";
 "This week" = "Bu hafta";
+"Current window" = "Geçerli pencere";
+"Last week" = "Geçen hafta";
+"%d weeks ago" = "%d hafta önce";
+"Previous window" = "Önceki pencere";
+"%d windows ago" = "%d pencere önce";
+"Recent windows" = "Son pencereler";
 "Week" = "Hafta";
 "Month" = "Ay";
 "Models" = "Modeller";

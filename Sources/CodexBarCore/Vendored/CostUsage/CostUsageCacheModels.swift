@@ -210,8 +210,48 @@ struct CostUsageCodexPreviousReport: Codable, Equatable {
         }
     }
 
+    struct HourlyEntry: Codable, Equatable {
+        var hourUnixMs: Int64
+        var totalTokens: Int?
+        var costUSD: Double?
+
+        init(_ entry: CostUsageHourlyEntry) {
+            self.hourUnixMs = Int64((entry.hour.timeIntervalSince1970 * 1000).rounded())
+            self.totalTokens = entry.totalTokens
+            self.costUSD = entry.costUSD
+        }
+
+        var hourlyValue: CostUsageHourlyEntry {
+            CostUsageHourlyEntry(
+                hour: Date(timeIntervalSince1970: Double(self.hourUnixMs) / 1000),
+                totalTokens: self.totalTokens,
+                costUSD: self.costUSD)
+        }
+    }
+
+    struct QuotaSlice: Codable, Equatable {
+        var timestampUnixMs: Int64
+        var totalTokens: Int?
+        var costUSD: Double?
+
+        init(_ entry: CostUsageTimedEntry) {
+            self.timestampUnixMs = Int64((entry.timestamp.timeIntervalSince1970 * 1000).rounded())
+            self.totalTokens = entry.totalTokens
+            self.costUSD = entry.costUSD
+        }
+
+        var timedValue: CostUsageTimedEntry {
+            CostUsageTimedEntry(
+                timestamp: Date(timeIntervalSince1970: Double(self.timestampUnixMs) / 1000),
+                totalTokens: self.totalTokens,
+                costUSD: self.costUSD)
+        }
+    }
+
     var data: [Entry]
     var summary: Summary?
+    var hourly: [HourlyEntry]?
+    var quotaSlices: [QuotaSlice]?
     var updatedAtUnixMs: Int64
     var scanSinceKey: String?
     var scanUntilKey: String?
@@ -227,6 +267,8 @@ struct CostUsageCodexPreviousReport: Codable, Equatable {
         guard !report.data.isEmpty else { return nil }
         self.data = report.data.map(Entry.init)
         self.summary = report.summary.map(Summary.init)
+        self.hourly = report.hourly.isEmpty ? nil : report.hourly.map(HourlyEntry.init)
+        self.quotaSlices = report.quotaSlices.isEmpty ? nil : report.quotaSlices.map(QuotaSlice.init)
         self.updatedAtUnixMs = cache.lastScanUnixMs
         self.scanSinceKey = reportSinceKey
         self.scanUntilKey = reportUntilKey
@@ -235,7 +277,11 @@ struct CostUsageCodexPreviousReport: Codable, Equatable {
     }
 
     var report: CostUsageDailyReport {
-        CostUsageDailyReport(data: self.data.map(\.dailyReportValue), summary: self.summary?.dailyReportValue)
+        CostUsageDailyReport(
+            data: self.data.map(\.dailyReportValue),
+            summary: self.summary?.dailyReportValue,
+            hourly: (self.hourly ?? []).map(\.hourlyValue),
+            quotaSlices: (self.quotaSlices ?? []).map(\.timedValue))
     }
 
     var updatedAt: Date? {

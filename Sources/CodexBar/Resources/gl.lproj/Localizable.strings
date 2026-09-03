@@ -884,6 +884,12 @@
 "Latest billing day" = "Último día de facturación";
 "Latest billing day (%@)" = "Último día de facturación (%@)";
 "This week" = "Esta semana";
+"Current window" = "Xanela actual";
+"Last week" = "A semana pasada";
+"%d weeks ago" = "hai %d semanas";
+"Previous window" = "Xanela anterior";
+"%d windows ago" = "hai %d xanelas";
+"Recent windows" = "Xanelas recentes";
 "This month" = "Este mes";
 "Week" = "Semana";
 "Month" = "Mes";

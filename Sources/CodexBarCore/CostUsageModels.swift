@@ -50,6 +50,47 @@ public struct CostUsageWindowSummary: Sendable, Equatable {
     }
 }
 
+/// A quota window derived from local cost history.
+///
+/// When `resetAt` is known, windows line up with the live Weekly bar rather than a rolling
+/// calendar "last 7 days". Observed extra resets (official rollover plus a banked reset) become
+/// additional boundaries. Exact quota slices split a reset day at the reset instant. Coarser hour
+/// or day data is included only when its whole interval belongs to one window.
+public struct CostUsageQuotaWeek: Sendable, Equatable {
+    public let offset: Int
+    public let start: Date
+    public let end: Date
+    public let totalTokens: Int?
+    public let totalCostUSD: Double?
+    public let entryCount: Int
+
+    public var isCurrent: Bool {
+        self.offset == 0
+    }
+
+    /// True when this window is within a day of the nominal 7×24h weekly quota.
+    public var isNominalWeek: Bool {
+        abs(self.end.timeIntervalSince(self.start) - TimeInterval(CostUsageTokenSnapshot.quotaWeekMinutes * 60))
+            < 24 * 60 * 60
+    }
+
+    public init(
+        offset: Int,
+        start: Date,
+        end: Date,
+        totalTokens: Int?,
+        totalCostUSD: Double?,
+        entryCount: Int)
+    {
+        self.offset = offset
+        self.start = start
+        self.end = end
+        self.totalTokens = totalTokens
+        self.totalCostUSD = totalCostUSD
+        self.entryCount = entryCount
+    }
+}
+
 /// An estimated local Codex conversation total derived from one session log.
 /// This is intentionally distinct from account-level billing or quota data.
 public struct CostUsageSessionBreakdown: Sendable, Equatable, Identifiable {
@@ -93,6 +134,7 @@ public struct CostUsageSessionBreakdown: Sendable, Equatable, Identifiable {
     }
 }
 
+/// An hour-aligned bucket used by spend charts and legacy quota history.
 public struct CostUsageHourlyEntry: Sendable, Equatable {
     public let hour: Date
     public let totalTokens: Int?
@@ -100,6 +142,22 @@ public struct CostUsageHourlyEntry: Sendable, Equatable {
 
     public init(hour: Date, totalTokens: Int?, costUSD: Double?) {
         self.hour = hour
+        self.totalTokens = totalTokens
+        self.costUSD = costUSD
+    }
+}
+
+/// An exact event-time slice used to project local usage across quota reset boundaries.
+///
+/// Unlike ``CostUsageHourlyEntry``, `timestamp` is not rounded to a calendar hour. A nil metric
+/// means that metric is unknown for the event and must not be presented as a complete total.
+public struct CostUsageTimedEntry: Sendable, Equatable {
+    public let timestamp: Date
+    public let totalTokens: Int?
+    public let costUSD: Double?
+
+    public init(timestamp: Date, totalTokens: Int?, costUSD: Double?) {
+        self.timestamp = timestamp
         self.totalTokens = totalTokens
         self.costUSD = costUSD
     }
@@ -129,8 +187,10 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
     public let daily: [CostUsageDailyReport.Entry]
     public let projects: [CostUsageProjectBreakdown]
     public let sessions: [CostUsageSessionBreakdown]
-    /// Per-request hour buckets. Empty for native Codex/Claude day logs; OpenCodex fills this.
+    /// Hour-aligned buckets for spend charts and legacy quota history.
     public let hourly: [CostUsageHourlyEntry]
+    /// Exact event-time slices for quota-window projection. Empty for legacy/coarse providers.
+    public let quotaSlices: [CostUsageTimedEntry]
     public let updatedAt: Date
 
     public init(
@@ -151,6 +211,7 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
         projects: [CostUsageProjectBreakdown] = [],
         sessions: [CostUsageSessionBreakdown] = [],
         hourly: [CostUsageHourlyEntry] = [],
+        quotaSlices: [CostUsageTimedEntry] = [],
         updatedAt: Date)
     {
         self.sessionTokens = sessionTokens
@@ -171,6 +232,7 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
         self.projects = projects
         self.sessions = sessions
         self.hourly = hourly
+        self.quotaSlices = quotaSlices
         self.updatedAt = updatedAt
     }
 
@@ -283,7 +345,7 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
         }
     }
 
-    private static func localDayKey(for rawDate: String, calendar: Calendar) -> String? {
+    fileprivate static func localDayKey(for rawDate: String, calendar: Calendar) -> String? {
         let trimmed = rawDate.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.count >= 10 {
             let prefix = String(trimmed.prefix(10))
@@ -677,6 +739,8 @@ public struct CostUsageDailyReport: Sendable, Decodable {
 
     public let data: [Entry]
     public let summary: Summary?
+    public let hourly: [CostUsageHourlyEntry]
+    public let quotaSlices: [CostUsageTimedEntry]
 
     private enum CodingKeys: String, CodingKey {
         case type
@@ -688,6 +752,8 @@ public struct CostUsageDailyReport: Sendable, Decodable {
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.hourly = []
+        self.quotaSlices = []
 
         if container.contains(.type) {
             _ = try container.decode(String.self, forKey: .type)
@@ -711,9 +777,16 @@ public struct CostUsageDailyReport: Sendable, Decodable {
         }
     }
 
-    public init(data: [Entry], summary: Summary?) {
+    public init(
+        data: [Entry],
+        summary: Summary?,
+        hourly: [CostUsageHourlyEntry] = [],
+        quotaSlices: [CostUsageTimedEntry] = [])
+    {
         self.data = data
         self.summary = summary
+        self.hourly = hourly
+        self.quotaSlices = quotaSlices
     }
 }
 
@@ -735,8 +808,10 @@ extension CostUsageDailyReport {
         var requestCount = OptionalCountAccumulator()
         var totalTokens: Int = 0
         var sawTotalTokens = false
+        var totalTokensAreComplete = true
         var costUSD: Double = 0
         var sawCost = false
+        var costIsComplete = true
         var standardCostUSD: Double = 0
         var sawStandardCost = false
         var priorityCostUSD: Double = 0
@@ -755,12 +830,34 @@ extension CostUsageDailyReport {
                 reasoningTokens: breakdown.reasoningTokens))
             self.requestCount.add(breakdown.requestCount)
             if let totalTokens = breakdown.totalTokens {
-                self.totalTokens += totalTokens
-                self.sawTotalTokens = true
+                if totalTokens < 0 {
+                    self.totalTokensAreComplete = false
+                } else {
+                    let (sum, overflowed) = self.totalTokens.addingReportingOverflow(totalTokens)
+                    if overflowed {
+                        self.totalTokensAreComplete = false
+                    } else {
+                        self.totalTokens = sum
+                        self.sawTotalTokens = true
+                    }
+                }
+            } else if (breakdown.requestCount ?? 0) > 0 || (breakdown.costUSD ?? 0) > 0 {
+                self.totalTokensAreComplete = false
             }
             if let costUSD = breakdown.costUSD {
-                self.costUSD += costUSD
-                self.sawCost = true
+                if !costUSD.isFinite || costUSD < 0 {
+                    self.costIsComplete = false
+                } else {
+                    let sum = self.costUSD + costUSD
+                    if sum.isFinite {
+                        self.costUSD = sum
+                        self.sawCost = true
+                    } else {
+                        self.costIsComplete = false
+                    }
+                }
+            } else if (breakdown.totalTokens ?? 0) > 0 || (breakdown.requestCount ?? 0) > 0 {
+                self.costIsComplete = false
             }
             if let standardCostUSD = breakdown.standardCostUSD {
                 self.standardCostUSD += standardCostUSD
@@ -783,8 +880,8 @@ extension CostUsageDailyReport {
         func build(modelName: String) -> ModelBreakdown {
             ModelBreakdown(
                 modelName: modelName,
-                costUSD: self.sawCost ? self.costUSD : nil,
-                totalTokens: self.sawTotalTokens ? self.totalTokens : nil,
+                costUSD: self.sawCost && self.costIsComplete ? self.costUSD : nil,
+                totalTokens: self.sawTotalTokens && self.totalTokensAreComplete ? self.totalTokens : nil,
                 requestCount: self.requestCount.value,
                 inputTokens: self.tokenMix.inputTokens,
                 outputTokens: self.tokenMix.outputTokens,
@@ -814,9 +911,10 @@ extension CostUsageDailyReport {
         var sawOutputTokens = false
         var totalTokens: Int = 0
         var sawTotalTokens = false
-        var derivedTotalTokensWithoutExplicitTotal: Int = 0
+        var totalTokensAreComplete = true
         var costUSD: Double = 0
         var sawCost = false
+        var costIsComplete = true
         var modelsUsed: Set<String> = []
         var breakdowns: [String: BreakdownAccumulator] = [:]
 
@@ -829,10 +927,34 @@ extension CostUsageDailyReport {
             self.hasExplicitCoverage = self.hasExplicitCoverage
                 || entry.pricedRequestCount != nil || entry.unpricedRequestCount != nil
                 || entry.unmeteredRequestCount != nil || entry.estimatedRequestCount != nil
+            let hasTokenComponents = entry.inputTokens != nil
+                || entry.cacheReadTokens != nil
+                || entry.cacheCreationTokens != nil
+                || entry.outputTokens != nil
+            let hasInvalidTokenComponent = [
+                entry.inputTokens,
+                entry.cacheReadTokens,
+                entry.cacheCreationTokens,
+                entry.outputTokens,
+            ].contains { value in
+                value.map { $0 < 0 } ?? false
+            }
             let entryDerivedTotalTokens = (entry.inputTokens ?? 0)
                 + (entry.cacheReadTokens ?? 0)
                 + (entry.cacheCreationTokens ?? 0)
                 + (entry.outputTokens ?? 0)
+            let resolvedTotalTokens = entry.totalTokens
+                ?? (hasTokenComponents ? entryDerivedTotalTokens : nil)
+            let hasActiveBreakdown = entry.modelBreakdowns?.contains(where: { breakdown in
+                (breakdown.totalTokens ?? 0) > 0
+                    || (breakdown.requestCount ?? 0) > 0
+                    || (breakdown.costUSD ?? 0) > 0
+            }) == true
+            let hasActivity = (resolvedTotalTokens ?? 0) > 0
+                || (entry.requestCount ?? 0) > 0
+                || (entry.costUSD ?? 0) > 0
+                || hasActiveBreakdown
+                || entry.modelsUsed?.isEmpty == false
             if let inputTokens = entry.inputTokens {
                 self.inputTokens += inputTokens
                 self.sawInputTokens = true
@@ -849,15 +971,37 @@ extension CostUsageDailyReport {
                 self.outputTokens += outputTokens
                 self.sawOutputTokens = true
             }
-            if let totalTokens = entry.totalTokens {
-                self.totalTokens += totalTokens
-                self.sawTotalTokens = true
-            } else if entryDerivedTotalTokens > 0 {
-                self.derivedTotalTokensWithoutExplicitTotal += entryDerivedTotalTokens
+            if hasInvalidTokenComponent {
+                self.totalTokensAreComplete = false
+            } else if let resolvedTotalTokens {
+                if resolvedTotalTokens < 0 {
+                    self.totalTokensAreComplete = false
+                } else {
+                    let (sum, overflowed) = self.totalTokens.addingReportingOverflow(resolvedTotalTokens)
+                    if overflowed {
+                        self.totalTokensAreComplete = false
+                    } else {
+                        self.totalTokens = sum
+                        self.sawTotalTokens = true
+                    }
+                }
+            } else if hasActivity {
+                self.totalTokensAreComplete = false
             }
             if let costUSD = entry.costUSD {
-                self.costUSD += costUSD
-                self.sawCost = true
+                if !costUSD.isFinite || costUSD < 0 {
+                    self.costIsComplete = false
+                } else {
+                    let sum = self.costUSD + costUSD
+                    if sum.isFinite {
+                        self.costUSD = sum
+                        self.sawCost = true
+                    } else {
+                        self.costIsComplete = false
+                    }
+                }
+            } else if hasActivity {
+                self.costIsComplete = false
             }
             if let modelsUsed = entry.modelsUsed {
                 self.modelsUsed.formUnion(modelsUsed)
@@ -873,17 +1017,9 @@ extension CostUsageDailyReport {
         }
 
         func build(date: String) -> Entry {
-            let derivedTotalTokens = self.inputTokens
-                + self.cacheReadTokens
-                + self.cacheCreationTokens
-                + self.outputTokens
-            let totalTokens: Int? = if self.sawTotalTokens {
-                self.totalTokens + self.derivedTotalTokensWithoutExplicitTotal
-            } else if derivedTotalTokens > 0 {
-                derivedTotalTokens
-            } else {
-                nil
-            }
+            let totalTokens = self.sawTotalTokens && self.totalTokensAreComplete
+                ? self.totalTokens
+                : nil
             let modelBreakdowns: [ModelBreakdown]? = {
                 guard !self.breakdowns.isEmpty else { return nil }
                 return CostUsageDailyReport.sortedModelBreakdowns(
@@ -903,7 +1039,7 @@ extension CostUsageDailyReport {
                 reasoningTokens: self.reasoningTokens.value,
                 totalTokens: totalTokens,
                 requestCount: self.requestCount.value,
-                costUSD: self.sawCost ? self.costUSD : nil,
+                costUSD: self.resolvedCostUSD(),
                 modelsUsed: modelsUsed,
                 modelBreakdowns: modelBreakdowns,
                 unpricedRequestCount: includeCoverage ? self.coverage.exact?.unpriced : nil,
@@ -911,25 +1047,167 @@ extension CostUsageDailyReport {
                 estimatedRequestCount: includeCoverage ? self.coverage.exact?.estimated : nil,
                 pricedRequestCount: includeCoverage ? self.coverage.exact?.priced : nil)
         }
+
+        /// Keep independently priced models when a sibling model or source has no list price.
+        /// Same-model priced+unpriced overlays still drop that model's contribution.
+        private func resolvedCostUSD() -> Double? {
+            if !self.breakdowns.isEmpty {
+                var total = 0.0
+                var sawPricedModel = false
+                for accumulator in self.breakdowns.values {
+                    guard accumulator.sawCost, accumulator.costIsComplete else { continue }
+                    let sum = total + accumulator.costUSD
+                    guard sum.isFinite else { return nil }
+                    total = sum
+                    sawPricedModel = true
+                }
+                return sawPricedModel ? total : nil
+            }
+            return self.sawCost && self.costIsComplete ? self.costUSD : nil
+        }
     }
 
-    public func merged(with other: CostUsageDailyReport) -> CostUsageDailyReport {
-        Self.merged([self, other])
+    public func merged(with other: CostUsageDailyReport, calendar: Calendar = .current) -> CostUsageDailyReport {
+        Self.merged([self, other], calendar: calendar)
     }
 
-    public static func merged(_ reports: [CostUsageDailyReport]) -> CostUsageDailyReport {
-        let entries = self.mergedEntries(from: reports)
-        guard !entries.isEmpty else { return CostUsageDailyReport(data: [], summary: nil) }
-        return CostUsageDailyReport(data: entries, summary: self.mergedSummary(from: entries))
+    public static func merged(
+        _ reports: [CostUsageDailyReport],
+        calendar: Calendar = .current) -> CostUsageDailyReport
+    {
+        let entries = self.mergedEntries(from: reports, calendar: calendar)
+        let mergedHourly = self.mergedHourly(from: reports, calendar: calendar)
+        let mergedQuotaSlices = self.mergedQuotaSlices(from: reports)
+        guard !entries.isEmpty || !mergedHourly.isEmpty || !mergedQuotaSlices.isEmpty else {
+            return CostUsageDailyReport(data: [], summary: nil)
+        }
+        return CostUsageDailyReport(
+            data: entries,
+            summary: entries.isEmpty ? nil : self.mergedSummary(from: entries),
+            hourly: mergedHourly,
+            quotaSlices: mergedQuotaSlices)
     }
 
-    private static func mergedEntries(from reports: [CostUsageDailyReport]) -> [Entry] {
+    private struct TemporalAccumulator {
+        var totalTokens = 0
+        var sawTokens = false
+        var tokensAreComplete = true
+        var costUSD = 0.0
+        var sawCost = false
+        var costIsComplete = true
+
+        mutating func add(totalTokens: Int?, costUSD: Double?) {
+            if let totalTokens {
+                let (sum, overflowed) = self.totalTokens.addingReportingOverflow(totalTokens)
+                if overflowed {
+                    self.tokensAreComplete = false
+                } else {
+                    self.totalTokens = sum
+                    self.sawTokens = true
+                }
+            } else {
+                self.tokensAreComplete = false
+            }
+            if let costUSD, costUSD.isFinite {
+                let sum = self.costUSD + costUSD
+                if sum.isFinite {
+                    self.costUSD = sum
+                    self.sawCost = true
+                } else {
+                    self.costIsComplete = false
+                }
+            } else {
+                self.costIsComplete = false
+            }
+        }
+
+        func build(hour: Date) -> CostUsageHourlyEntry {
+            CostUsageHourlyEntry(
+                hour: hour,
+                totalTokens: self.sawTokens && self.tokensAreComplete ? self.totalTokens : nil,
+                costUSD: self.sawCost && self.costIsComplete ? self.costUSD : nil)
+        }
+
+        func build(timestamp: Date) -> CostUsageTimedEntry {
+            CostUsageTimedEntry(
+                timestamp: timestamp,
+                totalTokens: self.sawTokens && self.tokensAreComplete ? self.totalTokens : nil,
+                costUSD: self.sawCost && self.costIsComplete ? self.costUSD : nil)
+        }
+    }
+
+    private static func mergedHourly(
+        from reports: [CostUsageDailyReport],
+        calendar: Calendar) -> [CostUsageHourlyEntry]
+    {
+        let hasHourly = reports.contains { !$0.hourly.isEmpty || !$0.quotaSlices.isEmpty }
+        guard hasHourly else { return [] }
+        var buckets: [Date: TemporalAccumulator] = [:]
+        for report in reports {
+            var reportHours = Set<Date>()
+            for entry in report.hourly {
+                let hour = calendar.dateInterval(of: .hour, for: entry.hour)?.start ?? entry.hour
+                reportHours.insert(hour)
+                var accumulator = buckets[hour] ?? TemporalAccumulator()
+                accumulator.add(totalTokens: entry.totalTokens, costUSD: entry.costUSD)
+                buckets[hour] = accumulator
+            }
+
+            // An exact-only source still contributes to the merged chart hour. This is a true
+            // event aggregation (not a daily/midnight synthesis) and ensures merged hourly is a
+            // superset before quota projection subtracts exact values to find legacy residuals.
+            var exactByHour: [Date: TemporalAccumulator] = [:]
+            for entry in report.quotaSlices {
+                let hour = calendar.dateInterval(of: .hour, for: entry.timestamp)?.start
+                    ?? entry.timestamp
+                guard !reportHours.contains(hour) else { continue }
+                var accumulator = exactByHour[hour] ?? TemporalAccumulator()
+                accumulator.add(totalTokens: entry.totalTokens, costUSD: entry.costUSD)
+                exactByHour[hour] = accumulator
+            }
+            for (hour, exact) in exactByHour {
+                let entry = exact.build(timestamp: hour)
+                var accumulator = buckets[hour] ?? TemporalAccumulator()
+                accumulator.add(totalTokens: entry.totalTokens, costUSD: entry.costUSD)
+                buckets[hour] = accumulator
+            }
+        }
+        return buckets.keys.sorted().map { hour in
+            buckets[hour, default: TemporalAccumulator()].build(hour: hour)
+        }
+    }
+
+    private static func mergedQuotaSlices(
+        from reports: [CostUsageDailyReport]) -> [CostUsageTimedEntry]
+    {
+        let hasQuotaSlices = reports.contains { !$0.quotaSlices.isEmpty }
+        guard hasQuotaSlices else { return [] }
+        var buckets: [Date: TemporalAccumulator] = [:]
+        for report in reports {
+            for entry in report.quotaSlices {
+                var accumulator = buckets[entry.timestamp] ?? TemporalAccumulator()
+                accumulator.add(totalTokens: entry.totalTokens, costUSD: entry.costUSD)
+                buckets[entry.timestamp] = accumulator
+            }
+        }
+        return buckets.keys.sorted().map { timestamp in
+            buckets[timestamp, default: TemporalAccumulator()].build(timestamp: timestamp)
+        }
+    }
+
+    private static func mergedEntries(
+        from reports: [CostUsageDailyReport],
+        calendar: Calendar) -> [Entry]
+    {
         var dayAccumulators: [String: EntryAccumulator] = [:]
         for report in reports {
             for entry in report.data {
-                var accumulator = dayAccumulators[entry.date] ?? EntryAccumulator()
+                let rawDate = entry.date.trimmingCharacters(in: .whitespacesAndNewlines)
+                let dayKey = CostUsageTokenSnapshot.localDayKey(for: rawDate, calendar: calendar)
+                    ?? rawDate
+                var accumulator = dayAccumulators[dayKey] ?? EntryAccumulator()
                 accumulator.add(entry)
-                dayAccumulators[entry.date] = accumulator
+                dayAccumulators[dayKey] = accumulator
             }
         }
 
@@ -953,8 +1231,10 @@ extension CostUsageDailyReport {
         var sawTotalCacheCreationTokens = false
         var totalTokens = 0
         var sawTotalTokens = false
+        var totalTokensAreComplete = true
         var totalCostUSD = 0.0
         var sawTotalCostUSD = false
+        var totalCostIsComplete = true
 
         for entry in entries {
             reasoningTokens.add(entry.reasoningTokens)
@@ -975,12 +1255,26 @@ extension CostUsageDailyReport {
                 sawTotalCacheCreationTokens = true
             }
             if let entryTotalTokens = entry.totalTokens {
-                totalTokens += entryTotalTokens
-                sawTotalTokens = true
+                let (sum, overflowed) = totalTokens.addingReportingOverflow(entryTotalTokens)
+                if overflowed {
+                    totalTokensAreComplete = false
+                } else {
+                    totalTokens = sum
+                    sawTotalTokens = true
+                }
+            } else {
+                totalTokensAreComplete = false
             }
             if let costUSD = entry.costUSD {
-                totalCostUSD += costUSD
-                sawTotalCostUSD = true
+                let sum = totalCostUSD + costUSD
+                if sum.isFinite {
+                    totalCostUSD = sum
+                    sawTotalCostUSD = true
+                } else {
+                    totalCostIsComplete = false
+                }
+            } else {
+                totalCostIsComplete = false
             }
         }
 
@@ -990,8 +1284,8 @@ extension CostUsageDailyReport {
             cacheReadTokens: sawTotalCacheReadTokens ? totalCacheReadTokens : nil,
             cacheCreationTokens: sawTotalCacheCreationTokens ? totalCacheCreationTokens : nil,
             reasoningTokens: reasoningTokens.value,
-            totalTokens: sawTotalTokens ? totalTokens : nil,
-            totalCostUSD: sawTotalCostUSD ? totalCostUSD : nil)
+            totalTokens: sawTotalTokens && totalTokensAreComplete ? totalTokens : nil,
+            totalCostUSD: sawTotalCostUSD && totalCostIsComplete ? totalCostUSD : nil)
     }
 
     private static func sortedModelBreakdowns(_ breakdowns: [ModelBreakdown]) -> [ModelBreakdown] {
@@ -1318,5 +1612,18 @@ enum CostUsageLocalDay {
         let month = components.month ?? 0
         let day = components.day ?? 0
         return String(format: "%04d-%02d-%02d", year, month, day)
+    }
+
+    static func date(fromKey key: String, calendar: Calendar = .current) -> Date? {
+        let parts = key.split(separator: "-")
+        guard parts.count == 3,
+              let year = Int(parts[0]),
+              let month = Int(parts[1]),
+              let day = Int(parts[2])
+        else { return nil }
+        return Self.gregorianCalendar(matching: calendar).date(from: DateComponents(
+            year: year,
+            month: month,
+            day: day))
     }
 }

@@ -658,7 +658,9 @@ public struct CostUsageFetcher: Sendable {
                 if provider == .codex {
                     piDaily = piReport
                 }
-                daily = CostUsageDailyReport.merged([daily, piReport])
+                daily = CostUsageDailyReport.merged(
+                    [daily, piReport],
+                    calendar: options.scanOptions.calendar)
             }
             if provider == .codex {
                 projects = Self.mergedProjectBreakdowns(
@@ -1017,7 +1019,7 @@ public struct CostUsageFetcher: Sendable {
             // rescan on the strength of another source's scan.
             return CachedCodexTokenSnapshotResult(
                 snapshot: Self.tokenSnapshot(
-                    from: CostUsageDailyReport.merged(reports),
+                    from: CostUsageDailyReport.merged(reports, calendar: options.calendar),
                     now: now,
                     historyDays: clampedHistoryDays,
                     calendar: options.calendar,
@@ -1347,6 +1349,8 @@ public struct CostUsageFetcher: Sendable {
             daily: daily.data,
             projects: projects,
             sessions: sessions,
+            hourly: daily.hourly,
+            quotaSlices: daily.quotaSlices,
             updatedAt: updatedAt ?? now)
     }
 

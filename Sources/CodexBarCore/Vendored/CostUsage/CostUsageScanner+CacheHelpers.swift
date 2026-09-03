@@ -1412,6 +1412,7 @@ extension CostUsageScanner {
                 priorityTurns: priorityTurns)
         }
         var entries: [CostUsageDailyReport.Entry] = []
+        var temporalBuckets = TemporalBuckets()
         var (totalInput, totalCacheRead, totalOutput, totalReasoning, totalTokens) = (0, 0, 0, 0, 0)
         var (totalCost, costSeen) = (0.0, false)
 
@@ -1479,6 +1480,14 @@ extension CostUsageScanner {
                 pricing: pricing)
             else { continue }
             entries.append(entry)
+            for breakdown in entry.modelBreakdowns ?? [] {
+                Self.addCodexHourly(
+                    rows: pricing.rowsByDayModel[day]?[breakdown.modelName] ?? [],
+                    billedCostUSD: breakdown.costUSD,
+                    pricing: pricing,
+                    calendar: range.calendar,
+                    into: &temporalBuckets)
+            }
             totalInput += entry.inputTokens ?? 0
             totalCacheRead += entry.cacheReadTokens ?? 0
             totalOutput += entry.outputTokens ?? 0
@@ -1500,7 +1509,11 @@ extension CostUsageScanner {
                 totalTokens: totalTokens,
                 totalCostUSD: costSeen ? totalCost : nil)
 
-        return CostUsageDailyReport(data: entries, summary: summary)
+        return CostUsageDailyReport(
+            data: entries,
+            summary: summary,
+            hourly: self.sortedHourlyEntries(temporalBuckets.hourly),
+            quotaSlices: self.sortedQuotaSlices(temporalBuckets.quotaSlices))
     }
 
     static func sortedModelBreakdowns(_ breakdowns: [CostUsageDailyReport.ModelBreakdown])

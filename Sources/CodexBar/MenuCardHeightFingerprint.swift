@@ -168,7 +168,18 @@ extension InlineUsageDashboardModel {
             self.valueStyle.heightFingerprint,
             MenuCardHeightFingerprint.join(self.kpis.map(\.heightFingerprint)),
             MenuCardHeightFingerprint.join(self.points.map(\.heightFingerprint)),
+            MenuCardHeightFingerprint.join(self.quotaWindows.map(\.heightFingerprint)),
             MenuCardHeightFingerprint.join(self.detailLines.map { MenuCardHeightFingerprint.field("detail", $0) }),
+        ])
+    }
+}
+
+extension InlineUsageDashboardModel.QuotaWindow {
+    fileprivate var heightFingerprint: String {
+        MenuCardHeightFingerprint.join([
+            MenuCardHeightFingerprint.field("qwTitle", self.title),
+            MenuCardHeightFingerprint.field("qwRange", self.range),
+            MenuCardHeightFingerprint.field("qwValue", self.value),
         ])
     }
 }

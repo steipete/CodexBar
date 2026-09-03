@@ -881,6 +881,12 @@
 "usage_percent_suffix_used" = "förbrukat";
 "Store multiple DeepSeek API keys." = "Spara flera DeepSeek-API-nycklar.";
 "This week" = "Den här veckan";
+"Current window" = "Aktuellt fönster";
+"Last week" = "Förra veckan";
+"%d weeks ago" = "för %d veckor sedan";
+"Previous window" = "Föregående fönster";
+"%d windows ago" = "för %d fönster sedan";
+"Recent windows" = "Senaste fönster";
 "Week" = "Vecka";
 "Month" = "Månad";
 "Models" = "Modeller";

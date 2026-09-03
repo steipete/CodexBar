@@ -890,6 +890,12 @@
 "usage_percent_suffix_used" = "terpakai";
 "Store multiple DeepSeek API keys." = "Simpan beberapa kunci API DeepSeek.";
 "This week" = "Minggu ini";
+"Current window" = "Jendela saat ini";
+"Last week" = "Minggu lalu";
+"%d weeks ago" = "%d minggu lalu";
+"Previous window" = "Jendela sebelumnya";
+"%d windows ago" = "%d jendela lalu";
+"Recent windows" = "Jendela terbaru";
 "Week" = "Minggu";
 "Month" = "Bulan";
 "Models" = "Model";

@@ -164,7 +164,11 @@ extension StatusItemController {
             usesLiveSubtitle: surface == .liveCard,
             preferredCurrencyCode: self.settings.preferredCurrencyCode,
             costUsageBucketCalendar: self.settings.costUsageBucketCalendar,
-            now: now)
+            now: now,
+            observedWeeklyNextResets: self.observedWeeklyNextResets(
+                for: target,
+                snapshot: snapshot,
+                historySelection: historySelectionOverride))
         return UsageMenuCardView.Model.make(input)
     }
 
@@ -283,6 +287,20 @@ extension StatusItemController {
 
     func accountInfo(for account: CodexVisibleAccount) -> AccountInfo {
         AccountInfo(email: account.email, plan: account.workspaceLabel)
+    }
+
+    private func observedWeeklyNextResets(
+        for provider: UsageProvider,
+        snapshot: UsageSnapshot?,
+        historySelection: PlanUtilizationHistorySelection?) -> [Date]
+    {
+        guard ProviderDescriptorRegistry.descriptor(for: provider).presentation.menuCard.showsQuotaWeekCost else {
+            return []
+        }
+        return self.store.weeklyQuotaWindowResetDates(
+            for: provider,
+            snapshot: snapshot,
+            historySelection: historySelection)
     }
 
     private func quotaWarningMarkerThresholds(provider: UsageProvider, window: QuotaWarningWindow) -> [Int] {

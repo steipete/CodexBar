@@ -282,6 +282,8 @@ public struct ProviderMenuCardPresentation: Sendable {
     public let providerCostIsRequiredUsage: Bool
     public let usesProviderCostHistoryAsPrimaryDashboard: Bool
     public let supportsInlineTokenCostDashboard: Bool
+    /// Codex and Claude local cost dashboards split spend by live Weekly quota windows.
+    public let showsQuotaWeekCost: Bool
     public let primaryDescriptionPlacement: ProviderPrimaryDescriptionPlacement
     public let showsPrimaryBalanceDescription: Bool
     public let hidesPrimaryResetWithoutDate: Bool
@@ -302,6 +304,7 @@ public struct ProviderMenuCardPresentation: Sendable {
         usesProviderCostHistoryAsPrimaryDashboard: Bool = false,
         primaryCostHistoryResolver: @escaping PrimaryCostHistoryResolver = { _, tokenSnapshot in tokenSnapshot },
         supportsInlineTokenCostDashboard: Bool = false,
+        showsQuotaWeekCost: Bool = false,
         primaryDescriptionPlacement: ProviderPrimaryDescriptionPlacement = .standard,
         showsPrimaryBalanceDescription: Bool = false,
         hidesPrimaryResetWithoutDate: Bool = false,
@@ -322,6 +325,7 @@ public struct ProviderMenuCardPresentation: Sendable {
         self.usesProviderCostHistoryAsPrimaryDashboard = usesProviderCostHistoryAsPrimaryDashboard
         self.primaryCostHistoryResolver = primaryCostHistoryResolver
         self.supportsInlineTokenCostDashboard = supportsInlineTokenCostDashboard
+        self.showsQuotaWeekCost = showsQuotaWeekCost
         self.primaryDescriptionPlacement = primaryDescriptionPlacement
         self.showsPrimaryBalanceDescription = showsPrimaryBalanceDescription
         self.hidesPrimaryResetWithoutDate = hidesPrimaryResetWithoutDate
