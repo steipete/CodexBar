@@ -291,6 +291,7 @@ extension CostUsageStore {
         var projectPath: String?
         var canonicalProjectPath: String?
         var costCacheComplete: Bool?
+        var duplicateSessionSuppressed: Bool?
         var session: CostUsageCodexSessionMetadata?
         var workspaceFingerprint: String?
         var hasRows: Bool
@@ -454,6 +455,7 @@ extension CostUsageStore {
                 projectPath: details.projectPath,
                 canonicalProjectPath: details.canonicalProjectPath,
                 codexCostCacheComplete: details.costCacheComplete,
+                codexDuplicateSessionSuppressed: details.duplicateSessionSuppressed,
                 codexSession: details.session,
                 codexCostNanos: Self.authoritativeCosts(from: aggregates),
                 codexPrioritySurchargeNanos: nil,
@@ -853,6 +855,7 @@ extension CostUsageStore {
             projectPath: usage.projectPath,
             canonicalProjectPath: usage.canonicalProjectPath,
             costCacheComplete: usage.codexCostCacheComplete,
+            duplicateSessionSuppressed: usage.codexDuplicateSessionSuppressed,
             session: usage.codexSession,
             workspaceFingerprint: usage.codexWorkspaceContentFingerprint,
             hasRows: usage.codexRows != nil,

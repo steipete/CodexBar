@@ -223,6 +223,7 @@ extension CostUsageScanner {
         projectPath: String? = nil,
         canonicalProjectPath: String? = nil,
         codexCostCacheComplete: Bool? = true,
+        codexDuplicateSessionSuppressed: Bool? = nil,
         codexSession: CostUsageCodexSessionMetadata? = nil,
         codexCostNanos: [String: [String: Int64]]? = nil,
         codexPrioritySurchargeNanos: [String: [String: Int64]]? = nil,
@@ -264,6 +265,7 @@ extension CostUsageScanner {
             projectPath: projectPath,
             canonicalProjectPath: canonicalProjectPath,
             codexCostCacheComplete: codexCostCacheComplete,
+            codexDuplicateSessionSuppressed: codexDuplicateSessionSuppressed,
             codexSession: codexSession,
             codexCostNanos: codexCostNanos,
             codexPrioritySurchargeNanos: codexPrioritySurchargeNanos,
@@ -783,6 +785,20 @@ extension CostUsageScanner {
 
         let sessionAlreadyContributed = cached.sessionId.map { state.contributingSessionIds.contains($0) } ?? false
         let cachedRows = cached.codexRows ?? []
+        if cached.codexDuplicateSessionSuppressed == true {
+            guard sessionAlreadyContributed else {
+                // The prior contributor is absent or is ordered after this file. Reparse so
+                // this file can become the contributor instead of preserving missing usage.
+                return false
+            }
+            Self.rememberScannedCodexFile(
+                input: input,
+                session: CodexScannedSession(id: cached.sessionId, days: [:]),
+                rows: [],
+                context: context,
+                state: &state)
+            return true
+        }
         if Self.cachedCodexRowsNeedIdentityRescan(cached) {
             return false
         }
@@ -804,7 +820,16 @@ extension CostUsageScanner {
                 fileIdentity: input.metadata.path,
                 state: &state)
             guard !uniqueRows.isEmpty else {
-                Self.dropCachedCodexFile(path: input.metadata.path, cached: cached, cache: &cache)
+                Self.applyFileDays(cache: &cache, fileDays: cached.days, sign: -1)
+                var suppressed = Self.codexFileUsageByFilteringRows(cached, rows: [], context: context)
+                suppressed.codexDuplicateSessionSuppressed = true
+                cache.files[input.metadata.path] = suppressed
+                Self.rememberScannedCodexFile(
+                    input: input,
+                    session: CodexScannedSession(id: cached.sessionId, days: [:]),
+                    rows: [],
+                    context: context,
+                    state: &state)
                 return true
             }
             Self.applyFileDays(cache: &cache, fileDays: cached.days, sign: -1)
@@ -1049,10 +1074,7 @@ extension CostUsageScanner {
         let migratedCached = sessionAlreadyContributed
             ? Self.codexFileUsageByFilteringRows(migrated, rows: retainedCachedRows, context: context)
             : migrated
-        if sessionAlreadyContributed, migratedCached.days.isEmpty, uniqueRows.isEmpty {
-            Self.dropCachedCodexFile(path: input.metadata.path, cached: cached, cache: &cache)
-            return true
-        }
+        let suppressDuplicate = sessionAlreadyContributed && migratedCached.days.isEmpty && uniqueRows.isEmpty
         let uniqueDays = Self.codexFileDays(rows: uniqueRows)
 
         if sessionAlreadyContributed {
@@ -1097,6 +1119,7 @@ extension CostUsageScanner {
                 : forkBaselineDependencyKey ?? migratedCached.forkBaselineDependencyKey,
             projectPath: projectPath,
             canonicalProjectPath: canonicalProjectPath,
+            codexDuplicateSessionSuppressed: suppressDuplicate ? true : nil,
             codexSession: codexSession.isEmpty ? nil : codexSession,
             codexCostNanos: Self.codexMergedCostMap(
                 migratedCached.codexCostNanos,
@@ -1199,15 +1222,16 @@ extension CostUsageScanner {
             fileIdentity: input.metadata.path,
             state: &state)
         context.workRecorder?.record(processed: uniqueRows.count, repriced: uniqueRows.count)
-        if let sessionId,
-           state.contributingSessionIds.contains(sessionId),
-           uniqueRows.isEmpty,
-           usageDays.isEmpty,
-           parsed.bufferedSubagentLines == nil,
-           parsed.bufferedUnresolvedForkLines == nil
+        let suppressDuplicate = if let sessionId,
+                                   state.contributingSessionIds.contains(sessionId),
+                                   uniqueRows.isEmpty,
+                                   usageDays.isEmpty,
+                                   parsed.bufferedSubagentLines == nil,
+                                   parsed.bufferedUnresolvedForkLines == nil
         {
-            cache.files.removeValue(forKey: input.metadata.path)
-            return
+            true
+        } else {
+            false
         }
         let uniqueDays = Self.codexFileDays(rows: uniqueRows)
         Self.mergeFileDays(existing: &usageDays, delta: uniqueDays)
@@ -1235,6 +1259,7 @@ extension CostUsageScanner {
             forkBaselineDependencyKey: forkBaselineDependencyKey,
             projectPath: projectPath,
             canonicalProjectPath: canonicalProjectPath,
+            codexDuplicateSessionSuppressed: suppressDuplicate ? true : nil,
             codexSession: parsedCodexSession.isEmpty ? nil : parsedCodexSession,
             codexCostNanos: Self.mergeCostMaps(
                 context.dropDeferredCodexRows

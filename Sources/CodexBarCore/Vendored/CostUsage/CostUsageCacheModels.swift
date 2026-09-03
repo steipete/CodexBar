@@ -283,6 +283,9 @@ struct CostUsageFileUsage: Codable, Equatable {
     var projectPath: String?
     var canonicalProjectPath: String?
     var codexCostCacheComplete: Bool?
+    /// This file was fully parsed but its rows duplicated an earlier file for the same session.
+    /// Keep the completed file in the inventory so bounded progress can reach an exact total.
+    var codexDuplicateSessionSuppressed: Bool? = nil
     var codexSession: CostUsageCodexSessionMetadata?
     var codexCostNanos: [String: [String: Int64]]?
     var codexPrioritySurchargeNanos: [String: [String: Int64]]?

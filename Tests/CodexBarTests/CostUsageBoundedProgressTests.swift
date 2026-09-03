@@ -6,6 +6,89 @@ import Testing
 // swiftlint:disable:next type_body_length
 struct CostUsageBoundedProgressTests {
     @Test
+    func `bounded progress completes with an empty duplicate session fragment`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 5, day: 10)
+        let corpusSize = 600
+        let fileURLs = try Self.writeSyntheticCorpus(env: env, day: day, fileCount: corpusSize)
+        let duplicateURL = fileURLs[52]
+        let iso = env.isoString(for: day)
+        try ([
+            #"{"type":"session_meta","timestamp":"\#(iso)","payload":{"session_id":"progress-0"}}"#,
+            #"{"type":"turn_context","timestamp":"\#(iso)","payload":{"model":"openai/gpt-5.2-codex"}}"#,
+            #"{"type":"event_msg","timestamp":"\#(iso)","payload":{"type":"token_count","info":null}}"#,
+            #"{"type":"event_msg","timestamp":"\#(iso)","payload":{"type":"turn_aborted"}}"#,
+        ].joined(separator: "\n") + "\n").write(to: duplicateURL, atomically: true, encoding: .utf8)
+
+        var options = Self.boundedOptions(env: env)
+        options.preferNewestCodexSessionsFirst = false
+        for pass in 0..<4 {
+            _ = CostUsageScanner.loadDailyReport(
+                provider: .codex,
+                since: day,
+                until: day,
+                now: day.addingTimeInterval(TimeInterval(pass)),
+                options: options)
+        }
+
+        let cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        #expect(cache.files[duplicateURL.path]?.codexDuplicateSessionSuppressed == true)
+        #expect(cache.files.count == corpusSize)
+        #expect(cache.codexActiveLookbackState == nil)
+        #expect(cache.codexScanCompletedFiles == corpusSize)
+        #expect(cache.codexScanTotalFiles == corpusSize)
+        #expect(cache.codexScanCatchUpPending == false)
+    }
+
+    @Test
+    func `suppressed duplicate becomes contributor after original file is removed`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 5, day: 10)
+        let iso = env.isoString(for: day)
+        let contents = [
+            #"{"type":"session_meta","timestamp":"\#(iso)","payload":{"session_id":"shared-session"}}"#,
+            #"{"type":"turn_context","timestamp":"\#(iso)","payload":{"model":"openai/gpt-5.2-codex"}}"#,
+            #"{"type":"event_msg","timestamp":"\#(iso)","payload":{"type":"token_count","info":"#
+                + #"{"total_token_usage":{"input_tokens":100,"cached_input_tokens":20,"output_tokens":10},"#
+                + #""model":"openai/gpt-5.2-codex"}}}"#,
+        ].joined(separator: "\n") + "\n"
+        let contributorURL = try env.seedCodexSessionFile(
+            day: day,
+            filename: "a-contributor.jsonl",
+            contents: contents)
+        let duplicateURL = try env.seedCodexSessionFile(
+            day: day,
+            filename: "b-duplicate.jsonl",
+            contents: contents)
+
+        var options = Self.boundedOptions(env: env)
+        options.maxCodexScanDurationPerRefresh = nil
+        _ = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+
+        let initialCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        #expect(initialCache.files[duplicateURL.path]?.codexDuplicateSessionSuppressed == true)
+        try FileManager.default.removeItem(at: contributorURL)
+
+        let recoveredReport = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day.addingTimeInterval(1),
+            options: options)
+        let recoveredCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        #expect(recoveredCache.files[contributorURL.path] == nil)
+        #expect(recoveredCache.files[duplicateURL.path]?.codexDuplicateSessionSuppressed != true)
+        #expect(recoveredReport.summary?.totalTokens == 110)
+    }
+
+    @Test
     func `bounded progress accumulates while retaining a wider scan window`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }

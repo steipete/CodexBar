@@ -3,6 +3,7 @@
 ## 0.56.4 — 2026-09-03
 
 ### Fixed
+- Usage & Spend: let local cost-history catch-up finish when an empty duplicate session fragment has no unique usage, while retaining recovery if the original contributing file is later removed (partial fix for #3316).
 - Codex: let cost-history catch-up finish while active rollout files keep growing, preserving complete session and subagent accounting without publishing partial tails (#3243, #3314). Thanks @LeoLin990405!
 - Antigravity: restore token history from newer local sessions whose timestamps moved to the steps table, while rejecting missing, duplicate, or conflicting timestamp evidence instead of inventing dates (#3266, #3396). Thanks @chid!
 - Codex: keep each managed account's selected workspace authoritative across stacked refreshes, credits, history, menu rows, reconciliation, and System Account promotion instead of reverting to or rewriting the auth file's default workspace (#3347, #3348, #3386). Thanks @krevoit!
