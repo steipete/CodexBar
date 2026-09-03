@@ -304,8 +304,13 @@ struct SpendActivityGridGeometry {
         return min(max(anchorX, lower), upper)
     }
 
-    static func tooltipOriginY(anchorY: CGFloat, tooltipHeight: CGFloat, gridHeight _: CGFloat) -> CGFloat {
-        anchorY - tooltipHeight - self.tooltipGap
+    static func tooltipOriginY(anchorY: CGFloat, tooltipHeight: CGFloat, gridHeight: CGFloat) -> CGFloat {
+        let above = anchorY - tooltipHeight - self.tooltipGap
+        if above >= self.tooltipInset {
+            return above
+        }
+        let below = anchorY + self.tooltipGap
+        return min(below, max(gridHeight - tooltipHeight - self.tooltipInset, self.tooltipInset))
     }
 }
 
