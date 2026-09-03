@@ -445,6 +445,7 @@ extension AntigravityLocalReader {
                 recoveredCount += 1
             }
         }
+        source.events.sort { $0.row < $1.row }
         return recoveredCount
     }
     #endif
