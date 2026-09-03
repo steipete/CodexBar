@@ -141,6 +141,7 @@ See [CLI configuration](docs/cli-configuration.md) for the full flow.
 - [ZenMux](docs/zenmux.md) — Management API key for rolling five-hour and seven-day quota windows plus PAYG balance.
 - [xAI](docs/xai.md) — Management API key + team ID for prepaid credit balance and daily platform spend.
 - [IBM Bob](docs/ibm-bob.md) — API key for monthly Bobcoin budget and usage across subscription teams.
+- [Muse](docs/muse.md) — local session logs for daily token usage; `muse login` supplies account identity. Meta publishes no usage endpoint, so no quota is shown.
 - Open to new providers: [provider authoring guide](docs/provider.md).
 
 ## Icon & Screenshot

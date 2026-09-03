@@ -208,6 +208,7 @@ struct ProviderCredentialCharacterizationTests {
             (.neuralwatt, "NEURALWATT_API_KEY"),
             (.groq, "GROQ_API_KEY"),
             (.llmproxy, "LLM_PROXY_API_KEY"),
+            (.muse, "META_API_KEY"),
             (.litellm, "LITELLM_API_KEY"),
             (.sub2api, "SUB2API_API_KEY"),
             (.ibmbob, "BOBSHELL_API_KEY"),

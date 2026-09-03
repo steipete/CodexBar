@@ -77,7 +77,8 @@ struct SpendDashboardModelTests {
             .mistral,
             .bedrock,
             .cursor,
-            .grok,
+            // Muse reports tokens from local session logs; Meta publishes no cost endpoint.
+            .grok, .muse,
             .opencodego,
             .openrouter,
             .xai,

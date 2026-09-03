@@ -451,25 +451,23 @@ public struct CostUsageFetcher: Sendable {
                 calendar: fallbackCalendar,
                 historyCoverageIsEstablished: false)
         }
-        // Provider-specific by design: Antigravity uses recognized local stores without generic pricing or cache scans.
-        if provider == .antigravity {
-            if let local = try await self.loadAntigravityLocalSnapshot(
-                context: AntigravityLocalReader.Context(environment: environment),
-                now: now,
-                historyDays: clampedHistoryDays,
-                calendar: fallbackCalendar)
-            {
-                return local
-            }
-            if let remoteError {
-                throw remoteError
-            }
-            return Self.tokenSnapshot(
-                from: CostUsageDailyReport(data: [], summary: nil),
+        // Provider-specific by design: Muse records durable session logs and publishes no usage endpoint.
+        if provider == .muse {
+            return try await self.museLocalSnapshotOrEmpty(
+                environment: environment,
                 now: now,
                 historyDays: clampedHistoryDays,
                 calendar: fallbackCalendar,
-                historyCoverageIsEstablished: false)
+                remoteError: remoteError)
+        }
+        // Provider-specific by design: Antigravity uses recognized local stores without generic pricing or cache scans.
+        if provider == .antigravity {
+            return try await self.antigravityLocalSnapshotOrEmpty(
+                environment: environment,
+                now: now,
+                historyDays: clampedHistoryDays,
+                calendar: fallbackCalendar,
+                remoteError: remoteError)
         }
         if let remoteError {
             throw remoteError
@@ -1259,6 +1257,114 @@ public struct CostUsageFetcher: Sendable {
         let daily = CostUsageDailyReport(data: filtered, summary: filteredSummary)
         return Self.tokenSnapshot(
             from: daily,
+            now: now,
+            historyDays: historyDays,
+            useCurrentLocalDayForSession: true,
+            calendar: cal,
+            historyCoverageIsEstablished: reportResult.isComplete,
+            costProvenance: .unknown)
+    }
+
+    /// Mirrors ``museLocalSnapshotOrEmpty`` for Antigravity's local stores.
+    private static func antigravityLocalSnapshotOrEmpty(
+        environment: [String: String],
+        now: Date,
+        historyDays: Int,
+        calendar: Calendar,
+        remoteError: (any Error)?) async throws -> CostUsageTokenSnapshot
+    {
+        if let local = try await self.loadAntigravityLocalSnapshot(
+            context: AntigravityLocalReader.Context(environment: environment),
+            now: now,
+            historyDays: historyDays,
+            calendar: calendar)
+        {
+            return local
+        }
+        if let remoteError {
+            throw remoteError
+        }
+        return Self.tokenSnapshot(
+            from: CostUsageDailyReport(data: [], summary: nil),
+            now: now,
+            historyDays: historyDays,
+            calendar: calendar,
+            historyCoverageIsEstablished: false)
+    }
+
+    /// Muse's only usage source is local, so a missing read falls through to an empty snapshot rather
+    /// than to a remote retry.
+    private static func museLocalSnapshotOrEmpty(
+        environment: [String: String],
+        now: Date,
+        historyDays: Int,
+        calendar: Calendar,
+        remoteError: (any Error)?) async throws -> CostUsageTokenSnapshot
+    {
+        if let local = try await self.loadMuseLocalSnapshot(
+            context: MuseLocalUsageReader.Context(environment: environment),
+            now: now,
+            historyDays: historyDays,
+            calendar: calendar)
+        {
+            return local
+        }
+        if let remoteError {
+            throw remoteError
+        }
+        return Self.tokenSnapshot(
+            from: CostUsageDailyReport(data: [], summary: nil),
+            now: now,
+            historyDays: historyDays,
+            calendar: calendar,
+            historyCoverageIsEstablished: false)
+    }
+
+    /// Builds a Muse token snapshot from the CLI's local session logs.
+    ///
+    /// Muse exposes no usage endpoint, so this is the provider's only quota-free data source. Costs
+    /// stay `nil`: the logs record tokens, not billed amounts, and Meta prices per tier.
+    private static func loadMuseLocalSnapshot(
+        context: MuseLocalUsageReader.Context,
+        now: Date,
+        historyDays: Int,
+        cacheRoot: URL? = nil,
+        calendar: Calendar = .current) async throws -> CostUsageTokenSnapshot?
+    {
+        let cal = calendar
+        let windowStart = cal.date(byAdding: .day, value: -(historyDays - 1), to: cal.startOfDay(for: now)) ?? now
+        let sinceDayKey = CostUsageLocalDay.key(from: windowStart, calendar: cal)
+        let reportResult = try await CostUsageScanExecutor.run { checkCancellation in
+            try MuseLocalUsageReader.makeDailyReportWithStatus(
+                context: context,
+                calendar: cal,
+                sinceDayKey: sinceDayKey,
+                cacheRoot: cacheRoot,
+                checkCancellation: checkCancellation)
+        }
+        guard reportResult.isAvailable else { return nil }
+        let report = reportResult.report
+        if report.data.isEmpty {
+            guard reportResult.isComplete else { return nil }
+            return Self.tokenSnapshot(
+                from: CostUsageDailyReport(data: [], summary: nil),
+                now: now,
+                historyDays: historyDays,
+                useCurrentLocalDayForSession: true,
+                calendar: cal,
+                historyCoverageIsEstablished: true,
+                costProvenance: .unknown)
+        }
+        let nowKey = CostUsageLocalDay.key(from: now, calendar: cal)
+        let filtered = report.data.filter { $0.date >= sinceDayKey && $0.date <= nowKey }
+        let totalTokens = MuseLocalUsageReader.checkedSum(filtered.compactMap(\.totalTokens))
+        let filteredSummary: CostUsageDailyReport.Summary? = filtered.isEmpty ? nil : .init(
+            totalInputTokens: MuseLocalUsageReader.checkedSum(filtered.compactMap(\.inputTokens)),
+            totalOutputTokens: MuseLocalUsageReader.checkedSum(filtered.compactMap(\.outputTokens)),
+            totalTokens: totalTokens,
+            totalCostUSD: nil)
+        return Self.tokenSnapshot(
+            from: CostUsageDailyReport(data: filtered, summary: filteredSummary),
             now: now,
             historyDays: historyDays,
             useCurrentLocalDayForSession: true,
