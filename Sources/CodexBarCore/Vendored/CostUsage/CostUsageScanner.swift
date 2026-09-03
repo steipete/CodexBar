@@ -386,6 +386,7 @@ enum CostUsageScanner {
         var contributingSessionIds: Set<String> = []
         var seenFileIds: Set<String> = []
         var seenCodexUsageRowKeys: Set<String> = []
+        var cachedContributorFileIdsBySessionId: [String: Set<String>] = [:]
     }
 
     struct CodexScannedSession {
@@ -6287,7 +6288,9 @@ enum CostUsageScanner {
         cache: inout CostUsageCache,
         inheritedResolver: CodexInheritedTotalsResolver) throws -> CodexFileScanResult
     {
+        let cachedContributorFileIdsBySessionId = Self.codexCachedLiveContributorFileIdsBySessionId(cache: cache)
         var scanState = CodexScanState()
+        scanState.cachedContributorFileIdsBySessionId = cachedContributorFileIdsBySessionId
         var bufferedForkRetries: [URL] = []
         var visitedPaths = Set(files.map(\.standardizedFileURL.path))
         var scannedPaths = Set(files.map(\.path))
@@ -6318,6 +6321,7 @@ enum CostUsageScanner {
         // children. Scan those dependencies through the same budgeted path and retain their cache
         // entries so later passes can resume instead of restarting from byte zero.
         var dependencyState = CodexScanState()
+        dependencyState.cachedContributorFileIdsBySessionId = cachedContributorFileIdsBySessionId
         dependencyScan: while true {
             let pendingParents = inheritedResolver.takePendingParentFiles().filter {
                 visitedPaths.insert($0.standardizedFileURL.path).inserted
@@ -6350,6 +6354,7 @@ enum CostUsageScanner {
         // refresh has indexed the parent, replay the child's compact parsed events in memory;
         // do not reread the JSONL or wait for another refresh.
         var retryState = CodexScanState()
+        retryState.cachedContributorFileIdsBySessionId = cachedContributorFileIdsBySessionId
         var retriedPaths: Set<String> = []
         for fileURL in bufferedForkRetries where retriedPaths.insert(fileURL.path).inserted {
             guard Self.shouldRetryBufferedCodexFork(cache.files[fileURL.path]) else { continue }

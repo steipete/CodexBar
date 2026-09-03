@@ -783,8 +783,25 @@ extension CostUsageScanner {
 
         guard !Self.cachedCodexFileNeedsPriorityRescan(cached, context: context) else { return false }
 
-        let sessionAlreadyContributed = cached.sessionId.map { state.contributingSessionIds.contains($0) } ?? false
+        let sessionAlreadyContributed = cached.sessionId.map {
+            Self.codexSessionAlreadyContributed(
+                sessionId: $0,
+                excluding: input.metadata,
+                state: state)
+        } ?? false
         let cachedRows = cached.codexRows ?? []
+        if Self.cachedCodexRowsNeedIdentityRescan(cached) {
+            return false
+        }
+        if let parentSessionId = cached.forkedFromId {
+            guard let cachedDependencyKey = cached.forkBaselineDependencyKey else { return false }
+            if cachedDependencyKey != Self.codexForkDependencyNotRequiredKey {
+                guard let currentDependencyKey = try context.resources.inheritedResolver
+                    .currentDependencyKey(for: parentSessionId)
+                else { return false }
+                guard cachedDependencyKey == currentDependencyKey else { return false }
+            }
+        }
         if cached.codexDuplicateSessionSuppressed == true {
             guard sessionAlreadyContributed else {
                 // The prior contributor is absent or is ordered after this file. Reparse so
@@ -798,18 +815,6 @@ extension CostUsageScanner {
                 context: context,
                 state: &state)
             return true
-        }
-        if Self.cachedCodexRowsNeedIdentityRescan(cached) {
-            return false
-        }
-        if let parentSessionId = cached.forkedFromId {
-            guard let cachedDependencyKey = cached.forkBaselineDependencyKey else { return false }
-            if cachedDependencyKey != Self.codexForkDependencyNotRequiredKey {
-                guard let currentDependencyKey = try context.resources.inheritedResolver
-                    .currentDependencyKey(for: parentSessionId)
-                else { return false }
-                guard cachedDependencyKey == currentDependencyKey else { return false }
-            }
         }
 
         if sessionAlreadyContributed {
@@ -858,6 +863,43 @@ extension CostUsageScanner {
             context: context,
             state: &state)
         return true
+    }
+
+    private static func codexSessionAlreadyContributed(
+        sessionId: String,
+        excluding inputMetadata: CodexFileMetadata,
+        state: CodexScanState) -> Bool
+    {
+        if state.contributingSessionIds.contains(sessionId) {
+            return true
+        }
+        let inputFileId = inputMetadata.fileId ?? inputMetadata.path
+        return state.cachedContributorFileIdsBySessionId[sessionId]?.contains { $0 != inputFileId } == true
+    }
+
+    static func codexCachedLiveContributorFileIdsBySessionId(
+        cache: CostUsageCache) -> [String: Set<String>]
+    {
+        cache.files.reduce(into: [:]) { result, entry in
+            let (path, usage) = entry
+            guard let sessionId = usage.sessionId,
+                  !usage.days.isEmpty,
+                  usage.codexDuplicateSessionSuppressed != true,
+                  usage.codexScanComplete != false,
+                  usage.codexJSONLResumeState == nil,
+                  !usage.hasBufferedCodexForkRetryLines
+            else { return }
+            let metadata = Self.codexFileMetadata(fileURL: URL(fileURLWithPath: path))
+            guard let fileId = metadata.fileId,
+                  usage.codexScanFileId == nil || usage.codexScanFileId == fileId,
+                  usage.mtimeUnixMs == metadata.mtimeUnixMs,
+                  usage.size == metadata.size
+            else { return }
+            let parsedBytes = usage.parsedBytes ?? usage.size
+            let targetSize = usage.codexScanTargetSize ?? usage.size
+            guard parsedBytes >= usage.size, parsedBytes >= targetSize else { return }
+            result[sessionId, default: []].insert(fileId)
+        }
     }
 
     static func cachedCodexFileNeedsPriorityRescan(
@@ -1044,7 +1086,12 @@ extension CostUsageScanner {
         let canonicalProjectPath = delta.projectPath.map {
             context.resources.projectPathResolver.canonicalProjectPath(for: $0)
         } ?? cached.canonicalProjectPath ?? context.resources.projectPathResolver.canonicalProjectPath(for: projectPath)
-        let sessionAlreadyContributed = sessionId.map { state.contributingSessionIds.contains($0) } ?? false
+        let sessionAlreadyContributed = sessionId.map {
+            Self.codexSessionAlreadyContributed(
+                sessionId: $0,
+                excluding: input.metadata,
+                state: state)
+        } ?? false
         let cachedRows = cached.codexRows ?? []
         let retainedCachedRows: [CodexUsageRow]
         if sessionAlreadyContributed {
@@ -1223,7 +1270,10 @@ extension CostUsageScanner {
             state: &state)
         context.workRecorder?.record(processed: uniqueRows.count, repriced: uniqueRows.count)
         let suppressDuplicate = if let sessionId,
-                                   state.contributingSessionIds.contains(sessionId),
+                                   Self.codexSessionAlreadyContributed(
+                                       sessionId: sessionId,
+                                       excluding: input.metadata,
+                                       state: state),
                                    uniqueRows.isEmpty,
                                    usageDays.isEmpty,
                                    parsed.bufferedSubagentLines == nil,

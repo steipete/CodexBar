@@ -4176,6 +4176,100 @@ struct CostUsageScannerBreakdownTests {
     }
 
     @Test
+    func `suppressed duplicate fork refreshes its parent dependency key`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let parentDay = try env.makeLocalNoon(year: 2026, month: 2, day: 1)
+        let childDay = try env.makeLocalNoon(year: 2026, month: 3, day: 11)
+        let model = "openai/gpt-5.2-codex"
+        let parentSessionId = "suppressed-parent"
+        let childSessionId = "suppressed-child"
+        let forkTimestamp = env.isoString(for: parentDay.addingTimeInterval(3))
+        let parentMetadata: [String: Any] = [
+            "type": "session_meta",
+            "payload": ["id": parentSessionId],
+        ]
+        let firstParentUsage = self.codexTokenCount(
+            timestamp: env.isoString(for: parentDay.addingTimeInterval(1)),
+            model: model,
+            total: (input: 20, cached: 5, output: 2))
+        let parentURL = try env.writeCodexSessionFile(
+            day: parentDay,
+            filename: "rollout-2026-02-01T12-00-00-\(parentSessionId).jsonl",
+            contents: env.jsonl([
+                parentMetadata,
+                self.codexTurnContext(timestamp: env.isoString(for: parentDay), model: model),
+                firstParentUsage,
+            ]))
+        let childContents = env.jsonl([
+            [
+                "type": "session_meta",
+                "payload": [
+                    "id": childSessionId,
+                    "forked_from_id": parentSessionId,
+                    "timestamp": forkTimestamp,
+                ],
+            ],
+            self.codexTurnContext(timestamp: env.isoString(for: childDay), model: model),
+            self.codexTokenCount(
+                timestamp: env.isoString(for: childDay.addingTimeInterval(1)),
+                model: model,
+                total: (input: 20, cached: 5, output: 2)),
+            self.codexTokenCount(
+                timestamp: env.isoString(for: childDay.addingTimeInterval(2)),
+                model: model,
+                total: (input: 37, cached: 10, output: 5)),
+        ])
+        _ = try env.writeCodexSessionFile(
+            day: childDay,
+            filename: "a-child.jsonl",
+            contents: childContents)
+        let duplicateURL = try env.writeCodexSessionFile(
+            day: childDay,
+            filename: "b-child.jsonl",
+            contents: childContents)
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: nil,
+            cacheRoot: env.cacheRoot)
+        options.refreshMinIntervalSeconds = 0
+        _ = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: childDay,
+            until: childDay,
+            now: childDay,
+            options: options)
+
+        let firstCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        let firstDuplicate = try #require(firstCache.files[duplicateURL.path])
+        let firstDependencyKey = try #require(firstDuplicate.forkBaselineDependencyKey)
+        #expect(firstDuplicate.codexDuplicateSessionSuppressed == true)
+
+        try env.jsonl([
+            parentMetadata,
+            self.codexTurnContext(timestamp: env.isoString(for: parentDay), model: model),
+            firstParentUsage,
+            self.codexTokenCount(
+                timestamp: env.isoString(for: parentDay.addingTimeInterval(2)),
+                model: model,
+                total: (input: 30, cached: 8, output: 3)),
+        ]).write(to: parentURL, atomically: true, encoding: .utf8)
+        _ = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: childDay,
+            until: childDay,
+            now: childDay.addingTimeInterval(1),
+            options: options)
+
+        let refreshedCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        let refreshedDuplicate = try #require(refreshedCache.files[duplicateURL.path])
+        #expect(refreshedDuplicate.codexDuplicateSessionSuppressed == true)
+        #expect(refreshedDuplicate.forkBaselineDependencyKey != firstDependencyKey)
+    }
+
+    @Test
     func `codex warm cache invalidates fork when missing parent appears`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }

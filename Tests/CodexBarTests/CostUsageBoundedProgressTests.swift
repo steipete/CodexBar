@@ -89,6 +89,60 @@ struct CostUsageBoundedProgressTests {
     }
 
     @Test
+    func `cached contributor suppresses a duplicate scanned first on a later refresh`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 5, day: 10)
+        let iso = env.isoString(for: day)
+        let duplicateURL = try env.seedCodexSessionFile(
+            day: day,
+            filename: "a-empty.jsonl",
+            contents: [
+                #"{"type":"session_meta","timestamp":"\#(iso)","payload":{"session_id":"shared-session"}}"#,
+                #"{"type":"turn_context","timestamp":"\#(iso)","payload":{"model":"openai/gpt-5.2-codex"}}"#,
+                #"{"type":"event_msg","timestamp":"\#(iso)","payload":{"type":"token_count","info":null}}"#,
+                #"{"type":"event_msg","timestamp":"\#(iso)","payload":{"type":"turn_aborted"}}"#,
+            ].joined(separator: "\n") + "\n")
+
+        var options = Self.boundedOptions(env: env)
+        options.maxCodexScanDurationPerRefresh = nil
+        options.preferNewestCodexSessionsFirst = false
+        _ = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+
+        _ = try env.seedCodexSessionFile(
+            day: day,
+            filename: "b-contributor.jsonl",
+            contents: [
+                #"{"type":"session_meta","timestamp":"\#(iso)","payload":{"session_id":"shared-session"}}"#,
+                #"{"type":"turn_context","timestamp":"\#(iso)","payload":{"model":"openai/gpt-5.2-codex"}}"#,
+                #"{"type":"event_msg","timestamp":"\#(iso)","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":100,"cached_input_tokens":20,"output_tokens":10},"model":"openai/gpt-5.2-codex"}}}"#,
+            ].joined(separator: "\n") + "\n")
+        _ = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day.addingTimeInterval(1),
+            options: options)
+        let preexistingCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        #expect(preexistingCache.files[duplicateURL.path]?.codexDuplicateSessionSuppressed != true)
+
+        let report = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day.addingTimeInterval(2),
+            options: options)
+        let refreshedCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        #expect(refreshedCache.files[duplicateURL.path]?.codexDuplicateSessionSuppressed == true)
+        #expect(report.summary?.totalTokens == 110)
+    }
+
+    @Test
     func `bounded progress accumulates while retaining a wider scan window`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
