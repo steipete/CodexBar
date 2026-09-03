@@ -281,8 +281,8 @@ enum SpendActivityLevels {
 struct SpendActivityGridGeometry {
     static let weekdayGutterWidth: CGFloat = 40
     static let gridSpacing: CGFloat = 8
-    static let tooltipInset: CGFloat = 4
-    static let tooltipGap: CGFloat = 7
+    static let tooltipInset: CGFloat = 8
+    static let tooltipGap: CGFloat = 5
     static let tooltipWidth: CGFloat = 148
     static let tooltipHeight: CGFloat = 50
 
@@ -304,12 +304,8 @@ struct SpendActivityGridGeometry {
         return min(max(anchorX, lower), upper)
     }
 
-    static func tooltipOriginY(anchorY: CGFloat, tooltipHeight: CGFloat, gridHeight: CGFloat) -> CGFloat {
-        let below = anchorY + self.tooltipGap
-        if below + tooltipHeight <= gridHeight {
-            return below
-        }
-        return max(anchorY - tooltipHeight - self.tooltipGap, 0)
+    static func tooltipOriginY(anchorY: CGFloat, tooltipHeight: CGFloat, gridHeight _: CGFloat) -> CGFloat {
+        anchorY - tooltipHeight - self.tooltipGap
     }
 }
 
@@ -587,6 +583,7 @@ private struct SpendActivityDailyGrid: View {
             .aspectRatio(CGFloat(self.columns + 2) / CGFloat(self.rows), contentMode: .fit)
         }
         .focusable()
+        .focusEffectDisabled()
         .focused(self.$isKeyboardFocused)
         .onMoveCommand(perform: self.moveKeyboardSelection)
         .onChange(of: self.isKeyboardFocused) { _, isFocused in

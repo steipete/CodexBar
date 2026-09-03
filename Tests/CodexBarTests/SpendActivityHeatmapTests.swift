@@ -485,14 +485,17 @@ struct SpendActivityHeatmapTests {
         #expect(centered == 500)
         #expect(trailing > 900)
         #expect(trailing <= gridWidth - width / 2)
-        #expect(SpendActivityGridGeometry.tooltipOriginY(
-            anchorY: 10,
-            tooltipHeight: 50,
-            gridHeight: 130) > 10)
-        #expect(SpendActivityGridGeometry.tooltipOriginY(
-            anchorY: 120,
-            tooltipHeight: 50,
-            gridHeight: 130) < 70)
+    }
+
+    @Test
+    func `tooltip always sits a fixed gap above the hovered cell`() {
+        for anchorY: CGFloat in [0, 10, 65, 120] {
+            let originY = SpendActivityGridGeometry.tooltipOriginY(
+                anchorY: anchorY,
+                tooltipHeight: 50,
+                gridHeight: 130)
+            #expect(originY == anchorY - 50 - SpendActivityGridGeometry.tooltipGap)
+        }
     }
 
     @Test
