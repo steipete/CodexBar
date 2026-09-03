@@ -7,6 +7,10 @@ read_when:
 
 # UI & icon
 
+## Settings
+- Both the application menu and status menu open About in the Settings window. An existing Settings window is reused
+  and switches to the About pane.
+
 ## Menu bar
 - LSUIElement app: no Dock icon; status item uses custom NSImage.
 - Merge Icons toggle combines providers into one status item with a switcher.
