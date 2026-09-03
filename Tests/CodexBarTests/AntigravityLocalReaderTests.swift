@@ -575,6 +575,25 @@ struct AntigravityLocalReaderTests {
     }
 
     @Test
+    func `NULL step occurrence cannot turn one timestamp into shared coverage`() throws {
+        let fixture = try Fixture()
+        let stepUUID = "null-shared-step-uuid"
+        let turns = (0..<2).map { _ in Fixture.blobWithRootEnvelope(stepUUID: stepUUID, seconds: nil) }
+        let valid = Fixture.stepMetadataBlob(stepUUID: stepUUID, seconds: 1_787_875_260)
+        let url = try fixture.database(blobs: turns)
+        let database = try Fixture.open(url)
+        defer { sqlite3_close(database) }
+        try Fixture.execute(database, "CREATE TABLE steps (idx INTEGER, metadata BLOB)")
+        try Fixture.execute(database, "INSERT INTO steps (idx, metadata) VALUES (10, NULL)")
+        try Fixture.insertStep(database, row: 20, blob: valid)
+
+        let report = try fixture.report()
+
+        #expect(report.coverage == .partial)
+        #expect(report.report.data.isEmpty)
+    }
+
+    @Test
     func `multiple timestamps cannot be guessed across more reused turns`() throws {
         let fixture = try Fixture()
         let stepUUID = "ambiguous-reused-step-uuid"

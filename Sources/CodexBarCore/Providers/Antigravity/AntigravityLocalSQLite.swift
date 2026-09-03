@@ -261,7 +261,7 @@ extension AntigravityLocalReader {
         SELECT idx, CASE WHEN typeof(metadata) = 'blob' THEN length(metadata) END,
             CASE WHEN typeof(metadata) = 'blob'
                 AND length(metadata) <= antigravity_step_payload_limit() THEN metadata END
-        FROM main.steps NOT INDEXED WHERE metadata IS NOT NULL
+        FROM main.steps NOT INDEXED
         """
         let prepared = sqlite3_prepare_v2(database, query, -1, &statement, nil)
         if let failure = progress.failure {
