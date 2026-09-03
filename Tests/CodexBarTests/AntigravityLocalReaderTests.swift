@@ -593,6 +593,40 @@ struct AntigravityLocalReaderTests {
         #expect(report.report.data.isEmpty)
     }
 
+    @Test(arguments: [String?.none, ""])
+    func `unidentified step occurrence cannot turn one timestamp into shared coverage`(
+        unidentifiedStepUUID: String?) throws
+    {
+        let fixture = try Fixture()
+        let stepUUID = "unidentified-shared-step-uuid"
+        let turns = (0..<2).map { _ in Fixture.blobWithRootEnvelope(stepUUID: stepUUID, seconds: nil) }
+        let unidentified = Fixture.stepMetadataBlob(
+            stepUUID: unidentifiedStepUUID,
+            seconds: 1_787_875_140)
+        let valid = Fixture.stepMetadataBlob(stepUUID: stepUUID, seconds: 1_787_875_260)
+        try fixture.database(blobs: turns, stepBlobs: [unidentified, valid])
+
+        let report = try fixture.report()
+
+        #expect(report.coverage == .partial)
+        #expect(report.report.data.isEmpty)
+    }
+
+    @Test
+    func `unidentified timestamp-less step occurrence cannot turn one timestamp into shared coverage`() throws {
+        let fixture = try Fixture()
+        let stepUUID = "unidentified-timestamp-less-step-uuid"
+        let turns = (0..<2).map { _ in Fixture.blobWithRootEnvelope(stepUUID: stepUUID, seconds: nil) }
+        let unidentified = Fixture.varint(99, 1)
+        let valid = Fixture.stepMetadataBlob(stepUUID: stepUUID, seconds: 1_787_875_260)
+        try fixture.database(blobs: turns, stepBlobs: [unidentified, valid])
+
+        let report = try fixture.report()
+
+        #expect(report.coverage == .partial)
+        #expect(report.report.data.isEmpty)
+    }
+
     @Test
     func `multiple timestamps cannot be guessed across more reused turns`() throws {
         let fixture = try Fixture()

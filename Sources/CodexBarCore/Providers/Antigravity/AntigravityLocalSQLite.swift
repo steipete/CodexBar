@@ -309,7 +309,11 @@ extension AntigravityLocalReader {
                 rowsAreValid = false
                 continue
             }
-            if let stepUUID = parsed.stepUUID, neededStepUUIDCounts[stepUUID] != nil {
+            guard let stepUUID = parsed.stepUUID, !stepUUID.isEmpty else {
+                rowsAreValid = false
+                continue
+            }
+            if neededStepUUIDCounts[stepUUID] != nil {
                 stepTimestamps[stepUUID, default: []].append(StepTimestamp(
                     row: sqlite3_column_int64(statement, 0),
                     timestampMs: parsed.timestampMs))

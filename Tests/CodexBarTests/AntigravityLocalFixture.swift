@@ -208,12 +208,12 @@ final class AntigravityLocalFixture: Sendable {
     }
 
     static func stepMetadataBlob(
-        stepUUID: String = "step-uuid-1",
+        stepUUID: String? = "step-uuid-1",
         seconds: UInt64 = 1_787_832_000,
         nanos: UInt64 = 250_000_000) -> [UInt8]
     {
         var meta = self.message(1, self.varint(1, seconds) + self.varint(2, nanos))
-        meta += self.message(12, Array(stepUUID.utf8))
+        if let stepUUID { meta += self.message(12, Array(stepUUID.utf8)) }
         return meta
     }
 
