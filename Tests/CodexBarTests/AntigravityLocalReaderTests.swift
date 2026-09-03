@@ -662,20 +662,29 @@ struct AntigravityLocalReaderTests {
     @Test
     func `recovered rows retain generation order beside embedded rows`() throws {
         let fixture = try Fixture()
-        let recovered = Fixture.blobWithRootEnvelope(stepUUID: "recovered-step", seconds: nil)
+        let response = "shared-order-response"
+        let recovered = Fixture.blobWithRootEnvelope(
+            stepUUID: "recovered-step",
+            response: response,
+            seconds: nil)
         let embedded = Fixture.blobWithRootEnvelope(
             stepUUID: "embedded-step",
             input: 200,
-            seconds: 1_787_875_260)
-        let step = Fixture.stepMetadataBlob(stepUUID: "recovered-step", seconds: 1_787_875_140, nanos: 0)
+            response: response,
+            seconds: 1_787_875_140)
+        let step = Fixture.stepMetadataBlob(stepUUID: "recovered-step", seconds: 1_787_875_260, nanos: 0)
         let url = try fixture.database(blobs: [recovered, embedded], stepBlobs: [step])
         let budget = AntigravityLocalReader.Budget(limits: .init(), cancellation: {})
 
         let source = try AntigravityLocalReader.readDatabases([url], budget: budget)
+        let report = try fixture.report()
 
         #expect(source.isComplete)
         #expect(source.events.map(\.row) == [0, 1])
-        #expect(source.events.map(\.turn.timestampMs) == [1_787_875_140_000, 1_787_875_260_250])
+        #expect(source.events.map(\.turn.timestampMs) == [1_787_875_260_000, 1_787_875_140_250])
+        #expect(report.coverage == .partial)
+        #expect(report.report.data.map(\.date) == ["2026-08-28"])
+        #expect(report.report.data.map(\.inputTokens) == [111])
     }
 
     @Test
