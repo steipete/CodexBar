@@ -82,7 +82,7 @@ struct SpendDashboardModelTests {
             .openrouter,
             .xai,
             // Antigravity joined via the tokscale-compatible local usage readers.
-            .antigravity,
+            .antigravity, .pi,
         ])
     }
 

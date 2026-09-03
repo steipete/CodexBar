@@ -41,6 +41,7 @@ enum PiFamilySessionFileParser {
               header["type"] as? String == "session",
               let id = header["id"] as? String
         else { return nil }
+        // Provider-specific by design: Pi session files require the upstream v3 header contract.
         if dialect == .pi, header["version"] as? Int != 3 {
             return nil
         }
@@ -513,6 +514,7 @@ struct PiFamilySessionScanner: Sendable {
         let now = input.now
         let host = input.host
         let config = input.config
+        // Provider-specific by design: Pi-family sessions are correlated only with Pi provider processes.
         let liveProcesses = Array(AgentSessionCorrelation.newestProcessesFirst(
             processes.filter { AgentPSOutputParser.provider(for: $0) == .pi })
             .prefix(max(0, config.maxProcessCount)))
@@ -579,6 +581,7 @@ struct PiFamilySessionScanner: Sendable {
             let id = record?.id ?? "pid:\(process.pid)"
             let startedAt = record?.startedAt ?? process.startedAt
 
+            // Provider-specific by design: this branch emits a Pi-family AgentSession with its fixed provider identity.
             sessions.append(AgentSession(
                 id: id,
                 provider: .pi,
@@ -631,6 +634,7 @@ struct PiFamilySessionScanner: Sendable {
             return [SessionRoot(url: url, layout: .direct)]
         }
 
+        // Provider-specific by design: Pi and OMP use different on-disk session-root contracts.
         switch dialect {
         case .pi:
             if let agentDirectory = environment["PI_CODING_AGENT_DIR"],
@@ -644,6 +648,7 @@ struct PiFamilySessionScanner: Sendable {
                 return [SessionRoot(url: configured, layout: .direct)]
             }
             guard let home = Self.homeURL(environment) else { return [] }
+            // Provider-specific by design: this path is Pi's default project session directory.
             return [SessionRoot(
                 url: home
                     .appendingPathComponent(".pi", isDirectory: true)
@@ -732,6 +737,7 @@ struct PiFamilySessionScanner: Sendable {
 
     private static func piSettingsSessionDirectory(cwd: String, environment: [String: String]) -> URL? {
         guard let home = homeURL(environment) else { return nil }
+        // Provider-specific by design: Pi reads its global and project settings from the upstream .pi locations.
         let globalSettings = home
             .appendingPathComponent(".pi", isDirectory: true)
             .appendingPathComponent("agent", isDirectory: true)

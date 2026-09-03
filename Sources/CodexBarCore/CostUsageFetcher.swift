@@ -385,6 +385,7 @@ public struct CostUsageFetcher: Sendable {
         return options
     }
 
+    // swiftlint:disable:next function_body_length cyclomatic_complexity
     static func loadTokenSnapshot(
         provider: UsageProvider,
         environment: [String: String] = ProcessInfo.processInfo.environment,
@@ -473,6 +474,91 @@ public struct CostUsageFetcher: Sendable {
         }
         if let remoteError {
             throw remoteError
+        }
+
+        // Provider-specific by design: Pi has an independent aggregate token-cost history over its local JSONL logs.
+        if provider == .pi {
+            var piOptionsOnly = overridePiScannerOptions ?? PiSessionCostScanner.Options()
+            if piOptionsOnly.cacheRoot == nil {
+                piOptionsOnly.cacheRoot = overrideScannerOptions?.cacheRoot
+            }
+            if overrideScannerOptions != nil {
+                piOptionsOnly.calendar = Self.resolvedScannerOptions(
+                    overrideScannerOptions,
+                    provider: .pi,
+                    codexHomePath: codexHomePath).calendar
+            }
+            if forceRefresh || bypassScannerDebounce {
+                piOptionsOnly.refreshMinIntervalSeconds = 0
+            }
+            piOptionsOnly.forceRescan = forceRefresh
+            let piOptions = piOptionsOnly
+            let piSince = piOptionsOnly.calendar.date(byAdding: .day, value: -(clampedHistoryDays - 1), to: now) ?? now
+            await Self.refreshPricingIfAllowed(
+                options: PricingRefreshOptions(
+                    provider: .claude,
+                    isAllowed: allowPricingRefresh,
+                    retryUnknown: retryUnknownPricing,
+                    inBackground: refreshPricingInBackground),
+                now: now,
+                cacheRoot: piOptionsOnly.cacheRoot,
+                client: modelsDevClient)
+            let piScanResult: PiSessionCostScanner.DailyReportResult = try await CostUsageScanExecutor
+                .run { checkCancellation in
+                    try PiSessionCostScanner.loadDailyReportResultCancellable(
+                        // Provider-specific by design: this call reads Pi's local aggregate session ledger.
+                        provider: .pi,
+                        since: piSince,
+                        until: now,
+                        now: now,
+                        options: piOptions,
+                        checkCancellation: checkCancellation)
+                }
+            let piDaily = piScanResult.report
+            if allowPricingRefresh, retryUnknownPricing {
+                var didRefresh = false
+                // Provider-specific by design: Pi model names reuse the Codex and Claude pricing catalogs.
+                for pricingProvider in [UsageProvider.codex, UsageProvider.claude] {
+                    if let request = Self.unknownPricingRefreshRequest(
+                        provider: pricingProvider,
+                        daily: piDaily,
+                        now: now,
+                        cacheRoot: piOptionsOnly.cacheRoot,
+                        client: modelsDevClient),
+                        await Self.refreshUnknownPricingIfNeeded(request, inBackground: refreshPricingInBackground)
+                    {
+                        didRefresh = true
+                    }
+                }
+                if didRefresh, !refreshPricingInBackground {
+                    return try await self.loadTokenSnapshot(
+                        provider: provider,
+                        environment: environment,
+                        now: now,
+                        forceRefresh: forceRefresh,
+                        allowVertexClaudeFallback: allowVertexClaudeFallback,
+                        codexHomePath: codexHomePath,
+                        historyDays: historyDays,
+                        cursorCookieHeaderOverride: cursorCookieHeaderOverride,
+                        allowPricingRefresh: allowPricingRefresh,
+                        refreshPricingInBackground: false,
+                        includePiSessions: includePiSessions,
+                        scannerOptions: overrideScannerOptions,
+                        piScannerOptions: piOptionsOnly,
+                        modelsDevClient: modelsDevClient,
+                        retryUnknownPricing: false)
+                }
+            }
+            return Self.tokenSnapshot(
+                from: piDaily,
+                now: now,
+                historyDays: clampedHistoryDays,
+                calendar: piOptionsOnly.calendar,
+                historyCoverageIsEstablished: piScanResult.isComplete,
+                costProvenance: .listPriceEstimate,
+                projects: [],
+                sessions: [],
+                updatedAt: now)
         }
 
         var options = Self.resolvedScannerOptions(

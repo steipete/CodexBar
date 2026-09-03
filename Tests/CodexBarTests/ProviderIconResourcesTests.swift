@@ -80,6 +80,53 @@ struct ProviderIconResourcesTests {
     }
 
     @Test
+    func `pi provider icon is a transparent vector template`() throws {
+        let root = try Self.repoRoot()
+        let resourceURL = root
+            .appending(path: "Sources/CodexBar/Resources", directoryHint: .isDirectory)
+            .appending(path: "ProviderIcon-pi.svg")
+        let svg = try String(contentsOf: resourceURL, encoding: .utf8)
+
+        #expect(!svg.contains("<text"))
+        #expect(!svg.contains("<circle"))
+        #expect(svg.contains("fill=\"currentColor\""))
+
+        ProviderBrandIcon.resetCacheForTesting()
+        defer { ProviderBrandIcon.resetCacheForTesting() }
+        let image = try #require(ProviderBrandIcon.image(for: .pi))
+        #expect(image.isTemplate)
+
+        let bitmap = try #require(NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: 16,
+            pixelsHigh: 16,
+            bitsPerSample: 8,
+            samplesPerPixel: 4,
+            hasAlpha: true,
+            isPlanar: false,
+            colorSpaceName: .deviceRGB,
+            bytesPerRow: 0,
+            bitsPerPixel: 0))
+        let context = try #require(NSGraphicsContext(bitmapImageRep: bitmap))
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = context
+        context.cgContext.clear(CGRect(x: 0, y: 0, width: 16, height: 16))
+        image.draw(in: NSRect(x: 0, y: 0, width: 16, height: 16))
+        NSGraphicsContext.restoreGraphicsState()
+
+        var visiblePixels = 0
+        for y in 0..<bitmap.pixelsHigh {
+            for x in 0..<bitmap.pixelsWide
+                where (bitmap.colorAt(x: x, y: y)?.alphaComponent ?? 0) > 0
+            {
+                visiblePixels += 1
+            }
+        }
+        #expect(visiblePixels > 20)
+        #expect(visiblePixels < 180)
+    }
+
+    @Test
     func `registered providers resolve bundled brand icons`() {
         ProviderBrandIcon.resetCacheForTesting()
         defer { ProviderBrandIcon.resetCacheForTesting() }

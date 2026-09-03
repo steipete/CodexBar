@@ -24,6 +24,7 @@ enum LoadingPattern: String, CaseIterable, Identifiable {
     }
 
     /// Secondary offset so the lower bar moves differently.
+    /// Provider-specific by design: these are mathematical phase constants, not provider cases.
     var secondaryOffset: Double {
         switch self {
         case .knightRider: .pi

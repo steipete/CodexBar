@@ -38,18 +38,9 @@ enum PiSessionCostCacheIO {
 
         var cache = cache
         cache.timeZoneIdentifier = calendar.timeZone.identifier
-        let tmp = dir.appendingPathComponent(".tmp-\(UUID().uuidString).json", isDirectory: false)
-        let data = (try? JSONEncoder().encode(cache)) ?? Data()
-        do {
-            try data.write(to: tmp, options: [.atomic])
-            if FileManager.default.fileExists(atPath: url.path) {
-                _ = try FileManager.default.replaceItemAt(url, withItemAt: tmp)
-            } else {
-                try FileManager.default.moveItem(at: tmp, to: url)
-            }
-        } catch {
-            try? FileManager.default.removeItem(at: tmp)
-        }
+        guard let data = try? JSONEncoder().encode(cache) else { return }
+        // Write at the final path: FileManager replacement can lose the destination on Linux.
+        try? data.write(to: url, options: [.atomic])
     }
 }
 

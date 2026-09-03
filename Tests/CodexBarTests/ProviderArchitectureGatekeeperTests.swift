@@ -154,8 +154,8 @@ struct ProviderArchitectureGatekeeperTests {
             Self.hash(descriptor.branding.burnDownWidgetColor, into: &burnDownFingerprint)
         }
 
-        #expect(widgetFingerprint == 16_873_014_858_015_536_126)
-        #expect(burnDownFingerprint == 8_686_456_525_451_224_704)
+        #expect(widgetFingerprint == 6_736_829_075_055_609_822)
+        #expect(burnDownFingerprint == 10_357_277_471_029_413_559)
     }
 
     @Test
@@ -203,11 +203,11 @@ struct ProviderArchitectureGatekeeperTests {
         #if os(macOS)
         // Antigravity joined via the tokscale-compatible local usage readers.
         #expect(Set(descriptors.filter(\.tokenCost.supportsTokenSnapshot).map(\.id)) == [
-            .codex, .claude, .cursor, .vertexai, .bedrock, .antigravity,
+            .codex, .claude, .cursor, .vertexai, .bedrock, .antigravity, .pi,
         ])
         #else
         #expect(Set(descriptors.filter(\.tokenCost.supportsTokenSnapshot).map(\.id)) == [
-            .codex, .claude, .vertexai, .bedrock, .antigravity,
+            .codex, .claude, .vertexai, .bedrock, .antigravity, .pi,
         ])
         #endif
         #expect(Set(descriptors.filter { $0.cli.binaryLocator != nil }.map(\.id)) == [
@@ -838,6 +838,18 @@ struct ProviderArchitectureGatekeeperTests {
     /// policy.
     private static let suppressedProviderReferences: [SuppressedProviderReference] = [
         SuppressedProviderReference(
+            path: "Sources/CodexBar/IconRenderer.swift",
+            line: 625,
+            anchor: "let eyeTiltAngle: CGFloat = .pi / 3 // 60 degrees tilt",
+            expectedProviderIDs: ["pi"],
+            reason: "This is the mathematical constant π used by the renderer, not a provider selection."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/StatusItemController+Animation.swift",
+            line: 321,
+            anchor: "style == .combined ? 0 : self.tiltAmount(for: primaryProvider) * .pi / 28",
+            expectedProviderIDs: ["pi"],
+            reason: "This is the mathematical constant π used for an animation angle, not a provider selection."),
+        SuppressedProviderReference(
             path: "Sources/CodexBar/CodexAccountUsageSnapshotStore.swift",
             line: 220,
             anchor: "let identity = snapshot.identity(for: .codex)",
@@ -1422,19 +1434,19 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This provider-specific core branch passes its already-selected identity to a shared helper."),
         SuppressedProviderReference(
             path: "Sources/CodexBarCore/CostUsageFetcher.swift",
-            line: 819,
-            anchor: "provider: .codex,",
-            expectedProviderIDs: ["codex"],
-            reason: "This provider-specific core branch passes its already-selected identity to a shared helper."),
-        SuppressedProviderReference(
-            path: "Sources/CodexBarCore/CostUsageFetcher.swift",
-            line: 897,
+            line: 905,
             anchor: "provider: .codex,",
             expectedProviderIDs: ["codex"],
             reason: "This provider-specific core branch passes its already-selected identity to a shared helper."),
         SuppressedProviderReference(
             path: "Sources/CodexBarCore/CostUsageFetcher.swift",
             line: 983,
+            anchor: "provider: .codex,",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-specific core branch passes its already-selected identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCore/CostUsageFetcher.swift",
+            line: 1069,
             anchor: "provider: .codex,",
             expectedProviderIDs: ["codex"],
             reason: "This provider-specific core branch passes its already-selected identity to a shared helper."),
@@ -1698,31 +1710,31 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This WidgetKit default or preview pins the established Codex sample provider."),
         SuppressedProviderReference(
             path: "Sources/CodexBarWidget/CodexBarWidgetProvider.swift",
-            line: 78,
+            line: 80,
             anchor: "@Parameter(title: \"Provider\", default: .codex)",
             expectedProviderIDs: ["codex"],
             reason: "This WidgetKit default or preview pins the established Codex sample provider."),
         SuppressedProviderReference(
             path: "Sources/CodexBarWidget/CodexBarWidgetProvider.swift",
-            line: 110,
+            line: 112,
             anchor: "@Parameter(title: \"Provider\", default: .codex)",
             expectedProviderIDs: ["codex"],
             reason: "This WidgetKit default or preview pins the established Codex sample provider."),
         SuppressedProviderReference(
             path: "Sources/CodexBarWidget/CodexBarWidgetProvider.swift",
-            line: 146,
+            line: 148,
             anchor: "provider: .codex,",
             expectedProviderIDs: ["codex"],
             reason: "This WidgetKit default or preview pins the established Codex sample provider."),
         SuppressedProviderReference(
             path: "Sources/CodexBarWidget/CodexBarWidgetProvider.swift",
-            line: 231,
+            line: 233,
             anchor: "provider: .codex,",
             expectedProviderIDs: ["codex"],
             reason: "This WidgetKit default or preview pins the established Codex sample provider."),
         SuppressedProviderReference(
             path: "Sources/CodexBarWidget/CodexBarWidgetProvider.swift",
-            line: 276,
+            line: 278,
             anchor: "provider: .codex,",
             expectedProviderIDs: ["codex"],
             reason: "This WidgetKit default or preview pins the established Codex sample provider."),
@@ -2151,9 +2163,9 @@ struct ProviderArchitectureGatekeeperTests {
             path: "Sources/CodexBar/MenuDescriptor.swift",
             line: 204,
             anchor: "case .codex: \"⌘\"",
-            expectedProviderIDs: ["claude", "codex"],
-            expectedReferenceCount: 2,
-            expectedReferenceFingerprint: ["codex@0", "claude@1"],
+            expectedProviderIDs: ["claude", "codex", "pi"],
+            expectedReferenceCount: 3,
+            expectedReferenceFingerprint: ["codex@0", "claude@1", "pi@2"],
             reason: "This exact shared renderer maps provider-owned presentation data into the generic UI model."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/MenuDescriptor.swift",
@@ -3522,17 +3534,19 @@ struct ProviderArchitectureGatekeeperTests {
             path: "Sources/CodexBarCore/AgentSession.swift",
             line: 248,
             anchor: "if basename == AgentSession.Provider.codex.rawValue {",
-            expectedProviderIDs: ["claude", "codex"],
-            expectedReferenceCount: 5,
-            expectedReferenceFingerprint: ["codex@0", "claude@7", "claude@10", "claude@18", "claude@30"],
+            expectedProviderIDs: ["claude", "codex", "pi"],
+            expectedReferenceCount: 7,
+            expectedReferenceFingerprint: [
+                "codex@0", "claude@7", "claude@10", "claude@18", "pi@26", "claude@30", "pi@33",
+            ],
             reason: "This exact host integration maps a provider-owned process, path, or window contract."),
         AllowedProviderConstruct(
             path: "Sources/CodexBarCore/AgentSession.swift",
             line: 304,
             anchor: "guard self.provider(for: record) == .claude else { return .cli }",
-            expectedProviderIDs: ["claude", "codex"],
-            expectedReferenceCount: 2,
-            expectedReferenceFingerprint: ["claude@0", "codex@6"],
+            expectedProviderIDs: ["claude", "codex", "pi"],
+            expectedReferenceCount: 4,
+            expectedReferenceFingerprint: ["pi@0", "pi@1", "claude@13", "codex@19"],
             reason: "This exact host integration maps a provider-owned process, path, or window contract."),
         AllowedProviderConstruct(
             path: "Sources/CodexBarCore/AgentSession.swift",
@@ -3568,7 +3582,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact shared construct dispatches a provider-owned capability at the generic integration boundary."),
         AllowedProviderConstruct(
             path: "Sources/CodexBarCore/CostUsageFetcher.swift",
-            line: 624,
+            line: 710,
             anchor: "if provider == .codex {",
             expectedProviderIDs: ["codex"],
             expectedReferenceCount: 1,
@@ -3576,7 +3590,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact cost scanner dispatch selects a provider-owned transcript, cache, or pricing format."),
         AllowedProviderConstruct(
             path: "Sources/CodexBarCore/CostUsageFetcher.swift",
-            line: 648,
+            line: 734,
             anchor: "provider == .claude || (provider == .codex && options.shouldMergePiUsage)",
             expectedProviderIDs: ["claude", "codex"],
             expectedReferenceCount: 5,
@@ -3584,7 +3598,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact cost scanner dispatch selects a provider-owned transcript, cache, or pricing format."),
         AllowedProviderConstruct(
             path: "Sources/CodexBarCore/CostUsageFetcher.swift",
-            line: 695,
+            line: 781,
             anchor: "options.provider == .codex || options.provider == .claude",
             expectedProviderIDs: ["claude", "codex"],
             expectedReferenceCount: 2,
@@ -3592,7 +3606,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact cost scanner dispatch selects a provider-owned transcript, cache, or pricing format."),
         AllowedProviderConstruct(
             path: "Sources/CodexBarCore/CostUsageFetcher.swift",
-            line: 726,
+            line: 812,
             anchor: "guard provider == .codex || provider == .claude else { return nil }",
             expectedProviderIDs: ["claude", "codex"],
             expectedReferenceCount: 3,
@@ -3600,7 +3614,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact cost scanner dispatch selects a provider-owned transcript, cache, or pricing format."),
         AllowedProviderConstruct(
             path: "Sources/CodexBarCore/CostUsageFetcher.swift",
-            line: 1394,
+            line: 1480,
             anchor: "if provider == .vertexai {",
             expectedProviderIDs: ["claude", "vertexai"],
             expectedReferenceCount: 2,
@@ -3608,7 +3622,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact cost scanner dispatch selects a provider-owned transcript, cache, or pricing format."),
         AllowedProviderConstruct(
             path: "Sources/CodexBarCore/CostUsageFetcher.swift",
-            line: 1750,
+            line: 1836,
             anchor: "if provider == .cursor {",
             expectedProviderIDs: ["cursor"],
             expectedReferenceCount: 1,
@@ -3662,38 +3676,6 @@ struct ProviderArchitectureGatekeeperTests {
             expectedReferenceCount: 1,
             expectedReferenceFingerprint: ["codex@0"],
             reason: "This exact shared construct dispatches a provider-owned capability at the generic integration boundary."),
-        AllowedProviderConstruct(
-            path: "Sources/CodexBarCore/PiSessionCostScanner.swift",
-            line: 231,
-            anchor: "guard provider == .codex || provider == .claude else { return nil }",
-            expectedProviderIDs: ["claude", "codex"],
-            expectedReferenceCount: 2,
-            expectedReferenceFingerprint: ["claude@0", "codex@0"],
-            reason: "This exact cost scanner dispatch selects a provider-owned transcript, cache, or pricing format."),
-        AllowedProviderConstruct(
-            path: "Sources/CodexBarCore/PiSessionCostScanner.swift",
-            line: 842,
-            anchor: "case .codex:",
-            expectedProviderIDs: ["codex"],
-            expectedReferenceCount: 1,
-            expectedReferenceFingerprint: ["codex@0"],
-            reason: "This exact cost scanner dispatch selects a provider-owned transcript, cache, or pricing format."),
-        AllowedProviderConstruct(
-            path: "Sources/CodexBarCore/PiSessionCostScanner.swift",
-            line: 855,
-            anchor: "case .claude:",
-            expectedProviderIDs: ["claude"],
-            expectedReferenceCount: 1,
-            expectedReferenceFingerprint: ["claude@0"],
-            reason: "This exact cost scanner dispatch selects a provider-owned transcript, cache, or pricing format."),
-        AllowedProviderConstruct(
-            path: "Sources/CodexBarCore/PiSessionCostScanner.swift",
-            line: 892,
-            anchor: ".codex",
-            expectedProviderIDs: ["claude", "codex"],
-            expectedReferenceCount: 2,
-            expectedReferenceFingerprint: ["codex@0", "claude@2"],
-            reason: "This exact cost scanner dispatch selects a provider-owned transcript, cache, or pricing format."),
         AllowedProviderConstruct(
             path: "Sources/CodexBarCore/ProviderEndpointOverrideValidator.swift",
             line: 9,
@@ -3867,7 +3849,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact cost scanner dispatch selects a provider-owned transcript, cache, or pricing format."),
         AllowedProviderConstruct(
             path: "Sources/CodexBarWidget/CodexBarWidgetProvider.swift",
-            line: 82,
+            line: 84,
             anchor: "self.provider = .codex",
             expectedProviderIDs: ["codex"],
             expectedReferenceCount: 1,
@@ -3875,7 +3857,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact WidgetKit construct preserves its compile-time provider selection contract."),
         AllowedProviderConstruct(
             path: "Sources/CodexBarWidget/CodexBarWidgetProvider.swift",
-            line: 117,
+            line: 119,
             anchor: "self.provider = .codex",
             expectedProviderIDs: ["codex"],
             expectedReferenceCount: 1,
@@ -3883,7 +3865,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact WidgetKit construct preserves its compile-time provider selection contract."),
         AllowedProviderConstruct(
             path: "Sources/CodexBarWidget/CodexBarWidgetProvider.swift",
-            line: 177,
+            line: 179,
             anchor: "provider: providers.first ?? .codex,",
             expectedProviderIDs: ["codex"],
             expectedReferenceCount: 1,
@@ -3891,7 +3873,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact WidgetKit construct preserves its compile-time provider selection contract."),
         AllowedProviderConstruct(
             path: "Sources/CodexBarWidget/CodexBarWidgetProvider.swift",
-            line: 199,
+            line: 201,
             anchor: "let selected = providers.first { $0.instanceID == stored } ?? providers.first ?? .codex",
             expectedProviderIDs: ["codex"],
             expectedReferenceCount: 1,
@@ -3899,7 +3881,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact WidgetKit construct preserves its compile-time provider selection contract."),
         AllowedProviderConstruct(
             path: "Sources/CodexBarWidget/CodexBarWidgetProvider.swift",
-            line: 223,
+            line: 225,
             anchor: "return supported.isEmpty ? [.codex] : supported",
             expectedProviderIDs: ["codex"],
             expectedReferenceCount: 1,

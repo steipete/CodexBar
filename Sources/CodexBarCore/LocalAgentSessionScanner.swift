@@ -312,6 +312,7 @@ public struct LocalAgentSessionScanner: Sendable {
                     lastActivityAt: rollout?.modifiedAt,
                     transcriptPath: rollout?.url.path,
                     host: context.host))
+            // Provider-specific by design: Pi-family processes are correlated by PiFamilySessionScanner.
             case .pi:
                 continue
             }
