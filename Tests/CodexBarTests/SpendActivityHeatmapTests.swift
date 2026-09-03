@@ -511,6 +511,24 @@ struct SpendActivityHeatmapTests {
     }
 
     @Test
+    func `tooltip compacts instead of overflowing a grid shorter than its full height`() {
+        // Roughly matches the grid produced at the supported 800pt minimum window width
+        // with the sidebar expanded to 380pt, where the heatmap has very little height to work with.
+        let gridHeight: CGFloat = 38
+        let height = SpendActivityGridGeometry.effectiveTooltipHeight(gridHeight: gridHeight)
+        #expect(height <= gridHeight)
+
+        for anchorY: CGFloat in [0, 10, 19, 30, gridHeight] {
+            let originY = SpendActivityGridGeometry.tooltipOriginY(
+                anchorY: anchorY,
+                tooltipHeight: height,
+                gridHeight: gridHeight)
+            #expect(originY >= 0)
+            #expect(originY + height <= gridHeight)
+        }
+    }
+
+    @Test
     func `weekday and date formatting follow the selected resource locale`() throws {
         let date = try #require(Self.calendar.date(
             from: DateComponents(year: 2026, month: 8, day: 1, hour: 12)))
