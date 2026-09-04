@@ -39,3 +39,5 @@ codexbar sessions focus <session-id>
 Remote fetching tries `sessions --json-v2` before the legacy `sessions --json`, first through `codexbar` on `PATH` and then through the bundled app CLI. This lets current hosts return Pi-family rows while both host-first and client-first mixed-version upgrades remain decodable.
 
 Remote hosts need key-based, non-interactive SSH and either `codexbar` on `PATH` or CodexBar installed in `/Applications`.
+
+Tailscale discovery forces the [documented CLI mode](https://tailscale.com/docs/reference/tailscale-cli?tab=macos) with `TAILSCALE_BE_CLI=1` for every local probe, including launchers or symlinks to the macOS app binary. This keeps discovery headless even when inherited terminal variables do not prevent the app binary from launching its GUI or crashing.

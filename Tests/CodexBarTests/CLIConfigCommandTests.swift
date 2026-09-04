@@ -328,7 +328,7 @@ struct CLIConfigCommandTests {
 
     private static func runConfigDump(configURL: URL, showSecrets: Bool) throws -> Data {
         let process = Process()
-        process.executableURL = Self.cliExecutableURL
+        process.executableURL = TestBuildProducts.executableURL(named: "CodexBarCLI")
         process.arguments = ["config", "dump"] + (showSecrets ? ["--show-secrets"] : [])
         process.environment = ProcessInfo.processInfo.environment.merging([
             CodexBarConfigStore.pathEnvironmentKey: configURL.path,
@@ -353,13 +353,5 @@ struct CLIConfigCommandTests {
             ])
         }
         return output
-    }
-
-    private static var cliExecutableURL: URL {
-        URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent(".build/debug/CodexBarCLI")
     }
 }

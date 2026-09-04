@@ -75,6 +75,7 @@ struct MenuDescriptor {
         case loginToProvider(url: String)
         case openCodexWorkspaces
         case settings
+        case providerSettings(UsageProvider)
         case about
         case quit
         case copyError(String)
@@ -783,7 +784,7 @@ extension MenuDescriptor.MenuAction {
     var systemImageName: String? {
         switch self {
         case .installUpdate: MenuDescriptor.MenuActionSystemImage.installUpdate.rawValue
-        case .settings: MenuDescriptor.MenuActionSystemImage.settings.rawValue
+        case .settings, .providerSettings: MenuDescriptor.MenuActionSystemImage.settings.rawValue
         case .about: MenuDescriptor.MenuActionSystemImage.about.rawValue
         case .quit: MenuDescriptor.MenuActionSystemImage.quit.rawValue
         case .refresh: MenuDescriptor.MenuActionSystemImage.refresh.rawValue

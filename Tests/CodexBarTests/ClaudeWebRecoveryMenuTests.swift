@@ -6,6 +6,11 @@ import Testing
 @MainActor
 @Suite(.serialized)
 struct ClaudeWebRecoveryMenuTests {
+    private static let cloudflareChallengeMessage =
+        "claude.ai is behind a Cloudflare challenge, often caused by VPN or datacenter networks. " +
+        "Re-authenticating will not help. Switch Claude Usage source to OAuth in Settings " +
+        "(Usage credits balance will be unavailable), or try a different network."
+
     @Test
     func `unauthorized error explains how to restore web usage`() {
         #expect(
@@ -168,6 +173,38 @@ struct ClaudeWebRecoveryMenuTests {
                     $0.1 == .loginToProvider(url: "https://claude.ai/")
             })
         }
+    }
+
+    @Test
+    func `Cloudflare challenge opens Claude settings instead of relogin`() {
+        let actions = self.actions(error: Self.cloudflareChallengeMessage, source: .web)
+
+        #expect(actions.contains {
+            $0.0 == "Open Claude Settings…" && $0.1 == .providerSettings(.claude)
+        })
+        #expect(!actions.contains { $0.0 == "Re-login at claude.ai" })
+    }
+
+    @Test
+    func `unreadable OAuth credentials open Claude settings`() {
+        let actions = self.actions(
+            error: ClaudeOAuthUnreadableCredentialsError.descriptionPrefix,
+            source: .oauth)
+
+        #expect(actions.contains {
+            $0.0 == "Allow reading Claude Code's credentials in Settings…" &&
+                $0.1 == .providerSettings(.claude)
+        })
+    }
+
+    @Test
+    func `auto source Cloudflare challenge opens Claude settings`() {
+        let actions = self.actions(error: Self.cloudflareChallengeMessage, source: .auto)
+
+        #expect(actions.contains {
+            $0.0 == "Open Claude Settings…" && $0.1 == .providerSettings(.claude)
+        })
+        #expect(!actions.contains { $0.0 == "Re-login at claude.ai" })
     }
 
     @Test

@@ -325,8 +325,8 @@ extension UsageMenuCardView.Model {
         }
 
         if input.provider == .claude, input.snapshot?.dataConfidence == .percentOnly {
-            // CLI-scraped usage carries rendered percentages only; label the reduced fidelity honestly.
-            return [L("Usage via Claude CLI (limited detail)")] + subscriptionNotes
+            // Both CLI scraping and restored history carry percentages without full usage detail.
+            return [L("claude_limited_usage_detail")] + subscriptionNotes
         }
 
         // Provider-specific by design: OpenCode Go local quota windows need an explicit authority warning.
@@ -557,6 +557,8 @@ extension UsageMenuCardView.Model {
             AmpProviderDescriptor.primaryLabel(snapshot: snapshot) ?? input.metadata.sessionLabel
         } else if input.provider == .alibabatokenplan {
             AlibabaTokenPlanProviderDescriptor.primaryLabel(window: snapshot.primary) ?? input.metadata.sessionLabel
+        } else if input.provider == .ollama {
+            OllamaProviderDescriptor.primaryLabel(window: snapshot.primary) ?? input.metadata.sessionLabel
         } else {
             input.metadata.sessionLabel
         }

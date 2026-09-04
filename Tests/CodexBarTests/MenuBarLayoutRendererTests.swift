@@ -1,6 +1,7 @@
 import AppKit
 import CodexBarCore
 import Foundation
+import os
 import Testing
 @testable import CodexBar
 
@@ -485,7 +486,10 @@ struct MenuBarLayoutRendererTests {
         let renderer = MenuBarLayoutRenderer()
         let layout = MenuBarLayout(lines: [[.icon, .percent(window: .automatic), .separatorDot, .resetCountdown]])
         let icon = NSImage(size: NSSize(width: 16, height: 16))
-        let first = renderer.render(layout: layout, data: self.data(), icon: icon, options: self.options())
+        // Fixture construction is not part of the renderer's cached path.
+        let data = self.data()
+        let options = self.options()
+        let first = renderer.render(layout: layout, data: data, icon: icon, options: options)
         var last = first
         var fastest = Duration.seconds(10)
 
@@ -493,13 +497,54 @@ struct MenuBarLayoutRendererTests {
         for _ in 0..<3 {
             let startedAt = ContinuousClock.now
             for _ in 0..<1000 {
-                last = renderer.render(layout: layout, data: self.data(), icon: icon, options: self.options())
+                last = renderer.render(layout: layout, data: data, icon: icon, options: options)
             }
             fastest = min(fastest, ContinuousClock.now - startedAt)
         }
 
         #expect(first.attributedTitle === last.attributedTitle)
         #expect(fastest < .milliseconds(50), "Fastest cached batch took \(fastest)")
+    }
+
+    @Test
+    func `cached renders skip icon layout for equivalent rebuilt inputs`() {
+        let cache = MenuBarLayoutTitleCache()
+        let renderer = MenuBarLayoutRenderer(cache: cache)
+        let layout = MenuBarLayout(lines: [[.icon, .percent(window: .automatic), .separatorDot, .resetCountdown]])
+        let icon = MenuBarLayoutSizeCountingImage(size: NSSize(width: 16, height: 16))
+        let first = renderer.render(layout: layout, data: self.data(), icon: icon, options: self.options())
+        let initialSizeReads = icon.sizeReadCount
+        #expect(initialSizeReads > 0)
+
+        // Uncached rendering reads the icon size even when it returns the original image.
+        for _ in 0..<1000 {
+            let cached = renderer.render(layout: layout, data: self.data(), icon: icon, options: self.options())
+            #expect(cached.attributedTitle === first.attributedTitle)
+            #expect(cached.leadingIcon === icon)
+        }
+        #expect(icon.sizeReadCount == initialSizeReads)
+        #expect(cache.count == 1)
+
+        let changed = renderer.render(
+            layout: layout,
+            data: self.data(automaticUsedPercent: 75),
+            icon: icon,
+            options: self.options())
+        #expect(changed.attributedTitle !== first.attributedTitle)
+        #expect(changed.attributedTitle.string.contains("75%"))
+        #expect(icon.sizeReadCount > initialSizeReads)
+        #expect(cache.count == 2)
+
+        let sizeReadsBeforeClear = icon.sizeReadCount
+        renderer.removeAll()
+        // The cache has no isEmpty property.
+        // swiftlint:disable:next empty_count
+        #expect(cache.count == 0)
+        let rebuilt = renderer.render(layout: layout, data: self.data(), icon: icon, options: self.options())
+        #expect(rebuilt.attributedTitle !== first.attributedTitle)
+        #expect(rebuilt.attributedTitle.string == first.attributedTitle.string)
+        #expect(icon.sizeReadCount > sizeReadsBeforeClear)
+        #expect(cache.count == 1)
     }
 
     @Test
@@ -1479,5 +1524,23 @@ struct MenuBarLayoutRendererTests {
             return CGFloat(truncating: value)
         }
         return nil
+    }
+}
+
+private final class MenuBarLayoutSizeCountingImage: NSImage {
+    private let sizeReads = OSAllocatedUnfairLock(initialState: 0)
+
+    var sizeReadCount: Int {
+        self.sizeReads.withLock { $0 }
+    }
+
+    override var size: NSSize {
+        get {
+            self.sizeReads.withLock { $0 += 1 }
+            return super.size
+        }
+        set {
+            super.size = newValue
+        }
     }
 }

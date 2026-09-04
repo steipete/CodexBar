@@ -309,7 +309,7 @@ extension UsageStore {
             self.lastKnownResetSnapshots[.codex] = hydratedSnapshot
             self.errors[.codex] = hydratedPrior.error
             self.lastSourceLabels[.codex] = hydratedPrior.sourceLabel
-            self.publishHydratedCodexCreditsIfNeeded(from: hydratedPrior.credits, accountKey: expectedGuard.accountKey)
+            self.publishHydratedCodexCreditsIfNeeded(from: hydratedPrior.credits, ownerGuard: expectedGuard)
             self.lastCodexUsagePublicationGuard = expectedGuard
             self.lastCodexAccountScopedRefreshGuard = expectedGuard
         }
@@ -1582,7 +1582,13 @@ extension UsageStore {
         if case ClaudeWebAPIFetcher.FetchError.unauthorized = error {
             return true
         }
-        return error.localizedDescription == ClaudeWebAPIFetcher.FetchError.unauthorized.localizedDescription
+        if case ClaudeWebAPIFetcher.FetchError.cloudflareChallenge = error {
+            return true
+        }
+        return [
+            ClaudeWebAPIFetcher.FetchError.unauthorized.localizedDescription,
+            ClaudeWebAPIFetcher.FetchError.cloudflareChallenge.localizedDescription,
+        ].contains(error.localizedDescription)
     }
 
     nonisolated static func isPermissionPromptWaiting(_ error: Error) -> Bool {

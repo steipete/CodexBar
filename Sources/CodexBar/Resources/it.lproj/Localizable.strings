@@ -1489,6 +1489,7 @@
 "Total usage" = "Utilizzo totale";
 "claude_oauth_keychain_access_revoked" = "L'accesso al portachiavi di Claude è stato revocato dalla rotazione del token di Claude Code. Fai clic su Aggiorna per concedere nuovamente l'accesso oppure imposta la fonte di utilizzo di Claude su CLI/Web.";
 "claude_showing_last_known_usage" = "Visualizzazione dell'ultimo utilizzo noto, acquisito %@.";
+"claude_limited_usage_detail" = "Dettagli di utilizzo limitati";
 /* Spend dashboard cost analysis */
 "90d" = "90 g";
 "Input" = "Ingresso";

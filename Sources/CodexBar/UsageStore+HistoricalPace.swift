@@ -166,8 +166,12 @@ extension UsageStore {
                 accountKey: ownership.canonicalKey)
             let dataset = await historyStore.loadCodexDataset(
                 canonicalAccountKey: ownership.canonicalKey,
-                canonicalEmailHashKey: ownership.canonicalEmailHashKey,
-                legacyEmailHash: ownership.historicalLegacyEmailHash,
+                canonicalEmailHashKey: ownership.hasAdjacentEmailScopeAmbiguity
+                    ? nil
+                    : ownership.canonicalEmailHashKey,
+                legacyEmailHash: ownership.hasAdjacentEmailScopeAmbiguity
+                    ? nil
+                    : ownership.historicalLegacyEmailHash,
                 hasAdjacentMultiAccountVeto: ownership.hasAdjacentMultiAccountVeto)
             await MainActor.run { [weak self] in
                 self?.setCodexHistoricalDataset(dataset, accountKey: ownership.canonicalKey)
@@ -183,8 +187,12 @@ extension UsageStore {
         let ownership = self.codexOwnershipContext()
         let dataset = await self.historicalUsageHistoryStore.loadCodexDataset(
             canonicalAccountKey: ownership.canonicalKey,
-            canonicalEmailHashKey: ownership.canonicalEmailHashKey,
-            legacyEmailHash: ownership.historicalLegacyEmailHash,
+            canonicalEmailHashKey: ownership.hasAdjacentEmailScopeAmbiguity
+                ? nil
+                : ownership.canonicalEmailHashKey,
+            legacyEmailHash: ownership.hasAdjacentEmailScopeAmbiguity
+                ? nil
+                : ownership.historicalLegacyEmailHash,
             hasAdjacentMultiAccountVeto: ownership.hasAdjacentMultiAccountVeto)
         self.setCodexHistoricalDataset(dataset, accountKey: ownership.canonicalKey)
         if let dashboard = self.openAIDashboard {
@@ -246,8 +254,12 @@ extension UsageStore {
                 accountKey: ownership.canonicalKey)
             let dataset = await historyStore.loadCodexDataset(
                 canonicalAccountKey: ownership.canonicalKey,
-                canonicalEmailHashKey: ownership.canonicalEmailHashKey,
-                legacyEmailHash: ownership.historicalLegacyEmailHash,
+                canonicalEmailHashKey: ownership.hasAdjacentEmailScopeAmbiguity
+                    ? nil
+                    : ownership.canonicalEmailHashKey,
+                legacyEmailHash: ownership.hasAdjacentEmailScopeAmbiguity
+                    ? nil
+                    : ownership.historicalLegacyEmailHash,
                 hasAdjacentMultiAccountVeto: ownership.hasAdjacentMultiAccountVeto)
             await MainActor.run { [weak self] in
                 self?.setCodexHistoricalDataset(dataset, accountKey: ownership.canonicalKey)

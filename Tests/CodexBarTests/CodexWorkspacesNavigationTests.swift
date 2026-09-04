@@ -74,7 +74,7 @@ struct CodexWorkspacesNavigationTests {
             includeContextualActions: true,
             codexWorkspacesMenuEnabled: true)
         let menu = NSMenu()
-        controller.addActionableSections(descriptor.sections, to: menu, width: 320)
+        controller.addActionableSections(descriptor.sections, to: menu, width: 320, provider: .codex)
 
         let item = try #require(menu.items.first { $0.title == L("Workspaces") })
         #expect(item.view == nil)
@@ -85,7 +85,7 @@ struct CodexWorkspacesNavigationTests {
         #expect(item.representedObject as? String == CodexWorkspacesWindowIdentity.menuItem)
 
         menu.removeAllItems()
-        controller.addActionableSections(descriptor.sections, to: menu, width: 320)
+        controller.addActionableSections(descriptor.sections, to: menu, width: 320, provider: .codex)
         #expect(menu.items.count(where: { $0.title == L("Workspaces") }) == 1)
     }
 

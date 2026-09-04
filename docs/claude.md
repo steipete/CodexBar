@@ -97,6 +97,8 @@ Admin API key setup:
   Keychain access; selecting CLI or Web avoids the foreign-Keychain dependency.
 - When every live Auto source fails, CodexBar keeps the last captured session/weekly percentages from
   `history/claude.json` visible as stale data and shows their capture age instead of blanking the quota bars.
+  Restored history and CLI-scraped percentages both show “Limited usage detail”: the warning describes reduced
+  fidelity, not the source of a historical capture. It does not change sign-in or refresh recovery actions.
 - Plan inference: `subscriptionType` is preferred when present; `rate_limit_tier` falls back to
   Max/Pro/Team/Enterprise. When a Max `rate_limit_tier` carries a usage multiplier
   (`default_claude_max_5x` / `default_claude_max_20x`), it is surfaced in the label as "Max 5x" / "Max 20x".
@@ -131,6 +133,10 @@ Admin API key setup:
   - Extra usage spend/limit (if enabled).
   - Remaining Usage credits balance (if enabled).
   - Account email + inferred plan.
+- A Cloudflare challenge on `claude.ai` is a network-path restriction, not a stale-cookie signal. CodexBar keeps the
+  cached cookie and prior quota snapshot, identifies the challenge, and links to Settings. Select OAuth for live
+  quota windows on that network (the web-only Usage credits balance is unavailable), or try a different network.
+  Explicit Web mode remains terminal and never reads OAuth credentials as a fallback.
 
 ## claude-swap accounts (opt-in)
 
@@ -215,6 +221,7 @@ Model-scoped weekly-window proof (synthetic data, no real accounts or credential
 - Parsing (`ClaudeStatusProbe`):
   - Strips ANSI, locates "Current session" + "Current week" headers.
   - Extracts percent left/used and reset text near those headers.
+  - When a reset date cannot be parsed, the menu preserves its description and normalizes leading `Reset` or `Resets` labels once, including scoped weekly limits.
   - Parses `Account:` and `Org:` lines when present.
   - Surfaces CLI errors (e.g. token expired) directly.
   - Some Education and organization-managed subscriptions return only a subscription notice, with no numeric

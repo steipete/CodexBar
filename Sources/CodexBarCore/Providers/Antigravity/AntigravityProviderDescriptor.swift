@@ -675,6 +675,7 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
         dependencies: SnapshotWaitDependencies) async throws -> AntigravityStatusSnapshot
     {
         var lastFetchError: Error?
+        var lastPortDiscoveryError: Error?
         while dependencies.now() < deadline {
             try await Self.checkAuthenticationPrompt(dependencies)
             let remaining = deadline.timeIntervalSince(dependencies.now())
@@ -682,6 +683,10 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
             let ports: [Int]
             do {
                 ports = try await dependencies.listeningPorts(Int(pid), portProbeTimeout)
+            } catch let error as AntigravityPortDiscoveryPendingError {
+                try Task.checkCancellation()
+                lastPortDiscoveryError = error.underlyingError
+                ports = []
             } catch {
                 guard Self.isNoListeningPortsError(error) else {
                     try await Self.checkAuthenticationPrompt(dependencies)
@@ -739,6 +744,9 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
         try await Self.checkAuthenticationPrompt(dependencies)
         if let lastFetchError {
             throw lastFetchError
+        }
+        if let lastPortDiscoveryError {
+            throw lastPortDiscoveryError
         }
         Self.log.warning("Antigravity CLI HTTPS: no ports found for pid \(pid)")
         throw AntigravityStatusProbeError.portDetectionFailed(

@@ -26,6 +26,12 @@ read_when:
   Claude quota data is available.
 - If no snapshot is available, widgets fall back to preview/empty data.
 
+Tests must opt into snapshot persistence with an in-memory save override or a test-owned snapshot URL.
+Neither opt-in reloads WidgetKit timelines. Production still awaits the file save before requesting a reload;
+the save/reload helper accepts an explicit test-mode decision and reload callback so tests can verify that ordering
+with temporary files and a fake callback, without changing process-wide test isolation. The per-store reload callback
+also lets persistence integration tests count reload attempts without calling WidgetKit.
+
 ## Extension
 - `Sources/CodexBarWidget` contains timeline + views.
 - `WidgetExtension/CodexBarWidgetExtension.xcodeproj` builds those sources as the packaged macOS WidgetKit app extension.

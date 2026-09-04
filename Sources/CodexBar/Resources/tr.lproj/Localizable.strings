@@ -1487,6 +1487,7 @@
 "Total usage" = "Toplam kullanım";
 "claude_oauth_keychain_access_revoked" = "Claude Anahtar Zinciri erişimi, Claude Code'un token yenilemesi nedeniyle iptal edildi. Erişimi yeniden vermek için Yenile'ye tıklayın veya Claude kullanım kaynağını CLI/Web olarak değiştirin.";
 "claude_showing_last_known_usage" = "Bilinen son kullanım gösteriliyor (yakalanma zamanı: %@).";
+"claude_limited_usage_detail" = "Kullanım ayrıntıları sınırlı";
 /* Spend dashboard cost analysis */
 "90d" = "90d";
 "Input" = "Girdi";

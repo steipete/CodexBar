@@ -1,5 +1,19 @@
 import Foundation
 
+enum ClaudeOAuthApplicationDefaults {
+    static func resolve(
+        domain: String,
+        currentBundleIdentifier: String? = Bundle.main.bundleIdentifier,
+        suiteFactory: (String) -> UserDefaults? = { UserDefaults(suiteName: $0) }) -> UserDefaults
+    {
+        // The app already owns its standard domain; child processes still need the shared suite.
+        if domain == currentBundleIdentifier {
+            return .standard
+        }
+        return suiteFactory(domain) ?? .standard
+    }
+}
+
 public enum ClaudeOAuthKeychainPromptMode: String, Sendable, Codable, CaseIterable {
     case never
     case onlyOnUserAction
@@ -97,7 +111,7 @@ public enum ClaudeOAuthKeychainPromptPreference {
             return taskImplicitApplicationUserDefaultsOverride.value
         }
         #endif
-        return UserDefaults(suiteName: self.applicationDefaultsDomain) ?? .standard
+        return ClaudeOAuthApplicationDefaults.resolve(domain: self.applicationDefaultsDomain)
     }
 
     static func resolveApplicationDefaultsDomain(

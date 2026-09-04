@@ -231,7 +231,7 @@ struct SpendDashboardPane: View {
             .frame(width: 248)
 
             Button {
-                self.controller.refresh()
+                self.store.refreshSpendDashboard(accounts: self.codexSpendScanRequests)
             } label: {
                 if self.controller.isRefreshing {
                     ProgressView().controlSize(.small)

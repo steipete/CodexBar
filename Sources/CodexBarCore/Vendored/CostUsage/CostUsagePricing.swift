@@ -750,6 +750,17 @@ enum CostUsagePricing {
             cacheCreation1h: cacheCreationInputTokens1h,
             output: outputTokens)
         let key = self.normalizeClaudeModel(model)
+        return self.claudeCostUSD(normalizedModel: key, tokens: tokens, pricingDate: pricingDate) {
+            self.claudeModelsDevLookup(model: model, catalog: modelsDevCatalog, cacheRoot: modelsDevCacheRoot)
+        }
+    }
+
+    private static func claudeCostUSD(
+        normalizedModel key: String,
+        tokens: ClaudeCostTokens,
+        pricingDate: Date?,
+        modelsDevLookup: () -> ModelsDevPricingLookup?) -> Double?
+    {
         if let pricingDate,
            let historicalPricing = self.claudeHistoricalLongContext[key],
            let currentPricing = self.claude[key]
@@ -760,11 +771,7 @@ enum CostUsagePricing {
                     : currentPricing,
                 tokens: tokens)
         }
-        if let lookup = self.claudeModelsDevLookup(
-            model: model,
-            catalog: modelsDevCatalog,
-            cacheRoot: modelsDevCacheRoot)
-        {
+        if let lookup = modelsDevLookup() {
             return self.claudeCostUSD(
                 pricing: lookup.pricing,
                 tokens: tokens)
@@ -848,6 +855,96 @@ enum CostUsagePricing {
 }
 
 extension CostUsagePricing {
+    /// One synchronous Claude scan owns the catalog snapshot and exact-input model memos.
+    final class ClaudeResolver {
+        static let memoEntryLimit = 1024
+
+        private struct LookupResult {
+            let value: ModelsDevPricingLookup?
+        }
+
+        private let now: Date
+        private let cacheRoot: URL?
+        private var catalog: ModelsDevCatalog?
+        // String equality folds canonically equivalent Unicode; serialized model spelling must survive.
+        private var normalizedModels: [[UInt8]: String] = [:]
+        private var lookups: [[UInt8]: LookupResult] = [:]
+
+        init(now: Date, cacheRoot: URL?) {
+            self.now = now
+            self.cacheRoot = cacheRoot
+        }
+
+        init(catalog: ModelsDevCatalog) {
+            self.now = Date(timeIntervalSince1970: 0)
+            self.cacheRoot = nil
+            self.catalog = catalog
+        }
+
+        @discardableResult
+        func prepareCatalog() -> ModelsDevCatalog {
+            if let catalog = self.catalog {
+                return catalog
+            }
+            let catalog = CostUsagePricing.modelsDevCatalog(now: self.now, cacheRoot: self.cacheRoot)
+                ?? ModelsDevCatalog(providers: [:])
+            self.catalog = catalog
+            return catalog
+        }
+
+        func normalize(_ model: String) -> String {
+            let key = Array(model.utf8)
+            if let normalized = self.normalizedModels[key] {
+                return normalized
+            }
+            #if DEBUG
+            CostUsageScanner.recordClaudeScanWork(.normalizationCacheMiss)
+            #endif
+            let normalized = CostUsagePricing.normalizeClaudeModel(model)
+            if self.normalizedModels.count < Self.memoEntryLimit {
+                self.normalizedModels[key] = normalized
+            }
+            return normalized
+        }
+
+        private func lookup(_ model: String) -> ModelsDevPricingLookup? {
+            let key = Array(model.utf8)
+            if let result = self.lookups[key] {
+                return result.value
+            }
+            let value = CostUsagePricing.claudeModelsDevLookup(
+                model: model, catalog: self.prepareCatalog(), cacheRoot: nil)
+            #if DEBUG
+            CostUsageScanner.recordClaudeScanWork(.catalogModelLookup(found: value != nil))
+            #endif
+            if self.lookups.count < Self.memoEntryLimit {
+                self.lookups[key] = LookupResult(value: value)
+            }
+            return value
+        }
+
+        func costUSD(
+            model: String,
+            inputTokens: Int,
+            cacheReadInputTokens: Int,
+            cacheCreationInputTokens: Int,
+            cacheCreationInputTokens1h: Int = 0,
+            outputTokens: Int,
+            pricingDate: Date? = nil) -> Double?
+        {
+            let tokens = ClaudeCostTokens(
+                input: inputTokens,
+                cacheRead: cacheReadInputTokens,
+                cacheCreation: cacheCreationInputTokens,
+                cacheCreation1h: cacheCreationInputTokens1h,
+                output: outputTokens)
+            let key = self.normalize(model)
+            return CostUsagePricing.claudeCostUSD(normalizedModel: key, tokens: tokens, pricingDate: pricingDate) {
+                self.lookup(model)
+            }
+        }
+    }
+
     /// Bare Claude-routed IDs may match first-party models.dev vendors. Recognizable model families
     /// stay with their vendor, while unknown bare IDs must have one unambiguous catalog match.
     /// Provider-specific by design: first-party vendor routing for bare Claude model IDs.

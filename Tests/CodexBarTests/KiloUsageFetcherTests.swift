@@ -587,6 +587,20 @@ struct KiloUsageFetcherTests {
     }
 
     @Test
+    func `authentication errors recommend the supported login command`() {
+        let path = "/tmp/kilo/auth.json"
+
+        #expect(KiloUsageError.cliSessionMissing(path).errorDescription ==
+            "Kilo CLI session not found at \(path). Run `kilo auth login` to create ~/.local/share/kilo/auth.json.")
+        #expect(KiloUsageError.cliSessionUnreadable(path).errorDescription ==
+            "Kilo CLI session file is unreadable at \(path). Fix permissions or run `kilo auth login` again.")
+        #expect(KiloUsageError.cliSessionInvalid(path).errorDescription ==
+            "Kilo CLI session file is invalid at \(path). Run `kilo auth login` to refresh auth.json.")
+        #expect(KiloUsageError.unauthorized.errorDescription ==
+            "Kilo authentication failed (401/403). Refresh KILO_API_KEY or run `kilo auth login`.")
+    }
+
+    @Test
     func `fetch usage without credentials fails fast`() async {
         await #expect(throws: KiloUsageError.missingCredentials) {
             _ = try await KiloUsageFetcher.fetchUsage(apiKey: "  ", environment: [:])

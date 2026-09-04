@@ -104,7 +104,10 @@ struct CostUsageTimestampTests {
             until: #require(Self.historicalDate("2026-03-31T00:00:00Z")),
             calendar: calendar)
         let parsed = try CostUsageScanner.parseClaudeFileCancellable(
-            fileURL: file, range: range, providerFilter: .all, modelsDevCacheRoot: env.cacheRoot)
+            fileURL: file,
+            range: range,
+            providerFilter: .all,
+            pricingResolver: CostUsagePricing.ClaudeResolver(now: Date(), cacheRoot: env.cacheRoot))
         #expect(parsed.rows.count == timestamps.count)
         var expectedDays: [String: [String: [Int]]] = [:]
         for (index, text) in timestamps.enumerated() {
@@ -130,7 +133,17 @@ struct CostUsageTimestampTests {
             }
             expectedDays[day] = [model: total]
         }
-        #expect(parsed.days == expectedDays)
+        let options = CostUsageScanner.Options(
+            claudeProjectsRoots: [env.claudeProjectsRoot], cacheRoot: env.cacheRoot, calendar: calendar)
+        let since = try #require(Self.historicalDate("2026-03-01T00:00:00Z"))
+        let until = try #require(Self.historicalDate("2026-03-31T00:00:00Z"))
+        let report = CostUsageScanner.loadDailyReport(
+            provider: .claude, since: since, until: until, now: until, options: options)
+        let cache = CostUsageClaudeCacheIO.load(provider: .claude, cacheRoot: env.cacheRoot)
+        #expect(cache.days == expectedDays)
+        #expect(cache.files.values.flatMap { $0.claudeRows ?? [] } == parsed.rows)
+        #expect(report.data.count == expectedDays.count)
+        #expect(report.summary?.totalTokens == timestamps.count * (210_000 + 25 + 50 + 20))
         #expect(parsed.parsedBytes == Int64(Data(contents.utf8).count))
     }
 }

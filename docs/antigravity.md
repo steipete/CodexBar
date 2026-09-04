@@ -117,7 +117,14 @@ When the Antigravity 2.0 app is running:
      - `--extension_server_csrf_token <token>` (preferred HTTP fallback token when present).
 
 2. **Port discovery**
-   - Command: `lsof -nP -iTCP -sTCP:LISTEN -a -p <pid>`.
+   - macOS uses kernel process-socket enumeration.
+   - Linux tries `lsof -nP -iTCP -sTCP:LISTEN -a -p <pid>`, then process-scoped `/proc` discovery if
+     `lsof` is missing, fails to launch or exits unsuccessfully, or reports no listeners. Namespace warnings from
+     `lsof` therefore do not prevent discovery when `/proc` remains readable. Cancellation and hard subprocess limits
+     still propagate. If neither source finds a listener, CLI readiness polling continues within its existing deadline
+     and retains the last discovery diagnostic if startup never succeeds. An endpoint readiness failure takes
+     precedence once a listener has been reached.
+   - `/proc/<pid>/fd` socket inodes are matched only against the same process's `net/tcp` and `net/tcp6` tables.
    - All listening ports are probed.
 
 3. **Connect port probe (HTTPS)**
@@ -149,7 +156,7 @@ When source mode is `auto` or `cli` and the desktop local probe fails, CodexBar 
 
 CodexBar launches `agy` in a PTY because the CLI exposes its quota server only while the interactive process is alive.
 The implementation still does **not** scrape terminal output; it only keeps the process alive, drains discarded PTY
-rendering, discovers listening ports with `lsof`, and probes the local HTTPS server:
+rendering, uses the same platform-specific port discovery described above, and probes the local HTTPS server:
 
 - First: `POST https://127.0.0.1:<port>/exa.language_server_pb.LanguageServerService/RetrieveUserQuotaSummary`
 - Fallback 1: `POST https://127.0.0.1:<port>/exa.language_server_pb.LanguageServerService/GetUserStatus`
@@ -286,8 +293,17 @@ Extra ordinary columns and `WITHOUT ROWID` tables are supported; views, virtual 
 are rejected before querying payloads. Schema inspection and the payload scan share one read transaction.
 Inspection uses `sqlite_master` and `table_xinfo`; SQLite builds without that pragma cannot establish coverage.
 
-Supported SQLite event time is `chatModel.#9.#4` containing protobuf seconds/nanos. Session creation, file modification,
-and refresh time are never substitutes. The opaque agy 1.1.18 timestamp layout remains unsupported: the pinned parser
+Supported SQLite event time is `chatModel.#9.#4` containing protobuf seconds/nanos. When it is absent, the reader can
+recover the standard seconds/nanos timestamp from `steps.metadata.#1`, joining the generation's root step UUID (`#4`)
+to `steps.metadata.#12`. A unique generation usage `bot_id` (`chatModel.#4.#7`) first selects the matching
+`steps.metadata.#9.#7` within that UUID, so auxiliary or reordered steps do not shift a turn's date. Conflicting,
+cross-UUID, or timestamp-less duplicate step IDs cannot supply exact or positional evidence. Embedded timestamps
+in a UUID needing recovery must agree with available generation-unique exact matches; unrelated UUIDs retain their
+embedded timestamps. Missing or malformed auxiliary IDs retain the guarded legacy positional fallback, as do repeated
+generation IDs: ordered step timestamps must agree with embedded generation timestamps, and ambiguous positions are
+never removed or compressed. Malformed auxiliary IDs do not discard otherwise valid embedded usage or relax token-counter
+and protobuf framing validation. Session creation, file modification, and refresh time are never substitutes.
+The opaque agy 1.1.18 timestamp layout remains unsupported: the pinned parser
 explicitly labels its newer interpretation an inference. See [the session-start misattribution report](https://github.com/junhoyeo/tokscale/issues/1184).
 
 SQLite session identity is the original database filename stem, with `gen_metadata.idx` identifying rows. Copies
@@ -333,7 +349,8 @@ cancellation. The fixtures are synthetic and source-linked, not private captures
 
 ## Constraints
 - Internal protocol; fields may change.
-- Requires `lsof` for local/CLI port detection.
+- Linux local/CLI port detection requires working `lsof` output or readable process-scoped `/proc` socket metadata;
+  macOS uses kernel process-socket enumeration.
 - Local HTTPS uses a self-signed cert; the probe allows insecure TLS only for loopback hosts.
 
 ## Key files

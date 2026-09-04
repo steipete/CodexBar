@@ -281,8 +281,8 @@ enum SpendActivityLevels {
 struct SpendActivityGridGeometry {
     static let weekdayGutterWidth: CGFloat = 40
     static let gridSpacing: CGFloat = 8
-    static let tooltipInset: CGFloat = 4
-    static let tooltipGap: CGFloat = 7
+    static let tooltipInset: CGFloat = 8
+    static let tooltipGap: CGFloat = 5
     static let tooltipWidth: CGFloat = 148
     static let tooltipHeight: CGFloat = 50
 
@@ -304,12 +304,17 @@ struct SpendActivityGridGeometry {
         return min(max(anchorX, lower), upper)
     }
 
+    /// Caps the tooltip to the grid's own height so a very short grid (e.g. a narrow window with the
+    /// sidebar expanded) compacts the tooltip instead of letting it overflow past the grid's edges.
+    static func effectiveTooltipHeight(gridHeight: CGFloat) -> CGFloat {
+        min(self.tooltipHeight, gridHeight)
+    }
+
     static func tooltipOriginY(anchorY: CGFloat, tooltipHeight: CGFloat, gridHeight: CGFloat) -> CGFloat {
-        let below = anchorY + self.tooltipGap
-        if below + tooltipHeight <= gridHeight {
-            return below
-        }
-        return max(anchorY - tooltipHeight - self.tooltipGap, 0)
+        let maxOrigin = max(gridHeight - tooltipHeight, 0)
+        let above = anchorY - tooltipHeight - self.tooltipGap
+        let candidate = above >= self.tooltipInset ? above : anchorY + self.tooltipGap
+        return min(max(candidate, 0), maxOrigin)
     }
 }
 
@@ -587,6 +592,7 @@ private struct SpendActivityDailyGrid: View {
             .aspectRatio(CGFloat(self.columns + 2) / CGFloat(self.rows), contentMode: .fit)
         }
         .focusable()
+        .focusEffectDisabled()
         .focused(self.$isKeyboardFocused)
         .onMoveCommand(perform: self.moveKeyboardSelection)
         .onChange(of: self.isKeyboardFocused) { _, isFocused in
@@ -668,22 +674,24 @@ private struct SpendActivityDailyGrid: View {
             let anchorX = CGFloat(col) * pitch + pitch / 2
             let anchorY = CGFloat(row) * pitch + pitch / 2
             let width = min(SpendActivityGridGeometry.tooltipWidth, max(size.width - 8, 1))
+            let height = SpendActivityGridGeometry.effectiveTooltipHeight(gridHeight: size.height)
             let originY = SpendActivityGridGeometry.tooltipOriginY(
                 anchorY: anchorY,
-                tooltipHeight: SpendActivityGridGeometry.tooltipHeight,
+                tooltipHeight: height,
                 gridHeight: size.height)
             SpendActivityTooltip(
                 title: self.series.isCovered[index]
                     ? UsageFormatter.tokenCountString(self.series.daily[index])
                     : L("Unavailable"),
                 subtitle: SpendActivityDateFormatting.mediumDateString(date, calendar: self.series.calendar),
-                width: width)
+                width: width,
+                height: height)
                 .position(
                     x: SpendActivityGridGeometry.tooltipCenterX(
                         anchorX: anchorX,
                         tooltipWidth: width,
                         gridWidth: size.width),
-                    y: originY + SpendActivityGridGeometry.tooltipHeight / 2)
+                    y: originY + height / 2)
                 .allowsHitTesting(false)
         }
     }
@@ -891,22 +899,24 @@ private struct SpendActivityWeekGrid: View {
            let weekStart = self.series.weekStartDate(at: col)
         {
             let width = min(SpendActivityGridGeometry.tooltipWidth, max(size.width - 8, 1))
+            let height = SpendActivityGridGeometry.effectiveTooltipHeight(gridHeight: size.height)
             let originY = SpendActivityGridGeometry.tooltipOriginY(
                 anchorY: location.y,
-                tooltipHeight: SpendActivityGridGeometry.tooltipHeight,
+                tooltipHeight: height,
                 gridHeight: size.height)
             SpendActivityTooltip(
                 title: self.activity.isCovered[col]
                     ? UsageFormatter.tokenCountString(self.activity.values[col])
                     : L("Unavailable"),
                 subtitle: SpendActivityDateFormatting.mediumDateString(weekStart, calendar: self.series.calendar),
-                width: width)
+                width: width,
+                height: height)
                 .position(
                     x: SpendActivityGridGeometry.tooltipCenterX(
                         anchorX: CGFloat(col) * pitch + pitch / 2,
                         tooltipWidth: width,
                         gridWidth: size.width),
-                    y: originY + SpendActivityGridGeometry.tooltipHeight / 2)
+                    y: originY + height / 2)
                 .allowsHitTesting(false)
         }
     }
@@ -962,6 +972,7 @@ private struct SpendActivityTooltip: View {
     let title: String
     let subtitle: String
     let width: CGFloat
+    let height: CGFloat
 
     var body: some View {
         VStack(alignment: .leading, spacing: 1) {
@@ -977,7 +988,7 @@ private struct SpendActivityTooltip: View {
         .padding(.horizontal, 8)
         .frame(
             width: self.width,
-            height: SpendActivityGridGeometry.tooltipHeight,
+            height: self.height,
             alignment: .leading)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
         .overlay {

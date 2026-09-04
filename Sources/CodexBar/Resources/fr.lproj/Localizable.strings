@@ -1485,6 +1485,7 @@
 "Total usage" = "Utilisation totale";
 "claude_oauth_keychain_access_revoked" = "L’accès au trousseau Claude a été révoqué par la rotation du jeton de Claude Code. Cliquez sur Actualiser pour accorder à nouveau l’accès, ou définissez la source d’utilisation de Claude sur CLI/Web.";
 "claude_showing_last_known_usage" = "Affichage de la dernière utilisation connue, capturée %@.";
+"claude_limited_usage_detail" = "Détails d’utilisation limités";
 /* Spend dashboard cost analysis */
 "90d" = "90d";
 "Input" = "Input";

@@ -237,6 +237,47 @@ func `managed account set keeps same provider account I D when emails differ`() 
     #expect(set.account(email: "mich.aelfmk5542@gmail.com", providerAccountID: "team-4107")?.id == secondID)
 }
 
+@Test
+func `managed account set keeps explicit same email workspaces separate from legacy`() {
+    let personalID = UUID()
+    let teamID = UUID()
+    let duplicatePersonalID = UUID()
+    let personal = ManagedCodexAccount(
+        id: personalID,
+        email: "user@example.com",
+        workspaceAccountID: "WORKSPACE-PERSONAL",
+        managedHomePath: "/tmp/managed-home-personal",
+        createdAt: 10,
+        updatedAt: 20,
+        lastAuthenticatedAt: nil)
+    let team = ManagedCodexAccount(
+        id: teamID,
+        email: "USER@example.com",
+        workspaceAccountID: "workspace-team",
+        managedHomePath: "/tmp/managed-home-team",
+        createdAt: 30,
+        updatedAt: 40,
+        lastAuthenticatedAt: nil)
+    let duplicatePersonal = ManagedCodexAccount(
+        id: duplicatePersonalID,
+        email: "user@example.com",
+        providerAccountID: "workspace-personal",
+        managedHomePath: "/tmp/managed-home-duplicate-personal",
+        createdAt: 50,
+        updatedAt: 60,
+        lastAuthenticatedAt: nil)
+
+    let set = ManagedCodexAccountSet(
+        version: FileManagedCodexAccountStore.currentVersion,
+        accounts: [personal, team, duplicatePersonal])
+
+    #expect(set.accounts.count == 2)
+    #expect(set.account(email: "user@example.com", providerAccountID: "workspace-personal")?.id == personalID)
+    #expect(set.account(email: "user@example.com", providerAccountID: "WORKSPACE-PERSONAL")?.id == personalID)
+    #expect(set.account(email: "user@example.com", providerAccountID: "workspace-team")?.id == teamID)
+    #expect(set.account(email: "user@example.com") == nil)
+}
+
 @Test(CodexCredentialFixtures())
 func `FileManagedCodexAccountStore hydrates provider account I D from id token when account field is absent`() throws {
     let root = CodexCredentialFixtures.root.appendingPathComponent(UUID().uuidString, isDirectory: true)

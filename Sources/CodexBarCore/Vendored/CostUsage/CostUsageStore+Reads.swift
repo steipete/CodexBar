@@ -107,14 +107,6 @@ extension CostUsageStore {
         }
     }
 
-    /// Reads from the caller's current transaction. The save path uses this after acquiring
-    /// its writer lock so content identity and the following write share one SQLite snapshot.
-    func readSnapshotInCurrentTransaction() -> CostUsageStoreSnapshot {
-        self.withDatabase(default: Self.emptySnapshot) { database in
-            try Self.readSnapshot(database, recorder: self.scopedReadWorkRecorderForTesting)
-        }
-    }
-
     func configuration() -> CostUsageStoreConfiguration? {
         self.withDatabase(default: nil) { database in
             try CostUsageStoreConfiguration(
@@ -192,7 +184,7 @@ extension CostUsageStore {
             accumulators: [])
     }
 
-    private static func readSnapshot(
+    static func readSnapshot(
         _ database: OpaquePointer,
         recorder: CostUsageStoreReadWorkRecorder?) throws -> CostUsageStoreSnapshot
     {

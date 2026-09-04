@@ -309,6 +309,7 @@ enum CostUsageScanner {
     struct CodexParseResult {
         let days: [String: [String: [Int]]]
         var parsedBytes: Int64
+        let scanTargetSize: Int64
         let lastModel: String?
         let lastTotals: CostUsageCodexTotals?
         let lastCountedTotals: CostUsageCodexTotals?
@@ -1046,6 +1047,7 @@ enum CostUsageScanner {
         let priorityTurnKeys: [String: String]
         let priorityTurnIDsByDay: [String: [String]]
         let inspectedPriorityTurns: Bool
+        let priorityValidationPending: Bool
         let priorityTurnsCursor: CodexPriorityTurnsPersistedCursor?
         let priorityMetadataChanged: Bool
         let priorityTurnsChanged: Bool
@@ -1814,6 +1816,9 @@ enum CostUsageScanner {
                 fileURL: fileURL,
                 metadata: parentMetadata)
             {
+                if self.scanBudget != nil, !cachedResolution.isComplete {
+                    self.pendingParentFiles[fileURL.standardizedFileURL.path] = fileURL
+                }
                 self.snapshotResolutions[sessionId] = cachedResolution
                 return cachedResolution
             }
@@ -1923,7 +1928,6 @@ enum CostUsageScanner {
     }
 
     struct ClaudeParseResult {
-        let days: [String: [String: [Int]]]
         let rows: [ClaudeUsageRow]
         let parsedBytes: Int64
     }
@@ -2283,6 +2287,39 @@ enum CostUsageScanner {
             CostUsageDayRange.isInRange(dayKey: key, since: retainedSinceKey, until: retainedUntilKey)
         }
         return out.isEmpty ? nil : out
+    }
+
+    private static func validatedPriorityTurns(
+        cache: CostUsageCache,
+        calendar: Calendar) -> [String: CodexPriorityTurnMetadata]
+    {
+        if let resolved = cache.codexResolvedPriorityTurns {
+            return resolved
+        }
+        // Older caches only have a resume cursor. A historical scan may have superseded its
+        // pricing, so adopt only days whose published classification still matches the cursor.
+        let turns = cache.codexPriorityTurnsCursor?.turns ?? [:]
+        let keys = Self.codexPriorityTurnKeys(turns, calendar: calendar)
+        return turns.filter { _, turn in
+            guard let day = Self.codexPriorityDayKey(turn, calendar: calendar) else { return false }
+            return keys[day] == cache.codexPriorityTurnKeys?[day]
+        }
+    }
+
+    private static func mergeResolvedPriorityTurns(
+        existing: [String: CodexPriorityTurnMetadata],
+        new: [String: CodexPriorityTurnMetadata],
+        range: CostUsageDayRange,
+        retainedSinceKey: String,
+        retainedUntilKey: String) -> [String: CodexPriorityTurnMetadata]
+    {
+        var out = existing.filter { _, turn in
+            guard let day = Self.codexPriorityDayKey(turn, calendar: range.calendar) else { return false }
+            return CostUsageDayRange.isInRange(dayKey: day, since: retainedSinceKey, until: retainedUntilKey)
+                && !CostUsageDayRange.isInRange(dayKey: day, since: range.scanSinceKey, until: range.scanUntilKey)
+        }
+        out.merge(new) { _, replacement in replacement }
+        return out
     }
 
     private static func mergePriorityTurnIDsByDay(
@@ -3186,11 +3223,7 @@ enum CostUsageScanner {
                 return resolvedPath
             }
             guard let usage = cache.files[fileURL.path],
-                  usage.codexScanComplete == true,
-                  !usage.hasBufferedCodexForkRetryLines,
-                  usage.codexScanFileId == metadata.fileId,
-                  usage.mtimeUnixMs == metadata.mtimeUnixMs,
-                  usage.size == metadata.size
+                  Self.completedCodexLogicalTargetSize(metadata: metadata, usage: usage) != nil
             else { return nil }
             return resolvedPath
         })
@@ -4115,6 +4148,7 @@ enum CostUsageScanner {
                 checkCancellation: nil)) ?? CodexParseResult(
             days: [:],
             parsedBytes: startOffset,
+            scanTargetSize: startOffset,
             lastModel: initialModel,
             lastTotals: initialTotals,
             lastCountedTotals: initialTotals,
@@ -4159,6 +4193,7 @@ enum CostUsageScanner {
         initialBufferedSubagentLines: [CodexBufferedFastLine]? = nil,
         initialBufferedUnresolvedForkLines: [CodexBufferedFastLine]? = nil,
         initialJSONLResumeState: CostUsageJsonl.ResumeState? = nil,
+        scanTargetSize: Int64? = nil,
         maxBytesToRead: Int64? = nil,
         shouldStopReading: ((Int64) -> Bool)? = nil,
         inheritedTotalsResolver: ((String, String) throws -> CodexForkBaseline)? = nil,
@@ -4667,7 +4702,11 @@ enum CostUsageScanner {
         }
 
         var parsedBytes: Int64
-        let targetSize = Self.codexFileMetadata(fileURL: fileURL).size
+        let currentFileSize = Self.codexFileMetadata(fileURL: fileURL).size
+        let requestedTargetSize = max(startOffset, min(scanTargetSize ?? currentFileSize, currentFileSize))
+        var effectiveTargetSize = requestedTargetSize
+        let bytesToTarget = max(0, requestedTargetSize - startOffset)
+        let boundedBytesToRead = maxBytesToRead.map { min(max(0, $0), bytesToTarget) } ?? bytesToTarget
         var physicalLineIndex = (initialBufferedSubagentLines?.last?.lineIndex ?? -1) + 1
         var jsonlResumeState = initialJSONLResumeState
         do {
@@ -4676,7 +4715,7 @@ enum CostUsageScanner {
                 offset: startOffset,
                 maxLineBytes: maxLineBytes,
                 prefixBytes: prefixBytes,
-                maxBytesToRead: maxBytesToRead,
+                maxBytesToRead: boundedBytesToRead,
                 resumeState: initialJSONLResumeState,
                 shouldStop: shouldStopReading,
                 checkCancellation: checkCancellation,
@@ -4918,7 +4957,24 @@ enum CostUsageScanner {
                 throw deferredError
             }
 
-            if let pendingSubagentLines, parsedBytes >= targetSize, jsonlResumeState == nil {
+            // A rollout can be observed while Codex is between writes. If the captured target ends
+            // inside a JSON record, publish the finite prefix through the last committed boundary and
+            // let the next scan reread the unfinished record with the later tail. Keeping the partial
+            // resume state here would require bytes beyond the frozen target and could chase EOF again.
+            if parsedBytes >= requestedTargetSize, jsonlResumeState != nil {
+                parsedBytes = scanProgress.committedOffset
+                jsonlResumeState = nil
+                effectiveTargetSize = parsedBytes
+            }
+
+            // Unlike an ordinary rollout, a subagent prefix is not independently publishable:
+            // later lineage metadata can reclassify already-buffered totals as copied history.
+            let hasUnconsumedPhysicalTail = effectiveTargetSize < currentFileSize
+            if let pendingSubagentLines,
+               parsedBytes >= effectiveTargetSize,
+               jsonlResumeState == nil,
+               !hasUnconsumedPhysicalTail
+            {
                 // Same-leaf metadata can fill lineage fields after the opening record. Collect it
                 // before replay so copied-prefix totals never run once on the wrong baseline, and
                 // so an owned-suffix filter cannot discard the only fork identifier.
@@ -5087,6 +5143,7 @@ enum CostUsageScanner {
         return CodexParseResult(
             days: days,
             parsedBytes: parsedBytes,
+            scanTargetSize: effectiveTargetSize,
             lastModel: currentModel,
             lastTotals: sawDivergentTotals && !Self.codexTotalsEqual(rawTotalsBaseline, previousTotals)
                 ? nil
@@ -5108,7 +5165,8 @@ enum CostUsageScanner {
             rows: rows,
             tokenSnapshots: tokenSnapshots,
             jsonlResumeState: jsonlResumeState,
-            bufferedSubagentLines: parsedBytes < targetSize
+            bufferedSubagentLines: parsedBytes < effectiveTargetSize
+                || effectiveTargetSize < currentFileSize
                 || jsonlResumeState != nil
                 || hasUnresolvedForkBaseline
                 ? pendingSubagentLines
@@ -5235,24 +5293,25 @@ enum CostUsageScanner {
             return max(0, metadata.size - startOffset)
         }
         if cached.codexScanComplete == false {
-            if cached.codexScanFileId != nil,
-               cached.codexScanFileId == metadata.fileId,
-               let parsedBytes = cached.parsedBytes,
-               parsedBytes > 0,
-               parsedBytes <= metadata.size,
-               cached.codexTokenIndexAnchor?.indexedBytes == parsedBytes,
-               cached.codexTokenIndexAnchor.map({
-                   Self.codexTokenIndexAnchorMatches(
-                       $0,
-                       fileURL: URL(fileURLWithPath: metadata.path),
-                       metadata: metadata)
-               }) == true
+            if let targetSize = Self.codexResumableScanTargetSize(metadata: metadata, cached: cached),
+               let parsedBytes = cached.parsedBytes
             {
-                return max(0, metadata.size - parsedBytes)
+                return max(0, targetSize - parsedBytes)
+            }
+            if Self.isValidatedCodexFrozenTargetTail(metadata: metadata, cached: cached),
+               cached.forkedFromId == nil || cached.codexBufferedSubagentLines?.isEmpty == false
+            {
+                let startOffset = cached.parsedBytes ?? cached.size
+                return max(0, metadata.size - startOffset)
             }
             return max(0, metadata.size)
         }
         let startOffset = cached.parsedBytes ?? cached.size
+        if Self.isValidatedCodexFrozenTargetTail(metadata: metadata, cached: cached),
+           cached.forkedFromId == nil || cached.codexBufferedSubagentLines?.isEmpty == false
+        {
+            return max(0, metadata.size - startOffset)
+        }
         if metadata.size > cached.size,
            startOffset > 0,
            startOffset <= metadata.size,
@@ -5288,7 +5347,7 @@ enum CostUsageScanner {
         let pricingKeyChanged = cache.codexPricingKey != codexPricingKey
         let codexPriorityMetadataKey = Self.codexPriorityMetadataKey(databaseURL: options.codexTraceDatabaseURL)
         let hasPriorityMetadata = codexPriorityMetadataKey.hasPrefix("sqlite:")
-        let priorityMetadataChanged = Self.codexPriorityMetadataChanged(
+        let detectedPriorityMetadataChanged = Self.codexPriorityMetadataChanged(
             old: cache.codexPriorityMetadataKey,
             new: codexPriorityMetadataKey)
         let turnIDCacheMigrationPathKeys = hasPriorityMetadata ? Set(cache.files.compactMap { path, usage in
@@ -5306,7 +5365,7 @@ enum CostUsageScanner {
             || needsPricingMetadataMigration
             || needsProjectMetadataMigration
             || needsTurnIDCacheMigration
-            || priorityMetadataChanged
+            || detectedPriorityMetadataChanged
             || refreshMs == 0
             || cache.lastScanUnixMs == 0
             || nowMs - cache.lastScanUnixMs > refreshMs
@@ -5320,22 +5379,30 @@ enum CostUsageScanner {
                     databaseURL: resolvedPriorityDatabaseURL)
             }
         }
-        let priorityTurns = shouldInspectPriorityTurns ? Self.codexPriorityTurns(
+        let previouslyObservedDatabase = cache.codexPriorityMetadataKey
+            == "sqlite:\(resolvedPriorityDatabaseURL.standardizedFileURL.path)"
+        let priorityResolution = shouldInspectPriorityTurns ? Self.resolveCodexPriorityTurns(
             databaseURL: resolvedPriorityDatabaseURL,
             sinceDayKey: range.scanSinceKey,
-            untilDayKey: range.scanUntilKey) : [:]
-        let priorityTurnsCursor = shouldInspectPriorityTurns
+            untilDayKey: range.scanUntilKey,
+            expectExistingDatabase: previouslyObservedDatabase) : nil
+        let priorityTurns = priorityResolution?.turns
+            ?? Self.validatedPriorityTurns(cache: cache, calendar: range.calendar)
+        let priorityValidationPending = priorityResolution?.validationPending ?? false
+        let priorityMetadataChanged = detectedPriorityMetadataChanged && !priorityValidationPending
+        let priorityTurnsCursor = shouldInspectPriorityTurns && !priorityValidationPending
             ? Self.codexPriorityTurnsPersistedCursor(databaseURL: resolvedPriorityDatabaseURL)
             : nil
         let priorityTurnKeys = Self.codexPriorityTurnKeys(priorityTurns, calendar: range.calendar)
         let priorityTurnIDsByDay = Self.codexPriorityTurnIDsByDay(priorityTurns, calendar: range.calendar)
         let priorityTurnsChanged = shouldInspectPriorityTurns
+            && !priorityValidationPending
             && hasPriorityMetadata
             && Self.codexPriorityTurnKeysChanged(
                 old: cache.codexPriorityTurnKeys,
                 new: priorityTurnKeys,
                 range: range)
-        let changedPriorityTurnIDs = shouldInspectPriorityTurns && hasPriorityMetadata
+        let changedPriorityTurnIDs = shouldInspectPriorityTurns && !priorityValidationPending && hasPriorityMetadata
             ? Self.changedPriorityTurnIDs(
                 old: cache.codexPriorityTurnIDsByDay,
                 new: priorityTurnIDsByDay,
@@ -5361,6 +5428,7 @@ enum CostUsageScanner {
             || needsTurnIDCacheMigration
             || priorityMetadataChanged
             || priorityTurnsChanged
+            || priorityValidationPending
             || refreshMs == 0
             || cache.lastScanUnixMs == 0
             || nowMs - cache.lastScanUnixMs > refreshMs
@@ -5381,6 +5449,7 @@ enum CostUsageScanner {
             priorityTurnKeys: priorityTurnKeys,
             priorityTurnIDsByDay: priorityTurnIDsByDay,
             inspectedPriorityTurns: shouldInspectPriorityTurns,
+            priorityValidationPending: priorityValidationPending,
             priorityTurnsCursor: priorityTurnsCursor,
             priorityMetadataChanged: priorityMetadataChanged,
             priorityTurnsChanged: priorityTurnsChanged,
@@ -5435,12 +5504,17 @@ enum CostUsageScanner {
               !sourceCache.days.isEmpty
         else { return nil }
 
+        let priorityTurns = if plan.priorityValidationPending {
+            Self.validatedPriorityTurns(cache: sourceCache, calendar: range.calendar)
+        } else {
+            plan.priorityTurns
+        }
         let report = self.buildCodexReportFromCache(
             cache: sourceCache,
             range: range,
             modelsDevCatalog: plan.modelsDevCatalog,
             modelsDevCacheRoot: options.cacheRoot,
-            priorityTurns: plan.priorityTurns)
+            priorityTurns: priorityTurns)
         return CostUsageCodexPreviousReport(
             report: report,
             cache: sourceCache,
@@ -5467,6 +5541,7 @@ enum CostUsageScanner {
     private static func saveCodexCache(
         _ cache: inout CostUsageCache,
         store: CostUsageStore,
+        receipt: CostUsageStore.CodexBaselineReceipt,
         range: CostUsageDayRange,
         previousReport: CostUsageCodexPreviousReport?)
     {
@@ -5478,7 +5553,8 @@ enum CostUsageScanner {
             calendar: range.calendar,
             requestedScanWindow: (sinceKey: range.scanSinceKey, untilKey: range.scanUntilKey),
             reportWindow: (sinceKey: range.sinceKey, untilKey: range.untilKey),
-            skipIdenticalContent: true)
+            skipIdenticalContent: true,
+            receipt: receipt)
         if saveResult.catchUpRequired {
             cache.codexScanCatchUpPending = true
             cache.codexPreviousReport = previousReport
@@ -5493,6 +5569,7 @@ enum CostUsageScanner {
         checkCancellation: CancellationCheck?) throws -> CostUsageDailyReport
     {
         let loadedCache = Self.loadCodexCache(options: options, range: range)
+        defer { loadedCache.release() }
         var cache = loadedCache.cache
         let nowMs = Int64(now.timeIntervalSince1970 * 1000)
         let plan = Self.makeCodexRefreshPlan(cache: cache, range: range, now: now, nowMs: nowMs, options: options)
@@ -5501,6 +5578,21 @@ enum CostUsageScanner {
             range: range,
             plan: plan,
             options: options)
+
+        // A transient trace-database failure must not make this refresh look complete. Keep the
+        // last published cache (including its freshness timestamp and durable priority cursor)
+        // untouched so the next refresh retries validation against the same baseline.
+        if plan.priorityValidationPending {
+            guard cache.roots == plan.rootsFingerprint,
+                  cache.timeZoneIdentifier == range.calendar.timeZone.identifier
+            else { return CostUsageDailyReport(data: [], summary: nil) }
+            return previousReport?.report ?? Self.buildCodexReportFromCache(
+                cache: cache,
+                range: range,
+                modelsDevCatalog: plan.modelsDevCatalog,
+                modelsDevCacheRoot: options.cacheRoot,
+                priorityTurns: Self.validatedPriorityTurns(cache: cache, calendar: range.calendar))
+        }
 
         if plan.shouldRefresh {
             try checkCancellation?()
@@ -5660,7 +5752,8 @@ enum CostUsageScanner {
                     guard let usage = cache.files[fileURL.path], usage.codexScanComplete == true,
                           !usage.hasBufferedCodexForkRetryLines else { return true }
                     let metadata = Self.codexFileMetadata(fileURL: fileURL)
-                    return usage.size != metadata.size || usage.mtimeUnixMs != metadata.mtimeUnixMs
+                    return Self.codexLogicalTargetHasUnconsumedTail(metadata: metadata, cached: usage)
+                        || usage.size != metadata.size || usage.mtimeUnixMs != metadata.mtimeUnixMs
                         || usage.codexScanFileId != metadata.fileId
                 }
                 Self.appendCodexActiveLookbackPaths(
@@ -5777,7 +5870,15 @@ enum CostUsageScanner {
                 attemptedPaths: scanResult.attemptedPaths,
                 processedPaths: scanResult.processedPaths,
                 cache: cache)
-            cache.codexActiveLookbackState = Self.finalizedCodexActiveLookbackState(
+            let completedScheduledTailFiles = filesScheduledForRefresh.filter { fileURL in
+                let resolvedPath = Self.codexResolvedPath(fileURL)
+                guard completedScheduledPaths.contains(resolvedPath),
+                      let usage = cache.files[fileURL.path]
+                else { return false }
+                let metadata = Self.codexFileMetadata(fileURL: fileURL)
+                return Self.codexLogicalTargetHasUnconsumedTail(metadata: metadata, cached: usage)
+            }
+            var finalizedLookbackState = Self.finalizedCodexActiveLookbackState(
                 activeLookbackState,
                 completedFilePaths: completedScheduledPaths,
                 servicedFilePaths: scanResult.processedPaths,
@@ -5785,6 +5886,11 @@ enum CostUsageScanner {
                 requiresBoundedDiscoveryCompletion: shouldPageDiscovery,
                 retainCompletedStateForExactValidation: scanBudget.hasTimeLimit && pendingLookbackPathCount > 0,
                 workRecorder: options.codexScanWorkRecorderForTesting)
+            if var state = finalizedLookbackState, !state.pendingFilePaths.isEmpty {
+                Self.appendCodexActiveLookbackPaths(completedScheduledTailFiles, state: &state)
+                finalizedLookbackState = state
+            }
+            cache.codexActiveLookbackState = finalizedLookbackState
             if scanBudget.resumedPartialFileCount > 0
                 || scanBudget.deferredByBudgetFileCount > 0
                 || scanBudget.deferredByTimeBudgetFileCount > 0
@@ -5897,6 +6003,17 @@ enum CostUsageScanner {
                 || cache.files.values.contains { $0.hasBufferedCodexForkRetryLines }
             cache.codexScanCatchUpPending = catchUpPending
             cache.codexPreviousReport = catchUpPending ? previousReport : nil
+            if plan.inspectedPriorityTurns {
+                // Report pricing follows each successful inspected window, including an empty
+                // historical result. The independent live cursor remains suitable for resume.
+                cache.codexResolvedPriorityTurns = Self.mergeResolvedPriorityTurns(
+                    existing: shouldRetainWiderWindow
+                        ? Self.validatedPriorityTurns(cache: cache, calendar: range.calendar) : [:],
+                    new: plan.priorityTurns,
+                    range: range,
+                    retainedSinceKey: retainedSinceKey,
+                    retainedUntilKey: retainedUntilKey)
+            }
             if plan.hasPriorityMetadata {
                 cache.codexPriorityTurnKeys = Self.mergePriorityTurnKeys(
                     existing: shouldRetainWiderWindow ? cache.codexPriorityTurnKeys : nil,
@@ -5921,6 +6038,7 @@ enum CostUsageScanner {
             Self.saveCodexCache(
                 &cache,
                 store: loadedCache.store,
+                receipt: loadedCache.receipt,
                 range: range,
                 previousReport: previousReport)
         }
@@ -6059,6 +6177,43 @@ enum CostUsageScanner {
         }
     }
 
+    private static func completedCodexLogicalTargetSize(
+        metadata: CodexFileMetadata,
+        usage: CostUsageFileUsage) -> Int64?
+    {
+        let identityMatches = usage.codexScanFileId == nil || usage.codexScanFileId == metadata.fileId
+        guard usage.codexScanComplete != false,
+              usage.codexJSONLResumeState == nil,
+              !usage.hasBufferedCodexForkRetryLines,
+              identityMatches
+        else { return nil }
+        let parsedBytes = max(0, usage.parsedBytes ?? usage.size)
+        let targetSize = max(0, usage.codexScanTargetSize ?? usage.size)
+        guard targetSize <= usage.size,
+              targetSize <= metadata.size,
+              parsedBytes >= targetSize
+        else { return nil }
+
+        if usage.mtimeUnixMs == metadata.mtimeUnixMs, usage.size == metadata.size {
+            return targetSize
+        }
+        guard usage.codexScanFileId != nil,
+              usage.codexScanFileId == metadata.fileId,
+              usage.codexScanTargetSize != nil,
+              targetSize < metadata.size
+        else { return nil }
+        if targetSize == 0 {
+            return 0
+        }
+        guard usage.codexTokenIndexAnchor?.indexedBytes == targetSize else { return nil }
+        return usage.codexTokenIndexAnchor.map {
+            Self.codexTokenIndexAnchorMatches(
+                $0,
+                fileURL: URL(fileURLWithPath: metadata.path),
+                metadata: metadata)
+        } == true ? targetSize : nil
+    }
+
     private static func codexScanProgress(
         paths: Set<String>,
         cache: CostUsageCache,
@@ -6077,10 +6232,31 @@ enum CostUsageScanner {
             let identity = metadata.fileId ?? fileURL.standardizedFileURL.path
             guard seenIdentities.insert(identity).inserted else { continue }
             totalFiles += 1
-            totalBytes += max(0, metadata.size)
 
             let usage = cache.files[path] ?? cache.files[fileURL.standardizedFileURL.path]
-            guard let usage else { continue }
+            guard let usage else {
+                totalBytes += max(0, metadata.size)
+                continue
+            }
+            if let logicalTargetSize = Self.completedCodexLogicalTargetSize(
+                metadata: metadata,
+                usage: usage)
+            {
+                totalBytes += logicalTargetSize
+                processedBytes += logicalTargetSize
+                completedFiles += 1
+                continue
+            }
+            if let logicalTargetSize = Self.codexResumableScanTargetSize(
+                metadata: metadata,
+                cached: usage)
+            {
+                totalBytes += logicalTargetSize
+                processedBytes += min(logicalTargetSize, max(0, usage.parsedBytes ?? 0))
+                continue
+            }
+
+            totalBytes += max(0, metadata.size)
             let identityMatches = usage.codexScanFileId == nil || usage.codexScanFileId == metadata.fileId
             guard identityMatches,
                   usage.mtimeUnixMs == metadata.mtimeUnixMs,
@@ -6090,12 +6266,6 @@ enum CostUsageScanner {
                 max(0, metadata.size),
                 max(0, usage.parsedBytes ?? (usage.codexScanComplete == false ? 0 : usage.size)))
             processedBytes += parsedBytes
-            if usage.codexScanComplete != false,
-               parsedBytes >= metadata.size,
-               !usage.hasBufferedCodexForkRetryLines
-            {
-                completedFiles += 1
-            }
         }
 
         return CodexScanProgressSummary(

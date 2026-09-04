@@ -278,20 +278,22 @@ extension UsageStore {
                     allowLastKnownLiveFallback: false)
             }
 
+            if decision.allowedEffects.contains(.refreshGuardSeed) {
+                self.seedCodexAccountScopedRefreshGuard(accountEmail: attachedAccountEmail)
+            }
+
             if decision.allowedEffects.contains(.creditsAttachment),
                self.credits == nil,
                let credits = dashboard.toCreditsSnapshot()
             {
+                let ownerGuard = self.lastCodexAccountScopedRefreshGuard
                 self.credits = credits
                 self.lastCreditsSnapshot = credits
-                self.lastCreditsSnapshotAccountKey = Self.normalizeCodexAccountScopedKey(attachedAccountEmail)
+                self.lastCreditsSnapshotAccountKey = ownerGuard?.accountKey
+                self.lastCreditsSnapshotOwnerGuard = ownerGuard
                 self.lastCreditsSource = .dashboardWeb
                 self.lastCreditsError = nil
                 self.creditsFailureStreak = 0
-            }
-
-            if decision.allowedEffects.contains(.refreshGuardSeed) {
-                self.seedCodexAccountScopedRefreshGuard(accountEmail: attachedAccountEmail)
             }
 
             if let attachedAccountEmail, !attachedAccountEmail.isEmpty {
@@ -360,6 +362,7 @@ extension UsageStore {
         self.lastCreditsError = nil
         self.lastCreditsSnapshot = nil
         self.lastCreditsSnapshotAccountKey = nil
+        self.lastCreditsSnapshotOwnerGuard = nil
         self.lastCreditsSource = .none
         self.creditsFailureStreak = 0
     }

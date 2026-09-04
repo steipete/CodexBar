@@ -159,13 +159,27 @@ extension CodexAccountScopedRefreshTests {
         settings.multiAccountMenuLayout = .stacked
         let targetID = try #require(UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-121212121212"))
         let siblingID = try #require(UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-343434343434"))
+        let targetHome = CodexCredentialFixtures.root
+            .appendingPathComponent("codex-materialize-target-\(UUID().uuidString)", isDirectory: true)
+        let siblingHome = CodexCredentialFixtures.root
+            .appendingPathComponent("codex-materialize-sibling-\(UUID().uuidString)", isDirectory: true)
+        try Self.writeCodexAuthFile(
+            homeURL: targetHome,
+            email: "materialize-stack@example.com",
+            plan: "pro",
+            accountId: "acct-materialize-stack")
+        try Self.writeCodexAuthFile(
+            homeURL: siblingHome,
+            email: "other-stack@example.com",
+            plan: "pro",
+            accountId: "acct-materialize-other")
         let targetAccount = ManagedCodexAccount(
             id: targetID,
             email: "materialize-stack@example.com",
             providerAccountID: "acct-materialize-stack",
             workspaceLabel: "Target Team",
             workspaceAccountID: "acct-materialize-stack",
-            managedHomePath: "/tmp/materialize-stack-target",
+            managedHomePath: targetHome.path,
             createdAt: 1,
             updatedAt: 2,
             lastAuthenticatedAt: 2)
@@ -175,7 +189,7 @@ extension CodexAccountScopedRefreshTests {
             providerAccountID: "acct-materialize-other",
             workspaceLabel: "Other Team",
             workspaceAccountID: "acct-materialize-other",
-            managedHomePath: "/tmp/materialize-stack-other",
+            managedHomePath: siblingHome.path,
             createdAt: 1,
             updatedAt: 2,
             lastAuthenticatedAt: 2)
@@ -183,6 +197,8 @@ extension CodexAccountScopedRefreshTests {
         defer {
             settings._test_managedCodexAccountStoreURL = nil
             try? FileManager.default.removeItem(at: storeURL)
+            try? FileManager.default.removeItem(at: targetHome)
+            try? FileManager.default.removeItem(at: siblingHome)
         }
         settings._test_managedCodexAccountStoreURL = storeURL
         settings.codexActiveSource = .managedAccount(id: targetID)

@@ -11,6 +11,22 @@ read_when:
 CodexBar reads AWS Cost Explorer for Bedrock spend and can compare the current month against an optional budget. When
 permitted, it also reads CloudWatch for rolling 14-day Claude token and request totals in the configured region.
 
+## Monitoring charges and refresh frequency
+
+**Monitoring Bedrock spend can add charges to your AWS bill.** AWS currently charges **$0.01 per Cost Explorer API
+request** against the primary billing view, separately from Bedrock inference charges. See the
+[AWS Cost Explorer pricing page](https://aws.amazon.com/aws-cost-management/aws-cost-explorer/pricing/) for current rates.
+For example, 5,000 billed requests cost $50 at that rate. A CodexBar refresh is not a fixed-price unit: monthly spend,
+daily cost history, and paginated responses can make separate requests. Optional CloudWatch activity uses another API
+and is subject to [CloudWatch pricing](https://aws.amazon.com/cloudwatch/pricing/).
+
+To reduce automatic requests, open **Settings → General → Refreshing** and choose a longer refresh interval or
+**Manual**. This setting applies to all providers. Manual stops the recurring timer; startup, explicit refreshes,
+and **Refresh when the menu opens** can still fetch data. Turn off that option as well to reduce menu-triggered requests.
+Disable AWS Bedrock in Providers to stop its app refreshes; separate CLI invocations can still make billed requests.
+
+The optional monthly budget only changes the displayed progress. It does not cap AWS charges or stop polling.
+
 ## Authentication
 
 CodexBar supports two authentication modes, selected in Preferences → Providers → AWS Bedrock → Authentication.

@@ -276,6 +276,8 @@ See the [generated provider ID list](provider-ids.md), sourced from `UsageProvid
 The order of `providers` controls display/order in the app and CLI. Reorder the array to change ordering.
 
 ## iCloud sync
+The three sync sub-options are disabled while the main sync switch is off, iCloud is unavailable, or a newer app version is required. Their saved choices are retained when sync is turned off and restored when it is enabled again.
+
 Opt-in (Settings → iCloud Sync, off by default; requires a signed release build and an iCloud account). When enabled, CodexBar syncs across the user's Macs via CloudKit (private database, container `iCloud.com.steipete.codexbar`):
 
 - **Provider configuration** — portable fields of each provider entry (enabled intent, extras, region, workspace, quota-warning overrides, ordering-relevant metadata). Secrets (`apiKey`, `secretKey`, `cookieHeader`, `tokenAccounts`) sync only when "Include API keys, cookies, and tokens" is on, and travel exclusively in CloudKit `encryptedValues` (end-to-end encrypted; readable only on the user's devices).

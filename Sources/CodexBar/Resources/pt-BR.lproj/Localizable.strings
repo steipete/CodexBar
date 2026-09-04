@@ -1486,6 +1486,7 @@
 "Total usage" = "Uso total";
 "claude_oauth_keychain_access_revoked" = "O acesso às Chaves do Claude foi revogado pela rotação do token do Claude Code. Clique em Atualizar para conceder o acesso novamente ou altere a fonte de uso do Claude para CLI/Web.";
 "claude_showing_last_known_usage" = "Exibindo o último uso conhecido, capturado %@.";
+"claude_limited_usage_detail" = "Detalhes de uso limitados";
 /* Spend dashboard cost analysis */
 "90d" = "90d";
 "Input" = "Input";

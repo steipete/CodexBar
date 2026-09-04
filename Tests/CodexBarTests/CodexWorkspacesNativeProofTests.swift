@@ -44,7 +44,7 @@ final class CodexWorkspacesNativeProofTests: XCTestCase {
         let gateEnabled = CodexWorkspacesMenuAvailability.isEnabledForCurrentProcess
         let menu = NSMenu()
         let descriptor = controller.makeMenuDescriptor(provider: .codex, includeContextualActions: true)
-        controller.addActionableSections(descriptor.sections, to: menu, width: 320)
+        controller.addActionableSections(descriptor.sections, to: menu, width: 320, provider: .codex)
         let workspacesIndex = menu.items.firstIndex { $0.title == L("Workspaces") }
         XCTAssertEqual(workspacesIndex != nil, gateEnabled)
 

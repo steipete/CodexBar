@@ -315,7 +315,7 @@ struct ClaudeOAuthCredentialsProfileCacheTests {
                         #expect(entry.owner == .codexbar)
                         #expect(entry.historyOwnerIdentifier == historyOwnerIdentifier)
                         #expect(entry.profileIdentifier == historicalProfileIdentifier)
-                    case .missing, .invalid, .temporarilyUnavailable:
+                    case .interactionRequired, .missing, .invalid, .temporarilyUnavailable:
                         Issue.record("Expected the legacy default cache to be migrated to its profile key")
                     }
                 }
@@ -591,7 +591,7 @@ struct ClaudeOAuthCredentialsProfileCacheTests {
             case let .found(entry):
                 #expect(entry.profileIdentifier == self.profileIdentifier(environment: environment))
                 #expect(try ClaudeOAuthCredentials.parse(data: entry.data).accessToken == "file-token")
-            case .missing, .invalid, .temporarilyUnavailable:
+            case .interactionRequired, .missing, .invalid, .temporarilyUnavailable:
                 Issue.record("Expected the custom profile file to populate its own cache entry")
             }
         }

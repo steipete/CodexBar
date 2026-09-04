@@ -587,6 +587,8 @@ private struct MetricRow: View {
             .lineLimit(lineLimit)
             .fixedSize(horizontal: false, vertical: true)
             .hidden()
+            // Freeze the measured height, but let updates use the entire metric row width.
+            .frame(maxWidth: .infinity, alignment: .leading)
             .overlay(alignment: .topLeading) {
                 if let text, !text.isEmpty {
                     Text(text)
@@ -594,7 +596,6 @@ private struct MetricRow: View {
                         .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
                         .lineLimit(lineLimit)
                         .truncationMode(.tail)
-                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
             .clipped()

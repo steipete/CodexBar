@@ -109,10 +109,10 @@ extension UsageStore {
         let snapshot = self.settings.codexAccountReconciliationSnapshot
         var distinctAccounts: Set<String> = []
 
-        if let activeManagedAccount = self.settings.activeManagedCodexAccount {
-            distinctAccounts.insert(CodexIdentityMatcher.selectionKey(
-                for: snapshot.runtimeIdentity(for: activeManagedAccount),
-                fallbackEmail: snapshot.runtimeEmail(for: activeManagedAccount)))
+        if let activeOwner = snapshot.activeStoredAccount ?? snapshot.matchingStoredAccountForLiveSystemAccount {
+            distinctAccounts.formUnion(self.codexManagedOwnerKeys(
+                account: activeOwner,
+                snapshot: snapshot))
         }
 
         if let liveSystemAccount = snapshot.liveSystemAccount {
@@ -128,12 +128,12 @@ extension UsageStore {
         let snapshot = self.settings.codexAccountReconciliationSnapshot
         var distinctAccounts: Set<String> = []
 
-        if let activeManagedAccount = self.settings.activeManagedCodexAccount,
-           CodexIdentityResolver.normalizeEmail(snapshot.runtimeEmail(for: activeManagedAccount)) == normalizedEmail
+        if let activeOwner = snapshot.activeStoredAccount ?? snapshot.matchingStoredAccountForLiveSystemAccount,
+           CodexIdentityResolver.normalizeEmail(snapshot.runtimeEmail(for: activeOwner)) == normalizedEmail
         {
-            distinctAccounts.insert(CodexIdentityMatcher.selectionKey(
-                for: snapshot.runtimeIdentity(for: activeManagedAccount),
-                fallbackEmail: snapshot.runtimeEmail(for: activeManagedAccount)))
+            distinctAccounts.formUnion(self.codexManagedOwnerKeys(
+                account: activeOwner,
+                snapshot: snapshot))
         }
 
         if let liveSystemAccount = snapshot.liveSystemAccount,
@@ -145,6 +145,26 @@ extension UsageStore {
         }
 
         return distinctAccounts.count > 1
+    }
+
+    private func codexManagedOwnerKeys(
+        account: ManagedCodexAccount,
+        snapshot: CodexAccountReconciliationSnapshot) -> Set<String>
+    {
+        let email = snapshot.runtimeEmail(for: account)
+        let remoteIdentity = snapshot.managedRemoteIdentity(for: account)
+        var keys = [CodexIdentityMatcher.selectionKey(
+            for: remoteIdentity,
+            fallbackEmail: email)]
+        let runtimeIdentity = snapshot.runtimeIdentity(for: account)
+        if runtimeIdentity != .unresolved,
+           !CodexIdentityMatcher.matches(runtimeIdentity, remoteIdentity)
+        {
+            keys.append(CodexIdentityMatcher.selectionKey(
+                for: runtimeIdentity,
+                fallbackEmail: email))
+        }
+        return Set(keys)
     }
 
     private func codexVisibleAccountsHaveAdjacentMultiAccountVeto() -> Bool {
@@ -163,6 +183,7 @@ extension UsageStore {
     }
 
     private func codexVisibleAccountsHaveAdjacentEmailScopeAmbiguity(normalizedEmail: String) -> Bool {
+        let snapshot = self.settings.codexAccountReconciliationSnapshot
         let accounts = self.settings.codexVisibleAccountProjection.visibleAccounts
         var distinctAccounts: Set<String> = []
         for account in accounts where CodexIdentityResolver.normalizeEmail(account.email) == normalizedEmail {
@@ -172,6 +193,14 @@ extension UsageStore {
                 distinctAccounts.insert("provider:\(workspaceAccountID)")
             } else {
                 distinctAccounts.insert("email:\(normalizedEmail)")
+            }
+            if let storedAccountID = account.storedAccountID,
+               let storedAccount = snapshot.storedAccounts.first(where: { $0.id == storedAccountID }),
+               CodexIdentityResolver.normalizeEmail(snapshot.runtimeEmail(for: storedAccount)) == normalizedEmail
+            {
+                distinctAccounts.formUnion(self.codexManagedOwnerKeys(
+                    account: storedAccount,
+                    snapshot: snapshot))
             }
         }
         return distinctAccounts.count > 1

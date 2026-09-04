@@ -93,7 +93,7 @@ extension UsageStore {
             return
         }
         do {
-            let credits = try await self.loadLatestCodexCredits(accountKey: expectedGuard.accountKey)
+            let credits = try await self.loadLatestCodexCredits(expectedGuard: expectedGuard)
             guard !Task.isCancelled else { return }
             guard let applyGuard = self.codexScopedNonUsageSuccessApplyGuard(
                 expectedGuard: expectedGuard) else { return }
@@ -103,6 +103,7 @@ extension UsageStore {
                 self.lastCreditsError = nil
                 self.lastCreditsSnapshot = credits
                 self.lastCreditsSnapshotAccountKey = applyGuard.accountKey
+                self.lastCreditsSnapshotOwnerGuard = applyGuard
                 self.lastCreditsSource = credits == nil ? .none : .api
                 self.creditsFailureStreak = 0
                 self.lastCodexAccountScopedRefreshGuard = applyGuard
@@ -133,7 +134,8 @@ extension UsageStore {
                 self.reconcileCodexPublishedUsageOwner(with: expectedGuard)
                 await MainActor.run {
                     if let cached = self.lastCreditsSnapshot,
-                       self.lastCreditsSnapshotAccountKey == expectedGuard.accountKey
+                       let cachedOwnerGuard = self.lastCreditsSnapshotOwnerGuard,
+                       Self.codexScopedRefreshGuardsMatchAccount(cachedOwnerGuard, expectedGuard)
                     {
                         self.credits = cached
                         self.lastCreditsError = nil
@@ -152,7 +154,8 @@ extension UsageStore {
             await MainActor.run {
                 self.creditsFailureStreak += 1
                 if let cached = self.lastCreditsSnapshot,
-                   self.lastCreditsSnapshotAccountKey == expectedGuard.accountKey
+                   let cachedOwnerGuard = self.lastCreditsSnapshotOwnerGuard,
+                   Self.codexScopedRefreshGuardsMatchAccount(cachedOwnerGuard, expectedGuard)
                 {
                     self.credits = cached
                     let stamp = cached.updatedAt.formatted(date: .abbreviated, time: .shortened)
@@ -168,7 +171,9 @@ extension UsageStore {
         }
     }
 
-    private func loadLatestCodexCredits(accountKey: String?) async throws -> CreditsSnapshot? {
+    private func loadLatestCodexCredits(
+        expectedGuard: CodexAccountScopedRefreshGuard) async throws -> CreditsSnapshot?
+    {
         if let override = self._test_codexCreditsLoaderOverride {
             return try await override()
         }
@@ -177,7 +182,11 @@ extension UsageStore {
         let strategies = await descriptor.fetchPlan.pipeline.resolveStrategies(context)
         var lastAvailableError: Error?
         let prior = await MainActor.run { () -> CreditsSnapshot? in
-            guard self.lastCreditsSnapshotAccountKey == accountKey else { return nil }
+            guard let cachedOwnerGuard = self.lastCreditsSnapshotOwnerGuard,
+                  Self.codexScopedRefreshGuardsMatchAccount(cachedOwnerGuard, expectedGuard)
+            else {
+                return nil
+            }
             return self.lastCreditsSnapshot
         }
 
@@ -278,7 +287,10 @@ extension UsageStore {
         self.codexPlanHistoryBackfillTask = nil
     }
 
-    func publishHydratedCodexCreditsIfNeeded(from persistedCredits: CreditsSnapshot?, accountKey: String?) {
+    func publishHydratedCodexCreditsIfNeeded(
+        from persistedCredits: CreditsSnapshot?,
+        ownerGuard: CodexAccountScopedRefreshGuard)
+    {
         guard let credits = CodexMonthlyCreditPreservation.hydrationCredits(
             existingCredits: self.credits,
             persistedCredits: persistedCredits)
@@ -286,25 +298,36 @@ extension UsageStore {
         self.credits = credits
         self.lastCreditsError = nil
         self.lastCreditsSnapshot = credits
-        self.lastCreditsSnapshotAccountKey = accountKey
+        self.lastCreditsSnapshotAccountKey = ownerGuard.accountKey
+        self.lastCreditsSnapshotOwnerGuard = ownerGuard
         self.lastCreditsSource = .api
     }
 
     func shouldPublishSelectedCodexCredits(
         _ result: ProviderFetchResult,
-        publishedCredits: CreditsSnapshot?) -> Bool
+        publishedCredits: CreditsSnapshot?,
+        publicationGuard: CodexAccountScopedRefreshGuard) -> Bool
     {
-        CodexMonthlyCreditPreservation.shouldPublishSelectedCredits(
+        let ownerMatches = self.lastCreditsSnapshotOwnerGuard.map {
+            Self.codexScopedRefreshGuardsMatchAccount($0, publicationGuard)
+        } ?? false
+        let cachedCredits = ownerMatches
+            ? self.lastCreditsSnapshot
+            : nil
+        let currentCredits = ownerMatches
+            ? self.credits
+            : nil
+        return CodexMonthlyCreditPreservation.shouldPublishSelectedCredits(
             enrichmentFailed: result.codexMonthlyLimitEnrichmentFailed,
             publishedCredits: publishedCredits,
-            currentCredits: self.credits,
-            cachedCredits: self.lastCreditsSnapshot)
+            currentCredits: currentCredits,
+            cachedCredits: cachedCredits)
     }
 
     func persistPublishedCodexCreditsIntoAccountSnapshotsIfNeeded() {
-        let refreshGuard = self.lastCodexAccountScopedRefreshGuard
-        let accountKey = self.lastCreditsSnapshotAccountKey ?? refreshGuard?.accountKey
-        guard let accountKey else { return }
+        guard let refreshGuard = self.lastCreditsSnapshotOwnerGuard,
+              let accountKey = refreshGuard.accountKey
+        else { return }
         var matches = self.codexAccountSnapshots.indices.filter { index in
             Self.codexAccountSnapshot(
                 self.codexAccountSnapshots[index],

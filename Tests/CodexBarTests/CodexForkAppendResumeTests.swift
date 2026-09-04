@@ -113,7 +113,7 @@ struct CodexForkAppendResumeTests {
     }
 
     @Test
-    func `same-size subagent retry is free but an append forces a full rescan`() throws {
+    func `same-size subagent retry is free and a retained buffer resumes only the appended tail`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
 
@@ -218,13 +218,19 @@ struct CodexForkAppendResumeTests {
 
         let appendedMetadata = CostUsageScanner.codexFileMetadata(fileURL: fileURL)
         #expect(appendedMetadata.size > firstParsedBytes)
+        let appendedBytes = appendedMetadata.size - firstParsedBytes
+        #expect(appendedBytes <= 512)
         #expect(CostUsageScanner.pendingCodexScanWorkBytes(
             metadata: appendedMetadata,
-            cached: firstUsage) == appendedMetadata.size)
+            cached: firstUsage) == appendedBytes)
 
         options.maxCodexSessionFileBytes = 512
         options.maxCodexScanBytesPerRefresh = 512
-        _ = CostUsageScanner.loadDailyReport(
+        let appendBudget = CostUsageScanner.CodexScanBudget(
+            maxFileBytes: 512,
+            maxBytesPerRefresh: 512)
+        options.codexScanBudgetForTesting = appendBudget
+        let second = CostUsageScanner.loadDailyReport(
             provider: .codex,
             since: day,
             until: day,
@@ -233,8 +239,14 @@ struct CodexForkAppendResumeTests {
 
         let secondCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         let secondUsage = try #require(secondCache.files.values.first { $0.sessionId == "redacted-subagent" })
-        #expect((secondUsage.parsedBytes ?? 0) <= 512)
-        #expect(secondUsage.codexScanComplete == false)
+        #expect(appendBudget.bytesConsumed == appendedBytes)
+        #expect(secondUsage.parsedBytes == appendedMetadata.size)
+        #expect(secondUsage.codexScanComplete == true)
+        #expect(secondUsage.codexBufferedSubagentLines == nil)
+        #expect(secondUsage.forkBaselineDependencyKey == CostUsageScanner.codexForkDependencyNotRequiredKey)
+        #expect(secondUsage.codexTokenSnapshots?.count == 2)
+        #expect(second.data.first?.totalTokens == 55)
+        #expect(secondCache.codexScanCatchUpPending == false)
     }
 
     private func turnContext(timestamp: String, model: String) -> [String: Any] {

@@ -338,7 +338,8 @@ struct ManagedCodexAccountServiceTests {
         let account = try await service.authenticateManagedAccount(existingAccountID: aliceID)
 
         let storedAlice = try #require(store.snapshot.account(id: aliceID))
-        let storedBob = try #require(store.snapshot.account(email: "bob@example.com"))
+        let storedBob = try #require(
+            store.snapshot.account(email: "bob@example.com", providerAccountID: "account-bob"))
         #expect(account.id != aliceID)
         #expect(account.id == storedBob.id)
         #expect(store.snapshot.accounts.count == 2)
@@ -354,7 +355,7 @@ struct ManagedCodexAccountServiceTests {
     }
 
     @Test
-    func `reauth on same email different workspace does not overwrite selected workspace`() async throws {
+    func `reauth on same email different workspace does not overwrite explicit workspace only account`() async throws {
         let root = CodexCredentialFixtures.root.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let personalHome = root.appendingPathComponent("accounts/personal", isDirectory: true)
         try FileManager.default.createDirectory(at: personalHome, withIntermediateDirectories: true)
@@ -364,7 +365,6 @@ struct ManagedCodexAccountServiceTests {
         let personalAccount = ManagedCodexAccount(
             id: personalID,
             email: "alice@example.com",
-            providerAccountID: "workspace-personal",
             workspaceLabel: "Personal",
             workspaceAccountID: "workspace-personal",
             managedHomePath: personalHome.path,
@@ -395,7 +395,8 @@ struct ManagedCodexAccountServiceTests {
         #expect(account.id == storedTeam.id)
         #expect(account.id != personalID)
         #expect(store.snapshot.accounts.count == 2)
-        #expect(storedPersonal.providerAccountID == "workspace-personal")
+        #expect(storedPersonal.providerAccountID == nil)
+        #expect(storedPersonal.workspaceAccountID == "workspace-personal")
         #expect(storedPersonal.workspaceLabel == "Personal")
         #expect(storedPersonal.managedHomePath == personalHome.path)
         #expect(storedTeam.providerAccountID == "workspace-team")
@@ -403,6 +404,53 @@ struct ManagedCodexAccountServiceTests {
         #expect(storedTeam.managedHomePath != personalHome.path)
         #expect(FileManager.default.fileExists(atPath: personalHome.path))
         #expect(FileManager.default.fileExists(atPath: storedTeam.managedHomePath))
+    }
+
+    @Test
+    func `reauth canonicalizes mixed case workspace identity onto the existing account`() async throws {
+        let root = CodexCredentialFixtures.root.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let existingHome = root.appendingPathComponent("accounts/personal", isDirectory: true)
+        try FileManager.default.createDirectory(at: existingHome, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let accountID = try #require(UUID(uuidString: "41414141-5252-6363-7474-858585858585"))
+        let existingAccount = ManagedCodexAccount(
+            id: accountID,
+            email: "alice@example.com",
+            workspaceLabel: "Personal",
+            workspaceAccountID: "workspace-personal",
+            managedHomePath: existingHome.path,
+            createdAt: 1,
+            updatedAt: 1,
+            lastAuthenticatedAt: 1)
+        let store = InMemoryManagedCodexAccountStore(accounts: ManagedCodexAccountSet(
+            version: FileManagedCodexAccountStore.currentVersion,
+            accounts: [existingAccount]))
+        let service = ManagedCodexAccountService(
+            store: store,
+            homeFactory: TestManagedCodexHomeFactory(root: root),
+            loginRunner: StubManagedCodexLoginRunner.success,
+            identityReader: StubManagedCodexIdentityReader.accounts([
+                .init(identity: .providerAccount(id: "WORKSPACE-PERSONAL"), email: "alice@example.com", plan: "Pro"),
+            ]),
+            workspaceResolver: StubManagedCodexWorkspaceResolver(identities: [
+                "workspace-personal": CodexOpenAIWorkspaceIdentity(
+                    workspaceAccountID: "workspace-personal",
+                    workspaceLabel: "Personal"),
+            ]))
+
+        let account = try await service.authenticateManagedAccount(existingAccountID: accountID)
+        let stored = try #require(store.snapshot.account(id: accountID))
+
+        #expect(account.id == accountID)
+        #expect(stored.id == accountID)
+        #expect(store.snapshot.accounts.count == 1)
+        #expect(stored.providerAccountID == "workspace-personal")
+        #expect(stored.workspaceAccountID == "workspace-personal")
+        #expect(stored.managedHomePath == account.managedHomePath)
+        #expect(stored.managedHomePath != existingHome.path)
+        #expect(FileManager.default.fileExists(atPath: existingHome.path) == false)
+        #expect(FileManager.default.fileExists(atPath: stored.managedHomePath))
     }
 
     @Test

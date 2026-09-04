@@ -150,6 +150,106 @@ struct AntigravityLocalScanTests {
     }
 
     @Test
+    func `optional steps scan does not exhaust embedded timestamp usage rows`() throws {
+        let fixture = try Fixture()
+        let blob = Fixture.blobWithRootEnvelope(seconds: 1_787_832_000)
+        let url = try fixture.database(blobs: [blob], stepBlobs: [])
+        let database = try Fixture.open(url)
+        defer { sqlite3_close(database) }
+        try Fixture.execute(database, "INSERT INTO steps VALUES (0, zeroblob(40)), (1, zeroblob(40))")
+        var limits = AntigravityLocalReader.Limits()
+        limits.rowsPerDatabase = 1
+
+        let report = try fixture.report(limits: limits)
+
+        #expect(report.coverage == .complete)
+        #expect(report.statistics.rows == 1)
+        #expect(report.statistics.attemptedBytes == blob.count)
+    }
+
+    @Test
+    func `optional steps scan charges its rows and bytes against the shared job budget`() throws {
+        let fixture = try Fixture()
+        let stepUUID = "budgeted-step-uuid"
+        let genBlob = Fixture.blobWithRootEnvelope(stepUUID: stepUUID, seconds: nil)
+        let stepBlob = Fixture.stepMetadataBlob(stepUUID: stepUUID, seconds: 1_787_832_000)
+        try fixture.database(blobs: [genBlob], stepBlobs: [stepBlob])
+
+        #expect(try fixture.report().coverage == .complete)
+
+        var limits = AntigravityLocalReader.Limits()
+        limits.rows = 1
+        let rowBound = try fixture.report(limits: limits)
+        #expect(rowBound.coverage == .partial)
+        #expect(rowBound.statistics.rows == 2)
+
+        limits = AntigravityLocalReader.Limits()
+        limits.bytes = genBlob.count
+        let byteBound = try fixture.report(limits: limits)
+        #expect(byteBound.coverage == .partial)
+        #expect(byteBound.statistics.attemptedBytes == genBlob.count + stepBlob.count)
+
+        limits = AntigravityLocalReader.Limits()
+        limits.databaseBytes = genBlob.count + stepBlob.count - 1
+        let databaseByteBound = try fixture.report(limits: limits)
+        #expect(databaseByteBound.coverage == .partial)
+        #expect(databaseByteBound.statistics.attemptedBytes == genBlob.count + stepBlob.count)
+    }
+
+    @Test
+    func `step scan truncation cannot publish already recovered timestamps as complete`() throws {
+        let fixture = try Fixture()
+        let stepUUID = "bounded-step-uuid"
+        let genBlob = Fixture.blobWithRootEnvelope(stepUUID: stepUUID, seconds: nil)
+        let matchingStep = Fixture.stepMetadataBlob(stepUUID: stepUUID, seconds: 1_787_832_000)
+        let trailingStep = Fixture.stepMetadataBlob(stepUUID: "unrelated-step", seconds: 1_787_832_000)
+        try fixture.database(blobs: [genBlob], stepBlobs: [matchingStep, trailingStep])
+        var limits = AntigravityLocalReader.Limits()
+        limits.databaseBytes = genBlob.count + matchingStep.count
+
+        let report = try fixture.report(limits: limits)
+
+        #expect(report.coverage == .partial)
+        #expect(report.statistics.rows == 3)
+        #expect(report.statistics.attemptedBytes == genBlob.count + matchingStep.count + trailingStep.count)
+    }
+
+    @Test
+    func `step lookup reaches beyond the primary row cap within the shared budget`() throws {
+        let fixture = try Fixture()
+        let stepUUID = "sparse-step-uuid"
+        let genBlob = Fixture.blobWithRootEnvelope(stepUUID: stepUUID, seconds: nil)
+        let url = try fixture.database(blobs: [genBlob], stepBlobs: [])
+        let database = try Fixture.open(url)
+        defer { sqlite3_close(database) }
+        let unrelatedCount = 10001
+        let unrelated = Fixture.stepMetadataBlob(stepUUID: "unrelated-step", seconds: 1_787_832_000)
+        try Fixture.execute(database, "BEGIN")
+        do {
+            for index in 0..<unrelatedCount {
+                try Fixture.insertStep(database, row: Int64(index), blob: unrelated)
+            }
+            try Fixture.insertStep(
+                database,
+                row: Int64(unrelatedCount),
+                blob: Fixture.stepMetadataBlob(stepUUID: stepUUID, seconds: 1_787_832_000))
+            try Fixture.insertStep(database, row: Int64(unrelatedCount + 1), blob: unrelated)
+            try Fixture.execute(database, "COMMIT")
+        } catch {
+            try? Fixture.execute(database, "ROLLBACK")
+            throw error
+        }
+        var limits = AntigravityLocalReader.Limits()
+        limits.duration = 30
+
+        let report = try fixture.report(limits: limits)
+
+        #expect(report.coverage == .complete)
+        #expect(report.report.data.first?.date == "2026-08-27")
+        #expect(report.statistics.rows == unrelatedCount + 3)
+    }
+
+    @Test
     func `recursive aggregate view is rejected without executing its payload query`() throws {
         let fixture = try Fixture()
         let url = try fixture.database()

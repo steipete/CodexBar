@@ -219,7 +219,7 @@ extension CostUsageStoreReadWorkTests {
     }
 
     @Test
-    func `missing parent forks retain unmetered coverage in project and session reports`() throws {
+    func `missing parent forks retain unmetered coverage in project and session reports`() async throws {
         let fixture = try ReadWorkFixture(fileCount: 2, rowsPerFile: 4, incomplete: true)
         defer { fixture.remove() }
         var cache = fixture.canonical
@@ -238,6 +238,9 @@ extension CostUsageStoreReadWorkTests {
         try fixture.expectProjectionParity(baseline)
         let report = fixture.fullReport(baseline)
         #expect(report.data.first?.unmeteredRequestCount == 1)
+        let cached = try #require(await fixture.cachedSnapshot(details: true))
+        #expect(cached.snapshot.daily.first?.coverageCounts == report.data.first?.coverageCounts)
+        #expect(cached.snapshot.summary(forLastDays: 1, calendar: fixture.calendar).coverage.unmetered == 1)
         #expect(report.summary?.totalTokens == 52)
         let view = fixture.store.syncLoadCodexReadView(calendar: fixture.calendar, purpose: .report)
         let sessions = view.sessions(

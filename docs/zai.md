@@ -148,6 +148,7 @@ Copy each value once, on one line. Multi-line or duplicated IDs can make the API
   - `nextResetTime` (epoch ms) → date.
 - Usage details:
   - `usageDetails[]` per model (MCP usage list).
+  - Hourly and daily model token totals use compact M/B labels from one million upward; smaller totals remain exact. Chart points retain their full numeric values.
 
 ## Key files
 - `Sources/CodexBarCore/Resources/Plugins/zai.js` (quota parsing and window mapping)

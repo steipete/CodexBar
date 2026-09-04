@@ -36,6 +36,28 @@ struct PreparedStoredManagedAccount {
             nil
         }
     }
+
+    var remoteIdentity: PreparedIdentity {
+        guard let workspaceAccountID = self.persisted.effectiveWorkspaceAccountID else {
+            return self.authIdentity ?? self.persistedIdentity
+        }
+        return PreparedIdentity(
+            email: self.authIdentity?.email ?? self.persistedIdentity.email,
+            identity: .providerAccount(id: workspaceAccountID),
+            providerAccountID: workspaceAccountID,
+            workspaceLabel: self.persistedIdentity.workspaceLabel ?? self.authIdentity?.workspaceLabel,
+            workspaceAccountID: workspaceAccountID)
+    }
+
+    var selectedWorkspaceDiffersFromAuthDefault: Bool {
+        guard let selectedWorkspaceAccountID = self.persisted.effectiveWorkspaceAccountID,
+              let authIdentity = self.authIdentity
+        else {
+            return false
+        }
+        return selectedWorkspaceAccountID != ManagedCodexAccount.normalizeWorkspaceAccountID(
+            authIdentity.providerAccountID)
+    }
 }
 
 enum PreparedLiveHomeState {
@@ -195,7 +217,7 @@ struct PreparedPromotionContextBuilder {
         let normalizedIdentity = Self.normalizedIdentity(runtimeAccount.identity, email: normalizedEmail)
         let providerAccountID: String? = switch normalizedIdentity {
         case let .providerAccount(id):
-            ManagedCodexAccount.normalizeProviderAccountID(id)
+            ManagedCodexAccount.normalizeWorkspaceAccountID(id)
         case .emailOnly, .unresolved:
             nil
         }
@@ -217,7 +239,7 @@ struct PreparedPromotionContextBuilder {
 
     private static func persistedIdentity(from account: ManagedCodexAccount) -> PreparedIdentity {
         let normalizedEmail = Self.normalizeEmail(account.email)
-        let providerAccountID = ManagedCodexAccount.normalizeProviderAccountID(account.providerAccountID)
+        let providerAccountID = account.effectiveWorkspaceAccountID
         let identity = Self.normalizedIdentity(
             CodexIdentityResolver.resolve(accountId: providerAccountID, email: normalizedEmail),
             email: normalizedEmail)
@@ -227,7 +249,7 @@ struct PreparedPromotionContextBuilder {
             identity: identity,
             providerAccountID: providerAccountID,
             workspaceLabel: account.workspaceLabel,
-            workspaceAccountID: account.workspaceAccountID)
+            workspaceAccountID: providerAccountID)
     }
 
     private func liveHomeURL() -> URL {
@@ -246,7 +268,7 @@ struct PreparedPromotionContextBuilder {
         }
     }
 
-    private static func runtimeAccount(from rawData: Data) throws -> CodexAuthBackedAccount {
+    static func runtimeAccount(from rawData: Data) throws -> CodexAuthBackedAccount {
         guard let json = try JSONSerialization.jsonObject(with: rawData) as? [String: Any] else {
             throw CodexOAuthCredentialsError.decodeFailed("Invalid JSON")
         }
@@ -263,7 +285,7 @@ struct PreparedPromotionContextBuilder {
             (payload?["email"] as? String) ?? (profileDict?["email"] as? String))
         let plan = Self.normalizedField(
             (authDict?["chatgpt_plan_type"] as? String) ?? (payload?["chatgpt_plan_type"] as? String))
-        let accountID = ManagedCodexAccount.normalizeProviderAccountID(
+        let accountID = ManagedCodexAccount.normalizeWorkspaceAccountID(
             tokens.flatMap {
                 Self.nonEmptyString(in: $0, snakeCaseKey: "account_id", camelCaseKey: "accountId")
             }

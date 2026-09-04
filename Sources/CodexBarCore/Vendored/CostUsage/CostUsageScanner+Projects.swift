@@ -19,11 +19,12 @@ extension CostUsageScanner {
         modelsDevCatalog: ModelsDevCatalog? = nil,
         modelsDevCacheRoot: URL? = nil,
         sessionRoots: [URL]? = nil,
-        priorityTurns: [String: CodexPriorityTurnMetadata] = [:],
+        priorityTurns: [String: CodexPriorityTurnMetadata]? = nil,
         modelsDevCatalogLoader: (URL?) -> ModelsDevCatalog? = {
             CostUsagePricing.modelsDevCatalog(cacheRoot: $0)
         }) -> [CostUsageSessionBreakdown]
     {
+        let priorityTurns = priorityTurns ?? cache.codexResolvedPriorityTurns ?? [:]
         let resolvedModelsDevCatalog = modelsDevCatalog
             ?? modelsDevCatalogLoader(modelsDevCacheRoot)
             ?? ModelsDevCatalog(providers: [:])
@@ -87,11 +88,12 @@ extension CostUsageScanner {
         range: CostUsageDayRange,
         modelsDevCatalog: ModelsDevCatalog? = nil,
         modelsDevCacheRoot: URL? = nil,
-        priorityTurns: [String: CodexPriorityTurnMetadata] = [:],
+        priorityTurns: [String: CodexPriorityTurnMetadata]? = nil,
         modelsDevCatalogLoader: (URL?) -> ModelsDevCatalog? = {
             CostUsagePricing.modelsDevCatalog(cacheRoot: $0)
         }) -> [CostUsageProjectBreakdown]
     {
+        let priorityTurns = priorityTurns ?? cache.codexResolvedPriorityTurns ?? [:]
         // Project rollups build one report per cached session file. Resolve pricing once so every
         // row does not fall back through ModelsDevCache.load and repeat filesystem metadata reads.
         let resolvedModelsDevCatalog = modelsDevCatalog

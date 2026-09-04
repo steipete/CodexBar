@@ -1,17 +1,68 @@
 # Changelog
 
-## 0.56.2 — Unreleased
+## Unreleased
+
+### Fixed
+- z.ai: abbreviate large model token totals with M/B while preserving exact hourly and daily chart values (#3308, #3310). Thanks @medpath1024 and @fantasy!
+- Settings: disable iCloud sync sub-options when the main sync switch is off, preserving their saved choices for the next time sync is enabled (#3406). Thanks @elijahfriedman!
+- Antigravity: match local token-history timestamps by per-turn IDs when auxiliary or reordered steps would otherwise assign usage to the wrong day, while withholding conflicting evidence and preserving legacy timestamp recovery (#3403). Thanks @WeGoToMars!
+- Codex: retain completed empty session fragments during cost-history scans instead of repeatedly dropping and rediscovering them, without suppressing usage-bearing duplicates or later appended usage (partial fix for #3316; #3402). Thanks @mauriciopolvora!
+- Agent sessions: explicitly force Tailscale CLI mode during remote-host discovery, preventing repeated app-binary crashes on newer Tailscale installations while preserving existing terminal settings (#3397). Thanks @tzioup!
+- Kilo: point authentication recovery messages and provider documentation to the supported `kilo auth login` command (#3408). Thanks @Chevalicious!
+- Claude: stop labeling restored quota history as CLI usage, while retaining the limited-detail warning, original percentages, and stale-data guidance.
+- Usage & Spend: prefer heatmap tooltips above hovered cells and keep them within narrow grids; retain daily keyboard selection without the extra system focus rectangle (#3407). Thanks @elijahfriedman!
+
+## 0.56.4 — 2026-09-03
+
+### Fixed
+- Codex: let cost-history catch-up finish while active rollout files keep growing, preserving complete session and subagent accounting without publishing partial tails (#3243, #3314). Thanks @LeoLin990405!
+- Antigravity: restore token history from newer local sessions whose timestamps moved to the steps table, while rejecting missing, duplicate, or conflicting timestamp evidence instead of inventing dates (#3266, #3396). Thanks @chid!
+- Codex: keep each managed account's selected workspace authoritative across stacked refreshes, credits, history, menu rows, reconciliation, and System Account promotion instead of reverting to or rewriting the auth file's default workspace (#3347, #3348, #3386). Thanks @krevoit!
+- Settings: prevent scrolled detail content from bleeding through the native title bar while retaining the edge-to-edge sidebar and native window title (#3235, #3315). Thanks @LeoLin990405!
+- Claude: recognize Cloudflare web challenges without discarding valid cached cookies or prior usage, and offer explicit OAuth or network recovery guidance (#3367, #3375). Thanks @TPuHo4u!
+- Antigravity: recover Linux port discovery when `lsof` fails with mount-namespace warnings, while preserving authentication errors and the existing startup deadline (#3362, #3364). Thanks @srijits!
+- Menu bar: let live forecast and detail labels use the full row width, preventing text from clipping to its previous width until the menu reopens (#3370).
+- Settings: open the About pane from the application menu as well as the status menu, reusing the existing Settings window (#3391). Thanks @elijahfriedman!
+- Menu bar: discard non-finite saved status-item positions before AppKit restores them, preserving valid placements (#3361; investigated alongside #3355). Thanks @foobra!
+- Claude: remove misleading defaults-suite warnings at launch while preserving shared OAuth preferences for the CLI and widget (#3381, #3384). Thanks @andresg747!
+
+### Documentation
+- AWS Bedrock: explain that monitoring API calls may incur charges, how shared refresh controls affect them, and why Manual mode and the displayed budget do not impose a billing cap (#3387, #3393). Thanks @kyen99!
+
+## 0.56.3 — 2026-09-01
+
+### Performance
+- Claude and Vertex AI: reduce background CPU spent reading transcript metadata and looking up model prices during local cost scans, preserving provider detection and token/cost totals (#3319, #3328).
+- Local costs: skip unnecessary parsing work for discarded oversized log records, preserving complete-record validation and cost totals (#3342).
+- Codex: avoid repeated full scans after trace-log pruning, while retaining the latest validated cost history through temporary trace-database failures (#3318). Thanks @brzvsk!
+
+### Fixed
+- Poe: use one refresh timestamp for point-history retention and daily totals, keeping results consistent throughout a refresh.
+- Keychain: limit repeated cache ACL validation and memory growth while preserving recovery after temporary failures or external repairs (#3300, #3301). Thanks @IgorKhramtsov!
+- Grok: restore 0% usage for a validated active billing period with an omitted usage scalar, while keeping incomplete or malformed billing responses unknown (#3261, #3325, #3357). Thanks @sf-jin-ku and @olddonkey!
+- Ollama: restore usage bars for monthly included credits and show matching history tabs while preserving legacy quota parsing and saved history (#3346). Thanks @haixing23!
+- Menu bar: keep status components and website links scoped to their provider when switching cached tabs, preventing Claude status from appearing under Grok or Codex (#3320). Thanks @gianpaj!
+- Menu bar: attach minor and maintenance status badges to single-quota meters instead of leaving them floating below the meter (#3354). Thanks @dechaosong!
+- Usage & Spend: keep stalled or failed Codex catch-up paused until explicit Refresh, preventing background synchronization from restarting CPU-heavy scans (partial fix for #3316). Thanks @heyajulia!
+- Claude: resume scheduled browser-cookie refreshes when no-UI Keychain access recovers, while preserving non-interactive reads and user-initiated denial cooldowns (#3287). Thanks @ehmo!
+- Xiaomi MiMo: prevent overlapping local usage tracker updates from colliding on a shared temporary cache file, preserving atomic publication (#3321). Thanks @Lucenx9!
+- Claude: avoid duplicated “Resets Reset” labels when CLI usage supplies a singular reset description (#3317). Thanks @Aternus!
+- Codex: distinguish same-email workspaces with stable, privacy-safe labels across account settings, system selection, and menu switchers (#3282). Thanks @Dknightsure!
+
+## 0.56.2 — 2026-08-31
 
 ### Performance
 - Local costs: reduce background CPU spent parsing native session timestamps and validating appended Codex history, preserving timestamp precision, daily totals, and fork accounting.
+- Codex: reduce repeated decoding of cached cost history during scans, while preserving stored totals and checking for database and filesystem changes.
+- Claude and Vertex AI: reduce CPU spent reading local transcript metadata, preserving provider detection, Unicode handling, and token/cost totals.
 
 ### Fixed
-- z.ai: abbreviate million- and billion-scale model token totals with M/B while preserving exact chart data (#3308).
-- Codex: preserve pending weekly-reset evidence through credits-only refreshes so eligible low-usage confirmations survive relaunch (partial fix for #3248). Thanks @kcharlan!
-- Agent sessions: stop Codex metadata enrichment and Pi/OMP path resolution when the scan budget expires, and honor the same deadline during Claude Desktop root discovery.
+- Local costs: preserve token breakdowns, reasoning, request counts, and pricing coverage when combining reports or reopening cached history. Thanks @Pjhhhhh!
 - Codex: recover cost-history catch-up when removed fork files leave abandoned parent discovery in an existing cache, preserving stored totals and unresolved-fork accounting (partial fix for #2815). Thanks @xiehaibin18!
-- OpenCode Go: omit misleading pace and run-out advice for locally estimated quotas while preserving percentages, resets, and cost history (partial fix for #3286). Thanks @Akagilnc!
+- Codex: preserve pending weekly-reset evidence through credits-only refreshes so eligible low-usage confirmations survive relaunch (partial fix for #3248). Thanks @kcharlan!
 - Charts: keep endpoint dates readable in token/cost, credit-usage, credits-history, and plan-history submenus (partial fix for #3209). Thanks @vinschger!
+- Agent sessions: stop Codex metadata enrichment and Pi/OMP path resolution when the scan budget expires, and honor the same deadline during Claude Desktop root discovery.
+- OpenCode Go: omit misleading pace and run-out advice for locally estimated quotas while preserving percentages, resets, and cost history (partial fix for #3286). Thanks @Akagilnc!
 - OpenRouter: open Activity from Usage Dashboard instead of credit settings (#3290). Thanks @akshayprabhu200!
 
 ## 0.56.1 — 2026-08-30

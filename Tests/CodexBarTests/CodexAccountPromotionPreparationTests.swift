@@ -110,9 +110,10 @@ struct CodexAccountPromotionPreparationTests {
         let preparedLegacy = try #require(context.storedManagedAccounts.first(where: { $0.persisted.id == legacy.id }))
 
         #expect(preparedLegacy.persistedIdentity.email == "legacy@example.com")
-        #expect(preparedLegacy.persistedIdentity.identity == .emailOnly(normalizedEmail: "legacy@example.com"))
+        #expect(preparedLegacy.persistedIdentity.identity == .providerAccount(id: "acct-alpha"))
         #expect(preparedLegacy.authIdentity?.email == "alpha@example.com")
         #expect(preparedLegacy.authIdentity?.identity == .providerAccount(id: "acct-alpha"))
         #expect(preparedLegacy.authIdentity?.workspaceLabel == "Personal")
+        #expect(preparedLegacy.remoteIdentity.email == "alpha@example.com")
     }
 }

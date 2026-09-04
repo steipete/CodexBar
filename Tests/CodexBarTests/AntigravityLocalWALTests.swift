@@ -117,6 +117,52 @@ struct AntigravityLocalWALTests {
     }
 
     @Test
+    func `steps fallback remains on the generation snapshot after a writer update`() throws {
+        let fixture = try Fixture()
+        defer { withExtendedLifetime(fixture) {} }
+        let stepUUID = "snapshot-step-uuid"
+        let initialSeconds: UInt64 = 1_787_875_140
+        let laterSeconds: UInt64 = 1_787_875_260
+        let turn = Fixture.blobWithRootEnvelope(stepUUID: stepUUID, seconds: nil)
+        let initialStep = Fixture.stepMetadataBlob(stepUUID: stepUUID, seconds: initialSeconds, nanos: 0)
+        let laterStep = Fixture.stepMetadataBlob(stepUUID: stepUUID, seconds: laterSeconds, nanos: 0)
+        let url = try fixture.database()
+        let writer = try Fixture.open(url)
+        defer { sqlite3_close(writer) }
+        try Fixture.execute(writer, "PRAGMA journal_mode=WAL; PRAGMA wal_autocheckpoint=0")
+        try Fixture.insert(writer, row: 0, blob: turn)
+        try Fixture.execute(writer, "CREATE TABLE steps (idx INTEGER PRIMARY KEY, metadata BLOB)")
+        try Fixture.insertStep(writer, row: 0, blob: initialStep)
+        var updated = false
+        var budget: AntigravityLocalReader.Budget?
+        defer { budget = nil }
+        budget = AntigravityLocalReader.Budget(limits: .init(), cancellation: {
+            // The schema read has established the explicit transaction snapshot before either
+            // payload pass. A later writer commit must remain invisible to both table reads.
+            guard !updated, budget?.statistics.schemaColumns == 2 else { return }
+            updated = true
+            try Fixture.execute(writer, "BEGIN IMMEDIATE")
+            do {
+                try Fixture.execute(writer, "DELETE FROM steps")
+                try Fixture.insertStep(writer, row: 0, blob: laterStep)
+                try Fixture.execute(writer, "COMMIT")
+            } catch {
+                try? Fixture.execute(writer, "ROLLBACK")
+                throw error
+            }
+        })
+
+        let source = try AntigravityLocalReader.readDatabases([url], budget: #require(budget))
+
+        #expect(updated)
+        #expect(source.isComplete)
+        #expect(source.events.count == 1)
+        #expect(source.events.first?.turn.timestampMs == Int64(initialSeconds) * 1000)
+        #expect(try fixture.report().report.data.map(\.date) == ["2026-08-28"])
+        #expect(try Self.checkpoint(writer) == 0)
+    }
+
+    @Test
     func `initially absent WAL sidecars and failed opens leave no reader handles`() throws {
         let fixture = try Fixture()
         defer { withExtendedLifetime(fixture) {} }

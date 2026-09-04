@@ -136,10 +136,17 @@ struct ZaiProviderTests {
         let snapshot = try await Self.pluginSnapshot(
             quotaFixture: Self.quotaFixture,
             modelUsageFixture: Self.largeModelUsageFixture)
-        let hourly = try #require(snapshot.details.first { $0.title == "Hourly tokens" })
-
-        #expect(hourly.rows.map(\.value) == ["5.3B", "491M", "76.1M", "999999"])
-        #expect(hourly.chart?.points.map(\.value) == [5_868_199_724])
+        for title in ["Hourly tokens", "Daily tokens"] {
+            let section = try #require(snapshot.details.first { $0.title == title })
+            #expect(section.rows.map(\.label) == ["Example Large", "Example Medium", "Example Small", "Example Exact"])
+            #expect(section.rows.map(\.value) == ["5.3B", "491M", "76.1M", "999999"])
+            let chart = try #require(section.chart)
+            #expect(chart.kind == .bars)
+            #expect(chart.title == title)
+            #expect(chart.unit == "tokens")
+            #expect(chart.points.map(\.label) == ["2026-08-02 08:00", "2026-08-02 09:00"])
+            #expect(chart.points.map(\.value) == [5_470_500_000, 397_699_724])
+        }
     }
 
     @Test
@@ -256,11 +263,11 @@ struct ZaiProviderTests {
 
     private static let largeModelUsageFixture = #"""
     {"code":200,"msg":"success","success":true,"data":{
-      "x_time":["2026-08-02 08:00"],
-      "modelDataList":[{"modelName":"GLM-5.3","tokensUsage":[5300000000]},
-      {"modelName":"GLM-5.3-Flash","tokensUsage":[491075408]},
-      {"modelName":"GLM-5.2","tokensUsage":[76124317]},
-      {"modelName":"GLM-4.6","tokensUsage":[999999]}]}}
+      "x_time":["2026-08-02 08:00","2026-08-02 09:00"],
+      "modelDataList":[{"modelName":"Example Large","tokensUsage":[5000000000,300000000]},
+      {"modelName":"Example Medium","tokensUsage":[400000000,91075408]},
+      {"modelName":"Example Small","tokensUsage":[70000000,6124317]},
+      {"modelName":"Example Exact","tokensUsage":[500000,499999]}]}}
     """#
 
     private static let emptyModelUsageFixture =

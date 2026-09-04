@@ -1486,6 +1486,7 @@
 "Total usage" = "Gesamtnutzung";
 "claude_oauth_keychain_access_revoked" = "Der Zugriff auf den Claude-Schlüsselbund wurde durch die Token-Rotation von Claude Code widerrufen. Klicken Sie auf „Aktualisieren“, um den Zugriff erneut zu gewähren, oder stellen Sie die Claude-Nutzungsquelle auf CLI/Web um.";
 "claude_showing_last_known_usage" = "Letzte bekannte Nutzung wird angezeigt (erfasst: %@).";
+"claude_limited_usage_detail" = "Eingeschränkte Nutzungsdetails";
 /* Spend dashboard cost analysis */
 "90d" = "90d";
 "Input" = "Input";

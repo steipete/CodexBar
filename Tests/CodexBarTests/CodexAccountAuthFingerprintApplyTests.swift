@@ -250,6 +250,7 @@ extension CodexAccountScopedRefreshTests {
         #expect(store.credits?.remaining == 42)
         #expect(store.lastCreditsSnapshotAccountKey == "alpha@example.com")
         #expect(store.lastCodexAccountScopedRefreshGuard?.authFingerprint == "new-token-material")
+        #expect(store.lastCreditsSnapshotOwnerGuard?.authFingerprint == "new-token-material")
         #expect(store.lastCreditsError == nil)
     }
 

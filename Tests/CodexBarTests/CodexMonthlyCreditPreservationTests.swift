@@ -316,15 +316,25 @@ extension CodexAccountScopedRefreshTests {
                 remainingPercent: 97.3,
                 resetsAt: nil,
                 updatedAt: Date()))
+        let ownerGuard = CodexAccountScopedRefreshGuard(
+            source: .liveSystem,
+            identity: .emailOnly(normalizedEmail: "biz@example.com"),
+            accountKey: "biz@example.com")
 
-        store.publishHydratedCodexCreditsIfNeeded(from: persisted, accountKey: "biz@example.com")
+        store.publishHydratedCodexCreditsIfNeeded(from: persisted, ownerGuard: ownerGuard)
         #expect(store.credits?.codexCreditLimit?.limit == 1000)
         #expect(store.lastCreditsSnapshot?.codexCreditLimit?.used == 27)
         #expect(store.lastCreditsSnapshotAccountKey == "biz@example.com")
+        #expect(store.lastCreditsSnapshotOwnerGuard == ownerGuard)
         #expect(store.lastCreditsSource == .api)
 
         let other = CreditsSnapshot(remaining: 4, events: [], updatedAt: Date())
-        store.publishHydratedCodexCreditsIfNeeded(from: other, accountKey: "other@example.com")
+        store.publishHydratedCodexCreditsIfNeeded(
+            from: other,
+            ownerGuard: CodexAccountScopedRefreshGuard(
+                source: .liveSystem,
+                identity: .emailOnly(normalizedEmail: "other@example.com"),
+                accountKey: "other@example.com"))
         #expect(store.credits?.codexCreditLimit?.limit == 1000)
         #expect(store.lastCreditsSnapshotAccountKey == "biz@example.com")
     }
@@ -427,11 +437,13 @@ extension CodexAccountScopedRefreshTests {
                 sourceLabel: "api",
                 credits: nil),
         ]
-        store.lastCodexAccountScopedRefreshGuard = CodexAccountScopedRefreshGuard(
+        let ownerGuard = CodexAccountScopedRefreshGuard(
             source: .liveSystem,
             identity: .providerAccount(id: "acct-biz"),
             accountKey: "biz@example.com")
+        store.lastCodexAccountScopedRefreshGuard = ownerGuard
         store.lastCreditsSnapshotAccountKey = "biz@example.com"
+        store.lastCreditsSnapshotOwnerGuard = ownerGuard
         store.credits = CreditsSnapshot(
             remaining: 0,
             events: [],

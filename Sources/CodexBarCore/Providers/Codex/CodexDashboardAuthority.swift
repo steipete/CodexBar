@@ -259,7 +259,7 @@ public enum CodexDashboardAuthority {
     private static func normalizeIdentity(_ identity: CodexIdentity) -> CodexIdentity {
         switch identity {
         case let .providerAccount(id):
-            if let normalizedID = CodexIdentityResolver.normalizeAccountID(id) {
+            if let normalizedID = ManagedCodexAccount.normalizeWorkspaceAccountID(id) {
                 return .providerAccount(id: normalizedID)
             }
             return .unresolved

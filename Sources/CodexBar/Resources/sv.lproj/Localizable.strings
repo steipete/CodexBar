@@ -1484,6 +1484,7 @@
 "Total usage" = "Total användning";
 "claude_oauth_keychain_access_revoked" = "Åtkomsten till Claudes nyckelring återkallades när Claude Code roterade token. Klicka på Uppdatera för att ge åtkomst igen, eller byt Claudes användningskälla till CLI/Web.";
 "claude_showing_last_known_usage" = "Visar senast kända användning, registrerad %@.";
+"claude_limited_usage_detail" = "Begränsade användningsdetaljer";
 /* Spend dashboard cost analysis */
 "90d" = "90d";
 "Input" = "Input";

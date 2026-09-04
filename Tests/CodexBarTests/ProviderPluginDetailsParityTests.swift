@@ -7,12 +7,12 @@ import Testing
 
 struct ProviderPluginDetailsParityTests {
     #if canImport(JavaScriptCore)
-    private static let openRouterEngines: [ProviderPluginEngineKind] = [.quickJS, .javaScriptCore]
+    private static let parityEngines: [ProviderPluginEngineKind] = [.quickJS, .javaScriptCore]
     #else
-    private static let openRouterEngines: [ProviderPluginEngineKind] = [.quickJS]
+    private static let parityEngines: [ProviderPluginEngineKind] = [.quickJS]
     #endif
 
-    @Test(arguments: Self.openRouterEngines)
+    @Test(arguments: Self.parityEngines)
     func `OpenRouter independent cap fixture preserves the complete details golden`(
         engine: ProviderPluginEngineKind) async throws
     {
@@ -328,6 +328,31 @@ struct ProviderPluginDetailsParityTests {
             chart: Self.chart("Daily points", unit: "points", points: [
                 ("2026-08-02", 12.5), ("2026-08-03", 8),
             ]))])
+    }
+
+    @Test(arguments: Self.parityEngines)
+    func `Poe history uses the refresh clock for retention and today totals`(
+        engine: ProviderPluginEngineKind) async throws
+    {
+        let transport = Self.transport { request in
+            switch request.url?.path {
+            case "/usage/current_balance": Self.poeBalance
+            case "/usage/points_history": Self.poeHistory
+            default: throw FixtureError.unexpectedURL(request.url)
+            }
+        }
+        let sourceURL = try #require(CodexBarCoreResources.bundle?.url(forResource: "poe", withExtension: "js"))
+        let source = try "Date.now = () => 1785816000000;\n" + String(contentsOf: sourceURL, encoding: .utf8)
+        let runtime = try ProviderPluginRuntime(source: source, transport: transport, engine: engine)
+        let entryDate = Date(timeIntervalSince1970: 1_785_772_800)
+        let current = try await runtime.fetchUsage(secrets: ["POE_API_KEY": "fixture-key"], now: entryDate)
+        let today = current.details.first?.rows.first { $0.label == "Today" }
+        #expect(try today == Self.row("Today", "8 points", "1 requests · $0.02"))
+
+        let expired = try await runtime.fetchUsage(
+            secrets: ["POE_API_KEY": "fixture-key"],
+            now: entryDate.addingTimeInterval(31 * 86400))
+        #expect(try expired.details == [Self.section("Points", rows: [Self.row("Current balance", "2,500 points")])])
     }
 
     @Test
