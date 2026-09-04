@@ -57,7 +57,8 @@ public enum KiloProviderDescriptor {
                     ProviderColor(hex: 0xFAF74F),
                     ProviderColor(hex: 0xAC1D0E),
                     ProviderColor(hex: 0x121212),
-                ]),
+                ],
+                widgetColor: ProviderColor(red: 242 / 255, green: 112 / 255, blue: 39 / 255)),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Kilo cost summary is not supported." }),

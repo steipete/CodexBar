@@ -67,7 +67,8 @@ public enum Sub2APIProviderDescriptor {
                 ProviderColor(hex: 0x1F62FF),
                 ProviderColor(hex: 0x14B8A6),
                 ProviderColor(hex: 0x74F9B0),
-            ]),
+            ],
+            widgetColor: ProviderColor(red: 45 / 255, green: 198 / 255, blue: 216 / 255)),
         tokenCost: ProviderTokenCostConfig(
             supportsTokenCost: false,
             noDataMessage: { "sub2api spend is reported by its usage API." }),

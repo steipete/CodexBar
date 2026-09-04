@@ -54,7 +54,8 @@ public enum QoderProviderDescriptor {
                     ProviderColor(hex: 0x2ADB5C),
                     ProviderColor(hex: 0x111113),
                     ProviderColor(hex: 0xFFFFFF),
-                ]),
+                ],
+                widgetColor: ProviderColor(red: 16 / 255, green: 185 / 255, blue: 129 / 255)),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Qoder cost summary is not supported." }),

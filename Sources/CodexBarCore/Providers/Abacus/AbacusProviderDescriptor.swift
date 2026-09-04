@@ -48,7 +48,8 @@ public enum AbacusProviderDescriptor {
                     ProviderColor(hex: 0x814EE8),
                     ProviderColor(hex: 0xC64AF9),
                     ProviderColor(hex: 0xFFFFFF),
-                ]),
+                ],
+                widgetColor: ProviderColor(red: 56 / 255, green: 189 / 255, blue: 248 / 255)),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Abacus AI cost summary is not supported." }),

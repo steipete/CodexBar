@@ -53,7 +53,8 @@ public enum CodebuffProviderDescriptor {
                     ProviderColor(hex: 0x00FF95),
                     ProviderColor(hex: 0xFFFFFF),
                     ProviderColor(hex: 0x000000),
-                ]),
+                ],
+                widgetColor: ProviderColor(red: 68 / 255, green: 255 / 255, blue: 0 / 255)),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Codebuff cost summary is not yet supported." }),

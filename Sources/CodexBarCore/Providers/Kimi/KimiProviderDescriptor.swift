@@ -63,7 +63,8 @@ public enum KimiProviderDescriptor {
                     ProviderColor(hex: 0x000000),
                     ProviderColor(hex: 0x007CFF),
                     ProviderColor(hex: 0xFFFFFF),
-                ]),
+                ],
+                widgetColor: ProviderColor(red: 254 / 255, green: 96 / 255, blue: 60 / 255)),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Kimi Code cost summary is not supported." }),

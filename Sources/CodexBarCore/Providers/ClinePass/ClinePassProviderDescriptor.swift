@@ -38,7 +38,8 @@ public enum ClinePassProviderDescriptor {
                     ProviderColor(hex: 0x5487C8),
                     ProviderColor(hex: 0x111111),
                     ProviderColor(hex: 0xFFFFFF),
-                ]),
+                ],
+                widgetColor: ProviderColor(red: 0.38, green: 0.64, blue: 0.98)),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "ClinePass cost history is not available via the usage-limits API." }),

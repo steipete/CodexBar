@@ -45,7 +45,8 @@ public enum GroqProviderDescriptor {
                     ProviderColor(hex: 0xF55036),
                     ProviderColor(hex: 0xFFFFFF),
                     ProviderColor(hex: 0x97FCA7),
-                ]),
+                ],
+                widgetColor: ProviderColor(red: 245 / 255, green: 104 / 255, blue: 68 / 255)),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Sign in at console.groq.com to show Groq spend and token usage." },

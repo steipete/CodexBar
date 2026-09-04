@@ -34,7 +34,8 @@ public enum AiAndProviderDescriptor {
                     ProviderColor(hex: 0xC70007),
                     ProviderColor(hex: 0xF2A17E),
                     ProviderColor(hex: 0x33231C),
-                ]),
+                ],
+                widgetColor: ProviderColor(red: 226 / 255, green: 92 / 255, blue: 43 / 255)),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "ai& spend is summed from the request logs API." }),

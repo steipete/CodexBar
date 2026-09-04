@@ -53,7 +53,8 @@ public enum BedrockProviderDescriptor {
                     ProviderColor(hex: 0x01A88D),
                     ProviderColor(hex: 0x232F3E),
                     ProviderColor(hex: 0xFF9900),
-                ]),
+                ],
+                widgetColor: ProviderColor(red: 1, green: 0.6, blue: 0)),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: true,
                 noDataMessage: { "No AWS Bedrock cost data available. Check your AWS access keys "

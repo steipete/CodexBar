@@ -45,7 +45,8 @@ public enum LiteLLMProviderDescriptor {
                     ProviderColor(hex: 0x191938),
                     ProviderColor(hex: 0x5B3FD1),
                     ProviderColor(hex: 0xC5B9F6),
-                ]),
+                ],
+                widgetColor: ProviderColor(red: 76 / 255, green: 137 / 255, blue: 240 / 255)),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "LiteLLM spend is reported by the provider API." }),

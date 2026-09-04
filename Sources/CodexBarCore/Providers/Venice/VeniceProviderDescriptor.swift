@@ -45,7 +45,8 @@ public enum VeniceProviderDescriptor {
                     ProviderColor(hex: 0x0E2942),
                     ProviderColor(hex: 0xF7F5ED),
                     ProviderColor(hex: 0x3C8FDD),
-                ]),
+                ],
+                widgetColor: ProviderColor(red: 0.2, green: 0.6, blue: 1.0)),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Venice per-day cost history is not available via API." }),

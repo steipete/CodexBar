@@ -36,7 +36,8 @@ public enum JetBrainsProviderDescriptor {
                     ProviderColor(hex: 0x955AE0),
                     ProviderColor(hex: 0x21D789),
                     ProviderColor(hex: 0x000000),
-                ]),
+                ],
+                widgetColor: ProviderColor(red: 255 / 255, green: 51 / 255, blue: 153 / 255)),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "JetBrains AI cost summary is not supported." }),

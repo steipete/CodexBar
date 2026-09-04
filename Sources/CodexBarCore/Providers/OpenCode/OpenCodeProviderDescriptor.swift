@@ -65,7 +65,8 @@ public enum OpenCodeProviderDescriptor {
                     ProviderColor(hex: 0x211E1E),
                     ProviderColor(hex: 0xCFCECD),
                     ProviderColor(hex: 0x3B7DD8),
-                ]),
+                ],
+                widgetColor: ProviderColor(red: 59 / 255, green: 130 / 255, blue: 246 / 255)),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "OpenCode cost summary is not supported." }),

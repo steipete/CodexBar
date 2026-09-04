@@ -42,7 +42,8 @@ public enum FireworksProviderDescriptor {
                     ProviderColor(hex: 0x6720FF),
                     ProviderColor(hex: 0xFF9A3C),
                     ProviderColor(hex: 0x2B2B2E),
-                ]),
+                ],
+                widgetColor: ProviderColor(red: 242 / 255, green: 91 / 255, blue: 28 / 255)),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Fireworks spend comes from the billing summary API; cost history is not tracked." }),

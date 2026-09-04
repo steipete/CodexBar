@@ -65,7 +65,8 @@ public enum NotionProviderDescriptor {
                     ProviderColor(hex: 0x2EAADC),
                     ProviderColor(hex: 0xE16259),
                     ProviderColor(hex: 0x37352F),
-                ]),
+                ],
+                widgetColor: ProviderColor(red: 51 / 255, green: 126 / 255, blue: 169 / 255)),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Notion AI cost summary is not supported." }),

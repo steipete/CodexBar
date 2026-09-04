@@ -37,7 +37,8 @@ public enum ClawRouterProviderDescriptor {
                     ProviderColor(hex: 0x332CB3),
                     ProviderColor(hex: 0x1F5AE0),
                     ProviderColor(hex: 0xFFFFFF),
-                ]),
+                ],
+                widgetColor: ProviderColor(red: 89 / 255, green: 110 / 255, blue: 246 / 255)),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "ClawRouter spend is reported by its usage API." }),

@@ -66,7 +66,8 @@ public enum MoonshotProviderDescriptor {
                     ProviderColor(hex: 0x000000),
                     ProviderColor(hex: 0x305140),
                     ProviderColor(hex: 0x9F9F9F),
-                ]),
+                ],
+                widgetColor: ProviderColor(red: 32 / 255, green: 93 / 255, blue: 235 / 255)),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Moonshot / Kimi Open Platform cost summary is not available." }),

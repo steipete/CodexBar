@@ -52,7 +52,8 @@ public enum PerplexityProviderDescriptor {
                     ProviderColor(hex: 0x20808D),
                     ProviderColor(hex: 0x313131),
                     ProviderColor(hex: 0xFDFBFA),
-                ]),
+                ],
+                widgetColor: ProviderColor(red: 32 / 255, green: 178 / 255, blue: 170 / 255)),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Perplexity cost tracking is not supported." }),

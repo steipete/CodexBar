@@ -37,7 +37,8 @@ public enum T3ChatProviderDescriptor {
                     ProviderColor(hex: 0xA3004C),
                     ProviderColor(hex: 0xE6229C),
                     ProviderColor(hex: 0xFEA0F6),
-                ]),
+                ],
+                widgetColor: ProviderColor(red: 245 / 255, green: 102 / 255, blue: 71 / 255)),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "T3 Chat cost summary is not supported." }),
