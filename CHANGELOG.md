@@ -57,6 +57,7 @@
 - Grok: restore 0% usage for a validated active billing period with an omitted usage scalar, while keeping incomplete or malformed billing responses unknown (#3261, #3325, #3357). Thanks @sf-jin-ku and @olddonkey!
 - Ollama: restore usage bars for monthly included credits and show matching history tabs while preserving legacy quota parsing and saved history (#3346). Thanks @haixing23!
 - Menu bar: keep status components and website links scoped to their provider when switching cached tabs, preventing Claude status from appearing under Grok or Codex (#3320). Thanks @gianpaj!
+- Usage & Spend: condense the summary, switch between available breakdowns and trends in place, surface refresh failures near Refresh, and collapse source/privacy/export controls into one management section.
 - Menu bar: attach minor and maintenance status badges to single-quota meters instead of leaving them floating below the meter (#3354). Thanks @dechaosong!
 - Usage & Spend: keep stalled or failed Codex catch-up paused until explicit Refresh, preventing background synchronization from restarting CPU-heavy scans (partial fix for #3316). Thanks @heyajulia!
 - Claude: resume scheduled browser-cookie refreshes when no-UI Keychain access recovers, while preserving non-interactive reads and user-initiated denial cooldowns (#3287). Thanks @ehmo!

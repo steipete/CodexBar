@@ -44,6 +44,7 @@ struct CodexBarApp: App {
 
     init() {
         let env = ProcessInfo.processInfo.environment
+        UsageSpendBundleProof.prepareProcessIsolation()
         let storedLevel = CodexBarLog.parseLevel(UserDefaults.standard.string(forKey: "debugLogLevel")) ?? .verbose
         let level = CodexBarLog.parseLevel(env["CODEXBAR_LOG_LEVEL"]) ?? storedLevel
         CodexBarLog.bootstrapIfNeeded(.init(
@@ -83,6 +84,10 @@ struct CodexBarApp: App {
         let browserDetection = BrowserDetection(cacheTTL: BrowserDetection.defaultCacheTTL)
         let account = fetcher.loadAccountInfo()
         let store = UsageStore(fetcher: fetcher, browserDetection: browserDetection, settings: settings)
+        UsageSpendBundleProof.armIfRequested(
+            settings: settings,
+            store: store,
+            selection: preferencesSelection)
         let codexAccountPromotionCoordinator = CodexAccountPromotionCoordinator(
             settingsStore: settings,
             usageStore: store,
@@ -457,6 +462,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if UsageSpendBundleProof.startIfRequested(
+            openSettings: { [weak self] in
+                self?.openSettings(pane: .usageSpend)
+            },
+            windowProvider: { [weak self] in
+                self?.settingsWindowController?.window
+            })
+        {
+            self.closeSwiftUISettingsPlaceholderWindow()
+            return
+        }
         self.dockIconController.start()
         self.memoryPressureMonitor.start()
         #if DEBUG

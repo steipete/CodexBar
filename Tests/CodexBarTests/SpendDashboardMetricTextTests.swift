@@ -17,4 +17,34 @@ struct SpendDashboardMetricTextTests {
         #expect(spendDashboardMetricText(cost: nil, tokens: 1200, currencyCode: "USD").contains("1"))
         #expect(spendDashboardMetricText(cost: nil, tokens: nil, currencyCode: "USD") == "—")
     }
+
+    @Test
+    func `detail sections expose only breakdowns backed by data`() {
+        #expect(spendDashboardAvailableDetailSections(hasProjects: false, hasSessions: false) == [
+            .providers,
+        ])
+        #expect(spendDashboardAvailableDetailSections(hasProjects: true, hasSessions: true) == [
+            .providers,
+            .projects,
+            .sessions,
+        ])
+    }
+
+    @Test
+    func `hourly trend appears only when hourly data exists`() {
+        #expect(spendDashboardAvailableTrendSections(hasHourlyData: false) == [.daily])
+        #expect(spendDashboardAvailableTrendSections(hasHourlyData: true) == [.daily, .hourly])
+    }
+
+    @Test
+    func `provider metric marks partial aggregates without hiding known values`() {
+        let text = spendDashboardBreakdownMetricText(
+            cost: 2.5,
+            tokens: 1200,
+            currencyCode: "USD",
+            hasPartialCost: true,
+            hasPartialTokens: true)
+        #expect(text.contains("~$"))
+        #expect(text.contains("~1"))
+    }
 }

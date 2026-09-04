@@ -119,6 +119,23 @@ final class SpendDashboardScreenshotRenderTests: XCTestCase {
             let cost = [9: 0.4, 10: 1.1, 11: 0.7, 14: 0.9, 16: 0.3][hour] ?? 0.5
             return (date, cost)
         }
+        let projectDaily = [Self.entry(
+            day: recentDay,
+            cost: 3.4,
+            tokens: 80,
+            model: "gpt-5.4",
+            inputTokens: 60,
+            outputTokens: 20,
+            cacheReadTokens: 40,
+            reasoningTokens: 5)]
+        let project = CostUsageProjectBreakdown(
+            name: "Example Dashboard",
+            path: "/Users/example/Projects/example-dashboard",
+            totalTokens: 80,
+            totalCostUSD: 3.4,
+            daily: projectDaily,
+            modelBreakdowns: nil,
+            sources: [])
         let openCodex = SpendDashboardModel.ProviderInput(
             id: SpendDashboardModel.openCodexSourceID,
             provider: .codex,
@@ -130,7 +147,8 @@ final class SpendDashboardScreenshotRenderTests: XCTestCase {
                 last30DaysCostUSD: 3.4,
                 historyDays: 7,
                 costProvenance: .listPriceEstimate,
-                daily: [Self.entry(day: recentDay, cost: 3.4, tokens: 80, model: "gpt-5.4")],
+                daily: projectDaily,
+                projects: [project],
                 hourly: hourlyHours.map { CostUsageHourlyEntry(hour: $0.0, totalTokens: 16, costUSD: $0.1) },
                 updatedAt: now),
             sourceKind: .openCodex)
@@ -177,22 +195,12 @@ final class SpendDashboardScreenshotRenderTests: XCTestCase {
         XCTAssertEqual(Set(hourlyGroup.hourlyPoints.map(\.sourceID)), [SpendDashboardModel.openCodexSourceID])
         XCTAssertEqual(selectedGroup.hourlyChartDomain?.lowerBound, selectedDay)
 
-        let renders: [(String, AnyView)] = [
-            ("usage-spend-30d", AnyView(Self.chrome(selectedDays: 30, group: thirtyGroup))),
-            ("usage-spend-all", AnyView(Self.chrome(selectedDays: SpendDashboardSource.scanDays, group: allGroup))),
-            ("usage-spend-export-actions", AnyView(Self.exportActionsChrome())),
-            ("usage-spend-hourly", AnyView(Self.chrome(selectedDays: 7, group: hourlyGroup))),
-            ("usage-spend-hourly-selected-day", AnyView(Self.chrome(selectedDays: 7, group: selectedGroup))),
-            (
-                "overview-spend-summary",
-                AnyView(
-                    OverviewSpendSummaryCardView(
-                        summary: OverviewSpendSummary(model: thirty, providerCount: 2),
-                        days: 30,
-                        width: 320)
-                        .padding(.vertical, 8)
-                        .background(Color(nsColor: .windowBackgroundColor)))),
-        ]
+        let renders = Self.proofRenders(
+            thirty: thirty,
+            thirtyGroup: thirtyGroup,
+            allGroup: allGroup,
+            hourlyGroup: hourlyGroup,
+            selectedGroup: selectedGroup)
         for (name, view) in renders {
             let data = try XCTUnwrap(Self.pngData(for: view), "render failed for \(name)")
             let url = directory.appendingPathComponent("\(name).png")
@@ -208,7 +216,51 @@ final class SpendDashboardScreenshotRenderTests: XCTestCase {
         }
     }
 
-    private static func chrome(selectedDays: Int, group: SpendDashboardModel.CurrencyGroup) -> some View {
+    private static func proofRenders(
+        thirty: SpendDashboardModel,
+        thirtyGroup: SpendDashboardModel.CurrencyGroup,
+        allGroup: SpendDashboardModel.CurrencyGroup,
+        hourlyGroup: SpendDashboardModel.CurrencyGroup,
+        selectedGroup: SpendDashboardModel.CurrencyGroup) -> [(String, AnyView)]
+    {
+        [
+            ("usage-spend-30d", AnyView(self.chrome(selectedDays: 30, group: thirtyGroup))),
+            ("usage-spend-all", AnyView(self.chrome(selectedDays: SpendDashboardSource.scanDays, group: allGroup))),
+            (
+                "usage-spend-providers",
+                AnyView(self.chrome(
+                    selectedDays: SpendDashboardSource.scanDays,
+                    group: allGroup,
+                    detailSection: .providers))),
+            (
+                "usage-spend-projects",
+                AnyView(self.chrome(selectedDays: 7, group: hourlyGroup, detailSection: .projects))),
+            (
+                "usage-spend-sessions",
+                AnyView(self.chrome(selectedDays: 7, group: hourlyGroup, detailSection: .sessions))),
+            ("usage-spend-export-actions", AnyView(self.exportActionsChrome())),
+            (
+                "usage-spend-hourly",
+                AnyView(self.chrome(selectedDays: 7, group: hourlyGroup, trendSection: .hourly))),
+            ("usage-spend-hourly-selected-day", AnyView(self.chrome(selectedDays: 7, group: selectedGroup))),
+            (
+                "overview-spend-summary",
+                AnyView(
+                    OverviewSpendSummaryCardView(
+                        summary: OverviewSpendSummary(model: thirty, providerCount: 2),
+                        days: 30,
+                        width: 320)
+                        .padding(.vertical, 8)
+                        .background(Color(nsColor: .windowBackgroundColor)))),
+        ]
+    }
+
+    private static func chrome(
+        selectedDays: Int,
+        group: SpendDashboardModel.CurrencyGroup,
+        detailSection: SpendDashboardDetailSection = .providers,
+        trendSection: SpendDashboardTrendSection? = nil) -> some View
+    {
         VStack(alignment: .leading, spacing: 18) {
             HStack(alignment: .top, spacing: 16) {
                 VStack(alignment: .leading, spacing: 4) {
@@ -234,7 +286,11 @@ final class SpendDashboardScreenshotRenderTests: XCTestCase {
                         .strokeBorder(Color.secondary.opacity(0.35), lineWidth: 1)
                 }
             }
-            SpendDashboardCurrencySection(group: group, requestedDays: selectedDays)
+            SpendDashboardCurrencySection(
+                group: group,
+                requestedDays: selectedDays,
+                initialDetailSection: detailSection,
+                initialTrendSection: trendSection)
         }
         .padding(24)
         .frame(width: 760)
@@ -306,12 +362,18 @@ final class SpendDashboardScreenshotRenderTests: XCTestCase {
         day: String,
         cost: Double?,
         tokens: Int,
-        model: String) -> CostUsageDailyReport.Entry
+        model: String,
+        inputTokens: Int? = nil,
+        outputTokens: Int? = nil,
+        cacheReadTokens: Int? = nil,
+        reasoningTokens: Int? = nil) -> CostUsageDailyReport.Entry
     {
         CostUsageDailyReport.Entry(
             date: day,
-            inputTokens: nil,
-            outputTokens: nil,
+            inputTokens: inputTokens,
+            outputTokens: outputTokens,
+            cacheReadTokens: cacheReadTokens,
+            reasoningTokens: reasoningTokens,
             totalTokens: tokens,
             costUSD: cost,
             modelsUsed: nil,

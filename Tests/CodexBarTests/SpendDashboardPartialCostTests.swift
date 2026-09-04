@@ -266,6 +266,49 @@ struct SpendDashboardPartialCostTests {
         #expect(spendDashboardModelHistoryPresentation(group) == .unavailable)
     }
 
+    @Test
+    func `provider breakdown groups accounts and models without inventing account attribution`() throws {
+        let group = try Self.group(inputs: [
+            .init(
+                id: "codex-one",
+                provider: .codex,
+                displayName: "Codex · #1",
+                modelProviderName: "Codex",
+                snapshot: Self.snapshot(
+                    entries: [Self.entry(day: "2026-07-15", cost: 4, tokens: 40, model: "model-one")],
+                    last30DaysTokens: 40,
+                    last30DaysCostUSD: 4)),
+            .init(
+                id: "codex-two",
+                provider: .codex,
+                displayName: "Codex · #2",
+                modelProviderName: "Codex",
+                snapshot: Self.snapshot(
+                    entries: [Self.entry(day: "2026-07-16", cost: nil, tokens: 20, model: "model-two")],
+                    last30DaysTokens: 20,
+                    last30DaysCostUSD: nil)),
+            .init(
+                provider: .cursor,
+                displayName: "Cursor",
+                snapshot: Self.snapshot(
+                    entries: [Self.entry(day: "2026-07-15", cost: 3, tokens: 30, model: "cursor-model")],
+                    last30DaysTokens: 30,
+                    last30DaysCostUSD: 3)),
+        ])
+
+        let breakdowns = spendDashboardProviderBreakdowns(group)
+        let codex = try #require(breakdowns.first { $0.provider == .codex })
+        #expect(codex.subscriptions.map(\.displayName) == ["Codex · #1", "Codex · #2"])
+        #expect(codex.models.map(\.modelName) == ["model-one", "model-two"])
+        #expect(codex.totalCost == 4)
+        #expect(codex.totalTokens == 60)
+        #expect(codex.hasPartialCost)
+        #expect(!codex.hasPartialTokens)
+        #expect(codex.hasPartialModelHistory)
+        let cursor = try #require(breakdowns.first { $0.provider == .cursor })
+        #expect(!cursor.hasPartialModelHistory)
+    }
+
     private static func group(_ snapshot: CostUsageTokenSnapshot) throws -> SpendDashboardModel.CurrencyGroup {
         try self.group(inputs: [.init(provider: .codex, displayName: "Codex", snapshot: snapshot)])
     }

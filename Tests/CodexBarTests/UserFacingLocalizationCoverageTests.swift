@@ -63,9 +63,12 @@ struct UserFacingLocalizationCoverageTests {
                 ".help(\"Copy error\")",
             ],
             "Sources/CodexBar/PreferencesSpendDashboardPane.swift": [
+                "Text(\"Partial estimate\")",
+            ],
+            "Sources/CodexBar/SpendDashboardProviderBreakdown.swift": [
                 "Text(\"Model breakdown unavailable\")",
                 "Text(\"Partial model breakdown\")",
-                "Text(\"Partial estimate\")",
+                "Text(\"No model-level history\")",
             ],
             "Sources/CodexBar/PreferencesProviderSettingsRows.swift": [
                 "Text(self.title)",
@@ -175,12 +178,12 @@ struct UserFacingLocalizationCoverageTests {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
         let source = try String(
-            contentsOf: root.appendingPathComponent("Sources/CodexBar/PreferencesSpendDashboardPane.swift"),
+            contentsOf: root.appendingPathComponent("Sources/CodexBar/SpendDashboardProviderBreakdown.swift"),
             encoding: .utf8)
 
-        #expect(source.contains(#"Text(L("Model breakdown unavailable"))"#))
+        #expect(source.contains(#"L("Model breakdown unavailable")"#))
         #expect(source.contains(#"L("Partial model breakdown")"#))
-        #expect(source.contains(#"Text(L("No model-level history"))"#))
+        #expect(source.contains(#"L("No model-level history")"#))
     }
 
     @Test
