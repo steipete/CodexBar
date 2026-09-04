@@ -30,7 +30,7 @@ struct MenuCardProviderRegressionTests {
     @Test
     func `command code progress color uses its contrasting brand accent`() {
         let branding = ProviderDescriptorRegistry.descriptor(for: .commandcode).branding.color
-        let expected = ProviderColor(hex: 0xA04DFD)
+        let expected = ProviderColor(hex: 0x8C4EDD)
 
         #expect(branding == expected)
         #expect(UsageMenuCardView.Model.progressColor(for: .commandcode) == Color(
