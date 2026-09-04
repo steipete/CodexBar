@@ -314,7 +314,13 @@ struct ProviderInlineDashboardModelTests {
             now: now))
 
         #expect(model.inlineUsageDashboard?.kpis.first?.value == "€1.50")
-        #expect(model.inlineUsageDashboard?.points.first?.accessibilityValue == "2023-11-14: €1.50")
+        #expect(model.inlineUsageDashboard?.points.first?.accessibilityValue ==
+            "2023-11-14: €1.50 · 150 tokens")
+        #expect(model.inlineUsageDashboard?.points.first?.hoverDetail == .init(
+            dateLabel: "2023-11-14",
+            cost: 1.5,
+            tokenCount: 150,
+            currencyCode: "EUR"))
         #expect(model.inlineUsageDashboard?.detailLines.contains("Top model: mistral-large") == true)
     }
 
