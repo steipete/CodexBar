@@ -34,7 +34,7 @@ Copilot uses GitHub OAuth device flow and the Copilot internal usage API for pri
      - `Editor-Version: vscode/1.96.2`
      - `Editor-Plugin-Version: copilot-chat/0.26.7`
      - `User-Agent: GitHubCopilotChat/0.26.7`
-     - `X-Github-Api-Version: 2025-04-01`
+     - `X-Github-Api-Version: 2025-04-01 (github.com only; omitted for Enterprise API compatibility)`
 
 3) **Budget fetch** (optional GitHub web endpoint, best-effort)
    - Disabled by default. The Copilot provider's "Budget extras" setting must be enabled before CodexBar imports
