@@ -18,6 +18,8 @@ Code subscription credentials.
 
 - Displays weekly request quota (from membership tier)
 - Shows current 5-hour rate limit usage
+- Displays membership from the API/CLI usage response, with the active web subscription title as a fallback
+- Detects the installed Kimi CLI version, including standalone installs outside the GUI app PATH
 - Enriches Code API/CLI usage with the monthly membership pool when a web session is available
 - API-key, Kimi Code CLI, automatic cookie, and manual cookie authentication methods
 - Automatic refresh countdown
@@ -66,6 +68,12 @@ reuse; use an explicit API key for endpoint-override testing.
 2. Set "Cookie source" to "Automatic"
 3. Enable the Kimi provider toggle
 4. CodexBar will automatically find your session
+
+Automatic mode prefers a usable Kimi Desktop cookie. Expired desktop JWTs are skipped; if the server
+rejects a desktop session, the Web source continues through browser profiles instead of stopping.
+Explicit manual tokens remain authoritative. API-key and CLI quota responses include the membership level, so displaying the tier does not require
+browser access. A web session can supply a subscription title when the usage response omits membership;
+a membership lookup failure does not fail the quota query.
 
 **Note**: Requires Full Disk Access to read browser cookies (System Settings → Privacy & Security → Full Disk Access → CodexBar).
 

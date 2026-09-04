@@ -148,6 +148,7 @@ public struct KimiUsageFetcher: Sendable {
             rateLimitWindow: rateLimit?.window,
             subscriptionBalance: subscriptionStats?.subscriptionBalance,
             subscriptionCodeWeeklyLimit: subscriptionStats?.ratelimitCode7d,
+            planName: subscriptionStats?.planName,
             updatedAt: now)
     }
 
@@ -212,6 +213,7 @@ public struct KimiUsageFetcher: Sendable {
             rateLimitWindow: snapshot.rateLimitWindow,
             subscriptionBalance: subscriptionStats.subscriptionBalance,
             subscriptionCodeWeeklyLimit: subscriptionStats.ratelimitCode7d,
+            planName: snapshot.planName ?? subscriptionStats.planName,
             updatedAt: now)
     }
 
@@ -223,6 +225,7 @@ public struct KimiUsageFetcher: Sendable {
             rateLimit: rateLimit?.detail,
             rateLimitWindow: rateLimit?.window,
             subscriptionBalance: nil,
+            planName: response.planName,
             updatedAt: now)
     }
 
@@ -244,6 +247,32 @@ public struct KimiUsageFetcher: Sendable {
     }
 
     private static func fetchSubscriptionStats(
+        authToken: String,
+        sessionInfo: SessionInfo?,
+        transport: any ProviderHTTPTransport) async throws -> KimiSubscriptionStatsResponse?
+    {
+        var stats = try await self.fetchUsageStats(
+            authToken: authToken, sessionInfo: sessionInfo, transport: transport)
+            ?? KimiSubscriptionStatsResponse(subscriptionBalance: nil, ratelimitCode7d: nil)
+        let url = self.subscriptionStatsURL.deletingLastPathComponent().appendingPathComponent("GetSubscription")
+        var request = self.webRequest(url: url, authToken: authToken, sessionInfo: sessionInfo)
+        request.httpBody = Data("{}".utf8)
+        request.timeoutInterval = 2
+        do {
+            let response = try await transport.response(for: request)
+            if response.statusCode == 200 {
+                stats.planName = try JSONDecoder().decode(KimiSubscriptionResponse.self, from: response.data).planName
+            }
+        } catch {
+            if error is CancellationError || (error as? URLError)?.code == .cancelled || Task.isCancelled {
+                throw CancellationError()
+            }
+            Self.log.warning("Kimi plan unavailable: \(error.localizedDescription)")
+        }
+        return stats
+    }
+
+    private static func fetchUsageStats(
         authToken: String,
         sessionInfo: SessionInfo?,
         transport: any ProviderHTTPTransport) async throws -> KimiSubscriptionStatsResponse?

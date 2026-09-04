@@ -7,9 +7,35 @@ struct KimiUsageResponse: Codable {
 struct KimiCodeAPIUsageResponse: Codable {
     let usage: KimiUsageDetail
     let limits: [KimiRateLimit]?
+    let user: User?
+    let version: String?
+
+    struct User: Codable {
+        let membership: Membership?
+    }
+
+    struct Membership: Codable {
+        let level: String?
+    }
+
+    var planName: String? {
+        guard let level = user?.membership?.level?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !level.isEmpty, level != "LEVEL_UNSPECIFIED" else { return nil }
+        // Names from the official V1 membership goods catalog. Preserve unknown enum values.
+        guard self.version == nil || self.version == "GOODS_VERSION_V1" else { return level }
+        switch level {
+        case "LEVEL_FREE": return "Adagio"
+        case "LEVEL_TRIAL": return "Andante"
+        case "LEVEL_BASIC": return "Moderato"
+        case "LEVEL_INTERMEDIATE": return "Allegretto"
+        case "LEVEL_ADVANCED": return "Allegro"
+        default: return level
+        }
+    }
 }
 
 struct KimiSubscriptionStatsResponse: Codable {
+    var planName: String?
     let subscriptionBalance: KimiSubscriptionBalance?
     let ratelimitCode7d: KimiSubscriptionRateLimit?
 }
@@ -132,5 +158,29 @@ struct KimiWindow: Codable, Sendable {
         }
         let result = self.duration.multipliedReportingOverflow(by: multiplier)
         return result.overflow ? nil : result.partialValue
+    }
+}
+
+/// The active subscription, as returned by the same endpoint used by the Code console.
+struct KimiSubscriptionResponse: Decodable {
+    let subscription: Subscription?
+
+    struct Subscription: Decodable {
+        let active: Bool?
+        let status: String?
+        let goods: Goods?
+    }
+
+    struct Goods: Decodable {
+        let title: String?
+    }
+
+    var planName: String? {
+        guard let subscription,
+              subscription.active == true,
+              subscription.status == "SUBSCRIPTION_STATUS_ACTIVE",
+              let title = subscription.goods?.title?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !title.isEmpty else { return nil }
+        return title
     }
 }
