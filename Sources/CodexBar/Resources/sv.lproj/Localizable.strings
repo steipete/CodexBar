@@ -1542,3 +1542,6 @@
 "menu_bar_layout_conditional_default_either_high" = "Session eller vecka ligger högt";
 "menu_bar_layout_conditional_default_scoped_weekly" = "Modellvecka över 60 % använt";
 "Spending cap, not balance" = "Utgiftstak, inte saldo";
+
+"Color pace" = "Färglägg förbrukningstakten";
+"Green when usage is behind pace (reserve); red when ahead (risk of running out early)." = "Grönt när förbrukningen ligger under förväntad takt (reserv); rött när den ligger över (risk att kvoten tar slut i förtid).";

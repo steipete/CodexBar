@@ -325,6 +325,14 @@ extension SettingsStore {
         }
     }
 
+    var menuBarColorPace: Bool {
+        get { self.defaultsState.menuBarColorPace }
+        set {
+            self.defaultsState.menuBarColorPace = newValue
+            self.userDefaults.set(newValue, forKey: "menuBarColorPace")
+        }
+    }
+
     var menuBarHighContrastOnInactiveDisplays: Bool {
         get { self.defaultsState.menuBarHighContrastOnInactiveDisplays }
         set {

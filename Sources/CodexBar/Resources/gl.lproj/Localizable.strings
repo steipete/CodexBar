@@ -1542,3 +1542,6 @@
 "menu_bar_layout_conditional_default_either_high" = "Sesión ou semana en nivel alto";
 "menu_bar_layout_conditional_default_scoped_weekly" = "Semana por modelo por riba do 60 %";
 "Spending cap, not balance" = "Límite de gasto, non saldo";
+
+"Color pace" = "Colorear o ritmo";
+"Green when usage is behind pace (reserve); red when ahead (risk of running out early)." = "Verde cando o uso vai por debaixo do ritmo previsto (reserva); vermello cando vai por riba (risco de esgotar a cota antes de tempo).";

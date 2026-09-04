@@ -1542,3 +1542,6 @@
 "menu_bar_layout_conditional_default_either_high" = "Sessie of week loopt hoog op";
 "menu_bar_layout_conditional_default_scoped_weekly" = "Modelweek boven 60% gebruikt";
 "Spending cap, not balance" = "Uitgavenlimiet, geen saldo";
+
+"Color pace" = "Gebruikstempo kleuren";
+"Green when usage is behind pace (reserve); red when ahead (risk of running out early)." = "Groen als het verbruik achterloopt op het verwachte tempo (reserve); rood als het voorloopt (risico op vroegtijdige uitputting).";

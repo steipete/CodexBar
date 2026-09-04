@@ -1555,3 +1555,6 @@
 "in %@m" = "%@ 分钟后";
 "now" = "现在";
 "Spending cap, not balance" = "支出上限，并非余额";
+
+"Color pace" = "用颜色显示使用节奏";
+"Green when usage is behind pace (reserve); red when ahead (risk of running out early)." = "使用量低于预期进度时显示绿色（有余量）；高于预期时显示红色（可能提前耗尽配额）。";

@@ -1547,3 +1547,6 @@
 "menu_bar_layout_conditional_default_either_high" = "نشست یا هفته در سطح بالا";
 "menu_bar_layout_conditional_default_scoped_weekly" = "پنجره هفتگی مدل بیش از ۶۰٪";
 "Spending cap, not balance" = "سقف هزینه، نه موجودی";
+
+"Color pace" = "رنگ‌بندی آهنگ مصرف";
+"Green when usage is behind pace (reserve); red when ahead (risk of running out early)." = "سبز وقتی مصرف از آهنگ مورد انتظار عقب‌تر است (ذخیره)؛ قرمز وقتی جلوتر است (خطر تمام شدن زودهنگام سهمیه).";

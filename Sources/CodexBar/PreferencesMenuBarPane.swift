@@ -44,6 +44,14 @@ struct MenuBarPane: View {
             }
 
             Section {
+                Toggle(isOn: self.$settings.menuBarColorPace) {
+                    SettingsRowLabel(
+                        L("Color pace"),
+                        subtitle: L(
+                            "Green when usage is behind pace (reserve); red when ahead (risk of running out early)."))
+                }
+                .disabled(self.settings.menuBarIconStyle != .iconAndPercent)
+
                 MenuBarLayoutEditor(settings: self.settings, store: self.store)
                     .disabled(self.settings.menuBarIconStyle != .iconAndPercent)
             } header: {

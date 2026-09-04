@@ -48,6 +48,10 @@ behind it, `0%` on pace. Each pace token reads its own window, so `Weekly pace` 
 unavailable, including the first 3% of a window. The weekly menu-bar pace token may appear after 1% of its weekly
 window has elapsed; session, automatic, and Runs out tokens keep the 3% threshold. See [Pace tracking](#pace-tracking).
 
+Enable **Color pace** under **Menu Bar → Layout** to show usage behind pace (reserve) in green and usage ahead
+of pace (risk of running out early) in red. The option defaults off, applies to all three pace tokens and the layout
+preview, and keeps the signed percentages. Zero and unavailable pace stay neutral; stale pace colors are dimmed.
+
 Balance is available only for OpenRouter and renders the same remaining-credit value shown in its menu card. Auto %
 uses the same provider-aware automatic-window resolution as the legacy menu bar metric setting. If a snapshot
 does not provide a token's data, that token renders an en dash while its siblings remain visible. Existing installs

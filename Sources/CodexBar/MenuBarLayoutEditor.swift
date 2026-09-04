@@ -919,7 +919,8 @@ struct MenuBarLayoutPreview: View {
                 appearanceName: "preview",
                 isDebugApp: false,
                 now: minute,
-                verticalAdjustment: self.settings.menuBarLayoutVerticalAdjustment))
+                verticalAdjustment: self.settings.menuBarLayoutVerticalAdjustment,
+                colorPace: self.settings.menuBarColorPace))
         MenuBarLayoutPreviewText(rendered: rendered)
     }
 

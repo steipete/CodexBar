@@ -1574,3 +1574,6 @@
 "menu_bar_layout_conditional_default_either_high" = "工作階段或每週用量偏高";
 "menu_bar_layout_conditional_default_scoped_weekly" = "模型專屬每週已用超過 60%";
 "Spending cap, not balance" = "支出上限，並非餘額";
+
+"Color pace" = "以顏色顯示使用節奏";
+"Green when usage is behind pace (reserve); red when ahead (risk of running out early)." = "使用量低於預期進度時顯示綠色（有餘裕）；高於預期時顯示紅色（可能提前用盡配額）。";
