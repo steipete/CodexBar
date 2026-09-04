@@ -157,4 +157,90 @@ struct MenuCardCostHintTests {
         #expect(makeModel(valid).tokenUsage?.monthLine.hasPrefix("Latest billing day: ") == true)
         #expect(makeModel(invalid).tokenUsage?.monthLine.hasPrefix("Today: ") == true)
     }
+
+    @Test
+    func `antigravity unpriced history shows no estimate hint`() throws {
+        let now = Date()
+        let metadata = try #require(ProviderDefaults.metadata[.antigravity])
+        let snapshot = CostUsageTokenSnapshot(
+            sessionTokens: 110,
+            sessionCostUSD: nil,
+            last30DaysTokens: 198,
+            last30DaysCostUSD: nil,
+            daily: [
+                CostUsageDailyReport.Entry(
+                    date: "2026-09-02",
+                    inputTokens: 100,
+                    outputTokens: 10,
+                    totalTokens: 110,
+                    costUSD: nil,
+                    modelsUsed: nil,
+                    modelBreakdowns: nil),
+            ],
+            updatedAt: now)
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .antigravity,
+            metadata: metadata,
+            snapshot: nil,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: snapshot,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: true,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        #expect(model.tokenUsage?.hintLine == nil)
+    }
+
+    @Test
+    func `antigravity priced history shows estimate hint`() throws {
+        let now = Date()
+        let metadata = try #require(ProviderDefaults.metadata[.antigravity])
+        let snapshot = CostUsageTokenSnapshot(
+            sessionTokens: 110,
+            sessionCostUSD: 0.00028,
+            last30DaysTokens: 198,
+            last30DaysCostUSD: 0.0005,
+            daily: [
+                CostUsageDailyReport.Entry(
+                    date: "2026-09-02",
+                    inputTokens: 100,
+                    outputTokens: 10,
+                    totalTokens: 110,
+                    costUSD: 0.0005,
+                    modelsUsed: ["gemini-3.8-flash"],
+                    modelBreakdowns: nil),
+            ],
+            updatedAt: now)
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .antigravity,
+            metadata: metadata,
+            snapshot: nil,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: snapshot,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: true,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        #expect(model.tokenUsage?.hintLine == "Estimated from token usage · not a subscription bill")
+    }
 }

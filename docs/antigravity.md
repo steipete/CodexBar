@@ -269,11 +269,15 @@ Local history reads only the existing recognized roots: `~/.gemini/antigravity-c
 `~/.config/tokscale/antigravity-cache/sessions/*.jsonl`; `TOKSCALE_CONFIG_DIR` replaces `~/.config/tokscale`.
 Both overrides and `HOME` come from the same refresh environment. Declared roots and session files may be symlinks;
 discovery still visits only the immediate entries of the recognized directories. This is machine-local token history,
-not account attribution or dollar pricing. No language server, provider CLI, browser, credentials, or network is used.
+not account attribution or billed dollar spend. No language server, provider CLI, browser, or credentials are used;
+history scanning itself uses no network. Model pricing reuses the cached models.dev catalog and refreshes it when
+stale or missing (same policy as Codex/Claude); a failed refresh keeps the existing cache.
 
 Use `codexbar cost --provider antigravity --format json` to read this same local history from the CLI.
-The cost endpoint and dashboard also include it when Antigravity is selected. Token counts do not imply known dollar
-costs, and these entry points do not expand the supported timestamp layouts described below.
+The cost endpoint and dashboard also include it when Antigravity is selected. Token counts carry API-equivalent
+dollar estimates (Codex-subscription behavior: local usage × public API prices, not billed, clearly labeled) only
+when the on-disk models.dev catalog prices the recorded model; otherwise entries stay cost-less and token counts
+do not imply known dollar costs. These entry points do not expand the supported timestamp layouts described below.
 
 SQLite is authoritative when present. An unreadable root, malformed database, unsupported event layout, or exhausted
 budget never authorizes replacement by a smaller/stale JSONL cache. Complete empty databases and complete histories
@@ -347,6 +351,42 @@ without sidecars reports unavailable rather than bypassing normal coordination. 
 writer activity, coordinate subsequent writer activity against one read snapshot, and verify reader cleanup after
 cancellation. The fixtures are synthetic and source-linked, not private captures or proof of live installation/UI behavior.
 
+## Local token history cost estimation
+
+Antigravity local token history cost estimation mirrors Codex subscription behavior: local token usage is multiplied by
+public API rates from the `models.dev` catalog and presented as an `API-equivalent estimate (not billed)`. It is never
+a subscription bill or plan value.
+
+### Pricing semantics & citations
+- **Reasoning / thinking tokens**: On the SQLite path, thinking and reasoning tokens count toward token output and are billed at standard
+  model output rates. This billing convention is documented for Google Gemini ([Google Gemini API pricing specifications](https://ai.google.dev/pricing))
+  and Anthropic Claude ([Anthropic extended thinking pricing](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#pricing));
+  for OpenAI `gpt-oss-120b` (the only OpenAI model agy serves), CodexBar applies output rates as an estimate.
+  In CodexBar, reasoning tokens are folded into output tokens (`outputTokens: usage.output + usage.reasoning`) when querying catalog price rates.
+  The JSONL fallback records a separate `reasoning` bucket whose overlap with `output` is unknown, so JSONL rows with nonzero
+  reasoning stay unsupported and cost-less (see the JSONL producer section above).
+- **Context caching**: Cache read tokens (`usage.cacheRead`) map to prompt cache hits (`cacheReadInputTokens`), and cache
+  write tokens (`event.cacheWrite`) map to context cache creation (`cacheCreationInputTokens`), matching Gemini context
+  caching pricing dimensions. When a catalog entry omits cache rates, those tokens fall back to the input rate.
+- **Pure catalog resolution**: Pricing resolves strictly through the local on-disk `models.dev` catalog via
+  `CostUsagePricing.AntigravityResolver`. It never falls back to bundled Claude or Codex price tables. If a model is
+  absent or unpriced in the catalog, it remains cost-less (`costUSD == nil`) with its token counts fully intact.
+- **Cost provenance**: The snapshot cost provenance flips to `.listPriceEstimate` only when costs exist; unpriced history
+  retains `.unknown` provenance and displays as token history without dollar amounts.
+- **Mixed coverage disclosure**: When a history window contains both estimated and unpriced requests, CLI text output
+  explicitly discloses coverage (e.g., `Coverage: 1 estimated · 1 unpriced`), ensuring partial estimates are transparent.
+- **Catalog refresh lifecycle**: When unpriced models are detected and pricing refresh is permitted (`allowPricingRefresh`),
+  CodexBar can refresh the catalog using `CostUsagePricing.antigravityModelsDevPricingTargets`. In the menu bar app, this
+  refresh is performed in the background; in the synchronous CLI command (`refreshPricingInBackground: false`), the refresh
+  is awaited when allowed, while local SQLite / JSONL reading remains strictly offline.
+- **Data siloing & vendor routing**: agy serves Gemini models, Claude models, and `gpt-oss-120b` only (live `agy models`
+  1.1.25: `gemini-3.8/3.7/3.6-flash-*`, `gemini-3.1-pro-*`, `claude-sonnet-4-6`, `claude-opus-4-6-thinking`,
+  `gpt-oss-120b-medium`). Targets route `gemini-*` to `"google"`, `claude-*` to `"anthropic"`, and `gpt-oss-120b`
+  plus effort variants to `"openai"`; anything else stays cost-less.
+  Explicitly routed models (e.g., `google/gemini-2.5-flash`) check their routed vendor.
+  Known Antigravity suffix aliases (such as `-thinking` on Claude models and effort tiers `-low`, `-medium`, `-high` on Gemini
+  models) resolve to their base billed model identities in models.dev.
+
 ## Constraints
 - Internal protocol; fields may change.
 - Linux local/CLI port detection requires working `lsof` output or readable process-scoped `/proc` socket metadata;
@@ -357,4 +397,5 @@ cancellation. The fixtures are synthetic and source-linked, not private captures
 - `Sources/CodexBarCore/Providers/Antigravity/AntigravityCLISession.swift`
 - `Sources/CodexBarCore/Providers/Antigravity/AntigravityProviderDescriptor.swift`
 - `Sources/CodexBarCore/Providers/Antigravity/AntigravityStatusProbe.swift`
+- `Sources/CodexBarCore/Providers/Antigravity/AntigravityLocalReader.swift`
 - `Sources/CodexBar/Providers/Antigravity/AntigravityProviderImplementation.swift`

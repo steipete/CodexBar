@@ -34,12 +34,14 @@ final class AntigravityLocalFixture: Sendable {
     func report(
         environment: [String: String]? = nil,
         limits: AntigravityLocalReader.Limits = .init(),
+        modelsDevCatalog: ModelsDevCatalog? = nil,
         clock: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
         checkCancellation: @escaping () throws -> Void = {}) throws -> AntigravityLocalReader.DailyReportResult
     {
         try AntigravityLocalReader.makeDailyReportWithStatus(
             context: .init(environment: environment ?? self.environment),
             calendar: Self.calendar,
+            modelsDevCatalog: modelsDevCatalog,
             limits: limits,
             clock: clock,
             checkCancellation: checkCancellation)

@@ -945,6 +945,215 @@ extension CostUsagePricing {
         }
     }
 
+    static let antigravityModelsDevProviderID = "google"
+    /// Provider IDs routed by Antigravity that have matching entries in models.dev.
+    /// Provider-specific by design: Antigravity routes these models.dev vendor IDs.
+    static let antigravityModelsDevProviderIDs: Set<String> = [
+        "google",
+        "anthropic",
+        "openai",
+    ]
+
+    /// Known Antigravity / tokscale suffix aliases representing base models billed at standard rates.
+    /// Extended thinking on Claude and effort budgets on Gemini do not alter the base model's catalog rate.
+    private static let antigravityEffortSuffixes = ["-thinking", "-low", "-medium", "-high", "-minimal", "-max"]
+
+    static func antigravityModelIDCandidates(for modelID: String) -> [String] {
+        var candidates: [String] = []
+        func appendCandidate(_ raw: String) {
+            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty, !candidates.contains(trimmed) {
+                candidates.append(trimmed)
+            }
+        }
+        appendCandidate(modelID)
+        // The catalog match is exact, so fold a lowercased lookup key alongside the stored
+        // spelling; stored model names are unchanged, only the lookup key is lowercased.
+        appendCandidate(modelID.lowercased())
+
+        // Effort suffixes exist on Gemini/Claude and on gpt-oss-120b (live `agy models` shows
+        // gpt-oss-120b-medium); other families must not strip -max/-high etc. (#2181 precedent).
+        let lower = modelID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let stripsEffortSuffix = lower.hasPrefix("gemini-") || lower.hasPrefix("claude-")
+            || lower.hasPrefix("gpt-oss-120b-") || lower == "gpt-oss-120b"
+        if stripsEffortSuffix {
+            for suffix in self.antigravityEffortSuffixes where lower.hasSuffix(suffix) {
+                appendCandidate(String(lower.dropLast(suffix.count)))
+            }
+        }
+
+        // Version normalization: tokscale / Antigravity stores often record "gemini-2-5-pro" or "gemini-3p7-flash"
+        // while models.dev indexes decimal versions ("gemini-2.5-pro", "gemini-3.7-flash").
+        let snapshotCount = candidates.count
+        for i in 0..<snapshotCount {
+            let candidate = candidates[i]
+            let lowerCandidate = candidate.lowercased()
+            if lowerCandidate.hasPrefix("gemini-") {
+                let normalized = lowerCandidate.replacingOccurrences(
+                    of: #"^gemini-(\d+)[-p](\d+)-"#,
+                    with: "gemini-$1.$2-",
+                    options: .regularExpression)
+                if normalized != lowerCandidate {
+                    appendCandidate(normalized)
+                }
+            }
+        }
+        return candidates
+    }
+
+    /// Returns the provider/model identities that may price an Antigravity model. Keep this mapping
+    /// shared by direct lookup and unknown-price refresh so a newly downloaded catalog is checked
+    /// under the same identity that was used to resolve the model.
+    static func antigravityModelsDevPricingTargets(for rawModel: String) -> [(providerID: String, modelID: String)] {
+        let trimmed = rawModel.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+        if let slash = trimmed.firstIndex(of: "/") {
+            let routeID = String(trimmed[..<slash])
+                .trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            let modelID = String(trimmed[trimmed.index(after: slash)...])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !routeID.isEmpty, !modelID.isEmpty,
+                  self.antigravityModelsDevProviderIDs.contains(routeID)
+            else { return [] }
+            // agy only serves Gemini + Claude + gpt-oss-120b: reject routed IDs outside that set
+            // so unrelated catalog entries can never price Antigravity rows.
+            let lowerModel = modelID.lowercased()
+            switch routeID {
+            case "google":
+                guard lowerModel.hasPrefix("gemini-") else { return [] }
+            case "anthropic":
+                guard lowerModel.hasPrefix("claude-") else { return [] }
+            // Provider-specific by design: gpt-oss is the sole OpenAI model agy serves.
+            case "openai":
+                // Live `agy models` (1.1.25) serves gpt-oss-120b-medium; accept the base ID plus
+                // effort-suffixed variants, which candidates fold back to the base catalog rate.
+                guard lowerModel == "gpt-oss-120b"
+                    || (lowerModel.hasPrefix("gpt-oss-120b-")
+                        && self.antigravityEffortSuffixes.contains(where: { lowerModel.hasSuffix($0) }))
+                else { return [] }
+            default:
+                return []
+            }
+            let candidates = self.antigravityModelIDCandidates(for: modelID)
+            return candidates.map { (routeID, $0) }
+        }
+
+        let lower = trimmed.lowercased()
+        // agy only serves Gemini models, Claude models, and gpt-oss-120b (live `agy models` shows
+        // gpt-oss-120b-medium as the sole OpenAI entry). Effort variants fold via candidates.
+        let isGptOss = lower == "gpt-oss-120b"
+            || (lower.hasPrefix("gpt-oss-120b-")
+                && self.antigravityEffortSuffixes.contains(where: { lower.hasSuffix($0) }))
+        let providerID: String
+        if lower.hasPrefix("gemini-") {
+            providerID = self.antigravityModelsDevProviderID
+        } else if lower.hasPrefix("claude-") {
+            providerID = "anthropic"
+        } else if isGptOss {
+            // Provider-specific by design: bare gpt-oss IDs resolve to the OpenAI vendor catalog.
+            providerID = "openai"
+        } else {
+            // Strict fail-closed: unrecognized bare IDs yield no targets, so they stay cost-less
+            // instead of colliding with another vendor's catalog entry or triggering a wasteful
+            // refresh (#2181 estimate-only precedent; billed cost remains out of scope per #53).
+            return []
+        }
+
+        let candidates = self.antigravityModelIDCandidates(for: trimmed)
+        return candidates.map { (providerID, $0) }
+    }
+
+    private static func antigravityModelsDevLookup(
+        model rawModel: String,
+        catalog: ModelsDevCatalog?,
+        cacheRoot: URL?) -> ModelsDevPricingLookup?
+    {
+        for target in self.antigravityModelsDevPricingTargets(for: rawModel) {
+            if let lookup = self.modelsDevLookup(
+                providerID: target.providerID,
+                model: target.modelID,
+                catalog: catalog,
+                cacheRoot: cacheRoot)
+            {
+                return lookup
+            }
+        }
+        return nil
+    }
+
+    /// Pure catalog resolver for Antigravity local token history.
+    /// Never falls back to bundled Claude or Codex pricing.
+    final class AntigravityResolver {
+        static let memoEntryLimit = 256
+
+        private struct LookupResult {
+            let value: ModelsDevPricingLookup?
+        }
+
+        private let now: Date
+        private let cacheRoot: URL?
+        private var catalog: ModelsDevCatalog?
+        private var lookups: [[UInt8]: LookupResult] = [:]
+
+        init(now: Date, cacheRoot: URL?) {
+            self.now = now
+            self.cacheRoot = cacheRoot
+        }
+
+        init(catalog: ModelsDevCatalog) {
+            self.now = Date(timeIntervalSince1970: 0)
+            self.cacheRoot = nil
+            self.catalog = catalog
+        }
+
+        @discardableResult
+        func prepareCatalog() -> ModelsDevCatalog {
+            if let catalog = self.catalog {
+                return catalog
+            }
+            let catalog = CostUsagePricing.modelsDevCatalog(now: self.now, cacheRoot: self.cacheRoot)
+                ?? ModelsDevCatalog(providers: [:])
+            self.catalog = catalog
+            return catalog
+        }
+
+        private func lookup(_ model: String) -> ModelsDevPricingLookup? {
+            let key = Array(model.utf8)
+            if let result = self.lookups[key] {
+                return result.value
+            }
+            let value = CostUsagePricing.antigravityModelsDevLookup(
+                model: model,
+                catalog: self.prepareCatalog(),
+                cacheRoot: nil)
+            if self.lookups.count < Self.memoEntryLimit {
+                self.lookups[key] = LookupResult(value: value)
+            }
+            return value
+        }
+
+        func costUSD(
+            model: String,
+            inputTokens: Int,
+            cacheReadInputTokens: Int,
+            cacheCreationInputTokens: Int,
+            outputTokens: Int) -> Double?
+        {
+            guard let lookup = self.lookup(model) else { return nil }
+            // Arithmetic-only reuse of Claude cost math; pricing stays pure-catalog (docs/antigravity.md).
+            let cost = CostUsagePricing.claudeCostUSD(
+                pricing: lookup.pricing,
+                tokens: ClaudeCostTokens(
+                    input: inputTokens,
+                    cacheRead: cacheReadInputTokens,
+                    cacheCreation: cacheCreationInputTokens,
+                    cacheCreation1h: 0,
+                    output: outputTokens))
+            guard cost.isFinite, cost >= 0 else { return nil }
+            return cost
+        }
+    }
+
     /// Bare Claude-routed IDs may match first-party models.dev vendors. Recognizable model families
     /// stay with their vendor, while unknown bare IDs must have one unambiguous catalog match.
     /// Provider-specific by design: first-party vendor routing for bare Claude model IDs.

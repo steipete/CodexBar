@@ -102,7 +102,8 @@ extension CodexBarCLI {
                         provider: provider,
                         snapshot: snapshot,
                         groupBy: groupBy,
-                        useColor: useColor))
+                        useColor: useColor,
+                        calendar: bucketCalendar))
                 case .json:
                     payload.append(Self.makeCostPayload(
                         provider: provider,
@@ -160,12 +161,16 @@ extension CodexBarCLI {
         provider: UsageProvider,
         snapshot: CostUsageTokenSnapshot,
         groupBy: CostGroupBy = .none,
-        useColor: Bool) -> String
+        useColor: Bool,
+        calendar: Calendar = .current) -> String
     {
         let name = ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
-        // Provider-specific by design: Antigravity exposes token history, not priced estimates.
+        // Provider-specific by design: Antigravity mirrors the Codex subscription behavior.
+        // Priced local history gets the API-equivalent estimate treatment; unpriced history
+        // stays a token history with dollar costs unavailable.
         if provider == .antigravity {
-            return Self.renderLocalTokenHistoryText(name: name, snapshot: snapshot, useColor: useColor)
+            return Self.renderAntigravityTokenHistoryText(
+                name: name, snapshot: snapshot, useColor: useColor, calendar: calendar)
         }
         // Provider-specific by design: Codex cost is explicitly an API-equivalent local-session estimate.
         let title = provider == .codex
@@ -202,6 +207,39 @@ extension CodexBarCLI {
 
         let hintLine = Self.costEstimateHint(provider: provider)
         return [header, todayLine, monthLine, meteredLine, hintLine]
+            .compactMap(\.self)
+            .joined(separator: "\n")
+    }
+
+    private static func renderAntigravityTokenHistoryText(
+        name: String,
+        snapshot: CostUsageTokenSnapshot,
+        useColor: Bool,
+        calendar: Calendar = .current) -> String
+    {
+        guard snapshot.costProvenance == .listPriceEstimate else {
+            return self.renderLocalTokenHistoryText(name: name, snapshot: snapshot, useColor: useColor)
+        }
+        let header = Self.costHeaderLine("\(name) API-equivalent estimate (not billed)", useColor: useColor)
+        let todayCost = snapshot.sessionCostUSD
+            .map { UsageFormatter.currencyString($0, currencyCode: snapshot.currencyCode) } ?? "—"
+        let todayTokens = snapshot.sessionTokens.map { UsageFormatter.tokenCountString($0) }
+        let todayLine = todayTokens.map { "Today: \(todayCost) · \($0) tokens" } ?? "Today: \(todayCost)"
+        let monthCost = snapshot.last30DaysCostUSD
+            .map { UsageFormatter.currencyString($0, currencyCode: snapshot.currencyCode) } ?? "—"
+        let monthTokens = snapshot.last30DaysTokens.map { UsageFormatter.tokenCountString($0) }
+        let historyLabel = snapshot.historyLabel
+            ?? (snapshot.historyDays == 1 ? "Today" : "Last \(snapshot.historyDays) days")
+        let monthLine = snapshot.historyDays == 1 ? nil : (monthTokens.map {
+            "\(historyLabel): \(monthCost) · \($0) tokens"
+        } ?? "\(historyLabel): \(monthCost)")
+        let coverageLine: String? = {
+            let coverage = snapshot.summary(forLastDays: snapshot.historyDays, calendar: calendar).coverage
+            guard coverage.unpriced > 0 else { return nil }
+            return "Coverage: \(coverage.estimated) estimated · \(coverage.unpriced) unpriced"
+        }()
+        // Provider-specific by design: Antigravity estimates reuse the Codex API-equivalent hint.
+        return [header, todayLine, monthLine, coverageLine, Self.costEstimateHint(provider: .antigravity)]
             .compactMap(\.self)
             .joined(separator: "\n")
     }
@@ -325,9 +363,10 @@ extension CodexBarCLI {
     }
 
     private static func costEstimateHint(provider: UsageProvider) -> String {
-        provider == .codex
-            ? "Not a subscription bill or plan value · local usage × public API prices"
-            : UsageFormatter.costEstimateHint(provider: provider)
+        if provider == .codex || provider == .antigravity {
+            return "Not a subscription bill or plan value · local usage × public API prices"
+        }
+        return UsageFormatter.costEstimateHint(provider: provider)
     }
 
     private static func costHeaderLine(_ header: String, useColor: Bool) -> String {

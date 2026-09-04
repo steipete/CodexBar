@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Added
+- Antigravity: estimate local token history costs using models.dev catalog prices (API-equivalent estimate, not billed), mirroring Codex subscription behavior with unpriced models remaining cost-less, transparent mixed-coverage disclosure, and token history intact (Related to #53; follows #2181, #3001).
+
 ### Fixed
 - z.ai: abbreviate large model token totals with M/B while preserving exact hourly and daily chart values (#3308, #3310). Thanks @medpath1024 and @fantasy!
 - Settings: disable iCloud sync sub-options when the main sync switch is off, preserving their saved choices for the next time sync is enabled (#3406). Thanks @elijahfriedman!

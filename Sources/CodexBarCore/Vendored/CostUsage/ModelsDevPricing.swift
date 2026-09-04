@@ -3,6 +3,8 @@ import Foundation
 import Darwin
 #elseif canImport(Glibc)
 import Glibc
+#elseif canImport(Musl)
+import Musl
 #endif
 #if canImport(FoundationNetworking)
 import FoundationNetworking
@@ -584,7 +586,24 @@ enum ModelsDevCache {
         do {
             try data.write(to: tmp, options: [.atomic])
             if FileManager.default.fileExists(atPath: url.path) {
+                #if canImport(Darwin)
                 _ = try FileManager.default.replaceItemAt(url, withItemAt: tmp)
+                #else
+                // Linux: same-directory POSIX rename atomically replaces the destination, so readers
+                // always observe the old or the new catalog, never neither (mirrors CostUsageClaudeCache.save).
+                // Any failure leaves the previous cache untouched; the temp file is cleaned up below.
+                let renameResult = tmp.path.withCString { src in
+                    url.path.withCString { dst in rename(src, dst) }
+                }
+                guard renameResult == 0 else {
+                    let code = errno
+                    try? FileManager.default.removeItem(at: tmp)
+                    throw NSError(
+                        domain: NSPOSIXErrorDomain,
+                        code: Int(code),
+                        userInfo: [NSFilePathErrorKey: url.path])
+                }
+                #endif
             } else {
                 try FileManager.default.moveItem(at: tmp, to: url)
             }

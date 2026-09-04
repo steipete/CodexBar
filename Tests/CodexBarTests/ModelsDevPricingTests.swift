@@ -7,6 +7,54 @@ import Testing
 
 struct ModelsDevPricingTests {
     @Test
+    func `replacing the cached catalog keeps the newest content without debris`() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("models-dev-replace-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let firstAt = Date(timeIntervalSince1970: 1_000_000)
+        let secondAt = Date(timeIntervalSince1970: 2_000_000)
+        let catalog = try Self.fixtureCatalog()
+        #expect(ModelsDevCache.save(catalog: catalog, fetchedAt: firstAt, cacheRoot: dir))
+        #expect(ModelsDevCache.save(catalog: catalog, fetchedAt: secondAt, cacheRoot: dir))
+        // The replacement must win; a failed or partial replace must never surface stale content.
+        #expect(ModelsDevCache.load(now: secondAt, cacheRoot: dir).artifact?.fetchedAt == secondAt)
+        let leftovers = try FileManager.default.contentsOfDirectory(atPath: dir.path)
+            .filter { $0.hasPrefix(".tmp-") || $0.hasPrefix(".bak-") }
+        #expect(leftovers.isEmpty)
+    }
+
+    @Test
+    func `concurrent catalog saves always leave a complete catalog`() async throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("models-dev-races-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let catalog = try Self.fixtureCatalog()
+        let base = Date(timeIntervalSince1970: 3_000_000)
+        #expect(ModelsDevCache.save(catalog: catalog, fetchedAt: base, cacheRoot: dir))
+        // Storm the shared file: every winner must be one complete write, never torn content.
+        let stamps = try await withThrowingTaskGroup(of: Date.self, returning: [Date].self) { group in
+            for offset in 1...8 {
+                group.addTask {
+                    let at = base.addingTimeInterval(TimeInterval(offset))
+                    #expect(ModelsDevCache.save(catalog: catalog, fetchedAt: at, cacheRoot: dir))
+                    return at
+                }
+            }
+            var written: [Date] = []
+            for try await at in group {
+                written.append(at)
+            }
+            return written
+        }
+        let final = try #require(ModelsDevCache.load(now: Date(), cacheRoot: dir).artifact)
+        #expect(stamps.contains(final.fetchedAt))
+        #expect(final.catalog.providers["openai"]?.name == "OpenAI")
+        let leftovers = try FileManager.default.contentsOfDirectory(atPath: dir.path)
+            .filter { $0.hasPrefix(".tmp-") || $0.hasPrefix(".bak-") }
+        #expect(leftovers.isEmpty)
+    }
+
+    @Test
     func `parses models dev subset`() throws {
         let catalog = try Self.fixtureCatalog()
 

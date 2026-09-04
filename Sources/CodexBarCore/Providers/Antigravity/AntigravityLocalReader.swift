@@ -86,18 +86,29 @@ enum AntigravityLocalReader {
     static func makeDailyReportWithStatus(
         context: Context,
         calendar: Calendar = .current,
+        modelsDevCatalog: ModelsDevCatalog? = nil,
+        modelsDevCacheRoot: URL? = nil,
+        now: Date = Date(),
         limits: Limits = Limits(),
         clock: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
         checkCancellation: @escaping () throws -> Void = {}) throws -> DailyReportResult
     {
         let budget = Budget(limits: limits, clock: clock, cancellation: checkCancellation)
+        // Codex-mirror estimates: public API prices applied to local token buckets.
+        // No models.dev catalog match means no price; entries stay cost-less and tokens are unaffected.
+        let pricingResolver = modelsDevCatalog.map { CostUsagePricing.AntigravityResolver(catalog: $0) }
+            ?? CostUsagePricing.AntigravityResolver(now: now, cacheRoot: modelsDevCacheRoot)
         do {
             let databases = try self.discover(roots: context.databaseRoots, extension: "db", budget: budget)
             // A discovery error is not absence and never authorizes a cache replacement.
             if !databases.paths.isEmpty || !databases.isComplete {
                 let source = try self.readDatabases(databases.paths, budget: budget)
                 return try self.aggregate(
-                    source, discoveryComplete: databases.isComplete, calendar: calendar, budget: budget)
+                    source,
+                    discoveryComplete: databases.isComplete,
+                    calendar: calendar,
+                    pricingResolver: pricingResolver,
+                    budget: budget)
             }
             let cache = try self.discover(roots: [context.cacheRoot], extension: "jsonl", budget: budget)
             guard !cache.paths.isEmpty || !cache.isComplete else {
@@ -106,7 +117,11 @@ enum AntigravityLocalReader {
             }
             let source = try self.readJSONL(cache.paths, budget: budget)
             return try self.aggregate(
-                source, discoveryComplete: cache.isComplete, calendar: calendar, budget: budget)
+                source,
+                discoveryComplete: cache.isComplete,
+                calendar: calendar,
+                pricingResolver: pricingResolver,
+                budget: budget)
         } catch ScanFailure.exhausted {
             return DailyReportResult(
                 report: .init(data: [], summary: nil), coverage: .partial, statistics: budget.statistics)
@@ -117,6 +132,7 @@ enum AntigravityLocalReader {
         _ source: SourceResult,
         discoveryComplete: Bool,
         calendar: Calendar,
+        pricingResolver: CostUsagePricing.AntigravityResolver? = nil,
         budget: Budget) throws -> DailyReportResult
     {
         var isComplete = discoveryComplete && source.isComplete
@@ -141,7 +157,13 @@ enum AntigravityLocalReader {
         for event in source.events {
             try budget.check()
             let row = RowIdentity(session: event.session, row: event.row)
-            guard let entry = self.entry(event, models: models, conflicts: conflicts, calendar: calendar) else {
+            guard let entry = self.entry(
+                event,
+                models: models,
+                conflicts: conflicts,
+                calendar: calendar,
+                pricingResolver: pricingResolver)
+            else {
                 isComplete = false
                 continue
             }
@@ -178,11 +200,20 @@ enum AntigravityLocalReader {
         }
         let daily = entries.values.sorted { $0.date < $1.date }
         let total = self.checkedSum(daily.compactMap(\.totalTokens))
+        let dailyCosts = daily.compactMap(\.costUSD)
+        let totalCost: Double? = {
+            guard !dailyCosts.isEmpty else { return nil }
+            let sum = dailyCosts.reduce(0, +)
+            return sum.isFinite ? sum : nil
+        }()
         return DailyReportResult(
             report: .init(
                 data: daily,
                 summary: daily.isEmpty ? nil : .init(
-                    totalInputTokens: nil, totalOutputTokens: nil, totalTokens: total, totalCostUSD: nil)),
+                    totalInputTokens: nil,
+                    totalOutputTokens: nil,
+                    totalTokens: total,
+                    totalCostUSD: totalCost)),
             coverage: isComplete ? .complete : .partial,
             statistics: budget.statistics)
     }
@@ -191,7 +222,8 @@ enum AntigravityLocalReader {
         _ event: Event,
         models: [LabelIdentity: String],
         conflicts: Set<LabelIdentity>,
-        calendar: Calendar) -> CostUsageDailyReport.Entry?
+        calendar: Calendar,
+        pricingResolver: CostUsagePricing.AntigravityResolver? = nil) -> CostUsageDailyReport.Entry?
     {
         guard let usage = event.turn.usage, let timestamp = event.turn.timestampMs
         else { return nil }
@@ -200,8 +232,15 @@ enum AntigravityLocalReader {
         let label = event.turn.label.map { LabelIdentity(session: event.session, label: $0) }
         let inherited = label.flatMap { conflicts.contains($0) ? nil : models[$0] }
         let model = self.normalizeModelID(event.turn.model ?? inherited ?? "unknown")
-        let day = CostUsageLocalDay.key(
-            from: Date(timeIntervalSince1970: Double(timestamp) / 1000), calendar: calendar)
+        let eventDate = Date(timeIntervalSince1970: Double(timestamp) / 1000)
+        let day = CostUsageLocalDay.key(from: eventDate, calendar: calendar)
+        // Thinking tokens bill at output rates, matching the provider's API pricing.
+        let costUSD = pricingResolver?.costUSD(
+            model: model,
+            inputTokens: input,
+            cacheReadInputTokens: usage.cacheRead,
+            cacheCreationInputTokens: event.cacheWrite,
+            outputTokens: usage.output + usage.reasoning)
         return .init(
             date: day,
             inputTokens: input,
@@ -211,18 +250,20 @@ enum AntigravityLocalReader {
             reasoningTokens: usage.reasoning,
             totalTokens: total,
             requestCount: 1,
-            costUSD: nil,
+            costUSD: costUSD,
             modelsUsed: nil,
             modelBreakdowns: [.init(
                 modelName: model,
-                costUSD: nil,
+                costUSD: costUSD,
                 totalTokens: total,
                 requestCount: 1,
                 inputTokens: input,
                 outputTokens: usage.output,
                 cacheReadTokens: usage.cacheRead,
                 cacheCreationTokens: event.cacheWrite,
-                reasoningTokens: usage.reasoning)])
+                reasoningTokens: usage.reasoning)],
+            unpricedRequestCount: costUSD == nil ? 1 : nil,
+            estimatedRequestCount: costUSD != nil ? 1 : nil)
     }
 
     private static func checkedMergeEntry(
@@ -235,7 +276,14 @@ enum AntigravityLocalReader {
               let creation = self.checkedAdd(existing.cacheCreationTokens ?? 0, new.cacheCreationTokens ?? 0),
               let reason = self.checkedAdd(existing.reasoningTokens ?? 0, new.reasoningTokens ?? 0),
               let total = self.checkedAdd(existing.totalTokens ?? 0, new.totalTokens ?? 0),
-              let requests = self.checkedAdd(existing.requestCount ?? 0, new.requestCount ?? 0) else { return nil }
+              let requests = self.checkedAdd(existing.requestCount ?? 0, new.requestCount ?? 0),
+              let unpriced = self.checkedAdd(
+                  existing.unpricedRequestCount ?? 0,
+                  new.unpricedRequestCount ?? 0),
+              let estimated = self.checkedAdd(
+                  existing.estimatedRequestCount ?? 0,
+                  new.estimatedRequestCount ?? 0)
+        else { return nil }
         let breakdowns: [CostUsageDailyReport.ModelBreakdown]?
         if let ex = existing.modelBreakdowns, let nw = new.modelBreakdowns {
             var merged = ex
@@ -243,6 +291,7 @@ enum AntigravityLocalReader {
                 guard let updated = self.checkedMergeBreakdown(
                     merged,
                     model: b.modelName,
+                    costUSD: b.costUSD,
                     tokens: b.totalTokens ?? 0,
                     requestCount: b.requestCount ?? 1,
                     inputTokens: b.inputTokens,
@@ -256,6 +305,8 @@ enum AntigravityLocalReader {
         } else {
             breakdowns = existing.modelBreakdowns ?? new.modelBreakdowns
         }
+        let entryCosts = breakdowns?.compactMap(\.costUSD) ?? []
+        let entryCost: Double? = entryCosts.isEmpty ? nil : entryCosts.reduce(0, +)
         return CostUsageDailyReport.Entry(
             date: existing.date,
             inputTokens: input,
@@ -265,14 +316,17 @@ enum AntigravityLocalReader {
             reasoningTokens: reason,
             totalTokens: total,
             requestCount: requests,
-            costUSD: nil,
+            costUSD: entryCost,
             modelsUsed: nil,
-            modelBreakdowns: breakdowns)
+            modelBreakdowns: breakdowns,
+            unpricedRequestCount: unpriced > 0 ? unpriced : nil,
+            estimatedRequestCount: estimated > 0 ? estimated : nil)
     }
 
     private static func checkedMergeBreakdown(
         _ ex: [CostUsageDailyReport.ModelBreakdown]?,
         model: String,
+        costUSD: Double?,
         tokens: Int,
         requestCount: Int = 1,
         inputTokens: Int? = nil,
@@ -291,9 +345,14 @@ enum AntigravityLocalReader {
                   let newRead = self.checkedAdd(b.cacheReadTokens ?? 0, cacheReadTokens ?? 0),
                   let newCreate = self.checkedAdd(b.cacheCreationTokens ?? 0, cacheCreationTokens ?? 0),
                   let newReason = self.checkedAdd(b.reasoningTokens ?? 0, reasoningTokens ?? 0) else { return nil }
+            let mergedCost: Double? = if let existing = b.costUSD, let incoming = costUSD {
+                existing + incoming
+            } else {
+                b.costUSD ?? costUSD
+            }
             arr[i] = CostUsageDailyReport.ModelBreakdown(
                 modelName: b.modelName,
-                costUSD: nil,
+                costUSD: mergedCost,
                 totalTokens: newTotal,
                 requestCount: newRequests,
                 inputTokens: newInput,
@@ -304,7 +363,7 @@ enum AntigravityLocalReader {
         } else {
             arr.append(CostUsageDailyReport.ModelBreakdown(
                 modelName: model,
-                costUSD: nil,
+                costUSD: costUSD,
                 totalTokens: tokens,
                 requestCount: requestCount,
                 inputTokens: inputTokens,

@@ -50,8 +50,15 @@ public enum AntigravityProviderDescriptor {
                 ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: true,
-                noDataMessage: { "Antigravity cost summary is not supported." },
-                supportsTokenSnapshot: true),
+                noDataMessage: self.noDataMessage,
+                menuHintLines: [.localized("codex_api_estimate_hint")],
+                supportsTokenSnapshot: true,
+                settingsStatusOrder: 1,
+                showsHintInProviderDetails: true,
+                historyTitleStyle: .compact,
+                hintPlacement: .beforeRequestHistory,
+                chartEstimateDisclaimer: .localized("codex_api_estimate_hint"),
+                preservesCalendarDaysInCharts: true),
             pace: ProviderPaceCapability(
                 sessionPaceWindowRule: .custom { window, _ in
                     window.windowMinutes == nil || window.windowMinutes == 300
@@ -84,6 +91,18 @@ public enum AntigravityProviderDescriptor {
                 name: "antigravity",
                 versionDetector: nil,
                 supportsCostCommand: true))
+    }
+
+    private static func noDataMessage() -> String {
+        self.noDataMessage(env: ProcessInfo.processInfo.environment)
+    }
+
+    static func noDataMessage(env: [String: String]) -> String {
+        let home = env["HOME"].map { URL(fileURLWithPath: $0, isDirectory: true) }
+            ?? FileManager.default.homeDirectoryForCurrentUser
+        let conversations = AntigravityOfflineStore.conversationsDirectory(home: home, env: env).path
+        let cache = AntigravityOfflineStore.tokscaleCacheDirectory(home: home).path
+        return "No Antigravity history found in \(conversations) or \(cache)."
     }
 
     private static let quotaSummaryPrefix = "antigravity-quota-summary-"

@@ -271,7 +271,7 @@ extension UsageMenuCardView.Model {
                         sourceCurrencyCode: snapshot.currencyCode)
                 }
                 : [],
-            hintLine: Self.tokenUsageHint(provider: provider),
+            hintLine: Self.tokenUsageHint(provider: provider, hasCostFigures: Self.snapshotHasCostFigures(snapshot)),
             errorLine: err,
             errorCopyText: (error?.isEmpty ?? true) ? nil : error)
     }
@@ -296,8 +296,8 @@ extension UsageMenuCardView.Model {
             UsageFormatter.tokenCountString(totalTokens))
     }
 
-    static func tokenUsageHint(provider: UsageProvider) -> String? {
-        let lines = Self.tokenUsageHintLines(provider: provider)
+    static func tokenUsageHint(provider: UsageProvider, hasCostFigures: Bool) -> String? {
+        let lines = Self.tokenUsageHintLines(provider: provider, hasCostFigures: hasCostFigures)
         return lines.isEmpty ? nil : lines.joined(separator: "\n")
     }
 
@@ -305,14 +305,26 @@ extension UsageMenuCardView.Model {
         L("Cost")
     }
 
-    static func tokenUsageHintLines(provider: UsageProvider) -> [String] {
-        ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.menuHintLines.map { hint in
+    static func tokenUsageHintLines(provider: UsageProvider, hasCostFigures: Bool) -> [String] {
+        ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.menuHintLines.compactMap { hint in
             switch hint {
-            case let .localized(key): L(key)
-            case .estimate: UsageFormatter.costEstimateHint(provider: provider)
-            case let .literal(text): L(text)
+            case .estimate:
+                // Estimate claims require priced history; fully unpriced snapshots stay hint-less.
+                guard hasCostFigures else { return nil }
+                return UsageFormatter.costEstimateHint(provider: provider)
+            case let .localized(key) where key == "codex_api_estimate_hint" && !hasCostFigures:
+                return nil
+            case let .localized(key): return L(key)
+            case let .literal(text): return L(text)
             }
         }
+    }
+
+    /// Dollar figures exist anywhere in the snapshot; without them an estimate hint mislabels.
+    static func snapshotHasCostFigures(_ snapshot: CostUsageTokenSnapshot) -> Bool {
+        snapshot.sessionCostUSD != nil || snapshot.last30DaysCostUSD != nil
+            || snapshot.meteredCostUSD != nil
+            || snapshot.daily.contains(where: { $0.costUSD != nil })
     }
 
     static func costHistoryWindowLabel(days: Int) -> String {

@@ -452,24 +452,23 @@ public struct CostUsageFetcher: Sendable {
                 historyCoverageIsEstablished: false)
         }
         // Provider-specific by design: Antigravity uses recognized local stores without generic pricing or cache scans.
+        // API-equivalent estimates come from the on-disk models.dev catalog cache;
+        // background pricing refreshes occur when permitted, while local reading stays offline.
         if provider == .antigravity {
-            if let local = try await self.loadAntigravityLocalSnapshot(
-                context: AntigravityLocalReader.Context(environment: environment),
-                now: now,
-                historyDays: clampedHistoryDays,
-                calendar: fallbackCalendar)
-            {
-                return local
-            }
-            if let remoteError {
-                throw remoteError
-            }
-            return Self.tokenSnapshot(
-                from: CostUsageDailyReport(data: [], summary: nil),
+            let snapshot = try await self.loadAntigravityTokenSnapshot(options: AntigravityTokenFetchOptions(
+                environment: environment,
                 now: now,
                 historyDays: clampedHistoryDays,
                 calendar: fallbackCalendar,
-                historyCoverageIsEstablished: false)
+                cacheRoot: overrideScannerOptions?.cacheRoot,
+                modelsDevClient: modelsDevClient,
+                allowPricingRefresh: allowPricingRefresh,
+                retryUnknownPricing: retryUnknownPricing,
+                refreshPricingInBackground: refreshPricingInBackground))
+            if let remoteError {
+                throw remoteError
+            }
+            return snapshot
         }
         if let remoteError {
             throw remoteError
@@ -692,7 +691,7 @@ public struct CostUsageFetcher: Sendable {
     {
         guard options.isAllowed,
               options.retryUnknown,
-              options.provider == .codex || options.provider == .claude
+              options.provider == .codex || options.provider == .claude || options.provider == .antigravity
         else { return }
 
         if options.inBackground {
@@ -723,7 +722,7 @@ public struct CostUsageFetcher: Sendable {
         cacheRoot: URL?,
         client: ModelsDevClient) -> UnknownPricingRefreshRequest?
     {
-        guard provider == .codex || provider == .claude else { return nil }
+        guard provider == .codex || provider == .claude || provider == .antigravity else { return nil }
         var targets = Set<ModelsDevPricingTarget>()
         for entry in daily.data {
             for breakdown in entry.modelBreakdowns ?? [] {
@@ -735,8 +734,14 @@ public struct CostUsageFetcher: Sendable {
                     for target in CostUsagePricing.codexModelsDevPricingTargets(for: breakdown.modelName) {
                         targets.insert(ModelsDevPricingTarget(providerID: target.providerID, modelID: target.modelID))
                     }
-                } else {
+                } else if provider == .claude {
                     for target in CostUsagePricing.claudeModelsDevPricingTargets(for: breakdown.modelName) {
+                        targets.insert(ModelsDevPricingTarget(
+                            providerID: target.providerID,
+                            modelID: target.modelID))
+                    }
+                } else if provider == .antigravity {
+                    for target in CostUsagePricing.antigravityModelsDevPricingTargets(for: breakdown.modelName) {
                         targets.insert(ModelsDevPricingTarget(
                             providerID: target.providerID,
                             modelID: target.modelID))
@@ -1210,16 +1215,81 @@ public struct CostUsageFetcher: Sendable {
             costProvenance: .listPriceEstimate)
     }
 
+    private struct AntigravityTokenFetchOptions: Sendable {
+        var environment: [String: String]
+        var now: Date
+        var historyDays: Int
+        var calendar: Calendar
+        var cacheRoot: URL?
+        var modelsDevClient: ModelsDevClient
+        var allowPricingRefresh: Bool
+        var retryUnknownPricing: Bool
+        var refreshPricingInBackground: Bool
+    }
+
+    private static func loadAntigravityTokenSnapshot(
+        options: AntigravityTokenFetchOptions) async throws -> CostUsageTokenSnapshot
+    {
+        // Provider-specific by design: Antigravity pricing refresh targets its own provider identity.
+        await self.refreshPricingIfAllowed(
+            options: PricingRefreshOptions(
+                provider: .antigravity,
+                isAllowed: options.allowPricingRefresh,
+                retryUnknown: options.retryUnknownPricing,
+                inBackground: options.refreshPricingInBackground),
+            now: options.now,
+            cacheRoot: options.cacheRoot,
+            client: options.modelsDevClient)
+        if let local = try await self.loadAntigravityLocalSnapshot(
+            context: AntigravityLocalReader.Context(environment: options.environment),
+            now: options.now,
+            historyDays: options.historyDays,
+            calendar: options.calendar,
+            modelsDevCacheRoot: options.cacheRoot)
+        {
+            // Provider-specific by design: Antigravity unknown-price refresh targets its own identity.
+            if options.allowPricingRefresh,
+               options.retryUnknownPricing,
+               let request = unknownPricingRefreshRequest(
+                   provider: .antigravity,
+                   daily: CostUsageDailyReport(data: local.daily, summary: nil),
+                   now: options.now,
+                   cacheRoot: options.cacheRoot,
+                   client: options.modelsDevClient),
+               await refreshUnknownPricingIfNeeded(request, inBackground: options.refreshPricingInBackground)
+            {
+                var nextOptions = options
+                nextOptions.retryUnknownPricing = false
+                nextOptions.refreshPricingInBackground = false
+                return try await self.loadAntigravityTokenSnapshot(options: nextOptions)
+            }
+            return local
+        }
+        return Self.tokenSnapshot(
+            from: CostUsageDailyReport(data: [], summary: nil),
+            now: options.now,
+            historyDays: options.historyDays,
+            calendar: options.calendar,
+            historyCoverageIsEstablished: false)
+    }
+
     private static func loadAntigravityLocalSnapshot(
         context: AntigravityLocalReader.Context,
         now: Date,
         historyDays: Int,
-        calendar: Calendar = .current) async throws -> CostUsageTokenSnapshot?
+        calendar: Calendar = .current,
+        modelsDevCatalog: ModelsDevCatalog? = nil,
+        modelsDevCacheRoot: URL? = nil) async throws -> CostUsageTokenSnapshot?
     {
         let cal = calendar
         let reportResult = try await CostUsageScanExecutor.run { checkCancellation in
             try AntigravityLocalReader.makeDailyReportWithStatus(
-                context: context, calendar: cal, checkCancellation: checkCancellation)
+                context: context,
+                calendar: cal,
+                modelsDevCatalog: modelsDevCatalog,
+                modelsDevCacheRoot: modelsDevCacheRoot,
+                now: now,
+                checkCancellation: checkCancellation)
         }
         guard reportResult.isAvailable else { return nil }
         let report = reportResult.report
@@ -1264,7 +1334,7 @@ public struct CostUsageFetcher: Sendable {
             useCurrentLocalDayForSession: true,
             calendar: cal,
             historyCoverageIsEstablished: reportResult.isComplete,
-            costProvenance: .unknown)
+            costProvenance: totalCost != nil ? .listPriceEstimate : .unknown)
     }
 
     static func tokenSnapshot(
