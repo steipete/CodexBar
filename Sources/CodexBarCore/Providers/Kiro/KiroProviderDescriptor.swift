@@ -28,9 +28,9 @@ public enum KiroProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .init(provider: .kiro),
                 iconResourceName: "ProviderIcon-kiro",
-                color: ProviderColor(red: 255 / 255, green: 153 / 255, blue: 0 / 255),
+                color: ProviderColor(red: 144 / 255, green: 70 / 255, blue: 255 / 255),
                 confettiPalette: [
-                    ProviderColor(hex: 0x8F4AFF),
+                    ProviderColor(hex: 0x9046FF),
                     ProviderColor(hex: 0xCAA9FF),
                     ProviderColor(hex: 0x2B2B2B),
                 ]),

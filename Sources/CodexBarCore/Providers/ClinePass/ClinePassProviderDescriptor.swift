@@ -33,9 +33,9 @@ public enum ClinePassProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .init(provider: .clinepass),
                 iconResourceName: "ProviderIcon-clinepass",
-                color: ProviderColor(red: 0.38, green: 0.64, blue: 0.98),
+                color: ProviderColor(red: 84 / 255, green: 135 / 255, blue: 200 / 255),
                 confettiPalette: [
-                    ProviderColor(hex: 0x61A3FA),
+                    ProviderColor(hex: 0x5487C8),
                     ProviderColor(hex: 0x111111),
                     ProviderColor(hex: 0xFFFFFF),
                 ]),

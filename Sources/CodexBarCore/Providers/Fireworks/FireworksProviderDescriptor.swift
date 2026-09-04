@@ -37,9 +37,9 @@ public enum FireworksProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .init(provider: .fireworks),
                 iconResourceName: "ProviderIcon-fireworks",
-                color: ProviderColor(red: 242 / 255, green: 91 / 255, blue: 28 / 255),
+                color: ProviderColor(red: 103 / 255, green: 32 / 255, blue: 255 / 255),
                 confettiPalette: [
-                    ProviderColor(hex: 0xE65618),
+                    ProviderColor(hex: 0x6720FF),
                     ProviderColor(hex: 0xFF9A3C),
                     ProviderColor(hex: 0x2B2B2E),
                 ]),

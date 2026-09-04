@@ -48,9 +48,9 @@ public enum CodebuffProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .init(provider: .codebuff),
                 iconResourceName: "ProviderIcon-codebuff",
-                color: ProviderColor(red: 68 / 255, green: 255 / 255, blue: 0 / 255),
+                color: ProviderColor(red: 0 / 255, green: 255 / 255, blue: 149 / 255),
                 confettiPalette: [
-                    ProviderColor(hex: 0x9EFC62),
+                    ProviderColor(hex: 0x00FF95),
                     ProviderColor(hex: 0xFFFFFF),
                     ProviderColor(hex: 0x000000),
                 ]),

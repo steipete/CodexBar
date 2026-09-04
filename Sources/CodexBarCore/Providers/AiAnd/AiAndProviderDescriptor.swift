@@ -29,9 +29,9 @@ public enum AiAndProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .init(provider: .aiand),
                 iconResourceName: "ProviderIcon-aiand",
-                color: ProviderColor(red: 226 / 255, green: 92 / 255, blue: 43 / 255),
+                color: ProviderColor(red: 199 / 255, green: 0 / 255, blue: 7 / 255),
                 confettiPalette: [
-                    ProviderColor(hex: 0xE25C2B),
+                    ProviderColor(hex: 0xC70007),
                     ProviderColor(hex: 0xF2A17E),
                     ProviderColor(hex: 0x33231C),
                 ]),

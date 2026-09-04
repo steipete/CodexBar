@@ -33,7 +33,7 @@ public enum ChutesProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .init(provider: .chutes),
                 iconResourceName: "ProviderIcon-chutes",
-                color: ProviderColor(red: 49 / 255, green: 132 / 255, blue: 255 / 255),
+                color: ProviderColor(red: 99 / 255, green: 210 / 255, blue: 151 / 255),
                 confettiPalette: [
                     ProviderColor(hex: 0x121212),
                     ProviderColor(hex: 0xFFFFFF),

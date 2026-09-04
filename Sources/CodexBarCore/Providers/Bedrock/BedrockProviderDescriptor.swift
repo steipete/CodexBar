@@ -48,7 +48,7 @@ public enum BedrockProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .init(provider: .bedrock),
                 iconResourceName: "ProviderIcon-bedrock",
-                color: ProviderColor(red: 1, green: 0.6, blue: 0),
+                color: ProviderColor(red: 1 / 255, green: 168 / 255, blue: 141 / 255),
                 confettiPalette: [
                     ProviderColor(hex: 0x01A88D),
                     ProviderColor(hex: 0x232F3E),

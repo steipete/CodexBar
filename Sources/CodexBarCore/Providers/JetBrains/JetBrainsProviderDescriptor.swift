@@ -31,9 +31,9 @@ public enum JetBrainsProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .init(provider: .jetbrains),
                 iconResourceName: "ProviderIcon-jetbrains",
-                color: ProviderColor(red: 255 / 255, green: 51 / 255, blue: 153 / 255),
+                color: ProviderColor(red: 149 / 255, green: 90 / 255, blue: 224 / 255),
                 confettiPalette: [
-                    ProviderColor(hex: 0x6B57FF),
+                    ProviderColor(hex: 0x955AE0),
                     ProviderColor(hex: 0x21D789),
                     ProviderColor(hex: 0x000000),
                 ]),

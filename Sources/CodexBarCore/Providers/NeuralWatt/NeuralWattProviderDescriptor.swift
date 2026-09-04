@@ -42,9 +42,9 @@ public enum NeuralWattProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .init(provider: .neuralwatt),
                 iconResourceName: "ProviderIcon-neuralwatt",
-                color: ProviderColor(red: 0.22, green: 0.85, blue: 0.55),
+                color: ProviderColor(red: 213 / 255, green: 89 / 255, blue: 52 / 255),
                 confettiPalette: [
-                    ProviderColor(hex: 0x38D98C),
+                    ProviderColor(hex: 0xD55934),
                     ProviderColor(hex: 0x17243A),
                     ProviderColor(hex: 0xFFFFFF),
                 ],

@@ -32,10 +32,10 @@ public enum ClawRouterProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .init(provider: .clawrouter),
                 iconResourceName: "ProviderIcon-clawrouter",
-                color: ProviderColor(red: 89 / 255, green: 110 / 255, blue: 246 / 255),
+                color: ProviderColor(red: 31 / 255, green: 90 / 255, blue: 224 / 255),
                 confettiPalette: [
                     ProviderColor(hex: 0x332CB3),
-                    ProviderColor(hex: 0x456FDD),
+                    ProviderColor(hex: 0x1F5AE0),
                     ProviderColor(hex: 0xFFFFFF),
                 ]),
             tokenCost: ProviderTokenCostConfig(

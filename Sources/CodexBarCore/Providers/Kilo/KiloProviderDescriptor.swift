@@ -52,9 +52,9 @@ public enum KiloProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .init(provider: .kilo),
                 iconResourceName: "ProviderIcon-kilo",
-                color: ProviderColor(red: 242 / 255, green: 112 / 255, blue: 39 / 255),
+                color: ProviderColor(red: 250 / 255, green: 247 / 255, blue: 79 / 255),
                 confettiPalette: [
-                    ProviderColor(hex: 0xFA483A),
+                    ProviderColor(hex: 0xFAF74F),
                     ProviderColor(hex: 0xAC1D0E),
                     ProviderColor(hex: 0x121212),
                 ]),
