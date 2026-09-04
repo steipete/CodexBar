@@ -124,18 +124,19 @@ public struct HelmcodeUsageSnapshot: Equatable, Sendable {
 }
 
 public enum HelmcodeUsageError: LocalizedError, Equatable, Sendable {
-    case missingCookies
-    case invalidSession
+    case missingCookies(HelmcodeDeployment)
+    case invalidSession(HelmcodeDeployment)
     case rateLimited
     case apiError(Int)
     case parseFailed(String)
 
     public var errorDescription: String? {
         switch self {
-        case .missingCookies:
-            "No Helmcode dashboard session found. Sign in at cloud.helmcode.com or paste a Cookie header."
-        case .invalidSession:
-            "Helmcode dashboard session expired. Sign in again at cloud.helmcode.com."
+        case let .missingCookies(deployment):
+            "No \(deployment.displayName) dashboard session found. Sign in at \(deployment.dashboardHost) " +
+                "or paste a Cookie header."
+        case let .invalidSession(deployment):
+            "\(deployment.displayName) dashboard session expired. Sign in again at \(deployment.dashboardHost)."
         case .rateLimited:
             "Helmcode rate limit exceeded. Usage will refresh on the next cycle."
         case let .apiError(statusCode):
@@ -147,9 +148,9 @@ public enum HelmcodeUsageError: LocalizedError, Equatable, Sendable {
 }
 
 public struct HelmcodeUsageFetcher: Sendable {
-    public static let quotaURL = URL(string: "https://cloud-api.helmcode.com/api/usage/quota")!
-    public static let creditsURL = URL(string: "https://cloud-api.helmcode.com/api/billing/credits")!
-    private static let dashboardURL = URL(string: "https://cloud.helmcode.com/credits")!
+    /// Default enterprise deployment endpoints, kept for callers that do not select a tenant.
+    public static let quotaURL = HelmcodeDeployment.helmcode.quotaURL
+    public static let creditsURL = HelmcodeDeployment.helmcode.creditsURL
     private static let timeoutSeconds: TimeInterval = 15
     private static let log = CodexBarLog.logger(LogCategories.provider(.helmcode, scope: "usage"))
 
@@ -176,22 +177,26 @@ public struct HelmcodeUsageFetcher: Sendable {
 
     public static func fetchUsage(
         cookieHeader: String,
+        deployment: HelmcodeDeployment = .helmcode,
         transport transportOverride: (any ProviderHTTPTransport)? = nil,
         now: Date = Date()) async throws -> HelmcodeUsageSnapshot
     {
         try await self.fetchUsage(
             authentication: .header(cookieHeader),
+            deployment: deployment,
             transport: transportOverride ?? self.defaultTransport,
             now: now)
     }
 
     static func fetchUsage(
         cookies: [HTTPCookie],
+        deployment: HelmcodeDeployment = .helmcode,
         transport transportOverride: (any ProviderHTTPTransport)? = nil,
         now: Date = Date()) async throws -> HelmcodeUsageSnapshot
     {
         try await self.fetchUsage(
             authentication: .cookies(cookies),
+            deployment: deployment,
             transport: transportOverride ?? self.defaultTransport,
             now: now)
     }
@@ -206,21 +211,24 @@ public struct HelmcodeUsageFetcher: Sendable {
 
     private static func fetchUsage(
         authentication: Authentication,
+        deployment: HelmcodeDeployment,
         transport: any ProviderHTTPTransport,
         now: Date) async throws -> HelmcodeUsageSnapshot
     {
-        guard authentication.header(for: self.quotaURL) != nil else {
-            throw HelmcodeUsageError.missingCookies
+        guard authentication.header(for: deployment.quotaURL) != nil else {
+            throw HelmcodeUsageError.missingCookies(deployment)
         }
 
         let quotaData = try await self.get(
-            self.quotaURL,
+            deployment.quotaURL,
+            deployment: deployment,
             authentication: authentication,
             transport: transport)
         var creditsData: Data?
         do {
             creditsData = try await self.get(
-                self.creditsURL,
+                deployment.creditsURL,
+                deployment: deployment,
                 authentication: authentication,
                 transport: transport)
         } catch is CancellationError {
@@ -233,18 +241,19 @@ public struct HelmcodeUsageFetcher: Sendable {
 
     private static func get(
         _ url: URL,
+        deployment: HelmcodeDeployment,
         authentication: Authentication,
         transport: any ProviderHTTPTransport) async throws -> Data
     {
         guard let cookieHeader = authentication.header(for: url) else {
-            throw HelmcodeUsageError.missingCookies
+            throw HelmcodeUsageError.missingCookies(deployment)
         }
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue("https://cloud.helmcode.com", forHTTPHeaderField: "Origin")
-        request.setValue(self.dashboardURL.absoluteString, forHTTPHeaderField: "Referer")
+        request.setValue(deployment.dashboardURL.absoluteString, forHTTPHeaderField: "Origin")
+        request.setValue(deployment.dashboardCreditsURL.absoluteString, forHTTPHeaderField: "Referer")
         request.setValue(
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
                 "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
@@ -256,7 +265,7 @@ public struct HelmcodeUsageFetcher: Sendable {
         case 200:
             return response.data
         case 300...399, 401, 403:
-            throw HelmcodeUsageError.invalidSession
+            throw HelmcodeUsageError.invalidSession(deployment)
         case 429:
             throw HelmcodeUsageError.rateLimited
         default:

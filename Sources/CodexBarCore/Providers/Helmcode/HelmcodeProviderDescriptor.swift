@@ -3,9 +3,11 @@ import SweetCookieKit
 
 public enum HelmcodeProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
-    private static let credentials = ProviderCredentialAdapter(environmentProjections: [
-        .cookieHeader(HelmcodeSettingsReader.cookieHeaderEnvironmentKey, onlyWhenManual: true),
-    ])
+    private static let credentials = ProviderCredentialAdapter(
+        usesRegion: true,
+        environmentProjections: [
+            .cookieHeader(HelmcodeSettingsReader.cookieHeaderEnvironmentKey, onlyWhenManual: true),
+        ])
 
     private static var browserCookieOrder: BrowserCookieImportOrder? {
         #if os(macOS)
@@ -18,7 +20,22 @@ public enum HelmcodeProviderDescriptor {
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .helmcode,
-            settingsSection: .init(HelmcodeProviderSettingsKey.self, cookieSettings: HelmcodeProviderSettings.self),
+            settingsSection: .init(
+                HelmcodeProviderSettingsKey.self,
+                cookieSettings: { settings in
+                    CookieProviderSettings(
+                        cookieSource: settings.cookieSource,
+                        manualCookieHeader: settings.manualCookieHeader)
+                },
+                credentialSettings: { context in
+                    let settings = context.cookieSettings(for: .helmcode)
+                    let deployment = context.config?.sanitizedRegion
+                        .flatMap(HelmcodeDeployment.init(rawValue:)) ?? .helmcode
+                    return HelmcodeProviderSettings(
+                        cookieSource: settings.cookieSource,
+                        manualCookieHeader: settings.manualCookieHeader,
+                        deployment: deployment)
+                }),
             credentials: self.credentials,
             metadata: ProviderMetadata(
                 id: .helmcode,
@@ -73,13 +90,14 @@ struct HelmcodeWebFetchStrategy: ProviderFetchStrategy {
     let kind: ProviderFetchKind = .web
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
+        let deployment = Self.deployment(for: context)
         if HelmcodeCookieHeader.resolveCookieOverride(context: context) != nil {
             return true
         }
 
         #if os(macOS)
         if Self.allowsBrowserImport(context: context) {
-            return HelmcodeCookieImporter.hasSession(browserDetection: context.browserDetection)
+            return HelmcodeCookieImporter.hasSession(deployment: deployment, browserDetection: context.browserDetection)
         }
         #endif
 
@@ -87,20 +105,27 @@ struct HelmcodeWebFetchStrategy: ProviderFetchStrategy {
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
+        let deployment = Self.deployment(for: context)
         let snapshot: HelmcodeUsageSnapshot
         if let override = HelmcodeCookieHeader.resolveCookieOverride(context: context) {
-            snapshot = try await HelmcodeUsageFetcher.fetchUsage(cookieHeader: override.cookieHeader)
+            snapshot = try await HelmcodeUsageFetcher.fetchUsage(
+                cookieHeader: override.cookieHeader,
+                deployment: deployment)
         } else {
             #if os(macOS)
             guard Self.allowsBrowserImport(context: context) else {
-                throw HelmcodeUsageError.missingCookies
+                throw HelmcodeUsageError.missingCookies(deployment)
             }
-            let sessions = try HelmcodeCookieImporter.importSessions(browserDetection: context.browserDetection)
-            snapshot = try await Self.fetchImportedSessions(sessions) { session in
-                try await HelmcodeUsageFetcher.fetchUsage(cookies: session.cookies)
+            let sessions = try HelmcodeCookieImporter.importSessions(
+                deployment: deployment,
+                browserDetection: context.browserDetection)
+            snapshot = try await Self.fetchImportedSessions(sessions, deployment: deployment) { session in
+                try await HelmcodeUsageFetcher.fetchUsage(
+                    cookies: session.cookies,
+                    deployment: deployment)
             }
             #else
-            throw HelmcodeUsageError.missingCookies
+            throw HelmcodeUsageError.missingCookies(deployment)
             #endif
         }
         return self.makeResult(usage: snapshot.toUsageSnapshot(), sourceLabel: "web")
@@ -108,6 +133,24 @@ struct HelmcodeWebFetchStrategy: ProviderFetchStrategy {
 
     func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
         false
+    }
+
+    static func deployment(for context: ProviderFetchContext) -> HelmcodeDeployment {
+        self.deployment(settings: context.settings?.helmcode, environment: context.env)
+    }
+
+    /// An explicit `HELMCODE_DEPLOYMENT` environment value overrides stored settings; otherwise
+    /// settings decide (defaulting to the Helmcode Cloud tenant).
+    static func deployment(
+        settings: HelmcodeProviderSettings?,
+        environment: [String: String]) -> HelmcodeDeployment
+    {
+        let hasEnvironmentOverride = environment[HelmcodeDeployment.environmentKey]?
+            .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+        if hasEnvironmentOverride {
+            return HelmcodeDeployment.resolve(environment: environment)
+        }
+        return settings?.deployment ?? .helmcode
     }
 
     static func allowsBrowserImport(context: ProviderFetchContext) -> Bool {
@@ -120,6 +163,7 @@ struct HelmcodeWebFetchStrategy: ProviderFetchStrategy {
     #if os(macOS)
     static func fetchImportedSessions(
         _ sessions: [HelmcodeCookieImporter.SessionInfo],
+        deployment: HelmcodeDeployment,
         fetch: (HelmcodeCookieImporter.SessionInfo) async throws -> HelmcodeUsageSnapshot) async throws
         -> HelmcodeUsageSnapshot
     {
@@ -136,7 +180,7 @@ struct HelmcodeWebFetchStrategy: ProviderFetchStrategy {
                 }
             }
         }
-        throw lastCredentialError ?? HelmcodeUsageError.missingCookies
+        throw lastCredentialError ?? HelmcodeUsageError.missingCookies(deployment)
     }
     #endif
 }

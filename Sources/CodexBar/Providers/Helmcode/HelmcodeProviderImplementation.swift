@@ -17,6 +17,7 @@ struct HelmcodeProviderImplementation: ProviderImplementation {
     func observeSettings(_ settings: SettingsStore) {
         _ = settings.helmcodeCookieSource
         _ = settings.helmcodeCookieHeader
+        _ = settings.helmcodeDeployment
     }
 
     @MainActor
@@ -26,6 +27,15 @@ struct HelmcodeProviderImplementation: ProviderImplementation {
 
     @MainActor
     func settingsPickers(context: ProviderSettingsContext) -> [ProviderSettingsPickerDescriptor] {
+        let deployment = context.settings.helmcodeDeployment
+        let deploymentBinding = Binding(
+            get: { context.settings.helmcodeDeployment.rawValue },
+            set: { raw in
+                context.settings.helmcodeDeployment = HelmcodeDeployment(rawValue: raw) ?? .helmcode
+            })
+        let deploymentOptions = HelmcodeDeployment.allCases.map {
+            ProviderSettingsPickerOption(id: $0.rawValue, title: $0.displayName)
+        }
         let cookieBinding = Binding(
             get: { context.settings.helmcodeCookieSource.rawValue },
             set: { raw in
@@ -38,12 +48,21 @@ struct HelmcodeProviderImplementation: ProviderImplementation {
             ProviderCookieSourceUI.subtitle(
                 source: context.settings.helmcodeCookieSource,
                 keychainDisabled: context.settings.debugDisableKeychainAccess,
-                auto: "Automatic imports cloud.helmcode.com cookies from Chrome.",
-                manual: "Paste a Cookie header or cURL capture from the Helmcode dashboard.",
+                auto: "Automatic imports \(deployment.dashboardHost) cookies from Chrome.",
+                manual: "Paste a Cookie header or cURL capture from the \(deployment.displayName) dashboard.",
                 off: "Helmcode dashboard cookies are disabled.")
         }
 
         return [
+            ProviderSettingsPickerDescriptor(
+                id: "helmcode-deployment",
+                title: "Deployment",
+                subtitle: "Helmcode Cloud is the enterprise dashboard. NaN Builders is the community " +
+                    "dashboard with the same usage APIs.",
+                binding: deploymentBinding,
+                options: deploymentOptions,
+                isVisible: nil,
+                onChange: nil),
             ProviderSettingsPickerDescriptor(
                 id: "helmcode-cookie-source",
                 title: "Cookie source",
@@ -69,13 +88,12 @@ struct HelmcodeProviderImplementation: ProviderImplementation {
                 actions: [
                     ProviderSettingsActionDescriptor(
                         id: "helmcode-open-dashboard",
-                        title: "Open Helmcode",
+                        title: "Open Dashboard",
                         style: .link,
                         isVisible: nil,
                         perform: {
-                            if let url = URL(string: "https://cloud.helmcode.com/credits") {
-                                NSWorkspace.shared.open(url)
-                            }
+                            let url = context.settings.helmcodeDeployment.dashboardCreditsURL
+                            NSWorkspace.shared.open(url)
                         }),
                 ],
                 isVisible: { context.settings.helmcodeCookieSource == .manual },

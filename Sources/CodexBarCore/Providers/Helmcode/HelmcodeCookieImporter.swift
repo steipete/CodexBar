@@ -6,7 +6,6 @@ import SweetCookieKit
 public enum HelmcodeCookieImporter {
     private static let log = CodexBarLog.logger(LogCategories.provider(.helmcode, scope: "cookie"))
     private static let cookieClient = BrowserCookieClient()
-    private static let cookieDomains = ["cloud-api.helmcode.com", "cloud.helmcode.com", "helmcode.com"]
     private static let cookieImportOrder: BrowserCookieImportOrder =
         ProviderDefaults.metadata[.helmcode]?.browserCookieOrder ?? Browser.defaultImportOrder
 
@@ -21,6 +20,7 @@ public enum HelmcodeCookieImporter {
     }
 
     public static func importSessions(
+        deployment: HelmcodeDeployment = .helmcode,
         browserDetection: BrowserDetection = BrowserDetection(),
         logger: ((String) -> Void)? = nil) throws -> [SessionInfo]
     {
@@ -28,7 +28,10 @@ public enum HelmcodeCookieImporter {
         let candidates = self.cookieImportOrder.cookieImportCandidates(using: browserDetection)
         for browserSource in candidates {
             do {
-                try sessions.append(contentsOf: self.importSessions(from: browserSource, logger: logger))
+                try sessions.append(contentsOf: self.importSessions(
+                    from: browserSource,
+                    deployment: deployment,
+                    logger: logger))
             } catch {
                 BrowserCookieAccessGate.recordIfNeeded(error)
                 self.emit(
@@ -37,15 +40,16 @@ public enum HelmcodeCookieImporter {
             }
         }
 
-        guard !sessions.isEmpty else { throw HelmcodeUsageError.missingCookies }
+        guard !sessions.isEmpty else { throw HelmcodeUsageError.missingCookies(deployment) }
         return sessions
     }
 
     public static func importSessions(
         from browserSource: Browser,
+        deployment: HelmcodeDeployment = .helmcode,
         logger: ((String) -> Void)? = nil) throws -> [SessionInfo]
     {
-        let query = BrowserCookieQuery(domains: self.cookieDomains)
+        let query = BrowserCookieQuery(domains: deployment.cookieDomains)
         let log: (String) -> Void = { message in self.emit(message, logger: logger) }
         let sources = try self.cookieClient.codexBarRecords(
             matching: query,
@@ -57,21 +61,55 @@ public enum HelmcodeCookieImporter {
         return groups.compactMap { group in
             guard !group.isEmpty else { return nil }
             let records = self.mergeRecords(group)
-            let cookies = BrowserCookieClient.makeHTTPCookies(records, origin: query.origin)
-            guard HelmcodeCookieHeader.header(from: cookies, for: HelmcodeUsageFetcher.quotaURL) != nil else {
+            let cookies = Self.makeCookies(from: records)
+            guard HelmcodeCookieHeader.header(from: cookies, for: deployment.quotaURL) != nil else {
                 return nil
             }
             let label = self.mergedLabel(for: group)
-            log("Found Helmcode dashboard cookies in \(label)")
+            log("Found \(deployment.displayName) dashboard cookies in \(label)")
             return SessionInfo(cookies: cookies, sourceLabel: label)
         }
     }
 
+    /// Builds request cookies while preserving the browser's domain scope. SweetCookieKit normalizes
+    /// record domains without the leading dot, so domain-scoped cookies must re-add it or the
+    /// subdomain header match in `HelmcodeCookieHeader` would drop them.
+    static func makeCookies(from records: [BrowserCookieRecord]) -> [HTTPCookie] {
+        records.compactMap { record in
+            guard !record.domain.isEmpty else { return nil }
+            var domain = record.domain
+            if record.scope == .domain {
+                domain = "." + domain
+            }
+            var properties: [HTTPCookiePropertyKey: Any] = [
+                .domain: domain,
+                .path: record.path,
+                .name: record.name,
+                .value: record.value,
+                .secure: record.isSecure,
+            ]
+            if let originURL = URL(string: "https://\(record.domain)") {
+                properties[.originURL] = originURL
+            }
+            if record.isHTTPOnly {
+                properties[.init("HttpOnly")] = "TRUE"
+            }
+            if let expires = record.expires {
+                properties[.expires] = expires
+            }
+            return HTTPCookie(properties: properties)
+        }
+    }
+
     public static func hasSession(
+        deployment: HelmcodeDeployment = .helmcode,
         browserDetection: BrowserDetection = BrowserDetection(),
         logger: ((String) -> Void)? = nil) -> Bool
     {
-        (try? !self.importSessions(browserDetection: browserDetection, logger: logger).isEmpty) ?? false
+        (try? !self.importSessions(
+            deployment: deployment,
+            browserDetection: browserDetection,
+            logger: logger).isEmpty) ?? false
     }
 
     private static func emit(_ message: String, logger: ((String) -> Void)?) {
