@@ -64,6 +64,7 @@ public enum ProviderManifest {
         PoeProviderDescriptor.descriptor,
         ChutesProviderDescriptor.descriptor,
         NeuralWattProviderDescriptor.descriptor,
+        HelmcodeProviderDescriptor.descriptor,
         ClawRouterProviderDescriptor.descriptor,
         LongCatProviderDescriptor.descriptor,
         Sub2APIProviderDescriptor.descriptor,
