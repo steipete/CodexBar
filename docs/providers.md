@@ -8,7 +8,7 @@ read_when:
 
 # Providers
 
-CodexBar currently registers 69 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
+CodexBar currently registers 70 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
 OpenCode vs OpenCode Go, because the auth source and quota shape differ.
 
 ## Fetch strategies (current)
@@ -98,6 +98,7 @@ complete when the available scan window covers fewer days.
 | Fireworks | API key + account slug → 30-day spend from the billing summary API (`api`). |
 | DeepInfra | API key from env or token accounts → billing checklist + monthly usage endpoints (`api`). |
 | Moonshot | API key from config/env → balance endpoint (`api`). |
+| Nous Portal | Hermes Agent OAuth access token from `~/.hermes/auth.json` (or env) → account/billing API (`api`). |
 | Codebuff | API token from config/env or `codebuff login` credentials → usage API (`api`). |
 | Crof | API key from config/env → credit balance + optional request quota API (`api`). |
 | Venice | API key from config/env → DIEM/USD balance API (`api`). |
@@ -482,6 +483,18 @@ provider-specific cookie validation, endpoints, login detection, and error trans
 - Shows available balance; negative cash balance is surfaced as a deficit.
 - Status: none yet.
 - Details: `docs/moonshot.md`.
+
+
+## Nous Portal
+- Reuses the OAuth access token Hermes Agent stores in `~/.hermes/auth.json` (falls back to `~/.hermes/shared/nous_auth.json`;
+  `HERMES_HOME` replaces the directory and is exclusive). `NOUS_PORTAL_ACCESS_TOKEN` supplies a token directly.
+- CodexBar never calls the refresh endpoint: Nous refresh tokens are single-use and reuse revokes the Hermes session.
+  When the stored token expires, the card asks you to run `hermes` so Hermes refreshes it.
+- Reads `GET /api/oauth/account`: monthly subscription credits used/remaining with the cycle reset date, plan name,
+  and the purchased credit balance (shown as credits).
+- The token is only sent to `nousresearch.com` hosts (or an explicit `NOUS_PORTAL_BASE_URL` override you set); an
+  untrusted stored `portal_base_url` is ignored. API keys are inference-only and cannot read credits.
+- Details: `docs/nous.md`.
 
 ## Venice
 - API key via `VENICE_API_KEY` / `VENICE_KEY` env var or Venice token accounts.

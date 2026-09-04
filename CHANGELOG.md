@@ -10,6 +10,9 @@
 - **Stable cost-chart navigation**: switching between Token and Cost preserves menu position and scrolling, even with tall charts (#3380).
 - **Remote session discovery restored**: prevent repeated app-binary crashes on newer Tailscale installations by explicitly using CLI mode (#3401).
 
+### Added
+- Nous Portal: new provider showing monthly subscription credits, cycle reset, plan, and purchased credit balance by reusing the Hermes Agent OAuth login from `~/.hermes/auth.json` (#1367).
+
 ### Fixed
 - Codex: preserve pending cost-scan discovery when same-day history requests alternate between narrower and wider windows, avoiding repeated requeueing of completed files and retaining compatible history caches on upgrade (partial fix for #3411). Thanks @kesslerio!
 - Codex: retain completed empty session fragments during cost-history scans instead of repeatedly dropping and rediscovering them, without suppressing usage-bearing duplicates or later appended usage (partial fix for #3316; #3402). Thanks @mauriciopolvora!
