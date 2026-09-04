@@ -35,6 +35,7 @@ struct CodexMonthlyCreditPreservationTests {
         #expect(merged?.codexCreditLimit?.used == 27)
         #expect(merged?.codexCreditLimit?.limit == 1000)
         #expect(merged?.updatedAt == prior.codexCreditLimit?.updatedAt)
+        #expect(merged?.balanceReadSucceeded == false)
     }
 
     @Test

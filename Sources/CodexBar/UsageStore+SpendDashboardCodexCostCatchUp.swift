@@ -101,6 +101,10 @@ extension UsageStore {
             guard let self else { return }
             defer {
                 if self.spendDashboardCodexCostCatchUpToken == token {
+                    // Scope invalidation can exit without publishing a terminal activity.
+                    if self.spendDashboardCodexCostCatchUpActivity?.phase == .indexing {
+                        self.spendDashboardCodexCostCatchUpActivity = nil
+                    }
                     self.spendDashboardCodexCostCatchUpTask = nil
                     self.spendDashboardCodexCostCatchUpToken = nil
                     self.spendDashboardCodexCostCatchUpScopeSignature = nil

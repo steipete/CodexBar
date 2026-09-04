@@ -256,6 +256,10 @@ final class UsageStore {
     @ObservationIgnored var openAIDashboardRefreshTask: Task<Void, Never>?
     @ObservationIgnored var openAIDashboardRefreshTaskKey: String?
     @ObservationIgnored var openAIDashboardRefreshTaskToken: UUID?
+    @ObservationIgnored var openAISubscriptionMetadataEnrichmentTask: Task<Void, Never>?
+    @ObservationIgnored var openAISubscriptionMetadataEnrichmentToken: UUID?
+    @ObservationIgnored var _test_openAISubscriptionMetadataLoaderOverride: (@MainActor (String?) async
+        -> OpenAISubscriptionFetchResult)?
     @ObservationIgnored var _test_openAIDashboardCookieImportOverride: (@MainActor (
         String?,
         Bool,
@@ -965,6 +969,7 @@ final class UsageStore {
         self.creditsRefreshTask?.cancel()
         self.openAIDashboardBackgroundRefreshTask?.cancel()
         self.openAIDashboardRefreshTask?.cancel()
+        self.openAISubscriptionMetadataEnrichmentTask?.cancel()
         self.memoryPressureReliefTask?.cancel()
         self.startupConnectivityRetryTask?.cancel()
         self.storageRefreshTask?.cancel()

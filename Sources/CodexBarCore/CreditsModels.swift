@@ -47,17 +47,50 @@ public struct CreditsSnapshot: Equatable, Codable, Sendable {
     public let events: [CreditEvent]
     public let updatedAt: Date
     public let codexCreditLimit: CodexCreditLimitSnapshot?
+    /// False only for a preservation placeholder when the credits fetch itself failed.
+    /// A successful read of `remaining == 0` stays true so reconciliation can clear a stale balance.
+    public let balanceReadSucceeded: Bool
 
     public init(
         remaining: Double,
         events: [CreditEvent],
         updatedAt: Date,
-        codexCreditLimit: CodexCreditLimitSnapshot? = nil)
+        codexCreditLimit: CodexCreditLimitSnapshot? = nil,
+        balanceReadSucceeded: Bool = true)
     {
         self.remaining = remaining
         self.events = events
         self.updatedAt = updatedAt
         self.codexCreditLimit = codexCreditLimit
+        self.balanceReadSucceeded = balanceReadSucceeded
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case remaining
+        case events
+        case updatedAt
+        case codexCreditLimit
+        case balanceReadSucceeded
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.remaining = try container.decode(Double.self, forKey: .remaining)
+        self.events = try container.decode([CreditEvent].self, forKey: .events)
+        self.updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+        self.codexCreditLimit = try container.decodeIfPresent(
+            CodexCreditLimitSnapshot.self,
+            forKey: .codexCreditLimit)
+        self.balanceReadSucceeded = try container.decodeIfPresent(Bool.self, forKey: .balanceReadSucceeded) ?? true
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(self.remaining, forKey: .remaining)
+        try container.encode(self.events, forKey: .events)
+        try container.encode(self.updatedAt, forKey: .updatedAt)
+        try container.encodeIfPresent(self.codexCreditLimit, forKey: .codexCreditLimit)
+        try container.encode(self.balanceReadSucceeded, forKey: .balanceReadSucceeded)
     }
 }
 

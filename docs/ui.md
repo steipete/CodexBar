@@ -116,3 +116,5 @@ Runs out tokens remain hidden until 3% of their window has elapsed.
   provider picker; detailed pipeline in `docs/widgets.md`.
 
 See also: `docs/widgets.md`.
+
+Cost-history submenus keep tall histories in a scrollable viewport. Switching Token/Cost preserves the viewport; scrolling over the chart moves through the history without moving the native menu.

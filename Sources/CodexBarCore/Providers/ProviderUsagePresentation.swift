@@ -56,6 +56,8 @@ public enum ProviderCostMenuCardStyle: Sendable, Equatable {
     case generic
     case hidden
     case extraUsageBalance
+    /// Codex extra credits: used vs monthly cap in credit units, optional purchased balance.
+    case creditsUsage
     case zenBalance
     case pointsBalance
     case prepaidCredits

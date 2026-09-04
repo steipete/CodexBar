@@ -966,14 +966,21 @@ extension UsageMenuCardView.Model {
         let creditsScaleText = Self.creditsScaleText(credits: input.credits)
         let codexCreditLimitDetail = Self.codexCreditLimitDetail(credits: input.credits, now: input.now)
         let isClaudeAdminAPI = input.snapshot?.loginMethod(for: input.provider) == "Admin API"
+        let extraUsageCost = Self.resolvedProviderCost(input: input)
+        let extraUsageSnapshot = extraUsageCost.map { cost in
+            (input.snapshot ?? UsageSnapshot(
+                primary: nil,
+                secondary: nil,
+                updatedAt: cost.updatedAt)).with(providerCost: cost)
+        } ?? input.snapshot
         let showsProviderCost = menuCard.showsProviderCost(context: ProviderCostVisibilityContext(
-            snapshot: input.snapshot,
+            snapshot: extraUsageSnapshot,
             showOptionalUsage: input.showOptionalCreditsAndExtraUsage))
-        let providerCostStyle = input.snapshot.map {
+        let providerCostStyle = extraUsageSnapshot.map {
             presentation.cost(snapshot: $0).menuCardStyle
         } ?? .generic
         let providerCostFollowsSummaryStyle = Self.providerCostFollowsSummaryStyle(
-            cost: input.snapshot?.providerCost,
+            cost: extraUsageCost,
             style: providerCostStyle,
             isClaudeAdminAPI: isClaudeAdminAPI) && !menuCard.providerCostIsRequiredUsage
         let providerCost: ProviderCostSection? = if !showsProviderCost ||
@@ -982,7 +989,7 @@ extension UsageMenuCardView.Model {
             nil
         } else {
             Self.providerCostSection(
-                cost: input.snapshot?.providerCost,
+                cost: extraUsageCost,
                 style: providerCostStyle,
                 percentStyle: input.usageBarsShowUsed ? .used : .left,
                 isClaudeAdminAPI: isClaudeAdminAPI,
@@ -1032,6 +1039,19 @@ extension UsageMenuCardView.Model {
             tokenUsage: tokenUsage,
             placeholder: placeholder,
             progressColor: Self.progressColor(for: input.provider))
+    }
+
+    private static func resolvedProviderCost(input: Input) -> ProviderCostSnapshot? {
+        // Provider-specific by design: Codex extra credits come from member credit snapshots, not USD spend.
+        if input.provider == .codex {
+            if let projected = input.codexProjection?.extraUsageCost {
+                return projected
+            }
+            if let fromCredits = CodexExtraUsageCost.providerCost(from: input.credits) {
+                return fromCredits
+            }
+        }
+        return input.snapshot?.providerCost
     }
 
     private static func visibleProviderDetails(input: Input) -> [ProviderDetailSection] {

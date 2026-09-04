@@ -9,6 +9,24 @@ struct KimiCodeAPIUsageResponse: Codable {
     let limits: [KimiRateLimit]?
     let user: User?
     let version: String?
+    private let versionIsMalformed: Bool
+
+    private enum CodingKeys: String, CodingKey { case usage, limits, user, version }
+
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.usage = try container.decode(KimiUsageDetail.self, forKey: .usage)
+        self.limits = try container.decodeIfPresent([KimiRateLimit].self, forKey: .limits)
+        // Optional membership schema drift must not reject otherwise valid Code usage.
+        self.user = try? container.decode(User.self, forKey: .user)
+        do {
+            self.version = try container.decodeIfPresent(String.self, forKey: .version)
+            self.versionIsMalformed = false
+        } catch {
+            self.version = nil
+            self.versionIsMalformed = true
+        }
+    }
 
     struct User: Codable {
         let membership: Membership?
@@ -22,7 +40,8 @@ struct KimiCodeAPIUsageResponse: Codable {
         guard let level = user?.membership?.level?.trimmingCharacters(in: .whitespacesAndNewlines),
               !level.isEmpty, level != "LEVEL_UNSPECIFIED" else { return nil }
         // Names from the official V1 membership goods catalog. Preserve unknown enum values.
-        guard self.version == nil || self.version == "GOODS_VERSION_V1" else { return level }
+        guard !self.versionIsMalformed,
+              self.version == nil || self.version == "GOODS_VERSION_V1" else { return level }
         switch level {
         case "LEVEL_FREE": return "Adagio"
         case "LEVEL_TRIAL": return "Andante"
@@ -34,8 +53,7 @@ struct KimiCodeAPIUsageResponse: Codable {
     }
 }
 
-struct KimiSubscriptionStatsResponse: Codable {
-    var planName: String?
+struct KimiSubscriptionStatsResponse: Codable, Sendable {
     let subscriptionBalance: KimiSubscriptionBalance?
     let ratelimitCode7d: KimiSubscriptionRateLimit?
 }

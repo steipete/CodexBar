@@ -284,21 +284,25 @@ extension StatusItemController {
         snapshot: UsageSnapshot?,
         credits: CreditsSnapshot?) -> UsageSnapshot?
     {
-        guard let limit = credits?.codexCreditLimit else { return snapshot }
+        guard let limit = credits?.codexCreditLimit else {
+            return snapshot.map { CodexExtraUsageCost.attaching(to: $0, credits: credits) } ?? snapshot
+        }
         let monthly = RateWindow(
             usedPercent: limit.usedPercent,
             windowMinutes: nil,
             resetsAt: limit.resetsAt,
             resetDescription: nil)
         guard let snapshot else {
-            return UsageSnapshot(
-                primary: nil,
-                secondary: nil,
-                tertiary: monthly,
-                updatedAt: limit.updatedAt)
+            return CodexExtraUsageCost.attaching(
+                to: UsageSnapshot(
+                    primary: nil,
+                    secondary: nil,
+                    tertiary: monthly,
+                    updatedAt: limit.updatedAt),
+                credits: credits)
         }
         if snapshot.tertiary == nil {
-            return snapshot.with(tertiary: monthly)
+            return CodexExtraUsageCost.attaching(to: snapshot.with(tertiary: monthly), credits: credits)
         }
         let extras = (snapshot.extraRateWindows ?? []) + [
             NamedRateWindow(
@@ -306,7 +310,7 @@ extension StatusItemController {
                 title: limit.title,
                 window: monthly),
         ]
-        return snapshot.with(extraRateWindows: extras)
+        return CodexExtraUsageCost.attaching(to: snapshot.with(extraRateWindows: extras), credits: credits)
     }
 
     // MARK: - Expansion state

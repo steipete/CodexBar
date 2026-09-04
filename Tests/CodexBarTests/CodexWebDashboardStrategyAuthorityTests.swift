@@ -6,6 +6,22 @@ import Testing
 @MainActor
 struct CodexWebDashboardStrategyAuthorityTests {
     @Test
+    func `direct web dashboard result preserves subscription metadata`() {
+        let dashboard = self.makeDashboard(email: "owner@example.com")
+        let renewal = Date(timeIntervalSince1970: 1_787_236_207)
+        let enriched = CodexWebDashboardStrategy.dashboardByMergingSubscriptionMetadata(
+            dashboard,
+            result: .success(.init(expiresAt: nil, renewsAt: renewal)))
+
+        #expect(enriched.subscriptionRenewsAt == renewal)
+        #expect(enriched.subscriptionExpiresAt == nil)
+        #expect(
+            CodexWebDashboardStrategy.dashboardByMergingSubscriptionMetadata(
+                dashboard,
+                result: .unavailable) == dashboard)
+    }
+
+    @Test
     func `web dashboard attach converts snapshot with authority attachment email`() throws {
         OpenAIDashboardCacheStore.clear()
         defer { OpenAIDashboardCacheStore.clear() }
@@ -29,6 +45,43 @@ struct CodexWebDashboardStrategyAuthorityTests {
 
         #expect(result.usage.accountEmail(for: .codex) == "owner@example.com")
         #expect(result.credits?.remaining == 42)
+    }
+
+    @Test
+    func `web dashboard attach maps monthly credits to extra usage`() throws {
+        OpenAIDashboardCacheStore.clear()
+        defer { OpenAIDashboardCacheStore.clear() }
+
+        let authHome = try self.makeAuthHome(
+            email: "owner@example.com",
+            accountId: "acct-owner")
+        defer { try? FileManager.default.removeItem(at: authHome) }
+
+        let context = self.makeContext(
+            authHome: authHome,
+            knownOwners: [
+                CodexDashboardKnownOwnerCandidate(
+                    identity: .providerAccount(id: "acct-owner"),
+                    normalizedEmail: "owner@example.com"),
+            ])
+        let updatedAt = Date(timeIntervalSince1970: 2000)
+        let resetsAt = Date(timeIntervalSince1970: 4000)
+        let result = try CodexWebDashboardStrategy.makeAuthorizedDashboardResultForTesting(
+            dashboard: self.makeDashboard(
+                email: "owner@example.com",
+                codexCreditLimit: CodexCreditLimitSnapshot(
+                    used: 125,
+                    limit: 500,
+                    remainingPercent: 75,
+                    resetsAt: resetsAt,
+                    updatedAt: updatedAt)),
+            context: context,
+            routingTargetEmail: "route@example.com")
+
+        #expect(result.usage.providerCost?.used == 125)
+        #expect(result.usage.providerCost?.limit == 500)
+        #expect(result.usage.providerCost?.resetsAt == resetsAt)
+        #expect(result.usage.providerCost?.currencyCode == CodexExtraUsageCost.currencyCode)
     }
 
     @Test
@@ -336,7 +389,10 @@ struct CodexWebDashboardStrategyAuthorityTests {
             browserDetection: browserDetection)
     }
 
-    private func makeDashboard(email: String) -> OpenAIDashboardSnapshot {
+    private func makeDashboard(
+        email: String,
+        codexCreditLimit: CodexCreditLimitSnapshot? = nil) -> OpenAIDashboardSnapshot
+    {
         OpenAIDashboardSnapshot(
             signedInEmail: email,
             codeReviewRemainingPercent: 75,
@@ -361,6 +417,7 @@ struct CodexWebDashboardStrategyAuthorityTests {
                 resetDescription: nil),
             secondaryLimit: nil,
             creditsRemaining: 42,
+            codexCreditLimit: codexCreditLimit,
             accountPlan: "pro",
             updatedAt: Date(timeIntervalSince1970: 2000))
     }

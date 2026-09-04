@@ -12,6 +12,8 @@ public enum CodexDashboardDisposition: String, Codable, Sendable {
 }
 
 public enum CodexDashboardAllowedEffect: String, Codable, CaseIterable, Hashable, Sendable {
+    /// Allows subscription dates to attach to the active Codex snapshot.
+    case subscriptionMetadataAttachment
     case usageBackfill
     case creditsAttachment
     case refreshGuardSeed
@@ -320,6 +322,7 @@ public enum CodexDashboardAuthority {
         switch sourceKind {
         case .liveWeb:
             return [
+                .subscriptionMetadataAttachment,
                 .usageBackfill,
                 .creditsAttachment,
                 .refreshGuardSeed,

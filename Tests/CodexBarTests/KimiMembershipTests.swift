@@ -20,6 +20,59 @@ struct KimiMembershipTests {
         #expect(snapshot.toUsageSnapshot().loginMethod(for: .kimi) == title)
     }
 
+    @Test(arguments: [
+        #"{}"#,
+        #"{"user":{"membership":{"level":" "}}}"#,
+        #"{"user":{"membership":{"level":"LEVEL_UNSPECIFIED"}}}"#,
+        #"{"user":{"membership":{"level":42}}}"#,
+        #"{"user":"unavailable"}"#,
+    ])
+    func `absent or malformed optional membership preserves valid usage`(_ fields: String) throws {
+        var json = try #require(JSONSerialization.jsonObject(with: Data(fields.utf8)) as? [String: Any])
+        json["usage"] = ["limit": "100", "used": "25", "remaining": "75"]
+        let snapshot = try KimiUsageFetcher._parseCodeAPIUsageForTesting(JSONSerialization.data(withJSONObject: json))
+        #expect(snapshot.weekly.used == "25")
+        #expect(snapshot.planName == nil)
+    }
+
+    @Test(arguments: [#""GOODS_VERSION_FUTURE""#, "2", "{}", "[]"])
+    func `unknown catalog version preserves the reported membership level`(_ version: String) throws {
+        let json = """
+        {"user":{"membership":{"level":"LEVEL_ADVANCED"}},
+        "version":\(version),"usage":{"limit":"100","used":"25"}}
+        """
+        let snapshot = try KimiUsageFetcher._parseCodeAPIUsageForTesting(Data(json.utf8))
+        #expect(snapshot.planName == "LEVEL_ADVANCED")
+    }
+
+    @Test
+    func `API account membership takes precedence over web membership`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            let url = try #require(request.url)
+            let response = try #require(HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil))
+            let json: String
+            if url.path.hasSuffix("/usages") {
+                json = """
+                {"user":{"membership":{"level":"LEVEL_ADVANCED"}},
+                "version":"GOODS_VERSION_V1","usage":{"limit":"100","used":"25"}}
+                """
+            } else if url.path.hasSuffix("/GetSubscriptionStats") {
+                json = #"{"subscriptionBalance":{"amountUsedRatio":0.42}}"#
+            } else {
+                Issue.record("An API membership should not request a web account's plan")
+                json = """
+                {"subscription":{"active":true,"status":"SUBSCRIPTION_STATUS_ACTIVE",
+                "goods":{"title":"Moderato"}}}
+                """
+            }
+            return (Data(json.utf8), response)
+        }
+        let snapshot = try await KimiUsageFetcher.fetchCodeAPIUsage(
+            apiKey: "fixture-api-key", webAuthToken: "fixture-web-token", transport: transport)
+        #expect(snapshot.planName == "Allegro")
+        #expect(snapshot.subscriptionBalance?.amountUsedRatio == 0.42)
+    }
+
     @Test
     func `active subscription title reaches existing plan presentation`() throws {
         let data = Data(

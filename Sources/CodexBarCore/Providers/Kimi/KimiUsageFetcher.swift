@@ -95,16 +95,8 @@ public struct KimiUsageFetcher: Sendable {
     {
         let sessionInfo = self.decodeSessionInfo(from: authToken)
 
-        let subscriptionTask = Task<KimiSubscriptionStatsResponse?, Error> {
-            try await self.fetchSubscriptionStats(
-                authToken: authToken,
-                sessionInfo: sessionInfo,
-                transport: transport)
-        }
-        let subscriptionRace = BoundedTaskJoin(sourceTask: subscriptionTask)
-        let subscriptionOutcomeTask = Task {
-            await subscriptionRace.value(joinGrace: subscriptionGrace)
-        }
+        let enrichment = SubscriptionEnrichment(
+            authToken: authToken, sessionInfo: sessionInfo, transport: transport, grace: subscriptionGrace)
 
         let codingUsage: KimiUsage
         do {
@@ -114,41 +106,24 @@ public struct KimiUsageFetcher: Sendable {
                     sessionInfo: sessionInfo,
                     transport: transport)
             } onCancel: {
-                subscriptionOutcomeTask.cancel()
+                enrichment.cancel()
             }
         } catch {
-            subscriptionOutcomeTask.cancel()
-            _ = await subscriptionOutcomeTask.value
+            enrichment.cancel()
+            _ = try? await enrichment.value()
             throw error
         }
 
-        let subscriptionOutcome = await withTaskCancellationHandler {
-            await subscriptionOutcomeTask.value
-        } onCancel: {
-            subscriptionOutcomeTask.cancel()
-        }
-        try Task.checkCancellation()
-
-        let subscriptionStats: KimiSubscriptionStatsResponse?
-        switch subscriptionOutcome {
-        case let .value(response):
-            subscriptionStats = response
-        case .timedOut:
-            Self.log.warning("Kimi subscription stats timed out")
-            subscriptionStats = nil
-        case let .failure(error):
-            Self.log.warning("Kimi subscription stats unavailable: \(error.localizedDescription)")
-            subscriptionStats = nil
-        }
+        let subscription = try await enrichment.value()
 
         let rateLimit = codingUsage.limits?.first
         return KimiUsageSnapshot(
             weekly: codingUsage.detail,
             rateLimit: rateLimit?.detail,
             rateLimitWindow: rateLimit?.window,
-            subscriptionBalance: subscriptionStats?.subscriptionBalance,
-            subscriptionCodeWeeklyLimit: subscriptionStats?.ratelimitCode7d,
-            planName: subscriptionStats?.planName,
+            subscriptionBalance: subscription.stats?.subscriptionBalance,
+            subscriptionCodeWeeklyLimit: subscription.stats?.ratelimitCode7d,
+            planName: subscription.planName,
             updatedAt: now)
     }
 
@@ -194,26 +169,20 @@ public struct KimiUsageFetcher: Sendable {
         transport: any ProviderHTTPTransport) async throws -> KimiUsageSnapshot
     {
         let sessionInfo = self.decodeSessionInfo(from: webAuthToken)
-        let subscriptionStats: KimiSubscriptionStatsResponse?
-        do {
-            subscriptionStats = try await self.fetchSubscriptionStats(
-                authToken: webAuthToken,
-                sessionInfo: sessionInfo,
-                transport: transport)
-        } catch is CancellationError {
-            throw CancellationError()
-        } catch {
-            Self.log.warning("Kimi Code monthly enrichment unavailable: \(error.localizedDescription)")
-            return snapshot
-        }
-        guard let subscriptionStats else { return snapshot }
+        let enrichment = SubscriptionEnrichment(
+            authToken: webAuthToken,
+            sessionInfo: sessionInfo,
+            transport: transport,
+            grace: .seconds(self.subscriptionGraceSeconds),
+            includePlan: snapshot.planName == nil)
+        let subscription = try await enrichment.value()
         return KimiUsageSnapshot(
             weekly: snapshot.weekly,
             rateLimit: snapshot.rateLimit,
             rateLimitWindow: snapshot.rateLimitWindow,
-            subscriptionBalance: subscriptionStats.subscriptionBalance,
-            subscriptionCodeWeeklyLimit: subscriptionStats.ratelimitCode7d,
-            planName: snapshot.planName ?? subscriptionStats.planName,
+            subscriptionBalance: subscription.stats?.subscriptionBalance,
+            subscriptionCodeWeeklyLimit: subscription.stats?.ratelimitCode7d,
+            planName: snapshot.planName ?? subscription.planName,
             updatedAt: now)
     }
 
@@ -246,30 +215,89 @@ public struct KimiUsageFetcher: Sendable {
             .appendingPathComponent("usages")
     }
 
-    private static func fetchSubscriptionStats(
+    private static func fetchPlan(
         authToken: String,
         sessionInfo: SessionInfo?,
-        transport: any ProviderHTTPTransport) async throws -> KimiSubscriptionStatsResponse?
+        transport: any ProviderHTTPTransport) async throws -> String?
     {
-        var stats = try await self.fetchUsageStats(
-            authToken: authToken, sessionInfo: sessionInfo, transport: transport)
-            ?? KimiSubscriptionStatsResponse(subscriptionBalance: nil, ratelimitCode7d: nil)
         let url = self.subscriptionStatsURL.deletingLastPathComponent().appendingPathComponent("GetSubscription")
         var request = self.webRequest(url: url, authToken: authToken, sessionInfo: sessionInfo)
         request.httpBody = Data("{}".utf8)
-        request.timeoutInterval = 2
-        do {
-            let response = try await transport.response(for: request)
-            if response.statusCode == 200 {
-                stats.planName = try JSONDecoder().decode(KimiSubscriptionResponse.self, from: response.data).planName
+        request.timeoutInterval = self.subscriptionGraceSeconds
+        let response = try await transport.response(for: request)
+        guard response.statusCode == 200 else { return nil }
+        return try JSONDecoder().decode(KimiSubscriptionResponse.self, from: response.data).planName
+    }
+
+    /// Statistics and the optional title share a deadline, but neither can discard the other's completed result.
+    private struct SubscriptionEnrichment: Sendable {
+        let stats: Task<BoundedTaskJoinOutcome<KimiSubscriptionStatsResponse?>, Never>
+        let plan: Task<BoundedTaskJoinOutcome<String?>, Never>
+
+        init(
+            authToken: String,
+            sessionInfo: SessionInfo?,
+            transport: any ProviderHTTPTransport,
+            grace: Duration,
+            includePlan: Bool = true)
+        {
+            let deadline = ContinuousClock.now.advanced(by: grace)
+            let statsTask = Task {
+                try Task.checkCancellation()
+                return try await KimiUsageFetcher.fetchUsageStats(
+                    authToken: authToken, sessionInfo: sessionInfo, transport: transport)
             }
-        } catch {
-            if error is CancellationError || (error as? URLError)?.code == .cancelled || Task.isCancelled {
-                throw CancellationError()
+            let planTask = Task<String?, Error> {
+                try Task.checkCancellation()
+                guard includePlan else { return nil }
+                return try await KimiUsageFetcher.fetchPlan(
+                    authToken: authToken, sessionInfo: sessionInfo, transport: transport)
             }
-            Self.log.warning("Kimi plan unavailable: \(error.localizedDescription)")
+            self.stats = Task {
+                await BoundedTaskJoin(sourceTask: statsTask)
+                    .value(joinGrace: ContinuousClock.now.duration(to: deadline))
+            }
+            self.plan = Task {
+                await BoundedTaskJoin(sourceTask: planTask).value(joinGrace: ContinuousClock.now.duration(to: deadline))
+            }
         }
-        return stats
+
+        func cancel() {
+            self.stats.cancel()
+            self.plan.cancel()
+        }
+
+        func value() async throws -> (stats: KimiSubscriptionStatsResponse?, planName: String?) {
+            let outcomes = await withTaskCancellationHandler {
+                let stats = await self.stats.value
+                let plan = await self.plan.value
+                return (stats, plan)
+            } onCancel: {
+                self.cancel()
+            }
+            try Task.checkCancellation()
+            return try (
+                Self.optionalValue(outcomes.0, label: "subscription stats"),
+                Self.optionalValue(outcomes.1, label: "plan"))
+        }
+
+        private static func optionalValue<Value: Sendable>(
+            _ outcome: BoundedTaskJoinOutcome<Value?>,
+            label: String) throws -> Value?
+        {
+            switch outcome {
+            case let .value(value): return value
+            case .timedOut:
+                KimiUsageFetcher.log.warning("Kimi \(label) timed out")
+                return nil
+            case let .failure(error):
+                if error is CancellationError || (error as? URLError)?.code == .cancelled {
+                    throw CancellationError()
+                }
+                KimiUsageFetcher.log.warning("Kimi \(label) unavailable: \(error.localizedDescription)")
+                return nil
+            }
+        }
     }
 
     private static func fetchUsageStats(
@@ -365,7 +393,7 @@ public struct KimiUsageFetcher: Sendable {
             trafficId: json["sub"] as? String)
     }
 
-    private struct SessionInfo {
+    private struct SessionInfo: Sendable {
         let deviceId: String?
         let sessionId: String?
         let trafficId: String?

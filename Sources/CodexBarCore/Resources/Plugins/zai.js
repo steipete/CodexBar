@@ -97,7 +97,10 @@ defineProvider({
       } else if (limit.windowMinutes !== null) {
         result.windowMinutes = limit.windowMinutes;
       }
-      if (limit.reset !== null) result.resetsAt = ctx.date.unixMillis(limit.reset);
+      // A five-hour Coding Plan reset cannot be ten hours away; never guess a timezone correction.
+      const isFiveHourPlan = limit.raw.type !== "TIME_LIMIT" && limit.windowMinutes === 300;
+      const resetIsPlausible = !isFiveHourPlan || limit.reset <= ctx.date.nowMillis() + (5 * 3600 + 60) * 1000;
+      if (limit.reset !== null && resetIsPlausible) result.resetsAt = ctx.date.unixMillis(limit.reset);
       if (limit.raw.type === "TIME_LIMIT") result.resetDescription = "MCP";
       else if (limit.windowMinutes === 300) result.resetDescription = "5-hour";
       else if (limit.windowMinutes !== null) {

@@ -113,7 +113,7 @@ extension UsageMenuCardView.Model {
             isClaudeAdminAPI
         case .clawRouter:
             (cost?.limit ?? 0) <= 0
-        case .generic, .hidden, .extraUsageBalance, .zenBalance, .pointsBalance, .prepaidCredits,
+        case .generic, .hidden, .extraUsageBalance, .creditsUsage, .zenBalance, .pointsBalance, .prepaidCredits,
              .payAsYouGoBalance:
             false
         }
@@ -487,6 +487,10 @@ extension UsageMenuCardView.Model {
                 percentLine: nil)
         }
 
+        if style == .creditsUsage {
+            return Self.creditsUsageSection(cost: cost, percentStyle: percentStyle)
+        }
+
         if style == .claude {
             if isClaudeAdminAPI {
                 let spend = formatCost(cost.used)
@@ -584,6 +588,38 @@ extension UsageMenuCardView.Model {
             percentLine: String(format: L("%.0f%% used"), min(100, max(0, percentUsed))),
             balanceLine: nil,
             personalSpendLine: personalSpendLine)
+    }
+
+    private static func creditsUsageSection(
+        cost: ProviderCostSnapshot,
+        percentStyle: PercentStyle) -> ProviderCostSection?
+    {
+        if cost.limit <= 0 {
+            guard let balance = cost.balance else { return nil }
+            return ProviderCostSection(
+                title: L("Extra usage"),
+                percentUsed: nil,
+                spendLine: "\(L("Balance")): \(UsageFormatter.creditsNumberString(from: balance))",
+                percentLine: nil,
+                presentation: .inlineValue,
+                showsInProviderDetails: false)
+        }
+
+        let used = UsageFormatter.creditsNumberString(from: cost.used)
+        let limit = UsageFormatter.creditsNumberString(from: cost.limit)
+        let percentUsed = Self.clamped((cost.used / cost.limit) * 100)
+        let periodLabel = Self.localizedPeriodLabel(cost.period ?? "This month")
+        let balanceLine = cost.balance.map {
+            "\(L("Balance")): \(UsageFormatter.creditsNumberString(from: $0))"
+        }
+        return ProviderCostSection(
+            title: L("Extra usage"),
+            percentUsed: percentUsed,
+            spendLine: "\(periodLabel): \(used) / \(limit)",
+            percentLine: String(format: L("%.0f%% used"), min(100, max(0, percentUsed))),
+            balanceLine: balanceLine,
+            showsInProviderDetails: false,
+            percentStyle: percentStyle)
     }
 
     private static func localizedPeriodLabel(_ label: String) -> String {

@@ -336,6 +336,7 @@ struct KimiWebFetchStrategy: ProviderFetchStrategy {
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
+        try Task.checkCancellation()
         // Explicit overrides stay authoritative; automatic sources may fall through on invalid credentials.
         if let override = KimiCookieHeader.resolveCookieOverride(context: context) {
             let snapshot = try await self.fetchUsage(override.token)
@@ -364,6 +365,7 @@ struct KimiWebFetchStrategy: ProviderFetchStrategy {
         environmentToken: String?,
         fetchUsage: (String) async throws -> KimiUsageSnapshot) async throws -> KimiUsageSnapshot
     {
+        try Task.checkCancellation()
         var seen = Set<String>()
         var invalidToken = false
         if let desktopToken {
@@ -374,19 +376,26 @@ struct KimiWebFetchStrategy: ProviderFetchStrategy {
                 invalidToken = true
             }
         }
+        try Task.checkCancellation()
         for token in browserTokens() + [environmentToken].compactMap(\.self) where seen.insert(token).inserted {
+            try Task.checkCancellation()
             do {
                 return try await fetchUsage(token)
             } catch KimiAPIError.invalidToken {
                 invalidToken = true
             }
         }
+        try Task.checkCancellation()
         throw invalidToken ? KimiAPIError.invalidToken : KimiAPIError.missingToken
     }
 
     func shouldFallback(on error: Error, context: ProviderFetchContext) -> Bool {
-        if case KimiAPIError.missingToken = error { return false }
-        if case KimiAPIError.invalidToken = error { return false }
+        if case KimiAPIError.missingToken = error {
+            return false
+        }
+        if case KimiAPIError.invalidToken = error {
+            return false
+        }
         return true
     }
 

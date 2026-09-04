@@ -410,7 +410,9 @@ struct CostUsagePerformanceGateTests {
             + "elapsed=\(warmScannerTiming.elapsed) cpu=\(warmScannerTiming.cpu)")
     }
 
-    @Test(arguments: ["43609cc56f76a003", "c6c46a376ba16304", "b77d4ec72e14ea63", "e3fca1e6d81137d6"])
+    @Test(arguments: [
+        "43609cc56f76a003", "c6c46a376ba16304", "b77d4ec72e14ea63", "e3fca1e6d81137d6", "f043ae98075c8e4d",
+    ])
     func `compatible predecessor store adoption performs zero session head parses`(predecessorHash: String) throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }

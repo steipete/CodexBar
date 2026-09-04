@@ -254,6 +254,7 @@ public enum ProviderVersionDetector {
         return nil
     }
 
+    /// Provider-specific by design: Kimi ships its CLI in dedicated standalone installation directories.
     public static func kimiVersion() -> String? {
         self.kimiVersion(
             environment: ProcessInfo.processInfo.environment,

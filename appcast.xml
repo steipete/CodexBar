@@ -3,6 +3,43 @@
     <channel>
         <title>CodexBar</title>
         <item>
+            <title>0.56.5</title>
+            <pubDate>Fri, 04 Sep 2026 10:16:36 -0700</pubDate>
+            <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
+            <sparkle:version>136</sparkle:version>
+            <sparkle:shortVersionString>0.56.5</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[<h2>CodexBar 0.56.5</h2>
+<h3>Highlights</h3>
+<ul>
+<li><strong>More reliable Codex cost-history catch-up</strong>: avoid repeatedly rediscovering completed work and clear abandoned Refreshing activity after account or settings changes (#3402, #3417, #3418).</li>
+<li><strong>Clearer Codex extra-credit accounting</strong>: keep spend, monthly limits, and purchased balances consistent, including confirmed zero balances (#3296).</li>
+<li><strong>Stable cost-chart navigation</strong>: switching between Token and Cost preserves menu position and scrolling, even with tall charts (#3380).</li>
+<li><strong>Remote session discovery restored</strong>: prevent repeated app-binary crashes on newer Tailscale installations by explicitly using CLI mode (#3401).</li>
+</ul>
+<h3>Fixed</h3>
+<ul>
+<li>Codex: preserve pending cost-scan discovery when same-day history requests alternate between narrower and wider windows, avoiding repeated requeueing of completed files and retaining compatible history caches on upgrade (partial fix for #3411). Thanks @kesslerio!</li>
+<li>Codex: retain completed empty session fragments during cost-history scans instead of repeatedly dropping and rediscovering them, without suppressing usage-bearing duplicates or later appended usage (partial fix for #3316; #3402). Thanks @mauriciopolvora!</li>
+<li>Usage &amp; Spend: clear abandoned Refreshing activity when an in-flight cost scan loses its account or settings scope, preserving paused work and replacement workers (follow-up for #3411). Thanks @kesslerio!</li>
+<li>Codex: show extra-credit spend and limits with a distinct purchased balance; reconcile cap and balance freshness independently so confirmed zero balances stay cleared and monthly bars agree with their totals (#3296). Thanks @sf-jin-ku!</li>
+<li>Cost history: keep tall charts in a bounded scroll view so switching Token/Cost no longer jumps the native menu or undoes an immediate wheel scroll (#3380). Thanks @Yuxin-Qiao!</li>
+<li>Agent sessions: explicitly force Tailscale CLI mode during remote-host discovery, preventing repeated app-binary crashes on newer Tailscale installations while preserving existing terminal settings (#3397). Thanks @tzioup!</li>
+<li>Antigravity: match local token-history timestamps by per-turn IDs when auxiliary or reordered steps would otherwise assign usage to the wrong day, while withholding conflicting evidence and preserving legacy timestamp recovery (#3403). Thanks @WeGoToMars!</li>
+<li>Claude: offer Switch Account after a successful CLI quota read without identity fields, while preserving recovery actions for failed refreshes and restored history (partial fix for #3395). Thanks @PoroGramr!</li>
+<li>Claude: stop labeling restored quota history as CLI usage, while retaining the limited-detail warning, original percentages, and stale-data guidance (#3405).</li>
+<li>z.ai: omit impossible five-hour Coding Plan reset timestamps and prevent cached resets from restoring them, retaining quota percentages and valid weekly/MCP dates (partial mitigation for #2871). Thanks @carolitascl!</li>
+<li>Kilo: point authentication recovery messages and provider documentation to the supported <code>kilo auth login</code> command (#3408). Thanks @Chevalicious!</li>
+<li>Usage &amp; Spend: prefer heatmap tooltips above hovered cells and keep them within narrow grids; retain daily keyboard selection without the extra system focus rectangle (#3407). Thanks @elijahfriedman!</li>
+<li>z.ai: abbreviate large model token totals with M/B while preserving exact hourly and daily chart values (#3308, #3310). Thanks @medpath1024 and @fantasy!</li>
+<li>Settings: disable iCloud sync sub-options when the main sync switch is off, preserving their saved choices for the next time sync is enabled (#3406). Thanks @elijahfriedman!</li>
+<li>Codex: report thermal pressure as the catch-up pause reason when serious heat and Low Power Mode coincide, preserving the existing pause and scan budget (#3242). Thanks @Yuxin-Qiao!</li>
+</ul>
+<p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
+]]></description>
+            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.56.5/CodexBar-macos-universal-0.56.5.zip" length="68562638" type="application/octet-stream" sparkle:edSignature="+DvuYBIpAX00vqsSs1vz99hbDQsccJGmTRk1+Y+T/qK8N+yNPp1XRHvNYoIjIXIO1m7xMEPy0P7sD+GNETPMAQ=="/>
+        </item>
+        <item>
             <title>0.56.4</title>
             <pubDate>Thu, 03 Sep 2026 06:11:55 -0700</pubDate>
             <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
@@ -62,34 +99,6 @@
 <p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
 ]]></description>
             <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.56.3/CodexBar-macos-universal-0.56.3.zip" length="68193014" type="application/octet-stream" sparkle:edSignature="gBmnkv8vGnPiR2VK/B32U818T+mveN5ihnoGRFGR/8OBU0tvT8Apc8ikxYvLaiTMiiCV6to2+rp/5/cSVK71Aw=="/>
-        </item>
-        <item>
-            <title>0.56.2</title>
-            <pubDate>Mon, 31 Aug 2026 04:50:58 -0700</pubDate>
-            <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
-            <sparkle:version>133</sparkle:version>
-            <sparkle:shortVersionString>0.56.2</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <description><![CDATA[<h2>CodexBar 0.56.2</h2>
-<h3>Performance</h3>
-<ul>
-<li>Local costs: reduce background CPU spent parsing native session timestamps and validating appended Codex history, preserving timestamp precision, daily totals, and fork accounting.</li>
-<li>Codex: reduce repeated decoding of cached cost history during scans, while preserving stored totals and checking for database and filesystem changes.</li>
-<li>Claude and Vertex AI: reduce CPU spent reading local transcript metadata, preserving provider detection, Unicode handling, and token/cost totals.</li>
-</ul>
-<h3>Fixed</h3>
-<ul>
-<li>Local costs: preserve token breakdowns, reasoning, request counts, and pricing coverage when combining reports or reopening cached history. Thanks @Pjhhhhh!</li>
-<li>Codex: recover cost-history catch-up when removed fork files leave abandoned parent discovery in an existing cache, preserving stored totals and unresolved-fork accounting (partial fix for #2815). Thanks @xiehaibin18!</li>
-<li>Codex: preserve pending weekly-reset evidence through credits-only refreshes so eligible low-usage confirmations survive relaunch (partial fix for #3248). Thanks @kcharlan!</li>
-<li>Charts: keep endpoint dates readable in token/cost, credit-usage, credits-history, and plan-history submenus (partial fix for #3209). Thanks @vinschger!</li>
-<li>Agent sessions: stop Codex metadata enrichment and Pi/OMP path resolution when the scan budget expires, and honor the same deadline during Claude Desktop root discovery.</li>
-<li>OpenCode Go: omit misleading pace and run-out advice for locally estimated quotas while preserving percentages, resets, and cost history (partial fix for #3286). Thanks @Akagilnc!</li>
-<li>OpenRouter: open Activity from Usage Dashboard instead of credit settings (#3290). Thanks @akshayprabhu200!</li>
-</ul>
-<p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
-]]></description>
-            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.56.2/CodexBar-macos-universal-0.56.2.zip" length="67994843" type="application/octet-stream" sparkle:edSignature="DVEZH+XJR3/M+OTGPirdrzSLRnV2CVadI9ihiIgM9J65IiXXhc9vNi6wNkExJ4tvgbh0YXuNKdTM/eHPi2jeAw=="/>
         </item>
         <item>
             <title>0.14.0</title>

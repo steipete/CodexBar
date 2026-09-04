@@ -258,8 +258,8 @@ public struct OpenAIDashboardFetcher {
             deadline: deadline,
             logger: logLine)
         try Task.checkCancellation()
-        let (apiData, verifiedSignedInEmail, subscription) =
-            (preflight.apiData, preflight.verifiedSignedInEmail, preflight.subscription)
+        let (apiData, verifiedSignedInEmail) =
+            (preflight.apiData, preflight.verifiedSignedInEmail)
         logLine("dashboard phase=api_preflight_done elapsed=\(Self.phaseElapsed(since: startedAt))")
 
         if Self.shouldSkipPageScrape(allowPageScrape: allowPageScrape) {
@@ -268,7 +268,6 @@ public struct OpenAIDashboardFetcher {
                 return Self.snapshotByMergingAPI(
                     apiData: apiData,
                     verifiedEmail: verifiedSignedInEmail,
-                    subscription: subscription,
                     previous: previousSnapshot)
             }
             if let previousSnapshot {
@@ -295,7 +294,7 @@ public struct OpenAIDashboardFetcher {
             webView: lease.webView,
             apiData: apiData,
             verifiedSignedInEmail: verifiedSignedInEmail,
-            subscription: subscription,
+            subscriptionResult: .unavailable,
             previousSnapshot: previousSnapshot,
             deadline: deadline,
             startedAt: startedAt,
@@ -303,6 +302,9 @@ public struct OpenAIDashboardFetcher {
             log: lease.log))
     }
 
+    /// Fetches optional subscription metadata independently of the dashboard result.
+    /// Callers can return usage promptly, then apply this result only after re-checking
+    /// account authority.
     public func clearSessionData(
         accountEmail: String?,
         cacheScope: CookieHeaderCache.Scope? = nil) async
@@ -644,8 +646,7 @@ public struct OpenAIDashboardFetcher {
         logger: @escaping (String) -> Void)
         async throws -> (
             apiData: DashboardAPIData?,
-            verifiedSignedInEmail: String?,
-            subscription: OpenAISubscriptionMetadata?)
+            verifiedSignedInEmail: String?)
     {
         let cookieHeader = try await self.chatGPTCookieHeader(in: websiteDataStore, deadline: deadline)
         let apiData = await self.fetchDashboardUsageAPI(
@@ -660,19 +661,10 @@ public struct OpenAIDashboardFetcher {
         } else {
             nil
         }
-        let subscription: OpenAISubscriptionMetadata? = if apiData?.hasUsageData == true {
-            await self.fetchSubscriptionFromAPI(
-                cookieHeader: cookieHeader,
-                deadline: deadline,
-                logger: logger)
-        } else {
-            nil
-        }
-
         if apiData?.hasUsageData == true, verifiedEmail != nil {
             logger("usage api supplied verified dashboard data")
         }
-        return (apiData, verifiedEmail, subscription)
+        return (apiData, verifiedEmail)
     }
 
     private static func fetchDashboardUsageAPI(
@@ -756,11 +748,11 @@ public struct OpenAIDashboardFetcher {
     static func fetchSubscriptionFromAPI(
         cookieHeader: String,
         deadline: Date?,
-        logger: @escaping (String) -> Void) async -> OpenAISubscriptionMetadata?
+        logger: @escaping (String) -> Void) async -> OpenAISubscriptionFetchResult
     {
-        guard !cookieHeader.isEmpty else { return nil }
+        guard !cookieHeader.isEmpty else { return .unavailable }
         let remaining = deadline.map { self.remainingTimeout(until: $0) } ?? 2
-        guard remaining > 0 else { return nil }
+        guard remaining > 0 else { return .unavailable }
 
         do {
             let (data, response) = try await CodexAuthenticatedHTTPTransport.current.data(
@@ -769,23 +761,48 @@ public struct OpenAIDashboardFetcher {
                     timeout: min(2, remaining)))
             let status = (response as? HTTPURLResponse)?.statusCode ?? -1
             logger("subscription api status=\(status)")
-            guard status >= 200, status < 300 else { return nil }
-            let metadata = self.subscriptionMetadata(from: data)
-            if metadata != nil {
+            guard status >= 200, status < 300 else { return .unavailable }
+            let result = self.subscriptionMetadataResult(from: data)
+            if case .success = result, result.metadata != nil {
                 logger("subscription api supplied renewal data")
+            } else if case .success = result {
+                logger("subscription api response empty")
+            } else {
+                logger("subscription api response invalid")
             }
-            return metadata
+            return result
         } catch {
             logger("subscription api unavailable: \(error.localizedDescription)")
-            return nil
+            return .unavailable
         }
     }
 
     nonisolated static func subscriptionMetadata(from data: Data) -> OpenAISubscriptionMetadata? {
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
-        let activeUntil = (json["active_until"] as? String) ?? (json["activeUntil"] as? String)
-        let willRenew = (json["will_renew"] as? Bool) ?? (json["willRenew"] as? Bool)
-        return OpenAISubscriptionMetadata.parse(activeUntil: activeUntil, willRenew: willRenew)
+        self.subscriptionMetadataResult(from: data).metadata
+    }
+
+    nonisolated static func subscriptionMetadataResult(from data: Data) -> OpenAISubscriptionFetchResult {
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return .unavailable
+        }
+
+        let activeUntilValue = json["active_until"] ?? json["activeUntil"]
+        let willRenewValue = json["will_renew"] ?? json["willRenew"]
+        guard let activeUntilValue, let willRenewValue else { return .unavailable }
+
+        let activeUntil = (activeUntilValue as? String)
+        let willRenew = (willRenewValue as? Bool)
+        let activeUntilIsValid = activeUntilValue is NSNull || activeUntil != nil
+        let willRenewIsBoolean = (willRenewValue as? NSNumber).map {
+            CFGetTypeID($0) == CFBooleanGetTypeID()
+        } ?? false
+        let willRenewIsValid = willRenewValue is NSNull || willRenewIsBoolean
+        guard activeUntilIsValid, willRenewIsValid else { return .unavailable }
+
+        return OpenAISubscriptionMetadata.parseResult(
+            activeUntil: activeUntil,
+            willRenew: willRenew,
+            fieldsPresent: true)
     }
 
     private static func chatGPTCookieHeader(in store: WKWebsiteDataStore, deadline: Date?) async throws -> String {
@@ -1136,6 +1153,56 @@ extension OpenAIDashboardFetcher {
         try Self.throwIfBlockingReadinessState(probe)
     }
 }
+
+extension OpenAIDashboardFetcher {
+    public func fetchSubscriptionMetadata(
+        accountEmail: String?,
+        cacheScope: CookieHeaderCache.Scope? = nil,
+        logger: ((String) -> Void)? = nil,
+        timeout: TimeInterval = 8) async -> OpenAISubscriptionFetchResult
+    {
+        guard !Task.isCancelled, timeout > 0 else { return .unavailable }
+        let deadline = Self.deadline(startingAt: Date(), timeout: timeout)
+        let logLine: (String) -> Void = { logger?($0) }
+        let websiteDataStore = OpenAIDashboardWebsiteDataStore.store(
+            forAccountEmail: accountEmail,
+            scope: cacheScope)
+        guard let cookieHeader = try? await Self.chatGPTCookieHeader(
+            in: websiteDataStore,
+            deadline: deadline)
+        else {
+            logLine("subscription metadata unavailable: cookies unavailable")
+            return .unavailable
+        }
+
+        guard !Task.isCancelled, Date() < deadline else { return .unavailable }
+        let apiResult = await Self.fetchSubscriptionFromAPI(
+            cookieHeader: cookieHeader,
+            deadline: min(deadline, Date().addingTimeInterval(2)),
+            logger: logLine)
+        guard !Task.isCancelled, Date() < deadline else { return .unavailable }
+        guard !apiResult.succeeded else { return apiResult }
+
+        do {
+            let lease = try await self.makeWebView(
+                websiteDataStore: websiteDataStore,
+                logger: logger,
+                timeout: Self.requiredRemainingTimeout(until: deadline))
+            defer { lease.release() }
+            logLine("subscription metadata billing fallback start after dashboard result")
+            return try await (OpenAISubscription.fetch(
+                lease.webView,
+                deadline: deadline,
+                logger: lease.log))
+        } catch is CancellationError {
+            return .unavailable
+        } catch {
+            logLine("subscription metadata unavailable: \(error.localizedDescription)")
+            return .unavailable
+        }
+    }
+}
+
 #else
 import Foundation
 

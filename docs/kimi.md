@@ -73,7 +73,9 @@ Automatic mode prefers a usable Kimi Desktop cookie. Expired desktop JWTs are sk
 rejects a desktop session, the Web source continues through browser profiles instead of stopping.
 Explicit manual tokens remain authoritative. API-key and CLI quota responses include the membership level, so displaying the tier does not require
 browser access. A web session can supply a subscription title when the usage response omits membership;
-a membership lookup failure does not fail the quota query.
+a membership lookup failure does not fail the quota query. Quota statistics and the optional plan title
+load independently within a shared two-second enrichment budget; a slow title cannot discard completed
+monthly or Code 7-day statistics. Cancellation stops automatic retries before further browser reads.
 
 **Note**: Requires Full Disk Access to read browser cookies (System Settings → Privacy & Security → Full Disk Access → CodexBar).
 

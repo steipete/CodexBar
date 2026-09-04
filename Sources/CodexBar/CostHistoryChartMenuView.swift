@@ -1,3 +1,4 @@
+import AppKit
 import Charts
 import CodexBarCore
 import SwiftUI
@@ -70,6 +71,7 @@ struct CostHistoryChartMenuView: View {
     private let sessions: [CostUsageSessionBreakdown]
     private let hidePersonalInfo: Bool
     private let width: CGFloat
+    private let onMetricChanged: (@MainActor (ChartMetric) -> Void)?
     @State private var metric: ChartMetric
     @State private var selectedDateKey: String?
 
@@ -85,7 +87,8 @@ struct CostHistoryChartMenuView: View {
         projects: [CostUsageProjectBreakdown] = [],
         sessions: [CostUsageSessionBreakdown] = [],
         hidePersonalInfo: Bool,
-        width: CGFloat)
+        width: CGFloat,
+        onMetricChanged: (@MainActor (ChartMetric) -> Void)? = nil)
     {
         self.provider = provider
         self.daily = daily
@@ -99,6 +102,7 @@ struct CostHistoryChartMenuView: View {
         self.sessions = sessions
         self.hidePersonalInfo = hidePersonalInfo
         self.width = width
+        self.onMetricChanged = onMetricChanged
         self._metric = State(initialValue: Self.defaultMetric(provider: provider, daily: daily))
     }
 
@@ -121,30 +125,11 @@ struct CostHistoryChartMenuView: View {
                     .foregroundStyle(.secondary)
                     .accessibilityLabel(L("No data available"))
             } else {
-                if availableMetrics.count > 1 || showsHistoryRefreshing {
-                    HStack {
-                        if showsHistoryRefreshing {
-                            Text(L("Refreshing"))
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                                .accessibilityLabel(L("Refreshing"))
-                        }
-                        Spacer(minLength: 0)
-                        if availableMetrics.count > 1 {
-                            Picker(L("Display mode"), selection: self.$metric) {
-                                ForEach(availableMetrics, id: \.self) { metric in
-                                    Text(metric.title).tag(metric)
-                                }
-                            }
-                            .labelsHidden()
-                            .pickerStyle(.segmented)
-                            .controlSize(.small)
-                            .frame(width: Self.metricPickerWidth)
-                            .accessibilityLabel(L("Display mode"))
-                        }
-                    }
+                // Keep hoverable content below AppKit's native top auto-scroll gutter.
+                Color.clear
                     .frame(height: Self.metricPickerHeight)
-                }
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
 
                 Chart {
                     ForEach(model.points) { point in
@@ -221,6 +206,31 @@ struct CostHistoryChartMenuView: View {
                             .contentShape(Rectangle())
                         }
                     }
+                }
+
+                if availableMetrics.count > 1 || showsHistoryRefreshing {
+                    HStack {
+                        if showsHistoryRefreshing {
+                            Text(L("Refreshing"))
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .accessibilityLabel(L("Refreshing"))
+                        }
+                        Spacer(minLength: 0)
+                        if availableMetrics.count > 1 {
+                            Picker(L("Display mode"), selection: self.$metric) {
+                                ForEach(availableMetrics, id: \.self) { metric in
+                                    Text(metric.title).tag(metric)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                            .controlSize(.small)
+                            .labelsHidden()
+                            .frame(width: Self.metricPickerWidth, height: Self.metricPickerHeight)
+                            .accessibilityLabel(L("Display mode"))
+                        }
+                    }
+                    .frame(height: Self.metricPickerHeight)
                 }
 
                 let detail = self.detailContent(selectedDateKey: selectedDateKey, model: model)
@@ -370,6 +380,9 @@ struct CostHistoryChartMenuView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, Self.verticalPadding)
         .frame(minWidth: self.width, maxWidth: .infinity, alignment: .top)
+        .onChange(of: activeMetric) { _, newMetric in
+            self.onMetricChanged?(newMetric)
+        }
     }
 
     static func estimateDisclaimer(provider: UsageProvider) -> String? {

@@ -1352,18 +1352,20 @@ extension UsageStore {
             let backfilled =
                 Self.codexMergedResetBackfillSnapshot(resetBackfillSnapshots)
                 .map { Self.codexBackfillingResetWindows(labeled, from: $0) } ?? labeled
+            let credits = CodexMonthlyCreditPreservation.merging(
+                incoming: result.credits,
+                prior: priorSnapshot?.credits,
+                enrichmentFailed: result.codexMonthlyLimitEnrichmentFailed)
+            let enriched = CodexExtraUsageCost.attaching(to: backfilled, credits: credits)
             let snapshot = CodexAccountUsageSnapshot(
                 account: account,
-                snapshot: backfilled,
+                snapshot: enriched,
                 error: nil,
                 sourceLabel: result.sourceLabel,
-                credits: CodexMonthlyCreditPreservation.merging(
-                    incoming: result.credits,
-                    prior: priorSnapshot?.credits,
-                    enrichmentFailed: result.codexMonthlyLimitEnrichmentFailed))
+                credits: credits)
             return ResolvedCodexAccountOutcome(
                 snapshot: snapshot,
-                usage: backfilled,
+                usage: enriched,
                 sourceLabel: result.sourceLabel)
         case let .failure(error):
             if Self.errorIsCancellation(error) {

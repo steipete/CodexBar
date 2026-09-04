@@ -1072,7 +1072,10 @@ extension StatusItemController {
     nonisolated static func extraUsageSpendDisplayText(snapshot: UsageSnapshot?) -> String? {
         guard let cost = snapshot?.providerCost,
               cost.limit > 0,
-              cost.used >= 0
+              cost.used >= 0,
+              // Codex extra usage is denominated in credits, not money: currency formatting would emit
+              // the bare amount ("2000.6633599996567") instead of a spend value, so it keeps the percent text.
+              cost.currencyCode != CodexExtraUsageCost.currencyCode
         else {
             return nil
         }

@@ -92,10 +92,19 @@ struct ClaudeProviderRuntimeTests {
 
         store.scheduleClaudeSwapAccountRefresh()
         let first = try #require(store.claudeSwapRefreshTask)
-        for _ in 0..<100 where !FileManager.default.fileExists(atPath: fixture.countURL.path) {
-            try await Task.sleep(for: .milliseconds(10))
+        do {
+            let deadline = ContinuousClock.now.advanced(by: .seconds(5))
+            while (try? String(contentsOf: fixture.countURL, encoding: .utf8)) != "1\n",
+                  ContinuousClock.now < deadline
+            {
+                try await Task.sleep(for: .milliseconds(10))
+            }
+            try #require(try String(contentsOf: fixture.countURL, encoding: .utf8) == "1\n")
+        } catch {
+            first.cancel()
+            await first.value
+            throw error
         }
-        #expect(FileManager.default.fileExists(atPath: fixture.countURL.path))
 
         store.scheduleClaudeSwapAccountRefresh()
         let replacement = try #require(store.claudeSwapRefreshTask)

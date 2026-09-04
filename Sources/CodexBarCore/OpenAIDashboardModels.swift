@@ -139,6 +139,26 @@ public struct OpenAIDashboardSnapshot: Codable, Equatable, Sendable {
             return OpenAIDashboardDailyBreakdown(day: day, services: services, totalCreditsUsed: total)
         }
     }
+
+    public func withSubscriptionMetadata(_ metadata: OpenAISubscriptionMetadata?) -> Self {
+        Self(
+            signedInEmail: self.signedInEmail,
+            codeReviewRemainingPercent: self.codeReviewRemainingPercent,
+            codeReviewLimit: self.codeReviewLimit,
+            creditEvents: self.creditEvents,
+            dailyBreakdown: self.dailyBreakdown,
+            usageBreakdown: self.usageBreakdown,
+            creditsPurchaseURL: self.creditsPurchaseURL,
+            primaryLimit: self.primaryLimit,
+            secondaryLimit: self.secondaryLimit,
+            extraRateWindows: self.extraRateWindows,
+            creditsRemaining: self.creditsRemaining,
+            codexCreditLimit: self.codexCreditLimit,
+            accountPlan: self.accountPlan,
+            subscriptionExpiresAt: metadata?.expiresAt,
+            subscriptionRenewsAt: metadata?.renewsAt,
+            updatedAt: self.updatedAt)
+    }
 }
 
 extension OpenAIDashboardSnapshot {
@@ -161,7 +181,9 @@ extension OpenAIDashboardSnapshot {
             remaining: self.creditsRemaining ?? 0,
             events: self.creditEvents,
             updatedAt: self.updatedAt,
-            codexCreditLimit: self.codexCreditLimit)
+            codexCreditLimit: self.codexCreditLimit,
+            // A cap-only dashboard read omits the balance entirely; that placeholder zero is unread, not spent.
+            balanceReadSucceeded: self.creditsRemaining != nil)
     }
 }
 
