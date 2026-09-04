@@ -629,9 +629,11 @@ JavaScriptCore is the macOS rollback engine. The committed `.js` is generated fr
 - Details: `docs/neuralwatt.md`.
 
 ## Helmcode
-- Uses the signed-in Helmcode Cloud dashboard session; automatic mode imports `helmcode.com` cookies from Chrome only.
+- Uses the signed-in dashboard session for the selected deployment; automatic mode imports that deployment's cookies
+  from Chrome only (Helmcode Cloud or the NaN Builders community tenant) and persists the validated session, scoped by
+  deployment, for later refreshes.
 - Manual mode accepts a Cookie header or cURL capture in Settings, and `HELMCODE_COOKIE` provides the CLI equivalent.
-- Reads `GET https://cloud-api.helmcode.com/api/usage/quota` for per-model monthly token allowances and reads
+- Reads `GET https://<deployment api host>/api/usage/quota` for per-model monthly token allowances and reads
   `/api/billing/credits` best-effort for the prepaid EUR balance.
 - The most-utilized capped model is the primary window. Other capped models are named extra windows; uncapped models
   are omitted rather than rendered as exhausted quotas.

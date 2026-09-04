@@ -45,8 +45,10 @@ other. CLI users can select the tenant with `HELMCODE_DEPLOYMENT=nanbuilders` (a
 3. Select the **Deployment** matching your subscription (Helmcode or NaN Builders).
 4. Leave **Cookie source** on **Automatic** and refresh Helmcode from the app.
 
-Automatic cookie import is Chrome-only and runs on an explicit app refresh. It does not run during ordinary CLI or
-test execution. If automatic import cannot find the active session, switch to **Manual** and paste either the browser's
+Automatic cookie import is Chrome-only and runs on an explicit app refresh. After a validated refresh the dashboard
+session is persisted in the cookie cache (scoped to the selected deployment), so later automatic refreshes — including
+background refreshes and the bundled CLI — reuse it without rereading the browser until the session is rejected.
+If automatic import cannot find the active session, switch to **Manual** and paste either the browser's
 `Cookie:` request header or a cURL capture from the Helmcode dashboard.
 
 For CLI use, set the same value in `HELMCODE_COOKIE` (plus the deployment when using NaN Builders):
