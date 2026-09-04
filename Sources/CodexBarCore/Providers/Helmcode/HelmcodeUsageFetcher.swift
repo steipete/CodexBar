@@ -225,8 +225,6 @@ public struct HelmcodeUsageFetcher: Sendable {
                 transport: transport)
         } catch is CancellationError {
             throw CancellationError()
-        } catch HelmcodeUsageError.invalidSession {
-            throw HelmcodeUsageError.invalidSession
         } catch {
             self.log.info("Helmcode credit balance unavailable (non-fatal): \(error.localizedDescription)")
         }

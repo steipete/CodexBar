@@ -90,8 +90,8 @@ struct HelmcodeProviderTests {
         #expect(HelmcodeCookieHeader.header(from: cookies, for: insecureURL, now: now) == "api=2; root=1")
     }
 
-    @Test
-    func `fetch sends dashboard session headers and keeps quota when credits fail`() async throws {
+    @Test(arguments: [302, 401, 403, 500])
+    func `fetch sends dashboard session headers and keeps quota when credits fail`(creditsStatus: Int) async throws {
         let transport = ProviderHTTPTransportStub { request in
             let url = try #require(request.url)
             #expect(request.httpMethod == "GET")
@@ -102,7 +102,7 @@ struct HelmcodeProviderTests {
             case "/api/usage/quota":
                 return try Self.response(url: url, body: Self.quotaFixture)
             case "/api/billing/credits":
-                return try Self.response(url: url, status: 500, body: #"{"error":"unavailable"}"#)
+                return try Self.response(url: url, status: creditsStatus, body: #"{"error":"unavailable"}"#)
             default:
                 Issue.record("Unexpected request path: \(url.path)")
                 throw URLError(.badURL)
