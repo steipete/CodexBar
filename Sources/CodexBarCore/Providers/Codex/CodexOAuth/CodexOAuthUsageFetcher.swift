@@ -367,6 +367,7 @@ public struct CodexUsageResponse: Decodable, Sendable {
 
 public enum CodexOAuthFetchError: LocalizedError, Sendable {
     case unauthorized
+    case forbidden
     case invalidResponse
     case serverError(Int, String?)
     case networkError(Error)
@@ -375,6 +376,8 @@ public enum CodexOAuthFetchError: LocalizedError, Sendable {
         switch self {
         case .unauthorized:
             return "Codex OAuth token expired or invalid. Run `codex login` to re-authenticate."
+        case .forbidden:
+            return "Codex account cannot access the selected workspace (HTTP 403)."
         case .invalidResponse:
             return "Invalid response from Codex usage API."
         case let .serverError(code, message):
@@ -437,8 +440,10 @@ public enum CodexOAuthUsageFetcher {
                 } catch {
                     throw CodexOAuthFetchError.invalidResponse
                 }
-            case 401, 403:
+            case 401:
                 throw CodexOAuthFetchError.unauthorized
+            case 403:
+                throw CodexOAuthFetchError.forbidden
             default:
                 let body = String(data: data, encoding: .utf8)
                 throw CodexOAuthFetchError.serverError(response.statusCode, body)
@@ -512,8 +517,10 @@ public enum CodexOAuthUsageFetcher {
                 } catch {
                     throw CodexOAuthFetchError.invalidResponse
                 }
-            case 401, 403:
+            case 401:
                 throw CodexOAuthFetchError.unauthorized
+            case 403:
+                throw CodexOAuthFetchError.forbidden
             default:
                 let body = String(data: response.data, encoding: .utf8)
                 throw CodexOAuthFetchError.serverError(response.statusCode, body)
@@ -573,8 +580,10 @@ public enum CodexOAuthUsageFetcher {
                 } catch {
                     throw CodexOAuthFetchError.invalidResponse
                 }
-            case 401, 403:
+            case 401:
                 throw CodexOAuthFetchError.unauthorized
+            case 403:
+                throw CodexOAuthFetchError.forbidden
             default:
                 let body = String(data: data, encoding: .utf8)
                 throw CodexOAuthFetchError.serverError(response.statusCode, body)

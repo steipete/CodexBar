@@ -867,6 +867,7 @@ private enum RPCRequestRaceResult<Value: Sendable>: Sendable {
 private final class CodexRPCClient: @unchecked Sendable {
     // Provider-specific by design: Codex RPC owns its dedicated subprocess log category.
     private static let log = CodexBarLog.logger(LogCategories.provider(.codex, scope: "rpc"))
+    private static let accountRefreshTimeoutSeconds: TimeInterval = 30
     private let process = Process()
     private let stdin = RPCChildProcessInput()
     private let stdoutPipe = Pipe()
@@ -985,6 +986,13 @@ private final class CodexRPCClient: @unchecked Sendable {
     func fetchAccount() async throws -> RPCAccountResponse {
         let message = try await self.request(method: "account/read")
         return try self.decodeResult(from: message)
+    }
+
+    func refreshAccount() async throws {
+        _ = try await self.request(
+            method: "account/read",
+            params: ["refreshToken": true],
+            timeout: Self.accountRefreshTimeoutSeconds)
     }
 
     func fetchRateLimits() async throws -> RPCRateLimitsResponse {
@@ -1135,6 +1143,45 @@ private final class CodexRPCClient: @unchecked Sendable {
 
 // MARK: - Public fetcher used by the app
 
+private actor CodexNativeCredentialRefreshCoordinator {
+    private struct Entry {
+        let id: UUID
+        let task: Task<Void, Error>
+    }
+
+    static let shared = CodexNativeCredentialRefreshCoordinator()
+
+    private var inFlightByHome: [String: Entry] = [:]
+
+    func refresh(
+        home: String,
+        operation: @escaping @Sendable () async throws -> Void) async throws
+    {
+        if let existing = self.inFlightByHome[home] {
+            try await existing.task.value
+            return
+        }
+
+        let id = UUID()
+        let task = Task {
+            try await operation()
+        }
+        self.inFlightByHome[home] = Entry(id: id, task: task)
+        do {
+            try await task.value
+            self.clear(home: home, id: id)
+        } catch {
+            self.clear(home: home, id: id)
+            throw error
+        }
+    }
+
+    private func clear(home: String, id: UUID) {
+        guard self.inFlightByHome[home]?.id == id else { return }
+        self.inFlightByHome[home] = nil
+    }
+}
+
 public struct UsageFetcher: Sendable {
     private let environment: [String: String]
     private let initializeTimeoutSeconds: TimeInterval
@@ -1170,6 +1217,24 @@ public struct UsageFetcher: Sendable {
             throw UsageError.noRateLimitsFound
         }
         return usage
+    }
+
+    /// Ask the credential-owning Codex app-server to renew the scoped native auth file.
+    /// This intentionally does not consume app-server usage because it cannot carry CodexBar's
+    /// selected managed-workspace header.
+    func refreshNativeCodexCredentials() async throws {
+        let home = CodexHomeScope.ambientHomeURL(env: self.environment).standardizedFileURL.path
+        try await CodexNativeCredentialRefreshCoordinator.shared.refresh(home: home) {
+            let rpc = try CodexRPCClient(
+                arguments: self.codexArguments,
+                environment: self.environment,
+                initializeTimeoutSeconds: self.initializeTimeoutSeconds,
+                requestTimeoutSeconds: self.requestTimeoutSeconds,
+                resolveExecutable: self.codexExecutableResolver)
+            defer { rpc.shutdown() }
+            try await rpc.initialize(clientName: "codexbar", clientVersion: "0.5.4")
+            try await rpc.refreshAccount()
+        }
     }
 
     public func loadLatestCLIAccountSnapshot() async throws -> CodexCLIAccountSnapshot {

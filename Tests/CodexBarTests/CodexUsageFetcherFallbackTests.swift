@@ -121,6 +121,45 @@ struct CodexUsageFetcherFallbackTests {
     }
 
     @Test
+    func `native credential refresh coalesces and renews without reading CLI usage`() async throws {
+        let stubCLIPath = try self.makeNativeRefreshStubCodexCLI()
+        let requestPath = stubCLIPath + ".requests"
+        defer {
+            try? FileManager.default.removeItem(atPath: stubCLIPath)
+            try? FileManager.default.removeItem(atPath: requestPath)
+        }
+
+        let fetcher = self.makeStubUsageFetcher(stubCLIPath)
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            for _ in 0..<2 {
+                group.addTask {
+                    try await fetcher.refreshNativeCodexCredentials()
+                }
+            }
+            try await group.waitForAll()
+        }
+
+        let messages = try String(contentsOfFile: requestPath, encoding: .utf8)
+            .split(whereSeparator: \.isNewline)
+            .map { try #require(JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any]) }
+        #expect(messages.count == 1)
+        #expect(messages.first?["method"] as? String == "account/read")
+        #expect((messages.first?["params"] as? [String: Any])?["refreshToken"] as? Bool == true)
+    }
+
+    @Test
+    func `native credential refresh outlives the ordinary RPC request timeout`() async throws {
+        let stubCLIPath = try self.makeNativeRefreshStubCodexCLI(delaySeconds: 3.2)
+        defer {
+            try? FileManager.default.removeItem(atPath: stubCLIPath)
+            try? FileManager.default.removeItem(atPath: stubCLIPath + ".requests")
+        }
+
+        let fetcher = self.makeStubUsageFetcher(stubCLIPath)
+        try await fetcher.refreshNativeCodexCredentials()
+    }
+
+    @Test
     func `CLI plan and credits response without usage windows keeps unavailable limits`() async throws {
         let stubCLIPath = try self.makePlanOnlyStubCodexCLI(includeCredits: true)
         defer { try? FileManager.default.removeItem(atPath: stubCLIPath) }
@@ -463,6 +502,46 @@ struct CodexUsageFetcherFallbackTests {
         """
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("codex-plan-only-stub-\(UUID().uuidString)", isDirectory: false)
+        try Data(script.utf8).write(to: url)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
+        return url.path
+    }
+
+    private func makeNativeRefreshStubCodexCLI(delaySeconds: Double = 0) throws -> String {
+        let script = """
+        #!/usr/bin/python3 -S
+        import json
+        import os
+        import sys
+        import time
+
+        request_path = os.environ["CODEXBAR_TEST_RPC_REQUEST_PATH"]
+        if "app-server" not in sys.argv[1:]:
+            sys.exit(92)
+        for line in sys.stdin:
+            if not line.strip():
+                continue
+            message = json.loads(line)
+            method = message.get("method")
+            if method == "initialized":
+                continue
+            identifier = message.get("id")
+            if method == "initialize":
+                payload = {"id": identifier, "result": {}}
+            elif method == "account/read":
+                with open(request_path, "a", encoding="utf-8") as output:
+                    output.write(json.dumps(message) + "\\n")
+                time.sleep(\(delaySeconds))
+                payload = {
+                    "id": identifier,
+                    "result": {"account": {"type": "future-provider-shape"}}
+                }
+            else:
+                payload = {"id": identifier, "error": {"message": "unexpected method: " + str(method)}}
+            print(json.dumps(payload), flush=True)
+        """
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codex-native-refresh-stub-\(UUID().uuidString)", isDirectory: false)
         try Data(script.utf8).write(to: url)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
         return url.path

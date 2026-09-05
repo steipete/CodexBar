@@ -157,7 +157,7 @@ public enum CodexProviderDescriptor {
         let oauthWithNativeRefresh: [any ProviderFetchStrategy] = [oauth, CodexOAuthNativeRefreshCLIStrategy()]
         let autoStrategies: [any ProviderFetchStrategy] = context.codexWorkspaceID == nil
             ? [pat, oauth, cli]
-            : [pat, oauth]
+            : [pat, oauth, CodexOAuthNativeRefreshCLIStrategy()]
 
         switch context.sourceMode {
         case .oauth:
@@ -338,38 +338,53 @@ struct CodexCLIUsageStrategy: ProviderFetchStrategy {
     }
 }
 
-/// Explicit OAuth may recover stale native credentials through the Codex CLI, without allowing
+/// OAuth may recover stale native credentials through the Codex CLI, without allowing
 /// missing or external credentials to silently switch sources.
 struct CodexOAuthNativeRefreshCLIStrategy: ProviderFetchStrategy {
+    typealias CredentialRefresher = @Sendable (ProviderFetchContext) async throws -> Void
+
     let id: String = "codex.oauth-native-refresh-cli"
     let kind: ProviderFetchKind = .cli
     private let binaryResolver: @Sendable (ProviderFetchContext) -> String?
+    private let credentialRefresher: CredentialRefresher
 
     init(
         binaryResolver: @escaping @Sendable (ProviderFetchContext) -> String? = {
             CodexCLIUsageStrategy.resolvedBinary(env: $0.env)
+        },
+        credentialRefresher: @escaping CredentialRefresher = {
+            try await $0.fetcher.refreshNativeCodexCredentials()
         })
     {
         self.binaryResolver = binaryResolver
+        self.credentialRefresher = credentialRefresher
     }
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        // The Codex CLI app-server has no supported way to receive CodexBar's selected managed
-        // workspace account header. Falling back to it would therefore report the auth.json
-        // workspace under a different selected workspace. Keep this path unavailable until the
-        // owner CLI can carry that scope explicitly.
-        guard context.codexWorkspaceID == nil,
-              context.sourceMode == .oauth,
+        guard context.sourceMode == .auto || context.sourceMode == .oauth,
               self.binaryResolver(context) != nil,
               let credentials = try? CodexOAuthCredentialsStore.loadForUsage(
                   env: context.env,
                   allowExternalSources: context.settings?.codex?.allowExternalOAuthSources == true)
         else { return false }
-        return credentials.source == .codexHome && credentials.needsRefresh
+        return credentials.source == .codexHome && !credentials.isAPIKey
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        try await CodexCLIUsageStrategy().fetch(context)
+        // Let the owner CLI rotate and persist its native tokens inside this exact CODEX_HOME.
+        // Then reload them and perform the normal OAuth request, which preserves CodexBar's
+        // selected managed-workspace header and account-ownership checks.
+        try await self.credentialRefresher(context)
+        let credentials = try CodexOAuthCredentialsStore.loadForUsage(
+            env: context.env,
+            allowExternalSources: context.settings?.codex?.allowExternalOAuthSources == true)
+        guard credentials.source == .codexHome else {
+            throw CodexOAuthCredentialsError.readOnlySource
+        }
+        guard !credentials.isAPIKey else {
+            throw CodexOAuthCredentialsError.missingTokens
+        }
+        return try await CodexOAuthFetchStrategy.fetch(context: context, credentials: credentials)
     }
 
     func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
@@ -394,7 +409,7 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
         return try await Self.fetch(context: context, credentials: credentials)
     }
 
-    private static func fetch(
+    fileprivate static func fetch(
         context: ProviderFetchContext,
         credentials initialCredentials: CodexOAuthCredentials) async throws -> ProviderFetchResult
     {
@@ -477,7 +492,16 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
         } else {
             false
         }
-        guard context.sourceMode == .auto || (context.sourceMode == .oauth && isExplicitNativeRefresh) else {
+        let isUnauthorized = if let fetchError = error as? CodexOAuthFetchError,
+                                case .unauthorized = fetchError
+        {
+            true
+        } else {
+            false
+        }
+        guard context.sourceMode == .auto
+            || (context.sourceMode == .oauth && (isExplicitNativeRefresh || isUnauthorized))
+        else {
             return false
         }
         // Auto mode may launch the CLI as the next strategy. Keep that fallback
@@ -488,7 +512,7 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
             switch fetchError {
             case .unauthorized:
                 return true
-            case .invalidResponse, .serverError, .networkError:
+            case .forbidden, .invalidResponse, .serverError, .networkError:
                 return false
             }
         }

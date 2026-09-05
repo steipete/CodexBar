@@ -785,11 +785,11 @@ struct CodexOAuthTests {
     }
 
     @Test
-    func `explicit O auth mode only falls back to CLI for native refresh recovery`() {
+    func `explicit O auth mode falls back to CLI for rejected native credentials`() {
         let strategy = CodexOAuthFetchStrategy()
         let context = self.makeContext(sourceMode: .oauth)
 
-        #expect(!strategy.shouldFallback(on: CodexOAuthFetchError.unauthorized, context: context))
+        #expect(strategy.shouldFallback(on: CodexOAuthFetchError.unauthorized, context: context))
         #expect(strategy.shouldFallback(on: CodexOAuthCredentialsError.nativeRefreshRequired, context: context))
         #expect(!strategy.shouldFallback(on: CodexOAuthCredentialsError.readOnlySource, context: context))
         #expect(!strategy.shouldFallback(on: CodexTokenRefresher.RefreshError.expired, context: context))
