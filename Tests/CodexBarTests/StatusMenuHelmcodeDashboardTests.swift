@@ -24,9 +24,9 @@ struct StatusMenuHelmcodeDashboardTests {
             preferencesSelection: PreferencesSelection(),
             statusBar: .system)
 
-        #expect(controller.dashboardURL(for: .helmcode)?.absoluteString == "https://cloud.helmcode.com/credits")
+        #expect(controller.dashboardURL(for: .helmcode)?.absoluteString == "https://cloud.helmcode.com/dashboard")
         settings.helmcodeDeployment = .nanBuilders
-        #expect(controller.dashboardURL(for: .helmcode)?.absoluteString == "https://cloud.nan.builders/credits")
+        #expect(controller.dashboardURL(for: .helmcode)?.absoluteString == "https://cloud.nan.builders/dashboard")
     }
 
     private func makeSettings() -> SettingsStore {

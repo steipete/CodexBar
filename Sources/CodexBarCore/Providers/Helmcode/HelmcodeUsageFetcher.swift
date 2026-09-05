@@ -253,7 +253,7 @@ public struct HelmcodeUsageFetcher: Sendable {
         request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue(deployment.dashboardURL.absoluteString, forHTTPHeaderField: "Origin")
-        request.setValue(deployment.dashboardCreditsURL.absoluteString, forHTTPHeaderField: "Referer")
+        request.setValue(deployment.dashboardPageURL.absoluteString, forHTTPHeaderField: "Referer")
         request.setValue(
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
                 "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",

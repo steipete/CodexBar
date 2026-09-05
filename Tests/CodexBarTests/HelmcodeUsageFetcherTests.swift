@@ -110,7 +110,7 @@ struct HelmcodeUsageFetcherTests {
             #expect(request.httpMethod == "GET")
             #expect(request.value(forHTTPHeaderField: "Cookie") == "session=fixture")
             #expect(request.value(forHTTPHeaderField: "Origin") == "https://cloud.helmcode.com")
-            #expect(request.value(forHTTPHeaderField: "Referer") == "https://cloud.helmcode.com/credits")
+            #expect(request.value(forHTTPHeaderField: "Referer") == "https://cloud.helmcode.com/dashboard")
             switch url.path {
             case "/api/usage/quota":
                 return try Self.response(url: url, body: Self.quotaFixture())
@@ -172,7 +172,7 @@ struct HelmcodeUsageFetcherTests {
             #expect(url.host == "cloud-api.nan.builders")
             #expect(request.value(forHTTPHeaderField: "Cookie") == "session=fixture")
             #expect(request.value(forHTTPHeaderField: "Origin") == "https://cloud.nan.builders")
-            #expect(request.value(forHTTPHeaderField: "Referer") == "https://cloud.nan.builders/credits")
+            #expect(request.value(forHTTPHeaderField: "Referer") == "https://cloud.nan.builders/dashboard")
             switch url.path {
             case "/api/usage/quota":
                 return try Self.response(url: url, body: Self.quotaFixture())

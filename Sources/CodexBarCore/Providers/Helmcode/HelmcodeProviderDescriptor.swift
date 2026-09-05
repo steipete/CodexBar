@@ -54,7 +54,7 @@ public enum HelmcodeProviderDescriptor {
                 usesAccountFallback: false,
                 debugLogUnavailableMessage: "Helmcode debug log not yet implemented",
                 browserCookieOrder: self.browserCookieOrder,
-                dashboardURL: "https://cloud.helmcode.com/credits",
+                dashboardURL: "https://cloud.helmcode.com/dashboard",
                 statusPageURL: nil),
             branding: ProviderBranding(
                 iconStyle: .init(provider: .helmcode),

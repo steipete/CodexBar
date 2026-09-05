@@ -49,8 +49,8 @@ public enum HelmcodeDeployment: String, CaseIterable, Sendable {
         URL(string: "https://\(self.dashboardHost)")!
     }
 
-    public var dashboardCreditsURL: URL {
-        self.dashboardURL.appendingPathComponent("credits")
+    public var dashboardPageURL: URL {
+        self.dashboardURL.appendingPathComponent("dashboard")
     }
 
     public var quotaURL: URL {

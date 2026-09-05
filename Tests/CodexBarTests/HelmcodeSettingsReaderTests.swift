@@ -55,7 +55,7 @@ struct HelmcodeSettingsReaderTests {
         #expect(deployment.quotaURL.absoluteString == "https://cloud-api.nan.builders/api/usage/quota")
         #expect(deployment.creditsURL.absoluteString == "https://cloud-api.nan.builders/api/billing/credits")
         #expect(deployment.dashboardURL.absoluteString == "https://cloud.nan.builders")
-        #expect(deployment.dashboardCreditsURL.absoluteString == "https://cloud.nan.builders/credits")
+        #expect(deployment.dashboardPageURL.absoluteString == "https://cloud.nan.builders/dashboard")
         #expect(deployment.cookieDomains == [
             "cloud-api.nan.builders",
             "cloud.nan.builders",

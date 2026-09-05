@@ -92,7 +92,7 @@ struct HelmcodeProviderImplementation: ProviderImplementation {
                         style: .link,
                         isVisible: nil,
                         perform: {
-                            let url = context.settings.helmcodeDeployment.dashboardCreditsURL
+                            let url = context.settings.helmcodeDeployment.dashboardPageURL
                             NSWorkspace.shared.open(url)
                         }),
                 ],
