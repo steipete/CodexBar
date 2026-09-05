@@ -688,6 +688,7 @@ extension SettingsStore {
             providerChangelogLinksEnabled: providerChangelogLinksEnabled,
             menuBarShowsBrandIconWithPercent: menuBarShowsBrandIconWithPercent,
             menuBarHidesCritters: menuBarHidesCritters,
+            menuBarColorPace: userDefaults.bool(forKey: "menuBarColorPace"),
             menuBarHighContrastOnInactiveDisplays: menuBarHighContrastOnInactiveDisplays,
             menuBarDisplayModeRaw: menuBarDisplayModeRaw,
             menuBarShowsResetTimeWhenExhausted: menuBarShowsResetTimeWhenExhausted,

@@ -1543,3 +1543,6 @@
 "menu_bar_layout_conditional_default_either_high" = "セッションまたは週間が高水準";
 "menu_bar_layout_conditional_default_scoped_weekly" = "モデル別週間の使用率 60% 超";
 "Spending cap, not balance" = "利用上限額（残高ではありません）";
+
+"Color pace" = "使用ペースを色分け";
+"Green when usage is behind pace (reserve); red when ahead (risk of running out early)." = "想定より使用が遅い場合は緑（余裕あり）、速い場合は赤（上限に早く達するおそれ）で表示します。";

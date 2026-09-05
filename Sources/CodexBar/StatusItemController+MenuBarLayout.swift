@@ -56,7 +56,8 @@ extension StatusItemController {
             isDebugApp: Self.isDebugApp(bundleIdentifier: Bundle.main.bundleIdentifier),
             isStale: self.store.isStale(provider: provider),
             now: now,
-            verticalAdjustment: self.settings.menuBarLayoutVerticalAdjustment)
+            verticalAdjustment: self.settings.menuBarLayoutVerticalAdjustment,
+            colorPace: self.settings.menuBarColorPace)
         let rendered = self.menuBarLayoutRenderer.render(
             layout: resolution.layout,
             data: data,

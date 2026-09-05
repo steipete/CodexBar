@@ -1545,3 +1545,6 @@
 "menu_bar_layout_conditional_default_either_high" = "Sessió o setmana en nivell alt";
 "menu_bar_layout_conditional_default_scoped_weekly" = "Setmanal amb àmbit per damunt del 60%";
 "Spending cap, not balance" = "Límit de despesa, no saldo";
+
+"Color pace" = "Acoloreix el ritme";
+"Green when usage is behind pace (reserve); red when ahead (risk of running out early)." = "Verd quan l’ús va per sota del ritme previst (reserva); vermell quan va per sobre (risc d’esgotar la quota abans d’hora).";
