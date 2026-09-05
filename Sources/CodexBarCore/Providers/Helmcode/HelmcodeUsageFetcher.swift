@@ -344,15 +344,20 @@ public struct HelmcodeUsageFetcher: Sendable {
         transport: any ProviderHTTPTransport,
         verbose: (@Sendable (String) -> Void)? = nil) async throws -> Data
     {
-        if let verbose, case let .cookies(cookies) = authentication {
-            let detail = HelmcodeCookieHeader.headerWithDiagnostics(
-                from: cookies,
-                for: url,
-                now: Date())
-            verbose(
-                "GET \(url.host ?? "")\(url.path) cookies=[\(detail.included.joined(separator: ", "))] " +
-                    "excluded-expired=[\(detail.expired.joined(separator: ", "))] " +
-                    "excluded-path=[\(detail.pathExcluded.joined(separator: ", "))]")
+        if let verbose {
+            switch authentication {
+            case let .cookies(cookies):
+                let detail = HelmcodeCookieHeader.headerWithDiagnostics(
+                    from: cookies,
+                    for: url,
+                    now: Date())
+                verbose(
+                    "GET \(url.host ?? "")\(url.path) cookies=[\(detail.included.joined(separator: ", "))] " +
+                        "excluded-expired=[\(detail.expired.joined(separator: ", "))] " +
+                        "excluded-path=[\(detail.pathExcluded.joined(separator: ", "))]")
+            case .header:
+                verbose("helmcode: GET \(url.host ?? "")\(url.path) credential=header")
+            }
         }
         guard let cookieHeader = authentication.header(for: url) else {
             throw HelmcodeUsageError.missingCookies(deployment)

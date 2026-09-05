@@ -639,6 +639,26 @@ struct HelmcodeDeploymentDetectionTests {
         }
     }
 
+    @Test
+    func `verbose diagnostics document header credential requests`() async throws {
+        let lines = CaptureBox()
+        let sink: (@Sendable (String) -> Void)? = { line in
+            lines.append(line)
+        }
+        let stub = Self.successStub(expectedHost: "cloud-api.nan.builders")
+        let snapshot = try await HelmcodeUsageFetcher.fetchUsage(
+            cookieHeader: "nan_session=proof",
+            deployment: .nanBuilders,
+            transport: stub,
+            verbose: sink)
+        #expect(snapshot.toUsageSnapshot().primary?.resetDescription?.contains("helm-model-a") == true)
+        let joined = lines.all.joined(separator: "\n")
+        #expect(joined.contains("GET cloud-api.nan.builders/api/usage/quota credential=header"))
+        #expect(joined.contains("GET cloud-api.nan.builders/api/billing credential=header"))
+        #expect(joined.contains("GET cloud-api.nan.builders/api/billing/credits credential=header"))
+        #expect(!joined.contains("cookies=["))
+    }
+
     // MARK: - Dashboard action (app seam, F4)
 
     @Test @MainActor

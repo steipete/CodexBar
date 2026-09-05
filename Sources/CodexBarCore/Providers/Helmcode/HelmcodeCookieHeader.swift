@@ -27,7 +27,9 @@ public struct HelmcodeCredentialSelection: Sendable, Equatable {
 public enum HelmcodeCookieHeader {
     /// Selects the single credential for this fetch: `.off` → nil; a manual source with a normalizable
     /// header → manual; otherwise `HELMCODE_COOKIE`/`helmcode_cookie` with a normalizable header →
-    /// environment. An empty manual value never falls through to the environment credential.
+    /// environment. An empty (non-normalizable) manual value is not a credential, so selection falls
+    /// through to the environment credential — and carries that credential's own raw capture so host
+    /// detection routes it to the tenant the capture came from.
     public static func selectCredential(context: ProviderFetchContext) -> HelmcodeCredentialSelection? {
         self.selectCredential(
             cookieSource: context.settings?.helmcode?.cookieSource,

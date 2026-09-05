@@ -284,10 +284,6 @@ struct HelmcodeWebFetchStrategy: ProviderFetchStrategy {
             : "detected from capture host"
     }
 
-    static func rawCookieOverride(_ context: ProviderFetchContext) -> String? {
-        HelmcodeCookieHeader.selectCredential(context: context)?.rawCapture
-    }
-
     @TaskLocal static var transportOverrideForTesting: (any ProviderHTTPTransport)?
 
     #if os(macOS)
