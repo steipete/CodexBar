@@ -51,6 +51,51 @@ struct MoonshotUsageFetcherTests {
 
         #expect(summary.cashBalance == -0.42)
         #expect(usage.loginMethod(for: .moonshot)?.contains("in deficit") == true)
+        #expect(usage.loginMethod(for: .moonshot)?.contains("$") == true)
+    }
+
+    @Test
+    func `china region balance renders CNY not USD`() throws {
+        let json = """
+        {
+          "code": 0,
+          "data": {
+            "available_balance": 49.58,
+            "voucher_balance": 50.00,
+            "cash_balance": 12.34
+          },
+          "scode": "0x0",
+          "status": true
+        }
+        """
+
+        let summary = try MoonshotUsageFetcher._parseSummaryForTesting(Data(json.utf8), region: .china)
+        let usage = MoonshotUsageSnapshot(summary: summary).toUsageSnapshot()
+
+        #expect(usage.loginMethod(for: .moonshot)?.contains("$") == false)
+        #expect(usage.loginMethod(for: .moonshot)?.contains("CN¥49.58") == true)
+    }
+
+    @Test
+    func `china region deficit renders CNY not USD`() throws {
+        let json = """
+        {
+          "code": 0,
+          "data": {
+            "available_balance": 49.58,
+            "voucher_balance": 50.00,
+            "cash_balance": -0.42
+          },
+          "scode": "0x0",
+          "status": true
+        }
+        """
+
+        let summary = try MoonshotUsageFetcher._parseSummaryForTesting(Data(json.utf8), region: .china)
+        let usage = MoonshotUsageSnapshot(summary: summary).toUsageSnapshot()
+
+        #expect(usage.loginMethod(for: .moonshot)?.contains("in deficit") == true)
+        #expect(usage.loginMethod(for: .moonshot)?.contains("$") == false)
     }
 
     @Test
@@ -151,7 +196,7 @@ struct MoonshotUsageFetcherTests {
 
         #expect(MoonshotStubURLProtocol.requests.count == 1)
         #expect(snapshot.summary.availableBalance == 9.87)
-        #expect(snapshot.toUsageSnapshot().loginMethod(for: .moonshot) == "Balance: $9.87")
+        #expect(snapshot.toUsageSnapshot().loginMethod(for: .moonshot) == "Balance: CN¥9.87")
     }
 
     @Test
