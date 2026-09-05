@@ -10,9 +10,10 @@ public enum CommandCodeUsageFetcher {
     private static let requestTimeoutSeconds: TimeInterval = 15
     private static let subscriptionGraceSeconds: TimeInterval = 2
     private static let defaultAPIBase = URL(string: "https://api.commandcode.ai")!
-    /// Test override for the billing endpoint, matching `MIMO_API_URL` and `WAYFINDER_GATEWAY_URL`.
-    /// HTTPS anywhere, or plain HTTP on loopback, so a local stub can drive the real transport.
+    #if DEBUG
+    /// Debug-only loopback endpoint for synthetic transport proof.
     static let apiURLEnvironmentKey = "COMMANDCODE_API_URL"
+    #endif
     private static let creditsPath = "/internal/billing/credits"
     private static let subscriptionsPath = "/internal/billing/subscriptions"
     private static let webOrigin = "https://commandcode.ai"
@@ -225,18 +226,25 @@ public enum CommandCodeUsageFetcher {
         return try self.parseSubscription(data: data)
     }
 
-    /// The billing endpoint for this process. An invalid override falls back to production, the
-    /// same way `WayfinderSettingsReader.baseURL` treats a rejected value.
     static func apiBase(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> URL
     {
+        #if DEBUG
         guard let raw = environment[self.apiURLEnvironmentKey]?
-            .trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+            let url = ProviderEndpointOverrideValidator().validatedURLAllowingLoopbackHTTP(raw),
+            let host = url.host(percentEncoded: false)?.lowercased(),
+            ["localhost", "127.0.0.1", "::1", "[::1]"].contains(host),
+            url.path.isEmpty || url.path == "/",
+            url.query == nil,
+            url.fragment == nil
         else {
             return self.defaultAPIBase
         }
-        return ProviderEndpointOverrideValidator()
-            .validatedURLAllowingLoopbackHTTP(raw) ?? self.defaultAPIBase
+        return url
+        #else
+        return self.defaultAPIBase
+        #endif
     }
 
     private static func send(

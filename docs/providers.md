@@ -509,7 +509,7 @@ provider-specific cookie validation, endpoints, login detection, and error trans
 - Linux CLI supports configured manual cookies; automatic browser import remains macOS-only.
 - Reads 5-hour and weekly rolling limits plus monthly USD credits and billing-cycle usage from `api.commandcode.ai`.
 - Automatic import looks for better-auth session cookies from `commandcode.ai` / `www.commandcode.ai`.
-- Override the billing base URL with `COMMANDCODE_API_URL` for tests.
+- Debug builds support `COMMANDCODE_API_URL` for synthetic loopback tests; release builds use the official billing endpoint.
 - Status: none yet.
 - Details: `docs/command-code.md`.
 

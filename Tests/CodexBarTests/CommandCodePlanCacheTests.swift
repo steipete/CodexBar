@@ -42,6 +42,72 @@ struct CommandCodePlanCacheTests {
     private static let freeTierJSON = #"{"success":true,"data":null}"#
 
     @Test
+    func `older successful and undated responses cannot replace a newer allowance`() async throws {
+        let cache = CommandCodePlanCache()
+        let go = try #require(CommandCodePlanCatalog.plan(forID: "individual-go"))
+        let pro = try #require(CommandCodePlanCatalog.plan(forID: "individual-pro"))
+        let newer = Self.now.addingTimeInterval(1)
+        await cache.store(plan: pro, periodEnd: Self.periodEnd, fingerprint: "account", now: newer)
+        await cache.store(plan: go, periodEnd: Self.periodEnd, fingerprint: "account", now: Self.now)
+        #expect(await cache.entry(fingerprint: "account", now: newer)?.plan == pro)
+        await cache.store(plan: go, periodEnd: nil, fingerprint: "account", now: Self.now)
+        #expect(await cache.entry(fingerprint: "account", now: newer)?.plan == pro)
+        await cache.clear(fingerprint: "account", now: Self.now)
+        #expect(await cache.entry(fingerprint: "account", now: newer)?.plan == pro)
+    }
+
+    @Test
+    func `older responses cannot resurrect a plan after a newer cleared verdict`() async throws {
+        let plan = try #require(CommandCodePlanCatalog.plan(forID: "individual-go"))
+        let newer = Self.now.addingTimeInterval(1)
+        for undated in [false, true] {
+            let cache = CommandCodePlanCache()
+            if undated {
+                await cache.store(plan: plan, periodEnd: nil, fingerprint: "account", now: newer)
+            } else {
+                await cache.clear(fingerprint: "account", now: newer)
+            }
+            await cache.store(plan: plan, periodEnd: Self.periodEnd, fingerprint: "account", now: Self.now)
+            #expect(await cache.entry(fingerprint: "account", now: newer) == nil)
+            await cache.store(
+                plan: plan, periodEnd: Self.periodEnd, fingerprint: "account", now: newer.addingTimeInterval(1))
+            #expect(await cache.entry(fingerprint: "account", now: newer.addingTimeInterval(1))?.plan == plan)
+        }
+    }
+
+    @Test
+    func `allowance expires at the exact period and confirmation boundaries`() async throws {
+        let cache = CommandCodePlanCache()
+        let plan = try #require(CommandCodePlanCatalog.plan(forID: "individual-go"))
+        let end = Self.now.addingTimeInterval(60)
+        await cache.store(plan: plan, periodEnd: end, fingerprint: "period", now: Self.now)
+        #expect(await cache.entry(fingerprint: "period", now: end.addingTimeInterval(-1)) != nil)
+        #expect(await cache.entry(fingerprint: "period", now: end) == nil)
+        await cache.store(plan: plan, periodEnd: Self.periodEnd, fingerprint: "age", now: Self.now)
+        #expect(await cache.entry(fingerprint: "age", now: Self.now.addingTimeInterval(86400 - 1)) != nil)
+        #expect(await cache.entry(fingerprint: "age", now: Self.now.addingTimeInterval(86400)) == nil)
+    }
+
+    @Test
+    func `cleared verdicts share the bounded credential capacity`() async throws {
+        let cache = CommandCodePlanCache()
+        let plan = try #require(CommandCodePlanCatalog.plan(forID: "individual-go"))
+        for index in 0..<4 {
+            await cache.store(
+                plan: plan,
+                periodEnd: Self.periodEnd,
+                fingerprint: "account-\(index)",
+                now: Self.now.addingTimeInterval(Double(index)))
+        }
+        let latest = Self.now.addingTimeInterval(4)
+        await cache.clear(fingerprint: "account-4", now: latest)
+        #expect(await cache.entry(fingerprint: "account-0", now: latest) == nil)
+        for index in 1..<4 {
+            #expect(await cache.entry(fingerprint: "account-\(index)", now: latest)?.plan == plan)
+        }
+    }
+
+    @Test
     func `remembered plan sizes the monthly lane from fresh credits after a failure`() async throws {
         try await CommandCodeUsageFetcher.withIsolatedPlanCacheForTesting {
             let resolved = try await Self.fetch(

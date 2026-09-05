@@ -38,16 +38,16 @@ On Linux, browser import is unavailable. Set `cookieSource` to `manual` and
 provide the Command Code `Cookie` header in `cookieHeader`; both `auto` and
 `web` CLI source modes then use the billing API.
 
-The monthly grant size comes only from the subscription lookup, and that optional
-request loses its short join grace several times a day. The plan is fixed for a
-billing period, so CodexBar keeps the resolved plan in memory, scoped to the
-credential that produced it. A kept plan is dropped at `currentPeriodEnd`, a day
+The monthly grant size comes from the optional subscription lookup, which can
+time out while credits remain available. CodexBar keeps the last confirmed plan
+in memory, scoped to the credential that produced it. A kept plan is dropped at `currentPeriodEnd`, a day
 after the last refresh that confirmed it, when a lookup reports the free tier,
 and when a lookup reports a plan this build cannot size. Nothing is written to
 disk, so a one-shot `codexbar usage` run starts with an empty memory.
 
-Test override: `COMMANDCODE_API_URL` replaces the billing base URL; use HTTPS or
-loopback HTTP.
+Debug builds accept `COMMANDCODE_API_URL` for synthetic tests against a loopback
+origin (`localhost`, `127.0.0.1`, or `::1`). Release builds always use the official
+billing endpoint.
 
 ## Display
 
@@ -58,7 +58,8 @@ loopback HTTP.
   and from the fresh credits response in every case. With no kept plan the row is
   unavailable rather than shown as untouched, which is what a one-shot
   `codexbar usage` run reports after a failed lookup. The rolling rows stay
-  available either way.
+  available either way. The app also preserves an already-proven depleted monthly
+  row while enrichment is unavailable and fresh credits still show depletion.
 - Widgets do not expose Command Code in the provider picker yet.
 
 ## Related files

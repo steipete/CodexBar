@@ -501,17 +501,24 @@ struct CommandCodeUsageFetcherTests {
     }
 
     @Test
-    func `endpoint override accepts loopback HTTP and rejects other plain HTTP hosts`() throws {
-        let key = CommandCodeUsageFetcher.apiURLEnvironmentKey
+    func `endpoint override is limited to debug loopback origins`() throws {
+        let key = "COMMANDCODE_API_URL"
         let production = try #require(URL(string: "https://api.commandcode.ai"))
-        let loopback = try #require(URL(string: "http://127.0.0.1:8080"))
-        let secure = try #require(URL(string: "https://billing.test"))
-
         #expect(CommandCodeUsageFetcher.apiBase(environment: [:]) == production)
-        #expect(CommandCodeUsageFetcher.apiBase(environment: [key: loopback.absoluteString]) == loopback)
-        #expect(CommandCodeUsageFetcher.apiBase(environment: [key: secure.absoluteString]) == secure)
-        // A plain HTTP endpoint off the loopback would send the session cookie in the clear.
-        #expect(CommandCodeUsageFetcher.apiBase(environment: [key: "http://billing.test"]) == production)
+        for raw in ["http://127.0.0.1:8080", "http://[::1]:8080", "https://localhost:8080/"] {
+            let loopback = try #require(URL(string: raw))
+            #if DEBUG
+            #expect(CommandCodeUsageFetcher.apiBase(environment: [key: raw]) == loopback)
+            #else
+            #expect(CommandCodeUsageFetcher.apiBase(environment: [key: raw]) == production)
+            #endif
+        }
+        for raw in [
+            "https://billing.test", "http://billing.test", "http://localhost:8080/path",
+            "http://localhost:8080?test=1", "http://localhost:8080#fragment", "http://user@localhost:8080",
+        ] {
+            #expect(CommandCodeUsageFetcher.apiBase(environment: [key: raw]) == production)
+        }
     }
 
     private static func response(

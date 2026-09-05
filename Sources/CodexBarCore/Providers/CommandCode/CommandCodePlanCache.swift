@@ -1,16 +1,6 @@
 import Foundation
 
-/// Remembers the Command Code subscription plan for the billing period it belongs to.
-///
-/// The monthly grant size lives only in `/internal/billing/subscriptions`, which the fetcher joins
-/// under a short grace so a slow optional request cannot hold the credits result. That grace is
-/// lost several times a day in practice. The plan is constant for a whole billing period, so a
-/// remembered plan lets a timed-out refresh size the monthly lane from the fresh credits response
-/// instead of publishing an unknown grant.
-///
-/// Entries are in-memory only, scoped to a credential fingerprint so one account can never size
-/// another account's lane, dropped at `currentPeriodEnd`, and dropped again once no refresh has
-/// confirmed them for a day.
+/// Retains the last confirmed allowance per credential while optional subscription requests fail.
 actor CommandCodePlanCache {
     struct Entry: Sendable {
         let plan: CommandCodePlanCatalog.Plan
@@ -22,13 +12,15 @@ actor CommandCodePlanCache {
     /// so the bound only exists to keep rotations from growing the map without limit.
     private static let capacity = 4
 
-    /// How long an entry survives without a successful lookup confirming it. Successful lookups
-    /// dominate in practice, so this bounds retention after the credential goes away - a cleared
-    /// cookie cache, a disabled provider - without ever expiring an entry a live account still
-    /// refreshes. It also bounds a server-supplied `currentPeriodEnd` far in the future.
+    /// Bounds reuse when no successful lookup confirms the allowance, even with a distant period end.
     private static let maximumUnconfirmedAge: TimeInterval = 24 * 60 * 60
 
-    private var entries: [String: Entry] = [:]
+    private struct Observation {
+        let entry: Entry?
+        let observedAt: Date
+    }
+
+    private var observations: [String: Observation] = [:]
 
     /// Remembers a resolved plan whose billing period has a known future end.
     ///
@@ -42,12 +34,10 @@ actor CommandCodePlanCache {
         fingerprint: String,
         now: Date)
     {
-        guard let periodEnd, periodEnd > now else {
-            self.entries[fingerprint] = nil
-            return
+        let entry = periodEnd.flatMap { end in
+            end > now ? Entry(plan: plan, periodEnd: end, storedAt: now) : nil
         }
-        self.entries[fingerprint] = Entry(plan: plan, periodEnd: periodEnd, storedAt: now)
-        self.prune(now: now)
+        self.record(entry: entry, fingerprint: fingerprint, now: now)
     }
 
     /// Forgets the remembered plan once a lookup proves it wrong: a verified free tier, or a plan
@@ -56,8 +46,7 @@ actor CommandCodePlanCache {
     /// A verdict older than the entry it would remove is ignored, so a slow response cannot revoke
     /// a plan that a later refresh already confirmed.
     func clear(fingerprint: String, now: Date) {
-        guard let entry = self.entries[fingerprint], entry.storedAt <= now else { return }
-        self.entries[fingerprint] = nil
+        self.record(entry: nil, fingerprint: fingerprint, now: now)
     }
 
     /// The remembered plan for this credential, or nil once it expires.
@@ -65,25 +54,29 @@ actor CommandCodePlanCache {
     /// An entry recorded after the instant being reported cannot describe that instant, so a
     /// backdated read never sees it.
     func entry(fingerprint: String, now: Date) -> Entry? {
-        guard let entry = self.entries[fingerprint] else { return nil }
+        guard let entry = self.observations[fingerprint]?.entry else { return nil }
         guard entry.storedAt <= now else { return nil }
         guard entry.periodEnd > now,
               now.timeIntervalSince(entry.storedAt) < Self.maximumUnconfirmedAge
         else {
-            self.entries[fingerprint] = nil
             return nil
         }
         return entry
     }
 
-    private func prune(now: Date) {
-        self.entries = self.entries.filter { $0.value.periodEnd > now }
-        guard self.entries.count > Self.capacity else { return }
-        let stale = self.entries
-            .sorted { $0.value.storedAt < $1.value.storedAt }
-            .prefix(self.entries.count - Self.capacity)
+    private func record(entry: Entry?, fingerprint: String, now: Date) {
+        guard self.observations[fingerprint].map({ $0.observedAt <= now }) ?? true else { return }
+        // Keep cleared verdicts too: an older response must not resurrect a superseded plan.
+        self.observations[fingerprint] = Observation(entry: entry, observedAt: now)
+        self.observations = self.observations.filter {
+            now.timeIntervalSince($0.value.observedAt) < Self.maximumUnconfirmedAge
+        }
+        guard self.observations.count > Self.capacity else { return }
+        let stale = self.observations
+            .sorted { $0.value.observedAt < $1.value.observedAt }
+            .prefix(self.observations.count - Self.capacity)
         for (key, _) in stale {
-            self.entries[key] = nil
+            self.observations[key] = nil
         }
     }
 }

@@ -1,4 +1,7 @@
-Command Code monthly grant flake - real-transport before/after proof
+Command Code monthly grant flake - contributor real-transport before/after proof
+
+This capture predates maintainer hardening. The final test endpoint override is debug-only and
+loopback-only; release builds keep the official billing endpoint. Its localhost command remains valid.
 
 The real `codexbar serve` binary ran against a local stand-in for api.commandcode.ai over real
 HTTP, through the production `ProviderHTTPClient` and `URLSession`. Nothing was stubbed inside the
@@ -94,3 +97,21 @@ Every case where the remembered plan must not apply is pinned in CommandCodePlan
 the billing period ends, a day passes with no refresh confirming it, another credential asks, a
 lookup verifies the free tier, a lookup reports a plan id this build cannot size, and a
 subscription arrives without a period end.
+
+Maintainer verification after cache ordering and endpoint hardening:
+
+The rebuilt debug CLI was exercised through `codexbar serve` and a loopback HTTP server.
+All inputs were synthetic and the temporary config was removed after the run. Each timeout
+returned after the production 2-second optional-enrichment grace, while the server delayed
+subscriptions for 6 seconds. Requests used ProviderHTTPClient and URLSession.
+
+{"case": "healthy", "monthlyUsedPercent": 10, "fiveHourUsedPercent": 12, "weeklyUsedPercent": 30, "elapsedSeconds": 0.2}
+{"case": "timeout-after-success", "monthlyUsedPercent": 60, "fiveHourUsedPercent": 12, "weeklyUsedPercent": 30, "elapsedSeconds": 2.037}
+{"case": "verified-free", "monthlyUsedPercent": 0, "fiveHourUsedPercent": 12, "weeklyUsedPercent": 30, "elapsedSeconds": 0.011}
+{"case": "timeout-after-free", "monthlyUsedPercent": null, "fiveHourUsedPercent": 12, "weeklyUsedPercent": 30, "elapsedSeconds": 2.086}
+{"case": "timeout-cold-process", "monthlyUsedPercent": null, "fiveHourUsedPercent": 12, "weeklyUsedPercent": 30, "elapsedSeconds": 2.15}
+{"billingRequests": 10, "result": "PASS"}
+
+The cache regression suite additionally covers out-of-order plan responses, cleared verdicts,
+exact expiry boundaries, and shared four-credential capacity. Release builds do not compile
+the endpoint override; debug builds accept loopback origins only.
