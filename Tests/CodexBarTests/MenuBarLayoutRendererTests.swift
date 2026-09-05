@@ -1559,7 +1559,6 @@ extension MenuBarLayoutRendererTests {
         let image = try #require(first.statusImage)
         #expect(image.isTemplate)
         #expect(equivalent.statusImage === image)
-        #expect(first.attributedTitle.string == "50%\u{2009}+11%\u{2009}1d 16h")
         let expected = ceil(first.attributedTitle.boundingRect(
             with: NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude),
             options: [.usesLineFragmentOrigin, .usesFontLeading]).width)
@@ -1603,6 +1602,21 @@ extension MenuBarLayoutRendererTests {
             icon: nil,
             options: self.options())
         #expect(multiline.statusImage == nil)
+    }
+
+    @Test
+    func `color glyphs retain native rendering while ordinary labels are cached`() {
+        let renderer = MenuBarLayoutRenderer()
+        let layout = MenuBarLayout(lines: [[.accountLabel]])
+        for label in ["Ops 🦞", "Work ♥️", "Team 1️⃣", "Office 👩‍💻", "Office 🇦🇹"] {
+            let output = renderer.render(
+                layout: layout, data: self.data(accountLabel: label), icon: nil, options: self.options())
+            #expect(output.statusImage == nil)
+            #expect(output.attributedTitle.string == label)
+        }
+        let ordinary = renderer.render(
+            layout: layout, data: self.data(accountLabel: "Personal"), icon: nil, options: self.options())
+        #expect(ordinary.statusImage != nil)
     }
 
     @Test

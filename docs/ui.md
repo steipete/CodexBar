@@ -70,7 +70,7 @@ model-generic token label while the rendered menu-bar prefix and accessibility l
 - Ordinary, fresh single-line text-only token layouts use cached template images so AppKit can reuse them across
   status-item redraws while retaining native highlighting and display-scale handling. The existing bounded renderer
   cache includes the content and appearance; memory-pressure cleanup clears it. Stale data, high-contrast mode,
-  provider icons, attachments, and multiline text keep their attributed-title rendering. Critter and bar styles
+  provider icons, attachments, colored glyphs such as emoji, and multiline text keep their attributed-title rendering. Critter and bar styles
   keep their existing renderers.
 
 ## Menu card

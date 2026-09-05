@@ -1,5 +1,6 @@
 import AppKit
 import CodexBarCore
+import CoreText
 import Foundation
 
 struct MenuBarLayoutRenderWindow: Hashable {
@@ -405,6 +406,15 @@ final class MenuBarLayoutRenderer {
 
     private static func statusImage(title: NSAttributedString) -> NSImage? {
         guard title.length > 0, !title.string.contains(where: \.isNewline) else { return nil }
+        // Inspect resolved fonts: an ordinary system-font title can fall back to colored emoji glyphs.
+        let line = CTLineCreateWithAttributedString(title)
+        guard let runs = CTLineGetGlyphRuns(line) as? [CTRun] else { return nil }
+        for run in runs {
+            let attributes = CTRunGetAttributes(run) as NSDictionary
+            guard let font = attributes[kCTFontAttributeName] as? NSFont,
+                  !CTFontGetSymbolicTraits(font as CTFont).contains(.traitColorGlyphs)
+            else { return nil }
+        }
         let baseline = (title.attribute(.baselineOffset, at: 0, effectiveRange: nil) as? NSNumber)?.doubleValue ?? 0
         let unshiftedTitle = NSMutableAttributedString(attributedString: title)
         unshiftedTitle.removeAttribute(.baselineOffset, range: NSRange(location: 0, length: title.length))

@@ -62,6 +62,7 @@ enum MenuBarLayoutNativeProof {
 
         private func refresh() {
             guard let item, let button = item.button else { return }
+            // Provider-specific by design: synthetic Codex data reproduces the reported text-only layout.
             let data = MenuBarLayoutRenderData(
                 provider: .codex,
                 iconKey: "synthetic-layout-proof",
