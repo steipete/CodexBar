@@ -29,7 +29,7 @@ public enum HelmcodeCookieHeader {
     /// header → manual; otherwise `HELMCODE_COOKIE`/`helmcode_cookie` with a normalizable header →
     /// environment. An empty manual value never falls through to the environment credential.
     public static func selectCredential(context: ProviderFetchContext) -> HelmcodeCredentialSelection? {
-        Self.selectCredential(
+        self.selectCredential(
             cookieSource: context.settings?.helmcode?.cookieSource,
             manualCookieHeader: context.settings?.helmcode?.manualCookieHeader,
             environment: context.env)
@@ -97,7 +97,7 @@ public enum HelmcodeCookieHeader {
     }
 
     static func header(from cookies: [HTTPCookie], for url: URL, now: Date = Date()) -> String? {
-        Self.headerWithDiagnostics(from: cookies, for: url, now: now).header
+        self.headerWithDiagnostics(from: cookies, for: url, now: now).header
     }
 
     private static func cookieOrder(_ lhs: HTTPCookie, _ rhs: HTTPCookie) -> Bool {

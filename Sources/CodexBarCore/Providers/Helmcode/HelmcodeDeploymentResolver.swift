@@ -66,7 +66,7 @@ public enum HelmcodeDeploymentResolver {
             guard let entry = CookieHeaderCache.load(
                 provider: .helmcode,
                 scope: HelmcodeWebFetchStrategy.cacheScope(deployment)),
-                  !entry.cookieHeader.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                !entry.cookieHeader.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             else { return nil }
             return (deployment, entry.storedAt)
         }
@@ -94,7 +94,6 @@ public enum HelmcodeDeploymentResolver {
         for credential: HelmcodeCredentialSelection,
         deploymentSelection selection: HelmcodeDeploymentSelection) -> HelmcodeDeployment
     {
-
         if let pinned = selection.pinnedDeployment {
             return pinned
         }

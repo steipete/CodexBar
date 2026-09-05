@@ -10,7 +10,7 @@ import Testing
 /// records, and the session fetch seams. Modeled on `ZoomMateCookieCacheTests`.
 @Suite(.serialized)
 struct HelmcodeDeploymentDetectionTests {
-    private final class CaptureBox: @unchecked Sendable {
+    final class CaptureBox: @unchecked Sendable {
         private let lock = NSLock()
         private var values: [String: String] = [:]
 
@@ -51,7 +51,7 @@ struct HelmcodeDeploymentDetectionTests {
 
     // MARK: - Helpers
 
-    private static func makeContext(
+    static func makeContext(
         runtime: CodexBarCore.ProviderRuntime,
         env: [String: String] = [:],
         settings: CodexBarCore.HelmcodeProviderSettings? = nil,
@@ -73,7 +73,7 @@ struct HelmcodeDeploymentDetectionTests {
             browserDetection: browserDetection)
     }
 
-    private func withTestKeychainCache<T>(_ operation: () async throws -> T) async rethrows -> T {
+    func withTestKeychainCache<T>(_ operation: () async throws -> T) async rethrows -> T {
         KeychainCacheStore.setTestStoreForTesting(true)
         Self.clearBothScopes()
         defer {
@@ -83,13 +83,13 @@ struct HelmcodeDeploymentDetectionTests {
         return try await operation()
     }
 
-    private static func clearBothScopes() {
+    static func clearBothScopes() {
         for deployment in HelmcodeDeployment.allCases {
             CookieHeaderCache.clear(provider: .helmcode, scope: HelmcodeWebFetchStrategy.cacheScope(deployment))
         }
     }
 
-    private static func record(
+    static func record(
         name: String,
         value: String,
         domain: String,
@@ -107,7 +107,7 @@ struct HelmcodeDeploymentDetectionTests {
             isHTTPOnly: false)
     }
 
-    private static func storeCachedSession(
+    static func storeCachedSession(
         _ deployment: HelmcodeDeployment,
         cookies: [HelmcodeCachedCookie],
         sourceLabel: String = "Chrome Profile 1 (Test)")
@@ -119,7 +119,7 @@ struct HelmcodeDeploymentDetectionTests {
             sourceLabel: sourceLabel)
     }
 
-    private static func legacyFlatStore(_ deployment: HelmcodeDeployment, header: String) {
+    static func legacyFlatStore(_ deployment: HelmcodeDeployment, header: String) {
         CookieHeaderCache.store(
             provider: .helmcode,
             scope: HelmcodeWebFetchStrategy.cacheScope(deployment),
@@ -127,7 +127,7 @@ struct HelmcodeDeploymentDetectionTests {
             sourceLabel: "Chrome Profile 1 (Test)")
     }
 
-    private static func helmcodeRejectedStub() -> ProviderHTTPTransportStub {
+    static func helmcodeRejectedStub() -> ProviderHTTPTransportStub {
         ProviderHTTPTransportStub { request in
             let url = try #require(request.url)
             if url.host == "cloud-api.helmcode.com" {
@@ -153,14 +153,14 @@ struct HelmcodeDeploymentDetectionTests {
         }
     }
 
-    private static func unexpectedNetworkStub() -> ProviderHTTPTransportStub {
+    static func unexpectedNetworkStub() -> ProviderHTTPTransportStub {
         ProviderHTTPTransportStub { _ in
             Issue.record("Unexpected network request")
             throw URLError(.badURL)
         }
     }
 
-    private static func successStub(expectedHost: String) -> ProviderHTTPTransportStub {
+    static func successStub(expectedHost: String) -> ProviderHTTPTransportStub {
         ProviderHTTPTransportStub { request in
             let url = try #require(request.url)
             #expect(url.host == expectedHost)
@@ -180,14 +180,14 @@ struct HelmcodeDeploymentDetectionTests {
     }
 
     private static func nanSessions() -> [HelmcodeCookieImporter.SessionInfo] {
-        [Self.session(cookieHeader: Self.nanCookieHeader, name: "nan_session", domain: "nan.builders")]
+        [self.session(cookieHeader: self.nanCookieHeader, name: "nan_session", domain: "nan.builders")]
     }
 
     private static func helmcodeSessions() -> [HelmcodeCookieImporter.SessionInfo] {
-        [Self.session(cookieHeader: Self.helmcodeCookieHeader, name: "session", domain: "helmcode.com")]
+        [self.session(cookieHeader: self.helmcodeCookieHeader, name: "session", domain: "helmcode.com")]
     }
 
-    private static func session(
+    static func session(
         cookieHeader: String,
         name: String,
         domain: String) -> HelmcodeCookieImporter.SessionInfo
@@ -249,22 +249,6 @@ struct HelmcodeDeploymentDetectionTests {
         #expect(HelmcodeDeploymentResolver.detectTenant(
             fromCookieCapture: "curl 'https://cloud.nan.builders.evil.example/dashboard' -H 'Cookie: session=abc'")
             == nil)
-    }
-
-    @Test
-    func `dashboard deployment follows credential over cache with pinned override`() {
-        let nanManual = HelmcodeProviderSettings(
-            cookieSource: .manual,
-            manualCookieHeader: "curl 'https://cloud.nan.builders/dashboard' -H 'Cookie: nan_session=abc'",
-            deploymentSelection: .auto)
-        #expect(HelmcodeDeploymentResolver.dashboardDeployment(settings: nanManual, environment: [:]) == .nanBuilders)
-        let auto = HelmcodeProviderSettings(cookieSource: .auto, manualCookieHeader: nil, deploymentSelection: .auto)
-        #expect(HelmcodeDeploymentResolver.dashboardDeployment(settings: auto, environment: [:]) == .helmcode)
-        let pinned = HelmcodeProviderSettings(
-            cookieSource: .manual,
-            manualCookieHeader: "curl 'https://cloud.nan.builders/dashboard' -H 'Cookie: nan_session=abc'",
-            deploymentSelection: .helmcode)
-        #expect(HelmcodeDeploymentResolver.dashboardDeployment(settings: pinned, environment: [:]) == .helmcode)
     }
 
     #if os(macOS)
@@ -423,7 +407,9 @@ struct HelmcodeDeploymentDetectionTests {
                 return (Data(#"{"error":"unauthenticated"}"#.utf8), response)
             }
             let strategy = HelmcodeWebFetchStrategy()
-            let importOverride: (@Sendable (HelmcodeDeployment) -> [HelmcodeCookieImporter.SessionInfo]?)? = { _ in nil }
+            let importOverride: (@Sendable (HelmcodeDeployment) -> [HelmcodeCookieImporter.SessionInfo]?)? = { _ in
+                nil
+            }
             try await ProviderInteractionContext.$current.withValue(.userInitiated) {
                 await #expect {
                     _ = try await HelmcodeWebFetchStrategy.$sessionImporterOverrideForTesting
@@ -630,9 +616,10 @@ struct HelmcodeDeploymentDetectionTests {
             ])
             let lines = CaptureBox()
             let strategy = HelmcodeWebFetchStrategy()
-            let result = try await HelmcodeWebFetchStrategy.$verboseSinkForTesting.withValue({ line in
+            let sink: (@Sendable (String) -> Void)? = { line in
                 lines.append(line)
-            }) {
+            }
+            let result = try await HelmcodeWebFetchStrategy.$verboseSinkForTesting.withValue(sink) {
                 try await HelmcodeWebFetchStrategy.$transportOverrideForTesting.withValue(
                     Self.successStub(expectedHost: "cloud-api.nan.builders"))
                 {
@@ -652,255 +639,14 @@ struct HelmcodeDeploymentDetectionTests {
         }
     }
 
-    // MARK: - Session fetch seams
-
-    @Test
-    func `imported session fetch skips a rejected session and persists records`() async throws {
-        try await self.withTestKeychainCache {
-            let stub = ProviderHTTPTransportStub { request in
-                let url = try #require(request.url)
-                if request.value(forHTTPHeaderField: "Cookie") == "session=expired" {
-                    return try Self.response(url: url, status: 401, body: Self.unauthenticatedBody())
-                }
-                return try Self.response(url: url, body: Self.quotaFixture())
-            }
-            let sessions = try [
-                Self.makeSession(cookieHeader: "session=expired", value: "expired"),
-                Self.makeSession(cookieHeader: "session=fresh", value: "fresh"),
-            ]
-
-            let snapshot = try await HelmcodeWebFetchStrategy.fetchImportedSessions(
-                sessions,
-                deployment: .helmcode) { session in
-                    try await HelmcodeWebFetchStrategy.fetchAndCacheSession(
-                        session,
-                        deployment: .helmcode,
-                        transport: stub)
-                }
-
-            #expect(snapshot.toUsageSnapshot().primary?.resetDescription?.contains("glm5.3-flash") == true)
-            let cached = HelmcodeCachedSession.decode(
-                CookieHeaderCache.load(
-                    provider: .helmcode,
-                    scope: HelmcodeWebFetchStrategy.cacheScope(.helmcode))?.cookieHeader ?? "")
-            #expect(cached?.cookies.first?.name == "session")
-            #expect(cached?.cookies.first?.value == "fresh")
-        }
-    }
-
-    @Test
-    func `imported session fetch stops at an api error instead of trying the next session`() async throws {
-        try await self.withTestKeychainCache {
-            let stub = ProviderHTTPTransportStub { request in
-                let url = try #require(request.url)
-                if request.value(forHTTPHeaderField: "Cookie") == "session=expired" {
-                    return try Self.response(url: url, status: 401, body: Self.unauthenticatedBody())
-                }
-                return try Self.response(url: url, status: 500, body: Data(#"{"error":"boom"}"#.utf8))
-            }
-            let sessions = try [
-                Self.makeSession(cookieHeader: "session=expired", value: "expired"),
-                Self.makeSession(cookieHeader: "session=broken", value: "broken"),
-            ]
-
-            await #expect {
-                _ = try await HelmcodeWebFetchStrategy.fetchImportedSessions(
-                    sessions,
-                    deployment: .helmcode) { session in
-                        try await HelmcodeWebFetchStrategy.fetchAndCacheSession(
-                            session,
-                            deployment: .helmcode,
-                            transport: stub)
-                    }
-            } throws: { error in
-                (error as? HelmcodeUsageError) == HelmcodeUsageError.apiError(500)
-            }
-            #expect(
-                CookieHeaderCache.load(
-                    provider: .helmcode,
-                    scope: HelmcodeWebFetchStrategy.cacheScope(.helmcode)) == nil)
-        }
-    }
-
-    // MARK: - Cache behavior (round 1)
-
-    @Test
-    func `cached header is reused without a browser read in cli runtime`() async throws {
-        try await self.withTestKeychainCache {
-            Self.storeCachedSession(.nanBuilders, cookies: [
-                Self.record(name: "nan_session", value: "fake-nan-value", domain: "nan.builders"),
-            ])
-            let stub = Self.successStub(expectedHost: "cloud-api.nan.builders")
-
-            let strategy = HelmcodeWebFetchStrategy()
-            let context = Self.makeContext(runtime: .cli, env: ["HELMCODE_DEPLOYMENT": "nan"])
-            let available = await strategy.isAvailable(context)
-            #expect(available == true)
-            let result = try await HelmcodeWebFetchStrategy.$transportOverrideForTesting.withValue(stub) {
-                try await strategy.fetch(context)
-            }
-
-            #expect(result.sourceLabel == "web · NaN Builders")
-            #expect(result.usage.primary?.resetDescription?.contains("helm-model-a") == true)
-            let requests = await stub.requests()
-            #expect(requests.count == 3)
-            #expect(requests.allSatisfy { $0.url?.host == "cloud-api.nan.builders" })
-            #expect(requests.first?.value(forHTTPHeaderField: "Cookie") == "nan_session=fake-nan-value")
-        }
-    }
-
-    @Test
-    func `nan and helmcode cache scopes are isolated`() async throws {
-        try await self.withTestKeychainCache {
-            Self.storeCachedSession(.nanBuilders, cookies: [
-                Self.record(name: "nan_session", value: "fake-nan-value", domain: "nan.builders"),
-            ])
-
-            // The Helmcode Cloud scope has no entry: no import allowed in CLI runtime, so the
-            // fetch fails while the NaN entry survives untouched.
-            let strategy = HelmcodeWebFetchStrategy()
-            let context = Self.makeContext(runtime: .cli, env: ["HELMCODE_DEPLOYMENT": "helmcode"])
-            await #expect {
-                _ = try await HelmcodeWebFetchStrategy.$transportOverrideForTesting
-                    .withValue(Self.unexpectedNetworkStub()) {
-                        try await strategy.fetch(context)
-                    }
-            } throws: { error in
-                (error as? HelmcodeUsageError) == HelmcodeUsageError.missingCookies(.helmcode)
-            }
-            #expect(
-                HelmcodeCachedSession.decode(
-                    CookieHeaderCache.load(
-                        provider: .helmcode,
-                        scope: HelmcodeWebFetchStrategy.cacheScope(.nanBuilders))?.cookieHeader ?? ""
-                )?.cookies.first?.value == "fake-nan-value")
-            #expect(
-                CookieHeaderCache.load(
-                    provider: .helmcode,
-                    scope: HelmcodeWebFetchStrategy.cacheScope(.helmcode)) == nil)
-        }
-    }
-
-    @Test
-    func `off and manual modes never touch the cache`() async throws {
-        try await self.withTestKeychainCache {
-            Self.storeCachedSession(.helmcode, cookies: [
-                Self.record(name: "session", value: "fake-helmcode-value", domain: "helmcode.com"),
-            ])
-            let strategy = HelmcodeWebFetchStrategy()
-
-            let offContext = Self.makeContext(
-                runtime: .cli,
-                env: ["HELMCODE_COOKIE": "session=env-value"],
-                settings: HelmcodeProviderSettings(cookieSource: .off, manualCookieHeader: nil))
-            #expect(await strategy.isAvailable(offContext) == false)
-            #expect(HelmcodeCookieHeader.selectCredential(context: offContext) == nil)
-            await #expect {
-                _ = try await HelmcodeWebFetchStrategy.$transportOverrideForTesting
-                    .withValue(Self.unexpectedNetworkStub()) {
-                        try await strategy.fetch(offContext)
-                    }
-            } throws: { error in
-                (error as? HelmcodeUsageError) == HelmcodeUsageError.missingCookiesAny
-            }
-
-            let manualContext = Self.makeContext(
-                runtime: .cli,
-                settings: HelmcodeProviderSettings(cookieSource: .manual, manualCookieHeader: ""))
-            #expect(await strategy.isAvailable(manualContext) == false)
-            await #expect {
-                _ = try await HelmcodeWebFetchStrategy.$transportOverrideForTesting
-                    .withValue(Self.unexpectedNetworkStub()) {
-                        try await strategy.fetch(manualContext)
-                    }
-            } throws: { error in
-                (error as? HelmcodeUsageError) == HelmcodeUsageError.missingCookiesAny
-            }
-
-            // Neither mode rewrote or evicted the persisted entry.
-            #expect(
-                HelmcodeCachedSession.decode(
-                    CookieHeaderCache.load(
-                        provider: .helmcode,
-                        scope: HelmcodeWebFetchStrategy.cacheScope(.helmcode))?.cookieHeader ?? ""
-                )?.cookies.first?.value == "fake-helmcode-value")
-        }
-    }
-
-    @Test
-    func `successful import stores records under the deployment scope`() async throws {
-        try await self.withTestKeychainCache {
-            let session = Self.session(
-                cookieHeader: "nan_session=imported-value",
-                name: "nan_session",
-                domain: "nan.builders")
-            let stub = Self.successStub(expectedHost: "cloud-api.nan.builders")
-
-            let fetched = try await HelmcodeWebFetchStrategy.fetchAndCacheSession(
-                session,
-                deployment: .nanBuilders,
-                transport: stub)
-
-            #expect(fetched.toUsageSnapshot().primary?.resetDescription?.contains("helm-model-a") == true)
-            let cached = HelmcodeCachedSession.decode(
-                CookieHeaderCache.load(
-                    provider: .helmcode,
-                    scope: HelmcodeWebFetchStrategy.cacheScope(.nanBuilders))?.cookieHeader ?? "")
-            #expect(cached?.cookies.first?.name == "nan_session")
-            #expect(cached?.cookies.first?.value == "fixture")
-            #expect(cached?.cookies.first?.domain == ".nan.builders")
-            #expect(
-                CookieHeaderCache.load(
-                    provider: .helmcode,
-                    scope: HelmcodeWebFetchStrategy.cacheScope(.nanBuilders))?.sourceLabel ==
-                    "Chrome Profile 1 (Test)")
-        }
-    }
-
-    @Test
-    func `strategy is unavailable without an override cache or browser session`() async throws {
-        try await self.withTestKeychainCache {
-            let strategy = HelmcodeWebFetchStrategy()
-
-            let cliContext = Self.makeContext(runtime: .cli)
-            #expect(await strategy.isAvailable(cliContext) == false)
-
-            await ProviderInteractionContext.$current.withValue(.background) {
-                let appContext = Self.makeContext(runtime: .app)
-                #expect(await strategy.isAvailable(appContext) == false)
-            }
-        }
-    }
-
-    @Test
-    func `off deployment yields no override even with environment cookie`() async throws {
-        try await self.withTestKeychainCache {
-            let strategy = HelmcodeWebFetchStrategy()
-            let offContext = Self.makeContext(
-                runtime: .cli,
-                env: ["HELMCODE_COOKIE": "session=env-value"],
-                settings: HelmcodeProviderSettings(cookieSource: .off, manualCookieHeader: nil))
-            #expect(await strategy.isAvailable(offContext) == false)
-            #expect(HelmcodeCookieHeader.selectCredential(context: offContext) == nil)
-
-            await #expect(throws: HelmcodeUsageError.missingCookiesAny) {
-                _ = try await HelmcodeWebFetchStrategy.$transportOverrideForTesting
-                    .withValue(Self.unexpectedNetworkStub()) {
-                        try await strategy.fetch(offContext)
-                    }
-            }
-        }
-    }
-    #endif
-
     // MARK: - Dashboard action (app seam, F4)
 
     @Test @MainActor
-    func `helmcode dashboard action follows the selected or detected deployment`() {
+    func `helmcode dashboard action follows the selected or detected deployment`() throws {
         StatusItemController.menuCardRenderingEnabled = false
         StatusItemController.setMenuRefreshEnabledForTesting(false)
         let suite = "HelmcodeDeploymentDetectionTests-dashboard-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suite)!
+        let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
         let settings = SettingsStore(
             userDefaults: defaults,
@@ -956,7 +702,7 @@ struct HelmcodeDeploymentDetectionTests {
 
     // MARK: - Fixture helpers
 
-    private static func quotaFixture() throws -> Data {
+    static func quotaFixture() throws -> Data {
         let url = try #require(Bundle.module.url(
             forResource: "quota",
             withExtension: "json",
@@ -964,11 +710,11 @@ struct HelmcodeDeploymentDetectionTests {
         return try Data(contentsOf: url)
     }
 
-    private static func unauthenticatedBody() -> Data {
+    static func unauthenticatedBody() -> Data {
         Data(#"{"error":"unauthenticated"}"#.utf8)
     }
 
-    private static func response(url: URL, status: Int = 200, body: Data) throws -> (Data, URLResponse) {
+    static func response(url: URL, status: Int = 200, body: Data) throws -> (Data, URLResponse) {
         let response = try #require(HTTPURLResponse(
             url: url,
             statusCode: status,
@@ -977,7 +723,7 @@ struct HelmcodeDeploymentDetectionTests {
         return (body, response)
     }
 
-    private static func makeSession(
+    static func makeSession(
         cookieHeader: String,
         value: String) throws -> HelmcodeCookieImporter.SessionInfo
     {
@@ -995,4 +741,5 @@ struct HelmcodeDeploymentDetectionTests {
         #expect(HelmcodeCookieHeader.header(from: cookies, for: url) == cookieHeader)
         return HelmcodeCookieImporter.SessionInfo(cookies: cookies, sourceLabel: "Chrome Profile 1 (Test)")
     }
+    #endif
 }

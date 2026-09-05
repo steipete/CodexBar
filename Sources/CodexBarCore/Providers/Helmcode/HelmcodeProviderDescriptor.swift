@@ -117,7 +117,9 @@ struct HelmcodeWebFetchStrategy: ProviderFetchStrategy {
             let tenant = HelmcodeDeploymentResolver.tenant(
                 for: credential,
                 deploymentSelection: deploymentSelection)
-            verbose?("helmcode: tenant \(tenant.sourceLabelName) \(Self.tenantDecisionText(credential, deploymentSelection))")
+            verbose?(
+                "helmcode: tenant \(tenant.sourceLabelName) " +
+                    "\(Self.tenantDecisionText(credential, deploymentSelection))")
             let snapshot = try await HelmcodeUsageFetcher.fetchUsage(
                 cookieHeader: credential.cookieHeader,
                 deployment: tenant,
@@ -157,7 +159,8 @@ struct HelmcodeWebFetchStrategy: ProviderFetchStrategy {
         var lastCredentialError: HelmcodeUsageError?
 
         for tenant in HelmcodeDeploymentResolver.cachedTenantsByRecency()
-        where pinned == nil || pinned == tenant {
+            where pinned == nil || pinned == tenant
+        {
             guard let stored = Self.cachedStoredSession(for: tenant) else { continue }
             verbose?("helmcode: candidate \(tenant.sourceLabelName) (cache)")
             // A legacy flat-header entry is not a session: treat it as a miss and clear the scope (F2).
@@ -178,7 +181,8 @@ struct HelmcodeWebFetchStrategy: ProviderFetchStrategy {
                     usage: snapshot.toUsageSnapshot(),
                     sourceLabel: Self.sourceLabel(for: tenant))
             } catch let error as HelmcodeUsageError
-            where error == .invalidSession(tenant) || error == .missingCookies(tenant) {
+                where error == .invalidSession(tenant) || error == .missingCookies(tenant)
+            {
                 verbose?(
                     "helmcode: candidate \(tenant.sourceLabelName) rejected (invalid session), " +
                         "evicting cache scope, trying next")
@@ -191,25 +195,28 @@ struct HelmcodeWebFetchStrategy: ProviderFetchStrategy {
         #if os(macOS)
         if Self.allowsBrowserImport(context: context) {
             for tenant in HelmcodeDeployment.allCases
-            where pinned == nil || pinned == tenant {
+                where pinned == nil || pinned == tenant
+            {
                 let sessions = (try? Self.importSessions(deployment: tenant, context: context)) ?? []
                 guard !sessions.isEmpty else { continue }
                 verbose?("helmcode: candidate \(tenant.sourceLabelName) (import)")
                 do {
                     let snapshot = try await Self.fetchImportedSessions(
                         sessions,
-                        deployment: tenant) { session in
-                            try await Self.fetchAndCacheSession(
-                                session,
-                                deployment: tenant,
-                                transport: transport,
-                                verbose: verbose)
-                        }
+                        deployment: tenant)
+                    { session in
+                        try await Self.fetchAndCacheSession(
+                            session,
+                            deployment: tenant,
+                            transport: transport,
+                            verbose: verbose)
+                    }
                     return self.makeResult(
                         usage: snapshot.toUsageSnapshot(),
                         sourceLabel: Self.sourceLabel(for: tenant))
                 } catch let error as HelmcodeUsageError
-                where error == .invalidSession(tenant) || error == .missingCookies(tenant) {
+                    where error == .invalidSession(tenant) || error == .missingCookies(tenant)
+                {
                     verbose?("helmcode: candidate \(tenant.sourceLabelName) rejected (invalid session), trying next")
                     lastCredentialError = error
                     continue

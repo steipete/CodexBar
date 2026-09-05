@@ -54,7 +54,9 @@ public struct HelmcodeCachedCookie: Codable, Equatable, Sendable {
             .value: self.value,
             .secure: self.isSecure,
         ]
-        if let originURL = URL(string: "https://\(self.domain.hasPrefix(".") ? String(self.domain.dropFirst()) : self.domain)") {
+        if let originURL =
+            URL(string: "https://\(self.domain.hasPrefix(".") ? String(self.domain.dropFirst()) : self.domain)")
+        {
             properties[.originURL] = originURL
         }
         if self.isHTTPOnly {
@@ -81,7 +83,7 @@ public struct HelmcodeCachedSession: Codable, Equatable, Sendable {
     /// ZoomMate's `encodedForStorage()`), so the existing cache infrastructure needs no changes.
     public func encodedForStorage() -> String? {
         guard let data = try? JSONEncoder().encode(self) else { return nil }
-        return String(decoding: data, as: UTF8.self)
+        return String(bytes: data, encoding: .utf8)
     }
 
     /// Decodes a persisted session. A legacy cache entry holds a flat `Cookie:` header string, which
