@@ -51,10 +51,14 @@ other. CLI users can select the tenant with `HELMCODE_DEPLOYMENT=nanbuilders` (a
 4. Leave **Cookie source** on **Automatic** and refresh Helmcode from the app.
 
 Automatic cookie import is Chrome-only and runs on an explicit app refresh. After a validated refresh the dashboard
-session is persisted in the cookie cache (scoped to the selected deployment), so later automatic refreshes — including
-background refreshes and the bundled CLI — reuse it without rereading the browser until the session is rejected.
-If automatic import cannot find the active session, switch to **Manual** and paste either the browser's
-`Cookie:` request header or a cURL capture from the Helmcode dashboard.
+session is persisted in the cookie cache (scoped to the selected deployment) as cookie records with path and expiry
+metadata, so later automatic refreshes — including background refreshes and the bundled CLI — reuse it without
+rereading the browser. Cached sessions keep their per-cookie scope: a cookie limited to `/api/usage` is never sent
+to billing, and an expired cookie is dropped by name. When every candidate is rejected, its cache scope is evicted
+and nothing is committed until a quota request succeeds. A legacy flat-header cache entry is treated as a miss and
+cleared. If automatic import cannot find the active session, switch to **Manual** and paste either the browser's
+`Cookie:` request header or a cURL capture from the Helmcode dashboard; a cURL capture also decides the tenant
+(host detection), so the paste is only ever sent to the dashboard it came from.
 
 For CLI use, set the same value in `HELMCODE_COOKIE` (plus the deployment when using NaN Builders):
 
@@ -86,6 +90,10 @@ CLI users can also persist the deployment in `config.json` instead of the enviro
 - Optional: `GET https://<api-host>/api/billing/credits` (Helmcode Cloud prepaid balance; NaN Builders has no
   prepaid balance — the membership subscription has none, so the endpoint answers 404 there)
 - Request context: the dashboard Cookie header plus the selected deployment's `Origin` and `Referer` headers.
+- Tenant selection is validated: in Automatic mode cached sessions (newest first) and imported sessions
+  (Helmcode Cloud first) are candidates; a rejected candidate's cache scope is evicted and the next candidate
+  is tried, and nothing is committed until a quota request answers 200. With `--verbose` the CLI prints the
+  boundary per request (host, path, cookie names, and excluded expired/path-mismatched cookies — never values).
 
 The quota response provides `periodStart` and a `models` array. CodexBar maps each positive `cap` against
 `tokensUsed`; `creditTokens` is included in the usage detail when present. Each model entry's own `periodEnd`
