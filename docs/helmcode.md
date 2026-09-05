@@ -58,6 +58,22 @@ HELMCODE_COOKIE='session=...' codexbar usage --provider helmcode --source web
 HELMCODE_COOKIE='session=...' HELMCODE_DEPLOYMENT=nanbuilders codexbar usage --provider helmcode --source web
 ```
 
+CLI users can also persist the deployment in `config.json` instead of the environment variable
+(`region` carries the deployment; use the exact raw value `nanBuilders`):
+
+```json
+{
+  "version": 1,
+  "providers": [
+    {
+      "id": "helmcode",
+      "enabled": true,
+      "region": "nanBuilders"
+    }
+  ]
+}
+```
+
 ## Data source
 
 - Required: `GET https://<api-host>/api/usage/quota`

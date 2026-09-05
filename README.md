@@ -176,6 +176,7 @@ See [CLI configuration](docs/cli-configuration.md) for the full flow.
 - [Poe](docs/poe.md) — API key for current point balance and recent points history.
 - [Chutes](docs/chutes.md) — API key for subscription usage, rolling and monthly quota windows, and pay-as-you-go quotas.
 - [Neuralwatt](docs/neuralwatt.md) — API key for subscription kWh usage and prepaid credit balance.
+- [Helmcode](docs/helmcode.md) — Chrome dashboard session or manual Cookie header for per-model monthly token quotas and prepaid balance (Helmcode Cloud or NaN Builders).
 - [ZenMux](docs/zenmux.md) — Management API key for rolling five-hour and seven-day quota windows plus PAYG balance.
 - [xAI](docs/xai.md) — Management API key + team ID for prepaid credit balance and daily platform spend.
 - [IBM Bob](docs/ibm-bob.md) — API key for monthly Bobcoin budget and usage across subscription teams.
