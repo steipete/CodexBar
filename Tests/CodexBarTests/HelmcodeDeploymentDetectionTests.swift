@@ -411,15 +411,22 @@ struct HelmcodeDeploymentDetectionTests {
                 nil
             }
             try await ProviderInteractionContext.$current.withValue(.userInitiated) {
-                await #expect {
-                    _ = try await HelmcodeWebFetchStrategy.$sessionImporterOverrideForTesting
-                        .withValue(importOverride) {
-                            try await strategy.fetch(Self.makeContext(runtime: .app))
+                try await HelmcodeWebFetchStrategy.$sessionImporterOverrideForTesting
+                    .withValue(importOverride) {
+                        try await HelmcodeWebFetchStrategy.$transportOverrideForTesting.withValue(stub) {
+                            await #expect {
+                                _ = try await strategy.fetch(Self.makeContext(runtime: .app))
+                            } throws: { error in
+                                (error as? HelmcodeUsageError) == HelmcodeUsageError.missingCookiesAny
+                            }
                         }
-                } throws: { error in
-                    (error as? HelmcodeUsageError) == HelmcodeUsageError.missingCookiesAny
-                }
+                    }
             }
+            // Two cached candidates were validated (401 each); imports yielded nothing.
+            #expect(await stub.requests().count == 2)
+            #expect(await stub.requests().allSatisfy { request in
+                request.url?.host == "cloud-api.helmcode.com" || request.url?.host == "cloud-api.nan.builders"
+            })
             #expect(
                 CookieHeaderCache.load(
                     provider: .helmcode,
@@ -629,6 +636,7 @@ struct HelmcodeDeploymentDetectionTests {
         }
     }
 
+    @Test
     func `legacy flat cache entry is a miss that clears the scope`() async throws {
         try await self.withTestKeychainCache {
             Self.legacyFlatStore(.nanBuilders, header: "nan_session=legacy-flat-header")

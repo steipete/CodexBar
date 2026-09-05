@@ -253,4 +253,53 @@ extension HelmcodeDeploymentDetectionTests {
         }
     }
     #endif
+
+    // MARK: - Dashboard deployment routing (display cache)
+
+    @Test
+    func `dashboard deployment follows credential over cache with pinned override`() async throws {
+        try await self.withTestKeychainCache {
+            // Automatic + manual NaN capture: NaN (the credential decides, beating the display cache).
+            let nanManual = HelmcodeProviderSettings(
+                cookieSource: .manual,
+                manualCookieHeader: "curl 'https://cloud.nan.builders/dashboard' -H 'Cookie: nan_session=abc'",
+                deploymentSelection: .auto)
+            #expect(
+                HelmcodeDeploymentResolver.dashboardDeployment(settings: nanManual, environment: [:]) == .nanBuilders)
+            // Automatic, no credential, no cache: Helmcode Cloud fallback.
+            let auto = HelmcodeProviderSettings(
+                cookieSource: .auto,
+                manualCookieHeader: nil,
+                deploymentSelection: .auto)
+            #expect(HelmcodeDeploymentResolver.dashboardDeployment(settings: auto, environment: [:]) == .helmcode)
+            // A pinned selection wins over everything.
+            let pinned = HelmcodeProviderSettings(
+                cookieSource: .manual,
+                manualCookieHeader: "curl 'https://cloud.nan.builders/dashboard' -H 'Cookie: nan_session=abc'",
+                deploymentSelection: .helmcode)
+            #expect(HelmcodeDeploymentResolver.dashboardDeployment(settings: pinned, environment: [:]) == .helmcode)
+        }
+    }
+
+    @Test
+    func `dashboard deployment routes bare credentials to cloud without cache fallthrough`() async throws {
+        try await self.withTestKeychainCache {
+            // A credential IS selected (bare header, no host): fetching routes it to Helmcode Cloud,
+            // so the dashboard must NOT fall through to a cached NaN tenant (G3).
+            let bareManual = HelmcodeProviderSettings(
+                cookieSource: .manual,
+                manualCookieHeader: "session=abc",
+                deploymentSelection: .auto)
+            Self.storeCachedSession(.nanBuilders, cookies: [
+                Self.record(name: "session", value: "cached", domain: "nan.builders"),
+            ])
+            #expect(HelmcodeDeploymentResolver.dashboardDeployment(settings: bareManual, environment: [:]) == .helmcode)
+            // No credential selected: the display-path cache decides.
+            let auto = HelmcodeProviderSettings(
+                cookieSource: .auto,
+                manualCookieHeader: nil,
+                deploymentSelection: .auto)
+            #expect(HelmcodeDeploymentResolver.dashboardDeployment(settings: auto, environment: [:]) == .nanBuilders)
+        }
+    }
 }
