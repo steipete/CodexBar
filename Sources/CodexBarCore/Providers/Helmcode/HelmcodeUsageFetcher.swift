@@ -108,7 +108,7 @@ public struct HelmcodeUsageSnapshot: Equatable, Sendable {
     static func nextMonthStart(periodStart: String) -> Date? {
         let prefix = String(periodStart.prefix(10))
         let pieces = prefix.split(separator: "-").compactMap { Int($0) }
-        guard pieces.count == 3 else { return nil }
+        guard pieces.count == 3, (1...12).contains(pieces[1]), (1...31).contains(pieces[2]) else { return nil }
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
         guard let start = calendar.date(from: DateComponents(

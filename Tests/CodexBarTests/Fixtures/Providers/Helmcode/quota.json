@@ -1,0 +1,21 @@
+{
+  "periodStart": "2026-09-18T14:30:00Z",
+  "models": [
+    {
+      "model": "helm-model-a",
+      "cap": 1000000,
+      "tokensUsed": 250000,
+      "creditTokens": 2000,
+      "creditSpendMicros": 12500,
+      "addon": false
+    },
+    {
+      "model": "helm-model-b",
+      "cap": 2000000,
+      "tokensUsed": 1500000,
+      "creditTokens": 0,
+      "creditSpendMicros": 0,
+      "addon": true
+    }
+  ]
+}
