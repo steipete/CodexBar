@@ -112,13 +112,15 @@ public enum HelmcodeDeploymentResolver {
         if let pinned = selection.pinnedDeployment {
             return pinned
         }
+        // Mirror the fetch rule: when a credential IS selected, its own capture decides — a bare
+        // header routes to Helmcode Cloud and never falls through to the cache (G3); only when NO
+        // credential is selected does the display-path cache detection decide.
         if let credential = HelmcodeCookieHeader.selectCredential(
             cookieSource: settings?.cookieSource,
             manualCookieHeader: settings?.manualCookieHeader,
-            environment: environment),
-            let detected = Self.detectTenant(fromCookieCapture: credential.rawCapture)
+            environment: environment)
         {
-            return detected
+            return Self.detectTenant(fromCookieCapture: credential.rawCapture) ?? .helmcode
         }
         return Self.detectTenantFromCacheForDisplay() ?? .helmcode
     }
