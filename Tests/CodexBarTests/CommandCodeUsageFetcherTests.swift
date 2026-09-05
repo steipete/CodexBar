@@ -91,49 +91,53 @@ struct CommandCodeUsageFetcherTests {
 
     @Test
     func `successful free tier lookup has no usage window`() async throws {
-        let transport = ProviderHTTPTransportStub { request in
-            let path = try #require(request.url?.path)
-            let body = if path.hasSuffix("/credits") {
-                """
-                {"credits":{"monthlyCredits":0,"purchasedCredits":0,
-                "premiumMonthlyCredits":0,"opensourceMonthlyCredits":0}}
-                """
-            } else {
-                #"{"success":true,"data":null}"#
+        try await CommandCodeUsageFetcher.withIsolatedPlanCacheForTesting {
+            let transport = ProviderHTTPTransportStub { request in
+                let path = try #require(request.url?.path)
+                let body = if path.hasSuffix("/credits") {
+                    """
+                    {"credits":{"monthlyCredits":0,"purchasedCredits":0,
+                    "premiumMonthlyCredits":0,"opensourceMonthlyCredits":0}}
+                    """
+                } else {
+                    #"{"success":true,"data":null}"#
+                }
+                return try Self.response(request: request, statusCode: 200, body: body)
             }
-            return try Self.response(request: request, statusCode: 200, body: body)
+
+            let snapshot = try await CommandCodeUsageFetcher.fetchUsage(
+                cookieHeader: "session=valid",
+                session: transport)
+
+            #expect(snapshot.subscriptionEnrichmentUnavailable == false)
+            #expect(snapshot.toUsageSnapshot().primary == nil)
         }
-
-        let snapshot = try await CommandCodeUsageFetcher.fetchUsage(
-            cookieHeader: "session=valid",
-            session: transport)
-
-        #expect(snapshot.subscriptionEnrichmentUnavailable == false)
-        #expect(snapshot.toUsageSnapshot().primary == nil)
     }
 
     @Test
     func `subscription failure envelope preserves required credits`() async throws {
-        let transport = ProviderHTTPTransportStub { request in
-            let path = try #require(request.url?.path)
-            if path.hasSuffix("/credits") {
-                return try Self.response(request: request, statusCode: 200, body: Self.creditsJSON)
+        try await CommandCodeUsageFetcher.withIsolatedPlanCacheForTesting {
+            let transport = ProviderHTTPTransportStub { request in
+                let path = try #require(request.url?.path)
+                if path.hasSuffix("/credits") {
+                    return try Self.response(request: request, statusCode: 200, body: Self.creditsJSON)
+                }
+                return try Self.response(
+                    request: request,
+                    statusCode: 200,
+                    body: #"{"success":false,"error":"temporarily unavailable"}"#)
             }
-            return try Self.response(
-                request: request,
-                statusCode: 200,
-                body: #"{"success":false,"error":"temporarily unavailable"}"#)
+
+            let snapshot = try await CommandCodeUsageFetcher.fetchUsage(
+                cookieHeader: "session=valid",
+                session: transport,
+                now: Date(timeIntervalSince1970: 123))
+
+            #expect(snapshot.monthlyCreditsRemaining == 8.7784)
+            #expect(snapshot.plan == nil)
+            #expect(snapshot.subscriptionEnrichmentUnavailable)
+            #expect(snapshot.updatedAt == Date(timeIntervalSince1970: 123))
         }
-
-        let snapshot = try await CommandCodeUsageFetcher.fetchUsage(
-            cookieHeader: "session=valid",
-            session: transport,
-            now: Date(timeIntervalSince1970: 123))
-
-        #expect(snapshot.monthlyCreditsRemaining == 8.7784)
-        #expect(snapshot.plan == nil)
-        #expect(snapshot.subscriptionEnrichmentUnavailable)
-        #expect(snapshot.updatedAt == Date(timeIntervalSince1970: 123))
     }
 
     @Test
@@ -147,78 +151,84 @@ struct CommandCodeUsageFetcherTests {
 
     @Test
     func `subscription failure preserves required credits`() async throws {
-        let transport = ProviderHTTPTransportStub { request in
-            let path = try #require(request.url?.path)
-            if path.hasSuffix("/credits") {
-                return try Self.response(request: request, statusCode: 200, body: Self.creditsJSON)
+        try await CommandCodeUsageFetcher.withIsolatedPlanCacheForTesting {
+            let transport = ProviderHTTPTransportStub { request in
+                let path = try #require(request.url?.path)
+                if path.hasSuffix("/credits") {
+                    return try Self.response(request: request, statusCode: 200, body: Self.creditsJSON)
+                }
+                return try Self.response(request: request, statusCode: 503, body: #"{"error":"unavailable"}"#)
             }
-            return try Self.response(request: request, statusCode: 503, body: #"{"error":"unavailable"}"#)
+
+            let snapshot = try await CommandCodeUsageFetcher.fetchUsage(
+                cookieHeader: "session=valid",
+                session: transport,
+                now: Date(timeIntervalSince1970: 123))
+
+            #expect(snapshot.monthlyCreditsRemaining == 8.7784)
+            #expect(snapshot.plan == nil)
+            #expect(snapshot.billingPeriodEnd == nil)
+            #expect(snapshot.subscriptionEnrichmentUnavailable)
+            #expect(snapshot.updatedAt == Date(timeIntervalSince1970: 123))
         }
-
-        let snapshot = try await CommandCodeUsageFetcher.fetchUsage(
-            cookieHeader: "session=valid",
-            session: transport,
-            now: Date(timeIntervalSince1970: 123))
-
-        #expect(snapshot.monthlyCreditsRemaining == 8.7784)
-        #expect(snapshot.plan == nil)
-        #expect(snapshot.billingPeriodEnd == nil)
-        #expect(snapshot.subscriptionEnrichmentUnavailable)
-        #expect(snapshot.updatedAt == Date(timeIntervalSince1970: 123))
     }
 
     @Test
     func `subscription timeout does not hold credits for full request timeout`() async throws {
-        let transport = ProviderHTTPTransportStub { request in
-            let path = try #require(request.url?.path)
-            if path.hasSuffix("/credits") {
-                return try Self.response(request: request, statusCode: 200, body: Self.creditsJSON)
+        try await CommandCodeUsageFetcher.withIsolatedPlanCacheForTesting {
+            let transport = ProviderHTTPTransportStub { request in
+                let path = try #require(request.url?.path)
+                if path.hasSuffix("/credits") {
+                    return try Self.response(request: request, statusCode: 200, body: Self.creditsJSON)
+                }
+                try await Task.sleep(for: .seconds(10))
+                return try Self.response(request: request, statusCode: 200, body: Self.subscriptionJSON)
             }
-            try await Task.sleep(for: .seconds(10))
-            return try Self.response(request: request, statusCode: 200, body: Self.subscriptionJSON)
+
+            let startedAt = ContinuousClock.now
+            let snapshot = try await CommandCodeUsageFetcher.fetchUsage(
+                cookieHeader: "session=valid",
+                session: transport)
+            let elapsed = startedAt.duration(to: .now)
+
+            #expect(snapshot.monthlyCreditsRemaining == 8.7784)
+            #expect(snapshot.plan == nil)
+            #expect(snapshot.subscriptionEnrichmentUnavailable)
+            #expect(elapsed < .seconds(3), "Subscription enrichment delayed credits: \(elapsed)")
         }
-
-        let startedAt = ContinuousClock.now
-        let snapshot = try await CommandCodeUsageFetcher.fetchUsage(
-            cookieHeader: "session=valid",
-            session: transport)
-        let elapsed = startedAt.duration(to: .now)
-
-        #expect(snapshot.monthlyCreditsRemaining == 8.7784)
-        #expect(snapshot.plan == nil)
-        #expect(snapshot.subscriptionEnrichmentUnavailable)
-        #expect(elapsed < .seconds(3), "Subscription enrichment delayed credits: \(elapsed)")
     }
 
     @Test
     func `subscription grace does not wait for transport that ignores cancellation`() async throws {
-        let transport = ProviderHTTPTransportStub { request in
-            let path = try #require(request.url?.path)
-            if path.hasSuffix("/credits") {
-                return try Self.response(request: request, statusCode: 200, body: Self.creditsJSON)
-            }
-            let response = try Self.response(request: request, statusCode: 200, body: Self.subscriptionJSON)
-            return await withCheckedContinuation { continuation in
-                DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) {
-                    continuation.resume(returning: response)
+        try await CommandCodeUsageFetcher.withIsolatedPlanCacheForTesting {
+            let transport = ProviderHTTPTransportStub { request in
+                let path = try #require(request.url?.path)
+                if path.hasSuffix("/credits") {
+                    return try Self.response(request: request, statusCode: 200, body: Self.creditsJSON)
+                }
+                let response = try Self.response(request: request, statusCode: 200, body: Self.subscriptionJSON)
+                return await withCheckedContinuation { continuation in
+                    DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) {
+                        continuation.resume(returning: response)
+                    }
                 }
             }
+
+            let startedAt = ContinuousClock.now
+            let snapshot = try await CommandCodeUsageFetcher._fetchUsageForTesting(
+                cookieHeader: "session=valid",
+                transport: transport,
+                subscriptionGrace: .milliseconds(20))
+            let elapsed = startedAt.duration(to: .now)
+
+            #expect(snapshot.monthlyCreditsRemaining == 8.7784)
+            #expect(snapshot.plan == nil)
+            #expect(snapshot.subscriptionEnrichmentUnavailable)
+            #expect(elapsed < .milliseconds(300), "Subscription enrichment delayed credits: \(elapsed)")
+
+            // Let the deliberately cancellation-ignoring test task drain before the test exits.
+            try await Task.sleep(for: .milliseconds(550))
         }
-
-        let startedAt = ContinuousClock.now
-        let snapshot = try await CommandCodeUsageFetcher._fetchUsageForTesting(
-            cookieHeader: "session=valid",
-            transport: transport,
-            subscriptionGrace: .milliseconds(20))
-        let elapsed = startedAt.duration(to: .now)
-
-        #expect(snapshot.monthlyCreditsRemaining == 8.7784)
-        #expect(snapshot.plan == nil)
-        #expect(snapshot.subscriptionEnrichmentUnavailable)
-        #expect(elapsed < .milliseconds(300), "Subscription enrichment delayed credits: \(elapsed)")
-
-        // Let the deliberately cancellation-ignoring test task drain before the test exits.
-        try await Task.sleep(for: .milliseconds(550))
     }
 
     @Test
@@ -324,19 +334,21 @@ struct CommandCodeUsageFetcherTests {
 
     @Test
     func `successful unknown active subscription still fails explicitly`() async {
-        let unknownPlanJSON = Self.subscriptionJSON.replacingOccurrences(
-            of: #""planId":"individual-go""#,
-            with: #""planId":"individual-future""#)
-        let transport = ProviderHTTPTransportStub { request in
-            let path = try #require(request.url?.path)
-            let body = path.hasSuffix("/credits") ? Self.creditsJSON : unknownPlanJSON
-            return try Self.response(request: request, statusCode: 200, body: body)
-        }
+        await CommandCodeUsageFetcher.withIsolatedPlanCacheForTesting {
+            let unknownPlanJSON = Self.subscriptionJSON.replacingOccurrences(
+                of: #""planId":"individual-go""#,
+                with: #""planId":"individual-future""#)
+            let transport = ProviderHTTPTransportStub { request in
+                let path = try #require(request.url?.path)
+                let body = path.hasSuffix("/credits") ? Self.creditsJSON : unknownPlanJSON
+                return try Self.response(request: request, statusCode: 200, body: body)
+            }
 
-        await #expect(throws: CommandCodeUsageError.unknownPlan("individual-future")) {
-            try await CommandCodeUsageFetcher.fetchUsage(
-                cookieHeader: "session=valid",
-                session: transport)
+            await #expect(throws: CommandCodeUsageError.unknownPlan("individual-future")) {
+                try await CommandCodeUsageFetcher.fetchUsage(
+                    cookieHeader: "session=valid",
+                    session: transport)
+            }
         }
     }
 
@@ -391,25 +403,27 @@ struct CommandCodeUsageFetcherTests {
 
     @Test
     func `active pro-v1 subscription resolves to the eighty dollar plan`() async throws {
-        let proV1JSON = Self.subscriptionJSON.replacingOccurrences(
-            of: #""planId":"individual-go""#,
-            with: #""planId":"individual-pro-v1""#)
-        let transport = ProviderHTTPTransportStub { request in
-            let path = try #require(request.url?.path)
-            let body = path.hasSuffix("/credits") ? Self.creditsJSON : proV1JSON
-            return try Self.response(request: request, statusCode: 200, body: body)
+        try await CommandCodeUsageFetcher.withIsolatedPlanCacheForTesting {
+            let proV1JSON = Self.subscriptionJSON.replacingOccurrences(
+                of: #""planId":"individual-go""#,
+                with: #""planId":"individual-pro-v1""#)
+            let transport = ProviderHTTPTransportStub { request in
+                let path = try #require(request.url?.path)
+                let body = path.hasSuffix("/credits") ? Self.creditsJSON : proV1JSON
+                return try Self.response(request: request, statusCode: 200, body: body)
+            }
+
+            let snapshot = try await CommandCodeUsageFetcher.fetchUsage(
+                cookieHeader: "session=valid",
+                session: transport)
+
+            let plan = try #require(snapshot.plan)
+            #expect(plan.id == "individual-pro-v1")
+            #expect(plan.monthlyCreditsUSD == 80)
+            #expect(snapshot.monthlyCreditsTotal == 80)
+            #expect(abs((snapshot.monthlyCreditsUsed ?? -1) - 71.2216) < 0.0001)
+            #expect(snapshot.subscriptionEnrichmentUnavailable == false)
         }
-
-        let snapshot = try await CommandCodeUsageFetcher.fetchUsage(
-            cookieHeader: "session=valid",
-            session: transport)
-
-        let plan = try #require(snapshot.plan)
-        #expect(plan.id == "individual-pro-v1")
-        #expect(plan.monthlyCreditsUSD == 80)
-        #expect(snapshot.monthlyCreditsTotal == 80)
-        #expect(abs((snapshot.monthlyCreditsUsed ?? -1) - 71.2216) < 0.0001)
-        #expect(snapshot.subscriptionEnrichmentUnavailable == false)
     }
 
     @Test
@@ -461,6 +475,29 @@ struct CommandCodeUsageFetcherTests {
         #expect(CommandCodeCookieHeader.override(from: nil) == nil)
         #expect(CommandCodeCookieHeader.override(from: "") == nil)
         #expect(CommandCodeCookieHeader.override(from: "   ") == nil)
+    }
+
+    @Test
+    func `subscription failure leaves the projected monthly window unavailable`() async throws {
+        try await CommandCodeUsageFetcher.withIsolatedPlanCacheForTesting {
+            let transport = ProviderHTTPTransportStub { request in
+                let path = try #require(request.url?.path)
+                if path.hasSuffix("/credits") {
+                    return try Self.response(request: request, statusCode: 200, body: Self.creditsJSON)
+                }
+                return try Self.response(request: request, statusCode: 503, body: #"{"error":"unavailable"}"#)
+            }
+
+            let snapshot = try await CommandCodeUsageFetcher._fetchUsageForTesting(
+                cookieHeader: "session=valid",
+                transport: transport,
+                subscriptionGrace: .seconds(5))
+
+            // An unknown grant size must not borrow the free-tier reading: that renders an untouched
+            // monthly bar for a plan that is partly spent.
+            #expect(snapshot.toUsageSnapshot().tertiary == nil)
+            #expect(snapshot.monthlyCreditsRemaining == 8.7784)
+        }
     }
 
     private static func response(

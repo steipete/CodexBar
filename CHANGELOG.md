@@ -2,6 +2,9 @@
 
 ## 0.56.7 — Unreleased
 
+### Fixed
+- Command Code: keep the resolved subscription plan in memory for its billing period so a timed-out plan lookup still sizes the monthly credits row from fresh credits, and report that row as unavailable rather than untouched when no plan is known; rolling five-hour and weekly usage stay unaffected (#3441). Thanks @enieuwy!
+
 ## 0.56.6 — 2026-09-05
 
 ### Highlights

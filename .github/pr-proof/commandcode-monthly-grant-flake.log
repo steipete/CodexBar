@@ -1,0 +1,47 @@
+Command Code monthly grant flake - before/after proof
+
+A throwaway Swift Testing harness drove the real CommandCodeUsageFetcher against a stubbed
+ProviderHTTPTransport. The credits endpoint always answered. The subscriptions endpoint hung for
+30 s, which is what a lost join grace looks like in production, because the fetcher allows 2 s.
+
+Account under test: individual-go plan, $10 monthly grant. The first refresh reports $9 remaining,
+so the true monthly reading is 10% used. The second and third report $4 remaining, so the true
+reading is 60% used. Rolling caps: five-hour 1.2/10, weekly 30/100.
+
+Command, identical in both states:
+  swift test --filter 'ZZProofBaseline'
+
+Before, at upstream 28b8dcbe8:
+  PROOF healthy refresh: plan=Optional("individual-go") monthly=Optional(10.0) (true value 10)
+  PROOF timeout, $6 of the $10 grant spent: plan=nil monthly=Optional(0.0) (true value 60)
+  PROOF timeout rolling lanes: 5h=Optional(12.0) weekly=Optional(30.0)
+  PROOF timeout with no earlier success: monthly=Optional(0.0) (true value unknown)
+
+The monthly lane reports 0% used, an untouched bar, while $6 of the $10 grant is spent. The two
+rolling lanes stay correct, which is why only one lane looks wrong on screen.
+
+After this change:
+  PROOF healthy refresh: plan=Optional("individual-go") monthly=Optional(10.0) (true value 10)
+  PROOF timeout, $6 of the $10 grant spent: plan=Optional("individual-go") monthly=Optional(60.0) (true value 60)
+  PROOF timeout rolling lanes: 5h=Optional(12.0) weekly=Optional(30.0)
+  PROOF timeout with no earlier success: monthly=nil (true value unknown)
+
+The kept plan supplies the grant size and the fresh credits response supplies the spend, so the
+lane reports the true 60%. With no earlier success for that credential the lane is unavailable
+rather than untouched.
+
+The harness was deleted after this capture. Each line above is pinned by a committed test:
+  line 2 (kept plan sizes the lane from fresh credits)
+    Tests/CodexBarTests/CommandCodePlanCacheTests.swift
+    `remembered plan sizes the monthly lane from fresh credits after a failure`
+  line 3 (rolling lanes unaffected)
+    Tests/CodexBarTests/CommandCodeQuotaTransitionTests.swift
+    `subscription enrichment failure preserves rolling windows`
+  line 4 (no kept plan means an unavailable lane)
+    Tests/CodexBarTests/CommandCodeUsageFetcherTests.swift
+    `subscription failure leaves the projected monthly window unavailable`
+
+Every case where the kept plan must not apply is pinned in CommandCodePlanCacheTests.swift: the
+billing period ends, a day passes with no refresh confirming it, another credential asks, a lookup
+verifies the free tier, a lookup reports a plan id this build cannot size, and a subscription
+arrives without a period end.
