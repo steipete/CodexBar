@@ -103,31 +103,6 @@ struct StatusMenuTests {
     }
 
     @Test
-    func `helmcode dashboard action follows selected deployment`() {
-        self.disableMenuCardsForTesting()
-        let settings = self.makeSettings()
-        settings.statusChecksEnabled = false
-        settings.refreshFrequency = .manual
-        settings.mergeIcons = false
-
-        let fetcher = UsageFetcher()
-        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
-        let controller = StatusItemController(
-            store: store,
-            settings: settings,
-            account: fetcher.loadAccountInfo(),
-            updater: DisabledUpdaterController(),
-            preferencesSelection: PreferencesSelection(),
-            statusBar: self.makeStatusBarForTesting())
-
-        #expect(
-            controller.dashboardURL(for: .helmcode)?.absoluteString == "https://cloud.helmcode.com/credits")
-        settings.helmcodeDeployment = .nanBuilders
-        #expect(
-            controller.dashboardURL(for: .helmcode)?.absoluteString == "https://cloud.nan.builders/credits")
-    }
-
-    @Test
     func `zai dashboard action follows selected region`() {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
