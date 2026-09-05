@@ -134,6 +134,38 @@ struct ElevenLabsUsageFetcherTests {
         }
     }
 
+    @Test(arguments: [401, 403])
+    func `rejected API key is not reported as missing`(statusCode: Int) async throws {
+        let registered = URLProtocol.registerClass(ElevenLabsStubURLProtocol.self)
+        defer {
+            if registered {
+                URLProtocol.unregisterClass(ElevenLabsStubURLProtocol.self)
+            }
+            ElevenLabsStubURLProtocol.handler = nil
+        }
+
+        ElevenLabsStubURLProtocol.handler = { request in
+            guard let url = request.url else { throw URLError(.badURL) }
+            return Self.makeResponse(url: url, body: #"{"detail":"request rejected"}"#, statusCode: statusCode)
+        }
+
+        let expectedMessage = switch statusCode {
+        case 401:
+            "ElevenLabs rejected the selected API key. Check that it is valid and has not been revoked."
+        default:
+            "ElevenLabs denied access for the selected API key. Check its endpoint permissions and IP allowlist."
+        }
+
+        do {
+            _ = try await ElevenLabsUsageFetcher.fetchUsage(
+                apiKey: "xi-test",
+                environment: [ElevenLabsSettingsReader.apiURLEnvironmentKey: "https://elevenlabs.test"])
+            Issue.record("Expected ElevenLabs authentication error")
+        } catch let error as ElevenLabsUsageError {
+            #expect(error.errorDescription == expectedMessage)
+        }
+    }
+
     private static func makeResponse(
         url: URL,
         body: String,

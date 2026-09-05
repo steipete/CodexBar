@@ -160,6 +160,8 @@ public struct ElevenLabsUsageSnapshot: Codable, Sendable, Equatable {
 
 public enum ElevenLabsUsageError: LocalizedError, Sendable {
     case missingCredentials
+    case invalidCredentials
+    case accessDenied
     case networkError(String)
     case apiError(String)
     case parseFailed(String)
@@ -168,6 +170,10 @@ public enum ElevenLabsUsageError: LocalizedError, Sendable {
         switch self {
         case .missingCredentials:
             "Missing ElevenLabs API key. Set apiKey in ~/.codexbar/config.json or ELEVENLABS_API_KEY."
+        case .invalidCredentials:
+            "ElevenLabs rejected the selected API key. Check that it is valid and has not been revoked."
+        case .accessDenied:
+            "ElevenLabs denied access for the selected API key. Check its endpoint permissions and IP allowlist."
         case let .networkError(message):
             "ElevenLabs network error: \(message)"
         case let .apiError(message):
@@ -203,8 +209,10 @@ public struct ElevenLabsUsageFetcher: Sendable {
         switch response.statusCode {
         case 200:
             return try Self.parseSnapshot(data: response.data, updatedAt: Date())
-        case 401, 403:
-            throw ElevenLabsUsageError.missingCredentials
+        case 401:
+            throw ElevenLabsUsageError.invalidCredentials
+        case 403:
+            throw ElevenLabsUsageError.accessDenied
         default:
             Self.log.error("ElevenLabs API returned \(response.statusCode)")
             throw ElevenLabsUsageError.apiError("HTTP \(response.statusCode)")

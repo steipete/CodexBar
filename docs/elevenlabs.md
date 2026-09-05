@@ -58,6 +58,14 @@ For tests or self-hosted/proxy setups, override the API base URL with `ELEVENLAB
 
 Set the key with `codexbar config set-api-key --provider elevenlabs --stdin`, add it in **Settings -> Providers -> ElevenLabs**, set `ELEVENLABS_API_KEY`, or configure an ElevenLabs token account.
 
+### "ElevenLabs rejected the selected API key"
+
+ElevenLabs returned HTTP 401 for the key CodexBar sent. Confirm that the key is valid and has not been revoked. If you configured multiple ElevenLabs API-key accounts, the active account takes precedence over the standalone API key field.
+
+### "ElevenLabs denied access for the selected API key"
+
+ElevenLabs returned HTTP 403. Check the key's endpoint permissions and IP allowlist in the ElevenLabs API-key settings.
+
 ### "ElevenLabs API error"
 
-Confirm the API key is valid and that the current network can reach `api.elevenlabs.io`.
+Confirm that the current network can reach `api.elevenlabs.io` and check the reported HTTP status.
