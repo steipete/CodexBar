@@ -55,6 +55,7 @@ defineProvider({
     let keyData = null;
     let keyDegradation = null;
     let costUsage = null;
+    let activitySummary = null;
     let activityDegradation = null;
     const managementKeyConfigured = Boolean(ctx.settings.getSecret("OPENROUTER_MANAGEMENT_API_KEY"));
     const injectedOptionalTimeout = ctx.__codexbarOptionalRequestTimeoutSeconds;
@@ -65,7 +66,7 @@ defineProvider({
     function degradationReason(error) {
       const message = error && typeof error.message === "string" ? error.message : String(error);
       if (/timed out|-1001/i.test(message)) return "Request timed out";
-      if (/json|parse|invalid|must be|conflict|duplicate/i.test(message)) return "Response was invalid";
+      if (/json|parse|invalid|must be|conflict|duplicate|overflow|exceed/i.test(message)) return "Response was invalid";
       return "Request failed";
     }
     try {
@@ -94,6 +95,13 @@ defineProvider({
         ) {
           throw new TypeError("key.rate_limit is invalid");
         }
+        if (
+          candidate.is_management_key !== null &&
+          candidate.is_management_key !== undefined &&
+          typeof candidate.is_management_key !== "boolean"
+        ) {
+          throw new TypeError("key.is_management_key must be a boolean");
+        }
         keyData = candidate;
       }
     } catch (error) {
@@ -107,7 +115,24 @@ defineProvider({
       return degradationReason(error);
     }
 
-    if (!managementKeyConfigured) {
+    function isOfficialAPIBase(value) {
+      const match = /^([A-Za-z][A-Za-z0-9+.-]*):\/\/([^/?#]+)(\/[^?#]*)?$/.exec(value);
+      if (!match) return false;
+      const scheme = match[1].toLowerCase();
+      const authority = match[2].toLowerCase();
+      const path = match[3] || "";
+      return (
+        scheme === "https" && (authority === "openrouter.ai" || authority === "openrouter.ai:443") && path === "/api/v1"
+      );
+    }
+
+    // OpenRouter exposes the credential kind through /key. Accept a management key from the
+    // legacy API-key slot only on the official API origin; a custom endpoint must never be able
+    // to redirect that credential to OpenRouter Activity by claiming it is a management key.
+    const standardKeyIsOfficialManagementKey = isOfficialAPIBase(base) && keyData && keyData.is_management_key === true;
+    const activityCredentialConfigured = managementKeyConfigured || standardKeyIsOfficialManagementKey;
+
+    if (!activityCredentialConfigured) {
       activityDegradation = "Management API key not configured";
     } else
       try {
@@ -118,14 +143,12 @@ defineProvider({
         const cutoff = cutoffDate.toISOString().slice(0, 10);
         // A management credential must never follow the user-configurable API base to a proxy.
         const activityURL = "https://openrouter.ai/api/v1/activity";
+        const activityOptions = { timeoutSeconds: optionalRequestTimeoutSeconds };
+        if (managementKeyConfigured) activityOptions.openRouterManagementAuth = true;
         const [historyResponse, latestCompletedResponse] = await Promise.all([
-          ctx.http.get(activityURL, {
-            timeoutSeconds: optionalRequestTimeoutSeconds,
-            openRouterManagementAuth: true,
-          }),
+          ctx.http.get(activityURL, activityOptions),
           ctx.http.get(`${activityURL}?date=${encodeURIComponent(latestCompleted)}`, {
-            timeoutSeconds: optionalRequestTimeoutSeconds,
-            openRouterManagementAuth: true,
+            ...activityOptions,
           }),
         ]);
         if (historyResponse.status !== 200 || latestCompletedResponse.status !== 200) {
@@ -226,6 +249,7 @@ defineProvider({
             if (
               !Number.isSafeInteger(aggregateInputTokens) ||
               !Number.isSafeInteger(aggregateOutputTokens) ||
+              !Number.isSafeInteger(aggregateInputTokens + aggregateOutputTokens) ||
               !Number.isSafeInteger(aggregateReasoningTokens) ||
               !Number.isSafeInteger(aggregateRequests)
             ) {
@@ -252,6 +276,16 @@ defineProvider({
             historyLabel: "Last 30 days (UTC)",
             windowEnd: latestCompleted,
             entries,
+          };
+          const models = [...new Set(entries.map((entry) => entry.model).filter(Boolean))].sort();
+          activitySummary = {
+            tokens: aggregateInputTokens + aggregateOutputTokens,
+            inputTokens: aggregateInputTokens,
+            outputTokens: aggregateOutputTokens,
+            reasoningTokens: aggregateReasoningTokens,
+            requests: aggregateRequests,
+            cost: aggregateCost,
+            models,
           };
         }
       } catch (error) {
@@ -301,6 +335,18 @@ defineProvider({
     }
 
     const currency = (value) => `$${Math.max(0, value).toFixed(2)}`;
+    const integer = (value) => String(value).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    const modelSummary = (models) => {
+      if (!models.length) return "No model names returned";
+      const maximumLength = 120;
+      for (let count = models.length; count > 0; count -= 1) {
+        const suffix = count < models.length ? ` · +${models.length - count} more` : "";
+        const candidate = `${models.slice(0, count).join(", ")}${suffix}`;
+        if (candidate.length <= maximumLength) return candidate;
+      }
+      // Individual Activity model names are already capped at 64 characters, so this is defensive only.
+      return `${models.length} models`;
+    };
     const details = [
       {
         title: "Credits",
@@ -365,7 +411,25 @@ defineProvider({
       });
     }
 
-    if (!costUsage) {
+    if (costUsage && activitySummary) {
+      details.push({
+        title: "Activity (last 30 completed UTC days)",
+        rows: [
+          {
+            label: "Tracked tokens",
+            value: integer(activitySummary.tokens),
+            secondaryValue: `${integer(activitySummary.inputTokens)} input · ${integer(activitySummary.outputTokens)} output`,
+          },
+          { label: "Requests", value: integer(activitySummary.requests) },
+          { label: "Spend", value: currency(activitySummary.cost) },
+          {
+            label: "Models",
+            value: integer(activitySummary.models.length),
+            secondaryValue: modelSummary(activitySummary.models),
+          },
+        ],
+      });
+    } else {
       details.push({
         title: "Spend history",
         rows: [
