@@ -150,6 +150,10 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
                 }
             }
 
+            ProviderMenuBarPercentWindowSettingsView(
+                provider: self.provider,
+                settings: self.store.settings)
+
             if !self.menuBarSettingsPickers.isEmpty {
                 Section {
                     ForEach(self.menuBarSettingsPickers) { picker in
