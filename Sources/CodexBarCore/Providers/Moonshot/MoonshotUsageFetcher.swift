@@ -35,13 +35,10 @@ public struct MoonshotUsageSummary: Sendable {
     }
 
     public func toUsageSnapshot() -> UsageSnapshot {
-        let currencyCode = self.region == .china ? "CNY" : nil
-        let balance = currencyCode.map { UsageFormatter.currencyString(self.availableBalance, currencyCode: $0) }
-            ?? UsageFormatter.usdString(self.availableBalance)
+        let balance = self.formatCurrency(self.availableBalance)
         let loginMethod: String
         if self.cashBalance < 0 {
-            let deficit = currencyCode.map { UsageFormatter.currencyString(abs(self.cashBalance), currencyCode: $0) }
-                ?? UsageFormatter.usdString(abs(self.cashBalance))
+            let deficit = self.formatCurrency(abs(self.cashBalance))
             loginMethod = "Balance: \(balance) · \(deficit) in deficit"
         } else {
             loginMethod = "Balance: \(balance)"
@@ -58,6 +55,12 @@ public struct MoonshotUsageSummary: Sendable {
             providerCost: nil,
             updatedAt: self.updatedAt,
             identity: identity)
+    }
+
+    private func formatCurrency(_ value: Double) -> String {
+        self.region == .china
+            ? UsageFormatter.currencyString(value, currencyCode: "CNY")
+            : UsageFormatter.usdString(value)
     }
 }
 
