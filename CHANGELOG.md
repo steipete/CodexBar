@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- Hugging Face: display the prepaid Credits wallet from an authenticated billing-page session while preserving
+  bearer-token billing-period spend and category details.
+
+### Fixed
+- Hugging Face: make Cookie-source Refresh import and validate browser credits even when optional usage is hidden,
+  and use the existing bounded browser-access retry for explicit cookie refreshes.
+
 ## 0.56.6 — 2026-09-05
 
 ### Highlights

@@ -172,8 +172,15 @@ extension UsageStore {
 
     func shouldFetchAllTokenAccounts(provider: UsageProvider, accounts: [ProviderTokenAccount]) -> Bool {
         guard TokenAccountSupportCatalog.support(for: provider) != nil else { return false }
-        guard self.settings.effectiveSelectedTokenAccount(for: provider) != nil else { return false }
-        return self.settings.multiAccountMenuLayout == .stacked && accounts.count > 1
+        guard let selectedAccount = self.settings.effectiveSelectedTokenAccount(for: provider) else { return false }
+        guard self.settings.multiAccountMenuLayout == .stacked, accounts.count > 1 else { return false }
+        guard provider == .huggingface else { return true }
+        // Hugging Face's browser-session wallet carries no identifier that can be correlated with any
+        // API token account, so a Web-authority refresh (explicit Web mode or Cookie source Refresh's
+        // override) must not fan out across stacked accounts the way ordinary Auto/API refreshes do.
+        let sourceMode = Self.requestedSourceModeOverride ?? ProviderRegistry.resolvedSourceMode(
+            provider: provider, settings: self.settings, account: selectedAccount)
+        return sourceMode != .web
     }
 
     func shouldFetchAllCodexVisibleAccounts() -> Bool {
@@ -944,7 +951,7 @@ extension UsageStore {
             provider: provider,
             settings: self.settings,
             override: override)
-        let sourceMode = ProviderRegistry.resolvedSourceMode(
+        let sourceMode = Self.requestedSourceModeOverride ?? ProviderRegistry.resolvedSourceMode(
             provider: provider,
             settings: self.settings,
             account: account)

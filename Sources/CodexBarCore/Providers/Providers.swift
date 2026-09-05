@@ -51,6 +51,7 @@ public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case ollama
     case synthetic
     case openrouter
+    case huggingface
     case elevenlabs
     case warp
     case windsurf

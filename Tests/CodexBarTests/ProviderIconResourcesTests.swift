@@ -27,6 +27,25 @@ struct ProviderIconResourcesTests {
     }
 
     @Test
+    func `hugging face provider icon uses its bundled logo asset`() throws {
+        let root = try Self.repoRoot()
+        let resources = root.appending(path: "Sources/CodexBar/Resources", directoryHint: .isDirectory)
+        let svg = try String(
+            contentsOf: resources.appending(path: "ProviderIcon-huggingface.svg"),
+            encoding: .utf8)
+
+        #expect(svg.contains("viewBox=\"0 0 1500 1500\""))
+        #expect(svg.contains("<path"))
+        #expect(!svg.contains("<rect x=\"8\" y=\"8\" width=\"48\" height=\"48\""))
+
+        ProviderBrandIcon.resetCacheForTesting()
+        defer { ProviderBrandIcon.resetCacheForTesting() }
+        let image = try #require(ProviderBrandIcon.image(for: .huggingface))
+        #expect(image.size == NSSize(width: 18, height: 18))
+        #expect(image.isTemplate)
+    }
+
+    @Test
     func `provider brand icons are cached after first load`() throws {
         ProviderBrandIcon.resetCacheForTesting()
         defer { ProviderBrandIcon.resetCacheForTesting() }

@@ -38,6 +38,7 @@ enum ProviderImplementationManifest {
         { OllamaProviderImplementation() },
         { SyntheticProviderImplementation() },
         { OpenRouterProviderImplementation() },
+        { HuggingFaceProviderImplementation() },
         { ElevenLabsProviderImplementation() },
         { WarpProviderImplementation() },
         { WindsurfProviderImplementation() },

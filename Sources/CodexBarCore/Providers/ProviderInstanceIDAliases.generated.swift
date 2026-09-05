@@ -35,6 +35,7 @@ extension ProviderInstanceID {
     public static let ollama = UsageProvider.ollama.instanceID
     public static let synthetic = UsageProvider.synthetic.instanceID
     public static let openrouter = UsageProvider.openrouter.instanceID
+    public static let huggingface = UsageProvider.huggingface.instanceID
     public static let elevenlabs = UsageProvider.elevenlabs.instanceID
     public static let warp = UsageProvider.warp.instanceID
     public static let windsurf = UsageProvider.windsurf.instanceID

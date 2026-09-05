@@ -136,6 +136,10 @@ extension UsageStore {
 @MainActor
 @Observable
 final class UsageStore {
+    /// Requested source mode for a single user-initiated refresh operation. Explicit Cookie source Refresh sets it
+    /// so the refresh validates the browser path; ordinary refreshes leave it nil and keep the resolved mode.
+    @TaskLocal
+    static var requestedSourceModeOverride: ProviderSourceMode?
     nonisolated static let resetBoundaryRefreshGraceSeconds: TimeInterval = 30
     nonisolated static let resetBoundaryRefreshMinimumDelaySeconds: TimeInterval = 5
 
@@ -275,6 +279,9 @@ final class UsageStore {
     @ObservationIgnored var _test_codexResetCreditsFetcherOverride: CodexResetCreditsFetcher?
     @ObservationIgnored var _test_widgetSnapshotSaveOverride: (@MainActor (WidgetSnapshot) async -> Void)?
     @ObservationIgnored var _test_providerRefreshOverride: (@MainActor (UsageProvider) async -> Void)?
+    @ObservationIgnored var _test_refreshFetchContextObserver: (@MainActor (
+        UsageProvider,
+        ProviderFetchContext) async -> Void)?
     @ObservationIgnored var _test_providerFetchOutcomeOverride: (@MainActor (
         UsageProvider) async -> ProviderFetchOutcome)?
     @ObservationIgnored var _test_tokenUsageRefreshOverride: (@MainActor (UsageProvider, Bool) async -> Void)?

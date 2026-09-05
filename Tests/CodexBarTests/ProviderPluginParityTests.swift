@@ -12,6 +12,7 @@ struct ProviderPluginParityTests {
             (UsageProvider.crof, "CROF_API_KEY"),
             (.venice, "VENICE_API_KEY"),
             (.openrouter, "OPENROUTER_API_KEY"),
+            (.huggingface, "HF_TOKEN"),
             (.clawrouter, "CLAWROUTER_API_KEY"),
             (.deepgram, "DEEPGRAM_API_KEY"),
             (.poe, "POE_API_KEY"),

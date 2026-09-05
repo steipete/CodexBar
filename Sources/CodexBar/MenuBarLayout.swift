@@ -529,7 +529,14 @@ enum MenuBarLayoutBalanceResolver {
         snapshot: UsageSnapshot?)
         -> String?
     {
-        // Provider-specific by design: only OpenRouter exposes its credit balance as the "Remaining" detail row.
+        // Provider-specific by design: Hugging Face's structured wallet balance is provider-owned; this
+        // cluster also retains OpenRouter's detail-row fallback.
+        if provider == .huggingface,
+           let cost = snapshot?.providerCost,
+           let balance = cost.balance
+        {
+            return UsageFormatter.currencyString(balance, currencyCode: cost.currencyCode)
+        }
         guard provider == .openrouter else { return nil }
         return snapshot?.detailRow(label: "Remaining")?.value
     }
@@ -543,7 +550,10 @@ enum MenuBarLayoutBalanceResolver {
         snapshot: UsageSnapshot?)
         -> (remaining: Double?, used: Double?)
     {
-        // Provider-specific by design: only OpenRouter reports credit amounts in its "Credits" detail rows.
+        // Provider-specific by design: this Hugging Face balance is the provider-owned wallet amount.
+        if provider == .huggingface {
+            return (snapshot?.providerCost?.balance, nil)
+        }
         guard provider == .openrouter else { return (nil, nil) }
         return (
             self.amount(snapshot?.detailRow(label: "Remaining")?.value),
