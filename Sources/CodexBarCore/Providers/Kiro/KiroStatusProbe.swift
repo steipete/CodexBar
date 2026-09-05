@@ -18,6 +18,8 @@ public struct KiroUsageSnapshot: Sendable {
     public let creditsUsed: Double
     public let creditsTotal: Double
     public let creditsPercent: Double
+    /// False when the CLI reports a plan but withholds its credit metrics.
+    public let hasUsageMetrics: Bool
     public let bonusCreditsUsed: Double?
     public let bonusCreditsTotal: Double?
     public let bonusExpiryDays: Int?
@@ -39,6 +41,7 @@ public struct KiroUsageSnapshot: Sendable {
         creditsUsed: Double,
         creditsTotal: Double,
         creditsPercent: Double,
+        hasUsageMetrics: Bool = true,
         bonusCreditsUsed: Double?,
         bonusCreditsTotal: Double?,
         bonusExpiryDays: Int?,
@@ -58,6 +61,7 @@ public struct KiroUsageSnapshot: Sendable {
         self.creditsUsed = creditsUsed
         self.creditsTotal = creditsTotal
         self.creditsPercent = creditsPercent
+        self.hasUsageMetrics = hasUsageMetrics
         self.bonusCreditsUsed = bonusCreditsUsed
         self.bonusCreditsTotal = bonusCreditsTotal
         self.bonusExpiryDays = bonusExpiryDays
@@ -74,16 +78,17 @@ public struct KiroUsageSnapshot: Sendable {
     /// Returns a copy carrying the API's plan/overage ceilings.
     func withUsageLimits(_ usageLimits: KiroUsageLimits?) -> Self {
         guard let usageLimits else { return self }
+        let hasPlanMetrics = !usageLimits.hasUnseparatedBonus && usageLimits.planLimit > 0
         return Self(
             planName: self.planName,
             displayPlanName: self.displayPlanName,
             accountEmail: self.accountEmail,
             authMethod: self.authMethod,
-            creditsUsed: usageLimits.hasUnseparatedBonus ? self.creditsUsed : usageLimits.planUsed,
-            creditsTotal: usageLimits.hasUnseparatedBonus ? self.creditsTotal : usageLimits.planLimit,
-            creditsPercent: usageLimits.hasUnseparatedBonus || usageLimits.planLimit <= 0
-                ? self.creditsPercent
-                : (usageLimits.planUsed / usageLimits.planLimit) * 100.0,
+            creditsUsed: hasPlanMetrics ? usageLimits.planUsed : self.creditsUsed,
+            creditsTotal: hasPlanMetrics ? usageLimits.planLimit : self.creditsTotal,
+            creditsPercent: hasPlanMetrics ? (usageLimits.planUsed / usageLimits.planLimit) * 100.0 : self
+                .creditsPercent,
+            hasUsageMetrics: self.hasUsageMetrics || hasPlanMetrics,
             bonusCreditsUsed: self.bonusCreditsUsed,
             bonusCreditsTotal: self.bonusCreditsTotal,
             bonusExpiryDays: self.bonusExpiryDays,
@@ -101,11 +106,13 @@ public struct KiroUsageSnapshot: Sendable {
     }
 
     public func toUsageSnapshot() -> UsageSnapshot {
-        let primary = RateWindow(
-            usedPercent: self.creditsPercent,
-            windowMinutes: nil,
-            resetsAt: self.resetsAt,
-            resetDescription: nil)
+        let primary: RateWindow? = self.hasUsageMetrics
+            ? RateWindow(
+                usedPercent: self.creditsPercent,
+                windowMinutes: nil,
+                resetsAt: self.resetsAt,
+                resetDescription: nil)
+            : nil
 
         var secondary: RateWindow?
         if let bonusUsed = self.bonusCreditsUsed,
@@ -132,10 +139,14 @@ public struct KiroUsageSnapshot: Sendable {
 
         var detailRows: [ProviderDetailSection.Row] = [
             .makeRow(label: "Plan", value: self.displayPlanName),
-            .makeRow(label: "Credits left", value: UsageFormatter.kiroCreditNumber(self.creditsRemaining)),
-            .makeRow(label: "Credits used", value: UsageFormatter.kiroCreditNumber(self.creditsUsed)),
-            .makeRow(label: "Credits total", value: UsageFormatter.kiroCreditNumber(self.creditsTotal)),
         ]
+        if self.hasUsageMetrics {
+            detailRows.append(contentsOf: [
+                .makeRow(label: "Credits left", value: UsageFormatter.kiroCreditNumber(self.creditsRemaining)),
+                .makeRow(label: "Credits used", value: UsageFormatter.kiroCreditNumber(self.creditsUsed)),
+                .makeRow(label: "Credits total", value: UsageFormatter.kiroCreditNumber(self.creditsTotal)),
+            ])
+        }
         if let remaining = self.bonusCreditsRemaining, let total = self.bonusCreditsTotal {
             detailRows.append(.makeRow(
                 label: "Bonus credits left",
@@ -970,10 +981,8 @@ public struct KiroStatusProbe: Sendable {
             in: stripped,
             pattern: #"https://app\.kiro\.dev/account/usage"#)
 
-        // Managed plans in new format may omit usage metrics. Only fall back to zeros when
-        // we did not parse any usage values, so we do not mask real metrics.
-        if matchedNewFormat, isManagedPlan, !matchedPercent, !matchedCredits {
-            // Managed plans don't expose credits; return snapshot with plan name only
+        // A managed report or explicit breakdown summary can withhold metrics without being a format error.
+        if matchedNewFormat, isManagedPlan || parsedPlan.isSummary, !matchedPercent, !matchedCredits {
             return KiroUsageSnapshot(
                 planName: planName,
                 displayPlanName: Self.displayPlanName(planName),
@@ -982,6 +991,7 @@ public struct KiroStatusProbe: Sendable {
                 creditsUsed: 0,
                 creditsTotal: 0,
                 creditsPercent: 0,
+                hasUsageMetrics: false,
                 bonusCreditsUsed: bonusCredits.used,
                 bonusCreditsTotal: bonusCredits.total,
                 bonusExpiryDays: bonusCredits.expiryDays,
@@ -1048,7 +1058,14 @@ public struct KiroStatusProbe: Sendable {
         return regex.stringByReplacingMatches(in: text, options: [], range: range, withTemplate: "")
     }
 
-    private static func parsePlanName(from text: String) -> (name: String, matchedNewFormat: Bool) {
+    private static func parsePlanName(from text: String) -> (name: String, matchedNewFormat: Bool, isSummary: Bool) {
+        if let name = firstCapture(
+            in: text,
+            pattern: #"(?m)^[ \t]*Plan:[ \t]*([^|\r\n]+?)[ \t]*\|[ \t]*[0-9]+[ \t]+usage breakdowns?[ \t]*$"#)?
+            .trimmingCharacters(in: .whitespaces), !name.isEmpty
+        {
+            return (name, true, true)
+        }
         var planName = "Kiro"
         var matchedNewFormat = false
 
@@ -1082,7 +1099,7 @@ public struct KiroStatusProbe: Sendable {
             }
         }
 
-        return (planName, matchedNewFormat)
+        return (planName, matchedNewFormat, false)
     }
 
     private static func parseResetDate(in text: String) -> Date? {
