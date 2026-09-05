@@ -67,7 +67,7 @@ public struct GrokUsageSnapshot: Sendable {
             secondary: nil,
             tertiary: nil,
             costUsage: self.localSummary?.toCostUsageTokenSnapshot(
-                historyDays: GrokLocalSessionScanner.defaultLookbackDays),
+                historyDays: GrokLocalSessionScanner.maximumLookbackDays),
             updatedAt: self.updatedAt,
             identity: identity)
     }
@@ -123,7 +123,9 @@ public struct GrokStatusProbe: Sendable {
         }
 
         // Local fallback summary always succeeds (empty if no sessions yet).
-        let localSummary = try await GrokLocalSessionScanner.summarizeOffMainThread(env: env)
+        let localSummary = await GrokLocalSessionScanner.summarizeRequestingPricingRefresh(
+            env: env,
+            lookbackDays: GrokLocalSessionScanner.maximumLookbackDays)
         let cliVersion = Self.detectVersion(env: env)
 
         // `localSummary` is *not* currently projected into a visible RateWindow or

@@ -1,3 +1,4 @@
+import CoreFoundation
 #if canImport(Darwin)
 import Darwin
 #elseif canImport(Glibc)
@@ -270,7 +271,30 @@ public enum OpenCodexUsageParser {
             surface: self.nonEmptyString(object["surface"]),
             conversationID: self.nonEmptyString(object["conversationId"]),
             usage: usage,
-            totalTokens: self.nonnegativeInt(object["totalTokens"]))
+            totalTokens: self.nonnegativeInt(object["totalTokens"]),
+            attempts: self.attempts(object["attempts"]))
+    }
+
+    private static func attempts(_ value: Any?) -> [OpenCodexUsageAttempt] {
+        guard let rows = value as? [[String: Any]] else { return [] }
+        return rows.compactMap { row in
+            guard let ordinal = self.nonnegativeInt(row["ordinal"]), ordinal > 0,
+                  let provider = self.nonEmptyString(row["provider"]),
+                  let model = self.nonEmptyString(row["model"]),
+                  let sendCount = self.nonnegativeInt(row["sendCount"])
+            else { return nil }
+            return OpenCodexUsageAttempt(
+                ordinal: ordinal,
+                provider: provider,
+                model: model,
+                credentialSource: (row["credentialSource"] as? String)
+                    .flatMap(OpenCodexUsageCredentialSource.init(rawValue:)),
+                usageStatus: self.usageStatus(row["usageStatus"]),
+                sendCount: sendCount,
+                locallyAnswered: row["locallyAnswered"] as? Bool ?? false,
+                usage: self.usage(row["usage"]),
+                totalTokens: self.nonnegativeInt(row["totalTokens"]))
+        }
     }
 
     private static func usageStatus(_ value: Any?) -> OpenCodexUsageStatus {
@@ -339,18 +363,12 @@ public enum OpenCodexUsageParser {
     }
 
     private static func nonnegativeInt(_ value: Any?) -> Int? {
-        guard let value else { return nil }
-        if let number = value as? Int {
-            return number >= 0 ? number : nil
-        }
-        if let number = value as? Double, number.isFinite, number >= 0, number <= Double(Int.max) {
-            return Int(number)
-        }
-        if let number = value as? NSNumber {
-            let intValue = number.intValue
-            return intValue >= 0 ? intValue : nil
-        }
-        return nil
+        guard let number = value as? NSNumber,
+              CFGetTypeID(number) != CFBooleanGetTypeID()
+        else { return nil }
+        if let integer = value as? Int { return integer >= 0 ? integer : nil }
+        guard let integer = Int(exactly: number.doubleValue), integer >= 0 else { return nil }
+        return integer
     }
 
     private static func prefixDigest(

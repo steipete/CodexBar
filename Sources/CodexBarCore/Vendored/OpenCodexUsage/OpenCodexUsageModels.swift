@@ -7,7 +7,7 @@ public enum OpenCodexUsageStatus: String, Sendable, Equatable, Codable {
     case unsupported
 }
 
-public struct OpenCodexTokenUsage: Sendable, Equatable {
+public struct OpenCodexTokenUsage: Sendable, Equatable, Codable {
     public var inputTokens: Int?
     public var outputTokens: Int?
     public var cachedInputTokens: Int?
@@ -58,6 +58,23 @@ public struct OpenCodexTokenUsage: Sendable, Equatable {
     }
 }
 
+public enum OpenCodexUsageCredentialSource: String, Sendable, Equatable, Codable {
+    case grokOAuth = "grok-oauth"
+    case xaiAPIKey = "xai-api-key"
+}
+
+public struct OpenCodexUsageAttempt: Sendable, Equatable, Codable {
+    public let ordinal: Int
+    public let provider: String
+    public let model: String
+    public let credentialSource: OpenCodexUsageCredentialSource?
+    public let usageStatus: OpenCodexUsageStatus
+    public let sendCount: Int
+    public let locallyAnswered: Bool
+    public let usage: OpenCodexTokenUsage?
+    public let totalTokens: Int?
+}
+
 public struct OpenCodexUsageEntry: Sendable, Equatable {
     public let requestID: String
     public let timestamp: Date
@@ -69,6 +86,9 @@ public struct OpenCodexUsageEntry: Sendable, Equatable {
     public let conversationID: String?
     public let usage: OpenCodexTokenUsage?
     public let totalTokens: Int?
+    public let attempts: [OpenCodexUsageAttempt]
+    /// Set only on a derived physical-attempt entry, never from top-level JSON metadata.
+    let credentialSource: OpenCodexUsageCredentialSource?
 
     public init(
         requestID: String,
@@ -80,8 +100,11 @@ public struct OpenCodexUsageEntry: Sendable, Equatable {
         surface: String? = nil,
         conversationID: String? = nil,
         usage: OpenCodexTokenUsage? = nil,
-        totalTokens: Int? = nil)
+        totalTokens: Int? = nil,
+        attempts: [OpenCodexUsageAttempt] = [])
     {
+        self.credentialSource = nil
+        self.attempts = attempts
         self.requestID = requestID
         self.timestamp = timestamp
         self.provider = provider
@@ -92,6 +115,22 @@ public struct OpenCodexUsageEntry: Sendable, Equatable {
         self.conversationID = conversationID
         self.usage = usage
         self.totalTokens = totalTokens
+    }
+
+    init(parent: OpenCodexUsageEntry, attempt: OpenCodexUsageAttempt) {
+        // A length prefix avoids collisions between request IDs containing separators.
+        self.requestID = "ocx-attempt:\(parent.requestID.utf8.count):\(parent.requestID):\(attempt.ordinal)"
+        self.timestamp = parent.timestamp
+        self.provider = attempt.provider
+        self.model = attempt.model
+        self.usageStatus = attempt.usageStatus
+        self.accountLogLabel = nil
+        self.surface = parent.surface
+        self.conversationID = parent.conversationID
+        self.usage = attempt.usage
+        self.totalTokens = attempt.totalTokens
+        self.attempts = []
+        self.credentialSource = attempt.credentialSource
     }
 
     public var resolvedTotalTokens: Int? {
@@ -123,17 +162,7 @@ public enum OpenCodexUsageLog {
         environment: [String: String] = ProcessInfo.processInfo.environment,
         homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL?
     {
-        if let override = environment["OPENCODEX_HOME"]?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !override.isEmpty
-        {
-            return URL(fileURLWithPath: override, isDirectory: true)
-                .appendingPathComponent("usage.jsonl", isDirectory: false)
-        }
-        if Self.isRunningTests(environment) || Self.isRunningTests(ProcessInfo.processInfo.environment) {
-            return nil
-        }
-        return homeDirectory
-            .appendingPathComponent(".opencodex", isDirectory: true)
+        self.rootURL(environment: environment, homeDirectory: homeDirectory)?
             .appendingPathComponent("usage.jsonl", isDirectory: false)
     }
 
@@ -146,6 +175,21 @@ public enum OpenCodexUsageLog {
             .appendingPathComponent("CodexBar", isDirectory: true)
             ?? AppGroupSupport.localFallbackDirectory(fileManager: fileManager)
         return codexBarRoot.appendingPathComponent("opencodex-usage", isDirectory: true)
+    }
+
+    private static func rootURL(
+        environment: [String: String],
+        homeDirectory: URL) -> URL?
+    {
+        if let override = environment["OPENCODEX_HOME"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !override.isEmpty
+        {
+            return URL(fileURLWithPath: override, isDirectory: true)
+        }
+        if Self.isRunningTests(environment) || Self.isRunningTests(ProcessInfo.processInfo.environment) {
+            return nil
+        }
+        return homeDirectory.appendingPathComponent(".opencodex", isDirectory: true)
     }
 
     private static func isRunningTests(_ environment: [String: String]) -> Bool {

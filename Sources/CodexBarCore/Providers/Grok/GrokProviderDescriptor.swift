@@ -87,9 +87,13 @@ public enum GrokProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: true,
                 noDataMessage: {
-                    "Grok token totals come from local ~/.grok/sessions logs. "
-                        + "Subscription credits are not converted to dollars."
-                }),
+                    "Grok totals come from local Grok CLI session logs. Costs use the spend the CLI "
+                        + "recorded, or public list prices where it recorded none. Neither is a bill."
+                },
+                menuHintLines: [.estimate],
+                showsHintInProviderDetails: true,
+                estimateDisclaimer: "Grok CLI-recorded spend, list price where unrecorded · not a bill.",
+                chartEstimateDisclaimer: .estimate),
             pace: ProviderPaceCapability(
                 resetWindowPace: .custom { window, now in
                     guard Self.primaryLabel(window: window, now: now) == "Weekly",
@@ -344,7 +348,9 @@ struct GrokWebFetchStrategy: ProviderFetchStrategy {
     }
 
     var localSummary: @Sendable ([String: String]) async throws -> GrokLocalSessionSummary? = {
-        try await GrokLocalSessionScanner.summarizeOffMainThread(env: $0)
+        await GrokLocalSessionScanner.summarizeRequestingPricingRefresh(
+            env: $0,
+            lookbackDays: GrokLocalSessionScanner.maximumLookbackDays)
     }
 
     var cliVersion: @Sendable ([String: String]) -> String? = { GrokStatusProbe.detectVersion(env: $0) }

@@ -29,6 +29,62 @@ struct OpenCodexUsageFanOutTests {
         #expect(snapshots[.codex]?.last30DaysTokens == 150)
     }
 
+    @Test func `snapshotsBySubscription never reclassifies xai history from current auth state`() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+        let now = Date(timeIntervalSince1970: 1_787_270_400)
+        let entries = Self.xaiEntries(now: now) + [
+            OpenCodexUsageEntry(
+                requestID: "openai-1",
+                timestamp: now,
+                provider: "openai",
+                model: "gpt-5.6-sol",
+                usageStatus: .reported,
+                usage: OpenCodexTokenUsage(inputTokens: 30, outputTokens: 10, totalTokens: 40),
+                totalTokens: 40),
+        ]
+        let snapshots = OpenCodexUsageFanOut.snapshotsBySubscription(
+            entries: entries,
+            now: now,
+            historyDays: 7,
+            calendar: calendar)
+
+        #expect(Set(snapshots.keys) == [.codex])
+        #expect(snapshots[.grok] == nil)
+        #expect(snapshots[.codex]?.last30DaysTokens == 40)
+    }
+
+    @Test func `bare xai model remains token only with an injected xai catalog`() throws {
+        let catalog = try Self.pricingCatalog()
+        let snapshot = try Self.pricingSnapshot(provider: "xai", model: "grok-4.6", catalog: catalog)
+
+        #expect(snapshot.daily.first?.totalTokens == 1100)
+        #expect(snapshot.daily.first?.costUSD == nil)
+        #expect(snapshot.daily.first?.unpricedRequestCount == 1)
+        #expect(snapshot.last30DaysCostUSD == nil)
+    }
+
+    @Test func `bare openai model keeps its pre qualification catalog price`() throws {
+        let catalog = try Self.pricingCatalog()
+        let snapshot = try Self.pricingSnapshot(provider: "openai", model: "gpt-5.6-sol", catalog: catalog)
+        let cost = try #require(snapshot.daily.first?.costUSD)
+        let expected = try #require(CostUsagePricing.codexCostUSD(
+            model: "gpt-5.6-sol",
+            inputTokens: 1000,
+            cachedInputTokens: 200,
+            outputTokens: 100,
+            modelsDevCatalog: catalog))
+
+        #expect(abs(expected - 0.00125) < 0.000000000001)
+        #expect(cost == expected)
+    }
+
+    @Test func `bare kimi model stays unpriced with an injected kimi catalog`() throws {
+        let snapshot = try Self.pricingSnapshot(provider: "kimi", model: "k3[1m]", catalog: Self.pricingCatalog())
+
+        #expect(snapshot.daily.first?.costUSD == nil)
+    }
+
     @Test func `snapshotsBySubscription routes opencode go spend into open code go`() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
@@ -534,6 +590,91 @@ struct OpenCodexUsageFanOutTests {
                         limit: nil),
                 ]),
         ])
+    }
+
+    private static func pricingSnapshot(
+        provider: String,
+        model: String,
+        catalog: ModelsDevCatalog) throws -> CostUsageTokenSnapshot
+    {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+        let now = Date(timeIntervalSince1970: 1_787_270_400)
+        return OpenCodexUsageAggregator.snapshot(
+            entries: [
+                OpenCodexUsageEntry(
+                    requestID: "pricing-\(provider)",
+                    timestamp: now,
+                    provider: provider,
+                    model: model,
+                    usageStatus: .reported,
+                    usage: OpenCodexTokenUsage(
+                        inputTokens: 1000,
+                        outputTokens: 100,
+                        cacheReadInputTokens: 200,
+                        totalTokens: 1100),
+                    totalTokens: 1100),
+            ],
+            now: now,
+            historyDays: 7,
+            calendar: calendar,
+            modelsDevCatalog: catalog)
+    }
+
+    private static func xaiEntries(now: Date) -> [OpenCodexUsageEntry] {
+        [
+            OpenCodexUsageEntry(
+                requestID: "xai-1",
+                timestamp: now,
+                provider: "xai",
+                model: "grok-4.6",
+                usageStatus: .reported,
+                usage: OpenCodexTokenUsage(inputTokens: 100, outputTokens: 20, totalTokens: 120),
+                totalTokens: 120),
+            OpenCodexUsageEntry(
+                requestID: "xai-2",
+                timestamp: now,
+                provider: "xai",
+                model: "xai/grok-4.6",
+                usageStatus: .reported,
+                usage: OpenCodexTokenUsage(inputTokens: 60, outputTokens: 20, totalTokens: 80),
+                totalTokens: 80),
+        ]
+    }
+
+    private static func pricingCatalog() throws -> ModelsDevCatalog {
+        let json = """
+        {
+          "xai": {
+            "id": "xai",
+            "models": {
+              "grok-4.6": {
+                "id": "grok-4.6",
+                "cost": { "input": 2, "output": 6, "cache_read": 0.5 }
+              }
+            }
+          },
+          "openai": {
+            "id": "openai",
+            "models": {
+              "gpt-5.6-sol": {
+                "id": "gpt-5.6-sol",
+                "cost": { "input": 1, "output": 4, "cache_read": 0.25 }
+              }
+            }
+          },
+          "kimi": {
+            "id": "kimi",
+            "models": {
+              "k3[1m]": {
+                "id": "k3[1m]",
+                "cost": { "input": 9, "output": 19 }
+              }
+            }
+          }
+        }
+        """
+        return try JSONDecoder().decode(ModelsDevCatalog.self, from: Data(json.utf8))
     }
 }
 

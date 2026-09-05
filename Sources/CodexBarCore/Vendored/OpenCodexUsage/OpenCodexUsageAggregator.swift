@@ -226,20 +226,21 @@ enum OpenCodexUsageAggregator {
             day.tokens += tokens
             day.sawTokens = true
         }
-        day.priced += entry.usageStatus == .reported ? 1 : 0
-        day.estimated += entry.usageStatus == .estimated ? 1 : 0
+        let usesGrokEstimate = entry.credentialSource == .grokOAuth
+        day.priced += entry.usageStatus == .reported && !usesGrokEstimate ? 1 : 0
+        day.estimated += entry.usageStatus == .estimated || usesGrokEstimate ? 1 : 0
         day.unmetered += entry.usageStatus == .unsupported ? 1 : 0
         day.unpriced += entry.usageStatus == .unreported ? 1 : 0
 
         if let cost {
             day.cost += cost
             day.sawCost = true
-        } else if entry.usageStatus == .reported {
+        } else if entry.usageStatus == .reported && !usesGrokEstimate {
             day.unpriced += 1
             if day.priced > 0 {
                 day.priced -= 1
             }
-        } else if entry.usageStatus == .estimated {
+        } else if entry.usageStatus == .estimated || usesGrokEstimate {
             day.unpriced += 1
             if day.estimated > 0 {
                 day.estimated -= 1
@@ -337,9 +338,8 @@ enum OpenCodexUsageAggregator {
 
     /// List-price estimate for one entry. Precedence is unchanged from the per-merge pricing it replaces:
     /// 1. `customPricing` — the snapshot's own overlay (provider-scoped rates passed by the caller);
-    /// 2. `CostUsagePricing.codexCostUSD` with the pre-resolved `customPricingOverlay` (the app-level overlay file,
-    ///    which `codexCostUSD` would otherwise re-load per call) and the pre-resolved models.dev `modelsDevCatalog`
-    ///    (otherwise `ModelsDevCache.load` per call), then the bundled/historical tables.
+    /// 2. The pre-resolved app overlay, matching the original model before the provider-qualified model;
+    /// 3. The provider-qualified models.dev lookup, then the bundled/historical tables.
     private static func listPriceUSD(
         entry: OpenCodexUsageEntry,
         customPricing: CostUsageCustomPricing,
@@ -354,6 +354,9 @@ enum OpenCodexUsageAggregator {
             || usage?.cacheReadTokens != nil
             || usage?.cacheCreationInputTokens != nil
         guard hasTokenData else { return nil }
+        if entry.credentialSource == .grokOAuth, usage?.inputTokens == nil || usage?.outputTokens == nil {
+            return nil
+        }
         let input = usage?.inputTokens ?? 0
         let output = usage?.outputTokens ?? 0
         let cacheRead = usage?.cacheReadTokens ?? 0
@@ -368,15 +371,34 @@ enum OpenCodexUsageAggregator {
         {
             return overlay
         }
+        let pricingModel = entry.model.contains("/") ? entry.model : "\(entry.provider)/\(entry.model)"
+        let overlayModel = customPricingOverlay.rates(
+            providerID: CostUsagePricing.codexModelsDevProviderID, model: entry.model) != nil
+            ? entry.model : pricingModel
+        if customPricingOverlay.rates(
+            providerID: CostUsagePricing.codexModelsDevProviderID, model: overlayModel) != nil
+        {
+            // Preserve bare-key precedence, cached-input accounting, and unknown rates in explicit overrides.
+            return customPricingOverlay.estimatedCodexCostUSD(
+                model: overlayModel,
+                inputTokens: input,
+                cachedInputTokens: cacheRead,
+                outputTokens: output,
+                cacheWriteInputTokens: cacheWrite)
+        }
+        // Provider-specific by design: raw xAI rows need an explicit price to establish a standalone estimate.
+        // Subscription attribution remains gated separately by physical Grok OAuth attempts in the fan-out.
+        let isXAI = entry.provider.lowercased() == "xai" || entry.model.lowercased().hasPrefix("xai/")
+        if isXAI, entry.credentialSource != .grokOAuth { return nil }
         return CostUsagePricing.codexCostUSD(
-            model: entry.model,
+            model: pricingModel,
             inputTokens: input,
             cachedInputTokens: cacheRead,
             outputTokens: output,
             cacheWriteInputTokens: cacheWrite,
             pricingDate: entry.timestamp,
             modelsDevCatalog: modelsDevCatalog,
-            customPricing: customPricingOverlay)
+            customPricing: .empty)
     }
 
     private static func add(_ lhs: Int?, _ rhs: Int?) -> Int? {

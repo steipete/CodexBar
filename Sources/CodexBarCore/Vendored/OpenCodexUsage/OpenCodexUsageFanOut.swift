@@ -9,7 +9,14 @@ public enum OpenCodexUsageFanOut {
         customPricing: CostUsageCustomPricing = .empty) -> [UsageProvider: CostUsageTokenSnapshot]
     {
         var grouped: [UsageProvider: [OpenCodexUsageEntry]] = [:]
-        for entry in entries {
+        let latest = Dictionary(entries.map { ($0.requestID, $0) }, uniquingKeysWith: { _, latest in latest })
+        for entry in latest.values {
+            let grokAttempts = self.grokOAuthEntries(from: entry)
+            if !grokAttempts.isEmpty {
+                // Provider-specific by design: each OAuth attempt contributes only its own reported Grok usage.
+                grouped[.grok, default: []].append(contentsOf: grokAttempts)
+            }
+            if entry.provider == "xai" || entry.provider == "combo" { continue }
             guard case let .subscription(provider) = OpenCodexRouteDispatcher.route(
                 provider: entry.provider,
                 modelName: entry.model)
@@ -36,12 +43,29 @@ public enum OpenCodexUsageFanOut {
         }
     }
 
+    static func grokOAuthEntries(from entry: OpenCodexUsageEntry) -> [OpenCodexUsageEntry] {
+        // Provider-specific by design: only physical xAI attempts from xAI or combo parents can prove Grok usage.
+        guard entry.provider == "xai" || entry.provider == "combo" else { return [] }
+        // Duplicate ordinals are ambiguous. Drop every copy rather than selecting whichever came first.
+        let ordinals = Dictionary(grouping: entry.attempts, by: \.ordinal)
+        return entry.attempts.compactMap { attempt in
+            guard ordinals[attempt.ordinal]?.count == 1,
+                  attempt.provider == "xai", attempt.credentialSource == .grokOAuth,
+                  attempt.sendCount > 0, !attempt.locallyAnswered, attempt.usageStatus == .reported,
+                  attempt.usage != nil,
+                  !attempt.model.contains("/") || attempt.model.hasPrefix("xai/")
+            else { return nil }
+            return OpenCodexUsageEntry(parent: entry, attempt: attempt)
+        }
+    }
+
     public static func mergeSnapshots(
         _ base: CostUsageTokenSnapshot,
         _ supplement: CostUsageTokenSnapshot,
         now: Date,
         historyDays: Int,
-        calendar: Calendar) -> CostUsageTokenSnapshot
+        calendar: Calendar,
+        provider: UsageProvider? = nil) -> CostUsageTokenSnapshot
     {
         let mergedReport = CostUsageDailyReport.merged([
             CostUsageDailyReport(data: base.daily, summary: nil),
@@ -64,6 +88,10 @@ public enum OpenCodexUsageFanOut {
             calendar: calendar,
             historyCoverageIsEstablished: base.historyCoverageIsEstablished
                 && supplement.historyCoverageIsEstablished,
+            // Provider-specific by design: Grok recorded and OpenCodex estimated rows retain distinct coverage.
+            costProvenance: provider == .grok
+                ? GrokLocalSessionSummary.costProvenance(for: mergedReport.data, fallback: .mixed)
+                : .unknown,
             projects: projects,
             sessions: sessions,
             updatedAt: max(base.updatedAt, supplement.updatedAt))

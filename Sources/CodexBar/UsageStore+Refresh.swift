@@ -1334,17 +1334,20 @@ extension UsageStore {
         attempts: [ProviderFetchAttempt],
         context: ProviderRefreshOutcomeContext) async
     {
-        // Provider-specific by design: Grok's local fallback scans off the main thread when remote billing fails.
-        let grokLocalFallback: CostUsageTokenSnapshot? = if provider == .grok {
-            try? await self.loadGrokLocalTokenSnapshot(historyDays: SpendDashboardSource.scanDays)
-        } else {
-            nil
-        }
         guard !Task.isCancelled else { return }
         let shouldNotifyPermissionPrompt = Self.isPermissionPromptWaiting(error)
         await MainActor.run {
             guard self.isCurrentProviderRefreshGeneration(provider, generation: context.generation) else { return }
             self.diagnostics[provider.instanceID] = nil
+            // Provider-specific by design: local ~/.grok/sessions tokens remain readable and
+            // continue advancing after every remote billing failure, including transient failures
+            // that preserve the prior provider snapshot.
+            if provider == .grok {
+                Task { @MainActor [weak self] in
+                    await self?.scanAndPublishGrokLocalTokenSnapshot(
+                        historyDays: GrokLocalSessionScanner.maximumLookbackDays)
+                }
+            }
             let restoredClaudeHistory = self.prepareClaudeHistoryFallback(
                 provider: provider,
                 usesConsumerAutoPipeline: context.claudeUsesConsumerAutoPipeline,
@@ -1460,15 +1463,8 @@ extension UsageStore {
                 self.errors[provider.instanceID] = error.localizedDescription
                 if !preservesPriorData, !preservesClaudeWebSessionFailure {
                     self.snapshots.removeValue(forKey: provider.instanceID)
-                    // Provider-specific by design: local ~/.grok/sessions tokens remain readable
-                    // when the remote billing probe fails.
-                    if provider == .grok {
-                        if let local = grokLocalFallback {
-                            self.publishTokenSnapshot(local, for: provider)
-                        } else {
-                            self.clearTokenSnapshot(for: provider)
-                        }
-                    } else if Self.tokenCostRequiresProviderSnapshot(provider) {
+                    // Provider-specific by design: Grok already published its independent local scan above.
+                    if provider != .grok, Self.tokenCostRequiresProviderSnapshot(provider) {
                         self.clearTokenSnapshot(for: provider)
                     }
                 }

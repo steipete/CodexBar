@@ -13,6 +13,7 @@ extension SpendDashboardSource {
         _ inputs: [SpendDashboardModel.ProviderInput],
         request: SpendDashboardLoadRequest,
         environment: [String: String] = ProcessInfo.processInfo.environment,
+        cacheRoot: URL? = nil,
         entryLoader: ((URL) throws -> [OpenCodexUsageEntry])? = nil) -> (
         inputs: [SpendDashboardModel.ProviderInput],
         observation: SpendDashboardLoadResult.OpenCodexObservation)
@@ -27,7 +28,7 @@ extension SpendDashboardSource {
         guard let logURL = OpenCodexUsageLog.usageLogURL(environment: environment) else {
             return (inputs.filter { $0.id != SpendDashboardModel.openCodexSourceID }, .unavailable)
         }
-        let store = OpenCodexUsageStore(cacheRoot: OpenCodexUsageLog.cacheRoot())
+        let store = OpenCodexUsageStore(cacheRoot: cacheRoot ?? OpenCodexUsageLog.cacheRoot())
         let entries: [OpenCodexUsageEntry]
         do {
             entries = try entryLoader?(logURL) ?? store.loadEntries(logURL: logURL)
@@ -111,7 +112,8 @@ extension SpendDashboardSource {
                 supplement,
                 now: request.now,
                 historyDays: self.scanDays,
-                calendar: request.configuration.bucketCalendar),
+                calendar: request.configuration.bucketCalendar,
+                provider: input.provider),
             tokenActivityCache: input.tokenActivityCache,
             sourceKind: input.sourceKind)
     }

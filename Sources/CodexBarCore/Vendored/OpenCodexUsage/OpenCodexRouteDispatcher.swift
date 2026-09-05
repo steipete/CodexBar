@@ -9,24 +9,30 @@ public enum OpenCodexRouteTarget: Equatable, Sendable {
 public enum OpenCodexRouteDispatcher {
     public static func route(provider: String) -> OpenCodexRouteTarget {
         // Provider-specific by design: OpenCodex provider prefixes map onto subscription rows or token-only spend.
-        switch provider.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        let providerID = provider.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        switch providerID {
         case "openai":
-            .subscription(.codex)
+            return .subscription(.codex)
+        case "xai":
+            // Legacy rows and API-key traffic have no subscription attribution. Only the
+            // per-attempt fan-out accepts explicit Grok OAuth provenance.
+            return .tokenOnly
         case "opencode-go":
-            .subscription(.opencodego)
+            return .subscription(.opencodego)
         case "kimi-coding", "kimi-for-coding":
-            .subscription(.kimi)
+            return .subscription(.kimi)
         case "deepseek":
-            .subscription(.deepseek)
+            return .subscription(.deepseek)
         case "opencode-free", "opencode":
-            .tokenOnly
+            return .tokenOnly
         default:
-            .unknown
+            return .unknown
         }
     }
 
     public static func route(modelName: String) -> OpenCodexRouteTarget {
         let trimmed = modelName.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Provider-specific by design: OpenCodex bare model selectors default to the Codex subscription.
         guard let slash = trimmed.firstIndex(of: "/") else {
             return .subscription(.codex)
         }
@@ -36,6 +42,7 @@ public enum OpenCodexRouteDispatcher {
     }
 
     public static func countsTowardCodexSubscription(modelName: String) -> Bool {
+        // Provider-specific by design: this public predicate filters explicitly for the Codex subscription.
         if case .subscription(.codex) = self.route(modelName: modelName) {
             return true
         }

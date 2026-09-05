@@ -80,6 +80,8 @@ actor CostUsageStore {
         parserHash: CodexParserHash.value)
     static let cacheGeneration = "sqlite:\(CostUsageStore.schemaVersion)"
     static let compatiblePredecessorParserHashes: Set<String> = [
+        "d2e66225d0b33672", // Current main; Grok pricing additions preserve native rows and checkpoints.
+        "b974e5782bad3f29", // Previous Grok branch; native persisted rows remain compatible.
         "2590d36e1cc4a2ea", // Lazy token history reads preserve persisted rows and scan checkpoints.
         "edd0a6ad56c0e4e7", // Astra pricing changes report costs without changing native rows or scan checkpoints.
         "f043ae98075c8e4d", // Retained scan-range scheduling preserves native rows, checkpoints, and reports.

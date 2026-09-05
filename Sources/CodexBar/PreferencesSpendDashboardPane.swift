@@ -674,7 +674,15 @@ private struct SpendProviderPanel: View {
                             .foregroundStyle(.tertiary)
                             .frame(width: 26, alignment: .leading)
                         SpendProviderIcon(provider: row.provider, sourceKind: row.sourceKind)
-                        Text(row.displayName).lineLimit(1)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(row.displayName).lineLimit(1)
+                            if let disclaimer = row.costDisclaimer {
+                                Text(disclaimer)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+                        }
                         Spacer()
                         Text(
                             row.totalCost == nil && row.totalTokens == nil

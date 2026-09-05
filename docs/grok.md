@@ -127,10 +127,31 @@ The grok.com billing gRPC-web endpoint remains a best-effort fallback.
      unknown-usage retry adopts only the validated active-period shape described
      above. This keeps billing visible when
      `grok agent stdio` returns `Method not found`.
-5) **Local session signals** (informational fallback)
-   - Walks `~/.grok/sessions/<encoded-cwd>/<session-id>/signals.json` files (last 30 days).
-   - Aggregates `totalTokensBeforeCompaction`, `contextTokensUsed`, `modelsUsed`,
-     and the most recent session timestamp.
+5) **Local completed-turn history** (informational fallback and Usage & Spend)
+   - Streams completed `turn_completed` records from
+     `~/.grok/sessions/<encoded-cwd>/<session-id>/updates.jsonl` over the requested
+     history window (up to 365 days).
+   - Aggregates the recorded per-turn token usage, model breakdown, request count,
+     and timestamps. Cost comes from the `costUsdTicks` the CLI recorded for each turn
+     (ticks / 1e10 = USD), which already carries the price tier and any promotional
+     rate. Entries that record no ticks fall back to public xAI list prices and are
+     counted as estimated, so a window reports whether it was recorded, estimated, or
+     a mix of both. Neither figure is a Grok bill.
+   - A positive outer `usage.costUsdTicks` is the authoritative turn total and is
+     counted once, even when `modelUsage` is populated. Nested recorded costs are used
+     for model dollars only when every model has ticks and their sum matches that total;
+     otherwise model tokens remain available while model dollars stay unknown. Without
+     a positive outer total, each model uses its recorded ticks or the list-price fallback.
+   - Live menu and dashboard publications, including reused in-flight scan results,
+     derive the cost source from the days retained in the requested window. A shorter
+     window containing only CLI-recorded turns stays recorded even when older history
+     includes list-price estimates; an estimate-only window stays estimated.
+     Usage & Spend applies the same source calculation when filtering its retained
+     365-day input by history range or by a selected day.
+   - Reads only a bounded tail of each growing JSONL file, caps individual records
+     and retained parsed turns, bounds session-tree discovery, and reports history as incomplete if a bound is hit.
+   - Uses `signals.json` only as a metadata fallback for sessions with no completed
+     turns; context-window occupancy is never counted as consumed tokens.
 
 ## OAuth credentials
 
@@ -159,6 +180,28 @@ The grok.com billing gRPC-web endpoint remains a best-effort fallback.
   relabel the result with the new account. Cookie usage stays separate from this
   captured account; local session scanning and CLI behavior are unchanged.
 
+## OpenCodex usage
+
+With **Include OpenCodex usage logs** enabled (off by default), **Usage & Spend**
+adds reported Grok OAuth attempts from OpenCodex to the Grok row. This requires an
+OpenCodex version that writes `attempts[].credentialSource: "grok-oauth"` from the
+resolved upstream transport. API-key attempts, historic records without provenance,
+unreported or estimated token counts, and locally answered requests stay excluded.
+Current credentials, inbound API keys, and model names never backfill attribution.
+
+Each physical attempt contributes its own reported token counts, including a metered
+attempt before a combo switches providers. The parent aggregate is not counted again.
+OpenCodex has no recorded dollar amount: its costs use public list prices and remain
+estimates, with separate coverage when combined with native CLI-recorded spend.
+Missing token classes or unknown prices retain tokens without inventing a dollar value.
+The Grok menu continues to use native CLI logs; this opt-in integration is for
+**Usage & Spend**. Neither source is a subscription invoice.
+
+Standalone OpenCodex reports preserve explicit custom prices for xAI records, including
+API-key and historic usage. Those user-configured estimates do not establish Grok
+subscription attribution. Without a matching override, raw xAI records remain token-only.
+Application price overrides retain bare-model key precedence before provider-qualified
+keys; missing rate fields remain unknown rather than falling back to catalog prices.
 
 ## JSON-RPC contract
 
@@ -219,30 +262,53 @@ The grok.com billing gRPC-web endpoint remains a best-effort fallback.
 
 ## Local fallback (`~/.grok/sessions/`)
 
-Each session directory contains `signals.json` with fields like:
+Each session directory records completed turns in `updates.jsonl`. CodexBar reads
+`params.update.sessionUpdate == "turn_completed"` records and uses the record's
+timestamp and actual usage payload:
 
 ```json
 {
-  "turnCount": 1,
-  "contextTokensUsed": 2968,
-  "contextWindowTokens": 512000,
-  "totalTokensBeforeCompaction": 0,
-  "modelsUsed": ["grok-build"],
-  "primaryModelId": "grok-build",
-  "sessionDurationSeconds": 47
+  "timestamp": 1787472000,
+  "params": {
+    "update": {
+      "sessionUpdate": "turn_completed",
+      "usage": {
+        "inputTokens": 1000,
+        "outputTokens": 100,
+        "totalTokens": 1100,
+        "modelCalls": 1,
+        "modelUsage": {
+          "grok-4.6-build": {
+            "inputTokens": 1000,
+            "outputTokens": 100,
+            "totalTokens": 1100
+          }
+        }
+      }
+    }
+  }
 }
 ```
 
-CodexBar aggregates these into a `GrokLocalSessionSummary` (session count, total
-tokens, last session time, primary model, per-day token buckets) and exposes it for
-diagnostics even when the RPC path is unavailable.
+CodexBar aggregates these into a `GrokLocalSessionSummary` (session count, actual
+tokens, last session time, primary model, and local-day buckets) over the requested
+window, up to 365 days. The reader streams a bounded tail of each file, limits a
+single JSONL record to 1 MiB, and retains at most 20,000 recent turns per file. A
+scan visits at most 4,096 session-tree entries, then considers at most 256 recent
+sessions, 256 MiB, and 100,000 turns; the
+process-wide LRU parse cache retains at most 64 files or 50,000 turns. If a bound
+drops history, the resulting snapshot is marked incomplete instead of presenting
+partial totals as complete. `signals.json` contributes model/session metadata only
+when no completed turns are available and is also limited to 1 MiB.
 
 Those local daily token buckets also feed the shared Usage & Spend catalog so an
 enabled Grok subscription is counted instead of omitted. SuperGrok/X Premium+
 credits remain a quota window on the usage bar; they are never converted into
-dollars. Local session scans run on the dedicated background usage-scan queue;
-menu cards and spend views reuse the already-published snapshot instead of
-walking the session directory whenever they render.
+dollars. Dollar figures come from the spend the CLI recorded, or from public xAI list
+prices where it recorded none; neither is a bill.
+Local session scans run on the dedicated background usage-scan queue; menu cards
+and spend views reuse the already-published snapshot instead of walking the session
+directory whenever they render.
 
 ## Status
 

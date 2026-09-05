@@ -22,7 +22,7 @@ public struct OpenCodexUsageStore: Sendable {
     /// Schema v2 lives in a versioned filename so a v1 build keeps using `opencodex-usage.sqlite`.
     /// Leave that older file alone; do not delete it.
     public static let databaseFilename = "opencodex-usage-v2.sqlite"
-    private static let schemaVersion = 2
+    private static let schemaVersion = 3
     private static let cursorMetaKey = "parseCursor"
     private static let prefixDigestByteLimit = 64 * 1024
 
@@ -254,7 +254,7 @@ public struct OpenCodexUsageStore: Sendable {
         let sql = """
         SELECT request_id, timestamp, provider, model, usage_status, account_label, surface, conversation_id, \
         input_tokens, output_tokens, cached_input_tokens, cache_read_input_tokens, \
-        cache_creation_input_tokens, reasoning_output_tokens, usage_total_tokens, total_tokens
+        cache_creation_input_tokens, reasoning_output_tokens, usage_total_tokens, total_tokens, attempts_json
         FROM entries
         """
         guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else { return nil }
@@ -275,6 +275,10 @@ public struct OpenCodexUsageStore: Sendable {
                     cacheCreationInputTokens: Self.int(statement, 12),
                     reasoningOutputTokens: Self.int(statement, 13),
                     totalTokens: Self.int(statement, 14))
+                guard let attemptsJSON = Self.text(statement, 16),
+                      let attemptsData = attemptsJSON.data(using: .utf8),
+                      let attempts = try? JSONDecoder().decode([OpenCodexUsageAttempt].self, from: attemptsData)
+                else { return nil }
                 entries.append(OpenCodexUsageEntry(
                     requestID: requestID,
                     timestamp: Date(timeIntervalSince1970: sqlite3_column_double(statement, 1)),
@@ -285,7 +289,8 @@ public struct OpenCodexUsageStore: Sendable {
                     surface: Self.text(statement, 6),
                     conversationID: Self.text(statement, 7),
                     usage: usage,
-                    totalTokens: Self.int(statement, 15)))
+                    totalTokens: Self.int(statement, 15),
+                    attempts: attempts))
             }
             step = sqlite3_step(statement)
         }
@@ -427,7 +432,8 @@ public struct OpenCodexUsageStore: Sendable {
             cache_creation_input_tokens INTEGER,
             reasoning_output_tokens INTEGER,
             usage_total_tokens INTEGER,
-            total_tokens INTEGER
+            total_tokens INTEGER,
+            attempts_json TEXT NOT NULL
         );
         """
         guard sqlite3_exec(db, sql, nil, nil, nil) == SQLITE_OK else { return }
@@ -440,8 +446,8 @@ public struct OpenCodexUsageStore: Sendable {
         INSERT OR REPLACE INTO entries(
             request_id, timestamp, provider, model, usage_status, account_label, surface, conversation_id,
             input_tokens, output_tokens, cached_input_tokens, cache_read_input_tokens,
-            cache_creation_input_tokens, reasoning_output_tokens, usage_total_tokens, total_tokens
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            cache_creation_input_tokens, reasoning_output_tokens, usage_total_tokens, total_tokens, attempts_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else { return false }
         defer { sqlite3_finalize(statement) }
@@ -464,6 +470,10 @@ public struct OpenCodexUsageStore: Sendable {
             Self.bind(statement, 14, entry.usage?.reasoningOutputTokens)
             Self.bind(statement, 15, entry.usage?.totalTokens)
             Self.bind(statement, 16, entry.totalTokens)
+            guard let attemptsData = try? JSONEncoder().encode(entry.attempts),
+                  let attemptsJSON = String(data: attemptsData, encoding: .utf8)
+            else { return false }
+            Self.bind(statement, 17, attemptsJSON)
             guard sqlite3_step(statement) == SQLITE_DONE else { return false }
         }
         return true

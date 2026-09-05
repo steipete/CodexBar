@@ -499,8 +499,8 @@ extension UsageStore {
     {
         let windowDays = historyDays ?? self.settings.costUsageHistoryDays
         // Provider-specific by design: snapshot-backed spend sources own their live billing
-        // projection. Grok contributes local session tokens only; xAI contributes Management API
-        // daily spend only. Neither converts a quota or prepaid balance into dollars.
+        // projection. Grok contributes local session list-price estimates; xAI contributes
+        // Management API daily spend. Neither converts a quota or prepaid balance into dollars.
         switch provider {
         case .openai:
             return snapshot?.openAIAPIUsage?.toCostUsageTokenSnapshot()
@@ -523,6 +523,60 @@ extension UsageStore {
         default:
             return nil
         }
+    }
+
+    @discardableResult
+    func scanAndPublishGrokLocalTokenSnapshot(historyDays: Int) async -> CostUsageTokenSnapshot? {
+        // Provider-specific by design: this fallback owns Grok's local session scan and publication.
+        let provider = UsageProvider.grok
+        let requestedHistoryDays = min(max(1, historyDays), GrokLocalSessionScanner.maximumLookbackDays)
+        if let task = self.grokLocalTokenScanTask {
+            return await task.value.map { self.narrowedGrokTokenSnapshot($0, historyDays: requestedHistoryDays) }
+        }
+
+        let environment = self.environmentBase
+        let publicationRevision = self.providerPublicationRevision(for: provider)
+        let providerConfigRevision = self.settings.providerConfigRevision(for: provider)
+        let scannerOverride = self._test_grokLocalTokenScannerOverride
+        let token = UUID()
+        let task = Task { @MainActor [weak self] () -> CostUsageTokenSnapshot? in
+            let snapshot: CostUsageTokenSnapshot?
+            if let scannerOverride {
+                snapshot = await scannerOverride(GrokLocalSessionScanner.maximumLookbackDays)
+            } else {
+                let scanTask = Task.detached(priority: .utility) {
+                    await GrokLocalSessionScanner.summarizeRequestingPricingRefresh(
+                        env: environment,
+                        lookbackDays: GrokLocalSessionScanner.maximumLookbackDays)
+                        .toCostUsageTokenSnapshot(historyDays: GrokLocalSessionScanner.maximumLookbackDays)
+                }
+                snapshot = await withTaskCancellationHandler {
+                    await scanTask.value
+                } onCancel: {
+                    scanTask.cancel()
+                }
+            }
+            guard let self,
+                  !Task.isCancelled,
+                  self.providerPublicationRevisionIsCurrent(publicationRevision, for: provider),
+                  self.settings.providerConfigRevision(for: provider) == providerConfigRevision,
+                  self.isEnabled(provider)
+            else { return nil }
+            if let snapshot {
+                self.publishTokenSnapshot(snapshot, for: provider)
+            } else {
+                self.publishConfirmedEmptyTokenSnapshot(for: provider)
+            }
+            return snapshot
+        }
+        self.grokLocalTokenScanToken = token
+        self.grokLocalTokenScanTask = task
+        let snapshot = await task.value
+        if self.grokLocalTokenScanToken == token {
+            self.grokLocalTokenScanTask = nil
+            self.grokLocalTokenScanToken = nil
+        }
+        return snapshot.map { self.narrowedGrokTokenSnapshot($0, historyDays: requestedHistoryDays) }
     }
 
     nonisolated static func tokenCostRequiresProviderSnapshot(_ provider: UsageProvider) -> Bool {
@@ -574,6 +628,28 @@ extension UsageStore {
         self.tokenFailureGates[.codex]?.reset()
         self.tokenFailureGates[.claude]?.reset()
         return nil
+    }
+
+    func tokenSnapshotForLiveProviderConsumer(
+        fromProviderSnapshot snapshot: UsageSnapshot?,
+        provider: UsageProvider,
+        historyDays: Int? = nil)
+        -> CostUsageTokenSnapshot?
+    {
+        let projected = self.tokenSnapshot(
+            fromProviderSnapshot: snapshot,
+            provider: provider,
+            historyDays: historyDays)
+        // Provider-specific by design: Grok's remote probe may fail while its local session scan still
+        // publishes a newer valid estimate. Keep this selection scoped to live consumers so account
+        // override cards cannot inherit provider-level data from a different context.
+        guard provider == .grok,
+              let published = self.tokenSnapshotPublicationForCurrentProviderConfig(for: provider)?.snapshot
+        else { return projected }
+        let windowDays = historyDays ?? self.settings.costUsageHistoryDays
+        let narrowedPublished = self.narrowedGrokTokenSnapshot(published, historyDays: windowDays)
+        guard let projected else { return narrowedPublished }
+        return narrowedPublished.updatedAt > projected.updatedAt ? narrowedPublished : projected
     }
 
     nonisolated static func tokenCostNoDataMessage(for provider: UsageProvider) -> String {

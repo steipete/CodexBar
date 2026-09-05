@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
-struct CostUsageScanExecutorTests {
+struct CostUsageScanExecutorTests: GrokLocalSessionScannerTestSupport {
     @Test
     func `runs work on the dedicated scan queue and returns its value`() async throws {
         let queue = self.makeQueue()
@@ -110,6 +110,57 @@ struct CostUsageScanExecutorTests {
         releaseBlocker.set(true)
         await observer.value
         _ = try? await blocker.value
+    }
+
+    @Test
+    func `Grok JSONL parsing observes executor cancellation after scanning starts`() async throws {
+        let fixture = try self.makeFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        let now = Date()
+        let turn = self.turn(timestamp: now, usage: self.singleModelUsage(input: 3, output: 2))
+        let line = try #require(String(data: JSONSerialization.data(withJSONObject: turn), encoding: .utf8)) + "\n"
+        let lineCount = 40000
+        try Data(String(repeating: line, count: lineCount).utf8)
+            .write(to: fixture.session.appendingPathComponent("updates.jsonl"))
+        let queue = self.makeQueue()
+        let checks = LockedValue(0)
+        let parsingStarted = LockedValue(false)
+        let releaseParser = LockedValue(false)
+        let root = fixture.root
+        let task = Task {
+            try await CostUsageScanExecutor.run(on: queue) { checkCancellation in
+                try GrokLocalSessionScanner.summarize(
+                    env: ["GROK_HOME": root.path],
+                    now: now,
+                    modelsDevCatalog: Self.catalog(),
+                    checkCancellation: {
+                        checks.update { $0 += 1 }
+                        // One session has fewer than 10 discovery checks; this barrier is inside chunk parsing.
+                        if checks.value == 32 {
+                            parsingStarted.set(true)
+                            while !releaseParser.value {
+                                Thread.sleep(forTimeInterval: 0.001)
+                            }
+                        }
+                        try checkCancellation()
+                    })
+            }
+        }
+        let reachedParser = await self.waitUntil(timeout: .seconds(3)) { parsingStarted.value }
+        #expect(reachedParser)
+        let cancelledAt = ContinuousClock.now
+        task.cancel()
+        releaseParser.set(true)
+        await #expect(throws: CancellationError.self) { try await task.value }
+        let nextScanRan = try await CostUsageScanExecutor.run(on: queue) { _ in true }
+        let cancellationLatency = cancelledAt.duration(to: .now)
+        #expect(nextScanRan)
+        #expect(cancellationLatency < .seconds(1))
+        let decoded = GrokLocalSessionScanner.parseCacheMetricsForTesting(pathPrefix: root.path).jsonDecodeCount
+        #expect(decoded > 0)
+        #expect(decoded < lineCount)
+        print("grok_cancel_decoded_lines=\(decoded)/\(lineCount)")
+        print("grok_cancel_queue_release=\(cancellationLatency)")
     }
 
     private func makeQueue() -> DispatchQueue {
