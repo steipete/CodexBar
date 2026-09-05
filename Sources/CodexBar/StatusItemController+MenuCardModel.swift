@@ -145,8 +145,8 @@ extension StatusItemController {
                 self.settings.costSummaryShowsSubmenu(for: target),
             costComparisonPeriodsEnabled: self.settings.costComparisonPeriodsEnabled,
             showOptionalCreditsAndExtraUsage: self.settings.showOptionalCreditsAndExtraUsage,
-            claudeDailyRoutinesUsageVisible: self.settings.claudeDailyRoutinesUsageVisible,
-            codexSparkUsageVisible: self.settings.codexSparkUsageVisible,
+            claudeDailyRoutinesUsageVisible: true,
+            codexSparkUsageVisible: true,
             copilotBudgetExtrasEnabled: self.settings.copilotBudgetExtrasEnabled,
             sourceLabel: sourceLabel,
             subtitleOverride: subtitleOverride,
@@ -165,7 +165,8 @@ extension StatusItemController {
             preferredCurrencyCode: self.settings.preferredCurrencyCode,
             costUsageBucketCalendar: self.settings.costUsageBucketCalendar,
             now: now)
-        return UsageMenuCardView.Model.make(input)
+        return UsageMenuCardView.Model.make(input).applyingUsageItemVisibility(
+            hiddenItemIDs: self.settings.hiddenUsageItemIDs(for: target))
     }
 
     private func menuCardSnapshot(

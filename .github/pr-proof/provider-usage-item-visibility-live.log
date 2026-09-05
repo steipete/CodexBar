@@ -1,0 +1,51 @@
+Live packaged-app verification — 2026-08-25
+
+Setup
+-----
+PR head: 7fa30cb72f79d8aea480c367075ece5ac3b56a6d
+Bundle: ~/Developer/CodexBar/CodexBar.app
+Bundle version: 0.55.0 (129)
+Main executable SHA-256: 27342f884cc8378c3dd94d546eab2bf96f79659d85507796ff6855fed6be2698
+Signing verification: codesign --verify --deep --strict CodexBar.app — valid
+Privacy: personal information hidden with CodexBar's native Hide Personal Info setting during capture
+Data: live provider data from a real local setup; no synthetic fixture was used
+
+Exact-head build and launch
+---------------------------
+swift build -c release
+Build complete! (87.28s)
+
+swift test --filter ProviderUsageItemVisibility
+ProviderUsageItemVisibilityTests: 8 tests passed in 0.130s
+(The opt-in synthetic screenshot renderer was skipped because no output directory was requested.)
+
+The exact-head Release executable was installed into the packaged bundle, ad-hoc signed,
+verified, terminated, and relaunched. The final normal process was:
+
+  ~/Developer/CodexBar/CodexBar.app/Contents/MacOS/CodexBar
+
+Persisted non-secret visibility state after relaunch
+----------------------------------------------------
+[
+  {"id":"codex","hiddenUsageItemIDs":["metric:codex-spark","metric:codex-spark-weekly","section:credits"]},
+  {"id":"grok","hiddenUsageItemIDs":null},
+  {"id":"cursor","hiddenUsageItemIDs":["metric:primary","metric:secondary","metric:tertiary"]}
+]
+
+Observed behavior after relaunch
+--------------------------------
+- Codex provider menu: Weekly and Limit Reset Credits only.
+- Overview: Codex Weekly + Limit Reset Credits, Grok Weekly, and Cursor Grok Bot only.
+- No empty usage sections or layout gaps.
+- The checked/unchecked choices survived process termination and packaged-app relaunches.
+
+Capture provenance
+------------------
+- provider-usage-item-visibility-live-codex.png: exact-head packaged app, live WindowServer frame.
+- provider-usage-item-visibility-live-overview.png: exact-head packaged app after relaunch, live WindowServer frame.
+- provider-usage-item-visibility-live-settings.jpg: real packaged Settings window and live preview, captured immediately before the final non-UI commit.
+
+The only production delta after the Settings capture was one line in SettingsStore.swift
+that excludes hiddenUsageItemIDs from the provider refresh fingerprint. It changes refresh
+bookkeeping only; no Settings, menu, Overview, descriptor, persistence, or rendering code
+changed. The exact-head provider-menu and Overview captures above reverify the rendered result.

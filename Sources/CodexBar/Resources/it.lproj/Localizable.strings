@@ -1545,4 +1545,8 @@
 "menu_bar_layout_conditional_default_session_spent" = "Sessione quasi esaurita";
 "menu_bar_layout_conditional_default_either_high" = "Sessione o settimana a livello alto";
 "menu_bar_layout_conditional_default_scoped_weekly" = "Settimana per modello oltre il 60%";
+"Visible usage items" = "Elementi di utilizzo visibili";
+"Restore Defaults" = "Ripristina impostazioni predefinite";
+"Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "Scegli quali righe di utilizzo mostrare nel menu di questo provider, nell’anteprima delle Impostazioni e nella Panoramica.";
+"%@ (unavailable)" = "%@ (non disponibile)";
 "Spending cap, not balance" = "Limite di spesa, non saldo";

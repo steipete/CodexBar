@@ -1546,4 +1546,8 @@
 "menu_bar_layout_conditional_default_session_spent" = "الجلسة على وشك النفاد";
 "menu_bar_layout_conditional_default_either_high" = "الجلسة أو الأسبوع في مستوى مرتفع";
 "menu_bar_layout_conditional_default_scoped_weekly" = "نافذة الطراز الأسبوعية فوق 60٪";
+"Visible usage items" = "عناصر الاستخدام المرئية";
+"Restore Defaults" = "استعادة الإعدادات الافتراضية";
+"Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "اختر صفوف الاستخدام التي تظهر في قائمة هذا المزوّد ومعاينة الإعدادات والنظرة العامة.";
+"%@ (unavailable)" = "%@ (غير متوفر)";
 "Spending cap, not balance" = "حد الإنفاق، وليس الرصيد";

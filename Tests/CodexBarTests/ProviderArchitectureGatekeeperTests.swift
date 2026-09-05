@@ -2277,7 +2277,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact preferences test fixture seeds representative provider versions, snapshots, and accounts."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/PreferencesProvidersPane.swift",
-            line: 274,
+            line: 278,
             anchor: "guard let state = self.codexAccountsSectionState(for: .codex), state.canAddAccount else {",
             expectedProviderIDs: ["codex"],
             expectedReferenceCount: 1,
@@ -2285,7 +2285,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/PreferencesProvidersPane.swift",
-            line: 290,
+            line: 294,
             anchor: "guard let state = self.codexAccountsSectionState(for: .codex), state.canReauthenticate(account) else {",
             expectedProviderIDs: ["codex"],
             expectedReferenceCount: 1,
@@ -2293,7 +2293,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/PreferencesProvidersPane.swift",
-            line: 303,
+            line: 307,
             anchor: "guard let state = self.codexAccountsSectionState(for: .codex), state.canReauthenticate(account) else {",
             expectedProviderIDs: ["codex"],
             expectedReferenceCount: 1,
@@ -2389,7 +2389,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/SettingsStore.swift",
-            line: 1203,
+            line: 1204,
             anchor: "if !seen.contains(.factory), let zaiIndex = ordered.firstIndex(of: .zai) {",
             expectedProviderIDs: ["factory", "minimax", "zai"],
             expectedReferenceCount: 8,

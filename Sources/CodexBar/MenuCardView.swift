@@ -171,17 +171,17 @@ struct UsageMenuCardView: View {
         let subtitleStyle: SubtitleStyle
         var usesLiveSubtitle: Bool = false
         let planText: String?
-        let metrics: [Metric]
+        var metrics: [Metric]
         let usageNotes: [String]
         var subscriptionNotes: [String] = []
         var providerDetails: [ProviderDetailSection] = []
         let openAIAPIUsage: OpenAIAPIUsageSnapshot?
         let inlineUsageDashboard: InlineUsageDashboardModel?
-        let creditsText: String?
-        let creditsRemaining: Double?
+        var creditsText: String?
+        var creditsRemaining: Double?
         var creditsProgressPercent: Double?, creditsScaleText: String?
-        let creditsHintText: String?
-        let creditsHintCopyText: String?
+        var creditsHintText: String?
+        var creditsHintCopyText: String?
         var codexResetCredits: CodexResetCreditsPresentation?
         let providerCost: ProviderCostSection?
         let tokenUsage: TokenUsageSection?

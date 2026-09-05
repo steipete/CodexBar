@@ -1546,4 +1546,8 @@
 "menu_bar_layout_conditional_default_session_spent" = "نشست تقریباً تمام شده";
 "menu_bar_layout_conditional_default_either_high" = "نشست یا هفته در سطح بالا";
 "menu_bar_layout_conditional_default_scoped_weekly" = "پنجره هفتگی مدل بیش از ۶۰٪";
+"Visible usage items" = "موارد قابل مشاهده استفاده";
+"Restore Defaults" = "بازیابی پیش‌فرض‌ها";
+"Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "انتخاب کنید کدام ردیف‌های استفاده در منوی این ارائه‌دهنده، پیش‌نمایش تنظیمات و نمای کلی نمایش داده شوند.";
+"%@ (unavailable)" = "%@ (در دسترس نیست)";
 "Spending cap, not balance" = "سقف هزینه، نه موجودی";

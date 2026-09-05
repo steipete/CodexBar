@@ -16,6 +16,7 @@ extension ProviderConfig {
         case tokenAccounts
         case quotaWarnings
         case accentColor
+        case hiddenUsageItemIDs
         case pluginSettings
         case pluginSecrets
     }
@@ -44,6 +45,9 @@ extension ProviderConfig {
             QuotaWarningConfig.self,
             forKey: .init(CodingKeys.quotaWarnings.rawValue))
         self.accentColor = try container.decodeIfPresent(String.self, forKey: .init(CodingKeys.accentColor.rawValue))
+        self.hiddenUsageItemIDs = try container.decodeIfPresent(
+            [String].self,
+            forKey: .init(CodingKeys.hiddenUsageItemIDs.rawValue))
         self.pluginSettings = try container.decodeIfPresent(
             [String: String].self,
             forKey: .init(CodingKeys.pluginSettings.rawValue))
@@ -74,6 +78,9 @@ extension ProviderConfig {
         try container.encodeIfPresent(self.tokenAccounts, forKey: .init(CodingKeys.tokenAccounts.rawValue))
         try container.encodeIfPresent(self.quotaWarnings, forKey: .init(CodingKeys.quotaWarnings.rawValue))
         try container.encodeIfPresent(self.accentColor, forKey: .init(CodingKeys.accentColor.rawValue))
+        try container.encodeIfPresent(
+            self.hiddenUsageItemIDs,
+            forKey: .init(CodingKeys.hiddenUsageItemIDs.rawValue))
         try container.encodeIfPresent(self.pluginSettings, forKey: .init(CodingKeys.pluginSettings.rawValue))
         try container.encodeIfPresent(self.pluginSecrets, forKey: .init(CodingKeys.pluginSecrets.rawValue))
         for (key, value) in self.extensionValues {

@@ -13,6 +13,7 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
     @Binding var isEnabled: Bool
     let subtitle: String
     let model: UsageMenuCardView.Model
+    let usageItems: [ProviderUsageItemDescriptor]
     let openAIWebDiagnostic: String?
     let settingsPickers: [ProviderSettingsPickerDescriptor]
     let settingsToggles: [ProviderSettingsToggleDescriptor]
@@ -33,6 +34,7 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
         isEnabled: Binding<Bool>,
         subtitle: String,
         model: UsageMenuCardView.Model,
+        usageItems: [ProviderUsageItemDescriptor] = [],
         openAIWebDiagnostic: String?,
         settingsPickers: [ProviderSettingsPickerDescriptor],
         settingsToggles: [ProviderSettingsToggleDescriptor],
@@ -52,6 +54,7 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
         self._isEnabled = isEnabled
         self.subtitle = subtitle
         self.model = model
+        self.usageItems = usageItems
         self.openAIWebDiagnostic = openAIWebDiagnostic
         self.settingsPickers = settingsPickers
         self.settingsToggles = settingsToggles
@@ -138,6 +141,13 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
                 Text(L("Usage"))
             }
 
+            if !self.usageItems.isEmpty {
+                ProviderUsageItemVisibilitySettingsView(
+                    provider: self.provider,
+                    settings: self.store.settings,
+                    items: self.usageItems)
+            }
+
             if let errorDisplay {
                 Section {
                     ProviderErrorView(
@@ -207,6 +217,42 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
         }
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
+    }
+}
+
+@MainActor
+struct ProviderUsageItemVisibilitySettingsView: View {
+    let provider: UsageProvider
+    @Bindable var settings: SettingsStore
+    let items: [ProviderUsageItemDescriptor]
+
+    var body: some View {
+        Section {
+            ForEach(self.items) { item in
+                Toggle(
+                    isOn: Binding(
+                        get: { self.settings.isUsageItemVisible(item.id, for: self.provider) },
+                        set: { isVisible in
+                            self.settings.setUsageItemVisible(
+                                isVisible,
+                                itemID: item.id,
+                                for: self.provider)
+                        })) {
+                    Text(item.title)
+                }
+                .toggleStyle(.checkbox)
+            }
+
+            Button(L("Restore Defaults")) {
+                self.settings.restoreDefaultUsageItemVisibility(for: self.provider)
+            }
+            .disabled(self.settings.hiddenUsageItemIDs(for: self.provider).isEmpty)
+        } header: {
+            Text(L("Visible usage items"))
+        } footer: {
+            SettingsSectionFooter(L(
+                "Choose which usage rows appear in this provider's menu, Settings preview, and Overview."))
+        }
     }
 }
 
