@@ -48,7 +48,7 @@ struct HelmcodeCookieCacheTests {
             case "/api/usage/quota":
                 return (Data(Self.quotaBody.utf8), response)
             case "/api/billing/credits":
-                return (Data(Self.quotaBody.utf8), response)
+                return (Data(Self.creditsBody.utf8), response)
             default:
                 Issue.record("Unexpected request path: \(url.path)")
                 throw URLError(.badURL)
