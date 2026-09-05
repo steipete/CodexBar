@@ -159,6 +159,7 @@ public struct HelmcodeUsageSnapshot: Equatable, Sendable {
 
 public enum HelmcodeUsageError: LocalizedError, Equatable, Sendable {
     case missingCookies(HelmcodeDeployment)
+    case missingCookiesAny
     case invalidSession(HelmcodeDeployment)
     case rateLimited
     case apiError(Int)
@@ -168,6 +169,9 @@ public enum HelmcodeUsageError: LocalizedError, Equatable, Sendable {
         switch self {
         case let .missingCookies(deployment):
             "No \(deployment.displayName) dashboard session found. Sign in at \(deployment.dashboardHost) " +
+                "or paste a Cookie header."
+        case .missingCookiesAny:
+            "No Helmcode dashboard session found. Sign in at cloud.helmcode.com or cloud.nan.builders, " +
                 "or paste a Cookie header."
         case let .invalidSession(deployment):
             "\(deployment.displayName) dashboard session expired. Sign in again at \(deployment.dashboardHost)."

@@ -3,20 +3,20 @@ import Foundation
 public struct HelmcodeProviderSettings: ProviderCookieSettings {
     public let cookieSource: ProviderCookieSource
     public let manualCookieHeader: String?
-    public let deployment: HelmcodeDeployment
+    public let deploymentSelection: HelmcodeDeploymentSelection
 
     public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?) {
-        self.init(cookieSource: cookieSource, manualCookieHeader: manualCookieHeader, deployment: .helmcode)
+        self.init(cookieSource: cookieSource, manualCookieHeader: manualCookieHeader, deploymentSelection: .auto)
     }
 
     public init(
         cookieSource: ProviderCookieSource,
         manualCookieHeader: String?,
-        deployment: HelmcodeDeployment)
+        deploymentSelection: HelmcodeDeploymentSelection = .auto)
     {
         self.cookieSource = cookieSource
         self.manualCookieHeader = manualCookieHeader
-        self.deployment = deployment
+        self.deploymentSelection = deploymentSelection
     }
 }
 

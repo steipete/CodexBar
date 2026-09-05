@@ -29,12 +29,12 @@ public enum HelmcodeProviderDescriptor {
                 },
                 credentialSettings: { context in
                     let settings = context.cookieSettings(for: .helmcode)
-                    let deployment = context.config?.sanitizedRegion
-                        .flatMap(HelmcodeDeployment.init(rawValue:)) ?? .helmcode
+                    let deploymentSelection = context.config?.sanitizedRegion
+                        .flatMap(HelmcodeDeploymentSelection.init(rawValue:)) ?? .auto
                     return HelmcodeProviderSettings(
                         cookieSource: settings.cookieSource,
                         manualCookieHeader: settings.manualCookieHeader,
-                        deployment: deployment)
+                        deploymentSelection: deploymentSelection)
                 }),
             credentials: self.credentials,
             metadata: ProviderMetadata(
@@ -90,50 +90,100 @@ struct HelmcodeWebFetchStrategy: ProviderFetchStrategy {
     let kind: ProviderFetchKind = .web
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        let deployment = Self.deployment(for: context)
         if HelmcodeCookieHeader.resolveCookieOverride(context: context) != nil {
             return true
         }
         guard Self.automaticCookieMode(context) else { return false }
-        if let cached = CookieHeaderCache.load(provider: .helmcode, scope: Self.cacheScope(deployment)),
-           !cached.cookieHeader.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        {
+        if HelmcodeDeploymentResolver.detectTenantFromCache() != nil {
             return true
         }
         #if os(macOS)
         if Self.allowsBrowserImport(context: context) {
-            return HelmcodeCookieImporter.hasSession(deployment: deployment, browserDetection: context.browserDetection)
+            return Self.hasSessionForAnyTenant(context)
         }
         #endif
         return false
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        let deployment = Self.deployment(for: context)
+        let selection = HelmcodeDeploymentResolver.resolveSelection(
+            settings: context.settings?.helmcode,
+            environment: context.env)
+        let transport = Self.transportOverrideForTesting
+
         if let override = HelmcodeCookieHeader.resolveCookieOverride(context: context) {
+            let tenant = HelmcodeDeploymentResolver.tenant(
+                forManualCookie: Self.rawCookieOverride(context),
+                selection: selection)
             let snapshot = try await HelmcodeUsageFetcher.fetchUsage(
                 cookieHeader: override.cookieHeader,
-                deployment: deployment)
-            return self.makeResult(usage: snapshot.toUsageSnapshot(), sourceLabel: "web")
+                deployment: tenant,
+                transport: transport)
+            return self.makeResult(
+                usage: snapshot.toUsageSnapshot(),
+                sourceLabel: Self.sourceLabel(for: tenant))
         }
-        // Automatic mode only: manual and off never read or write the persisted session cache.
+        // Automatic cookie mode only: manual and off never read or write the persisted session cache.
         guard Self.automaticCookieMode(context) else {
-            throw HelmcodeUsageError.missingCookies(deployment)
+            throw HelmcodeUsageError.missingCookiesAny
         }
 
-        let scope = Self.cacheScope(deployment)
-        let transport = Self.transportOverrideForTesting
         var cachedSessionError: HelmcodeUsageError?
-        if let cached = CookieHeaderCache.load(provider: .helmcode, scope: scope),
-           !cached.cookieHeader.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        var tenant = selection.pinnedDeployment
+        var cachedHeader = tenant.flatMap { Self.cachedHeader(for: $0) }
+
+        #if os(macOS)
+        if tenant == nil {
+            if let detected = HelmcodeDeploymentResolver.detectTenantFromCache() {
+                tenant = detected
+                cachedHeader = Self.cachedHeader(for: detected)
+            } else if Self.allowsBrowserImport(context: context),
+                      let probed = try Self.detectTenantByImport(context: context)
+            {
+                tenant = probed.tenant
+                cachedHeader = nil
+                let snapshot = try await Self.fetchImportedSessions(
+                    probed.sessions,
+                    deployment: probed.tenant)
+                { session in
+                    try await Self.fetchAndCacheSession(
+                        session,
+                        deployment: probed.tenant,
+                        transport: transport)
+                }
+                return self.makeResult(
+                    usage: snapshot.toUsageSnapshot(),
+                    sourceLabel: Self.sourceLabel(for: probed.tenant))
+            } else {
+                throw HelmcodeUsageError.missingCookiesAny
+            }
+        }
+        #else
+        if tenant == nil {
+            guard let detected = HelmcodeDeploymentResolver.detectTenantFromCache() else {
+                throw HelmcodeUsageError.missingCookiesAny
+            }
+            tenant = detected
+            cachedHeader = Self.cachedHeader(for: detected)
+        }
+        #endif
+
+        guard let resolvedTenant = tenant else {
+            throw HelmcodeUsageError.missingCookiesAny
+        }
+        let scope = Self.cacheScope(resolvedTenant)
+        if let cached = cachedHeader,
+           !cached.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         {
             do {
                 let snapshot = try await HelmcodeUsageFetcher.fetchUsage(
-                    cookieHeader: cached.cookieHeader,
-                    deployment: deployment,
+                    cookieHeader: cached,
+                    deployment: resolvedTenant,
                     transport: transport)
-                return self.makeResult(usage: snapshot.toUsageSnapshot(), sourceLabel: "web")
-            } catch let error as HelmcodeUsageError where error == .invalidSession(deployment) {
+                return self.makeResult(
+                    usage: snapshot.toUsageSnapshot(),
+                    sourceLabel: Self.sourceLabel(for: resolvedTenant))
+            } catch let error as HelmcodeUsageError where error == .invalidSession(resolvedTenant) {
                 // The persisted session was rejected: evict the scoped entry and fall through to a
                 // fresh browser import when the interaction policy allows one, otherwise rethrow.
                 CookieHeaderCache.clear(provider: .helmcode, scope: scope)
@@ -143,17 +193,17 @@ struct HelmcodeWebFetchStrategy: ProviderFetchStrategy {
 
         #if os(macOS)
         guard Self.allowsBrowserImport(context: context) else {
-            throw cachedSessionError ?? HelmcodeUsageError.missingCookies(deployment)
+            throw cachedSessionError ?? HelmcodeUsageError.missingCookies(resolvedTenant)
         }
-        let sessions = try HelmcodeCookieImporter.importSessions(
-            deployment: deployment,
-            browserDetection: context.browserDetection)
-        let snapshot = try await Self.fetchImportedSessions(sessions, deployment: deployment) { session in
-            try await Self.fetchAndCacheSession(session, deployment: deployment, transport: transport)
+        let sessions = try Self.importSessions(deployment: resolvedTenant, context: context)
+        let snapshot = try await Self.fetchImportedSessions(sessions, deployment: resolvedTenant) { session in
+            try await Self.fetchAndCacheSession(session, deployment: resolvedTenant, transport: transport)
         }
-        return self.makeResult(usage: snapshot.toUsageSnapshot(), sourceLabel: "web")
+        return self.makeResult(
+            usage: snapshot.toUsageSnapshot(),
+            sourceLabel: Self.sourceLabel(for: resolvedTenant))
         #else
-        throw cachedSessionError ?? HelmcodeUsageError.missingCookies(deployment)
+        throw cachedSessionError ?? HelmcodeUsageError.missingCookies(resolvedTenant)
         #endif
     }
 
@@ -170,6 +220,30 @@ struct HelmcodeWebFetchStrategy: ProviderFetchStrategy {
     static func automaticCookieMode(_ context: ProviderFetchContext) -> Bool {
         let source = context.settings?.helmcode?.cookieSource
         return source == nil || source == .auto
+    }
+
+    static func sourceLabel(for deployment: HelmcodeDeployment) -> String {
+        "web · \(deployment.sourceLabelName)"
+    }
+
+    static func cachedHeader(for deployment: HelmcodeDeployment) -> String? {
+        guard let header = CookieHeaderCache.load(provider: .helmcode, scope: cacheScope(deployment))?
+            .cookieHeader
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+            !header.isEmpty
+        else { return nil }
+        return header
+    }
+
+    /// The pasted cookie text before normalization, so cURL captures can be host-detected.
+    static func rawCookieOverride(_ context: ProviderFetchContext) -> String? {
+        if context.settings?.helmcode?.cookieSource == .off {
+            return nil
+        }
+        if context.settings?.helmcode?.cookieSource == .manual {
+            return context.settings?.helmcode?.manualCookieHeader
+        }
+        return context.env[HelmcodeSettingsReader.cookieHeaderEnvironmentKey]
     }
 
     /// Fetches one imported session and persists the header actually sent, scoped by deployment.
@@ -194,22 +268,48 @@ struct HelmcodeWebFetchStrategy: ProviderFetchStrategy {
 
     @TaskLocal static var transportOverrideForTesting: (any ProviderHTTPTransport)?
 
-    static func deployment(for context: ProviderFetchContext) -> HelmcodeDeployment {
-        self.deployment(settings: context.settings?.helmcode, environment: context.env)
+    /// Test seam for tenant detection: returns simulated sessions per tenant without touching Chrome.
+    @TaskLocal static var sessionImporterOverrideForTesting:
+        (@Sendable (HelmcodeDeployment) -> [HelmcodeCookieImporter.SessionInfo]?)?
+
+    static func importSessions(
+        deployment: HelmcodeDeployment,
+        context: ProviderFetchContext) throws -> [HelmcodeCookieImporter.SessionInfo]
+    {
+        if let override = sessionImporterOverrideForTesting {
+            return override(deployment) ?? []
+        }
+        return try HelmcodeCookieImporter.importSessions(
+            deployment: deployment,
+            browserDetection: context.browserDetection)
     }
 
-    /// An explicit `HELMCODE_DEPLOYMENT` environment value overrides stored settings; otherwise
-    /// settings decide (defaulting to the Helmcode Cloud tenant).
-    static func deployment(
-        settings: HelmcodeProviderSettings?,
-        environment: [String: String]) -> HelmcodeDeployment
-    {
-        let hasEnvironmentOverride = environment[HelmcodeDeployment.environmentKey]?
-            .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
-        if hasEnvironmentOverride {
-            return HelmcodeDeployment.resolve(environment: environment)
+    static func hasSessionForAnyTenant(_ context: ProviderFetchContext) -> Bool {
+        if let override = sessionImporterOverrideForTesting {
+            return HelmcodeDeployment.allCases.contains { override($0)?.isEmpty == false }
         }
-        return settings?.deployment ?? .helmcode
+        return HelmcodeDeployment.allCases.contains { deployment in
+            (try? HelmcodeCookieImporter.hasSession(
+                deployment: deployment,
+                browserDetection: context.browserDetection)) == true
+        }
+    }
+
+    /// Automatic tenant detection by probing each tenant's cookie domains in order (Helmcode Cloud
+    /// first). Each tenant's cookies are only ever sent to that tenant's hosts.
+    static func detectTenantByImport(
+        context: ProviderFetchContext) throws
+        -> (tenant: HelmcodeDeployment, sessions: [HelmcodeCookieImporter.SessionInfo])?
+    {
+        for deployment in HelmcodeDeployment.allCases {
+            // A tenant whose import fails (suppressed browser access, no profile) simply has no
+            // session for detection purposes; the next tenant is still probed.
+            let sessions = (try? Self.importSessions(deployment: deployment, context: context)) ?? []
+            if !sessions.isEmpty {
+                return (deployment, sessions)
+            }
+        }
+        return nil
     }
 
     static func allowsBrowserImport(context: ProviderFetchContext) -> Bool {
@@ -232,7 +332,7 @@ struct HelmcodeWebFetchStrategy: ProviderFetchStrategy {
                 return try await fetch(session)
             } catch let error as HelmcodeUsageError {
                 switch error {
-                case .invalidSession, .missingCookies:
+                case .invalidSession, .missingCookies, .missingCookiesAny:
                     lastCredentialError = error
                 case .rateLimited, .apiError, .parseFailed:
                     throw error

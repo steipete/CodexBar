@@ -369,7 +369,11 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         }
 
         if provider == .helmcode {
-            return self.settings.helmcodeDeployment.dashboardPageURL
+            let selection = self.settings.helmcodeDeploymentSelection
+            let tenant = selection.pinnedDeployment
+                ?? self.settings.helmcodeDetectedDeployment
+                ?? .helmcode
+            return tenant.dashboardPageURL
         }
 
         if provider == .opencodego {

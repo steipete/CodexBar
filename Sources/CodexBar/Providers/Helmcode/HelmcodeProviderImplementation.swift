@@ -17,7 +17,7 @@ struct HelmcodeProviderImplementation: ProviderImplementation {
     func observeSettings(_ settings: SettingsStore) {
         _ = settings.helmcodeCookieSource
         _ = settings.helmcodeCookieHeader
-        _ = settings.helmcodeDeployment
+        _ = settings.helmcodeDeploymentSelection
     }
 
     @MainActor
@@ -27,14 +27,21 @@ struct HelmcodeProviderImplementation: ProviderImplementation {
 
     @MainActor
     func settingsPickers(context: ProviderSettingsContext) -> [ProviderSettingsPickerDescriptor] {
-        let deployment = context.settings.helmcodeDeployment
         let deploymentBinding = Binding(
-            get: { context.settings.helmcodeDeployment.rawValue },
+            get: { context.settings.helmcodeDeploymentSelection.rawValue },
             set: { raw in
-                context.settings.helmcodeDeployment = HelmcodeDeployment(rawValue: raw) ?? .helmcode
+                context.settings.helmcodeDeploymentSelection =
+                    HelmcodeDeploymentSelection(rawValue: raw) ?? .auto
             })
-        let deploymentOptions = HelmcodeDeployment.allCases.map {
+        let deploymentOptions = HelmcodeDeploymentSelection.allCases.map {
             ProviderSettingsPickerOption(id: $0.rawValue, title: $0.displayName)
+        }
+        let deploymentSubtitle: () -> String? = {
+            guard context.settings.helmcodeDeploymentSelection == .auto else { return nil }
+            guard let detected = context.settings.helmcodeDetectedDeployment else {
+                return "Detected: no dashboard session yet; sign in to either dashboard in Chrome."
+            }
+            return "Detected: \(detected.sourceLabelName)"
         }
         let cookieBinding = Binding(
             get: { context.settings.helmcodeCookieSource.rawValue },
@@ -48,8 +55,8 @@ struct HelmcodeProviderImplementation: ProviderImplementation {
             ProviderCookieSourceUI.subtitle(
                 source: context.settings.helmcodeCookieSource,
                 keychainDisabled: context.settings.debugDisableKeychainAccess,
-                auto: "Automatic imports \(deployment.dashboardHost) cookies from Chrome.",
-                manual: "Paste a Cookie header or cURL capture from the \(deployment.displayName) dashboard.",
+                auto: "Automatic imports Helmcode dashboard cookies from Chrome for the detected tenant.",
+                manual: "Paste a Cookie header or cURL capture from the Helmcode dashboard.",
                 off: "Helmcode dashboard cookies are disabled.")
         }
 
@@ -57,8 +64,9 @@ struct HelmcodeProviderImplementation: ProviderImplementation {
             ProviderSettingsPickerDescriptor(
                 id: "helmcode-deployment",
                 title: "Deployment",
-                subtitle: "Helmcode Cloud is the enterprise dashboard. NaN Builders is the community " +
-                    "dashboard with the same usage APIs.",
+                subtitle: "Automatic detects the tenant from your session. Helmcode Cloud is the " +
+                    "enterprise dashboard; NaN Builders is the community dashboard with the same usage APIs.",
+                dynamicSubtitle: deploymentSubtitle,
                 binding: deploymentBinding,
                 options: deploymentOptions,
                 isVisible: nil,
@@ -92,8 +100,11 @@ struct HelmcodeProviderImplementation: ProviderImplementation {
                         style: .link,
                         isVisible: nil,
                         perform: {
-                            let url = context.settings.helmcodeDeployment.dashboardPageURL
-                            NSWorkspace.shared.open(url)
+                            let selection = context.settings.helmcodeDeploymentSelection
+                            let tenant = selection.pinnedDeployment
+                                ?? context.settings.helmcodeDetectedDeployment
+                                ?? .helmcode
+                            NSWorkspace.shared.open(tenant.dashboardPageURL)
                         }),
                 ],
                 isVisible: { context.settings.helmcodeCookieSource == .manual },

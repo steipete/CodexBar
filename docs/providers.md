@@ -633,6 +633,8 @@ JavaScriptCore is the macOS rollback engine. The committed `.js` is generated fr
   from Chrome only (Helmcode Cloud or the NaN Builders community tenant) and persists the validated session, scoped by
   deployment, for later refreshes.
 - The **Deployment** picker in Settings — or `HELMCODE_DEPLOYMENT=nanbuilders` for the CLI — selects the tenant.
+  Automatic (default) detects the tenant from the persisted session, the imported browser session, or a pasted
+  cURL capture's host.
 - Manual mode accepts a Cookie header or cURL capture in Settings, and `HELMCODE_COOKIE` provides the CLI equivalent.
 - Reads `GET https://<deployment api host>/api/usage/quota` for per-model token allowances. Each model's own
   `periodEnd` drives its reset date. `/api/billing` is read best-effort: premium rolling-window tiers are hidden

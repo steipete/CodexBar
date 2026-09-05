@@ -2,10 +2,10 @@ import CodexBarCore
 import Foundation
 
 extension SettingsStore {
-    var helmcodeDeployment: HelmcodeDeployment {
+    var helmcodeDeploymentSelection: HelmcodeDeploymentSelection {
         get {
             let raw = self.configSnapshot.providerConfig(for: .helmcode)?.region
-            return HelmcodeDeployment(rawValue: raw ?? "") ?? .helmcode
+            return HelmcodeDeploymentSelection(rawValue: raw ?? "") ?? .auto
         }
         set {
             self.updateProviderConfig(provider: .helmcode) { entry in
@@ -37,6 +37,11 @@ extension SettingsStore {
 
     func ensureHelmcodeCookieLoaded() {}
 
+    /// The detected tenant while Automatic is selected, for the picker subtitle and the dashboard action.
+    var helmcodeDetectedDeployment: HelmcodeDeployment? {
+        HelmcodeDeploymentResolver.detectTenantFromCache()
+    }
+
     func helmcodeSettingsSnapshot(tokenOverride: TokenAccountOverride?)
         -> ProviderSettingsSnapshot.HelmcodeProviderSettings
     {
@@ -48,6 +53,6 @@ extension SettingsStore {
         return HelmcodeProviderSettings(
             cookieSource: resolved.cookieSource,
             manualCookieHeader: resolved.manualCookieHeader,
-            deployment: self.helmcodeDeployment)
+            deploymentSelection: self.helmcodeDeploymentSelection)
     }
 }

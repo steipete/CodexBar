@@ -1,4 +1,5 @@
 import Foundation
+import SweetCookieKit
 import Testing
 @testable import CodexBar
 @testable import CodexBarCore
@@ -16,43 +17,79 @@ struct HelmcodeSettingsReaderTests {
     }
 
     @Test
-    func `deployment resolution reads environment with helmcode fallback`() {
-        #expect(HelmcodeDeployment.resolve(environment: [:]) == .helmcode)
-        #expect(HelmcodeDeployment.resolve(environment: ["HELMCODE_DEPLOYMENT": "helmcode"]) == .helmcode)
-        #expect(HelmcodeDeployment.resolve(environment: ["HELMCODE_DEPLOYMENT": "nan"]) == .nanBuilders)
-        #expect(HelmcodeDeployment.resolve(environment: ["HELMCODE_DEPLOYMENT": "nan.builders"]) == .nanBuilders)
-        #expect(HelmcodeDeployment.resolve(environment: ["HELMCODE_DEPLOYMENT": "nanbuilders"]) == .nanBuilders)
-        #expect(HelmcodeDeployment.resolve(environment: ["HELMCODE_DEPLOYMENT": " nan "]) == .nanBuilders)
-        #expect(HelmcodeDeployment.resolve(environment: ["HELMCODE_DEPLOYMENT": "unknown"]) == .helmcode)
+    func `deployment selection resolution reads environment with automatic fallback`() {
+        #expect(HelmcodeDeploymentSelection.resolve(environment: [:]) == .auto)
+        #expect(HelmcodeDeploymentSelection.resolve(environment: ["HELMCODE_DEPLOYMENT": "auto"]) == .auto)
+        #expect(HelmcodeDeploymentSelection.resolve(environment: ["HELMCODE_DEPLOYMENT": "helmcode"]) == .helmcode)
+        #expect(HelmcodeDeploymentSelection.resolve(environment: ["HELMCODE_DEPLOYMENT": "nan"]) == .nanBuilders)
+        #expect(HelmcodeDeploymentSelection
+            .resolve(environment: ["HELMCODE_DEPLOYMENT": "nan.builders"]) == .nanBuilders)
+        #expect(HelmcodeDeploymentSelection
+            .resolve(environment: ["HELMCODE_DEPLOYMENT": "nanbuilders"]) == .nanBuilders)
+        #expect(HelmcodeDeploymentSelection.resolve(environment: ["HELMCODE_DEPLOYMENT": " nan "]) == .nanBuilders)
+        #expect(HelmcodeDeploymentSelection.resolve(environment: ["HELMCODE_DEPLOYMENT": "unknown"]) == .auto)
     }
 
     @Test
-    func `strategy deployment prefers explicit environment over settings`() {
+    func `selection resolution prefers explicit environment over settings`() {
         let helmcodeSettings = HelmcodeProviderSettings(
             cookieSource: .auto,
             manualCookieHeader: nil,
-            deployment: .helmcode)
+            deploymentSelection: .helmcode)
         let nanSettings = HelmcodeProviderSettings(
             cookieSource: .auto,
             manualCookieHeader: nil,
-            deployment: .nanBuilders)
+            deploymentSelection: .nanBuilders)
 
-        #expect(HelmcodeWebFetchStrategy.deployment(settings: nil, environment: [:]) == .helmcode)
-        #expect(HelmcodeWebFetchStrategy.deployment(settings: helmcodeSettings, environment: [:]) == .helmcode)
-        #expect(HelmcodeWebFetchStrategy.deployment(settings: nanSettings, environment: [:]) == .nanBuilders)
-        #expect(HelmcodeWebFetchStrategy.deployment(
+        #expect(HelmcodeDeploymentResolver.resolveSelection(settings: nil, environment: [:]) == .auto)
+        #expect(HelmcodeDeploymentResolver.resolveSelection(settings: helmcodeSettings, environment: [:]) == .helmcode)
+        #expect(HelmcodeDeploymentResolver.resolveSelection(settings: nanSettings, environment: [:]) == .nanBuilders)
+        #expect(HelmcodeDeploymentResolver.resolveSelection(
             settings: helmcodeSettings,
             environment: ["HELMCODE_DEPLOYMENT": "nan"]) == .nanBuilders)
-        #expect(HelmcodeWebFetchStrategy.deployment(
+        #expect(HelmcodeDeploymentResolver.resolveSelection(
             settings: nanSettings,
             environment: ["HELMCODE_DEPLOYMENT": ""]) == .nanBuilders)
+        #expect(HelmcodeDeploymentResolver.resolveSelection(
+            settings: nanSettings,
+            environment: ["HELMCODE_DEPLOYMENT": "auto"]) == .auto)
+    }
+
+    @Test
+    func `cookie capture host detection picks the pasted tenant`() {
+        #expect(HelmcodeDeploymentResolver.detectTenant(fromCookieCapture: nil) == nil)
+        #expect(HelmcodeDeploymentResolver.detectTenant(fromCookieCapture: "") == nil)
+        #expect(HelmcodeDeploymentResolver.detectTenant(
+            fromCookieCapture: "session=abc123") == nil)
+        #expect(HelmcodeDeploymentResolver.detectTenant(
+            fromCookieCapture: "curl 'https://cloud.nan.builders/dashboard' -H 'Cookie: session=abc'") ==
+            .nanBuilders)
+        #expect(HelmcodeDeploymentResolver.detectTenant(
+            fromCookieCapture: "curl 'https://cloud-api.helmcode.com/api/usage/quota' -H 'Cookie: session=abc'") ==
+            .helmcode)
+        #expect(HelmcodeDeploymentResolver.detectTenant(
+            fromCookieCapture: "curl 'https://example.com/login' -H 'Cookie: session=abc'") == nil)
+    }
+
+    @Test
+    func `manual cookie tenant detection honors pinned selection and bare header fallback`() {
+        let nanCapture = "curl 'https://cloud.nan.builders/dashboard' -H 'Cookie: session=abc'"
+        #expect(HelmcodeDeploymentResolver.tenant(forManualCookie: nanCapture, selection: .auto) == .nanBuilders)
+        #expect(HelmcodeDeploymentResolver.tenant(forManualCookie: "session=abc", selection: .auto) == .helmcode)
+        #expect(HelmcodeDeploymentResolver.tenant(forManualCookie: nanCapture, selection: .helmcode) == .helmcode)
+        #expect(HelmcodeDeploymentResolver.tenant(forManualCookie: nil, selection: .nanBuilders) == .nanBuilders)
     }
 
     @Test
     func `nan builders deployment targets the community endpoints`() {
         let deployment = HelmcodeDeployment.nanBuilders
         #expect(deployment.displayName == "NaN Builders")
+        #expect(deployment.sourceLabelName == "NaN Builders")
+        #expect(HelmcodeDeployment.helmcode.sourceLabelName == "Helmcode Cloud")
+        #expect(HelmcodeDeployment.nanBuilders.sourceLabelName == "NaN Builders")
+        #expect(HelmcodeDeployment.helmcode.displayName == "Helmcode")
         #expect(deployment.quotaURL.absoluteString == "https://cloud-api.nan.builders/api/usage/quota")
+        #expect(deployment.billingURL.absoluteString == "https://cloud-api.nan.builders/api/billing")
         #expect(deployment.creditsURL.absoluteString == "https://cloud-api.nan.builders/api/billing/credits")
         #expect(deployment.dashboardURL.absoluteString == "https://cloud.nan.builders")
         #expect(deployment.dashboardPageURL.absoluteString == "https://cloud.nan.builders/dashboard")
@@ -60,6 +97,11 @@ struct HelmcodeSettingsReaderTests {
             "cloud-api.nan.builders",
             "cloud.nan.builders",
             "nan.builders",
+        ])
+        #expect(HelmcodeDeploymentSelection.allCases.map(\.displayName) == [
+            "Automatic",
+            "Helmcode Cloud",
+            "NaN Builders",
         ])
     }
 }

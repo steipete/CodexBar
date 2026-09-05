@@ -17,24 +17,29 @@ instead of an inference key.
 
 ## Deployment
 
-Settings → Providers → Helmcode → **Deployment** selects the tenant:
+Settings → Providers → Helmcode → **Deployment** selects the tenant. **Automatic** (default) detects the tenant
+from the persisted session cache or the imported browser session; a cURL capture pasted in manual mode is also
+host-detected, and a bare Cookie header falls back to Helmcode Cloud. Pin the tenant when you want to be explicit:
 
 | Deployment | Dashboard | API host |
 | --- | --- | --- |
-| Helmcode (default) | `cloud.helmcode.com` | `cloud-api.helmcode.com` |
+| Automatic (default) | detected from the session | detected from the session |
+| Helmcode Cloud | `cloud.helmcode.com` | `cloud-api.helmcode.com` |
 | NaN Builders | `cloud.nan.builders` | `cloud-api.nan.builders` |
 
 Cookie imports are scoped to the selected deployment's domains, so a session for one tenant is never sent to the
 other. CLI users can select the tenant with `HELMCODE_DEPLOYMENT=nanbuilders` (accepts `nan`, `nan.builders`, or
-`nanbuilders`).
+`nanbuilders`), or `HELMCODE_DEPLOYMENT=auto` to force detection.
 
 ## Features
 
 - Per-model monthly token allowances from the dashboard quota response.
 - The capped model with the highest utilization as the primary usage window, with other capped models shown as named
   extra windows.
-- Monthly reset derived from `periodStart`: the first day of the following UTC month.
-- Prepaid credit balance displayed separately in the currency returned by Helmcode (EUR when omitted).
+- Reset dates follow each model's `periodEnd`, falling back to the first day of the month after `periodStart`.
+- Premium rolling-window tiers (GLM 5.3 premium) are hidden unless the subscription is premium.
+- Prepaid credit balance displayed separately in the currency returned by Helmcode (EUR when omitted). NaN Builders
+  membership has no prepaid balance.
 - Provider identity remains Helmcode-only and does not borrow account or plan data from another provider.
 
 ## Setup
@@ -42,7 +47,7 @@ other. CLI users can select the tenant with `HELMCODE_DEPLOYMENT=nanbuilders` (a
 1. Sign in to your dashboard in Chrome using Helmcode's email-link login: [Helmcode Cloud](https://cloud.helmcode.com)
    or [NaN Builders](https://cloud.nan.builders).
 2. Open **Settings → Providers** and enable **Helmcode**.
-3. Select the **Deployment** matching your subscription (Helmcode or NaN Builders).
+3. Leave **Deployment** on **Automatic** (it detects the tenant), or pin the tenant matching your subscription.
 4. Leave **Cookie source** on **Automatic** and refresh Helmcode from the app.
 
 Automatic cookie import is Chrome-only and runs on an explicit app refresh. After a validated refresh the dashboard
@@ -59,7 +64,7 @@ HELMCODE_COOKIE='session=...' HELMCODE_DEPLOYMENT=nanbuilders codexbar usage --p
 ```
 
 CLI users can also persist the deployment in `config.json` instead of the environment variable
-(`region` carries the deployment; use the exact raw value `nanBuilders`):
+(`region` carries the deployment selection: `auto` | `helmcode` | `nanBuilders`):
 
 ```json
 {
@@ -99,7 +104,8 @@ billing surface change cannot hide otherwise valid model quota.
 - **No dashboard session found:** sign in to the dashboard for your selected deployment in Chrome, then trigger a
   manual refresh in CodexBar.
 - **Session expired:** sign in again, or replace the manually configured Cookie header.
-- **Data shows the wrong tenant:** check **Settings → Providers → Helmcode → Deployment**; the cookie import and
+- **Automatic picked the wrong tenant:** pin the tenant under **Settings → Providers → Helmcode → Deployment**;
+  the cookie import and
   endpoints follow the selected deployment.
 - **Quota works but balance is absent:** the credits request is deliberately optional; refresh later or inspect the
   Helmcode dashboard to confirm the billing surface is available for the account.

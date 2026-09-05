@@ -8,21 +8,7 @@ public enum HelmcodeDeployment: String, CaseIterable, Sendable {
     case helmcode
     case nanBuilders
 
-    public static let environmentKey = "HELMCODE_DEPLOYMENT"
-
-    public static func resolve(environment: [String: String]) -> HelmcodeDeployment {
-        guard let raw = environment[environmentKey]?.trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased(), !raw.isEmpty
-        else { return .helmcode }
-        switch raw {
-        case "nan", "nan.builders", "nanbuilders":
-            return .nanBuilders
-        case "helmcode", "helmcode.com":
-            return .helmcode
-        default:
-            return HelmcodeDeployment(rawValue: raw) ?? .helmcode
-        }
-    }
+    public static let environmentKey = HelmcodeDeploymentSelection.environmentKey
 
     public var displayName: String {
         switch self {
@@ -69,6 +55,54 @@ public enum HelmcodeDeployment: String, CaseIterable, Sendable {
         switch self {
         case .helmcode: ["cloud-api.helmcode.com", "cloud.helmcode.com", "helmcode.com"]
         case .nanBuilders: ["cloud-api.nan.builders", "cloud.nan.builders", "nan.builders"]
+        }
+    }
+
+    /// Name used in source labels and detection copy ("Helmcode Cloud" vs the brand "Helmcode").
+    public var sourceLabelName: String {
+        switch self {
+        case .helmcode: "Helmcode Cloud"
+        case .nanBuilders: "NaN Builders"
+        }
+    }
+}
+
+/// User-facing tenant choice: automatic detection or a pinned tenant. Stored in the provider
+/// config `region` field (`auto` | `helmcode` | `nanBuilders`).
+public enum HelmcodeDeploymentSelection: String, CaseIterable, Sendable {
+    case auto
+    case helmcode
+    case nanBuilders
+
+    public static let environmentKey = "HELMCODE_DEPLOYMENT"
+
+    public var displayName: String {
+        switch self {
+        case .auto: "Automatic"
+        case .helmcode: "Helmcode Cloud"
+        case .nanBuilders: "NaN Builders"
+        }
+    }
+
+    public var pinnedDeployment: HelmcodeDeployment? {
+        switch self {
+        case .auto: nil
+        case .helmcode: .helmcode
+        case .nanBuilders: .nanBuilders
+        }
+    }
+
+    public static func resolve(environment: [String: String]) -> HelmcodeDeploymentSelection {
+        guard let raw = environment[environmentKey]?.trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased(), !raw.isEmpty
+        else { return .auto }
+        switch raw {
+        case "nan", "nan.builders", "nanbuilders":
+            return .nanBuilders
+        case "helmcode", "helmcode.com":
+            return .helmcode
+        default:
+            return HelmcodeDeploymentSelection(rawValue: raw) ?? .auto
         }
     }
 }
