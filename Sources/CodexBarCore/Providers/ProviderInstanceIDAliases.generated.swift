@@ -72,6 +72,7 @@ extension ProviderInstanceID {
     public static let xai = UsageProvider.xai.instanceID
     public static let notion = UsageProvider.notion.instanceID
     public static let ibmbob = UsageProvider.ibmbob.instanceID
+    public static let huggingface = UsageProvider.huggingface.instanceID
 }
 
 // swiftformat:enable sortDeclarations
