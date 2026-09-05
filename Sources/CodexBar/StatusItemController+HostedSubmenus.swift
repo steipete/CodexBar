@@ -426,7 +426,9 @@ extension StatusItemController {
         width: CGFloat) -> Bool
     {
         guard let tokenSnapshot = self.tokenSnapshotForCostHistorySubmenu(provider: provider) else { return false }
-        guard !tokenSnapshot.daily.isEmpty else { return false }
+        // Provider-specific by design: Grok preserves an empty partial scan so the chart can show its warning.
+        guard !tokenSnapshot.daily.isEmpty || (provider == .grok && !tokenSnapshot.historyCoverageIsEstablished)
+        else { return false }
 
         if !self.menuCardRenderingEnabledForController {
             let chartItem = NSMenuItem()

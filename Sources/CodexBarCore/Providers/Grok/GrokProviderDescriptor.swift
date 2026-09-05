@@ -87,9 +87,12 @@ public enum GrokProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: true,
                 noDataMessage: {
-                    "Grok token totals come from local ~/.grok/sessions logs. "
-                        + "Subscription credits are not converted to dollars."
-                }),
+                    "Grok Build token history comes from timestamped local updates.jsonl rows; "
+                        + "legacy signals.json totals may be incomplete. "
+                        + "Subscription credits are a quota, not dollars."
+                },
+                supportsTokenSnapshot: true,
+                showsRequestHistory: false),
             pace: ProviderPaceCapability(
                 resetWindowPace: .custom { window, now in
                     guard Self.primaryLabel(window: window, now: now) == "Weekly",
@@ -114,6 +117,7 @@ public enum GrokProviderDescriptor {
             cli: ProviderCLIConfig(
                 name: "grok",
                 versionDetector: { _ in GrokStatusProbe.detectVersion() },
+                supportsCostCommand: true,
                 browserSupportExemption: { _, _, _ in true }))
     }
 
@@ -188,9 +192,14 @@ struct GrokCLIFetchStrategy: ProviderFetchStrategy {
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
         let probe = GrokStatusProbe()
-        let snap = try await probe.fetch(env: context.env)
+        let snap = try await probe.fetch(
+            env: context.env,
+            calendar: context.costUsageBucketCalendar,
+            lookbackDays: context.costUsageHistoryDays)
         return self.makeResult(
-            usage: snap.toUsageSnapshot(),
+            usage: snap.toUsageSnapshot(
+                calendar: context.costUsageBucketCalendar,
+                historyDays: context.costUsageHistoryDays),
             sourceLabel: "grok-cli",
             diagnostic: snap.diagnostic)
     }
@@ -343,8 +352,11 @@ struct GrokWebFetchStrategy: ProviderFetchStrategy {
         Self.resolvedCredentialsResult(context: $0)
     }
 
-    var localSummary: @Sendable ([String: String]) async throws -> GrokLocalSessionSummary? = {
-        try await GrokLocalSessionScanner.summarizeOffMainThread(env: $0)
+    var localSummary: @Sendable ([String: String], Calendar, Int) async throws -> GrokLocalSessionSummary? = {
+        try await GrokLocalSessionScanner.summarizeOffMainThread(
+            env: $0,
+            lookbackDays: $2,
+            calendar: $1)
     }
 
     var cliVersion: @Sendable ([String: String]) -> String? = { GrokStatusProbe.detectVersion(env: $0) }
@@ -422,11 +434,16 @@ struct GrokWebFetchStrategy: ProviderFetchStrategy {
             let subscriptionTier = try await resolveSettingsTier(authState)
             let identitySnapshot = try await GrokStatusProbe.identityOnlySnapshot(
                 credentials: authState,
-                localSummary: self.localSummary(context.env),
+                localSummary: self.localSummary(
+                    context.env,
+                    context.costUsageBucketCalendar,
+                    context.costUsageHistoryDays),
                 cliVersion: self.cliVersion(context.env),
                 subscriptionTier: subscriptionTier)
             return self.makeResult(
-                usage: identitySnapshot.toUsageSnapshot(),
+                usage: identitySnapshot.toUsageSnapshot(
+                    calendar: context.costUsageBucketCalendar,
+                    historyDays: context.costUsageHistoryDays),
                 sourceLabel: "grok-web",
                 diagnostic: identitySnapshot.diagnostic)
         }
@@ -449,12 +466,17 @@ struct GrokWebFetchStrategy: ProviderFetchStrategy {
                 credentials: credentials,
                 billing: nil,
                 webBilling: enrichedBilling),
-            localSummary: self.localSummary(context.env),
+            localSummary: self.localSummary(
+                context.env,
+                context.costUsageBucketCalendar,
+                context.costUsageHistoryDays),
             cliVersion: self.cliVersion(context.env),
             updatedAt: Date(),
             subscriptionTier: subscriptionTier ?? enrichedBilling.subscriptionTier)
         return self.makeResult(
-            usage: snapshot.toUsageSnapshot(),
+            usage: snapshot.toUsageSnapshot(
+                calendar: context.costUsageBucketCalendar,
+                historyDays: context.costUsageHistoryDays),
             sourceLabel: sourceLabel,
             diagnostic: enrichedBilling.usedPercent == nil ? GrokStatusProbe.usageUnavailableMessage : nil)
     }

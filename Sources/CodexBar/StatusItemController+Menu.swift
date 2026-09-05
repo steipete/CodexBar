@@ -1534,7 +1534,10 @@ extension StatusItemController {
 
     func makeCostHistorySubmenu(provider: UsageProvider, width: CGFloat? = nil) -> NSMenu? {
         guard ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.supportsTokenCost else { return nil }
-        guard self.tokenSnapshotForCostHistorySubmenu(provider: provider)?.daily.isEmpty == false else { return nil }
+        let snapshot = self.tokenSnapshotForCostHistorySubmenu(provider: provider)
+        // Provider-specific by design: Grok preserves an empty partial scan so the chart can show its warning.
+        guard snapshot.map({ !$0.daily.isEmpty || (provider == .grok && !$0.historyCoverageIsEstablished) }) == true
+        else { return nil }
         if let width {
             return self.makeHostedSubviewPlaceholderMenu(
                 chartID: Self.costHistoryChartID,
@@ -1572,8 +1575,11 @@ extension StatusItemController {
     /// "top-pane submenu" — opencodego satisfies this via its collapsible "Cost" row, not a
     /// provider-native top-pane submenu like openai/mistral.
     private func requiresSectionedMenuForProviderDerivedCost(provider: UsageProvider) -> Bool {
+        // Provider-specific by design: Grok's empty partial snapshot still owns a visible warning section.
         UsageStore.tokenCostRequiresProviderSnapshot(provider) &&
-            self.tokenSnapshotForCostHistorySubmenu(provider: provider)?.daily.isEmpty == false
+            self.tokenSnapshotForCostHistorySubmenu(provider: provider).map {
+                !$0.daily.isEmpty || (provider == .grok && !$0.historyCoverageIsEstablished)
+            } == true
     }
 
     func makeStorageBreakdownSubmenu(provider: UsageProvider, width: CGFloat? = nil) -> NSMenu? {

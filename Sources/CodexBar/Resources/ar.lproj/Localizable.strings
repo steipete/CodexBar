@@ -1547,3 +1547,4 @@
 "menu_bar_layout_conditional_default_either_high" = "الجلسة أو الأسبوع في مستوى مرتفع";
 "menu_bar_layout_conditional_default_scoped_weekly" = "نافذة الطراز الأسبوعية فوق 60٪";
 "Spending cap, not balance" = "حد الإنفاق، وليس الرصيد";
+"Local token history is incomplete." = "سجل الرموز المحلي غير مكتمل.";

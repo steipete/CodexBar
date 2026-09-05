@@ -1542,3 +1542,4 @@
 "menu_bar_layout_conditional_default_either_high" = "Session eller vecka ligger högt";
 "menu_bar_layout_conditional_default_scoped_weekly" = "Modellvecka över 60 % använt";
 "Spending cap, not balance" = "Utgiftstak, inte saldo";
+"Local token history is incomplete." = "Den lokala tokenhistoriken är ofullständig.";

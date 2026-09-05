@@ -1,5 +1,5 @@
 ---
-summary: "Grok provider data sources: ACP JSON-RPC, CLI-proxy and grok.com billing fallbacks, OAuth credentials, and local session signals."
+summary: "Grok provider data sources: ACP JSON-RPC, CLI-proxy and grok.com billing fallbacks, OAuth credentials, and local token history."
 read_when:
   - Debugging Grok billing/usage parsing
   - Updating `grok agent stdio` JSON-RPC integration
@@ -125,12 +125,15 @@ The grok.com billing gRPC-web endpoint remains a best-effort fallback.
      returned by some successful requests. A current billing period with an
      omitted proto3 `credit_usage_percent` is treated as zero usage. The
      unknown-usage retry adopts only the validated active-period shape described
-     above. This keeps billing visible when
-     `grok agent stdio` returns `Method not found`.
-5) **Local session signals** (informational fallback)
-   - Walks `~/.grok/sessions/<encoded-cwd>/<session-id>/signals.json` files (last 30 days).
-   - Aggregates `totalTokensBeforeCompaction`, `contextTokensUsed`, `modelsUsed`,
-     and the most recent session timestamp.
+     above. This keeps billing visible when `grok agent stdio` returns
+     `Method not found`.
+5) **Local token history (Grok Build)**
+   - Walks `~/.grok/sessions/<encoded-cwd>/<session-id>/updates.jsonl`, with
+     `signals.json` retained for legacy signals-only sessions.
+   - Aggregates timestamped structured usage totals. It does not infer request
+     counts, prices, or token-category breakdowns.
+   - Legacy lifetime signals remain visible but mark history incomplete because
+     their file timestamp cannot establish when the tokens were consumed.
 
 ## OAuth credentials
 
@@ -219,7 +222,8 @@ The grok.com billing gRPC-web endpoint remains a best-effort fallback.
 
 ## Local fallback (`~/.grok/sessions/`)
 
-Each session directory contains `signals.json` with fields like:
+Modern sessions write structured usage totals to `updates.jsonl`. Older sessions
+may contain only a `signals.json` lifetime rollup with fields like:
 
 ```json
 {
@@ -233,9 +237,9 @@ Each session directory contains `signals.json` with fields like:
 }
 ```
 
-CodexBar aggregates these into a `GrokLocalSessionSummary` (session count, total
-tokens, last session time, primary model, per-day token buckets) and exposes it for
-diagnostics even when the RPC path is unavailable.
+CodexBar aggregates trustworthy update rows into daily total-token buckets. A
+signals-only total is retained as partial history rather than presented as a
+complete daily ledger.
 
 Those local daily token buckets also feed the shared Usage & Spend catalog so an
 enabled Grok subscription is counted instead of omitted. SuperGrok/X Premium+

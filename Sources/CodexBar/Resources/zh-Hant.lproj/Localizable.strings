@@ -1574,3 +1574,4 @@
 "menu_bar_layout_conditional_default_either_high" = "工作階段或每週用量偏高";
 "menu_bar_layout_conditional_default_scoped_weekly" = "模型專屬每週已用超過 60%";
 "Spending cap, not balance" = "支出上限，並非餘額";
+"Local token history is incomplete." = "本機 Token 歷史記錄不完整。";

@@ -471,6 +471,12 @@ public struct CostUsageFetcher: Sendable {
                 calendar: fallbackCalendar,
                 historyCoverageIsEstablished: false)
         }
+        // Provider-specific by design: Grok Build exposes local token history rather than a remote cost API.
+        if provider == .grok {
+            let summary = try await GrokLocalSessionScanner.summarizeOffMainThread(
+                env: environment, lookbackDays: clampedHistoryDays, now: now, calendar: fallbackCalendar)
+            return summary.toCostUsageTokenSnapshot(historyDays: clampedHistoryDays, calendar: fallbackCalendar)
+        }
         if let remoteError {
             throw remoteError
         }

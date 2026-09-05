@@ -1542,3 +1542,4 @@
 "menu_bar_layout_conditional_default_either_high" = "Sesión ou semana en nivel alto";
 "menu_bar_layout_conditional_default_scoped_weekly" = "Semana por modelo por riba do 60 %";
 "Spending cap, not balance" = "Límite de gasto, non saldo";
+"Local token history is incomplete." = "O historial local de tokens está incompleto.";

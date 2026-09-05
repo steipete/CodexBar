@@ -1543,3 +1543,4 @@
 "menu_bar_layout_conditional_default_either_high" = "Sitzung oder Woche läuft hoch";
 "menu_bar_layout_conditional_default_scoped_weekly" = "Modellfenster über 60 % genutzt";
 "Spending cap, not balance" = "Ausgabenlimit, kein Guthaben";
+"Local token history is incomplete." = "Lokaler Token-Verlauf ist unvollständig.";

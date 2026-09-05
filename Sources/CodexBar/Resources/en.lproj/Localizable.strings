@@ -1546,3 +1546,4 @@
 "menu_bar_layout_conditional_default_either_high" = "Session or weekly running high";
 "menu_bar_layout_conditional_default_scoped_weekly" = "Scoped weekly over 60% used";
 "Spending cap, not balance" = "Spending cap, not balance";
+"Local token history is incomplete." = "Local token history is incomplete.";

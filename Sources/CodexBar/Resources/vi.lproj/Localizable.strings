@@ -1544,3 +1544,4 @@
 "menu_bar_layout_conditional_default_either_high" = "Phiên hoặc tuần đang ở mức cao";
 "menu_bar_layout_conditional_default_scoped_weekly" = "Tuần theo mô hình đã dùng trên 60%";
 "Spending cap, not balance" = "Hạn mức chi tiêu, không phải số dư";
+"Local token history is incomplete." = "Lịch sử token cục bộ chưa đầy đủ.";

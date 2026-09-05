@@ -1546,3 +1546,4 @@
 "menu_bar_layout_conditional_default_either_high" = "Sesja lub tydzień na wysokim poziomie";
 "menu_bar_layout_conditional_default_scoped_weekly" = "Tydzień modelu powyżej 60% zużycia";
 "Spending cap, not balance" = "Limit wydatków, nie saldo";
+"Local token history is incomplete." = "Lokalna historia tokenów jest niekompletna.";

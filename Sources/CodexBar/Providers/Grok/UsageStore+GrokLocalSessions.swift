@@ -11,14 +11,14 @@ extension UsageStore {
         let days = max(1, historyDays)
         guard published.historyDays != days else { return published }
 
-        let calendar = Calendar.current
+        let calendar = self.settings.costUsageBucketCalendar
         let today = calendar.startOfDay(for: published.updatedAt)
         guard let start = calendar.date(byAdding: .day, value: -(days - 1), to: today),
               let firstDay = Self.grokLocalDayKey(for: start, calendar: calendar),
               let lastDay = Self.grokLocalDayKey(for: today, calendar: calendar)
         else { return nil }
         let daily = published.daily.filter { $0.date >= firstDay && $0.date <= lastDay }
-        guard !daily.isEmpty else { return nil }
+        guard !daily.isEmpty || !published.historyCoverageIsEstablished else { return nil }
         let tokens = daily.compactMap(\.totalTokens)
         let requests = daily.compactMap(\.requestCount)
 
@@ -46,8 +46,11 @@ extension UsageStore {
     func loadGrokLocalTokenSnapshot(historyDays: Int) async throws -> CostUsageTokenSnapshot? {
         let summary = try await GrokLocalSessionScanner.summarizeOffMainThread(
             env: self.environmentBase,
-            lookbackDays: historyDays)
-        return summary.toCostUsageTokenSnapshot(historyDays: historyDays)
+            lookbackDays: historyDays,
+            calendar: self.settings.costUsageBucketCalendar)
+        return summary.toCostUsageTokenSnapshot(
+            historyDays: historyDays,
+            calendar: self.settings.costUsageBucketCalendar)
     }
 
     private static func grokLocalDayKey(for date: Date, calendar: Calendar) -> String? {

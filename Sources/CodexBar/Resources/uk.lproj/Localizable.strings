@@ -1543,3 +1543,4 @@
 "menu_bar_layout_conditional_default_either_high" = "Сесія або тиждень на високому рівні";
 "menu_bar_layout_conditional_default_scoped_weekly" = "Тижневе вікно моделі понад 60 %";
 "Spending cap, not balance" = "Ліміт витрат, не баланс";
+"Local token history is incomplete." = "Локальна історія токенів неповна.";

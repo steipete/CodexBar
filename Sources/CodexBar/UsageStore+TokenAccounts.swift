@@ -1027,7 +1027,8 @@ extension UsageStore {
             persistsCLISessions: true,
             persistentCLISessionIdleWindow: ProviderRegistry.persistentCLISessionIdleWindow(
                 refreshInterval: self.normalRefreshIntervalForHeuristics()),
-            resolvedCLIVersion: self.version(for: provider))
+            resolvedCLIVersion: self.version(for: provider),
+            costUsageBucketCalendar: self.settings.costUsageBucketCalendar)
     }
 
     private func providerConfigMutationIsCurrent(

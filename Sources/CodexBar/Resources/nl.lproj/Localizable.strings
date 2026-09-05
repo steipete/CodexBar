@@ -1542,3 +1542,4 @@
 "menu_bar_layout_conditional_default_either_high" = "Sessie of week loopt hoog op";
 "menu_bar_layout_conditional_default_scoped_weekly" = "Modelweek boven 60% gebruikt";
 "Spending cap, not balance" = "Uitgavenlimiet, geen saldo";
+"Local token history is incomplete." = "De lokale tokengeschiedenis is onvolledig.";

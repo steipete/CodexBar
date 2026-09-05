@@ -31,13 +31,11 @@ struct GrokLocalSessionScannerTests {
             env: ["GROK_HOME": root.path],
             lookbackDays: 7,
             now: newer)
-        #expect(summary.sessionCount == 2)
         #expect(summary.totalTokens == 350)
         #expect(summary.daily.map(\.totalTokens) == [100, 250])
-        #expect(summary.daily.map(\.sessionCount) == [1, 1])
         #expect(Set(summary.daily.map(\.date)).count == 2)
 
-        let snapshot = try #require(summary.toCostUsageTokenSnapshot(historyDays: 7))
+        let snapshot = summary.toCostUsageTokenSnapshot(historyDays: 7)
         #expect(snapshot.last30DaysTokens == 350)
         #expect(snapshot.last30DaysCostUSD == nil)
         #expect(snapshot.daily.allSatisfy { $0.costUSD == nil })
@@ -46,7 +44,7 @@ struct GrokLocalSessionScannerTests {
     }
 
     @Test
-    func `idle days do not reuse yesterday as today`() throws {
+    func `incomplete legacy history does not fabricate an idle-day zero`() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("grok-session-idle-\(UUID().uuidString)", isDirectory: true)
         let session = root.appendingPathComponent("sessions/%2Ftmp%2Fdemo/session-a", isDirectory: true)
@@ -63,20 +61,112 @@ struct GrokLocalSessionScannerTests {
             env: ["GROK_HOME": root.path],
             lookbackDays: 7,
             now: today)
-        let snapshot = try #require(summary.toCostUsageTokenSnapshot(historyDays: 7))
+        let snapshot = summary.toCostUsageTokenSnapshot(historyDays: 7)
         #expect(snapshot.last30DaysTokens == 100)
         #expect(snapshot.sessionTokens == nil)
+        #expect(snapshot.sessionRequests == nil)
     }
 
     @Test
-    func `empty homes do not publish a spend snapshot`() {
+    func `incomplete empty homes publish an unestablished spend snapshot`() {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("grok-session-empty-\(UUID().uuidString)", isDirectory: true)
         let summary = GrokLocalSessionScanner.summarize(
             env: ["GROK_HOME": root.path],
             lookbackDays: 7,
             now: Date())
-        #expect(summary.toCostUsageTokenSnapshot(historyDays: 7) == nil)
+        let snapshot = summary.toCostUsageTokenSnapshot(historyDays: 7)
+        #expect(!snapshot.historyCoverageIsEstablished)
+        #expect(snapshot.daily.isEmpty)
+        #expect(snapshot.sessionTokens == nil)
+    }
+
+    @Test
+    func `readable empty sessions publish established empty history`() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("grok-session-readable-empty-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: root.appendingPathComponent("sessions", isDirectory: true),
+            withIntermediateDirectories: true)
+        let summary = GrokLocalSessionScanner.summarize(
+            env: ["GROK_HOME": root.path],
+            lookbackDays: 7,
+            now: Date())
+        #expect(summary.historyCoverageIsEstablished)
+        let snapshot = summary.toCostUsageTokenSnapshot(historyDays: 7)
+        #expect(snapshot.sessionTokens == 0)
+        #expect(snapshot.last30DaysTokens == 0)
+        #expect(snapshot.sessionRequests == nil)
+        #expect(snapshot.last30DaysRequests == nil)
+        #expect(snapshot.daily.isEmpty)
+        #expect(snapshot.historyCoverageIsEstablished)
+    }
+
+    @Test
+    func `enumeration failure keeps an empty scan incomplete`() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("grok-enumeration-failure-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(
+            at: root.appendingPathComponent("sessions", isDirectory: true),
+            withIntermediateDirectories: true)
+        let summary = GrokLocalSessionScanner.summarize(
+            env: ["GROK_HOME": root.path],
+            lookbackDays: 7,
+            now: Date(),
+            byteBudget: GrokLocalSessionScanner.defaultTotalReadBytes,
+            sessionEnumerator: Self.failingEnumeration())
+        #expect(summary.totalTokens == 0)
+        #expect(summary.daily.isEmpty)
+        #expect(!summary.historyCoverageIsEstablished)
+        let snapshot = summary.toCostUsageTokenSnapshot(historyDays: 7)
+        #expect(snapshot.sessionTokens == nil)
+        #expect(snapshot.last30DaysTokens == nil)
+    }
+
+    @Test
+    func `enumeration failure preserves counted totals as incomplete`() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("grok-enumeration-partial-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let session = root.appendingPathComponent("sessions/%2Ftmp%2Fdemo/session-a", isDirectory: true)
+        try FileManager.default.createDirectory(at: session, withIntermediateDirectories: true)
+        let timestampMs = Int64(Date().timeIntervalSince1970 * 1000)
+        try """
+        {"params":{"update":{"usage":{"inputTokens":100,"outputTokens":50,"totalTokens":150}}},\
+        "_meta":{"eventId":"ev-1","agentTimestampMs":\(timestampMs)}}
+        """.write(to: session.appendingPathComponent("updates.jsonl"), atomically: true, encoding: .utf8)
+        let summary = GrokLocalSessionScanner.summarize(
+            env: ["GROK_HOME": root.path],
+            lookbackDays: 30,
+            now: Date(),
+            byteBudget: GrokLocalSessionScanner.defaultTotalReadBytes,
+            sessionEnumerator: Self.failingEnumeration())
+        #expect(summary.totalTokens == 150)
+        #expect(!summary.historyCoverageIsEstablished)
+    }
+
+    @Test
+    func `discovery cap exhaustion stays incomplete`() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("grok-discovery-cap-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(
+            at: root.appendingPathComponent("sessions", isDirectory: true),
+            withIntermediateDirectories: true)
+        let summary = GrokLocalSessionScanner.summarize(
+            env: ["GROK_HOME": root.path],
+            lookbackDays: 7,
+            now: Date(),
+            byteBudget: GrokLocalSessionScanner.defaultTotalReadBytes,
+            sessionEnumerator: GrokSessionDirectoryEnumerator { _ in
+                GrokDiscoveredSessions(
+                    directories: [],
+                    enumerationFailed: false,
+                    discoveryCapped: true)
+            })
+        #expect(summary.totalTokens == 0)
+        #expect(!summary.historyCoverageIsEstablished)
     }
 
     @Test
@@ -86,15 +176,10 @@ struct GrokLocalSessionScannerTests {
         let localScanTime = try #require(calendar.date(byAdding: .day, value: 1, to: staleRemoteTime))
         let localDay = try #require(GrokLocalSessionScanner.dayKey(for: localScanTime, calendar: calendar))
         let summary = GrokLocalSessionSummary(
-            sessionCount: 1,
             totalTokens: 250,
-            lastSessionAt: localScanTime,
-            primaryModel: "grok-4.6",
-            models: ["grok-4.6"],
             daily: [GrokLocalDailyBucket(
                 date: localDay,
                 totalTokens: 250,
-                sessionCount: 1,
                 models: ["grok-4.6"])],
             scannedAt: localScanTime)
         let remote = GrokUsageSnapshot(
@@ -118,5 +203,18 @@ struct GrokLocalSessionScannerTests {
         ]
         try JSONSerialization.data(withJSONObject: payload).write(to: url)
         try FileManager.default.setAttributes([.modificationDate: date], ofItemAtPath: url.path)
+    }
+
+    private static func failingEnumeration() -> GrokSessionDirectoryEnumerator {
+        GrokSessionDirectoryEnumerator { root in
+            let listing = try GrokSessionDirectoryEnumerator.live(
+                fileManager: FileManager.default,
+                maximumEntries: GrokLocalSessionScanner.maximumDiscoveredEntries,
+                checkCancellation: {}).enumerate(root)
+            return GrokDiscoveredSessions(
+                directories: listing.directories,
+                enumerationFailed: true,
+                discoveryCapped: listing.discoveryCapped)
+        }
     }
 }

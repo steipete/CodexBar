@@ -116,14 +116,24 @@ struct CostHistoryChartMenuView: View {
             provider: self.provider,
             metric: activeMetric,
             historyCoverageIsEstablished: self.historyCoverageIsEstablished)
+        let showsIncompleteHistory = Self.showsIncompleteHistoryNotice(
+            provider: self.provider,
+            historyCoverageIsEstablished: self.historyCoverageIsEstablished)
         let selectedDateKey = self.selectedDateKey.flatMap { model.pointsByDateKey[$0] == nil ? nil : $0 }
             ?? Self.defaultSelectedDateKey(model: model)
         VStack(alignment: .leading, spacing: Self.outerSpacing) {
             if model.points.isEmpty {
-                Text(L("No data available"))
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .accessibilityLabel(L("No data available"))
+                if showsIncompleteHistory {
+                    Text(Self.incompleteHistoryNotice)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .accessibilityLabel(Self.incompleteHistoryNotice)
+                } else {
+                    Text(showsHistoryRefreshing ? L("Refreshing") : L("No data available"))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .accessibilityLabel(showsHistoryRefreshing ? L("Refreshing") : L("No data available"))
+                }
             } else {
                 // Keep hoverable content below AppKit's native top auto-scroll gutter.
                 Color.clear
@@ -208,9 +218,14 @@ struct CostHistoryChartMenuView: View {
                     }
                 }
 
-                if availableMetrics.count > 1 || showsHistoryRefreshing {
+                if availableMetrics.count > 1 || showsHistoryRefreshing || showsIncompleteHistory {
                     HStack {
-                        if showsHistoryRefreshing {
+                        if showsIncompleteHistory {
+                            Text(Self.incompleteHistoryNotice)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .accessibilityLabel(Self.incompleteHistoryNotice)
+                        } else if showsHistoryRefreshing {
                             Text(L("Refreshing"))
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
@@ -732,8 +747,21 @@ struct CostHistoryChartMenuView: View {
         metric: ChartMetric,
         historyCoverageIsEstablished: Bool) -> Bool
     {
-        // Provider-specific by design: only Codex exposes incremental local-history coverage for token scans.
+        // Provider-specific by design: Codex exposes incomplete local token-history coverage.
         provider == .codex && metric == .tokens && !historyCoverageIsEstablished
+    }
+
+    /// Provider-specific by design: finished Grok scans report partial local token
+    /// history with a static notice instead of a refreshing indicator.
+    private static func showsIncompleteHistoryNotice(
+        provider: UsageProvider,
+        historyCoverageIsEstablished: Bool) -> Bool
+    {
+        provider == .grok && !historyCoverageIsEstablished
+    }
+
+    private static var incompleteHistoryNotice: String {
+        L("Local token history is incomplete.")
     }
 
     private static func peakPoint(model: Model) -> Point? {
@@ -1220,6 +1248,19 @@ extension CostHistoryChartMenuView {
             provider: provider,
             metric: metric,
             historyCoverageIsEstablished: historyCoverageIsEstablished)
+    }
+
+    static func _showsIncompleteHistoryNoticeForTesting(
+        provider: UsageProvider,
+        historyCoverageIsEstablished: Bool) -> Bool
+    {
+        self.showsIncompleteHistoryNotice(
+            provider: provider,
+            historyCoverageIsEstablished: historyCoverageIsEstablished)
+    }
+
+    static func _incompleteHistoryNoticeForTesting() -> String {
+        self.incompleteHistoryNotice
     }
 
     static func _dateFromDayKeyForTesting(

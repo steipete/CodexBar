@@ -27,6 +27,7 @@ struct GrokTokenSnapshotProjectionTests {
         let store = Self.makeStore(environment: ["GROK_HOME": root.path])
         let published = try #require(await store.loadGrokLocalTokenSnapshot(historyDays: 30))
         #expect(published.last30DaysTokens == 1344)
+        #expect(published.sessionRequests == nil)
         #expect(published.last30DaysRequests == nil)
 
         let providerSnapshot = UsageSnapshot(
@@ -106,6 +107,35 @@ struct GrokTokenSnapshotProjectionTests {
         #expect(projected.historyDays == 60)
         #expect(!projected.historyCoverageIsEstablished)
         #expect(projected.last30DaysTokens == 85)
+    }
+
+    @Test
+    func `empty incomplete grok projection remains visible while the scan is refreshing`() throws {
+        let now = Date(timeIntervalSince1970: 1_787_079_600)
+        let published = CostUsageTokenSnapshot(
+            sessionTokens: nil,
+            sessionCostUSD: nil,
+            last30DaysTokens: nil,
+            last30DaysCostUSD: nil,
+            historyDays: 30,
+            historyCoverageIsEstablished: false,
+            daily: [],
+            updatedAt: now)
+        let store = Self.makeStore(environment: [:])
+        let providerSnapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            costUsage: published,
+            updatedAt: now)
+
+        let projected = try #require(store.tokenSnapshot(
+            fromProviderSnapshot: providerSnapshot,
+            provider: .grok,
+            historyDays: 7))
+
+        #expect(projected.historyDays == 7)
+        #expect(projected.daily.isEmpty)
+        #expect(!projected.historyCoverageIsEstablished)
     }
 
     private static func makeStore(environment: [String: String]) -> UsageStore {

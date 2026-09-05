@@ -163,9 +163,17 @@ extension CodexBarCLI {
         useColor: Bool) -> String
     {
         let name = ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
-        // Provider-specific by design: Antigravity exposes token history, not priced estimates.
-        if provider == .antigravity {
-            return Self.renderLocalTokenHistoryText(name: name, snapshot: snapshot, useColor: useColor)
+        // Provider-specific by design: Antigravity and Grok expose token history, not priced estimates.
+        if provider == .antigravity || provider == .grok {
+            let hint = provider == .grok
+                ? ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.noDataMessage()
+                : "Local token history · dollar costs unavailable"
+            return Self.renderLocalTokenHistoryText(
+                name: name,
+                snapshot: snapshot,
+                useColor: useColor,
+                hint: hint,
+                showsPartialTotals: provider == .grok)
         }
         // Provider-specific by design: Codex cost is explicitly an API-equivalent local-session estimate.
         let title = provider == .codex
@@ -209,11 +217,12 @@ extension CodexBarCLI {
     private static func renderLocalTokenHistoryText(
         name: String,
         snapshot: CostUsageTokenSnapshot,
-        useColor: Bool) -> String
+        useColor: Bool,
+        hint: String = "Local token history · dollar costs unavailable",
+        showsPartialTotals: Bool = false) -> String
     {
         let header = Self.costHeaderLine("\(name) Token History", useColor: useColor)
-        let hint = "Local token history · dollar costs unavailable"
-        guard snapshot.historyCoverageIsEstablished else {
+        guard snapshot.historyCoverageIsEstablished || showsPartialTotals else {
             return [header, "Local token history is unavailable or incomplete.", hint].joined(separator: "\n")
         }
         let today = snapshot.sessionTokens.map { "\(UsageFormatter.tokenCountString($0)) tokens" } ?? "—"
@@ -224,6 +233,7 @@ extension CodexBarCLI {
             header,
             "Today: \(today)",
             snapshot.historyDays == 1 ? nil : "\(historyLabel): \(total)",
+            snapshot.historyCoverageIsEstablished ? nil : "Local token history is incomplete.",
             snapshot.daily.isEmpty ? "No token usage found in the selected period." : nil,
             hint,
         ]

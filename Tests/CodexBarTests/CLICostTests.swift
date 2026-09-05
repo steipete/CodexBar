@@ -121,6 +121,42 @@ struct CLICostTests {
     }
 
     @Test
+    func `renders Grok as token-only local history`() {
+        let snap = CostUsageTokenSnapshot(
+            sessionTokens: 120,
+            sessionCostUSD: nil,
+            last30DaysTokens: 900,
+            last30DaysCostUSD: nil,
+            historyDays: 30,
+            historyCoverageIsEstablished: true,
+            daily: [],
+            updatedAt: Date(timeIntervalSince1970: 0))
+        let output = CodexBarCLI.renderCostText(provider: .grok, snapshot: snap, useColor: false)
+
+        #expect(output.contains("Grok Token History"))
+        #expect(output.contains("Today: 120 tokens"))
+        #expect(output.contains("Last 30 days: 900 tokens"))
+        #expect(output.contains("Subscription credits are a quota, not dollars"))
+        #expect(!output.contains("API-rate estimate"))
+    }
+
+    @Test
+    func `warns when Grok local history is incomplete`() {
+        let snap = CostUsageTokenSnapshot(
+            sessionTokens: 120,
+            sessionCostUSD: nil,
+            last30DaysTokens: 900,
+            last30DaysCostUSD: nil,
+            historyDays: 30,
+            historyCoverageIsEstablished: false,
+            daily: [],
+            updatedAt: Date(timeIntervalSince1970: 0))
+        let output = CodexBarCLI.renderCostText(provider: .grok, snapshot: snap, useColor: false)
+
+        #expect(output.contains("Local token history is incomplete."))
+    }
+
+    @Test
     func `renders codex session grouped cost text`() {
         let sessionDate = Date(timeIntervalSince1970: 1_750_000_000)
         let snap = CostUsageTokenSnapshot(

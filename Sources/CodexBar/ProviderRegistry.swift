@@ -92,7 +92,8 @@ struct ProviderRegistry {
                         persistsCLISessions: true,
                         persistentCLISessionIdleWindow: Self.persistentCLISessionIdleWindow(
                             refreshInterval: Self.nominalRefreshInterval(
-                                for: settings.refreshFrequency)))
+                                for: settings.refreshFrequency)),
+                        costUsageBucketCalendar: settings.costUsageBucketCalendar)
                 })
             specs[provider] = spec
         }

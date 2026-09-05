@@ -1545,3 +1545,4 @@
 "menu_bar_layout_conditional_default_either_high" = "Oturum veya haftalık kullanım yükseldi";
 "menu_bar_layout_conditional_default_scoped_weekly" = "Model haftasının %60'ından fazlası kullanıldı";
 "Spending cap, not balance" = "Harcama sınırı, bakiye değil";
+"Local token history is incomplete." = "Yerel token geçmişi eksik.";

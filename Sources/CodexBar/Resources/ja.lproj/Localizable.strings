@@ -1543,3 +1543,4 @@
 "menu_bar_layout_conditional_default_either_high" = "セッションまたは週間が高水準";
 "menu_bar_layout_conditional_default_scoped_weekly" = "モデル別週間の使用率 60% 超";
 "Spending cap, not balance" = "利用上限額（残高ではありません）";
+"Local token history is incomplete." = "ローカルのトークン履歴は不完全です。";

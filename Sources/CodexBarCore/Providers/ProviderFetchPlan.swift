@@ -57,6 +57,9 @@ public struct ProviderFetchContext: Sendable {
     /// Already-resolved CLI version from Settings (or the CLI's shared detector).
     /// Codex PAT User-Agent consumes this instead of spawning `codex --version`.
     public let resolvedCLIVersion: String?
+    /// Calendar used for local token-cost day bucketing. The app pins this to the user's
+    /// configured cost-usage timezone; command-line callers retain the current-calendar default.
+    public let costUsageBucketCalendar: Calendar
 
     public init(
         runtime: ProviderRuntime,
@@ -79,7 +82,8 @@ public struct ProviderFetchContext: Sendable {
         claudeOwnerCLIRecoveryOnly: Bool = false,
         persistsCLISessions: Bool = false,
         persistentCLISessionIdleWindow: TimeInterval? = nil,
-        resolvedCLIVersion: String? = nil)
+        resolvedCLIVersion: String? = nil,
+        costUsageBucketCalendar: Calendar = .current)
     {
         self.runtime = runtime
         self.sourceMode = sourceMode
@@ -102,6 +106,7 @@ public struct ProviderFetchContext: Sendable {
         self.persistsCLISessions = persistsCLISessions
         self.persistentCLISessionIdleWindow = persistentCLISessionIdleWindow
         self.resolvedCLIVersion = resolvedCLIVersion
+        self.costUsageBucketCalendar = costUsageBucketCalendar
     }
 }
 

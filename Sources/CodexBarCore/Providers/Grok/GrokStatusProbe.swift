@@ -30,7 +30,10 @@ public struct GrokUsageSnapshot: Sendable {
         self.subscriptionTier = subscriptionTier
     }
 
-    public func toUsageSnapshot() -> UsageSnapshot {
+    public func toUsageSnapshot(
+        calendar: Calendar = .current,
+        historyDays: Int = GrokLocalSessionScanner.defaultLookbackDays) -> UsageSnapshot
+    {
         // Primary window: credit usage (against included limit) from the CLI RPC,
         // falling back to the web billing RPC used by grok.com when the agent surface lacks billing.
         var primary: RateWindow?
@@ -67,7 +70,8 @@ public struct GrokUsageSnapshot: Sendable {
             secondary: nil,
             tertiary: nil,
             costUsage: self.localSummary?.toCostUsageTokenSnapshot(
-                historyDays: GrokLocalSessionScanner.defaultLookbackDays),
+                historyDays: historyDays,
+                calendar: calendar),
             updatedAt: self.updatedAt,
             identity: identity)
     }
@@ -102,7 +106,10 @@ public struct GrokStatusProbe: Sendable {
         return withoutPrefix.isEmpty ? nil : withoutPrefix
     }
 
-    public func fetch(env: [String: String] = ProcessInfo.processInfo.environment) async throws
+    public func fetch(
+        env: [String: String] = ProcessInfo.processInfo.environment,
+        calendar: Calendar = .current,
+        lookbackDays: Int = GrokLocalSessionScanner.defaultLookbackDays) async throws
         -> GrokUsageSnapshot
     {
         // Credentials are optional: we still show identity-less state if the user
@@ -123,7 +130,10 @@ public struct GrokStatusProbe: Sendable {
         }
 
         // Local fallback summary always succeeds (empty if no sessions yet).
-        let localSummary = try await GrokLocalSessionScanner.summarizeOffMainThread(env: env)
+        let localSummary = try await GrokLocalSessionScanner.summarizeOffMainThread(
+            env: env,
+            lookbackDays: lookbackDays,
+            calendar: calendar)
         let cliVersion = Self.detectVersion(env: env)
 
         // `localSummary` is *not* currently projected into a visible RateWindow or
