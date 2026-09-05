@@ -118,6 +118,7 @@ struct CostHistoryChartMenuView: View {
             historyCoverageIsEstablished: self.historyCoverageIsEstablished)
         let selectedDateKey = self.selectedDateKey.flatMap { model.pointsByDateKey[$0] == nil ? nil : $0 }
             ?? Self.defaultSelectedDateKey(model: model)
+        let detail = self.detailContent(selectedDateKey: selectedDateKey, model: model)
         VStack(alignment: .leading, spacing: Self.outerSpacing) {
             if model.points.isEmpty {
                 Text(L("No data available"))
@@ -232,86 +233,73 @@ struct CostHistoryChartMenuView: View {
                     }
                     .frame(height: Self.metricPickerHeight)
                 }
+            }
 
-                let detail = self.detailContent(selectedDateKey: selectedDateKey, model: model)
-                VStack(alignment: .leading, spacing: Self.detailSpacing) {
-                    Text(detail.primary)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                        .frame(height: Self.detailPrimaryLineHeight, alignment: .leading)
-                    if model.detailViewportRowCount > 0 {
-                        ScrollView(.vertical) {
-                            VStack(alignment: .leading, spacing: Self.detailSpacing) {
-                                ForEach(detail.rows) { row in
-                                    HStack(alignment: .top, spacing: 8) {
-                                        Rectangle()
-                                            .fill(row.accentColor)
-                                            .frame(
-                                                width: 2,
-                                                height: Self.accentHeight(
-                                                    for: row,
-                                                    rowHeight: model.detailRowHeight))
-                                            .padding(.top, 1)
+            VStack(alignment: .leading, spacing: Self.detailSpacing) {
+                Text(detail.primary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(height: Self.detailPrimaryLineHeight, alignment: .leading)
+                if model.detailViewportRowCount > 0 {
+                    ScrollView(.vertical) {
+                        VStack(alignment: .leading, spacing: Self.detailSpacing) {
+                            ForEach(detail.rows) { row in
+                                HStack(alignment: .top, spacing: 8) {
+                                    Rectangle()
+                                        .fill(row.accentColor)
+                                        .frame(
+                                            width: 2,
+                                            height: Self.accentHeight(for: row, rowHeight: model.detailRowHeight))
+                                        .padding(.top, 1)
 
-                                        VStack(alignment: .leading, spacing: 1) {
-                                            Text(row.title)
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
+                                    VStack(alignment: .leading, spacing: 1) {
+                                        Text(row.title)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(1)
+                                            .truncationMode(.tail)
+                                            .frame(height: Self.detailTitleLineHeight, alignment: .leading)
+                                        if let subtitle = row.subtitle {
+                                            Text(subtitle)
+                                                .font(.caption2)
+                                                .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
                                                 .lineLimit(1)
                                                 .truncationMode(.tail)
-                                                .frame(height: Self.detailTitleLineHeight, alignment: .leading)
-                                            if let subtitle = row.subtitle {
-                                                Text(subtitle)
-                                                    .font(.caption2)
-                                                    .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
-                                                    .lineLimit(1)
-                                                    .truncationMode(.tail)
-                                                    .frame(
-                                                        height: Self.detailSubtitleLineHeight,
-                                                        alignment: .leading)
-                                            }
-                                            if let modeSubtitle = row.modeSubtitle {
-                                                Text(modeSubtitle)
-                                                    .font(.caption2)
-                                                    .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
-                                                    .lineLimit(1)
-                                                    .truncationMode(.tail)
-                                                    .frame(
-                                                        height: Self.detailSubtitleLineHeight,
-                                                        alignment: .leading)
-                                            }
+                                                .frame(height: Self.detailSubtitleLineHeight, alignment: .leading)
+                                        }
+                                        if let modeSubtitle = row.modeSubtitle {
+                                            Text(modeSubtitle)
+                                                .font(.caption2)
+                                                .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
+                                                .lineLimit(1)
+                                                .truncationMode(.tail)
+                                                .frame(height: Self.detailSubtitleLineHeight, alignment: .leading)
                                         }
                                     }
-                                    .frame(height: model.detailRowHeight, alignment: .leading)
                                 }
+                                .frame(height: model.detailRowHeight, alignment: .leading)
                             }
                         }
-                        .scrollIndicators(
-                            Self.detailRowsNeedScrolling(itemCount: detail.rows.count) ? .visible : .hidden)
-                        .frame(
-                            height: Self.detailRowsViewportHeight(
-                                rowCount: model.detailViewportRowCount,
-                                rowHeight: model.detailRowHeight),
-                            alignment: .topLeading)
-                        .id(selectedDateKey)
+                    }
+                    .scrollIndicators(
+                        Self.detailRowsNeedScrolling(itemCount: detail.rows.count) ? .visible : .hidden)
+                    .frame(
+                        height: Self.detailRowsViewportHeight(
+                            rowCount: model.detailViewportRowCount,
+                            rowHeight: model.detailRowHeight),
+                        alignment: .topLeading)
+                    .id(selectedDateKey)
 
-                        if model.hasDetailOverflow {
-                            Text(Self.detailOverflowHint(itemCount: detail.rows.count) ?? " ")
-                                .font(.caption2)
-                                .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
-                                .frame(height: Self.detailHintHeight, alignment: .leading)
-                                .accessibilityHidden(!Self.detailRowsNeedScrolling(itemCount: detail.rows.count))
-                        }
+                    if model.hasDetailOverflow {
+                        Text(Self.detailOverflowHint(itemCount: detail.rows.count) ?? " ")
+                            .font(.caption2)
+                            .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
+                            .frame(height: Self.detailHintHeight, alignment: .leading)
+                            .accessibilityHidden(!Self.detailRowsNeedScrolling(itemCount: detail.rows.count))
                     }
                 }
-                .frame(
-                    height: Self.detailBlockHeight(
-                        rowCount: model.detailViewportRowCount,
-                        hasOverflow: model.hasDetailOverflow,
-                        rowHeight: model.detailRowHeight),
-                    alignment: .topLeading)
             }
 
             if let total = self.totalCostUSD {
@@ -370,7 +358,6 @@ struct CostHistoryChartMenuView: View {
                         .frame(height: Self.projectEntryHeight(project), alignment: .topLeading)
                     }
                 }
-                .frame(height: Self.projectBlockHeight(projects: self.projects), alignment: .topLeading)
             }
 
             if !self.sessions.isEmpty {
@@ -437,8 +424,7 @@ struct CostHistoryChartMenuView: View {
     static let verticalPadding: CGFloat = 10
 
     private var sessionsBlock: some View {
-        let visibleCount = min(self.sessions.count, Self.maxVisibleSessionRows)
-        return VStack(alignment: .leading, spacing: Self.sessionRowSpacing) {
+        VStack(alignment: .leading, spacing: Self.sessionRowSpacing) {
             HStack {
                 Text(L("Conversations (%@)", self.windowLabel ?? Self.windowLabel(days: self.historyDays)))
                     .font(.caption)
@@ -451,24 +437,12 @@ struct CostHistoryChartMenuView: View {
             }
             .frame(height: Self.detailPrimaryLineHeight, alignment: .leading)
 
-            ScrollView(.vertical) {
-                LazyVStack(alignment: .leading, spacing: Self.sessionRowSpacing) {
-                    ForEach(self.sessions) { session in
-                        self.sessionRow(session)
-                    }
+            LazyVStack(alignment: .leading, spacing: Self.sessionRowSpacing) {
+                ForEach(self.sessions) { session in
+                    self.sessionRow(session)
                 }
             }
-            .scrollIndicators(self.sessions.count > visibleCount ? .visible : .hidden)
-            .frame(
-                height: CGFloat(visibleCount) * Self.sessionRowHeight
-                    + CGFloat(max(visibleCount - 1, 0)) * Self.sessionRowSpacing,
-                alignment: .topLeading)
         }
-        .frame(
-            height: Self.detailPrimaryLineHeight + Self.sessionRowSpacing
-                + CGFloat(visibleCount) * Self.sessionRowHeight
-                + CGFloat(max(visibleCount - 1, 0)) * Self.sessionRowSpacing,
-            alignment: .topLeading)
     }
 
     private func sessionRow(_ session: CostUsageSessionBreakdown) -> some View {
@@ -748,16 +722,6 @@ struct CostHistoryChartMenuView: View {
     private static func detailRowsViewportHeight(rowCount: Int, rowHeight: CGFloat) -> CGFloat {
         guard rowCount > 0 else { return 0 }
         return CGFloat(rowCount) * rowHeight + CGFloat(rowCount - 1) * self.detailSpacing
-    }
-
-    private static func detailBlockHeight(rowCount: Int, hasOverflow: Bool, rowHeight: CGFloat) -> CGFloat {
-        guard rowCount > 0 else { return self.detailPrimaryLineHeight }
-        var height = self.detailPrimaryLineHeight + self.detailSpacing
-        height += self.detailRowsViewportHeight(rowCount: rowCount, rowHeight: rowHeight)
-        if hasOverflow {
-            height += self.detailSpacing + self.detailHintHeight
-        }
-        return height
     }
 
     private static func projectBlockHeight(projects: [CostUsageProjectBreakdown]) -> CGFloat {
