@@ -14,6 +14,7 @@ struct HelmcodeCookieCacheTests {
     {"periodStart":"2026-09-01T00:00:00Z","models":[{"model":"helm-model-a","cap":1000000,"tokensUsed":250000}]}
     """#
     private static let creditsBody = #"{"balanceMicros":12500000,"currency":"eur"}"#
+    private static let billingBody = #"{"subscription":{"status":"active","premium":false,"currency":"eur"}}"#
 
     private static func makeContext(
         runtime: ProviderRuntime,
@@ -47,6 +48,8 @@ struct HelmcodeCookieCacheTests {
             switch url.path {
             case "/api/usage/quota":
                 return (Data(Self.quotaBody.utf8), response)
+            case "/api/billing":
+                return (Data(Self.billingBody.utf8), response)
             case "/api/billing/credits":
                 return (Data(Self.creditsBody.utf8), response)
             default:
@@ -93,7 +96,7 @@ struct HelmcodeCookieCacheTests {
             #expect(result.sourceLabel == "web")
             #expect(result.usage.primary?.resetDescription?.contains("helm-model-a") == true)
             let requests = await stub.requests()
-            #expect(requests.count == 2)
+            #expect(requests.count == 3)
             #expect(requests.allSatisfy { $0.url?.host == "cloud-api.nan.builders" })
             #expect(
                 requests.first?.value(forHTTPHeaderField: "Cookie") == Self.cachedHeader)

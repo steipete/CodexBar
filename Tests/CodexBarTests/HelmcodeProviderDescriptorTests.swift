@@ -19,7 +19,13 @@ struct HelmcodeProviderDescriptorTests {
         let snapshot = try HelmcodeUsageFetcher._parseSnapshotForTesting(
             quotaData: Self.quotaFixture(),
             creditsData: nil).toUsageSnapshot()
-        #expect(descriptor.presentation.extraRateWindows(snapshot: snapshot).map(\.title) == ["helm-model-a"])
+        #expect(descriptor.presentation.extraRateWindows(snapshot: snapshot).map(\.title) == [
+            "deepseek-v4-flash",
+            "glm5.2",
+            "glm5.3",
+            "mimo-v2.5",
+            "qwen3.8-flash",
+        ])
         #expect(descriptor.presentation.menu.usesPrimaryDescriptionAsDetail(snapshot: snapshot))
     }
 
@@ -105,7 +111,7 @@ struct HelmcodeProviderDescriptorTests {
                     transport: stub)
             }
 
-            #expect(snapshot.toUsageSnapshot().primary?.usedPercent == 75)
+            #expect(snapshot.toUsageSnapshot().primary?.resetDescription?.contains("glm5.3-flash") == true)
             #expect(
                 CookieHeaderCache.load(
                     provider: .helmcode,

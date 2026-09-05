@@ -35,14 +35,14 @@ struct MenuCardHelmcodeTests {
 
         let primary = try #require(model.metrics.first)
         #expect(primary.title == "Monthly")
-        #expect(primary.percent == 75)
-        #expect(primary.detailText?.contains("helm-model-b") == true)
-        #expect(primary.detailText?.contains("1,500,000 / 2,000,000 tokens") == true)
+        #expect(primary.percent == HelmcodeUsageFetcherTests.glm53FlashPercent)
+        #expect(primary.detailText?.contains("glm5.3-flash") == true)
+        #expect(primary.detailText?.contains("73,854,494 / 2,000,000,000 tokens") == true)
 
         let extras = model.metrics.dropFirst()
-        #expect(extras.count == 1)
-        #expect(extras.first?.title == "helm-model-a")
-        #expect(extras.first?.percent == 25)
+        #expect(extras.count == 5)
+        #expect(extras.first?.title == "deepseek-v4-flash")
+        #expect(extras.first?.percent == 0)
 
         let prepaid = try #require(model.providerCost)
         #expect(prepaid.title == "Credits")
@@ -81,7 +81,7 @@ struct MenuCardHelmcodeTests {
 
         #expect(model.providerCost == nil)
         #expect(model.metrics.first?.title == "Monthly")
-        #expect(model.metrics.first?.percent == 75)
+        #expect(model.metrics.first?.percent == HelmcodeUsageFetcherTests.glm53FlashPercent)
     }
 
     private static func fixtureData(_ name: String) throws -> Data {

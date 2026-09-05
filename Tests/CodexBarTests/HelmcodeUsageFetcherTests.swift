@@ -5,7 +5,7 @@ import Testing
 
 struct HelmcodeUsageFetcherTests {
     @Test
-    func `quota and credits map to monthly model windows and prepaid balance`() throws {
+    func `real quota and credits map to monthly model windows and prepaid balance`() throws {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let parsed = try HelmcodeUsageFetcher._parseSnapshotForTesting(
             quotaData: Self.quotaFixture(),
@@ -15,10 +15,15 @@ struct HelmcodeUsageFetcherTests {
 
         #expect(snapshot.identity?.providerID == .helmcode)
         #expect(snapshot.identity?.loginMethod == "Dashboard session")
-        #expect(snapshot.primary?.usedPercent == 75)
-        #expect(snapshot.primary?.resetDescription?.contains("helm-model-b") == true)
-        #expect(snapshot.extraRateWindows?.map(\.title) == ["helm-model-a"])
-        #expect(snapshot.extraRateWindows?.first?.window.usedPercent == 25)
+        #expect(snapshot.primary?.usedPercent == Self.glm53FlashPercent)
+        #expect(snapshot.primary?.resetDescription?.contains("glm5.3-flash") == true)
+        #expect(snapshot.extraRateWindows?.map(\.title) == [
+            "deepseek-v4-flash",
+            "glm5.2",
+            "glm5.3",
+            "mimo-v2.5",
+            "qwen3.8-flash",
+        ])
         #expect(snapshot.providerCost?.used == 12.5)
         #expect(snapshot.providerCost?.currencyCode == "EUR")
         #expect(snapshot.providerCost?.period == "Prepaid balance")
@@ -30,12 +35,97 @@ struct HelmcodeUsageFetcherTests {
     }
 
     @Test
-    func `credit funded tokens show in the window detail`() throws {
-        let now = Date(timeIntervalSince1970: 1_800_000_000)
+    func `billing without premium omits rolling window tiers from other plans`() throws {
         let parsed = try HelmcodeUsageFetcher._parseSnapshotForTesting(
             quotaData: Self.quotaFixture(),
-            creditsData: nil,
-            now: now)
+            billingData: Self.billingFixture(),
+            creditsData: nil)
+        let snapshot = parsed.toUsageSnapshot()
+
+        #expect(parsed.billing?.subscription?.premium == false)
+        #expect(snapshot.primary?.resetDescription?.contains("glm5.3-flash") == true)
+        #expect(snapshot.extraRateWindows?.map(\.title) == [
+            "deepseek-v4-flash",
+            "mimo-v2.5",
+            "qwen3.8-flash",
+        ])
+        #expect(snapshot.extraRateWindows?.contains { $0.title == "glm5.2" } == false)
+        #expect(snapshot.extraRateWindows?.contains { $0.title == "glm5.3" } == false)
+    }
+
+    @Test
+    func `premium subscription keeps rolling window tiers`() throws {
+        let parsed = try HelmcodeUsageFetcher._parseSnapshotForTesting(
+            quotaData: Self.quotaFixture(),
+            billingData: Self.billingPremiumFixture(),
+            creditsData: nil)
+        let snapshot = parsed.toUsageSnapshot()
+
+        #expect(snapshot.primary?.resetDescription?.contains("glm5.3-flash") == true)
+        #expect(snapshot.extraRateWindows?.map(\.title) == [
+            "deepseek-v4-flash",
+            "glm5.2",
+            "glm5.3",
+            "mimo-v2.5",
+            "qwen3.8-flash",
+        ])
+    }
+
+    @Test
+    func `billing failure keeps every quota entry`() throws {
+        let parsed = try HelmcodeUsageFetcher._parseSnapshotForTesting(
+            quotaData: Self.quotaFixture(),
+            billingData: nil,
+            creditsData: nil)
+        let snapshot = parsed.toUsageSnapshot()
+
+        #expect(snapshot.primary?.resetDescription?.contains("glm5.3-flash") == true)
+        #expect(snapshot.extraRateWindows?.count == 5)
+    }
+
+    @Test
+    func `per model period end wins over the derived month start`() throws {
+        let parsed = try HelmcodeUsageFetcher._parseSnapshotForTesting(
+            quotaData: Self.quotaFixture(),
+            billingData: Self.billingPremiumFixture(),
+            creditsData: nil)
+        let snapshot = parsed.toUsageSnapshot()
+
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+        let derivedReset = try #require(calendar.date(from: DateComponents(year: 2026, month: 10, day: 1)))
+        let rollingReset = try #require(HelmcodeUsageSnapshot.parseISODate("2026-10-04T19:25:48Z"))
+        #expect(rollingReset != derivedReset)
+        let glm52 = try #require(snapshot.extraRateWindows?.first { $0.title == "glm5.2" }).window
+        #expect(glm52.resetsAt == rollingReset)
+        let glm53Flash = try #require(snapshot.primary)
+        #expect(glm53Flash.resetsAt == derivedReset)
+    }
+
+    @Test
+    func `rolling window entries map window hours to minutes`() throws {
+        let parsed = try HelmcodeUsageFetcher._parseSnapshotForTesting(
+            quotaData: Self.quotaFixture(),
+            billingData: Self.billingPremiumFixture(),
+            creditsData: nil)
+        let snapshot = parsed.toUsageSnapshot()
+
+        let glm52 = try #require(snapshot.extraRateWindows?.first { $0.title == "glm5.2" })
+        #expect(glm52.window.windowMinutes == 240)
+        let glm53Flash = try #require(snapshot.primary)
+        #expect(glm53Flash.windowMinutes == nil)
+    }
+
+    @Test
+    func `credit funded tokens show in the window detail`() throws {
+        let quota = #"""
+        {"periodStart":"2026-09-01","models":[
+          {"model":"helm-model-a","cap":1000000,"tokensUsed":250000,"creditTokens":2000},
+          {"model":"helm-model-b","cap":2000000,"tokensUsed":1500000}]}
+        """#
+        let parsed = try HelmcodeUsageFetcher._parseSnapshotForTesting(
+            quotaData: Data(quota.utf8),
+            creditsData: nil)
         let snapshot = parsed.toUsageSnapshot()
 
         #expect(snapshot.primary?.resetDescription?.contains("credit-funded") == false)
@@ -46,7 +136,7 @@ struct HelmcodeUsageFetcherTests {
     @Test
     func `usage above the cap clamps to one hundred percent`() throws {
         let quota = #"""
-        {"periodStart":"2026-09-01T00:00:00Z","models":[{"model":"helm-model-a","cap":1000000,"tokensUsed":1500000}]}
+        {"periodStart":"2026-09-01","models":[{"model":"helm-model-a","cap":1000000,"tokensUsed":1500000}]}
         """#
         let parsed = try HelmcodeUsageFetcher._parseSnapshotForTesting(
             quotaData: Data(quota.utf8),
@@ -57,7 +147,7 @@ struct HelmcodeUsageFetcherTests {
     @Test
     func `unlimited models are omitted and credits default to euros`() throws {
         let quota = #"""
-        {"periodStart":"2026-09-01T00:00:00Z","models":[{"model":"helm-unlimited","cap":0,"tokensUsed":123}]}
+        {"periodStart":"2026-09-01","models":[{"model":"helm-unlimited","cap":0,"tokensUsed":123}]}
         """#
         let parsed = try HelmcodeUsageFetcher._parseSnapshotForTesting(
             quotaData: Data(quota.utf8),
@@ -77,7 +167,7 @@ struct HelmcodeUsageFetcherTests {
             creditsData: Data(#"{"balanceMicros":"unknown"}"#.utf8))
 
         #expect(parsed.credits == nil)
-        #expect(parsed.toUsageSnapshot().primary?.usedPercent == 75)
+        #expect(parsed.toUsageSnapshot().primary?.usedPercent == Self.glm53FlashPercent)
     }
 
     @Test
@@ -94,6 +184,8 @@ struct HelmcodeUsageFetcherTests {
         #expect(HelmcodeUsageSnapshot.nextMonthStart(periodStart: "2026-12-15T10:00:00Z") ==
             Self.utcDate(year: 2027, month: 1, day: 1))
         #expect(HelmcodeUsageSnapshot.nextMonthStart(periodStart: "2026-09-18T14:30:00Z") ==
+            Self.utcDate(year: 2026, month: 10, day: 1))
+        #expect(HelmcodeUsageSnapshot.nextMonthStart(periodStart: "2026-09-01") ==
             Self.utcDate(year: 2026, month: 10, day: 1))
     }
 
@@ -114,6 +206,8 @@ struct HelmcodeUsageFetcherTests {
             switch url.path {
             case "/api/usage/quota":
                 return try Self.response(url: url, body: Self.quotaFixture())
+            case "/api/billing":
+                return try Self.response(url: url, body: Self.billingFixture())
             case "/api/billing/credits":
                 return try Self.response(
                     url: url,
@@ -130,8 +224,34 @@ struct HelmcodeUsageFetcherTests {
             transport: transport)
 
         #expect(parsed.credits == nil)
-        #expect(parsed.toUsageSnapshot().primary?.usedPercent == 75)
+        #expect(parsed.toUsageSnapshot().primary?.usedPercent == Self.glm53FlashPercent)
         #expect(await transport.requests().contains { $0.url?.path == "/api/billing/credits" })
+    }
+
+    @Test
+    func `credits 404 means no balance for the tenant and keeps quota`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            let url = try #require(request.url)
+            switch url.path {
+            case "/api/usage/quota":
+                return try Self.response(url: url, body: Self.quotaFixture())
+            case "/api/billing":
+                return try Self.response(url: url, body: Self.billingFixture())
+            case "/api/billing/credits":
+                return try Self.response(url: url, status: 404, body: Data("404 page not found".utf8))
+            default:
+                Issue.record("Unexpected request path: \(url.path)")
+                throw URLError(.badURL)
+            }
+        }
+
+        let parsed = try await HelmcodeUsageFetcher.fetchUsage(
+            cookieHeader: "session=fixture",
+            transport: transport)
+
+        #expect(parsed.credits == nil)
+        #expect(parsed.toUsageSnapshot().primary?.usedPercent == Self.glm53FlashPercent)
+        #expect(await transport.requests().count == 3)
     }
 
     @Test
@@ -176,8 +296,10 @@ struct HelmcodeUsageFetcherTests {
             switch url.path {
             case "/api/usage/quota":
                 return try Self.response(url: url, body: Self.quotaFixture())
+            case "/api/billing":
+                return try Self.response(url: url, body: Self.billingFixture())
             case "/api/billing/credits":
-                return try Self.response(url: url, body: Self.creditsFixture())
+                return try Self.response(url: url, status: 404, body: Data("404 page not found".utf8))
             default:
                 Issue.record("Unexpected request path: \(url.path)")
                 throw URLError(.badURL)
@@ -189,9 +311,13 @@ struct HelmcodeUsageFetcherTests {
             deployment: .nanBuilders,
             transport: transport)
 
-        #expect(parsed.toUsageSnapshot().providerCost?.used == 12.5)
-        #expect(await transport.requests().count == 2)
+        // NaN has no prepaid balance; premium tiers not in the plan are hidden.
+        #expect(parsed.credits == nil)
+        #expect(parsed.toUsageSnapshot().extraRateWindows?.count == 3)
+        #expect(await transport.requests().count == 3)
     }
+
+    static let glm53FlashPercent = Double(73_854_494) / Double(2_000_000_000) * 100
 
     private static func utcDate(year: Int, month: Int, day: Int) -> Date {
         var calendar = Calendar(identifier: .gregorian)
@@ -217,6 +343,14 @@ struct HelmcodeUsageFetcherTests {
 
     private static func driftedQuotaFixture() throws -> Data {
         try self.fixtureData("quota-drifted")
+    }
+
+    private static func billingFixture() throws -> Data {
+        try self.fixtureData("billing")
+    }
+
+    private static func billingPremiumFixture() throws -> Data {
+        try self.fixtureData("billing-premium")
     }
 
     private static func creditsFixture() throws -> Data {

@@ -634,8 +634,10 @@ JavaScriptCore is the macOS rollback engine. The committed `.js` is generated fr
   deployment, for later refreshes.
 - The **Deployment** picker in Settings — or `HELMCODE_DEPLOYMENT=nanbuilders` for the CLI — selects the tenant.
 - Manual mode accepts a Cookie header or cURL capture in Settings, and `HELMCODE_COOKIE` provides the CLI equivalent.
-- Reads `GET https://<deployment api host>/api/usage/quota` for per-model monthly token allowances and reads
-  `/api/billing/credits` best-effort for the prepaid EUR balance.
+- Reads `GET https://<deployment api host>/api/usage/quota` for per-model token allowances. Each model's own
+  `periodEnd` drives its reset date. `/api/billing` is read best-effort: premium rolling-window tiers are hidden
+  unless the subscription is premium. The tenants share the quota API but differ in billing — the prepaid EUR
+  balance (`/api/billing/credits`) exists on Helmcode Cloud only; NaN Builders membership has no prepaid balance.
 - The most-utilized capped model is the primary window. Other capped models are named extra windows; uncapped models
   are omitted rather than rendered as exhausted quotas.
 - Helmcode inference API keys cannot read dashboard quota or billing data, so they are intentionally not used for

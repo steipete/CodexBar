@@ -10,11 +10,28 @@ public struct HelmcodeModelQuota: Decodable, Equatable, Sendable {
     public let tokensUsed: Int64
     public let creditTokens: Int64?
     public let creditSpendMicros: Int64?
+    public let remaining: Int64?
+    public let periodEnd: String?
+    public let updatedAt: String?
+    public let windowHours: Int?
+    public let fullWindowTokens: Int64?
 }
 
 public struct HelmcodeQuotaResponse: Decodable, Equatable, Sendable {
     public let periodStart: String
     public let models: [HelmcodeModelQuota]
+}
+
+public struct HelmcodeSubscription: Decodable, Equatable, Sendable {
+    public let status: String?
+    public let premium: Bool?
+    public let currency: String?
+    public let currentPeriodStart: Int64?
+    public let currentPeriodEnd: Int64?
+}
+
+public struct HelmcodeBillingResponse: Decodable, Equatable, Sendable {
+    public let subscription: HelmcodeSubscription?
 }
 
 public struct HelmcodeCreditsResponse: Decodable, Equatable, Sendable {
@@ -35,30 +52,42 @@ public struct HelmcodeCreditsResponse: Decodable, Equatable, Sendable {
 
 public struct HelmcodeUsageSnapshot: Equatable, Sendable {
     public let quota: HelmcodeQuotaResponse
+    public let billing: HelmcodeBillingResponse?
     public let credits: HelmcodeCreditsResponse?
     public let updatedAt: Date
 
-    public init(quota: HelmcodeQuotaResponse, credits: HelmcodeCreditsResponse?, updatedAt: Date) {
+    public init(
+        quota: HelmcodeQuotaResponse,
+        billing: HelmcodeBillingResponse? = nil,
+        credits: HelmcodeCreditsResponse?,
+        updatedAt: Date)
+    {
         self.quota = quota
+        self.billing = billing
         self.credits = credits
         self.updatedAt = updatedAt
     }
 
     public func toUsageSnapshot() -> UsageSnapshot {
-        let resetAt = Self.nextMonthStart(periodStart: self.quota.periodStart)
         let metered = self.quota.models
-            .filter { $0.cap > 0 }
-            .sorted { lhs, rhs in
-                let lhsPercent = Double(lhs.tokensUsed) / Double(lhs.cap)
-                let rhsPercent = Double(rhs.tokensUsed) / Double(rhs.cap)
-                if lhsPercent != rhsPercent { return lhsPercent > rhsPercent }
-                return lhs.model.localizedCaseInsensitiveCompare(rhs.model) == .orderedAscending
-            }
+            // Premium rolling-window tiers are "NOT IN YOUR PLAN" unless the subscription is premium.
+                .filter { quota in
+                    self.billing?.subscription?.premium == false ? quota.windowHours == nil : true
+                }
+                .filter { $0.cap > 0 }
+                .sorted { lhs, rhs in
+                    let lhsPercent = Double(lhs.tokensUsed) / Double(lhs.cap)
+                    let rhsPercent = Double(rhs.tokensUsed) / Double(rhs.cap)
+                    if lhsPercent != rhsPercent { return lhsPercent > rhsPercent }
+                    return lhs.model.localizedCaseInsensitiveCompare(rhs.model) == .orderedAscending
+                }
         let namedWindows = metered.map { quota in
             NamedRateWindow(
                 id: "helmcode-\(quota.model)",
                 title: quota.model,
-                window: Self.rateWindow(quota, resetAt: resetAt))
+                window: Self.rateWindow(
+                    quota,
+                    fallbackResetAt: Self.nextMonthStart(periodStart: self.quota.periodStart)))
         }
         let primary = namedWindows.first?.window
         let extras = namedWindows.dropFirst()
@@ -87,7 +116,7 @@ public struct HelmcodeUsageSnapshot: Equatable, Sendable {
             dataConfidence: .exact)
     }
 
-    private static func rateWindow(_ quota: HelmcodeModelQuota, resetAt: Date?) -> RateWindow {
+    private static func rateWindow(_ quota: HelmcodeModelQuota, fallbackResetAt: Date?) -> RateWindow {
         let percent = min(100, max(0, Double(quota.tokensUsed) / Double(quota.cap) * 100))
         var detail = "\(quota.model) · \(Self.formatTokens(quota.tokensUsed)) / " +
             "\(Self.formatTokens(quota.cap)) tokens"
@@ -96,9 +125,14 @@ public struct HelmcodeUsageSnapshot: Equatable, Sendable {
         }
         return RateWindow(
             usedPercent: percent,
-            windowMinutes: nil,
-            resetsAt: resetAt,
+            windowMinutes: quota.windowHours.map { $0 * 60 },
+            resetsAt: quota.periodEnd.flatMap { Self.parseISODate($0) } ?? fallbackResetAt,
             resetDescription: detail)
+    }
+
+    static func parseISODate(_ value: String) -> Date? {
+        let formatter = ISO8601DateFormatter()
+        return formatter.date(from: value)
     }
 
     private static func formatTokens(_ value: Int64) -> String {
@@ -203,10 +237,15 @@ public struct HelmcodeUsageFetcher: Sendable {
 
     static func _parseSnapshotForTesting(
         quotaData: Data,
+        billingData: Data? = nil,
         creditsData: Data?,
         now: Date = Date()) throws -> HelmcodeUsageSnapshot
     {
-        try self.parseSnapshot(quotaData: quotaData, creditsData: creditsData, now: now)
+        try self.parseSnapshot(
+            quotaData: quotaData,
+            billingData: billingData,
+            creditsData: creditsData,
+            now: now)
     }
 
     private static func fetchUsage(
@@ -224,6 +263,18 @@ public struct HelmcodeUsageFetcher: Sendable {
             deployment: deployment,
             authentication: authentication,
             transport: transport)
+        var billingData: Data?
+        do {
+            billingData = try await self.get(
+                deployment.billingURL,
+                deployment: deployment,
+                authentication: authentication,
+                transport: transport)
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            self.log.info("Helmcode billing unavailable (non-fatal): \(error.localizedDescription)")
+        }
         var creditsData: Data?
         do {
             creditsData = try await self.get(
@@ -233,10 +284,16 @@ public struct HelmcodeUsageFetcher: Sendable {
                 transport: transport)
         } catch is CancellationError {
             throw CancellationError()
+        } catch HelmcodeUsageError.apiError(404) {
+            self.log.info("No prepaid balance for this tenant (credits endpoint unavailable).")
         } catch {
             self.log.info("Helmcode credit balance unavailable (non-fatal): \(error.localizedDescription)")
         }
-        return try self.parseSnapshot(quotaData: quotaData, creditsData: creditsData, now: now)
+        return try self.parseSnapshot(
+            quotaData: quotaData,
+            billingData: billingData,
+            creditsData: creditsData,
+            now: now)
     }
 
     private static func get(
@@ -275,6 +332,7 @@ public struct HelmcodeUsageFetcher: Sendable {
 
     private static func parseSnapshot(
         quotaData: Data,
+        billingData: Data?,
         creditsData: Data?,
         now: Date) throws -> HelmcodeUsageSnapshot
     {
@@ -286,6 +344,15 @@ public struct HelmcodeUsageFetcher: Sendable {
             throw HelmcodeUsageError.parseFailed(error.localizedDescription)
         }
 
+        let billing = billingData.flatMap { data -> HelmcodeBillingResponse? in
+            do {
+                return try decoder.decode(HelmcodeBillingResponse.self, from: data)
+            } catch {
+                self.log.info("Could not parse optional Helmcode billing: \(error.localizedDescription)")
+                return nil
+            }
+        }
+
         let credits = creditsData.flatMap { data -> HelmcodeCreditsResponse? in
             do {
                 return try decoder.decode(HelmcodeCreditsResponse.self, from: data)
@@ -294,6 +361,10 @@ public struct HelmcodeUsageFetcher: Sendable {
                 return nil
             }
         }
-        return HelmcodeUsageSnapshot(quota: quota, credits: credits, updatedAt: now)
+        return HelmcodeUsageSnapshot(
+            quota: quota,
+            billing: billing,
+            credits: credits,
+            updatedAt: now)
     }
 }

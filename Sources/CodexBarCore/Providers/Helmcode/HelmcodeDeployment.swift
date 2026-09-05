@@ -57,6 +57,10 @@ public enum HelmcodeDeployment: String, CaseIterable, Sendable {
         URL(string: "https://\(self.apiHost)/api/usage/quota")!
     }
 
+    public var billingURL: URL {
+        URL(string: "https://\(self.apiHost)/api/billing")!
+    }
+
     public var creditsURL: URL {
         URL(string: "https://\(self.apiHost)/api/billing/credits")!
     }

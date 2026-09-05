@@ -77,16 +77,22 @@ CLI users can also persist the deployment in `config.json` instead of the enviro
 ## Data source
 
 - Required: `GET https://<api-host>/api/usage/quota`
-- Optional: `GET https://<api-host>/api/billing/credits`
+- Best-effort: `GET https://<api-host>/api/billing` (subscription plan flags)
+- Optional: `GET https://<api-host>/api/billing/credits` (Helmcode Cloud prepaid balance; NaN Builders has no
+  prepaid balance — the membership subscription has none, so the endpoint answers 404 there)
 - Request context: the dashboard Cookie header plus the selected deployment's `Origin` and `Referer` headers.
 
 The quota response provides `periodStart` and a `models` array. CodexBar maps each positive `cap` against
-`tokensUsed`; `creditTokens` is included in the usage detail when present. The credits endpoint reports
-`balanceMicros`, converted at one million micros per currency unit.
+`tokensUsed`; `creditTokens` is included in the usage detail when present. Each model entry's own `periodEnd`
+drives its reset date, falling back to the first day of the month after `periodStart`. Entries carrying a
+`windowHours` rolling window belong to the premium tier ("GLM 5.3 premium"); when the billing response reports
+`premium == false` those entries are hidden, and a rolling window renders with its window length
+(`windowHours * 60` minutes). The billing response is otherwise unused for display in this round. The credits
+endpoint reports `balanceMicros`, converted at one million micros per currency unit.
 
 These are endpoints used by the current Helmcode dashboard rather than a versioned public billing API. Quota parsing
-therefore fails visibly if its required response changes. Credit lookup and credit parsing are best-effort so a billing
-surface change cannot hide otherwise valid model quota.
+therefore fails visibly if its required response changes. Billing and credit lookups and parsing are best-effort so a
+billing surface change cannot hide otherwise valid model quota.
 
 ## Troubleshooting
 
