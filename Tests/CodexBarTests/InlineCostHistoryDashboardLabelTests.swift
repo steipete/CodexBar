@@ -50,7 +50,18 @@ struct InlineCostHistoryDashboardLabelTests {
 
         #expect(model.inlineUsageDashboard?.kpis.first?.title == "Today")
         #expect(model.inlineUsageDashboard?.kpis.first?.value == "$0.00")
-        #expect(model.inlineUsageDashboard?.points.first?.accessibilityValue == "2023-11-15: $0.25")
+        #expect(model.inlineUsageDashboard?.points.first?.accessibilityValue ==
+            "2023-11-15: $0.25 · 275 tokens")
+        let hoverDetail = try #require(model.inlineUsageDashboard?.points.first?.hoverDetail)
+        #expect(hoverDetail == .init(
+            dateLabel: "2023-11-15",
+            cost: 0.25,
+            tokenCount: 275,
+            currencyCode: "USD"))
+        let summary = CodexBarLocalizationOverride.$appLanguage.withValue("en") {
+            hoverDetail.summary
+        }
+        #expect(summary == "2023-11-15: $0.25 · 275 tokens")
     }
 
     @Test
@@ -107,7 +118,32 @@ struct InlineCostHistoryDashboardLabelTests {
         #expect(model.inlineUsageDashboard?.currencyCode == "USD")
         #expect(model.inlineUsageDashboard?.kpis.first?.value == expected)
         #expect(model.inlineUsageDashboard?.points.first?.value == expectedValue)
-        #expect(model.inlineUsageDashboard?.points.first?.accessibilityValue == "2023-11-15: \(expected)")
+        #expect(model.inlineUsageDashboard?.points.first?.accessibilityValue ==
+            "2023-11-15: \(expected) · 100 tokens")
+        #expect(model.inlineUsageDashboard?.points.first?.hoverDetail == .init(
+            dateLabel: "2023-11-15",
+            cost: expectedValue,
+            tokenCount: 100,
+            currencyCode: "USD"))
+    }
+
+    @Test
+    func `hover summary localizes the full sentence and preserves unknown values`() {
+        let detail = InlineUsageDashboardModel.HoverDetail(
+            dateLabel: "2023-11-15",
+            cost: nil,
+            tokenCount: nil,
+            currencyCode: "USD")
+
+        let english = CodexBarLocalizationOverride.$appLanguage.withValue("en") {
+            detail.summary
+        }
+        let simplifiedChinese = CodexBarLocalizationOverride.$appLanguage.withValue("zh-Hans") {
+            detail.summary
+        }
+
+        #expect(english == "2023-11-15: — · — tokens")
+        #expect(simplifiedChinese == "2023-11-15：— · — token")
     }
 
     @Test
@@ -389,11 +425,18 @@ struct InlineCostHistoryDashboardLabelTests {
         #expect(points.map(\.id) == ["2026-08-21", "2026-08-22", "2026-08-23", "2026-08-24"])
         #expect(points.map(\.value) == [3, 0, 0, 4])
         #expect(points.map(\.accessibilityValue) == [
-            "2026-08-21: $3.00",
-            "2026-08-22: $0.00",
-            "2026-08-23: $0.00",
-            "2026-08-24: $4.00",
+            "2026-08-21: $3.00 · 300 tokens",
+            "2026-08-22: $0.00 · 0 tokens",
+            "2026-08-23: $0.00 · 0 tokens",
+            "2026-08-24: $4.00 · 400 tokens",
         ])
+        let hoverDetails: [InlineUsageDashboardModel.HoverDetail?] = [
+            .init(dateLabel: "2026-08-21", cost: 3, tokenCount: 300, currencyCode: "USD"),
+            .init(dateLabel: "2026-08-22", cost: 0, tokenCount: 0, currencyCode: "USD"),
+            .init(dateLabel: "2026-08-23", cost: 0, tokenCount: 0, currencyCode: "USD"),
+            .init(dateLabel: "2026-08-24", cost: 4, tokenCount: 400, currencyCode: "USD"),
+        ]
+        #expect(points.map(\.hoverDetail) == hoverDetails)
     }
 
     @Test

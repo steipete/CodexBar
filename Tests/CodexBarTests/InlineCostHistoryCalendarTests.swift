@@ -14,7 +14,8 @@ struct InlineCostHistoryCalendarTests {
         let points = try InlineCostCalendarFixture.model(snapshot).points
         #expect(points.map(\.id) == ["2026-08-21", "2026-08-22", "2026-08-23", "2026-08-24"])
         #expect(points.map { $0.value as Double? } == [3, 0, nil, 4])
-        #expect(points[2].accessibilityValue == "2026-08-23: Unknown")
+        #expect(points[2].accessibilityValue == "2026-08-23: — · 100 tokens")
+        #expect(points.map { $0.hoverDetail?.tokenCount } == [100, 0, 100, 100])
     }
 
     @Test
@@ -26,17 +27,38 @@ struct InlineCostHistoryCalendarTests {
         let points = try InlineCostCalendarFixture.model(snapshot).points
         #expect(points.map { $0.value as Double? } == [3, nil, nil, 4])
         #expect(!points.contains { $0.accessibilityValue.contains("$0.00") })
+        #expect(points.map { $0.hoverDetail?.tokenCount } == [100, nil, 100, 100])
     }
 
     @Test
-    func `other providers retain sparse priced histories`() throws {
+    func `other providers retain sparse histories with token only days`() throws {
         let snapshot = try InlineCostCalendarFixture.snapshot(
             now: InlineCostCalendarFixture.now(),
             days: 4,
             covered: true)
         let points = try InlineCostCalendarFixture.model(snapshot, provider: .claude).points
-        #expect(points.map(\.id) == ["2026-08-21", "2026-08-24"])
-        #expect(points.map(\.value) == [3, 4])
+        #expect(points.map(\.id) == ["2026-08-21", "2026-08-23", "2026-08-24"])
+        #expect(points.map(\.value) == [3, nil, 4])
+        #expect(points.map { $0.hoverDetail?.tokenCount } == [100, 100, 100])
+        #expect(points[1].accessibilityValue == "2026-08-23: — · 100 tokens")
+    }
+
+    @Test
+    func `negative cost and token values remain unknown`() throws {
+        let now = try InlineCostCalendarFixture.now()
+        let snapshot = CostUsageTokenSnapshot(
+            sessionTokens: 0,
+            sessionCostUSD: 0,
+            last30DaysTokens: 0,
+            last30DaysCostUSD: 0,
+            historyDays: 1,
+            daily: [InlineCostCalendarFixture.entry("2026-08-24", cost: -1, totalTokens: -1)],
+            updatedAt: now)
+        let point = try #require(InlineCostCalendarFixture.model(snapshot, provider: .claude).points.first)
+
+        #expect(point.value == nil)
+        #expect(point.hoverDetail == nil)
+        #expect(point.accessibilityValue == "2026-08-24: Unknown")
     }
 
     @Test(arguments: [
@@ -76,6 +98,136 @@ struct InlineCostHistoryCalendarTests {
             let lastEdge = CGFloat(count) * layout.barWidth + CGFloat(count - 1) * layout.spacing
             #expect(abs(lastEdge - width) < 0.00001)
         }
+    }
+
+    @Test(arguments: [1, 4, 30, 90, 365])
+    func `bar hover resolves dynamic geometry and right to left order`(count: Int) {
+        let width: CGFloat = 286
+        let layout = InlineUsageBarLayout(width: width, count: count)
+        let firstCenter = layout.barWidth / 2
+        let lastCenter = CGFloat(count - 1) * (layout.barWidth + layout.spacing) + layout.barWidth / 2
+
+        #expect(layout.index(atX: firstCenter) == 0)
+        #expect(layout.index(atX: lastCenter) == count - 1)
+        #expect(layout.index(atX: firstCenter, layoutDirection: .rightToLeft) == count - 1)
+        #expect(layout.index(atX: lastCenter, layoutDirection: .rightToLeft) == 0)
+        #expect(layout.index(atX: 0) == 0)
+        #expect(layout.index(atX: width) == count - 1)
+        #expect(layout.index(atX: -1) == nil)
+        #expect(layout.index(atX: width + 1) == nil)
+
+        if count > 1, layout.spacing > 0 {
+            let gap = layout.barWidth + layout.spacing / 2
+            if layout.spacing < 1 {
+                #expect(layout.index(atX: gap) != nil)
+            } else {
+                #expect(layout.index(atX: gap) == nil)
+            }
+        }
+        let selectionStrokeWidth = layout.selectionStrokeWidth(barHeight: 1)
+        #expect(selectionStrokeWidth <= layout.barWidth / 2)
+        #expect(selectionStrokeWidth <= 0.5)
+    }
+
+    @Test
+    func `empty bar layout never selects a point`() {
+        let layout = InlineUsageBarLayout(width: 286, count: 0)
+        #expect(layout.barWidth == 0)
+        #expect(layout.index(atX: 0) == nil)
+        #expect(layout.index(atX: 143) == nil)
+    }
+
+    @Test
+    func `hover selection retains a bar across gaps and clears on exit or unknown days`() {
+        let detail = InlineUsageDashboardModel.HoverDetail(
+            dateLabel: "2026-08-21",
+            cost: 3,
+            tokenCount: 100,
+            currencyCode: "USD")
+        let points = [
+            InlineUsageDashboardModel.Point(
+                id: "first",
+                label: "1",
+                value: 3,
+                accessibilityValue: detail.summary,
+                hoverDetail: detail),
+            InlineUsageDashboardModel.Point(
+                id: "unknown",
+                label: "2",
+                value: nil,
+                accessibilityValue: "Unknown"),
+            InlineUsageDashboardModel.Point(
+                id: "last",
+                label: "3",
+                value: 4,
+                accessibilityValue: detail.summary,
+                hoverDetail: detail),
+        ]
+        let layout = InlineUsageBarLayout(width: 32, count: points.count)
+        let firstCenter = layout.barWidth / 2
+        let gap = layout.barWidth + layout.spacing / 2
+        let unknownCenter = layout.barWidth + layout.spacing + layout.barWidth / 2
+
+        let first = InlineUsageBarHoverSelection.pointID(
+            current: nil,
+            locationX: firstCenter,
+            layout: layout,
+            layoutDirection: .leftToRight,
+            points: points)
+        #expect(first == "first")
+        #expect(InlineUsageBarHoverSelection.pointID(
+            current: first,
+            locationX: gap,
+            layout: layout,
+            layoutDirection: .leftToRight,
+            points: points) == "first")
+        #expect(InlineUsageBarHoverSelection.pointID(
+            current: "stale",
+            locationX: gap,
+            layout: layout,
+            layoutDirection: .leftToRight,
+            points: points) == nil)
+        #expect(InlineUsageBarHoverSelection.pointID(
+            current: first,
+            locationX: unknownCenter,
+            layout: layout,
+            layoutDirection: .leftToRight,
+            points: points) == nil)
+        #expect(InlineUsageBarHoverSelection.pointID(
+            current: first,
+            locationX: nil,
+            layout: layout,
+            layoutDirection: .leftToRight,
+            points: points) == nil)
+        #expect(InlineUsageBarHoverSelection.pointID(
+            current: first,
+            locationX: 33,
+            layout: layout,
+            layoutDirection: .leftToRight,
+            points: points) == nil)
+        #expect(InlineUsageBarHoverSelection.pointID(
+            current: nil,
+            locationX: firstCenter,
+            layout: layout,
+            layoutDirection: .rightToLeft,
+            points: points) == "last")
+
+        let refreshedPoints = points.map { point in
+            InlineUsageDashboardModel.Point(
+                id: point.id,
+                label: point.label,
+                value: point.value.map { $0 + 1 },
+                accessibilityValue: point.accessibilityValue,
+                hoverDetail: point.hoverDetail)
+        }
+        #expect(InlineUsageBarHoverSelection.reconciledPointID(
+            current: first,
+            previousPoints: points,
+            points: refreshedPoints) == "first")
+        #expect(InlineUsageBarHoverSelection.reconciledPointID(
+            current: first,
+            previousPoints: points,
+            points: Array(points.dropFirst())) == nil)
     }
 
     @Test
@@ -123,12 +275,12 @@ enum InlineCostCalendarFixture {
             updatedAt: now)
     }
 
-    static func entry(_ date: String, cost: Double?) -> CostUsageDailyReport.Entry {
+    static func entry(_ date: String, cost: Double?, totalTokens: Int = 100) -> CostUsageDailyReport.Entry {
         .init(
             date: date,
-            inputTokens: 100,
+            inputTokens: totalTokens,
             outputTokens: 0,
-            totalTokens: 100,
+            totalTokens: totalTokens,
             costUSD: cost,
             modelsUsed: nil,
             modelBreakdowns: nil)
@@ -261,7 +413,9 @@ final class InlineCostHistoryScreenshotTests: XCTestCase {
         for (stem, model) in models {
             for dark in [false, true] {
                 let view = InlineUsageDashboardContent(model: model)
-                    .padding(12).frame(width: 310)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 12)
+                    .frame(width: 310)
                     .environment(\.colorScheme, dark ? .dark : .light)
                     .environment(\.displayScale, 2)
                     .environment(\.accessibilityEnabled, true)
@@ -286,8 +440,48 @@ final class InlineCostHistoryScreenshotTests: XCTestCase {
                     }
                 }
                 XCTAssertEqual(hosting.bounds.width, 310, accuracy: 0.1)
+
+                if stem == "calendar-4-covered" || stem == "calendar-365-covered" {
+                    let trackingView = try XCTUnwrap(Self.firstTrackingView(in: hosting))
+                    XCTAssertGreaterThan(trackingView.bounds.width, 0)
+                    let layout = InlineUsageBarLayout(width: trackingView.bounds.width, count: model.points.count)
+                    let selectedIndex = model.points.count - 1
+                    let selectedX = CGFloat(selectedIndex) * (layout.barWidth + layout.spacing) +
+                        layout.barWidth / 2
+                    trackingView.onMoved?(CGPoint(x: selectedX, y: trackingView.bounds.midY))
+                    try await Task.sleep(for: .milliseconds(50))
+                    hosting.layoutSubtreeIfNeeded()
+
+                    let hoveredRepresentation = try XCTUnwrap(
+                        hosting.bitmapImageRepForCachingDisplay(in: hosting.bounds))
+                    hosting.cacheDisplay(in: hosting.bounds, to: hoveredRepresentation)
+                    let hoveredData = try XCTUnwrap(
+                        hoveredRepresentation.representation(using: .png, properties: [:]))
+                    try hoveredData.write(to: directory.appendingPathComponent("\(name)-hover.png"))
+                    XCTAssertNotEqual(data, hoveredData)
+
+                    let selectedDetail = try XCTUnwrap(model.points[selectedIndex].hoverDetail)
+                    let hoveredAccessibility = Self.accessibilityText(hosting)
+                    XCTAssertTrue(hoveredAccessibility.contains(selectedDetail.summary))
+                    XCTAssertEqual(
+                        hoveredAccessibility.components(separatedBy: selectedDetail.summary).count - 1,
+                        1,
+                        "The visual hover summary must not duplicate the selected bar's VoiceOver label.")
+                }
             }
         }
+    }
+
+    private static func firstTrackingView(in root: NSView) -> MouseLocationReader.TrackingView? {
+        if let trackingView = root as? MouseLocationReader.TrackingView {
+            return trackingView
+        }
+        for subview in root.subviews {
+            if let trackingView = self.firstTrackingView(in: subview) {
+                return trackingView
+            }
+        }
+        return nil
     }
 
     private static func accessibilityText(_ element: Any, depth: Int = 0) -> String {
