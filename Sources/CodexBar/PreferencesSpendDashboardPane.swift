@@ -878,6 +878,7 @@ private struct SpendDailyChart: View {
                     ContentUnavailableView(L("Spend unavailable"), systemImage: "chart.bar.xaxis")
                         .frame(maxWidth: .infinity, minHeight: 170)
                 } else {
+                    let topStackIDs = Self.topOfStackIDs(for: self.group.dailyPoints)
                     Chart(self.group.dailyPoints) { point in
                         BarMark(
                             x: .value(L("Day"), point.day, unit: .day),
@@ -885,6 +886,7 @@ private struct SpendDailyChart: View {
                             yEnd: .value(L("Estimated spend"), point.stackEnd),
                             width: .ratio(0.72))
                             .foregroundStyle(by: .value(L("Provider"), point.providerName))
+                            .clipShape(spendStackedBarSegmentShape(isTopOfStack: topStackIDs.contains(point.id)))
                             .accessibilityLabel(Text(self.pointAccessibilityLabel(point)))
                             .accessibilityValue(Text(UsageFormatter.currencyString(
                                 point.cost,
@@ -925,6 +927,26 @@ private struct SpendDailyChart: View {
         let color = ProviderAccentPalette.color(for: provider)
         return Color(red: color.red, green: color.green, blue: color.blue)
     }
+
+    private static func topOfStackIDs(for points: [SpendDashboardModel.DailyPoint]) -> Set<String> {
+        var bestByDay: [Date: (id: String, stackEnd: Double)] = [:]
+        for point in points {
+            if let existing = bestByDay[point.day], existing.stackEnd >= point.stackEnd { continue }
+            bestByDay[point.day] = (point.id, point.stackEnd)
+        }
+        return Set(bestByDay.values.map(\.id))
+    }
+}
+
+/// Only the outer top of a stacked bar should round; every seam and the baseline must stay flush.
+private func spendStackedBarSegmentShape(isTopOfStack: Bool) -> UnevenRoundedRectangle {
+    let topRadius: CGFloat = isTopOfStack ? 4 : 0
+    return UnevenRoundedRectangle(
+        topLeadingRadius: topRadius,
+        bottomLeadingRadius: 0,
+        bottomTrailingRadius: 0,
+        topTrailingRadius: topRadius,
+        style: .continuous)
 }
 
 struct SpendHourlyChartPresentation: Equatable {
@@ -976,6 +998,7 @@ private struct SpendHourlyChart: View {
                     ContentUnavailableView(L("Spend unavailable"), systemImage: "chart.bar.xaxis")
                         .frame(maxWidth: .infinity, minHeight: 170)
                 } else {
+                    let topStackIDs = Self.topOfStackIDs(for: self.group.hourlyPoints)
                     Chart(self.group.hourlyPoints) { point in
                         BarMark(
                             x: .value(L("Hour"), point.hour, unit: .hour),
@@ -983,6 +1006,7 @@ private struct SpendHourlyChart: View {
                             yEnd: .value(L("Estimated spend"), point.stackEnd),
                             width: .ratio(0.72))
                             .foregroundStyle(by: .value(L("Provider"), point.providerName))
+                            .clipShape(spendStackedBarSegmentShape(isTopOfStack: topStackIDs.contains(point.id)))
                             .accessibilityLabel(Text(self.pointAccessibilityLabel(
                                 point,
                                 includeDate: presentation.includeDateInPointLabels)))
@@ -1037,6 +1061,15 @@ private struct SpendHourlyChart: View {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = timeZone
         return calendar
+    }
+
+    private static func topOfStackIDs(for points: [SpendDashboardModel.HourlyPoint]) -> Set<String> {
+        var bestByHour: [Date: (id: String, stackEnd: Double)] = [:]
+        for point in points {
+            if let existing = bestByHour[point.hour], existing.stackEnd >= point.stackEnd { continue }
+            bestByHour[point.hour] = (point.id, point.stackEnd)
+        }
+        return Set(bestByHour.values.map(\.id))
     }
 }
 
