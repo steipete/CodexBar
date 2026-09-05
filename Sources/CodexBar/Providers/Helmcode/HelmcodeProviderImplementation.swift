@@ -100,10 +100,9 @@ struct HelmcodeProviderImplementation: ProviderImplementation {
                         style: .link,
                         isVisible: nil,
                         perform: {
-                            let selection = context.settings.helmcodeDeploymentSelection
-                            let tenant = selection.pinnedDeployment
-                                ?? context.settings.helmcodeDetectedDeployment
-                                ?? .helmcode
+                            let tenant = HelmcodeDeploymentResolver.dashboardDeployment(
+                                settings: context.settings.helmcodeSettingsSnapshot(tokenOverride: nil),
+                                environment: ProcessInfo.processInfo.environment)
                             NSWorkspace.shared.open(tenant.dashboardPageURL)
                         }),
                 ],
