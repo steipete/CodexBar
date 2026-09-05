@@ -57,6 +57,22 @@ public enum HelmcodeDeploymentResolver {
         return entries.max { $0.storedAt < $1.storedAt }?.deployment
     }
 
+    /// All tenants with a cached session, newest `storedAt` first. Builds the ordered candidate
+    /// list for automatic-mode validation.
+    public static func cachedTenantsByRecency() -> [HelmcodeDeployment] {
+        let entries = HelmcodeDeployment.allCases.compactMap { deployment -> (
+            deployment: HelmcodeDeployment,
+            storedAt: Date)? in
+            guard let entry = CookieHeaderCache.load(
+                provider: .helmcode,
+                scope: HelmcodeWebFetchStrategy.cacheScope(deployment)),
+                  !entry.cookieHeader.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            else { return nil }
+            return (deployment, entry.storedAt)
+        }
+        return entries.sorted { $0.storedAt > $1.storedAt }.map(\.deployment)
+    }
+
     /// Explicit tenant choice: an explicit `HELMCODE_DEPLOYMENT` value wins, then the stored
     /// selection, defaulting to automatic detection.
     public static func resolveSelection(
@@ -71,17 +87,41 @@ public enum HelmcodeDeploymentResolver {
         return settings?.deploymentSelection ?? .auto
     }
 
-    /// The tenant a pasted cookie must go to. An explicit selection pins the tenant; automatic mode
-    /// detects the host from a cURL capture and falls back to Helmcode Cloud for bare headers, so a
-    /// paste is never sent to both hosts.
+    /// The tenant the selected credential must go to. An explicit selection pins the tenant;
+    /// automatic mode detects the host from THAT SAME credential's raw capture and falls back to
+    /// Helmcode Cloud for bare headers, so a credential is never sent to both hosts (F1).
     public static func tenant(
-        forManualCookie raw: String?,
-        selection: HelmcodeDeploymentSelection) -> HelmcodeDeployment
+        for credential: HelmcodeCredentialSelection,
+        deploymentSelection selection: HelmcodeDeploymentSelection) -> HelmcodeDeployment
     {
+
         if let pinned = selection.pinnedDeployment {
             return pinned
         }
-        return Self.detectTenant(fromCookieCapture: raw) ?? .helmcode
+        return Self.detectTenant(fromCookieCapture: credential.rawCapture) ?? .helmcode
+    }
+
+    /// The tenant a dashboard link should open, following the same rules as fetching: a pinned
+    /// selection wins; otherwise the tenant is detected from the selected credential's own capture
+    /// (a manual NaN capture opens NaN even though manual mode never writes the cache); otherwise
+    /// the display-path cache detection; else Helmcode Cloud (F4).
+    public static func dashboardDeployment(
+        settings: HelmcodeProviderSettings?,
+        environment: [String: String]) -> HelmcodeDeployment
+    {
+        let selection = Self.resolveSelection(settings: settings, environment: environment)
+        if let pinned = selection.pinnedDeployment {
+            return pinned
+        }
+        if let credential = HelmcodeCookieHeader.selectCredential(
+            cookieSource: settings?.cookieSource,
+            manualCookieHeader: settings?.manualCookieHeader,
+            environment: environment),
+            let detected = Self.detectTenant(fromCookieCapture: credential.rawCapture)
+        {
+            return detected
+        }
+        return Self.detectTenantFromCacheForDisplay() ?? .helmcode
     }
 
     private static func urls(in raw: String) -> [URL] {

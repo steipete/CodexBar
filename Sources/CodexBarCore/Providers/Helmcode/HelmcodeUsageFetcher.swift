@@ -246,26 +246,30 @@ public struct HelmcodeUsageFetcher: Sendable {
         cookieHeader: String,
         deployment: HelmcodeDeployment = .helmcode,
         transport transportOverride: (any ProviderHTTPTransport)? = nil,
-        now: Date = Date()) async throws -> HelmcodeUsageSnapshot
+        now: Date = Date(),
+        verbose: (@Sendable (String) -> Void)? = nil) async throws -> HelmcodeUsageSnapshot
     {
         try await self.fetchUsage(
             authentication: .header(cookieHeader),
             deployment: deployment,
             transport: transportOverride ?? self.defaultTransport,
-            now: now)
+            now: now,
+            verbose: verbose)
     }
 
     static func fetchUsage(
         cookies: [HTTPCookie],
         deployment: HelmcodeDeployment = .helmcode,
         transport transportOverride: (any ProviderHTTPTransport)? = nil,
-        now: Date = Date()) async throws -> HelmcodeUsageSnapshot
+        now: Date = Date(),
+        verbose: (@Sendable (String) -> Void)? = nil) async throws -> HelmcodeUsageSnapshot
     {
         try await self.fetchUsage(
             authentication: .cookies(cookies),
             deployment: deployment,
             transport: transportOverride ?? self.defaultTransport,
-            now: now)
+            now: now,
+            verbose: verbose)
     }
 
     static func _parseSnapshotForTesting(
@@ -285,7 +289,8 @@ public struct HelmcodeUsageFetcher: Sendable {
         authentication: Authentication,
         deployment: HelmcodeDeployment,
         transport: any ProviderHTTPTransport,
-        now: Date) async throws -> HelmcodeUsageSnapshot
+        now: Date,
+        verbose: (@Sendable (String) -> Void)? = nil) async throws -> HelmcodeUsageSnapshot
     {
         guard authentication.header(for: deployment.quotaURL) != nil else {
             throw HelmcodeUsageError.missingCookies(deployment)
@@ -295,14 +300,16 @@ public struct HelmcodeUsageFetcher: Sendable {
             deployment.quotaURL,
             deployment: deployment,
             authentication: authentication,
-            transport: transport)
+            transport: transport,
+            verbose: verbose)
         var billingData: Data?
         do {
             billingData = try await self.get(
                 deployment.billingURL,
                 deployment: deployment,
                 authentication: authentication,
-                transport: transport)
+                transport: transport,
+                verbose: verbose)
         } catch is CancellationError {
             throw CancellationError()
         } catch {
@@ -314,7 +321,8 @@ public struct HelmcodeUsageFetcher: Sendable {
                 deployment.creditsURL,
                 deployment: deployment,
                 authentication: authentication,
-                transport: transport)
+                transport: transport,
+                verbose: verbose)
         } catch is CancellationError {
             throw CancellationError()
         } catch HelmcodeUsageError.apiError(404) {
@@ -333,8 +341,19 @@ public struct HelmcodeUsageFetcher: Sendable {
         _ url: URL,
         deployment: HelmcodeDeployment,
         authentication: Authentication,
-        transport: any ProviderHTTPTransport) async throws -> Data
+        transport: any ProviderHTTPTransport,
+        verbose: (@Sendable (String) -> Void)? = nil) async throws -> Data
     {
+        if let verbose, case let .cookies(cookies) = authentication {
+            let detail = HelmcodeCookieHeader.headerWithDiagnostics(
+                from: cookies,
+                for: url,
+                now: Date())
+            verbose(
+                "GET \(url.host ?? "")\(url.path) cookies=[\(detail.included.joined(separator: ", "))] " +
+                    "excluded-expired=[\(detail.expired.joined(separator: ", "))] " +
+                    "excluded-path=[\(detail.pathExcluded.joined(separator: ", "))]")
+        }
         guard let cookieHeader = authentication.header(for: url) else {
             throw HelmcodeUsageError.missingCookies(deployment)
         }

@@ -73,11 +73,36 @@ struct HelmcodeSettingsReaderTests {
 
     @Test
     func `manual cookie tenant detection honors pinned selection and bare header fallback`() {
-        let nanCapture = "curl 'https://cloud.nan.builders/dashboard' -H 'Cookie: session=abc'"
-        #expect(HelmcodeDeploymentResolver.tenant(forManualCookie: nanCapture, selection: .auto) == .nanBuilders)
-        #expect(HelmcodeDeploymentResolver.tenant(forManualCookie: "session=abc", selection: .auto) == .helmcode)
-        #expect(HelmcodeDeploymentResolver.tenant(forManualCookie: nanCapture, selection: .helmcode) == .helmcode)
-        #expect(HelmcodeDeploymentResolver.tenant(forManualCookie: nil, selection: .nanBuilders) == .nanBuilders)
+        let nanCapture = HelmcodeCredentialSelection(
+            cookieHeader: "session=abc",
+            rawCapture: "curl 'https://cloud.nan.builders/dashboard' -H 'Cookie: session=abc'",
+            origin: .manual)
+        let bare = HelmcodeCredentialSelection(cookieHeader: "session=abc", rawCapture: "session=abc", origin: .manual)
+        #expect(HelmcodeDeploymentResolver.tenant(for: nanCapture, deploymentSelection: .auto) == .nanBuilders)
+        #expect(HelmcodeDeploymentResolver.tenant(for: bare, deploymentSelection: .auto) == .helmcode)
+        #expect(HelmcodeDeploymentResolver.tenant(for: nanCapture, deploymentSelection: .helmcode) == .helmcode)
+        #expect(HelmcodeDeploymentResolver.tenant(
+            for: HelmcodeCredentialSelection(cookieHeader: "s", rawCapture: "", origin: .environment),
+            deploymentSelection: .nanBuilders) == .nanBuilders)
+    }
+
+    @Test
+    func `dashboard deployment follows credential over cache with pinned override`() {
+        // Automatic + manual NaN capture: NaN (the credential decides, beating the display cache).
+        let nanManual = HelmcodeProviderSettings(
+            cookieSource: .manual,
+            manualCookieHeader: "curl 'https://cloud.nan.builders/dashboard' -H 'Cookie: nan_session=abc'",
+            deploymentSelection: .auto)
+        #expect(HelmcodeDeploymentResolver.dashboardDeployment(settings: nanManual, environment: [:]) == .nanBuilders)
+        // Automatic, no credential, no cache: Helmcode Cloud fallback.
+        let auto = HelmcodeProviderSettings(cookieSource: .auto, manualCookieHeader: nil, deploymentSelection: .auto)
+        #expect(HelmcodeDeploymentResolver.dashboardDeployment(settings: auto, environment: [:]) == .helmcode)
+        // A pinned selection wins over everything.
+        let pinned = HelmcodeProviderSettings(
+            cookieSource: .manual,
+            manualCookieHeader: "curl 'https://cloud.nan.builders/dashboard' -H 'Cookie: nan_session=abc'",
+            deploymentSelection: .helmcode)
+        #expect(HelmcodeDeploymentResolver.dashboardDeployment(settings: pinned, environment: [:]) == .helmcode)
     }
 
     @Test

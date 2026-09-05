@@ -4,55 +4,110 @@ import Foundation
 import FoundationNetworking
 #endif
 
-public struct HelmcodeCookieOverride: Sendable {
-    public let cookieHeader: String
+/// The one credential the Helmcode provider will use for a fetch: its normalized header, the raw
+/// pre-normalization text (so a cURL capture can be host-detected), and where it came from. Selected
+/// in exactly one place so a manual paste and an environment cookie can never both be consulted.
+public struct HelmcodeCredentialSelection: Sendable, Equatable {
+    public enum Origin: Sendable, Equatable {
+        case manual
+        case environment
+    }
 
-    public init(cookieHeader: String) {
+    public let cookieHeader: String
+    public let rawCapture: String
+    public let origin: Origin
+
+    public init(cookieHeader: String, rawCapture: String, origin: Origin) {
         self.cookieHeader = cookieHeader
+        self.rawCapture = rawCapture
+        self.origin = origin
     }
 }
 
 public enum HelmcodeCookieHeader {
-    public static func resolveCookieOverride(context: ProviderFetchContext) -> HelmcodeCookieOverride? {
-        if context.settings?.helmcode?.cookieSource == .off {
-            return nil
-        }
-
-        if let settings = context.settings?.helmcode,
-           settings.cookieSource == .manual,
-           let header = CookieHeaderNormalizer.normalize(settings.manualCookieHeader)
-        {
-            return HelmcodeCookieOverride(cookieHeader: header)
-        }
-
-        guard let header = HelmcodeSettingsReader.cookieHeader(environment: context.env) else {
-            return nil
-        }
-        return HelmcodeCookieOverride(cookieHeader: header)
+    /// Selects the single credential for this fetch: `.off` → nil; a manual source with a normalizable
+    /// header → manual; otherwise `HELMCODE_COOKIE`/`helmcode_cookie` with a normalizable header →
+    /// environment. An empty manual value never falls through to the environment credential.
+    public static func selectCredential(context: ProviderFetchContext) -> HelmcodeCredentialSelection? {
+        Self.selectCredential(
+            cookieSource: context.settings?.helmcode?.cookieSource,
+            manualCookieHeader: context.settings?.helmcode?.manualCookieHeader,
+            environment: context.env)
     }
 
-    static func header(from cookies: [HTTPCookie], for url: URL, now: Date = Date()) -> String? {
-        guard let host = url.host?.lowercased() else { return nil }
+    public static func selectCredential(
+        cookieSource: ProviderCookieSource?,
+        manualCookieHeader: String?,
+        environment: [String: String]) -> HelmcodeCredentialSelection?
+    {
+        if cookieSource == .off {
+            return nil
+        }
+        if cookieSource == .manual,
+           let header = CookieHeaderNormalizer.normalize(manualCookieHeader)
+        {
+            return HelmcodeCredentialSelection(
+                cookieHeader: header,
+                rawCapture: manualCookieHeader ?? "",
+                origin: .manual)
+        }
+        // The reader accepts both spellings; uppercase wins so callers that export both stay consistent.
+        let raw = environment[HelmcodeSettingsReader.cookieHeaderEnvironmentKey]
+            ?? environment[HelmcodeSettingsReader.cookieHeaderEnvironmentKey.lowercased()]
+        if let header = CookieHeaderNormalizer.normalize(raw) {
+            return HelmcodeCredentialSelection(cookieHeader: header, rawCapture: raw ?? "", origin: .environment)
+        }
+        return nil
+    }
+
+    /// Builds the request header with per-cookie boundary diagnostics: expired and path-mismatched
+    /// cookies are excluded and reported by name, never by value.
+    static func headerWithDiagnostics(
+        from cookies: [HTTPCookie],
+        for url: URL,
+        now: Date = Date())
+        -> (header: String?, included: [String], expired: [String], pathExcluded: [String])
+    {
+        guard let host = url.host?.lowercased() else { return (nil, [], [], []) }
         let requestPath = url.path.isEmpty ? "/" : url.path
         let isHTTPS = url.scheme?.lowercased() == "https"
 
-        let matching = cookies.filter { cookie in
-            guard cookie.expiresDate.map({ $0 > now }) ?? true else { return false }
-            guard !cookie.isSecure || isHTTPS else { return false }
-            guard self.domain(cookie.domain, matches: host) else { return false }
-            return self.path(cookie.path, matches: requestPath)
-        }.sorted { lhs, rhs in
-            if lhs.path.count != rhs.path.count {
-                return lhs.path.count > rhs.path.count
+        var included: [String] = []
+        var expired: [String] = []
+        var pathExcluded: [String] = []
+        var matching: [HTTPCookie] = []
+        for cookie in cookies.sorted(by: Self.cookieOrder) {
+            if cookie.expiresDate.map({ $0 <= now }) == true {
+                expired.append(cookie.name)
+                continue
             }
-            if lhs.name != rhs.name {
-                return lhs.name < rhs.name
+            guard !cookie.isSecure || isHTTPS else { continue }
+            guard self.domain(cookie.domain, matches: host) else { continue }
+            guard self.path(cookie.path, matches: requestPath) else {
+                pathExcluded.append(cookie.name)
+                continue
             }
-            return lhs.domain < rhs.domain
+            included.append(cookie.name)
+            matching.append(cookie)
         }
 
-        guard !matching.isEmpty else { return nil }
-        return matching.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
+        guard !matching.isEmpty else { return (nil, included, expired, pathExcluded) }
+        let header = matching.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
+        return (header, included, expired, pathExcluded)
+    }
+
+    static func header(from cookies: [HTTPCookie], for url: URL, now: Date = Date()) -> String? {
+        Self.headerWithDiagnostics(from: cookies, for: url, now: now).header
+    }
+
+    private static func cookieOrder(_ lhs: HTTPCookie, _ rhs: HTTPCookie) -> Bool {
+        if lhs.path.count != rhs.path.count {
+            return lhs.path.count > rhs.path.count
+        }
+        if lhs.name != rhs.name {
+            return lhs.name < rhs.name
+        }
+        return lhs.domain < rhs.domain
     }
 
     private static func domain(_ cookieDomain: String, matches host: String) -> Bool {
