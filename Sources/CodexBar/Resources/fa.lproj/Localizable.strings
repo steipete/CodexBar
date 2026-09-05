@@ -499,6 +499,9 @@
 "provider_accent_color_hex_label" = "مقدار رنگ هگزادسیمال";
 "provider_accent_color_reset" = "استفاده از پیش‌فرض";
 "quota_warnings_title" = "هشدارهای سهمیه";
+"quota_rows_title" = "ردیف‌های سهمیه";
+"quota_rows_footer" = "انتخاب کنید کدام ردیف‌های سهمیه مدل و افزودنی در منو نمایش داده شوند. پنهان کردن فقط بر منو اثر دارد — داده‌ها، هشدارها و تاریخچه تغییر نمی‌کنند.";
+"quota_rows_show_all" = "نمایش همه";
 "quota_warning_session" = "جلسه";
 "quota_warning_session_capitalized" = "جلسه";
 "quota_warning_weekly" = "هفتگی";

@@ -499,6 +499,9 @@
 "provider_accent_color_hex_label" = "قيمة اللون السداسية";
 "provider_accent_color_reset" = "استخدام الافتراضي";
 "quota_warnings_title" = "تحذيرات الحصص";
+"quota_rows_title" = "صفوف الحصص";
+"quota_rows_footer" = "اختر صفوف حصص الطُرز والإضافات التي تظهر في القائمة. إخفاء صف يؤثر على القائمة فقط — البيانات والتحذيرات والسجل لا تتغير.";
+"quota_rows_show_all" = "إظهار الكل";
 "quota_warning_session" = "الجلسة";
 "quota_warning_session_capitalized" = "الجلسة";
 "quota_warning_weekly" = "أسبوعيا";

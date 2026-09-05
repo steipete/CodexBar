@@ -929,22 +929,14 @@ extension UsageMenuCardView.Model {
         // Codex additional limits (e.g. Codex Spark) are optional extra usage and follow the
         // "optional credits and extra usage" setting. Other providers' extra windows (Antigravity
         // per-model quotas, Factory core windows, etc.) are core data and must always render.
-        if input.provider == .codex, !input.showOptionalCreditsAndExtraUsage {
-            return []
-        }
-        if input.provider == .copilot, !input.copilotBudgetExtrasEnabled {
-            return []
-        }
-        var visibleRateWindows = if input.provider == .codex, !input.codexSparkUsageVisible {
-            extraRateWindows.filter { !Self.isCodexSparkRateWindow($0) }
-        } else {
-            extraRateWindows
-        }
-        if input.provider == .claude,
-           !input.showOptionalCreditsAndExtraUsage || !input.claudeDailyRoutinesUsageVisible
-        {
-            visibleRateWindows.removeAll(where: Self.isClaudeDailyRoutinesRateWindow)
-        }
+        // Family gates live in QuotaRowFamilyGates so the menu and quota-row settings share one source.
+        let visibleRateWindows = QuotaRowFamilyGates(
+            provider: input.provider,
+            showOptionalCreditsAndExtraUsage: input.showOptionalCreditsAndExtraUsage,
+            claudeDailyRoutinesUsageVisible: input.claudeDailyRoutinesUsageVisible,
+            codexSparkUsageVisible: input.codexSparkUsageVisible,
+            copilotBudgetExtrasEnabled: input.copilotBudgetExtrasEnabled)
+            .menuVisibleWindows(extraRateWindows, hiddenIDs: input.hiddenQuotaRowIDs)
         return visibleRateWindows.map { namedWindow in
             let paceDetail = Self.extraRateWindowPaceDetail(
                 provider: input.provider,
@@ -1007,11 +999,6 @@ extension UsageMenuCardView.Model {
         }
     }
 
-    private static func isCodexSparkRateWindow(_ namedWindow: NamedRateWindow) -> Bool {
-        namedWindow.id == CodexAdditionalRateLimitMapper.sparkWindowID ||
-            namedWindow.id == CodexAdditionalRateLimitMapper.sparkWeeklyWindowID
-    }
-
     private static func kiroOverageRemainingDetail(
         snapshot: UsageSnapshot,
         namedWindow: NamedRateWindow,
@@ -1025,10 +1012,6 @@ extension UsageMenuCardView.Model {
         let total = String(capPhrase.dropFirst(3))
         guard !total.isEmpty else { return nil }
         return String(format: L("%@ of %@ credits left"), remaining, total)
-    }
-
-    private static func isClaudeDailyRoutinesRateWindow(_ namedWindow: NamedRateWindow) -> Bool {
-        namedWindow.id == "claude-routines"
     }
 
     private static let antigravityQuotaSummaryWindowIDPrefix = "antigravity-quota-summary-"

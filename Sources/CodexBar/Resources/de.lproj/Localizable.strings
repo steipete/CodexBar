@@ -513,6 +513,9 @@
 "provider_accent_color_hex_label" = "Hexadezimaler Farbwert";
 "provider_accent_color_reset" = "Standard verwenden";
 "quota_warnings_title" = "Kontingentwarnungen";
+"quota_rows_title" = "Kontingentzeilen";
+"quota_rows_footer" = "Wähle, welche Modell- und Zusatzkontingente im Menü erscheinen. Ausblenden betrifft nur das Menü – Daten, Warnungen und Verlauf bleiben unverändert.";
+"quota_rows_show_all" = "Alle anzeigen";
 "quota_warning_session" = "Sitzung";
 "quota_warning_session_capitalized" = "Sitzung";
 "quota_warning_weekly" = "wöchentlich";

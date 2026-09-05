@@ -520,6 +520,9 @@
 "provider_accent_color_hex_label" = "十六進位顏色值";
 "provider_accent_color_reset" = "使用預設值";
 "quota_warnings_title" = "配額提醒";
+"quota_rows_title" = "配額列";
+"quota_rows_footer" = "選擇選單中顯示哪些模型與附加配額列。隱藏僅影響選單，資料、警告與歷史不變。";
+"quota_rows_show_all" = "全部顯示";
 "quota_warning_session" = "工作階段";
 "quota_warning_session_capitalized" = "工作階段";
 "quota_warning_weekly" = "每週";

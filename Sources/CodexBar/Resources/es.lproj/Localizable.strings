@@ -516,6 +516,9 @@
 "provider_accent_color_hex_label" = "Valor de color hexadecimal";
 "provider_accent_color_reset" = "Usar predeterminado";
 "quota_warnings_title" = "Avisos de cuota";
+"quota_rows_title" = "Filas de cuota";
+"quota_rows_footer" = "Elige qué filas de cuota de modelos y complementos aparecen en el menú. Ocultar una fila solo afecta al menú: datos, avisos e historial no cambian.";
+"quota_rows_show_all" = "Mostrar todo";
 "quota_warning_session" = "sesión";
 "quota_warning_session_capitalized" = "Sesión";
 "quota_warning_weekly" = "semanal";

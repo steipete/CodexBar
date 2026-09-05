@@ -511,6 +511,9 @@
 "provider_accent_color_hex_label" = "16진수 색상 값";
 "provider_accent_color_reset" = "기본값 사용";
 "quota_warnings_title" = "할당량 경고";
+"quota_rows_title" = "할당량 행";
+"quota_rows_footer" = "메뉴에 표시할 모델 및 추가 할당량 행을 선택하세요. 숨기기는 메뉴에만 적용되며 데이터, 경고, 기록은 그대로입니다.";
+"quota_rows_show_all" = "모두 표시";
 "quota_warning_session" = "세션";
 "quota_warning_session_capitalized" = "세션";
 "quota_warning_weekly" = "주간";

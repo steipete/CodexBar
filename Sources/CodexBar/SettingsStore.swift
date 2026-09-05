@@ -657,6 +657,8 @@ extension SettingsStore {
         if userDefaults.string(forKey: "iCloudSyncDeviceID") == nil {
             userDefaults.set(iCloudSyncDeviceID, forKey: "iCloudSyncDeviceID")
         }
+        let hiddenQuotaRowIDsRaw = userDefaults.dictionary(
+            forKey: "hiddenQuotaRowIDs") as? [String: [String]] ?? [:]
         return SettingsDefaultsState(
             refreshFrequency: refreshFrequency,
             adaptiveActivityScanConsent: adaptiveActivityScanConsent,
@@ -748,7 +750,8 @@ extension SettingsStore {
             iCloudSyncIncludeSecrets: iCloudSyncIncludeSecrets,
             iCloudSyncSnapshotsEnabled: iCloudSyncSnapshotsEnabled,
             iCloudSyncShowFleetAccounts: iCloudSyncShowFleetAccounts,
-            iCloudSyncDeviceID: iCloudSyncDeviceID)
+            iCloudSyncDeviceID: iCloudSyncDeviceID,
+            hiddenQuotaRowIDsRaw: hiddenQuotaRowIDsRaw)
     }
 
     private static func hadPreviousAppLaunch(userDefaults: UserDefaults) -> Bool {

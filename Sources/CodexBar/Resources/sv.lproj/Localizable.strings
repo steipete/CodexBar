@@ -515,6 +515,9 @@
 "provider_accent_color_hex_label" = "Hexadecimalt färgvärde";
 "provider_accent_color_reset" = "Använd standard";
 "quota_warnings_title" = "Kvotvarningar";
+"quota_rows_title" = "Kvotrader";
+"quota_rows_footer" = "Välj vilka modell- och tilläggskvotrader som visas i menyn. Att dölja en rad påverkar bara menyn – data, varningar och historik ändras inte.";
+"quota_rows_show_all" = "Visa alla";
 "quota_warning_session" = "session";
 "quota_warning_session_capitalized" = "Session";
 "quota_warning_weekly" = "veckokvot";

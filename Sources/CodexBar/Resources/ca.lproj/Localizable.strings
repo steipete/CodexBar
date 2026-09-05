@@ -497,6 +497,9 @@
 "provider_accent_color_hex_label" = "Valor de color hexadecimal";
 "provider_accent_color_reset" = "Usa el valor predeterminat";
 "quota_warnings_title" = "Avisos de quota";
+"quota_rows_title" = "Files de quota";
+"quota_rows_footer" = "Tria quines files de quota de models i complements apareixen al menú. Amagar una fila només afecta el menú: dades, avisos i historial no canvien.";
+"quota_rows_show_all" = "Mostra-ho tot";
 "quota_warning_session" = "sessió";
 "quota_warning_session_capitalized" = "Sessió";
 "quota_warning_weekly" = "setmanal";

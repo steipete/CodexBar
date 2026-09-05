@@ -193,6 +193,11 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
 
             ProviderAccentColorSettingsView(provider: self.provider, settings: self.store.settings)
 
+            ProviderQuotaRowVisibilitySettingsView(
+                provider: self.provider,
+                settings: self.store.settings,
+                store: self.store)
+
             ProviderQuotaWarningSettingsView(provider: self.provider, settings: self.store.settings)
 
             if !self.settingsToggles.isEmpty {

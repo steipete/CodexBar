@@ -515,6 +515,9 @@
 "provider_accent_color_hex_label" = "Шістнадцяткове значення кольору";
 "provider_accent_color_reset" = "Використовувати типовий";
 "quota_warnings_title" = "Попередження про квоту";
+"quota_rows_title" = "Рядки квот";
+"quota_rows_footer" = "Виберіть, які рядки квот моделей і додатків показувати в меню. Приховування впливає лише на меню — дані, попередження та історія не змінюються.";
+"quota_rows_show_all" = "Показати всі";
 "quota_warning_session" = "сесії";
 "quota_warning_session_capitalized" = "Сесія";
 "quota_warning_weekly" = "щотижня";

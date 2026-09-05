@@ -31,6 +31,8 @@ extension UsageMenuCardView.Model {
         let claudeDailyRoutinesUsageVisible: Bool
         let codexSparkUsageVisible: Bool
         let copilotBudgetExtrasEnabled: Bool
+        /// Quota row IDs the user hid for this provider; filtered out of the extra-window rows.
+        let hiddenQuotaRowIDs: Set<String>
         /// Provider details is the diagnostic surface and lists every usage lane a provider reports.
         /// The menu and widgets stay curated and may drop lanes that carry no information.
         let showsAllUsageLanes: Bool
@@ -78,6 +80,7 @@ extension UsageMenuCardView.Model {
             claudeDailyRoutinesUsageVisible: Bool = true,
             codexSparkUsageVisible: Bool = true,
             copilotBudgetExtrasEnabled: Bool = false,
+            hiddenQuotaRowIDs: Set<String> = [],
             showsAllUsageLanes: Bool = false,
             sourceLabel: String? = nil,
             subtitleOverride: String? = nil,
@@ -122,6 +125,7 @@ extension UsageMenuCardView.Model {
             self.claudeDailyRoutinesUsageVisible = claudeDailyRoutinesUsageVisible
             self.codexSparkUsageVisible = codexSparkUsageVisible
             self.copilotBudgetExtrasEnabled = copilotBudgetExtrasEnabled
+            self.hiddenQuotaRowIDs = hiddenQuotaRowIDs
             self.showsAllUsageLanes = showsAllUsageLanes
             self.sourceLabel = sourceLabel
             self.subtitleOverride = subtitleOverride

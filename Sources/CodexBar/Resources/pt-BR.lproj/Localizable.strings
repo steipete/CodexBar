@@ -512,6 +512,9 @@
 "provider_accent_color_hex_label" = "Valor de cor hexadecimal";
 "provider_accent_color_reset" = "Usar padrão";
 "quota_warnings_title" = "Alertas de cota";
+"quota_rows_title" = "Linhas de cota";
+"quota_rows_footer" = "Escolha quais linhas de cota de modelos e complementos aparecem no menu. Ocultar afeta apenas o menu — dados, avisos e histórico não mudam.";
+"quota_rows_show_all" = "Mostrar tudo";
 "quota_warning_session" = "sessão";
 "quota_warning_session_capitalized" = "Sessão";
 "quota_warning_weekly" = "semanal";

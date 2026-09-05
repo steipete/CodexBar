@@ -493,6 +493,9 @@
 "provider_accent_color_hex_label" = "Valor de cor hexadecimal";
 "provider_accent_color_reset" = "Usar o predeterminado";
 "quota_warnings_title" = "Avisos de cota";
+"quota_rows_title" = "Filas de cota";
+"quota_rows_footer" = "Escolle que filas de cota de modelos e complementos aparecen no menú. Agochar unha fila só afecta ao menú: datos, avisos e historial non cambian.";
+"quota_rows_show_all" = "Amosar todo";
 "quota_warning_session" = "sesión";
 "quota_warning_session_capitalized" = "Sesión";
 "quota_warning_weekly" = "semanal";
