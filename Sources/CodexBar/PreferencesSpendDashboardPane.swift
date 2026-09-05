@@ -878,7 +878,11 @@ private struct SpendDailyChart: View {
                     ContentUnavailableView(L("Spend unavailable"), systemImage: "chart.bar.xaxis")
                         .frame(maxWidth: .infinity, minHeight: 170)
                 } else {
-                    let topStackIDs = Self.topOfStackIDs(for: self.group.dailyPoints)
+                    let topStackIDs = spendTopOfStackIDs(
+                        for: self.group.dailyPoints,
+                        key: \.day,
+                        id: \.id,
+                        stackEnd: \.stackEnd)
                     Chart(self.group.dailyPoints) { point in
                         BarMark(
                             x: .value(L("Day"), point.day, unit: .day),
@@ -927,15 +931,24 @@ private struct SpendDailyChart: View {
         let color = ProviderAccentPalette.color(for: provider)
         return Color(red: color.red, green: color.green, blue: color.blue)
     }
+}
 
-    private static func topOfStackIDs(for points: [SpendDashboardModel.DailyPoint]) -> Set<String> {
-        var bestByDay: [Date: (id: String, stackEnd: Double)] = [:]
-        for point in points {
-            if let existing = bestByDay[point.day], existing.stackEnd >= point.stackEnd { continue }
-            bestByDay[point.day] = (point.id, point.stackEnd)
-        }
-        return Set(bestByDay.values.map(\.id))
+/// Finds the id of the highest-`stackEnd` point per grouping key (day/hour), regardless of how
+/// many providers are stacked in that group. Only that point's bar should render a rounded top.
+func spendTopOfStackIDs<Point, Key: Hashable>(
+    for points: [Point],
+    key: (Point) -> Key,
+    id: (Point) -> String,
+    stackEnd: (Point) -> Double) -> Set<String>
+{
+    var bestByKey: [Key: (id: String, stackEnd: Double)] = [:]
+    for point in points {
+        let pointKey = key(point)
+        let pointStackEnd = stackEnd(point)
+        if let existing = bestByKey[pointKey], existing.stackEnd >= pointStackEnd { continue }
+        bestByKey[pointKey] = (id(point), pointStackEnd)
     }
+    return Set(bestByKey.values.map(\.id))
 }
 
 /// Only the outer top of a stacked bar should round; every seam and the baseline must stay flush.
@@ -998,7 +1011,11 @@ private struct SpendHourlyChart: View {
                     ContentUnavailableView(L("Spend unavailable"), systemImage: "chart.bar.xaxis")
                         .frame(maxWidth: .infinity, minHeight: 170)
                 } else {
-                    let topStackIDs = Self.topOfStackIDs(for: self.group.hourlyPoints)
+                    let topStackIDs = spendTopOfStackIDs(
+                        for: self.group.hourlyPoints,
+                        key: \.hour,
+                        id: \.id,
+                        stackEnd: \.stackEnd)
                     Chart(self.group.hourlyPoints) { point in
                         BarMark(
                             x: .value(L("Hour"), point.hour, unit: .hour),
@@ -1061,15 +1078,6 @@ private struct SpendHourlyChart: View {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = timeZone
         return calendar
-    }
-
-    private static func topOfStackIDs(for points: [SpendDashboardModel.HourlyPoint]) -> Set<String> {
-        var bestByHour: [Date: (id: String, stackEnd: Double)] = [:]
-        for point in points {
-            if let existing = bestByHour[point.hour], existing.stackEnd >= point.stackEnd { continue }
-            bestByHour[point.hour] = (point.id, point.stackEnd)
-        }
-        return Set(bestByHour.values.map(\.id))
     }
 }
 
