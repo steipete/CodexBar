@@ -38,8 +38,9 @@ extension SettingsStore {
     func ensureHelmcodeCookieLoaded() {}
 
     /// The detected tenant while Automatic is selected, for the picker subtitle and the dashboard action.
+    /// Reads the memoized display cache: this is called during SwiftUI body evaluations.
     var helmcodeDetectedDeployment: HelmcodeDeployment? {
-        HelmcodeDeploymentResolver.detectTenantFromCache()
+        HelmcodeDeploymentResolver.detectTenantFromCacheForDisplay()
     }
 
     func helmcodeSettingsSnapshot(tokenOverride: TokenAccountOverride?)

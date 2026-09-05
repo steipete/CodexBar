@@ -17,7 +17,7 @@ public enum HelmcodeDeploymentResolver {
             if host == "nan.builders" || host.hasSuffix(".nan.builders") {
                 return .nanBuilders
             }
-            if host.hasSuffix("helmcode.com") {
+            if host == "helmcode.com" || host.hasSuffix(".helmcode.com") {
                 return .helmcode
             }
         }
@@ -25,15 +25,30 @@ public enum HelmcodeDeploymentResolver {
     }
 
     /// Tenant decided by the persisted session cache: an entry in exactly one deployment's scope
-    /// decides; entries in both scopes pick the newer `storedAt`; no entries → nil.
+    /// decides; entries in both scopes pick the newer `storedAt`; no entries → nil. The fetch path
+    /// reads with `load`; display paths (Settings subtitle, dashboard action) use `loadForDisplay` to
+    /// avoid a synchronous Keychain round-trip per scope on every SwiftUI body evaluation.
     public static func detectTenantFromCache() -> HelmcodeDeployment? {
+        self.detectTenantFromCache(load: { provider, scope in
+            CookieHeaderCache.load(provider: provider, scope: scope)
+        })
+    }
+
+    public static func detectTenantFromCacheForDisplay() -> HelmcodeDeployment? {
+        self.detectTenantFromCache(load: { provider, scope in
+            CookieHeaderCache.loadForDisplay(provider: provider, scope: scope)
+        })
+    }
+
+    private static func detectTenantFromCache(
+        load: (_ provider: UsageProvider, _ scope: CookieHeaderCache.Scope?) -> CookieHeaderCache.Entry?)
+        -> HelmcodeDeployment?
+    {
         let entries = HelmcodeDeployment.allCases.compactMap { deployment -> (
             deployment: HelmcodeDeployment,
             storedAt: Date)? in
-            guard let entry = CookieHeaderCache.load(
-                provider: .helmcode,
-                scope: HelmcodeWebFetchStrategy.cacheScope(deployment)),
-                !entry.cookieHeader.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            guard let entry = load(.helmcode, HelmcodeWebFetchStrategy.cacheScope(deployment)),
+                  !entry.cookieHeader.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             else { return nil }
             return (deployment, entry.storedAt)
         }

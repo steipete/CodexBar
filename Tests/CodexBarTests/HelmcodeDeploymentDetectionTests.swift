@@ -123,6 +123,11 @@ struct HelmcodeDeploymentDetectionTests {
             .helmcode)
         #expect(HelmcodeDeploymentResolver.detectTenant(
             fromCookieCapture: "curl 'https://example.com/login' -H 'Cookie: session=abc'") == nil)
+        #expect(HelmcodeDeploymentResolver.detectTenant(
+            fromCookieCapture: "curl 'https://cloud.nothelmcode.com/dashboard' -H 'Cookie: session=abc'") == nil)
+        #expect(HelmcodeDeploymentResolver.detectTenant(
+            fromCookieCapture: "curl 'https://cloud.nan.builders.evil.example/dashboard' -H 'Cookie: session=abc'")
+            == nil)
     }
 
     #if os(macOS)
@@ -130,6 +135,7 @@ struct HelmcodeDeploymentDetectionTests {
     func `cache detection picks the only tenant or the newer stored session`() async throws {
         try await self.withTestKeychainCache {
             #expect(HelmcodeDeploymentResolver.detectTenantFromCache() == nil)
+            #expect(HelmcodeDeploymentResolver.detectTenantFromCacheForDisplay() == nil)
 
             CookieHeaderCache.store(
                 provider: .helmcode,
@@ -137,6 +143,7 @@ struct HelmcodeDeploymentDetectionTests {
                 cookieHeader: Self.nanCookieHeader,
                 sourceLabel: "Chrome Profile 1 (Test)")
             #expect(HelmcodeDeploymentResolver.detectTenantFromCache() == .nanBuilders)
+            #expect(HelmcodeDeploymentResolver.detectTenantFromCacheForDisplay() == .nanBuilders)
 
             sleep(1)
             CookieHeaderCache.store(
@@ -145,6 +152,7 @@ struct HelmcodeDeploymentDetectionTests {
                 cookieHeader: Self.helmcodeCookieHeader,
                 sourceLabel: "Chrome Profile 1 (Test)")
             #expect(HelmcodeDeploymentResolver.detectTenantFromCache() == .helmcode)
+            #expect(HelmcodeDeploymentResolver.detectTenantFromCacheForDisplay() == .helmcode)
         }
     }
 

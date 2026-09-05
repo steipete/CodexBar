@@ -243,7 +243,10 @@ struct HelmcodeWebFetchStrategy: ProviderFetchStrategy {
         if context.settings?.helmcode?.cookieSource == .manual {
             return context.settings?.helmcode?.manualCookieHeader
         }
-        return context.env[HelmcodeSettingsReader.cookieHeaderEnvironmentKey]
+        // The reader accepts both spellings; uppercase wins so callers that export both stay consistent.
+        let upper = context.env[HelmcodeSettingsReader.cookieHeaderEnvironmentKey]
+        let lower = context.env[HelmcodeSettingsReader.cookieHeaderEnvironmentKey.lowercased()]
+        return upper ?? lower
     }
 
     /// Fetches one imported session and persists the header actually sent, scoped by deployment.
