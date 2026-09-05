@@ -2,6 +2,9 @@
 
 ## 0.56.7 — Unreleased
 
+### Fixed
+- Moonshot: show China-region balances and deficits in CNY while retaining USD for international accounts (#3434, #3438). Thanks @SomSamantray and @doraemonke!
+
 ## 0.56.6 — 2026-09-05
 
 ### Highlights
