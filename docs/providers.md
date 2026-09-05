@@ -8,7 +8,7 @@ read_when:
 
 # Providers
 
-CodexBar currently registers 69 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
+CodexBar currently registers 70 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
 OpenCode vs OpenCode Go, because the auth source and quota shape differ.
 
 ## Fetch strategies (current)
@@ -32,7 +32,7 @@ arriving during a scan coalesce into a follow-up; a failed attempt waits for a n
 dashboard refresh before retrying. Codex account-cache ownership and provider-derived spend sources are unchanged.
 
 Native cost-history sources are the descriptors that advertise token-cost support: Codex, Claude, OpenAI Admin,
-Mistral, AWS Bedrock, Vertex AI, Cursor, and OpenCode Go. Providers without that contract are omitted instead of
+Mistral, AWS Bedrock, Vertex AI, Cursor, OpenCode Go, and OpenClaw. Providers without that contract are omitted instead of
 appearing as empty subscriptions. Each native currency has its own total, ranking, and daily chart; CodexBar never
 adds or ranks amounts across currencies.
 
@@ -61,6 +61,7 @@ complete when the available scan window covers fewer days.
 | Claude | Admin API key (`api`) when configured; otherwise App Auto: OAuth API (`oauth`) → CLI PTY (`claude`) → Web API (`web`). CLI Auto: Web API (`web`) → CLI PTY (`claude`). |
 | Gemini | OAuth-backed API via Gemini CLI credentials (`api`). |
 | Antigravity | Local LSP/HTTP probe (`local`). |
+| OpenClaw | Installed CLI → read-only Gateway `usage.cost` aggregate (`openclaw.cli`). |
 | Cursor | Web API via cookies → legacy stored session → Cursor.app local auth (`web`). |
 | OpenCode | Web dashboard via cookies (`web`). |
 | OpenCode Go | Unscoped Auto: local SQLite cost history with API overlay (`local+api`) → usage API (`api`) → web dashboard (`web`). Scoped Auto (selected account/manual cookie/workspace): web → local → API. Explicit API/Web: selected source only. |
@@ -213,6 +214,12 @@ complete when the available scan window covers fewer days.
 - `RetrieveUserQuotaSummary` primary; `GetUserStatus` / `GetCommandModelConfigs` fallbacks.
 - Status: Google Workspace incidents (Gemini product).
 - Details: `docs/antigravity.md`.
+
+## OpenClaw
+- Requires the installed `openclaw` CLI and a reachable OpenClaw Gateway. CodexBar makes the read-only `usage.cost` call; it does not open OpenClaw's SQLite store or credentials directly.
+- Requests an all-agent aggregate for the selected history range and the caller's IANA time zone. OpenClaw remains responsible for active-event projection, migrations, day bucketing, and pricing.
+- Validates the bounded JSON response before publishing it. Non-fresh caches and malformed or invalid values fail closed; a day with missing-cost entries keeps its token counts but hides its partial dollar total.
+- Exposes daily aggregate tokens and estimated cost in SpendDashboard and `codexbar cost --provider openclaw`. The Gateway response does not claim per-model or per-session breakdowns.
 
 ## Cursor
 - Web API via browser cookies (`cursor.com` + `cursor.sh`).

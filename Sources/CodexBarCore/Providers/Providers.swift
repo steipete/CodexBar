@@ -34,6 +34,7 @@ public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case fireworks
     case gemini
     case antigravity
+    case openclaw
     case copilot
     case devin
     case zai
@@ -116,6 +117,7 @@ public struct IconStyle: RawRepresentable, Hashable, Sendable, CaseIterable, Cus
     public static let claude = Self(provider: .claude)
     public static let gemini = Self(provider: .gemini)
     public static let antigravity = Self(provider: .antigravity)
+    public static let openclaw = Self(provider: .openclaw)
     public static let cursor = Self(provider: .cursor)
     public static let factory = Self(provider: .factory)
     public static let copilot = Self(provider: .copilot)

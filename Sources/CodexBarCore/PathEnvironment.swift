@@ -229,6 +229,32 @@ public enum BinaryLocator {
             home: home)
     }
 
+    public static func resolveOpenClawBinary(
+        env: [String: String] = ProcessInfo.processInfo.environment,
+        loginPATH: [String]? = LoginShellPathCache.shared.current,
+        commandV: (String, String?, TimeInterval, FileManager) -> String? = ShellCommandLocator.commandV,
+        aliasResolver: (String, String?, TimeInterval, FileManager, String) -> String? = ShellCommandLocator
+            .resolveAlias,
+        fileManager: FileManager = .default,
+        home: String = NSHomeDirectory()) -> String?
+    {
+        // Provider-specific by design: This named resolver supplies OpenClaw's actual CLI executable name.
+        self.resolveBinary(
+            name: "openclaw",
+            overrideKey: "OPENCLAW_CLI_PATH",
+            env: env,
+            loginPATH: loginPATH,
+            commandV: commandV,
+            aliasResolver: aliasResolver,
+            wellKnownPaths: [
+                "\(home)/.local/bin/openclaw",
+                "/opt/homebrew/bin/openclaw",
+                "/usr/local/bin/openclaw",
+            ],
+            fileManager: fileManager,
+            home: home)
+    }
+
     public static func resolveAmpBinary(
         env: [String: String] = ProcessInfo.processInfo.environment,
         loginPATH: [String]? = LoginShellPathCache.shared.current,

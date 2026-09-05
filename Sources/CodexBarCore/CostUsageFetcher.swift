@@ -385,6 +385,7 @@ public struct CostUsageFetcher: Sendable {
         return options
     }
 
+    // swiftlint:disable:next function_body_length
     static func loadTokenSnapshot(
         provider: UsageProvider,
         environment: [String: String] = ProcessInfo.processInfo.environment,
@@ -470,6 +471,14 @@ public struct CostUsageFetcher: Sendable {
                 historyDays: clampedHistoryDays,
                 calendar: fallbackCalendar,
                 historyCoverageIsEstablished: false)
+        }
+        // Provider-specific by design: OpenClaw owns session projection, pricing, and day bucketing behind usage.cost.
+        if provider == .openclaw {
+            return try await self.loadOpenClawGatewaySnapshot(
+                environment: environment,
+                now: now,
+                historyDays: clampedHistoryDays,
+                calendar: fallbackCalendar)
         }
         if let remoteError {
             throw remoteError
@@ -1265,6 +1274,34 @@ public struct CostUsageFetcher: Sendable {
             calendar: cal,
             historyCoverageIsEstablished: reportResult.isComplete,
             costProvenance: .unknown)
+    }
+
+    private static func loadOpenClawGatewaySnapshot(
+        environment: [String: String],
+        now: Date,
+        historyDays: Int,
+        calendar: Calendar = .current) async throws -> CostUsageTokenSnapshot
+    {
+        let report = try await OpenClawCostUsageFetcher.fetchDailyReport(
+            environment: environment,
+            now: now,
+            historyDays: historyDays,
+            calendar: calendar)
+        let since = calendar.date(
+            byAdding: .day,
+            value: -(historyDays - 1),
+            to: calendar.startOfDay(for: now)) ?? now
+        let sinceKey = CostUsageLocalDay.key(from: since, calendar: calendar)
+        let nowKey = CostUsageLocalDay.key(from: now, calendar: calendar)
+        let filtered = report.data.filter { $0.date >= sinceKey && $0.date <= nowKey }
+        return Self.tokenSnapshot(
+            from: CostUsageDailyReport(data: filtered, summary: nil),
+            now: now,
+            historyDays: historyDays,
+            useCurrentLocalDayForSession: true,
+            calendar: calendar,
+            historyCoverageIsEstablished: true,
+            costProvenance: filtered.contains { $0.costUSD != nil } ? .listPriceEstimate : .unknown)
     }
 
     static func tokenSnapshot(

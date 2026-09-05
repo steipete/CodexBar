@@ -21,6 +21,7 @@ enum ProviderImplementationManifest {
         { FireworksProviderImplementation() },
         { GeminiProviderImplementation() },
         { AntigravityProviderImplementation() },
+        { OpenClawProviderImplementation() },
         { CopilotProviderImplementation() },
         { DevinProviderImplementation() },
         { ZaiProviderImplementation() },

@@ -70,19 +70,8 @@ struct SpendDashboardModelTests {
             .filter(\.tokenCost.supportsTokenCost)
             .map(\.id))
         #expect(providers == [
-            .codex,
-            .claude,
-            .vertexai,
-            .openai,
-            .mistral,
-            .bedrock,
-            .cursor,
-            .grok,
-            .opencodego,
-            .openrouter,
-            .xai,
-            // Antigravity joined via the tokscale-compatible local usage readers.
-            .antigravity,
+            .codex, .claude, .vertexai, .openai, .mistral, .bedrock, .cursor, .grok, .opencodego, .openrouter, .xai,
+            .antigravity, .openclaw,
         ])
     }
 
