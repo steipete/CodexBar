@@ -60,11 +60,11 @@ Set the key with `codexbar config set-api-key --provider elevenlabs --stdin`, ad
 
 ### "ElevenLabs rejected the selected API key"
 
-ElevenLabs returned HTTP 401 with `detail.status` set to `invalid_api_key`. Confirm that the key is valid and has not been revoked. If you configured multiple ElevenLabs API-key accounts, the active account takes precedence over the standalone API key field.
+ElevenLabs returned an authentication or access error identifying `invalid_api_key`. Confirm that the key is valid and has not been revoked. If you configured multiple ElevenLabs API-key accounts, the active account takes precedence over the standalone API key field.
 
 ### "ElevenLabs API key is missing the user_read permission"
 
-ElevenLabs returned HTTP 401 with `detail.status` set to `missing_permissions`. Enable the `user_read` permission for the selected key so CodexBar can fetch subscription usage.
+ElevenLabs returned HTTP 401 or 403 identifying `missing_permissions` or `insufficient_permissions`. Enable the `user_read` permission for the selected key so CodexBar can fetch subscription usage.
 
 ### "ElevenLabs could not authenticate the selected API key"
 
@@ -72,7 +72,9 @@ ElevenLabs returned HTTP 401 without a recognized error status. Check the key an
 
 ### "ElevenLabs denied access for the selected API key"
 
-ElevenLabs returned HTTP 403. Check the key's endpoint permissions and IP allowlist in the ElevenLabs API-key settings.
+ElevenLabs returned HTTP 403 without a recognized key or permission error. Check the key's endpoint permissions and IP allowlist in the ElevenLabs API-key settings.
+
+CodexBar reads recognized `detail.code` values first, as described in [ElevenLabs' error documentation](https://elevenlabs.io/docs/eleven-api/resources/errors). It also reads the legacy `detail.status` when the current code is absent or generic; live responses can still use that field for the specific rejection reason. Provider error messages are not copied into these diagnostics.
 
 ### "ElevenLabs API error"
 

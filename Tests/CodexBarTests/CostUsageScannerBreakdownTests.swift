@@ -245,7 +245,7 @@ struct CostUsageScannerBreakdownTests {
     }
 
     @Test
-    func `codex project breakdowns group by cwd and preserve daily totals`() throws {
+    func `codex project breakdowns group by cwd and preserve daily totals`() async throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
 
@@ -260,7 +260,7 @@ struct CostUsageScannerBreakdownTests {
             .appendingPathComponent(".codex/worktrees/abcd/client-a", isDirectory: true)
             .path
 
-        try self.makeGitRepositoryWithWorktree(projectPath: projectA, worktreePath: projectAWorktree)
+        try await self.makeGitRepositoryWithWorktree(projectPath: projectA, worktreePath: projectAWorktree)
 
         func sessionMeta(id: String, cwd: String?) -> [String: Any] {
             var payload: [String: Any] = ["id": id]
@@ -387,43 +387,43 @@ struct CostUsageScannerBreakdownTests {
         #expect(projects.first(where: { $0.path == projectA })?.totalTokens == 52)
     }
 
-    private func makeGitRepositoryWithWorktree(projectPath: String, worktreePath: String) throws {
+    @Test
+    func `git fixtures drain output larger than pipe buffers`() async throws {
+        try await self.runGit([
+            "-c",
+            "alias.codexbar-fixture-output=!printf '%131072s' x; printf '%131072s' x >&2",
+            "codexbar-fixture-output",
+        ])
+    }
+
+    private func makeGitRepositoryWithWorktree(projectPath: String, worktreePath: String) async throws {
         try FileManager.default.createDirectory(
             at: URL(fileURLWithPath: projectPath, isDirectory: true),
             withIntermediateDirectories: true)
-        try self.runGit(["init", projectPath])
-        try self.runGit(["-C", projectPath, "config", "user.email", "codexbar-test@example.com"])
-        try self.runGit(["-C", projectPath, "config", "user.name", "CodexBar Test"])
-        try self.runGit(["-C", projectPath, "config", "commit.gpgsign", "false"])
+        try await self.runGit(["init", projectPath])
+        try await self.runGit(["-C", projectPath, "config", "user.email", "codexbar-test@example.com"])
+        try await self.runGit(["-C", projectPath, "config", "user.name", "CodexBar Test"])
+        try await self.runGit(["-C", projectPath, "config", "commit.gpgsign", "false"])
         try "test\n".write(
             to: URL(fileURLWithPath: projectPath).appendingPathComponent("README.md"),
             atomically: false,
             encoding: .utf8)
-        try self.runGit(["-C", projectPath, "add", "README.md"])
-        try self.runGit(["-C", projectPath, "commit", "-m", "init"])
+        try await self.runGit(["-C", projectPath, "add", "README.md"])
+        try await self.runGit(["-C", projectPath, "commit", "-m", "init"])
         try FileManager.default.createDirectory(
             at: URL(fileURLWithPath: worktreePath).deletingLastPathComponent(),
             withIntermediateDirectories: true)
-        try self.runGit(["-C", projectPath, "worktree", "add", "-b", "codex-test", worktreePath])
+        try await self.runGit(["-C", projectPath, "worktree", "add", "-b", "codex-test", worktreePath])
     }
 
-    private func runGit(_ arguments: [String]) throws {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        process.arguments = ["git"] + arguments
-        let output = Pipe()
-        process.standardOutput = output
-        process.standardError = output
-        try process.run()
-        process.waitUntilExit()
-        if process.terminationStatus != 0 {
-            let data = output.fileHandleForReading.readDataToEndOfFile()
-            let message = String(data: data, encoding: .utf8) ?? ""
-            throw NSError(
-                domain: "CodexBarTests.Git",
-                code: Int(process.terminationStatus),
-                userInfo: [NSLocalizedDescriptionKey: message])
-        }
+    private func runGit(_ arguments: [String]) async throws {
+        _ = try await SubprocessRunner.run(
+            binary: "/usr/bin/env",
+            arguments: ["git"] + arguments,
+            environment: ProcessInfo.processInfo.environment,
+            timeout: 15,
+            maxOutputBytes: 1024 * 1024,
+            label: "git fixture")
     }
 
     @Test

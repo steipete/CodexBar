@@ -9,13 +9,24 @@ public enum CommandCodeUsageFetcher {
     private static let log = CodexBarLog.logger(LogCategories.provider(.commandcode, scope: "usage"))
     private static let requestTimeoutSeconds: TimeInterval = 15
     private static let subscriptionGraceSeconds: TimeInterval = 2
-    private static let apiBase = URL(string: "https://api.commandcode.ai")!
+    private static let defaultAPIBase = URL(string: "https://api.commandcode.ai")!
+    #if DEBUG
+    /// Debug-only loopback endpoint for synthetic transport proof.
+    static let apiURLEnvironmentKey = "COMMANDCODE_API_URL"
+    #endif
     private static let creditsPath = "/internal/billing/credits"
     private static let subscriptionsPath = "/internal/billing/subscriptions"
     private static let webOrigin = "https://commandcode.ai"
     private static let userAgent =
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
         "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
+
+    private static let sharedPlanCache = CommandCodePlanCache()
+    @TaskLocal private static var planCacheOverrideForTesting: CommandCodePlanCache?
+
+    private static var planCache: CommandCodePlanCache {
+        self.planCacheOverrideForTesting ?? self.sharedPlanCache
+    }
 
     public static func fetchUsage(
         cookieHeader: String,
@@ -42,6 +53,18 @@ public enum CommandCodeUsageFetcher {
             subscriptionGrace: subscriptionGrace)
     }
 
+    #if DEBUG
+    /// Runs `operation` against a plan memory of its own, so a test can neither read nor write the
+    /// process-wide one.
+    static func withIsolatedPlanCacheForTesting<T>(
+        operation: () async throws -> T) async rethrows -> T
+    {
+        try await self.$planCacheOverrideForTesting.withValue(CommandCodePlanCache()) {
+            try await operation()
+        }
+    }
+    #endif
+
     private static func fetchUsage(
         cookieHeader: String,
         transport: any ProviderHTTPTransport,
@@ -61,8 +84,19 @@ public enum CommandCodeUsageFetcher {
         // explicitly rather than silently dropping the totals row.
         if let sub = subscription, sub.status.lowercased() == "active", plan == nil {
             Self.log.error("Unknown CommandCode planId: \(sub.planID)")
+            // That answer also proves any remembered plan is superseded, so a later timed-out
+            // refresh must not keep sizing the lane from it.
+            await self.planCache.clear(
+                fingerprint: CookieHeaderCache.credentialFingerprint(cookieHeader),
+                now: now)
             throw CommandCodeUsageError.unknownPlan(sub.planID)
         }
+
+        let resolved = await self.resolveSubscription(
+            subscription: subscription,
+            enrichmentUnavailable: subscriptionEnrichmentUnavailable,
+            cookieHeader: cookieHeader,
+            now: now)
 
         return CommandCodeUsageSnapshot(
             monthlyCreditsRemaining: credits.monthlyCredits,
@@ -71,11 +105,47 @@ public enum CommandCodeUsageFetcher {
             opensourceMonthlyCredits: credits.opensourceMonthlyCredits,
             fiveHourWindow: credits.fiveHourWindow,
             weeklyWindow: credits.weeklyWindow,
-            plan: plan,
-            billingPeriodEnd: subscription?.currentPeriodEnd,
-            subscriptionStatus: subscription?.status,
+            plan: resolved.plan,
+            billingPeriodEnd: resolved.periodEnd,
+            subscriptionStatus: resolved.status,
             subscriptionEnrichmentUnavailable: subscriptionEnrichmentUnavailable,
             updatedAt: now)
+    }
+
+    /// Sizes the monthly grant from this refresh when the subscription lookup answered, and from the
+    /// plan remembered for this billing period when it did not. The percentage always comes from the
+    /// fresh credits response, so a remembered plan reports current spend rather than a stale reading.
+    ///
+    /// Only the grant size and its period are remembered. `subscriptionStatus` describes the current
+    /// subscription, so the remembered path reports it as unknown rather than repeating an old value.
+    private static func resolveSubscription(
+        subscription: SubscriptionPayload?,
+        enrichmentUnavailable: Bool,
+        cookieHeader: String,
+        now: Date) async -> (plan: CommandCodePlanCatalog.Plan?, periodEnd: Date?, status: String?)
+    {
+        let fingerprint = CookieHeaderCache.credentialFingerprint(cookieHeader)
+        guard enrichmentUnavailable else {
+            guard let subscription,
+                  let plan = CommandCodePlanCatalog.plan(forID: subscription.planID)
+            else {
+                // The lookup succeeded and reported no subscription: the free tier owns this account
+                // until a later refresh says otherwise.
+                await self.planCache.clear(fingerprint: fingerprint, now: now)
+                return (nil, subscription?.currentPeriodEnd, subscription?.status)
+            }
+            await self.planCache.store(
+                plan: plan,
+                periodEnd: subscription.currentPeriodEnd,
+                fingerprint: fingerprint,
+                now: now)
+            return (plan, subscription.currentPeriodEnd, subscription.status)
+        }
+        guard let remembered = await self.planCache.entry(fingerprint: fingerprint, now: now) else {
+            return (nil, nil, nil)
+        }
+        Self.log.debug("Command Code monthly grant sized from the remembered plan")
+        return (remembered.plan, remembered.periodEnd, nil)
     }
 
     private static func fetchPayloads(
@@ -142,7 +212,7 @@ public enum CommandCodeUsageFetcher {
         cookieHeader: String,
         transport: any ProviderHTTPTransport) async throws -> CreditsPayload
     {
-        let url = self.apiBase.appendingPathComponent(self.creditsPath)
+        let url = self.apiBase().appendingPathComponent(self.creditsPath)
         let data = try await self.send(url: url, cookieHeader: cookieHeader, transport: transport)
         return try self.parseCredits(data: data)
     }
@@ -151,9 +221,30 @@ public enum CommandCodeUsageFetcher {
         cookieHeader: String,
         transport: any ProviderHTTPTransport) async throws -> SubscriptionPayload?
     {
-        let url = self.apiBase.appendingPathComponent(self.subscriptionsPath)
+        let url = self.apiBase().appendingPathComponent(self.subscriptionsPath)
         let data = try await self.send(url: url, cookieHeader: cookieHeader, transport: transport)
         return try self.parseSubscription(data: data)
+    }
+
+    static func apiBase(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> URL
+    {
+        #if DEBUG
+        guard let raw = environment[self.apiURLEnvironmentKey]?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+            let url = ProviderEndpointOverrideValidator().validatedURLAllowingLoopbackHTTP(raw),
+            let host = url.host(percentEncoded: false)?.lowercased(),
+            ["localhost", "127.0.0.1", "::1", "[::1]"].contains(host),
+            url.path.isEmpty || url.path == "/",
+            url.query == nil,
+            url.fragment == nil
+        else {
+            return self.defaultAPIBase
+        }
+        return url
+        #else
+        return self.defaultAPIBase
+        #endif
     }
 
     private static func send(

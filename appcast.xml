@@ -3,6 +3,35 @@
     <channel>
         <title>CodexBar</title>
         <item>
+            <title>0.56.6</title>
+            <pubDate>Sat, 05 Sep 2026 06:52:52 -0700</pubDate>
+            <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
+            <sparkle:version>137</sparkle:version>
+            <sparkle:shortVersionString>0.56.6</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[<h2>CodexBar 0.56.6</h2>
+<h3>Highlights</h3>
+<ul>
+<li><strong>Faster Codex cost-history refreshes</strong>: skip raw token-history reads for unchanged sessions while preserving exact pricing, reasoning totals, and fork accounting (#3297).</li>
+<li><strong>Cached custom menu-bar text</strong>: reuse plain text layouts while preserving native highlighting, spacing, display scaling, and colored emoji (#3110).</li>
+<li><strong>More reliable usage displays</strong>: show exhausted automatic quotas correctly, accept Kiro plan summaries, and recover rejected Kimi web sessions (#3349, #3359, #3414).</li>
+</ul>
+<h3>Fixed</h3>
+<ul>
+<li>Codex cost: skip loading raw token histories for unchanged sessions while preserving exact request pricing, reasoning totals, and fork accounting; concurrent cache changes safely request a retry (#3297). Thanks @estevecastells!</li>
+<li>Codex cost: fill missing model-pricing coverage, including cached tokens and long-context Fast usage, and reprice saved rows without rebuilding token history (#3423, #3425).</li>
+<li>Menu bar: reuse cached template images for single-line text-only custom layouts, preserving native highlighting, display scaling, spacing, and vertical adjustments; colored emoji, rich, stale, and high-contrast content retain their existing rendering (#3110). Thanks @thatlev!</li>
+<li>Menu bar: show an exhausted supported quota in automatic switcher progress instead of healthy weekly capacity, while preserving normal weekly progress and provider-specific quota pools (partial fix for #3349). Thanks @rwese!</li>
+<li>Codex: recover subscription renewal and expiration dates through optional OpenAI web billing capture, without delaying app usage or allowing late results to replace newer dashboards or cross accounts (#3373). Thanks @emanuelst!</li>
+<li>Kimi: show API membership and standalone CLI versions, retry rejected automatic web sessions, and preserve completed quotas when optional plan metadata stalls; cancelled refreshes stop before further browser reads (#3414). Thanks @xirong!</li>
+<li>Kiro: accept CLI plan summaries without treating them as format errors, preserve unavailable credit metrics instead of showing false zero usage, and allow existing optional API enrichment to supply valid plan numbers (partial fix for #3359). Thanks @zucram!</li>
+<li>Hooks: show only the configured threshold, executable, and arguments in Settings; keep examples inside empty fields instead of displaying them as duplicate labels (#3424). Thanks @kedryte!</li>
+</ul>
+<p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
+]]></description>
+            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.56.6/CodexBar-macos-universal-0.56.6.zip" length="68865943" type="application/octet-stream" sparkle:edSignature="lzXJvtBhwCoqeOoV4hdoO1FhvXMNJzLaSlhfRl38ZU9qH770t5wMFtw5IkRUju7QxJo4UFmv25uBXV78JqT4BQ=="/>
+        </item>
+        <item>
             <title>0.56.5</title>
             <pubDate>Fri, 04 Sep 2026 10:16:36 -0700</pubDate>
             <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
@@ -67,38 +96,6 @@
 <p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
 ]]></description>
             <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.56.4/CodexBar-macos-universal-0.56.4.zip" length="68345622" type="application/octet-stream" sparkle:edSignature="1mCoyhn7I6ciigFUxURMJdQNqlk1e6vcnAc307rHv2kk8o51wv9Ul9BN5iMBdxuU0gOiKLb+WO4zBqkQx0/1BA=="/>
-        </item>
-        <item>
-            <title>0.56.3</title>
-            <pubDate>Tue, 01 Sep 2026 14:58:57 -0700</pubDate>
-            <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
-            <sparkle:version>134</sparkle:version>
-            <sparkle:shortVersionString>0.56.3</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <description><![CDATA[<h2>CodexBar 0.56.3</h2>
-<h3>Performance</h3>
-<ul>
-<li>Claude and Vertex AI: reduce background CPU spent reading transcript metadata and looking up model prices during local cost scans, preserving provider detection and token/cost totals (#3319, #3328).</li>
-<li>Local costs: skip unnecessary parsing work for discarded oversized log records, preserving complete-record validation and cost totals (#3342).</li>
-<li>Codex: avoid repeated full scans after trace-log pruning, while retaining the latest validated cost history through temporary trace-database failures (#3318). Thanks @brzvsk!</li>
-</ul>
-<h3>Fixed</h3>
-<ul>
-<li>Poe: use one refresh timestamp for point-history retention and daily totals, keeping results consistent throughout a refresh.</li>
-<li>Keychain: limit repeated cache ACL validation and memory growth while preserving recovery after temporary failures or external repairs (#3300, #3301). Thanks @IgorKhramtsov!</li>
-<li>Grok: restore 0% usage for a validated active billing period with an omitted usage scalar, while keeping incomplete or malformed billing responses unknown (#3261, #3325, #3357). Thanks @sf-jin-ku and @olddonkey!</li>
-<li>Ollama: restore usage bars for monthly included credits and show matching history tabs while preserving legacy quota parsing and saved history (#3346). Thanks @haixing23!</li>
-<li>Menu bar: keep status components and website links scoped to their provider when switching cached tabs, preventing Claude status from appearing under Grok or Codex (#3320). Thanks @gianpaj!</li>
-<li>Menu bar: attach minor and maintenance status badges to single-quota meters instead of leaving them floating below the meter (#3354). Thanks @dechaosong!</li>
-<li>Usage &amp; Spend: keep stalled or failed Codex catch-up paused until explicit Refresh, preventing background synchronization from restarting CPU-heavy scans (partial fix for #3316). Thanks @heyajulia!</li>
-<li>Claude: resume scheduled browser-cookie refreshes when no-UI Keychain access recovers, while preserving non-interactive reads and user-initiated denial cooldowns (#3287). Thanks @ehmo!</li>
-<li>Xiaomi MiMo: prevent overlapping local usage tracker updates from colliding on a shared temporary cache file, preserving atomic publication (#3321). Thanks @Lucenx9!</li>
-<li>Claude: avoid duplicated “Resets Reset” labels when CLI usage supplies a singular reset description (#3317). Thanks @Aternus!</li>
-<li>Codex: distinguish same-email workspaces with stable, privacy-safe labels across account settings, system selection, and menu switchers (#3282). Thanks @Dknightsure!</li>
-</ul>
-<p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
-]]></description>
-            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.56.3/CodexBar-macos-universal-0.56.3.zip" length="68193014" type="application/octet-stream" sparkle:edSignature="gBmnkv8vGnPiR2VK/B32U818T+mveN5ihnoGRFGR/8OBU0tvT8Apc8ikxYvLaiTMiiCV6to2+rp/5/cSVK71Aw=="/>
         </item>
         <item>
             <title>0.14.0</title>

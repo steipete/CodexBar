@@ -218,7 +218,7 @@ public struct ElevenLabsUsageFetcher: Sendable {
         case 401:
             throw Self.authenticationError(responseData: response.data)
         case 403:
-            throw ElevenLabsUsageError.accessDenied
+            throw Self.authenticationError(responseData: response.data, fallback: .accessDenied)
         default:
             Self.log.error("ElevenLabs API returned \(response.statusCode)")
             throw ElevenLabsUsageError.apiError("HTTP \(response.statusCode)")
@@ -229,20 +229,24 @@ public struct ElevenLabsUsageFetcher: Sendable {
         try self.parseSnapshot(data: data, updatedAt: updatedAt)
     }
 
-    private static func authenticationError(responseData: Data) -> ElevenLabsUsageError {
-        let status = try? JSONDecoder()
-            .decode(ElevenLabsAPIErrorResponse.self, from: responseData)
-            .detail.status
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-        switch status {
-        case "invalid_api_key":
-            return .invalidCredentials
-        case "missing_permissions":
-            return .missingPermissions
-        default:
-            return .authenticationFailed
+    private static func authenticationError(
+        responseData: Data,
+        fallback: ElevenLabsUsageError = .authenticationFailed) -> ElevenLabsUsageError
+    {
+        guard let detail = try? JSONDecoder().decode(ElevenLabsAPIErrorResponse.self, from: responseData).detail
+        else { return fallback }
+        // Live responses can pair a generic code with a more specific legacy status.
+        for value in [detail.code, detail.status].compactMap(\.self) {
+            switch value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+            case "invalid_api_key":
+                return .invalidCredentials
+            case "missing_permissions", "insufficient_permissions":
+                return .missingPermissions
+            default:
+                continue
+            }
         }
+        return fallback
     }
 
     private static func parseSnapshot(data: Data, updatedAt: Date) throws -> ElevenLabsUsageSnapshot {
@@ -287,6 +291,7 @@ private struct ElevenLabsAPIErrorResponse: Decodable {
     let detail: Detail
 
     struct Detail: Decodable {
-        let status: String
+        let code: String?
+        let status: String?
     }
 }
