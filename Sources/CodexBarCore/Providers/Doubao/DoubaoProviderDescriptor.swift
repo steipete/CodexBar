@@ -52,7 +52,7 @@ public enum DoubaoProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .init(provider: .doubao),
                 iconResourceName: "ProviderIcon-doubao",
-                color: ProviderColor(red: 51 / 255, green: 112 / 255, blue: 255 / 255),
+                color: ProviderColor(red: 0 / 255, green: 87 / 255, blue: 255 / 255),
                 confettiPalette: [
                     ProviderColor(hex: 0x0057FF),
                     ProviderColor(hex: 0xEFC5BA),

@@ -33,11 +33,11 @@ public enum CommandCodeProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .init(provider: .commandcode),
                 iconResourceName: "ProviderIcon-commandcode",
-                color: ProviderColor(hex: 0xA04DFD),
+                color: ProviderColor(hex: 0x8C4EDD),
                 confettiPalette: [
                     ProviderColor(hex: 0x000000),
                     ProviderColor(hex: 0xFFFFFF),
-                    ProviderColor(hex: 0x7B5BFF),
+                    ProviderColor(hex: 0x8C4EDD),
                 ],
                 widgetColor: ProviderColor(hex: 0x000000)),
             tokenCost: ProviderTokenCostConfig(

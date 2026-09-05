@@ -32,12 +32,13 @@ public enum WarpProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .init(provider: .warp),
                 iconResourceName: "ProviderIcon-warp",
-                color: ProviderColor(red: 147 / 255, green: 139 / 255, blue: 180 / 255),
+                color: ProviderColor(red: 1 / 255, green: 164 / 255, blue: 255 / 255),
                 confettiPalette: [
-                    ProviderColor(hex: 0xC7AEFF),
+                    ProviderColor(hex: 0x01A4FF),
                     ProviderColor(hex: 0x1C1A26),
                     ProviderColor(hex: 0xFFFFFF),
-                ]),
+                ],
+                widgetColor: ProviderColor(red: 147 / 255, green: 139 / 255, blue: 180 / 255)),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Warp cost summary is not available." }),

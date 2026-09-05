@@ -60,12 +60,13 @@ public enum CopilotProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .init(provider: .copilot),
                 iconResourceName: "ProviderIcon-copilot",
-                color: ProviderColor(red: 168 / 255, green: 85 / 255, blue: 247 / 255),
+                color: ProviderColor(red: 133 / 255, green: 52 / 255, blue: 243 / 255),
                 confettiPalette: [
                     ProviderColor(hex: 0x8534F3),
                     ProviderColor(hex: 0xF08A3A),
                     ProviderColor(hex: 0xC898FD),
-                ]),
+                ],
+                widgetColor: ProviderColor(red: 168 / 255, green: 85 / 255, blue: 247 / 255)),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Copilot cost summary is not supported." }),

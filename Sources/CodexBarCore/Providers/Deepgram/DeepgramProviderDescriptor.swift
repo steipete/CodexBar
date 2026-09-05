@@ -50,11 +50,11 @@ public enum DeepgramProviderDescriptor {
                 iconStyle: .init(provider: .deepgram),
                 iconResourceName: "ProviderIcon-deepgram",
                 color: ProviderColor(
-                    red: 100 / 255,
-                    green: 103 / 255,
-                    blue: 242 / 255),
+                    red: 19 / 255,
+                    green: 239 / 255,
+                    blue: 147 / 255),
                 confettiPalette: [
-                    ProviderColor(hex: 0x13EF95),
+                    ProviderColor(hex: 0x13EF93),
                     ProviderColor(hex: 0x149AFB),
                     ProviderColor(hex: 0x1A1A1F),
                 ],

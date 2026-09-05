@@ -39,9 +39,9 @@ public enum SakanaProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .init(provider: .sakana),
                 iconResourceName: "ProviderIcon-sakana",
-                color: ProviderColor(red: 0.16, green: 0.46, blue: 0.86),
+                color: ProviderColor(red: 204 / 255, green: 43 / 255, blue: 43 / 255),
                 confettiPalette: [
-                    ProviderColor(hex: 0xE10600),
+                    ProviderColor(hex: 0xCC2B2B),
                     ProviderColor(hex: 0x0D0D0D),
                     ProviderColor(hex: 0xFFFFFF),
                 ],
