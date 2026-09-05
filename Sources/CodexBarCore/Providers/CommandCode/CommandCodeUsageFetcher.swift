@@ -9,7 +9,10 @@ public enum CommandCodeUsageFetcher {
     private static let log = CodexBarLog.logger(LogCategories.provider(.commandcode, scope: "usage"))
     private static let requestTimeoutSeconds: TimeInterval = 15
     private static let subscriptionGraceSeconds: TimeInterval = 2
-    private static let apiBase = URL(string: "https://api.commandcode.ai")!
+    private static let defaultAPIBase = URL(string: "https://api.commandcode.ai")!
+    /// Test override for the billing endpoint, matching `MIMO_API_URL` and `WAYFINDER_GATEWAY_URL`.
+    /// HTTPS anywhere, or plain HTTP on loopback, so a local stub can drive the real transport.
+    static let apiURLEnvironmentKey = "COMMANDCODE_API_URL"
     private static let creditsPath = "/internal/billing/credits"
     private static let subscriptionsPath = "/internal/billing/subscriptions"
     private static let webOrigin = "https://commandcode.ai"
@@ -208,7 +211,7 @@ public enum CommandCodeUsageFetcher {
         cookieHeader: String,
         transport: any ProviderHTTPTransport) async throws -> CreditsPayload
     {
-        let url = self.apiBase.appendingPathComponent(self.creditsPath)
+        let url = self.apiBase().appendingPathComponent(self.creditsPath)
         let data = try await self.send(url: url, cookieHeader: cookieHeader, transport: transport)
         return try self.parseCredits(data: data)
     }
@@ -217,9 +220,23 @@ public enum CommandCodeUsageFetcher {
         cookieHeader: String,
         transport: any ProviderHTTPTransport) async throws -> SubscriptionPayload?
     {
-        let url = self.apiBase.appendingPathComponent(self.subscriptionsPath)
+        let url = self.apiBase().appendingPathComponent(self.subscriptionsPath)
         let data = try await self.send(url: url, cookieHeader: cookieHeader, transport: transport)
         return try self.parseSubscription(data: data)
+    }
+
+    /// The billing endpoint for this process. An invalid override falls back to production, the
+    /// same way `WayfinderSettingsReader.baseURL` treats a rejected value.
+    static func apiBase(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> URL
+    {
+        guard let raw = environment[self.apiURLEnvironmentKey]?
+            .trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty
+        else {
+            return self.defaultAPIBase
+        }
+        return ProviderEndpointOverrideValidator()
+            .validatedURLAllowingLoopbackHTTP(raw) ?? self.defaultAPIBase
     }
 
     private static func send(

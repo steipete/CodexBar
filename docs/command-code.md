@@ -46,6 +46,9 @@ after the last refresh that confirmed it, when a lookup reports the free tier,
 and when a lookup reports a plan this build cannot size. Nothing is written to
 disk, so a one-shot `codexbar usage` run starts with an empty memory.
 
+Test override: `COMMANDCODE_API_URL` replaces the billing base URL; use HTTPS or
+loopback HTTP.
+
 ## Display
 
 - The menu bar item and provider card use the Command Code icon and label.
