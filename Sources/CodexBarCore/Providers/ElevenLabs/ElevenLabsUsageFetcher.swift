@@ -161,6 +161,8 @@ public struct ElevenLabsUsageSnapshot: Codable, Sendable, Equatable {
 public enum ElevenLabsUsageError: LocalizedError, Sendable {
     case missingCredentials
     case invalidCredentials
+    case missingPermissions
+    case authenticationFailed
     case accessDenied
     case networkError(String)
     case apiError(String)
@@ -172,6 +174,10 @@ public enum ElevenLabsUsageError: LocalizedError, Sendable {
             "Missing ElevenLabs API key. Set apiKey in ~/.codexbar/config.json or ELEVENLABS_API_KEY."
         case .invalidCredentials:
             "ElevenLabs rejected the selected API key. Check that it is valid and has not been revoked."
+        case .missingPermissions:
+            "ElevenLabs API key is missing the user_read permission required to fetch subscription usage."
+        case .authenticationFailed:
+            "ElevenLabs could not authenticate the selected API key. Check the key and its permissions."
         case .accessDenied:
             "ElevenLabs denied access for the selected API key. Check its endpoint permissions and IP allowlist."
         case let .networkError(message):
@@ -210,7 +216,7 @@ public struct ElevenLabsUsageFetcher: Sendable {
         case 200:
             return try Self.parseSnapshot(data: response.data, updatedAt: Date())
         case 401:
-            throw ElevenLabsUsageError.invalidCredentials
+            throw Self.authenticationError(responseData: response.data)
         case 403:
             throw ElevenLabsUsageError.accessDenied
         default:
@@ -221,6 +227,22 @@ public struct ElevenLabsUsageFetcher: Sendable {
 
     static func _parseSnapshotForTesting(_ data: Data, updatedAt: Date) throws -> ElevenLabsUsageSnapshot {
         try self.parseSnapshot(data: data, updatedAt: updatedAt)
+    }
+
+    private static func authenticationError(responseData: Data) -> ElevenLabsUsageError {
+        let status = try? JSONDecoder()
+            .decode(ElevenLabsAPIErrorResponse.self, from: responseData)
+            .detail.status
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        switch status {
+        case "invalid_api_key":
+            return .invalidCredentials
+        case "missing_permissions":
+            return .missingPermissions
+        default:
+            return .authenticationFailed
+        }
     }
 
     private static func parseSnapshot(data: Data, updatedAt: Date) throws -> ElevenLabsUsageSnapshot {
@@ -258,5 +280,13 @@ public struct ElevenLabsUsageFetcher: Sendable {
             url.append(path: "v1/user/subscription")
         }
         return url
+    }
+}
+
+private struct ElevenLabsAPIErrorResponse: Decodable {
+    let detail: Detail
+
+    struct Detail: Decodable {
+        let status: String
     }
 }

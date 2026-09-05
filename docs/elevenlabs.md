@@ -60,7 +60,15 @@ Set the key with `codexbar config set-api-key --provider elevenlabs --stdin`, ad
 
 ### "ElevenLabs rejected the selected API key"
 
-ElevenLabs returned HTTP 401 for the key CodexBar sent. Confirm that the key is valid and has not been revoked. If you configured multiple ElevenLabs API-key accounts, the active account takes precedence over the standalone API key field.
+ElevenLabs returned HTTP 401 with `detail.status` set to `invalid_api_key`. Confirm that the key is valid and has not been revoked. If you configured multiple ElevenLabs API-key accounts, the active account takes precedence over the standalone API key field.
+
+### "ElevenLabs API key is missing the user_read permission"
+
+ElevenLabs returned HTTP 401 with `detail.status` set to `missing_permissions`. Enable the `user_read` permission for the selected key so CodexBar can fetch subscription usage.
+
+### "ElevenLabs could not authenticate the selected API key"
+
+ElevenLabs returned HTTP 401 without a recognized error status. Check the key and its endpoint permissions.
 
 ### "ElevenLabs denied access for the selected API key"
 

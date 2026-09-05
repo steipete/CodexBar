@@ -134,8 +134,63 @@ struct ElevenLabsUsageFetcherTests {
         }
     }
 
-    @Test(arguments: [401, 403])
-    func `rejected API key is not reported as missing`(statusCode: Int) async throws {
+    @Test
+    func `invalid API key is reported as rejected`() async throws {
+        let error = try await Self.fetchError(
+            statusCode: 401,
+            body: #"{"detail":{"status":"invalid_api_key","message":"Invalid API key"}}"#)
+
+        guard case .invalidCredentials = error else {
+            Issue.record("Expected invalidCredentials, got \(error)")
+            return
+        }
+        #expect(error.errorDescription ==
+            "ElevenLabs rejected the selected API key. Check that it is valid and has not been revoked.")
+    }
+
+    @Test
+    func `missing API key permission is reported as a permission problem`() async throws {
+        let error = try await Self.fetchError(
+            statusCode: 401,
+            body: #"{"detail":{"status":"missing_permissions","message":"Missing user_read permission"}}"#)
+
+        guard case .missingPermissions = error else {
+            Issue.record("Expected missingPermissions, got \(error)")
+            return
+        }
+        #expect(error.errorDescription ==
+            "ElevenLabs API key is missing the user_read permission required to fetch subscription usage.")
+    }
+
+    @Test
+    func `unknown unauthorized response remains a generic authentication error`() async throws {
+        let error = try await Self.fetchError(
+            statusCode: 401,
+            body: #"{"detail":{"status":"authentication_failed","message":"Authentication failed"}}"#)
+
+        guard case .authenticationFailed = error else {
+            Issue.record("Expected authenticationFailed, got \(error)")
+            return
+        }
+        #expect(error.errorDescription ==
+            "ElevenLabs could not authenticate the selected API key. Check the key and its permissions.")
+    }
+
+    @Test
+    func `forbidden response reports access restrictions`() async throws {
+        let error = try await Self.fetchError(
+            statusCode: 403,
+            body: #"{"detail":{"status":"forbidden","message":"IP not allowed"}}"#)
+
+        guard case .accessDenied = error else {
+            Issue.record("Expected accessDenied, got \(error)")
+            return
+        }
+        #expect(error.errorDescription ==
+            "ElevenLabs denied access for the selected API key. Check its endpoint permissions and IP allowlist.")
+    }
+
+    private static func fetchError(statusCode: Int, body: String) async throws -> ElevenLabsUsageError {
         let registered = URLProtocol.registerClass(ElevenLabsStubURLProtocol.self)
         defer {
             if registered {
@@ -146,23 +201,16 @@ struct ElevenLabsUsageFetcherTests {
 
         ElevenLabsStubURLProtocol.handler = { request in
             guard let url = request.url else { throw URLError(.badURL) }
-            return Self.makeResponse(url: url, body: #"{"detail":"request rejected"}"#, statusCode: statusCode)
-        }
-
-        let expectedMessage = switch statusCode {
-        case 401:
-            "ElevenLabs rejected the selected API key. Check that it is valid and has not been revoked."
-        default:
-            "ElevenLabs denied access for the selected API key. Check its endpoint permissions and IP allowlist."
+            return Self.makeResponse(url: url, body: body, statusCode: statusCode)
         }
 
         do {
             _ = try await ElevenLabsUsageFetcher.fetchUsage(
                 apiKey: "xi-test",
                 environment: [ElevenLabsSettingsReader.apiURLEnvironmentKey: "https://elevenlabs.test"])
-            Issue.record("Expected ElevenLabs authentication error")
+            throw ExpectedErrorWasNotThrown()
         } catch let error as ElevenLabsUsageError {
-            #expect(error.errorDescription == expectedMessage)
+            return error
         }
     }
 
@@ -179,6 +227,8 @@ struct ElevenLabsUsageFetcherTests {
         return (response, Data(body.utf8))
     }
 }
+
+private struct ExpectedErrorWasNotThrown: Error {}
 
 final class ElevenLabsStubURLProtocol: URLProtocol {
     private static let _handlerBox = LockIsolated<((URLRequest) throws -> (HTTPURLResponse, Data))?>(nil)
