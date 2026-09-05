@@ -235,11 +235,16 @@ public struct HelmcodeUsageFetcher: Sendable {
         }
     }
 
+    /// Refuses every redirect: a 3xx surfaces to `get()` (mapped to invalidSession) instead of being
+    /// followed with the Cookie header attached, so a path-scoped cookie can never reach an
+    /// out-of-scope path across a redirect (G1).
     private static let defaultTransport: ProviderHTTPClient = {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.httpCookieStorage = nil
         configuration.httpShouldSetCookies = false
-        return ProviderHTTPClient(session: ProviderHTTPClient.redirectGuardedSession(configuration: configuration))
+        return ProviderHTTPClient(session: ProviderHTTPClient.redirectGuardedSession(
+            configuration: configuration,
+            refusesAllRedirects: true))
     }()
 
     public static func fetchUsage(
@@ -375,6 +380,13 @@ public struct HelmcodeUsageFetcher: Sendable {
         request.timeoutInterval = self.timeoutSeconds
 
         let response = try await transport.response(for: request, retryPolicy: .transientIdempotent)
+        if let verbose, 300...399 ~= response.statusCode {
+            let location = response.response.value(forHTTPHeaderField: "Location")
+            let target = location.flatMap { URL(string: $0) }
+            verbose(
+                "helmcode: redirect refused \(url.host ?? "")\(url.path) -> " +
+                    "\(target.map { "\($0.host ?? "")\($0.path)" } ?? location ?? "?")")
+        }
         switch response.statusCode {
         case 200:
             return response.data
