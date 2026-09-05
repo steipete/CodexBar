@@ -98,10 +98,9 @@ struct ProviderUsageItemVisibilityTests {
     }
 
     @Test
-    func `restoring one unavailable item preserves other hidden choices`() throws {
+    func `restoring one unavailable item preserves other hidden choices`() {
         let suite = "ProviderUsageItemVisibilityTests-restoration-\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defaults.removePersistentDomain(forName: suite)
+        let defaults = InMemoryUserDefaults()
         let settings = Self.settings(defaults: defaults, configStore: testConfigStore(suiteName: suite))
 
         settings.setUsageItemVisible(false, itemID: .metric("cursor-grok-bot"), for: .cursor)
@@ -113,8 +112,10 @@ struct ProviderUsageItemVisibilityTests {
 
     @Test
     func `changing usage item visibility leaves the provider refresh revision untouched`() {
-        let settings = testSettingsStore(
-            suiteName: "ProviderUsageItemVisibilityTests-refresh-revision-\(UUID().uuidString)")
+        let settings = Self.settings(
+            defaults: InMemoryUserDefaults(),
+            configStore: testConfigStore(
+                suiteName: "ProviderUsageItemVisibilityTests-refresh-revision-\(UUID().uuidString)"))
         let provider = UsageProvider.codex
         let before = settings.providerConfigRevision(for: provider)
 
@@ -130,10 +131,9 @@ struct ProviderUsageItemVisibilityTests {
     }
 
     @Test
-    func `legacy codex spark choice migrates and explicit defaults survive reload`() throws {
+    func `legacy codex spark choice migrates and explicit defaults survive reload`() {
         let suite = "ProviderUsageItemVisibilityTests-migration-\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defaults.removePersistentDomain(forName: suite)
+        let defaults = InMemoryUserDefaults()
         defaults.set(false, forKey: "codexSparkUsageVisible")
         let configStore = testConfigStore(suiteName: suite)
         let settings = Self.settings(defaults: defaults, configStore: configStore)
@@ -166,14 +166,29 @@ struct ProviderUsageItemVisibilityTests {
     }
 
     private static func settings(
-        defaults: UserDefaults,
+        defaults: InMemoryUserDefaults,
         configStore: CodexBarConfigStore) -> SettingsStore
     {
+        // Temporary config alone does not isolate migration from real legacy credentials.
         SettingsStore(
             userDefaults: defaults,
             configStore: configStore,
             zaiTokenStore: NoopZaiTokenStore(),
-            syntheticTokenStore: NoopSyntheticTokenStore())
+            syntheticTokenStore: NoopSyntheticTokenStore(),
+            codexCookieStore: InMemoryCookieHeaderStore(),
+            claudeCookieStore: InMemoryCookieHeaderStore(),
+            cursorCookieStore: InMemoryCookieHeaderStore(),
+            opencodeCookieStore: InMemoryCookieHeaderStore(),
+            factoryCookieStore: InMemoryCookieHeaderStore(),
+            minimaxCookieStore: InMemoryMiniMaxCookieStore(),
+            minimaxAPITokenStore: InMemoryMiniMaxAPITokenStore(),
+            kimiTokenStore: InMemoryKimiTokenStore(),
+            augmentCookieStore: InMemoryCookieHeaderStore(),
+            ampCookieStore: InMemoryCookieHeaderStore(),
+            copilotTokenStore: InMemoryCopilotTokenStore(),
+            tokenAccountStore: InMemoryTokenAccountStore(),
+            keychainAccessPolicy: .init(setDisabled: { _ in }, isExplicitlyDisabled: { false }),
+            performInitialProviderDetection: false)
     }
 
     private static func model(
