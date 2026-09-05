@@ -22,4 +22,26 @@ struct AntigravityModelLabelTests {
 
         #expect(AntigravityStatusSnapshot.quotaDisplayLabel(quota) == "Custom enterprise label")
     }
+
+    @Test
+    func `retired flash ids canonicalize to current flash`() {
+        #expect(AntigravityStatusSnapshot.canonicalModelID("gemini-3.6-flash") == "gemini-3.7-flash")
+        #expect(AntigravityStatusSnapshot.canonicalModelID("gemini-3.6-flash-high") == "gemini-3.7-flash")
+        #expect(AntigravityStatusSnapshot.canonicalModelID("GEMINI-3.6-FLASH") == "gemini-3.7-flash")
+        #expect(AntigravityStatusSnapshot.canonicalModelID("gemini-3.5-flash-mid") == "gemini-3.7-flash")
+        #expect(AntigravityStatusSnapshot.canonicalModelID("gemini-3-flash-agent") == "gemini-3.7-flash")
+        #expect(AntigravityStatusSnapshot.canonicalModelID("gemini-3.7-flash") == "gemini-3.7-flash")
+        #expect(AntigravityStatusSnapshot.canonicalModelID("claude-sonnet-4-6") == "claude-sonnet-4-6")
+    }
+
+    @Test
+    func `humanizes retired flash ids via canonical`() {
+        #expect(AntigravityStatusSnapshot.humanizedModelID("gemini-3.6-flash-high") == "Gemini 3.7 Flash")
+        #expect(AntigravityStatusSnapshot.quotaDisplayLabel(AntigravityModelQuota(
+            label: "gemini-3.6-flash",
+            modelId: "gemini-3.6-flash",
+            remainingFraction: 0.5,
+            resetTime: nil,
+            resetDescription: nil)) == "Gemini 3.7 Flash")
+    }
 }

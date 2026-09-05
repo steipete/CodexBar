@@ -6,6 +6,142 @@ import Testing
 // swiftlint:disable:next type_body_length
 struct CostUsageBoundedProgressTests {
     @Test
+    func `alternating history windows retain completed discovery and pending work`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 5, day: 10)
+        var options = Self.boundedOptions(env: env)
+        let wideSince = try #require(options.calendar.date(byAdding: .day, value: -364, to: day))
+        let narrowSince = try #require(options.calendar.date(byAdding: .day, value: -89, to: day))
+        try Self.writeSyntheticCorpus(env: env, day: day, fileCount: 2)
+        options.maxCodexScanDurationPerRefresh = nil
+        _ = CostUsageScanner.loadDailyReport(
+            provider: .codex, since: wideSince, until: day, now: day, options: options)
+
+        var cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        let paths = cache.files.keys.sorted()
+        #expect(paths.count == 2)
+        let pendingPath = try #require(paths.last)
+        let completedPath = try #require(paths.first)
+        let roots = CostUsageScanner.codexSessionsRoots(options: options)
+            .map { $0.resolvingSymlinksInPath().standardizedFileURL.path }.sorted()
+        cache.files[pendingPath]?.codexScanComplete = false
+        cache.codexScanCatchUpPending = true
+        cache.codexScanInventoryPaths = nil
+        cache.codexActiveLookbackState = try CostUsageCodexActiveLookbackState(
+            scanSinceKey: #require(cache.scanSinceKey),
+            rootPaths: roots,
+            completedRootPaths: roots,
+            pendingFilePaths: [pendingPath],
+            completedCurrentWindowRootPaths: roots,
+            completedCurrentWindowFlatRootPaths: roots)
+        CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: cache)
+
+        for (index, since) in [narrowSince, wideSince, narrowSince].enumerated() {
+            let clock = BoundedProgressCounter()
+            let origin = ContinuousClock.now
+            options.codexScanBudgetForTesting = CostUsageScanner.CodexScanBudget(
+                maxFileBytes: 0,
+                maxBytesPerRefresh: 0,
+                maxDuration: 2,
+                now: { origin.advanced(by: .seconds(clock.value == 0 ? 0 : 3)) })
+            clock.increment()
+            let recorder = CostUsageScanner.CodexScanWorkRecorder()
+            options.codexScanWorkRecorderForTesting = recorder
+            _ = CostUsageScanner.loadDailyReport(
+                provider: .codex,
+                since: since,
+                until: day,
+                now: day.addingTimeInterval(Double(index + 1)),
+                options: options)
+            let saved = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+            #expect(saved.codexActiveLookbackState?.pendingFilePaths == [pendingPath])
+            #expect(saved.files[completedPath]?.codexScanComplete == true)
+            #expect(recorder.snapshot().codexCandidateSelectionVisits == 1)
+            #expect(recorder.snapshot().codexFileScanAttempts == 0)
+            #expect(recorder.snapshot().codexDiscoveryVisits == 0)
+        }
+        options.codexScanBudgetForTesting = nil
+        options.maxCodexScanDurationPerRefresh = 60
+        for (index, since) in [wideSince, narrowSince, wideSince].enumerated() {
+            _ = CostUsageScanner.loadDailyReport(
+                provider: .codex,
+                since: since,
+                until: day,
+                now: day.addingTimeInterval(Double(index + 10)),
+                options: options)
+        }
+        let completed = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        #expect(completed.codexScanCatchUpPending == false)
+        #expect(completed.codexActiveLookbackState == nil)
+        #expect(completed.codexScanCompletedFiles == 2)
+        #expect(completed.codexScanTotalFiles == 2)
+    }
+
+    @Test(arguments: [false, true])
+    func `retained discovery finds older pending history and new day expansion`(newDay: Bool) throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 5, day: 10)
+        var options = Self.boundedOptions(env: env)
+        let wideSince = try #require(options.calendar.date(byAdding: .day, value: -364, to: day))
+        let narrowSince = try #require(options.calendar.date(byAdding: .day, value: -89, to: day))
+        let discoveredDay = try #require(options.calendar.date(byAdding: .day, value: newDay ? 2 : -200, to: day))
+        try Self.writeSyntheticCorpus(env: env, day: day, fileCount: 1)
+        options.maxCodexScanDurationPerRefresh = nil
+        let baseline = CostUsageScanner.loadDailyReport(
+            provider: .codex, since: wideSince, until: day, now: day, options: options)
+        var cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        let roots = CostUsageScanner.codexSessionsRoots(options: options)
+            .map { $0.resolvingSymlinksInPath().standardizedFileURL.path }.sorted()
+        let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: discoveredDay, calendar: options.calendar)
+        cache.codexScanCatchUpPending = true
+        cache.codexScanInventoryPaths = nil
+        cache.codexActiveLookbackState = try CostUsageCodexActiveLookbackState(
+            scanSinceKey: #require(cache.scanSinceKey),
+            rootPaths: roots,
+            completedRootPaths: roots,
+            currentWindowNextDayKeyByRoot: Dictionary(uniqueKeysWithValues: roots.map { ($0, dayKey) }),
+            completedCurrentWindowRootPaths: newDay ? roots : [],
+            completedCurrentWindowFlatRootPaths: roots)
+        CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: cache)
+        let iso = env.isoString(for: discoveredDay)
+        let lines = [
+            #"{"type":"session_meta","timestamp":"\#(iso)","payload":{"session_id":"discovered-history"}}"#,
+            #"{"type":"turn_context","timestamp":"\#(iso)","payload":{"model":"openai/gpt-5.2-codex"}}"#,
+            #"{"type":"event_msg","timestamp":"\#(iso)","payload":{"type":"token_count","info":"#
+                + #"{"total_token_usage":{"input_tokens":50,"output_tokens":5}}}}"#,
+        ]
+        let discoveredURL = try env.seedCodexSessionFile(
+            day: discoveredDay, filename: "discovered-history.jsonl", contents: lines.joined(separator: "\n") + "\n")
+        options.maxCodexScanDurationPerRefresh = 60
+        let until = newDay ? discoveredDay : day
+        for index in 1...3 {
+            _ = CostUsageScanner.loadDailyReport(
+                provider: .codex,
+                since: narrowSince,
+                until: until,
+                now: until.addingTimeInterval(Double(index)),
+                options: options)
+        }
+        let completed = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        let discoveredUsage = try #require(completed.files.first {
+            $0.key.hasSuffix(discoveredURL.lastPathComponent)
+        }?.value)
+        #expect(discoveredUsage.days[dayKey]?.values.first == [50, 0, 5])
+        #expect(completed.codexScanCatchUpPending == false)
+        let report = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: narrowSince,
+            until: until,
+            now: until.addingTimeInterval(10),
+            options: options)
+        if !newDay {
+            #expect(report.data == baseline.data)
+        }
+    }
+
+    @Test
     func `bounded progress accumulates while retaining a wider scan window`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
@@ -31,7 +167,7 @@ struct CostUsageBoundedProgressTests {
             options: options)
         let firstCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         #expect(firstCache.files.count == CostUsageScanner.codexCatchUpScanCandidateLimit)
-        #expect(firstCache.codexScanCompletedFiles == CostUsageScanner.codexCatchUpScanCandidateLimit - 1)
+        #expect(firstCache.codexScanCompletedFiles == CostUsageScanner.codexCatchUpScanCandidateLimit)
         #expect(firstCache.codexScanTotalFiles == CostUsageScanner.codexCatchUpScanCandidateLimit)
 
         let secondRecorder = CostUsageScanner.CodexScanWorkRecorder()
@@ -45,7 +181,7 @@ struct CostUsageBoundedProgressTests {
         let secondCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         #expect(secondRecorder.snapshot().codexProgressAccountingVisits == 0)
         #expect(secondCache.files.count == corpusSize)
-        #expect(secondCache.codexScanCompletedFiles == CostUsageScanner.codexCatchUpScanCandidateLimit - 1)
+        #expect(secondCache.codexScanCompletedFiles == CostUsageScanner.codexCatchUpScanCandidateLimit)
         #expect(secondCache.codexScanTotalFiles == CostUsageScanner.codexCatchUpScanCandidateLimit)
         #expect(secondCache.codexActiveLookbackState?.pendingFilePaths.isEmpty == true)
         #expect(secondCache.codexScanInventoryPaths == nil)
@@ -175,7 +311,7 @@ struct CostUsageBoundedProgressTests {
         #expect(firstCache.codexActiveLookbackState?.pendingFilePaths.isEmpty == true)
         #expect(firstCache.codexScanProcessedBytes == 0)
         #expect(firstCache.codexScanTotalBytes == 0)
-        #expect(firstCache.codexScanCompletedFiles == CostUsageScanner.codexCatchUpScanCandidateLimit - 1)
+        #expect(firstCache.codexScanCompletedFiles == CostUsageScanner.codexCatchUpScanCandidateLimit)
         #expect(firstCache.codexScanTotalFiles == CostUsageScanner.codexCatchUpScanCandidateLimit)
         #expect(firstCache.codexScanInventoryPaths == nil)
         #expect(firstCache.codexScanCatchUpPending == true)
@@ -199,7 +335,7 @@ struct CostUsageBoundedProgressTests {
         #expect(secondCache.codexActiveLookbackState?.pendingFilePaths.isEmpty == true)
         #expect(secondCache.codexScanProcessedBytes == 0)
         #expect(secondCache.codexScanTotalBytes == 0)
-        #expect(secondCache.codexScanCompletedFiles == CostUsageScanner.codexCatchUpScanCandidateLimit - 1)
+        #expect(secondCache.codexScanCompletedFiles == CostUsageScanner.codexCatchUpScanCandidateLimit)
         #expect(secondCache.codexScanTotalFiles == CostUsageScanner.codexCatchUpScanCandidateLimit)
         #expect(secondCache.codexScanInventoryPaths == nil)
         #expect(secondCache.codexScanCatchUpPending == true)
@@ -310,7 +446,7 @@ struct CostUsageBoundedProgressTests {
         #expect(secondMetrics.codexProgressAccountingVisits == 0)
         #expect(secondCache.files[incompletePath]?.codexScanComplete == true)
         #expect(secondCache.codexActiveLookbackState?.pendingFilePaths.isEmpty == true)
-        #expect(secondCache.codexScanCompletedFiles == corpusSize - 1)
+        #expect(secondCache.codexScanCompletedFiles == corpusSize)
         #expect(secondCache.codexScanTotalFiles == corpusSize)
         #expect(secondCache.codexScanCatchUpPending == true)
 
@@ -420,7 +556,7 @@ struct CostUsageBoundedProgressTests {
         #expect(afterTotals != beforeTotals)
         #expect(secondCache.files[incompletePath]?.codexScanComplete == true)
         #expect(secondCache.codexActiveLookbackState?.pendingFilePaths.isEmpty == true)
-        #expect(secondCache.codexScanCompletedFiles == corpusSize - 1)
+        #expect(secondCache.codexScanCompletedFiles == corpusSize)
         #expect(secondCache.codexScanTotalFiles == corpusSize)
         #expect(secondCache.codexScanCatchUpPending == true)
 
@@ -606,7 +742,7 @@ struct CostUsageBoundedProgressTests {
         #expect(secondMetrics.codexFileScanAttempts == 1)
         #expect(secondMetrics.codexProgressAccountingVisits == 0)
         #expect(secondCache.codexActiveLookbackState?.pendingFilePaths.isEmpty == true)
-        #expect(secondCache.codexScanCompletedFiles == corpusSize - 1)
+        #expect(secondCache.codexScanCompletedFiles == corpusSize)
         #expect(secondCache.codexScanInventoryPaths == nil)
         #expect(secondCache.codexScanCatchUpPending == true)
 
@@ -717,7 +853,7 @@ struct CostUsageBoundedProgressTests {
         #expect(finalMetrics.codexFileScanAttempts == 1)
         #expect(finalMetrics.codexProgressAccountingVisits == 0)
         #expect(finalCache.codexActiveLookbackState?.pendingFilePaths.isEmpty == true)
-        #expect(finalCache.codexScanCompletedFiles == corpusSize - 1)
+        #expect(finalCache.codexScanCompletedFiles == corpusSize)
         #expect(finalCache.codexScanTotalFiles == corpusSize)
         #expect(finalCache.codexScanCatchUpPending == true)
 
@@ -767,7 +903,14 @@ struct CostUsageBoundedProgressTests {
         pendingCache.codexScanCatchUpPending = true
         CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: pendingCache)
 
-        options.maxCodexScanDurationPerRefresh = .leastNonzeroMagnitude
+        let clock = BoundedProgressCounter()
+        let origin = ContinuousClock.now
+        options.codexScanBudgetForTesting = CostUsageScanner.CodexScanBudget(
+            maxFileBytes: 0,
+            maxBytesPerRefresh: 0,
+            maxDuration: 2,
+            now: { origin.advanced(by: .seconds(clock.value == 0 ? 0 : 3)) })
+        clock.increment()
         let recorder = CostUsageScanner.CodexScanWorkRecorder()
         options.codexScanWorkRecorderForTesting = recorder
         _ = CostUsageScanner.loadDailyReport(
@@ -786,6 +929,7 @@ struct CostUsageBoundedProgressTests {
             == CostUsageScanner.codexCatchUpScanCandidateLimit)
         #expect(stoppedCache.files[incompletePath]?.codexScanComplete == false)
         #expect(stoppedCache.codexScanCatchUpPending == true)
+        #expect(try #require(stoppedCache.codexScanCompletedFiles) < #require(stoppedCache.codexScanTotalFiles))
     }
 
     @Test
@@ -885,7 +1029,7 @@ struct CostUsageBoundedProgressTests {
                     + #"{"total_token_usage":{"input_tokens":100,"cached_input_tokens":20,"output_tokens":10},"#
                     + #""model":"openai/gpt-5.2-codex"}}}"#,
             ]
-            try fileURLs.append(env.writeCodexSessionFile(
+            try fileURLs.append(env.seedCodexSessionFile(
                 day: day,
                 filename: String(format: "progress-%04d.jsonl", index),
                 contents: lines.joined(separator: "\n") + "\n"))

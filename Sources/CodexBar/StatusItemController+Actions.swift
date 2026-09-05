@@ -569,6 +569,16 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         self.openSettings(pane: nil)
     }
 
+    @objc func showProviderSettings(_ sender: NSMenuItem) {
+        guard let rawProvider = sender.representedObject as? String,
+              let provider = UsageProvider(rawValue: rawProvider)
+        else {
+            self.menuLogger.error("Provider settings action is missing a valid provider")
+            return
+        }
+        self.openSettings(pane: .provider(provider.instanceID))
+    }
+
     @objc func showSettingsAbout() {
         self.openSettings(pane: .about)
     }
@@ -795,6 +805,7 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         case .success: "success"
         case .missingBinary: "missingBinary"
         case let .launchFailed(message): "launchFailed(\(message))"
+        case .consumerTierDeprecated: "consumerTierDeprecated"
         }
     }
 
@@ -813,9 +824,18 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         }
     }
 
-    func presentGeminiLoginResult(_ result: GeminiLoginRunner.Result) {
-        guard let info = Self.geminiLoginAlertInfo(for: result) else { return }
-        self.presentLoginAlert(title: info.title, message: info.message)
+    /// Returns `true` when the alert offered a recovery action and the user chose it.
+    @discardableResult
+    func presentGeminiLoginResult(_ result: GeminiLoginRunner.Result) -> Bool {
+        guard let info = Self.geminiLoginAlertInfo(for: result) else { return false }
+        guard let confirmButtonTitle = info.confirmButtonTitle else {
+            self.presentLoginAlert(title: info.title, message: info.message)
+            return false
+        }
+        return self.presentLoginConfirmation(
+            title: info.title,
+            message: info.message,
+            confirmButtonTitle: confirmButtonTitle)
     }
 
     func presentAntigravityLoginResult(_ result: AntigravityLoginRunner.Result) {
@@ -826,6 +846,8 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
     struct LoginAlertInfo: Equatable {
         let title: String
         let message: String
+        /// When set, the alert offers this action alongside Cancel and reports whether it was chosen.
+        var confirmButtonTitle: String?
     }
 
     nonisolated static func geminiLoginAlertInfo(for result: GeminiLoginRunner.Result) -> LoginAlertInfo? {
@@ -838,6 +860,12 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
                 message: L("Install the Gemini CLI (npm i -g @google/gemini-cli) and try again."))
         case let .launchFailed(message):
             LoginAlertInfo(title: L("Could not open Terminal for Gemini"), message: message)
+        case .consumerTierDeprecated:
+            LoginAlertInfo(
+                title: L("Gemini CLI login is no longer supported"),
+                message: GeminiConsumerTierMigration.deprecationError + "\n\n"
+                    + GeminiConsumerTierMigration.loginSwitchAccountPrompt,
+                confirmButtonTitle: L("Switch Account…"))
         }
     }
 
@@ -856,6 +884,18 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         case let .failed(message):
             LoginAlertInfo(title: L("Antigravity login failed"), message: message)
         }
+    }
+
+    /// Cancel is the default button on purpose: confirming clears stored provider credentials, so a
+    /// stray Return keypress must not destroy them.
+    func presentLoginConfirmation(title: String, message: String, confirmButtonTitle: String) -> Bool {
+        let alert = NSAlert()
+        alert.messageText = L(title)
+        alert.informativeText = L(message)
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: L("Cancel"))
+        alert.addButton(withTitle: confirmButtonTitle)
+        return alert.runModal() == .alertSecondButtonReturn
     }
 
     func presentLoginAlert(title: String, message: String) {

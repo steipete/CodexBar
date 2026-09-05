@@ -44,9 +44,11 @@ The OpenRouter provider fetches usage data from two API endpoints:
 2. **Key API** (`/api/v1/key`): Returns rate limit information plus current daily, weekly, and monthly spend for your API key.
 
 The Key API is optional enrichment with a one-second production deadline. If it is slow or unavailable, CodexBar still
-shows the credits balance and labels the API-key budget as unavailable with a safe timeout, HTTP, or response diagnostic.
+shows the credits balance and labels the API key limit as unavailable with a safe timeout, HTTP, or response diagnostic.
 
 ## Display
+
+The **Usage Dashboard** menu action opens [OpenRouter Activity](https://openrouter.ai/activity) for request and spending history.
 
 The OpenRouter menu card shows:
 
@@ -54,6 +56,16 @@ The OpenRouter menu card shows:
 - **Spend notes**: Daily, weekly, and monthly API key spend when OpenRouter returns those fields
 - **Spend chart**: Day/week/month spend can reuse the shared inline dashboard when enough history is available
 - **Balance**: Displayed in the identity section as "Balance: $X.XX"
+
+The **API key limit** is a spending cap, not your prepaid account balance. Configured positive limits show
+“Spending cap, not balance” beneath the amount. Both values remain visible even when the cap exceeds the balance:
+a $30 key limit with $30 remaining is **100% left**, independently of a $1.90 account balance from $5 in credits
+and $3.10 in account usage. The percentage uses server-reported key remaining first, then spend in the key's reset
+window, then cumulative key spend. Used/remaining display preferences do not change these amounts.
+
+Without a configured limit, the detail row says “No limit configured” and no key percentage is shown. Unavailable
+key enrichment retains its diagnostic and account balance. CLI text and JSON detail strings use the same limit
+label and disclosure; the JSON structure is unchanged.
 
 ## CLI Usage
 

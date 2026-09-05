@@ -72,7 +72,7 @@ public enum ClaudeDesktopProjectsLocator {
         var queue = sessionRoots.map { (url: $0, depth: 0) }
         var visited = Set(sessionRoots.map(\.standardizedFileURL.path))
         var nextIndex = 0
-        while nextIndex < queue.count {
+        while nextIndex < queue.count, budget.hasTimeRemaining() {
             let current = queue[nextIndex]
             nextIndex += 1
             if let projects = self.projectsRoot(under: current.url, fileManager: fileManager) {

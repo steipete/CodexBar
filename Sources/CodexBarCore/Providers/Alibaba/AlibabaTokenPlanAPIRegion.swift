@@ -72,6 +72,15 @@ public enum AlibabaTokenPlanAPIRegion: String, CaseIterable, Sendable {
         }
     }
 
+    public var cliConsoleSite: String {
+        switch self {
+        case .international, .internationalPersonal:
+            "international"
+        case .chinaMainland, .chinaMainlandPersonal:
+            "domestic"
+        }
+    }
+
     public var tokenPlanProductCode: String {
         switch self {
         case .international:

@@ -6,6 +6,63 @@ import Testing
 @testable import CodexBarCore
 
 struct ProviderPluginDetailsParityTests {
+    #if canImport(JavaScriptCore)
+    private static let parityEngines: [ProviderPluginEngineKind] = [.quickJS, .javaScriptCore]
+    #else
+    private static let parityEngines: [ProviderPluginEngineKind] = [.quickJS]
+    #endif
+
+    @Test(arguments: Self.parityEngines)
+    func `OpenRouter independent cap fixture preserves the complete details golden`(
+        engine: ProviderPluginEngineKind) async throws
+    {
+        let transport = ProviderHTTPTransportHandler { request in
+            #expect(request.httpMethod == "GET")
+            #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer fixture-key")
+            let body: String
+            switch request.url?.absoluteString {
+            case "https://openrouter.ai/api/v1/credits":
+                body = #"{"data":{"total_credits":5,"total_usage":3.10}}"#
+            case "https://openrouter.ai/api/v1/key":
+                body = #"""
+                {"data":{"limit":30,"limit_remaining":30,"limit_reset":"monthly","usage":0,"usage_monthly":0}}
+                """#
+            default:
+                Issue.record("Unexpected OpenRouter fixture request: \(String(describing: request.url))")
+                throw FixtureError.unexpectedURL(request.url)
+            }
+            let response = try #require(HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil))
+            return (Data(body.utf8), response)
+        }
+        let sourceURL = try #require(CodexBarCoreResources.bundle?.url(forResource: "openrouter", withExtension: "js"))
+        let source = try String(contentsOf: sourceURL, encoding: .utf8)
+        let snapshot = try await ProviderPluginRuntime(source: source, transport: transport, engine: engine)
+            .fetchUsage(secrets: ["OPENROUTER_API_KEY": "fixture-key"], now: Date(timeIntervalSince1970: 1_787_079_600))
+        #expect(snapshot.primary?.usedPercent == 0)
+        #expect(snapshot.identity?.loginMethod == "Balance: $1.90")
+        #expect(try snapshot.details == [
+            Self.section("Credits", rows: [
+                Self.row("Remaining", "$1.90"),
+                Self.row("Used", "$3.10"),
+                Self.row("Total added", "$5.00"),
+            ]),
+            Self.section(
+                "API key",
+                rows: [
+                    Self.row("API key limit", "$30.00", "Spending cap, not balance"),
+                    Self.row("API key remaining", "$30.00"),
+                    Self.row("API key used", "$0.00"),
+                    Self.row("Reset window", "monthly"),
+                    Self.row("This month", "$0.00"),
+                ],
+                chart: Self.chart("Key spend", unit: "USD", points: [("This month", 0)])),
+            Self.section("Spend history", rows: [
+                Self.row("Last 30 days", "Unavailable right now", "Management API key not configured"),
+            ]),
+        ])
+    }
+
     @Test
     func `OpenAI prepends JS only when the prototype flag is enabled`() async {
         let fixtures: [(UsageProvider, [String], [String])] = [
@@ -73,7 +130,7 @@ struct ProviderPluginDetailsParityTests {
             Self.section(
                 "API key",
                 rows: [
-                    Self.row("API key budget", "$20.00"),
+                    Self.row("API key limit", "$20.00", "Spending cap, not balance"),
                     Self.row("API key remaining", "$15.00"),
                     Self.row("API key used", "$5.00"),
                     Self.row("Reset window", "monthly"),
@@ -116,7 +173,7 @@ struct ProviderPluginDetailsParityTests {
         #expect(script.primary == nil)
         #expect(script.details.count == 3)
         #expect(script.details[0].rows.map(\.label) == ["Remaining", "Used", "Total added"])
-        let degradation = try #require(script.detailRow(label: "API key budget"))
+        let degradation = try #require(script.detailRow(label: "API key limit"))
         #expect(degradation.value == "Unavailable right now")
         #expect(degradation.secondaryValue == "Request timed out")
         let spendDegradation = try #require(script.detailRow(label: "Last 30 days"))
@@ -271,6 +328,31 @@ struct ProviderPluginDetailsParityTests {
             chart: Self.chart("Daily points", unit: "points", points: [
                 ("2026-08-02", 12.5), ("2026-08-03", 8),
             ]))])
+    }
+
+    @Test(arguments: Self.parityEngines)
+    func `Poe history uses the refresh clock for retention and today totals`(
+        engine: ProviderPluginEngineKind) async throws
+    {
+        let transport = Self.transport { request in
+            switch request.url?.path {
+            case "/usage/current_balance": Self.poeBalance
+            case "/usage/points_history": Self.poeHistory
+            default: throw FixtureError.unexpectedURL(request.url)
+            }
+        }
+        let sourceURL = try #require(CodexBarCoreResources.bundle?.url(forResource: "poe", withExtension: "js"))
+        let source = try "Date.now = () => 1785816000000;\n" + String(contentsOf: sourceURL, encoding: .utf8)
+        let runtime = try ProviderPluginRuntime(source: source, transport: transport, engine: engine)
+        let entryDate = Date(timeIntervalSince1970: 1_785_772_800)
+        let current = try await runtime.fetchUsage(secrets: ["POE_API_KEY": "fixture-key"], now: entryDate)
+        let today = current.details.first?.rows.first { $0.label == "Today" }
+        #expect(try today == Self.row("Today", "8 points", "1 requests · $0.02"))
+
+        let expired = try await runtime.fetchUsage(
+            secrets: ["POE_API_KEY": "fixture-key"],
+            now: entryDate.addingTimeInterval(31 * 86400))
+        #expect(try expired.details == [Self.section("Points", rows: [Self.row("Current balance", "2,500 points")])])
     }
 
     @Test

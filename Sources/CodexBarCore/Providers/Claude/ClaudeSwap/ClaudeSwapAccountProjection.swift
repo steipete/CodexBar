@@ -29,7 +29,9 @@ public enum ClaudeSwapAccountProjection {
             }
             return lhs.number < rhs.number
         }
-        return ordered.map { row in
+        let duplicateEmails = self.duplicateEmails(in: ordered)
+        let labels = self.displayLabels(for: ordered, duplicateEmails: duplicateEmails)
+        return zip(ordered, labels).map { row, label in
             let id = ProviderAccountIdentity(source: self.sourceName, opaqueID: String(row.number))
             let snapshot = self.usageSnapshot(
                 for: row,
@@ -38,7 +40,8 @@ public enum ClaudeSwapAccountProjection {
             return ProviderAccountUsageSnapshot(
                 id: id,
                 provider: .claude,
-                displayLabel: self.displayLabel(for: row),
+                displayLabel: label,
+                accountEmail: row.email.isEmpty ? nil : row.email,
                 isActive: row.isActive,
                 canActivate: !row.isActive && self.canActivate(row),
                 snapshot: snapshot,
@@ -57,8 +60,60 @@ public enum ClaudeSwapAccountProjection {
             ?? adapterError.map { "Showing the last successful update: \($0)" }
     }
 
-    static func displayLabel(for row: ClaudeSwapAccountRow) -> String {
-        row.email.isEmpty ? "Account \(row.number)" : row.email
+    static func displayLabel(for row: ClaudeSwapAccountRow, duplicateEmails: Set<String> = []) -> String {
+        if let alias = self.alias(from: row) {
+            return alias
+        }
+        if row.email.isEmpty {
+            return "Account \(row.number)"
+        }
+        guard duplicateEmails.contains(self.normalizedEmail(row.email)) else {
+            return row.email
+        }
+        if !row.organizationName.isEmpty {
+            return "\(row.email) · \(row.organizationName)"
+        }
+        return "\(row.email) · Account \(row.number)"
+    }
+
+    private static func displayLabels(for rows: [ClaudeSwapAccountRow], duplicateEmails: Set<String>) -> [String] {
+        let candidates = rows.map { self.displayLabel(for: $0, duplicateEmails: duplicateEmails) }
+        var collisionCounts: [String: Int] = [:]
+        for (row, label) in zip(rows, candidates) {
+            guard duplicateEmails.contains(self.normalizedEmail(row.email)),
+                  self.alias(from: row) == nil else { continue }
+            collisionCounts[label.lowercased(), default: 0] += 1
+        }
+        return zip(rows, candidates).map { row, label in
+            guard duplicateEmails.contains(self.normalizedEmail(row.email)),
+                  self.alias(from: row) == nil,
+                  collisionCounts[label.lowercased(), default: 0] > 1
+            else {
+                return label
+            }
+            return "\(label) · Account \(row.number)"
+        }
+    }
+
+    private static func alias(from row: ClaudeSwapAccountRow) -> String? {
+        guard let alias = row.alias?.trimmingCharacters(in: .whitespacesAndNewlines), !alias.isEmpty else {
+            return nil
+        }
+        return alias
+    }
+
+    private static func duplicateEmails(in rows: [ClaudeSwapAccountRow]) -> Set<String> {
+        var counts: [String: Int] = [:]
+        for email in rows.map(\.email) {
+            let normalized = self.normalizedEmail(email)
+            guard !normalized.isEmpty else { continue }
+            counts[normalized, default: 0] += 1
+        }
+        return Set(counts.compactMap { $0.value > 1 ? $0.key : nil })
+    }
+
+    private static func normalizedEmail(_ email: String) -> String {
+        email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 
     private static func usageSnapshot(
@@ -167,9 +222,10 @@ public enum ClaudeSwapAccountProjection {
     private static func identitySnapshot(for row: ClaudeSwapAccountRow) -> ProviderIdentitySnapshot {
         ProviderIdentitySnapshot(
             providerID: .claude,
-            accountEmail: self.displayLabel(for: row),
+            accountEmail: row.email.isEmpty ? nil : row.email,
             accountOrganization: nil,
-            loginMethod: self.sourceLabel)
+            loginMethod: self.sourceLabel,
+            accountID: "\(self.sourceName):\(row.number)")
     }
 
     private static func scopedRateWindows(for row: ClaudeSwapAccountRow) -> [NamedRateWindow] {

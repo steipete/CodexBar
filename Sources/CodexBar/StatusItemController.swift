@@ -38,16 +38,6 @@ struct NativeHighlightDeferredMenuRebuild {
     let provider: UsageProvider?
 }
 
-struct RasterizedMenuBarLayoutCache {
-    var signatures: [ObjectIdentifier: String] = [:]
-    var images: [ObjectIdentifier: NSImage] = [:]
-
-    mutating func removeAll() {
-        self.signatures.removeAll()
-        self.images.removeAll()
-    }
-}
-
 @MainActor
 final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControlling {
     // Disable SwiftUI menu cards + menu refresh work in tests to avoid swiftpm-testing-helper crashes.
@@ -316,7 +306,6 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var lastAppliedMergedIconRenderSignature: String?
     var lastAppliedProviderIconRenderSignatures: [ProviderInstanceID: String] = [:]
     let menuBarLayoutRenderer = MenuBarLayoutRenderer()
-    var rasterizedMenuBarLayoutCache = RasterizedMenuBarLayoutCache()
     var lastObservedStoreIconWorkSignature: String?
     var iconPerfRefreshCycleMetrics: IconPerfRefreshCycleMetrics?
     var iconPerfUpdatePassActive = false
@@ -781,7 +770,6 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         }
         self.lastAppliedMergedIconRenderSignature = nil
         self.lastAppliedProviderIconRenderSignatures.removeAll()
-        self.rasterizedMenuBarLayoutCache.removeAll()
         self.updateVisibility()
         self.updateIcons()
     }

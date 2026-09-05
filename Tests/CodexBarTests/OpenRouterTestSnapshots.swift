@@ -77,7 +77,8 @@ struct OpenRouterUsageSnapshot: Sendable {
         if self.keyDataFetched {
             var rows: [ProviderDetailSection.Row] = []
             if let keyLimit, keyLimit > 0 {
-                rows.append(.makeRow(label: "API key budget", value: currency(keyLimit)))
+                rows.append(.makeRow(
+                    label: "API key limit", value: currency(keyLimit), secondaryValue: "Spending cap, not balance"))
                 if let keyUsed {
                     rows.append(.makeRow(
                         label: "API key remaining",
@@ -87,7 +88,7 @@ struct OpenRouterUsageSnapshot: Sendable {
                     rows.append(.makeRow(label: "API key used", value: currency(keyUsage)))
                 }
             } else {
-                rows.append(.makeRow(label: "API key budget", value: "No limit configured"))
+                rows.append(.makeRow(label: "API key limit", value: "No limit configured"))
             }
             if let reset = self.keyLimitReset?.trimmingCharacters(in: .whitespacesAndNewlines), !reset.isEmpty {
                 rows.append(.makeRow(label: "Reset window", value: reset))
@@ -114,7 +115,7 @@ struct OpenRouterUsageSnapshot: Sendable {
                 chart: points.isEmpty ? nil : .makeChart(title: "Key spend", unit: "USD", points: points)))
         } else {
             details.append(.makeSection(title: "API key", rows: [
-                .makeRow(label: "API key budget", value: "Unavailable right now"),
+                .makeRow(label: "API key limit", value: "Unavailable right now"),
             ]))
         }
         return UsageSnapshot(

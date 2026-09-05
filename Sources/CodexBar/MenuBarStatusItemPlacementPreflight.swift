@@ -35,7 +35,7 @@ enum MenuBarStatusItemPlacementPreflight {
     static func shouldClearPreferredPosition(_ value: Any, maximumPreferredPosition: Double?) -> Bool {
         guard let number = value as? NSNumber else { return true }
         let position = number.doubleValue
-        if position <= 0 {
+        if !position.isFinite || position <= 0 {
             return true
         }
         guard let maximumPreferredPosition else { return false }

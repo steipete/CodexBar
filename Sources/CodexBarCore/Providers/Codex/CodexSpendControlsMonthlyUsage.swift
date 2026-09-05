@@ -1,8 +1,11 @@
 import Foundation
 
 public struct CodexSpendControlsMonthlyUsageResponse: Decodable, Sendable {
+    private static let inactiveEnforcementModes: Set<String> = ["none", "off", "disabled", "no_limit"]
+
     public let currentMonthUsage: Double?
     public let effectiveMonthlyLimit: EffectiveMonthlyLimit?
+    private let currentMonthUsageWasUnmappable: Bool
 
     enum CodingKeys: String, CodingKey {
         case currentMonthUsage = "current_month_usage"
@@ -11,17 +14,35 @@ public struct CodexSpendControlsMonthlyUsageResponse: Decodable, Sendable {
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.currentMonthUsage = Self.decodeFlexibleDouble(container, forKey: .currentMonthUsage)
-        self.effectiveMonthlyLimit = try? container.decodeIfPresent(
+        let decodedUsage = Self.decodeFlexibleDoubleResult(container, forKey: .currentMonthUsage)
+        self.currentMonthUsage = decodedUsage.value
+        self.currentMonthUsageWasUnmappable = decodedUsage.unmappable
+        self.effectiveMonthlyLimit = try container.decodeIfPresent(
             EffectiveMonthlyLimit.self,
             forKey: .effectiveMonthlyLimit)
     }
 
+    public var monthlyLimitMappingFailed: Bool {
+        let mappedLimit = self.effectiveMonthlyLimit?.limit
+        let limitWasUnmappable = self.effectiveMonthlyLimit?.limitWasUnmappable == true
+        if !limitWasUnmappable, (mappedLimit ?? 0) <= 0 {
+            return false
+        }
+        if self.effectiveMonthlyLimit?.enforcementModeWasUnmappable == true { return true }
+        if self.hasInactiveEnforcement { return false }
+        if limitWasUnmappable { return true }
+        guard mappedLimit ?? 0 > 0 else { return false }
+        return self.currentMonthUsageWasUnmappable
+    }
+
+    private var hasInactiveEnforcement: Bool {
+        guard let mode = self.effectiveMonthlyLimit?.enforcementMode?.lowercased() else { return false }
+        return Self.inactiveEnforcementModes.contains(mode)
+    }
+
     public func codexCreditLimitSnapshot(updatedAt: Date) -> CodexCreditLimitSnapshot? {
         guard let limit = self.effectiveMonthlyLimit?.limit, limit > 0 else { return nil }
-        if let enforcementMode = self.effectiveMonthlyLimit?.enforcementMode?.lowercased(),
-           ["none", "off", "disabled", "no_limit"].contains(enforcementMode)
-        {
+        if self.hasInactiveEnforcement {
             return nil
         }
 
@@ -37,7 +58,9 @@ public struct CodexSpendControlsMonthlyUsageResponse: Decodable, Sendable {
 
     public struct EffectiveMonthlyLimit: Decodable, Sendable {
         public let limit: Double?
+        public let limitWasUnmappable: Bool
         public let enforcementMode: String?
+        public let enforcementModeWasUnmappable: Bool
         public let limitMode: String?
 
         enum CodingKeys: String, CodingKey {
@@ -48,8 +71,16 @@ public struct CodexSpendControlsMonthlyUsageResponse: Decodable, Sendable {
 
         public init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
-            self.limit = CodexSpendControlsMonthlyUsageResponse.decodeFlexibleDouble(container, forKey: .limit)
-            self.enforcementMode = try? container.decodeIfPresent(String.self, forKey: .enforcementMode)
+            let decodedLimit = CodexSpendControlsMonthlyUsageResponse.decodeFlexibleDoubleResult(
+                container,
+                forKey: .limit)
+            self.limit = decodedLimit.value
+            self.limitWasUnmappable = decodedLimit.unmappable
+            let decodedMode = CodexSpendControlsMonthlyUsageResponse.decodeOptionalStringResult(
+                container,
+                forKey: .enforcementMode)
+            self.enforcementMode = decodedMode.value
+            self.enforcementModeWasUnmappable = decodedMode.unmappable
             self.limitMode = try? container.decodeIfPresent(String.self, forKey: .limitMode)
         }
     }
@@ -58,16 +89,50 @@ public struct CodexSpendControlsMonthlyUsageResponse: Decodable, Sendable {
         _ container: KeyedDecodingContainer<Key>,
         forKey key: Key) -> Double?
     {
-        if let value = try? container.decodeIfPresent(Double.self, forKey: key) {
-            return value
+        self.decodeFlexibleDoubleResult(container, forKey: key).value
+    }
+
+    fileprivate static func decodeFlexibleDoubleResult<Key: CodingKey>(
+        _ container: KeyedDecodingContainer<Key>,
+        forKey key: Key) -> (value: Double?, unmappable: Bool)
+    {
+        guard container.contains(key) else { return (nil, false) }
+        if (try? container.decodeNil(forKey: key)) == true {
+            return (nil, false)
         }
-        if let value = try? container.decodeIfPresent(Int.self, forKey: key) {
-            return Double(value)
+        if let value = try? container.decode(Double.self, forKey: key) {
+            return self.mappedFiniteDouble(value)
         }
-        if let value = try? container.decodeIfPresent(String.self, forKey: key) {
-            return Double(value.trimmingCharacters(in: .whitespacesAndNewlines))
+        if let value = try? container.decode(Int.self, forKey: key) {
+            return Self.mappedFiniteDouble(Double(value))
         }
-        return nil
+        if let value = try? container.decode(String.self, forKey: key) {
+            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let parsed = Double(trimmed) {
+                return Self.mappedFiniteDouble(parsed)
+            }
+            return (nil, true)
+        }
+        return (nil, true)
+    }
+
+    private static func mappedFiniteDouble(_ value: Double) -> (value: Double?, unmappable: Bool) {
+        guard value.isFinite else { return (nil, true) }
+        return (value, false)
+    }
+
+    fileprivate static func decodeOptionalStringResult<Key: CodingKey>(
+        _ container: KeyedDecodingContainer<Key>,
+        forKey key: Key) -> (value: String?, unmappable: Bool)
+    {
+        guard container.contains(key) else { return (nil, false) }
+        if (try? container.decodeNil(forKey: key)) == true {
+            return (nil, false)
+        }
+        if let value = try? container.decode(String.self, forKey: key) {
+            return (value, false)
+        }
+        return (nil, true)
     }
 }
 
@@ -78,10 +143,10 @@ enum CodexSpendControlsMonthlyUsageGate {
         else { return false }
 
         return switch response.planType {
-        case .team, .business, .education, .quorum, .k12, .enterprise, .edu, .freeWorkspace:
-            true
-        case .guest, .free, .go, .plus, .pro, .unknown, nil:
+        case .guest, .free, .go, .plus, .pro:
             false
+        case .team, .business, .education, .quorum, .k12, .enterprise, .edu, .freeWorkspace, .unknown, nil:
+            true
         }
     }
 }

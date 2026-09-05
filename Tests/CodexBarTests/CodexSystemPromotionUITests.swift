@@ -3,7 +3,7 @@ import Foundation
 import Testing
 @testable import CodexBar
 
-@Suite(.serialized)
+@Suite(.serialized, CodexCredentialFixtures())
 @MainActor
 struct CodexSystemPromotionUITests {
     @Test
@@ -72,6 +72,17 @@ struct CodexSystemPromotionUITests {
         #expect(coordinator.userFacingError == error)
         #expect(coordinator.isInteractionBlocked())
         #expect(container.settings.codexActiveSource == .managedAccount(id: target.id))
+    }
+
+    @Test
+    func `promotion coordinator explains selected workspace auth mismatch`() {
+        let error = CodexAccountPromotionCoordinator.mapUserFacingError(
+            CodexAccountPromotionError.targetManagedAccountWorkspaceDiffersFromAuthDefault)
+
+        #expect(error.title == "Could not switch system account")
+        #expect(error.message.contains("differs from its saved Codex auth default"))
+        #expect(error.message.contains("Keep it as a managed account"))
+        #expect(error.message.contains("will not rewrite Codex-owned auth"))
     }
 
     @Test

@@ -59,8 +59,8 @@ public enum ClaudeSwapRetainedUsageStore {
         {
             return String(stored.dropFirst(self.fingerprintPrefix.count))
         }
-        let email = account.snapshot?.identity?.accountEmail ?? account.displayLabel
-        if email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        let email = account.snapshot?.identity?.accountEmail ?? account.accountEmail
+        guard let email, !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return nil
         }
         return self.fingerprint(email: email, slot: account.id.opaqueID)
@@ -102,9 +102,10 @@ public enum ClaudeSwapRetainedUsageStore {
                   let snapshot = account.snapshot
             else { return nil }
             self.opaqueID = account.id.opaqueID
-            guard let fingerprint = ClaudeSwapRetainedUsageStore.fingerprint(
-                email: snapshot.identity?.accountEmail ?? account.displayLabel,
-                slot: account.id.opaqueID)
+            guard let email = snapshot.identity?.accountEmail ?? account.accountEmail,
+                  let fingerprint = ClaudeSwapRetainedUsageStore.fingerprint(
+                      email: email,
+                      slot: account.id.opaqueID)
             else {
                 return nil
             }

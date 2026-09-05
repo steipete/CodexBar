@@ -343,7 +343,16 @@ struct KimiAPIFetchStrategyTests {
                     Data(#"{"usage":{"limit":"100","used":"25","remaining":"75"},"limits":[]}"#.utf8),
                     response)
             }
-            #expect(url.path.hasSuffix("/GetSubscriptionStats"))
+            if url.path.hasSuffix("/GetSubscription") {
+                return (
+                    Data(
+                        """
+                        {"subscription":{"active":true,"status":"SUBSCRIPTION_STATUS_ACTIVE",
+                        "goods":{"title":"Allegro"}}}
+                        """.utf8),
+                    response)
+            }
+            #expect(url.path.hasSuffix("/GetSubscriptionStats") || url.path.hasSuffix("/GetSubscription"))
             #expect(request.value(forHTTPHeaderField: "Cookie") == "kimi-auth=desktop-token")
             return (
                 Data(#"{"subscriptionBalance":{"feature":"FEATURE_OMNI","type":"SUBSCRIPTION","amountUsedRatio":0.42}}"#
@@ -361,8 +370,9 @@ struct KimiAPIFetchStrategyTests {
         let result = try await strategy.fetch(context)
         let monthly = result.usage.extraRateWindows?.first { $0.id == "kimi-monthly" }
 
+        #expect(result.usage.loginMethod(for: .kimi) == "Allegro")
         #expect(monthly?.window.usedPercent == 42)
-        #expect(await transport.requests().count == 2)
+        #expect(await transport.requests().count == 3)
     }
 
     @Test
@@ -934,7 +944,7 @@ struct KimiUsageResponseParsingTests {
             if url.path.hasSuffix("/GetUsages") {
                 return (Data(usageJSON.utf8), response)
             }
-            #expect(url.path.hasSuffix("/GetSubscriptionStats"))
+            #expect(url.path.hasSuffix("/GetSubscriptionStats") || url.path.hasSuffix("/GetSubscription"))
             return (Data(subscriptionJSON.utf8), response)
         }
 

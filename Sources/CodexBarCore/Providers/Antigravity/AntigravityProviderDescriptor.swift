@@ -49,8 +49,9 @@ public enum AntigravityProviderDescriptor {
                     ProviderColor(hex: 0xFBBC04),
                 ]),
             tokenCost: ProviderTokenCostConfig(
-                supportsTokenCost: false,
-                noDataMessage: { "Antigravity cost summary is not supported." }),
+                supportsTokenCost: true,
+                noDataMessage: { "Antigravity cost summary is not supported." },
+                supportsTokenSnapshot: true),
             pace: ProviderPaceCapability(
                 sessionPaceWindowRule: .custom { window, _ in
                     window.windowMinutes == nil || window.windowMinutes == 300
@@ -60,6 +61,7 @@ public enum AntigravityProviderDescriptor {
                 iconWindowResolver: self.iconWindows,
                 // Provider-specific by design: Antigravity decorates its mixed-model usage with the Gemini badge.
                 iconDecorations: [.gemini, .antigravity],
+                semanticWindowResolver: self.semanticWindows,
                 requestedMenuBarLaneOrders: [
                     .primary: [.primary, .secondary, .tertiary],
                     .secondary: [.secondary, .primary, .tertiary],
@@ -75,14 +77,29 @@ public enum AntigravityProviderDescriptor {
                 }),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .cli, .oauth],
-                pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
+                pipeline: ProviderFetchPipeline(
+                    resolveStrategies: self.resolveStrategies,
+                    resolveFallbackError: self.resolveFallbackError)),
             cli: ProviderCLIConfig(
                 name: "antigravity",
-                versionDetector: nil))
+                versionDetector: nil,
+                supportsCostCommand: true))
     }
 
     private static let quotaSummaryPrefix = "antigravity-quota-summary-"
     private static let compactFallbackPrefix = "antigravity-compact-fallback-"
+
+    private static func semanticWindows(snapshot: UsageSnapshot) -> ProviderSemanticWindows {
+        let rows = (snapshot.extraRateWindows ?? []).filter { $0.id.hasPrefix(self.quotaSummaryPrefix) }
+        guard !rows.isEmpty else {
+            return ProviderUsagePresentation.standardSemanticWindows(snapshot: snapshot)
+        }
+        // Family representatives can use different cadences; unavailable summary lanes must stay unavailable.
+        let known = rows.filter(\.usageKnown)
+        return ProviderSemanticWindows(
+            session: self.mostConstrained(windows: known, minutes: 300),
+            weekly: self.mostConstrained(windows: known, minutes: 7 * 24 * 60))
+    }
 
     private static func iconWindows(context: ProviderIconWindowContext) -> ProviderUsageWindowPair {
         let windows = (context.snapshot.extraRateWindows ?? [])
@@ -178,9 +195,10 @@ public enum AntigravityProviderDescriptor {
         let cli = AntigravityCLIHTTPSFetchStrategy()
         let ide = AntigravityStatusFetchStrategy(source: .ide)
         let oauth = AntigravityOAuthFetchStrategy()
+        let offline = AntigravityOfflineFetchStrategy()
         switch context.sourceMode {
         case .cli:
-            return [app, cli, ide]
+            return [app, cli, ide, offline]
         case .oauth:
             return [oauth]
         case .auto:
@@ -188,9 +206,9 @@ public enum AntigravityProviderDescriptor {
                 context.env[AntigravityOAuthCredentialsStore.environmentCredentialsKey] != nil ||
                 self.hasSharedOAuthCredentials(context: context)
             {
-                return [app, cli, ide, oauth]
+                return [app, cli, ide, oauth, offline]
             }
-            return [app, cli, ide]
+            return [app, cli, ide, offline]
         case .web, .api:
             return []
         }
@@ -202,6 +220,16 @@ public enum AntigravityProviderDescriptor {
             ?? FileManager.default.homeDirectoryForCurrentUser
         let fileURL = AntigravityOAuthCredentialsStore.defaultURL(home: homeURL)
         return FileManager.default.fileExists(atPath: fileURL.path)
+    }
+
+    static func resolveFallbackError(_ previous: Error?, _ current: Error) -> Error {
+        if (previous as? AntigravityStatusProbeError) == .authenticationRequired,
+           let currentProbeError = current as? AntigravityStatusProbeError,
+           currentProbeError == .notRunning || currentProbeError == .missingCSRFToken
+        {
+            return previous ?? current
+        }
+        return current
     }
 }
 
@@ -387,7 +415,7 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
 
         for info in cliProcesses {
             if let expectedBinaryPath {
-                guard Self.commandLine(info.commandLine, matchesBinaryPath: expectedBinaryPath)
+                guard Self.process(info, matchesBinaryPath: expectedBinaryPath)
                 else {
                     continue
                 }
@@ -442,13 +470,21 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
         return remaining > 0 ? remaining : nil
     }
 
-    private static func commandLine(_ commandLine: String, matchesBinaryPath binaryPath: String) -> Bool {
+    private static func process(
+        _ info: AntigravityStatusProbe.ProcessInfoResult,
+        matchesBinaryPath binaryPath: String) -> Bool
+    {
         let candidates = [
             URL(fileURLWithPath: binaryPath).standardizedFileURL.path,
             URL(fileURLWithPath: binaryPath).resolvingSymlinksInPath().standardizedFileURL.path,
         ]
+        if let executablePath = info.executablePath {
+            // argv[0] may be just "agy" or misleading; a known kernel path owns executable identity.
+            guard executablePath.hasPrefix("/") else { return false }
+            return candidates.contains(URL(fileURLWithPath: executablePath).standardizedFileURL.path)
+        }
         return candidates.contains { candidate in
-            commandLine == candidate || commandLine.hasPrefix("\(candidate) ")
+            info.commandLine == candidate || info.commandLine.hasPrefix("\(candidate) ")
         }
     }
 
@@ -551,10 +587,10 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
         // CodexBar must not manage its lifecycle, idle timeout, or
         // `resetAfterFetch` teardown. Those apply only to processes CodexBar
         // itself spawns on the fallback path below.
-        // Long-lived hosts already keep a managed session warm. Restrict external
-        // process reuse to one-shot CLI calls so app/server lifecycle accounting
-        // stays entirely inside AntigravityCLISession.
-        if resetAfterFetch, let warmSnapshot = try await Self.tryWarmAgyFetch(
+        // Persistent hosts also need the external path: a user-owned, signed-in
+        // `agy` may have credentials a newly spawned managed session cannot read.
+        // Owned pids remain excluded, so their lifecycle accounting is unchanged.
+        if let warmSnapshot = try await Self.tryWarmAgyFetch(
             timeout: 2.0,
             expectedBinaryPath: binary,
             expectedAccountEmail: expectedAccountEmail,
@@ -639,6 +675,7 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
         dependencies: SnapshotWaitDependencies) async throws -> AntigravityStatusSnapshot
     {
         var lastFetchError: Error?
+        var lastPortDiscoveryError: Error?
         while dependencies.now() < deadline {
             try await Self.checkAuthenticationPrompt(dependencies)
             let remaining = deadline.timeIntervalSince(dependencies.now())
@@ -646,6 +683,10 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
             let ports: [Int]
             do {
                 ports = try await dependencies.listeningPorts(Int(pid), portProbeTimeout)
+            } catch let error as AntigravityPortDiscoveryPendingError {
+                try Task.checkCancellation()
+                lastPortDiscoveryError = error.underlyingError
+                ports = []
             } catch {
                 guard Self.isNoListeningPortsError(error) else {
                     try await Self.checkAuthenticationPrompt(dependencies)
@@ -703,6 +744,9 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
         try await Self.checkAuthenticationPrompt(dependencies)
         if let lastFetchError {
             throw lastFetchError
+        }
+        if let lastPortDiscoveryError {
+            throw lastPortDiscoveryError
         }
         Self.log.warning("Antigravity CLI HTTPS: no ports found for pid \(pid)")
         throw AntigravityStatusProbeError.portDetectionFailed(
@@ -781,7 +825,65 @@ struct AntigravityOAuthFetchStrategy: ProviderFetchStrategy {
             sourceLabel: "oauth")
     }
 
+    func shouldFallback(on _: Error, context: ProviderFetchContext) -> Bool {
+        let homeURL = context.env["HOME"]
+            .flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0, isDirectory: true) }
+            ?? FileManager.default.homeDirectoryForCurrentUser
+        return AntigravityOfflineStore.hasOfflineData(home: homeURL, env: context.env)
+    }
+}
+
+/// Offline fallback (tokscale lesson): when live probes and OAuth have no data,
+/// surface the local Antigravity CLI conversation count from
+/// `~/.gemini/antigravity-cli/conversations/*.db` as a non-quota snapshot.
+/// This keeps the menu bar from going blank on a fresh install without a running
+/// server and mirrors tokscale's direct SQLite read (no RPC, no `antigravity sync`).
+struct AntigravityOfflineFetchStrategy: ProviderFetchStrategy {
+    let id: String = "antigravity.offline"
+    let kind: ProviderFetchKind = .localProbe
+
+    func isAvailable(_ context: ProviderFetchContext) async -> Bool {
+        // Cheap file existence check; no SQLite open.
+        let homeURL = context.env["HOME"]
+            .flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0, isDirectory: true) }
+            ?? FileManager.default.homeDirectoryForCurrentUser
+        return AntigravityOfflineStore.hasOfflineData(home: homeURL, env: context.env)
+    }
+
+    func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
+        let homeURL = context.env["HOME"]
+            .flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0, isDirectory: true) }
+            ?? FileManager.default.homeDirectoryForCurrentUser
+        let count = AntigravityOfflineStore.countConversations(home: homeURL, env: context.env)
+        guard count > 0 else {
+            throw AntigravityStatusProbeError.notRunning
+        }
+        let window = RateWindow(
+            usedPercent: 0,
+            windowMinutes: nil,
+            resetsAt: nil,
+            resetDescription: nil)
+        let offlineWindow = NamedRateWindow(
+            id: "antigravity-offline-conversations",
+            title: "Offline · \(count) conversation" + (count == 1 ? "" : "s"),
+            window: window,
+            usageKnown: false)
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            tertiary: nil,
+            extraRateWindows: [offlineWindow],
+            updatedAt: Date(),
+            identity: ProviderIdentitySnapshot(
+                providerID: .antigravity,
+                accountEmail: nil,
+                accountOrganization: nil,
+                loginMethod: "offline"))
+        return self.makeResult(usage: snapshot, sourceLabel: "offline")
+    }
+
     func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
+        // Offline is terminal; no further fallback.
         false
     }
 }

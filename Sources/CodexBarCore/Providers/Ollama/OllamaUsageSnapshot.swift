@@ -3,6 +3,8 @@ import Foundation
 public struct OllamaUsageSnapshot: Sendable {
     public let planName: String?
     public let accountEmail: String?
+    public let monthlyUsedPercent: Double?
+    public let monthlyResetsAt: Date?
     public let sessionUsedPercent: Double?
     public let weeklyUsedPercent: Double?
     public let sessionResetsAt: Date?
@@ -13,6 +15,8 @@ public struct OllamaUsageSnapshot: Sendable {
     public init(
         planName: String?,
         accountEmail: String?,
+        monthlyUsedPercent: Double? = nil,
+        monthlyResetsAt: Date? = nil,
         sessionUsedPercent: Double?,
         weeklyUsedPercent: Double?,
         sessionResetsAt: Date?,
@@ -22,6 +26,8 @@ public struct OllamaUsageSnapshot: Sendable {
     {
         self.planName = planName
         self.accountEmail = accountEmail
+        self.monthlyUsedPercent = monthlyUsedPercent
+        self.monthlyResetsAt = monthlyResetsAt
         self.sessionUsedPercent = sessionUsedPercent
         self.weeklyUsedPercent = weeklyUsedPercent
         self.sessionResetsAt = sessionResetsAt
@@ -33,6 +39,9 @@ public struct OllamaUsageSnapshot: Sendable {
 
 extension OllamaUsageSnapshot {
     public func toUsageSnapshot() -> UsageSnapshot {
+        // The 2026-08 page makes the monthly window primary; the legacy 5-hour session
+        // and weekly windows remain as fallback for pages still rendering them.
+        let monthlyWindow = self.makeMonthlyWindow()
         let sessionWindow = self.makeSessionWindow(
             usedPercent: self.sessionUsedPercent,
             resetsAt: self.sessionResetsAt)
@@ -49,12 +58,22 @@ extension OllamaUsageSnapshot {
             loginMethod: plan?.isEmpty == false ? plan : nil)
 
         return UsageSnapshot(
-            primary: sessionWindow,
+            primary: monthlyWindow ?? sessionWindow,
             secondary: weeklyWindow,
             tertiary: nil,
             providerCost: nil,
             updatedAt: self.updatedAt,
             identity: identity)
+    }
+
+    private func makeMonthlyWindow() -> RateWindow? {
+        guard let usedPercent = self.monthlyUsedPercent else { return nil }
+        let clamped = min(100, max(0, usedPercent))
+        return RateWindow(
+            usedPercent: clamped,
+            windowMinutes: ProviderPaceCapability.monthlyWindowSentinelMinutes,
+            resetsAt: self.monthlyResetsAt,
+            resetDescription: nil)
     }
 
     private func makeSessionWindow(usedPercent: Double?, resetsAt: Date?) -> RateWindow? {

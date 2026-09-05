@@ -160,11 +160,31 @@ struct MenuBarLayoutResetText: Hashable {
 struct MenuBarLayoutRenderedTitle {
     let attributedTitle: NSAttributedString
     let accessibilityLabel: String
+    let statusImage: NSImage?
     /// When the layout begins with an icon token, the raw template image is surfaced here so
     /// the status item can assign it to `button.image`. Template images are the only menu bar
     /// content AppKit automatically dims on inactive displays; attributed-title attachments are
     /// pre-rendered bitmaps and do not follow the system's active-state tinting.
     let leadingIcon: NSImage?
+
+    init(
+        attributedTitle: NSAttributedString,
+        accessibilityLabel: String,
+        leadingIcon: NSImage?,
+        statusImage: NSImage? = nil)
+    {
+        self.attributedTitle = attributedTitle
+        self.accessibilityLabel = accessibilityLabel
+        self.leadingIcon = leadingIcon
+        self.statusImage = statusImage
+    }
+
+    func statusItemWidth(gap: MenuBarLayoutGap) -> CGFloat {
+        let bounds = self.attributedTitle.boundingRect(
+            with: NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading])
+        return max(18, ceil(bounds.width + (self.leadingIcon?.size.width ?? 0)) + (gap == .tight ? 3 : 10))
+    }
 }
 
 @MainActor
@@ -376,7 +396,37 @@ final class MenuBarLayoutRenderer {
         return MenuBarLayoutRenderedTitle(
             attributedTitle: result,
             accessibilityLabel: accessibilityLabel,
-            leadingIcon: leadingIcon)
+            leadingIcon: leadingIcon,
+            statusImage: !options.highContrast && !options.isStale && !isStacked
+                && !renderedLines.joined().contains(.icon)
+                ? Self.statusImage(title: result)
+                : nil)
+    }
+
+    private static func statusImage(title: NSAttributedString) -> NSImage? {
+        guard title.length > 0, !title.string.contains(where: \.isNewline) else { return nil }
+        let baseline = (title.attribute(.baselineOffset, at: 0, effectiveRange: nil) as? NSNumber)?.doubleValue ?? 0
+        let unshiftedTitle = NSMutableAttributedString(attributedString: title)
+        unshiftedTitle.removeAttribute(.baselineOffset, range: NSRange(location: 0, length: title.length))
+        let immutableTitle = NSAttributedString(attributedString: unshiftedTitle)
+        let bounds = unshiftedTitle.boundingRect(
+            with: NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading])
+        let size = NSSize(width: max(1, ceil(bounds.width)), height: 22)
+        // NSStatusBarButton's native title baseline sits one point above the image canvas's geometric center.
+        let titleRect = NSRect(
+            x: -bounds.minX,
+            y: floor((size.height - bounds.height) / 2) - bounds.minY + baseline + 1,
+            width: bounds.width,
+            height: bounds.height)
+        // Drawing handlers preserve the destination scale; the template lets AppKit own highlight and inactive tinting.
+        // Capture immutable content only: AppKit can call the handler away from the main thread.
+        let image = NSImage(size: size, flipped: false) { _ in
+            immutableTitle.draw(with: titleRect, options: [.usesLineFragmentOrigin, .usesFontLeading])
+            return true
+        }
+        image.isTemplate = true
+        return image
     }
 
     /// nil == resolved to .hidden (render nothing, no separator). A returned .conditional

@@ -16,7 +16,7 @@ Kilo supports API and CLI-backed auth. Source mode can be `auto`, `api`, or `cli
    - Calls `https://app.kilo.ai/api/trpc`.
 2. CLI session (`cli`)
    - Reads `~/.local/share/kilo/auth.json` and uses `kilo.access`.
-   - Requires a valid CLI login (`kilo login`).
+   - Requires a valid CLI login (`kilo auth login`).
 3. Auto (`auto`)
    - Tries API first.
    - Falls back to CLI only when API credentials are missing or unauthorized (401/403).
@@ -33,8 +33,8 @@ Kilo supports API and CLI-backed auth. Source mode can be `auto`, `api`, or `cli
 
 ## Troubleshooting
 - Missing API token: set `KILO_API_KEY` or provider `apiKey`.
-- Missing CLI session file: run `kilo login` to create `~/.local/share/kilo/auth.json`.
-- Unauthorized API token (401/403): refresh `KILO_API_KEY` or rerun `kilo login`.
+- Missing CLI session file: run `kilo auth login` to create `~/.local/share/kilo/auth.json`.
+- Unauthorized API token (401/403): refresh `KILO_API_KEY` or rerun `kilo auth login`.
 
 ## Organizations
 

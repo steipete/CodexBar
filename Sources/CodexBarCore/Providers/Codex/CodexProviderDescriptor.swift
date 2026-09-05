@@ -29,7 +29,7 @@ public enum CodexProviderDescriptor {
         ProviderDescriptor(
             id: .codex,
             menuBarMetrics: ProviderMenuBarMetricCapabilities(
-                supported: [.automatic, .primary, .secondary, .primaryAndSecondary]),
+                supported: [.automatic, .primary, .secondary, .primaryAndSecondary, .extraUsage]),
             settingsSection: .init(CodexProviderSettingsKey.self),
             credentials: self.credentials,
             metadata: ProviderMetadata(
@@ -84,7 +84,8 @@ public enum CodexProviderDescriptor {
                 showsHintInProviderDetails: true,
                 historyTitleStyle: .compact,
                 hintPlacement: .beforeRequestHistory,
-                chartEstimateDisclaimer: .localized("codex_api_estimate_hint")),
+                chartEstimateDisclaimer: .localized("codex_api_estimate_hint"),
+                preservesCalendarDaysInCharts: true),
             pace: ProviderPaceCapability(
                 primary: .session(maximumMinutes: 300),
                 secondary: .weekly,
@@ -102,6 +103,23 @@ public enum CodexProviderDescriptor {
                     let display = CodexPlanFormatting.displayName(plan) ?? plan
                     return ProviderIdentityPresentation(badge: display, plan: display)
                 },
+                costPresenter: { snapshot in
+                    guard let cost = snapshot.providerCost,
+                          cost.currencyCode == CodexExtraUsageCost.currencyCode
+                    else {
+                        return ProviderCostPresentation()
+                    }
+                    let balances = cost.balance.map {
+                        [ProviderCostPresentation.Balance(
+                            label: "Extra usage balance",
+                            amount: $0,
+                            currencyCode: cost.currencyCode)]
+                    } ?? []
+                    return ProviderCostPresentation(
+                        showsGenericFallback: !(cost.used == 0 && cost.limit == 0),
+                        balances: balances,
+                        menuCardStyle: .creditsUsage)
+                },
                 creditResolver: { $0.codexCreditLimit?.remaining ?? $0.remaining },
                 iconWindowResolver: self.iconWindows,
                 iconDecorations: [.face],
@@ -116,6 +134,7 @@ public enum CodexProviderDescriptor {
                 secondaryGloballyCapsPrimary: true,
                 menuCard: ProviderMenuCardPresentation(
                     creditsVisibility: .requiresValueOrError,
+                    costVisibilityResolver: { $0.showOptionalUsage },
                     supportsInlineTokenCostDashboard: true)),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web, .cli, .oauth, .api],
@@ -279,17 +298,19 @@ struct CodexCLIUsageStrategy: ProviderFetchStrategy {
             }
             // Credits refresh can succeed even when RPC omits rate-limit windows.
             return self.makeResult(
-                usage: UsageSnapshot(
-                    primary: nil,
-                    secondary: nil,
-                    updatedAt: credits.updatedAt,
-                    identity: snapshot.identity),
+                usage: CodexExtraUsageCost.attaching(
+                    to: UsageSnapshot(
+                        primary: nil,
+                        secondary: nil,
+                        updatedAt: credits.updatedAt,
+                        identity: snapshot.identity),
+                    credits: credits),
                 credits: credits,
                 sourceLabel: "codex-cli")
         }
         let credits = context.includeCredits ? snapshot.credits : nil
         return self.makeResult(
-            usage: usage,
+            usage: CodexExtraUsageCost.attaching(to: usage, credits: credits),
             credits: credits,
             sourceLabel: "codex-cli")
     }
@@ -498,7 +519,30 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
             remaining: balance ?? 0,
             events: [],
             updatedAt: updatedAt,
-            codexCreditLimit: creditLimit)
+            codexCreditLimit: creditLimit,
+            // A cap-only response omits the balance entirely; that placeholder zero is unread, not spent.
+            balanceReadSucceeded: balance != nil)
+    }
+
+    private static func attachingExtraUsage(
+        to result: ProviderFetchResult) -> ProviderFetchResult
+    {
+        ProviderFetchResult(
+            usage: CodexExtraUsageCost.attaching(to: result.usage, credits: result.credits),
+            credits: result.credits,
+            dashboard: result.dashboard,
+            sourceLabel: result.sourceLabel,
+            strategyID: result.strategyID,
+            strategyKind: result.strategyKind,
+            codexResetCreditsAttempted: result.codexResetCreditsAttempted,
+            codexMonthlyLimitEnrichmentFailed: result.codexMonthlyLimitEnrichmentFailed,
+            diagnostic: result.diagnostic,
+            claudeOAuthKeychainPersistentRefHash: result.claudeOAuthKeychainPersistentRefHash,
+            claudeOAuthHistoryOwnerIdentifier: result.claudeOAuthHistoryOwnerIdentifier,
+            claudeOAuthCredentialOwner: result.claudeOAuthCredentialOwner,
+            claudeOAuthKeychainCredentialMismatch: result.claudeOAuthKeychainCredentialMismatch,
+            claudeOAuthKeychainCredentialAbsent: result.claudeOAuthKeychainCredentialAbsent,
+            claudeOAuthKeychainCredentialUnavailable: result.claudeOAuthKeychainCredentialUnavailable)
     }
 
     private static func makeResult(
@@ -526,7 +570,9 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
                     .withDataConfidence(dataConfidence),
                 credits: credits,
                 sourceLabel: "oauth")
-            return Self.markResetCreditsAttempted(result, attempted: codexResetCreditsAttempted)
+            return Self.markResetCreditsAttempted(
+                Self.attachingExtraUsage(to: result),
+                attempted: codexResetCreditsAttempted)
         }
 
         guard credits != nil
@@ -550,7 +596,9 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
                     credentials: credentials)),
             credits: credits,
             sourceLabel: "oauth")
-        return Self.markResetCreditsAttempted(result, attempted: codexResetCreditsAttempted)
+        return Self.markResetCreditsAttempted(
+            Self.attachingExtraUsage(to: result),
+            attempted: codexResetCreditsAttempted)
     }
 
     private static func markResetCreditsAttempted(
@@ -566,6 +614,7 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
             strategyID: result.strategyID,
             strategyKind: result.strategyKind,
             codexResetCreditsAttempted: true,
+            codexMonthlyLimitEnrichmentFailed: result.codexMonthlyLimitEnrichmentFailed,
             diagnostic: result.diagnostic,
             claudeOAuthKeychainPersistentRefHash: result.claudeOAuthKeychainPersistentRefHash,
             claudeOAuthHistoryOwnerIdentifier: result.claudeOAuthHistoryOwnerIdentifier,
@@ -599,19 +648,14 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
               self.identitiesAreCompatible(oauth: oauthResult.usage.identity, cli: cliResult.usage.identity),
               let oauthCredits = oauthResult.credits
         else { return oauthResult }
-        return ProviderFetchResult(
-            usage: oauthResult.usage,
-            credits: CreditsSnapshot(
+        return Self.replacingCredits(
+            in: oauthResult,
+            with: CreditsSnapshot(
                 remaining: oauthCredits.remaining,
                 events: oauthCredits.events,
                 updatedAt: oauthCredits.updatedAt,
-                codexCreditLimit: cliLimit),
-            dashboard: oauthResult.dashboard,
-            sourceLabel: oauthResult.sourceLabel,
-            strategyID: oauthResult.strategyID,
-            strategyKind: oauthResult.strategyKind,
-            codexResetCreditsAttempted: oauthResult.codexResetCreditsAttempted,
-            diagnostic: oauthResult.diagnostic)
+                codexCreditLimit: cliLimit,
+                balanceReadSucceeded: oauthCredits.balanceReadSucceeded))
     }
 
     private static func applyingSpendControlsMonthlyLimit(
@@ -642,12 +686,17 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
         -> ProviderFetchResult
     {
         guard context.includeCredits,
-              CodexSpendControlsMonthlyUsageGate.shouldFetch(response: usage),
-              let accountId = self.firstNonEmptyAccountId(credentials.accountId, usage.accountId)
+              CodexSpendControlsMonthlyUsageGate.shouldFetch(response: usage)
         else { return result }
+        guard let accountId = self.firstNonEmptyAccountId(credentials.accountId, usage.accountId) else {
+            return result.markingMonthlyLimitEnrichmentFailed()
+        }
 
         do {
             let response = try await fetcher(accountId)
+            if response.monthlyLimitMappingFailed {
+                return result.markingMonthlyLimitEnrichmentFailed()
+            }
             let updatedAt = result.credits?.updatedAt ?? result.usage.updatedAt
             guard let limit = response.codexCreditLimitSnapshot(updatedAt: updatedAt) else { return result }
             let credits = result.credits.map {
@@ -655,18 +704,21 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
                     remaining: $0.remaining,
                     events: $0.events,
                     updatedAt: $0.updatedAt,
-                    codexCreditLimit: limit)
+                    codexCreditLimit: limit,
+                    balanceReadSucceeded: $0.balanceReadSucceeded)
             } ?? CreditsSnapshot(
                 remaining: 0,
                 events: [],
                 updatedAt: updatedAt,
-                codexCreditLimit: limit)
+                codexCreditLimit: limit,
+                // Spend controls supply only the cap, so this snapshot carries no balance reading.
+                balanceReadSucceeded: false)
             return Self.replacingCredits(in: result, with: credits)
         } catch {
             if error is CancellationError || Task.isCancelled {
                 throw CancellationError()
             }
-            return result
+            return result.markingMonthlyLimitEnrichmentFailed()
         }
     }
 
@@ -683,7 +735,7 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
         in result: ProviderFetchResult,
         with credits: CreditsSnapshot) -> ProviderFetchResult
     {
-        ProviderFetchResult(
+        self.attachingExtraUsage(to: ProviderFetchResult(
             usage: result.usage,
             credits: credits,
             dashboard: result.dashboard,
@@ -691,13 +743,14 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
             strategyID: result.strategyID,
             strategyKind: result.strategyKind,
             codexResetCreditsAttempted: result.codexResetCreditsAttempted,
+            codexMonthlyLimitEnrichmentFailed: result.codexMonthlyLimitEnrichmentFailed,
             diagnostic: result.diagnostic,
             claudeOAuthKeychainPersistentRefHash: result.claudeOAuthKeychainPersistentRefHash,
             claudeOAuthHistoryOwnerIdentifier: result.claudeOAuthHistoryOwnerIdentifier,
             claudeOAuthCredentialOwner: result.claudeOAuthCredentialOwner,
             claudeOAuthKeychainCredentialMismatch: result.claudeOAuthKeychainCredentialMismatch,
             claudeOAuthKeychainCredentialAbsent: result.claudeOAuthKeychainCredentialAbsent,
-            claudeOAuthKeychainCredentialUnavailable: result.claudeOAuthKeychainCredentialUnavailable)
+            claudeOAuthKeychainCredentialUnavailable: result.claudeOAuthKeychainCredentialUnavailable))
     }
 
     private static func fetchResetCreditsIfRequested(

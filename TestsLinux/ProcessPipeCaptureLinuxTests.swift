@@ -13,29 +13,65 @@ struct ProcessPipeCaptureLinuxTests {
     @Test
     func `blocked onData callback does not block capture close`() throws {
         let callbackStarted = DispatchSemaphore(value: 0)
+        let callbackFinished = DispatchSemaphore(value: 0)
         let releaseCallback = DispatchSemaphore(value: 0)
-        let captureFinished = DispatchSemaphore(value: 0)
+        let closeStarted = DispatchSemaphore(value: 0)
+        let closeFinished = DispatchGroup()
+        let state = BlockedCallbackCloseState()
         let pipe = Pipe()
         let capture = ProcessPipeCapture(pipe: pipe, onData: {
+            defer { callbackFinished.signal() }
+            guard state.beginCallback() else { return }
             callbackStarted.signal()
             releaseCallback.wait()
         })
-        capture.start()
-
-        try pipe.fileHandleForWriting.write(contentsOf: Data("hello".utf8))
-        #expect(callbackStarted.wait(timeout: .now() + 1) == .success)
-
-        DispatchQueue.global().async {
+        closeFinished.enter()
+        let readinessDeadline = DispatchTime.now() + 1
+        let closer = Thread {
+            defer { closeFinished.leave() }
+            let measuring = state.beginClose(before: readinessDeadline)
+            if measuring { closeStarted.signal() }
+            // A late worker still cleans up the capture without acknowledging an abandoned scenario.
             _ = capture.finishSynchronously(timeout: 0.05)
-            captureFinished.signal()
+            if measuring { state.recordCloseReturn() }
         }
-        let finishResult = captureFinished.wait(timeout: .now() + 0.5)
-        releaseCallback.signal()
-        #expect(finishResult == .success)
-        if finishResult != .success {
-            _ = captureFinished.wait(timeout: .now() + 1)
+        var closerLaunched = false
+        defer {
+            let callbackEntered = state.abandon()
+            releaseCallback.signal()
+            do {
+                try pipe.fileHandleForWriting.close()
+            } catch {
+                Issue.record(error, "Writer cleanup failed; \(state.diagnostic)")
+            }
+            let cleanupDeadline = DispatchTime.now() + 1
+            if !closerLaunched { closer.start() }
+            #expect(
+                closeFinished.wait(timeout: cleanupDeadline) == .success,
+                "Close worker cleanup did not finish; \(state.diagnostic)")
+            if callbackEntered {
+                #expect(
+                    callbackFinished.wait(timeout: cleanupDeadline) == .success,
+                    "Callback cleanup did not finish; \(state.diagnostic)")
+            }
         }
-        try pipe.fileHandleForWriting.close()
+
+        capture.start()
+        try pipe.fileHandleForWriting.write(contentsOf: Data("hello".utf8))
+        try #require(
+            callbackStarted.wait(timeout: readinessDeadline) == .success,
+            "Callback readiness expired; \(state.diagnostic)")
+
+        closerLaunched = true
+        closer.start()
+        try #require(
+            closeStarted.wait(timeout: readinessDeadline) == .success,
+            "Close worker entry exceeded shared readiness budget; \(state.diagnostic)")
+        try #require(
+            closeFinished.wait(timeout: .now() + 0.5) == .success,
+            "Close did not finish while the callback was blocked; \(state.diagnostic)")
+        let elapsed = try #require(state.invocationDuration, "Missing close timing; \(state.diagnostic)")
+        #expect(elapsed < .milliseconds(500), "Close invocation exceeded 500 ms; \(state.diagnostic)")
     }
 
     @Test
@@ -89,6 +125,55 @@ struct ProcessPipeCaptureLinuxTests {
 
         #expect(elapsed < .milliseconds(500))
         #expect(writerFinished.wait(timeout: .now() + 1) == .success)
+        try pipe.fileHandleForWriting.close()
+    }
+
+    @Test
+    func `buffered pipe tail is drained before hangup completes`() throws {
+        let expected = Data(repeating: 0x5A, count: 256 * 1024)
+        let pipe = Pipe()
+        let capture = ProcessPipeCapture(pipe: pipe, maxBytes: expected.count)
+        capture.start()
+
+        try pipe.fileHandleForWriting.write(contentsOf: expected)
+        try pipe.fileHandleForWriting.close()
+        let captured = capture.finishSynchronously(timeout: 2)
+
+        #expect(captured == expected)
+        #expect(capture.reachedEOF)
+    }
+
+    @Test
+    func `silent open pipe stops promptly without claiming EOF`() throws {
+        let pipe = Pipe()
+        let capture = ProcessPipeCapture(pipe: pipe)
+        capture.start()
+
+        let startedAt = ContinuousClock.now
+        capture.stop()
+        let elapsed = startedAt.duration(to: .now)
+
+        #expect(elapsed < .milliseconds(500))
+        #expect(!capture.reachedEOF)
+        try pipe.fileHandleForWriting.close()
+    }
+
+    @Test
+    func `stop before start closes once and prevents a late reader`() throws {
+        let pipe = Pipe()
+        let capture = ProcessPipeCapture(pipe: pipe)
+
+        capture.stop()
+        capture.stop()
+        capture.start()
+
+        var writerPollDescriptor = pollfd(
+            fd: pipe.fileHandleForWriting.fileDescriptor,
+            events: 0,
+            revents: 0)
+        #expect(Glibc.poll(&writerPollDescriptor, 1, 0) == 1)
+        #expect(writerPollDescriptor.revents & Int16(POLLERR) != 0)
+        #expect(!capture.reachedEOF)
         try pipe.fileHandleForWriting.close()
     }
 
@@ -202,6 +287,61 @@ struct ProcessPipeCaptureLinuxTests {
         let data = capture.finishSynchronously(timeout: 1)
         #expect(String(decoding: data, as: UTF8.self) == "hello")
         #expect(capture.reachedEOF)
+    }
+}
+
+/// All callback/closer state is protected by the lock; only the test thread launches the closer.
+private final class BlockedCallbackCloseState: @unchecked Sendable {
+    private let lock = NSLock()
+    private var abandoned = false
+    private var callbackEntered = false
+    private var startedAt: ContinuousClock.Instant?
+    private var returnedAt: ContinuousClock.Instant?
+
+    func beginCallback() -> Bool {
+        self.lock.withLock {
+            guard !self.abandoned else { return false }
+            self.callbackEntered = true
+            return true
+        }
+    }
+
+    func beginClose(before deadline: DispatchTime) -> Bool {
+        self.lock.withLock {
+            guard !self.abandoned, DispatchTime.now().uptimeNanoseconds < deadline.uptimeNanoseconds else {
+                return false
+            }
+            self.startedAt = .now
+            return true
+        }
+    }
+
+    func recordCloseReturn() {
+        let returnedAt = ContinuousClock.now
+        self.lock.withLock { self.returnedAt = returnedAt }
+    }
+
+    func abandon() -> Bool {
+        self.lock.withLock {
+            self.abandoned = true
+            return self.callbackEntered
+        }
+    }
+
+    var invocationDuration: Duration? {
+        self.lock.withLock {
+            guard let startedAt = self.startedAt, let returnedAt = self.returnedAt else { return nil }
+            return startedAt.duration(to: returnedAt)
+        }
+    }
+
+    var diagnostic: String {
+        self.lock.withLock {
+            let elapsed = self.startedAt.map { $0.duration(to: self.returnedAt ?? .now) }
+            return "callbackEntered=\(self.callbackEntered), abandoned=\(self.abandoned), " +
+                "closeEntered=\(self.startedAt != nil), closeReturned=\(self.returnedAt != nil), " +
+                "closeElapsed=\(String(describing: elapsed))"
+        }
     }
 }
 

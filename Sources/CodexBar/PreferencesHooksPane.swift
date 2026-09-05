@@ -59,7 +59,7 @@ struct HooksPane: View {
 }
 
 @MainActor
-private struct HookRuleRow: View {
+struct HookRuleRow: View {
     @Binding var rule: HookRule
     let onDelete: () -> Void
     @State private var argumentRows: [ArgumentRow]
@@ -107,7 +107,13 @@ private struct HookRuleRow: View {
                 HStack {
                     Text(L("hooks_threshold"))
                         .foregroundStyle(.secondary)
-                    TextField(L("hooks_threshold_placeholder"), value: self.thresholdPercentBinding, format: .number)
+                    TextField(
+                        L("hooks_threshold"),
+                        value: self.thresholdPercentBinding,
+                        format: .number,
+                        prompt: Text(L("hooks_threshold_placeholder")))
+                        .labelsHidden()
+                        .accessibilityLabel(L("hooks_threshold"))
                         .frame(width: 60)
                     Text(verbatim: "%")
                         .foregroundStyle(.secondary)
@@ -115,7 +121,12 @@ private struct HookRuleRow: View {
                 .font(.caption)
             }
 
-            TextField(L("hooks_executable_placeholder"), text: self.$rule.executable)
+            TextField(
+                L("hooks_executable"),
+                text: self.$rule.executable,
+                prompt: Text(L("hooks_executable_placeholder")))
+                .labelsHidden()
+                .accessibilityLabel(L("hooks_executable"))
                 .textFieldStyle(.roundedBorder)
                 .font(.system(.caption, design: .monospaced))
 
@@ -137,7 +148,12 @@ private struct HookRuleRow: View {
 
                 ForEach(self.$argumentRows) { $argument in
                     HStack {
-                        TextField(L("hooks_argument_placeholder"), text: $argument.value)
+                        TextField(
+                            L("hooks_argument_placeholder"),
+                            text: $argument.value,
+                            prompt: Text(L("hooks_argument_placeholder")))
+                            .labelsHidden()
+                            .accessibilityLabel(L("hooks_argument_placeholder"))
                             .textFieldStyle(.roundedBorder)
                             .font(.system(.caption, design: .monospaced))
                         Button {

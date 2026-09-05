@@ -284,8 +284,7 @@ extension StatusItemController {
             provider: primaryProvider,
             snapshot: snapshot,
             style: resolverStyle,
-            showUsed: showUsed,
-            renderingStyle: style)
+            showUsed: showUsed)
         var primary = resolved?.primary
         var weekly = resolved?.secondary
         var credits = self.menuBarCreditsRemainingForIcon(provider: primaryProvider, snapshot: snapshot)
@@ -412,7 +411,8 @@ extension StatusItemController {
                 wiggle: wiggle,
                 tilt: tilt,
                 statusIndicator: statusIndicator,
-                hideCritters: self.settings.menuBarHidesCritters)
+                hideCritters: self.settings.menuBarHidesCritters,
+                quotaLayoutPolicy: .provider(primaryProvider))
             self.setButtonContent(
                 image: warningFlash ? Self.quotaWarningFlashImage(base: image) : image,
                 title: nil,
@@ -636,7 +636,8 @@ extension StatusItemController {
                 wiggle: wiggle,
                 tilt: tilt,
                 statusIndicator: statusIndicator,
-                hideCritters: self.settings.menuBarHidesCritters)
+                hideCritters: self.settings.menuBarHidesCritters,
+                quotaLayoutPolicy: .provider(provider))
             self.setButtonContent(
                 image: warningFlash ? Self.quotaWarningFlashImage(base: image) : image,
                 title: nil,
@@ -655,8 +656,7 @@ extension StatusItemController {
         provider: UsageProvider,
         snapshot: UsageSnapshot?,
         style: IconStyle,
-        showUsed: Bool,
-        renderingStyle: IconStyle? = nil)
+        showUsed: Bool)
         -> (primary: Double?, secondary: Double?)?
     {
         guard let snapshot else { return nil }
@@ -681,7 +681,6 @@ extension StatusItemController {
             snapshot: snapshot,
             style: style,
             showUsed: showUsed,
-            renderingStyle: renderingStyle,
             secondaryOverrideWindowID: self.settings.copilotIconSecondaryWindowOverrideID(snapshot: snapshot))
     }
 
@@ -961,7 +960,11 @@ extension StatusItemController {
                 combinedLanes: combinedLanes,
                 percentWindow: percentWindow)
             pace = paceWindow.flatMap { window in
-                self.store.weeklyPace(provider: provider, window: window, now: now)
+                self.store.weeklyPace(
+                    provider: provider,
+                    window: window,
+                    dataConfidence: snapshot?.dataConfidence ?? .unknown,
+                    now: now)
             }
         case .resetTime:
             return MenuBarDisplayText.displayText(
@@ -1069,7 +1072,10 @@ extension StatusItemController {
     nonisolated static func extraUsageSpendDisplayText(snapshot: UsageSnapshot?) -> String? {
         guard let cost = snapshot?.providerCost,
               cost.limit > 0,
-              cost.used >= 0
+              cost.used >= 0,
+              // Codex extra usage is denominated in credits, not money: currency formatting would emit
+              // the bare amount ("2000.6633599996567") instead of a spend value, so it keeps the percent text.
+              cost.currencyCode != CodexExtraUsageCost.currencyCode
         else {
             return nil
         }

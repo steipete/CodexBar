@@ -1,6 +1,7 @@
 import AppKit
 import CodexBarCore
 import Foundation
+import os
 import Testing
 @testable import CodexBar
 
@@ -485,7 +486,10 @@ struct MenuBarLayoutRendererTests {
         let renderer = MenuBarLayoutRenderer()
         let layout = MenuBarLayout(lines: [[.icon, .percent(window: .automatic), .separatorDot, .resetCountdown]])
         let icon = NSImage(size: NSSize(width: 16, height: 16))
-        let first = renderer.render(layout: layout, data: self.data(), icon: icon, options: self.options())
+        // Fixture construction is not part of the renderer's cached path.
+        let data = self.data()
+        let options = self.options()
+        let first = renderer.render(layout: layout, data: data, icon: icon, options: options)
         var last = first
         var fastest = Duration.seconds(10)
 
@@ -493,13 +497,54 @@ struct MenuBarLayoutRendererTests {
         for _ in 0..<3 {
             let startedAt = ContinuousClock.now
             for _ in 0..<1000 {
-                last = renderer.render(layout: layout, data: self.data(), icon: icon, options: self.options())
+                last = renderer.render(layout: layout, data: data, icon: icon, options: options)
             }
             fastest = min(fastest, ContinuousClock.now - startedAt)
         }
 
         #expect(first.attributedTitle === last.attributedTitle)
         #expect(fastest < .milliseconds(50), "Fastest cached batch took \(fastest)")
+    }
+
+    @Test
+    func `cached renders skip icon layout for equivalent rebuilt inputs`() {
+        let cache = MenuBarLayoutTitleCache()
+        let renderer = MenuBarLayoutRenderer(cache: cache)
+        let layout = MenuBarLayout(lines: [[.icon, .percent(window: .automatic), .separatorDot, .resetCountdown]])
+        let icon = MenuBarLayoutSizeCountingImage(size: NSSize(width: 16, height: 16))
+        let first = renderer.render(layout: layout, data: self.data(), icon: icon, options: self.options())
+        let initialSizeReads = icon.sizeReadCount
+        #expect(initialSizeReads > 0)
+
+        // Uncached rendering reads the icon size even when it returns the original image.
+        for _ in 0..<1000 {
+            let cached = renderer.render(layout: layout, data: self.data(), icon: icon, options: self.options())
+            #expect(cached.attributedTitle === first.attributedTitle)
+            #expect(cached.leadingIcon === icon)
+        }
+        #expect(icon.sizeReadCount == initialSizeReads)
+        #expect(cache.count == 1)
+
+        let changed = renderer.render(
+            layout: layout,
+            data: self.data(automaticUsedPercent: 75),
+            icon: icon,
+            options: self.options())
+        #expect(changed.attributedTitle !== first.attributedTitle)
+        #expect(changed.attributedTitle.string.contains("75%"))
+        #expect(icon.sizeReadCount > initialSizeReads)
+        #expect(cache.count == 2)
+
+        let sizeReadsBeforeClear = icon.sizeReadCount
+        renderer.removeAll()
+        // The cache has no isEmpty property.
+        // swiftlint:disable:next empty_count
+        #expect(cache.count == 0)
+        let rebuilt = renderer.render(layout: layout, data: self.data(), icon: icon, options: self.options())
+        #expect(rebuilt.attributedTitle !== first.attributedTitle)
+        #expect(rebuilt.attributedTitle.string == first.attributedTitle.string)
+        #expect(icon.sizeReadCount > sizeReadsBeforeClear)
+        #expect(cache.count == 1)
     }
 
     @Test
@@ -1348,6 +1393,7 @@ struct MenuBarLayoutRendererTests {
         provider: UsageProvider = .codex,
         laneLabels: MenuBarLayoutLaneLabels? = nil,
         automaticResetAt: Date? = nil,
+        accountLabel: String? = "user@example.com",
         metrics: MenuBarLayoutRenderMetrics? = nil)
         -> MenuBarLayoutRenderData
     {
@@ -1355,7 +1401,7 @@ struct MenuBarLayoutRendererTests {
             provider: provider,
             iconKey: "codex",
             providerName: "Codex",
-            accountLabel: "user@example.com",
+            accountLabel: accountLabel,
             laneLabels: laneLabels ?? MenuBarLayoutLaneLabels(provider: provider, snapshot: nil),
             primary: MenuBarLayoutRenderWindow(RateWindow(
                 usedPercent: 10,
@@ -1418,14 +1464,16 @@ struct MenuBarLayoutRendererTests {
         verticalAdjustment: Int = 0,
         isStale: Bool = false,
         conditionals: [MenuBarLayoutConditional] = [],
-        isDebugApp: Bool = false) -> MenuBarLayoutRenderOptions
+        isDebugApp: Bool = false,
+        highContrast: Bool = false,
+        appearanceName: String = "aqua") -> MenuBarLayoutRenderOptions
     {
         MenuBarLayoutRenderOptions(
             size: .regular,
-            highContrast: false,
+            highContrast: highContrast,
             showUsed: true,
             conditionals: conditionals,
-            appearanceName: "aqua",
+            appearanceName: appearanceName,
             isDebugApp: isDebugApp,
             isStale: isStale,
             now: now ?? self.now,
@@ -1479,5 +1527,158 @@ struct MenuBarLayoutRendererTests {
             return CGFloat(truncating: value)
         }
         return nil
+    }
+}
+
+private final class MenuBarLayoutSizeCountingImage: NSImage {
+    private let sizeReads = OSAllocatedUnfairLock(initialState: 0)
+
+    var sizeReadCount: Int {
+        self.sizeReads.withLock { $0 }
+    }
+
+    override var size: NSSize {
+        get {
+            self.sizeReads.withLock { $0 += 1 }
+            return super.size
+        }
+        set {
+            super.size = newValue
+        }
+    }
+}
+
+extension MenuBarLayoutRendererTests {
+    @Test
+    func `plain single line status content reuses a template image by value`() throws {
+        let cache = MenuBarLayoutTitleCache(capacity: 2)
+        let renderer = MenuBarLayoutRenderer(cache: cache)
+        let layout = MenuBarLayout(lines: [[.percent(window: .automatic), .pace(window: .weekly), .runsOutCompact]])
+        let first = renderer.render(layout: layout, data: self.data(), icon: nil, options: self.options())
+        let equivalent = renderer.render(layout: layout, data: self.data(), icon: nil, options: self.options())
+        let image = try #require(first.statusImage)
+        #expect(image.isTemplate)
+        #expect(equivalent.statusImage === image)
+        #expect(first.attributedTitle.string == "50%\u{2009}+11%\u{2009}1d 16h")
+        let expected = ceil(first.attributedTitle.boundingRect(
+            with: NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading]).width)
+        #expect(first.statusItemWidth(gap: .tight) == max(18, expected + 3))
+        #expect(first.statusItemWidth(gap: .regular) == max(18, expected + 10))
+
+        let changedData = self.data(automaticUsedPercent: 72)
+        let changed = renderer.render(layout: layout, data: changedData, icon: nil, options: self.options())
+        #expect(changed.statusImage !== image)
+        let dark = self.options(appearanceName: "darkAqua")
+        let darkOutput = renderer.render(layout: layout, data: changedData, icon: nil, options: dark)
+        #expect(darkOutput.statusImage !== changed.statusImage)
+        #expect(cache.count == 2)
+        renderer.removeAll()
+        let rebuilt = renderer.render(layout: layout, data: self.data(), icon: nil, options: self.options())
+        #expect(rebuilt.statusImage !== image)
+    }
+
+    @Test
+    func `rich stale and high contrast status layouts retain native titles`() {
+        let renderer = MenuBarLayoutRenderer()
+        let icon = NSImage(size: NSSize(width: 16, height: 16))
+        icon.isTemplate = true
+        let plain = MenuBarLayout(lines: [[.percent(window: .automatic)]])
+        let highContrast = self.options(highContrast: true)
+        let cases: [(MenuBarLayout, MenuBarLayoutRenderOptions)] = [
+            (plain, self.options(isStale: true)),
+            (plain, highContrast),
+            (MenuBarLayout(lines: [[.percent(window: .automatic)], [.pace(window: .weekly)]]), self.options()),
+            (MenuBarLayout(lines: [[.icon, .percent(window: .automatic)]]), self.options()),
+            (MenuBarLayout(lines: [[.percent(window: .automatic), .icon]]), self.options()),
+            (MenuBarLayout(lines: [[.icon]]), self.options()),
+            (MenuBarLayout(lines: [[.hidden]]), self.options()),
+        ]
+        for (layout, options) in cases {
+            #expect(renderer.render(layout: layout, data: self.data(), icon: icon, options: options).statusImage == nil)
+        }
+        let multiline = renderer.render(
+            layout: MenuBarLayout(lines: [[.accountLabel]]),
+            data: self.data(accountLabel: "Personal\nWork"),
+            icon: nil,
+            options: self.options())
+        #expect(multiline.statusImage == nil)
+    }
+
+    @Test
+    func `status content transitions keep accessibility and clear old image or title`() {
+        let renderer = MenuBarLayoutRenderer()
+        let layout = MenuBarLayout(lines: [[.percent(window: .automatic)]])
+        let plain = renderer.render(layout: layout, data: self.data(), icon: nil, options: self.options())
+        let stale = renderer.render(layout: layout, data: self.data(), icon: nil, options: self.options(isStale: true))
+        let button = NSButton(frame: NSRect(x: 0, y: 0, width: 100, height: 22))
+        for output in [plain, stale, plain] {
+            let width = StatusItemController.applyMenuBarLayoutContent(output, for: button, gap: .regular)
+            #expect(width == output.statusItemWidth(gap: .regular))
+            #expect(button.accessibilityTitle() == output.accessibilityLabel)
+            if let image = output.statusImage {
+                #expect(button.image === image)
+                #expect(button.imagePosition == .imageOnly)
+                #expect(button.attributedTitle.length == 0)
+            } else {
+                #expect(button.image == nil)
+                #expect(button.imagePosition == .noImage)
+                #expect(button.attributedTitle.isEqual(to: output.attributedTitle))
+            }
+        }
+    }
+
+    @Test
+    func `template drawing preserves logical size and vertical adjustment at both scales`() throws {
+        let renderer = MenuBarLayoutRenderer()
+        let layout = MenuBarLayout(lines: [[.percent(window: .automatic), .pace(window: .weekly)]])
+        var centroids: [Int: CGFloat] = [:]
+        for shift in [-2, 0, 2] {
+            let output = renderer.render(
+                layout: layout, data: self.data(), icon: nil, options: self.options(verticalAdjustment: shift))
+            let image = try #require(output.statusImage)
+            #expect(image.size.height == 22)
+            for scale in [1, 2] {
+                let bitmap = try Self.statusBitmap(image: image, scale: scale)
+                #expect(bitmap.pixelsWide == Int(image.size.width) * scale)
+                #expect(bitmap.pixelsHigh == 22 * scale)
+                var mass: CGFloat = 0
+                var weightedY: CGFloat = 0
+                for y in 0..<bitmap.pixelsHigh {
+                    for x in 0..<bitmap.pixelsWide {
+                        let alpha = bitmap.colorAt(x: x, y: y)?.alphaComponent ?? 0
+                        mass += alpha
+                        weightedY += CGFloat(y) * alpha
+                    }
+                }
+                #expect(mass > 10)
+                let centroid = weightedY / mass / CGFloat(scale)
+                if scale == 1 {
+                    centroids[shift] = centroid
+                } else {
+                    #expect(abs(centroid - (centroids[shift] ?? -100)) < 1)
+                }
+            }
+        }
+        #expect(try abs(#require(centroids[-2]) - #require(centroids[2]) - 4) < 0.5)
+    }
+
+    private static func statusBitmap(image: NSImage, scale: Int) throws -> NSBitmapImageRep {
+        let context = try #require(CGContext(
+            data: nil,
+            width: Int(image.size.width) * scale,
+            height: Int(image.size.height) * scale,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+        NSGraphicsContext.saveGraphicsState()
+        defer { NSGraphicsContext.restoreGraphicsState() }
+        NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: false)
+        context.scaleBy(x: CGFloat(scale), y: CGFloat(scale))
+        image.draw(in: NSRect(origin: .zero, size: image.size))
+        let bitmap = try NSBitmapImageRep(cgImage: #require(context.makeImage()))
+        bitmap.size = image.size
+        return bitmap
     }
 }

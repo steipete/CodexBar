@@ -14,9 +14,9 @@ extension CodexAccountScopedRefreshTests {
 
         let activeID = try #require(UUID(uuidString: "BBBBBBBB-CCCC-DDDD-EEEE-333333333333"))
         let siblingID = try #require(UUID(uuidString: "BBBBBBBB-CCCC-DDDD-EEEE-444444444444"))
-        let activeHome = FileManager.default.temporaryDirectory
+        let activeHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-visible-active-email-\(UUID().uuidString)", isDirectory: true)
-        let siblingHome = FileManager.default.temporaryDirectory
+        let siblingHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-visible-sibling-email-\(UUID().uuidString)", isDirectory: true)
         try Self.writeCodexAuthFile(
             homeURL: activeHome,

@@ -64,7 +64,8 @@ extension StatusItemController {
             accountOverride: AccountInfo(
                 email: account.displayLabel,
                 plan: nil),
-            planOverride: self.claudeSwapAccountActionLabel(account))
+            planOverride: self.claudeSwapAccountActionLabel(account),
+            sourceLabelOverride: ClaudeSwapAccountProjection.sourceLabel)
     }
 
     private func claudeSwapAccountActionLabel(_ account: ProviderAccountUsageSnapshot) -> String? {

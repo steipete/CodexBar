@@ -7,9 +7,17 @@ read_when:
 
 # UI & icon
 
+## Settings
+- Usage & Spend heatmap tooltips prefer the space above the hovered cell and stay within the grid, falling below when needed. On narrow grids they compact vertically and may overlap cells; keyboard selection remains available in the daily grid.
+- Both the application menu and status menu open About in the Settings window. An existing Settings window is reused
+  and switches to the About pane.
+
 ## Menu bar
 - LSUIElement app: no Dock icon; status item uses custom NSImage.
 - Merge Icons toggle combines providers into one status item with a switcher.
+- With the automatic metric selected, switcher progress honors a provider's exhausted-quota selection before
+  showing normal weekly progress. Healthy allowances, explicit metric choices, and separate provider pools
+  retain their existing selection rules.
 - Provider status items use stable autosave names and are reused across provider toggles so macOS can preserve icon
   positions.
 - When Overview has selected providers, the switcher includes an Overview tab that renders up to 6 provider rows.
@@ -18,6 +26,10 @@ read_when:
 - Display → Menu Bar → Layout provides presets plus a token editor. Tokens can be clicked to append, dragged from the
   palette, reordered between one or two lines, dragged out, or removed with Delete. Layouts can be global or overridden
   per provider. Manual edits select the Custom preset.
+- All providers previews the default layout and lists enabled providers with saved overrides, even when an override
+  currently matches the default. Each “Use all-providers layout” action removes only that provider's override;
+  global edits preserve overrides, and disabled providers are left untouched. Before a default is first saved,
+  editing still starts from the representative provider's effective layout.
 - Small/Regular controls the token font scale. Tight/Regular controls status-item padding. Compact stacked uses two
   tightly spaced lines sized to fit the menu bar.
 
@@ -55,17 +67,27 @@ model-generic token label while the rendered menu-bar prefix and accessibility l
 - Renderer/critter icons dim when last refresh failed and can render incident indicators; brand display mode uses provider branding plus title text.
 - Loading animation runs at a bounded frame rate and has a hard continuous-duration ceiling so provider hangs cannot keep
   the menu bar redrawing forever.
-- The token renderer composes provider branding and text through the same attributed-title path used for high-contrast
-  status items. Critter and bar styles keep their existing renderers.
+- Ordinary, fresh single-line text-only token layouts use cached template images so AppKit can reuse them across
+  status-item redraws while retaining native highlighting and display-scale handling. The existing bounded renderer
+  cache includes the content and appearance; memory-pressure cleanup clears it. Stale data, high-contrast mode,
+  provider icons, attachments, and multiline text keep their attributed-title rendering. Critter and bar styles
+  keep their existing renderers.
 
 ## Menu card
 - Provider-specific rows with resets (countdown by default; optional absolute clock display). Primary, secondary,
   tertiary, and extra windows render when the provider snapshot has data for them.
 - Manual refresh updates the open card subtitle and persistent Refresh-row spinner in place. Repeated clicks share the
   active request, and the existing row geometry remains fixed through success or failure.
+- Live pace and metric detail text use the full row width. Updates that exceed the space reserved when the menu opened
+  show a trailing ellipsis; reopening the menu measures the updated text again.
 - Codex credits can add a separate “Buy Credits…” menu action.
+- Claude capped Extra Usage follows the used/remaining fill preference; spending amounts and “% used” copy stay unchanged.
 - Codex OpenAI web extras: code review remaining and usage breakdown render when dashboard data is attached.
 - Token accounts: optional account switcher bar or stacked account cards (up to 6) when multiple manual tokens exist.
+- Token/cost, credit-usage breakdown, credits-history, and plan-history chart date labels retain their full text width
+  in narrow menus. Credits and plan history reserve plot-edge space to avoid clipping; token/cost and usage-breakdown
+  charts retain their automatic scale range. Shared styling uses a
+  bar-centered anchor, and each chart retains its own date formatting, domain, and tick-selection behavior.
 - Provider storage usage is opt-in from Advanced settings. When enabled, overview rows and provider detail cards can show
   local provider-owned storage totals, with a submenu for path breakdowns and copyable paths.
 
@@ -100,3 +122,5 @@ Runs out tokens remain hidden until 3% of their window has elapsed.
   provider picker; detailed pipeline in `docs/widgets.md`.
 
 See also: `docs/widgets.md`.
+
+Cost-history submenus keep tall histories in a scrollable viewport. Switching Token/Cost preserves the viewport; scrolling over the chart moves through the history without moving the native menu.

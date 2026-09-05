@@ -15,6 +15,7 @@ struct CostUsageFetcherUnknownModelPricingTests {
             provider: .codex,
             now: fixture.day,
             refreshPricingInBackground: false,
+            includePiSessions: false,
             scannerOptions: fixture.options,
             modelsDevClient: ModelsDevClient(transport: CostUsageFetcherModelsDevTransport(
                 data: fixture.refreshedCatalog)))
@@ -56,6 +57,7 @@ struct CostUsageFetcherUnknownModelPricingTests {
             provider: .codex,
             now: fixture.day,
             refreshPricingInBackground: false,
+            includePiSessions: false,
             scannerOptions: fixture.options,
             modelsDevClient: ModelsDevClient(transport: CostUsageFetcherModelsDevTransport(
                 data: fixture.refreshedCatalog)))
@@ -90,6 +92,7 @@ struct CostUsageFetcherUnknownModelPricingTests {
             provider: .claude,
             now: fixture.day,
             refreshPricingInBackground: false,
+            includePiSessions: false,
             scannerOptions: fixture.options,
             modelsDevClient: ModelsDevClient(transport: CostUsageFetcherModelsDevTransport(
                 data: fixture.refreshedCatalog)))
@@ -147,6 +150,7 @@ struct CostUsageFetcherUnknownModelPricingTests {
                 provider: .codex,
                 now: fixture.day,
                 refreshPricingInBackground: true,
+                includePiSessions: false,
                 scannerOptions: fixture.options,
                 modelsDevClient: ModelsDevClient(transport: CostUsageFetcherGatedModelsDevTransport(
                     data: fixture.refreshedCatalog,
@@ -224,13 +228,15 @@ struct CostUsageFetcherUnknownModelPricingTests {
         let options = CostUsageScanner.Options(
             codexSessionsRoot: environment.codexSessionsRoot,
             claudeProjectsRoots: [environment.claudeProjectsRoot],
-            cacheRoot: environment.cacheRoot)
+            cacheRoot: environment.cacheRoot,
+            codexTraceDatabaseURL: environment.root.appendingPathComponent("missing-traces.sqlite"))
         let counter = UnknownModelPricingRequestCounter()
 
         let snapshot = try await CostUsageFetcher.loadTokenSnapshot(
             provider: .codex,
             now: day,
             refreshPricingInBackground: false,
+            includePiSessions: false,
             scannerOptions: options,
             modelsDevClient: ModelsDevClient(transport: CostUsageFetcherCountingModelsDevTransport(counter: counter)))
 
@@ -242,10 +248,11 @@ struct CostUsageFetcherUnknownModelPricingTests {
         #expect(requestCount == 0)
     }
 
-    @Test
-    func `local only fetch skips every pricing network refresh`() async throws {
+    @Test(arguments: [false, true])
+    func `local only fetch skips every pricing network refresh`(includePiSessions: Bool) async throws {
         let fixture = try UnknownModelPricingFixture()
         defer { fixture.environment.cleanup() }
+        try fixture.writePiSession()
         let counter = UnknownModelPricingRequestCounter()
 
         let snapshot = try await CostUsageFetcher.loadTokenSnapshot(
@@ -253,14 +260,39 @@ struct CostUsageFetcherUnknownModelPricingTests {
             now: fixture.day,
             allowPricingRefresh: false,
             refreshPricingInBackground: false,
+            includePiSessions: includePiSessions,
             scannerOptions: fixture.options,
+            piScannerOptions: fixture.piOptions,
             modelsDevClient: ModelsDevClient(
                 transport: CostUsageFetcherCountingModelsDevTransport(counter: counter)))
 
         let breakdown = try #require(snapshot.daily.first?.modelBreakdowns?.first)
         #expect(breakdown.modelName == "gpt-new")
         #expect(breakdown.costUSD == nil)
+        #expect(snapshot.sessionTokens == (includePiSessions ? 170 : 110))
+        #expect(snapshot.last30DaysTokens == (includePiSessions ? 170 : 110))
         #expect(await counter.requestCount == 0)
+    }
+
+    @Test
+    func `foreground pricing scheduling still requests a catalog for native plus pi usage`() async throws {
+        let fixture = try UnknownModelPricingFixture()
+        defer { fixture.environment.cleanup() }
+        try fixture.writePiSession()
+        let counter = UnknownModelPricingRequestCounter()
+
+        // This was the timestamp fixtures' old configuration: foreground is not an opt-out.
+        let snapshot = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .codex,
+            now: fixture.day,
+            refreshPricingInBackground: false,
+            scannerOptions: fixture.options,
+            piScannerOptions: fixture.piOptions,
+            modelsDevClient: ModelsDevClient(
+                transport: CostUsageFetcherCountingModelsDevTransport(counter: counter)))
+
+        #expect(snapshot.sessionTokens == 170)
+        #expect(await counter.requestCount == 1)
     }
 }
 
@@ -269,6 +301,29 @@ private struct UnknownModelPricingFixture {
     let day: Date
     let options: CostUsageScanner.Options
     let refreshedCatalog: Data
+
+    var piOptions: PiSessionCostScanner.Options {
+        PiSessionCostScanner.Options(
+            piSessionsRoot: self.environment.piSessionsRoot,
+            cacheRoot: self.environment.cacheRoot,
+            refreshMinIntervalSeconds: 0)
+    }
+
+    func writePiSession() throws {
+        _ = try self.environment.writePiSessionFile(
+            relativePath: "2026-04-12T12-00-00-000Z_pricing.jsonl",
+            contents: self.environment.jsonl([[
+                "type": "message",
+                "timestamp": self.environment.isoString(for: self.day),
+                "message": [
+                    "role": "assistant",
+                    "provider": "openai-codex",
+                    "model": "gpt-new",
+                    "timestamp": Int(self.day.timeIntervalSince1970 * 1000),
+                    "usage": ["input": 50, "output": 10, "totalTokens": 60],
+                ],
+            ]]))
+    }
 
     init() throws {
         let environment = try CostUsageTestEnvironment()
@@ -347,7 +402,8 @@ private struct UnknownModelPricingFixture {
         self.options = CostUsageScanner.Options(
             codexSessionsRoot: environment.codexSessionsRoot,
             claudeProjectsRoots: [environment.claudeProjectsRoot],
-            cacheRoot: environment.cacheRoot)
+            cacheRoot: environment.cacheRoot,
+            codexTraceDatabaseURL: environment.root.appendingPathComponent("missing-traces.sqlite"))
     }
 }
 

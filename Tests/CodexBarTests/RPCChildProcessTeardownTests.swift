@@ -69,7 +69,10 @@ struct RPCChildProcessTeardownTests {
         let fetcher = UsageFetcher(
             environment: ["CODEX_CLI_PATH": scriptURL.path],
             initializeTimeoutSeconds: 5,
-            requestTimeoutSeconds: 2)
+            requestTimeoutSeconds: 2,
+            codexExecutableResolver: { _, _ in
+                CodexExecutableResolution(executable: scriptURL.path, loginPATH: [])
+            })
 
         let error = await #expect(throws: RPCWireError.self) {
             _ = try await fetcher.loadLatestCLIAccountSnapshot()
@@ -146,7 +149,10 @@ struct RPCChildProcessTeardownTests {
                 "CODEXBAR_PROOF_PID_FILE": pidURL.path,
             ],
             initializeTimeoutSeconds: 20.0,
-            requestTimeoutSeconds: 3.0)
+            requestTimeoutSeconds: 3.0,
+            codexExecutableResolver: { _, _ in
+                CodexExecutableResolution(executable: scriptURL.path, loginPATH: [])
+            })
 
         _ = try await fetcher.loadLatestCLIAccountSnapshot()
 

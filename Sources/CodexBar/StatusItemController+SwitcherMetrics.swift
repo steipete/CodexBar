@@ -15,6 +15,16 @@ extension StatusItemController {
                 supportsAverage: false)
         } else if provider == .mistral {
             nil
+        } else if preference == .automatic,
+                  MenuBarMetricWindowResolver.automaticSelectionPrioritizesExhaustedWindow(for: provider),
+                  let automatic = MenuBarMetricWindowResolver.rateWindow(
+                      preference: .automatic,
+                      provider: provider,
+                      snapshot: snapshot,
+                      supportsAverage: false),
+                  automatic.usedPercent >= 100
+        {
+            automatic
         } else {
             snapshot?.switcherWeeklyWindow(for: provider, showUsed: showUsed)
         }

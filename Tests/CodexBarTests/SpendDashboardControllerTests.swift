@@ -53,9 +53,11 @@ struct SpendDashboardControllerTests {
         #expect(contexts.first?.includePiSessions == false)
     }
 
-    @Test
-    func `Codex auth rotation invalidates stale spend while retaining unrelated providers`() async throws {
-        let home = FileManager.default.temporaryDirectory
+    @Test(CodexCredentialFixtures(), arguments: [Duration.zero, .milliseconds(100)])
+    func `Codex auth rotation invalidates stale spend while retaining unrelated providers`(
+        completionDelay: Duration) async throws
+    {
+        let home = CodexCredentialFixtures.root
             .appendingPathComponent(
                 "SpendDashboardControllerTests-auth-rotation-\(UUID().uuidString)",
                 isDirectory: true)
@@ -72,7 +74,7 @@ struct SpendDashboardControllerTests {
             authFingerprint: CodexAuthFingerprint.fingerprint(data: originalAuth),
             authFileWasReadable: true,
             cacheIdentity: "auth-rotation")
-        let gate = SpendDashboardCodexSnapshotGate()
+        let gate = SpendDashboardPendingLoads<CostUsageTokenSnapshot>()
         let recorder = SpendDashboardLoadResultRecorder()
         let configuration = SpendDashboardConfiguration(
             costUsageEnabled: true,
@@ -91,27 +93,34 @@ struct SpendDashboardControllerTests {
                     force: mode.forcesLoader)
             },
             loader: { request in
-                let result = await SpendDashboardSource.load(request, codexSnapshotLoader: { context in
-                    await gate.load(context)
+                let result = await SpendDashboardSource.load(request, codexSnapshotLoader: { _ in
+                    let snapshot = try await gate.load()
+                    try await Task.sleep(for: completionDelay)
+                    return snapshot
                 })
                 await recorder.record(result)
                 return result
             })
+        defer {
+            controller.stop()
+            gate.close()
+        }
 
         controller.update(configuration: configuration)
-        await Self.waitForCodexPendingCount(1, gate: gate)
-        await gate.resume(at: 0, snapshot: Self.input(cost: 6).snapshot)
-        await Self.waitUntil { !controller.isRefreshing }
+        try await gate.waitForPendingCount(1)
+        gate.resume(returning: Self.input(cost: 6).snapshot)
+        try await SpendDashboardStateWait.until { !controller.isRefreshing }
         #expect(controller.model.groups.first?.totalCost == 8)
 
         controller.refresh()
-        await Self.waitForCodexPendingCount(1, gate: gate)
+        try await gate.waitForPendingCount(1)
         let replacementAuth = Data("{\"profile\":\"owner-two\"}".utf8)
         try replacementAuth.write(to: authURL, options: .atomic)
-        await gate.resume(at: 0, snapshot: Self.input(cost: 99).snapshot)
-        await Self.waitUntil { !controller.isRefreshing }
+        gate.resume(returning: Self.input(cost: 99).snapshot)
+        try await SpendDashboardStateWait.until { !controller.isRefreshing }
 
         let results = await recorder.results
+        try #require(results.count == 2)
         #expect(results.last?.invalidatedSourceIDs == ["codex:account"])
         #expect(results.last?.failedSourceIDs == ["codex:account"])
         #expect(controller.failedSourceCount == 1)
@@ -332,7 +341,7 @@ struct SpendDashboardControllerTests {
             settings: settings,
             startupBehavior: .testing,
             environmentBase: [:])
-        store.publishConfirmedEmptyTokenSnapshot(for: .claude)
+        store._setSpendDashboardTokenSnapshotForTesting(nil, for: .claude)
 
         let request = await SpendDashboardSource.makeRequest(
             settings: settings,
@@ -865,16 +874,6 @@ struct SpendDashboardControllerTests {
         Issue.record("Timed out waiting for \(count) pending loads")
     }
 
-    private static func waitForCodexPendingCount(_ count: Int, gate: SpendDashboardCodexSnapshotGate) async {
-        for _ in 0..<1000 {
-            if await gate.pendingCount == count {
-                return
-            }
-            await Task.yield()
-        }
-        Issue.record("Timed out waiting for \(count) pending Codex loads")
-    }
-
     static func waitUntil(_ condition: @MainActor () -> Bool) async {
         for _ in 0..<1000 {
             if condition() {
@@ -1229,25 +1228,6 @@ private actor SpendDashboardLoadResultRecorder {
 
     func record(_ result: SpendDashboardLoadResult) {
         self.results.append(result)
-    }
-}
-
-private actor SpendDashboardCodexSnapshotGate {
-    private var continuations: [CheckedContinuation<CostUsageTokenSnapshot, Never>] = []
-
-    var pendingCount: Int {
-        self.continuations.count
-    }
-
-    func load(_ context: CodexSpendSnapshotLoadContext) async -> CostUsageTokenSnapshot {
-        _ = context
-        return await withCheckedContinuation { continuation in
-            self.continuations.append(continuation)
-        }
-    }
-
-    func resume(at index: Int, snapshot: CostUsageTokenSnapshot) {
-        self.continuations.remove(at: index).resume(returning: snapshot)
     }
 }
 

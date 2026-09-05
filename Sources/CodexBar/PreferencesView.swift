@@ -60,6 +60,10 @@ struct PreferencesView: View {
     let runProviderLoginFlow: @MainActor (UsageProvider) async -> Void
     @Environment(\.colorScheme) private var colorScheme
     @AppStorage(SettingsPane.sidebarWidthDefaultsKey) private var sidebarWidth: Double = SettingsPane.sidebarWidth
+    /// Measured titlebar height used to size the detail titlebar cover. Read from the window rather
+    /// than from a `GeometryReader`: SwiftUI hands the top safe-area inset to the detail scroll view as
+    /// a content inset, so a proxy read inside this column returns zero and collapses the cover.
+    @State private var detailTitlebarInset: CGFloat = 0
 
     /// The persisted width, guarded against out-of-range values (edited defaults,
     /// bounds that shrank in an update) so a bad stored value can't wreck the layout.
@@ -113,6 +117,29 @@ struct PreferencesView: View {
                     maxHeight: .infinity,
                     alignment: .topLeading)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                // The panes hide their scroll background, and the window uses a transparent full-size
+                // titlebar, so without an opaque detail backing the grouped Form content renders through
+                // the titlebar region and overlaps the window title. Mirror the sidebar's material so the
+                // detail-side titlebar region has a stable backing in every pane and appearance. The
+                // zero-sized reader reports the window's titlebar height so the cover below matches it.
+                .background {
+                    SettingsDetailMaterial()
+                        .ignoresSafeArea()
+                        .overlay {
+                            SettingsTitlebarInsetReader(inset: self.$detailTitlebarInset)
+                                .frame(width: 0, height: 0)
+                        }
+                }
+                // Cover the transparent titlebar strip over the detail so scrolling Form content stays
+                // below it — matching the sidebar's clean top edge instead of riding up over the window
+                // title. The window draws its title above this cover.
+                .overlay(alignment: .top) {
+                    SettingsDetailTitlebarCoverMaterial()
+                        .frame(height: self.detailTitlebarInset)
+                        .frame(maxWidth: .infinity)
+                        .ignoresSafeArea(edges: .top)
+                        .allowsHitTesting(false)
+                }
                 .overlay(alignment: .leading) {
                     self.sidebarResizeHandle
                 }
@@ -408,6 +435,97 @@ private struct SettingsSidebarMaterial: NSViewRepresentable {
     private func configure(_ view: NSVisualEffectView) {
         view.material = .sidebar
         view.blendingMode = .behindWindow
+        view.state = .followsWindowActiveState
+    }
+}
+
+/// Opaque window-background backing for the detail column. Because the detail panes hide their
+/// grouped-Form scroll background and the window uses a transparent full-size titlebar, the detail
+/// needs its own backing so scrolling content cannot render through the titlebar region.
+@MainActor
+private struct SettingsDetailMaterial: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        self.configure(view)
+        return view
+    }
+
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
+        self.configure(nsView)
+    }
+
+    private func configure(_ view: NSVisualEffectView) {
+        view.material = .windowBackground
+        view.blendingMode = .behindWindow
+        view.state = .followsWindowActiveState
+    }
+}
+
+/// Reports the window's titlebar height - the strip the transparent full-size titlebar draws over - so the
+/// detail cover can match it exactly.
+@MainActor
+private struct SettingsTitlebarInsetReader: NSViewRepresentable {
+    @Binding var inset: CGFloat
+
+    @MainActor
+    final class InsetReadingView: NSView {
+        var onChange: ((CGFloat) -> Void)?
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            self.report()
+        }
+
+        override func layout() {
+            super.layout()
+            self.report()
+        }
+
+        private func report() {
+            guard let window else { return }
+            self.onChange?(max(0, window.frame.height - window.contentLayoutRect.height))
+        }
+    }
+
+    func makeNSView(context: Context) -> InsetReadingView {
+        let view = InsetReadingView()
+        self.configure(view)
+        return view
+    }
+
+    func updateNSView(_ nsView: InsetReadingView, context: Context) {
+        self.configure(nsView)
+    }
+
+    private func configure(_ view: InsetReadingView) {
+        view.onChange = { value in
+            // Reported from AppKit's layout pass; defer so SwiftUI state does not change mid-update.
+            DispatchQueue.main.async {
+                guard self.inset != value else { return }
+                self.inset = value
+            }
+        }
+    }
+}
+
+/// The titlebar strip over the detail column. Blends *within* the window so scrolled Form content frosts
+/// as it passes underneath, the way a standard macOS toolbar treats content scrolling under it, instead of
+/// being cut off against a flat fill.
+@MainActor
+private struct SettingsDetailTitlebarCoverMaterial: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        self.configure(view)
+        return view
+    }
+
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
+        self.configure(nsView)
+    }
+
+    private func configure(_ view: NSVisualEffectView) {
+        view.material = .headerView
+        view.blendingMode = .withinWindow
         view.state = .followsWindowActiveState
     }
 }

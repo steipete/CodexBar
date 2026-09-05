@@ -18,7 +18,7 @@ enum AmpUsageParser {
     }
 
     static func parse(displayText: String, now: Date = Date()) throws -> AmpUsageSnapshot {
-        let text = TextParsing.stripANSICodes(displayText)
+        let text = TextParsing.stripANSICodes(displayText).replacingOccurrences(of: "**", with: "")
         let identityPattern = #"(?im)^\s*Signed in as\s+([^\s(]+)(?:\s+\(([^\r\n)]+)\))?\s*$"#
         let identity = self.captures(in: text, pattern: identityPattern)
         if identity == nil, self.looksSignedOut(text) {

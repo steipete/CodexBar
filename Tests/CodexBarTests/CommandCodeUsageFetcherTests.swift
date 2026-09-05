@@ -390,10 +390,34 @@ struct CommandCodeUsageFetcherTests {
     }
 
     @Test
+    func `active pro-v1 subscription resolves to the eighty dollar plan`() async throws {
+        let proV1JSON = Self.subscriptionJSON.replacingOccurrences(
+            of: #""planId":"individual-go""#,
+            with: #""planId":"individual-pro-v1""#)
+        let transport = ProviderHTTPTransportStub { request in
+            let path = try #require(request.url?.path)
+            let body = path.hasSuffix("/credits") ? Self.creditsJSON : proV1JSON
+            return try Self.response(request: request, statusCode: 200, body: body)
+        }
+
+        let snapshot = try await CommandCodeUsageFetcher.fetchUsage(
+            cookieHeader: "session=valid",
+            session: transport)
+
+        let plan = try #require(snapshot.plan)
+        #expect(plan.id == "individual-pro-v1")
+        #expect(plan.monthlyCreditsUSD == 80)
+        #expect(snapshot.monthlyCreditsTotal == 80)
+        #expect(abs((snapshot.monthlyCreditsUsed ?? -1) - 71.2216) < 0.0001)
+        #expect(snapshot.subscriptionEnrichmentUnavailable == false)
+    }
+
+    @Test
     func `plan catalog covers known plans`() {
         #expect(CommandCodePlanCatalog.plan(forID: "individual-go")?.monthlyCreditsUSD == 10)
         #expect(CommandCodePlanCatalog.plan(forID: "individual-goat")?.monthlyCreditsUSD == 70)
         #expect(CommandCodePlanCatalog.plan(forID: "individual-pro")?.monthlyCreditsUSD == 30)
+        #expect(CommandCodePlanCatalog.plan(forID: "individual-pro-v1")?.monthlyCreditsUSD == 80)
         #expect(CommandCodePlanCatalog.plan(forID: "individual-max")?.monthlyCreditsUSD == 150)
         #expect(CommandCodePlanCatalog.plan(forID: "individual-ultra")?.monthlyCreditsUSD == 300)
         #expect(CommandCodePlanCatalog.plan(forID: "unknown") == nil)

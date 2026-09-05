@@ -251,18 +251,22 @@ struct OpenCodeGoUsageParserTests {
         #expect(snapshot.weeklyResetInSec == 7200)
     }
 
-    @Test
-    func `computes usage percent from totals and treats monthly as optional`() throws {
+    @Test(arguments: [(25.0, 100.0, 25.0), (1, 100, 1), (1, 200, 0.5)])
+    func `computes usage percent from totals and treats monthly as optional`(
+        used: Double,
+        limit: Double,
+        percent: Double) throws
+    {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let payload: [String: Any] = [
             "rollingUsage": [
-                "used": 25,
-                "limit": 100,
+                "used": used,
+                "limit": limit,
                 "resetInSec": 600,
             ],
             "weeklyUsage": [
-                "used": 50,
-                "limit": 200,
+                "used": used * 2,
+                "limit": limit * 2,
                 "resetInSec": 3600,
             ],
         ]
@@ -272,8 +276,8 @@ struct OpenCodeGoUsageParserTests {
         let snapshot = try OpenCodeGoUsageFetcher.parseSubscription(text: text, now: now)
         let usage = snapshot.toUsageSnapshot()
 
-        #expect(snapshot.rollingUsagePercent == 25)
-        #expect(snapshot.weeklyUsagePercent == 25)
+        #expect(snapshot.rollingUsagePercent == percent)
+        #expect(snapshot.weeklyUsagePercent == percent)
         #expect(snapshot.hasMonthlyUsage == false)
         #expect(snapshot.monthlyUsagePercent == 0)
         #expect(snapshot.monthlyResetInSec == 0)

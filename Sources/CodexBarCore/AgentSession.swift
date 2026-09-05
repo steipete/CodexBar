@@ -149,6 +149,22 @@ struct DirectoryMetadataScanBudget {
         clock() < self.deadline
     }
 
+    func compactMapWhileTimeRemains<Result>(
+        _ urls: [URL],
+        clock: () -> Date = Date.init,
+        transform: (URL) -> Result?) -> [Result]
+    {
+        var results: [Result] = []
+        for url in urls {
+            // Enumeration already charged the entry count; enrichment shares its deadline.
+            guard self.hasTimeRemaining(clock: clock) else { break }
+            if let result = transform(url) {
+                results.append(result)
+            }
+        }
+        return results
+    }
+
     private mutating func entries(
         in directory: URL,
         fileManager: FileManager,
@@ -168,6 +184,7 @@ struct DirectoryMetadataScanBudget {
             guard let url = enumerator.nextObject() as? URL else { break }
             self.remainingEntryCount -= 1
             self.didVisitEntry?()
+            guard self.hasTimeRemaining(clock: clock) else { break }
             let isDirectory = (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
             entries.append((url, isDirectory))
         }
@@ -296,6 +313,28 @@ public enum AgentPSOutputParser {
         }
     }
 
+    static func chatGPTCodexAppServerExecutable(
+        in records: [AgentProcessRecord],
+        homeDirectory: URL) -> String?
+    {
+        let allowedPaths = Set([
+            URL(fileURLWithPath: "/Applications/ChatGPT.app/Contents/Resources/codex")
+                .standardizedFileURL.path,
+            homeDirectory.appendingPathComponent("Applications/ChatGPT.app/Contents/Resources/codex")
+                .standardizedFileURL.path,
+        ])
+
+        return records.lazy.compactMap { record -> String? in
+            guard record.executableBasename.lowercased() == AgentSession.Provider.codex.rawValue,
+                  self.arguments(record.command).contains("app-server"),
+                  let executable = record.command.split(whereSeparator: \ .isWhitespace).first
+            else { return nil }
+
+            let path = URL(fileURLWithPath: String(executable)).standardizedFileURL.path
+            return allowedPaths.contains(path) ? path : nil
+        }.first
+    }
+
     private static func arguments(_ command: String) -> [String] {
         command.split(whereSeparator: \ .isWhitespace).dropFirst().map(String.init)
     }
@@ -320,8 +359,9 @@ public enum AgentPSOutputParser {
     private static func isCodexAgentExecutable(_ command: String) -> Bool {
         let lowercased = command.lowercased()
         guard lowercased.contains(".app/") else { return true }
-        return lowercased.hasPrefix("/applications/codex.app/contents/resources/codex ") ||
-            lowercased.hasPrefix("/applications/codex.app/contents/resources/codex\t")
+        let executable = lowercased.split(whereSeparator: \ .isWhitespace).first.map(String.init)
+        return executable == "/applications/codex.app/contents/resources/codex" ||
+            executable == "/applications/chatgpt.app/contents/resources/codex"
     }
 
     private static func isClaudeAgentExecutable(_ command: String) -> Bool {

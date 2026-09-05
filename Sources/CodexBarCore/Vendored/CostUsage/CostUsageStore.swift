@@ -53,9 +53,12 @@ actor CostUsageStore {
 
     private final class SQLiteConnection: @unchecked Sendable {
         private(set) var handle: OpaquePointer?
+        let identity: DatabaseIdentity?
+        let generation = UUID()
 
-        init(handle: OpaquePointer) {
+        init(handle: OpaquePointer, identity: DatabaseIdentity?) {
             self.handle = handle
+            self.identity = identity
         }
 
         func close() {
@@ -77,21 +80,52 @@ actor CostUsageStore {
         parserHash: CodexParserHash.value)
     static let cacheGeneration = "sqlite:\(CostUsageStore.schemaVersion)"
     static let compatiblePredecessorParserHashes: Set<String> = [
+        "2590d36e1cc4a2ea", // Lazy token history reads preserve persisted rows and scan checkpoints.
+        "edd0a6ad56c0e4e7", // Astra pricing changes report costs without changing native rows or scan checkpoints.
+        "f043ae98075c8e4d", // Retained scan-range scheduling preserves native rows, checkpoints, and reports.
+        "e3fca1e6d81137d6", // Empty-fragment retention preserves native rows, checkpoints, and retained reports.
+        "e0b0319de43e22d7", // LF-span scanning preserves exact bytes, persisted checkpoints, rows, and reports.
+        "7e293e8fc9e25700", // Optional priority validation metadata preserves native usage rows.
+        "494eee446bb2e5f9", // Removing unused Claude parser days leaves native Codex semantics unchanged.
+        "6366caa15c925349", // Claude invocation pricing memos leave native Codex parsing and pricing unchanged.
+        "4a593b5d59c7bcf3", // Scan receipt wiring preserves parsing and persisted rows.
+        "b77d4ec72e14ea63", // Timestamp and append validation optimization preserves native rows and checkpoints.
+        "7b1b44d62a411215", // Test-only trace isolation leaves production parsing and stored history unchanged.
+        "d9a91f31d0addc15", // Drain abandoned discovery without changing parsed rows or stored history.
+        "f8577be489f4c13d", // Claude-only pricing aliases leave native Codex rows, cursors, and reports unchanged.
+        "21f10143afe00c55", // Read-view retry presence leaves parsed rows and persisted scanner state unchanged.
+        "55f640e6bb0ccba4", // Cursor's optional coverage field leaves native rows and retained reports unchanged.
+        "c6c46a376ba16304", // 0.55.1 scheduler transition; rows and scoped retained reports are unchanged.
+        "dd19ffa2dcfa8d47", // Current main before report-window scoping; persisted rows unchanged.
+        "8050a4faf4fddb96", // PR base before retained-report persistence; parsed rows unchanged.
+        "cfd84d13ad7d4cfa", // 0.55.x scan scheduling and progress bookkeeping; persisted rows unchanged.
         "98da5914d2f6a9cd", // Pushed PR producer before retry signaling; persisted rows unchanged.
         "43609cc56f76a003", // 0.49.3 request-tier pricing; persisted row shape unchanged.
         "b975eb705f905b9a", // 0.49.0-0.49.2 SQLite producer with compatible rows.
         "47144baa8daccf52", // This branch changes only scan scheduling, discovery, and persistence bookkeeping.
+        "2d17f4981b78d07f", // Persisted priority-turn cursor; parser and persisted row shape unchanged.
+        "3c984b655688593f", // 0.54.x row-ownership evidence fix; parser and persisted row shape unchanged.
+        "5f8507161b23757c", // 0.54.2 tokscale parity + priority evidence; persisted row shape unchanged.
+    ]
+    static let incompatibleRetainedReportPredecessorParserHashes: Set<String> = [
+        "dd19ffa2dcfa8d47",
+        "2d17f4981b78d07f",
+        "8050a4faf4fddb96",
     ]
 
     /// Test-only crash injection: invoked inside `saveCodexCache`'s transaction after each
     /// persisted file with the running count, so a crash-safety harness can SIGKILL the
     /// process at a deterministic mid-save point. Never set in production.
     nonisolated(unsafe) static var saveCycleCheckpointForTesting: ((Int) -> Void)?
-    /// Test-only interleaving point after optimistic identity succeeds and before its writer lock.
-    nonisolated(unsafe) static var identicalContentPreLockCheckpointForTesting: (() -> Void)?
+    /// Test-only interleaving point scoped to one database so parallel store fixtures stay isolated.
+    nonisolated(unsafe) static var identicalContentPreLockCheckpointForTesting: (
+        databaseURL: URL,
+        checkpoint: () -> Void)?
 
     /// Test-only traversal proof for persisted Codex catch-up reconciliation. Never set in production.
     nonisolated(unsafe) static var codexCatchUpReconciliationVisitForTesting: (() -> Void)?
+    /// Test-only read failures scoped by database and path. Never set in production.
+    nonisolated(unsafe) static var codexTokenSnapshotReadFailureForTesting: ((URL, String) -> Bool)?
 
     /// Process-wide serialization keeps every writable store connection on the same queue.
     /// This matches the scan pipeline's single-writer contract without multiplying executor
@@ -105,7 +139,13 @@ actor CostUsageStore {
     nonisolated let databaseURL: URL
     private let expectedSchemaVersion: Int32
     private let expectedParserHash: String
+    private let busyTimeoutMilliseconds: Int32
     private var connection: SQLiteConnection?
+    private var failureGeneration = UUID()
+    var retainedCodexBaseline: RetainedCodexBaseline?
+    #if DEBUG
+    var codexBaselineReleaseObserverForTesting: (@Sendable () -> Void)?
+    #endif
     private(set) var rebuildCount = 0
     /// While a save cycle's enclosing transaction is open, nested `withDatabase` calls join
     /// it instead of opening their own connection scope, and the first failure aborts the
@@ -116,7 +156,8 @@ actor CostUsageStore {
     init(
         cacheRoot: URL? = nil,
         schemaVersion: Int32 = CostUsageStore.schemaVersion,
-        parserHash: String = CodexParserHash.value)
+        parserHash: String = CodexParserHash.value,
+        busyTimeoutMilliseconds: Int32 = 5000)
     {
         let root = cacheRoot ?? FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
             .appendingPathComponent("CodexBar", isDirectory: true)
@@ -125,6 +166,7 @@ actor CostUsageStore {
             .appendingPathComponent(Self.databaseFilename, isDirectory: false)
         self.expectedSchemaVersion = schemaVersion
         self.expectedParserHash = parserHash
+        self.busyTimeoutMilliseconds = busyTimeoutMilliseconds
     }
 
     static func combinedSchemaVersion(base: Int, parserHash: String) -> Int32 {
@@ -153,9 +195,65 @@ extension CostUsageStore {
         }
     }
 
+    nonisolated func syncLoadCodexScan(calendar: Calendar) -> CostUsageStoreLoad {
+        self.syncWithStoreIsolation { $0.loadCodexScan(calendar: calendar) }
+    }
+
+    nonisolated func syncReleaseCodexBaseline(_ receipt: CodexBaselineReceipt) {
+        self.syncWithStoreIsolation { $0.releaseCodexBaseline(receipt) }
+    }
+
     nonisolated func syncLoadCodexCache(calendar: Calendar) -> CostUsageCache {
         self.syncWithStoreIsolation { store in
             store.loadCodexCache(calendar: calendar)
+        }
+    }
+
+    nonisolated func syncLoadCodexTokenSnapshotsIfAvailable(
+        paths: Set<String>,
+        receipt: CodexBaselineReceipt) -> [String: [CostUsageStoreTokenSnapshot]]?
+    {
+        self.syncWithStoreIsolation { store in
+            guard let stamp = store.codexBaselineStamp(for: receipt),
+                  store.currentDatabaseStamp() == stamp,
+                  let database = store.connection?.handle
+            else { return nil }
+            do {
+                // Reuse the loaded connection: reopening could rebuild a concurrent replacement.
+                let snapshots = try Self.inReadTransaction(database) {
+                    var snapshots: [String: [CostUsageStoreTokenSnapshot]] = [:]
+                    for path in paths.sorted() {
+                        if Self.codexTokenSnapshotReadFailureForTesting?(store.databaseURL, path) == true {
+                            throw StoreError.sqlite(SQLITE_IOERR)
+                        }
+                        snapshots[path] = try Self.readTokenSnapshots(
+                            database, path: path, recorder: store.scopedReadWorkRecorderForTesting)
+                        #if DEBUG
+                        if let checkpoint = Self.codexTokenHydrationCheckpointForTesting,
+                           checkpoint.databaseURL == store.databaseURL
+                        {
+                            try checkpoint.checkpoint()
+                        }
+                        #endif
+                    }
+                    return snapshots
+                }
+                // A read transaction pins data_version; validate again only after COMMIT.
+                guard store.currentDatabaseStamp() == stamp else { return nil }
+                return snapshots
+            } catch {
+                store.recoverConnectionAfterFailure()
+                return nil
+            }
+        }
+    }
+
+    nonisolated func syncLoadCodexReadView(
+        calendar: Calendar,
+        purpose: CostUsageStoreReadPurpose) -> CostUsageStoreReadView
+    {
+        self.syncWithStoreIsolation { store in
+            store.loadCodexReadView(calendar: calendar, purpose: purpose)
         }
     }
 
@@ -166,7 +264,9 @@ extension CostUsageStore {
         reportWindow: (sinceKey: String, untilKey: String)? = nil,
         rowBudget: Int = CostUsageStore.defaultRowBudget,
         fileBudgetBytes: Int64 = CostUsageStore.defaultFileBudgetBytes,
-        skipIdenticalContent: Bool = false) -> CostUsageStoreBudgetResult
+        unloadedTokenSnapshotPaths: Set<String> = [],
+        skipIdenticalContent: Bool = false,
+        receipt: CodexBaselineReceipt? = nil) -> CostUsageStoreBudgetResult
     {
         self.syncWithStoreIsolation { store in
             store.saveCodexCache(
@@ -176,7 +276,9 @@ extension CostUsageStore {
                 reportWindow: reportWindow,
                 rowBudget: rowBudget,
                 fileBudgetBytes: fileBudgetBytes,
-                skipIdenticalContent: skipIdenticalContent)
+                unloadedTokenSnapshotPaths: unloadedTokenSnapshotPaths,
+                skipIdenticalContent: skipIdenticalContent,
+                receipt: receipt)
         }
     }
 }
@@ -197,7 +299,7 @@ extension CostUsageStore {
             // exactly the partial-save state the transaction exists to prevent. Skip them.
             guard self.activeTransactionError == nil else { return fallback }
             do {
-                return try operation(database)
+                return try self.performDatabaseOperation(database, operation)
             } catch {
                 self.activeTransactionError = error
                 return fallback
@@ -205,7 +307,7 @@ extension CostUsageStore {
         }
         do {
             let database = try self.ensureDatabase()
-            return try operation(database)
+            return try self.performDatabaseOperation(database, operation)
         } catch {
             guard Self.shouldRebuild(after: error) else {
                 self.recoverConnectionAfterFailure()
@@ -215,7 +317,7 @@ extension CostUsageStore {
             self.rebuildDatabase(reason: "operation failed: \(error)")
             do {
                 let database = try self.ensureDatabase()
-                return try operation(database)
+                return try self.performDatabaseOperation(database, operation)
             } catch {
                 if Self.shouldRebuild(after: error) {
                     self.rebuildDatabase(reason: "retry failed: \(error)")
@@ -231,14 +333,19 @@ extension CostUsageStore {
     /// Opens the save cycle's all-or-nothing transaction: a single BEGIN IMMEDIATE spanning
     /// every store call made until `endSaveTransaction()`. Nested `withDatabase` calls join
     /// the open transaction and the first inner failure aborts the cycle, so a crash or
-    /// error midway leaves the previous on-disk state fully intact — matching the old JSON
-    /// path's atomic single-file replace. Callers must stop the save when this returns false.
+    /// error midway leaves the previous on-disk state fully intact. Use only the loaded connection;
+    /// a replaced database must request a rescan rather than reopen/recover during this save.
     @discardableResult
     func beginSaveTransaction() -> Bool {
-        self.withDatabase(default: false) { database in
+        guard self.activeTransactionDatabase == nil, let database = self.connection?.handle else { return false }
+        do {
+            guard try self.connectionMatchesPath(database) else { return false }
             try Self.execute(database, "BEGIN IMMEDIATE")
             self.activeTransactionDatabase = database
             return true
+        } catch {
+            self.recoverConnectionAfterFailure()
+            return false
         }
     }
 
@@ -291,7 +398,9 @@ extension CostUsageStore {
     /// After a preserved (non-rebuild) failure the connection may still hold an open
     /// transaction if ROLLBACK itself failed. Roll back, or drop the connection so the
     /// next access reopens the intact file.
-    private func recoverConnectionAfterFailure() {
+    func recoverConnectionAfterFailure() {
+        self.retainedCodexBaseline = nil
+        self.failureGeneration = UUID()
         guard let handle = self.connection?.handle else { return }
         if sqlite3_get_autocommit(handle) == 0,
            sqlite3_exec(handle, "ROLLBACK", nil, nil, nil) != SQLITE_OK
@@ -301,13 +410,112 @@ extension CostUsageStore {
         }
     }
 
+    struct DatabaseIdentity: Equatable {
+        var device: UInt64
+        var inode: UInt64
+    }
+
+    struct DatabaseStamp: Equatable {
+        var generation: UUID
+        var failureGeneration: UUID
+        var identity: DatabaseIdentity
+        var dataVersion: Int64
+        var totalChanges: Int64
+        var schemaVersion: Int64
+        var userVersion: Int64
+        var parserHash: String?
+    }
+
+    private static func databaseIdentity(at url: URL) -> DatabaseIdentity? {
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
+              let device = attributes[.systemNumber] as? NSNumber,
+              let inode = attributes[.systemFileNumber] as? NSNumber else { return nil }
+        return DatabaseIdentity(device: device.uint64Value, inode: inode.uint64Value)
+    }
+
+    private func connectionMatchesPath(_ database: OpaquePointer) throws -> Bool {
+        var moved: Int32 = 0
+        // Path attributes alone cannot identify the file held by SQLite after replacement.
+        guard sqlite3_file_control(database, "main", SQLITE_FCNTL_HAS_MOVED, &moved) == SQLITE_OK else {
+            throw StoreError.sqlite(SQLITE_IOERR)
+        }
+        guard moved == 0, let identity = self.connection?.identity else { return false }
+        return identity == Self.databaseIdentity(at: self.databaseURL)
+    }
+
+    func databaseStamp(_ database: OpaquePointer) throws -> DatabaseStamp? {
+        guard self.connection?.handle == database,
+              let connection = self.connection,
+              let identity = connection.identity,
+              try self.connectionMatchesPath(database)
+        else { return nil }
+        let stamp = try DatabaseStamp(
+            generation: connection.generation,
+            failureGeneration: self.failureGeneration,
+            identity: identity,
+            dataVersion: Self.scalarInt(database, "PRAGMA data_version"),
+            totalChanges: sqlite3_total_changes64(database),
+            schemaVersion: Self.scalarInt(database, "PRAGMA schema_version"),
+            userVersion: Self.scalarInt(database, "PRAGMA user_version"),
+            parserHash: Self.scalarText(database, "SELECT value FROM meta WHERE key = 'parser_hash'"))
+        guard stamp.userVersion == Int64(self.expectedSchemaVersion), stamp.parserHash == self.expectedParserHash else {
+            return nil
+        }
+        return stamp
+    }
+
+    func currentDatabaseStamp() -> DatabaseStamp? {
+        guard self.activeTransactionError == nil, let database = self.connection?.handle else { return nil }
+        // A failed reuse check is a rescan, not permission to recover/rebuild a concurrent writer's database.
+        return try? self.databaseStamp(database)
+    }
+
+    private func performDatabaseOperation<T>(
+        _ database: OpaquePointer,
+        _ operation: (OpaquePointer) throws -> T) throws -> T
+    {
+        let changes = sqlite3_total_changes64(database)
+        defer {
+            if sqlite3_total_changes64(database) != changes {
+                self.retainedCodexBaseline = nil
+            } else if let retained = self.retainedCodexBaseline,
+                      (try? Self.scalarInt(database, "PRAGMA schema_version")) != retained.baseline.stamp.schemaVersion
+                      || (try? Self.scalarInt(database, "PRAGMA user_version")) != retained.baseline.stamp.userVersion
+            {
+                self.retainedCodexBaseline = nil
+            }
+        }
+        do {
+            return try operation(database)
+        } catch {
+            self.retainedCodexBaseline = nil
+            self.failureGeneration = UUID()
+            throw error
+        }
+    }
+
+    #if DEBUG
+    func closeConnectionForTesting() {
+        self.retainedCodexBaseline = nil
+        self.connection?.close()
+        self.connection = nil
+    }
+    #endif
+
     func ensureDatabase() throws -> OpaquePointer {
         if let database = self.connection?.handle {
-            return database
+            if try self.connectionMatchesPath(database) {
+                return database
+            }
+            self.retainedCodexBaseline = nil
+            // Never reopen underneath a transaction (including its COMMIT/ROLLBACK).
+            guard sqlite3_get_autocommit(database) != 0 else { throw StoreError.sqlite(SQLITE_IOERR) }
+            self.connection?.close()
+            self.connection = nil
         }
         do {
             let opened = try self.openDatabase()
-            self.connection = SQLiteConnection(handle: opened)
+            self.connection = SQLiteConnection(handle: opened, identity: Self.databaseIdentity(at: self.databaseURL))
             return opened
         } catch {
             guard Self.shouldRebuild(after: error) else { throw error }
@@ -331,7 +539,7 @@ extension CostUsageStore {
             throw StoreError.sqlite(result)
         }
         do {
-            try Self.configure(opened)
+            try Self.configure(opened, busyTimeoutMilliseconds: self.busyTimeoutMilliseconds)
             if existed {
                 try self.validateExistingDatabase(opened)
             } else {
@@ -347,14 +555,14 @@ extension CostUsageStore {
     }
 
     private func validateExistingDatabase(_ database: OpaquePointer) throws {
-        let state: (isCurrent: Bool, canAdoptPredecessor: Bool)
+        let state: (storedHash: String, isCurrent: Bool, canAdoptPredecessor: Bool)
         try Self.execute(database, "BEGIN")
         do {
             state = try self.databaseCompatibilityState(database)
             guard state.isCurrent || state.canAdoptPredecessor else {
                 throw StoreError.incompatibleSchema
             }
-            try Self.validateDatabaseIntegrity(database)
+            try Self.validateDatabaseIntegrity(database, recorder: self.scopedReadWorkRecorderForTesting)
             try Self.execute(database, "COMMIT")
         } catch {
             try? Self.execute(database, "ROLLBACK")
@@ -372,9 +580,9 @@ extension CostUsageStore {
             guard lockedState.isCurrent || lockedState.canAdoptPredecessor else {
                 throw StoreError.incompatibleSchema
             }
-            try Self.validateDatabaseIntegrity(database)
+            try Self.validateDatabaseIntegrity(database, recorder: self.scopedReadWorkRecorderForTesting)
             if lockedState.canAdoptPredecessor {
-                try self.adoptCompatiblePredecessor(database)
+                try self.adoptCompatiblePredecessor(database, storedHash: lockedState.storedHash)
             }
             try Self.execute(database, "COMMIT")
         } catch {
@@ -384,6 +592,7 @@ extension CostUsageStore {
     }
 
     private func databaseCompatibilityState(_ database: OpaquePointer) throws -> (
+        storedHash: String,
         isCurrent: Bool,
         canAdoptPredecessor: Bool)
     {
@@ -401,10 +610,14 @@ extension CostUsageStore {
             && self.expectedSchemaVersion == Self.schemaVersion
             && Self.compatiblePredecessorParserHashes.contains(storedHash)
             && actualVersion == Int64(predecessorVersion)
-        return (isCurrent, canAdoptPredecessor)
+        return (storedHash, isCurrent, canAdoptPredecessor)
     }
 
-    private static func validateDatabaseIntegrity(_ database: OpaquePointer) throws {
+    private static func validateDatabaseIntegrity(
+        _ database: OpaquePointer,
+        recorder: CostUsageStoreReadWorkRecorder?) throws
+    {
+        recorder?.recordIntegrityCheck()
         guard try self.scalarText(database, "PRAGMA quick_check") == "ok" else {
             throw StoreError.invalidData
         }
@@ -413,7 +626,23 @@ extension CostUsageStore {
         }
     }
 
-    private func adoptCompatiblePredecessor(_ database: OpaquePointer) throws {
+    private func adoptCompatiblePredecessor(_ database: OpaquePointer, storedHash: String) throws {
+        if Self.incompatibleRetainedReportPredecessorParserHashes.contains(storedHash),
+           var metadata = try Self.readSingleton(
+               CostUsageStoreMetadata.self,
+               database: database,
+               table: "scan_metadata")
+        {
+            metadata.previousReportPayload = nil
+            let payload = try JSONEncoder().encode(metadata)
+            let metadataStatement = try Self.prepare(
+                database,
+                "UPDATE scan_metadata SET payload = ? WHERE id = 1")
+            defer { sqlite3_finalize(metadataStatement) }
+            Self.bind(payload, to: metadataStatement, at: 1)
+            try Self.stepDone(metadataStatement, database: database)
+            guard sqlite3_changes(database) == 1 else { throw StoreError.incompatibleSchema }
+        }
         let statement = try Self.prepare(database, "UPDATE meta SET value = ? WHERE key = 'parser_hash'")
         defer { sqlite3_finalize(statement) }
         Self.bind(self.expectedParserHash, to: statement, at: 1)
@@ -432,6 +661,7 @@ extension CostUsageStore {
     }
 
     private func rebuildDatabase(reason: String) {
+        self.retainedCodexBaseline = nil
         self.connection?.close()
         self.connection = nil
         for suffix in ["", "-wal", "-shm"] {
@@ -443,7 +673,7 @@ extension CostUsageStore {
         self.rebuildCount += 1
         Self.log.warning("cost-usage store rebuilt (count \(self.rebuildCount)): \(reason)")
         if let database = try? self.openDatabase() {
-            self.connection = SQLiteConnection(handle: database)
+            self.connection = SQLiteConnection(handle: database, identity: Self.databaseIdentity(at: self.databaseURL))
         }
     }
 
@@ -633,8 +863,8 @@ extension CostUsageStore {
 // MARK: - SQLite primitives
 
 extension CostUsageStore {
-    static func configure(_ database: OpaquePointer) throws {
-        guard sqlite3_busy_timeout(database, 5000) == SQLITE_OK else {
+    static func configure(_ database: OpaquePointer, busyTimeoutMilliseconds: Int32) throws {
+        guard sqlite3_busy_timeout(database, busyTimeoutMilliseconds) == SQLITE_OK else {
             throw self.sqliteError(database)
         }
         try self.execute(database, "PRAGMA foreign_keys=ON")

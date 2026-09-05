@@ -132,6 +132,24 @@ struct ZaiProviderTests {
     }
 
     @Test
+    func `plugin compacts large model token totals without changing chart values`() async throws {
+        let snapshot = try await Self.pluginSnapshot(
+            quotaFixture: Self.quotaFixture,
+            modelUsageFixture: Self.largeModelUsageFixture)
+        for title in ["Hourly tokens", "Daily tokens"] {
+            let section = try #require(snapshot.details.first { $0.title == title })
+            #expect(section.rows.map(\.label) == ["Example Large", "Example Medium", "Example Small", "Example Exact"])
+            #expect(section.rows.map(\.value) == ["5.3B", "491M", "76.1M", "999999"])
+            let chart = try #require(section.chart)
+            #expect(chart.kind == .bars)
+            #expect(chart.title == title)
+            #expect(chart.unit == "tokens")
+            #expect(chart.points.map(\.label) == ["2026-08-02 08:00", "2026-08-02 09:00"])
+            #expect(chart.points.map(\.value) == [5_470_500_000, 397_699_724])
+        }
+    }
+
+    @Test
     func `plugin preserves explicit MCP duration`() async throws {
         let snapshot = try await Self.pluginSnapshot(quotaFixture: Self.explicitTimeLimitFixture)
 
@@ -194,11 +212,14 @@ struct ZaiProviderTests {
         return (Data(body.utf8), response)
     }
 
-    private static func pluginSnapshot(quotaFixture: String) async throws -> UsageSnapshot {
+    private static func pluginSnapshot(
+        quotaFixture: String,
+        modelUsageFixture: String = Self.modelUsageFixture) async throws -> UsageSnapshot
+    {
         let transport = ProviderHTTPTransportHandler { request in
             let body = request.url?.path.hasSuffix("/quota/limit") == true
                 ? quotaFixture
-                : Self.modelUsageFixture
+                : modelUsageFixture
             return try Self.response(request: request, body: body)
         }
         return try await ProviderPluginRuntime(bundledPlugin: "zai", transport: transport).fetchUsage(
@@ -238,6 +259,15 @@ struct ZaiProviderTests {
       "x_time":["2026-08-02 08:00","2026-08-02 09:00"],
       "modelDataList":[{"modelName":"glm-4.6","tokensUsage":[100,null]},
       {"modelName":"glm-4.5","tokensUsage":[50,25]}]}}
+    """#
+
+    private static let largeModelUsageFixture = #"""
+    {"code":200,"msg":"success","success":true,"data":{
+      "x_time":["2026-08-02 08:00","2026-08-02 09:00"],
+      "modelDataList":[{"modelName":"Example Large","tokensUsage":[5000000000,300000000]},
+      {"modelName":"Example Medium","tokensUsage":[400000000,91075408]},
+      {"modelName":"Example Small","tokensUsage":[70000000,6124317]},
+      {"modelName":"Example Exact","tokensUsage":[500000,499999]}]}}
     """#
 
     private static let emptyModelUsageFixture =

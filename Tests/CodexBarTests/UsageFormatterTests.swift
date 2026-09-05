@@ -293,6 +293,71 @@ struct UsageFormatterTests {
         #expect(absolute == "Resets at 23:30 (UTC)")
     }
 
+    @Test(arguments: [
+        ("Reset Jul 10 at 2:59am (Europe/Prague)", "Resets Jul 10 at 2:59am (Europe/Prague)"),
+        ("Resets Jul 10 at 2:59am (Europe/Prague)", "Resets Jul 10 at 2:59am (Europe/Prague)"),
+        ("Reset in 11m", "Resets in 11m"),
+        ("Resets in 11m", "Resets in 11m"),
+        (" \nReSeT at 23:30 (UTC)\t", "Resets at 23:30 (UTC)"),
+        ("  rEsEt In 2h 5m \n", "Resets in 2h 5m"),
+        ("Reset demain à 23:30", "Resets demain à 23:30"),
+        ("at 23:30 (UTC)", "Resets at 23:30 (UTC)"),
+        ("Resetting soon", "Resets Resetting soon"),
+    ])
+    func `reset description normalizes singular and plural labels`(_ description: String, expected: String) {
+        UsageFormatter.clearLocalizationProvider()
+        UsageFormatter.clearLocaleProvider()
+        let window = RateWindow(
+            usedPercent: 68,
+            windowMinutes: 10080,
+            resetsAt: nil,
+            resetDescription: description)
+        for style in [ResetTimeDisplayStyle.countdown, .absolute] {
+            #expect(UsageFormatter.resetLine(for: window, style: style) == expected)
+        }
+    }
+
+    @Test
+    func `normalized reset descriptions retain localization keys`() {
+        UsageFormatter.setLocalizationProvider { key in
+            switch key {
+            case "Resets %@": "Date: %@"
+            case "Resets in %@": "Countdown: %@"
+            default: key
+            }
+        }
+        defer { UsageFormatter.clearLocalizationProvider() }
+
+        for prefix in ["Reset", "Resets"] {
+            for (suffix, expected) in [("in 11m", "Countdown: 11m"), ("at 23:30", "Date: at 23:30")] {
+                let window = RateWindow(
+                    usedPercent: 68,
+                    windowMinutes: nil,
+                    resetsAt: nil,
+                    resetDescription: "\(prefix) \(suffix)")
+                for style in [ResetTimeDisplayStyle.countdown, .absolute] {
+                    #expect(UsageFormatter.resetLine(for: window, style: style) == expected)
+                }
+            }
+        }
+    }
+
+    @Test
+    func `parsed reset date takes precedence over singular description`() {
+        UsageFormatter.clearLocalizationProvider()
+        UsageFormatter.clearLocaleProvider()
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let reset = now.addingTimeInterval(601)
+        let window = RateWindow(
+            usedPercent: 68,
+            windowMinutes: nil,
+            resetsAt: reset,
+            resetDescription: "Reset in 99h")
+        #expect(UsageFormatter.resetLine(for: window, style: .countdown, now: now) == "Resets in 11m")
+        #expect(UsageFormatter.resetLine(for: window, style: .absolute, now: now)
+            == "Resets \(UsageFormatter.resetDescription(from: reset, now: now))")
+    }
+
     @Test
     func `model display name strips trailing dates`() {
         #expect(UsageFormatter.modelDisplayName("claude-opus-4-5-20251101") == "claude-opus-4-5")
@@ -476,7 +541,7 @@ struct UsageFormatterTests {
     }
 
     @Test
-    func `currency exchange converts rates and formats correctly`() {
+    func `currency exchange converts rates and formats correctly`() throws {
         let exchange = CurrencyExchange.shared
         let epsilon = 1e-9
         // USD → USD is identity
@@ -523,12 +588,28 @@ struct UsageFormatterTests {
         #expect(explicitCZK.contains("CZK"))
         #expect(explicitCZK.contains("."))
 
-        #expect(exchange.convert(amount: 10.0, from: "CHF", to: "USD") == nil)
+        let aedRate = try #require(exchange.rate(for: "AED"))
+        #expect(abs((exchange.convert(usdAmount: 10.0, to: "AED") ?? 0) - 10.0 * aedRate) < epsilon)
+        #expect(abs((exchange.convert(amount: 10.0, from: "AED", to: "USD") ?? 0) - 10.0 / aedRate) < epsilon)
+        #expect(abs((exchange.convert(amount: 10.0, from: "GBP", to: "AED") ?? 0)
+                - 10.0 / gbpRate * aedRate) < epsilon)
+        let explicitAED = UsageFormatter.convertedCostString(10.0, preferredCurrency: "AED", providerCurrency: "USD")
+        #expect(explicitAED == UsageFormatter.currencyString(10.0 * aedRate, currencyCode: "AED"))
+        #expect(explicitAED.hasPrefix("AED"))
+        #expect(explicitAED.range(of: #"\.\d{2}$"#, options: .regularExpression) != nil)
+
+        // CHF is supported: conversion through the USD pivot works both ways.
+        let chfRate = exchange.rate(for: "CHF") ?? 0.80
+        #expect(abs((exchange.convert(usdAmount: 10.0, to: "CHF") ?? 0) - 10.0 * chfRate) < epsilon)
+        #expect(abs((exchange.convert(amount: 10.0, from: "CHF", to: "USD") ?? 0) - 10.0 / chfRate) < epsilon)
+
+        // An unsupported provider currency stays unconverted and keeps its own code.
+        #expect(exchange.convert(amount: 10.0, from: "XYZ", to: "USD") == nil)
         let unavailable = UsageFormatter.convertedCostString(
             10.0,
             preferredCurrency: "USD",
-            providerCurrency: "CHF")
-        #expect(unavailable.contains("CHF"))
+            providerCurrency: "XYZ")
+        #expect(unavailable.contains("XYZ"))
         #expect(!unavailable.contains("$"))
     }
 
@@ -537,11 +618,15 @@ struct UsageFormatterTests {
         #expect(!CurrencyExchange.requiresLiveRates(preferredCurrencyCode: "USD"))
         #expect(!CurrencyExchange.requiresLiveRates(preferredCurrencyCode: " usd "))
         #expect(!CurrencyExchange.requiresLiveRates(preferredCurrencyCode: "auto"))
-        #expect(!CurrencyExchange.requiresLiveRates(preferredCurrencyCode: "CHF"))
+        // Unsupported codes never trigger live-rate fetches.
+        #expect(!CurrencyExchange.requiresLiveRates(preferredCurrencyCode: "XYZ"))
+        #expect(CurrencyExchange.requiresLiveRates(preferredCurrencyCode: "CHF"))
         #expect(CurrencyExchange.requiresLiveRates(preferredCurrencyCode: "GBP"))
         #expect(CurrencyExchange.requiresLiveRates(preferredCurrencyCode: " eur "))
         #expect(CurrencyExchange.requiresLiveRates(preferredCurrencyCode: "KRW"))
         #expect(CurrencyExchange.requiresLiveRates(preferredCurrencyCode: "CZK"))
+        #expect(CurrencyExchange.requiresLiveRates(preferredCurrencyCode: "AED"))
+        #expect(CurrencyExchange.requiresLiveRates(preferredCurrencyCode: " aed "))
     }
 
     @Test

@@ -254,6 +254,31 @@ public enum ProviderVersionDetector {
         return nil
     }
 
+    /// Provider-specific by design: Kimi ships its CLI in dedicated standalone installation directories.
+    public static func kimiVersion() -> String? {
+        self.kimiVersion(
+            environment: ProcessInfo.processInfo.environment,
+            home: FileManager.default.homeDirectoryForCurrentUser,
+            pathLookup: { TTYCommandRunner.which("kimi") })
+    }
+
+    static func kimiVersion(environment: [String: String], home: URL, pathLookup: () -> String?) -> String? {
+        let codeHome = environment["KIMI_CODE_HOME"].map { URL(fileURLWithPath: $0) }
+            ?? home.appendingPathComponent(".kimi-code")
+        let paths: [String?] = [
+            pathLookup(),
+            codeHome.appendingPathComponent("bin/kimi").path,
+            home.appendingPathComponent(".local/bin/kimi").path,
+        ]
+        let candidates = paths.compactMap(\.self)
+        for path in candidates where FileManager.default.isExecutableFile(atPath: path) {
+            if let version = Self.run(path: path, args: ["--version"]) {
+                return version
+            }
+        }
+        return nil
+    }
+
     static func run(
         path: String,
         args: [String],

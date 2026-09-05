@@ -3,7 +3,7 @@ import Foundation
 import Testing
 @testable import CodexBar
 
-@Suite(.serialized)
+@Suite(.serialized, CodexCredentialFixtures())
 @MainActor
 struct CodexAccountPromotionExecutionTests {
     @Test
@@ -77,7 +77,7 @@ struct CodexAccountPromotionExecutionTests {
     }
 
     @Test
-    func `executor import verifies persisted account after concurrent duplicate collision`() async throws {
+    func `executor import repairs an explicit workspace only collision`() async throws {
         let container = try CodexAccountPromotionTestContainer(
             suiteName: "CodexAccountPromotionExecutionTests-import-collision-repair")
         defer { container.tearDown() }
@@ -93,7 +93,6 @@ struct CodexAccountPromotionExecutionTests {
         let concurrentManaged = ManagedCodexAccount(
             id: concurrentID,
             email: "alpha@example.com",
-            providerAccountID: "acct-alpha",
             workspaceLabel: "Personal",
             workspaceAccountID: "acct-alpha",
             managedHomePath: concurrentHomeURL.path,
@@ -115,8 +114,94 @@ struct CodexAccountPromotionExecutionTests {
         #expect(result.displacedLiveDisposition == .alreadyManaged(managedAccountID: concurrentManaged.id))
         let accounts = try container.loadAccounts().accounts
         let repaired = try #require(accounts.first(where: { $0.id == concurrentManaged.id }))
+        #expect(repaired.providerAccountID == "acct-alpha")
+        #expect(repaired.workspaceAccountID == "acct-alpha")
         #expect(repaired.managedHomePath != concurrentHomeURL.path)
         #expect(try container.managedAuthData(for: repaired) == liveAuthData)
+    }
+
+    @Test
+    func `executor import repairs a raced collision with matching readable auth identity`() async throws {
+        let container = try CodexAccountPromotionTestContainer(
+            suiteName: "CodexAccountPromotionExecutionTests-import-matching-readable-collision")
+        defer { container.tearDown() }
+
+        let target = try container.createManagedAccount(
+            persistedEmail: "beta@example.com",
+            authAccountID: "acct-beta")
+        let concurrentManaged = try container.createManagedAccount(
+            persistedEmail: "alpha@example.com",
+            authAccountID: "acct-alpha",
+            workspaceLabel: "Personal",
+            workspaceAccountID: "acct-alpha",
+            plan: "Team")
+        let concurrentAuthData = try container.managedAuthData(for: concurrentManaged)
+        try container.persistAccounts([target])
+        let liveAuthData = try container.writeLiveOAuthAuthFile(
+            email: "alpha@example.com",
+            accountID: "acct-alpha")
+        #expect(concurrentAuthData != liveAuthData)
+        let context = try await self.makeContext(container: container, targetID: target.id)
+        let executor = CodexDisplacedLivePreservationExecutor(
+            store: ConcurrentDuplicateManagedCodexAccountStore(
+                base: container.fileStore,
+                concurrentAccount: concurrentManaged),
+            homeFactory: container.homeFactory,
+            authMaterialReader: DefaultCodexAuthMaterialReader(),
+            fileManager: .default)
+
+        let result = try executor.execute(plan: .importNew(reason: .noExistingManagedDestination), context: context)
+
+        #expect(result.displacedLiveDisposition == .alreadyManaged(managedAccountID: concurrentManaged.id))
+        let accounts = try container.loadAccounts().accounts
+        let repaired = try #require(accounts.first(where: { $0.id == concurrentManaged.id }))
+        #expect(accounts.count == 2)
+        #expect(repaired.managedHomePath != concurrentManaged.managedHomePath)
+        #expect(try container.managedAuthData(for: repaired) == liveAuthData)
+    }
+
+    @Test
+    func `executor import rejects a raced workspace collision with conflicting readable auth`() async throws {
+        let container = try CodexAccountPromotionTestContainer(
+            suiteName: "CodexAccountPromotionExecutionTests-import-conflicting-collision")
+        defer { container.tearDown() }
+
+        let target = try container.createManagedAccount(
+            persistedEmail: "beta@example.com",
+            authAccountID: "acct-beta")
+        let concurrentManaged = try container.createManagedAccount(
+            persistedEmail: "alpha@example.com",
+            authAccountID: "acct-gamma",
+            persistedProviderAccountID: nil,
+            useAuthAccountIDAsPersistedProviderAccountID: false,
+            workspaceLabel: "Personal",
+            workspaceAccountID: "acct-alpha")
+        let concurrentAuthData = try container.managedAuthData(for: concurrentManaged)
+        try container.persistAccounts([target])
+        let liveAuthData = try container.writeLiveOAuthAuthFile(
+            email: "alpha@example.com",
+            accountID: "acct-alpha")
+        let context = try await self.makeContext(container: container, targetID: target.id)
+        let executor = CodexDisplacedLivePreservationExecutor(
+            store: ConcurrentDuplicateManagedCodexAccountStore(
+                base: container.fileStore,
+                concurrentAccount: concurrentManaged),
+            homeFactory: container.homeFactory,
+            authMaterialReader: DefaultCodexAuthMaterialReader(),
+            fileManager: .default)
+
+        #expect(throws: CodexAccountPromotionError.displacedLiveManagedAccountConflict) {
+            try executor.execute(plan: .importNew(reason: .noExistingManagedDestination), context: context)
+        }
+
+        let accounts = try container.loadAccounts().accounts
+        let persistedConflict = try #require(accounts.first(where: { $0.id == concurrentManaged.id }))
+        #expect(accounts.count == 2)
+        #expect(persistedConflict.workspaceAccountID == "acct-alpha")
+        #expect(persistedConflict.managedHomePath == concurrentManaged.managedHomePath)
+        #expect(try container.managedAuthData(for: persistedConflict) == concurrentAuthData)
+        #expect(try container.liveAuthData() == liveAuthData)
+        #expect(try container.managedHomeURLs().count == 2)
     }
 
     @Test

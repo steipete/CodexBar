@@ -97,6 +97,8 @@ Admin API key setup:
   Keychain access; selecting CLI or Web avoids the foreign-Keychain dependency.
 - When every live Auto source fails, CodexBar keeps the last captured session/weekly percentages from
   `history/claude.json` visible as stale data and shows their capture age instead of blanking the quota bars.
+  Restored history and CLI-scraped percentages both show “Limited usage detail”: the warning describes reduced
+  fidelity, not the source of a historical capture. It does not change sign-in or refresh recovery actions.
 - Plan inference: `subscriptionType` is preferred when present; `rate_limit_tier` falls back to
   Max/Pro/Team/Enterprise. When a Max `rate_limit_tier` carries a usage multiplier
   (`default_claude_max_5x` / `default_claude_max_20x`), it is surfaced in the label as "Max 5x" / "Max 20x".
@@ -131,6 +133,10 @@ Admin API key setup:
   - Extra usage spend/limit (if enabled).
   - Remaining Usage credits balance (if enabled).
   - Account email + inferred plan.
+- A Cloudflare challenge on `claude.ai` is a network-path restriction, not a stale-cookie signal. CodexBar keeps the
+  cached cookie and prior quota snapshot, identifies the challenge, and links to Settings. Select OAuth for live
+  quota windows on that network (the web-only Usage credits balance is unavailable), or try a different network.
+  Explicit Web mode remains terminal and never reads OAuth credentials as a fallback.
 
 ## claude-swap accounts (opt-in)
 
@@ -139,10 +145,15 @@ The accepted multi-account design in
 
 - Setup: Preferences → Providers → Claude → "Read accounts from claude-swap", then set the path to the
   [`cswap`](https://github.com/realiti4/claude-swap) executable (for example `~/.local/bin/cswap`).
+- Version detection retries after a failed or cancelled startup probe; replaced refreshes cannot overwrite a newer
+  result, and disabling the adapter or changing its executable clears the previous detected version.
 - Behavior: on each Claude refresh, CodexBar runs `cswap --list --json` independently of the ambient Claude fetch (no
   shell, fixed arguments, bounded runtime and output), requires `schemaVersion == 1`, and parses only slot number,
-  active state, usage status, email (display only), the 5-hour/7-day windows, and optional display-only model-scoped
-  weekly windows from `usage.scoped`.
+  active state, usage status, email (display only), display-only `organizationName` (always present, may be empty),
+  optional display-only `alias` when non-empty, the 5-hour/7-day windows, and optional display-only model-scoped
+  weekly windows from `usage.scoped`. Identity stays `claude-swap:<slot>`; organization name and alias are never
+  used as identity. When two or more slots share an email, cards append ` · organizationName` or ` · Account N`;
+  a user-chosen cswap alias replaces that label. Unique emails stay email-only.
 - Display: when claude-swap reports more than one account, the Claude menu and `codexbar cards` show one card per
   account (active account first, then numeric slot) instead of ambient/token-account Claude cards. With four or more
   accounts the app menu switches to a compact layout (`AccountMenuLayoutPlanner`): the active account keeps its full
@@ -210,7 +221,9 @@ Model-scoped weekly-window proof (synthetic data, no real accounts or credential
 - Parsing (`ClaudeStatusProbe`):
   - Strips ANSI, locates "Current session" + "Current week" headers.
   - Extracts percent left/used and reset text near those headers.
+  - When a reset date cannot be parsed, the menu preserves its description and normalizes leading `Reset` or `Resets` labels once, including scoped weekly limits.
   - Parses `Account:` and `Org:` lines when present.
+  - A successful CLI quota read keeps the menu's Switch Account action even when optional identity fields are absent. Restored history and failed refreshes do not count as a successful sign-in.
   - Surfaces CLI errors (e.g. token expired) directly.
   - Some Education and organization-managed subscriptions return only a subscription notice, with no numeric
     session or weekly quota fields. CodexBar reports those limits as unavailable, keeps local cost/token history
@@ -241,7 +254,7 @@ Model-scoped weekly-window proof (synthetic data, no real accounts or credential
     single pi-compatible session can contribute to multiple models/days.
   - Matching assistant entry IDs within the same session are counted once across roots; distinct turns are retained.
 - Cache:
-  - Native + merged provider cache: `~/Library/Caches/CodexBar/cost-usage/claude-v2.json`
+  - Native provider cache: `~/Library/Caches/CodexBar/cost-usage/claude-v6.json`
   - pi-compatible session cache: `~/Library/Caches/CodexBar/cost-usage/pi-sessions-v7.json`
 
 ## Key files

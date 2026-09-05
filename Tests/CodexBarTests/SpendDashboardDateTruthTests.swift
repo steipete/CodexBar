@@ -210,17 +210,17 @@ struct SpendDashboardDateTruthTests {
             inputs: [
                 Self.input(id: "usd", provider: .claude, currency: "USD", cost: 2),
                 Self.input(id: "eur", provider: .codex, currency: "EUR", cost: 3),
-                Self.input(id: "chf", provider: .mistral, currency: "CHF", cost: 5),
+                Self.input(id: "xyz", provider: .mistral, currency: "XYZ", cost: 5),
             ],
             requestedDays: 30,
             now: Self.now,
             calendar: Self.calendar,
             preferredCurrencyCode: "USD")
 
-        #expect(model.groups.map(\.currencyCode) == ["CHF", "USD"])
-        let chf = try #require(model.groups.first(where: { $0.currencyCode == "CHF" }))
+        #expect(model.groups.map(\.currencyCode) == ["USD", "XYZ"])
+        let xyz = try #require(model.groups.first(where: { $0.currencyCode == "XYZ" }))
         let usd = try #require(model.groups.first(where: { $0.currencyCode == "USD" }))
-        #expect(chf.totalCost == 5)
+        #expect(xyz.totalCost == 5)
         #expect(usd.providers.map(\.id).sorted() == ["eur", "usd"])
         #expect(abs((usd.totalCost ?? 0) - (2 + 3 / eurRate)) < 1e-9)
         #expect(abs((usd.dailyPoints.map(\.cost).reduce(0, +)) - (2 + 3 / eurRate)) < 1e-9)

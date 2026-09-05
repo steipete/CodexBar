@@ -14,9 +14,9 @@ extension CodexAccountScopedRefreshTests {
 
         let targetID = try #require(UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-222222222222"))
         let siblingID = try #require(UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-333333333333"))
-        let targetHome = FileManager.default.temporaryDirectory
+        let targetHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-visible-target-\(UUID().uuidString)", isDirectory: true)
-        let siblingHome = FileManager.default.temporaryDirectory
+        let siblingHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-visible-sibling-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: targetHome, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: siblingHome, withIntermediateDirectories: true)
@@ -159,13 +159,27 @@ extension CodexAccountScopedRefreshTests {
         settings.multiAccountMenuLayout = .stacked
         let targetID = try #require(UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-121212121212"))
         let siblingID = try #require(UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-343434343434"))
+        let targetHome = CodexCredentialFixtures.root
+            .appendingPathComponent("codex-materialize-target-\(UUID().uuidString)", isDirectory: true)
+        let siblingHome = CodexCredentialFixtures.root
+            .appendingPathComponent("codex-materialize-sibling-\(UUID().uuidString)", isDirectory: true)
+        try Self.writeCodexAuthFile(
+            homeURL: targetHome,
+            email: "materialize-stack@example.com",
+            plan: "pro",
+            accountId: "acct-materialize-stack")
+        try Self.writeCodexAuthFile(
+            homeURL: siblingHome,
+            email: "other-stack@example.com",
+            plan: "pro",
+            accountId: "acct-materialize-other")
         let targetAccount = ManagedCodexAccount(
             id: targetID,
             email: "materialize-stack@example.com",
             providerAccountID: "acct-materialize-stack",
             workspaceLabel: "Target Team",
             workspaceAccountID: "acct-materialize-stack",
-            managedHomePath: "/tmp/materialize-stack-target",
+            managedHomePath: targetHome.path,
             createdAt: 1,
             updatedAt: 2,
             lastAuthenticatedAt: 2)
@@ -175,7 +189,7 @@ extension CodexAccountScopedRefreshTests {
             providerAccountID: "acct-materialize-other",
             workspaceLabel: "Other Team",
             workspaceAccountID: "acct-materialize-other",
-            managedHomePath: "/tmp/materialize-stack-other",
+            managedHomePath: siblingHome.path,
             createdAt: 1,
             updatedAt: 2,
             lastAuthenticatedAt: 2)
@@ -183,6 +197,8 @@ extension CodexAccountScopedRefreshTests {
         defer {
             settings._test_managedCodexAccountStoreURL = nil
             try? FileManager.default.removeItem(at: storeURL)
+            try? FileManager.default.removeItem(at: targetHome)
+            try? FileManager.default.removeItem(at: siblingHome)
         }
         settings._test_managedCodexAccountStoreURL = storeURL
         settings.codexActiveSource = .managedAccount(id: targetID)
@@ -223,9 +239,9 @@ extension CodexAccountScopedRefreshTests {
 
         let targetID = try #require(UUID(uuidString: "CCCCCCCC-DDDD-EEEE-FFFF-111111111111"))
         let siblingID = try #require(UUID(uuidString: "CCCCCCCC-DDDD-EEEE-FFFF-222222222222"))
-        let targetHome = FileManager.default.temporaryDirectory
+        let targetHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-selected-history-target-\(UUID().uuidString)", isDirectory: true)
-        let siblingHome = FileManager.default.temporaryDirectory
+        let siblingHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-selected-history-sibling-\(UUID().uuidString)", isDirectory: true)
         try Self.writeCodexAuthFile(
             homeURL: targetHome,
@@ -323,9 +339,9 @@ extension CodexAccountScopedRefreshTests {
 
         let targetID = try #require(UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-444444444444"))
         let siblingID = try #require(UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-555555555555"))
-        let targetHome = FileManager.default.temporaryDirectory
+        let targetHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-visible-cache-target-\(UUID().uuidString)", isDirectory: true)
-        let siblingHome = FileManager.default.temporaryDirectory
+        let siblingHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-visible-cache-sibling-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: targetHome, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: siblingHome, withIntermediateDirectories: true)
@@ -427,9 +443,9 @@ extension CodexAccountScopedRefreshTests {
 
         let targetID = try #require(UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-666666666666"))
         let siblingID = try #require(UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-777777777777"))
-        let targetHome = FileManager.default.temporaryDirectory
+        let targetHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-visible-current-target-\(UUID().uuidString)", isDirectory: true)
-        let siblingHome = FileManager.default.temporaryDirectory
+        let siblingHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-visible-current-sibling-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: targetHome, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: siblingHome, withIntermediateDirectories: true)
@@ -558,9 +574,9 @@ extension CodexAccountScopedRefreshTests {
         let targetID = try #require(UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-888888888888"))
         let oldID = try #require(UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-999999999999"))
         let siblingID = try #require(UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-AAAAAAAAAAAA"))
-        let targetHome = FileManager.default.temporaryDirectory
+        let targetHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-visible-prior-target-\(UUID().uuidString)", isDirectory: true)
-        let siblingHome = FileManager.default.temporaryDirectory
+        let siblingHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-visible-prior-sibling-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: targetHome, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: siblingHome, withIntermediateDirectories: true)
@@ -664,9 +680,9 @@ extension CodexAccountScopedRefreshTests {
 
         let targetID = try #require(UUID(uuidString: "BBBBBBBB-CCCC-DDDD-EEEE-111111111111"))
         let siblingID = try #require(UUID(uuidString: "BBBBBBBB-CCCC-DDDD-EEEE-222222222222"))
-        let targetHome = FileManager.default.temporaryDirectory
+        let targetHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-visible-history-target-\(UUID().uuidString)", isDirectory: true)
-        let siblingHome = FileManager.default.temporaryDirectory
+        let siblingHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-visible-history-sibling-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: targetHome, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: siblingHome, withIntermediateDirectories: true)
@@ -755,9 +771,9 @@ extension CodexAccountScopedRefreshTests {
         settings.multiAccountMenuLayout = .stacked
 
         let managedID = try #require(UUID(uuidString: "DDDDDDDD-EEEE-FFFF-AAAA-111111111111"))
-        let liveHome = FileManager.default.temporaryDirectory
+        let liveHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-visible-live-prior-\(UUID().uuidString)", isDirectory: true)
-        let managedHome = FileManager.default.temporaryDirectory
+        let managedHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-visible-live-prior-managed-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: liveHome, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: managedHome, withIntermediateDirectories: true)
@@ -841,9 +857,9 @@ extension CodexAccountScopedRefreshTests {
         settings.multiAccountMenuLayout = .stacked
 
         let managedID = try #require(UUID(uuidString: "DDDDDDDD-EEEE-FFFF-AAAA-222222222222"))
-        let liveHome = FileManager.default.temporaryDirectory
+        let liveHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-visible-live-prior-auth-\(UUID().uuidString)", isDirectory: true)
-        let managedHome = FileManager.default.temporaryDirectory
+        let managedHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-visible-live-prior-auth-managed-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: liveHome, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: managedHome, withIntermediateDirectories: true)
@@ -940,9 +956,9 @@ extension CodexAccountScopedRefreshTests {
         settings.multiAccountMenuLayout = .stacked
 
         let managedID = try #require(UUID(uuidString: "DDDDDDDD-EEEE-FFFF-AAAA-333333333333"))
-        let liveHome = FileManager.default.temporaryDirectory
+        let liveHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-visible-live-active-auth-\(UUID().uuidString)", isDirectory: true)
-        let managedHome = FileManager.default.temporaryDirectory
+        let managedHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-visible-live-active-auth-managed-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: liveHome, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: managedHome, withIntermediateDirectories: true)
@@ -1043,9 +1059,9 @@ extension CodexAccountScopedRefreshTests {
         settings.multiAccountMenuLayout = .stacked
 
         let managedID = try #require(UUID(uuidString: "DDDDDDDD-EEEE-FFFF-AAAA-444444444444"))
-        let liveHome = FileManager.default.temporaryDirectory
+        let liveHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-visible-selected-auth-\(UUID().uuidString)", isDirectory: true)
-        let managedHome = FileManager.default.temporaryDirectory
+        let managedHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-visible-selected-auth-managed-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: liveHome, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: managedHome, withIntermediateDirectories: true)
@@ -1172,9 +1188,9 @@ extension CodexAccountScopedRefreshTests {
         settings.multiAccountMenuLayout = .stacked
 
         let managedID = try #require(UUID(uuidString: "DDDDDDDD-EEEE-FFFF-AAAA-888888888888"))
-        let liveHome = FileManager.default.temporaryDirectory
+        let liveHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-visible-selected-token-\(UUID().uuidString)", isDirectory: true)
-        let managedHome = FileManager.default.temporaryDirectory
+        let managedHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-visible-selected-token-managed-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: liveHome, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: managedHome, withIntermediateDirectories: true)
@@ -1290,9 +1306,9 @@ extension CodexAccountScopedRefreshTests {
         settings.multiAccountMenuLayout = .stacked
 
         let managedID = try #require(UUID(uuidString: "DDDDDDDD-EEEE-FFFF-AAAA-777777777777"))
-        let liveHome = FileManager.default.temporaryDirectory
+        let liveHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-visible-selected-email-\(UUID().uuidString)", isDirectory: true)
-        let managedHome = FileManager.default.temporaryDirectory
+        let managedHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-visible-selected-email-managed-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: liveHome, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: managedHome, withIntermediateDirectories: true)
@@ -1428,9 +1444,9 @@ extension CodexAccountScopedRefreshTests {
 
         let targetID = try #require(UUID(uuidString: "DDDDDDDD-EEEE-FFFF-AAAA-555555555555"))
         let siblingID = try #require(UUID(uuidString: "DDDDDDDD-EEEE-FFFF-AAAA-666666666666"))
-        let targetHome = FileManager.default.temporaryDirectory
+        let targetHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-visible-provider-email-\(UUID().uuidString)", isDirectory: true)
-        let siblingHome = FileManager.default.temporaryDirectory
+        let siblingHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-visible-provider-email-sibling-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: targetHome, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: siblingHome, withIntermediateDirectories: true)

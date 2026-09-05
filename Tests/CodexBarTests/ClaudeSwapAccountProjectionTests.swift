@@ -61,6 +61,8 @@ struct ClaudeSwapAccountProjectionTests {
         #expect(active.snapshot?.secondary == nil)
         #expect(active.snapshot?.updatedAt == self.now)
         #expect(active.snapshot?.identity?.accountEmail == "personal@example.com")
+        #expect(active.snapshot?.identity?.accountOrganization == nil)
+        #expect(active.snapshot?.identity?.accountID == "claude-swap:2")
         #expect(active.snapshot?.identity?.loginMethod == "claude-swap")
 
         let inactive = try #require(snapshots.last)

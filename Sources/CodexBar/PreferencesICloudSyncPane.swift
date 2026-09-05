@@ -39,7 +39,7 @@ struct ICloudSyncPane: View {
                 }
                 .toggleStyle(.checkbox)
                 .padding(.leading, 20)
-                .disabled(!self.syncCanRun)
+                .disabled(!self.syncCanRun || !self.settings.iCloudSyncEnabled)
             } header: {
                 Text(L("iCloud Sync"))
             } footer: {

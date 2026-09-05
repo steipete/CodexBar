@@ -354,7 +354,10 @@ struct ClaudeProviderImplementation: ProviderImplementation {
         if self.shouldOfferDirectKeychainReadConsent(context: context) {
             // Terminal unreadable state (#2634/#2650): OAuth cannot recover until the user either opts in
             // to reading Claude Code's Keychain item or usage arrives via the Claude CLI fallback.
-            return ("Allow reading Claude Code's credentials in Settings…", .settings)
+            return ("Allow reading Claude Code's credentials in Settings…", .providerSettings(.claude))
+        }
+        if self.shouldOpenSettingsForCloudflareChallenge(context: context) {
+            return ("Open Claude Settings…", .providerSettings(.claude))
         }
         if self.shouldOpenBrowserForWebSessionError(context: context) {
             return ("Re-login at claude.ai", .loginToProvider(url: "https://claude.ai/"))
@@ -368,6 +371,14 @@ struct ClaudeProviderImplementation: ProviderImplementation {
             showSingleAccount: context.settings.claudeSwapShowSingleAccount)
         guard !context.hasAccount || swapOwnsAccountPresentation else { return nil }
         return (L("Sign in with Claude Code..."), .switchAccount(.claude))
+    }
+
+    @MainActor
+    private func shouldOpenSettingsForCloudflareChallenge(context: ProviderMenuLoginContext) -> Bool {
+        let source = context.settings.claudeSettingsSnapshot(tokenOverride: nil).usageDataSource
+        guard source == .auto || source == .web else { return false }
+        return context.store.error(for: .claude) ==
+            ClaudeWebAPIFetcher.FetchError.cloudflareChallenge.localizedDescription
     }
 
     @MainActor

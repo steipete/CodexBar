@@ -31,6 +31,7 @@ struct CodexBarConfigMigrator {
     static func loadOrMigrate(
         configStore: CodexBarConfigStore,
         userDefaults: UserDefaults,
+        keychainAccessDisabled: Bool,
         stores: LegacyStores) -> CodexBarConfig
     {
         let log = CodexBarLog.logger(LogCategories.configMigration)
@@ -71,6 +72,12 @@ struct CodexBarConfigMigrator {
         }
 
         guard didPersistUpdates else {
+            return config.normalized()
+        }
+
+        // A disabled Keychain read looks empty to legacy stores, not successfully migrated.
+        // Keep permitted file/default imports, but preserve cleanup and completion for a later retry.
+        guard !keychainAccessDisabled else {
             return config.normalized()
         }
 

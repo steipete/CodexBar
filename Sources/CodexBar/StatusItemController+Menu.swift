@@ -474,7 +474,8 @@ extension StatusItemController {
                 to: menu,
                 context: menuContext,
                 switcherSelection: contentSelection)
-            self.addActionableSections(context.descriptor.sections, to: menu, width: context.menuWidth)
+            self.addActionableSections(
+                context.descriptor.sections, to: menu, width: context.menuWidth, provider: context.currentProvider)
             self.cacheVisibleMergedSwitcherContent(
                 in: menu,
                 selection: contentSelection,
@@ -837,6 +838,7 @@ extension StatusItemController {
         _ sections: [MenuDescriptor.Section],
         to menu: NSMenu,
         width: CGFloat,
+        provider: UsageProvider?,
         captureMenu: NSMenu? = nil)
     {
         let actionableSections = sections.filter { section in section.entries.contains(where: \ .isActionable) }
@@ -897,7 +899,7 @@ extension StatusItemController {
                     self.attachStatusComponentsSubmenuIfNeeded(
                         to: item,
                         action: action,
-                        menu: captureMenu ?? menu,
+                        provider: provider,
                         width: width)
                     if case let .switchAccount(targetProvider) = action,
                        let subtitle = self.switchAccountSubtitle(for: targetProvider)
@@ -1432,7 +1434,8 @@ extension StatusItemController {
             wiggle: 0,
             tilt: 0,
             statusIndicator: indicator,
-            hideCritters: self.settings.menuBarHidesCritters)
+            hideCritters: self.settings.menuBarHidesCritters,
+            quotaLayoutPolicy: .provider(provider))
         image.isTemplate = true
         return image
     }
@@ -1614,12 +1617,12 @@ extension StatusItemController {
     func attachStatusComponentsSubmenuIfNeeded(
         to item: NSMenuItem,
         action: MenuDescriptor.MenuAction,
-        menu: NSMenu,
+        provider: UsageProvider?,
         width: CGFloat)
     {
         guard action == .statusPage,
-              let statusProvider = self.menuProvider(for: menu) ?? self.lastMenuProvider?.firstPartyProvider,
-              let submenu = self.makeStatusComponentsSubmenu(provider: statusProvider, width: width)
+              let provider,
+              let submenu = self.makeStatusComponentsSubmenu(provider: provider, width: width)
         else { return }
         item.action = nil
         item.submenu = submenu

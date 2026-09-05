@@ -17,9 +17,27 @@ read_when:
   - `subscription.get` (`7abeebee372f304e050aaaf92be863f4a86490e382f8c79db68fd94040d691b4`)
 
 ## Usage mapping
+- The Go usage API reports `usage.rolling/weekly/monthly.percent` in percentage units (0...100): `1` means 1%, and
+  `0.5` means 0.5%. Generic dashboard JSON still accepts fractional usage values (0...1).
 - Primary window: rolling 5-hour usage (`rollingUsage.usagePercent`, `rollingUsage.resetInSec`).
 - Secondary window: optional weekly usage (`weeklyUsage.usagePercent`, `weeklyUsage.resetInSec`).
 - Resets computed as `now + resetInSec`.
+
+## Using OpenCode with Codex or OpenAI
+
+Codex account quota and local token/cost history are separate data sources. The Codex provider reads session and
+weekly quota from the signed-in account's remote usage endpoint; those percentages do not come from local session
+logs.
+
+If OpenCode holds your Codex OAuth session, the explicitly enabled **External Codex OAuth sources** setting can
+reuse its `openai` OAuth entry for remote quota. Native Codex credentials take precedence, and an explicit
+`CODEX_HOME` prevents external fallback. External credentials stay read-only; stale credentials fail closed, and
+API-key entries are ignored. See [Codex external OAuth sources](codex.md#optional-external-oauth-sources-off-by-default).
+
+This does not import OpenCode sessions into Codex token or spend totals. The base OpenCode provider tracks its web
+dashboard, while the local SQLite reader described here selects only `opencode-go` assistant records for OpenCode Go.
+Ordinary OpenCode sessions using OpenAI/Codex are not currently included in local cost history. OpenAI API-platform
+usage is a separate [OpenAI provider](openai.md), not Codex subscription quota.
 
 ## Notes
 - Responses are `text/javascript` with serialized objects; parse via regex.
@@ -40,6 +58,8 @@ read_when:
   key is configured, a cached or manual session cookie can still overlay the legacy web values (plus Zen balance).
   Both paths keep local daily cost history and never trigger a fresh browser import. When no authoritative overlay is
   available, the menu and text CLI label the quota as estimated, and JSON includes `dataConfidence: "estimated"`.
+  Estimated quota keeps its percentages and reset dates but does not show pace, reserve, or run-out advice in the
+  menu, menu-bar layouts, or CLI; device-local costs cannot establish account-wide consumption or the billing cycle.
 - OpenCode Go cost history chart: `opencode.ai` has no daily-granularity endpoint, so per-day cost/request buckets
   come from local `opencode-go` assistant costs in `opencode.db`, keyed by device-local calendar day. Successful web
   usage remains workspace-scoped and is never blended with device-wide local costs, so it does not show cost history.

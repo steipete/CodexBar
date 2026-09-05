@@ -4,6 +4,77 @@ import Testing
 @testable import CodexBarCore
 
 struct OpenRouterPluginGoldenTests {
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `key caps remain independent of account balance`(engine: ProviderPluginEngineKind) async throws {
+        let fixtures: [(body: String, limit: String, used: Double?, remaining: String?)] = [
+            (OpenRouterLimitTestSupport.keyBody, "$30.00", 0, "$30.00"),
+            (#"{"data":{"limit":1,"limit_remaining":1}}"#, "$1.00", 0, "$1.00"),
+            (#"{"data":{"limit":1.9,"limit_remaining":1.9}}"#, "$1.90", 0, "$1.90"),
+            (#"{"data":{"limit":30,"limit_remaining":-5}}"#, "$30.00", 100, "$0.00"),
+            (#"{"data":{"limit":30}}"#, "$30.00", nil, nil),
+            (#"{"data":{}}"#, "No limit configured", nil, nil),
+            (#"{"data":{"limit":null}}"#, "No limit configured", nil, nil),
+            (#"{"data":{"limit":0,"usage":0}}"#, "No limit configured", nil, nil),
+            (#"{"data":{"limit":-1,"usage":0}}"#, "No limit configured", nil, nil),
+        ]
+        for fixture in fixtures {
+            let snapshot = try await OpenRouterLimitTestSupport.snapshot(engine: engine, keyBody: fixture.body)
+            #expect(snapshot.identity?.loginMethod == "Balance: $1.90")
+            #expect(snapshot.detailRow(label: "Remaining")?.value == "$1.90")
+            #expect(snapshot.primary?.usedPercent == fixture.used)
+            #expect(snapshot.detailRow(label: "API key limit")?.value == fixture.limit)
+            #expect(snapshot.detailRow(label: "API key remaining")?.value == fixture.remaining)
+            #expect(snapshot.detailRow(label: "API key limit")?.secondaryValue ==
+                (fixture.limit == "No limit configured" ? nil : "Spending cap, not balance"))
+            #expect(snapshot.updatedAt == OpenRouterLimitTestSupport.now)
+        }
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `limit copy preserves server remaining and reset window precedence`(
+        engine: ProviderPluginEngineKind) async throws
+    {
+        for (reset, used, remaining) in [
+            ("daily", 20.0, "$24.00"), ("weekly", 40.0, "$18.00"),
+            ("monthly", 60.0, "$12.00"), ("unknown", 90.0, "$3.00"),
+        ] {
+            let body = """
+            {"data":{"limit":30,"limit_reset":"\(reset)","usage":27,
+            "usage_daily":6,"usage_weekly":12,"usage_monthly":18}}
+            """
+            let snapshot = try await OpenRouterLimitTestSupport.snapshot(engine: engine, keyBody: body)
+            #expect(snapshot.primary?.usedPercent == used)
+            #expect(snapshot.detailRow(label: "API key remaining")?.value == remaining)
+            #expect(snapshot.detailRow(label: "API key used")?.value == "$27.00")
+            #expect(snapshot.detailRow(label: "Reset window")?.value == reset)
+            let serverBody = """
+            {"data":{"limit":30,"limit_remaining":30,"limit_reset":"\(reset)","usage":27,
+            "usage_daily":6,"usage_weekly":12,"usage_monthly":18}}
+            """
+            let server = try await OpenRouterLimitTestSupport.snapshot(engine: engine, keyBody: serverBody)
+            #expect(server.primary?.usedPercent == 0)
+            #expect(server.detailRow(label: "API key remaining")?.value == "$30.00")
+            #expect(server.detailRow(label: "API key used")?.value == "$27.00")
+        }
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `unavailable limit keeps diagnostics instead of the cap disclosure`(
+        engine: ProviderPluginEngineKind) async throws
+    {
+        for (body, statusCode, diagnostic) in [
+            ("{}", 403, "Request returned HTTP 403"),
+            (#"{"data":{"limit":"invalid"}}"#, 200, "Response was invalid"),
+        ] {
+            let snapshot = try await OpenRouterLimitTestSupport.snapshot(
+                engine: engine, keyBody: body, keyStatus: statusCode)
+            #expect(snapshot.identity?.loginMethod == "Balance: $1.90")
+            #expect(snapshot.primary == nil)
+            #expect(snapshot.detailRow(label: "API key limit")?.value == "Unavailable right now")
+            #expect(snapshot.detailRow(label: "API key limit")?.secondaryValue == diagnostic)
+        }
+    }
+
     @Test
     func `production strategy resolves configured management key`() throws {
         let config = ProviderConfig(
@@ -33,7 +104,8 @@ struct OpenRouterPluginGoldenTests {
         #expect(snapshot.primary?.usedPercent == 25)
         #expect(snapshot.primary?.resetsAt == nil)
         #expect(snapshot.primary?.resetDescription == nil)
-        #expect(snapshot.detailRow(label: "API key budget")?.value == "$20.00")
+        #expect(snapshot.detailRow(label: "API key limit")?.value == "$20.00")
+        #expect(snapshot.detailRow(label: "API key limit")?.secondaryValue == "Spending cap, not balance")
         #expect(snapshot.detailRow(label: "API key remaining")?.value == "$15.00")
     }
 
@@ -42,7 +114,8 @@ struct OpenRouterPluginGoldenTests {
         let snapshot = try await Self.fetch(keyBody: #"{"data":{}}"#)
 
         #expect(snapshot.primary == nil)
-        #expect(snapshot.detailRow(label: "API key budget")?.value == "No limit configured")
+        #expect(snapshot.detailRow(label: "API key limit")?.value == "No limit configured")
+        #expect(snapshot.detailRow(label: "API key limit")?.secondaryValue == nil)
     }
 
     @Test
@@ -50,8 +123,8 @@ struct OpenRouterPluginGoldenTests {
         let snapshot = try await Self.fetch(keyBody: "{}", keyStatus: 500)
 
         #expect(snapshot.primary == nil)
-        #expect(snapshot.detailRow(label: "API key budget")?.value == "Unavailable right now")
-        #expect(snapshot.detailRow(label: "API key budget")?.secondaryValue == "Request returned HTTP 500")
+        #expect(snapshot.detailRow(label: "API key limit")?.value == "Unavailable right now")
+        #expect(snapshot.detailRow(label: "API key limit")?.secondaryValue == "Request returned HTTP 500")
     }
 
     @Test
@@ -150,6 +223,75 @@ struct OpenRouterPluginGoldenTests {
     }
 
     @Test
+    func `activity requests the latest completed UTC day`() async throws {
+        let requests = OpenRouterRequestRecorder()
+        let activityBody = #"""
+        {"data":[
+          {
+            "date":"2026-08-17",
+            "model":"openai/gpt-5.6",
+            "prompt_tokens":10,
+            "completion_tokens":5,
+            "reasoning_tokens":2,
+            "requests":1,
+            "usage":1
+          },
+          {
+            "date":"2026-07-19",
+            "model":"x-ai/grok-4",
+            "prompt_tokens":4,
+            "completion_tokens":1,
+            "reasoning_tokens":0,
+            "requests":1,
+            "usage":1
+          }
+        ]}
+        """#
+        let runtime = try ProviderPluginRuntime(
+            bundledPlugin: "openrouter",
+            transport: ProviderHTTPTransportHandler { request in
+                await requests.append(request)
+                let path = request.url?.path ?? ""
+                if path.hasSuffix("/activity") {
+                    let date = request.url
+                        .flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false) }?
+                        .queryItems?
+                        .first { $0.name == "date" }?
+                        .value
+                    if date == "2026-08-18" {
+                        return try Self.response(
+                            request,
+                            body: #"{"error":{"message":"Date must be within the last 30 (completed) UTC days"}}"#,
+                            statusCode: 400)
+                    }
+                    return try Self.response(request, body: activityBody)
+                }
+                if path.hasSuffix("/key") {
+                    return try Self.response(request, body: #"{"data":{"limit":20,"usage":5}}"#)
+                }
+                return try Self.response(request, body: Self.defaultCreditsBody)
+            })
+        let now = Date(timeIntervalSince1970: 1_787_079_600) // 2026-08-18T12:00:00Z; stable injected clock.
+
+        let usage = try await runtime.fetchUsage(
+            secrets: [
+                OpenRouterSettingsReader.envKey: "fixture-key",
+                OpenRouterSettingsReader.managementAPIKeyEnvironmentKey: "fixture-management-key",
+            ],
+            now: now)
+        let recorded = await requests.requests
+        let datedRequest = try #require(recorded.first { $0.url?.query != nil })
+        let date = datedRequest.url
+            .flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false) }?
+            .queryItems?
+            .first { $0.name == "date" }?
+            .value
+
+        #expect(date == "2026-08-17")
+        #expect(usage.costUsage?.last30DaysCostUSD == 2)
+    }
+
+    @Test
     func `server remaining drives monthly quota golden`() async throws {
         let usage = try await Self.fetch(keyBody: #"""
         {"data":{
@@ -218,8 +360,8 @@ struct OpenRouterPluginGoldenTests {
         let usage = try await Self.fetch(keyBody: #"{"data":{"limit":"twenty"}}"#)
 
         #expect(usage.primary == nil)
-        #expect(usage.detailRow(label: "API key budget")?.value == "Unavailable right now")
-        #expect(usage.detailRow(label: "API key budget")?.secondaryValue == "Response was invalid")
+        #expect(usage.detailRow(label: "API key limit")?.value == "Unavailable right now")
+        #expect(usage.detailRow(label: "API key limit")?.secondaryValue == "Response was invalid")
     }
 
     @Test
@@ -271,8 +413,8 @@ struct OpenRouterPluginGoldenTests {
 
         #expect(ContinuousClock.now - startedAt < .seconds(1.4))
         #expect(usage.primary == nil)
-        #expect(usage.detailRow(label: "API key budget")?.value == "Unavailable right now")
-        #expect(usage.detailRow(label: "API key budget")?.secondaryValue == "Request timed out")
+        #expect(usage.detailRow(label: "API key limit")?.value == "Unavailable right now")
+        #expect(usage.detailRow(label: "API key limit")?.secondaryValue == "Request timed out")
         try await Task.sleep(for: .milliseconds(600))
     }
 
@@ -348,6 +490,32 @@ struct OpenRouterPluginGoldenTests {
         #expect(model.totalTokens == 150)
         #expect(model.requestCount == 2)
         #expect(abs((model.costUSD ?? -1) - 12.345) < 1e-9)
+    }
+
+    @Test(arguments: ["2026-08-23", "2026-08-23 00:00:00"])
+    func `activity accepts date and datetime rows and normalizes their UTC day`(activityDate: String) async throws {
+        let activityBody = #"""
+        {"data":[{
+          "date":"\#(activityDate)",
+          "model":"openai/gpt-5.6",
+          "endpoint_id":"endpoint-a",
+          "prompt_tokens":100,
+          "completion_tokens":50,
+          "reasoning_tokens":10,
+          "requests":2,
+          "usage":12.345
+        }]}
+        """#
+        let now = Date(timeIntervalSince1970: 1_787_598_000) // 2026-08-24T12:00:00Z; stable injected clock.
+
+        let usage = try await Self.fetch(activityBody: activityBody, now: now)
+        let cost = try #require(usage.costUsage)
+
+        #expect(cost.daily.count == 1)
+        #expect(cost.daily.first?.date == "2026-08-23")
+        #expect(cost.last30DaysTokens == 150)
+        #expect(cost.last30DaysRequests == 2)
+        #expect(abs((cost.last30DaysCostUSD ?? -1) - 12.345) < 1e-9)
     }
 
     @Test
@@ -466,6 +634,20 @@ struct OpenRouterPluginGoldenTests {
         #"""
         {"data":[{
           "date":"2026-02-31", "model":"openai/gpt-5.6",
+          "prompt_tokens":1, "completion_tokens":1, "reasoning_tokens":0,
+          "requests":1, "usage":1
+        }]}
+        """#,
+        #"""
+        {"data":[{
+          "date":"2026-02-31 00:00:00", "model":"openai/gpt-5.6",
+          "prompt_tokens":1, "completion_tokens":1, "reasoning_tokens":0,
+          "requests":1, "usage":1
+        }]}
+        """#,
+        #"""
+        {"data":[{
+          "date":"2026-08-17T00:00:00", "model":"openai/gpt-5.6",
           "prompt_tokens":1, "completion_tokens":1, "reasoning_tokens":0,
           "requests":1, "usage":1
         }]}

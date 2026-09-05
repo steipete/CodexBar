@@ -1,0 +1,582 @@
+import Foundation
+#if canImport(SQLite3)
+import SQLite3
+#elseif canImport(CSQLite3)
+import CSQLite3
+#endif
+
+extension AntigravityLocalReader {
+    static func readDatabases(_ paths: [URL], budget: Budget) throws -> SourceResult {
+        var result = SourceResult()
+        for url in paths {
+            try budget.check()
+            budget.statistics.files += 1
+            guard budget.statistics.files <= budget.limits.databases else { throw ScanFailure.exhausted }
+            let source = try self.readDatabase(url, budget: budget)
+            result.events.append(contentsOf: source.events)
+            result.isComplete = result.isComplete && source.isComplete
+        }
+        return result
+    }
+
+    #if canImport(SQLite3) || canImport(CSQLite3)
+    private final class SQLProgress {
+        let budget: Budget
+        var failure: Error?
+        var databaseBytes = 0
+        var databaseRows = 0
+
+        var payloadLimit: Int {
+            guard self.budget.statistics.rows < self.budget.limits.rows,
+                  self.databaseRows < self.budget.limits.rowsPerDatabase else { return 0 }
+            return min(
+                self.budget.limits.blobBytes,
+                self.budget.limits.databaseBytes - self.databaseBytes,
+                self.budget.limits.bytes - self.budget.statistics.attemptedBytes)
+        }
+
+        init(budget: Budget) {
+            self.budget = budget
+        }
+
+        func advance() -> Int32 {
+            do {
+                try self.budget.check()
+                return 0
+            } catch {
+                self.failure = error
+                return 1
+            }
+        }
+    }
+    #endif
+
+    private static func readDatabase(_ url: URL, budget: Budget) throws -> SourceResult {
+        #if canImport(SQLite3) || canImport(CSQLite3)
+        var database: OpaquePointer?
+        let opened = sqlite3_open_v2(url.path, &database, SQLITE_OPEN_READONLY, nil)
+        if database != nil {
+            budget.statistics.sqliteHandlesOpened += 1
+        }
+        guard opened == SQLITE_OK, let database else {
+            if let database, sqlite3_close(database) == SQLITE_OK {
+                budget.statistics.sqliteHandlesClosed += 1
+            }
+            return SourceResult(isComplete: false)
+        }
+        defer {
+            if sqlite3_close(database) == SQLITE_OK {
+                budget.statistics.sqliteHandlesClosed += 1
+            }
+        }
+        let progress = SQLProgress(budget: budget)
+        // Also bound SQLite's own intermediate values, before step can materialize a hostile record/view.
+        let maximumValueBytes = min(budget.limits.blobBytes, 16 * 1024 * 1024) + 1024
+        sqlite3_limit(database, SQLITE_LIMIT_LENGTH, Int32(min(maximumValueBytes, 64 * 1024)))
+        let registered = sqlite3_create_function_v2(
+            database,
+            "antigravity_payload_limit",
+            0,
+            SQLITE_UTF8,
+            Unmanaged.passUnretained(progress).toOpaque(),
+            { context, _, _ in
+                guard let context, let pointer = sqlite3_user_data(context) else { return }
+                let progress = Unmanaged<SQLProgress>.fromOpaque(pointer).takeUnretainedValue()
+                sqlite3_result_int64(context, Int64(progress.payloadLimit))
+            },
+            nil,
+            nil,
+            nil)
+        guard registered == SQLITE_OK else { return SourceResult(isComplete: false) }
+        sqlite3_progress_handler(
+            database,
+            1000,
+            { pointer in
+                guard let pointer else { return 1 }
+                return Unmanaged<SQLProgress>.fromOpaque(pointer).takeUnretainedValue().advance()
+            },
+            Unmanaged.passUnretained(progress).toOpaque())
+        defer {
+            withExtendedLifetime(progress) {
+                sqlite3_progress_handler(database, 0, nil, nil)
+                sqlite3_exec(database, "ROLLBACK", nil, nil, nil)
+            }
+        }
+        // Ordinary read-only SQLite permits WAL read-mark coordination; it does not promise unchanged SHM bytes.
+        guard sqlite3_exec(database, "BEGIN DEFERRED", nil, nil, nil) == SQLITE_OK else {
+            if let failure = progress.failure {
+                throw failure
+            }
+            return SourceResult(isComplete: false)
+        }
+        let supported = try self.hasSupportedSQLiteTable(database, budget: budget)
+        if let failure = progress.failure {
+            throw failure
+        }
+        guard supported else { return SourceResult(isComplete: false) }
+        sqlite3_limit(database, SQLITE_LIMIT_LENGTH, Int32(maximumValueBytes))
+        var statement: OpaquePointer?
+        defer { sqlite3_finalize(statement) }
+        // length(BLOB) reads its size without loading the payload. The non-deterministic limit is
+        // evaluated for each row against the remaining job budget, before selecting any payload.
+        // No ORDER BY: a sorter could otherwise materialize multiple payloads ahead of accounting.
+        let query = """
+        SELECT idx, CASE WHEN typeof(data) = 'blob' THEN length(data) END,
+            CASE WHEN typeof(data) = 'blob' AND length(data) <= antigravity_payload_limit() THEN data END
+        FROM main.gen_metadata NOT INDEXED LIMIT ?
+        """
+        let prepared = sqlite3_prepare_v2(database, query, -1, &statement, nil)
+        if let failure = progress.failure {
+            throw failure
+        }
+        guard prepared == SQLITE_OK, let activeStatement = statement else { return SourceResult(isComplete: false) }
+        sqlite3_bind_int64(activeStatement, 1, Int64(min(budget.limits.rowsPerDatabase, 10000) + 1))
+        let session = url.deletingPathExtension().lastPathComponent
+        var rows = try self.readRows(activeStatement, session: session, progress: progress)
+        if !rows.pendingTimestampRows.isEmpty {
+            // Positional recovery is safe only when every generation row participated in the occurrence list.
+            // A malformed row can still carry a reused step UUID, so partial primary scans must not realign later rows.
+            guard rows.source.isComplete else { return rows.source }
+            // Release the gen_metadata cursor before the optional steps pass reuses the same snapshot.
+            sqlite3_finalize(activeStatement)
+            statement = nil
+            let hasSteps = try self.hasSupportedStepsTable(database, budget: budget)
+            if let failure = progress.failure {
+                throw failure
+            }
+            if hasSteps {
+                var neededStepOccurrences: [String: [StepOccurrence]] = [:]
+                for stepUUID in Set(rows.pendingTimestampRows.map(\.stepUUID)) {
+                    neededStepOccurrences[stepUUID] = rows.stepOccurrences[stepUUID] ?? []
+                }
+                let stepScan = try self.readStepTimestamps(
+                    database,
+                    neededStepOccurrences: neededStepOccurrences,
+                    progress: progress)
+                guard stepScan.isComplete,
+                      self.embeddedTimestampsAgree(neededStepOccurrences, with: stepScan, botIDUses: rows.botIDUses)
+                else {
+                    rows.source.isComplete = false
+                    return rows.source
+                }
+                let recoveredCount = self.appendRecoveredEvents(
+                    to: &rows,
+                    session: session,
+                    stepScan: stepScan)
+                if recoveredCount < rows.pendingTimestampRows.count {
+                    rows.source.isComplete = false
+                }
+            } else {
+                rows.source.isComplete = false
+            }
+        }
+        return rows.source
+        #else
+        return SourceResult(isComplete: false)
+        #endif
+    }
+
+    #if canImport(SQLite3) || canImport(CSQLite3)
+    private struct PendingTimestampRow {
+        let row: Int64
+        let stepUUID: String
+        let turn: AntigravityProtoReader.ParsedTurn
+    }
+
+    private struct ParsedRows {
+        var source: SourceResult
+        var pendingTimestampRows: [PendingTimestampRow]
+        var stepOccurrences: [String: [StepOccurrence]]
+        var botIDUses: [String: Int]
+    }
+
+    private struct StepOccurrence {
+        let row: Int64
+        let timestampMs: Int64?
+        let botID: String?
+    }
+
+    private struct StepTimestamp {
+        let row: Int64
+        let timestampMs: Int64?
+        let botID: String?
+    }
+
+    private struct ExactStepTimestamp {
+        let stepUUID: String
+        let timestampMs: Int64
+    }
+
+    private struct StepTimestampScan {
+        let timestamps: [String: [Int64]]
+        let byBotID: [String: ExactStepTimestamp]
+        let ambiguousBotIDs: Set<String>
+        let isComplete: Bool
+    }
+
+    private final class StepScanProgress {
+        let progress: SQLProgress
+
+        var payloadLimit: Int {
+            let budget = self.progress.budget
+            guard budget.statistics.rows < budget.limits.rows,
+                  self.progress.databaseBytes < budget.limits.databaseBytes,
+                  budget.statistics.attemptedBytes < budget.limits.bytes
+            else { return 0 }
+            return min(
+                budget.limits.blobBytes,
+                budget.limits.databaseBytes - self.progress.databaseBytes,
+                budget.limits.bytes - budget.statistics.attemptedBytes)
+        }
+
+        init(progress: SQLProgress) {
+            self.progress = progress
+        }
+    }
+
+    private static func readStepTimestamps(
+        _ database: OpaquePointer,
+        neededStepOccurrences: [String: [StepOccurrence]],
+        progress: SQLProgress) throws -> StepTimestampScan
+    {
+        guard !neededStepOccurrences.isEmpty else {
+            return StepTimestampScan(timestamps: [:], byBotID: [:], ambiguousBotIDs: [], isComplete: true)
+        }
+        let neededStepUUIDCounts = neededStepOccurrences.mapValues(\.count)
+        let stepProgress = StepScanProgress(progress: progress)
+        let registered = sqlite3_create_function_v2(
+            database,
+            "antigravity_step_payload_limit",
+            0,
+            SQLITE_UTF8,
+            Unmanaged.passUnretained(stepProgress).toOpaque(),
+            { context, _, _ in
+                guard let context, let pointer = sqlite3_user_data(context) else { return }
+                let progress = Unmanaged<StepScanProgress>.fromOpaque(pointer).takeUnretainedValue()
+                sqlite3_result_int64(context, Int64(progress.payloadLimit))
+            },
+            nil,
+            nil,
+            nil)
+        guard registered == SQLITE_OK else {
+            return StepTimestampScan(timestamps: [:], byBotID: [:], ambiguousBotIDs: [], isComplete: false)
+        }
+        var statement: OpaquePointer?
+        defer {
+            withExtendedLifetime(stepProgress) {
+                sqlite3_finalize(statement)
+                sqlite3_create_function_v2(
+                    database,
+                    "antigravity_step_payload_limit",
+                    0,
+                    SQLITE_UTF8,
+                    nil,
+                    nil,
+                    nil,
+                    nil,
+                    nil)
+            }
+        }
+        let query = """
+        SELECT idx, CASE WHEN typeof(metadata) = 'blob' THEN length(metadata) END,
+            CASE WHEN typeof(metadata) = 'blob'
+                AND length(metadata) <= antigravity_step_payload_limit() THEN metadata END
+        FROM main.steps NOT INDEXED
+        """
+        let prepared = sqlite3_prepare_v2(database, query, -1, &statement, nil)
+        if let failure = progress.failure {
+            throw failure
+        }
+        guard prepared == SQLITE_OK, let statement else {
+            return StepTimestampScan(timestamps: [:], byBotID: [:], ambiguousBotIDs: [], isComplete: false)
+        }
+        var stepTimestamps: [String: [StepTimestamp]] = [:]
+        var exactByBotID: [String: ExactStepTimestamp] = [:]
+        var ambiguousBotIDs = Set<String>()
+        var isComplete = false
+        var rowsAreValid = true
+        while true {
+            try progress.budget.check()
+            let step = sqlite3_step(statement)
+            if let failure = progress.failure {
+                throw failure
+            }
+            if step == SQLITE_DONE {
+                isComplete = true
+                break
+            }
+            guard step == SQLITE_ROW else { break }
+            let payload = SQLitePayload(statement: statement)
+            progress.budget.statistics.materializedPayloadBytes += payload.byteCount
+            // Every secondary row belongs to the job-wide budget; the separate byte ceiling only
+            // prevents one database's step metadata from consuming the whole job allocation.
+            try progress.budget.chargeRow()
+            let count = Int(sqlite3_column_int64(statement, 1))
+            let attemptedBytes = max(count, payload.byteCount)
+            try progress.budget.chargeBytes(attemptedBytes)
+            guard attemptedBytes <= progress.budget.limits.databaseBytes - progress.databaseBytes
+            else { break }
+            progress.databaseBytes += attemptedBytes
+            guard count > 0, count <= progress.budget.limits.blobBytes,
+                  sqlite3_column_type(statement, 0) == SQLITE_INTEGER,
+                  sqlite3_column_int64(statement, 0) >= 0,
+                  let bytes = payload.copy(declaredCount: count, limit: progress.budget.limits.blobBytes)
+            else {
+                rowsAreValid = false
+                continue
+            }
+            guard let parsed = try AntigravityProtoReader.parseStepMetadata(
+                bytes, checkCancellation: progress.budget.check)
+            else {
+                rowsAreValid = false
+                continue
+            }
+            guard let stepUUID = parsed.stepUUID, !stepUUID.isEmpty else {
+                rowsAreValid = false
+                continue
+            }
+            if let botID = parsed.botID {
+                self.recordExactBotID(
+                    botID,
+                    stepUUID: stepUUID,
+                    timestampMs: parsed.timestampMs,
+                    exact: &exactByBotID,
+                    ambiguous: &ambiguousBotIDs)
+            }
+            if neededStepUUIDCounts[stepUUID] != nil {
+                stepTimestamps[stepUUID, default: []].append(StepTimestamp(
+                    row: sqlite3_column_int64(statement, 0),
+                    timestampMs: parsed.timestampMs,
+                    botID: parsed.botID))
+            }
+        }
+        // Preserve ambiguous rows' positions; removing them would shift later timestamps into their slots.
+        let positionalEntries = Dictionary(uniqueKeysWithValues: stepTimestamps.map { entry in
+            (entry.key, entry.value.map { step in
+                StepTimestamp(
+                    row: step.row,
+                    timestampMs: step.botID.map { ambiguousBotIDs.contains($0) } == true ? nil : step.timestampMs,
+                    botID: step.botID)
+            })
+        })
+        let resolved = self.resolveStepTimestamps(
+            positionalEntries,
+            neededStepOccurrences: neededStepOccurrences)
+        return StepTimestampScan(
+            timestamps: resolved,
+            byBotID: exactByBotID,
+            ambiguousBotIDs: ambiguousBotIDs,
+            isComplete: isComplete && rowsAreValid)
+    }
+
+    private static func recordExactBotID(
+        _ botID: String,
+        stepUUID: String,
+        timestampMs: Int64?,
+        exact: inout [String: ExactStepTimestamp],
+        ambiguous: inout Set<String>)
+    {
+        guard !ambiguous.contains(botID) else { return }
+        guard let timestampMs else {
+            exact.removeValue(forKey: botID)
+            ambiguous.insert(botID)
+            return
+        }
+        if let existing = exact[botID] {
+            if existing.timestampMs != timestampMs || existing.stepUUID != stepUUID {
+                exact.removeValue(forKey: botID)
+                ambiguous.insert(botID)
+            }
+        } else {
+            exact[botID] = ExactStepTimestamp(stepUUID: stepUUID, timestampMs: timestampMs)
+        }
+    }
+
+    private static func embeddedTimestampsAgree(
+        _ occurrences: [String: [StepOccurrence]],
+        with stepScan: StepTimestampScan,
+        botIDUses: [String: Int]) -> Bool
+    {
+        for (stepUUID, rows) in occurrences {
+            for row in rows {
+                guard let timestampMs = row.timestampMs, let botID = row.botID else { continue }
+                guard !stepScan.ambiguousBotIDs.contains(botID) else { return false }
+                if let exact = stepScan.byBotID[botID],
+                   exact.stepUUID != stepUUID || (botIDUses[botID] == 1 && exact.timestampMs != timestampMs)
+                {
+                    return false
+                }
+            }
+        }
+        return true
+    }
+
+    private static func resolveStepTimestamps(
+        _ stepTimestamps: [String: [StepTimestamp]],
+        neededStepOccurrences: [String: [StepOccurrence]]) -> [String: [Int64]]
+    {
+        var resolved: [String: [Int64]] = [:]
+        for (stepUUID, timestamps) in stepTimestamps {
+            guard let occurrences = neededStepOccurrences[stepUUID] else { continue }
+            let sortedOccurrences = occurrences.sorted { $0.row < $1.row }
+            guard Set(sortedOccurrences.map(\.row)).count == sortedOccurrences.count else { continue }
+            let neededCount = sortedOccurrences.count
+            let sorted = timestamps.sorted { $0.row < $1.row }
+            // The defensive schema does not require idx to be a key. Conflicting duplicate indices
+            // cannot be ordered safely, so withhold that UUID instead of publishing a false date.
+            guard !zip(sorted, sorted.dropFirst()).contains(where: { pair in pair.0.row == pair.1.row }) else {
+                continue
+            }
+            let orderedTimestamps = sorted.map(\.timestampMs)
+            let selected: [Int64]
+            if orderedTimestamps.count == 1, let sharedTimestamp = orderedTimestamps[0] {
+                selected = Array(repeating: sharedTimestamp, count: neededCount)
+            } else {
+                guard orderedTimestamps.count >= neededCount else { continue }
+                let candidates = orderedTimestamps.prefix(neededCount)
+                guard candidates.allSatisfy({ $0 != nil }) else { continue }
+                selected = candidates.compactMap(\.self)
+            }
+            guard zip(sortedOccurrences, selected).allSatisfy({ pair in
+                pair.0.timestampMs == nil || pair.0.timestampMs == pair.1
+            }) else { continue }
+            resolved[stepUUID] = selected
+        }
+        return resolved
+    }
+
+    private static func readRows(
+        _ statement: OpaquePointer,
+        session: String,
+        progress: SQLProgress) throws -> ParsedRows
+    {
+        let budget = progress.budget
+        var result = SourceResult()
+        var pendingTimestampRows: [PendingTimestampRow] = []
+        var stepOccurrences: [String: [StepOccurrence]] = [:]
+        var botIDUses: [String: Int] = [:]
+        while true {
+            try budget.check()
+            let step = sqlite3_step(statement)
+            if let failure = progress.failure {
+                throw failure
+            }
+            if step == SQLITE_DONE {
+                break
+            }
+            guard step == SQLITE_ROW else {
+                result.isComplete = false
+                break
+            }
+            let payload = SQLitePayload(statement: statement)
+            budget.statistics.materializedPayloadBytes += payload.byteCount
+            progress.databaseRows += 1
+            try budget.chargeRow()
+            // Count every row, even NULL/empty records, and charge rejected bytes before another attempt.
+            let count = Int(sqlite3_column_int64(statement, 1))
+            let attemptedBytes = max(count, payload.byteCount)
+            try budget.chargeBytes(attemptedBytes)
+            guard progress.databaseRows <= budget.limits.rowsPerDatabase,
+                  attemptedBytes <= budget.limits.databaseBytes - progress.databaseBytes
+            else {
+                throw ScanFailure.exhausted
+            }
+            progress.databaseBytes += attemptedBytes
+            guard count > 0, count <= budget.limits.blobBytes,
+                  sqlite3_column_type(statement, 0) == SQLITE_INTEGER
+            else {
+                result.isComplete = false
+                continue
+            }
+            let row = sqlite3_column_int64(statement, 0)
+            guard row >= 0 else {
+                result.isComplete = false
+                continue
+            }
+            guard let bytes = payload.copy(declaredCount: count, limit: budget.limits.blobBytes) else {
+                result.isComplete = false
+                continue
+            }
+            // Validate exactly once while the single SQL snapshot is held; buffer only typed events.
+            guard let turn = try AntigravityProtoReader.parseTurn(bytes, checkCancellation: budget.check) else {
+                result.isComplete = false
+                continue
+            }
+            if let botID = turn.usage?.botID {
+                botIDUses[botID, default: 0] += 1
+            }
+            if let stepUUID = turn.stepUUID {
+                stepOccurrences[stepUUID, default: []].append(StepOccurrence(
+                    row: row,
+                    timestampMs: turn.timestampMs,
+                    botID: turn.usage?.botID))
+            }
+            if turn.timestampMs == nil, let stepUUID = turn.stepUUID {
+                pendingTimestampRows.append(PendingTimestampRow(
+                    row: row, stepUUID: stepUUID, turn: turn))
+                continue
+            }
+            guard let event = Event(session: session, row: row, turn: turn, cacheWrite: 0) else {
+                result.isComplete = false
+                continue
+            }
+            result.events.append(event)
+        }
+        return ParsedRows(
+            source: result,
+            pendingTimestampRows: pendingTimestampRows,
+            stepOccurrences: stepOccurrences,
+            botIDUses: botIDUses)
+    }
+
+    private static func appendRecoveredEvents(
+        to rows: inout ParsedRows,
+        session: String,
+        stepScan: StepTimestampScan) -> Int
+    {
+        var occurrenceOffsets: [String: [Int64: Int]] = [:]
+        for (stepUUID, occurrences) in rows.stepOccurrences {
+            let sorted = occurrences.map(\.row).sorted()
+            guard Set(sorted).count == sorted.count else { continue }
+            occurrenceOffsets[stepUUID] = Dictionary(
+                uniqueKeysWithValues: sorted.enumerated().map { ($0.element, $0.offset) })
+        }
+        var recoveredCount = 0
+        for pending in rows.pendingTimestampRows.sorted(by: { $0.row < $1.row }) {
+            if let botID = pending.turn.usage?.botID {
+                if stepScan.ambiguousBotIDs.contains(botID) {
+                    // Conflicting step timestamps for one bot ID: withhold rather than guess.
+                    continue
+                }
+                if let exact = stepScan.byBotID[botID] {
+                    guard exact.stepUUID == pending.stepUUID else { continue }
+                }
+                // All generations participate, including rows with an embedded timestamp.
+                if rows.botIDUses[botID] == 1, let exact = stepScan.byBotID[botID] {
+                    var turn = pending.turn
+                    turn.timestampMs = exact.timestampMs
+                    if let event = Event(session: session, row: pending.row, turn: turn, cacheWrite: 0) {
+                        rows.source.events.append(event)
+                        recoveredCount += 1
+                    }
+                    continue
+                }
+            }
+            guard let timestamps = stepScan.timestamps[pending.stepUUID],
+                  let offset = occurrenceOffsets[pending.stepUUID]?[pending.row]
+            else {
+                continue
+            }
+            guard timestamps.indices.contains(offset) else { continue }
+            var turn = pending.turn
+            turn.timestampMs = timestamps[offset]
+            if let event = Event(session: session, row: pending.row, turn: turn, cacheWrite: 0) {
+                rows.source.events.append(event)
+                recoveredCount += 1
+            }
+        }
+        rows.source.events.sort { $0.row < $1.row }
+        return recoveredCount
+    }
+    #endif
+}

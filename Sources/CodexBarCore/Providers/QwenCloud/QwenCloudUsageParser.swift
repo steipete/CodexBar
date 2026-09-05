@@ -134,6 +134,7 @@ enum QwenCloudUsageParser {
         case let .apiError(message): .apiError(message)
         case let .networkError(message): .networkError(message)
         case let .parseFailed(message): .parseFailed(message)
+        case .usageWindowsUnavailable: .parseFailed("Usage is temporarily unavailable.")
         }
     }
 }

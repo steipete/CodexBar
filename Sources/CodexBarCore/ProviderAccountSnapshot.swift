@@ -25,6 +25,9 @@ public struct ProviderAccountUsageSnapshot: Identifiable, Sendable {
     /// Display-only label (may contain personal data such as an email); UI is
     /// responsible for privacy redaction. Never logged or persisted.
     public let displayLabel: String
+    /// Display-only source email, kept separate from `displayLabel` so aliases and
+    /// `email · org` disambiguation cannot leak into identity.
+    public let accountEmail: String?
     public let isActive: Bool
     /// Whether the source can make this inactive account the provider's active account.
     /// Activation remains source-owned; CodexBar never handles credential material.
@@ -37,6 +40,7 @@ public struct ProviderAccountUsageSnapshot: Identifiable, Sendable {
         id: ProviderAccountIdentity,
         provider: UsageProvider,
         displayLabel: String,
+        accountEmail: String? = nil,
         isActive: Bool,
         canActivate: Bool = false,
         snapshot: UsageSnapshot?,
@@ -46,6 +50,7 @@ public struct ProviderAccountUsageSnapshot: Identifiable, Sendable {
         self.id = id
         self.provider = provider
         self.displayLabel = displayLabel
+        self.accountEmail = accountEmail
         self.isActive = isActive
         self.canActivate = canActivate
         self.snapshot = snapshot

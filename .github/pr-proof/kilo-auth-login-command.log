@@ -1,0 +1,54 @@
+Kilo CLI auth command - real CLI evidence
+Captured: 2026-09-04T00:41:38Z
+Commit: 2b12263e430d70c5b033bd4a69aff9654c300238
+Host: macOS 26.6.2, arm64
+Kilo CLI version: 7.5.9
+
+Claim under review
+- PR replaces the outdated recovery instruction "kilo login" with "kilo auth login"
+  in Kilo provider errors and docs. The submitted unit test only compares strings;
+  this log is direct CLI evidence that "kilo auth login" is the current, real
+  command and that a bare "kilo login" is not a recognized subcommand.
+
+1. Installed Kilo CLI version
+$ kilo --version
+7.5.9
+
+2. Top-level command list has no bare "login" command
+$ kilo help | grep -E "^  kilo (login|auth)"
+  kilo auth                manage AI providers and credentials                  [aliases: providers]
+
+-> "login" does not appear as a top-level command. Running "kilo login" is not
+   routed to an auth flow; the CLI's default command is "kilo [project]" (start
+   the TUI in a directory), so a bare "kilo login" would be parsed as "start the
+   TUI in a directory named ./login", not a login action.
+
+3. "kilo auth" subcommand list confirms "login" lives under "auth"
+$ kilo auth --help
+Commands:
+  kilo auth list               list providers and credentials                          [aliases: ls]
+  kilo auth login [url]        log in to a provider
+
+4. "kilo auth login" resolves as a real, documented subcommand
+$ kilo auth login --help
+kilo auth login [url]
+
+log in to a provider
+
+Positionals:
+  url  kilo auth provider                                                                   [string]
+
+Options:
+  -p, --provider    provider id or name to log in to (skips provider selection)             [string]
+  -m, --method      login method label (skips method selection)                             [string]
+  (plus standard --help/--version/--log-level/--pure flags)
+
+Conclusion
+- "kilo auth login" is the command the current Kilo CLI (v7.5.9) exposes for
+  authentication; "kilo login" is not a recognized command. The PR's replacement
+  text matches the CLI this machine has installed via Homebrew (/opt/homebrew/bin/kilo).
+
+Limit
+- This confirms the command exists and is routed correctly; it does not exercise
+  the interactive OAuth/browser login flow itself (that requires a live Kilo
+  account and was not run here to avoid mutating this machine's Kilo credentials).

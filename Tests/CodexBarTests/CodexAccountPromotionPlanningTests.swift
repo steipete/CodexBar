@@ -3,7 +3,7 @@ import Foundation
 import Testing
 @testable import CodexBar
 
-@Suite(.serialized)
+@Suite(.serialized, CodexCredentialFixtures())
 @MainActor
 struct CodexAccountPromotionPlanningTests {
     @Test
@@ -59,7 +59,7 @@ struct CodexAccountPromotionPlanningTests {
     }
 
     @Test
-    func `planner uses repair for persisted provider match before any import fallback`() async throws {
+    func `planner repairs persisted provider match across mixed case identity`() async throws {
         let container = try CodexAccountPromotionTestContainer(
             suiteName: "CodexAccountPromotionPlanningTests-repair-before-import")
         defer { container.tearDown() }
@@ -79,7 +79,7 @@ struct CodexAccountPromotionPlanningTests {
             updatedAt: 1,
             lastAuthenticatedAt: 1)
         try container.persistAccounts([target, staleManaged])
-        _ = try container.writeLiveOAuthAuthFile(email: "alpha@example.com", accountID: "acct-alpha")
+        _ = try container.writeLiveOAuthAuthFile(email: "alpha@example.com", accountID: "ACCT-ALPHA")
 
         let context = try await self.makeContext(container: container, targetID: target.id)
         let plan = CodexDisplacedLivePreservationPlanner().makePlan(context: context)
@@ -94,7 +94,7 @@ struct CodexAccountPromotionPlanningTests {
     }
 
     @Test
-    func `planner rejects persisted provider match when readable home belongs to a different account`() async throws {
+    func `planner rejects selected workspace when saved auth is a different same email workspace`() async throws {
         let container = try CodexAccountPromotionTestContainer(
             suiteName: "CodexAccountPromotionPlanningTests-conflicting-readable-home")
         defer { container.tearDown() }
@@ -104,10 +104,11 @@ struct CodexAccountPromotionPlanningTests {
             authAccountID: "acct-beta")
         let conflictingManaged = try container.createManagedAccount(
             persistedEmail: "alpha@example.com",
-            authEmail: "gamma@example.com",
+            authEmail: "alpha@example.com",
             authAccountID: "acct-gamma",
             persistedProviderAccountID: "acct-alpha",
-            useAuthAccountIDAsPersistedProviderAccountID: false)
+            useAuthAccountIDAsPersistedProviderAccountID: false,
+            workspaceAccountID: "acct-alpha")
         try container.persistAccounts([target, conflictingManaged])
         _ = try container.writeLiveOAuthAuthFile(email: "alpha@example.com", accountID: "acct-alpha")
 

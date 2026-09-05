@@ -126,6 +126,8 @@ extension CostUsageScanner {
         case reconcile
         case cacheEncode
         case reprice
+        case normalizationCacheMiss
+        case catalogModelLookup(found: Bool)
     }
 
     struct ClaudeScanWorkMetrics: Equatable, Sendable {
@@ -134,6 +136,10 @@ extension CostUsageScanner {
         var reconciliations = 0
         var cacheEncodes = 0
         var repricedRows = 0
+        var normalizationCacheMisses = 0
+        var catalogModelLookups = 0
+        var catalogModelHits = 0
+        var catalogModelMisses = 0
     }
 
     final class ClaudeScanWorkRecorder: @unchecked Sendable {
@@ -149,6 +155,14 @@ extension CostUsageScanner {
             case .reconcile: self.metrics.reconciliations += 1
             case .cacheEncode: self.metrics.cacheEncodes += 1
             case .reprice: self.metrics.repricedRows += 1
+            case .normalizationCacheMiss: self.metrics.normalizationCacheMisses += 1
+            case let .catalogModelLookup(found):
+                self.metrics.catalogModelLookups += 1
+                if found {
+                    self.metrics.catalogModelHits += 1
+                } else {
+                    self.metrics.catalogModelMisses += 1
+                }
             }
         }
 

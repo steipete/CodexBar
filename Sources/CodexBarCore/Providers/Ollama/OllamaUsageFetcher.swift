@@ -658,8 +658,10 @@ public struct OllamaUsageFetcher: Sendable {
 
             lines.append("")
             lines.append("Plan: \(snapshot.planName ?? "unknown")")
+            lines.append("Monthly: \(snapshot.monthlyUsedPercent?.description ?? "nil")%")
             lines.append("Session: \(snapshot.sessionUsedPercent?.description ?? "nil")%")
             lines.append("Weekly: \(snapshot.weeklyUsedPercent?.description ?? "nil")%")
+            lines.append("Monthly resetsAt: \(snapshot.monthlyResetsAt?.description ?? "nil")")
             lines.append("Session resetsAt: \(snapshot.sessionResetsAt?.description ?? "nil")")
             lines.append("Weekly resetsAt: \(snapshot.weeklyResetsAt?.description ?? "nil")")
 
@@ -855,6 +857,8 @@ public struct OllamaUsageFetcher: Sendable {
 
     private func logHTMLHints(html: String, logger: (String) -> Void) {
         logger("[ollama] HTML length: \(html.utf8.count) bytes")
+        logger("[ollama] Contains Included usage: \(html.contains("Included usage"))")
+        logger("[ollama] Contains Monthly usage: \(html.contains("Monthly usage"))")
         logger("[ollama] Contains Cloud Usage: \(html.contains("Cloud Usage"))")
         logger("[ollama] Contains Session usage: \(html.contains("Session usage"))")
         logger("[ollama] Contains Hourly usage: \(html.contains("Hourly usage"))")

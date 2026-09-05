@@ -596,12 +596,11 @@ struct CodexBarTests {
             showUsed: true)
 
         #expect(percents.primary == 10)
-        #expect(percents.secondary != nil)
-        #expect(percents.secondary ?? 1 < 0.01)
+        #expect(percents.secondary == 0.1)
     }
 
     @Test
-    func `merged icon keeps exhausted warp bonus fully used`() {
+    func `merged icon preserves exhausted warp bonus layout`() {
         let snapshot = UsageSnapshot(
             primary: RateWindow(usedPercent: 10, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
             secondary: RateWindow(usedPercent: 100, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
@@ -610,11 +609,26 @@ struct CodexBarTests {
         let percents = IconRemainingResolver.resolvedPercents(
             snapshot: snapshot,
             style: .warp,
-            showUsed: true,
-            renderingStyle: .combined)
+            showUsed: true)
 
         #expect(percents.primary == 10)
-        #expect(percents.secondary == 100)
+        #expect(percents.secondary == 0)
+    }
+
+    @Test
+    func `merged icon keeps unused warp bonus lane visible`() {
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 10, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 0, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date())
+
+        let percents = IconRemainingResolver.resolvedPercents(
+            snapshot: snapshot,
+            style: .warp,
+            showUsed: true)
+
+        #expect(percents.primary == 10)
+        #expect(percents.secondary == 0.1)
     }
 
     @Test
@@ -864,7 +878,9 @@ struct CodexBarTests {
         try data.write(to: authURL)
 
         let fetcher = UsageFetcher(environment: ["CODEX_HOME": tmp.path])
-        let account = fetcher.loadAccountInfo()
+        let account = CodexCredentialFileAccess.withFixtureScope(.init(files: [authURL])) {
+            fetcher.loadAccountInfo()
+        }
         #expect(account.email == "user@example.com")
         #expect(account.plan == "pro")
     }
@@ -885,7 +901,9 @@ struct CodexBarTests {
         try data.write(to: authURL)
 
         let fetcher = UsageFetcher(environment: ["CODEX_HOME": tmp.path])
-        let account = fetcher.loadAccountInfo()
+        let account = CodexCredentialFileAccess.withFixtureScope(.init(files: [authURL])) {
+            fetcher.loadAccountInfo()
+        }
         #expect(account.email == "user@example.com")
         #expect(account.plan == "pro")
     }

@@ -3,152 +3,102 @@
     <channel>
         <title>CodexBar</title>
         <item>
-            <title>0.54.0</title>
-            <pubDate>Thu, 20 Aug 2026 06:51:02 -0700</pubDate>
+            <title>0.56.5</title>
+            <pubDate>Fri, 04 Sep 2026 10:16:36 -0700</pubDate>
             <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
-            <sparkle:version>127</sparkle:version>
-            <sparkle:shortVersionString>0.54.0</sparkle:shortVersionString>
+            <sparkle:version>136</sparkle:version>
+            <sparkle:shortVersionString>0.56.5</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <description><![CDATA[<h2>CodexBar 0.54.0</h2>
+            <description><![CDATA[<h2>CodexBar 0.56.5</h2>
 <h3>Highlights</h3>
 <ul>
-<li><strong>Blank Settings window fixed</strong>: the empty &quot;CodexBar Settings&quot; window that opened on every launch since 0.52.0 is gone (#3048, #3053).</li>
-<li><strong>Crash fix</strong>: Codex and Grok no longer abort the whole app when an RPC timeout or child exit races a write to closed subprocess stdin (#3087).</li>
-<li><strong>Conditional menu bar tokens</strong>: named, reusable if/then/else rules that swap or hide tokens based on live usage — and the conditions can test any comparable block: usage, reset time, run-out, pace, balance, or cost (#3076, #3088).</li>
-<li><strong>Live Grok &amp; xAI spend</strong>: xAI Management API daily spend and local Grok session tokens now flow into Usage &amp; Spend (#3085).</li>
-<li><strong>Honest historical pricing</strong>: GPT-5.6 Terra/Luna costs use the rates in effect on each request day, and OpenCodex usage routes into the right subscription rows (#3037, #3046).</li>
+<li><strong>More reliable Codex cost-history catch-up</strong>: avoid repeatedly rediscovering completed work and clear abandoned Refreshing activity after account or settings changes (#3402, #3417, #3418).</li>
+<li><strong>Clearer Codex extra-credit accounting</strong>: keep spend, monthly limits, and purchased balances consistent, including confirmed zero balances (#3296).</li>
+<li><strong>Stable cost-chart navigation</strong>: switching between Token and Cost preserves menu position and scrolling, even with tall charts (#3380).</li>
+<li><strong>Remote session discovery restored</strong>: prevent repeated app-binary crashes on newer Tailscale installations by explicitly using CLI mode (#3401).</li>
 </ul>
 <h3>Fixed</h3>
 <ul>
-<li>Fixed the blank &quot;CodexBar Settings&quot; window that opened on every launch since 0.52.0: the app now declines macOS&#x27;s untitled-window path and closes the empty SwiftUI Settings placeholder if restoration brings it back (#3048, #3053, #3056). Thanks @elijahfriedman!</li>
-<li>Fixed Codex and Grok app crashes when an RPC timeout or child exit races a write to closed subprocess stdin (#3087, #3095).</li>
-<li>Fixed custom menu bar line breaks so provider icons stay above stacked usage percentages in the menu bar and layout preview (#3089).</li>
-<li>Fixed the native blue selection highlight reappearing on provider cards after cached provider switches: cross-class cached rows now replace the item shell so the highlight override survives (#2998, #3091, #3093). Thanks @kiranmagic7!</li>
-<li>Fixed the cost, credits, and usage-breakdown charts so the hover highlight aligns with the bar under the cursor instead of sitting half a day off (#3040, #3049).</li>
-<li>Fixed: Amp CLI parsing follows the new <code>Amp &lt;plan&gt; Subscription:</code> line format so Megawatt usage windows show again (#3050, #3057).</li>
-<li>Fixed Codex cost catch-up getting stuck when recently touched session files contain only out-of-window usage — processed zero-row files now drain from the pending queue and existing stuck states self-heal (#3071, #3075).</li>
-<li>Fixed <code>codexbar cost</code> SIGSEGV on Linux: <code>Bundle.allBundles</code> crashes under swift-corelibs-foundation, so test detection now checks the main executable path instead (#3058, #3059). Thanks @Lucenx9!</li>
-<li>Fixed GPT-5.6 Terra/Luna historical cost aggregates to use the rates in effect on each request day instead of silently repricing pre-2026-07-30 usage at the cut rates (#2671, #3037). Thanks @Yuxin-Qiao!</li>
-<li>Claude: keep 100% claude-swap usage bars when cswap defers polling at a limit, and name the exhausted window and reset instead of showing &quot;Usage fetch failed.&quot; (#3081). Thanks @sf-jin-ku!</li>
-</ul>
-<h3>Menu Bar &amp; Layouts</h3>
-<ul>
-<li>Added conditional tokens to the menu bar layout editor: named, reusable if/then/else rules (1–4 AND/OR clauses over Session/Weekly/Scoped/Auto thresholds) that swap or hide tokens based on live usage, downgrade-safe and localized across all 23 catalogs (#3076). Thanks @wdmitchelluk!</li>
-<li>Menu bar conditionals can now test every comparable block, not just usage percentages: time to reset, run-out estimate, pace, credit balance, today/30-day cost, and the direct primary/secondary/tertiary lanes, with a used/remaining select wherever both readings exist (so &quot;session &gt; 50% used <strong>and</strong> session resets in &lt; 2h&quot; or &quot;balance remaining &gt;= 5&quot; are expressible). Ships an &quot;Auto % / Resets in&quot; default that shows the percentage while the lane has headroom and the reset countdown once it is spent (#3088). Thanks @wdmitchelluk!</li>
-<li>Added direct primary/secondary/tertiary usage lane tokens to provider-specific menu bar layouts, so Cursor layouts can pin <code>Total %</code>, <code>Cursor %</code>, or <code>Third Party %</code> (#3038, #3039). Thanks @giuseppebisemi!</li>
-<li>Keep custom menu bar layouts safe across downgrades: older releases read a Session/Weekly/Auto projection of lane tokens, Kimi lanes map through its reversed semantic windows, and direct tertiary lanes refresh independently (#3052). Thanks @giuseppebisemi!</li>
-<li>Added a &quot;Show pace&quot; setting to hide the usage pace stripe and forecast text, on by default (#3055). Thanks @urda!</li>
-</ul>
-<h3>Usage &amp; Spend</h3>
-<ul>
-<li>Publish live xAI Management API daily spend and local Grok session tokens into the shared Usage &amp; Spend catalog. Prepaid Grok credits stay a quota (never converted to dollars); xAI prepaid balance stays remaining credit, not spend (#3085). Thanks @Chipagosfinest!</li>
-<li>Share one immutable spend-source catalog between Overview and Usage &amp; Spend: multi-account Codex identities, per-source states, 365-day inputs, configured calendar/currency, and OpenCodex enrichment without double counting (#3067). Thanks @Chipagosfinest!</li>
-<li>Count every enabled provider in Overview spend instead of only the six displayed cards, and bucket Overview spend with the configured calendar so boundary days match the dashboard (#3063, #3064). Thanks @Chipagosfinest!</li>
-<li>Account for every connected provider in Overview spend: exact OpenRouter 30-day Activity spend via an optional management API key, with coverage shown instead of a false <code>$0</code> when a source can&#x27;t report (#3054). Thanks @Chipagosfinest!</li>
-<li>Fan OpenCodex usage into the matching Codex, OpenCode Go, Kimi, and DeepSeek subscription rows and exclude routed models from Codex session spend totals (#3044, #3046, #3047). Thanks @Yuxin-Qiao!</li>
-<li>Chart OpenCodex spend by per-request hour in the pinned timezone instead of session last-activity (#3031). Thanks @Yuxin-Qiao!</li>
-<li>Union spend dashboard token activity across sources with partial coverage instead of blanking days any single source missed (#3042). Thanks @Yuxin-Qiao!</li>
-<li>Coalesce spend dashboard refreshes during in-flight same-owner revision churn and skip same-day rescans on pane revisits (#3041). Thanks @Yuxin-Qiao!</li>
-<li>Keep Copy JSON alongside a new save-to-file panel for Usage &amp; Spend JSON exports (#3032). Thanks @Yuxin-Qiao!</li>
-<li>Keep model rows with cost visible on the spend dashboard when only some breakdowns report tokens (#3045). Thanks @Yuxin-Qiao!</li>
-<li>Show spend dashboard row metrics as cost and tokens together instead of cost-only (#3043). Thanks @Yuxin-Qiao!</li>
-<li>Documented custom-pricing overlays and the Usage &amp; Spend surface (#3033). Thanks @Yuxin-Qiao!</li>
-</ul>
-<h3>Providers</h3>
-<ul>
-<li>Codex: added a personal-access-token usage source — <code>personal_access_token</code> in <code>auth.json</code> gets its own PAT strategy (whoami then <code>/wham/usage</code>), Auto prefers a usable PAT and falls back to OAuth/CLI, and ambient-home PATs are found when a managed profile would hide them (#3060). Thanks @oakimov!</li>
-<li>Fireworks: auto-discover account slugs from API keys and report invalid or ambiguous accounts instead of silently showing no spend (#3068, #3074).</li>
-<li>OpenCode Go: use the public authenticated usage API when <code>OPENCODE_API_KEY</code> is configured, overlaying authoritative rolling/weekly/monthly windows on local history with cookie fallback (#2879, #3065). Thanks @akshayprabhu200!</li>
-<li>Hide untouched Antigravity model families in the <code>codexbar serve</code> web dashboard, matching the menu and widgets (#3061). Thanks @urda!</li>
-</ul>
-<h3>Localization</h3>
-<ul>
-<li>Localized provider usage details in Simplified Chinese: DeepSeek detailed usage/balance, z.ai/GLM quota details, token charts, and the 5-hour reset text (#3084). Thanks @haixing23!</li>
-<li>Localized remaining provider-detail edge cases in Simplified Chinese: DeepSeek zero-balance/unavailable-API text, z.ai one-sided quota values, credit-plan rates, peak/off-peak states, and countdown shapes (#3086). Thanks @haixing23!</li>
-<li>Fixed inconsistent German localization of &quot;About&quot; (&quot;Um&quot; → &quot;Über&quot;) (#3077). Thanks @dwt!</li>
-<li>Localized the Codex local session cost estimate setting in Korean (#3034). Thanks @Yoonkeee!</li>
-</ul>
-<h3>Docs</h3>
-<ul>
-<li>Documented the AI Usage Limits Stream Deck plugin in the README integrations list (#3066). Thanks @lenadweb!</li>
+<li>Codex: preserve pending cost-scan discovery when same-day history requests alternate between narrower and wider windows, avoiding repeated requeueing of completed files and retaining compatible history caches on upgrade (partial fix for #3411). Thanks @kesslerio!</li>
+<li>Codex: retain completed empty session fragments during cost-history scans instead of repeatedly dropping and rediscovering them, without suppressing usage-bearing duplicates or later appended usage (partial fix for #3316; #3402). Thanks @mauriciopolvora!</li>
+<li>Usage &amp; Spend: clear abandoned Refreshing activity when an in-flight cost scan loses its account or settings scope, preserving paused work and replacement workers (follow-up for #3411). Thanks @kesslerio!</li>
+<li>Codex: show extra-credit spend and limits with a distinct purchased balance; reconcile cap and balance freshness independently so confirmed zero balances stay cleared and monthly bars agree with their totals (#3296). Thanks @sf-jin-ku!</li>
+<li>Cost history: keep tall charts in a bounded scroll view so switching Token/Cost no longer jumps the native menu or undoes an immediate wheel scroll (#3380). Thanks @Yuxin-Qiao!</li>
+<li>Agent sessions: explicitly force Tailscale CLI mode during remote-host discovery, preventing repeated app-binary crashes on newer Tailscale installations while preserving existing terminal settings (#3397). Thanks @tzioup!</li>
+<li>Antigravity: match local token-history timestamps by per-turn IDs when auxiliary or reordered steps would otherwise assign usage to the wrong day, while withholding conflicting evidence and preserving legacy timestamp recovery (#3403). Thanks @WeGoToMars!</li>
+<li>Claude: offer Switch Account after a successful CLI quota read without identity fields, while preserving recovery actions for failed refreshes and restored history (partial fix for #3395). Thanks @PoroGramr!</li>
+<li>Claude: stop labeling restored quota history as CLI usage, while retaining the limited-detail warning, original percentages, and stale-data guidance (#3405).</li>
+<li>z.ai: omit impossible five-hour Coding Plan reset timestamps and prevent cached resets from restoring them, retaining quota percentages and valid weekly/MCP dates (partial mitigation for #2871). Thanks @carolitascl!</li>
+<li>Kilo: point authentication recovery messages and provider documentation to the supported <code>kilo auth login</code> command (#3408). Thanks @Chevalicious!</li>
+<li>Usage &amp; Spend: prefer heatmap tooltips above hovered cells and keep them within narrow grids; retain daily keyboard selection without the extra system focus rectangle (#3407). Thanks @elijahfriedman!</li>
+<li>z.ai: abbreviate large model token totals with M/B while preserving exact hourly and daily chart values (#3308, #3310). Thanks @medpath1024 and @fantasy!</li>
+<li>Settings: disable iCloud sync sub-options when the main sync switch is off, preserving their saved choices for the next time sync is enabled (#3406). Thanks @elijahfriedman!</li>
+<li>Codex: report thermal pressure as the catch-up pause reason when serious heat and Low Power Mode coincide, preserving the existing pause and scan budget (#3242). Thanks @Yuxin-Qiao!</li>
 </ul>
 <p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
 ]]></description>
-            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.54.0/CodexBar-macos-universal-0.54.0.zip" length="65493336" type="application/octet-stream" sparkle:edSignature="n+hRBpBbXxkxKsNZQclFNYlFcQ1PeBa/fHrkwfgfEZohAeeUMtYRHw+LrH6a1TK2XiZt8UZkChJ3ZxIp3xd8Bg=="/>
+            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.56.5/CodexBar-macos-universal-0.56.5.zip" length="68562638" type="application/octet-stream" sparkle:edSignature="+DvuYBIpAX00vqsSs1vz99hbDQsccJGmTRk1+Y+T/qK8N+yNPp1XRHvNYoIjIXIO1m7xMEPy0P7sD+GNETPMAQ=="/>
         </item>
         <item>
-            <title>0.53.0</title>
-            <pubDate>Tue, 18 Aug 2026 03:28:55 -0700</pubDate>
+            <title>0.56.4</title>
+            <pubDate>Thu, 03 Sep 2026 06:11:55 -0700</pubDate>
             <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
-            <sparkle:version>125</sparkle:version>
-            <sparkle:shortVersionString>0.53.0</sparkle:shortVersionString>
+            <sparkle:version>135</sparkle:version>
+            <sparkle:shortVersionString>0.56.4</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <description><![CDATA[<h2>CodexBar 0.53.0</h2>
-<h3>Highlights</h3>
+            <description><![CDATA[<h2>CodexBar 0.56.4</h2>
+<h3>Fixed</h3>
 <ul>
-<li><strong>Usage &amp; Spend, rebuilt</strong>: explicit cost provenance and coverage everywhere — token mix, an hourly activity heatmap, an All-time range, per-request custom pricing overlays, and opt-in read-only OpenCodex import. Estimates are labeled, partial totals show their coverage, and nothing unpriced masquerades as a real bill.</li>
-<li><strong>Settings window fixed for good</strong>: the invisible keepalive-window hack is gone (#3003) and its regression is repaired with a proper retained window controller (#3029) — Settings now opens reliably, in front, every time.</li>
-<li><strong>Crash fixes</strong>: the fatal CloudKit sync assertion (#3030) and misleading Codex RPC timeout errors (#3022) are gone.</li>
+<li>Codex: let cost-history catch-up finish while active rollout files keep growing, preserving complete session and subagent accounting without publishing partial tails (#3243, #3314). Thanks @LeoLin990405!</li>
+<li>Antigravity: restore token history from newer local sessions whose timestamps moved to the steps table, while rejecting missing, duplicate, or conflicting timestamp evidence instead of inventing dates (#3266, #3396). Thanks @chid!</li>
+<li>Codex: keep each managed account&#x27;s selected workspace authoritative across stacked refreshes, credits, history, menu rows, reconciliation, and System Account promotion instead of reverting to or rewriting the auth file&#x27;s default workspace (#3347, #3348, #3386). Thanks @krevoit!</li>
+<li>Settings: prevent scrolled detail content from bleeding through the native title bar while retaining the edge-to-edge sidebar and native window title (#3235, #3315). Thanks @LeoLin990405!</li>
+<li>Claude: recognize Cloudflare web challenges without discarding valid cached cookies or prior usage, and offer explicit OAuth or network recovery guidance (#3367, #3375). Thanks @TPuHo4u!</li>
+<li>Antigravity: recover Linux port discovery when <code>lsof</code> fails with mount-namespace warnings, while preserving authentication errors and the existing startup deadline (#3362, #3364). Thanks @srijits!</li>
+<li>Menu bar: let live forecast and detail labels use the full row width, preventing text from clipping to its previous width until the menu reopens (#3370).</li>
+<li>Settings: open the About pane from the application menu as well as the status menu, reusing the existing Settings window (#3391). Thanks @elijahfriedman!</li>
+<li>Menu bar: discard non-finite saved status-item positions before AppKit restores them, preserving valid placements (#3361; investigated alongside #3355). Thanks @foobra!</li>
+<li>Claude: remove misleading defaults-suite warnings at launch while preserving shared OAuth preferences for the CLI and widget (#3381, #3384). Thanks @andresg747!</li>
 </ul>
-<h3>Usage &amp; Spend</h3>
+<h3>Documentation</h3>
 <ul>
-<li>Add explicit cost provenance, coverage counters, and a pinned IANA day-bucketing timezone while making uncertain Codex fork accounting fail closed (#3015). Thanks @Yuxin-Qiao!</li>
-<li>Add token mix, coverage, conversation totals, source visibility controls, and an hourly activity heatmap to the spend dashboard (#3017). Thanks @Yuxin-Qiao!</li>
-<li>Add an All time range alongside 7d/30d, backed by 365 days of local history with dedicated Claude and Cursor spend snapshot slots (#3009). Thanks @Yuxin-Qiao!</li>
-<li>Support exact-match custom pricing above models.dev and built-in rates, preserving missing fields as unknown and explicit zero rates as free (#3016). Thanks @Yuxin-Qiao!</li>
-<li>Add opt-in, read-only OpenCodex <code>usage.jsonl</code> import with its SQLite cache isolated in CodexBar&#x27;s own cache directory (#3018). Thanks @Yuxin-Qiao!</li>
-<li>Show selected-provider usage and spend in the Overview with partial-price, coverage, and provenance context (#3023). Thanks @Chipagosfinest!</li>
-<li>Sum priced subscriptions into a ~$ partial estimate with coverage shown when some subscriptions lack prices, instead of hiding the total (#3001). Thanks @Yuxin-Qiao!</li>
-<li>Keep unpriced named models visible in the model breakdown list instead of dropping the whole source (#3004). Thanks @Yuxin-Qiao!</li>
-<li>Keep priced Cursor days visible when some events omit totalCents, and stop invalid Cursor model costs from reviving on later events (#3005). Thanks @Yuxin-Qiao!</li>
-<li>Claude spend: price bare first-party model IDs from their models.dev vendor catalog, preserve explicit routes, and leave ambiguous cross-vendor matches unpriced (#3002). Thanks @Yuxin-Qiao!</li>
-</ul>
-<h3>Reliability</h3>
-<ul>
-<li>iCloud sync: stop awaiting CKSyncEngine from within its own delegate callbacks, fixing a fatal CloudKit assertion crash minutes after launch with sync enabled (#3030). Thanks @toads for the crash forensics!</li>
-<li>Settings: replace the selector-based Settings opener with a retained window controller, fixing silently failing or behind-other-apps Settings opening after the keepalive removal, and repairing localized application-menu commands (#3029). Thanks @Zihao-Qi!</li>
-<li>Codex: classify app-server request timeouts before terminating the subprocess, so timeouts no longer surface as misleading EOF/malformed-response errors (#3022). Thanks @Chipagosfinest!</li>
-<li>OpenCode Go: surface expired selected session tokens instead of silently replacing failed server usage with local quota estimates (#2993). Thanks @Niclassslua!</li>
-<li>Cursor: keep an API-validated usage result when the Keychain cache is temporarily unavailable, instead of treating it as a missing or replaced session (#3000). Thanks @hxy91819!</li>
-<li>Menu: prevent the system menu highlight from painting behind provider detail cards on macOS 27 beta (#2998). Thanks @Tan1103!</li>
-</ul>
-<h3>Providers &amp; CLI</h3>
-<ul>
-<li>Grok: add an Auto / Grok CLI / SuperGrok OAuth / Browser cookies source picker, support pasted SuperGrok bearers and grok.com cookies in token accounts, and open <code>~/.grok/auth.json</code> from Open token file (#3010). Thanks @oakimov!</li>
-<li>CLI: add <code>codexbar usage --format toon</code> emitting the JSON payload as TOON v4.1 for agents that prefer denser structured output (#2996, #3021). Thanks @elijahfriedman and @teseo for the spec!</li>
-<li>CLI: align <code>codexbar cost --json</code> with spend provenance, token mix, coverage, and opt-in OpenCodex payloads (#3019). Thanks @Yuxin-Qiao!</li>
-</ul>
-<h3>Settings</h3>
-<ul>
-<li>Turn Low Power Mode into an Off/On/Automatic preference, with Automatic following the system Low Power Mode state (#2995). Thanks @elijahfriedman!</li>
-<li>Style the Quit CodexBar button as a prominent accent-color button and remove its stray section background (#2992). Thanks @elijahfriedman!</li>
+<li>AWS Bedrock: explain that monitoring API calls may incur charges, how shared refresh controls affect them, and why Manual mode and the displayed budget do not impose a billing cap (#3387, #3393). Thanks @kyen99!</li>
 </ul>
 <p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
 ]]></description>
-            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.53.0/CodexBar-macos-universal-0.53.0.zip" length="64325948" type="application/octet-stream" sparkle:edSignature="gRFuy1AvbWt5yI5lsBdRYw+BeYtoSsMjTfVfCEs+ASpMeUCINlxc4aZaOcguDWUmdt016058b1HvvZiVMvq6Dg=="/>
+            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.56.4/CodexBar-macos-universal-0.56.4.zip" length="68345622" type="application/octet-stream" sparkle:edSignature="1mCoyhn7I6ciigFUxURMJdQNqlk1e6vcnAc307rHv2kk8o51wv9Ul9BN5iMBdxuU0gOiKLb+WO4zBqkQx0/1BA=="/>
         </item>
         <item>
-            <title>0.52.0</title>
-            <pubDate>Mon, 17 Aug 2026 04:24:21 -0700</pubDate>
+            <title>0.56.3</title>
+            <pubDate>Tue, 01 Sep 2026 14:58:57 -0700</pubDate>
             <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
-            <sparkle:version>124</sparkle:version>
-            <sparkle:shortVersionString>0.52.0</sparkle:shortVersionString>
+            <sparkle:version>134</sparkle:version>
+            <sparkle:shortVersionString>0.56.3</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <description><![CDATA[<h2>CodexBar 0.52.0</h2>
-<h3>Added</h3>
+            <description><![CDATA[<h2>CodexBar 0.56.3</h2>
+<h3>Performance</h3>
 <ul>
-<li>Usage &amp; Spend: aggregate per-project spend into ranked, window-scoped rows and carry project/session breakdowns through the cached Codex prefill so the dashboard and the menu chart agree on project data (#2984). Thanks @Yuxin-Qiao!</li>
-<li>Usage &amp; Spend: add a Projects panel to the settings pane and let the Models and Projects lists expand beyond the top eight rows (#2985). Thanks @Yuxin-Qiao!</li>
+<li>Claude and Vertex AI: reduce background CPU spent reading transcript metadata and looking up model prices during local cost scans, preserving provider detection and token/cost totals (#3319, #3328).</li>
+<li>Local costs: skip unnecessary parsing work for discarded oversized log records, preserving complete-record validation and cost totals (#3342).</li>
+<li>Codex: avoid repeated full scans after trace-log pruning, while retaining the latest validated cost history through temporary trace-database failures (#3318). Thanks @brzvsk!</li>
 </ul>
 <h3>Fixed</h3>
 <ul>
-<li>Mission Control: remove the invisible lifecycle keepalive window entirely; the rebuilt Settings window no longer needs it, eliminating the floating all-Spaces WindowServer footprint that dismissed Mission Control on macOS 27 (#2955, #2997, #3003). Thanks @phuchong89 for the diagnostics!</li>
-<li>Cost history chart: localize the Projects, Conversations, session, and standard/fast mode labels that previously stayed English for all 23 app languages (#2983). Thanks @Yuxin-Qiao!</li>
-<li>Grok: show SuperGrok Heavy from the CLI settings <code>subscription_tier_display</code> instead of labeling every OIDC login as SuperGrok (#2991). Thanks @olddonkey!</li>
+<li>Poe: use one refresh timestamp for point-history retention and daily totals, keeping results consistent throughout a refresh.</li>
+<li>Keychain: limit repeated cache ACL validation and memory growth while preserving recovery after temporary failures or external repairs (#3300, #3301). Thanks @IgorKhramtsov!</li>
+<li>Grok: restore 0% usage for a validated active billing period with an omitted usage scalar, while keeping incomplete or malformed billing responses unknown (#3261, #3325, #3357). Thanks @sf-jin-ku and @olddonkey!</li>
+<li>Ollama: restore usage bars for monthly included credits and show matching history tabs while preserving legacy quota parsing and saved history (#3346). Thanks @haixing23!</li>
+<li>Menu bar: keep status components and website links scoped to their provider when switching cached tabs, preventing Claude status from appearing under Grok or Codex (#3320). Thanks @gianpaj!</li>
+<li>Menu bar: attach minor and maintenance status badges to single-quota meters instead of leaving them floating below the meter (#3354). Thanks @dechaosong!</li>
+<li>Usage &amp; Spend: keep stalled or failed Codex catch-up paused until explicit Refresh, preventing background synchronization from restarting CPU-heavy scans (partial fix for #3316). Thanks @heyajulia!</li>
+<li>Claude: resume scheduled browser-cookie refreshes when no-UI Keychain access recovers, while preserving non-interactive reads and user-initiated denial cooldowns (#3287). Thanks @ehmo!</li>
+<li>Xiaomi MiMo: prevent overlapping local usage tracker updates from colliding on a shared temporary cache file, preserving atomic publication (#3321). Thanks @Lucenx9!</li>
+<li>Claude: avoid duplicated “Resets Reset” labels when CLI usage supplies a singular reset description (#3317). Thanks @Aternus!</li>
+<li>Codex: distinguish same-email workspaces with stable, privacy-safe labels across account settings, system selection, and menu switchers (#3282). Thanks @Dknightsure!</li>
 </ul>
 <p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
 ]]></description>
-            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.52.0/CodexBar-macos-universal-0.52.0.zip" length="63543623" type="application/octet-stream" sparkle:edSignature="ZnXGYl6YbrQrSbyxIMYTq8JhmQxsHzpQUo0UDOmtaMNfESmJzHA1/c9t3wOJCF2blHGkZOQuJQ+tcqP/nHWCBg=="/>
+            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.56.3/CodexBar-macos-universal-0.56.3.zip" length="68193014" type="application/octet-stream" sparkle:edSignature="gBmnkv8vGnPiR2VK/B32U818T+mveN5ihnoGRFGR/8OBU0tvT8Apc8ikxYvLaiTMiiCV6to2+rp/5/cSVK71Aw=="/>
         </item>
         <item>
             <title>0.14.0</title>

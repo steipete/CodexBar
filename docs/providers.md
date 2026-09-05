@@ -26,6 +26,11 @@ card. Range choices are 7 / 30 / 90 days and All (the scan window is 365 days). 
 unless a source also reports plan-metered spend, in which case both columns appear. Day buckets use a pinned IANA
 timezone stored when cost tracking is first enabled.
 
+Regular token-history publications also refresh outdated independent Usage & Spend sources, including Claude,
+through their own 365-day scan. The dashboard never substitutes the shorter menu history for that scan. Updates
+arriving during a scan coalesce into a follow-up; a failed attempt waits for a new token publication or manual
+dashboard refresh before retrying. Codex account-cache ownership and provider-derived spend sources are unchanged.
+
 Native cost-history sources are the descriptors that advertise token-cost support: Codex, Claude, OpenAI Admin,
 Mistral, AWS Bedrock, Vertex AI, Cursor, and OpenCode Go. Providers without that contract are omitted instead of
 appearing as empty subscriptions. Each native currency has its own total, ranking, and daily chart; CodexBar never
@@ -34,6 +39,9 @@ adds or ranks amounts across currencies.
 The page also shows token mix (input / output / cache / reasoning), priced/unpriced/unmetered/estimated coverage,
 sessions, Codex projects, and a 365-day token heatmap. A heatmap day with no coverage is a gap, not zero activity,
 and is not clickable. Custom list-price overlays are documented in `docs/model-pricing.md`.
+Cached and combined reports retain token-class details and known request counts. Coverage is combined from each
+source's existing classification, so a priced source cannot hide another source's unpriced or unmetered rows.
+If coverage totals cannot fit, aggregation falls back to existing request or daily-row inference without changing costs or stored data.
 
 OpenCodex `~/.opencodex/usage.jsonl` is an opt-in, read-only spend source (off by default). It is not a quota
 Provider. When both OpenCodex logs and native Codex sessions are present they stay on separate rows; merging would
@@ -57,7 +65,7 @@ complete when the available scan window covers fewer days.
 | OpenCode | Web dashboard via cookies (`web`). |
 | OpenCode Go | Unscoped Auto: local SQLite cost history with API overlay (`local+api`) → usage API (`api`) → web dashboard (`web`). Scoped Auto (selected account/manual cookie/workspace): web → local → API. Explicit API/Web: selected source only. |
 | Alibaba Coding Plan | Console RPC via web cookies (auto/manual) with API key fallback (`web`, `api`). |
-| Alibaba Token Plan | Bailian subscription summary API via browser or manual cookies (`web`). |
+| Alibaba Token Plan | Signed-in Bailian CLI (`cli`) → subscription summary API via browser or manual cookies (`web`). |
 | Qwen Cloud | Qwen Cloud 5-hour/weekly Token Plan APIs via browser or manual cookies (`web`). |
 | Droid/Factory | API key (`FACTORY_API_KEY` / config) → web cookies → stored tokens → local storage → WorkOS cookies (`auto`, `api`, `web`). |
 | Devin | Chrome localStorage session or manual Bearer token → daily and weekly quota API (`web`). |
@@ -120,6 +128,7 @@ complete when the available scan window covers fewer days.
 - CLI RPC default: `codex ... app-server` JSON-RPC (`account/read`, `account/rateLimits/read`).
 - CLI PTY: manual diagnostics/parser coverage only; automatic refresh does not launch bare Codex TUI.
 - Local cost usage: scans `CODEX_HOME` (or `~/.codex`) `sessions` and sibling `archived_sessions` JSONL files for the configured history window.
+- Completed cost catch-up publishes validated cached history without starting another scan. Native and included Pi/OMP caches must cover the requested window; unavailable or incompatible history preserves existing totals until a later refresh. Token timestamps retain the actual cache scan time. This does not resolve catch-up that remains pending while an active log continuously grows.
 - Status: Statuspage.io (OpenAI).
 - Details: `docs/codex.md`.
 
@@ -187,7 +196,7 @@ complete when the available scan window covers fewer days.
 ## Kilo
 - API token from `~/.codexbar/config.json` (`providers[].apiKey`) or `KILO_API_KEY`.
 - Auto mode tries API first and falls back to CLI auth when API credentials are missing or unauthorized.
-- CLI auth source: `~/.local/share/kilo/auth.json` (`kilo.access`), typically created by `kilo login`.
+- CLI auth source: `~/.local/share/kilo/auth.json` (`kilo.access`), typically created by `kilo auth login`.
 - Status: none yet.
 - Details: `docs/kilo.md`.
 
@@ -209,6 +218,7 @@ complete when the available scan window covers fewer days.
 - Web API via browser cookies (`cursor.com` + `cursor.sh`).
 - Fallbacks: a legacy stored session, then Cursor.app local auth.
 - Add Account and Switch Account open Cursor's authenticator in a supported browser; Switch Account prefers stable account IDs and falls back to normalized email when IDs are unavailable. CodexBar uses the supported system HTTPS handler when possible and otherwise asks the user to choose an eligible supported browser.
+- Grok Bot weekly included usage is a fourth Cursor card bar from `POST /api/dashboard/get-sand-usage-status` (same session). Accounts without a Bot allowance omit the bar.
 - Status: Statuspage.io (Cursor).
 - Details: `docs/cursor.md`.
 
@@ -241,6 +251,8 @@ complete when the available scan window covers fewer days.
 - Details: `docs/alibaba-coding-plan.md`.
 
 ## Alibaba Token Plan
+- Auto tries the signed-in Bailian `bl` CLI first, then falls back to browser/manual cookies; explicit CLI/Web modes
+  remain source-strict.
 - Explicit Team variants post to `GetSubscriptionSummary`; explicit Personal/Solo variants fetch the 5-hour and
   weekly rolling windows plus subscription/quota metadata without probing across plan types.
 - Cookie sources: browser import (`auto`), manual Cookie header, or `ALIBABA_TOKEN_PLAN_COOKIE`.

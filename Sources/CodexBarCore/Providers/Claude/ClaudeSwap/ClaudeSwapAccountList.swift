@@ -4,7 +4,8 @@ import Foundation
 /// Strictly parsed result of `cswap --list --json` (schema v1).
 ///
 /// Only the fields allow-listed in `docs/claude-multi-account-and-status-items.md`
-/// are decoded: slot number, display email, active state, usage status, and the
+/// are decoded: slot number, display email, display-only `organizationName`,
+/// optional display-only `alias`, active state, usage status, and the
 /// 5-hour/7-day windows and optional model-scoped weekly windows (percent +
 /// reset timestamp). Everything else in the payload is ignored; unknown schema
 /// versions and partial top-level shapes are rejected.
@@ -22,6 +23,12 @@ public struct ClaudeSwapAccountRow: Equatable, Sendable {
     public let number: Int
     /// Display-only sensitive value; never logged or persisted.
     public let email: String
+    /// Display-only workspace name from cswap schema v1; always present, may be empty.
+    /// Never identity, never logged, never persisted.
+    public let organizationName: String
+    /// Display-only user-chosen cswap alias; omitted unless non-empty.
+    /// Never identity, never logged, never persisted.
+    public let alias: String?
     public let isActive: Bool
     public let usageStatus: ClaudeSwapUsageStatus
     public let fiveHour: ClaudeSwapUsageWindow?
@@ -31,6 +38,8 @@ public struct ClaudeSwapAccountRow: Equatable, Sendable {
     public init(
         number: Int,
         email: String,
+        organizationName: String = "",
+        alias: String? = nil,
         isActive: Bool,
         usageStatus: ClaudeSwapUsageStatus,
         fiveHour: ClaudeSwapUsageWindow?,
@@ -39,6 +48,8 @@ public struct ClaudeSwapAccountRow: Equatable, Sendable {
     {
         self.number = number
         self.email = email
+        self.organizationName = organizationName
+        self.alias = alias
         self.isActive = isActive
         self.usageStatus = usageStatus
         self.fiveHour = fiveHour
@@ -187,10 +198,15 @@ public enum ClaudeSwapListParser {
             throw ClaudeSwapListParserError.malformedShape("slot \(number) has no usageStatus")
         }
         let email = (row["email"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let organizationName = (row["organizationName"] as? String ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let alias = Self.nonEmptyDisplayString(row["alias"])
         let usage = row["usage"] as? [String: Any]
         return try ClaudeSwapAccountRow(
             number: number,
             email: email,
+            organizationName: organizationName,
+            alias: alias,
             isActive: isActive,
             usageStatus: ClaudeSwapUsageStatus(rawValue: rawStatus),
             fiveHour: self.parseWindow(usage?["fiveHour"], slot: number, name: "fiveHour"),
@@ -237,6 +253,14 @@ public enum ClaudeSwapListParser {
                 usedPercent: min(max(pct, 0), 100),
                 resetsAt: resetsAt)
         }
+    }
+
+    /// Display-only optional string. Missing, non-string, and whitespace-only values are omitted.
+    private static func nonEmptyDisplayString(_ raw: Any?) -> String? {
+        guard let text = (raw as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else {
+            return nil
+        }
+        return text
     }
 
     private static func finiteDouble(_ raw: Any?) -> Double? {

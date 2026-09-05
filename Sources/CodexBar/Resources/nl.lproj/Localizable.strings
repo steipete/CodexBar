@@ -45,6 +45,7 @@
 "hooks_any_provider" = "Elke provider";
 "hooks_threshold" = "Uitvoeren bij gebruik ≥";
 "hooks_threshold_placeholder" = "90";
+"hooks_executable" = "Uitvoerbaar bestand";
 "hooks_executable_placeholder" = "/usr/local/bin/my-command";
 "hooks_arguments_placeholder" = "Argumenten";
 "hooks_argument_placeholder" = "Argument";
@@ -239,6 +240,7 @@
 "No cost history data." = "Geen kostengeschiedenisgegevens.";
 "No data available" = "Geen gegevens beschikbaar";
 "No data yet" = "Nog geen gegevens";
+"Workspaces" = "Werkruimten";
 "No enabled providers available for Overview." = "Er zijn geen ingeschakelde providers beschikbaar voor Overzicht.";
 "No providers selected" = "Geen aanbieders geselecteerd";
 "No token accounts yet." = "Nog geen tokenaccounts.";
@@ -655,6 +657,8 @@
 "section_keyboard_shortcut" = "Sneltoets";
 "open_menu_shortcut_title" = "Menu openen";
 "open_menu_shortcut_subtitle" = "Activeer het menubalkmenu vanaf elke locatie.";
+"record_shortcut" = "Toetscombinatie opnemen";
+"press_shortcut" = "Voer toetscombinatie in";
 "install_cli" = "Installeer CLI";
 "install_cli_subtitle" = "Symlink CodexBarCLI naar /usr/local/bin en /opt/homebrew/bin als codexbar.";
 "cli_not_found" = "CodexBarCLI niet gevonden in appbundel.";
@@ -665,6 +669,9 @@
 "surprise_me_subtitle" = "Controleer of je het leuk vindt dat je agenten daar plezier hebben.";
 "hide_personal_info_title" = "Verberg persoonlijke informatie";
 "hide_personal_info_subtitle" = "Onduidelijke e-mailadressen in de menubalk en menu-UI.";
+"hide_cost_history_identity_subtitle" = "Verbergt ook project- en bronnamen en paden in de kostengeschiedenis, zonder opgeslagen gegevens te wijzigen.";
+"Project %d" = "Project %d";
+"Source %d" = "Bron %d";
 "show_provider_storage_usage_title" = "Toon het opslaggebruik van de provider";
 "show_provider_storage_usage_subtitle" = "Toon lokaal schijfgebruik in menu's. Scant bekende paden van de provider op de achtergrond.";
 "section_keychain_access" = "Toegang via sleutelhanger";
@@ -932,6 +939,7 @@
 "Monthly" = "Maandelijks";
 "Sonnet" = "Sonnet";
 "Overages" = "Overschotten";
+"Overage" = "Overschot";
 "Activity" = "Activiteit";
 "Copied" = "Gekopieerd";
 "Copy error" = "Kopieerfout";
@@ -942,6 +950,7 @@
 "Balance updates in near-real time (up to 5 min lag)" = "Saldo-updates in bijna realtime (tot 5 minuten vertraging)";
 "Daily billing data finalizes at 07:00 UTC" = "De dagelijkse factureringsgegevens worden afgerond om 07:00 UTC";
 "%@ of %@ credits left" = "%@ van %@ credits over";
+"of %@" = "van %@";
 "%@ of %@ bonus credits left" = "Er zijn nog %@ van %@ bonuscredits over";
 "%@ / %@ (%@ remaining)" = "%@ / %@ (%@ resterend)";
 "%@/%@ left" = "%@/%@ over";
@@ -953,6 +962,7 @@
 "Full in ~1 regen" = "Volledig in ~1 regeneratie";
 "Full in ~%.0f regens" = "Volledig in ~%.0f regens";
 "Overage usage" = "Overmatig gebruik";
+"Overage credits left" = "Resterende overschrijdingscredits";
 "Overage cost" = "Overschrijdingskosten";
 "credits" = "tegoeden";
 "Zen balance" = "Zen-balans";
@@ -1364,6 +1374,9 @@
 "menu_bar_layout_preset_compact_stacked" = "Compact gestapeld";
 "menu_bar_layout_preset_custom" = "Aangepast";
 "menu_bar_layout_live_preview" = "Livevoorvertoning";
+"menu_bar_layout_default_preview" = "Voorbeeld van standaardindeling";
+"menu_bar_layout_overrides_notice" = "Deze ingeschakelde providers gebruiken hun eigen opgeslagen indelingen:";
+"menu_bar_layout_use_all_accessibility" = "%@: Indeling voor alle providers gebruiken";
 "menu_bar_layout_strip" = "Menubalkstrook";
 "menu_bar_layout_remove_line_break" = "Regeleinde verwijderen";
 "menu_bar_layout_chip_hint" = "Selecteer, sleep om te herschikken of gebruik de actie Verwijderen.";
@@ -1371,6 +1384,7 @@
 "menu_bar_layout_empty_line" = "Zet hier een token neer";
 "menu_bar_layout_line" = "Regel %d";
 "menu_bar_layout_drag_remove" = "Sleep hierheen om te verwijderen";
+"menu_bar_layout_remove_selected" = "Selectie verwijderen";
 "menu_bar_layout_size" = "Grootte";
 "menu_bar_layout_size_small" = "Klein";
 "menu_bar_layout_size_regular" = "Normaal";
@@ -1430,6 +1444,7 @@
 "More" = "Meer";
 
 /* Provider Plugins */
+"Plugins" = "Plugins";
 "Install…" = "Installeren…";
 "Install plugin" = "Plug-in installeren";
 "Copies a JavaScript or TypeScript file into the plugins directory." = "Kopieert een JavaScript- of TypeScript-bestand naar de map met plug-ins.";
@@ -1471,6 +1486,7 @@
 "Total usage" = "Totaal gebruik";
 "claude_oauth_keychain_access_revoked" = "De toegang tot de Claude-sleutelhanger is ingetrokken door de tokenrotatie van Claude Code. Klik op Vernieuwen om opnieuw toegang te verlenen of zet de Claude-gebruiksbron op CLI/Web.";
 "claude_showing_last_known_usage" = "De laatst bekende gebruiksgegevens worden weergegeven (vastgelegd: %@).";
+"claude_limited_usage_detail" = "Beperkte gebruiksdetails";
 /* Spend dashboard cost analysis */
 "90d" = "90d";
 "Input" = "Input";
@@ -1525,3 +1541,4 @@
 "menu_bar_layout_conditional_default_session_spent" = "Sessie bijna verbruikt";
 "menu_bar_layout_conditional_default_either_high" = "Sessie of week loopt hoog op";
 "menu_bar_layout_conditional_default_scoped_weekly" = "Modelweek boven 60% gebruikt";
+"Spending cap, not balance" = "Uitgavenlimiet, geen saldo";

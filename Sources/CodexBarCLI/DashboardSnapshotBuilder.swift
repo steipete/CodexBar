@@ -179,20 +179,30 @@ enum DashboardSnapshotBuilder {
         weeklyWorkDays: Int?,
         generatedAt: Date) -> DashboardAccountPayload
     {
-        // Provider-specific by design: claude-swap keeps the source email in displayLabel when usage is unavailable.
-        let snapshotEmail = account.snapshot?.identity?.accountEmail
-        let email = snapshotEmail?.contains("@") == true
-            ? snapshotEmail
-            : (account.displayLabel.contains("@") ? account.displayLabel : nil)
-        let presentedEmail = identityMode != .none && email?.contains("@") == true
-            ? self.dashboardEmail(email, mode: identityMode)
+        // Provider-specific by design: identity stays the source email; the card label may be an alias
+        // or an "email · org" disambiguation, and redaction rewrites only the email prefix.
+        let sourceEmail: String? = {
+            if let email = account.accountEmail, email.contains("@") { return email }
+            if let email = account.snapshot?.identity?.accountEmail, email.contains("@") { return email }
+            return nil
+        }()
+        let presentedEmail = identityMode != .none && sourceEmail?.contains("@") == true
+            ? self.dashboardEmail(sourceEmail, mode: identityMode)
             : nil
         let identity = presentedEmail.map { DashboardIdentityPayload(accountEmail: $0, plan: nil) }
+        let trimmedLabel = account.displayLabel.trimmingCharacters(in: .whitespacesAndNewlines)
+        let fallbackLabel = trimmedLabel.isEmpty ? "Account \(account.id.opaqueID)" : trimmedLabel
+        let label = self.claudeSwapDashboardLabel(
+            displayLabel: fallbackLabel,
+            sourceEmail: sourceEmail,
+            presentedEmail: presentedEmail,
+            accountID: account.id.opaqueID,
+            identityMode: identityMode)
         // Provider-specific by design: claude-swap account windows and pace use Claude's presentation semantics.
         let metadata = ProviderDescriptorRegistry.descriptor(for: UsageProvider.claude).metadata
         return DashboardAccountPayload(
             id: "\(account.id.source):\(account.id.opaqueID)",
-            label: presentedEmail ?? "Account \(account.id.opaqueID)",
+            label: label,
             active: account.isActive,
             identity: identity,
             windows: self.makeWindows(provider: .claude, metadata: metadata, usage: account.snapshot),
@@ -205,6 +215,26 @@ enum DashboardSnapshotBuilder {
             },
             error: account.error,
             updatedAt: account.snapshot?.updatedAt)
+    }
+
+    private static func claudeSwapDashboardLabel(
+        displayLabel: String,
+        sourceEmail: String?,
+        presentedEmail: String?,
+        accountID: String,
+        identityMode: DashboardIdentityMode) -> String
+    {
+        if let presentedEmail {
+            if let sourceEmail,
+               displayLabel.contains("@"),
+               displayLabel == sourceEmail || displayLabel.hasPrefix(sourceEmail)
+            {
+                let suffix = String(displayLabel.dropFirst(sourceEmail.count))
+                return presentedEmail + self.redactEmailShapedText(suffix, mode: identityMode)
+            }
+            return self.redactEmailShapedText(displayLabel, mode: identityMode)
+        }
+        return displayLabel.contains("@") ? "Account \(accountID)" : displayLabel
     }
 
     private static func dashboardSource(from source: String) -> String {
@@ -260,6 +290,67 @@ enum DashboardSnapshotBuilder {
         guard mode == .redacted else { return email }
         guard let at = email.lastIndex(of: "@") else { return "redacted" }
         return "redacted\(email[at...])"
+    }
+
+    /// Redacts every bounded `@` address range, including apostrophes, quoted local parts,
+    /// internal domains, and domain literals, so Hide Personal Info cannot leak a second address.
+    private static func redactEmailShapedText(_ text: String, mode: DashboardIdentityMode) -> String {
+        guard mode == .redacted else { return text }
+        var output = ""
+        var cursor = text.startIndex
+        var search = text.startIndex
+        while let at = text[search...].firstIndex(of: "@") {
+            let localStart = self.emailTokenStart(in: text, before: at)
+            let domainEnd = self.emailTokenEnd(in: text, after: at)
+            if localStart < at, domainEnd > text.index(after: at) {
+                output += text[cursor..<localStart]
+                output += self.dashboardEmail(String(text[localStart..<domainEnd]), mode: .redacted) ?? "redacted"
+                cursor = domainEnd
+                search = domainEnd
+            } else {
+                search = text.index(after: at)
+            }
+        }
+        output += text[cursor...]
+        return output
+    }
+
+    private static func emailTokenStart(in text: String, before at: String.Index) -> String.Index {
+        var idx = at
+        var inQuotedLocalPart = false
+        while idx > text.startIndex {
+            let previous = text.index(before: idx)
+            let character = text[previous]
+            if character == "\"" {
+                inQuotedLocalPart.toggle()
+                idx = previous
+                continue
+            }
+            if !inQuotedLocalPart, self.isEmailBoundary(character) { break }
+            idx = previous
+        }
+        return idx
+    }
+
+    private static func emailTokenEnd(in text: String, after at: String.Index) -> String.Index {
+        var idx = text.index(after: at)
+        guard idx < text.endIndex else { return idx }
+        if text[idx] == "[" {
+            while idx < text.endIndex {
+                let character = text[idx]
+                idx = text.index(after: idx)
+                if character == "]" { break }
+            }
+            return idx
+        }
+        while idx < text.endIndex, !self.isEmailBoundary(text[idx]) {
+            idx = text.index(after: idx)
+        }
+        return idx
+    }
+
+    private static func isEmailBoundary(_ character: Character) -> Bool {
+        character.isWhitespace || "()<>:,;·/".contains(character)
     }
 
     private static func dashboardPlan(_ raw: String?, provider: UsageProvider) -> String? {

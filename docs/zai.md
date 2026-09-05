@@ -137,17 +137,23 @@ Copy each value once, on one line. Multi-line or duplicated IDs can make the API
   - `data.limits[]` → each limit entry.
   - `data.planName` (or `plan`, `plan_type`, `packageName`, `level`) → plan label.
 - Limit types:
-  - Shortest `TOKENS_LIMIT` (normally 5 hours) → primary Coding Plan window.
-  - Longer `TOKENS_LIMIT` (normally weekly) → secondary window.
-  - `TIME_LIMIT` → a separate MCP lane, never a fabricated monthly Coding Plan window.
+  - Both `TOKENS_LIMIT` and `CREDIT_LIMIT` supply Coding Plan windows.
+  - A single Coding Plan limit becomes primary. With multiple limits, the first becomes primary and the last becomes secondary after sorting by duration; unknown durations sort last.
+  - `TIME_LIMIT` → a separate MCP lane when a Coding Plan window is available, otherwise the primary MCP window; never a fabricated monthly Coding Plan window.
+- Usage percentage:
+  - An integer `percentage` is required. When a positive `usage` limit and a `currentValue` or `remaining` count are present, the counts determine the used percentage. The result is clamped to 0–100%.
 - Window duration:
   - Unit + number → minutes/hours/days.
 - Reset:
   - `nextResetTime` (epoch ms) → date.
+  - Five-hour Coding Plan resets more than five hours plus one minute of clock skew in the future are omitted, including incompatible cached resets. Usage percentages remain visible; no timezone correction is guessed. Weekly and MCP reset semantics are unchanged.
 - Usage details:
   - `usageDetails[]` per model (MCP usage list).
+  - Hourly and daily model token totals use compact M/B labels from one million upward; smaller totals remain exact. Chart points retain their full numeric values.
 
 ## Key files
-- `Sources/CodexBarCore/Providers/Zai/ZaiUsageStats.swift`
+- `Sources/CodexBarCore/Resources/Plugins/zai.js` (quota parsing and window mapping)
+- `Sources/CodexBarCore/Providers/Zai/ZaiProviderDescriptor.swift`
 - `Sources/CodexBarCore/Providers/Zai/ZaiSettingsReader.swift`
 - `Sources/CodexBar/ZaiTokenStore.swift` (legacy migration helper)
+- `Tests/CodexBarTests/ProviderPluginDetailsParityTests.swift` (quota fixtures, including credit limits)

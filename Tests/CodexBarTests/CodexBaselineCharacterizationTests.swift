@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
-@Suite(.serialized)
+@Suite(.serialized, CodexCredentialFixtures())
 struct CodexBaselineCharacterizationTests {
     private func makeContext(
         runtime: ProviderRuntime,
@@ -115,14 +115,14 @@ struct CodexBaselineCharacterizationTests {
     }
 
     private func makeEmptyCodexHome() throws -> URL {
-        let homeURL = FileManager.default.temporaryDirectory
+        let homeURL = CodexCredentialFixtures.root
             .appendingPathComponent("codex-empty-home-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: homeURL, withIntermediateDirectories: true)
         return homeURL
     }
 
     private func makeUnavailableOAuthHome() throws -> URL {
-        let homeURL = FileManager.default.temporaryDirectory
+        let homeURL = CodexCredentialFixtures.root
             .appendingPathComponent("codex-oauth-home-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: homeURL, withIntermediateDirectories: true)
 

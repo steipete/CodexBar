@@ -1,6 +1,104 @@
 import CodexBarCore
 import Foundation
 
+struct CodexAccountUsageSnapshot: Identifiable {
+    let id: String
+    let account: CodexVisibleAccount
+    let snapshot: UsageSnapshot?
+    let error: String?
+    let sourceLabel: String?
+    let credits: CreditsSnapshot?
+    let weeklyResetCandidate: CodexWeeklyResetPublicationCandidate?
+
+    init(
+        account: CodexVisibleAccount,
+        snapshot: UsageSnapshot?,
+        error: String?,
+        sourceLabel: String?,
+        credits: CreditsSnapshot? = nil,
+        weeklyResetCandidate: CodexWeeklyResetPublicationCandidate? = nil)
+    {
+        self.id = account.id
+        self.account = account
+        self.snapshot = snapshot
+        self.error = error
+        self.sourceLabel = sourceLabel
+        self.credits = credits
+        self.weeklyResetCandidate = weeklyResetCandidate
+    }
+}
+
+enum CodexMonthlyCreditPreservation {
+    static func merging(
+        incoming: CreditsSnapshot?,
+        prior: CreditsSnapshot?,
+        enrichmentFailed: Bool) -> CreditsSnapshot?
+    {
+        guard enrichmentFailed else { return incoming }
+        guard let priorLimit = prior?.codexCreditLimit else { return incoming }
+        if incoming?.codexCreditLimit != nil {
+            return incoming
+        }
+        guard let incoming else {
+            return CreditsSnapshot(
+                remaining: 0,
+                events: [],
+                updatedAt: priorLimit.updatedAt,
+                codexCreditLimit: priorLimit,
+                balanceReadSucceeded: false)
+        }
+        return CreditsSnapshot(
+            remaining: incoming.remaining,
+            events: incoming.events,
+            updatedAt: incoming.updatedAt,
+            codexCreditLimit: priorLimit,
+            balanceReadSucceeded: incoming.balanceReadSucceeded)
+    }
+
+    enum StandaloneRefreshOutcome: Equatable {
+        case published(CreditsSnapshot?)
+        case notFound
+    }
+
+    static func standaloneRefreshOutcome(
+        incoming: CreditsSnapshot?,
+        prior: CreditsSnapshot?,
+        enrichmentFailed: Bool) -> StandaloneRefreshOutcome
+    {
+        if let credits = self.merging(
+            incoming: incoming,
+            prior: prior,
+            enrichmentFailed: enrichmentFailed)
+        {
+            return .published(credits)
+        }
+        if enrichmentFailed {
+            return .published(nil)
+        }
+        return .notFound
+    }
+
+    static func shouldPublishSelectedCredits(
+        enrichmentFailed: Bool,
+        publishedCredits: CreditsSnapshot?,
+        currentCredits: CreditsSnapshot?,
+        cachedCredits: CreditsSnapshot?) -> Bool
+    {
+        if !enrichmentFailed || publishedCredits != nil {
+            return true
+        }
+        return currentCredits?.codexCreditLimit == nil && cachedCredits?.codexCreditLimit == nil
+    }
+
+    static func hydrationCredits(
+        existingCredits: CreditsSnapshot?,
+        persistedCredits: CreditsSnapshot?) -> CreditsSnapshot?
+    {
+        guard existingCredits == nil else { return nil }
+        return persistedCredits
+    }
+}
+
 protocol CodexAccountUsageSnapshotStoring: Sendable {
     func load(for accounts: [CodexVisibleAccount]) -> [CodexAccountUsageSnapshot]
     func store(_ snapshots: [CodexAccountUsageSnapshot])
@@ -18,6 +116,8 @@ struct FileCodexAccountUsageSnapshotStore: CodexAccountUsageSnapshotStoring, @un
         let snapshot: UsageSnapshot?
         let error: String?
         let sourceLabel: String?
+        let credits: CreditsSnapshot?
+        let weeklyResetCandidate: CodexWeeklyResetPublicationCandidate?
     }
 
     private struct AccountIdentity: Codable, Equatable {
@@ -76,7 +176,9 @@ struct FileCodexAccountUsageSnapshotStore: CodexAccountUsageSnapshotStoring, @un
                 account: account,
                 snapshot: Self.relabelSnapshot(record.snapshot, for: account),
                 error: record.error,
-                sourceLabel: record.sourceLabel)
+                sourceLabel: record.sourceLabel,
+                credits: record.credits,
+                weeklyResetCandidate: Self.relabelCandidate(record.weeklyResetCandidate, for: account))
         }
     }
 
@@ -91,7 +193,9 @@ struct FileCodexAccountUsageSnapshotStore: CodexAccountUsageSnapshotStoring, @un
                     accountIdentity: identity,
                     snapshot: snapshot.snapshot,
                     error: snapshot.error,
-                    sourceLabel: snapshot.sourceLabel)
+                    sourceLabel: snapshot.sourceLabel,
+                    credits: snapshot.credits,
+                    weeklyResetCandidate: snapshot.weeklyResetCandidate)
             })
         let directory = self.fileURL.deletingLastPathComponent()
         do {
@@ -121,6 +225,22 @@ struct FileCodexAccountUsageSnapshotStore: CodexAccountUsageSnapshotStoring, @un
             accountEmail: account.email,
             accountOrganization: identity?.accountOrganization,
             loginMethod: identity?.loginMethod ?? account.workspaceLabel))
+    }
+
+    private static func relabelCandidate(
+        _ candidate: CodexWeeklyResetPublicationCandidate?,
+        for account: CodexVisibleAccount) -> CodexWeeklyResetPublicationCandidate?
+    {
+        guard let candidate,
+              candidate.evidenceVersion == CodexWeeklyResetPublicationCandidate.currentEvidenceVersion,
+              let snapshot = relabelSnapshot(candidate.snapshot, for: account)
+        else {
+            return nil
+        }
+        return CodexWeeklyResetPublicationCandidate(
+            firstObservedAt: candidate.firstObservedAt,
+            createdAt: candidate.createdAt,
+            snapshot: snapshot)
     }
 
     static func defaultURL() -> URL {

@@ -29,10 +29,21 @@ public enum CodexKnownOwnerCatalog {
     public static func candidates(
         from snapshot: CodexAccountReconciliationSnapshot) -> [CodexDashboardKnownOwnerCandidate]
     {
-        var candidates = snapshot.storedAccounts.map { account in
-            CodexDashboardKnownOwnerCandidate(
-                identity: snapshot.runtimeIdentity(for: account),
-                normalizedEmail: CodexIdentityResolver.normalizeEmail(snapshot.runtimeEmail(for: account)))
+        var candidates = snapshot.storedAccounts.flatMap { account in
+            let normalizedEmail = CodexIdentityResolver.normalizeEmail(snapshot.runtimeEmail(for: account))
+            let remoteIdentity = snapshot.managedRemoteIdentity(for: account)
+            let runtimeIdentity = snapshot.runtimeIdentity(for: account)
+            var managedCandidates = [CodexDashboardKnownOwnerCandidate(
+                identity: remoteIdentity,
+                normalizedEmail: normalizedEmail)]
+            if runtimeIdentity != .unresolved,
+               !CodexIdentityMatcher.matches(runtimeIdentity, remoteIdentity)
+            {
+                managedCandidates.append(CodexDashboardKnownOwnerCandidate(
+                    identity: runtimeIdentity,
+                    normalizedEmail: normalizedEmail))
+            }
+            return managedCandidates
         }
 
         if let liveSystemAccount = snapshot.liveSystemAccount {
@@ -84,8 +95,7 @@ public enum CodexProviderSettingsBuilder {
         case .liveSystem, .profileHome:
             nil
         case .managedAccount:
-            input.reconciliationSnapshot.activeStoredAccount?.workspaceAccountID
-                ?? input.reconciliationSnapshot.activeStoredAccount?.providerAccountID
+            input.reconciliationSnapshot.activeStoredAccount?.effectiveWorkspaceAccountID
         }
 
         return ProviderSettingsSnapshot.CodexProviderSettings(

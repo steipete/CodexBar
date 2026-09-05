@@ -89,7 +89,20 @@ public enum KimiDesktopAuthToken: Sendable {
         }
         guard let text = sqlite3_column_text(statement, 0) else { return nil }
         let token = String(cString: text).trimmingCharacters(in: .whitespacesAndNewlines)
-        return token.isEmpty ? nil : token
+        return token.isEmpty || Self.isExpired(token) ? nil : token
+    }
+
+    /// Cookie expiry and JWT expiry can differ. An old desktop JWT must not shadow a live browser session.
+    static func isExpired(_ token: String, now: Date = Date()) -> Bool {
+        let parts = token.split(separator: ".")
+        guard parts.count == 3 else { return false }
+        var payload = String(parts[1]).replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        payload += String(repeating: "=", count: (4 - payload.count % 4) % 4)
+        guard let data = Data(base64Encoded: payload),
+              let claims = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let expiry = claims["exp"] as? Double else { return false }
+        return expiry <= now.timeIntervalSince1970
     }
 
     private static func walSidecarsAreMissing(databaseURL: URL) -> Bool {

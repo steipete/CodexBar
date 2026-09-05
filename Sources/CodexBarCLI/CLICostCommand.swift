@@ -163,6 +163,10 @@ extension CodexBarCLI {
         useColor: Bool) -> String
     {
         let name = ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
+        // Provider-specific by design: Antigravity exposes token history, not priced estimates.
+        if provider == .antigravity {
+            return Self.renderLocalTokenHistoryText(name: name, snapshot: snapshot, useColor: useColor)
+        }
         // Provider-specific by design: Codex cost is explicitly an API-equivalent local-session estimate.
         let title = provider == .codex
             ? "\(name) API-equivalent estimate (not billed)"
@@ -200,6 +204,30 @@ extension CodexBarCLI {
         return [header, todayLine, monthLine, meteredLine, hintLine]
             .compactMap(\.self)
             .joined(separator: "\n")
+    }
+
+    private static func renderLocalTokenHistoryText(
+        name: String,
+        snapshot: CostUsageTokenSnapshot,
+        useColor: Bool) -> String
+    {
+        let header = Self.costHeaderLine("\(name) Token History", useColor: useColor)
+        let hint = "Local token history · dollar costs unavailable"
+        guard snapshot.historyCoverageIsEstablished else {
+            return [header, "Local token history is unavailable or incomplete.", hint].joined(separator: "\n")
+        }
+        let today = snapshot.sessionTokens.map { "\(UsageFormatter.tokenCountString($0)) tokens" } ?? "—"
+        let total = snapshot.last30DaysTokens.map { "\(UsageFormatter.tokenCountString($0)) tokens" } ?? "—"
+        let historyLabel = snapshot.historyLabel
+            ?? (snapshot.historyDays == 1 ? "Today" : "Last \(snapshot.historyDays) days")
+        let lines: [String?] = [
+            header,
+            "Today: \(today)",
+            snapshot.historyDays == 1 ? nil : "\(historyLabel): \(total)",
+            snapshot.daily.isEmpty ? "No token usage found in the selected period." : nil,
+            hint,
+        ]
+        return lines.compactMap(\.self).joined(separator: "\n")
     }
 
     private static func renderProjectCostText(header: String, snapshot: CostUsageTokenSnapshot) -> String {
@@ -517,30 +545,42 @@ extension CodexBarCLI {
         var sawReasoning = false
         var sawTokens = false
         var sawCost = false
+        var overflowInput = false
+        var overflowOutput = false
+        var overflowCacheRead = false
+        var overflowCacheCreation = false
+        var overflowReasoning = false
+        var overflowTokens = false
 
         for entry in entries {
             if let input = entry.inputTokens {
-                totalInput += input
+                let (res, of) = totalInput.addingReportingOverflow(input)
+                if of { overflowInput = true } else { totalInput = res }
                 sawInput = true
             }
             if let output = entry.outputTokens {
-                totalOutput += output
+                let (res, of) = totalOutput.addingReportingOverflow(output)
+                if of { overflowOutput = true } else { totalOutput = res }
                 sawOutput = true
             }
             if let cacheRead = entry.cacheReadTokens {
-                totalCacheRead += cacheRead
+                let (res, of) = totalCacheRead.addingReportingOverflow(cacheRead)
+                if of { overflowCacheRead = true } else { totalCacheRead = res }
                 sawCacheRead = true
             }
             if let cacheCreation = entry.cacheCreationTokens {
-                totalCacheCreation += cacheCreation
+                let (res, of) = totalCacheCreation.addingReportingOverflow(cacheCreation)
+                if of { overflowCacheCreation = true } else { totalCacheCreation = res }
                 sawCacheCreation = true
             }
             if let reasoning = entry.reasoningTokens {
-                totalReasoning += reasoning
+                let (res, of) = totalReasoning.addingReportingOverflow(reasoning)
+                if of { overflowReasoning = true } else { totalReasoning = res }
                 sawReasoning = true
             }
             if let tokens = entry.totalTokens {
-                totalTokens += tokens
+                let (res, of) = totalTokens.addingReportingOverflow(tokens)
+                if of { overflowTokens = true } else { totalTokens = res }
                 sawTokens = true
             }
             if let cost = entry.costUSD {
@@ -551,12 +591,12 @@ extension CodexBarCLI {
 
         let summary = snapshot.summary(forLastDays: snapshot.historyDays)
         return CostTotalsPayload(
-            totalInputTokens: sawInput ? totalInput : nil,
-            totalOutputTokens: sawOutput ? totalOutput : nil,
-            cacheReadTokens: sawCacheRead ? totalCacheRead : nil,
-            cacheCreationTokens: sawCacheCreation ? totalCacheCreation : nil,
-            reasoningTokens: sawReasoning ? totalReasoning : nil,
-            totalTokens: sawTokens ? totalTokens : snapshot.last30DaysTokens,
+            totalInputTokens: (sawInput && !overflowInput) ? totalInput : nil,
+            totalOutputTokens: (sawOutput && !overflowOutput) ? totalOutput : nil,
+            cacheReadTokens: (sawCacheRead && !overflowCacheRead) ? totalCacheRead : nil,
+            cacheCreationTokens: (sawCacheCreation && !overflowCacheCreation) ? totalCacheCreation : nil,
+            reasoningTokens: (sawReasoning && !overflowReasoning) ? totalReasoning : nil,
+            totalTokens: (sawTokens && !overflowTokens) ? totalTokens : snapshot.last30DaysTokens,
             totalCostUSD: sawCost ? totalCost : snapshot.last30DaysCostUSD,
             provenance: summary.provenance.rawValue,
             coverage: summary.coverage)

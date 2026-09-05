@@ -409,6 +409,43 @@ struct StatusItemControllerSplitLifecycleTests {
         #expect(defaults.double(forKey: key) == 42)
     }
 
+    @Test(arguments: [Double.nan, .infinity, -.infinity], [Double?.none, .some(3000)])
+    func `status item placement preflight clears nonfinite positions`(
+        position: Double,
+        maximumPreferredPosition: Double?) throws
+    {
+        let suite = "StatusItemControllerSplitLifecycleTests-placement-nonfinite-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let key = MenuBarStatusItemPlacementPreflight.preferredPositionKey(autosaveName: "codexbar-codex")
+        let legacyKey = MenuBarStatusItemPlacementPreflight.preferredPositionKey(autosaveName: "Item-1")
+        let unrelatedKey = MenuBarStatusItemPlacementPreflight.preferredPositionKey(autosaveName: "Item-0")
+        defaults.set(position, forKey: key)
+        defaults.set(position, forKey: legacyKey)
+        defaults.set(42, forKey: unrelatedKey)
+        #expect(try #require(defaults.object(forKey: key) as? NSNumber).doubleValue.isFinite == false)
+
+        #expect(MenuBarStatusItemPlacementPreflight.prepare(
+            defaults: defaults,
+            autosaveName: "codexbar-codex",
+            legacyDefaultItemIndex: 1,
+            maximumPreferredPosition: maximumPreferredPosition))
+
+        #expect(defaults.object(forKey: key) == nil)
+        #expect(defaults.object(forKey: legacyKey) == nil)
+        #expect(defaults.double(forKey: unrelatedKey) == 42)
+    }
+
+    @Test(arguments: [42.0, 2500.0], [Double?.none, .some(3000)])
+    func `status item placement preflight preserves finite positions without requiring a display bound`(
+        position: Double,
+        maximumPreferredPosition: Double?)
+    {
+        #expect(!MenuBarStatusItemPlacementPreflight.shouldClearPreferredPosition(
+            NSNumber(value: position),
+            maximumPreferredPosition: maximumPreferredPosition))
+    }
+
     @Test
     func `status item placement preflight preserves large display position`() throws {
         let suite = "StatusItemControllerSplitLifecycleTests-placement-preserve-large-\(UUID().uuidString)"

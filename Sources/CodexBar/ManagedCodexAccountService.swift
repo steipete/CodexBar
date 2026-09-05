@@ -257,7 +257,7 @@ final class ManagedCodexAccountService {
             }
             let authenticatedProviderAccountID: String? = switch identity.identity {
             case let .providerAccount(id):
-                ManagedCodexAccount.normalizeProviderAccountID(id)
+                ManagedCodexAccount.normalizeWorkspaceAccountID(id)
             case .emailOnly, .unresolved:
                 nil
             }
@@ -394,7 +394,7 @@ final class ManagedCodexAccountService {
         if let existingAccountID,
            let existingByID = snapshot.account(id: existingAccountID),
            existingByID.email == Self.normalizeEmail(authenticatedEmail),
-           providerAccountID == nil || existingByID.providerAccountID == nil
+           providerAccountID == nil || existingByID.effectiveWorkspaceAccountID == nil
         {
             return existingByID
         }
@@ -423,7 +423,7 @@ final class ManagedCodexAccountService {
             let legacySameEmailIDs = snapshot.accounts
                 .filter {
                     $0.id != matchedAccountID &&
-                        $0.providerAccountID == nil &&
+                        $0.effectiveWorkspaceAccountID == nil &&
                         $0.email == normalizedEmail
                 }
                 .map(\.id)
@@ -437,7 +437,7 @@ final class ManagedCodexAccountService {
             return ids
         }
 
-        if existingByID.providerAccountID == nil,
+        if existingByID.effectiveWorkspaceAccountID == nil,
            existingByID.email == normalizedEmail,
            providerAccountID != nil
         {
@@ -459,7 +459,8 @@ final class ManagedCodexAccountService {
         workspaceAccountID: String?)
     {
         if let authenticatedProviderAccountID {
-            let isExistingProviderMatch = existingAccount?.providerAccountID == authenticatedProviderAccountID
+            let isExistingProviderMatch =
+                existingAccount?.effectiveWorkspaceAccountID == authenticatedProviderAccountID
             return (
                 providerAccountID: authenticatedProviderAccountID,
                 workspaceLabel: resolvedWorkspaceIdentity?.workspaceLabel
@@ -469,13 +470,13 @@ final class ManagedCodexAccountService {
                     authenticatedProviderAccountID)
         }
 
-        guard let existingAccount, existingAccount.providerAccountID != nil else {
+        guard let existingAccount, existingAccount.effectiveWorkspaceAccountID != nil else {
             return (providerAccountID: nil, workspaceLabel: nil, workspaceAccountID: nil)
         }
 
         return (
             providerAccountID: existingAccount.providerAccountID,
             workspaceLabel: existingAccount.workspaceLabel,
-            workspaceAccountID: existingAccount.workspaceAccountID ?? existingAccount.providerAccountID)
+            workspaceAccountID: existingAccount.effectiveWorkspaceAccountID)
     }
 }

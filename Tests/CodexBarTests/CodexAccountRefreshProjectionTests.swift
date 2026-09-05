@@ -68,9 +68,9 @@ extension CodexAccountScopedRefreshTests {
 
         let targetID = try #require(UUID(uuidString: "DDDDDDDD-EEEE-FFFF-AAAA-202020202020"))
         let siblingID = try #require(UUID(uuidString: "DDDDDDDD-EEEE-FFFF-AAAA-212121212121"))
-        let targetHome = FileManager.default.temporaryDirectory
+        let targetHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-visible-managed-auth-removed-\(UUID().uuidString)", isDirectory: true)
-        let siblingHome = FileManager.default.temporaryDirectory
+        let siblingHome = CodexCredentialFixtures.root
             .appendingPathComponent(
                 "codex-visible-managed-auth-removed-sibling-\(UUID().uuidString)",
                 isDirectory: true)
@@ -165,7 +165,7 @@ extension CodexAccountScopedRefreshTests {
         settings.multiAccountMenuLayout = .stacked
 
         let accountID = try #require(UUID(uuidString: "DDDDDDDD-EEEE-FFFF-AAAA-222222222222"))
-        let managedHome = FileManager.default.temporaryDirectory
+        let managedHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-visible-managed-startup-\(UUID().uuidString)", isDirectory: true)
         try Self.writeCodexAuthFile(
             homeURL: managedHome,

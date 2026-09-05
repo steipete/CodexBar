@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+@testable import CodexBar
 @testable import CodexBarCore
 
 private func alibabaTokenPlanFixture(_ name: String) throws -> Data {
@@ -889,7 +890,7 @@ struct AlibabaTokenPlanUsageParsingTests {
         #expect(redirected.value(forHTTPHeaderField: "Cookie") == "dashboard_only=keep")
     }
 
-    private static func makeResponse(url: URL, body: String, statusCode: Int) -> (HTTPURLResponse, Data) {
+    static func makeResponse(url: URL, body: String, statusCode: Int) -> (HTTPURLResponse, Data) {
         let response = HTTPURLResponse(
             url: url,
             statusCode: statusCode,
@@ -922,6 +923,134 @@ struct AlibabaTokenPlanUsageParsingTests {
     }
 }
 
+struct AlibabaTokenPlanCLIUsageTests {
+    @Test
+    func `parses both independent quota windows from sanitized CLI output`() throws {
+        let now = Date(timeIntervalSince1970: 1_787_000_000)
+        let data = Data(#"""
+        {
+            "per5HourPercentage": 0.25,
+            "per5HourResetTime": 1787000400000,
+            "per1WeekPercentage": 0.70,
+            "per1WeekResetTime": 1787001180000,
+            "ignored": "not imported"
+        }
+        """#.utf8)
+
+        let snapshot = try AlibabaTokenPlanCLIUsageParser.parse(data, now: now)
+
+        #expect(snapshot.fiveHourUsedPercent == 25)
+        #expect(snapshot.fiveHourResetsAt == Date(timeIntervalSince1970: 1_787_000_400))
+        #expect(snapshot.weeklyUsedPercent == 70)
+        #expect(snapshot.weeklyResetsAt == Date(timeIntervalSince1970: 1_787_001_180))
+        #expect(snapshot.updatedAt == now)
+        #expect(snapshot.toUsageSnapshot().primary?.remainingPercent == 75)
+        #expect(snapshot.toUsageSnapshot().secondary?.remainingPercent == 30)
+    }
+
+    @Test
+    func `accepts either valid window independently`() throws {
+        let weeklyOnly = try AlibabaTokenPlanCLIUsageParser.parse(Data(#"""
+        {
+            "per5HourPercentage": "invalid",
+            "per5HourResetTime": 1787000400000,
+            "per1WeekPercentage": 0.70
+        }
+        """#.utf8))
+        #expect(weeklyOnly.fiveHourUsedPercent == nil)
+        #expect(weeklyOnly.fiveHourResetsAt == nil)
+        #expect(weeklyOnly.weeklyUsedPercent == 70)
+
+        let fiveHourOnly = try AlibabaTokenPlanCLIUsageParser.parse(Data(#"""
+        {
+            "per5HourPercentage": 0.10,
+            "per1WeekPercentage": 1.5,
+            "per1WeekResetTime": 1787001180000
+        }
+        """#.utf8))
+        #expect(fiveHourOnly.fiveHourUsedPercent == 10)
+        #expect(fiveHourOnly.weeklyUsedPercent == nil)
+        #expect(fiveHourOnly.weeklyResetsAt == nil)
+    }
+
+    @Test
+    func `rejects payload without a valid allowlisted quota window`() {
+        #expect(throws: AlibabaTokenPlanCLIUsageError.invalidOutput) {
+            try AlibabaTokenPlanCLIUsageParser.parse(Data(#"""
+            {
+                "per5HourPercentage": true,
+                "per1WeekPercentage": -0.1,
+                "percentage": 0.5
+            }
+            """#.utf8))
+        }
+    }
+
+    @Test
+    func `maps all provider regions to Bailian CLI argv without a shell`() {
+        #expect(AlibabaTokenPlanCLIUsageFetcher.arguments(region: .chinaMainland) == [
+            "usage", "token-plan", "--console-region", "cn-beijing",
+            "--console-site", "domestic", "--output", "json",
+        ])
+        #expect(AlibabaTokenPlanCLIUsageFetcher.arguments(region: .chinaMainlandPersonal) ==
+            AlibabaTokenPlanCLIUsageFetcher.arguments(region: .chinaMainland))
+        #expect(AlibabaTokenPlanCLIUsageFetcher.arguments(region: .international) == [
+            "usage", "token-plan", "--console-region", "ap-southeast-1",
+            "--console-site", "international", "--output", "json",
+        ])
+        #expect(AlibabaTokenPlanCLIUsageFetcher.arguments(region: .internationalPersonal) ==
+            AlibabaTokenPlanCLIUsageFetcher.arguments(region: .international))
+    }
+
+    @Test
+    func `detects only an executable bl on PATH`() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("alibaba-token-plan-cli-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let binary = directory.appendingPathComponent("bl")
+        try Data("#!/bin/sh\n".utf8).write(to: binary)
+
+        #expect(AlibabaTokenPlanCLIUsageFetcher.resolveBinary(environment: ["PATH": directory.path]) == nil)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: binary.path)
+        #expect(AlibabaTokenPlanCLIUsageFetcher.resolveBinary(environment: ["PATH": directory.path]) == binary.path)
+    }
+
+    @Test
+    func `child environment narrows ambient variables to the CLI allowlist`() {
+        let sanitized = AlibabaTokenPlanCLIUsageFetcher.sanitizedEnvironment([
+            "PATH": "/usr/bin:/bin",
+            "HOME": "/Users/fixture",
+            "LANG": "en_US.UTF-8",
+            "HTTPS_PROXY": "http://proxy.test:8080",
+            "AWS_SECRET_ACCESS_KEY": "ambient-secret",
+            "ALIBABA_TOKEN_PLAN_COOKIE": "login_aliyunid_ticket=ambient-cookie",
+            "DASHSCOPE_API_KEY": "sk-ambient",
+            "SSH_AUTH_SOCK": "/tmp/agent.sock",
+        ])
+
+        #expect(sanitized == [
+            "PATH": "/usr/bin:/bin",
+            "HOME": "/Users/fixture",
+            "LANG": "en_US.UTF-8",
+            "HTTPS_PROXY": "http://proxy.test:8080",
+        ])
+    }
+
+    @Test
+    func `descriptor offers Auto CLI and Web sources`() {
+        #expect(AlibabaTokenPlanProviderDescriptor.descriptor.fetchPlan.sourceModes == [.auto, .cli, .web])
+        #expect(AlibabaTokenPlanProviderDescriptor.descriptor.cli.isBrowserSupportExempt(
+            sourceMode: .auto,
+            environment: nil,
+            settings: nil))
+        #expect(AlibabaTokenPlanProviderDescriptor.descriptor.cli.isBrowserSupportExempt(
+            sourceMode: .cli,
+            environment: nil,
+            settings: nil))
+    }
+}
+
 @Suite(.serialized)
 struct AlibabaTokenPlanWebStrategyTests {
     private struct StubClaudeFetcher: ClaudeUsageFetching {
@@ -935,6 +1064,115 @@ struct AlibabaTokenPlanWebStrategyTests {
 
         func detectVersion() -> String? {
             nil
+        }
+    }
+
+    @Test
+    func `Auto tries the Bailian CLI first then falls back to Web while explicit modes stay strict`() async throws {
+        let auto = await AlibabaTokenPlanProviderDescriptor.resolveStrategies(
+            context: self.context(region: .chinaMainlandPersonal, sourceMode: .auto))
+        let cli = await AlibabaTokenPlanProviderDescriptor.resolveStrategies(
+            context: self.context(region: .chinaMainlandPersonal, sourceMode: .cli))
+        let web = await AlibabaTokenPlanProviderDescriptor.resolveStrategies(
+            context: self.context(region: .chinaMainlandPersonal, sourceMode: .web))
+
+        #expect(auto.map(\.id) == ["alibaba-token-plan.cli", "alibaba-token-plan.web"])
+        #expect(cli.map(\.id) == ["alibaba-token-plan.cli"])
+        #expect(web.map(\.id) == ["alibaba-token-plan.web"])
+        let cliStrategy = AlibabaTokenPlanCLIFetchStrategy { _, _ in
+            throw AlibabaTokenPlanCLIUsageError.commandFailed
+        }
+        #expect(cliStrategy.shouldFallback(
+            on: AlibabaTokenPlanCLIUsageError.commandFailed,
+            context: self.context(region: .chinaMainlandPersonal, sourceMode: .auto)))
+        #expect(!cliStrategy.shouldFallback(
+            on: AlibabaTokenPlanCLIUsageError.commandFailed,
+            context: self.context(region: .chinaMainlandPersonal, sourceMode: .cli)))
+        let webStrategy = AlibabaTokenPlanWebFetchStrategy { _, _, _ in
+            throw AlibabaTokenPlanUsageError.networkError("stub")
+        }
+        #expect(webStrategy.shouldFallback(
+            on: AlibabaTokenPlanUsageError.networkError("stub"),
+            context: self.context(region: .chinaMainlandPersonal, sourceMode: .auto)))
+        #expect(!webStrategy.shouldFallback(
+            on: AlibabaTokenPlanUsageError.networkError("stub"),
+            context: self.context(region: .chinaMainlandPersonal, sourceMode: .web)))
+
+        let success = AlibabaTokenPlanCLIFetchStrategy { region, _ in
+            #expect(region == .chinaMainlandPersonal)
+            return AlibabaTokenPlanUsageSnapshot(
+                planName: "Token Plan",
+                usedQuota: nil,
+                totalQuota: nil,
+                remainingQuota: nil,
+                resetsAt: nil,
+                weeklyUsedPercent: 70,
+                updatedAt: Date(timeIntervalSince1970: 1_787_000_000))
+        }
+        let result = try await success.fetch(
+            self.context(region: .chinaMainlandPersonal, sourceMode: .cli))
+        #expect(result.sourceLabel == "cli")
+        #expect(result.strategyID == "alibaba-token-plan.cli")
+    }
+
+    @MainActor
+    @Test
+    func `unset source defaults to CLI first Auto and explicit Web remains strict`() async {
+        let suite = "AlibabaTokenPlanWebStrategyTests-legacy-\(UUID().uuidString)"
+        let settings = testSettingsStore(
+            suiteName: suite,
+            config: CodexBarConfig(providers: [ProviderConfig(id: .alibabatokenplan)]))
+
+        #expect(settings.alibabaTokenPlanUsageDataSource == .auto)
+        #expect(settings.configSnapshot.providerConfig(for: .alibabatokenplan)?.source == nil)
+        let legacy = await AlibabaTokenPlanProviderDescriptor.resolveStrategies(
+            context: self.context(
+                region: .chinaMainlandPersonal,
+                sourceMode: settings.alibabaTokenPlanUsageDataSource))
+        #expect(legacy.map(\.id) == ["alibaba-token-plan.cli", "alibaba-token-plan.web"])
+
+        settings.alibabaTokenPlanUsageDataSource = .web
+        #expect(settings.alibabaTokenPlanUsageDataSource == .web)
+        #expect(settings.configSnapshot.providerConfig(for: .alibabatokenplan)?.source == .web)
+        let web = await AlibabaTokenPlanProviderDescriptor.resolveStrategies(
+            context: self.context(
+                region: .chinaMainlandPersonal,
+                sourceMode: settings.alibabaTokenPlanUsageDataSource))
+        #expect(web.map(\.id) == ["alibaba-token-plan.web"])
+    }
+
+    @Test
+    func `Auto pipeline falls back to account scoped manual cookies after unavailable CLI`() async throws {
+        try await self.withIsolatedCookieCache {
+            let region = AlibabaTokenPlanAPIRegion.chinaMainlandPersonal
+            let cli = AlibabaTokenPlanCLIFetchStrategy { _, _ in
+                throw AlibabaTokenPlanCLIUsageError.unavailable
+            }
+            let web = AlibabaTokenPlanWebFetchStrategy { headers, selectedRegion, _ in
+                #expect(selectedRegion == region)
+                #expect(headers.apiCookieHeader == "login_aliyunid_ticket=fixture")
+                return AlibabaTokenPlanUsageSnapshot(
+                    planName: "Token Plan",
+                    usedQuota: nil,
+                    totalQuota: nil,
+                    remainingQuota: nil,
+                    resetsAt: nil,
+                    weeklyUsedPercent: 42,
+                    updatedAt: Date(timeIntervalSince1970: 1_787_000_000))
+            }
+            let pipeline = ProviderFetchPipeline(resolveStrategies: { _ in [cli, web] })
+            let context = self.context(
+                region: region,
+                sourceMode: .auto,
+                cookieSource: .manual,
+                manualCookieHeader: "login_aliyunid_ticket=fixture")
+
+            let outcome = await pipeline.fetch(context: context, provider: .alibabatokenplan)
+            let result = try outcome.result.get()
+
+            #expect(outcome.attempts.map(\.strategyID) == ["alibaba-token-plan.cli", "alibaba-token-plan.web"])
+            #expect(result.sourceLabel == "web")
+            #expect(result.usage.secondary?.usedPercent == 42)
         }
     }
 
@@ -1237,15 +1475,20 @@ struct AlibabaTokenPlanWebStrategyTests {
             })
     }
 
-    private func context(region: AlibabaTokenPlanAPIRegion) -> ProviderFetchContext {
+    private func context(
+        region: AlibabaTokenPlanAPIRegion,
+        sourceMode: ProviderSourceMode = .web,
+        cookieSource: ProviderCookieSource = .auto,
+        manualCookieHeader: String? = nil) -> ProviderFetchContext
+    {
         let settings = ProviderSettingsSnapshot.make(
             alibabaTokenPlan: ProviderSettingsSnapshot.AlibabaTokenPlanProviderSettings(
-                cookieSource: .auto,
-                manualCookieHeader: nil,
+                cookieSource: cookieSource,
+                manualCookieHeader: manualCookieHeader,
                 apiRegion: region))
         return ProviderFetchContext(
             runtime: .cli,
-            sourceMode: .web,
+            sourceMode: sourceMode,
             includeCredits: false,
             webTimeout: 1,
             webDebugDumpHTML: false,
@@ -1342,5 +1585,101 @@ struct AlibabaTokenPlanSECTokenScrapeTests {
     @Test
     func `returns nil when no token is present`() {
         #expect(AlibabaTokenPlanUsageFetcher.extractSECToken(from: "<html><body>no token here</body></html>") == nil)
+    }
+}
+
+struct AlibabaTokenPlanPersonalUsageRetryTests {
+    private static let emptySuccess = #"{"code":"SUCCESS","successResponse":true,"msg":"Success.","data":{}}"#
+
+    private static func personalHandler(
+        usageBodies: @escaping @Sendable (Int) -> String,
+        subscription: String,
+        quota: String,
+        usageCalls: LockIsolated<Int>) -> @Sendable (URLRequest) throws -> (HTTPURLResponse, Data)
+    {
+        { request in
+            guard let url = request.url else { throw URLError(.badURL) }
+            if url.host == "bailian.console.aliyun.com", request.httpMethod == "GET" {
+                if url.path == "/tool/user/info.json" {
+                    return AlibabaTokenPlanUsageParsingTests.makeResponse(
+                        url: url,
+                        body: #"{"code":"200","data":{"secToken":"t"},"successResponse":true}"#,
+                        statusCode: 200)
+                }
+                return AlibabaTokenPlanUsageParsingTests.makeResponse(url: url, body: "<html></html>", statusCode: 200)
+            }
+            let api = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                .queryItems?.first(where: { $0.name == "api" })?.value
+            switch api {
+            case "zeldaHttp.apikeyMgr./tokenplan/personal/api/v2/usage":
+                let n = usageCalls.value + 1
+                usageCalls.setValue(n)
+                return AlibabaTokenPlanUsageParsingTests.makeResponse(url: url, body: usageBodies(n), statusCode: 200)
+            case "zeldaHttp.apikeyMgr./tokenplan/personal/api/v2/subscription":
+                return AlibabaTokenPlanUsageParsingTests.makeResponse(url: url, body: subscription, statusCode: 200)
+            case "zeldaHttp.apikeyMgr./tokenplan/personal/api/v2/quota-config":
+                return AlibabaTokenPlanUsageParsingTests.makeResponse(url: url, body: quota, statusCode: 200)
+            default:
+                throw URLError(.unsupportedURL)
+            }
+        }
+    }
+
+    private static func stubSession() -> URLSession {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [AlibabaTokenPlanStubURLProtocol.self]
+        return URLSession(configuration: configuration)
+    }
+
+    @Test
+    func `recovers when an empty Success usage response is followed by a full one`() async throws {
+        defer { AlibabaTokenPlanStubURLProtocol.handler = nil }
+        let usageBody = try #require(String(data: alibabaTokenPlanFixture("personal_usage"), encoding: .utf8))
+        let subscriptionBody = try #require(
+            String(data: alibabaTokenPlanFixture("personal_subscription"), encoding: .utf8))
+        let quotaBody = try #require(String(data: alibabaTokenPlanFixture("personal_quota_config"), encoding: .utf8))
+        let usageCalls = LockIsolated(0)
+
+        // The gateway answers the first usage request with an empty Success payload, the second with data.
+        AlibabaTokenPlanStubURLProtocol.handler = Self.personalHandler(
+            usageBodies: { $0 == 1 ? Self.emptySuccess : usageBody },
+            subscription: subscriptionBody,
+            quota: quotaBody,
+            usageCalls: usageCalls)
+
+        let snapshot = try await AlibabaTokenPlanUsageFetcher.fetchUsage(
+            apiCookieHeader: "quota_only=quota",
+            dashboardCookieHeader: "dashboard_only=dashboard",
+            region: .chinaMainlandPersonal,
+            environment: [:],
+            session: Self.stubSession())
+
+        #expect(snapshot.toUsageSnapshot().primary != nil)
+        #expect(usageCalls.value == 2)
+    }
+
+    @Test
+    func `surfaces usageWindowsUnavailable when every usage attempt is an empty Success`() async throws {
+        defer { AlibabaTokenPlanStubURLProtocol.handler = nil }
+        let subscriptionBody = try #require(
+            String(data: alibabaTokenPlanFixture("personal_subscription"), encoding: .utf8))
+        let quotaBody = try #require(String(data: alibabaTokenPlanFixture("personal_quota_config"), encoding: .utf8))
+        let usageCalls = LockIsolated(0)
+
+        AlibabaTokenPlanStubURLProtocol.handler = Self.personalHandler(
+            usageBodies: { _ in Self.emptySuccess },
+            subscription: subscriptionBody,
+            quota: quotaBody,
+            usageCalls: usageCalls)
+
+        await #expect(throws: AlibabaTokenPlanUsageError.usageWindowsUnavailable) {
+            _ = try await AlibabaTokenPlanUsageFetcher.fetchUsage(
+                apiCookieHeader: "quota_only=quota",
+                dashboardCookieHeader: "dashboard_only=dashboard",
+                region: .chinaMainlandPersonal,
+                environment: [:],
+                session: Self.stubSession())
+        }
+        #expect(usageCalls.value > 1)
     }
 }

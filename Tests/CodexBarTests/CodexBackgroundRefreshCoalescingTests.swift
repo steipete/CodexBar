@@ -3,7 +3,7 @@ import Testing
 @testable import CodexBar
 @testable import CodexBarCore
 
-@Suite(.serialized)
+@Suite(.serialized, CodexCredentialFixtures())
 @MainActor
 struct CodexBackgroundRefreshCoalescingTests {
     @Test
@@ -1240,7 +1240,7 @@ extension CodexBackgroundRefreshCoalescingTests {
     }
 
     func makeStore(settings: SettingsStore) -> UsageStore {
-        let root = FileManager.default.temporaryDirectory
+        let root = CodexCredentialFixtures.root
             .appendingPathComponent("codexbar-tests", isDirectory: true)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         let environment = [
@@ -1267,7 +1267,7 @@ extension CodexBackgroundRefreshCoalescingTests {
     }
 
     private static func makeManagedAccount(email: String) throws -> ManagedCodexAccount {
-        let managedHomeURL = FileManager.default.temporaryDirectory
+        let managedHomeURL = CodexCredentialFixtures.root
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try Self.writeCodexAuthFile(
             homeURL: managedHomeURL,

@@ -35,7 +35,9 @@ struct AdvancedPane: View {
 
             Section {
                 Toggle(isOn: self.$settings.hidePersonalInfo) {
-                    SettingsRowLabel(L("hide_personal_info_title"), subtitle: L("hide_personal_info_subtitle"))
+                    SettingsRowLabel(
+                        L("hide_personal_info_title"),
+                        subtitle: L("hide_personal_info_subtitle") + " " + L("hide_cost_history_identity_subtitle"))
                 }
 
                 Toggle(isOn: self.$settings.debugDisableKeychainAccess) {
@@ -71,7 +73,9 @@ struct AdvancedPane: View {
 
 extension AdvancedPane {
     private func installCLI() async {
-        if self.isInstallingCLI { return }
+        if self.isInstallingCLI {
+            return
+        }
         self.isInstallingCLI = true
         defer { self.isInstallingCLI = false }
 
@@ -87,35 +91,39 @@ extension AdvancedPane {
             "/opt/homebrew/bin/codexbar",
         ]
 
-        var results: [String] = []
+        var installed: [String] = []
+        var conflicts: [String] = []
+        var failures: [String] = []
         for dest in destinations {
             let dir = (dest as NSString).deletingLastPathComponent
             guard fm.fileExists(atPath: dir) else { continue }
-            guard fm.isWritableFile(atPath: dir) else {
-                results.append("No write access: \(dir)")
-                continue
-            }
 
             if fm.fileExists(atPath: dest) {
                 if Self.isLink(atPath: dest, pointingTo: helperURL.path) {
-                    results.append("Installed: \(dir)")
+                    installed.append("Installed: \(dir)")
                 } else {
-                    results.append("Exists: \(dir)")
+                    conflicts.append("Exists: \(dir)")
                 }
+                continue
+            }
+
+            guard fm.isWritableFile(atPath: dir) else {
+                failures.append("No write access: \(dir)")
                 continue
             }
 
             do {
                 try fm.createSymbolicLink(atPath: dest, withDestinationPath: helperURL.path)
-                results.append("Installed: \(dir)")
+                installed.append("Installed: \(dir)")
             } catch {
-                results.append("Failed: \(dir)")
+                failures.append("Failed: \(dir)")
             }
         }
 
-        self.cliStatus = results.isEmpty
-            ? L("no_writable_bin_dirs")
-            : results.joined(separator: " · ")
+        self.cliStatus = Self.cliInstallStatus(
+            installed: installed,
+            conflicts: conflicts,
+            failures: failures)
     }
 
     private static func isLink(atPath path: String, pointingTo destination: String) -> Bool {
@@ -125,5 +133,18 @@ extension AdvancedPane {
             .standardizedFileURL
             .path
         return resolved == destination
+    }
+
+    static func cliInstallStatus(installed: [String], conflicts: [String], failures: [String]) -> String {
+        if installed.isEmpty == false {
+            return (installed + conflicts).joined(separator: " · ")
+        }
+        if conflicts.isEmpty == false {
+            return (conflicts + failures).joined(separator: " · ")
+        }
+        if failures.isEmpty == false {
+            return failures.joined(separator: " · ")
+        }
+        return L("no_writable_bin_dirs")
     }
 }

@@ -10,6 +10,14 @@ private struct CodexCostCatchUpContext {
     let costUsageSettingsRevision: UInt64
 }
 
+private enum CodexCostCatchUpPublicationError: LocalizedError {
+    case completedHistoryUnavailable
+
+    var errorDescription: String? {
+        "Completed Codex cost history is unavailable; waiting for the next refresh."
+    }
+}
+
 extension UsageStore {
     func startCodexCostCatchUpIfNeeded(afterRefreshing provider: UsageProvider) {
         guard provider == .codex else { return }
@@ -251,19 +259,27 @@ extension UsageStore {
         context: CodexCostCatchUpContext) async throws -> CostUsageFetcher.CodexScanCatchUpStatus
     {
         let now = Date()
-        let snapshot = try await self.loadTokenUsageSnapshot(
-            provider: .codex,
-            force: true,
+        // Provider-specific by design: Codex owns resumable cost catch-up and this guarded completed-cache publication.
+        let publicationRevision = self.tokenSnapshotPublicationRevision(for: .codex)
+        let result = await self.loadCompletedCodexCostCatchUpSnapshot(
             now: now,
-            codexHomePath: context.codexHomePath,
-            historyDays: context.historyDays)
+            context: context)
         try Task.checkCancellation()
-        guard self.codexCostCatchUpContextIsCurrent(context) else {
+        guard self.codexCostCatchUpContextIsCurrent(context),
+              self.tokenSnapshotPublicationRevision(for: .codex) == publicationRevision
+        else {
             throw CancellationError()
         }
+        guard let result,
+              result.snapshot.historyCoverageIsEstablished,
+              result.staleSnapshotUpdatedAt == nil
+        else { throw CodexCostCatchUpPublicationError.completedHistoryUnavailable }
+        let snapshot = result.snapshot
 
-        self.lastTokenFetchAt[.codex] = now
-        self.lastTokenFetchScope[.codex] = context.scopeSignature
+        if let lastRefreshAt = result.lastRefreshAt {
+            self.lastTokenFetchAt[.codex] = lastRefreshAt
+            self.lastTokenFetchScope[.codex] = context.scopeSignature
+        }
         if snapshot.daily.isEmpty, snapshot.meteredCostUSD == nil {
             self.publishConfirmedEmptyTokenSnapshot(for: .codex)
             self.tokenErrors[.codex] = Self.tokenCostNoDataMessage(for: .codex)
@@ -280,6 +296,24 @@ extension UsageStore {
             context: context,
             phase: status.pending ? .indexing : .complete)
         return status
+    }
+
+    private func loadCompletedCodexCostCatchUpSnapshot(
+        now: Date,
+        context: CodexCostCatchUpContext) async -> (
+        snapshot: CostUsageTokenSnapshot,
+        lastRefreshAt: Date?,
+        staleSnapshotUpdatedAt: Date?)?
+    {
+        if let override = self._test_cachedCodexTokenSnapshotLoaderOverride {
+            return await override(now, context.codexHomePath, context.historyDays)
+        }
+        return await self.costUsageFetcher.loadCompletedCodexTokenSnapshotResult(
+            now: now,
+            codexHomePath: context.codexHomePath,
+            historyDays: context.historyDays,
+            calendar: self.settings.costUsageBucketCalendar)
+            .map { ($0.snapshot, $0.lastRefreshAt, $0.staleSnapshotUpdatedAt) }
     }
 
     private func codexCostCatchUpContextIsCurrent(_ context: CodexCostCatchUpContext) -> Bool {

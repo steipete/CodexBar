@@ -224,6 +224,7 @@
 "No cost history data." = "داده های تاریخچه رایگان.";
 "No data available" = "داده ای در دسترس نیست";
 "No data yet" = "هنوز داده ای وجود ندارد";
+"Workspaces" = "فضاهای کاری";
 "No enabled providers available for Overview." = "هیچ ارائه دهنده فعالی برای مرور کلی در دسترس نیست.";
 "No providers selected" = "هیچ ارائه دهنده ای انتخاب نشده است";
 "No token accounts yet." = "هنوز حساب توکنی ندارم.";
@@ -565,6 +566,7 @@
 "hooks_any_provider" = "هر ارائه‌دهنده";
 "hooks_threshold" = "اجرا در مصرف ≥";
 "hooks_threshold_placeholder" = "90";
+"hooks_executable" = "فایل اجرایی";
 "hooks_executable_placeholder" = "/usr/local/bin/my-command";
 "hooks_arguments_placeholder" = "آرگومان‌ها";
 "hooks_argument_placeholder" = "آرگومان";
@@ -661,6 +663,8 @@
 "section_keyboard_shortcut" = "میانبر کیبورد";
 "open_menu_shortcut_title" = "منوی باز";
 "open_menu_shortcut_subtitle" = "منوی نوار منو را از هر جایی فعال کنید.";
+"record_shortcut" = "ثبت میانبر";
+"press_shortcut" = "میانبر را فشار دهید";
 "install_cli" = "نصب CLI";
 "install_cli_subtitle" = "Symlink CodexBarCLI به /usr/local/bin و /opt/homebrew/bin به عنوان codexbar.";
 "cli_not_found" = "CodexBarCLI در بسته برنامه ها یافت نمی شود.";
@@ -671,6 +675,9 @@
 "surprise_me_subtitle" = "بررسی کن که آیا دوست داری مأمورانت آنجا خوش بگذرانند یا نه.";
 "hide_personal_info_title" = "مخفی کردن اطلاعات شخصی";
 "hide_personal_info_subtitle" = "آدرس های ایمیل مبهم در نوار منو و رابط کاربری منو.";
+"hide_cost_history_identity_subtitle" = "نام و مسیر پروژه‌ها و منابع را در تاریخچهٔ هزینه‌ها نیز بدون تغییر داده‌های ذخیره‌شده پنهان می‌کند.";
+"Project %d" = "پروژهٔ %d";
+"Source %d" = "منبع %d";
 "show_provider_storage_usage_title" = "استفاده از ذخیره سازی ارائه دهنده را نمایش دهید";
 "show_provider_storage_usage_subtitle" = "استفاده محلی از دیسک را در منوها نمایش دهید. مسیرهای شناخته شده متعلق به ارائه دهندگان را در پس زمینه اسکن می کند.";
 "section_keychain_access" = "دسترسی Keychain";
@@ -939,6 +946,7 @@
 "Monthly" = "ماهانه";
 "Sonnet" = "سونت";
 "Overages" = "اضافه هزینه ها";
+"Overage" = "اضافه هزینه";
 "Activity" = "فعالیت ها";
 "Copied" = "کپی شده";
 "Copy error" = "خطای کپی";
@@ -949,6 +957,7 @@
 "Balance updates in near-real time (up to 5 min lag)" = "به روزرسانی تعادل تقریبا در زمان واقعی (تا ۵ دقیقه تأخیر)";
 "Daily billing data finalizes at 07:00 UTC" = "داده های صورتحساب روزانه در ساعت ۰۷:۰۰ نهایی می شود UTC";
 "%@ of %@ credits left" = "%@ از %@ اعتبار باقی مانده";
+"of %@" = "از %@";
 "%@ of %@ bonus credits left" = "%@ از %@ اعتبار اضافی باقی مانده";
 "%@ / %@ (%@ remaining)" = "%@ / %@ (%@ باقی مانده)";
 "%@/%@ left" = "%@/%@ باقی مانده";
@@ -960,6 +969,7 @@
 "Full in ~1 regen" = "بازیابی کامل ~۱";
 "Full in ~%.0f regens" = "بازسازی های کامل ~%.0f";
 "Overage usage" = "استفاده بیش از حد";
+"Overage credits left" = "اعتبار اضافی باقی‌مانده";
 "Overage cost" = "هزینه اضافی";
 "credits" = "اعتبارات";
 "Zen balance" = "تعادل ذن";
@@ -1368,6 +1378,9 @@
 "menu_bar_layout_preset_compact_stacked" = "پشتهٔ فشرده";
 "menu_bar_layout_preset_custom" = "عرف";
 "menu_bar_layout_live_preview" = "پیش‌نمایش زنده";
+"menu_bar_layout_default_preview" = "پیش‌نمایش چیدمان پیش‌فرض";
+"menu_bar_layout_overrides_notice" = "این ارائه‌دهندگان فعال از چیدمان‌های ذخیره‌شدهٔ خود استفاده می‌کنند:";
+"menu_bar_layout_use_all_accessibility" = "%@: استفاده از چیدمان همهٔ ارائه‌دهندگان";
 "menu_bar_layout_strip" = "نوار منو";
 "menu_bar_layout_remove_line_break" = "حذف شکست خط";
 "menu_bar_layout_chip_hint" = "انتخاب کنید، برای مرتب‌سازی بکشید یا از عمل حذف استفاده کنید.";
@@ -1375,6 +1388,7 @@
 "menu_bar_layout_empty_line" = "نشانه را اینجا رها کنید";
 "menu_bar_layout_line" = "خط %d";
 "menu_bar_layout_drag_remove" = "برای حذف به اینجا بکشید";
+"menu_bar_layout_remove_selected" = "حذف انتخاب‌شده";
 "menu_bar_layout_size" = "اندازه";
 "menu_bar_layout_size_small" = "کوچک";
 "menu_bar_layout_size_regular" = "معمولی";
@@ -1434,6 +1448,7 @@
 "More" = "بیشتر";
 
 /* Provider Plugins */
+"Plugins" = "Plugins";
 "Install…" = "نصب…";
 "Install plugin" = "نصب افزونه";
 "Copies a JavaScript or TypeScript file into the plugins directory." = "یک فایل JavaScript یا TypeScript را در پوشهٔ افزونه‌ها کپی می‌کند.";
@@ -1475,6 +1490,7 @@
 "Total usage" = "مصرف کل";
 "claude_oauth_keychain_access_revoked" = "دسترسی به Keychain کلود با چرخش توکن Claude Code لغو شد. برای اعطای مجدد دسترسی روی «تازه‌سازی» کلیک کنید، یا منبع استفاده Claude را به CLI/Web تغییر دهید.";
 "claude_showing_last_known_usage" = "آخرین میزان استفاده شناخته‌شده که در %@ ثبت شده نمایش داده می‌شود.";
+"claude_limited_usage_detail" = "جزئیات استفاده محدود است";
 /* Spend dashboard cost analysis */
 "90d" = "90d";
 "Input" = "Input";
@@ -1530,3 +1546,4 @@
 "menu_bar_layout_conditional_default_session_spent" = "نشست تقریباً تمام شده";
 "menu_bar_layout_conditional_default_either_high" = "نشست یا هفته در سطح بالا";
 "menu_bar_layout_conditional_default_scoped_weekly" = "پنجره هفتگی مدل بیش از ۶۰٪";
+"Spending cap, not balance" = "سقف هزینه، نه موجودی";

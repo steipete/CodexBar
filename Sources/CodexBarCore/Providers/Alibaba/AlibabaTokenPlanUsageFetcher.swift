@@ -9,6 +9,9 @@ public enum AlibabaTokenPlanUsageError: LocalizedError, Sendable, Equatable {
     case apiError(String)
     case networkError(String)
     case parseFailed(String)
+    /// The Personal gateway returned a 200 "Success" envelope with no rolling-window payload — a
+    /// transient server-side quirk, not a real parse failure. Retried before it ever surfaces.
+    case usageWindowsUnavailable
 
     public var errorDescription: String? {
         switch self {
@@ -22,6 +25,8 @@ public enum AlibabaTokenPlanUsageError: LocalizedError, Sendable, Equatable {
             "Alibaba Token Plan network error: \(message)"
         case let .parseFailed(message):
             "Could not parse Alibaba Token Plan usage: \(message)"
+        case .usageWindowsUnavailable:
+            "Alibaba Token Plan usage is temporarily unavailable; it will refresh automatically."
         }
     }
 }
@@ -44,6 +49,11 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
     private static let personalUsageAPI = "zeldaHttp.apikeyMgr./tokenplan/personal/api/v2/usage"
     private static let personalSubscriptionAPI = "zeldaHttp.apikeyMgr./tokenplan/personal/api/v2/subscription"
     private static let personalQuotaConfigAPI = "zeldaHttp.apikeyMgr./tokenplan/personal/api/v2/quota-config"
+    /// The Personal usage gateway intermittently answers with a 200 "Success" envelope that omits the
+    /// rolling-window payload; an immediate re-request usually returns it. Bounded so a genuinely empty
+    /// stretch still degrades quickly.
+    private static let personalUsageMaxAttempts = 3
+    private static let personalUsageRetryDelayNanoseconds: UInt64 = 400_000_000
     private static let browserLikeUserAgent =
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
         "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
@@ -337,10 +347,6 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
                 "secTokenSource": context.secToken == nil ? "missing" : "resolved",
             ])
 
-        let usageData = try await self.fetchPersonalAPI(
-            api: self.personalUsageAPI,
-            dataParameters: [:],
-            context: context)
         let subscriptionData = await self.fetchOptionalPersonalAPI(
             api: self.personalSubscriptionAPI,
             dataParameters: ["commodityCode": context.region.tokenPlanProductCode],
@@ -350,11 +356,32 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
             dataParameters: [:],
             context: context)
 
-        return try AlibabaTokenPlanPersonalUsageParser.parse(
-            from: usageData,
-            subscriptionData: subscriptionData,
-            quotaConfigData: quotaConfigData,
-            now: context.now)
+        // The Personal usage gateway intermittently returns a 200 "Success" with an empty payload
+        // (no rolling-window fields). It is usually populated on an immediate re-request, so retry a
+        // few times before surfacing the transient gap — which keeps the last-good card and shows a
+        // "temporarily unavailable" note rather than a hard "could not parse" error.
+        for attempt in 0..<Self.personalUsageMaxAttempts {
+            if attempt > 0 {
+                try? await Task.sleep(nanoseconds: Self.personalUsageRetryDelayNanoseconds)
+            }
+            do {
+                let usageData = try await self.fetchPersonalAPI(
+                    api: self.personalUsageAPI,
+                    dataParameters: [:],
+                    context: context)
+                return try AlibabaTokenPlanPersonalUsageParser.parse(
+                    from: usageData,
+                    subscriptionData: subscriptionData,
+                    quotaConfigData: quotaConfigData,
+                    now: context.now)
+            } catch AlibabaTokenPlanUsageError.usageWindowsUnavailable {
+                Self.log.info(
+                    "Alibaba Token Plan Personal usage returned no windows; retrying",
+                    metadata: ["attempt": "\(attempt + 1)", "max": "\(Self.personalUsageMaxAttempts)"])
+                continue
+            }
+        }
+        throw AlibabaTokenPlanUsageError.usageWindowsUnavailable
     }
 
     private static func fetchOptionalPersonalAPI(

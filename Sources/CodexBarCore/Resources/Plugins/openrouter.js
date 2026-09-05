@@ -112,26 +112,27 @@ defineProvider({
     } else
       try {
         const now = ctx.date.now();
-        const today = now.toISOString().slice(0, 10);
-        const cutoffDate = new Date(now.getTime() - 29 * 24 * 60 * 60 * 1000);
+        const latestCompletedDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        const latestCompleted = latestCompletedDate.toISOString().slice(0, 10);
+        const cutoffDate = new Date(latestCompletedDate.getTime() - 29 * 24 * 60 * 60 * 1000);
         const cutoff = cutoffDate.toISOString().slice(0, 10);
         // A management credential must never follow the user-configurable API base to a proxy.
         const activityURL = "https://openrouter.ai/api/v1/activity";
-        const [historyResponse, todayResponse] = await Promise.all([
+        const [historyResponse, latestCompletedResponse] = await Promise.all([
           ctx.http.get(activityURL, {
             timeoutSeconds: optionalRequestTimeoutSeconds,
             openRouterManagementAuth: true,
           }),
-          ctx.http.get(`${activityURL}?date=${encodeURIComponent(today)}`, {
+          ctx.http.get(`${activityURL}?date=${encodeURIComponent(latestCompleted)}`, {
             timeoutSeconds: optionalRequestTimeoutSeconds,
             openRouterManagementAuth: true,
           }),
         ]);
-        if (historyResponse.status !== 200 || todayResponse.status !== 200) {
-          const failed = historyResponse.status !== 200 ? historyResponse : todayResponse;
+        if (historyResponse.status !== 200 || latestCompletedResponse.status !== 200) {
+          const failed = historyResponse.status !== 200 ? historyResponse : latestCompletedResponse;
           activityDegradation = activityDegradationReason(failed.status);
         } else {
-          const payloads = [historyResponse, todayResponse].map((response) => JSON.parse(response.bodyText));
+          const payloads = [historyResponse, latestCompletedResponse].map((response) => JSON.parse(response.bodyText));
           const rows = payloads.flatMap((payload) => {
             if (!payload || !Array.isArray(payload.data)) throw new TypeError("activity.data must be an array");
             return payload.data;
@@ -149,15 +150,18 @@ defineProvider({
             if (!row || typeof row !== "object" || Array.isArray(row)) {
               throw new TypeError(`activity.data[${index}] must be an object`);
             }
-            const date = typeof row.date === "string" ? row.date.trim() : "";
-            if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-              throw new TypeError(`activity.data[${index}].date must be YYYY-MM-DD`);
+            const rawDate = typeof row.date === "string" ? row.date.trim() : "";
+            if (!/^\d{4}-\d{2}-\d{2}(?: \d{2}:\d{2}:\d{2})?$/.test(rawDate)) {
+              throw new TypeError(`activity.data[${index}].date must be YYYY-MM-DD or YYYY-MM-DD HH:MM:SS`);
             }
+            const date = rawDate.slice(0, 10);
             const parsedDate = new Date(`${date}T00:00:00Z`);
             if (!Number.isFinite(parsedDate.getTime()) || parsedDate.toISOString().slice(0, 10) !== date) {
               throw new TypeError(`activity.data[${index}].date must be a real calendar date`);
             }
-            if (date > today) throw new TypeError(`activity.data[${index}].date must not be in the future`);
+            if (date > latestCompleted) {
+              throw new TypeError(`activity.data[${index}].date must be a completed UTC day`);
+            }
             if (date < cutoff) continue;
             const rawModel = row.model_permaslug ?? row.model;
             const model = typeof rawModel === "string" && rawModel.trim() ? rawModel.trim() : null;
@@ -246,7 +250,7 @@ defineProvider({
             currency: "USD",
             historyDays: 30,
             historyLabel: "Last 30 days (UTC)",
-            windowEnd: today,
+            windowEnd: latestCompleted,
             entries,
           };
         }
@@ -311,11 +315,15 @@ defineProvider({
     if (keyData) {
       const rows = [];
       if (keyLimit !== null && keyLimit > 0) {
-        rows.push({ label: "API key budget", value: currency(keyLimit) });
+        rows.push({
+          label: "API key limit",
+          value: currency(keyLimit),
+          secondaryValue: "Spending cap, not balance",
+        });
         if (keyRemaining !== null) rows.push({ label: "API key remaining", value: currency(keyRemaining) });
         if (keyUsage !== null) rows.push({ label: "API key used", value: currency(keyUsage) });
       } else {
-        rows.push({ label: "API key budget", value: "No limit configured" });
+        rows.push({ label: "API key limit", value: "No limit configured" });
       }
       const resetWindow = typeof keyData.limit_reset === "string" ? keyData.limit_reset.trim() : "";
       if (resetWindow) rows.push({ label: "Reset window", value: resetWindow });
@@ -349,7 +357,7 @@ defineProvider({
         title: "API key",
         rows: [
           {
-            label: "API key budget",
+            label: "API key limit",
             value: "Unavailable right now",
             secondaryValue: keyDegradation,
           },

@@ -45,6 +45,7 @@
 "hooks_any_provider" = "すべてのプロバイダー";
 "hooks_threshold" = "使用率 ≥ で実行";
 "hooks_threshold_placeholder" = "90";
+"hooks_executable" = "実行ファイル";
 "hooks_executable_placeholder" = "/usr/local/bin/my-command";
 "hooks_arguments_placeholder" = "引数";
 "hooks_argument_placeholder" = "引数";
@@ -239,6 +240,7 @@
 "No cost history data." = "コスト履歴データがありません。";
 "No data available" = "データがありません";
 "No data yet" = "まだデータがありません";
+"Workspaces" = "ワークスペース";
 "No enabled providers available for Overview." = "概要に表示できる有効なプロバイダがありません。";
 "No providers selected" = "プロバイダが選択されていません";
 "No token accounts yet." = "トークンアカウントはまだありません。";
@@ -652,6 +654,8 @@
 "section_keyboard_shortcut" = "キーボードショートカット";
 "open_menu_shortcut_title" = "メニューを開く";
 "open_menu_shortcut_subtitle" = "どこからでもメニューバーのメニューを開きます。";
+"record_shortcut" = "キーを記録";
+"press_shortcut" = "キーを押してください";
 "install_cli" = "CLI をインストール";
 "install_cli_subtitle" = "CodexBarCLI を codexbar として /usr/local/bin と /opt/homebrew/bin にシンボリックリンクします。";
 "cli_not_found" = "アプリバンドル内に CodexBarCLI が見つかりません。";
@@ -662,6 +666,9 @@
 "surprise_me_subtitle" = "エージェントたちがメニューバーで少し遊ぶのが好きか試してみてください。";
 "hide_personal_info_title" = "個人情報を隠す";
 "hide_personal_info_subtitle" = "メニューバーとメニュー UI のメールアドレスを伏せ字にします。";
+"hide_cost_history_identity_subtitle" = "保存データを変更せずに、コスト履歴のプロジェクト名・ソース名とパスも非表示にします。";
+"Project %d" = "プロジェクト %d";
+"Source %d" = "ソース %d";
 "show_provider_storage_usage_title" = "プロバイダのストレージ使用量を表示";
 "show_provider_storage_usage_subtitle" = "ローカルディスクの使用量をメニューに表示します。既知のプロバイダ所有パスをバックグラウンドでスキャンします。";
 "section_keychain_access" = "キーチェーンアクセス";
@@ -929,6 +936,7 @@
 "Monthly" = "月間";
 "Sonnet" = "Sonnet";
 "Overages" = "超過分";
+"Overage" = "超過分";
 "Activity" = "アクティビティ";
 "Copied" = "コピーしました";
 "Copy error" = "エラーをコピー";
@@ -939,6 +947,7 @@
 "Balance updates in near-real time (up to 5 min lag)" = "残高はほぼリアルタイムで更新されます（最大5分の遅延）";
 "Daily billing data finalizes at 07:00 UTC" = "日次請求データは 07:00 UTC に確定します";
 "%@ of %@ credits left" = "クレジット残り %@ / %@";
+"of %@" = "/ %@";
 "%@ of %@ bonus credits left" = "ボーナスクレジット残り %@ / %@";
 "%@ / %@ (%@ remaining)" = "%@ / %@（残り %@）";
 "%@/%@ left" = "残り %@/%@";
@@ -950,6 +959,7 @@
 "Full in ~1 regen" = "約1回の再生成で満タン";
 "Full in ~%.0f regens" = "約%.0f回の再生成で満タン";
 "Overage usage" = "超過使用量";
+"Overage credits left" = "残り超過クレジット";
 "Overage cost" = "超過コスト";
 "credits" = "クレジット";
 "Zen balance" = "Zen 残高";
@@ -1365,6 +1375,9 @@
 "menu_bar_layout_preset_compact_stacked" = "コンパクトな2段表示";
 "menu_bar_layout_preset_custom" = "カスタム";
 "menu_bar_layout_live_preview" = "ライブプレビュー";
+"menu_bar_layout_default_preview" = "デフォルトレイアウトのプレビュー";
+"menu_bar_layout_overrides_notice" = "次の有効なプロバイダーは独自の保存済みレイアウトを使用しています：";
+"menu_bar_layout_use_all_accessibility" = "%@：全プロバイダーのレイアウトを使用";
 "menu_bar_layout_strip" = "メニューバー表示";
 "menu_bar_layout_remove_line_break" = "改行を削除";
 "menu_bar_layout_chip_hint" = "選択、ドラッグで並べ替え、または削除アクションを使用します。";
@@ -1372,6 +1385,7 @@
 "menu_bar_layout_empty_line" = "ここにトークンをドロップ";
 "menu_bar_layout_line" = "%d 行目";
 "menu_bar_layout_drag_remove" = "ここへドラッグして削除";
+"menu_bar_layout_remove_selected" = "選択項目を削除";
 "menu_bar_layout_size" = "サイズ";
 "menu_bar_layout_size_small" = "小";
 "menu_bar_layout_size_regular" = "標準";
@@ -1431,6 +1445,7 @@
 "More" = "多";
 
 /* Provider Plugins */
+"Plugins" = "Plugins";
 "Install…" = "インストール…";
 "Install plugin" = "プラグインをインストール";
 "Copies a JavaScript or TypeScript file into the plugins directory." = "JavaScript または TypeScript ファイルをプラグインディレクトリにコピーします。";
@@ -1472,6 +1487,7 @@
 "Total usage" = "合計使用量";
 "claude_oauth_keychain_access_revoked" = "Claude Code のトークン更新により、Claude キーチェーンへのアクセスが取り消されました。「更新」をクリックしてアクセスを再許可するか、Claude の使用量の取得元を CLI/Web に切り替えてください。";
 "claude_showing_last_known_usage" = "最後に取得した既知の使用量を表示しています（取得: %@）。";
+"claude_limited_usage_detail" = "使用量の詳細情報は限られています";
 /* Spend dashboard cost analysis */
 "90d" = "90d";
 "Input" = "Input";
@@ -1526,3 +1542,4 @@
 "menu_bar_layout_conditional_default_session_spent" = "セッションがほぼ上限";
 "menu_bar_layout_conditional_default_either_high" = "セッションまたは週間が高水準";
 "menu_bar_layout_conditional_default_scoped_weekly" = "モデル別週間の使用率 60% 超";
+"Spending cap, not balance" = "利用上限額（残高ではありません）";

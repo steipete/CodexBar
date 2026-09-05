@@ -1,3 +1,10 @@
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#elseif canImport(Musl)
+import Musl
+#endif
 import Foundation
 import Testing
 @testable import CodexBarCore
@@ -36,6 +43,34 @@ struct OpenCodexUsageParserTests {
         #expect(entries[0].usage == nil)
         #expect(entries[0].usageStatus == .unreported)
         #expect(entries[0].accountLogLabel == nil)
+    }
+
+    @Test
+    func `parseLines splits only on LF so CR and form feed are not record separators`() {
+        func record(_ id: String) -> String {
+            """
+            {"requestId":"\(id)","timestamp":1784179200000,"provider":"openai","model":"gpt-5.4",\
+            "usageStatus":"unreported"}
+            """
+        }
+
+        let crOnly = [record("a"), record("b"), record("c")].joined(separator: "\r")
+        #expect(OpenCodexUsageParser.parseLines(crOnly).isEmpty)
+
+        let formFeed = [record("f"), record("g")].joined(separator: "\u{000C}")
+        #expect(OpenCodexUsageParser.parseLines(formFeed).isEmpty)
+
+        let withLineSeparator = record("x") + "\n" + """
+        {"requestId":"y","timestamp":1784179200000,"provider":"openai","model":"gpt-5.4",\
+        "usageStatus":"unreported","note":"keep\u{2028}together"}
+        """
+        #expect(OpenCodexUsageParser.parseLines(withLineSeparator).map(\.requestID) == ["x", "y"])
+
+        let withNextLine = record("x") + "\n" + """
+        {"requestId":"y","timestamp":1784179200000,"provider":"openai","model":"gpt-5.4",\
+        "usageStatus":"unreported","note":"keep\u{0085}together"}
+        """
+        #expect(OpenCodexUsageParser.parseLines(withNextLine).map(\.requestID) == ["x", "y"])
     }
 
     @Test
@@ -97,8 +132,33 @@ struct OpenCodexUsageParserTests {
         #expect(snapshot.sessions[0].sessionID == "chat-1")
         #expect(snapshot.sessions[0].reasoningTokens == 3)
         #expect(snapshot.costProvenance == .listPriceEstimate)
-        #expect(OpenCodexUsageStore.databaseFilename == "opencodex-usage.sqlite")
-        #expect(FileManager.default.fileExists(atPath: root.appendingPathComponent("opencodex-usage.sqlite").path))
+        #expect(OpenCodexUsageStore.databaseFilename == "opencodex-usage-v2.sqlite")
+        #expect(FileManager.default.fileExists(
+            atPath: root.appendingPathComponent("opencodex-usage-v2.sqlite").path))
+    }
+
+    @Test
+    func `missing usage log parses as empty`() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("OpenCodexUsageParserMissing-\(UUID().uuidString).jsonl")
+        #expect(try OpenCodexUsageParser.parse(fileURL: url).isEmpty)
+    }
+
+    @Test(.enabled(if: geteuid() != 0))
+    func `unreadable usage log throws instead of returning empty`() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("OpenCodexUsageParserUnreadable-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let url = root.appendingPathComponent("usage.jsonl")
+        try Data("{\"requestId\":\"x\"}\n".utf8).write(to: url)
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: url.path)
+        defer {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+            try? FileManager.default.removeItem(at: root)
+        }
+        #expect(throws: (any Error).self) {
+            _ = try OpenCodexUsageParser.parse(fileURL: url)
+        }
     }
 
     @Test

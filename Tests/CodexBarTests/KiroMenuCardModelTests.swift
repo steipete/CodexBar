@@ -1,7 +1,7 @@
-import CodexBarCore
 import Foundation
 import Testing
 @testable import CodexBar
+@testable import CodexBarCore
 
 struct KiroMenuCardModelTests {
     @Test
@@ -110,5 +110,56 @@ struct KiroMenuCardModelTests {
         #expect(model.providerDetails.flatMap(\.rows).contains { $0.label == "Overages" && $0.value == "Disabled" })
         #expect(model.providerDetails.flatMap(\.rows).contains { $0.label == "Overage usage" } == false)
         #expect(model.providerDetails.flatMap(\.rows).contains { $0.label == "Overage cost" } == false)
+    }
+
+    @Test
+    func `kiro model shows an overage gauge against its cap`() throws {
+        let now = Date()
+        let limits = try KiroUsageLimitsAPI.parse(Data(KiroUsageLimitsAPITests.overageInUseResponse.utf8))
+        let snapshot = KiroUsageSnapshot(
+            planName: "KIRO POWER",
+            creditsUsed: 10000,
+            creditsTotal: 10000,
+            creditsPercent: 100,
+            bonusCreditsUsed: nil,
+            bonusCreditsTotal: nil,
+            bonusExpiryDays: nil,
+            resetsAt: now.addingTimeInterval(3600),
+            updatedAt: now).withUsageLimits(limits).toUsageSnapshot()
+        let metadata = try #require(ProviderDefaults.metadata[.kiro])
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .kiro,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        // The plan gauge is exhausted, but the overage gauge is what tells the user how much
+        // spendable headroom is left — the CLI report can show neither.
+        #expect(model.metrics.map(\.title) == ["Credits", "Overage"])
+        let overage = try #require(model.metrics.last)
+        // `usageBarsShowUsed: false` is the default, so the gauge states what is left: 3603.49 of
+        // 10000 spent leaves 63.97%.
+        #expect(abs(overage.percent - 63.9651) < 0.0001)
+        #expect(overage.detailLeftText == "6396.51 of 10000 credits left")
+        // Kiro takes the default `.generic` cost style, which renders only when the limit is
+        // positive — the overage budget supplies one.
+        let cost = try #require(model.providerCost)
+        #expect(cost.spendLine.contains("$144.14"))
+        #expect(cost.spendLine.contains("$400.00"))
     }
 }

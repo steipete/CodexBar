@@ -3,6 +3,23 @@ import CodexBarCore
 
 // swiftlint:disable:next type_body_length
 enum IconRenderer {
+    struct QuotaLayoutPolicy: Hashable {
+        let reservesMissingSecondaryLane: Bool
+        let treatsExhaustedSecondaryAsMissing: Bool
+
+        static func provider(_ provider: UsageProvider) -> Self {
+            let presentation = ProviderDescriptorRegistry.descriptor(for: provider).presentation
+            return Self(
+                reservesMissingSecondaryLane: presentation.reservesMissingSecondaryIconLane,
+                treatsExhaustedSecondaryAsMissing: presentation.treatsExhaustedSecondaryIconWindowAsMissing)
+        }
+
+        static func style(_ style: IconStyle) -> Self {
+            UsageProvider(rawValue: style.rawValue).map(self.provider)
+                ?? Self(reservesMissingSecondaryLane: false, treatsExhaustedSecondaryAsMissing: false)
+        }
+    }
+
     private static let creditsCap: Double = 1000
     private static let baseSize = NSSize(width: 18, height: 18)
     // Render to an 18×18 pt template (36×36 px at 2×) to match the system menu bar size.
@@ -28,6 +45,11 @@ enum IconRenderer {
 
     private static let grid = PixelGrid(scale: outputScale)
 
+    static func fillWidthPixels(remaining: Double, rectWidth: Int) -> Int {
+        let clamped = max(0, min(remaining / 100, 1))
+        return max(0, min(rectWidth, Int((CGFloat(rectWidth) * CGFloat(clamped)).rounded())))
+    }
+
     private struct IconCacheKey: Hashable {
         let primary: Int
         let weekly: Int
@@ -36,6 +58,7 @@ enum IconRenderer {
         let style: Int
         let indicator: Int
         let hideCritters: Bool
+        let quotaLayoutPolicy: QuotaLayoutPolicy
     }
 
     private final class IconCacheStore: @unchecked Sendable {
@@ -120,8 +143,10 @@ enum IconRenderer {
         wiggle: CGFloat = 0,
         tilt: CGFloat = 0,
         statusIndicator: ProviderStatusIndicator = .none,
-        hideCritters: Bool = false) -> NSImage
+        hideCritters: Bool = false,
+        quotaLayoutPolicy: QuotaLayoutPolicy? = nil) -> NSImage
     {
+        let quotaLayoutPolicy = quotaLayoutPolicy ?? .style(style)
         let shouldCache = blink <= 0.0001 && wiggle <= 0.0001 && tilt <= 0.0001
         let render = {
             self.renderImage {
@@ -178,8 +203,7 @@ enum IconRenderer {
 
                     // Fill: clip to the capsule and paint a left-to-right rect so the progress edge is straight.
                     if let remaining {
-                        let clamped = max(0, min(remaining / 100, 1))
-                        let fillWidthPx = max(0, min(rectPx.w, Int((CGFloat(rectPx.w) * CGFloat(clamped)).rounded())))
+                        let fillWidthPx = Self.fillWidthPixels(remaining: remaining, rectWidth: rectPx.w)
                         if fillWidthPx > 0 {
                             NSGraphicsContext.current?.cgContext.saveGState()
                             trackPath.addClip()
@@ -638,8 +662,7 @@ enum IconRenderer {
 
                 let providerPresentation = UsageProvider(rawValue: style.rawValue)
                     .map { ProviderDescriptorRegistry.descriptor(for: $0).presentation }
-                let usesMissingSecondaryLayout =
-                    providerPresentation?.treatsExhaustedSecondaryIconWindowAsMissing == true
+                let usesMissingSecondaryLayout = quotaLayoutPolicy.treatsExhaustedSecondaryAsMissing
                 let effectiveWeeklyRemaining: Double? = {
                     if usesMissingSecondaryLayout, let weeklyRemaining, weeklyRemaining <= 0 {
                         return nil
@@ -669,8 +692,25 @@ enum IconRenderer {
                 let twistAntigravity = decorations.contains(.antigravity)
                 let twistFactory = decorations.contains(.factory)
                 let twistWarp = decorations.contains(.warp)
+                var statusOverlayAttachesToProminentMeter = false
 
-                if weeklyAvailable {
+                if let bottomValue, bottomValue > 0, topValue == nil,
+                   !quotaLayoutPolicy.reservesMissingSecondaryLane,
+                   !usesMissingSecondaryLayout
+                {
+                    // Some providers surface their only meaningful quota in the secondary slot.
+                    statusOverlayAttachesToProminentMeter = true
+                    drawBar(
+                        rectPx: creditsRectPx,
+                        remaining: bottomValue,
+                        addNotches: twistNotches,
+                        addFace: twistFace,
+                        addGeminiTwist: twistGemini,
+                        addAntigravityTwist: twistAntigravity,
+                        addFactoryTwist: twistFactory,
+                        addWarpTwist: twistWarp,
+                        blink: blink)
+                } else if weeklyAvailable {
                     // Normal: top=primary, bottom=secondary (bonus/weekly).
                     drawBar(
                         rectPx: topRectPx,
@@ -693,8 +733,6 @@ enum IconRenderer {
                             blink: blink)
                         drawBar(rectPx: bottomRectPx, remaining: nil, alpha: 0.45)
                     } else {
-                        // Weekly missing (e.g. Claude enterprise): keep normal layout but
-                        // dim the bottom track to indicate N/A.
                         if topValue == nil, let ratio = creditsRatio {
                             // Credits-only: show credits prominently (e.g. credits loaded before usage).
                             drawBar(
@@ -709,7 +747,23 @@ enum IconRenderer {
                                 addWarpTwist: twistWarp,
                                 blink: blink)
                             drawBar(rectPx: creditsBottomRectPx, remaining: nil, alpha: 0.45)
+                        } else if !quotaLayoutPolicy.reservesMissingSecondaryLane, let topValue {
+                            // One meaningful quota should read as one meter. Reserving an unavailable second
+                            // lane makes (for example) 46% remaining look like roughly 23% of the icon.
+                            statusOverlayAttachesToProminentMeter = true
+                            drawBar(
+                                rectPx: creditsRectPx,
+                                remaining: topValue,
+                                addNotches: twistNotches,
+                                addFace: twistFace,
+                                addGeminiTwist: twistGemini,
+                                addAntigravityTwist: twistAntigravity,
+                                addFactoryTwist: twistFactory,
+                                addWarpTwist: twistWarp,
+                                blink: blink)
                         } else {
+                            // Missing secondary (for example Claude Enterprise): preserve the normal two-lane
+                            // layout and dim the unavailable lane.
                             drawBar(
                                 rectPx: topRectPx,
                                 remaining: topValue,
@@ -753,7 +807,9 @@ enum IconRenderer {
                     drawBar(rectPx: creditsBottomRectPx, remaining: bottomValue)
                 }
 
-                Self.drawStatusOverlay(indicator: statusIndicator)
+                Self.drawStatusOverlay(
+                    indicator: statusIndicator,
+                    attachesToProminentMeter: statusOverlayAttachesToProminentMeter)
             }
         }
 
@@ -765,7 +821,8 @@ enum IconRenderer {
                 stale: stale,
                 style: self.styleKey(style),
                 indicator: self.indicatorKey(statusIndicator),
-                hideCritters: hideCritters)
+                hideCritters: hideCritters,
+                quotaLayoutPolicy: quotaLayoutPolicy)
             if let cached = self.cachedIcon(for: key) {
                 return cached
             }
@@ -949,7 +1006,10 @@ enum IconRenderer {
         path.fill()
     }
 
-    private static func drawStatusOverlay(indicator: ProviderStatusIndicator) {
+    private static func drawStatusOverlay(
+        indicator: ProviderStatusIndicator,
+        attachesToProminentMeter: Bool)
+    {
         guard indicator.hasIssue else { return }
         let color = NSColor.labelColor
 
@@ -958,7 +1018,7 @@ enum IconRenderer {
             let size: CGFloat = 4
             let rect = Self.snapRect(
                 x: Self.baseSize.width - size - 2,
-                y: 2,
+                y: attachesToProminentMeter ? 5 : 2,
                 width: size,
                 height: size)
             Self.clearStatusOverlayHalo(

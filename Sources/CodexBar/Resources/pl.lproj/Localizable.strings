@@ -224,6 +224,7 @@
 "No cost history data." = "Brak danych historii kosztów.";
 "No data available" = "Brak dostępnych danych";
 "No data yet" = "Brak danych";
+"Workspaces" = "Obszary robocze";
 "No enabled providers available for Overview." = "Brak włączonych dostawców dostępnych dla Przeglądu.";
 "No providers selected" = "Nie wybrano dostawców";
 "No token accounts yet." = "Brak jeszcze kont tokenów.";
@@ -566,6 +567,7 @@
 "hooks_any_provider" = "Dowolny dostawca";
 "hooks_threshold" = "Uruchom przy użyciu ≥";
 "hooks_threshold_placeholder" = "90";
+"hooks_executable" = "Plik wykonywalny";
 "hooks_executable_placeholder" = "/usr/local/bin/my-command";
 "hooks_arguments_placeholder" = "Argumenty";
 "hooks_argument_placeholder" = "Argument";
@@ -663,6 +665,8 @@
 "section_keyboard_shortcut" = "Skrót klawiaturowy";
 "open_menu_shortcut_title" = "Skrót otwierania menu";
 "open_menu_shortcut_subtitle" = "Skrót klawiaturowy do otwierania menu CodexBar.";
+"record_shortcut" = "Nagraj skrót";
+"press_shortcut" = "Naciśnij skrót";
 "install_cli" = "Zainstaluj CLI";
 "install_cli_subtitle" = "Utwórz dowiązanie symboliczne CodexBarCLI do /usr/local/bin i /opt/homebrew/bin jako codexbar.";
 "cli_not_found" = "Nie znaleziono CodexBarCLI w pakiecie aplikacji.";
@@ -673,6 +677,9 @@
 "surprise_me_subtitle" = "Sprawdź, czy lubisz, gdy twoi agenci trochę się tam bawią.";
 "hide_personal_info_title" = "Ukryj dane osobowe";
 "hide_personal_info_subtitle" = "Ukrywa adresy e-mail na pasku menu i w interfejsie menu.";
+"hide_cost_history_identity_subtitle" = "Ukrywa też nazwy i ścieżki projektów oraz źródeł w historii kosztów, bez zmiany zapisanych danych.";
+"Project %d" = "Projekt %d";
+"Source %d" = "Źródło %d";
 "show_provider_storage_usage_title" = "Pokaż użycie dysku dostawców";
 "show_provider_storage_usage_subtitle" = "Pokazuje lokalne zużycie dysku w menu. Skanuje znane ścieżki dostawców w tle.";
 "section_keychain_access" = "Dostęp do pęku kluczy";
@@ -941,6 +948,7 @@
 "Monthly" = "Miesięcznie";
 "Sonnet" = "Sonnet";
 "Overages" = "Nadwyżki";
+"Overage" = "Nadwyżka";
 "Activity" = "Aktywność";
 "Copied" = "Skopiowano";
 "Copy error" = "Błąd kopiowania";
@@ -951,6 +959,7 @@
 "Balance updates in near-real time (up to 5 min lag)" = "Saldo aktualizuje się prawie w czasie rzeczywistym (opóźnienie do 5 min)";
 "Daily billing data finalizes at 07:00 UTC" = "Dzienne dane rozliczeniowe finalizują się o 07:00 UTC";
 "%@ of %@ credits left" = "%@ z %@ kredytów pozostało";
+"of %@" = "z %@";
 "%@ of %@ bonus credits left" = "%@ z %@ bonusowych kredytów pozostało";
 "%@ / %@ (%@ remaining)" = "%@ / %@ (%@ pozostało)";
 "%@/%@ left" = "%@/%@ pozostało";
@@ -962,6 +971,7 @@
 "Full in ~1 regen" = "Pełne za ~1 odnowienie";
 "Full in ~%.0f regens" = "Pełne za ~%.0f odnowień";
 "Overage usage" = "Użycie nadwyżki";
+"Overage credits left" = "Pozostałe kredyty nadwyżkowe";
 "Overage cost" = "Koszt nadwyżki";
 "credits" = "kredyty";
 "Zen balance" = "Saldo Zen";
@@ -1368,6 +1378,9 @@
 "menu_bar_layout_preset_compact_stacked" = "Kompaktowy stos";
 "menu_bar_layout_preset_custom" = "Niestandardowe";
 "menu_bar_layout_live_preview" = "Podgląd na żywo";
+"menu_bar_layout_default_preview" = "Podgląd układu domyślnego";
+"menu_bar_layout_overrides_notice" = "Ci włączeni dostawcy używają własnych zapisanych układów:";
+"menu_bar_layout_use_all_accessibility" = "%@: Użyj układu dla wszystkich dostawców";
 "menu_bar_layout_strip" = "Pasek menu";
 "menu_bar_layout_remove_line_break" = "Usuń podział wiersza";
 "menu_bar_layout_chip_hint" = "Zaznacz, przeciągnij, aby zmienić kolejność, lub użyj akcji Usuń.";
@@ -1375,6 +1388,7 @@
 "menu_bar_layout_empty_line" = "Upuść element tutaj";
 "menu_bar_layout_line" = "Wiersz %d";
 "menu_bar_layout_drag_remove" = "Przeciągnij tutaj, aby usunąć";
+"menu_bar_layout_remove_selected" = "Usuń wybrane";
 "menu_bar_layout_size" = "Rozmiar";
 "menu_bar_layout_size_small" = "Mały";
 "menu_bar_layout_size_regular" = "Zwykły";
@@ -1434,6 +1448,7 @@
 "More" = "Więcej";
 
 /* Provider Plugins */
+"Plugins" = "Plugins";
 "Install…" = "Zainstaluj…";
 "Install plugin" = "Zainstaluj wtyczkę";
 "Copies a JavaScript or TypeScript file into the plugins directory." = "Kopiuje plik JavaScript lub TypeScript do katalogu wtyczek.";
@@ -1475,6 +1490,7 @@
 "Total usage" = "Łączne użycie";
 "claude_oauth_keychain_access_revoked" = "Dostęp do pęku kluczy Claude został cofnięty wskutek rotacji tokenu przez Claude Code. Kliknij Odśwież, aby ponownie przyznać dostęp, albo przełącz źródło użycia Claude na CLI/Web.";
 "claude_showing_last_known_usage" = "Wyświetlane jest ostatnie znane użycie zarejestrowane %@.";
+"claude_limited_usage_detail" = "Mniej szczegółowe dane o zużyciu";
 /* Spend dashboard cost analysis */
 "90d" = "90d";
 "Input" = "Input";
@@ -1529,3 +1545,4 @@
 "menu_bar_layout_conditional_default_session_spent" = "Sesja prawie wyczerpana";
 "menu_bar_layout_conditional_default_either_high" = "Sesja lub tydzień na wysokim poziomie";
 "menu_bar_layout_conditional_default_scoped_weekly" = "Tydzień modelu powyżej 60% zużycia";
+"Spending cap, not balance" = "Limit wydatków, nie saldo";

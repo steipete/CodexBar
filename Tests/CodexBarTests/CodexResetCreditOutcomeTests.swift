@@ -143,6 +143,34 @@ struct CodexResetCreditOutcomeTests {
     }
 
     @Test
+    func `monthly enrichment failure keeps empty OAuth usage instead of no-data failure`() async {
+        let now = Date(timeIntervalSince1970: 1_781_726_400)
+        let recorder = ResetCreditFetchRecorder()
+        let outcome = await UsageStore.attachingCodexResetCreditsIfNeeded(
+            to: Self.outcome(
+                resetCredits: nil,
+                now: now,
+                primary: nil,
+                strategyID: "codex.oauth",
+                codexResetCreditsAttempted: true,
+                codexMonthlyLimitEnrichmentFailed: true),
+            env: ["CODEX_HOME": "/tmp/account-a"],
+            fetcher: { env in
+                await recorder.record(env)
+                throw ResetCreditFetchTestError.failed
+            })
+
+        guard case let .success(result) = outcome.result else {
+            Issue.record("Expected preserved usage success")
+            return
+        }
+        #expect(result.codexMonthlyLimitEnrichmentFailed)
+        #expect(result.credits == nil)
+        #expect(result.usage.primary == nil)
+        #expect(await recorder.environments().isEmpty)
+    }
+
+    @Test
     func `OAuth reset-credit failure never triggers a generic auth reload`() async throws {
         let now = Date(timeIntervalSince1970: 1_781_726_400)
         let recorder = ResetCreditFetchRecorder()
@@ -221,7 +249,8 @@ struct CodexResetCreditOutcomeTests {
         now: Date,
         primary: RateWindow? = nil,
         strategyID: String = "test",
-        codexResetCreditsAttempted: Bool = false) -> ProviderFetchOutcome
+        codexResetCreditsAttempted: Bool = false,
+        codexMonthlyLimitEnrichmentFailed: Bool = false) -> ProviderFetchOutcome
     {
         let resolvedPrimary = strategyID == "codex.oauth" ? primary : primary ?? RateWindow(
             usedPercent: 25,
@@ -240,7 +269,8 @@ struct CodexResetCreditOutcomeTests {
                 sourceLabel: "test",
                 strategyID: strategyID,
                 strategyKind: .cli,
-                codexResetCreditsAttempted: codexResetCreditsAttempted)),
+                codexResetCreditsAttempted: codexResetCreditsAttempted,
+                codexMonthlyLimitEnrichmentFailed: codexMonthlyLimitEnrichmentFailed)),
             attempts: [])
     }
 

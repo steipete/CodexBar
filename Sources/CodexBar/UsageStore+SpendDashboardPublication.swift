@@ -45,6 +45,10 @@ extension UsageStore {
 
     func stopSharedSpendDashboardPublication() {
         self.sharedSpendDashboardObservationStarted = false
+        self.sharedSpendDashboardObservationDebounceTask?.cancel()
+        self.sharedSpendDashboardObservationDebounceTask = nil
+        self.sharedSpendDashboardTokenPublicationDebounceTask?.cancel()
+        self.sharedSpendDashboardTokenPublicationDebounceTask = nil
         self.sharedSpendDashboardControllerStorage?.stop()
         self.cancelSpendDashboardCodexCostCatchUp()
     }
@@ -55,17 +59,51 @@ extension UsageStore {
             SpendDashboardSource.configuration(settings: self.settings, store: self)
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
-                self?.observeSharedSpendDashboardConfiguration()
+                self?.scheduleDebouncedSharedSpendDashboardObservation()
             }
         }
         self.applySharedSpendDashboardConfiguration(configuration)
     }
 
+    private func scheduleDebouncedSharedSpendDashboardObservation() {
+        self.sharedSpendDashboardObservationDebounceTask?.cancel()
+        let delay: Duration = self.startupBehavior.automaticallyStartsBackgroundWork
+            ? .milliseconds(250) : .milliseconds(0)
+        self.sharedSpendDashboardObservationDebounceTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: delay)
+            guard !Task.isCancelled else { return }
+            self?.sharedSpendDashboardObservationDebounceTask = nil
+            self?.observeSharedSpendDashboardConfiguration()
+        }
+    }
+
     func synchronizeSharedSpendDashboardAfterTokenPublication(for provider: UsageProvider) {
-        // Provider-specific by design: regular Codex publication triggers the account-scoped spend producer.
-        guard provider == .codex, self.sharedSpendDashboardObservationStarted else { return }
-        self.applySharedSpendDashboardConfiguration(
-            SpendDashboardSource.configuration(settings: self.settings, store: self))
+        guard self.sharedSpendDashboardObservationStarted else { return }
+        let isIndependent = Self.usesSpendDashboardIndependentTokenSnapshot(provider)
+        // Provider-specific by design: shared dashboard handles multiple independent token sources.
+        // Token publications both drive the shared dashboard.
+        guard provider == .codex || isIndependent else { return }
+        self.scheduleDebouncedTokenPublicationSync()
+    }
+
+    #if DEBUG
+    var _test_hasPendingSpendDashboardTokenPublicationSync: Bool {
+        self.sharedSpendDashboardTokenPublicationDebounceTask != nil
+    }
+    #endif
+
+    private func scheduleDebouncedTokenPublicationSync() {
+        self.sharedSpendDashboardTokenPublicationDebounceTask?.cancel()
+        let delay: Duration = self.startupBehavior.automaticallyStartsBackgroundWork
+            ? .milliseconds(250) : .milliseconds(0)
+        self.sharedSpendDashboardTokenPublicationDebounceTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: delay)
+            guard !Task.isCancelled else { return }
+            self?.sharedSpendDashboardTokenPublicationDebounceTask = nil
+            guard let self, self.sharedSpendDashboardObservationStarted else { return }
+            self.applySharedSpendDashboardConfiguration(
+                SpendDashboardSource.configuration(settings: self.settings, store: self))
+        }
     }
 
     private func applySharedSpendDashboardConfiguration(_ configuration: SpendDashboardConfiguration) {

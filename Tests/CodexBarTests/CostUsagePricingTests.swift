@@ -165,7 +165,8 @@ struct CostUsagePricingTests {
             model: "gpt-5.1-codex-max",
             inputTokens: 100,
             cachedInputTokens: 10,
-            outputTokens: 5)
+            outputTokens: 5,
+            modelsDevCatalog: ModelsDevCatalog(providers: [:]))
         #expect(cost != nil)
     }
 
@@ -175,7 +176,8 @@ struct CostUsagePricingTests {
             model: "gpt-5.3-codex",
             inputTokens: 100,
             cachedInputTokens: 10,
-            outputTokens: 5)
+            outputTokens: 5,
+            modelsDevCatalog: ModelsDevCatalog(providers: [:]))
         #expect(cost != nil)
     }
 
@@ -185,12 +187,14 @@ struct CostUsagePricingTests {
             model: "gpt-5.4-mini-2026-03-17",
             inputTokens: 100,
             cachedInputTokens: 10,
-            outputTokens: 5)
+            outputTokens: 5,
+            modelsDevCatalog: ModelsDevCatalog(providers: [:]))
         let nano = CostUsagePricing.codexCostUSD(
             model: "gpt-5.4-nano",
             inputTokens: 100,
             cachedInputTokens: 10,
-            outputTokens: 5)
+            outputTokens: 5,
+            modelsDevCatalog: ModelsDevCatalog(providers: [:]))
 
         #expect(mini != nil)
         #expect(nano != nil)
@@ -400,22 +404,26 @@ struct CostUsagePricingTests {
     }
 
     @Test
-    func `codex API fast cost matches brief gpt56 scenarios`() {
+    func `codex API fast cost matches brief gpt56 scenarios`() throws {
+        let root = try Self.cacheRoot()
         let sol = CostUsagePricing.codexPriorityCostUSD(
             model: "gpt-5.6-sol",
             inputTokens: 100_000,
             cachedInputTokens: 20000,
-            outputTokens: 20000)
+            outputTokens: 20000,
+            modelsDevCacheRoot: root)
         let terra = CostUsagePricing.codexPriorityCostUSD(
             model: "gpt-5.6-terra",
             inputTokens: 100_000,
             cachedInputTokens: 20000,
-            outputTokens: 20000)
+            outputTokens: 20000,
+            modelsDevCacheRoot: root)
         let luna = CostUsagePricing.codexPriorityCostUSD(
             model: "gpt-5.6-luna",
             inputTokens: 100_000,
             cachedInputTokens: 20000,
-            outputTokens: 20000)
+            outputTokens: 20000,
+            modelsDevCacheRoot: root)
 
         // Public API Fast rates are 2x Standard for GPT-5.6.
         let expectedSol = 2.02
@@ -427,31 +435,36 @@ struct CostUsagePricingTests {
     }
 
     @Test
-    func `codex priority cost multiplies standard cache write rates`() {
+    func `codex priority cost multiplies standard cache write rates`() throws {
+        let root = try Self.cacheRoot()
         let sol = CostUsagePricing.codexPriorityCostUSD(
             model: "gpt-5.6-sol",
             inputTokens: 100,
             cachedInputTokens: 10,
             cacheWriteInputTokens: 20,
-            outputTokens: 5)
+            outputTokens: 5,
+            modelsDevCacheRoot: root)
         let terra = CostUsagePricing.codexPriorityCostUSD(
             model: "gpt-5.6-terra",
             inputTokens: 100,
             cachedInputTokens: 10,
             cacheWriteInputTokens: 20,
-            outputTokens: 5)
+            outputTokens: 5,
+            modelsDevCacheRoot: root)
         let luna = CostUsagePricing.codexPriorityCostUSD(
             model: "gpt-5.6-luna",
             inputTokens: 100,
             cachedInputTokens: 10,
             cacheWriteInputTokens: 20,
-            outputTokens: 5)
+            outputTokens: 5,
+            modelsDevCacheRoot: root)
         let modelWithoutCacheWriteSupport = CostUsagePricing.codexPriorityCostUSD(
             model: "gpt-5.5",
             inputTokens: 100,
             cachedInputTokens: 10,
             cacheWriteInputTokens: 20,
-            outputTokens: 5)
+            outputTokens: 5,
+            modelsDevCacheRoot: root)
 
         let solInput = 70.0 * 5e-6
         let solCached = 10.0 * 5e-7
@@ -592,22 +605,26 @@ struct CostUsagePricingTests {
     }
 
     @Test
-    func `codex priority cost applies model specific fast rates`() {
+    func `codex priority cost applies model specific fast rates`() throws {
+        let root = try Self.cacheRoot()
         let gpt54 = CostUsagePricing.codexPriorityCostUSD(
             model: "gpt-5.4",
             inputTokens: 100,
             cachedInputTokens: 20,
-            outputTokens: 10)
+            outputTokens: 10,
+            modelsDevCacheRoot: root)
         let gpt55 = CostUsagePricing.codexPriorityCostUSD(
             model: "gpt-5.5",
             inputTokens: 100,
             cachedInputTokens: 20,
-            outputTokens: 10)
+            outputTokens: 10,
+            modelsDevCacheRoot: root)
         let gpt54Mini = CostUsagePricing.codexPriorityCostUSD(
             model: "gpt-5.4-mini",
             inputTokens: 100,
             cachedInputTokens: 20,
-            outputTokens: 10)
+            outputTokens: 10,
+            modelsDevCacheRoot: root)
 
         #expect(gpt54 == (80.0 * 5e-6) + (20.0 * 5e-7) + (10.0 * 3e-5))
         #expect(gpt55 == (80.0 * 1.25e-5) + (20.0 * 1.25e-6) + (10.0 * 7.5e-5))
@@ -650,22 +667,26 @@ struct CostUsagePricingTests {
     }
 
     @Test
-    func `codex priority cost counts only input tokens toward the limit`() {
+    func `codex priority cost counts only input tokens toward the limit`() throws {
+        let root = try Self.cacheRoot()
         let eligible = CostUsagePricing.codexPriorityCostUSD(
             model: "gpt-5.5",
             inputTokens: 200_000,
             cachedInputTokens: 100_000,
-            outputTokens: 10)
+            outputTokens: 10,
+            modelsDevCacheRoot: root)
         let boundary = CostUsagePricing.codexPriorityCostUSD(
             model: "gpt-5.5",
             inputTokens: 272_000,
             cachedInputTokens: 0,
-            outputTokens: 10)
+            outputTokens: 10,
+            modelsDevCacheRoot: root)
         let overLimit = CostUsagePricing.codexPriorityCostUSD(
             model: "gpt-5.5",
             inputTokens: 272_001,
             cachedInputTokens: 0,
-            outputTokens: 10)
+            outputTokens: 10,
+            modelsDevCacheRoot: root)
 
         #expect(eligible == (100_000.0 * 1.25e-5) + (100_000.0 * 1.25e-6) + (10.0 * 7.5e-5))
         #expect(boundary != nil)
@@ -673,12 +694,14 @@ struct CostUsagePricingTests {
     }
 
     @Test
-    func `codex priority cost remains available at priority input boundary`() {
+    func `codex priority cost remains available at priority input boundary`() throws {
+        let root = try Self.cacheRoot()
         let gpt55 = CostUsagePricing.codexPriorityCostUSD(
             model: "gpt-5.5",
             inputTokens: 272_000,
             cachedInputTokens: 0,
-            outputTokens: 10)
+            outputTokens: 10,
+            modelsDevCacheRoot: root)
 
         #expect(gpt55 == (272_000.0 * 1.25e-5) + (10.0 * 7.5e-5))
     }
@@ -1076,7 +1099,8 @@ extension CostUsagePricingTests {
             inputTokens: 10,
             cacheReadInputTokens: 0,
             cacheCreationInputTokens: 0,
-            outputTokens: 5)
+            outputTokens: 5,
+            modelsDevCatalog: ModelsDevCatalog(providers: [:]))
         #expect(cost != nil)
     }
 
@@ -1087,7 +1111,8 @@ extension CostUsagePricingTests {
             inputTokens: 10,
             cacheReadInputTokens: 0,
             cacheCreationInputTokens: 0,
-            outputTokens: 5)
+            outputTokens: 5,
+            modelsDevCatalog: ModelsDevCatalog(providers: [:]))
         #expect(cost != nil)
     }
 
@@ -1098,7 +1123,8 @@ extension CostUsagePricingTests {
             inputTokens: 10,
             cacheReadInputTokens: 0,
             cacheCreationInputTokens: 0,
-            outputTokens: 5)
+            outputTokens: 5,
+            modelsDevCatalog: ModelsDevCatalog(providers: [:]))
         let expected = (10.0 * 5e-6) + (5.0 * 2.5e-5)
         #expect(cost == expected)
     }
@@ -1273,7 +1299,8 @@ extension CostUsagePricingTests {
             inputTokens: 100,
             cacheReadInputTokens: 500,
             cacheCreationInputTokens: 0,
-            outputTokens: 40)
+            outputTokens: 40,
+            modelsDevCatalog: ModelsDevCatalog(providers: [:]))
         #expect(cost == nil)
     }
 

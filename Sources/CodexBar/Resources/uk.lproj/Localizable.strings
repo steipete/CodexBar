@@ -45,6 +45,7 @@
 "hooks_any_provider" = "Будь-який провайдер";
 "hooks_threshold" = "Запускати за використання ≥";
 "hooks_threshold_placeholder" = "90";
+"hooks_executable" = "Виконуваний файл";
 "hooks_executable_placeholder" = "/usr/local/bin/my-command";
 "hooks_arguments_placeholder" = "Аргументи";
 "hooks_argument_placeholder" = "Аргумент";
@@ -239,6 +240,7 @@
 "No cost history data." = "Немає даних історії витрат.";
 "No data available" = "Немає даних";
 "No data yet" = "Даних ще немає";
+"Workspaces" = "Робочі простори";
 "No enabled providers available for Overview." = "Немає активованих постачальників, доступних для огляду.";
 "No providers selected" = "Не вибрано жодного постачальника";
 "No token accounts yet." = "Жетонів ще немає.";
@@ -655,6 +657,8 @@
 "section_keyboard_shortcut" = "Комбінація клавіш";
 "open_menu_shortcut_title" = "Відкрити меню";
 "open_menu_shortcut_subtitle" = "Викликати меню панелі меню з будь-якого місця.";
+"record_shortcut" = "Записати комбінацію";
+"press_shortcut" = "Натисніть комбінацію";
 "install_cli" = "Встановіть CLI";
 "install_cli_subtitle" = "Символьне посилання CodexBarCLI на /usr/local/bin і /opt/homebrew/bin як codexbar.";
 "cli_not_found" = "CodexBarCLI не знайдено в пакеті програм.";
@@ -665,6 +669,9 @@
 "surprise_me_subtitle" = "Перевірте, чи подобається вам, що ваші агенти розважаються там.";
 "hide_personal_info_title" = "Приховати особисту інформацію";
 "hide_personal_info_subtitle" = "Незрозумілі адреси електронної пошти на панелі меню та інтерфейсі меню.";
+"hide_cost_history_identity_subtitle" = "Також приховує назви та шляхи проєктів і джерел в історії витрат, не змінюючи збережені дані.";
+"Project %d" = "Проєкт %d";
+"Source %d" = "Джерело %d";
 "show_provider_storage_usage_title" = "Показати використання сховища постачальника";
 "show_provider_storage_usage_subtitle" = "Показати використання локального диска в меню. Сканує відомі шляхи, що належать провайдеру, у фоновому режимі.";
 "section_keychain_access" = "Доступ через брелок";
@@ -932,6 +939,7 @@
 "Monthly" = "Щомісяця";
 "Sonnet" = "Сонет";
 "Overages" = "Надлишки";
+"Overage" = "Надлишок";
 "Activity" = "діяльність";
 "Copied" = "Скопійовано";
 "Copy error" = "Помилка копіювання";
@@ -942,6 +950,7 @@
 "Balance updates in near-real time (up to 5 min lag)" = "Оновлення балансу майже в реальному часі (затримка до 5 хвилин)";
 "Daily billing data finalizes at 07:00 UTC" = "Щоденні платіжні дані завершуються о 07:00 UTC";
 "%@ of %@ credits left" = "Залишилося %@ з %@ кредитів";
+"of %@" = "з %@";
 "%@ of %@ bonus credits left" = "Залишилося %@ з %@ бонусних кредитів";
 "%@ / %@ (%@ remaining)" = "%@ / %@ (залишилося %@)";
 "%@/%@ left" = "Залишилося %@/%@";
@@ -953,6 +962,7 @@
 "Full in ~1 regen" = "Повний за ~1 регенерацію";
 "Full in ~%.0f regens" = "Повний ~%.0f регенерацій";
 "Overage usage" = "Надмірне використання";
+"Overage credits left" = "Залишкові кредити надлишку";
 "Overage cost" = "Перевищення вартості";
 "credits" = "кредити";
 "Zen balance" = "Дзен баланс";
@@ -1364,6 +1374,9 @@
 "menu_bar_layout_preset_compact_stacked" = "Компактно у два рядки";
 "menu_bar_layout_preset_custom" = "Користувацький";
 "menu_bar_layout_live_preview" = "Попередній перегляд";
+"menu_bar_layout_default_preview" = "Перегляд типового макета";
+"menu_bar_layout_overrides_notice" = "Ці ввімкнені провайдери використовують власні збережені макети:";
+"menu_bar_layout_use_all_accessibility" = "%@: Використовувати макет для всіх провайдерів";
 "menu_bar_layout_strip" = "Смуга меню";
 "menu_bar_layout_remove_line_break" = "Видалити розрив рядка";
 "menu_bar_layout_chip_hint" = "Виберіть, перетягніть для зміни порядку або скористайтеся дією видалення.";
@@ -1371,6 +1384,7 @@
 "menu_bar_layout_empty_line" = "Перетягніть елемент сюди";
 "menu_bar_layout_line" = "Рядок %d";
 "menu_bar_layout_drag_remove" = "Перетягніть сюди, щоб видалити";
+"menu_bar_layout_remove_selected" = "Вилучити вибране";
 "menu_bar_layout_size" = "Розмір";
 "menu_bar_layout_size_small" = "Малий";
 "menu_bar_layout_size_regular" = "Звичайний";
@@ -1430,6 +1444,7 @@
 "More" = "Більше";
 
 /* Provider Plugins */
+"Plugins" = "Plugins";
 "Install…" = "Встановити…";
 "Install plugin" = "Встановити плагін";
 "Copies a JavaScript or TypeScript file into the plugins directory." = "Копіює файл JavaScript або TypeScript до каталогу плагінів.";
@@ -1471,6 +1486,7 @@
 "Total usage" = "Загальне використання";
 "claude_oauth_keychain_access_revoked" = "Доступ до В’язки ключів Claude було відкликано через ротацію токена в Claude Code. Натисніть «Оновити», щоб повторно надати доступ, або перемкніть джерело використання Claude на CLI/Web.";
 "claude_showing_last_known_usage" = "Показано останні відомі дані про використання (отримано %@).";
+"claude_limited_usage_detail" = "Обмежена деталізація використання";
 /* Spend dashboard cost analysis */
 "90d" = "90d";
 "Input" = "Input";
@@ -1526,3 +1542,4 @@
 "menu_bar_layout_conditional_default_session_spent" = "Сесія майже вичерпана";
 "menu_bar_layout_conditional_default_either_high" = "Сесія або тиждень на високому рівні";
 "menu_bar_layout_conditional_default_scoped_weekly" = "Тижневе вікно моделі понад 60 %";
+"Spending cap, not balance" = "Ліміт витрат, не баланс";

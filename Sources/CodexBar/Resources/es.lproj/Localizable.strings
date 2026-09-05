@@ -45,6 +45,7 @@
 "hooks_any_provider" = "Cualquier proveedor";
 "hooks_threshold" = "Ejecutar con uso ≥";
 "hooks_threshold_placeholder" = "90";
+"hooks_executable" = "Ejecutable";
 "hooks_executable_placeholder" = "/usr/local/bin/my-command";
 "hooks_arguments_placeholder" = "Argumentos";
 "hooks_argument_placeholder" = "Argumento";
@@ -239,6 +240,7 @@
 "No credits history data." = "No hay datos de historial de créditos.";
 "No data available" = "No hay datos disponibles";
 "No data yet" = "Aún no hay datos";
+"Workspaces" = "Espacios de trabajo";
 "No enabled providers available for Overview." = "No hay proveedores activados disponibles para Resumen.";
 "No providers selected" = "No hay proveedores seleccionados";
 "No token accounts yet." = "Aún no hay cuentas con token.";
@@ -647,6 +649,8 @@
 "section_keyboard_shortcut" = "Atajo de teclado";
 "open_menu_shortcut_title" = "Abrir menú";
 "open_menu_shortcut_subtitle" = "Abrir el menú de la barra de menús desde cualquier lugar.";
+"record_shortcut" = "Grabar atajo";
+"press_shortcut" = "Pulsar atajo";
 "install_cli" = "Instalar CLI";
 "install_cli_subtitle" = "Crear un enlace simbólico de CodexBarCLI en /usr/local/bin y /opt/homebrew/bin como codexbar.";
 "cli_not_found" = "No se encontró CodexBarCLI en el paquete de la app.";
@@ -658,6 +662,9 @@
 "surprise_me_subtitle" = "Actívalo si te gusta que tus agentes se diviertan ahí arriba.";
 "hide_personal_info_title" = "Ocultar información personal";
 "hide_personal_info_subtitle" = "Oculta las direcciones de correo en la barra de menús y la interfaz del menú.";
+"hide_cost_history_identity_subtitle" = "También oculta los nombres y las rutas de proyectos y fuentes del historial de costes, sin cambiar los datos guardados.";
+"Project %d" = "Proyecto %d";
+"Source %d" = "Fuente %d";
 "show_provider_storage_usage_title" = "Mostrar uso de almacenamiento del proveedor";
 "show_provider_storage_usage_subtitle" = "Muestra el uso de disco local en los menús. Analiza en segundo plano las rutas conocidas del proveedor.";
 "section_keychain_access" = "Acceso al Llavero";
@@ -811,6 +818,7 @@
 "Sonnet" = "Sonnet";
 "Auth" = "Autenticación";
 "Overages" = "Excesos";
+"Overage" = "Exceso";
 "Activity" = "Actividad";
 "Copied" = "Copiado";
 "Copy error" = "Error al copiar";
@@ -821,6 +829,7 @@
 "Balance updates in near-real time (up to 5 min lag)" = "El saldo se actualiza casi en tiempo real (hasta 5 min de retraso)";
 "Daily billing data finalizes at 07:00 UTC" = "Los datos diarios de facturación se cierran a las 07:00 UTC";
 "%@ of %@ credits left" = "Quedan %@ de %@ créditos";
+"of %@" = "de %@";
 "%@ of %@ bonus credits left" = "Quedan %@ de %@ créditos de bonificación";
 "%@ / %@ (%@ remaining)" = "%@ / %@ (%@ restante)";
 "%@/%@ left" = "%@/%@ restante";
@@ -832,6 +841,7 @@
 "Full in ~1 regen" = "Lleno en ~1 regeneración";
 "Full in ~%.0f regens" = "Lleno en ~%.0f regeneraciones";
 "Overage usage" = "Uso excedente";
+"Overage credits left" = "Créditos excedentes restantes";
 "Overage cost" = "Coste excedente";
 "credits" = "créditos";
 "Zen balance" = "Saldo Zen";
@@ -1363,6 +1373,9 @@
 "menu_bar_layout_preset_compact_stacked" = "Apilado compacto";
 "menu_bar_layout_preset_custom" = "Personalizado";
 "menu_bar_layout_live_preview" = "Vista previa en directo";
+"menu_bar_layout_default_preview" = "Vista previa del diseño predeterminado";
+"menu_bar_layout_overrides_notice" = "Estos proveedores habilitados usan sus propios diseños guardados:";
+"menu_bar_layout_use_all_accessibility" = "%@: Usar el diseño de todos los proveedores";
 "menu_bar_layout_strip" = "Franja de la barra de menús";
 "menu_bar_layout_remove_line_break" = "Quitar salto de línea";
 "menu_bar_layout_chip_hint" = "Selecciona, arrastra para reordenar o usa la acción Quitar.";
@@ -1370,6 +1383,7 @@
 "menu_bar_layout_empty_line" = "Suelta una ficha aquí";
 "menu_bar_layout_line" = "Línea %d";
 "menu_bar_layout_drag_remove" = "Arrastra aquí para quitar";
+"menu_bar_layout_remove_selected" = "Quitar selección";
 "menu_bar_layout_size" = "Tamaño";
 "menu_bar_layout_size_small" = "Pequeño";
 "menu_bar_layout_size_regular" = "Normal";
@@ -1429,6 +1443,7 @@
 "More" = "Más";
 
 /* Provider Plugins */
+"Plugins" = "Plugins";
 "Install…" = "Instalar…";
 "Install plugin" = "Instalar plugin";
 "Copies a JavaScript or TypeScript file into the plugins directory." = "Copia un archivo JavaScript o TypeScript en el directorio de plugins.";
@@ -1470,6 +1485,7 @@
 "Total usage" = "Uso total";
 "claude_oauth_keychain_access_revoked" = "El acceso al llavero de Claude fue revocado por la rotación del token de Claude Code. Haz clic en Actualizar para volver a conceder acceso o cambia el origen del uso de Claude a CLI/Web.";
 "claude_showing_last_known_usage" = "Mostrando el último uso conocido, capturado %@.";
+"claude_limited_usage_detail" = "Detalles de uso limitados";
 /* Spend dashboard cost analysis */
 "90d" = "90d";
 "Input" = "Input";
@@ -1524,3 +1540,4 @@
 "menu_bar_layout_conditional_default_session_spent" = "Sesión casi agotada";
 "menu_bar_layout_conditional_default_either_high" = "Sesión o semana en nivel alto";
 "menu_bar_layout_conditional_default_scoped_weekly" = "Semana por modelo por encima del 60 %";
+"Spending cap, not balance" = "Límite de gasto, no saldo";

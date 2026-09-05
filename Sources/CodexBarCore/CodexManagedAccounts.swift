@@ -42,7 +42,7 @@ public struct ManagedCodexAccount: Codable, Identifiable, Sendable {
     }
 
     public static func normalizeProviderAccountID(_ providerAccountID: String?) -> String? {
-        CodexIdentityResolver.normalizeAccountID(providerAccountID)
+        self.normalizeWorkspaceAccountID(providerAccountID)
     }
 
     public static func normalizeWorkspaceLabel(_ workspaceLabel: String?) -> String? {
@@ -57,6 +57,15 @@ public struct ManagedCodexAccount: Codable, Identifiable, Sendable {
             return nil
         }
         return trimmed.lowercased()
+    }
+
+    /// The remote workspace CodexBar selected for this managed account.
+    ///
+    /// New records store the explicit workspace separately. Older provider-backed records used
+    /// `providerAccountID` for the same purpose. The managed auth file can name a different default
+    /// workspace, so callers deciding remote ownership must prefer this app-owned selection.
+    public var effectiveWorkspaceAccountID: String? {
+        Self.normalizeWorkspaceAccountID(self.workspaceAccountID ?? self.providerAccountID)
     }
 
     public init(from decoder: any Decoder) throws {
@@ -83,8 +92,8 @@ public enum CodexAuthFingerprint {
 
     public static func fingerprint(homePath: String, fileManager: FileManager = .default) -> String? {
         let url = self.authFileURL(homePath: homePath)
-        guard fileManager.fileExists(atPath: url.path),
-              let data = try? Data(contentsOf: url)
+        guard CodexCredentialFileAccess.fileExists(at: url, fileManager: fileManager),
+              let data = try? CodexCredentialFileAccess.read(at: url)
         else {
             return nil
         }
@@ -126,17 +135,16 @@ public struct ManagedCodexAccountSet: Codable, Sendable {
 
     public func account(email: String, providerAccountID: String? = nil) -> ManagedCodexAccount? {
         let normalizedEmail = ManagedCodexAccount.normalizeEmail(email)
-        if let normalizedProviderAccountID = ManagedCodexAccount.normalizeProviderAccountID(providerAccountID),
+        if let normalizedWorkspaceAccountID = ManagedCodexAccount.normalizeWorkspaceAccountID(providerAccountID),
            let exactMatch = self.accounts.first(where: {
-               $0.email == normalizedEmail && $0.providerAccountID == normalizedProviderAccountID
+               $0.email == normalizedEmail && $0.effectiveWorkspaceAccountID == normalizedWorkspaceAccountID
            })
         {
             return exactMatch
         }
-        if providerAccountID != nil {
-            return self.accounts.first { $0.email == normalizedEmail && $0.providerAccountID == nil }
+        return self.accounts.first {
+            $0.email == normalizedEmail && $0.effectiveWorkspaceAccountID == nil
         }
-        return self.accounts.first { $0.email == normalizedEmail }
     }
 
     public init(from decoder: any Decoder) throws {
@@ -147,15 +155,15 @@ public struct ManagedCodexAccountSet: Codable, Sendable {
 
     private static func sanitizedAccounts(_ accounts: [ManagedCodexAccount]) -> [ManagedCodexAccount] {
         var seenIDs: Set<UUID> = []
-        var seenProviderAccountKeys: Set<String> = []
+        var seenWorkspaceAccountKeys: Set<String> = []
         var seenLegacyEmails: Set<String> = []
         var sanitized: [ManagedCodexAccount] = []
         sanitized.reserveCapacity(accounts.count)
 
         for account in accounts {
             guard seenIDs.insert(account.id).inserted else { continue }
-            if let providerAccountID = account.providerAccountID {
-                guard seenProviderAccountKeys.insert("\(account.email)\u{0}\(providerAccountID)").inserted else {
+            if let workspaceAccountID = account.effectiveWorkspaceAccountID {
+                guard seenWorkspaceAccountKeys.insert("\(account.email)\u{0}\(workspaceAccountID)").inserted else {
                     continue
                 }
             } else {

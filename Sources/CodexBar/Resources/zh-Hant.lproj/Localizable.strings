@@ -45,6 +45,7 @@
 "hooks_any_provider" = "任何提供者";
 "hooks_threshold" = "使用率 ≥ 時執行";
 "hooks_threshold_placeholder" = "90";
+"hooks_executable" = "執行檔";
 "hooks_executable_placeholder" = "/usr/local/bin/my-command";
 "hooks_arguments_placeholder" = "引數";
 "hooks_argument_placeholder" = "引數";
@@ -247,6 +248,7 @@
 "No credits history data." = "尚無額度歷史資料。";
 "No data available" = "沒有可用資料";
 "No data yet" = "尚無資料";
+"Workspaces" = "工作區";
 "No enabled providers available for Overview." = "「概覽」中沒有可用的已啟用提供者。";
 "No providers selected" = "未選擇提供者";
 "No token accounts yet." = "尚無 token 帳號。";
@@ -652,6 +654,8 @@
 "section_keyboard_shortcut" = "快速鍵";
 "open_menu_shortcut_title" = "開啟選單";
 "open_menu_shortcut_subtitle" = "從任意位置觸發選單列選單。";
+"record_shortcut" = "設定快速鍵";
+"press_shortcut" = "按下快速鍵";
 "install_cli" = "安裝 CLI";
 "install_cli_subtitle" = "將 CodexBarCLI 作為 codexbar 符號連結到 /usr/local/bin 和 /opt/homebrew/bin。";
 "cli_not_found" = "在 App 套件中找不到 CodexBarCLI。";
@@ -663,6 +667,9 @@
 "surprise_me_subtitle" = "讓選單列上的 Agent 多一點變化。";
 "hide_personal_info_title" = "隱藏個人資訊";
 "hide_personal_info_subtitle" = "在選單列和選單介面中隱藏電子郵件地址。";
+"hide_cost_history_identity_subtitle" = "同時隱藏費用歷史中的專案和來源名稱及路徑，不變更已儲存的資料。";
+"Project %d" = "專案 %d";
+"Source %d" = "來源 %d";
 "show_provider_storage_usage_title" = "顯示提供者儲存使用量";
 "show_provider_storage_usage_subtitle" = "在選單中顯示本機磁碟使用量。會在背景掃描已知的提供者專用路徑。";
 "section_keychain_access" = "鑰匙圈存取";
@@ -805,6 +812,7 @@
 "Monthly" = "每月";
 "Sonnet" = "Sonnet";
 "Overages" = "超額";
+"Overage" = "超額";
 "Activity" = "活動";
 "Copied" = "已複製";
 "Copy error" = "複製錯誤";
@@ -815,6 +823,7 @@
 "Balance updates in near-real time (up to 5 min lag)" = "餘額接近即時更新（最多延遲 5 分鐘）";
 "Daily billing data finalizes at 07:00 UTC" = "每日帳單資料會在 UTC 07:00 完成結算";
 "%@ of %@ credits left" = "剩餘 %@ / %@ 點額度";
+"of %@" = "/ %@";
 "%@ of %@ bonus credits left" = "剩餘 %@ / %@ 點獎勵額度";
 "%@ / %@ (%@ remaining)" = "%@ / %@（剩餘 %@）";
 "%@/%@ left" = "剩餘 %@ / %@";
@@ -826,6 +835,7 @@
 "Full in ~1 regen" = "約 1 次恢復後全滿";
 "Full in ~%.0f regens" = "約 %.0f 次恢復後全滿";
 "Overage usage" = "超額使用量";
+"Overage credits left" = "剩餘超額額度";
 "Overage cost" = "超額費用";
 "credits" = "額度";
 "Zen balance" = "Zen 餘額";
@@ -1395,6 +1405,9 @@
 "menu_bar_layout_preset_compact_stacked" = "緊湊堆疊";
 "menu_bar_layout_preset_custom" = "自訂";
 "menu_bar_layout_live_preview" = "即時預覽";
+"menu_bar_layout_default_preview" = "預設佈局預覽";
+"menu_bar_layout_overrides_notice" = "以下已啟用的供應商使用各自儲存的佈局：";
+"menu_bar_layout_use_all_accessibility" = "%@：使用所有供應商的佈局";
 "menu_bar_layout_strip" = "選單列條帶";
 "menu_bar_layout_remove_line_break" = "移除換行";
 "menu_bar_layout_chip_hint" = "選取、拖曳以重新排序，或使用移除動作。";
@@ -1402,6 +1415,7 @@
 "menu_bar_layout_empty_line" = "將項目拖放到此處";
 "menu_bar_layout_line" = "第 %d 行";
 "menu_bar_layout_drag_remove" = "拖到此處以移除";
+"menu_bar_layout_remove_selected" = "移除所選";
 "menu_bar_layout_size" = "大小";
 "menu_bar_layout_size_small" = "小";
 "menu_bar_layout_size_regular" = "一般";
@@ -1461,6 +1475,7 @@
 "More" = "多";
 
 /* Provider Plugins */
+"Plugins" = "Plugins";
 "Install…" = "安裝…";
 "Install plugin" = "安裝外掛程式";
 "Copies a JavaScript or TypeScript file into the plugins directory." = "將 JavaScript 或 TypeScript 檔案複製到外掛程式目錄。";
@@ -1502,6 +1517,7 @@
 "Total usage" = "總用量";
 "claude_oauth_keychain_access_revoked" = "Claude Code 輪替權杖後撤銷了 Claude 鑰匙圈的存取權。按一下「重新整理」以重新授權，或將 Claude 使用量來源切換為 CLI/Web。";
 "claude_showing_last_known_usage" = "正在顯示於 %@ 擷取的最後已知使用量。";
+"claude_limited_usage_detail" = "使用量詳細資訊有限";
 /* Spend dashboard cost analysis */
 "90d" = "90d";
 "Input" = "Input";
@@ -1557,3 +1573,4 @@
 "menu_bar_layout_conditional_default_session_spent" = "工作階段即將用盡";
 "menu_bar_layout_conditional_default_either_high" = "工作階段或每週用量偏高";
 "menu_bar_layout_conditional_default_scoped_weekly" = "模型專屬每週已用超過 60%";
+"Spending cap, not balance" = "支出上限，並非餘額";

@@ -73,7 +73,7 @@ extension CostUsageStoreCrashSafetyTests {
         killAfterFiles: Int? = nil) throws -> (reason: Process.TerminationReason, status: Int32)
     {
         let process = Process()
-        process.executableURL = self.probeExecutableURL
+        process.executableURL = TestBuildProducts.executableURL(named: "CodexBarCostStoreCrashProbe")
         process.arguments = [mode, root.path] + (killAfterFiles.map { [String($0)] } ?? [])
         let stderr = Pipe()
         process.standardError = stderr
@@ -86,13 +86,5 @@ extension CostUsageStoreCrashSafetyTests {
             Issue.record("probe \(mode) exited \(process.terminationStatus): \(message)")
         }
         return (process.terminationReason, process.terminationStatus)
-    }
-
-    private static var probeExecutableURL: URL {
-        URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent(".build/debug/CodexBarCostStoreCrashProbe")
     }
 }

@@ -12,9 +12,10 @@ read_when:
 - `WidgetSnapshotStore` writes compact JSON snapshots to the app-group container.
 - Widgets read the snapshot and render usage/credits/history states.
 - The app writes snapshots after the main refresh pipeline and token-usage refreshes; narrow single-provider refresh paths may wait for the next snapshot write.
-- Automatic provider refresh is the sole periodic trigger for token/cost refreshes; the token/cost TTL only determines
-  eligibility when that refresh runs. Automatic local-history scans have a 15-minute minimum (30 minutes in low-power
-  mode), while Manual disables automatic scans. The floor limits repeated local-history work and extra WidgetKit reload
+- Scheduled provider refreshes trigger regular token/cost refreshes; the token/cost TTL determines eligibility when
+  that refresh runs. Timer-driven local-history refreshes have a 15-minute minimum (30 minutes in low-power mode).
+  Manual disables the recurring refresh timer, not all scan activity: startup refreshes and pending Codex catch-up can
+  still scan local history. The floor limits repeated local-history work and extra WidgetKit reload
   requests without changing provider usage/status freshness or the user-selected provider refresh cadence.
 - Claude local cost/token history remains eligible for widget snapshots when its account does not expose numeric
   session or weekly quota data.
@@ -24,6 +25,12 @@ read_when:
   CodexBar surfaces. Turning it off also removes scoped rows kept from an earlier snapshot, including while no fresh
   Claude quota data is available.
 - If no snapshot is available, widgets fall back to preview/empty data.
+
+Tests must opt into snapshot persistence with an in-memory save override or a test-owned snapshot URL.
+Neither opt-in reloads WidgetKit timelines. Production still awaits the file save before requesting a reload;
+the save/reload helper accepts an explicit test-mode decision and reload callback so tests can verify that ordering
+with temporary files and a fake callback, without changing process-wide test isolation. The per-store reload callback
+also lets persistence integration tests count reload attempts without calling WidgetKit.
 
 ## Extension
 - `Sources/CodexBarWidget` contains timeline + views.
@@ -37,6 +44,8 @@ read_when:
 - **CodexBar Metric** (`CodexBarCompactWidget`): compact credits/today-cost/30-day-cost widget, small only.
 - **CodexBar Burn Down** (`CodexBarBurnDownWidget`): configurable session or weekly burn-down chart, medium only.
 - **CodexBar Burn Down (Combined)** (`CodexBarCombinedBurnDownWidget`): session and weekly burn-down charts, medium only.
+
+Switcher widgets share one remembered provider selection, so switching one updates all Switcher widgets. To keep Claude and Codex visible side by side, add two **CodexBar Usage** widgets and configure each widget's **Provider** separately. Usage widgets read their own configured provider instead of the shared Switcher selection.
 
 ## Provider picker support
 The configurable provider widgets currently expose:

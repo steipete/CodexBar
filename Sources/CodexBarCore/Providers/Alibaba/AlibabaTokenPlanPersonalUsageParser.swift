@@ -35,7 +35,7 @@ enum AlibabaTokenPlanPersonalUsageParser {
             containingAnyOf: ["per5HourPercentage", "per1WeekPercentage"],
             in: expanded)
         else {
-            throw AlibabaTokenPlanUsageError.parseFailed("Missing Personal usage windows")
+            throw AlibabaTokenPlanUsageError.usageWindowsUnavailable
         }
 
         let fiveHourPercent = OneConsoleJSON.percentagePoints(
@@ -43,7 +43,7 @@ enum AlibabaTokenPlanPersonalUsageParser {
         let weeklyPercent = OneConsoleJSON.percentagePoints(
             fromRatio: OneConsoleJSON.number(usage["per1WeekPercentage"]))
         guard fiveHourPercent != nil || weeklyPercent != nil else {
-            throw AlibabaTokenPlanUsageError.parseFailed("Missing Personal usage windows")
+            throw AlibabaTokenPlanUsageError.usageWindowsUnavailable
         }
 
         let planCode = subscriptionData.flatMap(self.planCode)

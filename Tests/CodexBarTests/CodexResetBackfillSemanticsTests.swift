@@ -3,6 +3,7 @@ import Foundation
 import Testing
 @testable import CodexBar
 
+@Suite(CodexCredentialFixtures())
 struct CodexResetBackfillSemanticsTests {
     @Test
     func `merged reset cache preserves semantic lanes across swapped snapshots`() throws {
@@ -274,9 +275,9 @@ extension CodexAccountScopedRefreshTests {
 
         let targetID = try #require(UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-424242424242"))
         let siblingID = try #require(UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-434343434343"))
-        let targetHome = FileManager.default.temporaryDirectory
+        let targetHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-email-only-target-\(UUID().uuidString)", isDirectory: true)
-        let siblingHome = FileManager.default.temporaryDirectory
+        let siblingHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-email-only-sibling-\(UUID().uuidString)", isDirectory: true)
         try Self.writeCodexAuthFile(
             homeURL: targetHome,

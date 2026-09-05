@@ -148,6 +148,27 @@ struct UserFacingLocalizationCoverageTests {
     }
 
     @Test
+    func `kiro cap phrases localize of prefixes`() throws {
+        let details = try [
+            ProviderDetailSection(
+                title: "Usage",
+                rows: [
+                    .init(label: "Overage usage", value: "3603.49 credits", secondaryValue: "of 10000"),
+                    .init(label: "Overage cost", value: "$144.14", secondaryValue: "of $400.00"),
+                ]),
+        ]
+
+        let localized = CodexBarLocalizationOverride.$appLanguage.withValue("zh-Hans") {
+            UsageMenuCardView.Model.localizedProviderDetails(details, provider: .kiro)
+        }
+
+        let section = try #require(localized.first)
+        #expect(section.rows.map(\.label) == ["超额用量", "超额费用"])
+        #expect(section.rows.map(\.value) == ["3603.49 额度", "$144.14"])
+        #expect(section.rows.map(\.secondaryValue) == ["/ 10000", "/ $400.00"])
+    }
+
+    @Test
     func `spend dashboard model breakdown state stays precise and localized`() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

@@ -491,7 +491,9 @@ struct PiSessionCostScannerTests {
         let url = try env.writePiSessionFile(
             relativePath: "2026-04-06T10-00-00-000Z_test.jsonl",
             contents: firstContents)
-        let originalModifiedAt = try #require(
+        let stableModifiedAt = Date(timeIntervalSince1970: floor(day.timeIntervalSince1970))
+        try FileManager.default.setAttributes([.modificationDate: stableModifiedAt], ofItemAtPath: url.path)
+        let cachedModifiedAt = try #require(
             FileManager.default.attributesOfItem(atPath: url.path)[.modificationDate] as? Date)
 
         let cachedOptions = PiSessionCostScanner.Options(
@@ -507,7 +509,11 @@ struct PiSessionCostScannerTests {
         #expect(firstReport.data.first?.totalTokens == 15)
 
         try secondContents.write(to: url, atomically: true, encoding: .utf8)
-        try FileManager.default.setAttributes([.modificationDate: originalModifiedAt], ofItemAtPath: url.path)
+        try FileManager.default.setAttributes([.modificationDate: stableModifiedAt], ofItemAtPath: url.path)
+        let replacedModifiedAt = try #require(
+            FileManager.default.attributesOfItem(atPath: url.path)[.modificationDate] as? Date)
+        #expect(Int64(cachedModifiedAt.timeIntervalSince1970 * 1000) ==
+            Int64(replacedModifiedAt.timeIntervalSince1970 * 1000))
 
         let staleReport = PiSessionCostScanner.loadDailyReport(
             provider: .codex,

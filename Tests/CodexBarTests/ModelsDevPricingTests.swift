@@ -1263,6 +1263,60 @@ extension ModelsDevPricingTests {
     }
 
     @Test
+    func `memo invalidates when cache file size changes`() throws {
+        let root = try Self.cacheRoot()
+        try ModelsDevCache.save(catalog: Self.fixtureCatalog(), fetchedAt: Date(), cacheRoot: root)
+        let url = ModelsDevCache.cacheFileURL(cacheRoot: root)
+        let pinnedDate = Date(timeIntervalSince1970: 1_700_000_000)
+        try FileManager.default.setAttributes([.modificationDate: pinnedDate], ofItemAtPath: url.path)
+        let primed = try #require(ModelsDevCache.load(cacheRoot: root).artifact)
+        let originalSize = try #require(
+            try (FileManager.default.attributesOfItem(atPath: url.path)[.size]) as? NSNumber).intValue
+
+        // Same pinned mtime, larger invalid payload: a memo keyed only on mtime would still hit.
+        try Data(repeating: 0x7B, count: originalSize + 16).write(to: url)
+        try FileManager.default.setAttributes([.modificationDate: pinnedDate], ofItemAtPath: url.path)
+
+        let reloaded = ModelsDevCache.load(cacheRoot: root)
+        #expect(reloaded.artifact != primed)
+        #expect(reloaded.error == .invalidJSON)
+    }
+
+    @Test
+    func `memo invalidates when cache file mtime changes`() throws {
+        let root = try Self.cacheRoot()
+        try ModelsDevCache.save(catalog: Self.fixtureCatalog(), fetchedAt: Date(), cacheRoot: root)
+        let url = ModelsDevCache.cacheFileURL(cacheRoot: root)
+        let pinnedDate = Date(timeIntervalSince1970: 1_700_000_000)
+        try FileManager.default.setAttributes([.modificationDate: pinnedDate], ofItemAtPath: url.path)
+        let primed = try #require(ModelsDevCache.load(cacheRoot: root).artifact)
+
+        let size = try #require(
+            try (FileManager.default.attributesOfItem(atPath: url.path)[.size]) as? NSNumber).intValue
+        try Data(repeating: 0, count: size).write(to: url)
+        try FileManager.default.setAttributes(
+            [.modificationDate: Date(timeIntervalSince1970: 1_700_000_100)],
+            ofItemAtPath: url.path)
+
+        let reloaded = ModelsDevCache.load(cacheRoot: root)
+        #expect(reloaded.artifact != primed)
+        #expect(reloaded.error == .invalidJSON)
+    }
+
+    @Test
+    func `load metadata check is one stat per load`() throws {
+        let root = try Self.cacheRoot()
+        try ModelsDevCache.save(catalog: Self.fixtureCatalog(), fetchedAt: Date(), cacheRoot: root)
+        let recorder = ModelsDevCache.MetadataReadRecorder()
+        ModelsDevCache.withMetadataReadRecorderForTesting(recorder) {
+            _ = ModelsDevCache.load(cacheRoot: root)
+            #expect(recorder.snapshot() == 1)
+            _ = ModelsDevCache.load(cacheRoot: root)
+            #expect(recorder.snapshot() == 2)
+        }
+    }
+
+    @Test
     func `client fetches with mock transport`() async throws {
         let data = try Self.fixtureData()
         let client = ModelsDevClient(transport: MockTransport(result: .success((data, Self.response(status: 200)))))

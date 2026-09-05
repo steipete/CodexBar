@@ -281,8 +281,8 @@ enum SpendActivityLevels {
 struct SpendActivityGridGeometry {
     static let weekdayGutterWidth: CGFloat = 40
     static let gridSpacing: CGFloat = 8
-    static let tooltipInset: CGFloat = 4
-    static let tooltipGap: CGFloat = 7
+    static let tooltipInset: CGFloat = 8
+    static let tooltipGap: CGFloat = 5
     static let tooltipWidth: CGFloat = 148
     static let tooltipHeight: CGFloat = 50
 
@@ -304,12 +304,17 @@ struct SpendActivityGridGeometry {
         return min(max(anchorX, lower), upper)
     }
 
+    /// Caps the tooltip to the grid's own height so a very short grid (e.g. a narrow window with the
+    /// sidebar expanded) compacts the tooltip instead of letting it overflow past the grid's edges.
+    static func effectiveTooltipHeight(gridHeight: CGFloat) -> CGFloat {
+        min(self.tooltipHeight, gridHeight)
+    }
+
     static func tooltipOriginY(anchorY: CGFloat, tooltipHeight: CGFloat, gridHeight: CGFloat) -> CGFloat {
-        let below = anchorY + self.tooltipGap
-        if below + tooltipHeight <= gridHeight {
-            return below
-        }
-        return max(anchorY - tooltipHeight - self.tooltipGap, 0)
+        let maxOrigin = max(gridHeight - tooltipHeight, 0)
+        let above = anchorY - tooltipHeight - self.tooltipGap
+        let candidate = above >= self.tooltipInset ? above : anchorY + self.tooltipGap
+        return min(max(candidate, 0), maxOrigin)
     }
 }
 
@@ -354,9 +359,13 @@ enum SpendActivityWeekday {
 }
 
 enum SpendActivityDateFormatting {
-    static func mediumDateString(_ date: Date, locale: Locale? = nil) -> String {
+    static func mediumDateString(_ date: Date, calendar: Calendar? = nil, locale: Locale? = nil) -> String {
         let formatter = DateFormatter()
         formatter.locale = locale ?? codexBarLocalizedResourceLocale()
+        formatter.calendar = calendar ?? Calendar.current
+        if let calendar, let timeZone = calendar.timeZone as TimeZone? {
+            formatter.timeZone = timeZone
+        }
         formatter.dateStyle = .medium
         formatter.timeStyle = .none
         return formatter.string(from: date)
@@ -364,14 +373,15 @@ enum SpendActivityDateFormatting {
 }
 
 enum SpendActivityAccessibility {
-    static func description(date: Date, value: String, locale: Locale? = nil) -> String {
-        "\(SpendActivityDateFormatting.mediumDateString(date, locale: locale)): \(value)"
+    static func description(date: Date, value: String, calendar: Calendar? = nil, locale: Locale? = nil) -> String {
+        "\(SpendActivityDateFormatting.mediumDateString(date, calendar: calendar, locale: locale)): \(value)"
     }
 }
 
 struct SpendActivityHeatmapView: View {
     let points: [SpendDashboardModel.TokenActivityPoint]
     let now: Date
+    let calendar: Calendar
     let selectedDay: Date?
     let onSelectDay: ((Date?) -> Void)?
 
@@ -381,14 +391,16 @@ struct SpendActivityHeatmapView: View {
     init(
         points: [SpendDashboardModel.TokenActivityPoint],
         now: Date = Date(),
+        calendar: Calendar = .current,
         selectedDay: Date? = nil,
         onSelectDay: ((Date?) -> Void)? = nil)
     {
         self.points = points
         self.now = now
+        self.calendar = calendar
         self.selectedDay = selectedDay
         self.onSelectDay = onSelectDay
-        self._series = State(initialValue: SpendActivitySeries.make(from: points, now: now))
+        self._series = State(initialValue: SpendActivitySeries.make(from: points, now: now, calendar: calendar))
     }
 
     var body: some View {
@@ -458,7 +470,10 @@ struct SpendActivityHeatmapView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .onChange(of: self.points) { _, points in
-            self.series = SpendActivitySeries.make(from: points, now: self.now)
+            self.series = SpendActivitySeries.make(from: points, now: self.now, calendar: self.calendar)
+        }
+        .onChange(of: self.calendar) { _, calendar in
+            self.series = SpendActivitySeries.make(from: self.points, now: self.now, calendar: calendar)
         }
     }
 
@@ -577,6 +592,7 @@ private struct SpendActivityDailyGrid: View {
             .aspectRatio(CGFloat(self.columns + 2) / CGFloat(self.rows), contentMode: .fit)
         }
         .focusable()
+        .focusEffectDisabled()
         .focused(self.$isKeyboardFocused)
         .onMoveCommand(perform: self.moveKeyboardSelection)
         .onChange(of: self.isKeyboardFocused) { _, isFocused in
@@ -658,22 +674,24 @@ private struct SpendActivityDailyGrid: View {
             let anchorX = CGFloat(col) * pitch + pitch / 2
             let anchorY = CGFloat(row) * pitch + pitch / 2
             let width = min(SpendActivityGridGeometry.tooltipWidth, max(size.width - 8, 1))
+            let height = SpendActivityGridGeometry.effectiveTooltipHeight(gridHeight: size.height)
             let originY = SpendActivityGridGeometry.tooltipOriginY(
                 anchorY: anchorY,
-                tooltipHeight: SpendActivityGridGeometry.tooltipHeight,
+                tooltipHeight: height,
                 gridHeight: size.height)
             SpendActivityTooltip(
                 title: self.series.isCovered[index]
                     ? UsageFormatter.tokenCountString(self.series.daily[index])
                     : L("Unavailable"),
-                subtitle: SpendActivityDateFormatting.mediumDateString(date),
-                width: width)
+                subtitle: SpendActivityDateFormatting.mediumDateString(date, calendar: self.series.calendar),
+                width: width,
+                height: height)
                 .position(
                     x: SpendActivityGridGeometry.tooltipCenterX(
                         anchorX: anchorX,
                         tooltipWidth: width,
                         gridWidth: size.width),
-                    y: originY + SpendActivityGridGeometry.tooltipHeight / 2)
+                    y: originY + height / 2)
                 .allowsHitTesting(false)
         }
     }
@@ -750,6 +768,8 @@ private struct SpendActivityDailyGrid: View {
     private func monthMarkers(pitch: CGFloat) -> [MonthMarker] {
         let formatter = DateFormatter()
         formatter.locale = codexBarLocalizedResourceLocale()
+        formatter.calendar = self.series.calendar
+        formatter.timeZone = self.series.calendar.timeZone
         formatter.dateFormat = "MMM"
         var markers: [MonthMarker] = []
         var lastLabel = ""
@@ -785,7 +805,8 @@ private struct SpendActivityDailyGrid: View {
     }
 
     private func accessibilityDescription(at index: Int, date: Date) -> String {
-        SpendActivityAccessibility.description(date: date, value: self.accessibilityTokenValue(at: index))
+        SpendActivityAccessibility.description(
+            date: date, value: self.accessibilityTokenValue(at: index), calendar: self.series.calendar)
     }
 
     private func accessibilityTokenValue(at index: Int) -> String {
@@ -878,22 +899,24 @@ private struct SpendActivityWeekGrid: View {
            let weekStart = self.series.weekStartDate(at: col)
         {
             let width = min(SpendActivityGridGeometry.tooltipWidth, max(size.width - 8, 1))
+            let height = SpendActivityGridGeometry.effectiveTooltipHeight(gridHeight: size.height)
             let originY = SpendActivityGridGeometry.tooltipOriginY(
                 anchorY: location.y,
-                tooltipHeight: SpendActivityGridGeometry.tooltipHeight,
+                tooltipHeight: height,
                 gridHeight: size.height)
             SpendActivityTooltip(
                 title: self.activity.isCovered[col]
                     ? UsageFormatter.tokenCountString(self.activity.values[col])
                     : L("Unavailable"),
-                subtitle: SpendActivityDateFormatting.mediumDateString(weekStart),
-                width: width)
+                subtitle: SpendActivityDateFormatting.mediumDateString(weekStart, calendar: self.series.calendar),
+                width: width,
+                height: height)
                 .position(
                     x: SpendActivityGridGeometry.tooltipCenterX(
                         anchorX: CGFloat(col) * pitch + pitch / 2,
                         tooltipWidth: width,
                         gridWidth: size.width),
-                    y: originY + SpendActivityGridGeometry.tooltipHeight / 2)
+                    y: originY + height / 2)
                 .allowsHitTesting(false)
         }
     }
@@ -940,7 +963,8 @@ private struct SpendActivityWeekGrid: View {
         let value = self.activity.isCovered[index]
             ? UsageFormatter.tokenCountString(self.activity.values[index])
             : L("Unavailable")
-        return SpendActivityAccessibility.description(date: weekStart, value: value)
+        return SpendActivityAccessibility.description(
+            date: weekStart, value: value, calendar: self.series.calendar)
     }
 }
 
@@ -948,6 +972,7 @@ private struct SpendActivityTooltip: View {
     let title: String
     let subtitle: String
     let width: CGFloat
+    let height: CGFloat
 
     var body: some View {
         VStack(alignment: .leading, spacing: 1) {
@@ -963,7 +988,7 @@ private struct SpendActivityTooltip: View {
         .padding(.horizontal, 8)
         .frame(
             width: self.width,
-            height: SpendActivityGridGeometry.tooltipHeight,
+            height: self.height,
             alignment: .leading)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
         .overlay {

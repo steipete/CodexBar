@@ -6,6 +6,7 @@ import Testing
 import FoundationNetworking
 #endif
 
+@Suite(CodexCredentialFixtures())
 struct CodexPATTests {
     @Test
     func `parses personal access token credentials`() throws {
@@ -258,9 +259,9 @@ struct CodexPATTests {
         let failClosed = "/Users/test/Library/Application Support/CodexBar/managed-store-unreadable"
         let managedHome =
             "/Users/test/Library/Application Support/CodexBar/managed-codex-homes/00000000-0000-0000-0000-000000000001"
-        let profileHome = FileManager.default.temporaryDirectory
+        let profileHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-pat-profile-\(UUID().uuidString)", isDirectory: true)
-        let profileWithPAT = FileManager.default.temporaryDirectory
+        let profileWithPAT = CodexCredentialFixtures.root
             .appendingPathComponent("codex-pat-profile-with-pat-\(UUID().uuidString)", isDirectory: true)
         defer {
             try? FileManager.default.removeItem(at: profileHome)
@@ -294,10 +295,10 @@ struct CodexPATTests {
 
     @Test
     func `PAT ambient fallback uses env HOME instead of the process user home`() throws {
-        let ambientRoot = FileManager.default.temporaryDirectory
+        let ambientRoot = CodexCredentialFixtures.root
             .appendingPathComponent("codex-pat-home-\(UUID().uuidString)", isDirectory: true)
         let ambientCodexHome = ambientRoot.appendingPathComponent(".codex", isDirectory: true)
-        let managedHome = FileManager.default.temporaryDirectory
+        let managedHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-pat-managed-\(UUID().uuidString)", isDirectory: true)
         defer {
             try? FileManager.default.removeItem(at: ambientRoot)

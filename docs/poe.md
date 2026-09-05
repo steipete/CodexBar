@@ -38,6 +38,8 @@ The current balance request is required. Recent points history is best-effort, s
 
 The provider shows the current point balance in the menu and menu bar. When available, recent history is grouped by day and shown in the usage detail.
 
+The 30-day history cutoff and today's totals use the same refresh timestamp, so pagination and daily grouping stay consistent throughout a refresh.
+
 ## CLI Usage
 
 ```bash

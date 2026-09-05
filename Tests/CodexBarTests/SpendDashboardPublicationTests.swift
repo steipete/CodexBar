@@ -18,12 +18,36 @@ struct SpendDashboardPublicationTests {
                 enabled: provider == .codex || provider == .claude)
         }
         settings.costUsageBucketTimeZoneIdentifier = "UTC"
+        // Isolate from any real ~/.codex corpus: this branch gives the spend dashboard longer
+        // catch-up slices, so a developer-machine corpus can delay the shared publication past
+        // the wait deadline even though the observation semantics are unchanged.
+        let isolatedCodexHome = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        settings._test_codexReconciliationEnvironment = ["CODEX_HOME": isolatedCodexHome.path]
+        defer {
+            settings._test_codexReconciliationEnvironment = nil
+            try? FileManager.default.removeItem(at: isolatedCodexHome)
+        }
         let store = UsageStore(
             fetcher: UsageFetcher(environment: [:]),
             browserDetection: BrowserDetection(cacheTTL: 0),
             settings: settings,
             startupBehavior: .testing,
             environmentBase: [:])
+        // Provider-specific by design: claude stays enabled so ownership fingerprints cover an
+        // independent provider, but its refresh is pinned to one confirmed-empty publication so the
+        // source-revision baseline cannot depend on live network behavior or repeat refreshes.
+        // The publication is seeded before the first configuration snapshot, and the override only
+        // fires once, so every recompute in this test observes the same `claude:empty:1` revision.
+        var claudeSpendSnapshotPinned = false
+        store._test_tokenUsageRefreshOverride = { provider, _ in
+            guard provider == .claude, !claudeSpendSnapshotPinned else { return }
+            claudeSpendSnapshotPinned = true
+            store._setSpendDashboardTokenSnapshotForTesting(nil, for: .claude)
+        }
+        defer { store._test_tokenUsageRefreshOverride = nil }
+        store._setSpendDashboardTokenSnapshotForTesting(nil, for: .claude)
+        claudeSpendSnapshotPinned = true
         let initial = SpendDashboardSource.configuration(settings: settings, store: store)
         store.startSharedSpendDashboardPublication()
         defer { store.stopSharedSpendDashboardPublication() }
@@ -58,14 +82,62 @@ struct SpendDashboardPublicationTests {
     }
 
     @Test
+    func `synchronizes independent snapshot publications`() async {
+        let settings = testSettingsStore(suiteName: "SpendDashboardPublicationTests-independent-sync")
+        settings.costUsageEnabled = true
+        for provider in UsageProvider.allCases {
+            guard let metadata = ProviderRegistry.shared.metadata[provider] else { continue }
+            settings.setProviderEnabled(
+                provider: provider,
+                metadata: metadata,
+                enabled: provider == .claude)
+        }
+        settings.costUsageBucketTimeZoneIdentifier = "UTC"
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing,
+            environmentBase: [:])
+
+        // Seed before observation starts so the post-start publication below has a distinct
+        // publication revision. Codex stays disabled: the regular publisher must not mask the
+        // independent synchronization under test.
+        store._setSpendDashboardTokenSnapshotForTesting(nil, for: .claude)
+        store.startSharedSpendDashboardPublication()
+        defer { store.stopSharedSpendDashboardPublication() }
+        let seeded = SpendDashboardSource.configuration(settings: settings, store: store)
+        await Self.waitUntil {
+            store.spendDashboardPublication.configuration == seeded
+        }
+
+        let refreshedSnapshot = Self.input(id: "claude", provider: .claude, cost: 2.5).snapshot
+        store._setSpendDashboardTokenSnapshotForTesting(refreshedSnapshot, for: .claude)
+
+        // The independent publication boundary must schedule the shared-dashboard sync itself;
+        // removing that call leaves this assertion green only if the regular publisher is used.
+        #expect(store._test_hasPendingSpendDashboardTokenPublicationSync)
+
+        let synchronized = SpendDashboardSource.configuration(settings: settings, store: store)
+        #expect(synchronized != seeded)
+        await Self.waitUntil {
+            store.spendDashboardPublication.configuration == synchronized &&
+                store.spendDashboardPublication.inputs.contains { $0.id == "claude" }
+        }
+
+        #expect(store.spendDashboardPublication.inputs.first { $0.id == "claude" }?
+            .snapshot.last30DaysCostUSD == 2.5)
+    }
+
+    @Test(CodexCredentialFixtures())
     func `shared publication starts and stops in-flight Codex dashboard catch-up`() async throws {
         let settings = testSettingsStore(suiteName: "SpendDashboardPublicationTests-codex-catch-up")
         settings.costUsageEnabled = true
         let metadata = try #require(ProviderRegistry.shared.metadata[.codex])
         settings.setProviderEnabled(provider: .codex, metadata: metadata, enabled: true)
-        let missingLiveHome = FileManager.default.temporaryDirectory
+        let missingLiveHome = CodexCredentialFixtures.root
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
-        let profileHome = FileManager.default.temporaryDirectory
+        let profileHome = CodexCredentialFixtures.root
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try Self.writeCodexAuthFile(homeURL: profileHome)
         settings._test_codexReconciliationEnvironment = ["CODEX_HOME": missingLiveHome.path]
@@ -739,11 +811,14 @@ struct SpendDashboardPublicationTests {
     }
 
     private static func waitUntil(_ condition: @MainActor () -> Bool) async {
-        for _ in 0..<1000 {
+        // Loaded macOS CI can stall MainActor startup long enough for a seeded confirmed-empty
+        // snapshot to age out; wait well past that boundary before treating publication as absent.
+        let deadline = Date().addingTimeInterval(30)
+        while Date() < deadline {
             if condition() {
                 return
             }
-            await Task.yield()
+            try? await Task.sleep(for: .milliseconds(2))
         }
         Issue.record("Timed out waiting for Spend Dashboard publication")
     }

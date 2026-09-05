@@ -96,6 +96,53 @@ struct AmpUsageParserTests {
     }
 
     @Test
+    func `parses bold amp free subscription and individual credits labels`() throws {
+        let now = try self.date("2026-08-24T12:00:00Z")
+        let output = """
+        Signed in as you@example.com (name)
+        **Amp Free:** 0% remaining today (resets daily) - https://ampcode.com/settings
+        **Amp Megawatt Subscription:** 68% other usage and 97% orb usage remaining - resets upon renewal in 5 days
+        **Individual credits:** $3.23 remaining (set up auto-reload to avoid running out) - https://ampcode.com/settings
+        """
+
+        let snapshot = try AmpUsageParser.parse(displayText: output, now: now)
+        let usage = snapshot.toUsageSnapshot(now: now)
+
+        #expect(snapshot.freeQuota == 100)
+        #expect(snapshot.freeUsed == 100)
+        #expect(snapshot.freeResetDescription == "resets daily")
+        #expect(snapshot.subscription == AmpSubscriptionUsage(
+            plan: "Megawatt",
+            otherUsedPercent: 32,
+            orbUsedPercent: 3,
+            resetsAt: now.addingTimeInterval(5 * 24 * 60 * 60),
+            resetDescription: "renews in 5 days"))
+        #expect(snapshot.individualCredits == 3.23)
+        #expect(snapshot.accountEmail == "you@example.com")
+        #expect(snapshot.accountOrganization == "name")
+        #expect(usage.primary?.usedPercent == 32)
+        #expect(usage.secondary?.usedPercent == 3)
+        #expect(usage.extraRateWindows?.first?.window.usedPercent == 100)
+        #expect(usage.detailRow(label: "Individual credits")?.value == "$3.23")
+    }
+
+    @Test
+    func `parses bold legacy amp free and workspace labels`() throws {
+        let output = """
+        Signed in as user@example.com (team)
+        **Amp Free:** $6/$10 remaining (replenishes +$0.5/hour)
+        **Workspace Test Team:** $7.25 remaining
+        """
+
+        let snapshot = try AmpUsageParser.parse(displayText: output)
+
+        #expect(snapshot.freeQuota == 10)
+        #expect(snapshot.freeUsed == 4)
+        #expect(snapshot.hourlyReplenishment == 0.5)
+        #expect(snapshot.workspaceBalances == [AmpWorkspaceBalance(name: "Test Team", remaining: 7.25)])
+    }
+
+    @Test
     func `does not infer daily reset from percentage alone`() throws {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let snapshot = try AmpUsageParser.parse(

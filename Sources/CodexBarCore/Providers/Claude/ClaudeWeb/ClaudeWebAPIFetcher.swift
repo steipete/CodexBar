@@ -37,11 +37,23 @@ enum ClaudeWebPrepaidCreditsRequest {
 enum ClaudeWebSessionKeyImport {
     #if DEBUG
     @TaskLocal static var overrideForTesting: ClaudeWebAPIFetcher.SessionKeyInfo?
+    @TaskLocal static var browserOverrideForTesting:
+        (@Sendable (Browser) throws -> ClaudeWebAPIFetcher.SessionKeyInfo?)?
     #endif
 
     static var currentOverride: ClaudeWebAPIFetcher.SessionKeyInfo? {
         #if DEBUG
         self.overrideForTesting
+        #else
+        nil
+        #endif
+    }
+
+    static var currentBrowserOverride:
+        (@Sendable (Browser) throws -> ClaudeWebAPIFetcher.SessionKeyInfo?)?
+    {
+        #if DEBUG
+        self.browserOverrideForTesting
         #else
         nil
         #endif
@@ -163,6 +175,7 @@ public enum ClaudeWebAPIFetcher {
         case networkError(Error)
         case invalidResponse
         case unauthorized
+        case cloudflareChallenge
         case serverError(statusCode: Int)
         case noOrganization
         case organizationNotFound(String)
@@ -181,6 +194,10 @@ public enum ClaudeWebAPIFetcher {
                 "Invalid response from Claude API."
             case .unauthorized:
                 "Sign in to claude.ai (or refresh Claude cookies) to load usage data."
+            case .cloudflareChallenge:
+                "claude.ai is behind a Cloudflare challenge, often caused by VPN or datacenter networks. " +
+                    "Re-authenticating will not help. Switch Claude Usage source to OAuth in Settings " +
+                    "(Usage credits balance will be unavailable), or try a different network."
             case let .serverError(code):
                 "Claude API error: HTTP \(code)"
             case .noOrganization:
@@ -535,33 +552,42 @@ extension ClaudeWebAPIFetcher {
 
         let cookieDomains = ["claude.ai"]
 
-        // Filter to cookie-eligible browsers to avoid unnecessary keychain prompts
-        let installedBrowsers = Self.cookieImportOrder.cookieImportCandidates(using: browserDetection)
-        for browserSource in installedBrowsers {
-            do {
-                let query = BrowserCookieQuery(domains: cookieDomains)
-                let sources = try Self.cookieClient.codexBarRecords(
-                    matching: query,
-                    in: browserSource,
-                    logger: log)
-                for source in sources {
-                    if let sessionKey = findSessionKey(in: source.records.map { record in
-                        (name: record.name, value: record.value)
-                    }) {
-                        log("Found sessionKey in \(source.label)")
-                        return SessionKeyInfo(
-                            key: sessionKey,
-                            sourceLabel: source.label,
-                            cookieCount: source.records.count)
+        return try KeychainAccessPreflight.withMemoizedGenericPasswordChecks {
+            // Evaluate sources on demand so a successful preferred browser avoids later Keychain preflights.
+            let installedBrowsers = Self.cookieImportOrder.lazyCookieImportCandidates(using: browserDetection)
+            for browserSource in installedBrowsers {
+                do {
+                    if let override = ClaudeWebSessionKeyImport.currentBrowserOverride {
+                        if let sessionInfo = try override(browserSource) {
+                            log("Found sessionKey in \(sessionInfo.sourceLabel)")
+                            return sessionInfo
+                        }
+                        continue
                     }
+                    let query = BrowserCookieQuery(domains: cookieDomains)
+                    let sources = try Self.cookieClient.codexBarRecords(
+                        matching: query,
+                        in: browserSource,
+                        logger: log)
+                    for source in sources {
+                        if let sessionKey = findSessionKey(in: source.records.map { record in
+                            (name: record.name, value: record.value)
+                        }) {
+                            log("Found sessionKey in \(source.label)")
+                            return SessionKeyInfo(
+                                key: sessionKey,
+                                sourceLabel: source.label,
+                                cookieCount: source.records.count)
+                        }
+                    }
+                } catch {
+                    BrowserCookieAccessGate.recordIfNeeded(error)
+                    log("\(browserSource.displayName) cookie load failed: \(error.localizedDescription)")
                 }
-            } catch {
-                BrowserCookieAccessGate.recordIfNeeded(error)
-                log("\(browserSource.displayName) cookie load failed: \(error.localizedDescription)")
             }
-        }
 
-        throw FetchError.noSessionKeyFound
+            throw FetchError.noSessionKeyFound
+        }
     }
 
     private static func findSessionKey(in cookies: [(name: String, value: String)]) -> String? {
@@ -599,14 +625,10 @@ extension ClaudeWebAPIFetcher {
 
         logger?("Organizations API status: \(httpResponse.statusCode)")
 
-        switch httpResponse.statusCode {
-        case 200:
+        if httpResponse.statusCode == 200 {
             return try self.parseOrganizationResponse(data, targetOrganizationID: targetOrganizationID)
-        case 401, 403:
-            throw FetchError.unauthorized
-        default:
-            throw FetchError.serverError(statusCode: httpResponse.statusCode)
         }
+        throw self.fetchError(response: httpResponse, data: data)
     }
 
     private static func fetchUsageData(
@@ -631,14 +653,35 @@ extension ClaudeWebAPIFetcher {
 
         logger?("Usage API status: \(httpResponse.statusCode)")
 
-        switch httpResponse.statusCode {
-        case 200:
+        if httpResponse.statusCode == 200 {
             return try self.parseUsageResponse(data, logger: logger)
-        case 401, 403:
-            throw FetchError.unauthorized
-        default:
-            throw FetchError.serverError(statusCode: httpResponse.statusCode)
         }
+        throw self.fetchError(response: httpResponse, data: data)
+    }
+
+    private static func fetchError(response: HTTPURLResponse, data: Data) -> FetchError {
+        switch response.statusCode {
+        case 401:
+            .unauthorized
+        case 403 where self.isCloudflareChallenge(response: response, data: data):
+            .cloudflareChallenge
+        case 403:
+            .unauthorized
+        default:
+            .serverError(statusCode: response.statusCode)
+        }
+    }
+
+    private static func isCloudflareChallenge(response: HTTPURLResponse, data: Data) -> Bool {
+        if response.value(forHTTPHeaderField: "cf-mitigated")?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .caseInsensitiveCompare("challenge") == .orderedSame
+        {
+            return true
+        }
+
+        guard let bodyPrefix = String(bytes: data.prefix(64 * 1024), encoding: .utf8) else { return false }
+        return bodyPrefix.localizedCaseInsensitiveContains("Just a moment")
     }
 
     private static func parseUsageResponse(_ data: Data, logger: ((String) -> Void)? = nil) throws -> WebUsageData {

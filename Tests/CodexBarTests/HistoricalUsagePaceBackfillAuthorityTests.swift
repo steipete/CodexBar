@@ -339,7 +339,7 @@ extension HistoricalUsagePaceTests {
         ])
         store._setCodexHistoricalDatasetForTesting(twoWeeksDataset)
 
-        let computed = store.weeklyPace(provider: .codex, window: window, now: now)
+        let computed = store.weeklyPace(provider: .codex, window: window, dataConfidence: .unknown, now: now)
         let linear = UsagePace.weekly(
             window: window,
             now: now,
@@ -381,7 +381,11 @@ extension HistoricalUsagePaceTests {
             dataset,
             accountKey: store.codexOwnershipContext().canonicalKey)
 
-        let computed = try #require(store.weeklyPace(provider: .codex, window: window, now: now))
+        let computed = try #require(store.weeklyPace(
+            provider: .codex,
+            window: window,
+            dataConfidence: .unknown,
+            now: now))
 
         #expect(abs(expected.expectedUsedPercent - linear.expectedUsedPercent) > 0.001)
         #expect(expected.runOutProbability != nil)
@@ -441,7 +445,11 @@ extension HistoricalUsagePaceTests {
             dataset,
             accountKey: store.codexOwnershipContext().canonicalKey)
 
-        let computed = try #require(store.weeklyPace(provider: .codex, window: window, now: now))
+        let computed = try #require(store.weeklyPace(
+            provider: .codex,
+            window: window,
+            dataConfidence: .unknown,
+            now: now))
 
         #expect(historical.runOutProbability != nil)
         #expect(abs(computed.expectedUsedPercent - scheduled.expectedUsedPercent) < 0.001)
@@ -467,7 +475,7 @@ extension HistoricalUsagePaceTests {
             resetsAt: now.addingTimeInterval(4 * 24 * 60 * 60),
             resetDescription: nil)
 
-        let pace = store.weeklyPace(provider: .zai, window: window, now: now)
+        let pace = store.weeklyPace(provider: .zai, window: window, dataConfidence: .unknown, now: now)
 
         #expect(pace != nil)
         #expect(abs((pace?.deltaPercent ?? 0) - (40 - (3.0 / 7.0 * 100.0))) < 0.001)
@@ -500,10 +508,13 @@ extension HistoricalUsagePaceTests {
             resetsAt: now.addingTimeInterval(7 * 24 * 60 * 60 - 60 * 60),
             resetDescription: nil)
 
-        #expect(store.menuBarLayoutPaceText(provider: .zai, window: deficit, now: now) == "+17%")
-        #expect(store.menuBarLayoutPaceText(provider: .zai, window: reserve, now: now) == "-13%")
-        #expect(store.menuBarLayoutPaceText(provider: .zai, window: tooEarly, now: now) == nil)
-        #expect(store.menuBarLayoutPaceText(provider: .zai, window: nil, now: now) == nil)
+        #expect(store
+            .menuBarLayoutPaceText(provider: .zai, window: deficit, dataConfidence: .unknown, now: now) == "+17%")
+        #expect(store
+            .menuBarLayoutPaceText(provider: .zai, window: reserve, dataConfidence: .unknown, now: now) == "-13%")
+        #expect(store
+            .menuBarLayoutPaceText(provider: .zai, window: tooEarly, dataConfidence: .unknown, now: now) == nil)
+        #expect(store.menuBarLayoutPaceText(provider: .zai, window: nil, dataConfidence: .unknown, now: now) == nil)
     }
 
     @MainActor
@@ -523,12 +534,17 @@ extension HistoricalUsagePaceTests {
             resetsAt: now.addingTimeInterval(7 * 24 * 60 * 60 - 4 * 60 * 60),
             resetDescription: nil)
 
-        #expect(store.menuBarLayoutPaceText(provider: .zai, window: barelyIntoWindow, now: now) == nil)
-        #expect(store.weeklyPace(provider: .zai, window: barelyIntoWindow, now: now) == nil)
+        #expect(store.menuBarLayoutPaceText(
+            provider: .zai,
+            window: barelyIntoWindow,
+            dataConfidence: .unknown,
+            now: now) == nil)
+        #expect(store.weeklyPace(provider: .zai, window: barelyIntoWindow, dataConfidence: .unknown, now: now) == nil)
         #expect(
             store.menuBarLayoutPaceText(
                 provider: .zai,
                 window: barelyIntoWindow,
+                dataConfidence: .unknown,
                 now: now,
                 minimumElapsedPercent: 1)
                 == "+3%")
@@ -536,6 +552,7 @@ extension HistoricalUsagePaceTests {
             store.weeklyPace(
                 provider: .zai,
                 window: barelyIntoWindow,
+                dataConfidence: .unknown,
                 now: now,
                 minimumElapsedPercent: 1))
         #expect(abs(pace.expectedUsedPercent - (4.0 / 168.0 * 100.0)) < 0.001)
@@ -571,17 +588,19 @@ extension HistoricalUsagePaceTests {
             dataset,
             accountKey: store.codexOwnershipContext().canonicalKey)
 
-        #expect(store.weeklyPace(provider: .codex, window: window, now: now) == nil)
+        #expect(store.weeklyPace(provider: .codex, window: window, dataConfidence: .unknown, now: now) == nil)
         let pace = try #require(
             store.weeklyPace(
                 provider: .codex,
                 window: window,
+                dataConfidence: .unknown,
                 now: now,
                 minimumElapsedPercent: 1))
         #expect(pace.expectedUsedPercent < 1)
         #expect(store.menuBarLayoutPaceText(
             provider: .codex,
             window: window,
+            dataConfidence: .unknown,
             now: now,
             minimumElapsedPercent: 1) != nil)
     }
@@ -617,6 +636,7 @@ extension HistoricalUsagePaceTests {
             store.weeklyPace(
                 provider: .amp,
                 window: window,
+                dataConfidence: .unknown,
                 now: now,
                 minimumElapsedPercent: 1))
         #expect(pace.expectedUsedPercent > 1)
@@ -688,7 +708,7 @@ extension HistoricalUsagePaceTests {
             resetsAt: resetsAt,
             resetDescription: nil)
 
-        let pace = try #require(store.weeklyPace(provider: .zai, window: window, now: now))
+        let pace = try #require(store.weeklyPace(provider: .zai, window: window, dataConfidence: .unknown, now: now))
 
         #expect(abs(pace.expectedUsedPercent - 60) < 0.001)
         #expect(abs(pace.deltaPercent) < 0.001)
@@ -709,7 +729,7 @@ extension HistoricalUsagePaceTests {
             resetsAt: now.addingTimeInterval(4 * 24 * 60 * 60),
             resetDescription: nil)
 
-        let pace = store.weeklyPace(provider: .factory, window: window, now: now)
+        let pace = store.weeklyPace(provider: .factory, window: window, dataConfidence: .unknown, now: now)
 
         #expect(pace == nil)
     }
