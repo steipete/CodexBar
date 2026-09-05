@@ -518,7 +518,7 @@ extension UsageStore {
             return snapshot?.costUsage
         case .xai:
             return snapshot.flatMap { XAICostUsageMapping.tokenSnapshot(from: $0, historyDays: windowDays) }
-        case .grok:
+        case .grok, .muse:
             return self.grokLocalTokenSnapshot(from: snapshot, historyDays: windowDays)
         default:
             return nil
@@ -529,7 +529,7 @@ extension UsageStore {
         // Provider-specific by design: these providers project live usage snapshots into the
         // shared spend catalog instead of running the local CostUsageFetcher JSONL pipeline.
         switch provider {
-        case .grok, .mistral, .openai, .opencodego, .openrouter, .xai:
+        case .grok, .muse, .mistral, .openai, .opencodego, .openrouter, .xai:
             true
         default:
             false

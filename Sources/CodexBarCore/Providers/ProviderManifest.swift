@@ -5,6 +5,7 @@ import Foundation
 /// `ProviderDescriptorRegistry.register(_:)`.
 public enum ProviderManifest {
     public static let allDescriptors: [ProviderDescriptor] = [
+        MuseProviderDescriptor.descriptor,
         CodexProviderDescriptor.descriptor,
         OpenAIAPIProviderDescriptor.descriptor,
         AzureOpenAIProviderDescriptor.descriptor,

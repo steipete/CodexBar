@@ -6,6 +6,7 @@ import Foundation
 /// `ProviderImplementationRegistry.register(_:)`.
 enum ProviderImplementationManifest {
     static let makeImplementations: [@Sendable () -> any ProviderImplementation] = [
+        { MuseProviderImplementation() },
         { CodexProviderImplementation() },
         { OpenAIAPIProviderImplementation() },
         { AzureOpenAIProviderImplementation() },
