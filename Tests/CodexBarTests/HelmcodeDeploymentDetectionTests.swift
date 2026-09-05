@@ -157,10 +157,12 @@ struct HelmcodeDeploymentDetectionTests {
 
             // Both tenants have sessions: the Helmcode Cloud probe runs first.
             let bothStub = Self.successStub(expectedHost: "cloud-api.helmcode.com")
-            let bothResult = try await ProviderInteractionContext.$current.withValue(.userInitiated) {
-                try await HelmcodeWebFetchStrategy.$sessionImporterOverrideForTesting.withValue({ deployment in
+            let importOverride: (@Sendable (HelmcodeDeployment) -> [HelmcodeCookieImporter.SessionInfo]?)? =
+                { deployment in
                     deployment == .helmcode ? helmcodeSessions : nanSessions
-                }) {
+                }
+            let bothResult = try await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                try await HelmcodeWebFetchStrategy.$sessionImporterOverrideForTesting.withValue(importOverride) {
                     try await HelmcodeWebFetchStrategy.$transportOverrideForTesting.withValue(bothStub) {
                         try await strategy.fetch(Self.makeContext(runtime: .app))
                     }
@@ -172,10 +174,12 @@ struct HelmcodeDeploymentDetectionTests {
             // Only NaN has a session: the NaN tenant is used, labeled, and persisted in its scope.
             Self.clearBothScopes()
             let nanStub = Self.successStub(expectedHost: "cloud-api.nan.builders")
-            let nanResult = try await ProviderInteractionContext.$current.withValue(.userInitiated) {
-                try await HelmcodeWebFetchStrategy.$sessionImporterOverrideForTesting.withValue({ deployment in
+            let nanOverride: (@Sendable (HelmcodeDeployment) -> [HelmcodeCookieImporter.SessionInfo]?)? =
+                { deployment in
                     deployment == .nanBuilders ? nanSessions : nil
-                }) {
+                }
+            let nanResult = try await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                try await HelmcodeWebFetchStrategy.$sessionImporterOverrideForTesting.withValue(nanOverride) {
                     try await HelmcodeWebFetchStrategy.$transportOverrideForTesting.withValue(nanStub) {
                         try await strategy.fetch(Self.makeContext(runtime: .app))
                     }
@@ -191,10 +195,11 @@ struct HelmcodeDeploymentDetectionTests {
             // No tenant has a session: the error names both dashboards.
             Self.clearBothScopes()
             let noneContext = Self.makeContext(runtime: .app)
+            let noSessions: (@Sendable (HelmcodeDeployment) -> [HelmcodeCookieImporter.SessionInfo]?)? = { _ in nil }
             try await ProviderInteractionContext.$current.withValue(.userInitiated) {
                 await #expect {
                     _ = try await HelmcodeWebFetchStrategy.$sessionImporterOverrideForTesting
-                        .withValue({ _ in nil }) {
+                        .withValue(noSessions) {
                             try await strategy.fetch(noneContext)
                         }
                 } throws: { error in
