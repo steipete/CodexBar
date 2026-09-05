@@ -9,6 +9,9 @@
 - **Cached custom menu-bar text**: reuse plain text layouts while preserving native highlighting, spacing, display scaling, and colored emoji (#3110).
 - **More reliable usage displays**: show exhausted automatic quotas correctly, accept Kiro plan summaries, and recover rejected Kimi web sessions (#3349, #3359, #3414).
 
+### Added
+- Helmcode: add a dashboard-session provider showing per-model monthly token quotas, monthly reset timing, and the prepaid credit balance, with Helmcode Cloud and NaN Builders deployments, deployment-scoped Chrome cookie import, a persisted validated session for later refreshes, and a manual Cookie fallback (#3422).
+
 ### Fixed
 - Codex cost: skip loading raw token histories for unchanged sessions while preserving exact request pricing, reasoning totals, and fork accounting; concurrent cache changes safely request a retry (#3297). Thanks @estevecastells!
 - Codex cost: fill missing model-pricing coverage, including cached tokens and long-context Fast usage, and reprice saved rows without rebuilding token history (#3423, #3425).

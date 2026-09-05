@@ -65,6 +65,7 @@ enum ProviderImplementationManifest {
         { PoeProviderImplementation() },
         { ChutesProviderImplementation() },
         { NeuralWattProviderImplementation() },
+        { HelmcodeProviderImplementation() },
         { ClawRouterProviderImplementation() },
         { LongCatProviderImplementation() },
         { Sub2APIProviderImplementation() },

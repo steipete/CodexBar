@@ -78,6 +78,7 @@ public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case poe
     case chutes
     case neuralwatt
+    case helmcode
     case clawrouter
     case longcat
     case sub2api

@@ -8,7 +8,7 @@ read_when:
 
 # Providers
 
-CodexBar currently registers 69 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
+CodexBar currently registers 70 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
 OpenCode vs OpenCode Go, because the auth source and quota shape differ.
 
 ## Fetch strategies (current)
@@ -114,6 +114,7 @@ complete when the available scan window covers fewer days.
 | Deepgram | API key → project discovery and usage breakdown API (`api`). |
 | Chutes | API key from config/env → subscription usage and quota API (`api`). |
 | Neuralwatt | API key from config/env → `/v1/quota` subscription kWh usage and prepaid balance (`api`). |
+| Helmcode | Dashboard session via Chrome or a manual Cookie header → per-model monthly token quota and prepaid balance (`web`). |
 | ZenMux | Management API key from config/env → five-hour and seven-day quota windows plus PAYG balance (`api`). |
 | ai& | API key from config/env → 30-day organization spend summed from the request logs API (`api`). |
 | xAI | Management key + team ID from config/env → prepaid balance and 30-day daily spend from the Management API (`api`). |
@@ -616,6 +617,24 @@ JavaScriptCore is the macOS rollback engine. The committed `.js` is generated fr
 - Shows active subscription kWh usage as the quota window and the separate prepaid USD balance as PAYG credit.
 - Shows an optional per-key spending allowance when configured.
 - Details: `docs/neuralwatt.md`.
+
+## Helmcode
+- Uses the signed-in dashboard session for the selected deployment; automatic mode imports that deployment's cookies
+  from Chrome only (Helmcode Cloud or the NaN Builders community tenant) and persists the validated session, scoped by
+  deployment, for later refreshes.
+- The **Deployment** picker in Settings — or `HELMCODE_DEPLOYMENT=nanbuilders` for the CLI — selects the tenant.
+  Automatic (default) detects the tenant from the persisted session, the imported browser session, or a pasted
+  cURL capture's host.
+- Manual mode accepts a Cookie header or cURL capture in Settings, and `HELMCODE_COOKIE` provides the CLI equivalent.
+- Reads `GET https://<deployment api host>/api/usage/quota` for per-model token allowances. Each model's own
+  `periodEnd` drives its reset date. `/api/billing` is read best-effort: premium rolling-window tiers are hidden
+  unless the subscription is premium. The tenants share the quota API but differ in billing — the prepaid EUR
+  balance (`/api/billing/credits`) exists on Helmcode Cloud only; NaN Builders membership has no prepaid balance.
+- The most-utilized capped model is the primary window. Other capped models are named extra windows; uncapped models
+  are omitted rather than rendered as exhausted quotas.
+- Helmcode inference API keys cannot read dashboard quota or billing data, so they are intentionally not used for
+  CodexBar authentication.
+- Details: `docs/helmcode.md`.
 
 ## StepFun
 - Username/password login or manual Oasis-Token.

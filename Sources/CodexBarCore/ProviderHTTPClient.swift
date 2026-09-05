@@ -193,11 +193,12 @@ public final class ProviderHTTPClient: ProviderHTTPTransport, @unchecked Sendabl
     }
 
     static func redirectGuardedSession(
-        configuration: URLSessionConfiguration = ProviderHTTPClient.defaultConfiguration()) -> URLSession
+        configuration: URLSessionConfiguration = ProviderHTTPClient.defaultConfiguration(),
+        refusesAllRedirects: Bool = false) -> URLSession
     {
         URLSession(
             configuration: configuration,
-            delegate: ProviderHTTPRedirectGuardDelegate(),
+            delegate: ProviderHTTPRedirectGuardDelegate(refusesAllRedirects: refusesAllRedirects),
             delegateQueue: nil)
     }
 
@@ -218,13 +219,25 @@ public final class ProviderHTTPClient: ProviderHTTPTransport, @unchecked Sendabl
 }
 
 final class ProviderHTTPRedirectGuardDelegate: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+    private let refusesAllRedirects: Bool
+
+    init(refusesAllRedirects: Bool = false) {
+        self.refusesAllRedirects = refusesAllRedirects
+    }
+
     func urlSession(
         _: URLSession,
         task: URLSessionTask,
-        willPerformHTTPRedirection _: HTTPURLResponse,
+        willPerformHTTPRedirection response: HTTPURLResponse,
         newRequest request: URLRequest,
         completionHandler: @escaping @Sendable (URLRequest?) -> Void)
     {
+        // A credential-holding client can refuse every redirect so the 3xx response surfaces to the
+        // caller instead of being followed with the credential attached.
+        guard !self.refusesAllRedirects else {
+            completionHandler(nil)
+            return
+        }
         completionHandler(Self.guardedRedirectRequest(originalURL: task.originalRequest?.url, redirectRequest: request))
     }
 

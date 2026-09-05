@@ -62,6 +62,7 @@ extension ProviderInstanceID {
     public static let poe = UsageProvider.poe.instanceID
     public static let chutes = UsageProvider.chutes.instanceID
     public static let neuralwatt = UsageProvider.neuralwatt.instanceID
+    public static let helmcode = UsageProvider.helmcode.instanceID
     public static let clawrouter = UsageProvider.clawrouter.instanceID
     public static let longcat = UsageProvider.longcat.instanceID
     public static let sub2api = UsageProvider.sub2api.instanceID
