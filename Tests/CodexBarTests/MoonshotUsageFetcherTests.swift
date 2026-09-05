@@ -200,6 +200,47 @@ struct MoonshotUsageFetcherTests {
     }
 
     @Test
+    func `fetch usage defaults to international region and renders USD`() async throws {
+        defer {
+            MoonshotStubURLProtocol.requests = []
+            MoonshotStubURLProtocol.handler = nil
+        }
+
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [MoonshotStubURLProtocol.self]
+        let session = URLSession(configuration: config)
+
+        MoonshotStubURLProtocol.requests = []
+        MoonshotStubURLProtocol.handler = { request in
+            let url = try #require(request.url)
+            #expect(url.absoluteString == "https://api.moonshot.ai/v1/users/me/balance")
+
+            let body = """
+            {
+              "code": 0,
+              "data": {
+                "available_balance": 9.87,
+                "voucher_balance": 1.23,
+                "cash_balance": 8.64
+              },
+              "scode": "0x0",
+              "status": true
+            }
+            """
+            let response = HTTPURLResponse(
+                url: url,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"])!
+            return (response, Data(body.utf8))
+        }
+
+        let snapshot = try await MoonshotUsageFetcher.fetchUsage(apiKey: "live-token", session: session)
+
+        #expect(snapshot.toUsageSnapshot().loginMethod(for: .moonshot) == "Balance: $9.87")
+    }
+
+    @Test
     func `fetch usage surfaces http failure without leaking body`() async throws {
         defer {
             MoonshotStubURLProtocol.requests = []
