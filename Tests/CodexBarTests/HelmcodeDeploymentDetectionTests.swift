@@ -582,6 +582,53 @@ struct HelmcodeDeploymentDetectionTests {
     }
 
     @Test
+    func `redirect responses surface instead of being followed with the credential`() async throws {
+        try await self.withTestKeychainCache {
+            Self.storeCachedSession(.nanBuilders, cookies: [
+                Self.record(name: "nan_session", value: "live", domain: "nan.builders"),
+            ])
+            let requestCount = CaptureBox()
+            requestCount.set("count", "0")
+            let lines = CaptureBox()
+            let sink: (@Sendable (String) -> Void)? = { line in
+                lines.append(line)
+            }
+            let redirectStub = ProviderHTTPTransportStub { request in
+                requestCount.set("count", String((Int(requestCount.value(for: "count") ?? "0") ?? 0) + 1))
+                let url = try #require(request.url)
+                let response = HTTPURLResponse(
+                    url: url,
+                    statusCode: 302,
+                    httpVersion: nil,
+                    headerFields: ["Location": "https://evil.example/capture"])
+                return try (Data(#"{"error":"redirect"}"#.utf8), #require(response))
+            }
+            let strategy = HelmcodeWebFetchStrategy()
+            let context = Self.makeContext(
+                runtime: .cli,
+                settings: HelmcodeProviderSettings(
+                    cookieSource: .auto,
+                    manualCookieHeader: nil,
+                    deploymentSelection: .nanBuilders))
+
+            try await HelmcodeWebFetchStrategy.$verboseSinkForTesting.withValue(sink) {
+                await #expect {
+                    _ = try await HelmcodeWebFetchStrategy.$transportOverrideForTesting
+                        .withValue(redirectStub) {
+                            try await strategy.fetch(context)
+                        }
+                } throws: { error in
+                    (error as? HelmcodeUsageError) == HelmcodeUsageError.invalidSession(.nanBuilders)
+                }
+            }
+            // The 3xx surfaced as the terminal response: exactly one request, nothing followed.
+            #expect(requestCount.value(for: "count") == "1")
+            let joined = lines.all.joined(separator: "\n")
+            #expect(joined.contains(
+                "helmcode: redirect refused cloud-api.nan.builders/api/usage/quota -> evil.example/capture"))
+        }
+    }
+
     func `legacy flat cache entry is a miss that clears the scope`() async throws {
         try await self.withTestKeychainCache {
             Self.legacyFlatStore(.nanBuilders, header: "nan_session=legacy-flat-header")

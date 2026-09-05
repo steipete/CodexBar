@@ -88,6 +88,16 @@ struct HelmcodeSettingsReaderTests {
 
     @Test
     func `dashboard deployment follows credential over cache with pinned override`() {
+        // Isolate from any real cached session: the display-cache detection reads the live cache.
+        KeychainCacheStore.setTestStoreForTesting(true)
+        Self.clearDisplayCache(.helmcode)
+        Self.clearDisplayCache(.nanBuilders)
+        defer {
+            Self.clearDisplayCache(.helmcode)
+            Self.clearDisplayCache(.nanBuilders)
+            KeychainCacheStore.setTestStoreForTesting(false)
+        }
+
         // Automatic + manual NaN capture: NaN (the credential decides, beating the display cache).
         let nanManual = HelmcodeProviderSettings(
             cookieSource: .manual,
@@ -103,6 +113,44 @@ struct HelmcodeSettingsReaderTests {
             manualCookieHeader: "curl 'https://cloud.nan.builders/dashboard' -H 'Cookie: nan_session=abc'",
             deploymentSelection: .helmcode)
         #expect(HelmcodeDeploymentResolver.dashboardDeployment(settings: pinned, environment: [:]) == .helmcode)
+    }
+
+    @Test
+    func `dashboard deployment routes bare credentials to cloud without cache fallthrough`() {
+        // A credential IS selected (bare header, no host): fetching routes it to Helmcode Cloud, so
+        // the dashboard must NOT fall through to a cached NaN tenant (G3).
+        let bareManual = HelmcodeProviderSettings(
+            cookieSource: .manual,
+            manualCookieHeader: "session=abc",
+            deploymentSelection: .auto)
+        Self.storeDisplayCache(.nanBuilders)
+        #expect(HelmcodeDeploymentResolver.dashboardDeployment(settings: bareManual, environment: [:]) == .helmcode)
+        // No credential selected: the display-path cache decides.
+        let auto = HelmcodeProviderSettings(cookieSource: .auto, manualCookieHeader: nil, deploymentSelection: .auto)
+        #expect(HelmcodeDeploymentResolver.dashboardDeployment(settings: auto, environment: [:]) == .nanBuilders)
+        Self.clearDisplayCache(.nanBuilders)
+        #expect(HelmcodeDeploymentResolver.dashboardDeployment(settings: auto, environment: [:]) == .helmcode)
+    }
+
+    private static func storeDisplayCache(_ deployment: HelmcodeDeployment) {
+        CookieHeaderCache.store(
+            provider: .helmcode,
+            scope: HelmcodeWebFetchStrategy.cacheScope(deployment),
+            cookieHeader: HelmcodeCachedSession(cookies: [
+                HelmcodeCachedCookie(
+                    name: "session",
+                    value: "cached",
+                    domain: "." + deployment.dashboardHost,
+                    path: "/",
+                    expires: Date(timeIntervalSince1970: 1_900_000_000),
+                    isSecure: true,
+                    isHTTPOnly: false),
+            ]).encodedForStorage() ?? "",
+            sourceLabel: "Chrome Profile 1 (Test)")
+    }
+
+    private static func clearDisplayCache(_ deployment: HelmcodeDeployment) {
+        CookieHeaderCache.clear(provider: .helmcode, scope: HelmcodeWebFetchStrategy.cacheScope(deployment))
     }
 
     @Test
