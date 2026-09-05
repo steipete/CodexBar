@@ -881,6 +881,11 @@ extension StatusItemController {
         {
             return balance
         }
+        if provider == .muse,
+           let spendOrBalance = MenuBarLayoutBalanceResolver.balance(provider: provider, snapshot: snapshot)
+        {
+            return spendOrBalance
+        }
         if provider == .opencodego,
            let balance = Self.openCodeGoZenBalanceDisplayText(snapshot: snapshot)
         {
