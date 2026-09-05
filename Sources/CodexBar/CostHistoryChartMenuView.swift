@@ -235,69 +235,77 @@ struct CostHistoryChartMenuView: View {
                 }
             }
 
-            VStack(alignment: .leading, spacing: Self.detailSpacing) {
-                Text(detail.primary)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(height: Self.detailPrimaryLineHeight, alignment: .leading)
-                if model.detailViewportRowCount > 0 {
-                    ScrollView(.vertical) {
-                        VStack(alignment: .leading, spacing: Self.detailSpacing) {
-                            ForEach(detail.rows) { row in
-                                HStack(alignment: .top, spacing: 8) {
-                                    Rectangle()
-                                        .fill(row.accentColor)
-                                        .frame(
-                                            width: 2,
-                                            height: Self.accentHeight(for: row, rowHeight: model.detailRowHeight))
-                                        .padding(.top, 1)
+            if !model.points.isEmpty {
+                VStack(alignment: .leading, spacing: Self.detailSpacing) {
+                    Text(detail.primary)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .frame(height: Self.detailPrimaryLineHeight, alignment: .leading)
+                    if model.detailViewportRowCount > 0 {
+                        ScrollView(.vertical) {
+                            VStack(alignment: .leading, spacing: Self.detailSpacing) {
+                                ForEach(detail.rows) { row in
+                                    HStack(alignment: .top, spacing: 8) {
+                                        Rectangle()
+                                            .fill(row.accentColor)
+                                            .frame(
+                                                width: 2,
+                                                height: Self.accentHeight(
+                                                    for: row,
+                                                    rowHeight: model.detailRowHeight))
+                                            .padding(.top, 1)
 
-                                    VStack(alignment: .leading, spacing: 1) {
-                                        Text(row.title)
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                            .lineLimit(1)
-                                            .truncationMode(.tail)
-                                            .frame(height: Self.detailTitleLineHeight, alignment: .leading)
-                                        if let subtitle = row.subtitle {
-                                            Text(subtitle)
-                                                .font(.caption2)
-                                                .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
+                                        VStack(alignment: .leading, spacing: 1) {
+                                            Text(row.title)
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
                                                 .lineLimit(1)
                                                 .truncationMode(.tail)
-                                                .frame(height: Self.detailSubtitleLineHeight, alignment: .leading)
-                                        }
-                                        if let modeSubtitle = row.modeSubtitle {
-                                            Text(modeSubtitle)
-                                                .font(.caption2)
-                                                .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
-                                                .lineLimit(1)
-                                                .truncationMode(.tail)
-                                                .frame(height: Self.detailSubtitleLineHeight, alignment: .leading)
+                                                .frame(height: Self.detailTitleLineHeight, alignment: .leading)
+                                            if let subtitle = row.subtitle {
+                                                Text(subtitle)
+                                                    .font(.caption2)
+                                                    .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
+                                                    .lineLimit(1)
+                                                    .truncationMode(.tail)
+                                                    .frame(
+                                                        height: Self.detailSubtitleLineHeight,
+                                                        alignment: .leading)
+                                            }
+                                            if let modeSubtitle = row.modeSubtitle {
+                                                Text(modeSubtitle)
+                                                    .font(.caption2)
+                                                    .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
+                                                    .lineLimit(1)
+                                                    .truncationMode(.tail)
+                                                    .frame(
+                                                        height: Self.detailSubtitleLineHeight,
+                                                        alignment: .leading)
+                                            }
                                         }
                                     }
+                                    .frame(height: model.detailRowHeight, alignment: .leading)
                                 }
-                                .frame(height: model.detailRowHeight, alignment: .leading)
                             }
                         }
-                    }
-                    .scrollIndicators(
-                        Self.detailRowsNeedScrolling(itemCount: detail.rows.count) ? .visible : .hidden)
-                    .frame(
-                        height: Self.detailRowsViewportHeight(
-                            rowCount: model.detailViewportRowCount,
-                            rowHeight: model.detailRowHeight),
-                        alignment: .topLeading)
-                    .id(selectedDateKey)
+                        .scrollIndicators(
+                            Self.detailRowsNeedScrolling(itemCount: detail.rows.count) ? .visible : .hidden)
+                        .frame(
+                            height: Self.detailRowsViewportHeight(
+                                rowCount: model.detailViewportRowCount,
+                                rowHeight: model.detailRowHeight),
+                            alignment: .topLeading)
+                        .id(selectedDateKey)
 
-                    if model.hasDetailOverflow {
-                        Text(Self.detailOverflowHint(itemCount: detail.rows.count) ?? " ")
-                            .font(.caption2)
-                            .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
-                            .frame(height: Self.detailHintHeight, alignment: .leading)
-                            .accessibilityHidden(!Self.detailRowsNeedScrolling(itemCount: detail.rows.count))
+                        if model.hasDetailOverflow {
+                            Text(Self.detailOverflowHint(itemCount: detail.rows.count) ?? " ")
+                                .font(.caption2)
+                                .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
+                                .frame(height: Self.detailHintHeight, alignment: .leading)
+                                .accessibilityHidden(!Self.detailRowsNeedScrolling(itemCount: detail.rows.count))
+                        }
                     }
                 }
             }
