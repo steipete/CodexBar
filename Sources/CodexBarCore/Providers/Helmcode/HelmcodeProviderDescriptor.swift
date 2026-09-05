@@ -249,6 +249,9 @@ struct HelmcodeWebFetchStrategy: ProviderFetchStrategy {
         return upper ?? lower
     }
 
+    @TaskLocal static var transportOverrideForTesting: (any ProviderHTTPTransport)?
+
+    #if os(macOS)
     /// Fetches one imported session and persists the header actually sent, scoped by deployment.
     static func fetchAndCacheSession(
         _ session: HelmcodeCookieImporter.SessionInfo,
@@ -268,8 +271,6 @@ struct HelmcodeWebFetchStrategy: ProviderFetchStrategy {
         }
         return snapshot
     }
-
-    @TaskLocal static var transportOverrideForTesting: (any ProviderHTTPTransport)?
 
     /// Test seam for tenant detection: returns simulated sessions per tenant without touching Chrome.
     @TaskLocal static var sessionImporterOverrideForTesting:
@@ -314,6 +315,7 @@ struct HelmcodeWebFetchStrategy: ProviderFetchStrategy {
         }
         return nil
     }
+    #endif
 
     static func allowsBrowserImport(context: ProviderFetchContext) -> Bool {
         let source = context.settings?.helmcode?.cookieSource

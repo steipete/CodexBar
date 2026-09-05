@@ -15,6 +15,30 @@ public struct HelmcodeModelQuota: Decodable, Equatable, Sendable {
     public let updatedAt: String?
     public let windowHours: Int?
     public let fullWindowTokens: Int64?
+
+    public init(
+        model: String,
+        cap: Int64,
+        tokensUsed: Int64,
+        creditTokens: Int64? = nil,
+        creditSpendMicros: Int64? = nil,
+        remaining: Int64? = nil,
+        periodEnd: String? = nil,
+        updatedAt: String? = nil,
+        windowHours: Int? = nil,
+        fullWindowTokens: Int64? = nil)
+    {
+        self.model = model
+        self.cap = cap
+        self.tokensUsed = tokensUsed
+        self.creditTokens = creditTokens
+        self.creditSpendMicros = creditSpendMicros
+        self.remaining = remaining
+        self.periodEnd = periodEnd
+        self.updatedAt = updatedAt
+        self.windowHours = windowHours
+        self.fullWindowTokens = fullWindowTokens
+    }
 }
 
 public struct HelmcodeQuotaResponse: Decodable, Equatable, Sendable {
@@ -37,6 +61,11 @@ public struct HelmcodeBillingResponse: Decodable, Equatable, Sendable {
 public struct HelmcodeCreditsResponse: Decodable, Equatable, Sendable {
     public let balanceMicros: Int64
     public let currency: String
+
+    public init(balanceMicros: Int64, currency: String? = nil) {
+        self.balanceMicros = balanceMicros
+        self.currency = currency ?? "EUR"
+    }
 
     private enum CodingKeys: String, CodingKey {
         case balanceMicros
