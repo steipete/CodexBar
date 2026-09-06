@@ -137,5 +137,105 @@ class MiMoUsageCacheTests(unittest.TestCase):
                 self.assertEqual(set(Path(root).iterdir()), {cache_path, other_writer})
 
 
+class MiMoUsageParsingTests(unittest.TestCase):
+    def test_windows_preserve_utc_boundaries_and_all_token_fields(self):
+        module = load_mimo_usage()
+
+        class FixedDateTime(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return datetime(2026, 1, 11, 12, tzinfo=timezone.utc)
+
+        rows = [
+            {"timestamp": timestamp, "message": {"usage": {
+                "input_tokens": amount, "output_tokens": amount * 2,
+                "cache_read_input_tokens": amount * 3, "cache_creation_input_tokens": amount * 4,
+            }}}
+            for timestamp, amount in [
+                ("2026-01-04T23:59:59Z", 1),
+                ("2026-01-05T00:00:00Z", 10),
+                ("2026-01-10T23:59:59Z", 100),
+                ("2026-01-11T00:00:00Z", 1000),
+            ]
+        ]
+        with tempfile.TemporaryDirectory(prefix="codexbar-mimo-windows-") as root:
+            projects = Path(root)
+            (projects / "session.jsonl").write_text("\n".join(json.dumps(row) for row in rows))
+            with patch.object(module, "PROJECTS_DIR", projects), patch.object(module, "datetime", FixedDateTime):
+                windows, sessions, last_activity = module.aggregate_usage()
+        for name, amount, count in [("today", 1000, 1), ("week", 1110, 3), ("all_time", 1111, 4)]:
+            self.assertEqual(windows[name], {
+                "input": amount, "output": amount * 2, "cache_read": amount * 3,
+                "cache_create": amount * 4, "messages": count,
+            })
+        self.assertEqual(sessions, 1)
+        self.assertEqual(last_activity, datetime(2026, 1, 11, tzinfo=timezone.utc))
+
+    def test_invalid_utf8_does_not_discard_valid_rows_in_the_same_file(self):
+        module = load_mimo_usage()
+        valid = json.dumps({
+            "timestamp": "2026-01-01T12:00:00Z", "message": {"usage": {"input_tokens": 12}},
+        }).encode("utf-8")
+        for rows in ([valid, b"\xff", valid], [valid, valid, b"\xe2\x82"]):
+            with self.subTest(rows=rows), tempfile.TemporaryDirectory(prefix="codexbar-mimo-utf8-") as root:
+                projects = Path(root)
+                (projects / "session.jsonl").write_bytes(b"\n".join(rows))
+                with patch.object(module, "PROJECTS_DIR", projects):
+                    windows, sessions, last_activity = module.aggregate_usage()
+                self.assertEqual(windows["all_time"]["input"], 24)
+                self.assertEqual(windows["all_time"]["messages"], 2)
+                self.assertEqual(sessions, 1)
+                self.assertEqual(last_activity, datetime(2026, 1, 1, 12, tzinfo=timezone.utc))
+
+    def test_invalid_rows_do_not_prevent_valid_usage_from_being_counted(self):
+        module = load_mimo_usage()
+        timestamp = "2026-01-01T12:00:00Z"
+        valid = {"timestamp": timestamp, "message": {"usage": {"input_tokens": 12, "output_tokens": 3}}}
+        invalid_rows = [
+            None, [], 42, "not an event",
+            {**valid, "timestamp": 42},
+            {**valid, "timestamp": [timestamp]},
+            {**valid, "timestamp": "not a date"},
+            {**valid, "message": {"usage": {"input_tokens": "unknown"}}},
+            {**valid, "message": {"usage": {"output_tokens": [1]}}},
+            {**valid, "message": {"usage": {"cache_read_input_tokens": {"value": 1}}}},
+            {**valid, "message": {"usage": {"cache_creation_input_tokens": float("inf")}}},
+        ]
+        for invalid in invalid_rows:
+            with self.subTest(row=invalid), tempfile.TemporaryDirectory(prefix="codexbar-mimo-rows-") as root:
+                projects = Path(root)
+                (projects / "session.jsonl").write_text(
+                    "\n".join(json.dumps(row) for row in [valid, invalid, valid]))
+                with patch.object(module, "PROJECTS_DIR", projects):
+                    windows, sessions, last_activity = module.aggregate_usage()
+                self.assertEqual(windows["all_time"], {
+                    "input": 24, "output": 6, "cache_read": 0, "cache_create": 0, "messages": 2,
+                })
+                self.assertEqual(sessions, 1)
+                self.assertEqual(last_activity, datetime(2026, 1, 1, 12, tzinfo=timezone.utc))
+
+    def test_invalid_update_does_not_replace_valid_usage_for_the_same_request(self):
+        module = load_mimo_usage()
+        valid = {
+            "timestamp": "2026-01-01T12:00:00Z", "requestId": "request-1",
+            "message": {"id": "message-1", "usage": {
+                "input_tokens": "12", "output_tokens": 3, "cache_read_input_tokens": None,
+            }},
+        }
+        invalid = {
+            **valid, "timestamp": "2026-01-01T12:01:00Z",
+            "message": {**valid["message"], "usage": {"input_tokens": "unknown"}},
+        }
+        with tempfile.TemporaryDirectory(prefix="codexbar-mimo-update-") as root:
+            projects = Path(root)
+            (projects / "session.jsonl").write_text("\n".join(json.dumps(row) for row in [valid, invalid]))
+            with patch.object(module, "PROJECTS_DIR", projects):
+                windows, _, last_activity = module.aggregate_usage()
+        self.assertEqual(windows["all_time"], {
+            "input": 12, "output": 3, "cache_read": 0, "cache_create": 0, "messages": 1,
+        })
+        self.assertEqual(last_activity, datetime(2026, 1, 1, 12, tzinfo=timezone.utc))
+
+
 if __name__ == "__main__":
     unittest.main()

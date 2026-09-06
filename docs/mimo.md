@@ -79,6 +79,8 @@ This fallback is **implicit opt-in**: it only activates when `~/.codexbar/mimo-l
 
 2. Run `mimo-usage --update` once to populate `~/.codexbar/mimo-local-usage.json`. The tracker scans `~/.claude-envs/mimo/.claude/projects/**/*.jsonl` (default path for a `cc-mimo`-style wrapper) and aggregates input, output, cache-read, and cache-creation tokens per time window (today / this week / all time).
 
+   Invalid session records are skipped so valid usage can still refresh the cache.
+
 3. Trigger updates either on each wrapper invocation (recommended — call `mimo-usage --update` post-exec from your MiMo CLI launcher) or via a `launchd` / `cron` job every 5 minutes.
 
    Overlapping updates use separate temporary files and atomically replace the cache; a failed write leaves the previous cache intact.
