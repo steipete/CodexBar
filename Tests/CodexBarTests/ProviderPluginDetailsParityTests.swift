@@ -355,6 +355,77 @@ struct ProviderPluginDetailsParityTests {
         #expect(try expired.details == [Self.section("Points", rows: [Self.row("Current balance", "2,500 points")])])
     }
 
+    @Test(arguments: Self.parityEngines)
+    func `Poe weekly totals exclude older activity and include the exact cutoff`(
+        engine: ProviderPluginEngineKind) async throws
+    {
+        let now = Date(timeIntervalSince1970: 1_785_816_000)
+        let cutoff = now.timeIntervalSince1970 - 7 * 86400
+        let history = """
+        {"data":[
+          {"creation_time":\(now.timeIntervalSince1970),"cost_points":10,"cost_usd":0.01},
+          {"creation_time":\(cutoff),"cost_points":20,"cost_usd":0.02},
+          {"creation_time":\(cutoff - 1),"cost_points":100,"cost_usd":0.10},
+          {"creation_time":\(cutoff - 13 * 86400),"cost_points":900,"cost_usd":0.90}
+        ]}
+        """
+        let transport = Self.transport { request in
+            switch request.url?.path {
+            case "/usage/current_balance": Self.poeBalance
+            case "/usage/points_history": history
+            default: throw FixtureError.unexpectedURL(request.url)
+            }
+        }
+        let sourceURL = try #require(CodexBarCoreResources.bundle?.url(forResource: "poe", withExtension: "js"))
+        let source = try String(contentsOf: sourceURL, encoding: .utf8)
+        let runtime = try ProviderPluginRuntime(source: source, transport: transport, engine: engine)
+        let current = try await runtime.fetchUsage(secrets: ["POE_API_KEY": "fixture-key"], now: now)
+        let rows = try #require(current.details.first?.rows)
+        #expect(try rows.first { $0.label == "Today" } == Self.row("Today", "10 points", "1 requests · $0.01"))
+        #expect(try rows.first { $0.label == "Last 7 days" }
+            == Self.row("Last 7 days", "30 points", "2 requests · $0.03"))
+        #expect(try rows.first { $0.label == "Last 30 days" }
+            == Self.row("Last 30 days", "1,030 points", "4 requests · $1.03"))
+
+        let later = try await runtime.fetchUsage(
+            secrets: ["POE_API_KEY": "fixture-key"], now: now.addingTimeInterval(8 * 86400))
+        #expect(try later.details.first?.rows.first { $0.label == "Last 7 days" }
+            == Self.row("Last 7 days", "0 points", "0 requests"))
+        #expect(try later.details.first?.rows.first { $0.label == "Last 30 days" }
+            == Self.row("Last 30 days", "1,030 points", "4 requests · $1.03"))
+    }
+
+    @Test(arguments: Self.parityEngines)
+    func `Poe summaries preserve unknown costs and clamp recorded negative costs`(
+        engine: ProviderPluginEngineKind) async throws
+    {
+        let now = Date(timeIntervalSince1970: 1_785_816_000)
+        let history = """
+        {"data":[
+          {"creation_time":\(now.timeIntervalSince1970),"cost_points":10},
+          {"creation_time":\(now.timeIntervalSince1970 - 2 * 86400),"cost_points":20,"cost_usd":-1},
+          {"creation_time":\(now.timeIntervalSince1970 - 20 * 86400),"cost_points":900,"cost_usd":0.90}
+        ]}
+        """
+        let transport = Self.transport { request in
+            switch request.url?.path {
+            case "/usage/current_balance": Self.poeBalance
+            case "/usage/points_history": history
+            default: throw FixtureError.unexpectedURL(request.url)
+            }
+        }
+        let sourceURL = try #require(CodexBarCoreResources.bundle?.url(forResource: "poe", withExtension: "js"))
+        let runtime = try ProviderPluginRuntime(
+            source: String(contentsOf: sourceURL, encoding: .utf8), transport: transport, engine: engine)
+        let result = try await runtime.fetchUsage(secrets: ["POE_API_KEY": "fixture-key"], now: now)
+        let rows = try #require(result.details.first?.rows)
+        #expect(try rows.first { $0.label == "Today" } == Self.row("Today", "10 points", "1 requests"))
+        #expect(try rows.first { $0.label == "Last 7 days" }
+            == Self.row("Last 7 days", "30 points", "2 requests · $0.00"))
+        #expect(try rows.first { $0.label == "Last 30 days" }
+            == Self.row("Last 30 days", "930 points", "3 requests · $0.90"))
+    }
+
     @Test
     func `zai fixture matches the cut-over golden`() async throws {
         let transport = Self.transport { request in

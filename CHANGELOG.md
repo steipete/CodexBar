@@ -4,6 +4,7 @@
 
 ### Fixed
 - Antigravity: skip auxiliary and lifecycle steps lacking a step UUID during local token scans instead of invalidating the entire database history.
+- Poe: calculate weekly points, requests, and spend from the last seven elapsed days, so older activity no longer inflates sparse or inactive weeks; share totals aggregation with Today and the 30-day window (#3449). Thanks @Lucenx9!
 
 ## 0.56.7 — 2026-09-06
 
