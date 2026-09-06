@@ -1,0 +1,117 @@
+Command Code monthly grant flake - contributor real-transport before/after proof
+
+This capture predates maintainer hardening. The final test endpoint override is debug-only and
+loopback-only; release builds keep the official billing endpoint. Its localhost command remains valid.
+
+The real `codexbar serve` binary ran against a local stand-in for api.commandcode.ai over real
+HTTP, through the production `ProviderHTTPClient` and `URLSession`. Nothing was stubbed inside the
+app: only the base URL moved, through `COMMANDCODE_API_URL`, the documented test override that
+`MIMO_API_URL` and `CODEXBAR_BEDROCK_API_URL` already use. No live account, no Keychain read, no
+real credential: the config held a manual placeholder cookie.
+
+Account under test: individual-go, $10 monthly grant.
+  fresh fixture: $9 remaining, true monthly reading 10% used
+  spent fixture: $4 remaining, true monthly reading 60% used
+Rolling caps in the spent fixture: five-hour 1.2/10, weekly 30/100.
+
+The stand-in served /internal/billing/credits immediately every time. It served
+/internal/billing/subscriptions immediately in "answer" mode, and slept 30 s in "hang" mode. The
+fetcher allows that optional request a 2 s join grace, so "hang" is a production timeout. Every
+capture below returned in about 2.1 s, which confirms the grace expired rather than the request
+answering late.
+
+Commands, identical in both states:
+
+  python3 stub.py 54139                     # local stand-in, loopback only
+  CODEXBAR_CONFIG=<temp config> \
+  COMMANDCODE_API_URL=http://127.0.0.1:54139 \
+    .build/debug/CodexBarCLI serve --host 127.0.0.1 --port <port> --refresh-interval 0
+  curl -s http://127.0.0.1:<port>/usage     # one refresh per request
+
+Before, at upstream eecb7e3a3 with only the endpoint override cherry-picked:
+
+  healthy refresh (answer + fresh)
+    {"loginMethod":"Go · $1.00 of $10.00","primary":{"usedPercent":4,"windowMinutes":300},
+     "secondary":{"usedPercent":12,"windowMinutes":10080},
+     "tertiary":{"usedPercent":10,"windowMinutes":43200,"resetsAt":"2096-10-02T07:06:40Z"}}
+
+  timeout after an earlier success (hang + spent), same process
+    {"loginMethod":"$4.00 remaining","primary":{"usedPercent":12,"windowMinutes":300},
+     "secondary":{"usedPercent":30,"windowMinutes":10080},
+     "tertiary":{"usedPercent":0,"windowMinutes":43200}}
+
+  timeout with no earlier success (hang + spent), fresh process
+    {"loginMethod":"$4.00 remaining","primary":{"windowMinutes":300,"usedPercent":12},
+     "secondary":{"windowMinutes":10080,"usedPercent":30},
+     "tertiary":{"windowMinutes":43200,"usedPercent":0}}
+
+The monthly lane reports 0% used, an untouched bar, while $6 of the $10 grant is spent. Both
+rolling lanes stay correct, which is why only one lane looks wrong on screen. The rendered card
+shows what the user sees, from `codexbar cards --provider commandcode` in the same state:
+
+  │ Command Code [manual] PLAN $4.00 R… │
+  │ 5-hour                     88% left │
+  │ Weekly                     70% left │
+  │ Monthly                   100% left │
+  │ [ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ] │
+
+After this change:
+
+  healthy refresh (answer + fresh)
+    {"loginMethod":"Go · $1.00 of $10.00","primary":{"usedPercent":4,"windowMinutes":300},
+     "secondary":{"usedPercent":12,"windowMinutes":10080},
+     "tertiary":{"usedPercent":10,"windowMinutes":43200,"resetsAt":"2096-10-02T07:06:40Z"}}
+
+  timeout after an earlier success (hang + spent), same process
+    {"loginMethod":"Go · $6.00 of $10.00","primary":{"usedPercent":12,"windowMinutes":300},
+     "secondary":{"usedPercent":30,"windowMinutes":10080},
+     "tertiary":{"usedPercent":60,"windowMinutes":43200,"resetsAt":"2096-10-02T07:06:40Z"}}
+
+  timeout with no earlier success (hang + spent), fresh process
+    {"loginMethod":"$4.00 remaining","primary":{"windowMinutes":300,"usedPercent":12},
+     "secondary":{"windowMinutes":10080,"usedPercent":30},
+     "tertiary":null}
+
+The remembered plan supplies the grant size and the fresh credits response supplies the spend, so
+the lane reports the true 60%. With no earlier success for that credential the lane is
+unavailable, and the one-shot card drops the row instead of drawing a full bar:
+
+  │ Command Code [manual] PLAN $4.00 R… │
+  │ 5-hour                     88% left │
+  │ Weekly                     70% left │
+
+The stand-in and the temp config live outside the repository and were deleted after this capture.
+Every line above is pinned by a committed test:
+
+  remembered plan sizes the lane from fresh credits
+    Tests/CodexBarTests/CommandCodePlanCacheTests.swift
+    `remembered plan sizes the monthly lane from fresh credits after a failure`
+  rolling lanes unaffected by a failed lookup
+    Tests/CodexBarTests/CommandCodeQuotaTransitionTests.swift
+    `subscription enrichment failure preserves rolling windows`
+  no remembered plan means an unavailable lane
+    Tests/CodexBarTests/CommandCodeUsageFetcherTests.swift
+    `subscription failure leaves the projected monthly window unavailable`
+
+Every case where the remembered plan must not apply is pinned in CommandCodePlanCacheTests.swift:
+the billing period ends, a day passes with no refresh confirming it, another credential asks, a
+lookup verifies the free tier, a lookup reports a plan id this build cannot size, and a
+subscription arrives without a period end.
+
+Maintainer verification after cache ordering and endpoint hardening:
+
+The rebuilt debug CLI was exercised through `codexbar serve` and a loopback HTTP server.
+All inputs were synthetic and the temporary config was removed after the run. Each timeout
+returned after the production 2-second optional-enrichment grace, while the server delayed
+subscriptions for 6 seconds. Requests used ProviderHTTPClient and URLSession.
+
+{"case": "healthy", "monthlyUsedPercent": 10, "fiveHourUsedPercent": 12, "weeklyUsedPercent": 30, "elapsedSeconds": 0.2}
+{"case": "timeout-after-success", "monthlyUsedPercent": 60, "fiveHourUsedPercent": 12, "weeklyUsedPercent": 30, "elapsedSeconds": 2.037}
+{"case": "verified-free", "monthlyUsedPercent": 0, "fiveHourUsedPercent": 12, "weeklyUsedPercent": 30, "elapsedSeconds": 0.011}
+{"case": "timeout-after-free", "monthlyUsedPercent": null, "fiveHourUsedPercent": 12, "weeklyUsedPercent": 30, "elapsedSeconds": 2.086}
+{"case": "timeout-cold-process", "monthlyUsedPercent": null, "fiveHourUsedPercent": 12, "weeklyUsedPercent": 30, "elapsedSeconds": 2.15}
+{"billingRequests": 10, "result": "PASS"}
+
+The cache regression suite additionally covers out-of-order plan responses, cleared verdicts,
+exact expiry boundaries, and shared four-credential capacity. Release builds do not compile
+the endpoint override; debug builds accept loopback origins only.

@@ -1,10 +1,11 @@
+import CodexBarCore
 import Foundation
 import Testing
 
 @Suite(.serialized)
 struct CodexRPCLoggingTests {
     @Test
-    func `Codex RPC diagnostics respect CLI verbosity`() throws {
+    func `Codex RPC diagnostics respect CLI verbosity`() async throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("codex-rpc-logging-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -17,34 +18,27 @@ struct CodexRPCLoggingTests {
             "CODEXBAR_SUPPRESS_TEST_KEYCHAIN_ACCESS": "1",
         ]
 
-        let quiet = try Self.runCLI(environment: environment)
-        #expect(quiet.status == 0)
-        let quietStderr = try #require(String(bytes: quiet.stderr, encoding: .utf8))
+        let quietStderr = try await Self.runCLI(environment: environment)
         #expect(!quietStderr.contains("[codex notify] remoteControl/status/changed"))
         #expect(!quietStderr.contains("[codex stderr] stub child diagnostic"))
 
-        let verbose = try Self.runCLI(arguments: ["--verbose"], environment: environment)
-        #expect(verbose.status == 0)
-        let verboseStderr = try #require(String(bytes: verbose.stderr, encoding: .utf8))
+        let verboseStderr = try await Self.runCLI(arguments: ["--verbose"], environment: environment)
         #expect(verboseStderr.contains("[codex notify] remoteControl/status/changed"))
         #expect(verboseStderr.contains("[codex stderr] stub child diagnostic"))
     }
 
     private static func runCLI(
         arguments: [String] = [],
-        environment: [String: String]) throws -> (status: Int32, stderr: Data)
+        environment: [String: String]) async throws -> String
     {
-        let process = Process()
-        process.executableURL = TestBuildProducts.executableURL(named: "CodexBarCLI")
-        process.arguments = ["usage", "--provider", "codex", "--source", "cli", "--json"] + arguments
-        process.environment = ProcessInfo.processInfo.environment.merging(environment) { _, override in override }
-
-        process.standardOutput = Pipe()
-        let stderr = Pipe()
-        process.standardError = stderr
-        try process.run()
-        process.waitUntilExit()
-        return (process.terminationStatus, stderr.fileHandleForReading.readDataToEndOfFile())
+        let result = try await SubprocessRunner.run(
+            binary: TestBuildProducts.executableURL(named: "CodexBarCLI").path,
+            arguments: ["usage", "--provider", "codex", "--source", "cli", "--json"] + arguments,
+            environment: ProcessInfo.processInfo.environment.merging(environment) { _, override in override },
+            timeout: 15,
+            maxOutputBytes: 1024 * 1024,
+            label: "fixture Codex RPC logging")
+        return result.stderr
     }
 
     private static let stubScript = """

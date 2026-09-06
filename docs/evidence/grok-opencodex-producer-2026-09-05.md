@@ -4,6 +4,12 @@ The captured ledger at `Tests/CodexBarTests/Fixtures/GrokOpenCodex/usage.jsonl` 
 
 Two localhost HTTP requests went through that server. OAuth credentials and the xAI/Grok and identity-provider responses came from OpenCodex's isolated upstream fixtures. Unexpected external requests were rejected. This capture exercises real routing, OAuth replay, native Chat dispatch, logging, file import, cache persistence, and dashboard projection; it is not evidence of live vendor authentication or billing. All identity labels belong to artificial fixture accounts. No user credentials or conversation text appear in the captured ledger.
 
+## Producer landing
+
+OpenCodex subsequently integrated this contract through [attributed carry PR #3762](https://github.com/lidge-jun/opencodex/pull/3762), merged into `dev` as `f00f2bcaea251ebe7ad4de9e38337b4be0ccee47` on September 6. That carry preserves the original contribution credit and adds resolved-adapter resealing and native Chat key-pool rotation coverage. The original producer PR #3642 was then closed.
+
+The capture below remains pinned to `146ed679c9633e5d68726217fcadc8e0b107339b` for byte-for-byte reproduction. It proves the recorded contract and consumer import shown here; it is not a new capture of the carry commit or a claim about a released producer version.
+
 ## Producer result
 
 The unmodified production handlers persisted these physical attempts:

@@ -11,6 +11,7 @@ read_when:
 ## Snapshot pipeline
 - `WidgetSnapshotStore` writes compact JSON snapshots to the app-group container.
 - Widgets read the snapshot and render usage/credits/history states.
+- Snapshot age labels advance between timeline reloads. Stale token-cost rows track their own saved timestamp once they lag quota data by more than ten minutes. Fetching new usage still depends on app refresh and WidgetKit accepting a timeline.
 - The app writes snapshots after the main refresh pipeline and token-usage refreshes; narrow single-provider refresh paths may wait for the next snapshot write.
 - Scheduled provider refreshes trigger regular token/cost refreshes; the token/cost TTL determines eligibility when
   that refresh runs. Timer-driven local-history refreshes have a 15-minute minimum (30 minutes in low-power mode).
