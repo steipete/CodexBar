@@ -6,6 +6,9 @@
 - Grok: count completed-turn usage from bounded local CLI session-log scans instead of context-window occupancy, and price it from the spend the CLI recorded, falling back to clearly labeled public xAI list prices where it recorded none; standalone OpenCodex xAI history remains token-only unless the user supplies explicit custom prices (#3135, #3345). Thanks @olddonkey and @initH271!
 - Usage & Spend: include reported OpenCodex Grok OAuth attempts when log import is enabled and the log records request-time credential provenance. Keep API-key and historic traffic excluded, and label OpenCodex dollars as list-price estimates (#3135). Thanks @olddonkey!
 
+### Fixed
+- Poe: calculate weekly points, requests, and spend from the last seven elapsed days, so older activity no longer inflates sparse or inactive weeks; share totals aggregation with Today and the 30-day window (#3449). Thanks @Lucenx9!
+
 ## 0.56.7 — 2026-09-06
 
 ### Highlights
