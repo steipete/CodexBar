@@ -89,6 +89,9 @@ Admin API key setup:
   rows in desktop widgets. It is off by default; turning it on displays every known Claude window with a
   `claude-weekly-scoped-` identifier (for example, Fable). Turning it back off also drops scoped rows that a previous
   snapshot persisted. It does not change fetching, the menu, history, notifications, hooks, or CLI output.
+- Refreshing credentials for the same identified account preserves quota-threshold warning history. Warnings re-arm
+  when remaining quota recovers above a threshold and fire again on a later downward crossing. Unknown account
+  ownership still retires the unowned warning state instead of sharing it across potentially different accounts.
 - Successful OAuth login enables Claude and preserves the selected usage source. With the default Auto source, OAuth
   remains preferred when readable, while CLI/Web fallback stays available when OAuth credentials are not usable.
 - Claude Code periodically rotates its `Claude Code-credentials` Keychain item and can replace the ACL grant that
