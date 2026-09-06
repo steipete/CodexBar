@@ -331,8 +331,9 @@ extension AntigravityLocalReader {
                 rowsAreValid = false
                 continue
             }
+            // Auxiliary/lifecycle steps in the steps table may legitimately lack a stepUUID.
+            // Skip them rather than failing the entire database scan.
             guard let stepUUID = parsed.stepUUID, !stepUUID.isEmpty else {
-                rowsAreValid = false
                 continue
             }
             if let botID = parsed.botID {

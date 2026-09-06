@@ -301,8 +301,10 @@ cross-UUID, or timestamp-less duplicate step IDs cannot supply exact or position
 in a UUID needing recovery must agree with available generation-unique exact matches; unrelated UUIDs retain their
 embedded timestamps. Missing or malformed auxiliary IDs retain the guarded legacy positional fallback, as do repeated
 generation IDs: ordered step timestamps must agree with embedded generation timestamps, and ambiguous positions are
-never removed or compressed. Malformed auxiliary IDs do not discard otherwise valid embedded usage or relax token-counter
-and protobuf framing validation. Session creation, file modification, and refresh time are never substitutes.
+never removed or compressed. Steps in `steps` lacking a step UUID (such as internal lifecycle markers or auxiliary
+events) are skipped and do not fail database coverage. Malformed auxiliary IDs do not discard otherwise valid
+embedded usage or relax token-counter and protobuf framing validation. Session creation, file modification, and refresh
+time are never substitutes.
 The opaque agy 1.1.18 timestamp layout remains unsupported: the pinned parser
 explicitly labels its newer interpretation an inference. See [the session-start misattribution report](https://github.com/junhoyeo/tokscale/issues/1184).
 

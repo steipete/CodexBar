@@ -594,7 +594,7 @@ struct AntigravityLocalReaderTests {
     }
 
     @Test(arguments: [String?.none, ""])
-    func `unidentified step occurrence cannot turn one timestamp into shared coverage`(
+    func `step row without stepUUID is skipped and does not block shared coverage`(
         unidentifiedStepUUID: String?) throws
     {
         let fixture = try Fixture()
@@ -608,12 +608,12 @@ struct AntigravityLocalReaderTests {
 
         let report = try fixture.report()
 
-        #expect(report.coverage == .partial)
-        #expect(report.report.data.isEmpty)
+        #expect(report.coverage == .complete)
+        #expect(report.report.data.first?.totalTokens == 396)
     }
 
     @Test
-    func `unidentified timestamp-less step occurrence cannot turn one timestamp into shared coverage`() throws {
+    func `timestamp-less step row without stepUUID is skipped and does not block shared coverage`() throws {
         let fixture = try Fixture()
         let stepUUID = "unidentified-timestamp-less-step-uuid"
         let turns = (0..<2).map { _ in Fixture.blobWithRootEnvelope(stepUUID: stepUUID, seconds: nil) }
@@ -623,8 +623,8 @@ struct AntigravityLocalReaderTests {
 
         let report = try fixture.report()
 
-        #expect(report.coverage == .partial)
-        #expect(report.report.data.isEmpty)
+        #expect(report.coverage == .complete)
+        #expect(report.report.data.first?.totalTokens == 396)
     }
 
     @Test
@@ -765,5 +765,33 @@ struct AntigravityLocalReaderTests {
         let snapshot = try await fixture.snapshot()
         #expect(!snapshot.historyCoverageIsEstablished)
         #expect(snapshot.last30DaysTokens == nil)
+    }
+
+    @Test
+    func `steps table row without stepUUID is skipped without invalidating coverage`() async throws {
+        let fixture = try Fixture()
+        let stepUUID = "uuid-turn-1"
+        let genBlob = Fixture.blobWithRootEnvelope(
+            stepUUID: stepUUID,
+            seconds: nil)
+        let stepWithoutUUIDBytes: [UInt8] = [
+            0x0A, 0x0C, 0x08, 0xA7, 0x8C, 0xE6, 0xD4, 0x06, 0x10, 0xC0, 0xD5, 0xA0, 0xCB, 0x03, 0x18, 0x05, 0xD2, 0x01,
+            0x00,
+        ]
+        let stepBlob = Fixture.stepMetadataBlob(
+            stepUUID: stepUUID,
+            seconds: 1_787_832_000)
+
+        try fixture.database(
+            blobs: [genBlob],
+            stepBlobs: [stepWithoutUUIDBytes, stepBlob])
+
+        let report = try fixture.report()
+        #expect(report.coverage == .complete)
+        #expect(report.report.data.first?.totalTokens == 198)
+
+        let snapshot = try await fixture.snapshot()
+        #expect(snapshot.historyCoverageIsEstablished)
+        #expect(snapshot.last30DaysTokens == 198)
     }
 }

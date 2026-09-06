@@ -2,6 +2,9 @@
 
 ## 0.56.8 — Unreleased
 
+### Fixed
+- Antigravity: skip auxiliary and lifecycle steps lacking a step UUID during local token scans instead of invalidating the entire database history.
+
 ## 0.56.7 — 2026-09-06
 
 ### Highlights
