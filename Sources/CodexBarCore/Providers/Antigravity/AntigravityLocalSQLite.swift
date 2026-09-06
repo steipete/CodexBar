@@ -331,18 +331,18 @@ extension AntigravityLocalReader {
                 rowsAreValid = false
                 continue
             }
+            if let botID = parsed.botID {
+                self.recordExactBotID(
+                    botID,
+                    stepUUID: parsed.stepUUID,
+                    timestampMs: parsed.timestampMs,
+                    exact: &exactByBotID,
+                    ambiguous: &ambiguousBotIDs)
+            }
             // Auxiliary/lifecycle steps in the steps table may legitimately lack a stepUUID.
             // Skip them rather than failing the entire database scan.
             guard let stepUUID = parsed.stepUUID, !stepUUID.isEmpty else {
                 continue
-            }
-            if let botID = parsed.botID {
-                self.recordExactBotID(
-                    botID,
-                    stepUUID: stepUUID,
-                    timestampMs: parsed.timestampMs,
-                    exact: &exactByBotID,
-                    ambiguous: &ambiguousBotIDs)
             }
             if neededStepUUIDCounts[stepUUID] != nil {
                 stepTimestamps[stepUUID, default: []].append(StepTimestamp(
@@ -372,13 +372,13 @@ extension AntigravityLocalReader {
 
     private static func recordExactBotID(
         _ botID: String,
-        stepUUID: String,
+        stepUUID: String?,
         timestampMs: Int64?,
         exact: inout [String: ExactStepTimestamp],
         ambiguous: inout Set<String>)
     {
         guard !ambiguous.contains(botID) else { return }
-        guard let timestampMs else {
+        guard let timestampMs, let stepUUID, !stepUUID.isEmpty else {
             exact.removeValue(forKey: botID)
             ambiguous.insert(botID)
             return

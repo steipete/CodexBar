@@ -160,6 +160,26 @@ struct AntigravityBotIDValidationTests {
         #expect(source.events.isEmpty)
     }
 
+    @Test(arguments: [false, true], [false, true])
+    func `UUID-less duplicate step IDs invalidate exact evidence in either order`(
+        withTimestamp: Bool,
+        missingFirst: Bool) throws
+    {
+        let fixture = try Fixture()
+        let valid = Fixture.stepMetadataBlob(stepUUID: "local", botID: "duplicate", seconds: Self.early)
+        let uuidLess = withTimestamp
+            ? Fixture.stepMetadataBlob(stepUUID: nil, botID: "duplicate", seconds: Self.late)
+            : Fixture.message(9, Fixture.message(7, Array("duplicate".utf8)))
+        let url = try fixture.database(blobs: [
+            Fixture.blobWithRootEnvelope(stepUUID: "local", botID: "duplicate", seconds: nil),
+        ], stepBlobs: missingFirst ? [uuidLess, valid] : [valid, uuidLess])
+
+        let source = try Self.read(url)
+
+        #expect(!source.isComplete)
+        #expect(source.events.isEmpty)
+    }
+
     enum InvalidID: CaseIterable {
         case utf8
         case wire
