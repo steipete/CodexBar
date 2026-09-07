@@ -46,6 +46,8 @@ The OpenRouter provider fetches usage data from two API endpoints:
 The Key API is optional enrichment with a one-second production deadline. If it is slow or unavailable, CodexBar still
 shows the credits balance and labels the API key limit as unavailable with a safe timeout, HTTP, or response diagnostic.
 
+Activity history uses the separately configured Management API key and is optional. Malformed activity, including a combined input/output token total outside the safe integer range, leaves valid credits and key quota available and marks history unavailable.
+
 ## Display
 
 The **Usage Dashboard** menu action opens [OpenRouter Activity](https://openrouter.ai/activity) for request and spending history.
