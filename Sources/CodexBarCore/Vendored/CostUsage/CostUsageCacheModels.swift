@@ -298,6 +298,7 @@ struct CostUsageFileUsage: Codable, Equatable {
     var codexTokenTimestampsMonotonic: Bool?
     var codexTokenIndexAnchor: CostUsageCodexTokenIndexAnchor?
     var claudeRows: [CostUsageScanner.ClaudeUsageRow]?
+    var claudeFileID: String?
     var codexScanFileId: String?
     var codexScanTargetSize: Int64?
     var codexScanComplete: Bool?
