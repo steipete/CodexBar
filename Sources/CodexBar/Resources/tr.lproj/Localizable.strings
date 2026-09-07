@@ -500,7 +500,6 @@
 "provider_accent_color_reset" = "Varsayılanı kullan";
 "quota_warnings_title" = "Kota uyarıları";
 "quota_warning_session" = "oturum";
-"quota_warning_session_capitalized" = "Oturum";
 "quota_warning_weekly" = "haftalık";
 "quota_warning_weekly_capitalized" = "Haftalık";
 "quota_warning_notification_title" = "%1$@ %2$@ kotası düşük";

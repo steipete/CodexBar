@@ -513,7 +513,6 @@
 "provider_accent_color_reset" = "Usar padrão";
 "quota_warnings_title" = "Alertas de cota";
 "quota_warning_session" = "sessão";
-"quota_warning_session_capitalized" = "Sessão";
 "quota_warning_weekly" = "semanal";
 "quota_warning_weekly_capitalized" = "Semanal";
 "quota_warning_notification_title" = "%1$@: cota baixa (%2$@)";

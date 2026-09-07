@@ -500,7 +500,6 @@
 "provider_accent_color_reset" = "استفاده از پیش‌فرض";
 "quota_warnings_title" = "هشدارهای سهمیه";
 "quota_warning_session" = "جلسه";
-"quota_warning_session_capitalized" = "جلسه";
 "quota_warning_weekly" = "هفتگی";
 "quota_warning_weekly_capitalized" = "هفتگی";
 "quota_warning_notification_title" = "سهمیه %2$@ در %1$@ رو به اتمام است";

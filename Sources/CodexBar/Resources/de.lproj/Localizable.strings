@@ -514,7 +514,6 @@
 "provider_accent_color_reset" = "Standard verwenden";
 "quota_warnings_title" = "Kontingentwarnungen";
 "quota_warning_session" = "Sitzung";
-"quota_warning_session_capitalized" = "Sitzung";
 "quota_warning_weekly" = "wöchentlich";
 "quota_warning_weekly_capitalized" = "Wöchentlich";
 "quota_warning_notification_title" = "%1$@ %2$@ Kontingent niedrig";

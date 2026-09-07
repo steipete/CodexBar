@@ -517,7 +517,6 @@
 "provider_accent_color_reset" = "Usar predeterminado";
 "quota_warnings_title" = "Avisos de cuota";
 "quota_warning_session" = "sesión";
-"quota_warning_session_capitalized" = "Sesión";
 "quota_warning_weekly" = "semanal";
 "quota_warning_weekly_capitalized" = "Semanal";
 "predictive_pace_warnings_title" = "Avisos predictivos de ritmo";

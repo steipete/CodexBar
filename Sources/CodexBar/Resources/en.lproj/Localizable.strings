@@ -481,7 +481,6 @@
 "provider_accent_color_reset" = "Use default";
 "quota_warnings_title" = "Quota warnings";
 "quota_warning_session" = "session";
-"quota_warning_session_capitalized" = "Session";
 "quota_warning_weekly" = "weekly";
 "quota_warning_weekly_capitalized" = "Weekly";
 "quota_warning_notification_title" = "%1$@ %2$@ quota low";
