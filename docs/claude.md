@@ -236,7 +236,7 @@ Model-scoped weekly-window proof (synthetic data, no real accounts or credential
 ## Cost usage (local log scan)
 - Source roots:
   - Native Claude logs:
-    - `$CLAUDE_CONFIG_DIR` (comma-separated), each root uses `<root>/projects`.
+    - `$CLAUDE_CONFIG_DIR` selects one literal directory and uses `<root>/projects`; commas are part of its path.
     - Fallback roots:
       - `~/.config/claude/projects`
       - `~/.claude/projects` (Claude Code and current Claude Desktop Code/Cowork CLI sessions)
@@ -259,6 +259,7 @@ Model-scoped weekly-window proof (synthetic data, no real accounts or credential
   - Matching assistant entry IDs within the same session are counted once across roots; distinct turns are retained.
 - Cache:
   - Native provider cache: `~/Library/Caches/CodexBar/cost-usage/claude-v6.json`
+  - The Claude/Vertex cache artifact retains source file identities independently of the shared Codex parser fingerprint. Replacing a transcript rebuilds its rows rather than merging an old prefix into a new suffix; genuine appends still use the saved parse offset. Older entries without identity are rebuilt once before reuse, including during the normal refresh debounce.
   - pi-compatible session cache: `~/Library/Caches/CodexBar/cost-usage/pi-sessions-v8.json`
 
 ## Key files
