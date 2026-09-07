@@ -196,12 +196,6 @@ extension AntigravityLocalReader {
         let botID: String?
     }
 
-    private struct StepTimestamp {
-        let row: Int64
-        let timestampMs: Int64?
-        let botID: String?
-    }
-
     private struct ExactStepTimestamp {
         let stepUUID: String
         let timestampMs: Int64
@@ -242,7 +236,6 @@ extension AntigravityLocalReader {
         guard !neededStepOccurrences.isEmpty else {
             return StepTimestampScan(timestamps: [:], byBotID: [:], ambiguousBotIDs: [], isComplete: true)
         }
-        let neededStepUUIDCounts = neededStepOccurrences.mapValues(\.count)
         let stepProgress = StepScanProgress(progress: progress)
         let registered = sqlite3_create_function_v2(
             database,
@@ -290,7 +283,7 @@ extension AntigravityLocalReader {
         guard prepared == SQLITE_OK, let statement else {
             return StepTimestampScan(timestamps: [:], byBotID: [:], ambiguousBotIDs: [], isComplete: false)
         }
-        var stepTimestamps: [String: [StepTimestamp]] = [:]
+        var stepTimestamps: [String: [StepOccurrence]] = [:]
         var exactByBotID: [String: ExactStepTimestamp] = [:]
         var ambiguousBotIDs = Set<String>()
         var isComplete = false
@@ -332,42 +325,30 @@ extension AntigravityLocalReader {
                 rowsAreValid = false
                 continue
             }
-            // A row without a step UUID (field 12 absent, or blank per `Field.string()`'s
-            // whitespace-only-is-absent rule) carries no identity: it belongs to no UUID's occurrence
-            // list and can never supply or shift positional evidence, so it is skipped rather than
-            // invalidating the scan. While any such row is present, a single step timestamp does not
-            // stand in for every reused generation occurrence of its UUID (see resolveStepTimestamps).
-            guard let stepUUID = parsed.stepUUID else {
-                sawUnidentifiedRows = true
-                continue
-            }
             if let botID = parsed.botID {
                 self.recordExactBotID(
                     botID,
-                    stepUUID: stepUUID,
+                    stepUUID: parsed.stepUUID,
                     timestampMs: parsed.timestampMs,
                     exact: &exactByBotID,
                     ambiguous: &ambiguousBotIDs)
             }
-            if neededStepUUIDCounts[stepUUID] != nil {
-                stepTimestamps[stepUUID, default: []].append(StepTimestamp(
+            // Unidentified rows cannot supply UUID positions, but their bot IDs still count as evidence.
+            guard let stepUUID = parsed.stepUUID else {
+                sawUnidentifiedRows = true
+                continue
+            }
+            if neededStepOccurrences[stepUUID] != nil {
+                stepTimestamps[stepUUID, default: []].append(StepOccurrence(
                     row: sqlite3_column_int64(statement, 0),
                     timestampMs: parsed.timestampMs,
                     botID: parsed.botID))
             }
         }
-        // Preserve ambiguous rows' positions; removing them would shift later timestamps into their slots.
-        let positionalEntries = Dictionary(uniqueKeysWithValues: stepTimestamps.map { entry in
-            (entry.key, entry.value.map { step in
-                StepTimestamp(
-                    row: step.row,
-                    timestampMs: step.botID.map { ambiguousBotIDs.contains($0) } == true ? nil : step.timestampMs,
-                    botID: step.botID)
-            })
-        })
         let resolved = self.resolveStepTimestamps(
-            positionalEntries,
+            stepTimestamps,
             neededStepOccurrences: neededStepOccurrences,
+            ambiguousBotIDs: ambiguousBotIDs,
             unidentifiedRowsPresent: sawUnidentifiedRows)
         return StepTimestampScan(
             timestamps: resolved,
@@ -378,13 +359,13 @@ extension AntigravityLocalReader {
 
     private static func recordExactBotID(
         _ botID: String,
-        stepUUID: String,
+        stepUUID: String?,
         timestampMs: Int64?,
         exact: inout [String: ExactStepTimestamp],
         ambiguous: inout Set<String>)
     {
         guard !ambiguous.contains(botID) else { return }
-        guard let timestampMs else {
+        guard let stepUUID, let timestampMs else {
             exact.removeValue(forKey: botID)
             ambiguous.insert(botID)
             return
@@ -419,8 +400,9 @@ extension AntigravityLocalReader {
     }
 
     private static func resolveStepTimestamps(
-        _ stepTimestamps: [String: [StepTimestamp]],
+        _ stepTimestamps: [String: [StepOccurrence]],
         neededStepOccurrences: [String: [StepOccurrence]],
+        ambiguousBotIDs: Set<String>,
         unidentifiedRowsPresent: Bool) -> [String: [Int64]]
     {
         var resolved: [String: [Int64]] = [:]
@@ -435,13 +417,12 @@ extension AntigravityLocalReader {
             guard !zip(sorted, sorted.dropFirst()).contains(where: { pair in pair.0.row == pair.1.row }) else {
                 continue
             }
-            let orderedTimestamps = sorted.map(\.timestampMs)
+            // Keep ambiguous slots so later timestamps cannot slide into their positions.
+            let orderedTimestamps = sorted.map { step in
+                step.botID.map { ambiguousBotIDs.contains($0) } == true ? nil : step.timestampMs
+            }
             let selected: [Int64]
-            // A lone step timestamp can stand in for every occurrence of a reused UUID only when the
-            // scan accounted for every step row. An unidentified row breaks that guarantee: it could
-            // have been another occurrence of this same UUID whose identity was lost, so treating one
-            // surviving row as authoritative for all of them would risk publishing a false date. A
-            // single-occurrence UUID (neededCount == 1) has nothing to misattribute either way.
+            // Sharing one timestamp across reused UUIDs requires a complete identity census.
             if orderedTimestamps.count == 1, neededCount == 1 || !unidentifiedRowsPresent,
                let sharedTimestamp = orderedTimestamps[0]
             {

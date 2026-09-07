@@ -5,6 +5,30 @@ import Testing
 struct AntigravityStepUUIDConsistencyTests {
     private typealias Fixture = AntigravityLocalFixture
 
+    @Test(arguments: [false, true], [UInt64?(1_787_875_140), 1_787_875_260, nil])
+    func `UUID-less duplicate bot IDs cannot establish an exact date`(
+        unidentifiedFirst: Bool, unidentifiedSeconds: UInt64?) throws
+    {
+        let fixture = try Fixture()
+        let stepUUID = "identified-uuid"
+        let botID = "shared-bot"
+        let turn = Fixture.blobWithRootEnvelope(stepUUID: stepUUID, botID: botID, seconds: nil)
+        let matching = Fixture.stepMetadataBlob(
+            stepUUID: stepUUID, botID: botID, seconds: 1_787_875_140, nanos: 0)
+        let unidentified = if let unidentifiedSeconds {
+            Fixture.stepMetadataBlob(stepUUID: nil, botID: botID, seconds: unidentifiedSeconds, nanos: 0)
+        } else {
+            Fixture.message(9, Fixture.message(7, Array(botID.utf8)))
+        }
+        let url = try fixture.database(
+            blobs: [turn], stepBlobs: unidentifiedFirst ? [unidentified, matching] : [matching, unidentified])
+        let budget = AntigravityLocalReader.Budget(limits: .init(), cancellation: {})
+        let source = try AntigravityLocalReader.readDatabases([url], budget: budget)
+        #expect(!source.isComplete)
+        #expect(source.events.isEmpty)
+        #expect(try fixture.report().coverage == .partial)
+    }
+
     @Test(arguments: [false, true])
     func `pure UUID evidence must agree with embedded generation timestamps`(conflicting: Bool) throws {
         let fixture = try Fixture()
