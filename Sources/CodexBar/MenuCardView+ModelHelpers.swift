@@ -948,9 +948,15 @@ extension UsageMenuCardView.Model {
             } else {
                 L("Unavailable")
             }
-            let title = input.provider == .doubao && namedWindow.id.contains("-team-")
-                ? "\(L(namedWindow.title)) (\(L("Team")))"
-                : L(namedWindow.title)
+            // Provider-specific by design: Claude's canonical scoped title remains stable outside the menu.
+            let title = if input.provider == .claude, namedWindow.id.hasPrefix("claude-weekly-scoped-") {
+                String(format: L("%@ weekly"), namedWindow.title.replacingOccurrences(
+                    of: #"\s+only\s*$"#, with: "", options: [.regularExpression, .caseInsensitive]))
+            } else if input.provider == .doubao, namedWindow.id.contains("-team-") {
+                "\(L(namedWindow.title)) (\(L("Team")))"
+            } else {
+                L(namedWindow.title)
+            }
             // Provider-specific by design: Kiro overage remaining copy is unique to that extra window.
             let detailLeftText: String? = if usageKnown {
                 Self.kiroOverageRemainingDetail(

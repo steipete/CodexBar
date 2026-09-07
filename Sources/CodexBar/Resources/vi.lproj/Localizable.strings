@@ -1050,8 +1050,8 @@
 "Source" = "Nguồn";
 "State" = "Trạng thái";
 "Unavailable" = "Không có sẵn";
-"Weekly" = "Không phát hiện được";
-"not detected" = "hàng tuần";
+"Weekly" = "Hàng tuần";
+"not detected" = "Không phát hiện được";
 "Estimated from local Codex logs for the selected account." = "Được ước tính từ nhật ký Codex cục bộ cho tài khoản đã chọn.";
 "minimax_usage_amount_format" = "Mức sử dụng : %@ / %@";
 "minimax_used_percent_format" = "Đã sử dụng %@";
@@ -1544,3 +1544,4 @@
 "menu_bar_layout_conditional_default_either_high" = "Phiên hoặc tuần đang ở mức cao";
 "menu_bar_layout_conditional_default_scoped_weekly" = "Tuần theo mô hình đã dùng trên 60%";
 "Spending cap, not balance" = "Hạn mức chi tiêu, không phải số dư";
+"%@ weekly" = "%@ hàng tuần";

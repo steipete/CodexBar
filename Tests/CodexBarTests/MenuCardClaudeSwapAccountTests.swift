@@ -77,7 +77,7 @@ struct MenuCardClaudeSwapAccountTests {
         let secondary = try #require(model.metrics.first(where: { $0.id == "secondary" }))
         #expect(secondary.percent == 60)
         let scoped = try #require(model.metrics.first(where: { $0.id == "claude-weekly-scoped-fable" }))
-        #expect(scoped.title == "Fable only")
+        #expect(scoped.title == "Fable weekly")
         #expect(scoped.percent == 80)
         #expect(scoped.detailLeftText == "6% in reserve")
         #expect(scoped.pacePercent != nil)
