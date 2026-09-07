@@ -84,8 +84,10 @@ public enum KiroUsageLimitsError: LocalizedError, Sendable {
 }
 
 public enum KiroUsageLimitsAPI: Sendable {
-    /// Endpoint the official CLI resolves for `codewhispererruntime`.
-    static let defaultEndpoint = URL(string: "https://codewhisperer.us-east-1.amazonaws.com/")!
+    private static let profileEndpoints = [
+        "us-east-1": URL(string: "https://codewhisperer.us-east-1.amazonaws.com/")!,
+        "eu-central-1": URL(string: "https://q.eu-central-1.amazonaws.com/")!,
+    ]
     private static let target = "AmazonCodeWhispererService.GetUsageLimits"
     private static let contentType = "application/x-amz-json-1.0"
     private static let creditResource = "CREDIT"
@@ -140,16 +142,22 @@ public enum KiroUsageLimitsAPI: Sendable {
     {
         try await self.fetch(
             databaseURL: self.stateDatabaseURL(homeDirectory: homeDirectory),
-            endpoint: self.defaultEndpoint,
             transport: self.isolatedTransport)
     }
 
     static func fetch(
         databaseURL: URL,
-        endpoint: URL,
         transport: any ProviderHTTPTransport) async throws -> KiroUsageLimits
     {
         let identity = try self.readIdentity(databaseURL: databaseURL)
+        let arn = identity.profileARN.split(separator: ":", maxSplits: 5, omittingEmptySubsequences: false)
+        guard arn.count == 6, arn[0] == "arn", arn[1] == "aws", arn[2] == "codewhisperer",
+              arn[5].hasPrefix("profile/"), arn[5].count > "profile/".count,
+              identity.profileARN.rangeOfCharacter(from: .whitespacesAndNewlines.union(.controlCharacters)) == nil,
+              let endpoint = self.profileEndpoints[String(arn[3])]
+        else {
+            throw KiroUsageLimitsError.credentialsUnavailable("unsupported profile ARN")
+        }
         var request = URLRequest(url: endpoint, timeoutInterval: self.requestTimeout)
         request.httpMethod = "POST"
         request.setValue(self.contentType, forHTTPHeaderField: "Content-Type")
