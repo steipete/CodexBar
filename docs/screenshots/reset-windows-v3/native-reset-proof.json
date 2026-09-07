@@ -1,0 +1,22 @@
+[
+  {
+    "countdownAfter" : "in 6m",
+    "countdownBefore" : "in 7m",
+    "phase" : "fresh",
+    "reloadMatches" : true,
+    "schedulerDelay" : 2.0499999999999998,
+    "scope" : "native test host; no ordinary app startup, pointer click or automatic timer delivery claimed",
+    "selectionAppliedVia" : "MenuBarLayoutEditorPersistence.activate",
+    "settingsReconstruction" : "same isolated in-memory defaults, production SettingsStore loader"
+  },
+  {
+    "countdownAfter" : "in 6m",
+    "countdownBefore" : "in 7m",
+    "phase" : "upgrade-v2",
+    "reloadMatches" : true,
+    "schedulerDelay" : 2.0499999999999998,
+    "scope" : "native test host; no ordinary app startup, pointer click or automatic timer delivery claimed",
+    "selectionAppliedVia" : "MenuBarLayoutEditorPersistence.activate",
+    "settingsReconstruction" : "same isolated in-memory defaults, production SettingsStore loader"
+  }
+]

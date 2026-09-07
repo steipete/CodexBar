@@ -28,8 +28,10 @@ read_when:
   per provider. Manual edits select the Custom preset.
 - Time tokens offer Session and Weekly variants of Resets in and Reset at, including in conditional branches.
   The original unqualified reset tokens continue to follow the automatic window. A selected window that is
-  unavailable displays a dash rather than substituting another window. Older releases omit the new tokens and
-  conditional rules that use them while retaining the rest of the compatible saved layout.
+  unavailable displays a dash rather than substituting another window. Saved layouts use V3 keys alongside a
+  v0.56.8-readable V2 projection, which omits the new tokens and conditional rules that use them while preserving
+  existing conditional placements, direct lane selections, and other providers' overrides. Re-upgrading restores
+  the full layout unless an older release changed its saved projection. The oldest-format projection is also retained.
 - All providers previews the default layout and lists enabled providers with saved overrides, even when an override
   currently matches the default. Each “Use all-providers layout” action removes only that provider's override;
   global edits preserve overrides, and disabled providers are left untouched. Before a default is first saved,
