@@ -502,7 +502,6 @@
 "provider_accent_color_reset" = "Usa predefinito";
 "quota_warnings_title" = "Avvisi quota";
 "quota_warning_session" = "sessione";
-"quota_warning_session_capitalized" = "Sessione";
 "quota_warning_weekly" = "settimanale";
 "quota_warning_weekly_capitalized" = "Settimanale";
 "quota_warning_notification_title" = "Quota %2$@ di %1$@ quasi esaurita";

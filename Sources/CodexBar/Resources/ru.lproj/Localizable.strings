@@ -517,7 +517,6 @@
 "provider_accent_color_reset" = "Использовать по умолчанию";
 "quota_warnings_title" = "Предупреждения о квотах";
 "quota_warning_session" = "сеанс";
-"quota_warning_session_capitalized" = "Сеанс";
 "quota_warning_weekly" = "неделя";
 "quota_warning_weekly_capitalized" = "Неделя";
 "quota_warning_notification_title" = "Низкая квота %1$@ %2$@";

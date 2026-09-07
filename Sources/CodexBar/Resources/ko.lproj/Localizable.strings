@@ -512,7 +512,6 @@
 "provider_accent_color_reset" = "기본값 사용";
 "quota_warnings_title" = "할당량 경고";
 "quota_warning_session" = "세션";
-"quota_warning_session_capitalized" = "세션";
 "quota_warning_weekly" = "주간";
 "quota_warning_weekly_capitalized" = "주간";
 "quota_warning_notification_title" = "%1$@ %2$@ 할당량 부족";

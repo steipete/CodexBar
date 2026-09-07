@@ -494,7 +494,6 @@
 "provider_accent_color_reset" = "Usar o predeterminado";
 "quota_warnings_title" = "Avisos de cota";
 "quota_warning_session" = "sesión";
-"quota_warning_session_capitalized" = "Sesión";
 "quota_warning_weekly" = "semanal";
 "quota_warning_weekly_capitalized" = "Semanal";
 "quota_warning_warn_at" = "Avisar ao";

@@ -76,4 +76,62 @@ if verify_packaged_app_integrity "$APP" 2>/dev/null; then
 fi
 unset MOCK_CODESIGN_STATUS
 
+python3 - "$PACKAGE_SCRIPT" <<'PY'
+import itertools
+import os
+import plistlib
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+source = Path(sys.argv[1]).read_text()
+start = source.index('BUNDLE_ID="com.steipete.codexbar"')
+end = source.index('BUILD_TIMESTAMP=', start)
+generation = source[start:end]
+start = source.index('if [[ "$EMBED_PROVISIONING_PROFILE" == "1" ]]; then')
+end = source.index('\nfi', start) + len('\nfi')
+embedding = source[start:end]
+
+for team, configuration, signing, profile_present in itertools.product(
+    ['Y5PE65HELJ', 'TESTTEAM01'], ['release', 'debug'], ['identity', 'adhoc'], [False, True],
+):
+    with tempfile.TemporaryDirectory(prefix='codexbar-entitlement-test-') as directory:
+        root = Path(directory)
+        app = root / 'CodexBar.app'
+        (app / 'Contents').mkdir(parents=True)
+        profile = root / 'Scripts/profiles/CodexBar-DeveloperID.provisionprofile'
+        if profile_present:
+            profile.parent.mkdir(parents=True)
+            # Marker tests selection/copying only, not certificate or profile validity.
+            profile.write_text('synthetic profile selection marker\n')
+        env = dict(os.environ, ROOT=str(root), APP=str(app), APP_TEAM_ID=team,
+                   LOWER_CONF=configuration, SIGNING_MODE=signing, ALLOW_LLDB='0')
+        result = subprocess.run(['bash', '-eu', '-c', generation + '\n' + embedding],
+                                env=env, capture_output=True, text=True)
+        cloudkit = team == 'Y5PE65HELJ' and configuration == 'release' and signing == 'identity'
+        if cloudkit and not profile_present:
+            assert result.returncode != 0 and 'Missing' in result.stderr, result.stderr
+            continue
+        assert result.returncode == 0, (team, configuration, signing, profile_present, result.stderr)
+        bundle = 'com.steipete.codexbar' + ('.debug' if configuration == 'debug' else '')
+        expected_group = f'{team}.{bundle}'
+        app_entitlements = plistlib.loads((root / '.build/entitlements/CodexBar.entitlements').read_bytes())
+        widget_entitlements = plistlib.loads((root / '.build/entitlements/CodexBarWidget.entitlements').read_bytes())
+        assert app_entitlements['com.apple.security.application-groups'] == [expected_group]
+        assert widget_entitlements['com.apple.security.application-groups'] == [expected_group]
+        assert widget_entitlements['com.apple.security.app-sandbox'] is True
+        embedded = app / 'Contents/embedded.provisionprofile'
+        assert embedded.exists() == cloudkit
+        if cloudkit:
+            assert embedded.read_bytes() == profile.read_bytes()
+            assert app_entitlements['com.apple.application-identifier'] == expected_group
+            assert app_entitlements['com.apple.developer.team-identifier'] == team
+            assert app_entitlements['com.apple.developer.icloud-services'] == ['CloudKit']
+            assert app_entitlements['com.apple.developer.icloud-container-identifiers'] == [f'iCloud.{bundle}']
+        else:
+            assert set(app_entitlements) == {'com.apple.security.application-groups'}
+print('16 entitlement/profile configuration cases passed.')
+PY
+
 echo "Package signing tests passed."

@@ -174,6 +174,40 @@ struct CopilotEnvironmentPrecedenceTests {
 
 @MainActor
 struct CopilotExternalIdentifierTests {
+    @Test(arguments: ["octocat", "different-user"])
+    func `resolved different user cannot match a legacy account by login or label`(storedLogin: String) async {
+        let legacy = Self.makeAccount(label: "octocat (Pro)", token: "old-token", externalIdentifier: nil)
+        let matched = await CopilotLoginFlow.matchExistingAccount(
+            existingAccounts: [legacy],
+            identity: Self.identity(id: 123, login: "octocat"),
+            label: "octocat (Pro)",
+            legacyIdentityResolver: { _ in Self.identity(id: 456, login: storedLogin) })
+
+        #expect(matched == nil)
+    }
+
+    @Test
+    func `resolved stable identity wins over an unresolved label fallback`() async {
+        let unresolved = Self.makeAccount(label: "octocat", token: "expired", externalIdentifier: nil)
+        let identified = Self.makeAccount(label: "Renamed account", token: "known", externalIdentifier: nil)
+        for accounts in [[unresolved, identified], [identified, unresolved]] {
+            let matched = await CopilotLoginFlow.matchExistingAccount(
+                existingAccounts: accounts,
+                identity: Self.identity(id: 123, login: "octocat"),
+                label: "octocat (Pro)",
+                legacyIdentityResolver: { account in
+                    account.token == "known" ? Self.identity(id: 123, login: "former-login") : nil
+                })
+            #expect(matched?.id == identified.id)
+        }
+        let fallback = await CopilotLoginFlow.matchExistingAccount(
+            existingAccounts: [unresolved],
+            identity: Self.identity(id: 123, login: "octocat"),
+            label: "octocat (Pro)",
+            legacyIdentityResolver: { _ in nil })
+        #expect(fallback?.id == unresolved.id)
+    }
+
     @Test
     func `addTokenAccount persists external identifier`() throws {
         let settings = Self.makeSettingsStore(suite: "copilot-ext-id-add")

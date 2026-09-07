@@ -500,7 +500,6 @@
 "provider_accent_color_reset" = "استخدام الافتراضي";
 "quota_warnings_title" = "تحذيرات الحصص";
 "quota_warning_session" = "الجلسة";
-"quota_warning_session_capitalized" = "الجلسة";
 "quota_warning_weekly" = "أسبوعيا";
 "quota_warning_weekly_capitalized" = "الأسبوعي";
 "quota_warning_notification_title" = "انخفاض حصة %2$@ لدى %1$@";

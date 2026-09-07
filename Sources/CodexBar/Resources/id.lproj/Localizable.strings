@@ -502,7 +502,6 @@
 "provider_accent_color_reset" = "Gunakan bawaan";
 "quota_warnings_title" = "Peringatan kuota";
 "quota_warning_session" = "sesi";
-"quota_warning_session_capitalized" = "Sesi";
 "quota_warning_weekly" = "mingguan";
 "quota_warning_weekly_capitalized" = "Mingguan";
 "quota_warning_notification_title" = "%1$@ kuota %2$@ rendah";

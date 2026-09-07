@@ -516,7 +516,6 @@
 "provider_accent_color_reset" = "Standaard gebruiken";
 "quota_warnings_title" = "Quotumwaarschuwingen";
 "quota_warning_session" = "sessie";
-"quota_warning_session_capitalized" = "Sessie";
 "quota_warning_weekly" = "wekelijks";
 "quota_warning_weekly_capitalized" = "Wekelijks";
 "quota_warning_notification_title" = "%1$@ %2$@ quotum laag";

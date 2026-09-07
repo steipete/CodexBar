@@ -524,7 +524,6 @@
 "provider_accent_color_reset" = "使用默认值";
 "quota_warnings_title" = "配额预警";
 "quota_warning_session" = "会话";
-"quota_warning_session_capitalized" = "会话";
 "quota_warning_weekly" = "每周";
 "quota_warning_weekly_capitalized" = "每周";
 "quota_warning_warn_at" = "预警阈值";
