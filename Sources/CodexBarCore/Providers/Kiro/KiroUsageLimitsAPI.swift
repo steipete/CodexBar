@@ -96,8 +96,6 @@ public enum KiroUsageLimitsAPI: Sendable {
     /// this range is a unit change, not a date — milliseconds would land far beyond any real reset.
     private static let resetRange: ClosedRange<Double> = 1_000_000_000...4_102_444_800
 
-    private static let logger = CodexBarLog.logger(LogCategories.provider(.kiro, scope: "usage-api"))
-
     public static func stateDatabaseURL(
         homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
         environment: [String: String] = ProcessInfo.processInfo.environment,
