@@ -507,6 +507,14 @@ struct PiSessionCostScannerTests {
             now: day,
             options: cachedOptions)
         #expect(firstReport.data.first?.totalTokens == 15)
+        var releasedCache = PiSessionCostCacheIO.load(cacheRoot: env.cacheRoot)
+        releasedCache.pricingKey = CostUsagePricingKey.codex(
+            modelsDevArtifact: ModelsDevCache.load(now: day, cacheRoot: env.cacheRoot).artifact,
+            formulaVersion: 2,
+            parserHash: "9547dc9d7b7675f6",
+            modelsDevProviderIDs: CostUsagePricing.codexModelsDevProviderIDs.union(
+                Set(CostUsagePricing.claudeFirstPartyModelsDevProviderIDs)))
+        PiSessionCostCacheIO.save(cache: releasedCache, cacheRoot: env.cacheRoot)
 
         try secondContents.write(to: url, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.modificationDate: stableModifiedAt], ofItemAtPath: url.path)

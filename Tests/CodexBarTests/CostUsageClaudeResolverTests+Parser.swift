@@ -78,7 +78,7 @@ extension CostUsageClaudeResolverTests {
         let options = CostUsageScanner.Options(claudeProjectsRoots: [env.claudeProjectsRoot], cacheRoot: env.cacheRoot)
         let report = CostUsageScanner.loadDailyReport(
             provider: provider, since: day, until: day, now: day, options: options)
-        let cache = CostUsageClaudeCacheIO.load(provider: provider, cacheRoot: env.cacheRoot)
+        let cache = CostUsageClaudeCacheIO.load(provider: provider, cacheRoot: env.cacheRoot).usage
         #expect(cache.days == expectedDays)
         #expect(cache.days[dayKey]?["anthropic.example"] != nil)
         #expect(cache.files.values.flatMap { $0.claudeRows ?? [] } == expectedRows)
@@ -111,7 +111,7 @@ extension CostUsageClaudeResolverTests {
             try CostUsageScanner.loadDailyReportCancellable(
                 provider: .claude, since: day, until: day, now: day, options: options, checkCancellation: nil)
         }
-        let cache = CostUsageClaudeCacheIO.load(provider: .claude, cacheRoot: env.cacheRoot)
+        let cache = CostUsageClaudeCacheIO.load(provider: .claude, cacheRoot: env.cacheRoot).usage
         #expect(cache.files.count == 1)
         let cachedPath = try #require(cache.files.keys.first)
         #expect(URL(fileURLWithPath: cachedPath).resolvingSymlinksInPath() == file.resolvingSymlinksInPath())

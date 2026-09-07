@@ -64,19 +64,42 @@ struct CostUsageScannerClaudeMemoTests {
     }
 
     @Test
+    func `cache identities round trip with empty parsed rows and prune removed files`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 1)
+        let file = try env.writeClaudeProjectFile(relativePath: "project/empty.jsonl", contents: "{}\n")
+        let options = self.options(env: env)
+        _ = self.load(day: day, options: options)
+        let artifact = CostUsageClaudeCacheIO.load(provider: .claude, cacheRoot: env.cacheRoot)
+        let path = try #require(artifact.usage.files.keys.first)
+        #expect(artifact.usage.files[path]?.claudeRows == [])
+        #expect(artifact.sourceFileIDs[path] == CostUsageClaudeFileStamp.read(at: file)?.fileID)
+        CostUsageScanner.evictClaudeReportMemoForTesting(provider: .claude, cacheRoot: env.cacheRoot)
+        #expect(self.recordedLoad(day: day, options: options).1.transcriptParses == 0)
+        try FileManager.default.removeItem(at: file)
+        _ = self.load(day: day, options: options)
+        let pruned = CostUsageClaudeCacheIO.load(provider: .claude, cacheRoot: env.cacheRoot)
+        #expect(pruned.usage.files.isEmpty)
+        #expect(pruned.sourceFileIDs.isEmpty)
+    }
+
+    @Test
     func `legacy cache without file identity is rebuilt once before append reuse`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
         let day = try env.makeLocalNoon(year: 2026, month: 7, day: 1)
         let file = try self.writeEvent(env: env, day: day, path: "project/session.jsonl", id: "same", input: 10)
-        let options = self.options(env: env)
+        var options = self.options(env: env)
+        options.refreshMinIntervalSeconds = 60
         _ = self.load(day: day, options: options)
         var cache = CostUsageClaudeCacheIO.load(provider: .claude, cacheRoot: env.cacheRoot)
-        #expect(cache.files.count == 1)
-        let path = try #require(cache.files.keys.first)
-        #expect(cache.files[path]?.claudeFileID == CostUsageClaudeFileStamp.read(at: file)?.fileID)
-        cache.files[path]?.claudeFileID = nil
-        _ = try CostUsageClaudeCacheIO.save(provider: .claude, cache: cache, cacheRoot: env.cacheRoot)
+        #expect(cache.usage.files.count == 1)
+        let path = try #require(cache.usage.files.keys.first)
+        #expect(cache.sourceFileIDs[path] == CostUsageClaudeFileStamp.read(at: file)?.fileID)
+        cache.sourceFileIDs[path] = nil
+        let legacyData = try JSONEncoder().encode(cache.usage)
+        try legacyData.write(to: CostUsageClaudeCacheIO.cacheFileURL(provider: .claude, cacheRoot: env.cacheRoot))
         CostUsageScanner.evictClaudeReportMemoForTesting(provider: .claude, cacheRoot: env.cacheRoot)
 
         let (report, work) = self.recordedLoad(day: day, options: options)
@@ -84,7 +107,7 @@ struct CostUsageScannerClaudeMemoTests {
         #expect(work.transcriptParses == 1)
         #expect(work.incrementalTranscriptParses == 0)
         let refreshed = CostUsageClaudeCacheIO.load(provider: .claude, cacheRoot: env.cacheRoot)
-        #expect(refreshed.files[path]?.claudeFileID == CostUsageClaudeFileStamp.read(at: file)?.fileID)
+        #expect(refreshed.sourceFileIDs[path] == CostUsageClaudeFileStamp.read(at: file)?.fileID)
         CostUsageScanner.evictClaudeReportMemoForTesting(provider: .claude, cacheRoot: env.cacheRoot)
         #expect(self.recordedLoad(day: day, options: options).1.transcriptParses == 0)
     }

@@ -203,6 +203,27 @@ extension CostUsageScanner {
 }
 #endif
 
+struct CostUsageClaudeCache: Codable {
+    var usage = CostUsageCache()
+    var sourceFileIDs: [String: String] = [:]
+
+    private enum CodingKeys: String, CodingKey { case sourceFileIDs }
+
+    init() {}
+
+    init(from decoder: any Decoder) throws {
+        self.usage = try CostUsageCache(from: decoder)
+        self.sourceFileIDs = try decoder.container(keyedBy: CodingKeys.self)
+            .decodeIfPresent([String: String].self, forKey: .sourceFileIDs) ?? [:]
+    }
+
+    func encode(to encoder: any Encoder) throws {
+        try self.usage.encode(to: encoder)
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(self.sourceFileIDs, forKey: .sourceFileIDs)
+    }
+}
+
 /// Claude and Vertex retain their small transcript cache. Codex deliberately has no route
 /// through this JSON I/O boundary; its only persistence authority is `CostUsageStore`.
 enum CostUsageClaudeCacheIO {
@@ -225,32 +246,32 @@ enum CostUsageClaudeCacheIO {
     static func load(
         provider: UsageProvider,
         cacheRoot: URL? = nil,
-        calendar: Calendar? = nil) -> CostUsageCache
+        calendar: Calendar? = nil) -> CostUsageClaudeCache
     {
         let url = self.cacheFileURL(provider: provider, cacheRoot: cacheRoot)
-        guard let data = try? Data(contentsOf: url) else { return CostUsageCache() }
+        guard let data = try? Data(contentsOf: url) else { return CostUsageClaudeCache() }
         #if DEBUG
         CostUsageScanner.recordClaudeScanWork(.cacheDecode)
         #endif
-        guard let cache = try? JSONDecoder().decode(CostUsageCache.self, from: data),
-              cache.version == 1
-        else { return CostUsageCache() }
-        if let calendar, cache.timeZoneIdentifier != calendar.timeZone.identifier {
-            return CostUsageCache()
+        guard let cache = try? JSONDecoder().decode(CostUsageClaudeCache.self, from: data),
+              cache.usage.version == 1
+        else { return CostUsageClaudeCache() }
+        if let calendar, cache.usage.timeZoneIdentifier != calendar.timeZone.identifier {
+            return CostUsageClaudeCache()
         }
         return cache
     }
 
     static func save(
         provider: UsageProvider,
-        cache: CostUsageCache,
+        cache: CostUsageClaudeCache,
         cacheRoot: URL? = nil,
         calendar: Calendar = .current,
         checkCancellation: CostUsageScanner.CancellationCheck? = nil) throws -> CostUsageClaudeFileStamp?
     {
         let url = self.cacheFileURL(provider: provider, cacheRoot: cacheRoot)
         var cache = cache
-        cache.timeZoneIdentifier = calendar.timeZone.identifier
+        cache.usage.timeZoneIdentifier = calendar.timeZone.identifier
         #if DEBUG
         CostUsageScanner.recordClaudeScanWork(.cacheEncode)
         #endif
