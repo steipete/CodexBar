@@ -622,6 +622,10 @@ final class JavaScriptCoreProviderPluginEngine: ProviderPluginEngine, @unchecked
             percent / 100 * limit
         }
         host.setObject(amountFromPercent, forKeyedSubscript: "amountFromPercent" as NSString)
+        let isDetailLabel: @convention(block) (String) -> Bool = { label in
+            (try? ProviderDetailSection.Row(label: label, value: "—")) != nil
+        }
+        host.setObject(isDetailLabel, forKeyedSubscript: "isDetailLabel" as NSString)
 
         let nextDailyReset: @convention(block) (String, Double) -> Double = { [weak self] identifier, rawHour in
             guard rawHour.isFinite,

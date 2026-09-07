@@ -127,6 +127,7 @@ Copy each value once, on one line. Multi-line or duplicated IDs can make the API
   Organization ID and Project ID as required for team usage.
 
 ## Usage dashboard
+- Optional model analytics are omitted when charts exceed 120 positive points, labels fail the native detail rules, or token aggregates overflow. Required quota data remains available; valid bounded analytics retain their complete labels and values.
 - Global: `https://z.ai/manage-apikey/coding-plan/personal/my-plan`
 - BigModel China: `https://bigmodel.cn/coding-plan/personal/usage`
 - BigModel China team: `https://bigmodel.cn/coding-plan/team/usage-stats`

@@ -278,27 +278,30 @@ defineProvider({
       if (!body || body.success !== true || body.code !== 200) throw new Error("invalid model usage response");
       const data = body.data || {};
       const labels = Array.isArray(data.x_time) ? data.x_time : [];
-      const models = Array.isArray(data.modelDataList) ? data.modelDataList : [];
+      const models = (Array.isArray(data.modelDataList) ? data.modelDataList : []).map((model) => ({
+        name: model && typeof model.modelName === "string" ? model.modelName : "Unknown",
+        tokens:
+          model && Array.isArray(model.tokensUsage)
+            ? model.tokensUsage.map((value) => (Number.isInteger(value) && value > 0 ? value : 0))
+            : [],
+      }));
       const points = labels
-        .map((label, index) => {
-          let total = 0;
-          for (const model of models) {
-            const value = model && Array.isArray(model.tokensUsage) ? model.tokensUsage[index] : null;
-            if (Number.isInteger(value) && value > 0) total += value;
-          }
-          return { label: String(label), value: total };
-        })
+        .map((label, index) => ({
+          label: String(label),
+          value: models.reduce((sum, model) => sum + (model.tokens[index] || 0), 0),
+        }))
         .filter((point) => point.value > 0);
       const totals = models
-        .map((model) => ({
-          name: model && typeof model.modelName === "string" ? model.modelName : "Unknown",
-          tokens:
-            model && Array.isArray(model.tokensUsage)
-              ? model.tokensUsage.reduce((sum, value) => sum + (Number.isInteger(value) && value > 0 ? value : 0), 0)
-              : 0,
-        }))
+        .map((model) => ({ name: model.name, tokens: model.tokens.reduce((sum, value) => sum + value, 0) }))
         .filter((item) => item.tokens > 0)
         .sort((a, b) => b.tokens - a.tokens || a.name.localeCompare(b.name));
+      if (
+        points.length > 120 ||
+        points.some((point) => !Number.isFinite(point.value) || !ctx.isDetailLabel(point.label)) ||
+        totals.slice(0, 20).some((item) => !Number.isFinite(item.tokens) || !ctx.isDetailLabel(item.name))
+      ) {
+        throw new Error("model usage exceeds display bounds");
+      }
       return { points, totals };
     }
 
