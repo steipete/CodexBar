@@ -7,7 +7,7 @@ import Testing
 @Suite(.serialized)
 struct StatusItemControllerSplitLifecycleTests {
     @Test
-    func `placement bounds use display widths independently of desktop origins`() {
+    func `placement bounds cover wide left displays without tightening legacy ranges`() {
         let small = CGRect(x: 0, y: 0, width: 1440, height: 900)
         let wide = CGRect(x: 0, y: 0, width: 3840, height: 2160)
         let layouts = [
@@ -16,13 +16,19 @@ struct StatusItemControllerSplitLifecycleTests {
             [small, wide.offsetBy(dx: 0, dy: 900)],
             [wide, wide.offsetBy(dx: 3840, dy: 0)],
         ]
-        for frames in layouts {
+        for (frames, expectedBound) in zip(layouts, [3840.0, 5280, 3840, 7680]) {
             let bound = MenuBarStatusItemPlacementPreflight.currentMaximumPreferredPosition(screenFrames: frames)
-            #expect(bound == 3840)
+            #expect(bound == expectedBound)
             #expect(!MenuBarStatusItemPlacementPreflight.shouldClearPreferredPosition(
                 2500, maximumPreferredPosition: bound))
-            #expect(MenuBarStatusItemPlacementPreflight.shouldClearPreferredPosition(
-                6247, maximumPreferredPosition: bound))
+            let legacyBound = frames.map { Double($0.maxX) }.max()
+            for position in [1, 42, 2500, 3840, 6247, 8000] where
+                !MenuBarStatusItemPlacementPreflight.shouldClearPreferredPosition(
+                    position, maximumPreferredPosition: legacyBound)
+            {
+                #expect(!MenuBarStatusItemPlacementPreflight.shouldClearPreferredPosition(
+                    position, maximumPreferredPosition: bound))
+            }
         }
     }
 

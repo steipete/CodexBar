@@ -52,6 +52,7 @@ enum MenuBarStatusItemPlacementPreflight {
     }
 
     static func currentMaximumPreferredPosition(screenFrames: [CGRect] = NSScreen.screens.map(\.frame)) -> Double? {
-        screenFrames.map { Double($0.width) }.max()
+        // Preserve the legacy parking range while covering wide displays left of the primary screen.
+        screenFrames.map { Double(max($0.width, $0.maxX)) }.max()
     }
 }
