@@ -348,18 +348,17 @@ struct CloudSyncSettingsTests {
         let coordinator = CloudSyncCoordinator(settings: fixture.store, persistence: persistence)
         coordinator.start()
         defer { coordinator.stop() }
-        try fixture.store.configStore.save(fixture.store.configSnapshot)
-        try await Task.sleep(for: .milliseconds(500))
-
         var updated = fixture.store.configSnapshot
         var claude = try #require(updated.providerConfig(for: .claude))
         claude.extrasEnabled = !(claude.extrasEnabled ?? false)
         updated.setProviderConfig(claude)
         try fixture.store.configStore.save(updated)
 
-        for _ in 0..<100 where persistence.load().dirtyProviders.isEmpty {
-            try await Task.sleep(for: .milliseconds(10))
+        let deadline = ContinuousClock.now.advanced(by: .seconds(10))
+        while persistence.load().dirtyProviders.isEmpty, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(20))
         }
+        #expect(fixture.store.configSnapshot.providerConfig(for: .claude)?.extrasEnabled == claude.extrasEnabled)
 
         let envelope = persistence.load()
         let recordNames = CloudSyncDirtyState.configurationRecordNamesToQueue(
