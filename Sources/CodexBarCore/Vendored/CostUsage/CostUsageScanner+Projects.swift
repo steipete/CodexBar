@@ -28,6 +28,7 @@ extension CostUsageScanner {
         let resolvedModelsDevCatalog = modelsDevCatalog
             ?? modelsDevCatalogLoader(modelsDevCacheRoot)
             ?? ModelsDevCatalog(providers: [:])
+        let pricingResolver = CostUsagePricing.CodexResolver(catalog: resolvedModelsDevCatalog)
         var latestFileBySessionID: [String: (path: String, usage: CostUsageFileUsage)] = [:]
 
         for (filePath, usage) in cache.files {
@@ -59,7 +60,8 @@ extension CostUsageScanner {
                 cache: fileCache,
                 range: range,
                 modelsDevCatalog: resolvedModelsDevCatalog,
-                priorityTurns: priorityTurns)
+                priorityTurns: priorityTurns,
+                pricingResolver: pricingResolver)
             guard !report.data.isEmpty else { return nil }
 
             let summary = report.summary
@@ -99,6 +101,7 @@ extension CostUsageScanner {
         let resolvedModelsDevCatalog = modelsDevCatalog
             ?? modelsDevCatalogLoader(modelsDevCacheRoot)
             ?? ModelsDevCatalog(providers: [:])
+        let pricingResolver = CostUsagePricing.CodexResolver(catalog: resolvedModelsDevCatalog)
         let projectPathResolver = CodexCanonicalProjectPathResolver()
         var accumulatorsByProjectPath: [String: CodexProjectBreakdownAccumulator] = [:]
         for (filePath, usage) in cache.files {
@@ -116,7 +119,8 @@ extension CostUsageScanner {
                 cache: fileCache,
                 range: range,
                 modelsDevCatalog: resolvedModelsDevCatalog,
-                priorityTurns: priorityTurns)
+                priorityTurns: priorityTurns,
+                pricingResolver: pricingResolver)
             guard !report.data.isEmpty else { continue }
             let projectKey = usage.canonicalProjectPath
                 ?? projectPathResolver.canonicalProjectPath(for: usage.projectPath)
@@ -137,7 +141,8 @@ extension CostUsageScanner {
                 cache: projectCache,
                 range: range,
                 modelsDevCatalog: resolvedModelsDevCatalog,
-                priorityTurns: priorityTurns)
+                priorityTurns: priorityTurns,
+                pricingResolver: pricingResolver)
             let resolvedPath = projectPath.isEmpty ? nil : projectPath
             return CostUsageProjectBreakdown(
                 name: Self.codexProjectName(path: resolvedPath),

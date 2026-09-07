@@ -2,6 +2,9 @@
 
 ## 0.56.8 — Unreleased
 
+### Performance
+- Codex local costs: reuse model pricing resolution across daily, project, and session report rows without changing token accounting, tariffs, or refresh cadence.
+
 ### Fixed
 - Kiro: route existing overage enrichment to the CLI profile’s supported region instead of always using US East; reject invalid profile ARNs before sending credentials and retain CLI fallback (#3359). Thanks @zucram!
 - Settings: observe rapid external config replacements and edits that restore earlier app-written contents, while keeping successful app writes out of the external-change sync path.
