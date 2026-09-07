@@ -24,6 +24,7 @@ Copilot uses GitHub OAuth device flow and the Copilot internal usage API for pri
    - Token stored in config:
      - `~/.codexbar/config.json` → `providers[].apiKey` for `copilot`
      - token accounts use `providers[].tokenAccounts`
+     - Legacy token matching honors a resolved stable GitHub user ID; display-label fallback is used only when token identity is unavailable and no verified match exists.
 
 2) **Usage fetch**
    - `GET https://api.github.com/copilot_internal/user`
