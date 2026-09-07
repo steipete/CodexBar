@@ -124,7 +124,8 @@ extension CostUsageScanner {
                     && pricing.authoritativeCostEvidenceGroups.contains(group))
                 || rowCost?.hasIncompletePricing == true
                 ? nil
-                : CostUsagePricing.codexAggregateCostUSD(
+                : CostUsagePricing.codexCostUSD(
+                    aggregate: true,
                     model: model,
                     inputTokens: input,
                     cachedInputTokens: cached,

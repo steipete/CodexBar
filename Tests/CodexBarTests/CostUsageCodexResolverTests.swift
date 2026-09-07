@@ -39,7 +39,8 @@ struct CostUsageCodexResolverTests {
                                     modelsDevCatalog: catalog,
                                     customPricing: overlay,
                                     pricingResolver: context),
-                                CostUsagePricing.codexAggregateCostUSD(
+                                CostUsagePricing.codexCostUSD(
+                                    aggregate: true,
                                     model: model,
                                     inputTokens: input,
                                     cachedInputTokens: 120,

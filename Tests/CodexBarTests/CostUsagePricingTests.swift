@@ -751,25 +751,29 @@ struct CostUsagePricingTests {
     @Test
     func `codex aggregate pricing uses safe base rates and rejects aggregates above thresholds`() throws {
         let emptyRoot = try Self.cacheRoot()
-        let bundledBelowThreshold = CostUsagePricing.codexAggregateCostUSD(
+        let bundledBelowThreshold = CostUsagePricing.codexCostUSD(
+            aggregate: true,
             model: "gpt-5.6-sol",
             inputTokens: 200_000,
             cachedInputTokens: 0,
             outputTokens: 100,
             modelsDevCacheRoot: emptyRoot)
-        let bundledAtThreshold = CostUsagePricing.codexAggregateCostUSD(
+        let bundledAtThreshold = CostUsagePricing.codexCostUSD(
+            aggregate: true,
             model: "gpt-5.6-sol",
             inputTokens: 272_000,
             cachedInputTokens: 0,
             outputTokens: 100,
             modelsDevCacheRoot: emptyRoot)
-        let bundledAboveThreshold = CostUsagePricing.codexAggregateCostUSD(
+        let bundledAboveThreshold = CostUsagePricing.codexCostUSD(
+            aggregate: true,
             model: "gpt-5.6-sol",
             inputTokens: 400_000,
             cachedInputTokens: 0,
             outputTokens: 100,
             modelsDevCacheRoot: emptyRoot)
-        let linear = CostUsagePricing.codexAggregateCostUSD(
+        let linear = CostUsagePricing.codexCostUSD(
+            aggregate: true,
             model: "gpt-5.4-mini",
             inputTokens: 400_000,
             cachedInputTokens: 100_000,
@@ -792,13 +796,15 @@ struct CostUsagePricingTests {
           }
         }
         """)
-        let catalogAtThreshold = CostUsagePricing.codexAggregateCostUSD(
+        let catalogAtThreshold = CostUsagePricing.codexCostUSD(
+            aggregate: true,
             model: "aggregate-threshold-model",
             inputTokens: 200_000,
             cachedInputTokens: 0,
             outputTokens: 100,
             modelsDevCacheRoot: catalogThresholdRoot)
-        let catalogAboveThreshold = CostUsagePricing.codexAggregateCostUSD(
+        let catalogAboveThreshold = CostUsagePricing.codexCostUSD(
+            aggregate: true,
             model: "aggregate-threshold-model",
             inputTokens: 200_001,
             cachedInputTokens: 0,
