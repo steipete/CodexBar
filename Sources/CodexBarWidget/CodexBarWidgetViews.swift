@@ -45,7 +45,6 @@ struct CodexBarUsageWidgetView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
-        .padding(12)
     }
 }
 
@@ -75,7 +74,6 @@ struct CodexBarHistoryWidgetView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
-        .padding(12)
     }
 }
 
@@ -104,7 +102,6 @@ struct CodexBarCompactWidgetView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
-        .padding(12)
     }
 }
 
@@ -127,7 +124,6 @@ struct CodexBarSwitcherWidgetView: View {
                 self.emptyState
             }
         }
-        .padding(12)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .containerBackground(.fill.tertiary, for: .widget)
         .environment(\.widgetUsageShowsUsed, self.entry.snapshot.usageBarsShowUsed)
@@ -182,7 +178,6 @@ private struct CompactMetricView: View {
                 }
             }
         }
-        .padding(12)
     }
 }
 
@@ -464,7 +459,6 @@ private struct SmallUsageView: View {
                 balance
             }
         }
-        .padding(12)
     }
 }
 
@@ -501,7 +495,6 @@ private struct MediumUsageView: View {
                 balance
             }
         }
-        .padding(12)
     }
 }
 
@@ -557,7 +550,6 @@ private struct LargeUsageView: View {
                 currencyCode: self.entry.tokenUsage?.currencyCode)
                 .frame(height: 50)
         }
-        .padding(12)
     }
 }
 
@@ -800,7 +792,6 @@ private struct HistoryView: View {
                         currencyCode: token.currencyCode))
             }
         }
-        .padding(12)
     }
 }
 
