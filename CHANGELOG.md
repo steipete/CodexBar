@@ -4,6 +4,7 @@
 
 ### Fixed
 - Settings: observe rapid external config replacements and edits that restore earlier app-written contents, while keeping successful app writes out of the external-change sync path.
+- Local usage: honor the app’s Low Power Mode interval for automatic Codex catch-up passes in both usage and Spend Dashboard, while retaining manual acceleration and system thermal pauses.
 - Copilot: keep verified GitHub user IDs authoritative when matching legacy token accounts, preventing a matching login or display label from replacing a different resolved account.
 - OpenRouter: reject combined Activity token overflow before publishing history so malformed optional data cannot hide valid credits or key quota; share input/output total validation (extracted from #3272). Thanks @akshayprabhu200!
 - Poe: skip out-of-range history timestamps instead of letting date formatting hide a valid point balance; preserve supported timestamp formats and valid activity.
@@ -13,6 +14,7 @@
 - MiMo: skip malformed local session rows before deduplication so valid usage still refreshes the cache, preserving all token buckets and UTC daily/weekly totals with shared aggregation (#3448). Thanks @Lucenx9!
 - Codex: retain HTTP 403 permission failures instead of treating them as expired credentials and launching Auto recovery; share status/cancellation handling across OAuth and PAT requests (extracted from #3379). Thanks @Yuxin-Qiao!
 - Claude: label model-specific weekly quotas with a translated weekly duration while preserving model names and CLI titles; correct swapped Vietnamese Weekly and missing-version labels (#3447). Thanks @gianpaj!
+- Antigravity local usage: tolerate bookkeeping steps without UUIDs while retaining duplicate bot-ID ambiguity checks, so valid history remains available without assigning uncertain dates (#3462). Thanks @urda!
 - Packaging: select the bundled iCloud provisioning profile only for its upstream signing team, preserving alternate-team app/widget groups without incompatible CloudKit entitlements (extracted from #3372). Thanks @krazybean!
 
 ## 0.56.7 — 2026-09-06
