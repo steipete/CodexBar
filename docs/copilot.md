@@ -20,11 +20,15 @@ Copilot uses GitHub OAuth device flow and the Copilot internal usage API for pri
      - set Copilot `enterpriseHost` in `~/.codexbar/config.json` or the provider settings UI
      - CodexBar normalizes values such as `https://octocorp.ghe.com/login` to `octocorp.ghe.com`
      - device flow uses `https://<enterpriseHost>/login/...`
+     - identity lookup uses `https://api.<enterpriseHost>/user`, matching the usage API host
+     - default HTTPS ports and trailing host dots normalize to the same issuer; nondefault ports remain distinct
    - Scope: `read:user`.
    - Token stored in config:
      - `~/.codexbar/config.json` → `providers[].apiKey` for `copilot`
      - token accounts use `providers[].tokenAccounts`
      - Legacy token matching honors a resolved stable GitHub user ID; display-label fallback is used only when token identity is unavailable and no verified match exists.
+     - Enterprise accounts match by API host and numeric user ID. They never adopt a public or unidentified legacy account merely because its login or label matches. The configured host still controls requests; stored account identifiers do not select an endpoint.
+     - Enterprise sign-in requires a resolved identity. A cancelled sign-in or a host change while it is pending leaves saved accounts unchanged.
 
 2) **Usage fetch**
    - `GET https://api.github.com/copilot_internal/user`
@@ -38,6 +42,7 @@ Copilot uses GitHub OAuth device flow and the Copilot internal usage API for pri
      - `X-Github-Api-Version: 2025-04-01`
 
 3) **Budget fetch** (optional GitHub web endpoint, best-effort)
+   - Available only for the public GitHub host. Enterprise quota fetches skip public identity and browser-cookie budget enrichment.
    - Disabled by default. The Copilot provider's "Budget extras" setting must be enabled before CodexBar imports
      github.com cookies or renders budget bars.
    - CodexBar asks the logged-in GitHub web endpoint for customer-scope budgets:

@@ -6,6 +6,7 @@
 - Codex local costs: reuse model pricing resolution across daily, project, and session report rows without changing token accounting, tariffs, or refresh cadence (#3476). Thanks @brzvsk!
 
 ### Fixed
+- Copilot: resolve Enterprise sign-in identities on the configured host, keep equal user IDs on different hosts distinct, and skip public GitHub budget enrichment for Enterprise accounts (#3341). Thanks @Fletcher-Alderton!
 - Kiro: route existing overage enrichment to the CLI profile’s supported region instead of always using US East; reject invalid profile ARNs before sending credentials and retain CLI fallback (#3359). Thanks @zucram!
 - Settings: observe rapid external config replacements and edits that restore earlier app-written contents, while keeping successful app writes out of the external-change sync path.
 - Local usage: honor the app’s Low Power Mode interval for automatic Codex catch-up passes in both usage and Spend Dashboard, while retaining manual acceleration and system thermal pauses.
