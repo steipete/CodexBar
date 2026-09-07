@@ -5,6 +5,7 @@ extension CostUsagePricing {
     /// Dates, token thresholds, custom overlays and priority multipliers stay in the scalar pricing path.
     final class CodexResolver {
         static let memoEntryLimit = 1024
+        static let memoKeyByteLimit = 512
 
         private struct LookupResult {
             let value: ModelsDevPricingLookup?
@@ -15,28 +16,41 @@ extension CostUsagePricing {
         private var normalizedModels: [[UInt8]: String] = [:]
         private var lookups: [[UInt8]: LookupResult] = [:]
 
+        #if DEBUG
+        var memoizedKeyByteCountForTesting: Int {
+            self.normalizedModels.keys.reduce(0) { $0 + $1.count }
+                + self.lookups.keys.reduce(0) { $0 + $1.count }
+        }
+        #endif
+
         init(catalog: ModelsDevCatalog) {
             self.catalog = catalog
         }
 
         func normalize(_ model: String) -> String {
-            let key = Array(model.utf8)
-            if let value = self.normalizedModels[key] { return value }
+            let key = Self.memoKey(model)
+            if let key, let value = self.normalizedModels[key] { return value }
             let value = CostUsagePricing.normalizeCodexModel(model)
-            if self.normalizedModels.count < Self.memoEntryLimit {
+            if let key, self.normalizedModels.count < Self.memoEntryLimit {
                 self.normalizedModels[key] = value
             }
             return value
         }
 
         func lookup(_ model: String) -> ModelsDevPricingLookup? {
-            let key = Array(model.utf8)
-            if let result = self.lookups[key] { return result.value }
+            let key = Self.memoKey(model)
+            if let key, let result = self.lookups[key] { return result.value }
             let value = CostUsagePricing.codexModelsDevLookup(model: model, catalog: self.catalog, cacheRoot: nil)
-            if self.lookups.count < Self.memoEntryLimit {
+            if let key, self.lookups.count < Self.memoEntryLimit {
                 self.lookups[key] = LookupResult(value: value)
             }
             return value
+        }
+
+        private static func memoKey(_ model: String) -> [UInt8]? {
+            // Count before allocating: transcript-controlled identifiers can be much larger than real model IDs.
+            guard model.utf8.count <= self.memoKeyByteLimit else { return nil }
+            return Array(model.utf8)
         }
     }
 

@@ -108,6 +108,38 @@ struct CostUsageCodexResolverTests {
         #expect(work.catalogLookups == CostUsagePricing.CodexResolver.memoEntryLimit + 4)
     }
 
+    @Test
+    func `oversized model keys bypass both memos without changing resolution`() throws {
+        let resolver = try CostUsagePricing.CodexResolver(catalog: Self.catalog())
+        let limit = CostUsagePricing.CodexResolver.memoKeyByteLimit
+        let model = "gpt-5.4"
+        let oversizedKnown = String(repeating: " ", count: limit + 1 - model.utf8.count) + model
+        let oversizedUnicode = String(repeating: "é", count: limit / 2 + 1)
+        #expect(oversizedUnicode.count < limit)
+        #expect(oversizedUnicode.utf8.count > limit)
+        let work = CostUsagePricing.CodexPricingWorkRecorder()
+        CostUsagePricing.$codexPricingWorkRecorder.withValue(work) {
+            for _ in 0..<2 {
+                for key in [oversizedKnown, oversizedUnicode] {
+                    #expect(Array(resolver.normalize(key).utf8) ==
+                        Array(CostUsagePricing.normalizeCodexModel(key).utf8))
+                }
+                #expect(resolver.lookup(oversizedKnown) != nil)
+                #expect(resolver.lookup(oversizedUnicode) == nil)
+            }
+            #expect(work.catalogLookups == 4)
+            #expect(resolver.memoizedKeyByteCountForTesting == 0)
+
+            let boundary = String(repeating: " ", count: limit - model.utf8.count) + model
+            for _ in 0..<2 {
+                #expect(resolver.normalize(boundary) == model)
+                #expect(resolver.lookup(boundary) != nil)
+            }
+            #expect(work.catalogLookups == 5)
+            #expect(resolver.memoizedKeyByteCountForTesting == 2 * limit)
+        }
+    }
+
     private static func catalog() throws -> ModelsDevCatalog {
         try JSONDecoder().decode(ModelsDevCatalog.self, from: Data("""
         {
