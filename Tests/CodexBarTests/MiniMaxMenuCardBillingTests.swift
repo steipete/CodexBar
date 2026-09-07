@@ -65,9 +65,11 @@ struct MiniMaxMenuCardBillingTests {
             now: now))
 
         #expect(model.inlineUsageDashboard == nil)
-        #expect(model.providerDetails.last?.rows.first?.value == "1,234")
+        #expect(model.providerDetails.last?.rows.first?.value == 1234.formatted())
         #expect(model.providerDetails.last?.chart?.points.count == 2)
-        #expect(model.providerDetails.last?.rows.contains { $0.label == "30d tokens" && $0.value == "5,678" } == true)
+        #expect(model.providerDetails.last?.rows.contains {
+            $0.label == "30d tokens" && $0.value == 5678.formatted()
+        } == true)
 
         let hiddenModel = UsageMenuCardView.Model.make(.init(
             provider: .minimax,
