@@ -122,10 +122,13 @@ public struct CopilotUsageFetcher: Sendable {
 
     public static func fetchGitHubIdentity(
         token: String,
+        enterpriseHost: String? = nil,
         transport: any ProviderHTTPTransport = ProviderHTTPClient.shared)
         async throws -> GitHubUserIdentity
     {
-        guard let url = URL(string: "https://api.github.com/user") else {
+        guard let url = CopilotDeviceFlow.makeRequestURL(
+            host: self.apiHost(enterpriseHost: enterpriseHost), path: "/user")
+        else {
             throw URLError(.badURL)
         }
         var request = URLRequest(url: url)

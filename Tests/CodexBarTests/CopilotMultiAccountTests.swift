@@ -174,6 +174,215 @@ struct CopilotEnvironmentPrecedenceTests {
 
 @MainActor
 struct CopilotExternalIdentifierTests {
+    @Test
+    func `equal user IDs stay separate across public and enterprise issuers`() async {
+        let identity = Self.identity(id: 42, login: "same-login")
+        let issuers = ["api.github.com", "api.first.ghe.com", "api.second.ghe.com:8443"]
+        let accounts = issuers.map { issuer in
+            Self.makeAccount(
+                label: "same-login",
+                token: issuer,
+                externalIdentifier: CopilotLoginFlow.externalIdentifier(for: identity, issuer: issuer))
+        }
+        #expect(Set(accounts.compactMap(\.externalIdentifier)).count == 3)
+        #expect(accounts[0].externalIdentifier == "github:user:42")
+        for (index, issuer) in issuers.enumerated() {
+            let matched = await CopilotLoginFlow.matchExistingAccount(
+                existingAccounts: accounts,
+                identity: identity,
+                label: "same-login",
+                issuer: issuer,
+                legacyIdentityResolver: { _ in
+                    Issue.record("Exact issuer match must not probe legacy tokens")
+                    return nil
+                })
+            #expect(matched?.id == accounts[index].id)
+        }
+    }
+
+    @Test
+    func `enterprise login does not adopt hostless IDs logins or label matches`() async {
+        let accounts = ["github:user:42", "same-login", nil].map { identifier in
+            Self.makeAccount(label: "same-login", token: "old-token", externalIdentifier: identifier)
+        }
+        let matched = await CopilotLoginFlow.matchExistingAccount(
+            existingAccounts: accounts,
+            identity: Self.identity(id: 42, login: "same-login"),
+            label: "same-login",
+            issuer: "api.example.ghe.com",
+            legacyIdentityResolver: { _ in
+                Issue.record("Enterprise login must not send hostless tokens to any resolver")
+                return Self.identity(id: 42, login: "same-login")
+            })
+        #expect(matched == nil)
+    }
+
+    @Test
+    func `host change during legacy resolution abandons the login without mutating accounts`() async throws {
+        let settings = Self.makeSettingsStore(suite: "copilot-login-host-change")
+        settings.addTokenAccount(provider: .copilot, label: "same-login", token: "old-token")
+        let original = settings.tokenAccounts(for: .copilot)
+        let result = await CopilotLoginFlow.storeLoginIfCurrent(
+            settings: settings,
+            revision: settings.providerConfigRevision(for: .copilot),
+            token: "new-token",
+            identity: Self.identity(id: 42, login: "same-login"),
+            label: "same-login",
+            legacyIdentityResolver: { _ in
+                await MainActor.run { settings.copilotEnterpriseHost = "example.ghe.com" }
+                return Self.identity(id: 42, login: "same-login")
+            })
+        #expect(result == nil)
+        #expect(try Self.encodedAccounts(settings.tokenAccounts(for: .copilot)) == Self.encodedAccounts(original))
+    }
+
+    @Test(arguments: [false, true])
+    func `account changes before identity completes abandon the login`(remove: Bool) async throws {
+        let settings = Self.makeSettingsStore(suite: "copilot-login-early-change")
+        settings.addTokenAccount(provider: .copilot, label: "original", token: "old-token")
+        let accountID = try #require(settings.tokenAccounts(for: .copilot).first?.id)
+        let revision = settings.providerConfigRevision(for: .copilot)
+        if remove {
+            settings.removeTokenAccount(provider: .copilot, accountID: accountID)
+        } else {
+            settings.updateTokenAccount(
+                provider: .copilot,
+                accountID: accountID,
+                label: "replacement",
+                token: "replacement-token",
+                externalIdentifier: .some("github:user:42"))
+        }
+        let expected = try Self.encodedAccounts(settings.tokenAccounts(for: .copilot))
+        #expect(await CopilotLoginFlow.storeLoginIfCurrent(
+            settings: settings,
+            revision: revision,
+            token: "late-token",
+            identity: Self.identity(id: 42, login: "original"),
+            label: "original") == nil)
+        #expect(try Self.encodedAccounts(settings.tokenAccounts(for: .copilot)) == expected)
+    }
+
+    @Test(arguments: [false, true])
+    func `account edits during legacy resolution abandon the login`(remove: Bool) async throws {
+        let settings = Self.makeSettingsStore(suite: "copilot-login-account-change")
+        settings.addTokenAccount(provider: .copilot, label: "original", token: "old-token")
+        let accountID = try #require(settings.tokenAccounts(for: .copilot).first?.id)
+        let result = await CopilotLoginFlow.storeLoginIfCurrent(
+            settings: settings,
+            revision: settings.providerConfigRevision(for: .copilot),
+            token: "late-token",
+            identity: Self.identity(id: 42, login: "original"),
+            label: "original",
+            legacyIdentityResolver: { _ in
+                await MainActor.run {
+                    if remove {
+                        settings.removeTokenAccount(provider: .copilot, accountID: accountID)
+                    } else {
+                        settings.updateTokenAccount(
+                            provider: .copilot,
+                            accountID: accountID,
+                            label: "replacement",
+                            token: "replacement-token",
+                            externalIdentifier: .some("github:user:99"))
+                    }
+                }
+                return Self.identity(id: 42, login: "original")
+            })
+        #expect(result == nil)
+        let accounts = settings.tokenAccounts(for: .copilot)
+        if remove {
+            #expect(accounts.isEmpty)
+        } else {
+            #expect(accounts.count == 1)
+            #expect(accounts.first?.id == accountID)
+            #expect(accounts.first?.token == "replacement-token")
+            #expect(accounts.first?.externalIdentifier == "github:user:99")
+            #expect(accounts.first?.label == "replacement")
+        }
+    }
+
+    @Test
+    func `enterprise storage requires verified identity and refreshes only the same issuer`() async throws {
+        let settings = Self.makeSettingsStore(suite: "copilot-enterprise-store")
+        settings.copilotEnterpriseHost = "example.ghe.com"
+        let identity = Self.identity(id: 42, login: "same-login")
+        #expect(await CopilotLoginFlow.storeLoginIfCurrent(
+            settings: settings,
+            revision: settings.providerConfigRevision(for: .copilot),
+            token: "unverified",
+            identity: nil,
+            label: "same-login") == nil)
+        #expect(settings.tokenAccounts(for: .copilot).isEmpty)
+        settings.addTokenAccount(
+            provider: .copilot,
+            label: "same-login",
+            token: "public-token",
+            externalIdentifier: "github:user:42")
+        #expect(await CopilotLoginFlow.storeLoginIfCurrent(
+            settings: settings,
+            revision: settings.providerConfigRevision(for: .copilot),
+            token: "enterprise-token",
+            identity: identity,
+            label: "same-login") == false)
+        let first = settings.tokenAccounts(for: .copilot)
+        #expect(first.count == 2)
+        #expect(first[0].token == "public-token")
+        #expect(await CopilotLoginFlow.storeLoginIfCurrent(
+            settings: settings,
+            revision: settings.providerConfigRevision(for: .copilot),
+            token: "refreshed-token",
+            identity: identity,
+            label: "renamed") == true)
+        let refreshed = settings.tokenAccounts(for: .copilot)
+        #expect(refreshed.count == 2)
+        #expect(try Self.encodedAccounts([refreshed[0]]) == Self.encodedAccounts([first[0]]))
+        #expect(refreshed[1].id == first[1].id)
+        #expect(refreshed[1].token == "refreshed-token")
+    }
+
+    @Test
+    func `first unidentified public login remains available but cannot duplicate an existing account`() async {
+        let settings = Self.makeSettingsStore(suite: "copilot-first-public-login")
+        #expect(await CopilotLoginFlow.storeLoginIfCurrent(
+            settings: settings,
+            revision: settings.providerConfigRevision(for: .copilot),
+            token: "public-token",
+            identity: nil,
+            label: "Account 1") == false)
+        #expect(settings.tokenAccounts(for: .copilot).count == 1)
+        #expect(settings.tokenAccounts(for: .copilot).first?.externalIdentifier == nil)
+        #expect(await CopilotLoginFlow.storeLoginIfCurrent(
+            settings: settings,
+            revision: settings.providerConfigRevision(for: .copilot),
+            token: "replacement",
+            identity: nil,
+            label: "Account 1") == nil)
+        #expect(settings.tokenAccounts(for: .copilot).count == 1)
+        #expect(settings.tokenAccounts(for: .copilot).first?.token == "public-token")
+    }
+
+    @Test
+    func `cancelled login never stores a token`() async {
+        let settings = Self.makeSettingsStore(suite: "copilot-cancelled-login")
+        let task = Task { @MainActor in
+            await CopilotLoginFlow.storeLoginIfCurrent(
+                settings: settings,
+                revision: settings.providerConfigRevision(for: .copilot),
+                token: "cancelled-token",
+                identity: Self.identity(id: 42, login: "same-login"),
+                label: "same-login")
+        }
+        task.cancel()
+        #expect(await task.value == nil)
+        #expect(settings.tokenAccounts(for: .copilot).isEmpty)
+    }
+
+    private static func encodedAccounts(_ accounts: [ProviderTokenAccount]) throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        return try encoder.encode(accounts)
+    }
+
     @Test(arguments: ["octocat", "different-user"])
     func `resolved different user cannot match a legacy account by login or label`(storedLogin: String) async {
         let legacy = Self.makeAccount(label: "octocat (Pro)", token: "old-token", externalIdentifier: nil)

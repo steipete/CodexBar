@@ -4,6 +4,24 @@ import Testing
 
 struct CopilotUsageFetcherTests {
     @Test
+    func `identity lookup follows the configured enterprise API host`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            let url = try #require(request.url)
+            #expect(url.absoluteString == "https://api.example.ghe.com:8443/user")
+            #expect(request.httpMethod == "GET")
+            #expect(request.value(forHTTPHeaderField: "Authorization") == "token fixture-token")
+            #expect(request.value(forHTTPHeaderField: "Accept") == "application/json")
+            let response = try #require(HTTPURLResponse(
+                url: url, statusCode: 200, httpVersion: nil, headerFields: nil))
+            return (Data(#"{"id":42,"login":"same-login"}"#.utf8), response)
+        }
+        let identity = try await CopilotUsageFetcher.fetchGitHubIdentity(
+            token: "fixture-token", enterpriseHost: "https://example.ghe.com:8443/login", transport: transport)
+        #expect(identity == CopilotUsageFetcher.GitHubUserIdentity(id: 42, login: "same-login"))
+        #expect(await transport.requests().count == 1)
+    }
+
+    @Test
     func `fetchGitHubIdentity uses shared client`() async throws {
         let transport = ProviderHTTPTransportStub { request in
             guard request.value(forHTTPHeaderField: "Authorization") == "token test-token-placeholder" else {
