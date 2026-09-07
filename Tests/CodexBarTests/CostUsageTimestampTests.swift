@@ -139,7 +139,7 @@ struct CostUsageTimestampTests {
         let until = try #require(Self.historicalDate("2026-03-31T00:00:00Z"))
         let report = CostUsageScanner.loadDailyReport(
             provider: .claude, since: since, until: until, now: until, options: options)
-        let cache = CostUsageClaudeCacheIO.load(provider: .claude, cacheRoot: env.cacheRoot)
+        let cache = CostUsageClaudeCacheIO.load(provider: .claude, cacheRoot: env.cacheRoot).usage
         #expect(cache.days == expectedDays)
         #expect(cache.files.values.flatMap { $0.claudeRows ?? [] } == parsed.rows)
         #expect(report.data.count == expectedDays.count)
