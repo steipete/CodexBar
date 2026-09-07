@@ -185,20 +185,19 @@ struct CopilotLoginFlow {
             return byLegacyLogin
         }
 
-        let legacyAccounts = existingAccounts.filter { $0.externalIdentifier == nil }
-        for account in legacyAccounts {
-            guard let resolvedIdentity = await legacyIdentityResolver(account) else { continue }
-            if resolvedIdentity.id == identity.id ||
-                self.normalizedGitHubLogin(resolvedIdentity.login) == login
+        var labelFallback: ProviderTokenAccount?
+        for account in existingAccounts where account.externalIdentifier == nil {
+            if let resolvedIdentity = await legacyIdentityResolver(account) {
+                if resolvedIdentity.id == identity.id {
+                    return account
+                }
+            } else if labelFallback == nil,
+                      self.displayLabelPrefix(account.label) == self.displayLabelPrefix(label)
             {
-                return account
+                labelFallback = account
             }
         }
-
-        let usernamePrefix = self.displayLabelPrefix(label)
-        return legacyAccounts.first { account in
-            self.displayLabelPrefix(account.label) == usernamePrefix
-        }
+        return labelFallback
     }
 
     static func externalIdentifier(for identity: CopilotUsageFetcher.GitHubUserIdentity) -> String {

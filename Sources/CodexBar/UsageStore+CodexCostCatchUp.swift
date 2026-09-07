@@ -142,7 +142,8 @@ extension UsageStore {
 
                     let decision = self.codexCostCatchUpDecision(
                         mode: self.codexCostCatchUpMode,
-                        previousActiveDuration: previousActiveDuration)
+                        previousActiveDuration: previousActiveDuration,
+                        resourceState: self._test_codexCostCatchUpResourceStateOverride?())
                     switch decision.action {
                     case let .pause(delay, reason):
                         self.publishCodexCostCatchUpActivity(
@@ -354,20 +355,29 @@ extension UsageStore {
             calendar: self.settings.costUsageBucketCalendar)
     }
 
-    private func codexCostCatchUpDecision(
+    func codexCostCatchUpDecision(
         mode: CodexCostCatchUpMode,
-        previousActiveDuration: TimeInterval?) -> CodexCostCatchUpPolicy.Decision
+        previousActiveDuration: TimeInterval?,
+        resourceState: (
+            powerSource: CodexCostCatchUpPowerSource,
+            lowPowerModeEnabled: Bool,
+            thermalState: ProcessInfo.ThermalState)? = nil)
+        -> CodexCostCatchUpPolicy.Decision
     {
-        let resourceState = self._test_codexCostCatchUpResourceStateOverride?() ?? (
+        let resourceState = resourceState ?? (
             powerSource: CodexCostCatchUpPowerSource.current(),
             lowPowerModeEnabled: ProcessInfo.processInfo.isLowPowerModeEnabled,
             thermalState: ProcessInfo.processInfo.thermalState)
-        return CodexCostCatchUpPolicy().decision(for: .init(
+        let decision = CodexCostCatchUpPolicy().decision(for: .init(
             mode: mode,
             previousActiveDuration: previousActiveDuration,
             powerSource: resourceState.powerSource,
             lowPowerModeEnabled: resourceState.lowPowerModeEnabled,
             thermalState: resourceState.thermalState))
+        guard mode == .automatic, case let .runAfter(delay) = decision.action else { return decision }
+        let interval = BackgroundWorkPowerPolicy.automaticInterval(
+            delay, lowPowerModeEnabled: self.settings.backgroundWorkLowPowerModeEnabled) ?? delay
+        return .init(action: .runAfter(interval), targetDutyCycle: decision.targetDutyCycle)
     }
 
     private func publishCodexCostCatchUpActivity(

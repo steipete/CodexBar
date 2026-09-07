@@ -5,17 +5,17 @@ final class ConfigFileWatcher: @unchecked Sendable {
     typealias ChangeHandler = @Sendable () -> Void
 
     private let fileURL: URL
-    private let queue: DispatchQueue
+    private let queue = DispatchQueue(label: "com.steipete.codexbar.config-file-watcher", qos: .utility)
     private let changeHandler: ChangeHandler
     private let lock = NSLock()
     private var source: DispatchSourceFileSystemObject?
-    private var expectedAppWriteHash: String?
+    private var observedHash: String?
     private var stopped = false
 
     init(fileURL: URL, changeHandler: @escaping ChangeHandler) {
         self.fileURL = fileURL
-        self.queue = DispatchQueue(label: "com.steipete.codexbar.config-file-watcher", qos: .utility)
         self.changeHandler = changeHandler
+        self.observedHash = (try? Data(contentsOf: fileURL)).map { CanonicalSyncJSON.hash(data: $0) }
     }
 
     func start() {
@@ -34,9 +34,11 @@ final class ConfigFileWatcher: @unchecked Sendable {
         }
     }
 
-    func noteAppWrite(data: Data) {
-        self.lock.withLock {
-            self.expectedAppWriteHash = CanonicalSyncJSON.hash(data: data)
+    static func withAppWrite(_ data: Data, watcher: ConfigFileWatcher?, operation: () throws -> Void) rethrows {
+        guard let watcher else { return try operation() }
+        try watcher.lock.withLock {
+            try operation()
+            watcher.observedHash = CanonicalSyncJSON.hash(data: data)
         }
     }
 
@@ -63,9 +65,7 @@ final class ConfigFileWatcher: @unchecked Sendable {
             let flags = source?.data ?? []
             self.processChange()
             if flags.contains(.rename) || flags.contains(.delete) || watchedURL != self.fileURL {
-                source?.cancel()
-                self.source = nil
-                self.queue.asyncAfter(deadline: .now() + 0.05) { [weak self] in self?.arm() }
+                self.arm()
             }
         }
         source.setCancelHandler {
@@ -73,13 +73,19 @@ final class ConfigFileWatcher: @unchecked Sendable {
         }
         self.source = source
         source.resume()
+        // Reconcile changes made before the new descriptor began observing.
+        self.processChange()
     }
 
     private func processChange() {
-        guard let data = try? Data(contentsOf: self.fileURL) else { return }
-        let hash = CanonicalSyncJSON.hash(data: data)
-        let isAppWrite = self.lock.withLock { self.expectedAppWriteHash == hash }
-        guard !isAppWrite else { return }
-        self.changeHandler()
+        let changed = self.lock.withLock {
+            guard !self.stopped, let data = try? Data(contentsOf: self.fileURL) else { return false }
+            let hash = CanonicalSyncJSON.hash(data: data)
+            defer { self.observedHash = hash }
+            return self.observedHash != hash
+        }
+        if changed {
+            self.changeHandler()
+        }
     }
 }

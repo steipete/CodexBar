@@ -9,6 +9,7 @@ read_when:
 
 ## Scripts
 - `Scripts/package_app.sh`: builds host arch with ad-hoc signing by default; set `ARCHES="arm64 x86_64"` for universal. Verifies slices. Stable-certificate packaging requires explicit `CODEXBAR_SIGNING=identity` plus `APP_IDENTITY`.
+- The bundled Developer ID provisioning profile and CloudKit entitlements apply only to upstream-team release builds. An alternate resolved `APP_TEAM_ID` retains its matching app/widget groups without that upstream profile; direct callers remain responsible for selecting a team consistent with their identity.
 - `Scripts/compile_and_run.sh`: uses host arch; pass `--release-universal` or `--release-arches="arm64 x86_64"` for release packaging.
 - `Scripts/sign-and-notarize.sh`: explicitly selects Developer ID signing, notarizes, staples, and zips (accepts `ARCHES` for universal).
 - `Scripts/make_appcast.sh`: wrapper around the shared `mac-release make-appcast` helper; app metadata comes from `.mac-release.env`.

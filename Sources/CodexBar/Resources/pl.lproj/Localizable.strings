@@ -502,7 +502,6 @@
 "provider_accent_color_reset" = "Użyj domyślnego";
 "quota_warnings_title" = "Ostrzeżenia limitu";
 "quota_warning_session" = "sesja";
-"quota_warning_session_capitalized" = "Sesja";
 "quota_warning_weekly" = "tydzień";
 "quota_warning_weekly_capitalized" = "Tydzień";
 "quota_warning_notification_title" = "Niski limit %1$@ (%2$@)";

@@ -512,7 +512,6 @@
 "provider_accent_color_reset" = "Dùng mặc định";
 "quota_warnings_title" = "Hạn mức cảnh báo";
 "quota_warning_session" = "phiên";
-"quota_warning_session_capitalized" = "Phiên";
 "quota_warning_weekly" = "hàng tuần";
 "quota_warning_weekly_capitalized" = "Hàng tuần";
 "quota_warning_notification_title" = "%1$@ %2$@ Hạn mức thấp";

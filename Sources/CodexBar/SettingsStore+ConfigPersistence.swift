@@ -40,9 +40,6 @@ extension SettingsStore {
                 self?.reloadConfig(reason: "file-watch", origin: .localFile)
             }
         }
-        if let data = try? Data(contentsOf: self.configStore.fileURL) {
-            watcher.noteAppWrite(data: data)
-        }
         self.configFileWatcher = watcher
         watcher.start()
     }
@@ -266,8 +263,9 @@ extension SettingsStore {
         if Self.isRunningTests {
             do {
                 let data = try self.configStore.encodedData(for: self.config)
-                self.configFileWatcher?.noteAppWrite(data: data)
-                try self.configStore.saveEncodedData(data)
+                try ConfigFileWatcher.withAppWrite(data, watcher: self.configFileWatcher) {
+                    try self.configStore.saveEncodedData(data)
+                }
             } catch {
                 CodexBarLog.logger(LogCategories.configStore).error("Failed to persist config: \(error)")
             }
@@ -286,14 +284,15 @@ extension SettingsStore {
             let data: Data
             do {
                 data = try store.encodedData(for: snapshot)
-                watcher?.noteAppWrite(data: data)
             } catch {
                 CodexBarLog.logger(LogCategories.configStore).error("Failed to encode config: \(error)")
                 return
             }
             let error: (any Error)? = await Task.detached(priority: .utility) {
                 do {
-                    try store.saveEncodedData(data)
+                    try ConfigFileWatcher.withAppWrite(data, watcher: watcher) {
+                        try store.saveEncodedData(data)
+                    }
                     return nil
                 } catch {
                     return error

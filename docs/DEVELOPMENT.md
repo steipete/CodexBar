@@ -131,7 +131,9 @@ See the canonical [provider authoring guide](provider.md#adding-a-new-provider) 
 
 Status-item creation checks the item's saved preferred position and its matching legacy key before assigning the
 autosave name. Malformed, non-finite, non-positive, and out-of-bounds positions are removed; unrelated items are
-untouched. When no display bound is available, finite positive positions are preserved. Isolated placement tests
+untouched. The bound is at least the widest connected display's width in points and retains any larger legacy global
+coordinate bound, plus the existing safety padding. This avoids newly deleting menu-manager parking positions while
+covering wide displays left of the primary screen. When no display bound is available, finite positive positions are preserved. Isolated placement tests
 cover this cleanup without creating status items or changing the user's saved preferences. Passing these tests does
 not establish the cause of a position that changes again after launch; that requires runtime placement evidence.
 

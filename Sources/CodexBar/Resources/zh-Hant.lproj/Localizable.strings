@@ -521,7 +521,6 @@
 "provider_accent_color_reset" = "使用預設值";
 "quota_warnings_title" = "配額提醒";
 "quota_warning_session" = "工作階段";
-"quota_warning_session_capitalized" = "工作階段";
 "quota_warning_weekly" = "每週";
 "quota_warning_weekly_capitalized" = "每週";
 "quota_warning_notification_title" = "%1$@ %2$@配額偏低";

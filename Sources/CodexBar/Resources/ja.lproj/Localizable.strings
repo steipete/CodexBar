@@ -513,7 +513,6 @@
 "provider_accent_color_reset" = "デフォルトを使用";
 "quota_warnings_title" = "クォータ警告";
 "quota_warning_session" = "セッション";
-"quota_warning_session_capitalized" = "セッション";
 "quota_warning_weekly" = "週間";
 "quota_warning_weekly_capitalized" = "週間";
 "quota_warning_notification_title" = "%1$@ の%2$@クォータが残りわずか";
