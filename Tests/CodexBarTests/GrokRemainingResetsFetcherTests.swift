@@ -154,11 +154,34 @@ struct GrokRemainingResetsFetcherTests {
     }
 
     @Test
-    func `skips remaining resets when credentials are expired and no cookie is present`() async {
-        let tokens = await GrokRemainingResetsFetcher.fetch(
+    func `uses captured credentials despite stale expiry metadata`() async throws {
+        GrokRemainingResetsFetcher.resetCacheForTesting()
+        GrokRemainingResetsStubURLProtocol.reset()
+        defer {
+            GrokRemainingResetsFetcher.resetCacheForTesting()
+            GrokRemainingResetsStubURLProtocol.reset()
+        }
+        let session = Self.makeSession()
+        let endpoint = try #require(URL(string: "https://grok.test/remaining-resets"))
+        GrokRemainingResetsStubURLProtocol.handler = { request in
+            #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer expired-token")
+            return try Self.response(for: request, body: Self.liveFrame)
+        }
+        let lookup = GrokRemainingResetsFetcher.cachedLookupAndRefresh(
             credentials: Self.expiredCredentials,
-            cookieHeader: nil)
-        #expect(tokens.isEmpty)
+            cookieHeader: nil,
+            now: Date(timeIntervalSince1970: 1_787_647_576),
+            refresh: { credentials, cookieHeader, now in
+                await GrokRemainingResetsFetcher.fetchResult(
+                    credentials: credentials,
+                    cookieHeader: cookieHeader,
+                    now: now,
+                    session: session,
+                    endpoint: endpoint)
+            })
+        let snapshot = try #require(await lookup.snapshotTask?.value)
+        #expect(snapshot.expirations.count == 1)
+        #expect(GrokRemainingResetsStubURLProtocol.requests.count == 1)
     }
 
     @Test

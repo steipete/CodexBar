@@ -439,6 +439,7 @@ struct GrokWebFetchStrategy: ProviderFetchStrategy {
     typealias WebBillingFetch =
         @Sendable (Result<GrokCredentials, Error>) async throws -> GrokWebBillingResult
     typealias SettingsTierFetch = @Sendable (GrokCredentials?) async throws -> String?
+    var remainingResetsLookup: GrokRemainingResetsLookup = Self.defaultRemainingResetsLookup
     static let defaultRemainingResetsLookup: GrokRemainingResetsLookup = { credentials, cookieHeader, now in
         GrokRemainingResetsFetcher.cachedLookupAndRefresh(
             credentials: credentials,
@@ -489,8 +490,7 @@ struct GrokWebFetchStrategy: ProviderFetchStrategy {
         _ context: ProviderFetchContext,
         webBilling fetchWebBilling: @escaping WebBillingFetch,
         settingsTier loadSettingsTier: SettingsTierFetch? = nil,
-        remainingResets lookupRemainingResets: @escaping GrokRemainingResetsLookup =
-            Self.defaultRemainingResetsLookup) async throws -> ProviderFetchResult
+        remainingResets lookupRemainingResets: GrokRemainingResetsLookup? = nil) async throws -> ProviderFetchResult
     {
         // Billing and enrichment share one capture even if `grok login` replaces auth.json during an await.
         let capturedCredentials = self.loadCredentials(context)
@@ -544,7 +544,7 @@ struct GrokWebFetchStrategy: ProviderFetchStrategy {
             subscriptionTier: subscriptionTier ?? enrichedBilling.subscriptionTier)
         let usage = snapshot.toUsageSnapshot()
         let resetLookup = context.includeOptionalUsage
-            ? lookupRemainingResets(
+            ? (lookupRemainingResets ?? self.remainingResetsLookup)(
                 billingResult.authContext.credentials,
                 billingResult.authContext.cookieHeader,
                 snapshot.updatedAt)

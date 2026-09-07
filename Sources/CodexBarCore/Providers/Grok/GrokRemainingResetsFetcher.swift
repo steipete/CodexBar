@@ -240,9 +240,7 @@ enum GrokRemainingResetsFetcher {
         session transport: any ProviderHTTPTransport = ProviderHTTPClient.shared,
         endpoint: URL = Self.defaultEndpoint) async -> [GrokRemainingReset]?
     {
-        let authorizationHeader = credentials.flatMap { credential in
-            credential.isExpired ? nil : "Bearer \(credential.accessToken)"
-        }
+        let authorizationHeader = credentials.map { "Bearer \($0.accessToken)" }
         guard authorizationHeader != nil || !(cookieHeader?.isEmpty ?? true) else {
             return []
         }
@@ -269,7 +267,7 @@ enum GrokRemainingResetsFetcher {
 
     private static func cacheKey(credentials: GrokCredentials?, cookieHeader: String?) -> String? {
         var components: [String] = []
-        if let credentials, !credentials.isExpired {
+        if let credentials {
             components.append("bearer:\(CookieHeaderCache.credentialFingerprint(credentials.accessToken))")
         }
         if let cookieHeader = GrokCredentialRouting.normalizedWebCookie(cookieHeader) {

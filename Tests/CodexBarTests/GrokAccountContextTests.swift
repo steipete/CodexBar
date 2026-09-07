@@ -279,7 +279,7 @@ struct GrokAccountContextTests {
 
 extension GrokWebFetchStrategy {
     static var isolated: Self {
-        Self(localSummary: { _ in nil }, cliVersion: { _ in nil })
+        Self(localSummary: { _ in nil }, cliVersion: { _ in nil }, remainingResetsLookup: { _, _, _ in .empty })
     }
 }
 
