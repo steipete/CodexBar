@@ -17,8 +17,8 @@ public enum OpenRouterProviderDescriptor {
         additionalProjections: [.enterpriseHost(OpenRouterSettingsReader.apiURLEnvironmentKey)],
         resolve: OpenRouterSettingsReader.apiToken,
         tokenAccountSupport: TokenAccountSupport(
-            title: "API keys",
-            subtitle: "Store multiple OpenRouter API keys.",
+            title: "Inference API keys",
+            subtitle: "Store multiple OpenRouter inference keys. Management keys also work here on the official API.",
             placeholder: "sk-or-v1-...",
             injection: .environment(key: OpenRouterSettingsReader.envKey),
             requiresManualCookieSource: false,

@@ -44,10 +44,10 @@ struct OpenRouterProviderImplementation: ProviderImplementation {
         [
             ProviderSettingsFieldDescriptor(
                 id: "openrouter-api-key",
-                title: "API key",
+                title: "Inference or management API key",
                 subtitle: "Stored in ~/.codexbar/config.json. "
-                    + "Get your key from openrouter.ai/settings/keys and set a key spending limit "
-                    + "there to enable API key quota tracking.",
+                    + "Inference keys provide credits and key quota. On the official OpenRouter API, "
+                    + "management keys also add 30-day tokens, models, requests, and spend.",
                 kind: .secure,
                 placeholder: "sk-or-v1-...",
                 binding: context.providerConfigBinding(.apiKey),
@@ -67,7 +67,8 @@ struct OpenRouterProviderImplementation: ProviderImplementation {
             ProviderSettingsFieldDescriptor(
                 id: "openrouter-management-api-key",
                 title: "Management API key",
-                subtitle: "Optional. Enables exact 30-day account spend from OpenRouter Activity.",
+                subtitle: "Optional separate credential. Adds exact tokens, models, requests, and spend for the "
+                    + "last 30 completed UTC days to Usage & Spend.",
                 kind: .secure,
                 placeholder: "sk-or-v1-...",
                 binding: context.providerConfigSecretBinding(

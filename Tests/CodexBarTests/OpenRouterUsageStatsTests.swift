@@ -222,6 +222,76 @@ struct OpenRouterPluginGoldenTests {
         #expect(ordinary.allSatisfy { $0.value(forHTTPHeaderField: "Authorization") == "Bearer standard-key" })
     }
 
+    @Test(arguments: [
+        "https://openrouter.ai/api/v1",
+        "https://openrouter.ai:443/api/v1",
+        "HTTPS://OPENROUTER.AI/api/v1/",
+    ])
+    func `management key in standard slot fetches activity on official API`(apiURL: String) async throws {
+        let requests = OpenRouterRequestRecorder()
+        let activityBody = #"""
+        {"data":[{
+          "date":"2026-08-17", "model":"openai/gpt-5.6",
+          "prompt_tokens":1000, "completion_tokens":250, "reasoning_tokens":100,
+          "requests":3, "usage":1.5
+        }]}
+        """#
+        let runtime = try ProviderPluginRuntime(
+            bundledPlugin: "openrouter",
+            transport: ProviderHTTPTransportHandler { request in
+                await requests.append(request)
+                let path = request.url?.path ?? ""
+                if path.hasSuffix("/activity") {
+                    return try Self.response(request, body: activityBody)
+                }
+                if path.hasSuffix("/key") {
+                    return try Self.response(request, body: #"{"data":{"is_management_key":true}}"#)
+                }
+                return try Self.response(request, body: Self.defaultCreditsBody)
+            })
+
+        let usage = try await runtime.fetchUsage(
+            settings: [OpenRouterSettingsReader.apiURLEnvironmentKey: apiURL],
+            secrets: [OpenRouterSettingsReader.envKey: "management-key"],
+            now: Date(timeIntervalSince1970: 1_787_079_600))
+        let activityRequests = await requests.requests.filter { $0.url?.path.hasSuffix("/activity") == true }
+
+        #expect(activityRequests.count == 2)
+        #expect(activityRequests.allSatisfy { $0.url?.host == "openrouter.ai" })
+        #expect(activityRequests.allSatisfy {
+            $0.value(forHTTPHeaderField: "Authorization") == "Bearer management-key"
+        })
+        #expect(usage.costUsage?.last30DaysTokens == 1250)
+        #expect(usage.detailRow(label: "Tracked tokens")?.value == "1,250")
+        #expect(usage.detailRow(label: "Models")?.secondaryValue == "openai/gpt-5.6")
+    }
+
+    @Test(arguments: [
+        "https://proxy.example/api/v1",
+        "https://openrouter.ai:444/api/v1",
+    ])
+    func `custom API cannot promote standard key to management activity`(apiURL: String) async throws {
+        let requests = OpenRouterRequestRecorder()
+        let runtime = try ProviderPluginRuntime(
+            bundledPlugin: "openrouter",
+            transport: ProviderHTTPTransportHandler { request in
+                await requests.append(request)
+                if request.url?.path.hasSuffix("/key") == true {
+                    return try Self.response(request, body: #"{"data":{"is_management_key":true}}"#)
+                }
+                return try Self.response(request, body: Self.defaultCreditsBody)
+            })
+
+        let usage = try await runtime.fetchUsage(
+            settings: [OpenRouterSettingsReader.apiURLEnvironmentKey: apiURL],
+            secrets: [OpenRouterSettingsReader.envKey: "proxy-key"])
+        let activityRequests = await requests.requests.filter { $0.url?.path.hasSuffix("/activity") == true }
+
+        #expect(activityRequests.isEmpty)
+        #expect(usage.costUsage == nil)
+        #expect(usage.detailRow(label: "Last 30 days")?.secondaryValue == "Management API key not configured")
+    }
+
     @Test
     func `activity requests the latest completed UTC day`() async throws {
         let requests = OpenRouterRequestRecorder()
@@ -470,6 +540,13 @@ struct OpenRouterPluginGoldenTests {
         #expect(abs((cost.last30DaysCostUSD ?? -1) - 39.79) < 1e-9)
         #expect(cost.last30DaysCostUSD?.isFinite == true)
         #expect(cost.daily.count == 2)
+        #expect(usage.detailRow(label: "Tracked tokens")?.value == "555")
+        #expect(usage.detailRow(label: "Tracked tokens")?.secondaryValue == "402 input · 153 output")
+        #expect(usage.detailRow(label: "Requests")?.value == "7")
+        #expect(usage.detailRow(label: "Spend")?.value == "$39.79")
+        #expect(usage.detailRow(label: "Models")?.value == "3")
+        #expect(usage.detailRow(label: "Models")?.secondaryValue ==
+            "anthropic/claude-opus-4.1, openai/gpt-5.6, x-ai/grok-4")
 
         let august17 = try #require(cost.daily.first { $0.date == "2026-08-17" })
         #expect(august17.inputTokens == 102)
@@ -490,6 +567,35 @@ struct OpenRouterPluginGoldenTests {
         #expect(model.totalTokens == 150)
         #expect(model.requestCount == 2)
         #expect(abs((model.costUSD ?? -1) - 12.345) < 1e-9)
+    }
+
+    @Test
+    func `activity bounds card model summary while retaining complete cost data`() async throws {
+        let models = [
+            "provider/alpha-model-with-a-very-long-descriptive-name-01",
+            "provider/beta-model-with-a-very-long-descriptive-name-02",
+            "provider/gamma-model-with-a-very-long-descriptive-name-03",
+        ]
+        let rows = models.enumerated().map { index, model in
+            """
+            {"date":"2026-08-17","model":"\(model)","endpoint_id":"endpoint-\(index)",
+             "prompt_tokens":100,"completion_tokens":50,"reasoning_tokens":10,"requests":2,"usage":1.25}
+            """
+        }.joined(separator: ",")
+        let usage = try await Self.fetch(
+            activityBody: "{\"data\":[\(rows)]}",
+            now: Date(timeIntervalSince1970: 1_787_079_600))
+        let modelRow = try #require(usage.detailRow(label: "Models"))
+        let summary = try #require(modelRow.secondaryValue)
+        let day = try #require(usage.costUsage?.daily.first)
+
+        #expect(modelRow.value == "3")
+        #expect(summary == "\(models[0]) · +2 more")
+        #expect(summary.count <= ProviderDetailSection.maximumStringLength)
+        #expect(day.modelsUsed == models)
+        #expect(day.modelBreakdowns?.map(\.modelName) == models)
+        #expect(usage.costUsage?.last30DaysTokens == 450)
+        #expect(usage.costUsage?.last30DaysRequests == 6)
     }
 
     @Test(arguments: ["2026-08-23", "2026-08-23 00:00:00"])
@@ -613,6 +719,20 @@ struct OpenRouterPluginGoldenTests {
           {
             "date":"2026-08-17", "model":"openai/gpt-5.6",
             "prompt_tokens":5000000000000000000, "completion_tokens":0, "reasoning_tokens":0,
+            "requests":1, "usage":1
+          }
+        ]}
+        """#,
+        #"""
+        {"data":[
+          {
+            "date":"2026-08-17", "model":"openai/gpt-5.6", "endpoint_id":"input",
+            "prompt_tokens":5000000000000000, "completion_tokens":0, "reasoning_tokens":0,
+            "requests":1, "usage":1
+          },
+          {
+            "date":"2026-08-17", "model":"openai/gpt-5.6", "endpoint_id":"output",
+            "prompt_tokens":0, "completion_tokens":5000000000000000, "reasoning_tokens":0,
             "requests":1, "usage":1
           }
         ]}
