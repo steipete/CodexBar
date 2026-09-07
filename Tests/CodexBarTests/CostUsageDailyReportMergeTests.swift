@@ -4,6 +4,44 @@ import Testing
 
 struct CostUsageDailyReportMergeTests {
     @Test(arguments: [nil, 0, 7] as [Int?])
+    func `project cost summaries preserve optional totals and omit activity detail`(_ amount: Int?) {
+        let source = CostUsageDailyReport.ModelBreakdown(
+            modelName: "fixture-model",
+            costUSD: amount.map(Double.init),
+            totalTokens: amount,
+            requestCount: 2,
+            inputTokens: 10,
+            outputTokens: 3,
+            cacheReadTokens: 4,
+            cacheCreationTokens: 5,
+            reasoningTokens: 1,
+            standardCostUSD: amount.map(Double.init),
+            priorityCostUSD: amount.map(Double.init),
+            standardTokens: amount,
+            priorityTokens: amount)
+        let entries = ["2026-09-01", "2026-09-02"].map { day in
+            CostUsageDailyReport.Entry(
+                date: day,
+                inputTokens: nil,
+                outputTokens: nil,
+                totalTokens: nil,
+                costUSD: nil,
+                modelsUsed: [source.modelName],
+                modelBreakdowns: [source])
+        }
+        let expected = CostUsageDailyReport.ModelBreakdown(
+            modelName: source.modelName,
+            costUSD: amount.map { Double($0 * 2) },
+            totalTokens: amount.map { $0 * 2 },
+            standardCostUSD: amount.map { Double($0 * 2) },
+            priorityCostUSD: amount.map { Double($0 * 2) },
+            standardTokens: amount.map { $0 * 2 },
+            priorityTokens: amount.map { $0 * 2 })
+        #expect(CostUsageDailyReport.modelCostSummaries(from: entries) == [expected])
+        #expect(CostUsageDailyReport.modelCostSummaries(from: []) == [])
+    }
+
+    @Test(arguments: [nil, 0, 7] as [Int?])
     func `single report merge preserves known zero and missing token classes`(_ value: Int?) throws {
         let mix = CostUsageTokenMix(
             inputTokens: value,

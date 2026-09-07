@@ -511,7 +511,7 @@ struct PiSessionCostScannerTests {
         releasedCache.pricingKey = CostUsagePricingKey.codex(
             modelsDevArtifact: ModelsDevCache.load(now: day, cacheRoot: env.cacheRoot).artifact,
             formulaVersion: 2,
-            parserHash: "9547dc9d7b7675f6",
+            parserHash: CodexParserHash.value,
             modelsDevProviderIDs: CostUsagePricing.codexModelsDevProviderIDs.union(
                 Set(CostUsagePricing.claudeFirstPartyModelsDevProviderIDs)))
         PiSessionCostCacheIO.save(cache: releasedCache, cacheRoot: env.cacheRoot)

@@ -718,6 +718,18 @@ public struct CostUsageDailyReport: Sendable, Decodable {
 }
 
 extension CostUsageDailyReport {
+    static func modelCostSummaries(from entries: [Entry]) -> [ModelBreakdown] {
+        var accumulators: [String: BreakdownAccumulator] = [:]
+        for entry in entries {
+            for breakdown in entry.modelBreakdowns ?? [] {
+                accumulators[breakdown.modelName, default: BreakdownAccumulator()].add(breakdown)
+            }
+        }
+        return accumulators.map { name, accumulator in
+            accumulator.build(modelName: name, includeActivity: false)
+        }
+    }
+
     private struct OptionalCountAccumulator {
         private(set) var value: Int?
         private var overflowed = false
@@ -780,17 +792,17 @@ extension CostUsageDailyReport {
             }
         }
 
-        func build(modelName: String) -> ModelBreakdown {
+        func build(modelName: String, includeActivity: Bool = true) -> ModelBreakdown {
             ModelBreakdown(
                 modelName: modelName,
                 costUSD: self.sawCost ? self.costUSD : nil,
                 totalTokens: self.sawTotalTokens ? self.totalTokens : nil,
-                requestCount: self.requestCount.value,
-                inputTokens: self.tokenMix.inputTokens,
-                outputTokens: self.tokenMix.outputTokens,
-                cacheReadTokens: self.tokenMix.cacheReadTokens,
-                cacheCreationTokens: self.tokenMix.cacheCreationTokens,
-                reasoningTokens: self.tokenMix.reasoningTokens,
+                requestCount: includeActivity ? self.requestCount.value : nil,
+                inputTokens: includeActivity ? self.tokenMix.inputTokens : nil,
+                outputTokens: includeActivity ? self.tokenMix.outputTokens : nil,
+                cacheReadTokens: includeActivity ? self.tokenMix.cacheReadTokens : nil,
+                cacheCreationTokens: includeActivity ? self.tokenMix.cacheCreationTokens : nil,
+                reasoningTokens: includeActivity ? self.tokenMix.reasoningTokens : nil,
                 standardCostUSD: self.sawStandardCost ? self.standardCostUSD : nil,
                 priorityCostUSD: self.sawPriorityCost ? self.priorityCostUSD : nil,
                 standardTokens: self.sawStandardTokens ? self.standardTokens : nil,

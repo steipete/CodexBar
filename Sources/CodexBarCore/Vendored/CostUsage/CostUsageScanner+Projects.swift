@@ -123,7 +123,8 @@ extension CostUsageScanner {
                 ?? ""
             let sourceKey = usage.projectPath ?? ""
             var accumulator = accumulatorsByProjectPath[projectKey] ?? CodexProjectBreakdownAccumulator()
-            accumulator.add(filePath: filePath, usage: usage, report: report, sourcePath: sourceKey)
+            accumulator.files[filePath] = usage
+            accumulator.reportsBySourcePath[sourceKey, default: []].append(report)
             accumulatorsByProjectPath[projectKey] = accumulator
         }
 
@@ -172,16 +173,6 @@ extension CostUsageScanner {
     private struct CodexProjectBreakdownAccumulator {
         var files: [String: CostUsageFileUsage] = [:]
         var reportsBySourcePath: [String: [CostUsageDailyReport]] = [:]
-
-        mutating func add(
-            filePath: String,
-            usage: CostUsageFileUsage,
-            report: CostUsageDailyReport,
-            sourcePath: String)
-        {
-            self.files[filePath] = usage
-            self.reportsBySourcePath[sourcePath, default: []].append(report)
-        }
     }
 
     private static func codexProjectSourceBreakdowns(
@@ -213,73 +204,10 @@ extension CostUsageScanner {
         }
     }
 
-    private struct ProjectBreakdownAccumulator {
-        var totalTokens = 0
-        var sawTotalTokens = false
-        var costUSD: Double = 0
-        var sawCost = false
-        var standardCostUSD: Double = 0
-        var sawStandardCost = false
-        var priorityCostUSD: Double = 0
-        var sawPriorityCost = false
-        var standardTokens = 0
-        var sawStandardTokens = false
-        var priorityTokens = 0
-        var sawPriorityTokens = false
-
-        mutating func add(_ breakdown: CostUsageDailyReport.ModelBreakdown) {
-            if let totalTokens = breakdown.totalTokens {
-                self.totalTokens += totalTokens
-                self.sawTotalTokens = true
-            }
-            if let costUSD = breakdown.costUSD {
-                self.costUSD += costUSD
-                self.sawCost = true
-            }
-            if let standardCostUSD = breakdown.standardCostUSD {
-                self.standardCostUSD += standardCostUSD
-                self.sawStandardCost = true
-            }
-            if let priorityCostUSD = breakdown.priorityCostUSD {
-                self.priorityCostUSD += priorityCostUSD
-                self.sawPriorityCost = true
-            }
-            if let standardTokens = breakdown.standardTokens {
-                self.standardTokens += standardTokens
-                self.sawStandardTokens = true
-            }
-            if let priorityTokens = breakdown.priorityTokens {
-                self.priorityTokens += priorityTokens
-                self.sawPriorityTokens = true
-            }
-        }
-
-        func build(modelName: String) -> CostUsageDailyReport.ModelBreakdown {
-            CostUsageDailyReport.ModelBreakdown(
-                modelName: modelName,
-                costUSD: self.sawCost ? self.costUSD : nil,
-                totalTokens: self.sawTotalTokens ? self.totalTokens : nil,
-                standardCostUSD: self.sawStandardCost ? self.standardCostUSD : nil,
-                priorityCostUSD: self.sawPriorityCost ? self.priorityCostUSD : nil,
-                standardTokens: self.sawStandardTokens ? self.standardTokens : nil,
-                priorityTokens: self.sawPriorityTokens ? self.priorityTokens : nil)
-        }
-    }
-
     private static func codexProjectModelBreakdowns(
         from entries: [CostUsageDailyReport.Entry]) -> [CostUsageDailyReport.ModelBreakdown]?
     {
-        var accumulators: [String: ProjectBreakdownAccumulator] = [:]
-        for entry in entries {
-            for breakdown in entry.modelBreakdowns ?? [] {
-                var accumulator = accumulators[breakdown.modelName] ?? ProjectBreakdownAccumulator()
-                accumulator.add(breakdown)
-                accumulators[breakdown.modelName] = accumulator
-            }
-        }
-        guard !accumulators.isEmpty else { return nil }
-        return Self.sortedModelBreakdowns(accumulators.map { modelName, accumulator in
-            accumulator.build(modelName: modelName)
-        })
+        let summaries = CostUsageDailyReport.modelCostSummaries(from: entries)
+        return summaries.isEmpty ? nil : Self.sortedModelBreakdowns(summaries)
     }
 }

@@ -8,25 +8,6 @@ import Darwin
 #endif
 
 extension CostUsageScanner {
-    private final class CodexModelsDevCatalogResolver {
-        private var catalog: ModelsDevCatalog?
-        private let cacheRoot: URL?
-
-        init(catalog: ModelsDevCatalog?, cacheRoot: URL?) {
-            self.catalog = catalog
-            self.cacheRoot = cacheRoot
-        }
-
-        func load(_ loader: (URL?) -> ModelsDevCatalog?) -> ModelsDevCatalog {
-            if let catalog {
-                return catalog
-            }
-            let loaded = loader(self.cacheRoot) ?? ModelsDevCatalog(providers: [:])
-            self.catalog = loaded
-            return loaded
-        }
-    }
-
     static func codexRowsByDayModel(
         rows: [CodexUsageRow],
         range: CostUsageDayRange) -> [String: [String: [CodexUsageRow]]]
@@ -1433,9 +1414,6 @@ extension CostUsageScanner {
         }) -> CostUsageDailyReport
     {
         let priorityTurns = priorityTurns ?? cache.codexResolvedPriorityTurns ?? [:]
-        let catalogResolver = CodexModelsDevCatalogResolver(
-            catalog: modelsDevCatalog,
-            cacheRoot: modelsDevCacheRoot)
         var reportCache = cache
         for (path, usage) in cache.files where self.needsCodexPricingMetadata(usage, range: range) {
             reportCache.files[path] = self.codexFileUsageWithPricingMetadata(
@@ -1453,7 +1431,9 @@ extension CostUsageScanner {
             .filter {
                 CostUsageDayRange.isInRange(dayKey: $0, since: range.sinceKey, until: range.untilKey)
             }
-        let catalog = catalogResolver.load(modelsDevCatalogLoader)
+        let catalog = modelsDevCatalog
+            ?? modelsDevCatalogLoader(modelsDevCacheRoot)
+            ?? ModelsDevCatalog(providers: [:])
         var pricing = CodexReportDayPricingContext(
             rowsByDayModel: [:],
             unresolvedRowGroups: [],

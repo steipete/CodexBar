@@ -55,7 +55,8 @@ struct CostUsageCustomPricingTests {
             cachedInputTokens: 0,
             outputTokens: 100,
             customPricing: overlay)
-        let aggregate = CostUsagePricing.codexAggregateCostUSD(
+        let aggregate = CostUsagePricing.codexCostUSD(
+            aggregate: true,
             model: "gpt-5.4",
             inputTokens: 1000,
             cachedInputTokens: 0,
@@ -87,14 +88,16 @@ struct CostUsageCustomPricingTests {
         let overlay = CostUsageCustomPricing.parse(Data("""
         { "gpt-5.4": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 } }
         """.utf8))
-        let cost = CostUsagePricing.codexAggregateCostUSD(
+        let cost = CostUsagePricing.codexCostUSD(
+            aggregate: true,
             model: "gpt-5.4",
             inputTokens: 1000,
             cachedInputTokens: 0,
             outputTokens: 100,
             customPricing: overlay)
         #expect(cost == 0)
-        let bundled = CostUsagePricing.codexAggregateCostUSD(
+        let bundled = CostUsagePricing.codexCostUSD(
+            aggregate: true,
             model: "gpt-5.4",
             inputTokens: 1000,
             cachedInputTokens: 0,
@@ -103,5 +106,12 @@ struct CostUsageCustomPricingTests {
             customPricing: .empty)
         #expect(bundled != 0)
         #expect(bundled != nil)
+        #expect(CostUsagePricing.codexCostUSD(
+            aggregate: true,
+            model: "gpt-5.4",
+            inputTokens: 1_000_000,
+            cachedInputTokens: 0,
+            outputTokens: 100,
+            customPricing: overlay) == 0)
     }
 }

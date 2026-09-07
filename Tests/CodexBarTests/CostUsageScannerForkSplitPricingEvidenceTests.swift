@@ -162,7 +162,8 @@ extension CostUsageScannerForkSplitTests {
 
         // The day aggregate crosses the long-context threshold, so the aggregate fallback cannot
         // price this group: only the retained rows can, and distrusting them blanks the whole day.
-        #expect(CostUsagePricing.codexAggregateCostUSD(
+        #expect(CostUsagePricing.codexCostUSD(
+            aggregate: true,
             model: model,
             inputTokens: inputPerRow * 2,
             cachedInputTokens: 0,
