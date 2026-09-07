@@ -136,7 +136,7 @@ struct MenuBarLayoutRenderKey: Hashable {
     let isDebugApp: Bool
     let isStale: Bool
     let verticalAdjustment: Int
-    let resetText: MenuBarLayoutResetText
+    let resetText: [MenuBarLayoutResetText]
     /// Truth value per conditional id. Predicates can read the clock (time to reset), so two renders
     /// with identical data and reset text can still need different branches; keying on the outcomes
     /// keeps the cache correct without putting `now` — which ticks constantly — into the key.
@@ -248,7 +248,10 @@ final class MenuBarLayoutRenderer {
         options: MenuBarLayoutRenderOptions)
         -> MenuBarLayoutRenderedTitle
     {
-        let resetText = MenuBarLayoutResetText(window: data.automatic, now: options.now)
+        let resetWindows = Set(layout.flattenedTokens(conditionals: options.conditionals).compactMap(\.resetWindow))
+        let resetText = PercentWindow.allCases
+            .filter { $0 == .automatic || resetWindows.contains($0) }
+            .map { MenuBarLayoutResetText(window: Self.window($0, data: data), now: options.now) }
         // Evaluate each conditional exactly once per render: the outcome is both a cache-key component
         // and what the token resolver needs, so re-testing per placement would only duplicate work.
         let outcomes = Dictionary(
@@ -538,6 +541,14 @@ final class MenuBarLayoutRenderer {
                 data.automatic?.resetsAt.map { UsageFormatter.resetDescription(from: $0, now: options.now) }
                     ?? data.automatic?.resetDescription,
                 unavailableLabel: L("Reset time unavailable"),
+                attributes: style.attributes)
+        case let .windowResetCountdown(window), let .windowResetAbsolute(window):
+            let text = MenuBarLayoutResetText(window: Self.window(window, data: data), now: options.now)
+            let label = item.editorLabel(provider: data.provider)
+            return self.optionalTextToken(
+                item.resetIsAbsolute ? text.absolute : text.countdown,
+                unavailableLabel: L("%@ unavailable", label),
+                accessibilityPrefix: label,
                 attributes: style.attributes)
         case .runsOut, .runsOutCompact:
             let isCompact = item == .runsOutCompact

@@ -60,6 +60,9 @@ extension StatusItemController {
         let layoutLaneSignature = showBrandPercent
             ? self.storedMenuBarLayoutLaneSignature(for: provider, snapshot: snapshot)
             : nil
+        let layoutResetSignature = showBrandPercent
+            ? self.storedMenuBarLayoutResetSignature(for: provider, snapshot: snapshot)
+            : nil
         let layoutConditionalWindowSignature = showBrandPercent
             ? self.storedMenuBarLayoutConditionalWindowSignature(for: provider, snapshot: snapshot)
             : nil
@@ -82,8 +85,26 @@ extension StatusItemController {
             "layoutPace=\(layoutPaceSignature ?? "nil")",
             "layoutBalance=\(layoutBalanceSignature ?? "nil")",
             "layoutLanes=\(layoutLaneSignature ?? "nil")",
+            "layoutResets=\(layoutResetSignature ?? "nil")",
             "layoutCondWindows=\(layoutConditionalWindowSignature ?? "nil")",
         ].joined(separator: "|")
+    }
+
+    private func storedMenuBarLayoutResetSignature(for provider: UsageProvider, snapshot: UsageSnapshot?) -> String? {
+        let resolution = self.settings.menuBarLayoutResolution(for: provider)
+        guard !resolution.usesLegacyRendering else { return nil }
+        let selections = Set(resolution.layout
+            .flattenedTokens(conditionals: self.settings.menuBarLayoutConditionals).compactMap(\.resetWindow))
+        guard !selections.isEmpty else { return nil }
+        let windows = self.menuBarLayoutWindows(provider: provider, snapshot: snapshot, now: Date())
+        var hasher = Hasher()
+        for selection in PercentWindow.allCases where selections.contains(selection) {
+            let window = windows.resetWindow(selection, snapshot: snapshot)
+            hasher.combine(selection)
+            hasher.combine(window?.resetsAt)
+            hasher.combine(window?.resetDescription)
+        }
+        return String(hasher.finalize())
     }
 
     private func storedMenuBarLayoutAccountSignature(

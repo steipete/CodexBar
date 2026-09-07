@@ -365,7 +365,8 @@ struct MenuBarLayoutConditional: Codable, Hashable, Sendable {
 
     /// This conditional as a 0.54.0-era release can read it, or nil when it cannot be represented.
     ///
-    /// Two things make an entry unreadable there. A metric outside the original four throws on decode
+    /// New window-selectable reset branches are also omitted because older token decoders reject them.
+    /// Two predicate properties make an entry unreadable there. A metric outside the original four throws on decode
     /// and takes the whole array with it. A non-`.used` direction is worse than unreadable: the extra
     /// key is silently ignored by that release's synthesized decoder, so `session remaining > 80` would
     /// come back as `session used > 80` and render the opposite branch. Dropping the entry is the honest
@@ -374,7 +375,13 @@ struct MenuBarLayoutConditional: Codable, Hashable, Sendable {
         let readable = self.clauses.allSatisfy { clause in
             clause.predicate.metric.hasLegacyRepresentation && clause.predicate.direction == .used
         }
-        return readable ? self : nil
+        let readableBranches = [self.thenToken, self.elseToken].allSatisfy { token in
+            switch token {
+            case .windowResetCountdown, .windowResetAbsolute: false
+            default: true
+            }
+        }
+        return readable && readableBranches ? self : nil
     }
 
     private static func clause(
@@ -452,6 +459,9 @@ enum MenuBarLayoutToken: Codable, Hashable, Sendable {
     case usageBar
     case resetCountdown
     case resetAbsolute
+    /// Explicit reset windows keep separate discriminators so persisted automatic tokens stay unchanged.
+    case windowResetCountdown(window: PercentWindow)
+    case windowResetAbsolute(window: PercentWindow)
     case runsOut
     case runsOutCompact
     case balance
@@ -465,6 +475,22 @@ enum MenuBarLayoutToken: Codable, Hashable, Sendable {
     /// the conditionals library; the layout stores only its identity.
     case conditional(id: UUID)
 
+    /// The semantic window read by a reset token, including the historical automatic variants.
+    var resetWindow: PercentWindow? {
+        switch self {
+        case .resetCountdown, .resetAbsolute: .automatic
+        case let .windowResetCountdown(window), let .windowResetAbsolute(window): window
+        default: nil
+        }
+    }
+
+    var resetIsAbsolute: Bool {
+        switch self {
+        case .resetAbsolute, .windowResetAbsolute: true
+        default: false
+        }
+    }
+
     var selectedLane: MenuBarLayoutLane? {
         if case let .lanePercent(lane) = self { return lane }
         return nil
@@ -476,7 +502,7 @@ enum MenuBarLayoutToken: Codable, Hashable, Sendable {
     /// failing the whole blob and losing the user's arrangement.
     var hasLegacyRepresentation: Bool {
         switch self {
-        case .conditional, .hidden: false
+        case .conditional, .hidden, .windowResetCountdown, .windowResetAbsolute: false
         default: true
         }
     }

@@ -26,6 +26,10 @@ read_when:
 - Display → Menu Bar → Layout provides presets plus a token editor. Tokens can be clicked to append, dragged from the
   palette, reordered between one or two lines, dragged out, or removed with Delete. Layouts can be global or overridden
   per provider. Manual edits select the Custom preset.
+- Time tokens offer Session and Weekly variants of Resets in and Reset at, including in conditional branches.
+  The original unqualified reset tokens continue to follow the automatic window. A selected window that is
+  unavailable displays a dash rather than substituting another window. Older releases omit the new tokens and
+  conditional rules that use them while retaining the rest of the compatible saved layout.
 - All providers previews the default layout and lists enabled providers with saved overrides, even when an override
   currently matches the default. Each “Use all-providers layout” action removes only that provider's override;
   global edits preserve overrides, and disabled providers are left untouched. Before a default is first saved,
@@ -40,7 +44,7 @@ read_when:
 | Identity | Icon, Provider name, Account | Provider-scoped branding and identity |
 | Usage | Session %, Weekly %, Scoped weekly %, Auto %, Usage bar | Window percentage or a compact three-glyph usage bar |
 | Usage | Session pace, Weekly pace, Auto pace | Signed pace delta for that window |
-| Time | Resets in, Reset at, Runs out | Relative reset, absolute reset, or pace estimate |
+| Time | Resets in, Reset at (automatic, Session, Weekly), Runs out | Selected-window relative reset, absolute reset, or pace estimate |
 | Money | Balance, Cost today, Cost 30d | OpenRouter credit balance, or local cost estimate for the selected period |
 | Structure | Separator dot, Space, Line break | Spacing and optional two-line composition |
 

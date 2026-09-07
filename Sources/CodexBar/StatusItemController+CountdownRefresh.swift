@@ -18,18 +18,12 @@ extension StatusItemController {
         var countdownResetDates: [Date] = []
         var absoluteResetDates: [Date] = []
         for provider in providers {
-            let resetDates = self.menuBarDisplayedResetDates(for: provider, now: now)
             let resolution = self.settings.menuBarLayoutResolution(for: provider)
             if !resolution.usesLegacyRendering,
                self.settings.menuBarIconStyle == .iconAndPercent
             {
-                let tokens = resolution.layout.flattenedTokens(conditionals: self.settings.menuBarLayoutConditionals)
-                if tokens.contains(.resetCountdown) {
-                    countdownResetDates.append(contentsOf: resetDates)
-                }
-                if tokens.contains(.resetAbsolute) {
-                    absoluteResetDates.append(contentsOf: resetDates)
-                }
+                countdownResetDates += self.menuBarLayoutResetDates(for: provider, now: now, absolute: false)
+                absoluteResetDates += self.menuBarLayoutResetDates(for: provider, now: now, absolute: true)
                 delays += self.menuBarConditionalResetDelays(
                     provider: provider,
                     resolution: resolution,
@@ -44,6 +38,7 @@ extension StatusItemController {
             guard self.settings.menuBarShowsBrandIconWithPercent,
                   displayMode == .resetTime || smartExhaustedActive
             else { continue }
+            let resetDates = self.menuBarDisplayedResetDates(for: provider, now: now)
             switch self.settings.resetTimeDisplayStyle {
             case .countdown:
                 countdownResetDates.append(contentsOf: resetDates)

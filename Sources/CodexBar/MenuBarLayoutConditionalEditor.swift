@@ -273,7 +273,7 @@ struct MenuBarLayoutConditionalEditorSheet: View {
 
     private func tokenMenu(selection: Binding<MenuBarLayoutToken>) -> some View {
         Menu {
-            ForEach(Self.selectableTokens, id: \.self) { token in
+            ForEach(MenuBarLayoutPaletteTokens.conditionalBranch, id: \.self) { token in
                 Button {
                     selection.wrappedValue = token
                 } label: {
@@ -289,30 +289,6 @@ struct MenuBarLayoutConditionalEditorSheet: View {
                 isSelected: false)
         }
     }
-
-    private static let selectableTokens: [MenuBarLayoutToken] = [
-        .icon,
-        .providerName,
-        .accountLabel,
-        .percent(window: .session),
-        .percent(window: .weekly),
-        .percent(window: .scopedWeekly),
-        .percent(window: .automatic),
-        .usageBar,
-        .pace(window: .session),
-        .pace(window: .weekly),
-        .pace(window: .automatic),
-        .resetCountdown,
-        .resetAbsolute,
-        .runsOut,
-        .runsOutCompact,
-        .balance,
-        .costToday,
-        .cost30d,
-        .separatorDot,
-        .space,
-        .hidden,
-    ]
 }
 
 extension MenuBarLayoutConditional {

@@ -2,6 +2,9 @@
 
 ## 0.56.9 — Unreleased
 
+### Added
+- Menu bar layouts: choose session or weekly reset countdowns and reset clocks, including conditional branches, while preserving existing automatic reset tokens (#3356).
+
 ### Performance
 - Codex local costs: reuse model pricing resolution across daily, project, and session report rows without changing token accounting, tariffs, or refresh cadence (#3476). Thanks @brzvsk!
 

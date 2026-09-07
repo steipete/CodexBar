@@ -8,6 +8,104 @@ import Testing
 @Suite(.serialized)
 struct MenuBarCountdownRefreshTests {
     @Test
+    func `mixed selected reset styles schedule only their corresponding windows`() throws {
+        let settings = testSettingsStore(suiteName: "MenuBarCountdownRefreshTests-selected-mixed")
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.menuBarShowsBrandIconWithPercent = true
+        settings.menuBarLayout = MenuBarLayout(lines: [[
+            .windowResetCountdown(window: .session), .windowResetAbsolute(window: .weekly),
+        ]])
+        if let metadata = ProviderRegistry.shared.metadata[.codex] {
+            settings.setProviderEnabled(
+                provider: .codex,
+                metadata: metadata,
+                enabled: true)
+        }
+        let fetcher = UsageFetcher()
+        let store = UsageStore(
+            fetcher: fetcher,
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: testStatusBar())
+        defer { controller.releaseStatusItemsForTesting() }
+        let now = Date()
+        let sessionReset = now.addingTimeInterval(3650)
+        let weeklyReset = now.addingTimeInterval(86410)
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 30,
+                    windowMinutes: 300,
+                    resetsAt: sessionReset,
+                    resetDescription: nil),
+                secondary: RateWindow(
+                    usedPercent: 60,
+                    windowMinutes: 10080,
+                    resetsAt: weeklyReset,
+                    resetDescription: nil),
+                updatedAt: now),
+            provider: .codex)
+        let countdownDates = controller.menuBarLayoutResetDates(
+            for: .codex,
+            now: now,
+            absolute: false)
+        let absoluteDates = controller.menuBarLayoutResetDates(
+            for: .codex,
+            now: now,
+            absolute: true)
+        #expect(countdownDates == [sessionReset])
+        #expect(absoluteDates == [weeklyReset])
+        #expect(controller.menuBarLayoutResetDates(
+            for: .codex,
+            now: now) == [sessionReset, weeklyReset])
+        let delay = try #require(StatusItemController.menuBarCountdownRefreshDelay(
+            resetDates: countdownDates,
+            now: now))
+        #expect(abs(delay - 50.05) < 0.001)
+
+        for weekly in [
+            nil,
+            RateWindow(
+                usedPercent: 0,
+                windowMinutes: 10080,
+                resetsAt: weeklyReset,
+                resetDescription: nil,
+                isSyntheticPlaceholder: true),
+            RateWindow(
+                usedPercent: 60,
+                windowMinutes: 10080,
+                resetsAt: nil,
+                resetDescription: "Friday at 10:00"),
+        ] {
+            store._setSnapshotForTesting(
+                UsageSnapshot(
+                    primary: RateWindow(
+                        usedPercent: 30,
+                        windowMinutes: 300,
+                        resetsAt: sessionReset,
+                        resetDescription: nil),
+                    secondary: weekly,
+                    updatedAt: now),
+                provider: .codex)
+            #expect(controller.menuBarLayoutResetDates(
+                for: .codex,
+                now: now,
+                absolute: false) == [sessionReset])
+            #expect(controller.menuBarLayoutResetDates(
+                for: .codex,
+                now: now,
+                absolute: true).isEmpty)
+        }
+    }
+
+    @Test
     func `countdown refresh delay follows the next displayed minute boundary`() {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
 

@@ -9,7 +9,7 @@ import Testing
 @Suite(.serialized)
 // swiftlint:disable:next type_body_length
 struct MenuBarLayoutRendererTests {
-    private let now = Date(timeIntervalSince1970: 1_752_768_000)
+    let now = Date(timeIntervalSince1970: 1_752_768_000)
 
     @Test
     func `renderer composes every token with live values`() {
@@ -1388,7 +1388,7 @@ struct MenuBarLayoutRendererTests {
                 threshold: threshold))
     }
 
-    private func data(
+    func data(
         automaticUsedPercent: Double = 50,
         provider: UsageProvider = .codex,
         laneLabels: MenuBarLayoutLaneLabels? = nil,
@@ -1459,7 +1459,7 @@ struct MenuBarLayoutRendererTests {
                 cost30dUSD: 20))
     }
 
-    private func options(
+    func options(
         now: Date? = nil,
         verticalAdjustment: Int = 0,
         isStale: Bool = false,
