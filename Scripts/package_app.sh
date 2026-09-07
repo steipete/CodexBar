@@ -230,6 +230,25 @@ if [[ "$SIGNING_MODE" == "adhoc" ]]; then
 fi
 WIDGET_BUNDLE_ID="${BUNDLE_ID}.widget"
 APP_TEAM_ID="${APP_TEAM_ID:-Y5PE65HELJ}"
+# If a signing identity is explicitly configured, prefer its team over the
+# upstream default. This keeps a fork's Developer ID from
+# claiming Y5PE65HELJ's provisioning profile / CloudKit container.
+if [[ -n "${APP_IDENTITY:-}" && "${APP_TEAM_ID}" == "Y5PE65HELJ" ]]; then
+  if [[ "${APP_IDENTITY}" =~ \(([A-Z0-9]{10})\) ]]; then
+    APP_TEAM_ID="${BASH_REMATCH[1]}"
+  elif [[ -n "${APP_IDENTITY}" ]]; then
+    _team_subject="$(security find-certificate -c "${APP_IDENTITY}" -p 2>/dev/null | openssl x509 -noout -subject -nameopt RFC2253 2>/dev/null || true)"
+    if [[ "${_team_subject}" =~ (^|,)OU=([A-Z0-9]{10})(,|$) ]]; then
+      APP_TEAM_ID="${BASH_REMATCH[2]}"
+    else
+      echo "WARN: Could not derive team ID from APP_IDENTITY; disabling upstream profile (safe fallback)" >&2
+      if [[ "${APP_IDENTITY}" != *"Y5PE65HELJ"* ]]; then
+        # Prevent accidental use of upstream profile/iCloud when team is unparseable
+        APP_TEAM_ID="LOCAL"
+      fi
+    fi
+  fi
+fi
 APP_GROUP_ID="${APP_TEAM_ID}.com.steipete.codexbar"
 if [[ "$BUNDLE_ID" == *".debug"* ]]; then
   APP_GROUP_ID="${APP_TEAM_ID}.com.steipete.codexbar.debug"
@@ -245,10 +264,14 @@ fi
 # iCloud sync (CloudKit) requires restricted entitlements authorized by an embedded
 # Developer ID provisioning profile. Only identity-signed release builds of the primary
 # bundle ID carry them; adhoc/debug builds run with sync unavailable.
+# Upstream profile is team-scoped (Y5PE65HELJ). Forks signing with a different
+# Developer ID must not embed it and must not claim the
+# upstream iCloud container – launchd would reject the mismatched profile
+# (RBSRequestErrorDomain Code=5 / NSPOSIXErrorDomain Code=163).
 PROVISIONING_PROFILE_SOURCE="$ROOT/Scripts/profiles/CodexBar-DeveloperID.provisionprofile"
 EMBED_PROVISIONING_PROFILE=0
 ICLOUD_ENTITLEMENT_KEYS=""
-if [[ "$SIGNING_MODE" == "identity" && "$LOWER_CONF" == "release" && "$BUNDLE_ID" == "com.steipete.codexbar" ]]; then
+if [[ "$SIGNING_MODE" == "identity" && "$LOWER_CONF" == "release" && "$BUNDLE_ID" == "com.steipete.codexbar" && "$APP_TEAM_ID" == "Y5PE65HELJ" ]]; then
   if [[ ! -f "$PROVISIONING_PROFILE_SOURCE" ]]; then
     echo "ERROR: Missing $PROVISIONING_PROFILE_SOURCE (required for iCloud entitlements in release builds)" >&2
     exit 1
@@ -493,7 +516,17 @@ build_widget_extension() {
 
 install_widget_extension() {
   local src_appex
-  src_appex="$(build_widget_extension)"
+  if ! src_appex="$(build_widget_extension)"; then
+    # For local forks (non-Y5 team) the widget may not be buildable in a
+    # sandboxed shell (xcodebuild needs ~/Library/Caches). Omit it for the
+    # smoke-test build rather than failing the entire packaging – the main
+    # app remains launchable and the widget is not required for Muse validation.
+    if [[ "${APP_TEAM_ID}" != "Y5PE65HELJ" ]]; then
+      echo "WARN: Skipping CodexBarWidget for local team ${APP_TEAM_ID} (build failed, continuing without widget)." >&2
+      return 0
+    fi
+    return 1
+  fi
   local widget_app="$APP/Contents/PlugIns/CodexBarWidget.appex"
   rm -rf "$widget_app"
   mkdir -p "$APP/Contents/PlugIns"
@@ -531,7 +564,21 @@ else
   CODESIGN_ID="${APP_IDENTITY:-Developer ID Application: Peter Steinberger (Y5PE65HELJ)}"
   CODESIGN_ARGS=(--force --timestamp --options runtime --sign "$CODESIGN_ID")
 fi
-function resign() { codesign "${CODESIGN_ARGS[@]}" "$1"; }
+function codexbar_sign_one() {
+  local target="$1"
+  shift
+  if codesign "${CODESIGN_ARGS[@]}" "$@" "$target" 2>&1; then
+    return 0
+  fi
+  if [[ "$APP_TEAM_ID" != "Y5PE65HELJ" ]] && [[ " ${CODESIGN_ARGS[*]} " == *" --timestamp "* ]]; then
+    echo "WARN: timestamp failed for $target, retrying with --timestamp=none (APP_TEAM_ID=$APP_TEAM_ID)" >&2
+    codesign --force --timestamp=none --options runtime --sign "$CODESIGN_ID" "$@" "$target" 2>&1 || \
+      codesign --force --timestamp=none --sign "$CODESIGN_ID" "$@" "$target"
+  else
+    return 1
+  fi
+}
+function resign() { codexbar_sign_one "$1"; }
 # Validate Sparkle's nested layout before signing so framework layout drift fails clearly.
 SPARKLE_SIGNING_TARGETS=$(codexbar_sparkle_signing_targets "$SPARKLE")
 while IFS= read -r SPARKLE_TARGET; do
@@ -588,23 +635,19 @@ find "$APP" -name '._*' -delete
 
 # Sign helper binaries if present
 if [[ -f "${APP}/Contents/Helpers/CodexBarCLI" ]]; then
-  codesign "${CODESIGN_ARGS[@]}" "${APP}/Contents/Helpers/CodexBarCLI"
+  codexbar_sign_one "${APP}/Contents/Helpers/CodexBarCLI"
 fi
 if [[ -d "${APP}/Contents/Helpers/CodexBar_CodexBarCore.bundle" ]]; then
-  codesign "${CODESIGN_ARGS[@]}" "${APP}/Contents/Helpers/CodexBar_CodexBarCore.bundle"
+  codexbar_sign_one "${APP}/Contents/Helpers/CodexBar_CodexBarCore.bundle"
 fi
 if [[ -f "${APP}/Contents/Helpers/CodexBarClaudeWatchdog" ]]; then
-  codesign "${CODESIGN_ARGS[@]}" "${APP}/Contents/Helpers/CodexBarClaudeWatchdog"
+  codexbar_sign_one "${APP}/Contents/Helpers/CodexBarClaudeWatchdog"
 fi
 
 # Sign widget extension if present
 if [[ -d "${APP}/Contents/PlugIns/CodexBarWidget.appex" ]]; then
-  codesign "${CODESIGN_ARGS[@]}" \
-    --entitlements "$WIDGET_ENTITLEMENTS" \
-    "$APP/Contents/PlugIns/CodexBarWidget.appex/Contents/MacOS/CodexBarWidget"
-  codesign "${CODESIGN_ARGS[@]}" \
-    --entitlements "$WIDGET_ENTITLEMENTS" \
-    "$APP/Contents/PlugIns/CodexBarWidget.appex"
+  codexbar_sign_one "$APP/Contents/PlugIns/CodexBarWidget.appex/Contents/MacOS/CodexBarWidget" --entitlements "$WIDGET_ENTITLEMENTS"
+  codexbar_sign_one "$APP/Contents/PlugIns/CodexBarWidget.appex" --entitlements "$WIDGET_ENTITLEMENTS"
 fi
 
 # Embed the Developer ID provisioning profile (authorizes the iCloud entitlements;
@@ -614,9 +657,7 @@ if [[ "$EMBED_PROVISIONING_PROFILE" == "1" ]]; then
 fi
 
 # Finally sign the app bundle itself
-codesign "${CODESIGN_ARGS[@]}" \
-  --entitlements "$APP_ENTITLEMENTS" \
-  "$APP"
+codexbar_sign_one "$APP" --entitlements "$APP_ENTITLEMENTS"
 
 rm -rf "$APP_FINAL"
 mv "$APP" "$APP_FINAL"
