@@ -7,7 +7,9 @@
 - **Safer updates and more reliable usage:** refresh Sparkle's installer protections, preserve claude-swap measurement ages, and improve local history and account handling.
 
 ### Fixed
-- Antigravity: render each CLI quota bucket once, keep unknown or disabled usage unavailable in text and full/brief cards, and apply shared idle-family visibility (#3489). Thanks @urda!
+- AWS Bedrock: disclose monitoring charges in both authentication modes, link current Cost Explorer pricing, and explain the shared refresh controls and informational budget (#3496, related to #3387). Thanks @kyen99!
+- Claude: honor the segmented multi-account menu preference for claude-swap, preserve source-owned switching and unavailable-account diagnostics, and show stable slot numbers when personal information is hidden (#3498, #3382). Thanks @thatlev!
+- Antigravity: render each CLI quota bucket once, keep unknown or disabled usage unavailable in text and full/brief cards, retain reset context, and keep shared idle-family filtering out of raw JSON (#3489). Thanks @urda!
 - Usage & Spend: refresh expired charts on pane return or app activation, keep cached data visible during loading, and refresh across midnight (#3107). Thanks @Yuxin-Qiao!
 - Codex local costs: retain unfinished file work when a warm refresh reaches its time limit, so compatible history windows resume without reseeding completed files; preserve exact validation and existing caches (related to #3411). Thanks @kesslerio!
 - Updates: adopt Sparkle 2.9.6 installer hardening, including archive-moving and package-signature validation fixes.
@@ -15,7 +17,6 @@
 - CLI login: share Codex and Kiro process handling, stop cancelled logins and lingering children, and preserve bounded timeout output and device-flow progress.
 - Widgets: remove redundant outer padding from Usage, Switcher, History, and Metric views so WidgetKit alone controls their content margins (extracted from #3137). Thanks @iamenahs!
 - Overview: keep highlighted provider cards readable on macOS 15 by removing forced vibrancy from card wrappers, while retaining fast GPU selection and native submenu interactions (#3173).
-- Antigravity CLI: render each quota bucket once in usage and cards, retain unavailable usage and reset context, and keep idle-family filtering out of raw JSON (#3489). Thanks @urda!
 - Copilot: resolve Enterprise sign-in identities on the configured host, keep equal user IDs on different hosts distinct, and skip public GitHub budget enrichment for Enterprise accounts (#3341). Thanks @Fletcher-Alderton!
 - Kiro: route existing overage enrichment to the CLI profile’s supported region instead of always using US East; reject invalid profile ARNs before sending credentials and retain CLI fallback (#3359). Thanks @zucram!
 - Settings: observe rapid external config replacements and edits that restore earlier app-written contents, while keeping successful app writes out of the external-change sync path.
