@@ -1,14 +1,9 @@
-import CodexBarCore
 import Foundation
 import Testing
 @testable import CodexBarCLI
+@testable import CodexBarCore
 
-/// Covers `codexbar usage --provider antigravity` and the shared `cards` metric path rendering
-/// Antigravity's per-bucket quota-summary lanes (Sources/CodexBarCore/Providers/Antigravity/
-/// AntigravityStatusProbe.swift) instead of the collapsed legacy "Gemini Models"/"Claude and GPT"
-/// lanes, mirroring what the menu bar already does via `hasAntigravityQuotaSummaryWindows`
-/// (Sources/CodexBar/MenuCardView+ModelHelpers.swift). Idle families drop out of both surfaces the
-/// same way the widget and the web dashboard drop them.
+/// CLI quota-summary lane parity, including shared family visibility and unknown usage.
 struct AntigravityCLILaneParityTests {
     private static let now = Date(timeIntervalSince1970: 1_800_000_000)
 
@@ -84,7 +79,7 @@ struct AntigravityCLILaneParityTests {
     private static func identity() -> ProviderIdentitySnapshot {
         ProviderIdentitySnapshot(
             providerID: .antigravity,
-            accountEmail: "peter.urda@gmail.com",
+            accountEmail: "fixture@example.test",
             accountOrganization: nil,
             loginMethod: "google ai pro")
     }
@@ -115,6 +110,65 @@ struct AntigravityCLILaneParityTests {
             .map(\.label)
     }
 
+    @Test(arguments: [false, true])
+    func `unknown and disabled first buckets stay unavailable in text and cards`(disabled: Bool) throws {
+        var unknown: [String: Any] = [
+            "bucketId": "gemini-5h", "displayName": "5-hour", "description": "Fixture session reset",
+        ]
+        if disabled {
+            unknown["disabled"] = true
+            unknown["remaining"] = ["remainingFraction": 0.3]
+        }
+        let known: [String: Any] = [
+            "bucketId": "gemini-weekly", "displayName": "weekly", "remaining": ["remainingFraction": 0.96],
+        ]
+        let payload: [String: Any] = [
+            "response": ["groups": [["displayName": "Gemini Models", "buckets": [unknown, known]]]],
+        ]
+        let parsed = try AntigravityStatusProbe.parseQuotaSummaryResponse(
+            JSONSerialization.data(withJSONObject: payload))
+        let snapshot = try parsed.toUsageSnapshot()
+        #expect(snapshot.extraRateWindows?.first?.usageKnown == false)
+        let text = Self.renderedText(snapshot)
+        let compact = CLIRenderer.renderCardBodyLines(
+            provider: .antigravity,
+            snapshot: snapshot,
+            credits: nil,
+            context: Self.renderContext(),
+            includeIdentity: false,
+            now: Self.now).joined(separator: "\n")
+        for rendered in [text, compact] {
+            #expect(rendered.contains("Gemini 5-hour: Unavailable"))
+            #expect(rendered.contains("Fixture session reset"))
+            #expect(!rendered.contains("100% left"))
+            #expect(!rendered.contains("30% left"))
+            #expect(rendered.contains("Gemini weekly: 96% left"))
+        }
+        let card = CLICardsRenderer.makeCard(CLICardBuildInput(
+            provider: .antigravity,
+            snapshot: snapshot,
+            credits: nil,
+            source: "cli",
+            status: nil,
+            notes: [],
+            useColor: false,
+            resetStyle: .countdown,
+            weeklyWorkDays: nil,
+            now: Self.now))
+        #expect(card.metrics.map(\.usageKnown) == [false, true])
+        let full = CLICardsRenderer.render(cards: [card], failures: [], terminalWidth: 80, useColor: false)
+        #expect(full.contains("Gemini 5-hour: Unavailable"))
+        #expect(full.contains("Fixture session reset"))
+        #expect(!full.contains("100% left"))
+        #expect(!full.contains("30% left"))
+        let rows = CLICardsBriefRenderer.makeRows(cards: [card])
+        #expect(rows.first?.usedPercent == nil)
+        #expect(rows.first?.resetLabel?.contains("Fixture session reset") == true)
+        let brief = CLICardsBriefRenderer.render(
+            rows: rows, failures: [], terminalWidth: 80, useColor: false, now: Self.now)
+        #expect(!brief.contains("%"))
+    }
+
     @Test
     func `quota summary snapshot renders one lane per bucket with no collapsed lane or pace`() {
         let text = Self.renderedText(Self.quotaSummarySnapshot(
@@ -129,7 +183,7 @@ struct AntigravityCLILaneParityTests {
         #expect(text.contains("Resets in 2d 15h"))
         #expect(text.contains("Claude/GPT 5-hour: 99% left"))
         #expect(text.contains("Resets in 5h"))
-        #expect(text.contains("Account: peter.urda@gmail.com"))
+        #expect(text.contains("Account: fixture@example.test"))
         #expect(text.contains("Plan: Google Ai Pro"))
 
         #expect(!text.contains("Gemini Models"))

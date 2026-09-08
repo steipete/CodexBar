@@ -11,6 +11,7 @@ import Darwin
 struct CLICardMetric: Sendable, Equatable {
     let label: String
     let remainingPercent: Double
+    let usageKnown: Bool
     let resetText: String?
     let resetAt: Date?
     let detailText: String?
@@ -20,10 +21,12 @@ struct CLICardMetric: Sendable, Equatable {
         remainingPercent: Double,
         resetText: String?,
         resetAt: Date? = nil,
-        detailText: String? = nil)
+        detailText: String? = nil,
+        usageKnown: Bool = true)
     {
         self.label = label
         self.remainingPercent = remainingPercent
+        self.usageKnown = usageKnown
         self.resetText = resetText
         self.resetAt = resetAt
         self.detailText = detailText
@@ -328,11 +331,13 @@ enum CLICardsRenderer {
                 innerWidth: innerWidth,
                 useColor: useColor,
                 enhanced: enhanced))
-            lines.append(Self.metricBarLine(
-                metric: metric,
-                innerWidth: innerWidth,
-                useColor: useColor,
-                enhanced: enhanced))
+            if metric.usageKnown {
+                lines.append(Self.metricBarLine(
+                    metric: metric,
+                    innerWidth: innerWidth,
+                    useColor: useColor,
+                    enhanced: enhanced))
+            }
             if let resetText = metric.resetText {
                 lines.append(Self.contentLine(
                     resetText,
@@ -442,6 +447,14 @@ enum CLICardsRenderer {
         useColor: Bool,
         enhanced: Bool) -> String
     {
+        guard metric.usageKnown else {
+            return self.contentLine(
+                "\(metric.label): Unavailable",
+                innerWidth: innerWidth,
+                useColor: useColor,
+                enhanced: enhanced,
+                style: .subtle)
+        }
         let percentText = UsageFormatter.usageLine(
             remaining: metric.remainingPercent,
             used: 100 - metric.remainingPercent,

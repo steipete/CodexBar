@@ -420,7 +420,8 @@ enum CLIRenderer {
                     label: $0.title,
                     window: $0.window,
                     resetStyle: resetStyle,
-                    now: now)
+                    now: now,
+                    usageKnown: $0.usageKnown)
             }
         }
         var metrics: [CLICardMetric] = []
@@ -454,7 +455,8 @@ enum CLIRenderer {
                 label: extra.title,
                 window: extra.window,
                 resetStyle: resetStyle,
-                now: now))
+                now: now,
+                usageKnown: extra.usageKnown))
         }
         return metrics
     }
@@ -537,7 +539,8 @@ enum CLIRenderer {
         label: String,
         window: RateWindow,
         resetStyle: ResetTimeDisplayStyle,
-        now: Date) -> CLICardMetric
+        now: Date,
+        usageKnown: Bool = true) -> CLICardMetric
     {
         let detailBacked = self.usesDetailBackedWindow(provider: provider)
         let reset = detailBacked
@@ -549,7 +552,8 @@ enum CLIRenderer {
             remainingPercent: window.remainingPercent,
             resetText: reset.map { "⏳ \($0)" },
             resetAt: window.resetsAt,
-            detailText: detailText)
+            detailText: detailText,
+            usageKnown: usageKnown)
     }
 
     static func colorizeError(_ text: String) -> String {
@@ -747,23 +751,19 @@ enum CLIRenderer {
         lines: inout [String])
     {
         for window in windows {
-            lines.append(self.rateLine(title: window.title, window: window.window, useColor: context.useColor))
+            if window.usageKnown {
+                lines.append(self.rateLine(title: window.title, window: window.window, useColor: context.useColor))
+            } else {
+                lines.append(self.labelValueLine(window.title, value: "Unavailable", useColor: context.useColor))
+            }
             if let reset = self.resetLine(for: window.window, style: context.resetStyle, now: now) {
                 lines.append(self.subtleLine(reset, useColor: context.useColor))
             }
         }
     }
 
-    /// Antigravity's quota-summary probe path reports one lane per quota bucket (e.g. "Gemini 5-hour",
-    /// "Gemini weekly") in `extraRateWindows`, and additionally synthesizes worst-of-family
-    /// representatives into `primary`/`secondary` so legacy consumers stay populated. The CLI renders the
-    /// real per-bucket lanes here and must not also render those synthetic representatives, which would
-    /// duplicate the same data under the collapsed "Gemini Models"/"Claude and GPT" labels. A family that
-    /// reports known zero usage drops out, the same display rule the menu card, the widget, and the web
-    /// dashboard already apply; `codexbar usage --format json` still serializes every lane, because it
-    /// encodes the snapshot instead of this text. Returns `nil` when the snapshot has no quota-summary
-    /// lanes, so callers fall back to the standard primary/secondary rendering unchanged (including for
-    /// the legacy modelQuotas Antigravity path).
+    /// Quota buckets replace compatibility representatives. Apply shared idle-family visibility
+    /// only to text/cards; raw JSON retains every lane. Legacy snapshots keep the standard rendering.
     private static func antigravityQuotaSummaryLanes(
         provider: UsageProvider,
         snapshot: UsageSnapshot) -> [NamedRateWindow]?

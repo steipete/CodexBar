@@ -529,3 +529,25 @@ SwiftUI graph.
 
 `swift build` clean; the updated `StatusMenuOverviewScrollTests` (precise pass-through cases) and the
 menu-card recycling/highlight suites — including the new GPU bypass test — pass.
+
+## Update 2026-09-07: macOS 15 tint and inherited vibrancy
+
+Issue #3173 reproduced in a signed native menu test host on macOS 15.4.1 (24E263): highlighting an Overview card while its cost submenu was open left a blank blue rectangle. The original GPU tint remained in place during the investigation. An identity filter preserved the card, while constant-white tinting erased its foreground. Enabling Core Image mode or assigning the tint through NSView.contentFilters did not fix it.
+
+Removing the unconditional allowsVibrancy overrides from the outer card container and its inner hosting subclass repaired the rendering. The ordinary NSHostingView and outer NSView both report non-vibrant behavior. This matches AppKit's documented inheritance rule: a vibrant parent makes its descendants vibrant. The selection material remains an NSVisualEffectView sibling; it does not require forcing the whole content hierarchy into vibrant blending. See [Apple's vibrancy documentation](https://developer.apple.com/documentation/appkit/nsvisualeffectview).
+
+The fix retains the GPU filter, opacity animation, mouse tracking, and false SwiftUI highlight state. Native verification covered readable hovered cards with cost submenus, provider selection, return to Overview through cached rows, and readable ordinary provider cards in light and system dark appearances. Focused tests assert non-vibrant wrappers after highlighting and payload exchange while retaining the GPU-bypasses-SwiftUI assertion.
+
+A signed isolated host on macOS 26.6.2 (25G83) measured setHighlighted, layout, display, transaction flush, and a nonblocking run-loop flush over 200 alternating updates. Three paired process runs produced these ranges:
+
+| Measurement | Original wrappers | Non-vibrant wrappers |
+| --- | ---: | ---: |
+| Mean per update | 0.075–0.102 ms | 0.078–0.298 ms |
+| p95 | 0.098–0.108 ms | 0.164–0.228 ms |
+| Maximum | 3.646–7.493 ms | 3.159–40.624 ms |
+| First selected update | 19.754–30.609 ms | 18.170–34.635 ms |
+| SwiftUI highlight-state changes | 0 | 0 |
+
+An additional run recorded every sample to locate outliers: the original wrappers had samples above 1 ms at indices 0, 1, and 3 (maximum 50.589 ms); the candidate had one at index 2 (6.962 ms). All later updates were below 1 ms in both. These shared-host measurements include startup work and do not establish a hard 120 Hz frame-time guarantee. They support retaining the cheap steady-state GPU path instead of returning every selection step to SwiftUI recoloring.
+
+The opt-in StatusMenuProviderNativeProofTests harness accepts CODEXBAR_STATUS_PROVIDER_PROOF_BENCHMARK=1 alongside its existing proof-directory, Overview, and credential-isolation settings. It writes first-use, per-sample, mean, p95, maximum, and vibrancy/highlight-state receipts; ordinary CI runs skip this native mode.

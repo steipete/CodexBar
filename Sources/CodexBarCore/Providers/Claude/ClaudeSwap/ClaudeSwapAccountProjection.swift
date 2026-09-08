@@ -215,7 +215,7 @@ public enum ClaudeSwapAccountProjection {
             primary: primary,
             secondary: secondary,
             extraRateWindows: scoped.isEmpty ? nil : scoped,
-            updatedAt: now,
+            updatedAt: row.usageFetchedAt ?? now,
             identity: self.identitySnapshot(for: row))
     }
 
