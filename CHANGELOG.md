@@ -13,7 +13,6 @@
 - Claude: honor the segmented multi-account menu preference for claude-swap, preserve source-owned switching and unavailable-account diagnostics, and show stable slot numbers when personal information is hidden (#3498, #3382). Thanks @thatlev!
 - Antigravity: render each CLI quota bucket once, keep unknown or disabled usage unavailable in text and full/brief cards, retain reset context, and keep shared idle-family filtering out of raw JSON (#3489). Thanks @urda!
 - Usage & Spend: refresh expired charts on pane return or app activation, keep cached data visible during loading, and refresh across midnight (#3107). Thanks @Yuxin-Qiao!
-- Codex local costs: honor the selected 10-second scan budget during explicit acceleration instead of falling back to two seconds; retain automatic refresh policy and exact inventory validation (#3509, related to #3508). Thanks @kernnel!
 - Codex local costs: retain unfinished file work when a warm refresh reaches its time limit, so compatible history windows resume without reseeding completed files; preserve exact validation and existing caches (related to #3411). Thanks @kesslerio!
 - Updates: adopt Sparkle 2.9.6 installer hardening, including archive-moving and package-signature validation fixes.
 - Claude: preserve claude-swap's source measurement timestamps so repeated reads of cached usage do not show as freshly updated; retain the existing fallback for missing or malformed optional timestamps (#3485, extracted from #3452). Thanks @QuantIntellect!
