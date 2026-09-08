@@ -2023,7 +2023,7 @@ enum CostUsageScanner {
         let sinceKey: String
         let untilKey: String
         private(set) var scanSinceKey: String
-        let scanUntilKey: String
+        private(set) var scanUntilKey: String
         let calendar: Calendar
 
         init(since: Date, until: Date, calendar: Calendar = .current) {
@@ -2041,9 +2041,10 @@ enum CostUsageScanner {
             CostUsageLocalDay.gregorianCalendar(matching: calendar)
         }
 
-        func retainingScanStart(_ scanSinceKey: String) -> Self {
+        func retainingScanWindow(since scanSinceKey: String, until scanUntilKey: String) -> Self {
             var retained = self
             retained.scanSinceKey = min(self.scanSinceKey, scanSinceKey)
+            retained.scanUntilKey = max(self.scanUntilKey, scanUntilKey)
             return retained
         }
 
@@ -5739,7 +5740,7 @@ enum CostUsageScanner {
         let roots = Self.codexSessionsRoots(options: options)
         let hasTimeLimit = options.codexScanBudgetForTesting?.hasTimeLimit
             ?? ((options.maxCodexScanDurationPerRefresh ?? 0) > 0)
-        // A narrow first refresh must also repair older retained days before marking a file migrated.
+        // A narrow first refresh must repair all retained days before marking a file migrated.
         let legacyScanStart = cache.roots == Self.codexRootsFingerprint(roots)
             && cache.files.values.contains { $0.codexEventWhitespaceParsed != true }
             ? cache.scanSinceKey : nil
@@ -5760,7 +5761,9 @@ enum CostUsageScanner {
                                               cache.scanUntilKey == range.scanUntilKey || legacyScanStart != nil,
                                               let retainedScanStart
         {
-            range.retainingScanStart(retainedScanStart)
+            range.retainingScanWindow(
+                since: retainedScanStart,
+                until: cache.scanUntilKey ?? range.scanUntilKey)
         } else {
             range
         }

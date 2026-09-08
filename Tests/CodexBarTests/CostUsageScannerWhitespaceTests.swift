@@ -3,12 +3,15 @@ import Testing
 @testable import CodexBarCore
 
 struct CostUsageScannerWhitespaceTests {
-    @Test(arguments: [" ", "\t"])
-    func `spaced events survive initial scans appends and cache reopening`(spacing: String) throws {
+    @Test(arguments: [" ", "\t"], [false, true])
+    func `spaced events survive initial scans appends and cache reopening`(
+        spacing: String,
+        historicalFirst: Bool) throws
+    {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
         let firstDay = try env.makeLocalNoon(year: 2026, month: 9, day: 6)
-        let nextDay = try env.makeLocalNoon(year: 2026, month: 9, day: 7)
+        let nextDay = try env.makeLocalNoon(year: 2026, month: 9, day: 8)
         func event(_ day: Date, input: Int, cached: Int, output: Int) -> String {
             let timestamp = env.isoString(for: day)
             return "{\"type\":\(spacing)\"event_msg\",\"timestamp\":\"\(timestamp)\","
@@ -50,7 +53,7 @@ struct CostUsageScannerWhitespaceTests {
         let appended = CostUsageScanner.loadDailyReport(
             provider: .codex, since: firstDay, until: nextDay, now: nextDay, options: options)
         #expect(appended.summary?.totalTokens == 330)
-        let today = try #require(appended.data.first { $0.date == "2026-09-07" })
+        let today = try #require(appended.data.first { $0.date == "2026-09-08" })
         #expect(today.totalTokens == 220)
         #expect(try abs(#require(today.costUSD) - 0.0000568) < 0.000_000_001)
         // The older parser could retain the first compact event and omit the spaced next-day event.
@@ -67,11 +70,11 @@ struct CostUsageScannerWhitespaceTests {
         options.refreshMinIntervalSeconds = 3600
         let narrow = CostUsageScanner.loadDailyReport(
             provider: .codex,
-            since: nextDay,
-            until: nextDay,
+            since: historicalFirst ? firstDay : nextDay,
+            until: historicalFirst ? firstDay : nextDay,
             now: nextDay.addingTimeInterval(1),
             options: options)
-        #expect(narrow.summary?.totalTokens == 220)
+        #expect(narrow.summary?.totalTokens == (historicalFirst ? 110 : 220))
         let cached = CostUsageScanner.loadDailyReport(
             provider: .codex,
             since: firstDay,
