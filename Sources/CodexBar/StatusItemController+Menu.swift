@@ -176,7 +176,6 @@ extension StatusItemController {
         }
         if self.openMenus.isEmpty {
             self.cancelMergedSwitcherSiblingWarmup()
-            self.resetClaudeSwapAccountInspection()
         }
         self.resetCompactAccountMenuExpansionStateIfIdle()
     }
