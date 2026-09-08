@@ -7,6 +7,8 @@
 - **Safer updates and more reliable usage:** refresh Sparkle's installer protections, preserve claude-swap measurement ages, and improve local history and account handling.
 
 ### Fixed
+- Codex local costs: accept valid JSON whitespace in usage events, retain next-day appended usage, and rebuild previously empty cached scans.
+- Codex local costs: include reserve usage in fresh and cached GPT-5.6 Luna cost estimates; preserve the subscription estimate disclaimer (#3503, #3502). Thanks @BUKOWSKIREAL!
 - Usage parsing: reject out-of-range numeric counts in MiMo, Pi/OMP, OpenCodex, and Bedrock instead of trapping at rounded integer limits; preserve existing rounding and valid usage fields, and reparse OpenCodex caches created by the older parser (#3486).
 - Subprocesses: accept very large finite timeouts without overflowing nanosecond conversion.
 - AWS Bedrock: disclose monitoring charges in both authentication modes, link current Cost Explorer pricing, and explain the shared refresh controls and informational budget (#3496, related to #3387). Thanks @kyen99!
