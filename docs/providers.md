@@ -46,7 +46,9 @@ If coverage totals cannot fit, aggregation falls back to existing request or dai
 OpenCodex `~/.opencodex/usage.jsonl` is an opt-in, read-only spend source (off by default). It is not a quota
 Provider. When both OpenCodex logs and native Codex sessions are present they stay on separate rows; merging would
 double-count the same traffic. An optional toggle can hide native Codex while OpenCodex data is present. Export JSON
-emits the currently aggregated model (provenance, mix, coverage).
+emits the currently aggregated model (provenance, mix, coverage). Invalid numeric fields are omitted while valid
+neighboring fields remain available. Existing cached rows are reparsed once after the numeric parser update;
+subsequent unchanged reads continue to reuse the corrected cache.
 
 The view stays local and does not upload usage history. Refreshes retain the last successful model if a replacement
 scan fails, while provider/account configuration changes replace obsolete results. Coverage text reports how many

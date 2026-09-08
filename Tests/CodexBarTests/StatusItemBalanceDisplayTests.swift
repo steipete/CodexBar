@@ -857,7 +857,7 @@ struct StatusItemBalanceDisplayTests {
     }
 
     private func makeSettings(suiteName: String, provider: UsageProvider) -> SettingsStore {
-        let settings = testSettingsStore(suiteName: suiteName)
+        let settings = testSettingsStore(suiteName: suiteName, userDefaults: InMemoryUserDefaults())
         settings.statusChecksEnabled = false
         settings.refreshFrequency = .manual
         settings.mergeIcons = true
@@ -1200,6 +1200,52 @@ extension StatusItemBalanceDisplayTests {
             #expect(data.automaticText == "¥100.00")
             #expect(rendered.attributedTitle.string.hasSuffix("¥100.00"))
             #expect(rendered.accessibilityLabel.contains("¥100.00"))
+        }
+    }
+
+    @Test
+    func `balance reset fallbacks render once beside automatic balance and remain in reset only layouts`() {
+        let settings = self.makeSettings(suiteName: "StatusItemBalanceDisplayTests-balance-reset", provider: .deepseek)
+        let (store, controller) = self.makeStoreAndController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+        let snapshot = DeepSeekUsageSnapshot(
+            isAvailable: true,
+            currency: "CNY",
+            totalBalance: 100,
+            grantedBalance: 0,
+            toppedUpBalance: 100,
+            updatedAt: Date()).toUsageSnapshot()
+        store._setSnapshotForTesting(snapshot, provider: .deepseek)
+        for lines: [[MenuBarLayoutToken]] in [
+            [[.percent(window: .automatic), .separatorDot, .resetCountdown]],
+            [[.resetAbsolute, .separatorDot, .percent(window: .automatic)]],
+            [[.percent(window: .automatic)], [.resetCountdown]],
+            [[.resetCountdown]],
+            [[.resetAbsolute]],
+        ] {
+            let layout = MenuBarLayout(lines: lines)
+            settings.setMenuBarLayout(layout, for: nil)
+            let statusData = controller.menuBarLayoutRenderData(
+                provider: .deepseek, snapshot: snapshot, warningFlash: false)
+            let previewData = MenuBarLayoutPreview(
+                layout: layout, provider: .deepseek, settings: settings, store: store)
+                .liveData(provider: .deepseek, snapshot: snapshot)
+            for data in [statusData, previewData] {
+                let rendered = MenuBarLayoutRenderer().render(
+                    layout: layout,
+                    data: data,
+                    icon: nil,
+                    options: MenuBarLayoutRenderOptions(
+                        size: .regular,
+                        highContrast: false,
+                        showUsed: false,
+                        conditionals: [],
+                        appearanceName: "aqua",
+                        isDebugApp: false,
+                        now: Date()))
+                #expect(rendered.attributedTitle.string == "¥100.00")
+                #expect(rendered.accessibilityLabel.components(separatedBy: "¥100.00").count == 2)
+            }
         }
     }
 

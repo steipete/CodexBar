@@ -10,6 +10,28 @@ import Testing
 @testable import CodexBarCore
 
 struct OpenCodexUsageParserTests {
+    @Test(arguments: ["9.223372036854776e18", "1e40", "-1"])
+    func `out of range token counts retain valid usage fields`(literal: String) throws {
+        let line = """
+        {"requestId":"bounds","timestamp":1784179200,"provider":"openai","model":"gpt-5.4",\
+        "usageStatus":"reported","usage":{"inputTokens":\(literal),"outputTokens":7},"totalTokens":\(literal)}
+        """
+        let entry = try #require(OpenCodexUsageParser.parseLine(line))
+        #expect(entry.usage?.inputTokens == nil)
+        #expect(entry.usage?.outputTokens == 7)
+        #expect(entry.totalTokens == nil)
+    }
+
+    @Test(arguments: [("12.9", 12), ("-0.5", 0), (String(Int.max), Int.max)])
+    func `token counts retain truncation and exact integer values`(literal: String, expected: Int) throws {
+        let line = """
+        {"requestId":"valid","timestamp":1784179200,"provider":"openai","model":"gpt-5.4",\
+        "usageStatus":"reported","usage":{"inputTokens":\(literal)}}
+        """
+        let entry = try #require(OpenCodexUsageParser.parseLine(line))
+        #expect(entry.usage?.inputTokens == expected)
+    }
+
     @Test
     func `parses persisted usage rows without reading the developer home`() throws {
         let line = """

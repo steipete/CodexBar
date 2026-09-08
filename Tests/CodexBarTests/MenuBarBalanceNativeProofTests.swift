@@ -27,7 +27,10 @@ final class MenuBarBalanceNativeProofTests: XCTestCase {
         let providers: [UsageProvider] = [.deepseek, .poe, .openrouter]
         let settings = try Self.settings(root: root, providers: providers)
         defer { settings.configFileWatcher?.stop() }
-        let layout = MenuBarLayout(lines: [[.icon, .percent(window: .automatic)]])
+        let tokens: [MenuBarLayoutToken] = environment["CODEXBAR_BALANCE_PROOF_WITH_RESET"] == "1"
+            ? [.icon, .percent(window: .automatic), .separatorDot, .resetCountdown]
+            : [.icon, .percent(window: .automatic)]
+        let layout = MenuBarLayout(lines: [tokens])
         settings.setMenuBarLayout(layout, for: nil)
         let isolated = ["HOME": root.path, "CODEX_HOME": root.appendingPathComponent("codex").path]
         settings._test_codexReconciliationEnvironment = isolated
@@ -74,7 +77,7 @@ final class MenuBarBalanceNativeProofTests: XCTestCase {
         window.title = "CodexBar — Synthetic Balance Proof"
         window.isReleasedWhenClosed = false
         window.contentView = NSHostingView(rootView: VStack(alignment: .leading, spacing: 22) {
-            Text("Default menu bar layout").font(.title2.bold())
+            Text("Menu bar layout").font(.title2.bold())
             Text("Synthetic data · actual editor previews").foregroundStyle(.secondary)
             ForEach(providers, id: \.self) { provider in
                 HStack {

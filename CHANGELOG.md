@@ -7,6 +7,8 @@
 - **Safer updates and more reliable usage:** refresh Sparkle's installer protections, preserve claude-swap measurement ages, and improve local history and account handling.
 
 ### Fixed
+- Usage parsing: reject out-of-range numeric counts in MiMo, Pi/OMP, OpenCodex, and Bedrock instead of trapping at rounded integer limits; preserve existing rounding and valid usage fields, and reparse OpenCodex caches created by the older parser (#3486).
+- Subprocesses: accept very large finite timeouts without overflowing nanosecond conversion.
 - Antigravity: render each CLI quota bucket once, keep unknown or disabled usage unavailable in text and full/brief cards, and apply shared idle-family visibility (#3489). Thanks @urda!
 - Usage & Spend: refresh expired charts on pane return or app activation, keep cached data visible during loading, and refresh across midnight (#3107). Thanks @Yuxin-Qiao!
 - Codex local costs: retain unfinished file work when a warm refresh reaches its time limit, so compatible history windows resume without reseeding completed files; preserve exact validation and existing caches (related to #3411). Thanks @kesslerio!
@@ -14,7 +16,7 @@
 - Claude: preserve claude-swap's source measurement timestamps so repeated reads of cached usage do not show as freshly updated; retain the existing fallback for missing or malformed optional timestamps (#3485, extracted from #3452). Thanks @QuantIntellect!
 - CLI login: share Codex and Kiro process handling, stop cancelled logins and lingering children, and preserve bounded timeout output and device-flow progress.
 - Widgets: remove redundant outer padding from Usage, Switcher, History, and Metric views so WidgetKit alone controls their content margins (extracted from #3137). Thanks @iamenahs!
-- Menu bar: show balance-only providers’ money or points in the default layout and editor preview instead of a fake percentage or dash, while preserving real quota percentages (#3492, #3494). Thanks @zkforge!
+- Menu bar: show balance-only providers’ money or points in the default layout and editor preview instead of a fake percentage or dash, while preserving real quota percentages and showing an identical balance reset fallback only once (#3492, #3494). Thanks @zkforge!
 - Overview: keep highlighted provider cards readable on macOS 15 by removing forced vibrancy from card wrappers, while retaining fast GPU selection and native submenu interactions (#3173).
 - Antigravity CLI: render each quota bucket once in usage and cards, retain unavailable usage and reset context, and keep idle-family filtering out of raw JSON (#3489). Thanks @urda!
 - Copilot: resolve Enterprise sign-in identities on the configured host, keep equal user IDs on different hosts distinct, and skip public GitHub budget enrichment for Enterprise accounts (#3341). Thanks @Fletcher-Alderton!

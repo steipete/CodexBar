@@ -886,10 +886,11 @@ extension StatusItemController {
         if usesBalance, let balance = Self.menuBarBalanceDisplayText(provider: provider, snapshot: snapshot) {
             return balance
         }
-        if provider == .mimo,
-           let balance = Self.miMoBalanceDisplayText(snapshot: snapshot, preference: preference)
+        if provider == .mimo, let snapshot,
+           snapshot.primary == nil || preference == .secondary,
+           let detail = snapshot.detailRow(label: "Balance")?.value
         {
-            return balance
+            return detail.components(separatedBy: " (Paid:").first
         }
         if provider == .kiro {
             return Self.kiroDisplayText(
@@ -980,17 +981,6 @@ extension StatusItemController {
             resetTimeDisplayStyle: self.settings.resetTimeDisplayStyle,
             showsResetTimeWhenExhausted: self.settings.menuBarShowsResetTimeWhenExhausted,
             now: now)
-    }
-
-    nonisolated static func miMoBalanceDisplayText(
-        snapshot: UsageSnapshot?,
-        preference: MenuBarMetricPreference) -> String?
-    {
-        guard let snapshot, let detail = snapshot.detailRow(label: "Balance")?.value else { return nil }
-        if snapshot.primary != nil, preference != .secondary {
-            return nil
-        }
-        return detail.components(separatedBy: " (Paid:").first
     }
 
     nonisolated static func menuBarBalanceDisplayText(
