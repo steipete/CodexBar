@@ -5,6 +5,9 @@ import os
 import Testing
 @testable import CodexBar
 
+// Token coverage spans many providers; suites share one fixture/helper vocabulary.
+// swiftlint:disable file_length
+
 @MainActor
 @Suite(.serialized)
 // swiftlint:disable:next type_body_length
@@ -90,6 +93,91 @@ struct MenuBarLayoutRendererTests {
 
         #expect(output.attributedTitle.string == "10%\u{2009}9%\u{2009}17%")
         #expect(output.accessibilityLabel == "Total 10%, Cursor 9%, Third Party 17%")
+    }
+
+    @Test
+    func `automatic balance text replaces the automatic percent window`() {
+        let renderer = MenuBarLayoutRenderer()
+        // DeepSeek's funded balance window arrives with usedPercent 0; the balance text must win
+        // over the meaningless quota percent.
+        let data = self.data(automaticUsedPercent: 0, provider: .deepseek, automaticText: "¥100.00")
+        let output = renderer.render(
+            layout: MenuBarLayout(lines: [[.percent(window: .automatic)]]),
+            data: data,
+            icon: nil,
+            options: self.options())
+
+        #expect(output.attributedTitle.string == "¥100.00")
+        #expect(output.accessibilityLabel == L("%@ %@", L("Usage"), "¥100.00"))
+    }
+
+    @Test
+    func `duplicate balance cleanup follows visible conditional tokens`() {
+        let renderer = MenuBarLayoutRenderer()
+        let conditional = MenuBarLayoutConditional(
+            clauses: [self.clause(metric: .weeklyResetsIn, comparison: .lessThan, threshold: 48)],
+            thenToken: .percent(window: .automatic),
+            elseToken: .hidden)
+        let layout = MenuBarLayout(lines: [[.conditional(id: conditional.id), .resetCountdown]])
+        let data = self.data(automaticText: "¥100.00", automaticBalanceFallback: "¥100.00")
+        for now in [self.now, self.now.addingTimeInterval(2 * 24 * 60 * 60)] {
+            let result = renderer.render(
+                layout: layout,
+                data: data,
+                icon: nil,
+                options: self.options(now: now, conditionals: [conditional]))
+            #expect(result.attributedTitle.string == "¥100.00")
+        }
+    }
+
+    @Test(arguments: [
+        [MenuBarLayoutToken.percent(window: .automatic), .resetCountdown, .separatorDot, .costToday],
+        [.percent(window: .automatic), .separatorDot, .resetCountdown, .costToday],
+        [.percent(window: .automatic), .separatorDot, .resetCountdown, .separatorDot, .costToday],
+        [.percent(window: .automatic), .separatorDot, .resetCountdown, .space, .costToday],
+        [.percent(window: .automatic), .space, .resetCountdown, .separatorDot, .costToday],
+    ])
+    func `duplicate reset removal preserves one separator between remaining values`(_ tokens: [MenuBarLayoutToken]) {
+        let result = MenuBarLayoutRenderer().render(
+            layout: MenuBarLayout(lines: [tokens]),
+            data: self.data(automaticText: "¥100.00", automaticBalanceFallback: "¥100.00"),
+            icon: nil,
+            options: self.options())
+        #expect(result.attributedTitle.string == "¥100.00\u{2009}·\u{2009}$1.25")
+    }
+
+    @Test
+    func `duplicate reset cleanup preserves unrelated edge spaces`() {
+        let result = MenuBarLayoutRenderer().render(
+            layout: MenuBarLayout(lines: [[
+                .space, .percent(window: .automatic), .separatorDot, .resetCountdown,
+                .separatorDot, .costToday, .space,
+            ]]),
+            data: self.data(automaticText: "¥100.00", automaticBalanceFallback: "¥100.00"),
+            icon: nil,
+            options: self.options())
+        #expect(result.attributedTitle.string == " ¥100.00\u{2009}·\u{2009}$1.25 ")
+    }
+
+    @Test
+    func `automatic text retains a real dated reset`() {
+        let result = MenuBarLayoutRenderer().render(
+            layout: MenuBarLayout(lines: [[.percent(window: .automatic), .separatorDot, .resetCountdown]]),
+            data: self.data(automaticText: "¥100.00"),
+            icon: nil,
+            options: self.options())
+        #expect(result.attributedTitle.string.contains("¥100.00"))
+        #expect(result.attributedTitle.string.contains("in 2h"))
+    }
+
+    @Test
+    func `automatic balance text does not override explicit session percent`() {
+        let output = MenuBarLayoutRenderer().render(
+            layout: MenuBarLayout(lines: [[.percent(window: .session)]]),
+            data: self.data(automaticUsedPercent: 0, provider: .deepseek, automaticText: "¥100.00"),
+            icon: nil,
+            options: self.options())
+        #expect(output.attributedTitle.string == "5h 25%")
     }
 
     @Test
@@ -1393,6 +1481,8 @@ struct MenuBarLayoutRendererTests {
         provider: UsageProvider = .codex,
         laneLabels: MenuBarLayoutLaneLabels? = nil,
         automaticResetAt: Date? = nil,
+        automaticText: String? = nil,
+        automaticBalanceFallback: String? = nil,
         accountLabel: String? = "user@example.com",
         metrics: MenuBarLayoutRenderMetrics? = nil)
         -> MenuBarLayoutRenderData
@@ -1437,9 +1527,10 @@ struct MenuBarLayoutRendererTests {
             automatic: MenuBarLayoutRenderWindow(RateWindow(
                 usedPercent: automaticUsedPercent,
                 windowMinutes: 300,
-                resetsAt: automaticResetAt ?? self.now.addingTimeInterval(2 * 60 * 60),
-                resetDescription: nil)),
-            automaticText: nil,
+                resetsAt: automaticBalanceFallback == nil
+                    ? automaticResetAt ?? self.now.addingTimeInterval(2 * 60 * 60) : nil,
+                resetDescription: automaticBalanceFallback)),
+            automaticText: automaticText,
             sessionPace: "-8%",
             weeklyPace: "+11%",
             automaticPace: "0%",

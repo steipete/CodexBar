@@ -2557,14 +2557,6 @@ struct ProviderArchitectureGatekeeperTests {
             expectedReferenceFingerprint: ["warp@0"],
             reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
         AllowedProviderConstruct(
-            path: "Sources/CodexBar/StatusItemController+Animation.swift",
-            line: 925,
-            anchor: "if provider == .kiro {",
-            expectedProviderIDs: ["cursor", "kiro"],
-            expectedReferenceCount: 2,
-            expectedReferenceFingerprint: ["kiro@0", "cursor@8"],
-            reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
-        AllowedProviderConstruct(
             path: "Sources/CodexBar/StatusItemController+CostMenuCard.swift",
             line: 129,
             anchor: "+ [provider == .codex ? tokenUsage?.hintLine : nil].compactMap(\\.self)",

@@ -120,10 +120,10 @@ extension StatusItemController {
             scopedWeekly: MenuBarLayoutRenderWindow(scopedNamed?.window),
             scopedWeeklyTitle: scopedNamed?.title,
             automatic: automatic,
-            // Provider-specific by design: Mistral uses spend text when its automatic lane has no percentage window.
-            automaticText: provider == .mistral && automatic == nil
-                ? Self.mistralSpendDisplayText(snapshot: snapshot)
-                : nil,
+            automaticText: Self.menuBarLayoutAutomaticText(
+                provider: provider,
+                snapshot: snapshot,
+                automatic: automatic),
             sessionPace: self.store.menuBarLayoutPaceText(
                 provider: provider,
                 window: windows.session,

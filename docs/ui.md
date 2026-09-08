@@ -53,7 +53,10 @@ unavailable, including the first 3% of a window. The weekly menu-bar pace token 
 window has elapsed; session, automatic, and Runs out tokens keep the 3% threshold. See [Pace tracking](#pace-tracking).
 
 Balance is available only for OpenRouter and renders the same remaining-credit value shown in its menu card. Auto %
-uses the same provider-aware automatic-window resolution as the legacy menu bar metric setting. If a snapshot
+uses the same provider-aware automatic-window resolution as the legacy menu bar metric setting. For balance-only
+providers, Auto % shows the available money, points, or API spend instead of inventing a quota percentage. Both the
+status item and editor preview preserve real quota percentages when a usable limit exists. When a reset token
+falls back to that same balance, a visible Auto % token shows it once; reset-only layouts keep the balance fallback. If a snapshot
 does not provide a token's data, that token renders an en dash while its siblings remain visible. Existing installs
 derive their first layout from the prior style, display mode, metric, and reset settings; those legacy keys remain
 untouched for downgrade safety, while a saved token layout takes precedence.

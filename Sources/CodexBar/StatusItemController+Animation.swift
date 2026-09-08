@@ -873,54 +873,24 @@ extension StatusItemController {
         snapshot: UsageSnapshot?,
         now: Date = .init()) -> String?
     {
-        // Provider-specific by design: provider payload fields and display modes supply distinct balance/spend text.
         let mode = self.settings.menuBarDisplayMode
-        if provider == .openrouter,
-           self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot) == .automatic,
-           let balance = snapshot?.detailRow(label: "Remaining")?.value
-        {
+        let preference = self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot)
+        // Provider-specific by design: legacy preferences select balance text before quota and display modes.
+        let usesBalance = switch provider {
+        case .openrouter: preference == .automatic
+        case .mistral:
+            preference != .monthlyPlan
+                || snapshot?.extraRateWindows?.contains { $0.id == "mistral-monthly-plan" } != true
+        default: true
+        }
+        if usesBalance, let balance = Self.menuBarBalanceDisplayText(provider: provider, snapshot: snapshot) {
             return balance
         }
-        if provider == .opencodego,
-           let balance = Self.openCodeGoZenBalanceDisplayText(snapshot: snapshot)
+        if provider == .mimo, let snapshot,
+           snapshot.primary == nil || preference == .secondary,
+           let detail = snapshot.detailRow(label: "Balance")?.value
         {
-            return balance
-        }
-        if provider == .deepseek,
-           let balance = MenuBarDisplayText.deepSeekBalanceText(snapshot: snapshot)
-        {
-            return balance
-        }
-        if provider == .deepinfra,
-           let balance = Self.deepInfraBalanceDisplayText(snapshot: snapshot)
-        {
-            return balance
-        }
-        if provider == .mimo,
-           let balance = Self.miMoBalanceDisplayText(
-               snapshot: snapshot,
-               preference: self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot))
-        {
-            return balance
-        }
-        if provider == .moonshot,
-           let balance = Self.moonshotBalanceDisplayText(snapshot: snapshot)
-        {
-            return balance
-        }
-        if provider == .poe,
-           let balance = Self.poeBalanceDisplayText(snapshot: snapshot)
-        {
-            return balance
-        }
-        if provider == .mistral {
-            let preference = self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot)
-            let hasMonthlyPlan = snapshot?.extraRateWindows?.contains { $0.id == "mistral-monthly-plan" } == true
-            if preference != .monthlyPlan || !hasMonthlyPlan,
-               let spend = Self.mistralSpendDisplayText(snapshot: snapshot)
-            {
-                return spend
-            }
+            return detail.components(separatedBy: " (Paid:").first
         }
         if provider == .kiro {
             return Self.kiroDisplayText(
@@ -1013,60 +983,53 @@ extension StatusItemController {
             now: now)
     }
 
-    nonisolated static func deepInfraBalanceDisplayText(snapshot: UsageSnapshot?) -> String? {
-        guard
-            let detail = snapshot?.primary?.resetDescription?
-                .trimmingCharacters(in: .whitespacesAndNewlines),
-                let balanceDetail = detail.components(separatedBy: " · ").dropLast().last?
-                    .trimmingCharacters(in: .whitespacesAndNewlines),
-                    balanceDetail.hasPrefix("$"),
-                    let value = balanceDetail.split(separator: " ", maxSplits: 1).first
-        else {
-            return nil
-        }
-
-        let prefix = balanceDetail.contains(" owed") ? "-" : ""
-        return prefix + String(value)
-    }
-
-    nonisolated static func miMoBalanceDisplayText(
-        snapshot: UsageSnapshot?,
-        preference: MenuBarMetricPreference) -> String?
+    nonisolated static func menuBarBalanceDisplayText(
+        provider: UsageProvider,
+        snapshot: UsageSnapshot?) -> String?
     {
-        guard let snapshot, let detail = snapshot.detailRow(label: "Balance")?.value else { return nil }
-        if snapshot.primary != nil, preference != .secondary {
+        // Provider-specific by design: balance/spend values live in distinct provider payload fields.
+        switch provider {
+        case .deepseek:
+            return MenuBarDisplayText.deepSeekBalanceText(snapshot: snapshot)
+        case .deepinfra:
+            guard let detail = snapshot?.primary?.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  let balanceDetail = detail.components(separatedBy: " · ").dropLast().last?
+                      .trimmingCharacters(in: .whitespacesAndNewlines),
+                      balanceDetail.hasPrefix("$"),
+                      let value = balanceDetail.split(separator: " ", maxSplits: 1).first
+            else { return nil }
+            return (balanceDetail.contains(" owed") ? "-" : "") + String(value)
+        case .moonshot, .poe:
+            let value = self.displayValue(
+                from: snapshot?.loginMethod(for: provider), prefix: "Balance:", removingSuffix: "")
+            return provider == .moonshot
+                ? value?.split(separator: "·", maxSplits: 1).first?.trimmingCharacters(in: .whitespacesAndNewlines)
+                : value
+        case .mistral:
+            return self.displayValue(
+                from: snapshot?.identity?.loginMethod, prefix: "API spend:", removingSuffix: " this month")
+        case .opencodego:
+            guard snapshot?.primary == nil, snapshot?.secondary == nil,
+                  let cost = snapshot?.providerCost, cost.period == "Zen balance"
+            else { return nil }
+            return UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
+        case .openrouter:
+            return snapshot?.detailRow(label: "Remaining")?.value
+        default:
             return nil
         }
-        return detail.components(separatedBy: " (Paid:").first
     }
 
-    nonisolated static func poeBalanceDisplayText(snapshot: UsageSnapshot?) -> String? {
-        // Provider-specific by design: Poe stores its point balance in the login-method payload field.
-        self.displayValue(
-            from: snapshot?.loginMethod(for: .poe),
-            prefix: "Balance:",
-            removingSuffix: "")
-    }
-
-    nonisolated static func moonshotBalanceDisplayText(snapshot: UsageSnapshot?) -> String? {
-        // Provider-specific by design: Moonshot stores cash/voucher balance text in its login-method payload.
-        self.displayValue(
-            from: snapshot?.loginMethod(for: .moonshot),
-            prefix: "Balance:",
-            removingSuffix: "")
-            .flatMap { value in
-                value
-                    .split(separator: "·", maxSplits: 1)
-                    .first?
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-            }
-    }
-
-    nonisolated static func mistralSpendDisplayText(snapshot: UsageSnapshot?) -> String? {
-        self.displayValue(
-            from: snapshot?.identity?.loginMethod,
-            prefix: "API spend:",
-            removingSuffix: " this month")
+    nonisolated static func menuBarLayoutAutomaticText(
+        provider: UsageProvider,
+        snapshot: UsageSnapshot?,
+        automatic: MenuBarLayoutRenderWindow?) -> String?
+    {
+        // Provider-specific by design: DeepInfra's real billing window has no balance detail.
+        let balanceOnly = provider == .deepseek
+            || (provider == .deepinfra && automatic?.resetDescription != nil && automatic?.resetsAt == nil)
+        guard automatic == nil || balanceOnly else { return nil }
+        return self.menuBarBalanceDisplayText(provider: provider, snapshot: snapshot)
     }
 
     nonisolated static func extraUsageSpendDisplayText(snapshot: UsageSnapshot?) -> String? {
@@ -1076,17 +1039,6 @@ extension StatusItemController {
               // Codex extra usage is denominated in credits, not money: currency formatting would emit
               // the bare amount ("2000.6633599996567") instead of a spend value, so it keeps the percent text.
               cost.currencyCode != CodexExtraUsageCost.currencyCode
-        else {
-            return nil
-        }
-        return UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
-    }
-
-    nonisolated static func openCodeGoZenBalanceDisplayText(snapshot: UsageSnapshot?) -> String? {
-        guard snapshot?.primary == nil,
-              snapshot?.secondary == nil,
-              let cost = snapshot?.providerCost,
-              cost.period == "Zen balance"
         else {
             return nil
         }

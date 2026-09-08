@@ -69,7 +69,10 @@ struct MenuBarLayoutRenderData: Hashable {
     /// `.scopedWeekly` token with the real model rather than assuming Fable.
     let scopedWeeklyTitle: String?
     let automatic: MenuBarLayoutRenderWindow?
-    /// Provider-specific text used by the automatic percent token when no percentage window exists.
+    /// Provider-specific text that replaces the automatic percent token: Mistral spend when its
+    /// automatic lane has no percentage window, balance-only providers (DeepSeek, DeepInfra) whose
+    /// window percent is meaningless, or no-window providers (Moonshot, Poe, OpenCode Go,
+    /// OpenRouter) surfacing their balance instead of a missing-value placeholder.
     let automaticText: String?
     /// Signed pace deltas per window, already formatted (`+11%`, `-8%`, `0%`). Pace needs the store's
     /// historical dataset and work-day setting, so it is resolved upstream like `runsOut` rather than
@@ -297,7 +300,7 @@ final class MenuBarLayoutRenderer {
         // only the tokens that will actually render. A line left with nothing to render is dropped
         // entirely: keeping it would emit a stray newline, hold the title in stacked typography,
         // and announce a blank line to VoiceOver.
-        let renderedLines = layout.lines
+        var renderedLines = layout.lines
             .map { line in
                 line.compactMap {
                     Self.resolvedDisplayToken(
@@ -308,6 +311,8 @@ final class MenuBarLayoutRenderer {
                 }
             }
             .filter { !$0.isEmpty }
+
+        Self.removeDuplicateBalanceResets(from: &renderedLines, data: data)
 
         let isStacked = renderedLines.count == 2
         let font = NSFont.systemFont(ofSize: Self.fontSize(size: options.size, isStacked: isStacked))
@@ -402,6 +407,49 @@ final class MenuBarLayoutRenderer {
                 && !renderedLines.joined().contains(.icon)
                 ? Self.statusImage(title: result)
                 : nil)
+    }
+
+    private static func removeDuplicateBalanceResets(
+        from lines: inout [[MenuBarLayoutToken]],
+        data: MenuBarLayoutRenderData)
+    {
+        // A balance fallback is not a second reset value when automatic percent already shows it.
+        guard let balance = data.automaticText, data.automatic?.resetsAt == nil,
+              data.automatic?.resetDescription == balance,
+              lines.joined().contains(.percent(window: .automatic))
+        else { return }
+        let separators: Set<MenuBarLayoutToken> = [.separatorDot, .space]
+        lines = lines.map { line in
+            guard line.contains(.resetCountdown) || line.contains(.resetAbsolute) else { return line }
+            var tokens = line
+            while let index = tokens.firstIndex(where: { $0 == .resetCountdown || $0 == .resetAbsolute }) {
+                tokens.remove(at: index)
+                if tokens.prefix(index).allSatisfy(separators.contains) {
+                    while let first = tokens.first, separators.contains(first) {
+                        tokens.removeFirst()
+                    }
+                } else if tokens.dropFirst(index).allSatisfy(separators.contains) {
+                    while let last = tokens.last, separators.contains(last) {
+                        tokens.removeLast()
+                    }
+                } else {
+                    var left = index
+                    var right = index
+                    while left > 0, separators.contains(tokens[left - 1]) {
+                        left -= 1
+                    }
+                    while right < tokens.count, separators.contains(tokens[right]) {
+                        right += 1
+                    }
+                    if left < index, right > index {
+                        let keepRight = tokens[index..<right].contains(.separatorDot)
+                            || !tokens[left..<index].contains(.separatorDot)
+                        tokens.removeSubrange(keepRight ? left..<index : index..<right)
+                    }
+                }
+            }
+            return tokens
+        }.filter { !$0.isEmpty }
     }
 
     private static func statusImage(title: NSAttributedString) -> NSImage? {
@@ -675,12 +723,13 @@ final class MenuBarLayoutRenderer {
         showUsed: Bool)
         -> (text: String, isAvailable: Bool)
     {
+        if window == .automatic, let automaticText {
+            // Provider-supplied balance text overrides only the automatic lane.
+            return (automaticText, true)
+        }
         if let rateWindow {
             let percent = showUsed ? rateWindow.usedPercent : rateWindow.remainingPercent
             return (UsageFormatter.percentString(percent), true)
-        }
-        if window == .automatic, let automaticText {
-            return (automaticText, true)
         }
         return (Self.missingValue, false)
     }
