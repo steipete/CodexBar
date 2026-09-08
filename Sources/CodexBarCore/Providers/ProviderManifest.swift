@@ -20,6 +20,7 @@ public enum ProviderManifest {
         FireworksProviderDescriptor.descriptor,
         GeminiProviderDescriptor.descriptor,
         AntigravityProviderDescriptor.descriptor,
+        OpenClawProviderDescriptor.descriptor,
         CopilotProviderDescriptor.descriptor,
         DevinProviderDescriptor.descriptor,
         ZaiProviderDescriptor.descriptor,

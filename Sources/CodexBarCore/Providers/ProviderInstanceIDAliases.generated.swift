@@ -18,6 +18,7 @@ extension ProviderInstanceID {
     public static let fireworks = UsageProvider.fireworks.instanceID
     public static let gemini = UsageProvider.gemini.instanceID
     public static let antigravity = UsageProvider.antigravity.instanceID
+    public static let openclaw = UsageProvider.openclaw.instanceID
     public static let copilot = UsageProvider.copilot.instanceID
     public static let devin = UsageProvider.devin.instanceID
     public static let zai = UsageProvider.zai.instanceID
