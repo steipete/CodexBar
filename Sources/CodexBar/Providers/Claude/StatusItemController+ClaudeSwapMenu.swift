@@ -41,11 +41,15 @@ extension StatusItemController {
                 heading.isEnabled = false
                 menu.addItem(heading)
             }
-            self.addStackedClaudeSwapMenuCards(
-                accounts: display.displayedAccount.map { [$0] } ?? [],
-                to: menu,
-                captureMenu: captureMenu,
-                context: context)
+            if let account = display.displayedAccount {
+                self.addStackedClaudeSwapMenuCards(
+                    accounts: [account],
+                    to: menu,
+                    captureMenu: captureMenu,
+                    context: context)
+            } else if self.addStorageMenuCardSection(to: menu, provider: .claude, width: context.menuWidth) {
+                menu.addItem(.separator())
+            }
             return
         }
         let plan = self.compactAccountPlan(for: .claude, accounts: accounts)

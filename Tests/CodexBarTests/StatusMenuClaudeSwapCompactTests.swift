@@ -158,6 +158,18 @@ final class StatusMenuClaudeSwapCompactTests: XCTestCase {
         }
     }
 
+    func test_segmentedNoActiveAccountDoesNotDisplayAmbientUsage() {
+        let inactive = self.account(slot: 7, email: "inactive@example.com", sessionUsed: 10, weeklyUsed: 20)
+        let other = self.account(slot: 9, email: "other@example.com", sessionUsed: 30, weeklyUsed: 40)
+        let (controller, store) = self.makeController(accounts: [inactive, other], layout: .segmented)
+        defer { controller.releaseStatusItemsForTesting() }
+        store.snapshots[.claude] = self.sixAccounts()[0].snapshot
+        let menu = controller.makeMenu(for: .claude)
+        controller.menuWillOpen(menu)
+        XCTAssertTrue(menu.items.contains { $0.title == "No active account" })
+        XCTAssertFalse(self.representedIDs(in: menu).contains { $0.hasPrefix("menuCard") })
+    }
+
     func test_segmentedInspectionPreservesNoActiveAccountNotice() {
         let sentinel = self.account(
             slot: 9, email: "expired@example.com", sessionUsed: 0, weeklyUsed: 0, canActivate: false)
