@@ -1083,7 +1083,11 @@ extension StatusItemController {
         case .deepseek:
             MenuBarDisplayText.deepSeekBalanceText(snapshot: snapshot)
         case .deepinfra:
-            self.deepInfraBalanceDisplayText(snapshot: snapshot)
+            // DeepInfra's descriptor resolves a real billing-cycle percent when a spending limit is
+            // set; only replace the synthetic balance-health window, which carries the balance detail.
+            automatic?.resetDescription != nil && automatic?.resetsAt == nil
+                ? self.deepInfraBalanceDisplayText(snapshot: snapshot)
+                : nil
         case .mistral:
             automatic == nil ? self.mistralSpendDisplayText(snapshot: snapshot) : nil
         case .moonshot:
