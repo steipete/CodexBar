@@ -13,7 +13,11 @@ extension UsageStore {
         provider: UsageProvider,
         window: String? = nil,
         usagePercent: Double? = nil,
+        windowMinutes: Int? = nil,
         resetAt: Date? = nil,
+        secondaryUsagePercent: Double? = nil,
+        secondaryWindowMinutes: Int? = nil,
+        secondaryResetAt: Date? = nil,
         status: String? = nil,
         accountDisplayName: String? = nil)
     {
@@ -28,7 +32,11 @@ extension UsageStore {
             account: self.settings.hidePersonalInfo ? nil : accountDisplayName,
             window: window,
             usagePercent: usagePercent,
+            windowMinutes: windowMinutes,
             resetAt: resetAt,
+            secondaryUsagePercent: secondaryUsagePercent,
+            secondaryWindowMinutes: secondaryWindowMinutes,
+            secondaryResetAt: secondaryResetAt,
             status: status,
             timestamp: Date())
 
@@ -41,6 +49,25 @@ extension UsageStore {
                 rateLimiter: limiter,
                 baseEnvironment: environment)
         }
+    }
+
+    /// Offers the quota snapshot after every successful provider refresh; hook
+    /// delivery can be coalesced by the rate limiter. The primary and secondary
+    /// windows stay in one event so consumers can evaluate both without another fetch.
+    func emitUsageUpdatedHook(provider: UsageProvider, snapshot: UsageSnapshot) {
+        guard self.hasQuotaHookRule(event: .usageUpdated, provider: provider) else { return }
+        let primary = snapshot.primary.flatMap { $0.isSyntheticPlaceholder ? nil : $0 }
+        let secondary = snapshot.secondary.flatMap { $0.isSyntheticPlaceholder ? nil : $0 }
+        self.emitHook(
+            .usageUpdated,
+            provider: provider,
+            usagePercent: primary.map { $0.usedPercent / 100 },
+            windowMinutes: primary?.windowMinutes,
+            resetAt: primary?.resetsAt,
+            secondaryUsagePercent: secondary.map { $0.usedPercent / 100 },
+            secondaryWindowMinutes: secondary?.windowMinutes,
+            secondaryResetAt: secondary?.resetsAt,
+            accountDisplayName: self.hookAccountDisplayName(provider: provider, snapshot: snapshot))
     }
 
     func emitQuotaReachedHook(

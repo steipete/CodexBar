@@ -83,19 +83,25 @@ Events:
   rules without a threshold use the provider's configured warning thresholds.
 - `quota_reached`: the primary session quota crosses into depletion.
 - `quota_reset`: a confirmed session or weekly reset occurs.
+- `usage_updated`: the macOS app published a successful, current provider refresh. It can fire when values are
+  unchanged and is coalesced per provider/account for ten minutes. `usagePercent`, `windowMinutes`, and `resetAt`
+  describe the positional primary window; `secondaryUsagePercent`, `secondaryWindowMinutes`, and
+  `secondaryResetAt` describe the positional secondary window. Synthetic placeholder windows are omitted.
 - `provider_unavailable`: a provider status changes to a minor, major, or critical outage.
 - `provider_recovered`: that tracked outage returns to normal.
 - `refresh_failed`: a provider refresh fails; `CODEXBAR_STATUS` is a coarse category such as `timeout`, `offline`,
   `network_error`, `auth_required`, `cancelled`, or `error`.
 
-`provider_unavailable` and `refresh_failed` are coalesced per provider/account/window for ten minutes so background
-refresh failures cannot create command storms. Quota and recovery events use their transition detectors instead. Hook
-failures are contained and never block provider refresh.
+`usage_updated`, `provider_unavailable`, and `refresh_failed` are coalesced per provider/account/window for ten
+minutes so background refreshes cannot create command storms. Quota and recovery events use their transition
+detectors instead. Hook failures are contained and never block provider refresh. `codexbar hooks watch` emits only
+transition events; it does not emit `usage_updated`.
 
 Payload environment variables are `CODEXBAR_EVENT`, `CODEXBAR_PROVIDER`, `CODEXBAR_TIMESTAMP`, and, when available,
 `CODEXBAR_ACCOUNT`, `CODEXBAR_WINDOW`, `CODEXBAR_USAGE_PERCENT`, `CODEXBAR_USED`, `CODEXBAR_LIMIT`,
-`CODEXBAR_RESET_AT`, and `CODEXBAR_STATUS`. Enabling Hide personal info omits `CODEXBAR_ACCOUNT` and the matching JSON
-field.
+`CODEXBAR_WINDOW_MINUTES`, `CODEXBAR_RESET_AT`, `CODEXBAR_SECONDARY_USAGE_PERCENT`,
+`CODEXBAR_SECONDARY_WINDOW_MINUTES`, `CODEXBAR_SECONDARY_RESET_AT`, and `CODEXBAR_STATUS`. Enabling Hide personal info
+omits `CODEXBAR_ACCOUNT` and the matching JSON field.
 
 The stdin JSON uses the same camel-case field names without the `CODEXBAR_` prefix. Dates are UTC ISO 8601 strings,
 usage percentages are `0...1` fractions, unavailable optional fields are omitted rather than encoded as `null`, and

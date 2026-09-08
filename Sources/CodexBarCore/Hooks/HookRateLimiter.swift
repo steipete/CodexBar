@@ -3,8 +3,8 @@ import Foundation
 /// In-memory storm suppression: fire a given (event, provider, account, window)
 /// at most once per `window` seconds. Quota events already dedupe upstream via
 /// CodexBar's threshold/depletion/reset state; this is a backstop for
-/// `provider_unavailable` / `refresh_failed`, which can otherwise repeat every
-/// refresh while an outage persists. In-memory only: the state resets on relaunch.
+/// `usage_updated`, `provider_unavailable`, and `refresh_failed`, which can
+/// otherwise repeat every refresh. In-memory only: the state resets on relaunch.
 public actor HookRateLimiter {
     public static let defaultWindow: TimeInterval = 600 // 10 minutes
 
