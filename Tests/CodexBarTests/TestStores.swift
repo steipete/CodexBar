@@ -222,12 +222,13 @@ func testConfigWithAllProvidersDisabled() -> CodexBarConfig {
 @MainActor
 func testSettingsStore(
     suiteName: String,
+    userDefaults: UserDefaults? = nil,
     tokenAccountStore: any ProviderTokenAccountStoring = InMemoryTokenAccountStore(),
     config: CodexBarConfig? = nil,
     prepareDefaults: ((UserDefaults) -> Void)? = nil) -> SettingsStore
 {
     let isolatedSuiteName = "\(suiteName)-\(UUID().uuidString)"
-    guard let defaults = UserDefaults(suiteName: isolatedSuiteName) else {
+    guard let defaults = userDefaults ?? UserDefaults(suiteName: isolatedSuiteName) else {
         preconditionFailure("Could not create test defaults suite")
     }
     defaults.removePersistentDomain(forName: isolatedSuiteName)

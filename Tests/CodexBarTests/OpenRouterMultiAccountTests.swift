@@ -12,11 +12,21 @@ private actor OpenRouterAccountFetchRecorder {
     }
 
     private(set) var requests: [Request] = []
+    private var failure: NSError?
 
-    func record(context: ProviderFetchContext) {
+    func setOffline() {
+        self.failure = URLError(.notConnectedToInternet) as NSError
+    }
+
+    func setFailure(_ error: NSError) {
+        self.failure = error
+    }
+
+    func record(context: ProviderFetchContext) throws {
         self.requests.append(Request(
             accountID: context.selectedTokenAccountID,
             accountValue: context.env[OpenRouterSettingsReader.envKey]))
+        if let failure { throw failure }
     }
 }
 
@@ -31,7 +41,7 @@ private struct OpenRouterAccountFetchStrategy: ProviderFetchStrategy {
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        await self.recorder.record(context: context)
+        try await self.recorder.record(context: context)
         let accountValue = context.env[OpenRouterSettingsReader.envKey]
         let totalUsage = accountValue == "test-key" ? 10.0 : 40.0
         let usage = OpenRouterUsageSnapshot(
@@ -128,6 +138,131 @@ struct OpenRouterMultiAccountTests {
     }
 
     @Test
+    func `offline account refreshes retain account rows selected usage and widget data`() async throws {
+        let settings = Self.makeSettings(suite: "OpenRouterMultiAccountTests-offline")
+        settings.setProviderEnabled(
+            provider: .openrouter,
+            metadata: ProviderDescriptorRegistry.descriptor(for: .openrouter).metadata,
+            enabled: true)
+        settings.addTokenAccount(provider: .openrouter, label: "Personal", token: "test-key")
+        settings.addTokenAccount(provider: .openrouter, label: "Work", token: "test-auth-token")
+        settings.setActiveTokenAccountIndex(0, for: .openrouter)
+        let accounts = settings.tokenAccounts(for: .openrouter)
+        let recorder = OpenRouterAccountFetchRecorder()
+        let store = try Self.makeStore(settings: settings, recorder: recorder)
+        await store.refreshTokenAccounts(provider: .openrouter, accounts: accounts)
+        let prior = try #require(store.accountSnapshots[.openrouter])
+        let selected = try #require(store.snapshots[.openrouter])
+        var widgets: [WidgetSnapshot] = []
+        store._test_widgetSnapshotSaveOverride = { widgets.append($0) }
+        defer { store._test_widgetSnapshotSaveOverride = nil }
+        await recorder.setOffline()
+        for _ in 0..<2 {
+            await store.refreshTokenAccounts(provider: .openrouter, accounts: accounts)
+            #expect(store.accountSnapshots[.openrouter]?.map { $0.snapshot?.primary } == prior
+                .map { $0.snapshot?.primary })
+            #expect(store.accountSnapshots[.openrouter]?.map { $0.snapshot?.updatedAt } == prior
+                .map { $0.snapshot?.updatedAt })
+            #expect(store.accountSnapshots[.openrouter]?.map(\.sourceLabel) == prior.map(\.sourceLabel))
+            #expect(store.snapshots[.openrouter]?.primary == selected.primary)
+            #expect(store.snapshots[.openrouter]?.updatedAt == selected.updatedAt)
+            #expect(store.snapshots[.openrouter]?.accountEmail(for: .openrouter) == selected
+                .accountEmail(for: .openrouter))
+            store.persistWidgetSnapshot(reason: "synthetic-account-offline")
+            await store.widgetSnapshotPersistTask?.value
+            let entry = widgets.last?.entries.first { $0.provider == .openrouter }
+            #expect(entry?.primary == selected.primary)
+            #expect(entry?.updatedAt == selected.updatedAt)
+        }
+        #expect(store.errors[.openrouter] != nil)
+        #expect(store.accountSnapshots[.openrouter]?.allSatisfy { $0.error != nil } == true)
+    }
+
+    @Test(arguments: [false, true])
+    func `selected failure never restores a changed credential or provider scope`(_ changesConfig: Bool) async throws {
+        let settings = Self.makeSettings(suite: "OpenRouterMultiAccountTests-stale-fallback")
+        settings.addTokenAccount(provider: .openrouter, label: "Personal", token: "test-key")
+        let account = try #require(settings.tokenAccounts(for: .openrouter).first)
+        let recorder = OpenRouterAccountFetchRecorder()
+        let store = try Self.makeStore(settings: settings, recorder: recorder)
+        await store.refreshTokenAccounts(provider: .openrouter, accounts: [account])
+        let prior = try #require(store.accountSnapshots[.openrouter]?.first)
+        if changesConfig {
+            settings.updateProviderConfig(provider: .openrouter) {
+                $0.pluginSecrets = [OpenRouterSettingsReader.managementAPIKeyEnvironmentKey: "replacement-fixture-key"]
+            }
+        } else {
+            settings.updateTokenAccount(provider: .openrouter, accountID: account.id, token: "replacement-fixture-key")
+        }
+        store.activateCachedTokenAccountSnapshot(provider: .openrouter, accountID: account.id)
+        #expect(store.snapshots[.openrouter] == nil)
+        await store.applySelectedOutcome(
+            ProviderFetchOutcome(result: .failure(URLError(.notConnectedToInternet)), attempts: []),
+            provider: .openrouter,
+            account: settings.effectiveSelectedTokenAccount(for: .openrouter),
+            fallbackSnapshot: prior.snapshot,
+            fallbackAccountSnapshot: prior)
+        #expect(store.snapshots[.openrouter] == nil)
+    }
+
+    @Test(arguments: [false, true])
+    func `late failure for a switched or removed account leaves the current account alone`(
+        _ removesAccount: Bool) async throws
+    {
+        let settings = Self.makeSettings(suite: "OpenRouterMultiAccountTests-late-failure")
+        settings.addTokenAccount(provider: .openrouter, label: "Personal", token: "test-key")
+        settings.addTokenAccount(provider: .openrouter, label: "Work", token: "test-auth-token")
+        settings.setActiveTokenAccountIndex(0, for: .openrouter)
+        let accounts = settings.tokenAccounts(for: .openrouter)
+        let recorder = OpenRouterAccountFetchRecorder()
+        let store = try Self.makeStore(settings: settings, recorder: recorder)
+        await store.refreshTokenAccounts(provider: .openrouter, accounts: accounts)
+        let prior = try #require(store.accountSnapshots[.openrouter]?.first)
+        if removesAccount {
+            settings.removeTokenAccount(provider: .openrouter, accountID: accounts[0].id)
+        } else {
+            settings.setActiveTokenAccountIndex(1, for: .openrouter)
+        }
+        store.activateCachedTokenAccountSnapshot(provider: .openrouter, accountID: accounts[1].id)
+        let current = try #require(store.snapshots[.openrouter])
+        for _ in 0..<2 {
+            await store.applySelectedOutcome(
+                ProviderFetchOutcome(result: .failure(URLError(.notConnectedToInternet)), attempts: []),
+                provider: .openrouter,
+                account: accounts[0],
+                fallbackSnapshot: prior.snapshot,
+                fallbackAccountSnapshot: prior)
+        }
+        #expect(store.snapshots[.openrouter]?.primary == current.primary)
+        #expect(store.snapshots[.openrouter]?.accountEmail(for: .openrouter) == "Work")
+        #expect(store.errors[.openrouter] == nil)
+    }
+
+    @Test(arguments: [false, true])
+    func `offline without prior data and rejected credentials do not invent cached usage`(
+        _ rejectsCredentials: Bool) async throws
+    {
+        let settings = Self.makeSettings(suite: "OpenRouterMultiAccountTests-no-fallback")
+        settings.addTokenAccount(provider: .openrouter, label: "Personal", token: "test-key")
+        let accounts = settings.tokenAccounts(for: .openrouter)
+        let recorder = OpenRouterAccountFetchRecorder()
+        let store = try Self.makeStore(settings: settings, recorder: recorder)
+        if rejectsCredentials {
+            await store.refreshTokenAccounts(provider: .openrouter, accounts: accounts)
+            await recorder.setFailure(NSError(
+                domain: "synthetic-auth", code: 401, userInfo: [NSLocalizedDescriptionKey: "401 Unauthorized"]))
+        } else {
+            await recorder.setOffline()
+        }
+        for _ in 0..<2 {
+            await store.refreshTokenAccounts(provider: .openrouter, accounts: accounts)
+        }
+        #expect(store.snapshots[.openrouter] == nil)
+        #expect(store.accountSnapshots[.openrouter]?.allSatisfy { $0.snapshot == nil } == true)
+        #expect(store.errors[.openrouter] != nil)
+    }
+
+    @Test
     func `OpenRouter menu projection supports stacked and segmented layouts`() async throws {
         let settings = Self.makeSettings(suite: "OpenRouterMultiAccountTests-menu")
         settings.addTokenAccount(provider: .openrouter, label: "Personal", token: "test-key")
@@ -220,6 +355,7 @@ struct OpenRouterMultiAccountTests {
     private static func makeSettings(suite: String) -> SettingsStore {
         testSettingsStore(
             suiteName: "\(suite)-\(UUID().uuidString)",
+            userDefaults: InMemoryUserDefaults(),
             tokenAccountStore: InMemoryTokenAccountStore())
     }
 

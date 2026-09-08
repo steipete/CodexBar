@@ -654,3 +654,10 @@ JavaScriptCore is the macOS rollback engine. The committed `.js` is generated fr
 - Details: `docs/notion.md`.
 
 See also: `docs/provider.md` for architecture notes.
+
+## Cached usage during account refresh
+
+Transient network failures keep the last successful usage for the same account and credential/configuration scope,
+including multi-account menus and their widget data. The cached measurement time and source remain unchanged;
+failed refreshes do not add fresh utilization-history samples. Normal error reporting still applies after repeated
+failures. Authentication failures and invalidated account scopes do not restore cached usage from another scope.

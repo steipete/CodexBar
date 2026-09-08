@@ -22,6 +22,7 @@
 - Local costs: avoid overflow traps in OpenCodex and combined cost reports, keeping unrepresentable token sums unavailable while retaining valid neighboring token classes.
 - Kiro: route existing overage enrichment to the CLI profile’s supported region instead of always using US East; reject invalid profile ARNs before sending credentials and retain CLI fallback (#3359). Thanks @zucram!
 - Settings: observe rapid external config replacements and edits that restore earlier app-written contents, while keeping successful app writes out of the external-change sync path.
+- Accounts: retain matching cached usage and widget data through transient multi-account refresh failures without refreshing measurement timestamps or reusing changed credentials.
 - Local usage: honor the app’s Low Power Mode interval for automatic Codex catch-up passes in both usage and Spend Dashboard, while retaining manual acceleration and system thermal pauses.
 - z.ai: preserve required quota when optional model analytics exceed display bounds or overflow; retain valid Unicode labels with shared native validation and normalize token inputs once.
 - Claude: recover an expired default-profile cache from changed, fresh CLI credentials when existing read consent and policy permit, preserving explicit-file precedence and custom-profile isolation (related to #3390).
