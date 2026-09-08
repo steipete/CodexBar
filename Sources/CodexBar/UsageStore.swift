@@ -296,7 +296,8 @@ final class UsageStore {
     @ObservationIgnored var _test_codexCostCatchUpAdvanceOverride: (@MainActor (
         Date,
         String?,
-        Int) async throws -> CostUsageFetcher.CodexScanCatchUpStatus)?
+        Int,
+        TimeInterval) async throws -> CostUsageFetcher.CodexScanCatchUpStatus)?
     @ObservationIgnored var _test_codexCostCatchUpSleepOverride: (@MainActor (
         TimeInterval) async throws -> Void)?
     @ObservationIgnored var _test_codexCostCatchUpResourceStateOverride: (@MainActor () -> (
@@ -1563,7 +1564,7 @@ extension UsageStore {
                 return
             }
             self.lastTokenFetchScope[provider.instanceID] = completedCostScopeSignature
-            self.startCodexCostCatchUpIfNeeded(afterRefreshing: provider, force: force)
+            if provider == .codex { self.startCodexCostCatchUpIfNeeded() }
 
             if try self.regularTokenSnapshotIsConfirmedEmpty(snapshot, for: provider) {
                 self.publishConfirmedEmptyTokenSnapshot(for: provider)

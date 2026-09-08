@@ -18,6 +18,99 @@ import Testing
 @Suite(.serialized)
 // swiftlint:disable:next type_body_length
 struct CostUsagePerformanceGateTests {
+    @Test
+    func `time limited codex catch-up bounds oversized active day discovery`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        CostUsageScanner.resetCodexDirectoryCursorsForTesting(under: env.root)
+        defer { CostUsageScanner.resetCodexDirectoryCursorsForTesting(under: env.root) }
+        let day = try env.makeLocalNoon(year: 2026, month: 5, day: 10)
+        let corpusSize = 1500
+        let candidateLimit = CostUsageScanner.codexCatchUpScanCandidateLimit
+        _ = try Self.writeSyntheticCodexCorpus(
+            env: env,
+            day: day,
+            files: corpusSize,
+            turnsPerFile: 1)
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: nil,
+            cacheRoot: env.cacheRoot,
+            codexTraceDatabaseURL: env.root.appendingPathComponent("missing.sqlite"),
+            maxCodexSessionFileBytes: 0,
+            maxCodexScanBytesPerRefresh: 0,
+            maxCodexScanDurationPerRefresh: 60)
+        options.refreshMinIntervalSeconds = 0
+
+        let firstRecorder = CostUsageScanner.CodexScanWorkRecorder()
+        options.codexScanWorkRecorderForTesting = firstRecorder
+        _ = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+        let firstMetrics = firstRecorder.snapshot()
+        let firstCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        print(
+            "[discovery-proof] first=\(firstCache.files.count), "
+                + "discovery=\(firstMetrics.codexDiscoveryVisits), "
+                + "attempts=\(firstMetrics.codexFileScanAttempts)")
+
+        #expect(firstMetrics.codexDiscoveryVisits == candidateLimit)
+        #expect(firstMetrics.codexFileScanAttempts == candidateLimit)
+        #expect(firstCache.files.count == candidateLimit)
+        #expect(firstCache.codexScanCatchUpPending == true)
+
+        CostUsageScanner.resetCodexDirectoryCursorsForTesting(under: env.root)
+        let relaunchedRecorder = CostUsageScanner.CodexScanWorkRecorder()
+        options.codexScanWorkRecorderForTesting = relaunchedRecorder
+        _ = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day.addingTimeInterval(1),
+            options: options)
+        let relaunchedMetrics = relaunchedRecorder.snapshot()
+        let relaunchedCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        print(
+            "[discovery-proof] relaunched=\(relaunchedCache.files.count), "
+                + "discovery=\(relaunchedMetrics.codexDiscoveryVisits), "
+                + "attempts=\(relaunchedMetrics.codexFileScanAttempts)")
+
+        #expect(relaunchedMetrics.codexDiscoveryVisits == candidateLimit)
+        #expect(relaunchedMetrics.codexFileScanAttempts == 0)
+        #expect(relaunchedCache.files.count == candidateLimit)
+        #expect(relaunchedCache.codexScanCatchUpPending == true)
+
+        // A different fixture's simulated restart must not discard this cursor.
+        CostUsageScanner.resetCodexDirectoryCursorsForTesting(under: env.root.appendingPathComponent("unrelated"))
+        let secondRecorder = CostUsageScanner.CodexScanWorkRecorder()
+        options.codexScanWorkRecorderForTesting = secondRecorder
+        _ = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day.addingTimeInterval(2),
+            options: options)
+        let secondMetrics = secondRecorder.snapshot()
+        let secondCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        print(
+            "[discovery-proof] second=\(secondCache.files.count), "
+                + "discovery=\(secondMetrics.codexDiscoveryVisits), "
+                + "visits=\(secondMetrics.codexCandidateSelectionVisits), "
+                + "attempts=\(secondMetrics.codexFileScanAttempts), "
+                + "accounting=\(secondMetrics.codexProgressAccountingVisits)")
+
+        #expect(secondMetrics.codexDiscoveryVisits == candidateLimit)
+        #expect(secondMetrics.codexCandidateSelectionVisits == candidateLimit)
+        #expect(secondMetrics.codexFileScanAttempts == candidateLimit)
+        #expect(secondMetrics.codexProgressAccountingVisits == 0)
+        #expect(secondCache.files.count == candidateLimit * 2)
+        #expect(secondCache.codexScanCatchUpPending == true)
+    }
+
     @Test(arguments: [false, true])
     func `dated codex discovery advances after relaunch for fresh and 0_56_8 caches`(
         upgradedFrom0568: Bool) async throws
