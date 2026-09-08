@@ -8,6 +8,26 @@ import Testing
 @Suite(.serialized)
 struct ProviderSettingsDescriptorTests {
     @Test
+    func `bedrock discloses monitoring charges before credentials in either authentication mode`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-bedrock-charges")
+        let context = fixture.settingsContext(provider: .bedrock)
+        for mode in [BedrockAuthMode.keys, .profile] {
+            fixture.settings.bedrockAuthMode = mode.rawValue
+            let groups = BedrockProviderImplementation().settingsActions(context: context)
+            let charges = try #require(groups.first { $0.id == "bedrock-monitoring-charges" })
+            let frequency = try #require(groups.first { $0.id == "bedrock-monitoring-frequency" })
+            #expect(charges.isVisible?() ?? true)
+            #expect(frequency.isVisible?() ?? true)
+            #expect(charges.subtitle.contains("per Cost Explorer request"))
+            #expect(charges.subtitle.contains("multiple requests"))
+            #expect(charges.subtitle.contains("does not cap"))
+            #expect(charges.actions.count == 1)
+            #expect(frequency.subtitle.contains("all providers"))
+            #expect(frequency.subtitle.contains("startup and explicit refreshes"))
+        }
+    }
+
+    @Test
     func `provider settings refresh enables explicit browser retry`() async {
         var observedInteraction: ProviderInteraction?
         var browserRetryAllowed = false

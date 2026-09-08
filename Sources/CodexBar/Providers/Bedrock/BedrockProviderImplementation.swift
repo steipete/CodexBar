@@ -26,6 +26,41 @@ struct BedrockProviderImplementation: ProviderImplementation {
     }
 
     @MainActor
+    func settingsActions(context _: ProviderSettingsContext) -> [ProviderSettingsActionsDescriptor] {
+        [
+            ProviderSettingsActionsDescriptor(
+                id: "bedrock-monitoring-charges",
+                title: "Monitoring adds AWS charges",
+                subtitle: "AWS charges $0.01 per Cost Explorer request against the primary billing view. "
+                    + "A refresh can make multiple requests, and CloudWatch activity can add charges. "
+                    + "The displayed monthly budget does not cap AWS billing.",
+                actions: [
+                    ProviderSettingsActionDescriptor(
+                        id: "bedrock-monitoring-pricing",
+                        title: "AWS Cost Explorer pricing",
+                        style: .link,
+                        isVisible: nil,
+                        perform: {
+                            guard let url = URL(string:
+                                "https://aws.amazon.com/aws-cost-management/aws-cost-explorer/pricing/")
+                            else { return }
+                            NSWorkspace.shared.open(url)
+                        }),
+                ],
+                isVisible: nil),
+            ProviderSettingsActionsDescriptor(
+                id: "bedrock-monitoring-frequency",
+                title: "Reduce monitoring requests",
+                subtitle: "In General → Refreshing, choose a longer interval or Manual and turn off "
+                    + "Refresh when the menu opens. These controls apply to all providers. "
+                    + "Manual still allows startup and explicit refreshes. "
+                    + "Disable AWS Bedrock to stop its app refreshes.",
+                actions: [],
+                isVisible: nil),
+        ]
+    }
+
+    @MainActor
     func settingsPickers(context: ProviderSettingsContext) -> [ProviderSettingsPickerDescriptor] {
         let binding = Binding(
             get: { context.settings.bedrockAuthMode },
