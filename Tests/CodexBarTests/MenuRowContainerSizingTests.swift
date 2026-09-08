@@ -72,7 +72,6 @@ struct MenuRowContainerSizingTests {
             submenuIndicatorTopPadding: 0,
             allowsMenuHighlight: false,
             containsInteractiveControls: false,
-            usesGPUSelection: false,
             onClick: nil)
     }
 }

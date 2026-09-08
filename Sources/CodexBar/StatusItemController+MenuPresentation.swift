@@ -158,12 +158,10 @@ struct MenuCardRowPayload {
     let submenuIndicatorTopPadding: CGFloat
     let allowsMenuHighlight: Bool
     let containsInteractiveControls: Bool
-    let usesGPUSelection: Bool
     let onClick: (() -> Void)?
 }
 
-/// Inner SwiftUI host used by every card row. The outer container owns AppKit event handling and,
-/// for Overview rows, the composited selection layer.
+/// Inner SwiftUI host used by every card row. The outer container owns AppKit event handling.
 private final class MenuRowContentHostingView: NSHostingView<MenuCardSectionContainerView<AnyView>> {
     override var allowsVibrancy: Bool {
         true
@@ -178,12 +176,9 @@ final class MenuRowContainerView: NSView, MenuCardHighlighting, MenuCardMeasurin
     let interactiveRegionStore: MenuCardInteractiveRegionStore
     private let hosting: MenuRowContentHostingView
     private var measuredSize: NSSize?
-    private var selectionView: NSVisualEffectView?
-    private var tintFilter: CIFilter?
     private(set) var allowsMenuHighlight: Bool
     private var onClick: (() -> Void)?
     private var containsInteractiveControls: Bool
-    private var isRowHighlighted = false
     private var isPressed = false
     private var isForwardingHostedControlPress = false
     private(set) var rowPayload: MenuCardRowPayload
@@ -191,11 +186,6 @@ final class MenuRowContainerView: NSView, MenuCardHighlighting, MenuCardMeasurin
     private var testForwardedHostedControlMouseDown = false
     private var testForwardedHostedControlMouseUp = false
     #endif
-
-    private static let selectionHorizontalInset: CGFloat = 6
-    private static let selectionVerticalInset: CGFloat = 2
-    private static let selectionCornerRadius: CGFloat = 6
-    private static let selectionFadeDuration: CFTimeInterval = 0.06
 
     override var allowsVibrancy: Bool {
         true
@@ -249,7 +239,7 @@ final class MenuRowContainerView: NSView, MenuCardHighlighting, MenuCardMeasurin
         self.hosting.wantsLayer = true
         self.hosting.autoresizingMask = [.width, .height]
         self.addSubview(self.hosting)
-        self.configureSelectionMode(animated: false)
+        self.needsLayout = true
     }
 
     @available(*, unavailable)
@@ -258,7 +248,7 @@ final class MenuRowContainerView: NSView, MenuCardHighlighting, MenuCardMeasurin
     }
 
     /// Rebuilds the erased SwiftUI root around this container's own state and interaction store.
-    /// The outer NSView never detaches, even when switching between GPU and SwiftUI highlight modes.
+    /// The outer NSView and shared highlight state stay attached while content changes.
     func replant(_ payload: MenuCardRowPayload, refreshMonitor: MenuCardRefreshMonitor?) {
         self.measuredSize = nil
         self.rowPayload = payload
@@ -267,13 +257,12 @@ final class MenuRowContainerView: NSView, MenuCardHighlighting, MenuCardMeasurin
         self.onClick = payload.onClick
         self.isPressed = false
         self.isForwardingHostedControlPress = false
-        self.highlightState.isHighlighted = !payload.usesGPUSelection && self.isRowHighlighted
         self.hosting.rootView = Self.makeRootView(
             payload: payload,
             highlightState: self.highlightState,
             refreshMonitor: refreshMonitor,
             interactiveRegionStore: self.interactiveRegionStore)
-        self.configureSelectionMode(animated: false)
+        self.needsLayout = true
         self.invalidateIntrinsicContentSize()
     }
 
@@ -297,18 +286,9 @@ final class MenuRowContainerView: NSView, MenuCardHighlighting, MenuCardMeasurin
         true
     }
 
-    override func viewDidChangeEffectiveAppearance() {
-        super.viewDidChangeEffectiveAppearance()
-        self.refreshTintFilter()
-    }
-
     override func layout() {
         super.layout()
         self.hosting.frame = self.bounds
-        self.selectionView?.frame = self.bounds.insetBy(
-            dx: Self.selectionHorizontalInset,
-            dy: Self.selectionVerticalInset)
-        self.selectionView?.layer?.cornerRadius = Self.selectionCornerRadius
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
@@ -351,14 +331,14 @@ final class MenuRowContainerView: NSView, MenuCardHighlighting, MenuCardMeasurin
             super.mouseDown(with: event)
             return
         }
-        guard self.rowPayload.usesGPUSelection else { return }
+        guard self.rowPayload.showsSubmenuIndicator else { return }
         guard self.bounds.contains(localPoint), let window = self.window else {
             self.isPressed = false
             return
         }
 
         // A submenu-backed NSMenuItem consumes mouseUp in its nested tracking loop before a custom
-        // view receives it. Track the drag/up sequence directly in GPU mode so release-inside
+        // view receives it. Track the drag/up sequence directly so release-inside
         // cancellation remains native and the row action runs before the menu can close.
         var shouldInvoke = false
         window.trackEvents(
@@ -438,86 +418,7 @@ final class MenuRowContainerView: NSView, MenuCardHighlighting, MenuCardMeasurin
     }
 
     func setHighlighted(_ highlighted: Bool) {
-        guard self.isRowHighlighted != highlighted else { return }
-        self.isRowHighlighted = highlighted
-        self.applyHighlight(animated: true)
-    }
-
-    private func configureSelectionMode(animated: Bool) {
-        if self.rowPayload.usesGPUSelection {
-            _ = self.ensureSelectionView()
-            self.refreshTintFilter()
-        } else {
-            self.hosting.layer?.filters = []
-            self.selectionView?.removeFromSuperview()
-            self.selectionView = nil
-            self.tintFilter = nil
-        }
-        self.applyHighlight(animated: animated)
-        self.needsLayout = true
-    }
-
-    private func applyHighlight(animated: Bool) {
-        guard self.rowPayload.usesGPUSelection else {
-            self.highlightState.isHighlighted = self.isRowHighlighted
-            return
-        }
-
-        self.highlightState.isHighlighted = false
-        self.hosting.layer?.filters = self.isRowHighlighted ? self.tintFilter.map { [$0] } ?? [] : []
-        let layer = self.ensureSelectionView().layer
-        let targetOpacity: Float = self.isRowHighlighted ? 1 : 0
-        if animated {
-            let fade = CABasicAnimation(keyPath: "opacity")
-            fade.fromValue = layer?.presentation()?.opacity ?? (self.isRowHighlighted ? 0 : 1)
-            fade.toValue = targetOpacity
-            fade.duration = Self.selectionFadeDuration
-            fade.timingFunction = CAMediaTimingFunction(name: .easeOut)
-            layer?.add(fade, forKey: "selectionFade")
-        }
-        layer?.opacity = targetOpacity
-    }
-
-    private func ensureSelectionView() -> NSVisualEffectView {
-        if let selectionView {
-            return selectionView
-        }
-        let selectionView = NSVisualEffectView()
-        selectionView.material = .selection
-        selectionView.blendingMode = .withinWindow
-        selectionView.state = .active
-        selectionView.isEmphasized = true
-        selectionView.wantsLayer = true
-        selectionView.layer?.masksToBounds = true
-        selectionView.layer?.opacity = 0
-        selectionView.autoresizingMask = [.width, .height]
-        self.addSubview(selectionView, positioned: .below, relativeTo: self.hosting)
-        self.selectionView = selectionView
-        return selectionView
-    }
-
-    private func refreshTintFilter() {
-        guard self.rowPayload.usesGPUSelection else { return }
-        self.tintFilter = Self.makeSelectedTextTintFilter(appearance: self.effectiveAppearance)
-        if self.isRowHighlighted {
-            self.hosting.layer?.filters = self.tintFilter.map { [$0] } ?? []
-        }
-    }
-
-    private static func makeSelectedTextTintFilter(appearance: NSAppearance) -> CIFilter? {
-        guard let filter = CIFilter(name: "CIColorMatrix") else { return nil }
-        var tint: NSColor = .white
-        appearance.performAsCurrentDrawingAppearance {
-            tint = NSColor.selectedMenuItemTextColor.usingColorSpace(.deviceRGB) ?? .white
-        }
-        filter.setValue(CIVector(x: 0, y: 0, z: 0, w: 0), forKey: "inputRVector")
-        filter.setValue(CIVector(x: 0, y: 0, z: 0, w: 0), forKey: "inputGVector")
-        filter.setValue(CIVector(x: 0, y: 0, z: 0, w: 0), forKey: "inputBVector")
-        filter.setValue(CIVector(x: 0, y: 0, z: 0, w: 1), forKey: "inputAVector")
-        filter.setValue(
-            CIVector(x: tint.redComponent, y: tint.greenComponent, z: tint.blueComponent, w: 0),
-            forKey: "inputBiasVector")
-        return filter
+        self.highlightState.isHighlighted = highlighted
     }
 
     private static func makeRootView(
@@ -808,11 +709,6 @@ extension MenuRowContainerView {
     func _test_simulateRuntimeClick(at point: NSPoint? = nil) -> Bool {
         let clickPoint = point ?? NSPoint(x: self.bounds.midX, y: self.bounds.midY)
         guard let onClick = self.onClick else { return false }
-        if self.rowPayload.usesGPUSelection {
-            guard self.hitTest(clickPoint) === self, self.bounds.contains(clickPoint) else { return false }
-            onClick()
-            return true
-        }
         guard !self.beginPrimaryPress(at: clickPoint) else {
             _ = self.endPrimaryPress(at: clickPoint)
             return false
@@ -829,22 +725,6 @@ extension MenuRowContainerView {
 
     func _test_primaryPressShouldYieldToMenu(for event: NSEvent) -> Bool {
         self.primaryPressShouldYieldToMenu(for: event)
-    }
-
-    var isHighlightedForTesting: Bool {
-        self.isRowHighlighted
-    }
-
-    var swiftUIHighlightStateIsHighlightedForTesting: Bool {
-        self.highlightState.isHighlighted
-    }
-
-    var usesGPUSelectionForTesting: Bool {
-        self.rowPayload.usesGPUSelection
-    }
-
-    var hasGPUSelectionLayerForTesting: Bool {
-        self.selectionView != nil
     }
 }
 #endif

@@ -25,6 +25,7 @@ final class StatusMenuProviderNativeProofTests: XCTestCase {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let fixture = try CodexWorkspacesNavigationFixture()
         defer { fixture.cleanup() }
+        let overview = environment["CODEXBAR_STATUS_PROVIDER_PROOF_OVERVIEW"] == "1"
         let providers: [UsageProvider] = [.claude, .codex, .grok]
         for provider in providers {
             fixture.settings.setProviderEnabled(
@@ -33,12 +34,12 @@ final class StatusMenuProviderNativeProofTests: XCTestCase {
                 enabled: true)
             _ = fixture.settings.setMergedOverviewProviderSelection(
                 provider: provider,
-                isSelected: false,
+                isSelected: overview,
                 activeProviders: providers)
         }
         fixture.settings.mergeIcons = true
         fixture.settings.selectedMenuProvider = .claude
-        fixture.settings.mergedMenuLastSelectedWasOverview = false
+        fixture.settings.mergedMenuLastSelectedWasOverview = overview
         fixture.settings.statusChecksEnabled = true
         for provider in providers {
             fixture.store._setSnapshotForTesting(
@@ -52,6 +53,7 @@ final class StatusMenuProviderNativeProofTests: XCTestCase {
                     updatedAt: Date()),
                 provider: provider)
         }
+        if overview { Self.seedOverviewHistory(in: fixture) }
         fixture.store.statusComponents[.claude] = [
             ProviderStatusComponent(id: "claude", name: "Claude.ai", indicator: .none, status: "operational"),
         ]
@@ -86,6 +88,7 @@ final class StatusMenuProviderNativeProofTests: XCTestCase {
         host.center()
         let button = StatusProviderProofButton(frame: NSRect(x: 140, y: 65, width: 200, height: 32))
         button.title = "Open provider menu"
+        button.keyEquivalent = "\r"
         button.proofMenu = menu
         button.target = button
         button.action = #selector(StatusProviderProofButton.openMenu)
@@ -113,6 +116,11 @@ final class StatusMenuProviderNativeProofTests: XCTestCase {
                     "pid": String(ProcessInfo.processInfo.processIdentifier),
                     "window": String(host.windowNumber),
                     "selected": fixture.settings.selectedMenuProvider?.rawValue ?? "none",
+                    "overview": String(fixture.settings.mergedMenuLastSelectedWasOverview),
+                    "highlighted": menu.highlightedItem?.representedObject as? String ?? "none",
+                    "overviewSubmenus": String(menu.items.count(where: {
+                        ($0.representedObject as? String)?.hasPrefix("overviewRow-") == true && $0.submenu != nil
+                    })),
                     "statusProvider": submenu?.items.first?.toolTip
                         ?? submenu?.items.last?.identifier?.rawValue ?? "website-only",
                     "cachedSelections": String(controller.mergedSwitcherContentCaches[ObjectIdentifier(menu)]?
@@ -142,6 +150,31 @@ final class StatusMenuProviderNativeProofTests: XCTestCase {
             _ = RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.02))
         }
         XCTAssertTrue(FileManager.default.fileExists(atPath: done), "Native proof timed out")
+    }
+
+    private static func seedOverviewHistory(in fixture: CodexWorkspacesNavigationFixture) {
+        fixture.settings.costUsageEnabled = true
+        fixture.settings.costSummaryDisplayStyle = .both
+        let now = Date()
+        let day = String(ISO8601DateFormatter().string(from: now).prefix(10))
+        for provider in [UsageProvider.claude, .codex] {
+            fixture.store._setTokenSnapshotForTesting(
+                CostUsageTokenSnapshot(
+                    sessionTokens: 100,
+                    sessionCostUSD: 1.5,
+                    last30DaysTokens: 100,
+                    last30DaysCostUSD: 1.5,
+                    daily: [.init(
+                        date: day,
+                        inputTokens: 70,
+                        outputTokens: 30,
+                        totalTokens: 100,
+                        costUSD: 1.5,
+                        modelsUsed: nil,
+                        modelBreakdowns: nil)],
+                    updatedAt: now),
+                provider: provider)
+        }
     }
 }
 
