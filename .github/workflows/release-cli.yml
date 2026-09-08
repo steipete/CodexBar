@@ -96,7 +96,7 @@ jobs:
       SQLITE_AMALGAMATION_VERSION: "3530300"
       SQLITE_AMALGAMATION_SHA3_256: d45c688a8cb23f68611a894a756a12d7eb6ab6e9e2468ca70adbeab3808b5ab9
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Select Xcode 26.3 or 26.2
         if: matrix.platform == 'macos'
@@ -441,7 +441,7 @@ jobs:
     needs: build-cli
     if: github.event_name == 'release'
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Resolve release tag
         id: release
