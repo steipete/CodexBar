@@ -1069,19 +1069,32 @@ extension StatusItemController {
             removingSuffix: " this month")
     }
 
-    /// Automatic-lane text override for the menu bar layout. Mistral surfaces API spend when its
-    /// automatic lane has no percentage window; balance-only providers (DeepSeek) replace the
-    /// meaningless quota percent with their balance text.
+    /// Automatic-lane text override for the menu bar layout. Balance-only providers (DeepSeek,
+    /// DeepInfra) send a window whose percent is meaningless and always surface their balance
+    /// text instead; the remaining balance/spend providers (Mistral, Moonshot, Poe, OpenCode Go,
+    /// OpenRouter) fall back to their balance text only when the automatic lane has no window.
     nonisolated static func menuBarLayoutAutomaticText(
         provider: UsageProvider,
         snapshot: UsageSnapshot?,
         automatic: RateWindow?) -> String?
     {
+        // Provider-specific by design: each provider surfaces balance/spend text from a distinct payload field.
         switch provider {
         case .deepseek:
             MenuBarDisplayText.deepSeekBalanceText(snapshot: snapshot)
+        case .deepinfra:
+            self.deepInfraBalanceDisplayText(snapshot: snapshot)
         case .mistral:
             automatic == nil ? self.mistralSpendDisplayText(snapshot: snapshot) : nil
+        case .moonshot:
+            automatic == nil ? self.moonshotBalanceDisplayText(snapshot: snapshot) : nil
+        case .poe:
+            automatic == nil ? self.poeBalanceDisplayText(snapshot: snapshot) : nil
+        case .opencodego:
+            automatic == nil ? self.openCodeGoZenBalanceDisplayText(snapshot: snapshot) : nil
+        case .openrouter:
+            // Provider-specific by design: OpenRouter reports cash balance in a detail row.
+            automatic == nil ? snapshot?.detailRow(label: "Remaining")?.value : nil
         default:
             nil
         }
