@@ -1006,6 +1006,7 @@ extension CostUsageStoreTests {
 
 extension CostUsageStoreTests {
     @Test(arguments: [
+        "ca4bc3875600536f",
         "7f00691fa96c78d1",
         "9ca89383b9957b07",
         "ba2eca901de4c53d",
@@ -1032,6 +1033,7 @@ extension CostUsageStoreTests {
         let fixture = try StoreFixture()
         defer { fixture.remove() }
         #expect(CostUsageStore.compatiblePredecessorParserHashes == [
+            "ca4bc3875600536f",
             "7f00691fa96c78d1",
             "9ca89383b9957b07",
             "ba2eca901de4c53d",

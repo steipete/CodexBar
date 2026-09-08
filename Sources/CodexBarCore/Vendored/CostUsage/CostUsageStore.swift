@@ -80,6 +80,7 @@ actor CostUsageStore {
         parserHash: CodexParserHash.value)
     static let cacheGeneration = "sqlite:\(CostUsageStore.schemaVersion)"
     static let compatiblePredecessorParserHashes: Set<String> = [
+        "ca4bc3875600536f", // Reserve pricing stores retain compatible rows and checkpoints.
         "7f00691fa96c78d1", // Current-main row and checkpoint formats remain compatible.
         "9ca89383b9957b07", // Warm refresh cursor retention preserves native rows, checkpoints, and reports.
         "9547dc9d7b7675f6", // Report lookup memos preserve native usage rows and checkpoints.
