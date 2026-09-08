@@ -7,6 +7,7 @@
 - **Safer updates and more reliable usage:** refresh Sparkle's installer protections, preserve claude-swap measurement ages, and improve local history and account handling.
 
 ### Fixed
+- Antigravity: render each CLI quota bucket once, keep unknown or disabled usage unavailable in text and full/brief cards, and apply shared idle-family visibility (#3489). Thanks @urda!
 - Usage & Spend: refresh expired charts on pane return or app activation, keep cached data visible during loading, and refresh across midnight (#3107). Thanks @Yuxin-Qiao!
 - Codex local costs: retain unfinished file work when a warm refresh reaches its time limit, so compatible history windows resume without reseeding completed files; preserve exact validation and existing caches (related to #3411). Thanks @kesslerio!
 - Updates: adopt Sparkle 2.9.6 installer hardening, including archive-moving and package-signature validation fixes.
