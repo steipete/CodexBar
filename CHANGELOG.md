@@ -17,6 +17,7 @@
 - Overview: keep highlighted provider cards readable on macOS 15 by removing forced vibrancy from card wrappers, while retaining fast GPU selection and native submenu interactions (#3173).
 - Antigravity CLI: render each quota bucket once in usage and cards, retain unavailable usage and reset context, and keep idle-family filtering out of raw JSON (#3489). Thanks @urda!
 - Copilot: resolve Enterprise sign-in identities on the configured host, keep equal user IDs on different hosts distinct, and skip public GitHub budget enrichment for Enterprise accounts (#3341). Thanks @Fletcher-Alderton!
+- Local costs: avoid overflow traps in OpenCodex and combined cost reports, keeping unrepresentable token sums unavailable while retaining valid neighboring token classes.
 - Kiro: route existing overage enrichment to the CLI profile’s supported region instead of always using US East; reject invalid profile ARNs before sending credentials and retain CLI fallback (#3359). Thanks @zucram!
 - Settings: observe rapid external config replacements and edits that restore earlier app-written contents, while keeping successful app writes out of the external-change sync path.
 - Local usage: honor the app’s Low Power Mode interval for automatic Codex catch-up passes in both usage and Spend Dashboard, while retaining manual acceleration and system thermal pauses.

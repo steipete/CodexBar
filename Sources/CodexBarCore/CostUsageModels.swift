@@ -784,9 +784,22 @@ extension CostUsageDailyReport {
         }
     }
 
-    private struct OptionalCountAccumulator {
+    struct OptionalCountAccumulator {
         private(set) var value: Int?
         private var overflowed = false
+
+        init(_ value: Int? = nil) {
+            self.add(value)
+        }
+
+        mutating func merge(_ other: Self) {
+            if other.overflowed {
+                self.value = nil
+                self.overflowed = true
+            } else {
+                self.add(other.value)
+            }
+        }
 
         mutating func add(_ incoming: Int?) {
             guard let incoming, incoming >= 0, !self.overflowed else { return }
@@ -799,18 +812,15 @@ extension CostUsageDailyReport {
     private struct BreakdownAccumulator {
         var tokenMix = CostUsageTokenMix()
         var requestCount = OptionalCountAccumulator()
-        var totalTokens: Int = 0
-        var sawTotalTokens = false
+        var totalTokens = OptionalCountAccumulator()
         var costUSD: Double = 0
         var sawCost = false
         var standardCostUSD: Double = 0
         var sawStandardCost = false
         var priorityCostUSD: Double = 0
         var sawPriorityCost = false
-        var standardTokens: Int = 0
-        var sawStandardTokens = false
-        var priorityTokens: Int = 0
-        var sawPriorityTokens = false
+        var standardTokens = OptionalCountAccumulator()
+        var priorityTokens = OptionalCountAccumulator()
 
         mutating func add(_ breakdown: ModelBreakdown) {
             self.tokenMix.merge(CostUsageTokenMix(
@@ -820,10 +830,7 @@ extension CostUsageDailyReport {
                 cacheCreationTokens: breakdown.cacheCreationTokens,
                 reasoningTokens: breakdown.reasoningTokens))
             self.requestCount.add(breakdown.requestCount)
-            if let totalTokens = breakdown.totalTokens {
-                self.totalTokens += totalTokens
-                self.sawTotalTokens = true
-            }
+            self.totalTokens.add(breakdown.totalTokens)
             if let costUSD = breakdown.costUSD {
                 self.costUSD += costUSD
                 self.sawCost = true
@@ -836,21 +843,15 @@ extension CostUsageDailyReport {
                 self.priorityCostUSD += priorityCostUSD
                 self.sawPriorityCost = true
             }
-            if let standardTokens = breakdown.standardTokens {
-                self.standardTokens += standardTokens
-                self.sawStandardTokens = true
-            }
-            if let priorityTokens = breakdown.priorityTokens {
-                self.priorityTokens += priorityTokens
-                self.sawPriorityTokens = true
-            }
+            self.standardTokens.add(breakdown.standardTokens)
+            self.priorityTokens.add(breakdown.priorityTokens)
         }
 
         func build(modelName: String, includeActivity: Bool = true) -> ModelBreakdown {
             ModelBreakdown(
                 modelName: modelName,
                 costUSD: self.sawCost ? self.costUSD : nil,
-                totalTokens: self.sawTotalTokens ? self.totalTokens : nil,
+                totalTokens: self.totalTokens.value,
                 requestCount: includeActivity ? self.requestCount.value : nil,
                 inputTokens: includeActivity ? self.tokenMix.inputTokens : nil,
                 outputTokens: includeActivity ? self.tokenMix.outputTokens : nil,
@@ -859,35 +860,26 @@ extension CostUsageDailyReport {
                 reasoningTokens: includeActivity ? self.tokenMix.reasoningTokens : nil,
                 standardCostUSD: self.sawStandardCost ? self.standardCostUSD : nil,
                 priorityCostUSD: self.sawPriorityCost ? self.priorityCostUSD : nil,
-                standardTokens: self.sawStandardTokens ? self.standardTokens : nil,
-                priorityTokens: self.sawPriorityTokens ? self.priorityTokens : nil)
+                standardTokens: self.standardTokens.value,
+                priorityTokens: self.priorityTokens.value)
         }
     }
 
     private struct EntryAccumulator {
-        var reasoningTokens = OptionalCountAccumulator()
+        var tokenMix = CostUsageTokenMix()
         var requestCount = OptionalCountAccumulator()
         var coverage = CostUsageCoverageAccumulator()
         var entryCount = 0
         var hasExplicitCoverage = false
-        var inputTokens: Int = 0
-        var sawInputTokens = false
-        var cacheReadTokens: Int = 0
-        var sawCacheReadTokens = false
-        var cacheCreationTokens: Int = 0
-        var sawCacheCreationTokens = false
-        var outputTokens: Int = 0
-        var sawOutputTokens = false
-        var totalTokens: Int = 0
-        var sawTotalTokens = false
-        var derivedTotalTokensWithoutExplicitTotal: Int = 0
+        var totalTokens = OptionalCountAccumulator()
+        var sawExplicitTotalTokens = false
         var costUSD: Double = 0
         var sawCost = false
         var modelsUsed: Set<String> = []
         var breakdowns: [String: BreakdownAccumulator] = [:]
 
         mutating func add(_ entry: Entry) {
-            self.reasoningTokens.add(entry.reasoningTokens)
+            self.tokenMix.merge(.from(entry: entry))
             self.requestCount.add(entry.requestCount)
             // Classify each source before combining costs: a priced source cannot price another source's missing rows.
             self.coverage.add(entry)
@@ -895,31 +887,13 @@ extension CostUsageDailyReport {
             self.hasExplicitCoverage = self.hasExplicitCoverage
                 || entry.pricedRequestCount != nil || entry.unpricedRequestCount != nil
                 || entry.unmeteredRequestCount != nil || entry.estimatedRequestCount != nil
-            let entryDerivedTotalTokens = (entry.inputTokens ?? 0)
-                + (entry.cacheReadTokens ?? 0)
-                + (entry.cacheCreationTokens ?? 0)
-                + (entry.outputTokens ?? 0)
-            if let inputTokens = entry.inputTokens {
-                self.inputTokens += inputTokens
-                self.sawInputTokens = true
-            }
-            if let cacheReadTokens = entry.cacheReadTokens {
-                self.cacheReadTokens += cacheReadTokens
-                self.sawCacheReadTokens = true
-            }
-            if let cacheCreationTokens = entry.cacheCreationTokens {
-                self.cacheCreationTokens += cacheCreationTokens
-                self.sawCacheCreationTokens = true
-            }
-            if let outputTokens = entry.outputTokens {
-                self.outputTokens += outputTokens
-                self.sawOutputTokens = true
-            }
             if let totalTokens = entry.totalTokens {
-                self.totalTokens += totalTokens
-                self.sawTotalTokens = true
-            } else if entryDerivedTotalTokens > 0 {
-                self.derivedTotalTokensWithoutExplicitTotal += entryDerivedTotalTokens
+                self.totalTokens.add(totalTokens)
+                self.sawExplicitTotalTokens = true
+            } else {
+                for value in [entry.inputTokens, entry.cacheReadTokens, entry.cacheCreationTokens, entry.outputTokens] {
+                    self.totalTokens.add(value)
+                }
             }
             if let costUSD = entry.costUSD {
                 self.costUSD += costUSD
@@ -938,18 +912,11 @@ extension CostUsageDailyReport {
             }
         }
 
+        var resolvedTotalTokens: OptionalCountAccumulator {
+            self.sawExplicitTotalTokens || self.totalTokens.value != 0 ? self.totalTokens : .init()
+        }
+
         func build(date: String) -> Entry {
-            let derivedTotalTokens = self.inputTokens
-                + self.cacheReadTokens
-                + self.cacheCreationTokens
-                + self.outputTokens
-            let totalTokens: Int? = if self.sawTotalTokens {
-                self.totalTokens + self.derivedTotalTokensWithoutExplicitTotal
-            } else if derivedTotalTokens > 0 {
-                derivedTotalTokens
-            } else {
-                nil
-            }
             let modelBreakdowns: [ModelBreakdown]? = {
                 guard !self.breakdowns.isEmpty else { return nil }
                 return CostUsageDailyReport.sortedModelBreakdowns(
@@ -962,12 +929,12 @@ extension CostUsageDailyReport {
             let includeCoverage = self.entryCount > 1 || self.hasExplicitCoverage
             return Entry(
                 date: date,
-                inputTokens: self.sawInputTokens ? self.inputTokens : nil,
-                outputTokens: self.sawOutputTokens ? self.outputTokens : nil,
-                cacheReadTokens: self.sawCacheReadTokens ? self.cacheReadTokens : nil,
-                cacheCreationTokens: self.sawCacheCreationTokens ? self.cacheCreationTokens : nil,
-                reasoningTokens: self.reasoningTokens.value,
-                totalTokens: totalTokens,
+                inputTokens: self.tokenMix.inputTokens,
+                outputTokens: self.tokenMix.outputTokens,
+                cacheReadTokens: self.tokenMix.cacheReadTokens,
+                cacheCreationTokens: self.tokenMix.cacheCreationTokens,
+                reasoningTokens: self.tokenMix.reasoningTokens,
+                totalTokens: self.resolvedTotalTokens.value,
                 requestCount: self.requestCount.value,
                 costUSD: self.sawCost ? self.costUSD : nil,
                 modelsUsed: modelsUsed,
@@ -984,80 +951,36 @@ extension CostUsageDailyReport {
     }
 
     public static func merged(_ reports: [CostUsageDailyReport]) -> CostUsageDailyReport {
-        let entries = self.mergedEntries(from: reports)
-        guard !entries.isEmpty else { return CostUsageDailyReport(data: [], summary: nil) }
-        return CostUsageDailyReport(data: entries, summary: self.mergedSummary(from: entries))
-    }
-
-    private static func mergedEntries(from reports: [CostUsageDailyReport]) -> [Entry] {
-        var dayAccumulators: [String: EntryAccumulator] = [:]
+        var days: [String: EntryAccumulator] = [:]
         for report in reports {
             for entry in report.data {
-                var accumulator = dayAccumulators[entry.date] ?? EntryAccumulator()
-                accumulator.add(entry)
-                dayAccumulators[entry.date] = accumulator
+                days[entry.date, default: EntryAccumulator()].add(entry)
             }
         }
-
-        return dayAccumulators
-            .keys
-            .sorted()
-            .map { date in
-                dayAccumulators[date, default: EntryAccumulator()].build(date: date)
-            }
-    }
-
-    private static func mergedSummary(from entries: [Entry]) -> Summary {
-        var reasoningTokens = OptionalCountAccumulator()
-        var totalInputTokens = 0
-        var sawTotalInputTokens = false
-        var totalOutputTokens = 0
-        var sawTotalOutputTokens = false
-        var totalCacheReadTokens = 0
-        var sawTotalCacheReadTokens = false
-        var totalCacheCreationTokens = 0
-        var sawTotalCacheCreationTokens = false
-        var totalTokens = 0
-        var sawTotalTokens = false
+        guard !days.isEmpty else { return CostUsageDailyReport(data: [], summary: nil) }
+        let dates = days.keys.sorted()
+        let entries = dates.map { days[$0, default: EntryAccumulator()].build(date: $0) }
+        var mix = CostUsageTokenMix()
+        var tokens = OptionalCountAccumulator()
         var totalCostUSD = 0.0
-        var sawTotalCostUSD = false
-
-        for entry in entries {
-            reasoningTokens.add(entry.reasoningTokens)
-            if let inputTokens = entry.inputTokens {
-                totalInputTokens += inputTokens
-                sawTotalInputTokens = true
-            }
-            if let outputTokens = entry.outputTokens {
-                totalOutputTokens += outputTokens
-                sawTotalOutputTokens = true
-            }
-            if let cacheReadTokens = entry.cacheReadTokens {
-                totalCacheReadTokens += cacheReadTokens
-                sawTotalCacheReadTokens = true
-            }
-            if let cacheCreationTokens = entry.cacheCreationTokens {
-                totalCacheCreationTokens += cacheCreationTokens
-                sawTotalCacheCreationTokens = true
-            }
-            if let entryTotalTokens = entry.totalTokens {
-                totalTokens += entryTotalTokens
-                sawTotalTokens = true
-            }
-            if let costUSD = entry.costUSD {
-                totalCostUSD += costUSD
-                sawTotalCostUSD = true
+        var sawCost = false
+        for date in dates {
+            guard let day = days[date] else { continue }
+            mix.merge(day.tokenMix)
+            tokens.merge(day.resolvedTotalTokens)
+            if day.sawCost {
+                totalCostUSD += day.costUSD
+                sawCost = true
             }
         }
-
-        return Summary(
-            totalInputTokens: sawTotalInputTokens ? totalInputTokens : nil,
-            totalOutputTokens: sawTotalOutputTokens ? totalOutputTokens : nil,
-            cacheReadTokens: sawTotalCacheReadTokens ? totalCacheReadTokens : nil,
-            cacheCreationTokens: sawTotalCacheCreationTokens ? totalCacheCreationTokens : nil,
-            reasoningTokens: reasoningTokens.value,
-            totalTokens: sawTotalTokens ? totalTokens : nil,
-            totalCostUSD: sawTotalCostUSD ? totalCostUSD : nil)
+        return CostUsageDailyReport(data: entries, summary: Summary(
+            totalInputTokens: mix.inputTokens,
+            totalOutputTokens: mix.outputTokens,
+            cacheReadTokens: mix.cacheReadTokens,
+            cacheCreationTokens: mix.cacheCreationTokens,
+            reasoningTokens: mix.reasoningTokens,
+            totalTokens: tokens.value,
+            totalCostUSD: sawCost ? totalCostUSD : nil))
     }
 
     private static func sortedModelBreakdowns(_ breakdowns: [ModelBreakdown]) -> [ModelBreakdown] {

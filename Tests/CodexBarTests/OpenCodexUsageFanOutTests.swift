@@ -538,6 +538,60 @@ struct OpenCodexUsageFanOutTests {
 }
 
 private enum OpenCodexUsageSnapshotReference {
+    /// Freeze the reference representation independently of production accumulator refactors.
+    struct DayAccumulator {
+        var input = 0
+        var output = 0
+        var cacheRead = 0
+        var cacheCreation = 0
+        var reasoning = 0
+        var tokens = 0
+        var cost: Double = 0
+        var sawInput = false
+        var sawOutput = false
+        var sawCacheRead = false
+        var sawCacheCreation = false
+        var sawReasoning = false
+        var sawTokens = false
+        var sawCost = false
+        var priced = 0
+        var unpriced = 0
+        var unmetered = 0
+        var estimated = 0
+        var models: [String: ModelAccumulator] = [:]
+    }
+
+    struct ModelAccumulator {
+        var tokens = 0
+        var cost: Double = 0
+        var sawTokens = false
+        var sawCost = false
+        var input: Int?
+        var output: Int?
+        var cacheRead: Int?
+        var cacheCreation: Int?
+        var reasoning: Int?
+    }
+
+    struct SessionAccumulator {
+        var lastActivity = Date.distantPast
+        var input: Int?
+        var output: Int?
+        var cacheRead: Int?
+        var reasoning: Int?
+        var tokens: Int?
+        var requests = 0
+        var cost: Double?
+        var models: [String: ModelAccumulator] = [:]
+    }
+
+    struct HourAccumulator {
+        var tokens = 0
+        var cost: Double = 0
+        var sawTokens = false
+        var sawCost = false
+    }
+
     static func snapshot(
         entries: [OpenCodexUsageEntry],
         now: Date,
@@ -561,28 +615,28 @@ private enum OpenCodexUsageSnapshotReference {
                 return lhs.requestID < rhs.requestID
             }
 
-        var daysByKey: [String: OpenCodexUsageAggregator.DayAccumulator] = [:]
-        var sessions: [String: OpenCodexUsageAggregator.SessionAccumulator] = [:]
-        var hoursByStart: [Date: OpenCodexUsageAggregator.HourAccumulator] = [:]
+        var daysByKey: [String: DayAccumulator] = [:]
+        var sessions: [String: SessionAccumulator] = [:]
+        var hoursByStart: [Date: HourAccumulator] = [:]
         for entry in windowed {
             let cost = Self.listPriceUSD(
                 entry: entry,
                 customPricing: customPricing,
                 modelsDevCacheRoot: modelsDevCacheRoot)
             let dayKey = CostUsageLocalDay.key(from: entry.timestamp, calendar: calendar)
-            var day = daysByKey[dayKey] ?? OpenCodexUsageAggregator.DayAccumulator()
+            var day = daysByKey[dayKey] ?? DayAccumulator()
             Self.merge(entry, cost: cost, into: &day)
             daysByKey[dayKey] = day
 
             let sessionID = entry.conversationID ?? entry.requestID
-            var session = sessions[sessionID] ?? OpenCodexUsageAggregator.SessionAccumulator()
+            var session = sessions[sessionID] ?? SessionAccumulator()
             session.lastActivity = max(session.lastActivity, entry.timestamp)
             session.requests += 1
             Self.merge(entry, cost: cost, into: &session)
             sessions[sessionID] = session
 
             let hour = calendar.dateInterval(of: .hour, for: entry.timestamp)?.start ?? entry.timestamp
-            var hourBucket = hoursByStart[hour] ?? OpenCodexUsageAggregator.HourAccumulator()
+            var hourBucket = hoursByStart[hour] ?? HourAccumulator()
             Self.merge(entry, cost: cost, into: &hourBucket)
             hoursByStart[hour] = hourBucket
         }
@@ -612,7 +666,7 @@ private enum OpenCodexUsageSnapshotReference {
             return lhs.sessionID < rhs.sessionID
         }
         let hourly = hoursByStart.keys.sorted().map { hour in
-            let bucket = hoursByStart[hour] ?? OpenCodexUsageAggregator.HourAccumulator()
+            let bucket = hoursByStart[hour] ?? HourAccumulator()
             return CostUsageHourlyEntry(
                 hour: hour,
                 totalTokens: bucket.sawTokens ? bucket.tokens : nil,
@@ -651,7 +705,7 @@ private enum OpenCodexUsageSnapshotReference {
     private static func merge(
         _ entry: OpenCodexUsageEntry,
         cost: Double?,
-        into day: inout OpenCodexUsageAggregator.DayAccumulator)
+        into day: inout DayAccumulator)
     {
         let usage = entry.usage
         if let input = usage?.inputTokens {
@@ -696,7 +750,7 @@ private enum OpenCodexUsageSnapshotReference {
                 day.estimated -= 1
             }
         }
-        var model = day.models[entry.model] ?? OpenCodexUsageAggregator.ModelAccumulator()
+        var model = day.models[entry.model] ?? ModelAccumulator()
         Self.merge(entry, cost: cost, into: &model)
         day.models[entry.model] = model
     }
@@ -704,7 +758,7 @@ private enum OpenCodexUsageSnapshotReference {
     private static func merge(
         _ entry: OpenCodexUsageEntry,
         cost: Double?,
-        into session: inout OpenCodexUsageAggregator.SessionAccumulator)
+        into session: inout SessionAccumulator)
     {
         session.input = self.add(session.input, entry.usage?.inputTokens)
         session.output = self.add(session.output, entry.usage?.outputTokens)
@@ -712,7 +766,7 @@ private enum OpenCodexUsageSnapshotReference {
         session.reasoning = self.add(session.reasoning, entry.usage?.reasoningOutputTokens)
         session.tokens = self.add(session.tokens, entry.resolvedTotalTokens)
         session.cost = self.add(session.cost, cost)
-        var model = session.models[entry.model] ?? OpenCodexUsageAggregator.ModelAccumulator()
+        var model = session.models[entry.model] ?? ModelAccumulator()
         Self.merge(entry, cost: cost, into: &model)
         session.models[entry.model] = model
     }
@@ -720,7 +774,7 @@ private enum OpenCodexUsageSnapshotReference {
     private static func merge(
         _ entry: OpenCodexUsageEntry,
         cost: Double?,
-        into hour: inout OpenCodexUsageAggregator.HourAccumulator)
+        into hour: inout HourAccumulator)
     {
         if let tokens = entry.resolvedTotalTokens {
             hour.tokens += tokens
@@ -735,7 +789,7 @@ private enum OpenCodexUsageSnapshotReference {
     private static func merge(
         _ entry: OpenCodexUsageEntry,
         cost: Double?,
-        into model: inout OpenCodexUsageAggregator.ModelAccumulator)
+        into model: inout ModelAccumulator)
     {
         model.input = self.add(model.input, entry.usage?.inputTokens)
         model.output = self.add(model.output, entry.usage?.outputTokens)
@@ -754,7 +808,7 @@ private enum OpenCodexUsageSnapshotReference {
 
     private static func entry(
         dayKey: String,
-        day: OpenCodexUsageAggregator.DayAccumulator) -> CostUsageDailyReport.Entry
+        day: DayAccumulator) -> CostUsageDailyReport.Entry
     {
         CostUsageDailyReport.Entry(
             date: dayKey,
@@ -774,10 +828,10 @@ private enum OpenCodexUsageSnapshotReference {
     }
 
     private static func modelBreakdowns(
-        _ models: [String: OpenCodexUsageAggregator.ModelAccumulator]) -> [CostUsageDailyReport.ModelBreakdown]
+        _ models: [String: ModelAccumulator]) -> [CostUsageDailyReport.ModelBreakdown]
     {
         models.keys.sorted().map { name in
-            let model = models[name] ?? OpenCodexUsageAggregator.ModelAccumulator()
+            let model = models[name] ?? ModelAccumulator()
             return CostUsageDailyReport.ModelBreakdown(
                 modelName: name,
                 costUSD: model.sawCost ? model.cost : nil,
