@@ -106,7 +106,7 @@ final class StatusMenuClaudeSwapCompactTests: XCTestCase {
         }
     }
 
-    func test_segmentedSentinelInspectionNeverStartsActivationAndResetsOnClose() {
+    func test_segmentedSentinelViewingNeverStartsActivation() {
         let sentinel = self.account(
             slot: 9, email: "expired@example.com", sessionUsed: 0, weeklyUsed: 0, canActivate: false)
         let (controller, store) = self.makeController(
@@ -115,18 +115,16 @@ final class StatusMenuClaudeSwapCompactTests: XCTestCase {
         let menu = controller.makeMenu(for: .claude)
         controller.menuWillOpen(menu)
         controller.handleClaudeSwapAccountSelection(sentinel.id, menu: nil)
-        XCTAssertEqual(controller.claudeSwapInspectedAccountID, sentinel.id)
+        XCTAssertEqual(controller.claudeSwapViewedAccountID, sentinel.id)
         XCTAssertNil(store.claudeSwapTransientState.task)
         XCTAssertNil(store.claudeSwapTransientState.switchingAccountID)
         controller.settings.hidePersonalInfo = true
         controller.populateMenu(menu, provider: .claude)
         XCTAssertTrue(menu.items.contains { $0.title == "Details for Account 9" })
         XCTAssertFalse(menu.items.contains { $0.title.contains("expired@example.com") })
-        controller.menuDidClose(menu)
-        XCTAssertNil(controller.claudeSwapInspectedAccountID)
     }
 
-    func test_segmentedFreshPersistentMenuDropsInspectionOnReopenWithoutRefresh() {
+    func test_segmentedFreshPersistentMenuKeepsViewSelectionOnReopenWithoutRefresh() {
         for merged in [false, true] {
             let sentinel = self.account(
                 slot: 9, email: "expired@example.com", sessionUsed: 0, weeklyUsed: 0, canActivate: false)
@@ -151,8 +149,8 @@ final class StatusMenuClaudeSwapCompactTests: XCTestCase {
             controller.menuDidClose(menu)
             controller.refreshMenuForOpenIfNeeded(menu, provider: .claude)
 
-            XCTAssertNil(controller.claudeSwapInspectedAccountID)
-            XCTAssertFalse(menu.items.contains { $0.title.hasPrefix("Details for") })
+            XCTAssertEqual(controller.claudeSwapViewedAccountID, sentinel.id)
+            XCTAssertTrue(menu.items.contains { $0.title.hasPrefix("Details for") })
             XCTAssertFalse(controller.menuNeedsRefresh(menu))
             XCTAssertEqual(store.claudeSwapRevision, revision)
         }
