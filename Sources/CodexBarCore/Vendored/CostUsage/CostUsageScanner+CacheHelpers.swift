@@ -1164,8 +1164,11 @@ extension CostUsageScanner {
         if let cached = input.cached {
             self.applyFileDays(cache: &cache, fileDays: cached.days, sign: -1)
         }
-        let migratedCached = input.cached.map { Self.codexFileUsageWithPricingMetadata($0, context: context) }
-        var usageDays = context.dropDeferredCodexRows
+        // Legacy rows can combine events that the corrected parser splits; do not merge them back.
+        let replaceCachedRows = context.dropDeferredCodexRows || input.cached?.codexEventWhitespaceParsed != true
+        let migratedCached = replaceCachedRows
+            ? nil : input.cached.map { Self.codexFileUsageWithPricingMetadata($0, context: context) }
+        var usageDays = replaceCachedRows
             ? [:]
             : Self.fileDaysOutsideScanWindow(migratedCached?.days ?? [:], range: context.range)
 
@@ -1236,7 +1239,7 @@ extension CostUsageScanner {
             canonicalProjectPath: canonicalProjectPath,
             codexSession: parsedCodexSession.isEmpty ? nil : parsedCodexSession,
             codexCostNanos: Self.mergeCostMaps(
-                context.dropDeferredCodexRows
+                replaceCachedRows
                     ? nil
                     : Self.costMapOutsideScanWindow(migratedCached?.codexCostNanos, range: context.range),
                 Self.codexCostNanos(rows: uniqueRows, range: context.range)),
@@ -1244,20 +1247,20 @@ extension CostUsageScanner {
             codexStandardCostNanos: nil,
             codexPriorityCostNanos: nil,
             codexStandardTokens: Self.mergeIntMaps(
-                context.dropDeferredCodexRows
+                replaceCachedRows
                     ? nil
                     : Self.intMapOutsideScanWindow(migratedCached?.codexStandardTokens, range: context.range),
                 modeTokens.standard),
             codexPriorityTokens: Self.mergeIntMaps(
-                context.dropDeferredCodexRows
+                replaceCachedRows
                     ? nil
                     : Self.intMapOutsideScanWindow(migratedCached?.codexPriorityTokens, range: context.range),
                 modeTokens.priority),
-            codexTurnIDs: context.dropDeferredCodexRows
+            codexTurnIDs: replaceCachedRows
                 ? Self.codexTurnIDs(rows: uniqueRows)
                 : Self.mergeCodexTurnIDs(migratedCached?.codexTurnIDs, rows: uniqueRows),
             codexRows: Self.codexRowsWithPricingMetadata(
-                context.dropDeferredCodexRows
+                replaceCachedRows
                     ? uniqueRows
                     : Self.mergeCodexRows(
                         migratedCached?.codexRows,
