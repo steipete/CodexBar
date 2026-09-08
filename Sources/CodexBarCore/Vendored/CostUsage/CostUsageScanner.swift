@@ -5728,16 +5728,26 @@ enum CostUsageScanner {
         var cache = loadedCache.cache
         let history = CodexScanHistoryHydrator(load: loadedCache)
         let nowMs = Int64(now.timeIntervalSince1970 * 1000)
-        // A narrower report must finish the existing discovery cycle instead of restarting its queue.
-        // Keep pricing, file parsing, and inventory validation on that same retained work range.
+        // Timed warm refreshes can become catch-up work too. Keep their actual discovery range
+        // compatible with retained coverage, so a wider caller can resume instead of reseeding it.
+        let roots = Self.codexSessionsRoots(options: options)
+        let hasTimeLimit = options.codexScanBudgetForTesting?.hasTimeLimit
+            ?? ((options.maxCodexScanDurationPerRefresh ?? 0) > 0)
+        let retainedScanStart: String? = if let pending = cache.codexActiveLookbackState,
+                                            pending.rootPaths == roots.map(Self.codexResolvedPath).sorted()
+        {
+            pending.scanSinceKey
+        } else if hasTimeLimit, cache.roots == Self.codexRootsFingerprint(roots) {
+            cache.scanSinceKey
+        } else {
+            nil
+        }
         let scanRange: CostUsageDayRange = if !options.forceRescan,
                                               cache.timeZoneIdentifier == range.calendar.timeZone.identifier,
                                               cache.scanUntilKey == range.scanUntilKey,
-                                              let pending = cache.codexActiveLookbackState,
-                                              pending.rootPaths == Self.codexSessionsRoots(options: options)
-                                                  .map(Self.codexResolvedPath).sorted()
+                                              let retainedScanStart
         {
-            range.retainingScanStart(pending.scanSinceKey)
+            range.retainingScanStart(retainedScanStart)
         } else {
             range
         }
@@ -5882,6 +5892,11 @@ enum CostUsageScanner {
                             state: &activeLookbackState)
                     }
                 }
+            }
+            if !shouldBoundCatchUp, !options.forceRescan, scanBudget.hasTimeLimit {
+                // Timed warm discovery was exhaustive; preserve it only for this resume path.
+                activeLookbackState.completedCurrentWindowRootPaths = activeLookbackState.rootPaths
+                activeLookbackState.completedCurrentWindowFlatRootPaths = activeLookbackState.rootPaths
             }
             let discoveredFiles = files
 
@@ -6035,6 +6050,16 @@ enum CostUsageScanner {
                 return Self.codexPathKey(URL(fileURLWithPath: path))
             })
             filePathsInScan.subtract(processedWithoutCachePathKeys)
+            let hasDeferredWork = scanBudget.resumedPartialFileCount > 0
+                || scanBudget.deferredByBudgetFileCount > 0
+                || scanBudget.deferredByTimeBudgetFileCount > 0
+            if !shouldBoundCatchUp, !options.forceRescan, scanBudget.hasTimeLimit,
+               hasDeferredWork || fileIndex.hasPendingDiscovery
+            {
+                Self.appendCodexActiveLookbackPaths(
+                    filesScheduledForRefresh + scanResult.deferredCachePaths.sorted().map { URL(fileURLWithPath: $0) },
+                    state: &activeLookbackState)
+            }
             let pendingLookbackPathCount = shouldBoundCatchUp
                 ? boundedQueuePathCount
                 : activeLookbackState.pendingFilePaths.count
@@ -6146,9 +6171,6 @@ enum CostUsageScanner {
             cache.codexPricingKey = plan.codexPricingKey
             cache.codexPriorityMetadataKey = plan.codexPriorityMetadataKey
             cache.codexProjectMetadataVersion = Self.codexProjectMetadataVersion
-            let hasDeferredWork = scanBudget.resumedPartialFileCount > 0
-                || scanBudget.deferredByBudgetFileCount > 0
-                || scanBudget.deferredByTimeBudgetFileCount > 0
             let hasExhaustedVisitBudget = refreshSelection.exhaustedVisitBudget
             let hasKnownBoundedWork = hasDeferredWork
                 || hasExhaustedVisitBudget

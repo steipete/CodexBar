@@ -162,21 +162,14 @@ struct MenuCardRowPayload {
     let onClick: (() -> Void)?
 }
 
-/// Inner SwiftUI host used by every card row. The outer container owns AppKit event handling and,
-/// for Overview rows, the composited selection layer.
-private final class MenuRowContentHostingView: NSHostingView<MenuCardSectionContainerView<AnyView>> {
-    override var allowsVibrancy: Bool {
-        true
-    }
-}
-
 /// One stable AppKit class for every menu-card row. Keeping the outer view attached while payloads
 /// move between Overview and provider rows prevents Tahoe from painting NSMenuItem's fallback title.
 @MainActor
 final class MenuRowContainerView: NSView, MenuCardHighlighting, MenuCardMeasuring {
     let highlightState: MenuCardHighlightState
     let interactiveRegionStore: MenuCardInteractiveRegionStore
-    private let hosting: MenuRowContentHostingView
+    // Forced vibrancy makes white GPU-tinted content disappear on macOS 15.
+    private let hosting: NSHostingView<MenuCardSectionContainerView<AnyView>>
     private var measuredSize: NSSize?
     private var selectionView: NSVisualEffectView?
     private var tintFilter: CIFilter?
@@ -196,10 +189,6 @@ final class MenuRowContainerView: NSView, MenuCardHighlighting, MenuCardMeasurin
     private static let selectionVerticalInset: CGFloat = 2
     private static let selectionCornerRadius: CGFloat = 6
     private static let selectionFadeDuration: CFTimeInterval = 0.06
-
-    override var allowsVibrancy: Bool {
-        true
-    }
 
     override var intrinsicContentSize: NSSize {
         let width = self.frame.width > 0 ? self.frame.width : NSView.noIntrinsicMetric
@@ -239,7 +228,7 @@ final class MenuRowContainerView: NSView, MenuCardHighlighting, MenuCardMeasurin
         self.allowsMenuHighlight = payload.allowsMenuHighlight
         self.containsInteractiveControls = payload.containsInteractiveControls
         self.onClick = payload.onClick
-        self.hosting = MenuRowContentHostingView(rootView: Self.makeRootView(
+        self.hosting = NSHostingView(rootView: Self.makeRootView(
             payload: payload,
             highlightState: highlightState,
             refreshMonitor: refreshMonitor,

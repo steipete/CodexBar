@@ -260,6 +260,7 @@ Model-scoped weekly-window proof (synthetic data, no real accounts or credential
   - Matching assistant entry IDs within the same session are counted once across roots; distinct turns are retained.
 - Cache:
   - Native provider cache: `~/Library/Caches/CodexBar/cost-usage/claude-v6.json`
+  - Report memo: `~/Library/Caches/CodexBar/cost-usage/claude-v6.report-memo.json` stores source stamps and the daily report across launches. It is reused only while transcript inventory, cache/pricing artifacts, requested window, and report-semantics revision still match.
   - The Claude/Vertex cache artifact retains source file identities independently of the shared Codex parser fingerprint. Replacing a transcript rebuilds its rows rather than merging an old prefix into a new suffix; genuine appends still use the saved parse offset. Older entries without identity are rebuilt once before reuse, including during the normal refresh debounce.
   - pi-compatible session cache: `~/Library/Caches/CodexBar/cost-usage/pi-sessions-v8.json`
 

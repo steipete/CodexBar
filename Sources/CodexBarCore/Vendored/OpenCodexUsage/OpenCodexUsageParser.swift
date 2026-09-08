@@ -344,9 +344,8 @@ public enum OpenCodexUsageParser {
         if let integer = Int(number.stringValue) {
             return integer >= 0 ? integer : nil
         }
-        let numeric = number.doubleValue
-        guard numeric >= 0 else { return nil }
-        return Int(exactly: numeric.rounded(.towardZero))
+        guard let integer = Int(exactly: number.doubleValue.rounded(.towardZero)) else { return nil }
+        return integer >= 0 ? integer : nil
     }
 
     private static func prefixDigest(

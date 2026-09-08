@@ -22,7 +22,7 @@ struct OpenCodexUsageParserTests {
         #expect(entry.totalTokens == nil)
     }
 
-    @Test(arguments: [("12.9", 12), (String(Int.max), Int.max)])
+    @Test(arguments: [("12.9", 12), ("-0.5", 0), (String(Int.max), Int.max)])
     func `token counts retain truncation and exact integer values`(literal: String, expected: Int) throws {
         let line = """
         {"requestId":"valid","timestamp":1784179200,"provider":"openai","model":"gpt-5.4",\

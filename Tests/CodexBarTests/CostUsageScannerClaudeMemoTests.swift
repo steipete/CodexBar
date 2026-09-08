@@ -132,7 +132,57 @@ struct CostUsageScannerClaudeMemoTests {
     }
 
     @Test
-    func `cold process reuses unchanged files from the persisted cache`() throws {
+    func `cold process reuses the persisted report memo without decoding the cache`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 1)
+        _ = try self.writeEvent(env: env, day: day, path: "project/first.jsonl", id: "first", input: 10)
+        _ = try self.writeEvent(env: env, day: day, path: "project/second.jsonl", id: "second", input: 20)
+        let options = self.options(env: env)
+        let initial = self.load(day: day, options: options)
+        let memoURL = CostUsageClaudeReportMemo.reportMemoFileURL(cacheFileURL: self.cacheURL(env: env))
+        #expect(FileManager.default.fileExists(atPath: memoURL.path))
+        CostUsageScanner.evictClaudeReportMemoForTesting(provider: .claude, cacheRoot: env.cacheRoot)
+
+        let (restarted, metrics) = self.recordedLoad(day: day, options: options)
+
+        #expect(restarted.data == initial.data)
+        #expect(restarted.summary == initial.summary)
+        #expect(metrics == CostUsageScanner.ClaudeScanWorkMetrics())
+    }
+
+    @Test(arguments: [nil, 0, CostUsageClaudeReportMemo.reportSemanticsVersion + 1] as [Int?])
+    func `cold process rejects reports from incompatible semantics`(revision: Int?) throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 1)
+        let sourceURL = try self.writeEvent(env: env, day: day, path: "project/session.jsonl", id: "first", input: 10)
+        let options = self.options(env: env)
+        let initial = self.load(day: day, options: options)
+        let sourceStamp = CostUsageClaudeFileStamp.read(at: sourceURL)
+        let memoURL = CostUsageClaudeReportMemo.reportMemoFileURL(cacheFileURL: self.cacheURL(env: env))
+        var envelope = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: memoURL)) as? [String: Any])
+        envelope["reportSemanticsVersion"] = revision
+        envelope["report"] = [
+            "type": "codexbar-claude-report-memo", "data": [],
+            "summary": ["totalTokens": 9999, "totalCostUSD": 9999],
+        ]
+        try JSONSerialization.data(withJSONObject: envelope).write(to: memoURL)
+        CostUsageScanner.evictClaudeReportMemoForTesting(provider: .claude, cacheRoot: env.cacheRoot)
+
+        let (restarted, metrics) = self.recordedLoad(day: day, options: options)
+
+        #expect(restarted.data == initial.data)
+        #expect(restarted.summary == initial.summary)
+        #expect(metrics.cacheDecodes == 1)
+        #expect(metrics.transcriptParses == 0)
+        #expect(CostUsageClaudeFileStamp.read(at: sourceURL) == sourceStamp)
+        let rewritten = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: memoURL)) as? [String: Any])
+        #expect(rewritten["reportSemanticsVersion"] as? Int == CostUsageClaudeReportMemo.reportSemanticsVersion)
+    }
+
+    @Test(arguments: [false, true])
+    func `missing or corrupt memo decodes the cache without parsing transcripts`(corrupt: Bool) throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
         let day = try env.makeLocalNoon(year: 2026, month: 7, day: 1)
@@ -141,6 +191,11 @@ struct CostUsageScannerClaudeMemoTests {
         let options = self.options(env: env)
         let initial = self.load(day: day, options: options)
         CostUsageScanner.evictClaudeReportMemoForTesting(provider: .claude, cacheRoot: env.cacheRoot)
+        CostUsageScanner.evictPersistedClaudeReportMemoForTesting(provider: .claude, cacheRoot: env.cacheRoot)
+        if corrupt {
+            let memoURL = CostUsageClaudeReportMemo.reportMemoFileURL(cacheFileURL: self.cacheURL(env: env))
+            try Data("invalid JSON".utf8).write(to: memoURL)
+        }
 
         let (restarted, metrics) = self.recordedLoad(day: day, options: options)
 
@@ -290,8 +345,8 @@ struct CostUsageScannerClaudeMemoTests {
         #expect(metrics.repricedRows == 1)
     }
 
-    @Test
-    func `pricing replacement reprices without parsing or rewriting the claude cache`() throws {
+    @Test(arguments: [false, true])
+    func `pricing replacement reprices without parsing or rewriting the claude cache`(cold: Bool) throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
         let day = try env.makeLocalNoon(year: 2026, month: 7, day: 7)
@@ -317,6 +372,9 @@ struct CostUsageScannerClaudeMemoTests {
             fetchedAt: day.addingTimeInterval(1),
             cacheRoot: env.cacheRoot))
 
+        if cold {
+            CostUsageScanner.evictClaudeReportMemoForTesting(provider: .claude, cacheRoot: env.cacheRoot)
+        }
         let (repriced, metrics) = self.recordedLoad(day: day, options: options)
 
         #expect(abs((repriced.summary?.totalCostUSD ?? 0) - 0.002) < 0.000000001)
@@ -359,6 +417,8 @@ struct CostUsageScannerClaudeMemoTests {
         _ = self.load(day: day, options: options)
         let cacheURL = self.cacheURL(env: env)
         let diskBefore = try Data(contentsOf: cacheURL)
+        let memoURL = CostUsageClaudeReportMemo.reportMemoFileURL(cacheFileURL: cacheURL)
+        let memoBefore = try Data(contentsOf: memoURL)
         let stampBefore = CostUsageClaudeFileStamp.read(at: cacheURL)
         options.forceRescan = true
         var checks = 0
@@ -378,11 +438,32 @@ struct CostUsageScannerClaudeMemoTests {
                 })
         }
         #expect(try Data(contentsOf: cacheURL) == diskBefore)
+        #expect(try Data(contentsOf: memoURL) == memoBefore)
         #expect(CostUsageClaudeFileStamp.read(at: cacheURL) == stampBefore)
 
         options.forceRescan = false
         let (_, metrics) = self.recordedLoad(day: day, options: options)
         #expect(metrics == CostUsageScanner.ClaudeScanWorkMetrics())
+    }
+
+    @Test
+    func `persisted report retains token mix coverage and service tier details`() throws {
+        let json = """
+        {"type":"codexbar-claude-report-memo","data":[{"date":"2026-07-01",
+        "inputTokens":1,"outputTokens":2,"cacheReadTokens":3,
+        "cacheCreationTokens":4,"reasoningTokens":5,"totalTokens":15,"requestCount":4,"costUSD":0.5,
+        "modelsUsed":["fixture-model"],"unpricedRequestCount":1,"pricedRequestCount":1,
+        "unmeteredRequestCount":1,"estimatedRequestCount":1,"modelBreakdowns":[{"modelName":"fixture-model",
+        "costUSD":0.5,"totalTokens":15,"requestCount":4,"inputTokens":1,"outputTokens":2,"cacheReadTokens":3,
+        "cacheCreationTokens":4,"reasoningTokens":5,"standardCostUSD":0.2,"priorityCostUSD":0.3,
+        "standardTokens":6,"priorityTokens":9}]}],"summary":{"totalInputTokens":1,"totalOutputTokens":2,
+        "cacheReadTokens":3,"cacheCreationTokens":4,"reasoningTokens":5,"totalTokens":15,"totalCostUSD":0.5}}
+        """
+        let report = try JSONDecoder().decode(CostUsageDailyReport.self, from: Data(json.utf8))
+        let persisted = try JSONEncoder().encode(report)
+        let reloaded = try JSONDecoder().decode(CostUsageDailyReport.self, from: persisted)
+        #expect(reloaded.data == report.data)
+        #expect(reloaded.summary == report.summary)
     }
 
     private func options(

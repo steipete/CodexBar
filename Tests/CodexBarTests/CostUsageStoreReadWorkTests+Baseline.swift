@@ -313,7 +313,7 @@ extension CostUsageStoreReadWorkTests {
         #expect(await fixture.store.readSnapshot().files.count == fixture.fileCount)
     }
 
-    @Test(arguments: ["4a593b5d59c7bcf3", "7e293e8fc9e25700", "e0b0319de43e22d7"])
+    @Test(arguments: ["4a593b5d59c7bcf3", "7e293e8fc9e25700", "e0b0319de43e22d7", "9ca89383b9957b07"])
     func `schema adoption invalidates a predecessor connection receipt`(predecessorHash: String) async throws {
         let fixture = try ReadWorkFixture(fileCount: 2, rowsPerFile: 4)
         defer { fixture.remove() }

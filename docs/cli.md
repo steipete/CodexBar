@@ -71,6 +71,7 @@ See `docs/configuration.md` for the schema.
   - `--format text|json` (default: text). `--json` includes the same cost concepts as Settings → Usage & Spend (token mix, `provenance`, coverage), but it is not the dashboard Export JSON schema. CLI places mix fields under each provider's `totals` and emits `provenance`/`coverage` on that provider object; Export JSON nests `tokenMix`, `provenance`, and `coverage` under `groups[]`.
   - OpenCodex appears as a separate `opencodex` payload only when **Include OpenCodex usage logs** is on in Settings. That payload does not invent `projects` (OpenCodex logs have no workspace path).
   - `--refresh` ignores cached scans.
+  - `--breakdown` adds Claude-only daily and top-model details to text output. Both sections use the same last seven calendar days (or the shorter requested interval); when that interval has no rows, both explicitly label the latest recorded days. Incomplete attribution is marked partial. Ordinary text, other providers, and JSON output are unchanged.
   - `--provider-native-only` is experimental and excludes pi and OMP session mirrors from Claude and Codex history.
 - `codexbar cards` prints a one-shot usage snapshot as a responsive terminal card grid.
   - Reuses the same provider, source, account, credits, and status flags as `codexbar usage`.
