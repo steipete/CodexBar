@@ -5893,8 +5893,8 @@ enum CostUsageScanner {
                     }
                 }
             }
-            if !shouldPageDiscovery {
-                // Every current partition and flat root was listed above; preserve that work if parsing expires.
+            if !shouldBoundCatchUp, !options.forceRescan, scanBudget.hasTimeLimit {
+                // Timed warm discovery was exhaustive; preserve it only for this resume path.
                 activeLookbackState.completedCurrentWindowRootPaths = activeLookbackState.rootPaths
                 activeLookbackState.completedCurrentWindowFlatRootPaths = activeLookbackState.rootPaths
             }
@@ -6053,7 +6053,9 @@ enum CostUsageScanner {
             let hasDeferredWork = scanBudget.resumedPartialFileCount > 0
                 || scanBudget.deferredByBudgetFileCount > 0
                 || scanBudget.deferredByTimeBudgetFileCount > 0
-            if !shouldBoundCatchUp, scanBudget.hasTimeLimit, hasDeferredWork || fileIndex.hasPendingDiscovery {
+            if !shouldBoundCatchUp, !options.forceRescan, scanBudget.hasTimeLimit,
+               hasDeferredWork || fileIndex.hasPendingDiscovery
+            {
                 Self.appendCodexActiveLookbackPaths(
                     filesScheduledForRefresh + scanResult.deferredCachePaths.sorted().map { URL(fileURLWithPath: $0) },
                     state: &activeLookbackState)
