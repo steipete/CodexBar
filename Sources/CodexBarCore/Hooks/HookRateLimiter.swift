@@ -17,8 +17,12 @@ public actor HookRateLimiter {
 
     /// Records a fire for `event` at `now` and returns whether it is allowed
     /// (i.e. no matching fire within the window). Call once per candidate dispatch.
-    public func allow(_ event: HookEvent, now: Date = Date()) -> Bool {
-        let key = Self.key(for: event)
+    public func allow(
+        _ event: HookEvent,
+        accountDiscriminator: String? = nil,
+        now: Date = Date()) -> Bool
+    {
+        let key = Self.key(for: event, accountDiscriminator: accountDiscriminator)
         if let previous = self.lastFired[key], now.timeIntervalSince(previous) < self.window {
             return false
         }
@@ -26,11 +30,11 @@ public actor HookRateLimiter {
         return true
     }
 
-    static func key(for event: HookEvent) -> String {
+    static func key(for event: HookEvent, accountDiscriminator: String? = nil) -> String {
         [
             event.event.rawValue,
             event.provider,
-            event.account ?? "",
+            accountDiscriminator ?? event.account ?? "",
             event.window ?? "",
         ].joined(separator: "\u{1F}")
     }

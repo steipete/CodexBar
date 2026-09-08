@@ -19,6 +19,7 @@ extension UsageStore {
         secondaryWindowMinutes: Int? = nil,
         secondaryResetAt: Date? = nil,
         status: String? = nil,
+        accountDiscriminator: String? = nil,
         accountDisplayName: String? = nil)
     {
         guard let hooks = self.settings.config.hooks,
@@ -47,6 +48,7 @@ extension UsageStore {
                 event: event,
                 config: hooks,
                 rateLimiter: limiter,
+                rateLimitAccountDiscriminator: accountDiscriminator,
                 baseEnvironment: environment)
         }
     }
@@ -54,7 +56,11 @@ extension UsageStore {
     /// Offers the quota snapshot after every successful provider refresh; hook
     /// delivery can be coalesced by the rate limiter. The primary and secondary
     /// windows stay in one event so consumers can evaluate both without another fetch.
-    func emitUsageUpdatedHook(provider: UsageProvider, snapshot: UsageSnapshot) {
+    func emitUsageUpdatedHook(
+        provider: UsageProvider,
+        snapshot: UsageSnapshot,
+        rateKey: String? = nil)
+    {
         guard self.hasQuotaHookRule(event: .usageUpdated, provider: provider) else { return }
         let primary = snapshot.primary.flatMap { $0.isSyntheticPlaceholder ? nil : $0 }
         let secondary = snapshot.secondary.flatMap { $0.isSyntheticPlaceholder ? nil : $0 }
@@ -67,6 +73,8 @@ extension UsageStore {
             secondaryUsagePercent: secondary.map { $0.usedPercent / 100 },
             secondaryWindowMinutes: secondary?.windowMinutes,
             secondaryResetAt: secondary?.resetsAt,
+            accountDiscriminator: rateKey
+                ?? Self.hookAccountDiscriminator(provider: provider, snapshot: snapshot),
             accountDisplayName: self.hookAccountDisplayName(provider: provider, snapshot: snapshot))
     }
 
@@ -283,5 +291,25 @@ extension UsageStore {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard let account, !account.isEmpty else { return nil }
         return account
+    }
+
+    /// Private identity used only to keep rate-limit buckets account scoped. This
+    /// value is never added to the hook payload or environment.
+    nonisolated static func hookAccountDiscriminator(
+        provider: UsageProvider,
+        snapshot: UsageSnapshot) -> String?
+    {
+        let identity = snapshot.identity(for: provider.instanceID)
+        if let accountID = identity?.accountID?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !accountID.isEmpty
+        {
+            return "provider-account:\(accountID)"
+        }
+        guard let email = identity?.accountEmail?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased(),
+            !email.isEmpty
+        else { return nil }
+        return "email:\(email)"
     }
 }

@@ -59,6 +59,7 @@ public enum HookRunner {
         event: HookEvent,
         config: HooksConfig,
         rateLimiter: HookRateLimiter,
+        rateLimitAccountDiscriminator: String? = nil,
         baseEnvironment: [String: String] = ProcessInfo.processInfo.environment) async
     {
         let rules = config.matchingRules(for: event)
@@ -67,7 +68,9 @@ public enum HookRunner {
         // reset-edge state), and rate-limiting them here would suppress a lower
         // remaining-quota warning that crosses within the window. Only the events
         // that can repeat every refresh while a condition persists are throttled.
-        if event.event.isRateLimited, await !rateLimiter.allow(event) {
+        if event.event.isRateLimited,
+           await !rateLimiter.allow(event, accountDiscriminator: rateLimitAccountDiscriminator)
+        {
             self.log.debug("suppressed by rate limiter", metadata: ["event": "\(event.event.rawValue)"])
             return
         }

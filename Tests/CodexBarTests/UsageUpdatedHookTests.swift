@@ -32,6 +32,48 @@ struct UsageUpdatedHookTests {
     }
 
     @Test
+    func `privacy mode keeps usage update throttling account scoped`() async throws {
+        let output = Self.temporaryOutput("private-accounts")
+        defer { try? FileManager.default.removeItem(at: output) }
+        let hooks = HooksConfig(
+            enabled: true,
+            events: [
+                HookRule(
+                    event: .usageUpdated,
+                    provider: UsageProvider.deepseek.rawValue,
+                    executable: "/bin/sh",
+                    arguments: [
+                        "-c",
+                        #"if [ -z "${CODEXBAR_ACCOUNT+x}" ]; then printf x >> "$1"; else printf leak >> "$1"; fi"#,
+                        "hook",
+                        output.path,
+                    ]),
+            ])
+        let settings = testSettingsStore(
+            suiteName: "UsageUpdatedHookTests-private-accounts",
+            config: CodexBarConfig(
+                providers: [ProviderConfig(id: .deepseek, enabled: true)],
+                hooks: hooks))
+        settings.hidePersonalInfo = true
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing,
+            environmentBase: ["PATH": "/usr/bin:/bin"])
+
+        store.emitUsageUpdatedHook(
+            provider: .deepseek,
+            snapshot: Self.identifiedSnapshot(usedPercent: 20, accountID: "account-a", email: "a@example.com"))
+        store.emitUsageUpdatedHook(
+            provider: .deepseek,
+            snapshot: Self.identifiedSnapshot(usedPercent: 30, accountID: "account-b", email: "b@example.com"))
+
+        let contents = try await Self.waitForContents(at: output, count: 2)
+        #expect(contents == "xx")
+    }
+
+    @Test
     func `published usage update preserves primary and secondary window cadence`() async throws {
         let primaryReset = Date(timeIntervalSince1970: 1_800_000_000)
         let secondaryReset = Date(timeIntervalSince1970: 1_800_500_000)
@@ -143,6 +185,62 @@ struct UsageUpdatedHookTests {
     }
 
     @Test
+    func `stacked token account success publishes a usage update`() async throws {
+        let output = Self.temporaryOutput("stacked-token")
+        defer { try? FileManager.default.removeItem(at: output) }
+        let store = self.makeRefreshStore(output: output)
+        let account = try ProviderTokenAccount(
+            id: #require(UUID(uuidString: "00000000-0000-0000-0000-000000000001")),
+            label: "First",
+            token: "fixture",
+            addedAt: 0,
+            lastUsed: nil)
+
+        await store.applySelectedOutcome(
+            Self.outcome(snapshot: Self.snapshot(usedPercent: 35)),
+            provider: .deepseek,
+            account: account,
+            fallbackSnapshot: nil)
+
+        let payload = try await Self.waitForPayload(at: output)
+        #expect(payload["event"] as? String == "usage_updated")
+        #expect(payload["usagePercent"] as? Double == 0.35)
+    }
+
+    @Test
+    func `stacked Codex account success publishes a usage update`() async throws {
+        let output = Self.temporaryOutput("stacked-codex")
+        defer { try? FileManager.default.removeItem(at: output) }
+        let store = self.makeRefreshStore(output: output, provider: .codex)
+        let account = CodexVisibleAccount(
+            id: "live:owner-a",
+            email: "owner-a@example.com",
+            workspaceAccountID: "owner-a",
+            storedAccountID: nil,
+            selectionSource: .liveSystem,
+            isActive: true,
+            isLive: true,
+            canReauthenticate: false,
+            canRemove: false)
+        let snapshot = Self.identifiedSnapshot(
+            usedPercent: 45,
+            provider: .codex,
+            accountID: "owner-a",
+            email: account.email)
+
+        await store.applySelectedCodexVisibleAccountOutcome(
+            Self.outcome(snapshot: snapshot),
+            account: account,
+            snapshot: snapshot,
+            sourceLabel: "fixture",
+            limitResetOwnerKey: nil)
+
+        let payload = try await Self.waitForPayload(at: output)
+        #expect(payload["event"] as? String == "usage_updated")
+        #expect(payload["usagePercent"] as? Double == 0.45)
+    }
+
+    @Test
     func `superseded provider refresh cannot publish a usage update`() async throws {
         let output = Self.temporaryOutput("superseded")
         defer { try? FileManager.default.removeItem(at: output) }
@@ -203,20 +301,20 @@ struct UsageUpdatedHookTests {
         return try await Self.waitForPayload(at: output)
     }
 
-    private func makeRefreshStore(output: URL) -> UsageStore {
+    private func makeRefreshStore(output: URL, provider: UsageProvider = .deepseek) -> UsageStore {
         let hooks = HooksConfig(
             enabled: true,
             events: [
                 HookRule(
                     event: .usageUpdated,
-                    provider: UsageProvider.deepseek.rawValue,
+                    provider: provider.rawValue,
                     executable: "/bin/sh",
                     arguments: ["-c", #"/bin/cat > "$1""#, "hook", output.path]),
             ])
         let settings = testSettingsStore(
             suiteName: "UsageUpdatedHookTests-refresh",
             config: CodexBarConfig(
-                providers: [ProviderConfig(id: .deepseek, enabled: true)],
+                providers: [ProviderConfig(id: provider.instanceID, enabled: true)],
                 hooks: hooks))
         settings.refreshFrequency = .manual
         settings.statusChecksEnabled = false
@@ -251,6 +349,20 @@ struct UsageUpdatedHookTests {
             updatedAt: Date())
     }
 
+    private static func identifiedSnapshot(
+        usedPercent: Double,
+        provider: UsageProvider = .deepseek,
+        accountID: String,
+        email: String) -> UsageSnapshot
+    {
+        self.snapshot(usedPercent: usedPercent).withIdentity(ProviderIdentitySnapshot(
+            providerID: provider.instanceID,
+            accountEmail: email,
+            accountOrganization: nil,
+            loginMethod: nil,
+            accountID: accountID))
+    }
+
     private static func temporaryOutput(_ label: String) -> URL {
         FileManager.default.temporaryDirectory
             .appending(path: "codexbar-usage-updated-\(label)-\(UUID().uuidString)")
@@ -264,6 +376,13 @@ struct UsageUpdatedHookTests {
             throw CaptureError.hookDidNotRun
         }
         return try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    }
+
+    private static func waitForContents(at output: URL, count: Int) async throws -> String {
+        for _ in 0..<100 where (try? Data(contentsOf: output).count) != count {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        return try String(contentsOf: output, encoding: .utf8)
     }
 
     private enum CaptureError: Error {

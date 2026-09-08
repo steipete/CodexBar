@@ -783,6 +783,7 @@ extension UsageStore {
                 backfilled: backfilled,
                 result: result,
                 context: context)
+            self.emitUsageUpdatedHook(provider: provider, snapshot: backfilled, rateKey: warningAccountDiscriminator)
             return backfilled
         }
         guard let backfilled else { return }
@@ -815,7 +816,6 @@ extension UsageStore {
             isClaudeOAuthSample: isClaudeOAuthSample,
             codexLimitResetOwnerKey: context.codexLimitResetOwnerKey)
         guard self.isCurrentProviderRefreshGeneration(provider, generation: context.generation) else { return }
-        self.emitUsageUpdatedHook(provider: provider, snapshot: backfilled)
         if let runtime = self.providerRuntimes[provider.instanceID] {
             let runtimeContext = ProviderRuntimeContext(
                 provider: provider, settings: self.settings, store: self)
