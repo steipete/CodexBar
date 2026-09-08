@@ -3,8 +3,9 @@ import Testing
 @testable import CodexBarCore
 
 struct CostUsageWhitespaceRowReplacementTests {
-    @Test(arguments: [false, true])
-    func `legacy rows are replaced during complete and interrupted migration`(limited: Bool) async throws {
+    @Test(arguments: [(false, false), (true, false), (false, true), (true, true)])
+    func `legacy rows and snapshots are replaced during migration`(scenario: (Bool, Bool)) async throws {
+        let (limited, growing) = scenario
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
         let day = try env.makeLocalNoon(year: 2026, month: 9, day: 7)
@@ -63,10 +64,22 @@ struct CostUsageWhitespaceRowReplacementTests {
             input: 200,
             cached: 0,
             output: 0)]
+        first.codexTokenSnapshots = first.codexTokenSnapshots.map { Array($0.suffix(1)) }
+        first.codexTokenCheckpoints = first.codexTokenSnapshots.map { CostUsageScanner.codexTokenCheckpoints(for: $0) }
         first.codexEventWhitespaceParsed = nil
         legacy.files[firstPath] = first
         legacy.files[otherPath]?.codexEventWhitespaceParsed = nil
         CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: legacy)
+        if growing {
+            let handle = try FileHandle(forWritingTo: URL(fileURLWithPath: firstPath))
+            try handle.seekToEnd()
+            try handle.write(contentsOf: Data(event(300, second: 3).utf8))
+            try handle.close()
+        }
+        var referenceOptions = options
+        referenceOptions.cacheRoot = env.root.appendingPathComponent("reference-cache")
+        let expected = CostUsageScanner.loadDailyReport(
+            provider: .codex, since: day, until: day, now: day.addingTimeInterval(4), options: referenceOptions)
         if limited { options.maxCodexScanBytesPerRefresh = Int64(prefix.utf8.count) }
         _ = CostUsageScanner.loadDailyReport(
             provider: .codex, since: day, until: day, now: day.addingTimeInterval(3), options: options)
@@ -81,12 +94,14 @@ struct CostUsageWhitespaceRowReplacementTests {
         options.maxCodexScanBytesPerRefresh = 512 * 1024 * 1024
         let final = CostUsageScanner.loadDailyReport(
             provider: .codex, since: day, until: day, now: day.addingTimeInterval(4), options: options)
-        #expect(final.data == clean.data)
+        #expect(final.data == expected.data)
         let reopenedStore = CostUsageStore(cacheRoot: env.cacheRoot)
         let reopened = reopenedStore.syncLoadCodexCache(calendar: .current)
-        #expect(reopened.files[firstPath]?.codexRows?.map(\.input) == [100, 100])
+        #expect(reopened.files[firstPath]?.codexRows?.map(\.input) == (growing ? [100, 100, 100] : [100, 100]))
+        #expect(reopened.files[firstPath]?.codexTokenSnapshots?.compactMap { $0.total?.input }
+            == (growing ? [100, 200, 300] : [100, 200]))
         #expect(reopened.files[otherPath]?.codexRows?.map(\.input) == [50])
         let persisted = await reopenedStore.readSnapshot()
-        #expect(persisted.dayAggregates.reduce(0) { $0 + $1.requestCount } == 3)
+        #expect(persisted.dayAggregates.reduce(0) { $0 + $1.requestCount } == (growing ? 4 : 3))
     }
 }
