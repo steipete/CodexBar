@@ -1298,6 +1298,57 @@ extension StatusItemBalanceDisplayTests {
     }
 
     @Test
+    func `stored DeepInfra layout with spending limit keeps billing cycle percent`() {
+        let settings = self.makeSettings(
+            suiteName: "StatusItemBalanceDisplayTests-deepinfra-layout-spending-limit",
+            provider: .deepinfra)
+        let layout = MenuBarLayout(lines: [[.icon, .percent(window: .automatic)]])
+        settings.setMenuBarLayout(layout, for: nil)
+        let (store, controller) = self.makeStoreAndController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+        let snapshot = DeepInfraUsageSnapshot(
+            availableBalanceUSD: 42,
+            amountOwedUSD: 0,
+            currentMonthCostUSD: 5,
+            recentCostUSD: 5,
+            spendingLimitUSD: 20,
+            suspended: false,
+            suspendReason: nil,
+            updatedAt: Date()).toUsageSnapshot()
+
+        store._setSnapshotForTesting(snapshot, provider: .deepinfra)
+        store._setErrorForTesting(nil, provider: .deepinfra)
+
+        let statusItemData = controller.menuBarLayoutRenderData(
+            provider: .deepinfra,
+            snapshot: snapshot,
+            warningFlash: false)
+
+        let previewData = MenuBarLayoutPreview(
+            layout: layout, provider: .deepinfra, settings: settings, store: store)
+            .liveData(provider: .deepinfra, snapshot: snapshot)
+        #expect(previewData.automaticText == nil)
+        #expect(previewData.automatic?.usedPercent == 25)
+
+        let rendered = MenuBarLayoutRenderer().render(
+            layout: layout,
+            data: statusItemData,
+            icon: NSImage(size: NSSize(width: 16, height: 16)),
+            options: MenuBarLayoutRenderOptions(
+                size: .regular,
+                highContrast: false,
+                showUsed: true,
+                conditionals: [],
+                appearanceName: "aqua",
+                isDebugApp: false,
+                now: Date()))
+
+        #expect(statusItemData.automatic?.resetDescription == nil)
+        #expect(statusItemData.automaticText == nil)
+        #expect(rendered.attributedTitle.string.hasSuffix("25%"))
+    }
+
+    @Test
     func `stored Moonshot icon and percent layout shows balance in status item and preview`() {
         let settings = self.makeSettings(
             suiteName: "StatusItemBalanceDisplayTests-moonshot-layout-balance",

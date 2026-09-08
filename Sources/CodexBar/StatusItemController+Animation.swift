@@ -1035,8 +1035,10 @@ extension StatusItemController {
         snapshot: UsageSnapshot?,
         automatic: MenuBarLayoutRenderWindow?) -> String?
     {
-        // Provider-specific by design: these balance-only windows have no meaningful quota percentage.
-        guard automatic == nil || provider == .deepseek || provider == .deepinfra else { return nil }
+        // Provider-specific by design: DeepInfra's real billing window has no balance detail.
+        let balanceOnly = provider == .deepseek
+            || (provider == .deepinfra && automatic?.resetDescription != nil && automatic?.resetsAt == nil)
+        guard automatic == nil || balanceOnly else { return nil }
         return self.menuBarBalanceDisplayText(provider: provider, snapshot: snapshot)
     }
 
