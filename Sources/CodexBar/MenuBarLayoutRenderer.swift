@@ -69,7 +69,9 @@ struct MenuBarLayoutRenderData: Hashable {
     /// `.scopedWeekly` token with the real model rather than assuming Fable.
     let scopedWeeklyTitle: String?
     let automatic: MenuBarLayoutRenderWindow?
-    /// Provider-specific text used by the automatic percent token when no percentage window exists.
+    /// Provider-specific text that replaces the automatic percent token: Mistral spend when its
+    /// automatic lane has no percentage window, or balance-only providers (DeepSeek) whose window
+    /// percent is meaningless.
     let automaticText: String?
     /// Signed pace deltas per window, already formatted (`+11%`, `-8%`, `0%`). Pace needs the store's
     /// historical dataset and work-day setting, so it is resolved upstream like `runsOut` rather than
@@ -675,12 +677,14 @@ final class MenuBarLayoutRenderer {
         showUsed: Bool)
         -> (text: String, isAvailable: Bool)
     {
+        if window == .automatic, let automaticText {
+            // Balance-only providers (e.g. DeepSeek) send a valid window whose percent is meaningless;
+            // the resolved text is the balance they should surface instead.
+            return (automaticText, true)
+        }
         if let rateWindow {
             let percent = showUsed ? rateWindow.usedPercent : rateWindow.remainingPercent
             return (UsageFormatter.percentString(percent), true)
-        }
-        if window == .automatic, let automaticText {
-            return (automaticText, true)
         }
         return (Self.missingValue, false)
     }

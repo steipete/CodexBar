@@ -5,6 +5,9 @@ import os
 import Testing
 @testable import CodexBar
 
+// Token coverage spans many providers; suites share one fixture/helper vocabulary.
+// swiftlint:disable file_length
+
 @MainActor
 @Suite(.serialized)
 // swiftlint:disable:next type_body_length
@@ -90,6 +93,22 @@ struct MenuBarLayoutRendererTests {
 
         #expect(output.attributedTitle.string == "10%\u{2009}9%\u{2009}17%")
         #expect(output.accessibilityLabel == "Total 10%, Cursor 9%, Third Party 17%")
+    }
+
+    @Test
+    func `automatic balance text replaces the automatic percent window`() {
+        let renderer = MenuBarLayoutRenderer()
+        // DeepSeek's funded balance window arrives with usedPercent 0; the balance text must win
+        // over the meaningless quota percent.
+        let data = self.data(automaticUsedPercent: 0, provider: .deepseek, automaticText: "¥100.00")
+        let output = renderer.render(
+            layout: MenuBarLayout(lines: [[.percent(window: .automatic)]]),
+            data: data,
+            icon: nil,
+            options: self.options())
+
+        #expect(output.attributedTitle.string == "¥100.00")
+        #expect(output.accessibilityLabel == L("%@ %@", L("Usage"), "¥100.00"))
     }
 
     @Test
@@ -1393,6 +1412,7 @@ struct MenuBarLayoutRendererTests {
         provider: UsageProvider = .codex,
         laneLabels: MenuBarLayoutLaneLabels? = nil,
         automaticResetAt: Date? = nil,
+        automaticText: String? = nil,
         accountLabel: String? = "user@example.com",
         metrics: MenuBarLayoutRenderMetrics? = nil)
         -> MenuBarLayoutRenderData
@@ -1439,7 +1459,7 @@ struct MenuBarLayoutRendererTests {
                 windowMinutes: 300,
                 resetsAt: automaticResetAt ?? self.now.addingTimeInterval(2 * 60 * 60),
                 resetDescription: nil)),
-            automaticText: nil,
+            automaticText: automaticText,
             sessionPace: "-8%",
             weeklyPace: "+11%",
             automaticPace: "0%",

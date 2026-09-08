@@ -1151,4 +1151,96 @@ extension StatusItemBalanceDisplayTests {
             #expect(rendered.accessibilityLabel.contains("€1.2345"))
         }
     }
+
+    @Test
+    func `stored DeepSeek icon and percent layout shows balance in status item and preview`() {
+        let settings = self.makeSettings(
+            suiteName: "StatusItemBalanceDisplayTests-deepseek-layout-balance",
+            provider: .deepseek)
+        let layout = MenuBarLayout(lines: [[.icon, .percent(window: .automatic)]])
+        settings.setMenuBarLayout(layout, for: nil)
+        let (store, controller) = self.makeStoreAndController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+        let snapshot = DeepSeekUsageSnapshot(
+            isAvailable: true,
+            currency: "CNY",
+            totalBalance: 100,
+            grantedBalance: 0,
+            toppedUpBalance: 100,
+            updatedAt: Date()).toUsageSnapshot()
+
+        store._setSnapshotForTesting(snapshot, provider: .deepseek)
+        store._setErrorForTesting(nil, provider: .deepseek)
+
+        let statusItemData = controller.menuBarLayoutRenderData(
+            provider: .deepseek,
+            snapshot: snapshot,
+            warningFlash: false)
+        let previewData = MenuBarLayoutPreview(
+            layout: layout,
+            provider: .deepseek,
+            settings: settings,
+            store: store)
+            .liveData(provider: .deepseek, snapshot: snapshot)
+
+        for data in [statusItemData, previewData] {
+            let rendered = MenuBarLayoutRenderer().render(
+                layout: layout,
+                data: data,
+                icon: NSImage(size: NSSize(width: 16, height: 16)),
+                options: MenuBarLayoutRenderOptions(
+                    size: .regular,
+                    highContrast: false,
+                    showUsed: true,
+                    conditionals: [],
+                    appearanceName: "aqua",
+                    isDebugApp: false,
+                    now: Date()))
+
+            #expect(data.automaticText == "¥100.00")
+            #expect(rendered.attributedTitle.string.hasSuffix("¥100.00"))
+        }
+    }
+
+    @Test
+    func `stored DeepSeek icon and percent layout shows zero balance instead of percent`() {
+        let settings = self.makeSettings(
+            suiteName: "StatusItemBalanceDisplayTests-deepseek-layout-zero-balance",
+            provider: .deepseek)
+        let layout = MenuBarLayout(lines: [[.icon, .percent(window: .automatic)]])
+        settings.setMenuBarLayout(layout, for: nil)
+        let (store, controller) = self.makeStoreAndController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+        let snapshot = DeepSeekUsageSnapshot(
+            isAvailable: false,
+            currency: "USD",
+            totalBalance: 0,
+            grantedBalance: 0,
+            toppedUpBalance: 0,
+            updatedAt: Date()).toUsageSnapshot()
+
+        store._setSnapshotForTesting(snapshot, provider: .deepseek)
+        store._setErrorForTesting(nil, provider: .deepseek)
+
+        let statusItemData = controller.menuBarLayoutRenderData(
+            provider: .deepseek,
+            snapshot: snapshot,
+            warningFlash: false)
+
+        let rendered = MenuBarLayoutRenderer().render(
+            layout: layout,
+            data: statusItemData,
+            icon: NSImage(size: NSSize(width: 16, height: 16)),
+            options: MenuBarLayoutRenderOptions(
+                size: .regular,
+                highContrast: false,
+                showUsed: true,
+                conditionals: [],
+                appearanceName: "aqua",
+                isDebugApp: false,
+                now: Date()))
+
+        #expect(statusItemData.automaticText == "$0.00")
+        #expect(rendered.attributedTitle.string.hasSuffix("$0.00"))
+    }
 }

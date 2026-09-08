@@ -1069,6 +1069,24 @@ extension StatusItemController {
             removingSuffix: " this month")
     }
 
+    /// Automatic-lane text override for the menu bar layout. Mistral surfaces API spend when its
+    /// automatic lane has no percentage window; balance-only providers (DeepSeek) replace the
+    /// meaningless quota percent with their balance text.
+    nonisolated static func menuBarLayoutAutomaticText(
+        provider: UsageProvider,
+        snapshot: UsageSnapshot?,
+        automatic: RateWindow?) -> String?
+    {
+        switch provider {
+        case .deepseek:
+            MenuBarDisplayText.deepSeekBalanceText(snapshot: snapshot)
+        case .mistral:
+            automatic == nil ? self.mistralSpendDisplayText(snapshot: snapshot) : nil
+        default:
+            nil
+        }
+    }
+
     nonisolated static func extraUsageSpendDisplayText(snapshot: UsageSnapshot?) -> String? {
         guard let cost = snapshot?.providerCost,
               cost.limit > 0,
