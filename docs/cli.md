@@ -77,6 +77,7 @@ See `docs/configuration.md` for the schema.
   - Reuses the same provider, source, account, credits, and status flags as `codexbar usage`.
   - Account lines and plan badges are included in the card grid by default.
   - `--brief` renders a compact table (Provider / Usage / Reset) instead of the card grid.
+  - Antigravity quota-summary text and full cards show each visible quota bucket, including weekly limits. Unknown usage is shown as unavailable without a percentage or bar; brief cards retain an unavailable first quota and its reset context. Idle-family filtering is display-only, and raw usage JSON retains every window. Legacy model-quota responses keep their family labels.
   - Stdout is always rendered text; `--json-output` only affects stderr logs (no JSON card payload).
   - Failed providers are summarized in a footer (not rendered as error cards).
   - When the opt-in Claude claude-swap integration returns two or more accounts—or one account with
