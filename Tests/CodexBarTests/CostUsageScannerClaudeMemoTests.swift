@@ -156,14 +156,17 @@ struct CostUsageScannerClaudeMemoTests {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
         let day = try env.makeLocalNoon(year: 2026, month: 7, day: 1)
-        _ = try self.writeEvent(env: env, day: day, path: "project/session.jsonl", id: "first", input: 10)
+        let sourceURL = try self.writeEvent(env: env, day: day, path: "project/session.jsonl", id: "first", input: 10)
         let options = self.options(env: env)
         let initial = self.load(day: day, options: options)
-        let cacheStamp = CostUsageClaudeFileStamp.read(at: self.cacheURL(env: env))
+        let sourceStamp = CostUsageClaudeFileStamp.read(at: sourceURL)
         let memoURL = CostUsageClaudeReportMemo.reportMemoFileURL(cacheFileURL: self.cacheURL(env: env))
         var envelope = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: memoURL)) as? [String: Any])
         envelope["reportSemanticsVersion"] = revision
-        envelope["report"] = ["data": [], "summary": ["totalTokens": 9999, "totalCostUSD": 9999]]
+        envelope["report"] = [
+            "type": "codexbar-claude-report-memo", "data": [],
+            "summary": ["totalTokens": 9999, "totalCostUSD": 9999],
+        ]
         try JSONSerialization.data(withJSONObject: envelope).write(to: memoURL)
         CostUsageScanner.evictClaudeReportMemoForTesting(provider: .claude, cacheRoot: env.cacheRoot)
 
@@ -173,7 +176,7 @@ struct CostUsageScannerClaudeMemoTests {
         #expect(restarted.summary == initial.summary)
         #expect(metrics.cacheDecodes == 1)
         #expect(metrics.transcriptParses == 0)
-        #expect(CostUsageClaudeFileStamp.read(at: self.cacheURL(env: env)) == cacheStamp)
+        #expect(CostUsageClaudeFileStamp.read(at: sourceURL) == sourceStamp)
         let rewritten = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: memoURL)) as? [String: Any])
         #expect(rewritten["reportSemanticsVersion"] as? Int == CostUsageClaudeReportMemo.reportSemanticsVersion)
     }
@@ -446,7 +449,8 @@ struct CostUsageScannerClaudeMemoTests {
     @Test
     func `persisted report retains token mix coverage and service tier details`() throws {
         let json = """
-        {"data":[{"date":"2026-07-01","inputTokens":1,"outputTokens":2,"cacheReadTokens":3,
+        {"type":"codexbar-claude-report-memo","data":[{"date":"2026-07-01",
+        "inputTokens":1,"outputTokens":2,"cacheReadTokens":3,
         "cacheCreationTokens":4,"reasoningTokens":5,"totalTokens":15,"requestCount":4,"costUSD":0.5,
         "modelsUsed":["fixture-model"],"unpricedRequestCount":1,"pricedRequestCount":1,
         "unmeteredRequestCount":1,"estimatedRequestCount":1,"modelBreakdowns":[{"modelName":"fixture-model",
