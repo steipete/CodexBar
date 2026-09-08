@@ -38,10 +38,8 @@
 - 邮箱仍被完全遮蔽（`MenuCardClaudeSwapAccountTests claude swap account card respects hide personal info` 继续通过）。
 - `redactEmail`/`redactEmails` 原有语义不变（Codex workspace 等既有测试不动）。
 ### Targeted tests (repo-relative paths; one per bullet, or `full-suite`)
-- Tests/CodexBarTests/PersonalInfoRedactorAccountLabelTests.swift
-- Tests/CodexBarTests/MenuCardClaudeSwapAccountTests.swift
-- Tests/CodexBarTests/StatusMenuClaudeSwapCompactTests.swift
-- Tests/CodexBarTests/StatusMenuCompactAccountLayoutTests.swift
+- full-suite
+- 注：SwiftPM 工程无 ftask targeted argv 契约（make test / swift test 不接受路径参数），权威全量跑在 PR 平台 CI。本地已手动跑过的 targeted 佐证：Tests/CodexBarTests/PersonalInfoRedactorAccountLabelTests.swift、MenuCardClaudeSwapAccountTests.swift、StatusMenuClaudeSwapCompactTests.swift、StatusMenuCompactAccountLayoutTests.swift 全绿（2026-09-08 14:22）。
 
 ## Plan (ordered steps; tick progress)
 - [x] 新增 `PersonalInfoRedactor.redactAccountLabel`
