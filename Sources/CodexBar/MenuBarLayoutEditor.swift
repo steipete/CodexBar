@@ -1197,16 +1197,19 @@ extension MenuBarLayoutToken {
         if case let .lanePercent(lane) = self {
             return self.laneEditorLabel(lane: lane, provider: provider, snapshot: snapshot)
         }
-        if let providerLabel = self.providerEditorLabel(provider: provider) {
+        if let providerLabel = self.providerEditorLabel(provider: provider, snapshot: snapshot) {
             return providerLabel
         }
         return self.defaultEditorLabel
     }
 
-    private func providerEditorLabel(provider: UsageProvider?) -> String? {
-        guard let provider,
-              let secondaryLabel = ProviderDescriptorRegistry.descriptor(for: provider).presentation
-                  .menuBarLayoutSecondaryLabel
+    private func providerEditorLabel(provider: UsageProvider?, snapshot: UsageSnapshot?) -> String? {
+        guard let provider else { return nil }
+        if provider == .muse, self == .balance, snapshot?.providerCost != nil {
+            return L("7d spend")
+        }
+        guard let secondaryLabel = ProviderDescriptorRegistry.descriptor(for: provider).presentation
+            .menuBarLayoutSecondaryLabel
         else { return nil }
         let localizedLabel = L(secondaryLabel)
         return switch self {

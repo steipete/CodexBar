@@ -281,15 +281,38 @@ struct MenuBarLayoutEditorTests {
     func `balance token is provider aware`() throws {
         let row = try ProviderDetailSection.Row(label: "Remaining", value: "$12.34")
         let section = try ProviderDetailSection(title: "Credits", rows: [row])
-        let snapshot = UsageSnapshot(
+        let openRouterSnapshot = UsageSnapshot(
             primary: nil,
             secondary: nil,
             details: [section],
             updatedAt: Date())
+        let museSpendSnapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            providerCost: ProviderCostSnapshot(
+                used: 5.23,
+                limit: 0,
+                currencyCode: "USD",
+                period: "Last 7 days",
+                updatedAt: Date()),
+            updatedAt: Date())
+        let museBalanceSnapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            updatedAt: Date(),
+            identity: ProviderIdentitySnapshot(
+                providerID: .muse,
+                accountEmail: nil,
+                accountOrganization: nil,
+                loginMethod: "Balance: $12.34"))
 
-        #expect(MenuBarLayoutBalanceResolver.balance(provider: .openrouter, snapshot: snapshot) == "$12.34")
-        #expect(MenuBarLayoutBalanceResolver.balance(provider: .codex, snapshot: snapshot) == nil)
+        #expect(MenuBarLayoutBalanceResolver.balance(provider: .openrouter, snapshot: openRouterSnapshot) == "$12.34")
+        #expect(MenuBarLayoutBalanceResolver.balance(provider: .muse, snapshot: museSpendSnapshot) == "$5.23")
+        #expect(MenuBarLayoutBalanceResolver.balance(provider: .muse, snapshot: museBalanceSnapshot) == "$12.34")
+        #expect(MenuBarLayoutBalanceResolver.balance(provider: .codex, snapshot: openRouterSnapshot) == nil)
         #expect(MenuBarLayoutToken.balance.editorLabel(provider: .openrouter) == L("Balance"))
+        #expect(MenuBarLayoutToken.balance.editorLabel(provider: .muse, snapshot: museSpendSnapshot) == L("7d spend"))
+        #expect(MenuBarLayoutToken.balance.editorLabel(provider: .muse, snapshot: museBalanceSnapshot) == L("Balance"))
     }
 
     @Test

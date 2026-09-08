@@ -154,8 +154,8 @@ struct ProviderArchitectureGatekeeperTests {
             Self.hash(descriptor.branding.burnDownWidgetColor, into: &burnDownFingerprint)
         }
 
-        #expect(widgetFingerprint == 16_873_014_858_015_536_126)
-        #expect(burnDownFingerprint == 8_686_456_525_451_224_704)
+        #expect(widgetFingerprint == 1_384_715_300_343_528_903)
+        #expect(burnDownFingerprint == 5_817_880_812_814_024_010)
     }
 
     @Test
@@ -194,7 +194,7 @@ struct ProviderArchitectureGatekeeperTests {
     func `small provider capabilities preserve legacy registries`() {
         let descriptors = ProviderDescriptorRegistry.all
         #expect(Set(descriptors.filter(\.metadata.balanceOnly).map(\.id)) == [
-            .deepseek, .deepinfra, .mistral, .moonshot, .poe,
+            .deepseek, .deepinfra, .mistral, .moonshot, .muse, .poe,
         ])
         #expect(Set(descriptors.filter(\.metadata.usesDetailBackedWindow).map(\.id)) == [
             .warp, .kilo, .mistral, .deepseek, .deepinfra, .qoder, .crof, .chutes,
@@ -1798,7 +1798,15 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact shared renderer maps provider-owned presentation data into the generic UI model."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/MenuBarLayout.swift",
-            line: 788,
+            line: 533,
+            anchor: "case .openrouter:",
+            expectedProviderIDs: ["muse", "openrouter"],
+            expectedReferenceCount: 3,
+            expectedReferenceFingerprint: ["openrouter@0", "muse@2", "muse@6"],
+            reason: "This exact shared renderer maps provider-owned balance and spend data into the menu bar model."),
+        AllowedProviderConstruct(
+            path: "Sources/CodexBar/MenuBarLayout.swift",
+            line: 799,
             anchor: "ProviderDescriptorRegistry.descriptor(for: provider ?? .codex).presentation.primarySemanticWindow)",
             expectedProviderIDs: ["codex"],
             expectedReferenceCount: 2,
@@ -1820,6 +1828,14 @@ struct ProviderArchitectureGatekeeperTests {
             expectedReferenceCount: 1,
             expectedReferenceFingerprint: ["codex@0"],
             reason: "This exact shared construct dispatches a provider-owned capability at the generic integration boundary."),
+        AllowedProviderConstruct(
+            path: "Sources/CodexBar/MenuBarLayoutEditor.swift",
+            line: 1208,
+            anchor: "if provider == .muse, self == .balance, snapshot?.providerCost != nil {",
+            expectedProviderIDs: ["muse"],
+            expectedReferenceCount: 1,
+            expectedReferenceFingerprint: ["muse@0"],
+            reason: "This exact shared editor labels Muse's provider-owned pay-as-you-go spend metric."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/MenuCardView+CodexResetCredits.swift",
             line: 122,
@@ -2558,11 +2574,11 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/StatusItemController+Animation.swift",
-            line: 925,
-            anchor: "if provider == .kiro {",
-            expectedProviderIDs: ["cursor", "kiro"],
-            expectedReferenceCount: 2,
-            expectedReferenceFingerprint: ["kiro@0", "cursor@8"],
+            line: 921,
+            anchor: "if provider == .mistral {",
+            expectedProviderIDs: ["cursor", "kiro", "mistral"],
+            expectedReferenceCount: 3,
+            expectedReferenceFingerprint: ["mistral@0", "kiro@9", "cursor@17"],
             reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/StatusItemController+CostMenuCard.swift",

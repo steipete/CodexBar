@@ -1,0 +1,6 @@
+<svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+  <title>Muse</title>
+  <path d="M12 2.5c-5.25 0-9.5 4.25-9.5 9.5s4.25 9.5 9.5 9.5 9.5-4.25 9.5-9.5-4.25-9.5-9.5-9.5zm0 1.5c4.4 0 8 3.6 8 8s-3.6 8-8 8-8-3.6-8-8 3.6-8 8-8z"/>
+  <path d="M7.5 9.5h2v7H7.5v-7zm4 0h2l2 4 2-4h2v7h-1.7v-5l-2 3.5h-1l-2-3.5v5H11.5v-7z"/>
+  <circle cx="12" cy="17.5" r="0.8"/>
+</svg>
