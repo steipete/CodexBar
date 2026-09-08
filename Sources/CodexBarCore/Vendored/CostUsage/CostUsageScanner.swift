@@ -4793,6 +4793,7 @@ enum CostUsageScanner {
 
                     guard
                         line.bytes.containsAscii(#""type":"event_msg""#)
+                        || line.bytes.containsAscii(#""event_msg""#)
                         || line.bytes.containsAscii(#""type":"turn_context""#)
                         || line.bytes.containsAscii(#""turn_context""#)
                         || line.bytes.containsAscii(#""type":"session_meta""#)
