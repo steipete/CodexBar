@@ -1337,11 +1337,11 @@ private actor BlockingStatusMenuCodexFetchStrategy {
 }
 
 private actor BlockingManagedCodexLoginRunnerForStatusMenuTests: ManagedCodexLoginRunning {
-    private var waiters: [CheckedContinuation<CodexLoginRunner.Result, Never>] = []
+    private var waiters: [CheckedContinuation<CLILoginRunner.Result, Never>] = []
     private var startedWaiters: [CheckedContinuation<Void, Never>] = []
     private var didStart = false
 
-    func run(homePath _: String, timeout _: TimeInterval) async -> CodexLoginRunner.Result {
+    func run(homePath _: String, timeout _: TimeInterval) async -> CLILoginRunner.Result {
         await withCheckedContinuation { continuation in
             self.waiters.append(continuation)
             self.didStart = true
@@ -1358,7 +1358,7 @@ private actor BlockingManagedCodexLoginRunnerForStatusMenuTests: ManagedCodexLog
     }
 
     func resume() {
-        let result = CodexLoginRunner.Result(outcome: .success, output: "ok")
+        let result = CLILoginRunner.Result(outcome: .success, output: "ok")
         self.waiters.forEach { $0.resume(returning: result) }
         self.waiters.removeAll()
     }
