@@ -5740,9 +5740,9 @@ enum CostUsageScanner {
         let roots = Self.codexSessionsRoots(options: options)
         let hasTimeLimit = options.codexScanBudgetForTesting?.hasTimeLimit
             ?? ((options.maxCodexScanDurationPerRefresh ?? 0) > 0)
-        // A narrow first refresh must repair all retained days before marking a file migrated.
-        let legacyScanStart = cache.roots == Self.codexRootsFingerprint(roots)
-            && cache.files.values.contains { $0.codexEventWhitespaceParsed != true }
+        // Keep the full window until legacy and partially parsed files finish, even after their marker changes.
+        let unfinishedScanStart = cache.roots == Self.codexRootsFingerprint(roots)
+            && cache.files.values.contains { $0.codexEventWhitespaceParsed != true || $0.codexScanComplete == false }
             ? cache.scanSinceKey : nil
         var retainedScanStart: String? = if let pending = cache.codexActiveLookbackState,
                                             pending.rootPaths == roots.map(Self.codexResolvedPath).sorted()
@@ -5753,12 +5753,12 @@ enum CostUsageScanner {
         } else {
             nil
         }
-        if let legacyScanStart {
-            retainedScanStart = [retainedScanStart, legacyScanStart].compactMap(\.self).min()
+        if let unfinishedScanStart {
+            retainedScanStart = [retainedScanStart, unfinishedScanStart].compactMap(\.self).min()
         }
         let scanRange: CostUsageDayRange = if !options.forceRescan,
                                               cache.timeZoneIdentifier == range.calendar.timeZone.identifier,
-                                              cache.scanUntilKey == range.scanUntilKey || legacyScanStart != nil,
+                                              cache.scanUntilKey == range.scanUntilKey || unfinishedScanStart != nil,
                                               let retainedScanStart
         {
             range.retainingScanWindow(

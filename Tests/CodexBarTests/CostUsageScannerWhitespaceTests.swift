@@ -3,11 +3,12 @@ import Testing
 @testable import CodexBarCore
 
 struct CostUsageScannerWhitespaceTests {
-    @Test(arguments: [" ", "\t"], [false, true])
+    @Test(arguments: [" ", "\t"], [(false, false), (true, false), (false, true), (true, true)])
     func `spaced events survive initial scans appends and cache reopening`(
         spacing: String,
-        historicalFirst: Bool) throws
+        scenario: (Bool, Bool)) throws
     {
+        let (historicalFirst, limited) = scenario
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
         let firstDay = try env.makeLocalNoon(year: 2026, month: 9, day: 6)
@@ -33,10 +34,11 @@ struct CostUsageScannerWhitespaceTests {
         ])
         let compactFirst = event(firstDay, input: 10, cached: 2, output: 1)
             .replacingOccurrences(of: ":\(spacing)", with: ":")
+        let prefix = context + "\n" + compactFirst + event(firstDay, input: 100, cached: 20, output: 10)
         let file = try env.writeCodexSessionFile(
             day: firstDay,
             filename: "spaced.jsonl",
-            contents: context + "\n" + compactFirst + event(firstDay, input: 100, cached: 20, output: 10))
+            contents: prefix)
         var options = CostUsageScanner.Options(
             codexSessionsRoot: env.codexSessionsRoot,
             claudeProjectsRoots: nil,
@@ -68,18 +70,32 @@ struct CostUsageScannerWhitespaceTests {
         CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: legacy)
         #expect(CostUsageStoreAccess.read(cacheRoot: env.cacheRoot).files[path]?.codexEventWhitespaceParsed == nil)
         options.refreshMinIntervalSeconds = 3600
+        if limited {
+            options.maxCodexScanBytesPerRefresh = Int64(prefix.utf8.count)
+            _ = CostUsageScanner.loadDailyReport(
+                provider: .codex,
+                since: historicalFirst ? firstDay : nextDay,
+                until: historicalFirst ? firstDay : nextDay,
+                now: nextDay.addingTimeInterval(1),
+                options: options)
+            let partial = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+            #expect(partial.files[path]?.codexEventWhitespaceParsed == true)
+            #expect(partial.files[path]?.codexScanComplete == false)
+            options.maxCodexScanBytesPerRefresh = 512 * 1024 * 1024
+        }
+        let refreshTime = nextDay.addingTimeInterval(limited ? 3602 : 1)
         let narrow = CostUsageScanner.loadDailyReport(
             provider: .codex,
             since: historicalFirst ? firstDay : nextDay,
             until: historicalFirst ? firstDay : nextDay,
-            now: nextDay.addingTimeInterval(1),
+            now: refreshTime,
             options: options)
         #expect(narrow.summary?.totalTokens == (historicalFirst ? 110 : 220))
         let cached = CostUsageScanner.loadDailyReport(
             provider: .codex,
             since: firstDay,
             until: nextDay,
-            now: nextDay.addingTimeInterval(1),
+            now: refreshTime,
             options: options)
         #expect(cached.summary?.totalTokens == 330)
         #expect(cached.data == appended.data)
