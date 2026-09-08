@@ -78,6 +78,8 @@ envelope. CodexBar does not need
   and percentages, reset timestamps, display-only `organizationName` (always present, may be empty), and optional
   display-only `alias` when non-empty. Ignore malformed or unknown scoped rows without discarding valid account-wide
   windows. Unknown extra JSON fields remain ignored. Empty `organizationName` is not an error; `alias` is not required.
+- Use optional `usageFetchedAt` for the measurement's last-updated time, so polling the adapter's cache does not make
+  old usage appear freshly measured. Missing or malformed timestamps retain the refresh-time fallback and valid windows.
 - Treat email, organization name, and alias as display-only. Never log or persist them. Respect Hide Personal Info.
   When two or more slots share an email, disambiguate with `email · organizationName` or `email · Account N`; a
   user-chosen alias wins. Unique emails stay email-only.

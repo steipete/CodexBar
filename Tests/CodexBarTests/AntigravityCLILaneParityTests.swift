@@ -72,6 +72,43 @@ struct AntigravityCLILaneParityTests {
             identity: Self.identity())
     }
 
+    private static func unknownSnapshot(includeKnownLane: Bool = false) -> UsageSnapshot {
+        let unknown = NamedRateWindow(
+            id: "antigravity-quota-summary-gemini-weekly",
+            title: "Gemini weekly",
+            window: RateWindow(
+                usedPercent: 0,
+                windowMinutes: 10080,
+                resetsAt: self.now.addingTimeInterval(7 * 86400),
+                resetDescription: nil),
+            usageKnown: false)
+        let known = NamedRateWindow(
+            id: "antigravity-quota-summary-3p-5h",
+            title: "Claude/GPT 5-hour",
+            window: RateWindow(usedPercent: 25, windowMinutes: 300, resetsAt: nil, resetDescription: nil))
+        return UsageSnapshot(
+            primary: nil,
+            secondary: includeKnownLane ? known.window : nil,
+            tertiary: nil,
+            extraRateWindows: [unknown] + (includeKnownLane ? [known] : []),
+            updatedAt: self.now,
+            identity: self.identity())
+    }
+
+    private static func card(_ snapshot: UsageSnapshot) -> CLICardModel {
+        CLICardsRenderer.makeCard(CLICardBuildInput(
+            provider: .antigravity,
+            snapshot: snapshot,
+            credits: nil,
+            source: "fixture",
+            status: nil,
+            notes: [],
+            useColor: false,
+            resetStyle: .countdown,
+            weeklyWorkDays: nil,
+            now: self.now))
+    }
+
     private static func legacyModelQuotasSnapshot() -> UsageSnapshot {
         UsageSnapshot(
             primary: RateWindow(usedPercent: 2, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
@@ -84,7 +121,7 @@ struct AntigravityCLILaneParityTests {
     private static func identity() -> ProviderIdentitySnapshot {
         ProviderIdentitySnapshot(
             providerID: .antigravity,
-            accountEmail: "peter.urda@gmail.com",
+            accountEmail: "quota-user@example.com",
             accountOrganization: nil,
             loginMethod: "google ai pro")
     }
@@ -129,7 +166,7 @@ struct AntigravityCLILaneParityTests {
         #expect(text.contains("Resets in 2d 15h"))
         #expect(text.contains("Claude/GPT 5-hour: 99% left"))
         #expect(text.contains("Resets in 5h"))
-        #expect(text.contains("Account: peter.urda@gmail.com"))
+        #expect(text.contains("Account: quota-user@example.com"))
         #expect(text.contains("Plan: Google Ai Pro"))
 
         #expect(!text.contains("Gemini Models"))
@@ -158,7 +195,8 @@ struct AntigravityCLILaneParityTests {
             includeUnknownThirdPartyLane: true))
 
         #expect(text.contains("Claude/GPT 5-hour: 100% left"))
-        #expect(text.contains("Claude/GPT weekly"))
+        #expect(text.contains("Claude/GPT weekly: Unavailable"))
+        #expect(!text.contains("Claude/GPT weekly: 100% left"))
     }
 
     @Test
@@ -196,7 +234,7 @@ struct AntigravityCLILaneParityTests {
             now: Self.now)
 
         #expect(metrics.map(\.label) == ["Gemini 5-hour", "Gemini weekly", "Claude/GPT 5-hour"])
-        #expect(metrics.map { $0.remainingPercent.rounded() } == [98, 96, 99])
+        #expect(metrics.map { $0.remainingPercent?.rounded() } == [98, 96, 99])
     }
 
     @Test
@@ -212,5 +250,51 @@ struct AntigravityCLILaneParityTests {
     @Test
     func `cards metric collection keeps legacy lanes when there is no quota summary`() {
         #expect(Self.cardMetricLabels(Self.legacyModelQuotasSnapshot()) == ["Gemini Models", "Claude and GPT"])
+    }
+
+    @Test
+    func `unknown quota text and compact rows retain reset context without invented capacity`() {
+        let snapshot = Self.unknownSnapshot()
+        let text = Self.renderedText(snapshot)
+        let compact = CLIRenderer.renderCardBodyLines(
+            provider: .antigravity,
+            snapshot: snapshot,
+            credits: nil,
+            context: Self.renderContext(),
+            includeIdentity: false,
+            now: Self.now).joined(separator: "\n")
+        for output in [text, compact] {
+            #expect(output.contains("Gemini weekly: Unavailable"))
+            #expect(output.contains("Resets in 7d"))
+            #expect(!output.contains("% left"))
+            #expect(!output.contains("[============]"))
+        }
+    }
+
+    @Test(arguments: [false, true])
+    func `full cards show unknown quota without a percentage or bar`(enhanced: Bool) {
+        let card = Self.card(Self.unknownSnapshot())
+        #expect(card.metrics.first?.remainingPercent == nil)
+        let output = TextParsing.stripANSICodes(CLICardsRenderer.render(
+            cards: [card], failures: [], terminalWidth: 80, useColor: true, enhanced: enhanced))
+        #expect(output.contains("Gemini weekly"))
+        #expect(output.contains("Unavailable"))
+        #expect(output.contains("Reset in 7d"))
+        #expect(!output.contains("% left"))
+        #expect(!output.contains("━"))
+    }
+
+    @Test
+    func `brief cards preserve an unknown first quota ahead of a known quota`() {
+        let card = Self.card(Self.unknownSnapshot(includeKnownLane: true))
+        let rows = CLICardsBriefRenderer.makeRows(cards: [card])
+        #expect(card.metrics.count == 2)
+        #expect(rows.first?.metricLabel == "Gemini weekly")
+        #expect(rows.first?.usedPercent == nil)
+        #expect(rows.first?.resetAt == Self.now.addingTimeInterval(7 * 86400))
+        let output = CLICardsBriefRenderer.render(
+            rows: rows, failures: [], terminalWidth: 120, useColor: false, now: Self.now)
+        #expect(output.contains("7d"))
+        #expect(!output.contains("0%"))
     }
 }

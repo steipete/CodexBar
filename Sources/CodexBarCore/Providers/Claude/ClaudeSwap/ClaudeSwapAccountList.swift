@@ -7,7 +7,7 @@ import Foundation
 /// are decoded: slot number, display email, display-only `organizationName`,
 /// optional display-only `alias`, active state, usage status, and the
 /// 5-hour/7-day windows and optional model-scoped weekly windows (percent +
-/// reset timestamp). Everything else in the payload is ignored; unknown schema
+/// reset timestamp), and optional usage measurement time. Everything else in the payload is ignored; unknown schema
 /// versions and partial top-level shapes are rejected.
 public struct ClaudeSwapAccountList: Equatable, Sendable {
     public let activeAccountNumber: Int?
@@ -34,6 +34,8 @@ public struct ClaudeSwapAccountRow: Equatable, Sendable {
     public let fiveHour: ClaudeSwapUsageWindow?
     public let sevenDay: ClaudeSwapUsageWindow?
     public let scoped: [ClaudeSwapScopedUsageWindow]
+    /// The adapter's measurement time, which can precede this list refresh.
+    public let usageFetchedAt: Date?
 
     public init(
         number: Int,
@@ -44,7 +46,8 @@ public struct ClaudeSwapAccountRow: Equatable, Sendable {
         usageStatus: ClaudeSwapUsageStatus,
         fiveHour: ClaudeSwapUsageWindow?,
         sevenDay: ClaudeSwapUsageWindow?,
-        scoped: [ClaudeSwapScopedUsageWindow] = [])
+        scoped: [ClaudeSwapScopedUsageWindow] = [],
+        usageFetchedAt: Date? = nil)
     {
         self.number = number
         self.email = email
@@ -55,6 +58,7 @@ public struct ClaudeSwapAccountRow: Equatable, Sendable {
         self.fiveHour = fiveHour
         self.sevenDay = sevenDay
         self.scoped = scoped
+        self.usageFetchedAt = usageFetchedAt
     }
 }
 
@@ -211,7 +215,8 @@ public enum ClaudeSwapListParser {
             usageStatus: ClaudeSwapUsageStatus(rawValue: rawStatus),
             fiveHour: self.parseWindow(usage?["fiveHour"], slot: number, name: "fiveHour"),
             sevenDay: self.parseWindow(usage?["sevenDay"], slot: number, name: "sevenDay"),
-            scoped: self.parseScopedWindows(usage?["scoped"]))
+            scoped: self.parseScopedWindows(usage?["scoped"]),
+            usageFetchedAt: (row["usageFetchedAt"] as? String).flatMap(self.parseTimestamp))
     }
 
     private static func parseWindow(_ raw: Any?, slot: Int, name: String) throws -> ClaudeSwapUsageWindow? {
