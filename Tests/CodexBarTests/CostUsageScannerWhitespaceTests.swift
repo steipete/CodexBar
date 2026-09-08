@@ -16,11 +16,15 @@ struct CostUsageScannerWhitespaceTests {
                 + "\"total_token_usage\":{\"input_tokens\":\(input),"
                 + "\"cached_input_tokens\":\(cached),\"output_tokens\":\(output)}}}}\n"
         }
-        let context = try env.jsonl([["type": "turn_context", "payload": ["model": "gpt-5.6-luna"]]])
+        let context = try env.jsonl([[
+            "type": "turn_context",
+            "timestamp": env.isoString(for: firstDay),
+            "payload": ["model": "gpt-5.6-luna"],
+        ]])
         let file = try env.writeCodexSessionFile(
             day: firstDay,
             filename: "spaced.jsonl",
-            contents: context + event(firstDay, input: 100, cached: 20, output: 10))
+            contents: context + "\n" + event(firstDay, input: 100, cached: 20, output: 10))
         var options = CostUsageScanner.Options(
             codexSessionsRoot: env.codexSessionsRoot,
             claudeProjectsRoots: nil,
