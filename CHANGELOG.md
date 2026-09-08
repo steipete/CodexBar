@@ -21,6 +21,7 @@
 - Copilot: resolve Enterprise sign-in identities on the configured host, keep equal user IDs on different hosts distinct, and skip public GitHub budget enrichment for Enterprise accounts (#3341). Thanks @Fletcher-Alderton!
 - Local costs: avoid overflow traps in OpenCodex and combined cost reports, keeping unrepresentable token sums unavailable while retaining valid neighboring token classes.
 - Kiro: route existing overage enrichment to the CLI profile’s supported region instead of always using US East; reject invalid profile ARNs before sending credentials and retain CLI fallback (#3359). Thanks @zucram!
+- MiniMax: retain transport error codes so DNS, connection, and translated offline failures preserve cached usage and participate in normal connectivity retries.
 - Settings: observe rapid external config replacements and edits that restore earlier app-written contents, while keeping successful app writes out of the external-change sync path.
 - Local usage: honor the app’s Low Power Mode interval for automatic Codex catch-up passes in both usage and Spend Dashboard, while retaining manual acceleration and system thermal pauses.
 - z.ai: preserve required quota when optional model analytics exceed display bounds or overflow; retain valid Unicode labels with shared native validation and normalize token inputs once.
