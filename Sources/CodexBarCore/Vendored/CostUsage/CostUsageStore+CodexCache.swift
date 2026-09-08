@@ -301,6 +301,7 @@ extension CostUsageStore {
         var hasSeenRawTotals: Bool
         var divergentTotals: Bool?
         var interleavedTotals: Bool?
+        var eventWhitespaceParsed: Bool?
     }
 
     private struct StoredPriorityState: Codable {
@@ -491,7 +492,8 @@ extension CostUsageStore {
                 },
                 codexBufferedSubagentLines: Self.bufferedLines(buffers, kind: .subagent),
                 codexBufferedUnresolvedForkLines: Self.bufferedLines(buffers, kind: .unresolvedFork),
-                codexReadRetryBufferPresence: retryPresence.map { $0[file.path] ?? .init() })
+                codexReadRetryBufferPresence: retryPresence.map { $0[file.path] ?? .init() },
+                codexEventWhitespaceParsed: details.eventWhitespaceParsed)
             cache.files[file.path] = usage
         }
         cache.days = Self.days(from: snapshot.dayAggregates)
@@ -868,7 +870,8 @@ extension CostUsageStore {
             hasTokenSnapshots: !baseline.tokenSnapshotsLoaded || usage.codexTokenSnapshots != nil,
             hasSeenRawTotals: usage.seenRawTotals != nil,
             divergentTotals: usage.hasDivergentTotals,
-            interleavedTotals: usage.hasInterleavedTotals)
+            interleavedTotals: usage.hasInterleavedTotals,
+            eventWhitespaceParsed: usage.codexEventWhitespaceParsed)
         let file = CostUsageStoreFile(
             path: path,
             inode: Self.inode(from: usage.codexScanFileId),

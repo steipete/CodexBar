@@ -5338,7 +5338,7 @@ enum CostUsageScanner {
         // Called only after keepCachedCodexFileIfFresh failed. Forced rescans, priority invalidation,
         // and other paths that reread JSONL must still charge the file; the sole zero-work exception
         // is a validated same-size buffered replay.
-        guard let cached else { return max(0, metadata.size) }
+        guard let cached, cached.codexEventWhitespaceParsed == true else { return max(0, metadata.size) }
         if Self.isValidatedSameSizeBufferedCodexForkRetry(metadata: metadata, cached: cached) {
             return 0
         }
@@ -5394,6 +5394,9 @@ enum CostUsageScanner {
                 : nil
         })
         let needsPricingMetadataMigration = !pricingMetadataMigrationPathKeys.isEmpty
+        let eventWhitespaceMigrationPathKeys = Set(cache.files.compactMap { path, usage in
+            usage.codexEventWhitespaceParsed == true ? nil : Self.codexPathKey(URL(fileURLWithPath: path))
+        })
         let needsProjectMetadataMigration = cache.codexProjectMetadataVersion != Self.codexProjectMetadataVersion
         let modelsDevLoad = ModelsDevCache.load(now: now, cacheRoot: options.cacheRoot)
         let modelsDevCatalog = modelsDevLoad.artifact?.catalog
@@ -5471,9 +5474,11 @@ enum CostUsageScanner {
                 || priorityTurnsChanged)
         let cacheWideMigrationPendingPathKeys = pricingMetadataMigrationPathKeys
             .union(turnIDCacheMigrationPathKeys)
+            .union(eventWhitespaceMigrationPathKeys)
         let requiresCacheWideFileReprocessing = requiresAllFilesForCacheWideMigration
             || !cacheWideMigrationPendingPathKeys.isEmpty
         let shouldRefresh = options.forceRescan
+            || !eventWhitespaceMigrationPathKeys.isEmpty
             || windowExpanded
             || rootsChanged
             || needsPricingMetadataMigration
@@ -5734,7 +5739,11 @@ enum CostUsageScanner {
         let roots = Self.codexSessionsRoots(options: options)
         let hasTimeLimit = options.codexScanBudgetForTesting?.hasTimeLimit
             ?? ((options.maxCodexScanDurationPerRefresh ?? 0) > 0)
-        let retainedScanStart: String? = if let pending = cache.codexActiveLookbackState,
+        // A narrow first refresh must also repair older retained days before marking a file migrated.
+        let legacyScanStart = cache.roots == Self.codexRootsFingerprint(roots)
+            && cache.files.values.contains { $0.codexEventWhitespaceParsed != true }
+            ? cache.scanSinceKey : nil
+        var retainedScanStart: String? = if let pending = cache.codexActiveLookbackState,
                                             pending.rootPaths == roots.map(Self.codexResolvedPath).sorted()
         {
             pending.scanSinceKey
@@ -5743,9 +5752,12 @@ enum CostUsageScanner {
         } else {
             nil
         }
+        if let legacyScanStart {
+            retainedScanStart = [retainedScanStart, legacyScanStart].compactMap(\.self).min()
+        }
         let scanRange: CostUsageDayRange = if !options.forceRescan,
                                               cache.timeZoneIdentifier == range.calendar.timeZone.identifier,
-                                              cache.scanUntilKey == range.scanUntilKey,
+                                              cache.scanUntilKey == range.scanUntilKey || legacyScanStart != nil,
                                               let retainedScanStart
         {
             range.retainingScanStart(retainedScanStart)
