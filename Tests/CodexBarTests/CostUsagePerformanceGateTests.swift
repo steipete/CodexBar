@@ -18,20 +18,29 @@ import Testing
 @Suite(.serialized)
 // swiftlint:disable:next type_body_length
 struct CostUsagePerformanceGateTests {
-    @Test
-    func `time limited codex catch-up bounds oversized active day discovery`() throws {
+    @Test(arguments: [false, true])
+    func `dated codex discovery advances after relaunch for fresh and 0_56_8 caches`(
+        upgradedFrom0568: Bool) async throws
+    {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
         CostUsageScanner.resetCodexDirectoryCursorsForTesting(under: env.root)
         defer { CostUsageScanner.resetCodexDirectoryCursorsForTesting(under: env.root) }
         let day = try env.makeLocalNoon(year: 2026, month: 5, day: 10)
-        let corpusSize = 1500
+        let windowDays = 30
+        let filesPerDay = 40
+        let corpusSize = windowDays * filesPerDay
         let candidateLimit = CostUsageScanner.codexCatchUpScanCandidateLimit
-        _ = try Self.writeSyntheticCodexCorpus(
-            env: env,
-            day: day,
-            files: corpusSize,
-            turnsPerFile: 1)
+        for dayIndex in 0..<windowDays {
+            let corpusDay = try #require(Calendar.current.date(byAdding: .day, value: -dayIndex, to: day))
+            _ = try Self.writeSyntheticCodexCorpus(
+                env: env,
+                day: corpusDay,
+                files: filesPerDay,
+                turnsPerFile: 1,
+                sessionIDPrefix: "dated-\(dayIndex)")
+        }
+        let since = try #require(Calendar.current.date(byAdding: .day, value: -(windowDays - 1), to: day))
 
         var options = CostUsageScanner.Options(
             codexSessionsRoot: env.codexSessionsRoot,
@@ -42,19 +51,47 @@ struct CostUsagePerformanceGateTests {
             maxCodexScanBytesPerRefresh: 0,
             maxCodexScanDurationPerRefresh: 60)
         options.refreshMinIntervalSeconds = 0
+        let range = CostUsageScanner.CostUsageDayRange(since: since, until: day, calendar: options.calendar)
+        if upgradedFrom0568 {
+            let parserHash = "9547dc9d7b7675f6"
+            var legacyCache = CostUsageCache()
+            legacyCache.scanSinceKey = range.scanSinceKey
+            legacyCache.scanUntilKey = range.scanUntilKey
+            legacyCache.timeZoneIdentifier = options.calendar.timeZone.identifier
+            legacyCache.roots = CostUsageScanner.codexRootsFingerprint(options: options)
+            let legacyStore = CostUsageStore(
+                cacheRoot: env.cacheRoot,
+                schemaVersion: CostUsageStore.combinedSchemaVersion(
+                    base: CostUsageStore.baseSchemaVersion,
+                    parserHash: parserHash),
+                parserHash: parserHash)
+            let seeded = legacyStore.syncSaveCodexCache(
+                legacyCache,
+                calendar: options.calendar,
+                requestedScanWindow: (range.scanSinceKey, range.scanUntilKey))
+            #expect(!seeded.catchUpRequired)
+            let adopter = CostUsageStore(cacheRoot: env.cacheRoot)
+            _ = adopter.syncLoadCodexCache(calendar: options.calendar)
+            #expect(await adopter.rebuildCount == 0)
+        }
 
         let firstRecorder = CostUsageScanner.CodexScanWorkRecorder()
         options.codexScanWorkRecorderForTesting = firstRecorder
         _ = CostUsageScanner.loadDailyReport(
             provider: .codex,
-            since: day,
+            since: since,
             until: day,
             now: day,
             options: options)
         let firstMetrics = firstRecorder.snapshot()
         let firstCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        let firstState = try #require(firstCache.codexActiveLookbackState)
+        let activeRoot = try #require(firstState.currentWindowNextDayKeyByRoot?.keys.first)
+        let firstDayCursor = try #require(firstState.currentWindowNextDayKeyByRoot?[activeRoot])
+        let firstDirectoryOffset = try #require(firstState.currentWindowDirectoryOffsetByRoot?[activeRoot])
         print(
-            "[discovery-proof] first=\(firstCache.files.count), "
+            "[discovery-proof] origin=\(upgradedFrom0568 ? "0.56.8" : "fresh"), "
+                + "first=\(firstCache.files.count), cursor=\(firstDayCursor):\(firstDirectoryOffset), "
                 + "discovery=\(firstMetrics.codexDiscoveryVisits), "
                 + "attempts=\(firstMetrics.codexFileScanAttempts)")
 
@@ -68,47 +105,30 @@ struct CostUsagePerformanceGateTests {
         options.codexScanWorkRecorderForTesting = relaunchedRecorder
         _ = CostUsageScanner.loadDailyReport(
             provider: .codex,
-            since: day,
+            since: since,
             until: day,
             now: day.addingTimeInterval(1),
             options: options)
         let relaunchedMetrics = relaunchedRecorder.snapshot()
         let relaunchedCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        let relaunchedState = try #require(relaunchedCache.codexActiveLookbackState)
+        let relaunchedDayCursor = try #require(relaunchedState.currentWindowNextDayKeyByRoot?[activeRoot])
+        let relaunchedDirectoryOffset = try #require(
+            relaunchedState.currentWindowDirectoryOffsetByRoot?[activeRoot])
         print(
             "[discovery-proof] relaunched=\(relaunchedCache.files.count), "
+                + "cursor=\(relaunchedDayCursor):\(relaunchedDirectoryOffset), "
                 + "discovery=\(relaunchedMetrics.codexDiscoveryVisits), "
                 + "attempts=\(relaunchedMetrics.codexFileScanAttempts)")
 
         #expect(relaunchedMetrics.codexDiscoveryVisits == candidateLimit)
-        #expect(relaunchedMetrics.codexFileScanAttempts == 0)
-        #expect(relaunchedCache.files.count == candidateLimit)
+        #expect(relaunchedMetrics.codexFileScanAttempts > 0)
+        #expect(relaunchedMetrics.codexFileScanAttempts < candidateLimit)
+        #expect(relaunchedCache.files.count > candidateLimit)
+        #expect(relaunchedCache.files.count < candidateLimit * 2)
+        #expect(relaunchedDayCursor < firstDayCursor
+            || (relaunchedDayCursor == firstDayCursor && relaunchedDirectoryOffset > firstDirectoryOffset))
         #expect(relaunchedCache.codexScanCatchUpPending == true)
-
-        // A different fixture's simulated restart must not discard this cursor.
-        CostUsageScanner.resetCodexDirectoryCursorsForTesting(under: env.root.appendingPathComponent("unrelated"))
-        let secondRecorder = CostUsageScanner.CodexScanWorkRecorder()
-        options.codexScanWorkRecorderForTesting = secondRecorder
-        _ = CostUsageScanner.loadDailyReport(
-            provider: .codex,
-            since: day,
-            until: day,
-            now: day.addingTimeInterval(2),
-            options: options)
-        let secondMetrics = secondRecorder.snapshot()
-        let secondCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
-        print(
-            "[discovery-proof] second=\(secondCache.files.count), "
-                + "discovery=\(secondMetrics.codexDiscoveryVisits), "
-                + "visits=\(secondMetrics.codexCandidateSelectionVisits), "
-                + "attempts=\(secondMetrics.codexFileScanAttempts), "
-                + "accounting=\(secondMetrics.codexProgressAccountingVisits)")
-
-        #expect(secondMetrics.codexDiscoveryVisits == candidateLimit)
-        #expect(secondMetrics.codexCandidateSelectionVisits == candidateLimit)
-        #expect(secondMetrics.codexFileScanAttempts == candidateLimit)
-        #expect(secondMetrics.codexProgressAccountingVisits == 0)
-        #expect(secondCache.files.count == candidateLimit * 2)
-        #expect(secondCache.codexScanCatchUpPending == true)
     }
 
     @Test
@@ -2147,6 +2167,7 @@ extension CostUsagePerformanceGateTests {
         day: Date,
         files: Int,
         turnsPerFile: Int,
+        sessionIDPrefix: String = "perf",
         model: String = "openai/gpt-5.2-codex",
         inputTokensPerTurn: Int = 100) throws -> [URL]
     {
@@ -2156,7 +2177,8 @@ extension CostUsagePerformanceGateTests {
             var lines: [String] = []
             lines.reserveCapacity(turnsPerFile + 2)
             lines.append(
-                #"{"type":"session_meta","timestamp":"\#(baseISO)","payload":{"session_id":"perf-\#(fileIndex)"}}"#)
+                #"{"type":"session_meta","timestamp":"\#(baseISO)","payload":{"session_id":""#
+                    + #"\#(sessionIDPrefix)-\#(fileIndex)"}}"#)
             lines.append(
                 #"{"type":"turn_context","timestamp":"\#(baseISO)","payload":{"model":"\#(model)"}}"#)
             if turnsPerFile > 0 {

@@ -138,7 +138,7 @@ struct UsageStoreCodexCostCatchUpTests {
     }
 
     @Test
-    func `bounded catch-up automatically publishes only the final stable snapshot`() async throws {
+    func `forced refresh accelerates catch-up and publishes only the final stable snapshot`() async throws {
         let store = try Self.makeStore(suite: "publishes-final")
         var snapshotLoadCount = 0
         var cachedLoadCount = 0
@@ -182,7 +182,7 @@ struct UsageStoreCodexCostCatchUpTests {
         #expect(statusLoadCount == 2)
         #expect(snapshotLoadCount == 1)
         #expect(cachedLoadCount == 1)
-        #expect(sleepDurations.first == 1998)
+        #expect(sleepDurations == [0, 0])
         #expect(store.tokenSnapshot(for: .codex)?.last30DaysCostUSD == 2)
         #expect(store.tokenSnapshotPublicationRevision(for: .codex) == 2)
         #expect(store.tokenError(for: .codex) == nil)

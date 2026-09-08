@@ -1563,7 +1563,7 @@ extension UsageStore {
                 return
             }
             self.lastTokenFetchScope[provider.instanceID] = completedCostScopeSignature
-            self.startCodexCostCatchUpIfNeeded(afterRefreshing: provider)
+            self.startCodexCostCatchUpIfNeeded(afterRefreshing: provider, force: force)
 
             if try self.regularTokenSnapshotIsConfirmedEmpty(snapshot, for: provider) {
                 self.publishConfirmedEmptyTokenSnapshot(for: provider)

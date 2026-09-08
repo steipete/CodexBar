@@ -19,9 +19,9 @@ private enum CodexCostCatchUpPublicationError: LocalizedError {
 }
 
 extension UsageStore {
-    func startCodexCostCatchUpIfNeeded(afterRefreshing provider: UsageProvider) {
+    func startCodexCostCatchUpIfNeeded(afterRefreshing provider: UsageProvider, force: Bool) {
         guard provider == .codex else { return }
-        self.startCodexCostCatchUpIfNeeded(mode: .automatic)
+        self.startCodexCostCatchUpIfNeeded(mode: force ? .accelerated : .automatic)
     }
 
     func startCodexCostCatchUpIfNeeded(mode: CodexCostCatchUpMode = .automatic) {
@@ -352,6 +352,7 @@ extension UsageStore {
             now: now,
             codexHomePath: codexHomePath,
             historyDays: historyDays,
+            scanDurationPerRefresh: self.codexCostCatchUpMode.scanDurationPerRefresh,
             calendar: self.settings.costUsageBucketCalendar)
     }
 
