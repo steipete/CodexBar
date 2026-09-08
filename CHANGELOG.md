@@ -7,6 +7,8 @@
 - **Safer updates and more reliable usage:** refresh Sparkle's installer protections, preserve claude-swap measurement ages, and improve local history and account handling.
 
 ### Fixed
+- Usage parsing: reject out-of-range numeric counts in MiMo, Pi/OMP, OpenCodex, and Bedrock instead of trapping at rounded integer limits; preserve existing rounding and valid usage fields, and reparse OpenCodex caches created by the older parser (#3486).
+- Subprocesses: accept very large finite timeouts without overflowing nanosecond conversion.
 - AWS Bedrock: disclose monitoring charges in both authentication modes, link current Cost Explorer pricing, and explain the shared refresh controls and informational budget (#3496, related to #3387). Thanks @kyen99!
 - Claude: honor the segmented multi-account menu preference for claude-swap, preserve source-owned switching and unavailable-account diagnostics, and show stable slot numbers when personal information is hidden (#3498, #3382). Thanks @thatlev!
 - Antigravity: render each CLI quota bucket once, keep unknown or disabled usage unavailable in text and full/brief cards, retain reset context, and keep shared idle-family filtering out of raw JSON (#3489). Thanks @urda!

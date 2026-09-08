@@ -382,7 +382,8 @@ public struct OpenCodexUsageStore: Sendable {
     /// changes the inode and truncation trips `size >= parsedOffset`. Acceptable because the log
     /// is append-only.
     private static func canReuseCursor(_ cursor: ParseCursor, identity: LogIdentity) -> Bool {
-        cursor.path == identity.path
+        cursor.parserVersion == 1
+            && cursor.path == identity.path
             && cursor.fileIdentity == identity.fileIdentity
             && identity.size >= cursor.parsedOffset
             && self.prefixDigest(fileURL: identity.url, parsedOffset: cursor.parsedOffset) == cursor.prefixDigest
@@ -633,6 +634,8 @@ public struct OpenCodexUsageStore: Sendable {
     }
 
     private struct ParseCursor: Equatable, Sendable, Codable {
+        // Missing on caches written before checked numeric conversion, including older writers.
+        var parserVersion: Int? = 1
         var path: String
         var fileIdentity: String
         var parsedOffset: Int64

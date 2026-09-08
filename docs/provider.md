@@ -201,6 +201,8 @@ struct ExampleFetchStrategy: ProviderFetchStrategy {
 - Identity silo: never display identity/plan fields from provider A inside provider B UI.
 - Privacy: default to on-device parsing; browser cookies are opt-in and never persisted by us beyond WebKit stores.
 - Reliability: providers must be timeout-bounded; no unbounded waits on network/PTY/UI.
+- Numeric parsing: preserve each source's rounding contract, then use failable integer conversion to reject
+  unrepresentable counts. Comparing with `Double(Int.max)` is insufficient because that boundary rounds upward.
 - Degradation: prefer cached data over flapping; show clear errors when stale.
 
 ## Hosted relay eligibility

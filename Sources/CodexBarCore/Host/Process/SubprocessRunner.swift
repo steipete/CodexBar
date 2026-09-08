@@ -76,8 +76,8 @@ public enum SubprocessRunner {
         guard timeout.isFinite else {
             return .seconds(Int.max)
         }
-        let nanoseconds = max(0, min(timeout * 1_000_000_000, Double(Int.max)))
-        return .nanoseconds(Int(nanoseconds))
+        let nanoseconds = max(0, timeout * 1_000_000_000).rounded(.towardZero)
+        return .nanoseconds(Int(exactly: nanoseconds) ?? Int.max)
     }
 
     /// Terminates a process and its process group, escalating from SIGTERM to SIGKILL.
