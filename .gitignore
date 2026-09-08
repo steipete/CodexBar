@@ -45,3 +45,10 @@ docs/.astro/
 # Swift Package Manager metadata (leave sources tracked)
 # Packages/
 # Package.resolved
+
+# ftask: per-slug runtime files (env + sim artifacts) — never committed
+.ftask/*/.env
+.ftask/*/sim_artifacts/
+.ftask/*/qa/
+.ftask/*/STATE.json
+.ftask/*/STATE.json.tmp

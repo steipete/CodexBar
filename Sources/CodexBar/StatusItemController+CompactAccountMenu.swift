@@ -146,7 +146,7 @@ extension StatusItemController {
                     menu.addItem(.separator())
                 }
                 let rowModel = MenuCardCompactAccountRowView.Model(
-                    label: PersonalInfoRedactor.redactEmail(
+                    label: PersonalInfoRedactor.redactAccountLabel(
                         compactRow.label,
                         isEnabled: self.settings.hidePersonalInfo),
                     headroomPercent: compactRow.headroomPercent,
