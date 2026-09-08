@@ -1011,7 +1011,7 @@ struct MenuBarLayoutPreview: View {
             automaticText: StatusItemController.menuBarLayoutAutomaticText(
                 provider: provider,
                 snapshot: snapshot,
-                automatic: automatic),
+                automatic: automaticRenderWindow),
             sessionPace: self.store.menuBarLayoutPaceText(
                 provider: provider,
                 window: session,

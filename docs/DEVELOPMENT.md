@@ -229,8 +229,9 @@ oracle independently useful. Full optimized scratch parity must copy the final p
 prototype results alone do not carry forward through formatting or edits. Scanner parity does not
 establish pipeline performance; signed optimized builds and synthetic pipeline timing are separate proof.
 
-The shared scanner remains a parser-hash input. Published `e0b0319de43e22d7` is the immediate tested
-compatible predecessor because LF-span scanning preserves persisted semantics, including the priority
+The shared scanner remains a parser-hash input. The warm-refresh cursor repair adopts `9ca89383b9957b07`
+without rebuilding native rows or checkpoints; it changes scheduling, not persisted parsing semantics.
+Published `e0b0319de43e22d7` is also a tested compatible predecessor because LF-span scanning preserves persisted semantics, including the priority
 cursor changes in #3318. The earlier `7e293e8fc9e25700` and existing predecessors remain supported.
 Native adoption retains rows and checkpoints while invalidating old connection receipts.
 Pi/OMP still reparses once when the hash changes,

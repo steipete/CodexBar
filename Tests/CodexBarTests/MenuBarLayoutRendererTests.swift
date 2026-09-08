@@ -112,6 +112,16 @@ struct MenuBarLayoutRendererTests {
     }
 
     @Test
+    func `automatic balance text does not override explicit session percent`() {
+        let output = MenuBarLayoutRenderer().render(
+            layout: MenuBarLayout(lines: [[.percent(window: .session)]]),
+            data: self.data(automaticUsedPercent: 0, provider: .deepseek, automaticText: "¥100.00"),
+            icon: nil,
+            options: self.options())
+        #expect(output.attributedTitle.string == "5h 25%")
+    }
+
+    @Test
     func `Amp lane percentages announce snapshot presentation labels`() {
         let renderer = MenuBarLayoutRenderer()
         let snapshot = UsageSnapshot(

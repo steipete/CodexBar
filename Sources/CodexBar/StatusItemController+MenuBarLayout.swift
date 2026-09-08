@@ -123,7 +123,7 @@ extension StatusItemController {
             automaticText: Self.menuBarLayoutAutomaticText(
                 provider: provider,
                 snapshot: snapshot,
-                automatic: windows.automatic),
+                automatic: automatic),
             sessionPace: self.store.menuBarLayoutPaceText(
                 provider: provider,
                 window: windows.session,

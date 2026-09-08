@@ -414,7 +414,7 @@ struct StatusItemBalanceDisplayTests {
             updatedAt: Date())
             .toUsageSnapshot()
 
-        #expect(StatusItemController.deepInfraBalanceDisplayText(snapshot: snapshot) == "-$2.75")
+        #expect(StatusItemController.menuBarBalanceDisplayText(provider: .deepinfra, snapshot: snapshot) == "-$2.75")
     }
 
     @Test
@@ -430,7 +430,7 @@ struct StatusItemBalanceDisplayTests {
             updatedAt: Date())
             .toUsageSnapshot()
 
-        #expect(StatusItemController.deepInfraBalanceDisplayText(snapshot: snapshot) == "$4.00")
+        #expect(StatusItemController.menuBarBalanceDisplayText(provider: .deepinfra, snapshot: snapshot) == "$4.00")
     }
 
     @Test
@@ -1152,8 +1152,8 @@ extension StatusItemBalanceDisplayTests {
         }
     }
 
-    @Test
-    func `stored DeepSeek icon and percent layout shows balance in status item and preview`() {
+    @Test(arguments: [false, true])
+    func `stored DeepSeek icon and percent layout shows balance in status item and preview`(showUsed: Bool) {
         let settings = self.makeSettings(
             suiteName: "StatusItemBalanceDisplayTests-deepseek-layout-balance",
             provider: .deepseek)
@@ -1191,7 +1191,7 @@ extension StatusItemBalanceDisplayTests {
                 options: MenuBarLayoutRenderOptions(
                     size: .regular,
                     highContrast: false,
-                    showUsed: true,
+                    showUsed: showUsed,
                     conditionals: [],
                     appearanceName: "aqua",
                     isDebugApp: false,
@@ -1199,6 +1199,7 @@ extension StatusItemBalanceDisplayTests {
 
             #expect(data.automaticText == "¥100.00")
             #expect(rendered.attributedTitle.string.hasSuffix("¥100.00"))
+            #expect(rendered.accessibilityLabel.contains("¥100.00"))
         }
     }
 
