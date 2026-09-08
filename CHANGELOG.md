@@ -6,6 +6,8 @@
 - Codex local costs: reuse model pricing resolution across daily, project, and session report rows without changing token accounting, tariffs, or refresh cadence (#3476). Thanks @brzvsk!
 
 ### Fixed
+- Usage parsing: reject out-of-range numeric counts in MiMo, Pi/OMP, OpenCodex, and Bedrock instead of trapping at rounded integer limits; preserve existing rounding and valid usage fields.
+- Subprocesses: accept very large finite timeouts without overflowing nanosecond conversion.
 - CLI login: share Codex and Kiro process handling, stop cancelled logins and lingering children, and preserve bounded timeout output and device-flow progress.
 - Widgets: remove redundant outer padding from Usage, Switcher, History, and Metric views so WidgetKit alone controls their content margins (extracted from #3137). Thanks @iamenahs!
 - Copilot: resolve Enterprise sign-in identities on the configured host, keep equal user IDs on different hosts distinct, and skip public GitHub budget enrichment for Enterprise accounts (#3341). Thanks @Fletcher-Alderton!
