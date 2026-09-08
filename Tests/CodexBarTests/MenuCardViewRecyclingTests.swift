@@ -708,6 +708,7 @@ extension StatusMenuTests {
             submenuIndicatorTopPadding: 0,
             allowsMenuHighlight: true,
             containsInteractiveControls: false,
+            usesGPUSelection: false,
             onClick: {})
         let hosting = MenuRowContainerView(payload: clickable, refreshMonitor: nil)
 
@@ -721,6 +722,7 @@ extension StatusMenuTests {
                 submenuIndicatorTopPadding: 0,
                 allowsMenuHighlight: false,
                 containsInteractiveControls: false,
+                usesGPUSelection: false,
                 onClick: nil),
             refreshMonitor: nil)
 
@@ -794,7 +796,7 @@ extension StatusMenuTests {
     }
 
     @Test
-    func `submenu and plain rows share the recycling pool`() {
+    func `gpu and standard rows share the recycling pool`() {
         StatusItemController.setMenuRefreshEnabledForTesting(false)
         let previousRendering = StatusItemController.menuCardRenderingEnabled
         StatusItemController.menuCardRenderingEnabled = true
@@ -811,6 +813,7 @@ extension StatusMenuTests {
             id: "overview",
             width: 300,
             submenu: NSMenu(),
+            usesGPUSelection: true,
             onClick: {})
         menu.addItem(overview)
         guard let overviewContainer = overview.view as? MenuRowContainerView else {
@@ -823,13 +826,13 @@ extension StatusMenuTests {
         let provider = controller.makeMenuCardItem(Text("Provider"), id: "provider", width: 300)
 
         #expect(provider.view === overviewContainer)
-        #expect(!overviewContainer.rowPayload.showsSubmenuIndicator)
-        #expect(provider.submenu == nil)
+        #expect(!overviewContainer.usesGPUSelectionForTesting)
+        #expect(!overviewContainer.hasGPUSelectionLayerForTesting)
         #expect(controller.menuCardViewRecyclePool.isEmpty)
     }
 
     @Test
-    func `overview selection updates shared SwiftUI highlight state`() {
+    func `gpu selection highlight bypasses swiftui highlight state`() {
         StatusItemController.setMenuRefreshEnabledForTesting(false)
         let previousRendering = StatusItemController.menuCardRenderingEnabled
         StatusItemController.menuCardRenderingEnabled = true
@@ -843,37 +846,30 @@ extension StatusMenuTests {
         let menu = NSMenu()
         let item = controller.makeMenuCardItem(
             Text("Overview row"),
-            id: "overview-highlight",
+            id: "overview-gpu",
             width: 300,
             submenu: NSMenu(),
+            usesGPUSelection: true,
             onClick: {})
         menu.addItem(item)
 
-        guard let overviewView = item.view as? MenuRowContainerView
+        guard let gpuView = item.view as? MenuRowContainerView
         else {
             Issue.record("expected a shared menu row container")
             return
         }
 
-        // Selected text and bars must receive the shared highlight environment.
+        // The menu highlights the AppKit row, but the hosted SwiftUI highlight state must stay false
+        // so selection never re-invalidates the SwiftUI graph.
         controller.menu(menu, willHighlight: item)
-        #expect(overviewView.highlightState.isHighlighted)
-
-        let highlightState = overviewView.highlightState
-        let hostedView = overviewView.subviews.first
-        let refreshed = controller.makeMenuCardItem(
-            Text("Refreshed overview row"), id: "overview-highlight", width: 300, submenu: NSMenu(), onClick: {})
-        guard let refreshedView = refreshed.view as? MenuRowContainerView else {
-            Issue.record("expected a refreshed row container")
-            return
-        }
-        overviewView.replant(refreshedView.rowPayload, refreshMonitor: nil)
-        #expect(overviewView.highlightState === highlightState)
-        #expect(overviewView.highlightState.isHighlighted)
-        #expect(overviewView.subviews.first === hostedView)
+        #expect(gpuView.isHighlightedForTesting)
+        #expect(!gpuView.allowsVibrancy)
+        #expect(gpuView.subviews.last?.allowsVibrancy == false)
+        #expect(!gpuView.swiftUIHighlightStateIsHighlightedForTesting)
 
         controller.menu(menu, willHighlight: nil)
-        #expect(!overviewView.highlightState.isHighlighted)
+        #expect(!gpuView.isHighlightedForTesting)
+        #expect(!gpuView.swiftUIHighlightStateIsHighlightedForTesting)
     }
 
     @Test
@@ -893,6 +889,7 @@ extension StatusMenuTests {
             id: "overview",
             width: 300,
             submenu: NSMenu(),
+            usesGPUSelection: true,
             onClick: {})
         let providerItem = controller.makeMenuCardItem(
             Text("Provider"),
@@ -915,23 +912,16 @@ extension StatusMenuTests {
 
         #expect(menu.items[0] === overviewItem)
         #expect(menu.items[0].view === attachedContainer)
-        #expect(!attachedContainer.rowPayload.showsSubmenuIndicator)
-        #expect(menu.items[0].submenu == nil)
+        #expect(!attachedContainer.usesGPUSelectionForTesting)
+        #expect(!attachedContainer.hasGPUSelectionLayerForTesting)
         #expect(displaced.count == 1)
         #expect(displaced[0] === providerItem)
         #expect(displaced[0].view === cachedContainer)
-        #expect(cachedContainer.rowPayload.showsSubmenuIndicator)
-        #expect(displaced[0].submenu != nil)
-
-        let displacedProvider = controller.replaceMenuContentKeepingRowsVisible(menu, fromIndex: 0, with: displaced)
-        #expect(menu.items[0] === overviewItem)
-        #expect(menu.items[0].view === attachedContainer)
-        #expect(attachedContainer.rowPayload.showsSubmenuIndicator)
-        #expect(menu.items[0].submenu != nil)
-        #expect(displacedProvider.count == 1)
-        #expect(displacedProvider[0] === providerItem)
-        #expect(displacedProvider[0].view === cachedContainer)
-        #expect(!cachedContainer.rowPayload.showsSubmenuIndicator)
-        #expect(displacedProvider[0].submenu == nil)
+        #expect(cachedContainer.usesGPUSelectionForTesting)
+        #expect(cachedContainer.hasGPUSelectionLayerForTesting)
+        for container in [attachedContainer, cachedContainer] {
+            #expect(!container.allowsVibrancy)
+            #expect(container.subviews.last?.allowsVibrancy == false)
+        }
     }
 }

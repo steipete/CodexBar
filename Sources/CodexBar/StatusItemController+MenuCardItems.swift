@@ -39,6 +39,7 @@ extension StatusItemController {
         submenuIndicatorAlignment: Alignment = .topTrailing,
         submenuIndicatorTopPadding: CGFloat = 8,
         containsInteractiveControls: Bool = false,
+        usesGPUSelection: Bool = false,
         onClick: (() -> Void)? = nil) -> NSMenuItem
     {
         let allowsMenuHighlight = submenu != nil || onClick != nil
@@ -56,7 +57,7 @@ extension StatusItemController {
         }
 
         // Content is erased so every row shares one outer AppKit class. Tab switches can replant
-        // Overview and provider payloads in place instead of detaching `item.view`.
+        // standard and GPU-selection payloads in place instead of detaching `item.view`.
         let payload = MenuCardRowPayload(
             content: AnyView(view),
             showsSubmenuIndicator: submenu != nil,
@@ -64,6 +65,7 @@ extension StatusItemController {
             submenuIndicatorTopPadding: submenuIndicatorTopPadding,
             allowsMenuHighlight: allowsMenuHighlight,
             containsInteractiveControls: containsInteractiveControls,
+            usesGPUSelection: usesGPUSelection,
             onClick: onClick)
         let hosting: ErasedMenuCardHostingView
         if let recycled = self.takeRecyclableMenuCardView(

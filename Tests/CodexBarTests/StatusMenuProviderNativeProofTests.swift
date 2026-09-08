@@ -1,8 +1,9 @@
 import AppKit
-import CodexBarCore
 import Foundation
+import QuartzCore
 import XCTest
 @testable import CodexBar
+@testable import CodexBarCore
 
 /// Opt-in native menu proof with disposable settings and no provider transports.
 @MainActor
@@ -105,27 +106,18 @@ final class StatusMenuProviderNativeProofTests: XCTestCase {
         application.finishLaunching()
         application.activate(ignoringOtherApps: true)
         host.makeKeyAndOrderFront(nil)
+        if environment["CODEXBAR_STATUS_PROVIDER_PROOF_BENCHMARK"] == "1" {
+            controller.menuWillOpen(menu)
+            defer { controller.menuDidClose(menu) }
+            try Self.measureHighlights(in: menu, host: host, directory: directory)
+            return
+        }
 
         // Common-mode receipts keep updating while the external driver interacts with NSMenu.
         let timer = Timer(timeInterval: 0.1, repeats: true) { _ in
             MainActor.assumeIsolated {
                 guard let menu = button.proofMenu else { return }
-                let statusItem = menu.items.first { $0.title == L("Status Page") }
-                let submenu = statusItem?.submenu
-                let receipt: [String: String] = [
-                    "pid": String(ProcessInfo.processInfo.processIdentifier),
-                    "window": String(host.windowNumber),
-                    "selected": fixture.settings.selectedMenuProvider?.rawValue ?? "none",
-                    "overview": String(fixture.settings.mergedMenuLastSelectedWasOverview),
-                    "highlighted": menu.highlightedItem?.representedObject as? String ?? "none",
-                    "overviewSubmenus": String(menu.items.count(where: {
-                        ($0.representedObject as? String)?.hasPrefix("overviewRow-") == true && $0.submenu != nil
-                    })),
-                    "statusProvider": submenu?.items.first?.toolTip
-                        ?? submenu?.items.last?.identifier?.rawValue ?? "website-only",
-                    "cachedSelections": String(controller.mergedSwitcherContentCaches[ObjectIdentifier(menu)]?
-                        .count ?? 0),
-                ]
+                let receipt = Self.nativeReceipt(menu: menu, host: host, fixture: fixture, controller: controller)
                 do {
                     try JSONEncoder().encode(receipt).write(
                         to: directory.appendingPathComponent("state.json"), options: .atomic)
@@ -152,11 +144,85 @@ final class StatusMenuProviderNativeProofTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: done), "Native proof timed out")
     }
 
+    private static func nativeReceipt(
+        menu: NSMenu,
+        host: NSWindow,
+        fixture: CodexWorkspacesNavigationFixture,
+        controller: StatusItemController) -> [String: String]
+    {
+        let overviewRow = menu.items.first {
+            ($0.representedObject as? String) == "overviewRow-codex"
+        }?.view as? MenuRowContainerView
+        let contentHost = overviewRow?.subviews.last
+        let statusItem = menu.items.first { $0.title == L("Status Page") }
+        let submenu = statusItem?.submenu
+        return [
+            "outerVibrancy": String(overviewRow?.allowsVibrancy ?? false),
+            "innerVibrancy": String(contentHost?.allowsVibrancy ?? false),
+            "swiftUIHighlighted": String(overviewRow?.highlightState.isHighlighted ?? false),
+            "pid": String(ProcessInfo.processInfo.processIdentifier),
+            "window": String(host.windowNumber),
+            "selected": fixture.settings.selectedMenuProvider?.rawValue ?? "none",
+            "overview": String(fixture.settings.mergedMenuLastSelectedWasOverview),
+            "highlighted": menu.highlightedItem?.representedObject as? String ?? "none",
+            "overviewSubmenus": String(menu.items.count(where: {
+                ($0.representedObject as? String)?.hasPrefix("overviewRow-") == true && $0.submenu != nil
+            })),
+            "statusProvider": submenu?.items.first?.toolTip
+                ?? submenu?.items.last?.identifier?.rawValue ?? "website-only",
+            "cachedSelections": String(controller.mergedSwitcherContentCaches[ObjectIdentifier(menu)]?
+                .count ?? 0),
+        ]
+    }
+
+    private static func measureHighlights(in menu: NSMenu, host: NSWindow, directory: URL) throws {
+        let item = try XCTUnwrap(menu.items.first { ($0.representedObject as? String) == "overviewRow-codex" })
+        let row = try XCTUnwrap(item.view as? MenuRowContainerView)
+        let width = max(300, row.frame.width)
+        let size = NSSize(width: width, height: row.measuredHeight(width: width))
+        host.setContentSize(size)
+        host.contentView = row
+        row.frame = NSRect(origin: .zero, size: size)
+        row.layoutSubtreeIfNeeded()
+        row.displayIfNeeded()
+        CATransaction.flush()
+        func toggle(_ selected: Bool) -> Double {
+            let start = DispatchTime.now().uptimeNanoseconds
+            row.setHighlighted(selected)
+            row.layoutSubtreeIfNeeded()
+            row.displayIfNeeded()
+            CATransaction.flush()
+            _ = RunLoop.main.run(mode: .default, before: Date())
+            return Double(DispatchTime.now().uptimeNanoseconds - start) / 1_000_000
+        }
+        let first = toggle(true)
+        var samples: [Double] = []
+        var swiftUIChanges = 0
+        for index in 0..<200 {
+            samples.append(autoreleasepool { toggle(index % 2 != 0) })
+            if row.highlightState.isHighlighted { swiftUIChanges += 1 }
+        }
+        let sorted = samples.sorted()
+        let receipt: [String: Any] = [
+            "firstMilliseconds": first,
+            "averageMilliseconds": samples.reduce(0, +) / Double(samples.count),
+            "p95Milliseconds": sorted[189],
+            "maxMilliseconds": sorted[199],
+            "toggles": samples.count,
+            "samplesMilliseconds": samples,
+            "swiftUIHighlightChanges": swiftUIChanges,
+            "outerVibrancy": row.allowsVibrancy,
+            "innerVibrancy": row.subviews.last?.allowsVibrancy ?? false,
+        ]
+        try JSONSerialization.data(withJSONObject: receipt, options: [.prettyPrinted, .sortedKeys])
+            .write(to: directory.appendingPathComponent("benchmark.json"), options: .atomic)
+    }
+
     private static func seedOverviewHistory(in fixture: CodexWorkspacesNavigationFixture) {
         fixture.settings.costUsageEnabled = true
         fixture.settings.costSummaryDisplayStyle = .both
         let now = Date()
-        let day = String(ISO8601DateFormatter().string(from: now).prefix(10))
+        let day = CostUsageScanner.CostUsageDayRange.dayKey(from: now)
         for provider in [UsageProvider.claude, .codex] {
             fixture.store._setTokenSnapshotForTesting(
                 CostUsageTokenSnapshot(

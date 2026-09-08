@@ -19,11 +19,11 @@ struct StatusMenuOverviewClickTests {
     }
 
     @Test
-    func `routes submenu runtime click without gesture recognizer`() {
+    func `routes gpu selection runtime click without gesture recognizer`() {
         var clicked = false
         let view = Self.makeRow(
-            Text("Overview submenu row"),
-            showsSubmenuIndicator: true,
+            Text("Overview GPU row"),
+            usesGPUSelection: true,
             onClick: { clicked = true })
         view.frame = NSRect(x: 0, y: 0, width: 320, height: 44)
         #expect(view._test_simulateRuntimeClick())
@@ -31,10 +31,10 @@ struct StatusMenuOverviewClickTests {
     }
 
     @Test
-    func `submenu tracking activates only for mouseUp inside row`() {
+    func `gpu tracking activates only for mouseUp inside row`() {
         let view = Self.makeRow(
-            Text("Overview submenu row"),
-            showsSubmenuIndicator: true,
+            Text("Overview GPU row"),
+            usesGPUSelection: true,
             onClick: {})
         view.frame = NSRect(x: 0, y: 0, width: 320, height: 44)
         let events = Self.mouseClick(at: NSPoint(x: 160, y: 22))
@@ -44,10 +44,11 @@ struct StatusMenuOverviewClickTests {
     }
 
     @Test
-    func `submenu tracking cancels when release leaves row`() {
+    func `gpu tracking cancels when release leaves row`() {
         let view = Self.makeRow(
-            Text("Overview submenu row"),
+            Text("Overview GPU row"),
             showsSubmenuIndicator: true,
+            usesGPUSelection: true,
             onClick: {})
         view.frame = NSRect(x: 0, y: 0, width: 320, height: 44)
         let outsideUp = Self.mouseClick(at: NSPoint(x: 340, y: 22)).up
@@ -56,10 +57,11 @@ struct StatusMenuOverviewClickTests {
     }
 
     @Test
-    func `submenu tracking yields an outside drag to native submenu tracking`() {
+    func `gpu tracking yields an outside drag to native submenu tracking`() {
         let view = Self.makeRow(
-            Text("Overview submenu row"),
+            Text("Overview GPU row"),
             showsSubmenuIndicator: true,
+            usesGPUSelection: true,
             onClick: {})
         view.frame = NSRect(x: 0, y: 0, width: 320, height: 44)
 
@@ -84,10 +86,10 @@ struct StatusMenuOverviewClickTests {
     }
 
     @Test
-    func `hitTest preserves button targets in submenu hosting view`() {
+    func `hitTest preserves button targets in gpu selection hosting view`() {
         let view = Self.makeRow(
-            Text("Overview submenu row"),
-            showsSubmenuIndicator: true,
+            Text("Overview GPU row"),
+            usesGPUSelection: true,
             onClick: {})
         view.frame = NSRect(x: 0, y: 0, width: 320, height: 44)
         let button = NSButton(frame: NSRect(x: 10, y: 10, width: 50, height: 20))
@@ -99,15 +101,15 @@ struct StatusMenuOverviewClickTests {
     }
 
     @Test
-    func `submenu hosting preserves nested SwiftUI button target`() {
+    func `gpu hosting preserves nested SwiftUI button target`() {
         let content = Button("Copy") {}
             .frame(width: 80, height: 30)
             .menuCardInteractiveControl()
             .frame(width: 320, height: 44, alignment: .trailing)
         let view = Self.makeRow(
             content,
-            showsSubmenuIndicator: true,
             containsInteractiveControls: true,
+            usesGPUSelection: true,
             onClick: {})
         view.frame = NSRect(x: 0, y: 0, width: 320, height: 51)
         Self.settleWindowlessLayout(view)
@@ -119,8 +121,8 @@ struct StatusMenuOverviewClickTests {
         #expect(!view._test_simulateRuntimeClick(at: buttonPoint))
     }
 
-    @Test(arguments: [false, true])
-    func `hosting forwards nested SwiftUI control events without invoking row`(hasSubmenu: Bool) {
+    @Test
+    func `standard hosting forwards nested SwiftUI control events without invoking row`() {
         var rowClicked = false
         let content = Button("Copy") {}
             .frame(width: 80, height: 30)
@@ -128,7 +130,6 @@ struct StatusMenuOverviewClickTests {
             .frame(width: 320, height: 44, alignment: .trailing)
         let view = Self.makeRow(
             content,
-            showsSubmenuIndicator: hasSubmenu,
             containsInteractiveControls: true,
             onClick: { rowClicked = true })
         view.frame = NSRect(x: 0, y: 0, width: 320, height: 51)
@@ -170,6 +171,7 @@ struct StatusMenuOverviewClickTests {
         _ content: some View,
         showsSubmenuIndicator: Bool = false,
         containsInteractiveControls: Bool = false,
+        usesGPUSelection: Bool = false,
         onClick: (() -> Void)? = nil) -> MenuRowContainerView
     {
         MenuRowContainerView(
@@ -180,6 +182,7 @@ struct StatusMenuOverviewClickTests {
                 submenuIndicatorTopPadding: 0,
                 allowsMenuHighlight: true,
                 containsInteractiveControls: containsInteractiveControls,
+                usesGPUSelection: usesGPUSelection,
                 onClick: onClick),
             refreshMonitor: nil)
     }
