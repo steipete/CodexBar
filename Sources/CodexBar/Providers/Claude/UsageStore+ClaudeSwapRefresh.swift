@@ -21,6 +21,13 @@ extension UsageStore {
             !self.settings.claudeSwapExecutablePath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    /// Fingerprints the adapter configuration that menu-only account view selections belong to,
+    /// so a selection is dropped when the adapter is disabled or its executable path changes.
+    /// Never used for identity, credentials, or activation.
+    var claudeSwapConfigurationKey: String {
+        self.settings.claudeSwapEnabled ? "on:\(self.settings.claudeSwapExecutablePath)" : "off"
+    }
+
     /// The active claude-swap account's usage snapshot when the adapter owns Claude
     /// account presentation (issue #2731: with two accounts the menu shows adapter
     /// cards while the bar rendered the ambient snapshot, which can have no usable

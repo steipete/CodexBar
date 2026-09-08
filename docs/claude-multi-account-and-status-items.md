@@ -8,7 +8,8 @@ read_when:
 
 # Claude multi-account and status item decision
 
-Status: **Phase 1 account display implemented; Phase 2 explicit account activation accepted.**
+Status: **Phase 1 account display implemented; Phase 2 explicit account activation accepted and implemented, with
+account selection separated from activation.**
 
 Related: [#1756](https://github.com/steipete/CodexBar/issues/1756),
 [#1268](https://github.com/steipete/CodexBar/issues/1268), and the bounded Claude sign-in repair in
@@ -96,7 +97,10 @@ last refresh, adapter errors, and a link to the upstream project; CodexBar shoul
 
 ## Phase 2 explicit activation contract
 
-- Only an explicit click on an inactive, actionable account card can start a switch.
+- Only an explicit click on an inactive, actionable account card's "Switch Account…" action can start a switch.
+  Selecting an account in the segmented switcher — or a row in the compact stacked layout — is view-only: it
+  changes which account's details are displayed and never invokes the adapter. Viewing therefore stays available
+  for unavailable slots and while a switch is in flight.
 - Derive the numeric slot from the already validated account snapshot and execute exactly
   `cswap --switch-to <slot> --json`; never accept free-form arguments or invoke a shell.
 - Serialize switches, validate `schemaVersion == 1` and the returned target slot, and bound captured output.
@@ -107,6 +111,12 @@ last refresh, adapter errors, and a link to the upstream project; CodexBar shoul
   list-refresh errors and preserve the last successful usage snapshots.
 - Keep expired, missing, unknown, and Keychain-inaccessible credential slots non-actionable. Never auto-switch, launch
   sessions, add/import/export/purge accounts, or mutate credentials directly.
+- Keep the viewed account and the source-owned active account visually distinct, and never let one imply the other.
+  The viewed account is menu-local state keyed by `ProviderAccountIdentity`, held for the app session only. It
+  survives refreshes, reordering, and menu closes; it is dropped when the adapter is disabled or its executable
+  changes, falls back to the source-reported active account when its slot disappears, and never invents an active
+  account or changes which account drives the menu bar quota. An explicit view selection takes precedence over
+  pending or failed activation state, while an activation error stays attached to the account that produced it.
 
 ## Provider-neutral account model
 

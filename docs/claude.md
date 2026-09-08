@@ -160,10 +160,18 @@ The accepted multi-account design in
   used as identity. When two or more slots share an email, cards append ` · organizationName` or ` · Account N`;
   a user-chosen cswap alias replaces that label. Unique emails stay email-only.
 - Display: when claude-swap reports more than one account, its accounts replace ambient/token-account Claude cards.
-  The app honors **Menu → Multi-account layout**: Segmented shows account buttons and one active account card;
-  pending or failed switches show the requested account's details while the active marker stays source-owned.
-  Expired or otherwise unavailable accounts remain inspectable without activation; selecting the active account
-  returns to its card. If the adapter reports no active account, the menu says so instead of selecting the first row.
+  The app honors **Menu → Multi-account layout**: Segmented shows account buttons and one account card. Clicking a
+  segment is **view-only**: it changes which account's details the card shows and never runs a switch, so any
+  account — including expired or otherwise unavailable slots — can be inspected. The filled segment marks the
+  account being viewed; a `●` glyph on a segment marks the account claude-swap itself reports as active, so the
+  two states stay independently readable. A viewed account other than the active one gets a "Details for <account>"
+  heading. An explicit view selection also outranks a pending or failed switch, so clicking another segment during a
+  switch is never overridden; without one, pending or failed switches show the requested account's details. The view
+  selection is keyed by stable slot identity (`claude-swap:<slot>`), so it survives refreshes, list reordering, and
+  menu closes for the rest of the app session; it is not persisted across app restarts and never changes which
+  account drives the menu bar quota. Disabling the adapter or changing its executable clears it. If the viewed slot
+  disappears from the list, the menu falls back to the source-reported active account; if the adapter reports no
+  active account, the menu says so instead of selecting the first row.
   Buttons wrap into two rows above three accounts. Hide Personal Info uses stable `Account N` slot labels.
   Stacked shows one card per account (active account first, then numeric slot). With four or more
   accounts the stacked menu switches to a compact layout (`AccountMenuLayoutPlanner`): the active account keeps its full
@@ -195,13 +203,16 @@ The accepted multi-account design in
   Fable) plus its reset time — not "Usage fetch failed." A first refresh that is already `unavailable` with no
   retained windows still notes that polling is deferred. Active rows are marked `[active]`; no claude-swap row infers
   a plan badge.
-- Switching: an inactive account with usable source credentials shows “Switch Account…”. Clicking it runs exactly
+- Switching: an inactive account with usable source credentials shows “Switch Account…” on its card. That card
+  action is the only way to activate an account — selecting a segment or a compact row never activates one. Clicking
+  it runs exactly
   `cswap --switch-to <slot> --json`, validates the versioned result and requested slot, then refreshes both ambient
   Claude usage and every claude-swap account card. Switches are serialized; no automatic switching occurs. While
   claude-swap owns account presentation, the separate ambient OAuth action reads “Sign in with Claude Code…” and does
   not add or switch a claude-swap account.
-- Expired, missing, unknown, or Keychain-inaccessible credentials stay non-actionable. A failed switch remains visible
-  on that account without discarding its last successful usage. A running Claude Code process can take up to the
+- Expired, missing, unknown, or Keychain-inaccessible credentials stay non-actionable, but remain viewable. A failed
+  switch remains visible on the account it belongs to, without discarding its last successful usage; viewing another
+  account does not move or clear that error. A running Claude Code process can take up to the
   claude-swap Keychain cache interval to observe the new account.
 - Multiple claude-swap accounts—and a single account when explicitly enabled—take precedence over Claude
   token-account presentation (stacked cards and the segmented switcher).
