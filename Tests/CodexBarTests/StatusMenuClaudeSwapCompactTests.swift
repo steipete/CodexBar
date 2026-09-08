@@ -126,6 +126,38 @@ final class StatusMenuClaudeSwapCompactTests: XCTestCase {
         XCTAssertNil(controller.claudeSwapInspectedAccountID)
     }
 
+    func test_segmentedFreshPersistentMenuDropsInspectionOnReopenWithoutRefresh() {
+        for merged in [false, true] {
+            let sentinel = self.account(
+                slot: 9, email: "expired@example.com", sessionUsed: 0, weeklyUsed: 0, canActivate: false)
+            let (controller, store) = self.makeController(
+                accounts: [self.sixAccounts()[0], sentinel], layout: .segmented)
+            defer { controller.releaseStatusItemsForTesting() }
+            controller.settings.mergeIcons = merged
+            let menu = controller.makeMenu(for: .claude)
+            if merged {
+                controller.mergedMenu = menu
+            } else {
+                controller.providerMenus[.claude] = menu
+            }
+            controller.menuWillOpen(menu)
+            controller.handleClaudeSwapAccountSelection(sentinel.id, menu: nil)
+            controller.populateMenu(menu, provider: .claude)
+            controller.markMenuFresh(menu)
+            XCTAssertTrue(menu.items.contains { $0.title.hasPrefix("Details for") })
+            XCTAssertFalse(controller.menuNeedsRefresh(menu))
+            let revision = store.claudeSwapRevision
+
+            controller.menuDidClose(menu)
+            controller.refreshMenuForOpenIfNeeded(menu, provider: .claude)
+
+            XCTAssertNil(controller.claudeSwapInspectedAccountID)
+            XCTAssertFalse(menu.items.contains { $0.title.hasPrefix("Details for") })
+            XCTAssertFalse(controller.menuNeedsRefresh(menu))
+            XCTAssertEqual(store.claudeSwapRevision, revision)
+        }
+    }
+
     func test_segmentedInspectionPreservesNoActiveAccountNotice() {
         let sentinel = self.account(
             slot: 9, email: "expired@example.com", sessionUsed: 0, weeklyUsed: 0, canActivate: false)

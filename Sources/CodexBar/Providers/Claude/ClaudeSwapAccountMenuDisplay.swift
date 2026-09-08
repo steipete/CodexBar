@@ -1,4 +1,5 @@
 import CodexBarCore
+import Foundation
 
 struct ClaudeSwapAccountMenuDisplay {
     let accounts: [ProviderAccountUsageSnapshot]

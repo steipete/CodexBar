@@ -69,6 +69,12 @@ extension StatusItemController {
             context: context)
     }
 
+    func resetClaudeSwapAccountInspection() {
+        guard self.claudeSwapInspectedAccountID != nil else { return }
+        self.claudeSwapInspectedAccountID = nil
+        self.invalidateMenus()
+    }
+
     func handleClaudeSwapAccountSelection(_ id: ProviderAccountIdentity, menu: NSMenu?) {
         guard self.store.claudeSwapTransientState.task == nil,
               let account = self.store.claudeSwapAccountSnapshots.first(where: { $0.id == id })
