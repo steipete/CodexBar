@@ -1,9 +1,9 @@
 import Foundation
 
 enum KiroLoginAlertPresentation {
-    static func alertInfo(for result: KiroLoginRunner.Result) -> CodexLoginAlertInfo? {
+    static func alertInfo(for result: CLILoginRunner.Result) -> CodexLoginAlertInfo? {
         switch result.outcome {
-        case .success:
+        case .success, .cancelled:
             return nil
         case .missingBinary:
             return CodexLoginAlertInfo(

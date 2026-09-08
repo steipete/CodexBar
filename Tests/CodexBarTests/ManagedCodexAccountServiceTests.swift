@@ -649,7 +649,7 @@ struct ManagedCodexAccountServiceTests {
             store: store,
             homeFactory: UnsafeManagedCodexHomeFactory(root: root, homeURL: outsideHome),
             loginRunner: StubManagedCodexLoginRunner(
-                result: CodexLoginRunner.Result(outcome: .failed(status: 1), output: "nope")),
+                result: CLILoginRunner.Result(outcome: .failed(status: 1), output: "nope")),
             identityReader: StubManagedCodexIdentityReader.emails([]),
             workspaceResolver: StubManagedCodexWorkspaceResolver())
 
@@ -666,7 +666,7 @@ struct ManagedCodexAccountServiceTests {
         let root = CodexCredentialFixtures.root.appendingPathComponent(UUID().uuidString, isDirectory: true)
         defer { try? FileManager.default.removeItem(at: root) }
 
-        let loginResult = CodexLoginRunner.Result(
+        let loginResult = CLILoginRunner.Result(
             outcome: .failed(status: 42),
             output: "OAuth callback used the wrong browser profile")
         let service = ManagedCodexAccountService(
@@ -913,25 +913,25 @@ private struct UnsafeManagedCodexHomeFactory: ManagedCodexHomeProducing {
 }
 
 private struct StubManagedCodexLoginRunner: ManagedCodexLoginRunning {
-    let result: CodexLoginRunner.Result
+    let result: CLILoginRunner.Result
 
-    func run(homePath: String, timeout: TimeInterval) async -> CodexLoginRunner.Result {
+    func run(homePath: String, timeout: TimeInterval) async -> CLILoginRunner.Result {
         self.result
     }
 
     static let success = StubManagedCodexLoginRunner(
-        result: CodexLoginRunner.Result(outcome: .success, output: "ok"))
+        result: CLILoginRunner.Result(outcome: .success, output: "ok"))
 }
 
 private struct WritingManagedCodexLoginRunner: ManagedCodexLoginRunning {
     let credentials: CodexOAuthCredentials
 
-    func run(homePath: String, timeout _: TimeInterval) async -> CodexLoginRunner.Result {
+    func run(homePath: String, timeout _: TimeInterval) async -> CLILoginRunner.Result {
         do {
             try CodexOAuthCredentialsStore.save(self.credentials, env: ["CODEX_HOME": homePath])
-            return CodexLoginRunner.Result(outcome: .success, output: "ok")
+            return CLILoginRunner.Result(outcome: .success, output: "ok")
         } catch {
-            return CodexLoginRunner.Result(outcome: .failed(status: 1), output: String(describing: error))
+            return CLILoginRunner.Result(outcome: .failed(status: 1), output: String(describing: error))
         }
     }
 }

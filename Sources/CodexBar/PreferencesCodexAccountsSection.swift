@@ -2,11 +2,11 @@ import Foundation
 import SwiftUI
 
 protocol CodexAmbientLoginRunning: Sendable {
-    func run(timeout: TimeInterval) async -> CodexLoginRunner.Result
+    func run(timeout: TimeInterval) async -> CLILoginRunner.Result
 }
 
 struct DefaultCodexAmbientLoginRunner: CodexAmbientLoginRunning {
-    func run(timeout: TimeInterval) async -> CodexLoginRunner.Result {
+    func run(timeout: TimeInterval) async -> CLILoginRunner.Result {
         await CodexLoginRunner.run(timeout: timeout)
     }
 }
