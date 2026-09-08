@@ -1255,7 +1255,7 @@ extension UsageMenuCardView.Model {
         input: Input,
         subtitle: (text: String, style: SubtitleStyle)) -> RedactedText
     {
-        let email = PersonalInfoRedactor.redactEmail(
+        let email = PersonalInfoRedactor.redactAccountLabel(
             Self.email(from: input),
             isEnabled: input.hidePersonalInfo)
         let subtitleText = PersonalInfoRedactor.redactEmails(in: subtitle.text, isEnabled: input.hidePersonalInfo)

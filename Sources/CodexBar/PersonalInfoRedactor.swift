@@ -14,6 +14,23 @@ enum PersonalInfoRedactor {
         return Self.emailPlaceholder
     }
 
+    /// Redacts only the email-shaped parts of an account label. User-chosen
+    /// aliases (claude-swap) and slot labels ("Account 3") identify accounts
+    /// without exposing personal data, so they survive hidePersonalInfo; raw
+    /// email addresses never do.
+    static func redactAccountLabel(_ label: String?, isEnabled: Bool) -> String {
+        guard let label, !label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return "" }
+        guard isEnabled else { return label }
+        let redacted = Self.redactEmails(in: label, isEnabled: true) ?? label
+        // Email removal can orphan a separator in "email · org" labels; drop it
+        // so the remaining organization name still reads cleanly.
+        var trimmed = redacted.trimmingCharacters(in: .whitespaces)
+        while let first = trimmed.first, "·•-–—:".contains(first) {
+            trimmed = trimmed.dropFirst().trimmingCharacters(in: .whitespaces)
+        }
+        return trimmed
+    }
+
     static func redactEmails(in text: String?, isEnabled: Bool) -> String? {
         guard let text else { return nil }
         guard isEnabled else { return text }
