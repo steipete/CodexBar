@@ -45,6 +45,7 @@
 "hooks_any_provider" = "Будь-який провайдер";
 "hooks_threshold" = "Запускати за використання ≥";
 "hooks_threshold_placeholder" = "90";
+"hooks_executable" = "Виконуваний файл";
 "hooks_executable_placeholder" = "/usr/local/bin/my-command";
 "hooks_arguments_placeholder" = "Аргументи";
 "hooks_argument_placeholder" = "Аргумент";
@@ -515,7 +516,6 @@
 "provider_accent_color_reset" = "Використовувати типовий";
 "quota_warnings_title" = "Попередження про квоту";
 "quota_warning_session" = "сесії";
-"quota_warning_session_capitalized" = "Сесія";
 "quota_warning_weekly" = "щотижня";
 "quota_warning_weekly_capitalized" = "Щотижня";
 "quota_warning_notification_title" = "%1$@ %2$@ квота низька";
@@ -1485,6 +1485,7 @@
 "Total usage" = "Загальне використання";
 "claude_oauth_keychain_access_revoked" = "Доступ до В’язки ключів Claude було відкликано через ротацію токена в Claude Code. Натисніть «Оновити», щоб повторно надати доступ, або перемкніть джерело використання Claude на CLI/Web.";
 "claude_showing_last_known_usage" = "Показано останні відомі дані про використання (отримано %@).";
+"claude_limited_usage_detail" = "Обмежена деталізація використання";
 /* Spend dashboard cost analysis */
 "90d" = "90d";
 "Input" = "Input";
@@ -1541,3 +1542,4 @@
 "menu_bar_layout_conditional_default_either_high" = "Сесія або тиждень на високому рівні";
 "menu_bar_layout_conditional_default_scoped_weekly" = "Тижневе вікно моделі понад 60 %";
 "Spending cap, not balance" = "Ліміт витрат, не баланс";
+"%@ weekly" = "%@ за тиждень";

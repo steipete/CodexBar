@@ -75,6 +75,7 @@ struct MenuDescriptor {
         case loginToProvider(url: String)
         case openCodexWorkspaces
         case settings
+        case providerSettings(UsageProvider)
         case about
         case quit
         case copyError(String)
@@ -244,6 +245,8 @@ struct MenuDescriptor {
             let resetStyle = settings.resetTimeDisplayStyle
             let labels = Self.rateWindowLabels(provider: provider, metadata: meta, snapshot: snap)
             let presentation = ProviderDescriptorRegistry.descriptor(for: provider).presentation
+            let paceVisible = settings.paceVisible && ProviderDescriptorRegistry.descriptor(for: provider).pace
+                .allowsPace(dataConfidence: snap.dataConfidence)
             if let primary = snap.primary {
                 let primaryDetail = primary.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines)
                 let primaryDescriptionIsDetail = presentation.menu.usesPrimaryDescriptionAsDetail(snapshot: snap)
@@ -277,14 +280,14 @@ struct MenuDescriptor {
                 {
                     entries.append(.text(primaryDetail, .secondary))
                 }
-                if settings.paceVisible,
+                if paceVisible,
                    presentation.menu.showsPrimaryWeeklyPace,
-                   let pace = store.weeklyPace(provider: provider, window: primary)
+                   let pace = store.weeklyPace(provider: provider, window: primary, dataConfidence: snap.dataConfidence)
                 {
                     let paceSummary = UsagePaceText.weeklySummary(provider: provider, pace: pace)
                     entries.append(.text(paceSummary, .secondary))
                 }
-                if settings.paceVisible,
+                if paceVisible,
                    let paceSummary = UsagePaceText.sessionSummary(provider: provider, window: primary)
                 {
                     entries.append(.text(paceSummary, .secondary))
@@ -317,8 +320,8 @@ struct MenuDescriptor {
                 {
                     entries.append(.text(detail, .secondary))
                 }
-                if settings.paceVisible,
-                   let pace = store.weeklyPace(provider: provider, window: weekly)
+                if paceVisible,
+                   let pace = store.weeklyPace(provider: provider, window: weekly, dataConfidence: snap.dataConfidence)
                 {
                     let paceSummary = UsagePaceText.weeklySummary(provider: provider, pace: pace)
                     entries.append(.text(paceSummary, .secondary))
@@ -674,6 +677,18 @@ struct MenuDescriptor {
         {
             return true
         }
+        // CLI quota reads can succeed without identity. Retained history or failed refreshes do not prove this.
+        if target == .claude,
+           snapshot?.hasRateLimitWindows == true,
+           store.error(for: .claude) == nil,
+           store.lastSourceLabels[.claude] == "claude",
+           let attempt = store.fetchAttempts(for: .claude).last,
+           attempt.kind == .cli,
+           attempt.wasAvailable,
+           attempt.errorDescription == nil
+        {
+            return true
+        }
         let metadata = store.metadata(for: target)
         if metadata.usesAccountFallback,
            let fallback = account.email?.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -781,7 +796,7 @@ extension MenuDescriptor.MenuAction {
     var systemImageName: String? {
         switch self {
         case .installUpdate: MenuDescriptor.MenuActionSystemImage.installUpdate.rawValue
-        case .settings: MenuDescriptor.MenuActionSystemImage.settings.rawValue
+        case .settings, .providerSettings: MenuDescriptor.MenuActionSystemImage.settings.rawValue
         case .about: MenuDescriptor.MenuActionSystemImage.about.rawValue
         case .quit: MenuDescriptor.MenuActionSystemImage.quit.rawValue
         case .refresh: MenuDescriptor.MenuActionSystemImage.refresh.rawValue

@@ -126,6 +126,7 @@ so portable third-party plugins must use the host helpers below instead of ECMA-
   engines. Number options support `minimumFractionDigits` and `maximumFractionDigits`.
 - `ctx.jwt.decode(token)` decodes (but does not authenticate) a JWT JSON payload.
 - `ctx.pct(used, limit)` returns a finite percentage clamped to 0–100; non-positive limits map to 100.
+- `ctx.isDetailLabel(value)` checks the native provider-detail label rules, including whitespace and Unicode character limits; it performs no I/O and returns false for non-strings.
 
 User-plugin requests run in an ephemeral session with no ambient cookies, credential store, or URL cache. Redirects are
 rejected, the timeout is 15 seconds, `Accept-Encoding: identity` is sent, compressed responses always fail, and response

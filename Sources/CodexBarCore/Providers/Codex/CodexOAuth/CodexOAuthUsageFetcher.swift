@@ -426,32 +426,11 @@ public enum CodexOAuthUsageFetcher {
             request.setValue(accountId, forHTTPHeaderField: "ChatGPT-Account-Id")
         }
 
+        let data = try await CodexAuthenticatedHTTPTransport.perform(request: request, transport: transport)
         do {
-            let response = try await transport.response(for: request)
-            let data = response.data
-
-            switch response.statusCode {
-            case 200...299:
-                do {
-                    return try JSONDecoder().decode(CodexUsageResponse.self, from: data)
-                } catch {
-                    throw CodexOAuthFetchError.invalidResponse
-                }
-            case 401, 403:
-                throw CodexOAuthFetchError.unauthorized
-            default:
-                let body = String(data: data, encoding: .utf8)
-                throw CodexOAuthFetchError.serverError(response.statusCode, body)
-            }
-        } catch let error as CodexOAuthFetchError {
-            throw error
-        } catch is CancellationError {
-            throw CancellationError()
+            return try JSONDecoder().decode(CodexUsageResponse.self, from: data)
         } catch {
-            if Task.isCancelled || (error as? URLError)?.code == .cancelled {
-                throw CancellationError()
-            }
-            throw CodexOAuthFetchError.networkError(error)
+            throw CodexOAuthFetchError.invalidResponse
         }
     }
 
@@ -503,30 +482,11 @@ public enum CodexOAuthUsageFetcher {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue(accountId, forHTTPHeaderField: "ChatGPT-Account-Id")
 
+        let data = try await CodexAuthenticatedHTTPTransport.perform(request: request, transport: transport)
         do {
-            let response = try await transport.response(for: request)
-            switch response.statusCode {
-            case 200...299:
-                do {
-                    return try JSONDecoder().decode(CodexSpendControlsMonthlyUsageResponse.self, from: response.data)
-                } catch {
-                    throw CodexOAuthFetchError.invalidResponse
-                }
-            case 401, 403:
-                throw CodexOAuthFetchError.unauthorized
-            default:
-                let body = String(data: response.data, encoding: .utf8)
-                throw CodexOAuthFetchError.serverError(response.statusCode, body)
-            }
-        } catch let error as CodexOAuthFetchError {
-            throw error
-        } catch is CancellationError {
-            throw CancellationError()
+            return try JSONDecoder().decode(CodexSpendControlsMonthlyUsageResponse.self, from: data)
         } catch {
-            if Task.isCancelled || (error as? URLError)?.code == .cancelled {
-                throw CancellationError()
-            }
-            throw CodexOAuthFetchError.networkError(error)
+            throw CodexOAuthFetchError.invalidResponse
         }
     }
 
@@ -553,41 +513,20 @@ public enum CodexOAuthUsageFetcher {
             request.setValue(accountId, forHTTPHeaderField: "ChatGPT-Account-ID")
         }
 
+        let data = try await CodexAuthenticatedHTTPTransport.perform(request: request, transport: transport)
         do {
-            let response = try await transport.response(for: request)
-            let data = response.data
-
-            switch response.statusCode {
-            case 200...299:
-                do {
-                    let decoder = JSONDecoder()
-                    decoder.dateDecodingStrategy = .custom(Self.decodeISO8601Date)
-                    let payload = try decoder.decode(RateLimitResetCreditsResponse.self, from: data)
-                    guard payload.availableCount >= 0 else {
-                        throw CodexOAuthFetchError.invalidResponse
-                    }
-                    return CodexRateLimitResetCreditsSnapshot(
-                        credits: payload.credits.map(\.model),
-                        availableCount: payload.availableCount,
-                        updatedAt: Date())
-                } catch {
-                    throw CodexOAuthFetchError.invalidResponse
-                }
-            case 401, 403:
-                throw CodexOAuthFetchError.unauthorized
-            default:
-                let body = String(data: data, encoding: .utf8)
-                throw CodexOAuthFetchError.serverError(response.statusCode, body)
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .custom(Self.decodeISO8601Date)
+            let payload = try decoder.decode(RateLimitResetCreditsResponse.self, from: data)
+            guard payload.availableCount >= 0 else {
+                throw CodexOAuthFetchError.invalidResponse
             }
-        } catch let error as CodexOAuthFetchError {
-            throw error
-        } catch is CancellationError {
-            throw CancellationError()
+            return CodexRateLimitResetCreditsSnapshot(
+                credits: payload.credits.map(\.model),
+                availableCount: payload.availableCount,
+                updatedAt: Date())
         } catch {
-            if Task.isCancelled || (error as? URLError)?.code == .cancelled {
-                throw CancellationError()
-            }
-            throw CodexOAuthFetchError.networkError(error)
+            throw CodexOAuthFetchError.invalidResponse
         }
     }
 

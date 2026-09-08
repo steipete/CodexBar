@@ -284,7 +284,7 @@ struct CostUsageCalendarTests {
         #expect(bangkokClaude.data.map(\.date) == ["2026-07-23"])
         #expect(CostUsageClaudeCacheIO.load(
             provider: .claude,
-            cacheRoot: env.cacheRoot).timeZoneIdentifier == "Asia/Bangkok")
+            cacheRoot: env.cacheRoot).usage.timeZoneIdentifier == "Asia/Bangkok")
 
         let utcPi = PiSessionCostScanner.loadDailyReport(
             provider: .codex,

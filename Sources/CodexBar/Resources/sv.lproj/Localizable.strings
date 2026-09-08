@@ -45,6 +45,7 @@
 "hooks_any_provider" = "Valfri leverantör";
 "hooks_threshold" = "Kör vid användning ≥";
 "hooks_threshold_placeholder" = "90";
+"hooks_executable" = "Körbar fil";
 "hooks_executable_placeholder" = "/usr/local/bin/my-command";
 "hooks_arguments_placeholder" = "Argument";
 "hooks_argument_placeholder" = "Argument";
@@ -515,7 +516,6 @@
 "provider_accent_color_reset" = "Använd standard";
 "quota_warnings_title" = "Kvotvarningar";
 "quota_warning_session" = "session";
-"quota_warning_session_capitalized" = "Session";
 "quota_warning_weekly" = "veckokvot";
 "quota_warning_weekly_capitalized" = "Veckokvot";
 "quota_warning_notification_title" = "%1$@ %2$@-kvot låg";
@@ -1484,6 +1484,7 @@
 "Total usage" = "Total användning";
 "claude_oauth_keychain_access_revoked" = "Åtkomsten till Claudes nyckelring återkallades när Claude Code roterade token. Klicka på Uppdatera för att ge åtkomst igen, eller byt Claudes användningskälla till CLI/Web.";
 "claude_showing_last_known_usage" = "Visar senast kända användning, registrerad %@.";
+"claude_limited_usage_detail" = "Begränsade användningsdetaljer";
 /* Spend dashboard cost analysis */
 "90d" = "90d";
 "Input" = "Input";
@@ -1540,3 +1541,4 @@
 "menu_bar_layout_conditional_default_either_high" = "Session eller vecka ligger högt";
 "menu_bar_layout_conditional_default_scoped_weekly" = "Modellvecka över 60 % använt";
 "Spending cap, not balance" = "Utgiftstak, inte saldo";
+"%@ weekly" = "%@ per vecka";

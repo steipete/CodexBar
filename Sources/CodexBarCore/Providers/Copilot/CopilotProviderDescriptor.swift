@@ -140,6 +140,7 @@ struct CopilotAPIFetchStrategy: ProviderFetchStrategy {
         context: ProviderFetchContext) async -> UsageSnapshot
     {
         guard let settings = context.settings?.copilot,
+              CopilotUsageFetcher.apiHost(enterpriseHost: settings.enterpriseHost) == "api.github.com",
               settings.budgetExtrasEnabled,
               settings.budgetCookieSource != .off
         else { return usage }

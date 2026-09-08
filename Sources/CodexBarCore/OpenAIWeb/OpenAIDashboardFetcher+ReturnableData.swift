@@ -35,7 +35,7 @@ extension OpenAIDashboardFetcher {
     nonisolated static func snapshotByMergingAPI(
         apiData: DashboardAPIData,
         verifiedEmail: String,
-        subscription: OpenAISubscriptionMetadata?,
+        subscriptionResult: OpenAISubscriptionFetchResult = .unavailable,
         previous: OpenAIDashboardSnapshot?,
         updatedAt: Date = Date()) -> OpenAIDashboardSnapshot
     {
@@ -57,27 +57,27 @@ extension OpenAIDashboardFetcher {
             codexCreditLimit: apiData.codexCreditLimit ?? previous?.codexCreditLimit,
             // Prefer the page-derived plan (more specific, e.g. Pro Lite) over the generic API plan_type.
             accountPlan: previous?.accountPlan ?? apiData.accountPlan,
-            subscriptionExpiresAt: subscription == nil
-                ? previous?.subscriptionExpiresAt
-                : subscription?.expiresAt,
-            subscriptionRenewsAt: subscription == nil
-                ? previous?.subscriptionRenewsAt
-                : subscription?.renewsAt,
+            subscriptionExpiresAt: subscriptionResult.succeeded
+                ? subscriptionResult.metadata?.expiresAt
+                : previous?.subscriptionExpiresAt,
+            subscriptionRenewsAt: subscriptionResult.succeeded
+                ? subscriptionResult.metadata?.renewsAt
+                : previous?.subscriptionRenewsAt,
             updatedAt: updatedAt)
     }
 
     nonisolated static func fillingMissingPageFields(
         _ snapshot: OpenAIDashboardSnapshot,
         from previous: OpenAIDashboardSnapshot?,
-        subscription: OpenAISubscriptionMetadata? = nil) -> OpenAIDashboardSnapshot
+        subscriptionResult: OpenAISubscriptionFetchResult = .unavailable) -> OpenAIDashboardSnapshot
     {
         guard let previous else { return snapshot }
-        let subscriptionExpiresAt = subscription == nil
-            ? snapshot.subscriptionExpiresAt ?? previous.subscriptionExpiresAt
-            : snapshot.subscriptionExpiresAt
-        let subscriptionRenewsAt = subscription == nil
-            ? snapshot.subscriptionRenewsAt ?? previous.subscriptionRenewsAt
-            : snapshot.subscriptionRenewsAt
+        let subscriptionExpiresAt = subscriptionResult.succeeded
+            ? snapshot.subscriptionExpiresAt
+            : snapshot.subscriptionExpiresAt ?? previous.subscriptionExpiresAt
+        let subscriptionRenewsAt = subscriptionResult.succeeded
+            ? snapshot.subscriptionRenewsAt
+            : snapshot.subscriptionRenewsAt ?? previous.subscriptionRenewsAt
         return OpenAIDashboardSnapshot(
             signedInEmail: snapshot.signedInEmail ?? previous.signedInEmail,
             codeReviewRemainingPercent: snapshot.codeReviewRemainingPercent

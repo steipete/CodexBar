@@ -822,28 +822,29 @@ struct PiFamilySessionScanner: Sendable {
         let canonicalRoot = Self.canonicalURL(root)
 
         guard directoryBudget.hasTimeRemaining() else { return [] }
-        let projectDirectories: [URL] = switch layout {
+        let projectDirectories: [URL]
+        switch layout {
         case .direct:
-            [canonicalRoot]
+            projectDirectories = [canonicalRoot]
         case .projectDirectories:
-            directoryBudget
-                .childDirectories(in: canonicalRoot, fileManager: fileManager)
-                .map(Self.canonicalURL)
-                .filter { OMPSessionRootResolver.isWithin(root: canonicalRoot, candidate: $0) }
-                .sorted { $0.path < $1.path }
+            let directories = directoryBudget.childDirectories(in: canonicalRoot, fileManager: fileManager)
+            projectDirectories = directoryBudget.compactMapWhileTimeRemains(directories) { directory in
+                let canonical = Self.canonicalURL(directory)
+                return OMPSessionRootResolver.isWithin(root: canonicalRoot, candidate: canonical) ? canonical : nil
+            }.sorted { $0.path < $1.path }
         }
 
         for projectDirectory in projectDirectories {
             guard directoryBudget.hasTimeRemaining() else { break }
-            let files = directoryBudget
-                .files(in: projectDirectory, fileManager: fileManager)
-                .filter { $0.pathExtension == "jsonl" }
-                .map(Self.canonicalURL)
-                .filter { file in
-                    OMPSessionRootResolver.isWithin(root: canonicalRoot, candidate: file) &&
-                        Self.isDirectFile(in: file, projectDirectory: projectDirectory)
-                }
-                .sorted { $0.path < $1.path }
+            let entries = directoryBudget.files(in: projectDirectory, fileManager: fileManager)
+            let files = directoryBudget.compactMapWhileTimeRemains(entries) { entry -> URL? in
+                guard entry.pathExtension == "jsonl" else { return nil }
+                let file = Self.canonicalURL(entry)
+                guard OMPSessionRootResolver.isWithin(root: canonicalRoot, candidate: file),
+                      Self.isDirectFile(in: file, projectDirectory: projectDirectory)
+                else { return nil }
+                return file
+            }.sorted { $0.path < $1.path }
 
             for file in files {
                 guard directoryBudget.hasTimeRemaining() else { break }

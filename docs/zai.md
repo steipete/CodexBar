@@ -127,6 +127,7 @@ Copy each value once, on one line. Multi-line or duplicated IDs can make the API
   Organization ID and Project ID as required for team usage.
 
 ## Usage dashboard
+- Optional model analytics are omitted when charts exceed 120 positive points, labels fail the native detail rules, or token aggregates overflow. Required quota data remains available; valid bounded analytics retain their complete labels and values.
 - Global: `https://z.ai/manage-apikey/coding-plan/personal/my-plan`
 - BigModel China: `https://bigmodel.cn/coding-plan/personal/usage`
 - BigModel China team: `https://bigmodel.cn/coding-plan/team/usage-stats`
@@ -146,8 +147,10 @@ Copy each value once, on one line. Multi-line or duplicated IDs can make the API
   - Unit + number → minutes/hours/days.
 - Reset:
   - `nextResetTime` (epoch ms) → date.
+  - Five-hour Coding Plan resets more than five hours plus one minute of clock skew in the future are omitted, including incompatible cached resets. Usage percentages remain visible; no timezone correction is guessed. Weekly and MCP reset semantics are unchanged.
 - Usage details:
   - `usageDetails[]` per model (MCP usage list).
+  - Hourly and daily model token totals use compact M/B labels from one million upward; smaller totals remain exact. Chart points retain their full numeric values.
 
 ## Key files
 - `Sources/CodexBarCore/Resources/Plugins/zai.js` (quota parsing and window mapping)

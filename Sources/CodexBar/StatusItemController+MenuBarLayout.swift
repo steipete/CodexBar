@@ -62,14 +62,17 @@ extension StatusItemController {
             data: data,
             icon: renderedIcon,
             options: options)
-        let expectedImagePosition: NSControl.ImagePosition = if rendered.leadingIcon != nil {
+        let expectedImagePosition: NSControl.ImagePosition = if rendered.statusImage != nil {
+            .imageOnly
+        } else if rendered.leadingIcon != nil {
             rendered.attributedTitle.length > 0 ? .imageLeft : .imageOnly
         } else {
             .noImage
         }
-        let wasCached = button.image === rendered.leadingIcon
+        let expectedTitle = rendered.statusImage == nil ? rendered.attributedTitle : NSAttributedString()
+        let wasCached = button.image === (rendered.statusImage ?? rendered.leadingIcon)
             && button.imagePosition == expectedImagePosition
-            && button.attributedTitle.isEqual(to: rendered.attributedTitle)
+            && button.attributedTitle.isEqual(to: expectedTitle)
         self.setButtonLayoutContent(rendered, for: button, statusItem: statusItem)
         return wasCached
     }
@@ -90,6 +93,7 @@ extension StatusItemController {
             self.store.weeklyPace(
                 provider: provider,
                 window: $0,
+                dataConfidence: snapshot?.dataConfidence ?? .unknown,
                 now: now)
         }
         let runsOut = pace
@@ -123,15 +127,18 @@ extension StatusItemController {
             sessionPace: self.store.menuBarLayoutPaceText(
                 provider: provider,
                 window: windows.session,
+                dataConfidence: snapshot?.dataConfidence ?? .unknown,
                 now: now),
             weeklyPace: self.store.menuBarLayoutPaceText(
                 provider: provider,
                 window: windows.weekly,
+                dataConfidence: snapshot?.dataConfidence ?? .unknown,
                 now: now,
                 minimumElapsedPercent: 1),
             automaticPace: self.store.menuBarLayoutPaceText(
                 provider: provider,
                 window: windows.automatic,
+                dataConfidence: snapshot?.dataConfidence ?? .unknown,
                 now: now),
             runsOut: runsOut,
             balance: MenuBarLayoutBalanceResolver.balance(provider: provider, snapshot: snapshot),
@@ -141,15 +148,18 @@ extension StatusItemController {
                 sessionPaceDelta: self.store.menuBarLayoutPaceDelta(
                     provider: provider,
                     window: windows.session,
+                    dataConfidence: snapshot?.dataConfidence ?? .unknown,
                     now: now),
                 weeklyPaceDelta: self.store.menuBarLayoutPaceDelta(
                     provider: provider,
                     window: windows.weekly,
+                    dataConfidence: snapshot?.dataConfidence ?? .unknown,
                     now: now,
                     minimumElapsedPercent: 1),
                 automaticPaceDelta: self.store.menuBarLayoutPaceDelta(
                     provider: provider,
                     window: windows.automatic,
+                    dataConfidence: snapshot?.dataConfidence ?? .unknown,
                     now: now),
                 runsOutMinutes: pace?.etaSeconds.map { Int(($0 / 60).rounded()) },
                 balanceRemainingUSD: balanceAmounts.remaining,
@@ -256,27 +266,26 @@ extension StatusItemController {
         for button: NSStatusBarButton,
         statusItem: NSStatusItem)
     {
-        // A leading icon token is surfaced as the status item image so AppKit applies the
-        // system's inactive-display tinting to it, matching how other menu bar icons behave.
-        // Text tokens keep rendering through the attributed title.
-        if let icon = rendered.leadingIcon {
-            if button.image !== icon {
-                button.image = icon
-            }
-            let position: NSControl.ImagePosition = rendered.attributedTitle.length > 0 ? .imageLeft : .imageOnly
-            if button.imagePosition != position {
-                button.imagePosition = position
-            }
-        } else {
-            if button.image != nil {
-                button.image = nil
-            }
-            if button.imagePosition != .noImage {
-                button.imagePosition = .noImage
-            }
+        statusItem.length = Self.applyMenuBarLayoutContent(rendered, for: button, gap: self.settings.menuBarLayoutGap)
+    }
+
+    static func applyMenuBarLayoutContent(
+        _ rendered: MenuBarLayoutRenderedTitle,
+        for button: NSButton,
+        gap: MenuBarLayoutGap) -> CGFloat
+    {
+        // Ordinary single-line text uses a cached template. Rich content retains native title rendering.
+        let title = rendered.statusImage == nil ? rendered.attributedTitle : NSAttributedString()
+        if !button.attributedTitle.isEqual(to: title) {
+            button.attributedTitle = title
         }
-        if !button.attributedTitle.isEqual(to: rendered.attributedTitle) {
-            button.attributedTitle = rendered.attributedTitle
+        let image = rendered.statusImage ?? rendered.leadingIcon
+        if button.image !== image {
+            button.image = image
+        }
+        let position: NSControl.ImagePosition = image == nil ? .noImage : (title.length > 0 ? .imageLeft : .imageOnly)
+        if button.imagePosition != position {
+            button.imagePosition = position
         }
         if button.accessibilityTitle() != rendered.accessibilityLabel {
             button.setAccessibilityTitle(rendered.accessibilityLabel)
@@ -284,13 +293,6 @@ extension StatusItemController {
 
         // AppKit exposes no content-inset API on NSStatusBarButton. Explicit item length is the actual
         // status-item padding mechanism: tight removes most edge space; regular keeps the native breathing room.
-        var bounds = rendered.attributedTitle.boundingRect(
-            with: NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude),
-            options: [.usesLineFragmentOrigin, .usesFontLeading])
-        if let icon = rendered.leadingIcon {
-            bounds.size.width += icon.size.width
-        }
-        let horizontalPadding: CGFloat = self.settings.menuBarLayoutGap == .tight ? 3 : 10
-        statusItem.length = max(18, ceil(bounds.width) + horizontalPadding)
+        return rendered.statusItemWidth(gap: gap)
     }
 }

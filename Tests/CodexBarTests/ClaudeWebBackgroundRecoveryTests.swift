@@ -9,6 +9,53 @@ import Testing
 /// found" — when that recovery attempt comes back empty.
 @Suite(.serialized)
 struct ClaudeWebBackgroundRecoveryTests {
+    private static let challengeMessage =
+        "claude.ai is behind a Cloudflare challenge, often caused by VPN or datacenter networks. " +
+        "Re-authenticating will not help. Switch Claude Usage source to OAuth in Settings " +
+        "(Usage credits balance will be unavailable), or try a different network."
+
+    @Test
+    func `Cloudflare challenge preserves cached cookie without browser recovery`() async {
+        await self.withIsolatedCookieCache {
+            CookieHeaderCache.store(
+                provider: .claude,
+                cookieHeader: "sessionKey=sk-ant-current-token",
+                sourceLabel: "Chrome")
+            defer { CookieHeaderCache.clear(provider: .claude) }
+            let replacement = ClaudeWebAPIFetcher.SessionKeyInfo(
+                key: "sk-ant-should-not-import",
+                sourceLabel: "Safari",
+                cookieCount: 1)
+
+            do {
+                _ = try await ClaudeWebSessionKeyImport.$overrideForTesting.withValue(replacement) {
+                    try await self.withClaudeWebStub { request in
+                        let url = try #require(request.url)
+                        if url.path == "/api/organizations" {
+                            let response = try #require(HTTPURLResponse(
+                                url: url,
+                                statusCode: 403,
+                                httpVersion: "HTTP/1.1",
+                                headerFields: ["cf-mitigated": "challenge"]))
+                            return (response, Data("challenge".utf8))
+                        }
+                        return try Self.response(for: request, setCookie: nil)
+                    } operation: {
+                        try await ClaudeWebAPIFetcher.fetchUsage(
+                            browserDetection: BrowserDetection(cacheTTL: 0))
+                    }
+                }
+                Issue.record("Expected Cloudflare challenge")
+            } catch {
+                #expect(error.localizedDescription == Self.challengeMessage)
+            }
+
+            let cached = try? #require(CookieHeaderCache.load(provider: .claude))
+            #expect(cached?.cookieHeader == "sessionKey=sk-ant-current-token")
+            #expect(cached?.sourceLabel == "Chrome")
+        }
+    }
+
     @Test
     func `background refresh surfaces original auth error when browser recovery finds nothing`() async {
         await self.withIsolatedCookieCache {

@@ -201,6 +201,7 @@ struct CodexAccountScopedRefreshTests {
         store._setSnapshotForTesting(self.codexSnapshot(email: "alpha@example.com", usedPercent: 10), provider: .codex)
         store.lastCreditsSnapshot = cachedCredits
         store.lastCreditsSnapshotAccountKey = "alpha@example.com"
+        store.lastCreditsSnapshotOwnerGuard = store.freshCodexAccountScopedRefreshGuard()
         store._test_codexCreditsLoaderOverride = {
             throw TestRefreshError(message: "Codex credits data not available yet")
         }

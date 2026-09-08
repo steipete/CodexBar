@@ -498,7 +498,6 @@
 "provider_accent_color_reset" = "Usa el valor predeterminat";
 "quota_warnings_title" = "Avisos de quota";
 "quota_warning_session" = "sessió";
-"quota_warning_session_capitalized" = "Sessió";
 "quota_warning_weekly" = "setmanal";
 "quota_warning_weekly_capitalized" = "Setmanal";
 "quota_warning_warn_at" = "Aviseu al";
@@ -546,6 +545,7 @@
 "hooks_any_provider" = "Qualsevol proveïdor";
 "hooks_threshold" = "Activa amb ús ≥";
 "hooks_threshold_placeholder" = "90";
+"hooks_executable" = "Executable";
 "hooks_executable_placeholder" = "/usr/local/bin/my-command";
 "hooks_arguments_placeholder" = "Arguments";
 "hooks_argument_placeholder" = "Argument";
@@ -1488,6 +1488,7 @@
 "Total usage" = "Ús total";
 "claude_oauth_keychain_access_revoked" = "L'accés al clauer de Claude s'ha revocat per la rotació del token de Claude Code. Feu clic a Actualitza per tornar a concedir l'accés, o canvieu l'origen d'ús de Claude a CLI/Web.";
 "claude_showing_last_known_usage" = "Es mostra l'últim ús conegut capturat %@.";
+"claude_limited_usage_detail" = "Detalls d’ús limitats";
 /* Spend dashboard cost analysis */
 "90d" = "90d";
 "Input" = "Entrada";
@@ -1543,3 +1544,4 @@
 "menu_bar_layout_conditional_default_either_high" = "Sessió o setmana en nivell alt";
 "menu_bar_layout_conditional_default_scoped_weekly" = "Setmanal amb àmbit per damunt del 60%";
 "Spending cap, not balance" = "Límit de despesa, no saldo";
+"%@ weekly" = "%@ setmanal";

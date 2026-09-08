@@ -198,7 +198,7 @@ struct SettingsStoreAdditionalTests {
         let settings = Self.makeSettingsStore(suite: "SettingsStoreAdditionalTests-menu-metric-capabilities")
         let standard: Set<MenuBarMetricPreference> = [.automatic, .primary, .secondary]
         let overrides: [UsageProvider: Set<MenuBarMetricPreference>] = [
-            .codex: standard.union([.primaryAndSecondary]),
+            .codex: standard.union([.primaryAndSecondary, .extraUsage]),
             .claude: standard.union([.primaryAndSecondary, .extraUsage]),
             .cursor: standard.union([.tertiary, .extraUsage]),
             .gemini: standard.union([.average]),

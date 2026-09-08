@@ -96,14 +96,15 @@ struct CodexCostCatchUpPolicy: Sendable {
                 targetDutyCycle: nil)
         }
         if input.mode == .automatic {
-            if input.lowPowerModeEnabled {
-                return Decision(
-                    action: .pause(Self.constrainedRetryDelay, .lowPower),
-                    targetDutyCycle: nil)
-            }
+            // Report the stronger constraint when both pauses apply.
             if input.thermalState == .serious {
                 return Decision(
                     action: .pause(Self.constrainedRetryDelay, .thermal),
+                    targetDutyCycle: nil)
+            }
+            if input.lowPowerModeEnabled {
+                return Decision(
+                    action: .pause(Self.constrainedRetryDelay, .lowPower),
                     targetDutyCycle: nil)
             }
         }

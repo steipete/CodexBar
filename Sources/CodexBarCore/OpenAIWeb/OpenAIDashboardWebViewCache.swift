@@ -514,6 +514,10 @@ final class OpenAIDashboardWebViewCache {
             source: self.preferredLanguageScript,
             injectionTime: .atDocumentStart,
             forMainFrameOnly: false))
+        userContentController.addUserScript(WKUserScript(
+            source: openAISubscriptionCaptureScript,
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: false))
         config.userContentController = userContentController
         if #available(macOS 14.0, *) {
             config.preferences.inactiveSchedulingPolicy = .suspend

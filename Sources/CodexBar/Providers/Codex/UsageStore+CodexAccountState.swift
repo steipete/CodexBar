@@ -100,6 +100,7 @@ extension UsageStore {
         self.lastCreditsError = nil
         self.lastCreditsSnapshot = nil
         self.lastCreditsSnapshotAccountKey = nil
+        self.lastCreditsSnapshotOwnerGuard = nil
         self.lastCreditsSource = .none
         self.creditsFailureStreak = 0
 
@@ -661,7 +662,7 @@ extension UsageStore {
             guard let activeStoredAccount = self.settings.codexAccountReconciliationSnapshot.activeStoredAccount else {
                 return .unresolved
             }
-            return self.settings.codexAccountReconciliationSnapshot.runtimeIdentity(for: activeStoredAccount)
+            return self.settings.codexAccountReconciliationSnapshot.managedRemoteIdentity(for: activeStoredAccount)
         case let .profileHome(path):
             guard let profileAccount = self.settings.codexAccountReconciliationSnapshot.profileHomeAccount(path: path)
             else {
@@ -685,7 +686,7 @@ extension UsageStore {
             guard let activeStoredAccount = self.settings.codexAccountReconciliationSnapshot.activeStoredAccount else {
                 return .unresolved
             }
-            return self.settings.codexAccountReconciliationSnapshot.runtimeIdentity(for: activeStoredAccount)
+            return self.settings.codexAccountReconciliationSnapshot.managedRemoteIdentity(for: activeStoredAccount)
         case let .profileHome(path):
             guard let profileAccount = self.settings.codexAccountReconciliationSnapshot.profileHomeAccount(path: path)
             else {

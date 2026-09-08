@@ -6,6 +6,20 @@ import Testing
 @testable import CodexBarCore
 
 struct KimiDesktopAuthTokenTests {
+    @Test(arguments: [false, true])
+    func `desktop loader rejects expired JWTs in the real SQLite path`(expired: Bool) throws {
+        let environment = try Self.makeEnvironment()
+        defer { try? FileManager.default.removeItem(at: environment.root) }
+        try Self.createDatabase(at: environment.databaseURL)
+        let expiry = expired ? 1 : Date().addingTimeInterval(3600).timeIntervalSince1970
+        let payload = try JSONSerialization.data(withJSONObject: ["exp": expiry]).base64EncodedString()
+        let token = "header.\(payload).signature"
+        try Self.insertCookie(databaseURL: environment.databaseURL, host: "www.kimi.com", value: token, lastAccess: 1)
+        let before = try Data(contentsOf: environment.databaseURL)
+        #expect(KimiDesktopAuthToken.load(homeDirectory: environment.root) == (expired ? nil : token))
+        #expect(try Data(contentsOf: environment.databaseURL) == before)
+    }
+
     @Test
     func `reads newest plaintext Kimi auth token`() throws {
         let environment = try Self.makeEnvironment()

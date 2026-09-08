@@ -6,6 +6,25 @@ import Testing
 @testable import CodexBarCore
 
 struct ProviderPluginRuntimeTests {
+    @Test(arguments: Self.labelValidationEngines)
+    func `detail label checks reject nonstrings without coercion`(engine: ProviderPluginEngineKind) async throws {
+        let runtime = try ProviderPluginRuntime(source: Self.plugin(fetchBody: """
+        const values = [undefined, null, true, 42, [], {}, { toString() { throw new Error("coerced"); } }];
+        const valid = values.every(value => ctx.isDetailLabel(value) === false) && ctx.isDetailLabel("Valid label");
+        return { primary: { usedPercent: valid ? 25 : 0 } };
+        """), engine: engine)
+        let snapshot = try await runtime.fetchUsage(secrets: ["TEST_KEY": "fixture-key"])
+        #expect(snapshot.primary?.usedPercent == 25)
+    }
+
+    private static var labelValidationEngines: [ProviderPluginEngineKind] {
+        #if canImport(JavaScriptCore)
+        [.quickJS, .javaScriptCore]
+        #else
+        [.quickJS]
+        #endif
+    }
+
     @Test
     func `automatic engine defaults to QuickJS`() {
         #expect(ProviderPluginRuntime.resolveEngineKind(
@@ -861,7 +880,9 @@ private actor TransportCancellationProbe {
     }
 
     func waitUntilCancelled() async {
-        if self.cancelled { return }
+        if self.cancelled {
+            return
+        }
         await withCheckedContinuation { continuation in
             self.waiters.append(continuation)
         }

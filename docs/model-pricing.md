@@ -20,6 +20,8 @@ CodexBar uses models.dev as an additive pricing source alongside bundled fallbac
 
 The pipeline lets future scanner code read the last valid cache synchronously with `ModelsDevPricingPipeline.lookup` and refresh stale metadata separately with `ModelsDevPricingPipeline.refreshIfNeeded`. If a refresh fails, the last valid cache remains usable.
 
+Catalog saves use a single atomic write on macOS and Linux, so refreshing an existing cache replaces its contents without removing the destination first. Successful saves invalidate the in-memory catalog memo.
+
 ## Lookup rules
 
 Pricing is scoped by provider id and model id. This prevents two providers with the same model id or display name from sharing pricing accidentally.

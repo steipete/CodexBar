@@ -16,7 +16,7 @@ enum CodexHistoryOwnership {
     static func canonicalKey(for identity: CodexIdentity) -> String? {
         switch identity {
         case let .providerAccount(id):
-            guard let normalized = Self.normalizeScopedValue(id) else { return nil }
+            guard let normalized = ManagedCodexAccount.normalizeWorkspaceAccountID(id) else { return nil }
             return "\(Self.providerAccountPrefix)\(normalized)"
         case let .emailOnly(normalizedEmail):
             guard let normalized = CodexIdentityResolver.normalizeEmail(normalizedEmail) else { return nil }
@@ -42,8 +42,8 @@ enum CodexHistoryOwnership {
         guard let normalizedKey = normalizeScopedValue(rawKey) else {
             return .legacyUnscoped
         }
-        if self.isCanonicalKey(normalizedKey) {
-            return .canonical(normalizedKey)
+        if let normalizedCanonicalKey = self.normalizedCanonicalKey(normalizedKey) {
+            return .canonical(normalizedCanonicalKey)
         }
         if let legacyEmailHash, normalizedKey == legacyEmailHash {
             return .legacyEmailHash(normalizedKey)
@@ -113,8 +113,15 @@ enum CodexHistoryOwnership {
         return true
     }
 
-    private static func isCanonicalKey(_ rawKey: String) -> Bool {
-        self.isCanonicalProviderAccountKey(rawKey) || self.isCanonicalEmailHashKey(rawKey)
+    private static func normalizedCanonicalKey(_ rawKey: String) -> String? {
+        if self.isCanonicalProviderAccountKey(rawKey) {
+            let rawAccountID = String(rawKey.dropFirst(self.providerAccountPrefix.count))
+            guard let accountID = ManagedCodexAccount.normalizeWorkspaceAccountID(rawAccountID) else {
+                return nil
+            }
+            return "\(self.providerAccountPrefix)\(accountID)"
+        }
+        return self.isCanonicalEmailHashKey(rawKey) ? rawKey : nil
     }
 
     static func isCanonicalProviderAccountKey(_ rawKey: String) -> Bool {

@@ -428,7 +428,8 @@ public struct LocalAgentSessionScanner: Sendable {
 
         let candidates = days.flatMap { day -> [(url: URL, modifiedAt: Date)] in
             let directory = root.appendingPathComponent(formatter.string(from: day), isDirectory: true)
-            return directoryBudget.files(in: directory, fileManager: fileManager).compactMap { file in
+            let files = directoryBudget.files(in: directory, fileManager: fileManager)
+            return directoryBudget.compactMapWhileTimeRemains(files) { file in
                 guard file.lastPathComponent.hasPrefix("rollout-"), file.pathExtension == "jsonl",
                       let modifiedAt = try? file.resourceValues(
                           forKeys: [.contentModificationDateKey]).contentModificationDate

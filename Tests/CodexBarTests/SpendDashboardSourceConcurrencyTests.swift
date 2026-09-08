@@ -951,8 +951,12 @@ private final class SpendDashboardTestSignal<Value: Sendable> {
 
     func wait(timeout: Duration = .seconds(5), ignoringCancellation: Bool = false) async throws -> Value {
         try await withTaskCancellationHandler {
-            if !ignoringCancellation { try Task.checkCancellation() }
-            if let result = self.result { return try result.get() }
+            if !ignoringCancellation {
+                try Task.checkCancellation()
+            }
+            if let result = self.result {
+                return try result.get()
+            }
             let deadline = ContinuousClock.now + timeout
             return try await withCheckedThrowingContinuation { continuation in
                 precondition(self.continuation == nil)
@@ -971,7 +975,7 @@ private final class SpendDashboardTestSignal<Value: Sendable> {
 }
 
 @MainActor
-private final class SpendDashboardStateWait {
+final class SpendDashboardStateWait {
     private var condition: (@MainActor () -> Bool)?
     private let signal = SpendDashboardTestSignal<Void>()
 
@@ -1001,7 +1005,7 @@ private final class SpendDashboardStateWait {
 
 @MainActor
 @Observable
-private final class SpendDashboardPendingLoads<Value: Sendable> {
+final class SpendDashboardPendingLoads<Value: Sendable> {
     private var pending: [SpendDashboardTestSignal<Value>] = []
     private(set) var isClosed = false
     private(set) var readinessWaiterCount = 0

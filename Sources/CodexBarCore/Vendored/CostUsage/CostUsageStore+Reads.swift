@@ -107,14 +107,6 @@ extension CostUsageStore {
         }
     }
 
-    /// Reads from the caller's current transaction. The save path uses this after acquiring
-    /// its writer lock so content identity and the following write share one SQLite snapshot.
-    func readSnapshotInCurrentTransaction() -> CostUsageStoreSnapshot {
-        self.withDatabase(default: Self.emptySnapshot) { database in
-            try Self.readSnapshot(database, recorder: self.scopedReadWorkRecorderForTesting)
-        }
-    }
-
     func configuration() -> CostUsageStoreConfiguration? {
         self.withDatabase(default: nil) { database in
             try CostUsageStoreConfiguration(
@@ -192,8 +184,9 @@ extension CostUsageStore {
             accumulators: [])
     }
 
-    private static func readSnapshot(
+    static func readSnapshot(
         _ database: OpaquePointer,
+        loadTokenSnapshots: Bool = true,
         recorder: CostUsageStoreReadWorkRecorder?) throws -> CostUsageStoreSnapshot
     {
         let snapshot = try CostUsageStoreSnapshot(
@@ -202,7 +195,8 @@ extension CostUsageStore {
                 database: database,
                 table: "scan_metadata") ?? .empty,
             files: self.readFiles(database, recorder: recorder),
-            tokenSnapshots: self.readTokenSnapshots(database, path: nil, recorder: recorder),
+            tokenSnapshots: loadTokenSnapshots
+                ? self.readTokenSnapshots(database, path: nil, recorder: recorder) : [],
             usageRows: self.readUsageRows(database, path: nil, recorder: recorder),
             fileDayAggregates: self.readFileDayAggregates(database, path: nil),
             dayAggregates: self.readDayAggregates(database, sinceDay: nil, untilDay: nil),
@@ -217,7 +211,11 @@ extension CostUsageStore {
                 database: database,
                 table: "lookback_state"),
             accumulators: self.readAccumulators(database, path: nil, recorder: recorder))
-        recorder?.recordFullSnapshot()
+        if loadTokenSnapshots {
+            recorder?.recordFullSnapshot()
+        } else {
+            recorder?.recordScannerSnapshot()
+        }
         return snapshot
     }
 

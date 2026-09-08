@@ -61,7 +61,11 @@ extension CodexAccountScopedRefreshTests {
         return "\(base64URL(header)).\(base64URL(payload))."
     }
 
-    func makeUsageStore(settings: SettingsStore, environmentBase: [String: String] = [:]) -> UsageStore {
+    func makeUsageStore(
+        settings: SettingsStore,
+        environmentBase: [String: String] = [:],
+        codexAccountUsageSnapshotStore: (any CodexAccountUsageSnapshotStoring)? = nil) -> UsageStore
+    {
         let root = CodexCredentialFixtures.root
             .appendingPathComponent("codexbar-tests", isDirectory: true)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -79,6 +83,7 @@ extension CodexAccountScopedRefreshTests {
             fetcher: UsageFetcher(environment: environment),
             browserDetection: BrowserDetection(homeDirectory: environment["HOME"] ?? root.path, cacheTTL: 0),
             settings: settings,
+            codexAccountUsageSnapshotStore: codexAccountUsageSnapshotStore,
             startupBehavior: .testing,
             environmentBase: environment)
     }
@@ -335,6 +340,7 @@ struct TestCodexFetchStrategy: ProviderFetchStrategy {
     var id = "test-codex"
     var kind: ProviderFetchKind = .cli
     var sourceLabel = "test-codex"
+    var codexMonthlyLimitEnrichmentFailed = false
 
     func isAvailable(_: ProviderFetchContext) async -> Bool {
         true
@@ -342,10 +348,14 @@ struct TestCodexFetchStrategy: ProviderFetchStrategy {
 
     func fetch(_: ProviderFetchContext) async throws -> ProviderFetchResult {
         let snapshot = try await self.loader()
-        return self.makeResult(
+        return ProviderFetchResult(
             usage: snapshot,
             credits: self.credits,
-            sourceLabel: self.sourceLabel)
+            dashboard: nil,
+            sourceLabel: self.sourceLabel,
+            strategyID: self.id,
+            strategyKind: self.kind,
+            codexMonthlyLimitEnrichmentFailed: self.codexMonthlyLimitEnrichmentFailed)
     }
 
     func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {

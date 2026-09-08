@@ -45,6 +45,7 @@
 "hooks_any_provider" = "Любой провайдер";
 "hooks_threshold" = "Запускать при использовании ≥";
 "hooks_threshold_placeholder" = "90";
+"hooks_executable" = "Исполняемый файл";
 "hooks_executable_placeholder" = "/usr/local/bin/my-command";
 "hooks_arguments_placeholder" = "Аргументы";
 "hooks_argument_placeholder" = "Аргумент";
@@ -516,7 +517,6 @@
 "provider_accent_color_reset" = "Использовать по умолчанию";
 "quota_warnings_title" = "Предупреждения о квотах";
 "quota_warning_session" = "сеанс";
-"quota_warning_session_capitalized" = "Сеанс";
 "quota_warning_weekly" = "неделя";
 "quota_warning_weekly_capitalized" = "Неделя";
 "quota_warning_notification_title" = "Низкая квота %1$@ %2$@";
@@ -1487,6 +1487,7 @@
 "Total usage" = "Общее использование";
 "claude_oauth_keychain_access_revoked" = "Доступ к Связке ключей Claude был отозван из-за ротации токена в Claude Code. Нажмите «Обновить», чтобы повторно предоставить доступ, или переключите источник использования Claude на CLI/Web.";
 "claude_showing_last_known_usage" = "Показаны последние известные данные об использовании (получены %@).";
+"claude_limited_usage_detail" = "Ограниченная детализация использования";
 /* Spend dashboard cost analysis */
 "90d" = "90d";
 "Input" = "Input";
@@ -1542,3 +1543,4 @@
 "menu_bar_layout_conditional_default_either_high" = "Сессия или неделя на высоком уровне";
 "menu_bar_layout_conditional_default_scoped_weekly" = "Недельное окно модели более 60 %";
 "Spending cap, not balance" = "Лимит расходов, не баланс";
+"%@ weekly" = "%@ за неделю";

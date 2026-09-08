@@ -172,10 +172,7 @@ struct SakanaUsageFetcherTests {
         #expect(snapshot.fiveHour?.usedPercent == 92)
         #expect(snapshot.payAsYouGo == nil)
         #expect(startedAt.duration(to: .now) < .milliseconds(500))
-        for _ in 0..<1000 where await !(transport.didCancelPayAsYouGo()) {
-            await Task.yield()
-        }
-        #expect(await transport.didCancelPayAsYouGo())
+        #expect(try await transport.waitForPayAsYouGoCancellation())
     }
 
     @Test
@@ -192,10 +189,7 @@ struct SakanaUsageFetcherTests {
                 session: transport)
         }
 
-        for _ in 0..<1000 where await !(transport.didCancelPayAsYouGo()) {
-            await Task.yield()
-        }
-        #expect(await transport.didCancelPayAsYouGo())
+        #expect(try await transport.waitForPayAsYouGoCancellation())
     }
 
     @Test
@@ -457,8 +451,13 @@ private actor SakanaScriptedTransport: ProviderHTTPTransport {
         self.capturedRequests
     }
 
-    func didCancelPayAsYouGo() -> Bool {
-        self.payAsYouGoWasCancelled
+    func waitForPayAsYouGoCancellation() async throws -> Bool {
+        // Stay below the optional request's five-second fallback timeout.
+        let deadline = ContinuousClock.now.advanced(by: .seconds(1))
+        while !self.payAsYouGoWasCancelled, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        return self.payAsYouGoWasCancelled
     }
 
     func data(for request: URLRequest) async throws -> (Data, URLResponse) {

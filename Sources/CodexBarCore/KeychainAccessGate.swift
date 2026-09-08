@@ -45,9 +45,7 @@ public enum KeychainAccessGate {
         if let storedOverrideForTesting { return storedOverrideForTesting }
         #endif
         if let overrideValue { return overrideValue }
-        if UserDefaults.standard.bool(forKey: Self.flagKey) { return true }
-        if let shared = AppGroupSupport.sharedDefaults(), shared.bool(forKey: Self.flagKey) { return true }
-        return false
+        return self.defaultsDisableAccess()
     }
 
     /// True when Keychain access was turned off by the user, environment, or an explicit test override.
@@ -65,8 +63,23 @@ public enum KeychainAccessGate {
         if let storedOverrideForTesting { return storedOverrideForTesting }
         #endif
         if let overrideValue { return overrideValue }
-        if UserDefaults.standard.bool(forKey: Self.flagKey) { return true }
-        if let shared = AppGroupSupport.sharedDefaults(), shared.bool(forKey: Self.flagKey) { return true }
+        return self.defaultsDisableAccess()
+    }
+
+    static func defaultsDisableAccess(
+        processName: String = ProcessInfo.processInfo.processName,
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        standardDefaults: () -> UserDefaults = { .standard },
+        sharedDefaults: () -> UserDefaults? = { AppGroupSupport.sharedDefaults() }) -> Bool
+    {
+        // The first setter reads the old explicit policy before installing its override. Automatic
+        // test suppression is not an explicit disable and must not bootstrap real defaults here.
+        guard !KeychainTestSafety.resolveShouldBlockRealKeychainAccess(
+            processName: processName,
+            environment: environment)
+        else { return false }
+        if standardDefaults().bool(forKey: self.flagKey) { return true }
+        if let shared = sharedDefaults(), shared.bool(forKey: Self.flagKey) { return true }
         return false
     }
 

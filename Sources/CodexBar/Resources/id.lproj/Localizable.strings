@@ -502,7 +502,6 @@
 "provider_accent_color_reset" = "Gunakan bawaan";
 "quota_warnings_title" = "Peringatan kuota";
 "quota_warning_session" = "sesi";
-"quota_warning_session_capitalized" = "Sesi";
 "quota_warning_weekly" = "mingguan";
 "quota_warning_weekly_capitalized" = "Mingguan";
 "quota_warning_notification_title" = "%1$@ kuota %2$@ rendah";
@@ -567,6 +566,7 @@
 "hooks_any_provider" = "Penyedia apa pun";
 "hooks_threshold" = "Picu saat penggunaan ≥";
 "hooks_threshold_placeholder" = "90";
+"hooks_executable" = "Berkas yang dapat dijalankan";
 "hooks_executable_placeholder" = "/usr/local/bin/my-command";
 "hooks_arguments_placeholder" = "Argumen";
 "hooks_argument_placeholder" = "Argumen";
@@ -1489,6 +1489,7 @@
 "Total usage" = "Total penggunaan";
 "claude_oauth_keychain_access_revoked" = "Akses Rantai Kunci Claude dicabut akibat rotasi token Claude Code. Klik Segarkan untuk memberikan akses lagi, atau ubah sumber penggunaan Claude ke CLI/Web.";
 "claude_showing_last_known_usage" = "Menampilkan penggunaan terakhir yang diketahui, diambil %@.";
+"claude_limited_usage_detail" = "Rincian penggunaan terbatas";
 /* Spend dashboard cost analysis */
 "90d" = "90d";
 "Input" = "Input";
@@ -1544,3 +1545,4 @@
 "menu_bar_layout_conditional_default_either_high" = "Sesi atau mingguan sedang tinggi";
 "menu_bar_layout_conditional_default_scoped_weekly" = "Mingguan per model di atas 60%";
 "Spending cap, not balance" = "Batas pengeluaran, bukan saldo";
+"%@ weekly" = "%@ mingguan";

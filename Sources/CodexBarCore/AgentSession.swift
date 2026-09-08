@@ -149,6 +149,22 @@ struct DirectoryMetadataScanBudget {
         clock() < self.deadline
     }
 
+    func compactMapWhileTimeRemains<Result>(
+        _ urls: [URL],
+        clock: () -> Date = Date.init,
+        transform: (URL) -> Result?) -> [Result]
+    {
+        var results: [Result] = []
+        for url in urls {
+            // Enumeration already charged the entry count; enrichment shares its deadline.
+            guard self.hasTimeRemaining(clock: clock) else { break }
+            if let result = transform(url) {
+                results.append(result)
+            }
+        }
+        return results
+    }
+
     private mutating func entries(
         in directory: URL,
         fileManager: FileManager,
@@ -168,6 +184,7 @@ struct DirectoryMetadataScanBudget {
             guard let url = enumerator.nextObject() as? URL else { break }
             self.remainingEntryCount -= 1
             self.didVisitEntry?()
+            guard self.hasTimeRemaining(clock: clock) else { break }
             let isDirectory = (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
             entries.append((url, isDirectory))
         }

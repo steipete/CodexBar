@@ -45,6 +45,7 @@
 "hooks_any_provider" = "任意提供商";
 "hooks_threshold" = "使用率 ≥ 时运行";
 "hooks_threshold_placeholder" = "90";
+"hooks_executable" = "可执行文件";
 "hooks_executable_placeholder" = "/usr/local/bin/my-command";
 "hooks_arguments_placeholder" = "参数";
 "hooks_argument_placeholder" = "参数";
@@ -523,7 +524,6 @@
 "provider_accent_color_reset" = "使用默认值";
 "quota_warnings_title" = "配额预警";
 "quota_warning_session" = "会话";
-"quota_warning_session_capitalized" = "会话";
 "quota_warning_weekly" = "每周";
 "quota_warning_weekly_capitalized" = "每周";
 "quota_warning_warn_at" = "预警阈值";
@@ -1486,6 +1486,7 @@
 "Total usage" = "总用量";
 "claude_oauth_keychain_access_revoked" = "Claude Code 轮换令牌后撤销了对 Claude 钥匙串的访问权限。点击“刷新”以重新授权，或将 Claude 用量来源切换为 CLI/Web。";
 "claude_showing_last_known_usage" = "正在显示 %@ 采集的最后已知用量。";
+"claude_limited_usage_detail" = "用量详情有限";
 
 "menu_bar_layout_token_conditional" = "条件";
 "menu_bar_layout_group_conditionals" = "条件";
@@ -1553,3 +1554,4 @@
 "in %@m" = "%@ 分钟后";
 "now" = "现在";
 "Spending cap, not balance" = "支出上限，并非余额";
+"%@ weekly" = "%@ 每周";

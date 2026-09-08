@@ -16,6 +16,7 @@ private enum QuickJSHostFunction: Int32 {
     case nextDailyReset
     case pct
     case amountFromPercent
+    case isDetailLabel
 }
 
 enum QuickJSRuntimeLimits {
@@ -466,6 +467,7 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
             (.nextDailyReset, "nextDailyReset", 2),
             (.pct, "pct", 2),
             (.amountFromPercent, "amountFromPercent", 2),
+            (.isDetailLabel, "isDetailLabel", 1),
         ] {
             let value = cqjs_new_host_function(self.context, function.rawValue, name, Int32(count))
             guard JS_SetPropertyStr(self.context, host, name, value) >= 0 else {
@@ -518,6 +520,9 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
                 return try self.hostPercentage(values)
             case .amountFromPercent:
                 return try self.hostAmountFromPercent(values)
+            case .isDetailLabel:
+                let label = try values.first.map { try self.string(from: $0) } ?? ""
+                return JS_NewBool(self.context, (try? ProviderDetailSection.Row(label: label, value: "—")) != nil)
             }
         } catch {
             return self.throwError(error)

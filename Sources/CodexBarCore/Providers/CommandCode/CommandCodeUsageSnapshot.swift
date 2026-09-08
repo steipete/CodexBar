@@ -84,7 +84,12 @@ public struct CommandCodeUsageSnapshot: Sendable {
 
     private func makeMonthlyWindow() -> RateWindow? {
         guard let total = self.monthlyCreditsTotal, total > 0 else {
-            // Free / unknown plan with no allowance — surface 100% so the bar renders empty.
+            // The grant size comes from the optional subscription lookup. When that lookup times out
+            // or fails, the plan is unknown rather than absent: reporting the free-tier reading below
+            // would show an untouched monthly bar for a paid plan that is partly or fully spent.
+            guard !self.subscriptionEnrichmentUnavailable else { return nil }
+            // Free tier: no monthly allowance exists to consume, so report 0% used while any
+            // spendable balance remains.
             if self.monthlyCreditsRemaining > 0 || self.purchasedCredits > 0 {
                 return RateWindow(
                     usedPercent: 0,

@@ -84,8 +84,10 @@ public enum KiroUsageLimitsError: LocalizedError, Sendable {
 }
 
 public enum KiroUsageLimitsAPI: Sendable {
-    /// Endpoint the official CLI resolves for `codewhispererruntime`.
-    static let defaultEndpoint = URL(string: "https://codewhisperer.us-east-1.amazonaws.com/")!
+    private static let profileEndpoints = [
+        "us-east-1": URL(string: "https://codewhisperer.us-east-1.amazonaws.com/")!,
+        "eu-central-1": URL(string: "https://q.eu-central-1.amazonaws.com/")!,
+    ]
     private static let target = "AmazonCodeWhispererService.GetUsageLimits"
     private static let contentType = "application/x-amz-json-1.0"
     private static let creditResource = "CREDIT"
@@ -95,8 +97,6 @@ public enum KiroUsageLimitsAPI: Sendable {
     /// Plausible Unix seconds for a billing reset: 2001-09-09 through 2100-01-01. A value outside
     /// this range is a unit change, not a date — milliseconds would land far beyond any real reset.
     private static let resetRange: ClosedRange<Double> = 1_000_000_000...4_102_444_800
-
-    private static let logger = CodexBarLog.logger(LogCategories.provider(.kiro, scope: "usage-api"))
 
     public static func stateDatabaseURL(
         homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
@@ -142,16 +142,22 @@ public enum KiroUsageLimitsAPI: Sendable {
     {
         try await self.fetch(
             databaseURL: self.stateDatabaseURL(homeDirectory: homeDirectory),
-            endpoint: self.defaultEndpoint,
             transport: self.isolatedTransport)
     }
 
     static func fetch(
         databaseURL: URL,
-        endpoint: URL,
         transport: any ProviderHTTPTransport) async throws -> KiroUsageLimits
     {
         let identity = try self.readIdentity(databaseURL: databaseURL)
+        let arn = identity.profileARN.split(separator: ":", maxSplits: 5, omittingEmptySubsequences: false)
+        guard arn.count == 6, arn[0] == "arn", arn[1] == "aws", arn[2] == "codewhisperer",
+              arn[5].hasPrefix("profile/"), arn[5].count > "profile/".count,
+              identity.profileARN.rangeOfCharacter(from: .whitespacesAndNewlines.union(.controlCharacters)) == nil,
+              let endpoint = self.profileEndpoints[String(arn[3])]
+        else {
+            throw KiroUsageLimitsError.credentialsUnavailable("unsupported profile ARN")
+        }
         var request = URLRequest(url: endpoint, timeoutInterval: self.requestTimeout)
         request.httpMethod = "POST"
         request.setValue(self.contentType, forHTTPHeaderField: "Content-Type")

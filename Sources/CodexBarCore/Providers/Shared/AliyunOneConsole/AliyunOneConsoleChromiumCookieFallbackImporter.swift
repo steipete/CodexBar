@@ -153,7 +153,7 @@ enum AliyunOneConsoleChromiumCookieFallbackImporter {
 
         for label in browser.safeStorageLabels {
             switch KeychainAccessPreflight.checkGenericPassword(service: label.service, account: label.account) {
-            case .interactionRequired:
+            case .interactionRequired, .temporarilyUnavailable:
                 sawDenied = true
                 continue
             case .allowed, .notFound, .failure:

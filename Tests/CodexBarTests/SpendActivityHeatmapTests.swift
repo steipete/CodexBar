@@ -485,14 +485,47 @@ struct SpendActivityHeatmapTests {
         #expect(centered == 500)
         #expect(trailing > 900)
         #expect(trailing <= gridWidth - width / 2)
-        #expect(SpendActivityGridGeometry.tooltipOriginY(
-            anchorY: 10,
-            tooltipHeight: 50,
-            gridHeight: 130) > 10)
-        #expect(SpendActivityGridGeometry.tooltipOriginY(
+    }
+
+    @Test
+    func `tooltip prefers sitting above the hovered cell when there is room`() {
+        let originY = SpendActivityGridGeometry.tooltipOriginY(
             anchorY: 120,
             tooltipHeight: 50,
-            gridHeight: 130) < 70)
+            gridHeight: 130)
+        #expect(originY == 120 - 50 - SpendActivityGridGeometry.tooltipGap)
+    }
+
+    @Test
+    func `tooltip never renders outside the grid when there is no room above`() {
+        let gridHeight: CGFloat = 130
+        let tooltipHeight: CGFloat = 50
+        for anchorY: CGFloat in [0, 10, 30] {
+            let originY = SpendActivityGridGeometry.tooltipOriginY(
+                anchorY: anchorY,
+                tooltipHeight: tooltipHeight,
+                gridHeight: gridHeight)
+            #expect(originY >= 0)
+            #expect(originY + tooltipHeight <= gridHeight)
+        }
+    }
+
+    @Test
+    func `tooltip compacts instead of overflowing a grid shorter than its full height`() {
+        // Roughly matches the grid produced at the supported 800pt minimum window width
+        // with the sidebar expanded to 380pt, where the heatmap has very little height to work with.
+        let gridHeight: CGFloat = 38
+        let height = SpendActivityGridGeometry.effectiveTooltipHeight(gridHeight: gridHeight)
+        #expect(height <= gridHeight)
+
+        for anchorY: CGFloat in [0, 10, 19, 30, gridHeight] {
+            let originY = SpendActivityGridGeometry.tooltipOriginY(
+                anchorY: anchorY,
+                tooltipHeight: height,
+                gridHeight: gridHeight)
+            #expect(originY >= 0)
+            #expect(originY + height <= gridHeight)
+        }
     }
 
     @Test

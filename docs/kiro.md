@@ -20,19 +20,25 @@ Kiro uses the AWS `kiro-cli` tool to fetch usage data. No browser cookies or OAu
      pipe output falls back to a pseudo-terminal within the same overall command deadline for older releases.
    - Requires `kiro-cli` installed and logged in via AWS Builder ID.
    - Output is ANSI-decorated; CodexBar strips escape sequences before parsing.
+   - Kiro CLI 2.20 summary output such as `Plan: KIRO PRO MAX | 1 usage breakdowns` is accepted
+     as a plan-only report. A breakdown count does not imply zero usage or an available allowance.
 
 2) **`GetUsageLimits` API** (overage enrichment, best effort)
    - The CLI report states credits against the plan alone and **omits the overage section entirely for
      organization accounts**, so it can never state the overage cap. The API carries the overage allowance
      on top of the plan, which is the ceiling an account actually spends against.
-   - Endpoint: `POST https://codewhisperer.us-east-1.amazonaws.com/`,
-     header `X-Amz-Target: AmazonCodeWhispererService.GetUsageLimits`, body `{"profileArn": ...}`.
+   - Endpoint follows the CLI profile ARN: US East uses `POST https://codewhisperer.us-east-1.amazonaws.com/`;
+     Frankfurt uses `POST https://q.eu-central-1.amazonaws.com/`. Invalid or unsupported profile ARNs skip enrichment.
+     Header `X-Amz-Target: AmazonCodeWhispererService.GetUsageLimits`, body `{"profileArn": ...}`.
    - Credentials come from the CLI's own state, opened **read-only** (the CLI owns the token and its refresh):
      `~/Library/Application Support/kiro-cli/data.sqlite3`
      - `auth_kv` key `kirocli:odic:token` → `access_token`
      - `state` key `api.codewhisperer.profile` → `arn`
+   - Regional endpoints follow [AWS profile-region routing](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/firewall.html), independently of the IAM Identity Center authentication region.
    - Runs after the CLI probe, so a token the CLI refreshed along the way is already in place.
-   - Failure is non-fatal: the plan-relative numbers the CLI produced stand. The API path depends on the CLI's
+   - Failure is non-fatal: the plan-relative numbers the CLI produced stand, or a plan-only report keeps
+     usage unavailable. An unambiguous positive API allowance can supply the missing plan metrics.
+     The API path depends on the CLI's
      private token store, which a Kiro release can move, whereas the CLI reads only its own published output.
 
 ## Output format (example)
@@ -52,6 +58,9 @@ Kiro uses the AWS `kiro-cli` tool to fetch usage data. No browser cookies or OAu
 ## Snapshot mapping
 
 - **Primary window**: Monthly plan credits percentage (bar meter).
+  - Omitted, along with numeric plan-credit rows, when a managed report or breakdown summary withholds
+    metrics and usable API enrichment is unavailable. The plan name remains visible. Bonus-inclusive API
+    totals and zero allowances do not replace the CLI plan metrics or invent a missing plan gauge.
   - `usedPercent`: extracted from `███...█ X%` pattern, or `planUsed / planLimit` when the API answered.
   - `resetsAt`: parsed from `resets on MM/DD` (assumes current or next year), or `nextDateReset` from the API.
 - **Secondary window**: Bonus credits (when present).

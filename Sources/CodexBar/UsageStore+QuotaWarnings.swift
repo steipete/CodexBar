@@ -259,11 +259,8 @@ extension UsageStore {
     }
 
     private func clearQuotaWarningState(provider: UsageProvider, window: QuotaWarningWindow) {
-        let keys = self.quotaWarningState.keys.filter {
-            $0.provider == provider && $0.window == window
-        }
-        for key in keys {
-            self.quotaWarningState.removeValue(forKey: key)
+        self.quotaWarningState = self.quotaWarningState.filter {
+            $0.key.provider != provider || $0.key.window != window
         }
     }
 

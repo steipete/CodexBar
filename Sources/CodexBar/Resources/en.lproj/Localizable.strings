@@ -8,6 +8,7 @@
 "ollama_browser_cookie_decryption_disabled" = "%@ cookie decryption is disabled in CodexBar; enable Keychain access and refresh.";
 "claude_oauth_keychain_access_revoked" = "Claude Keychain access was revoked by Claude Code's token rotation. Click Refresh to re-grant access, or switch Claude Usage source to CLI/Web.";
 "claude_showing_last_known_usage" = "Showing last-known usage captured %@.";
+"claude_limited_usage_detail" = "Limited usage detail";
 
 " providers" = " providers";
 "(System)" = "(System)";
@@ -480,7 +481,6 @@
 "provider_accent_color_reset" = "Use default";
 "quota_warnings_title" = "Quota warnings";
 "quota_warning_session" = "session";
-"quota_warning_session_capitalized" = "Session";
 "quota_warning_weekly" = "weekly";
 "quota_warning_weekly_capitalized" = "Weekly";
 "quota_warning_notification_title" = "%1$@ %2$@ quota low";
@@ -547,6 +547,7 @@
 "hooks_any_provider" = "Any provider";
 "hooks_threshold" = "Fire at usage ≥";
 "hooks_threshold_placeholder" = "90";
+"hooks_executable" = "Executable";
 "hooks_executable_placeholder" = "/usr/local/bin/my-command";
 "hooks_arguments_placeholder" = "Arguments";
 "hooks_argument_placeholder" = "Argument";
@@ -1544,3 +1545,4 @@
 "menu_bar_layout_conditional_default_either_high" = "Session or weekly running high";
 "menu_bar_layout_conditional_default_scoped_weekly" = "Scoped weekly over 60% used";
 "Spending cap, not balance" = "Spending cap, not balance";
+"%@ weekly" = "%@ weekly";

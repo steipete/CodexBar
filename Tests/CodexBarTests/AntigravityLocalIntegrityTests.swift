@@ -112,6 +112,23 @@ struct AntigravityLocalIntegrityTests {
     }
 
     @Test
+    func `embedded timestamps do not spend schema budget discovering optional steps`() throws {
+        let fixture = try Fixture()
+        let url = try fixture.database(blobs: [Fixture.blob()])
+        let database = try Fixture.open(url)
+        defer { sqlite3_close(database) }
+        try Fixture.execute(database, "CREATE TABLE unrelated (value INTEGER)")
+        var limits = AntigravityLocalReader.Limits()
+        limits.schemaEntries = 1
+
+        let report = try fixture.report(limits: limits)
+
+        #expect(report.coverage == .complete)
+        #expect(report.statistics.schemaEntries == 1)
+        #expect(report.statistics.rows == 1)
+    }
+
+    @Test
     func `copy guard derives length from the selected BLOB and rejects inconsistent declarations`() throws {
         let fixture = try Fixture()
         let database = try Fixture.open(fixture.database())

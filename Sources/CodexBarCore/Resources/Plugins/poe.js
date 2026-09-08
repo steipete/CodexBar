@@ -37,18 +37,12 @@ defineProvider({
       });
     }
     function entryDate(value) {
-      if (typeof value === "number" && Number.isFinite(value)) {
-        if (value > 100000000000000) return new Date(value / 1000);
-        if (value > 1000000000000) return new Date(value);
-        return new Date(value * 1000);
-      }
-      if (typeof value === "string" && value.trim()) {
-        const numeric = Number(value);
-        if (Number.isFinite(numeric)) return entryDate(numeric);
-        const date = new Date(value);
-        if (Number.isFinite(date.getTime())) return date;
-      }
-      return null;
+      if (typeof value !== "number" && (typeof value !== "string" || !value.trim())) return null;
+      const numeric = Number(value);
+      const date = Number.isFinite(numeric)
+        ? new Date(numeric > 100000000000000 ? numeric / 1000 : numeric > 1000000000000 ? numeric : numeric * 1000)
+        : new Date(value);
+      return Number.isFinite(date.getTime()) ? date : null;
     }
     function timeString(date) {
       const pad = (value) => String(value).padStart(2, "0");
@@ -68,7 +62,7 @@ defineProvider({
     const entries = [];
     try {
       let cursor = null;
-      const cutoff = Date.now() - 30 * 86400000;
+      const cutoff = ctx.date.nowMillis() - 30 * 86400000;
       for (let page = 0; page < 5; page += 1) {
         const query = cursor ? `?limit=100&starting_after=${encodeURIComponent(cursor)}` : "?limit=100";
         const response = await ctx.http.getJSON(`https://api.poe.com/usage/points_history${query}`);
@@ -116,48 +110,28 @@ defineProvider({
     const types = new Map();
     for (const entry of entries) {
       const day = entry.date.toISOString().slice(0, 10);
-      const bucket = daily.get(day) || { points: 0, requests: 0, cost: 0, hasCost: false };
-      bucket.points += entry.points;
-      bucket.requests += 1;
-      if (entry.cost !== null) {
-        bucket.cost += Math.max(0, entry.cost);
-        bucket.hasCost = true;
-      }
-      daily.set(day, bucket);
+      daily.set(day, (daily.get(day) || 0) + entry.points);
       models.set(entry.model, (models.get(entry.model) || 0) + entry.points);
       types.set(entry.usageType, (types.get(entry.usageType) || 0) + entry.points);
     }
     const days = Array.from(daily.entries()).sort((a, b) => a[0].localeCompare(b[0]));
-    const summarize = (count) =>
-      days.slice(-count).reduce(
-        (sum, item) => {
-          sum.points += item[1].points;
-          sum.requests += item[1].requests;
-          if (item[1].hasCost) {
-            sum.cost += item[1].cost;
+    const summarize = (rows) =>
+      rows.reduce(
+        (sum, entry) => {
+          sum.points += entry.points;
+          sum.requests += 1;
+          if (entry.cost !== null) {
+            sum.cost += Math.max(0, entry.cost);
             sum.hasCost = true;
           }
           return sum;
         },
         { points: 0, requests: 0, cost: 0, hasCost: false },
       );
-    const seven = summarize(7);
-    const thirty = summarize(30);
-    const now = new Date(Date.now());
-    const todayUTC = now.toISOString().slice(0, 10);
-    const todayEntries = entries.filter((entry) => entry.date.toISOString().slice(0, 10) === todayUTC);
-    const today = todayEntries.reduce(
-      (sum, entry) => {
-        sum.points += entry.points;
-        sum.requests += 1;
-        if (entry.cost !== null) {
-          sum.cost += Math.max(0, entry.cost);
-          sum.hasCost = true;
-        }
-        return sum;
-      },
-      { points: 0, requests: 0, cost: 0, hasCost: false },
-    );
+    const seven = summarize(entries.filter((entry) => entry.date.getTime() >= ctx.date.nowMillis() - 7 * 86400000));
+    const thirty = summarize(entries);
+    const todayUTC = ctx.date.now().toISOString().slice(0, 10);
+    const today = summarize(entries.filter((entry) => entry.date.toISOString().slice(0, 10) === todayUTC));
     const topModel = Array.from(models.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
     const topTypes = Array.from(types.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
     const rows = [];
@@ -195,7 +169,7 @@ defineProvider({
         kind: "bars",
         title: "Daily points",
         unit: "points",
-        points: days.map((item) => ({ label: item[0], value: item[1].points })),
+        points: days.map((item) => ({ label: item[0], value: item[1] })),
       };
     }
     const result = { details: [section], identity: {} };

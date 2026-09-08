@@ -90,10 +90,13 @@ struct CostUsageStoreCutoverTests {
         defer { env.cleanup() }
         let day = try env.makeLocalNoon(year: 2026, month: 8, day: 8)
         let timestamp = env.isoString(for: day)
+        let prefixCount = 4096
+        let prefix = Self.session(timestamp: timestamp, sessionID: "linear", input: 1)
+            + (2...prefixCount).map { Self.tokenLine(timestamp: timestamp, input: $0) + "\n" }.joined()
         let fileURL = try env.writeCodexSessionFile(
             day: day,
             filename: "linear.jsonl",
-            contents: Self.session(timestamp: timestamp, sessionID: "linear", input: 1))
+            contents: prefix)
         var options = CostUsageScanner.Options(
             codexSessionsRoot: env.codexSessionsRoot,
             cacheRoot: env.cacheRoot)
@@ -105,7 +108,7 @@ struct CostUsageStoreCutoverTests {
             now: day,
             options: options)
 
-        try Self.append(Self.tokenLine(timestamp: timestamp, input: 2) + "\n", to: fileURL)
+        try Self.append(Self.tokenLine(timestamp: timestamp, input: prefixCount + 1) + "\n", to: fileURL)
         let appendRecorder = CostUsageScanner.CodexScanWorkRecorder()
         options.codexScanWorkRecorderForTesting = appendRecorder
         let appended = CostUsageScanner.loadDailyReport(
@@ -116,12 +119,14 @@ struct CostUsageStoreCutoverTests {
             options: options)
         #expect(appendRecorder.snapshot().usageRowsProcessed == 1)
         #expect(appendRecorder.snapshot().usageRowsRepriced == 1)
+        #expect(appendRecorder.snapshot().tokenTimestampComparisons == 1)
+        #expect(appended.summary?.totalInputTokens == prefixCount + 1)
 
         let cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         let path = try #require(cache.files.keys.first { $0.hasSuffix("linear.jsonl") })
         let store = CostUsageStore(cacheRoot: env.cacheRoot)
-        #expect(await store.fetchUsageRows(path: path).count == 2)
-        #expect(await store.fetchAccumulator(path: path)?.eventCount == 2)
+        #expect(await store.fetchUsageRows(path: path).count == prefixCount + 1)
+        #expect(await store.fetchAccumulator(path: path)?.eventCount == prefixCount + 1)
 
         let stableRecorder = CostUsageScanner.CodexScanWorkRecorder()
         options.codexScanWorkRecorderForTesting = stableRecorder
@@ -133,8 +138,51 @@ struct CostUsageStoreCutoverTests {
             options: options)
         #expect(stableRecorder.snapshot().usageRowsProcessed == 0)
         #expect(stableRecorder.snapshot().usageRowsRepriced == 0)
+        #expect(stableRecorder.snapshot().tokenTimestampComparisons == 0)
+        #expect(cache.files[path]?.codexTokenTimestampsMonotonic == true)
         #expect(stable.data == appended.data)
         #expect(stable.summary == appended.summary)
+    }
+
+    @Test(arguments: ["unknown", "false", "true"])
+    func `reopened append preserves saved timestamp order state and checkpoints`(_ state: String) throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 8, day: 8)
+        let timestamp = env.isoString(for: day)
+        let file = try env.writeCodexSessionFile(
+            day: day,
+            filename: "reopened.jsonl",
+            contents: Self.session(timestamp: timestamp, sessionID: "reopened", input: 1)
+                + Self.tokenLine(timestamp: timestamp, input: 2) + "\n")
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot, cacheRoot: env.cacheRoot)
+        options.refreshMinIntervalSeconds = 0
+        _ = CostUsageScanner.loadDailyReport(provider: .codex, since: day, until: day, now: day, options: options)
+        var cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, calendar: options.calendar)
+        let path = try #require(cache.files.keys.first { $0.hasSuffix("reopened.jsonl") })
+        let prefixCheckpoints = try #require(cache.files[path]?.codexTokenCheckpoints)
+        #expect(prefixCheckpoints.last?.state.countedTotals?.input == 2)
+        cache.files[path]?.codexTokenTimestampsMonotonic = state == "unknown" ? nil : state == "true"
+        let key = CostUsageScanner.CostUsageDayRange.dayKey(from: day, calendar: options.calendar)
+        _ = CostUsageStore(cacheRoot: env.cacheRoot).syncSaveCodexCache(
+            cache, calendar: options.calendar, requestedScanWindow: (key, key))
+        let reopened = CostUsageStore(cacheRoot: env.cacheRoot).syncLoadCodexCache(calendar: options.calendar)
+        #expect(reopened.files[path]?.codexTokenTimestampsMonotonic == cache.files[path]?.codexTokenTimestampsMonotonic)
+        try Self.append(Self.tokenLine(timestamp: timestamp, input: 3) + "\n", to: file)
+        let recorder = CostUsageScanner.CodexScanWorkRecorder()
+        options.codexScanWorkRecorderForTesting = recorder
+        let report = CostUsageScanner.loadDailyReport(
+            provider: .codex, since: day, until: day, now: day.addingTimeInterval(1), options: options)
+        #expect(report.summary?.totalInputTokens == 3)
+        #expect(recorder.snapshot().tokenTimestampComparisons == (state == "unknown" ? 2 : state == "true" ? 1 : 0))
+        let final = CostUsageStore(cacheRoot: env.cacheRoot).syncLoadCodexCache(calendar: options.calendar)
+        let usage = try #require(final.files[path])
+        #expect(usage.codexTokenTimestampsMonotonic == (state != "false"))
+        #expect(usage.codexTokenSnapshots?.count == 3)
+        #expect(usage.codexTokenCheckpoints?.last?.endOffset == usage.parsedBytes)
+        #expect(usage.codexTokenCheckpoints?.last?.eventIndex == 2)
+        #expect(usage.codexTokenCheckpoints?.last?.state.countedTotals?.input == 3)
     }
 
     private static func staleStoreFile() -> CostUsageStoreFile {

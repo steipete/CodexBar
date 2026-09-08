@@ -70,18 +70,22 @@ struct OpenCodeGoLocalUsageReaderTests {
 
         try Self.writeAuth(to: env.authURL)
         try Self.createDatabase(at: env.databaseURL)
-        // Expected keys below use the same device-local calendar convention as production.
+        // Fixed UTC hours can straddle local midnight, for example in Sydney.
+        let reference = Date(timeIntervalSince1970: TimeInterval(Self.ms("2026-03-06T15:00:00.000Z")) / 1000)
+        let currentDay = Calendar.current.startOfDay(for: reference)
+        let previousDay = try #require(Calendar.current.date(byAdding: .day, value: -1, to: currentDay))
+        let now = currentDay.addingTimeInterval(12 * 3600)
         try Self.insertMessage(
             databaseURL: env.databaseURL,
-            createdMs: Self.ms("2026-03-06T12:00:00.000Z"),
+            createdMs: Self.ms(currentDay.addingTimeInterval(3600)),
             cost: 3.0)
         try Self.insertMessage(
             databaseURL: env.databaseURL,
-            createdMs: Self.ms("2026-03-06T13:00:00.000Z"),
+            createdMs: Self.ms(currentDay.addingTimeInterval(2 * 3600)),
             cost: 1.5)
         try Self.insertMessage(
             databaseURL: env.databaseURL,
-            createdMs: Self.ms("2026-03-05T12:00:00.000Z"),
+            createdMs: Self.ms(previousDay.addingTimeInterval(3600)),
             cost: 6.0)
         try Self.insertMessage(
             databaseURL: env.databaseURL,
@@ -89,13 +93,10 @@ struct OpenCodeGoLocalUsageReaderTests {
             cost: 100.0)
 
         let reader = OpenCodeGoLocalUsageReader(authURL: env.authURL, databaseURL: env.databaseURL)
-        let now = Date(timeIntervalSince1970: TimeInterval(Self.ms("2026-03-06T15:00:00.000Z")) / 1000)
         let snapshot = try reader.fetch(now: now, historyDays: 30)
 
-        let previousDayKey = CostUsageScanner.CostUsageDayRange.dayKey(
-            from: Date(timeIntervalSince1970: TimeInterval(Self.ms("2026-03-05T12:00:00.000Z")) / 1000))
-        let currentDayKey = CostUsageScanner.CostUsageDayRange.dayKey(
-            from: Date(timeIntervalSince1970: TimeInterval(Self.ms("2026-03-06T12:00:00.000Z")) / 1000))
+        let previousDayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: previousDay)
+        let currentDayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: currentDay)
         #expect(snapshot.daily.map(\.date) == [previousDayKey, currentDayKey])
         #expect(snapshot.daily.first?.costUSD == 6.0)
         #expect(snapshot.daily.first?.requestCount == 1)
@@ -260,24 +261,26 @@ struct OpenCodeGoLocalUsageReaderTests {
 
         try Self.writeAuth(to: env.authURL)
         try Self.createDatabase(at: env.databaseURL)
+        let reference = Date(timeIntervalSince1970: TimeInterval(Self.ms("2026-03-06T15:00:00.000Z")) / 1000)
+        let day = Calendar.current.startOfDay(for: reference)
+        let now = day.addingTimeInterval(12 * 3600)
         try Self.insertMessage(
             databaseURL: env.databaseURL,
-            createdMs: Self.ms("2026-03-06T11:00:00.000Z"),
+            createdMs: Self.ms(day.addingTimeInterval(3600)),
             cost: 3.0,
             model: "claude-sonnet-4-5")
         try Self.insertMessage(
             databaseURL: env.databaseURL,
-            createdMs: Self.ms("2026-03-06T12:00:00.000Z"),
+            createdMs: Self.ms(day.addingTimeInterval(2 * 3600)),
             cost: 2.0,
             model: "gpt-5.1-codex")
         try Self.insertMessage(
             databaseURL: env.databaseURL,
-            createdMs: Self.ms("2026-03-06T13:00:00.000Z"),
+            createdMs: Self.ms(day.addingTimeInterval(3 * 3600)),
             cost: 1.0,
             model: "claude-sonnet-4-5")
 
         let reader = OpenCodeGoLocalUsageReader(authURL: env.authURL, databaseURL: env.databaseURL)
-        let now = Date(timeIntervalSince1970: TimeInterval(Self.ms("2026-03-06T15:00:00.000Z")) / 1000)
         let snapshot = try reader.fetch(now: now, historyDays: 30)
 
         #expect(snapshot.daily.count == 1)

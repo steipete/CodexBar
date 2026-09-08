@@ -4,6 +4,38 @@ import Testing
 @testable import CodexBarCore
 
 struct CostUsageScannerPriorityTests {
+    @Test(arguments: [(100_000, 20000, 10000, 2.64), (300_000, 100_000, 20000, 11.4)])
+    func `Astra native priority traces price short and long requests`(
+        input: Int, cached: Int, output: Int, expected: Double) throws
+    {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 9, day: 4)
+        let timestamp = env.isoString(for: day)
+        let entries: [[String: Any]] = [
+            ["type": "turn_context", "timestamp": timestamp, "payload": ["model": "gpt-6-astra"]],
+            ["type": "event_msg", "timestamp": timestamp, "payload": [
+                "type": "task_started", "turn_id": "priority-turn",
+            ]],
+            self.tokenCount(timestamp: timestamp, input: input, cached: cached, output: output),
+        ]
+        _ = try env.writeCodexSessionFile(day: day, filename: "astra.jsonl", contents: env.jsonl(entries))
+        let dbURL = env.root.appendingPathComponent("logs_2.sqlite")
+        try CostUsageScannerCodexPriorityTests.createTestLogsDatabase(at: dbURL)
+        try self.insertPriorityTrace(dbURL: dbURL, timestamp: timestamp, model: "gpt-6-astra")
+        let options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            cacheRoot: env.cacheRoot,
+            codexTraceDatabaseURL: dbURL,
+            forceRescan: true)
+        let report = CostUsageScanner.loadDailyReport(
+            provider: .codex, since: day, until: day, now: day, options: options)
+        let breakdown = try #require(report.data.first?.modelBreakdowns?.first)
+        #expect(try abs(#require(breakdown.priorityCostUSD) - expected) < 1e-12)
+        #expect(try abs(#require(report.summary?.totalCostUSD) - expected) < 1e-12)
+        #expect(breakdown.priorityTokens == input + output)
+    }
+
     @Test
     func `codex daily report applies gpt55 priority rates`() throws {
         let env = try CostUsageTestEnvironment()

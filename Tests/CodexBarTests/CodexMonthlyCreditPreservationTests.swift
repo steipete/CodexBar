@@ -35,6 +35,7 @@ struct CodexMonthlyCreditPreservationTests {
         #expect(merged?.codexCreditLimit?.used == 27)
         #expect(merged?.codexCreditLimit?.limit == 1000)
         #expect(merged?.updatedAt == prior.codexCreditLimit?.updatedAt)
+        #expect(merged?.balanceReadSucceeded == false)
     }
 
     @Test
@@ -316,15 +317,25 @@ extension CodexAccountScopedRefreshTests {
                 remainingPercent: 97.3,
                 resetsAt: nil,
                 updatedAt: Date()))
+        let ownerGuard = CodexAccountScopedRefreshGuard(
+            source: .liveSystem,
+            identity: .emailOnly(normalizedEmail: "biz@example.com"),
+            accountKey: "biz@example.com")
 
-        store.publishHydratedCodexCreditsIfNeeded(from: persisted, accountKey: "biz@example.com")
+        store.publishHydratedCodexCreditsIfNeeded(from: persisted, ownerGuard: ownerGuard)
         #expect(store.credits?.codexCreditLimit?.limit == 1000)
         #expect(store.lastCreditsSnapshot?.codexCreditLimit?.used == 27)
         #expect(store.lastCreditsSnapshotAccountKey == "biz@example.com")
+        #expect(store.lastCreditsSnapshotOwnerGuard == ownerGuard)
         #expect(store.lastCreditsSource == .api)
 
         let other = CreditsSnapshot(remaining: 4, events: [], updatedAt: Date())
-        store.publishHydratedCodexCreditsIfNeeded(from: other, accountKey: "other@example.com")
+        store.publishHydratedCodexCreditsIfNeeded(
+            from: other,
+            ownerGuard: CodexAccountScopedRefreshGuard(
+                source: .liveSystem,
+                identity: .emailOnly(normalizedEmail: "other@example.com"),
+                accountKey: "other@example.com"))
         #expect(store.credits?.codexCreditLimit?.limit == 1000)
         #expect(store.lastCreditsSnapshotAccountKey == "biz@example.com")
     }
@@ -349,6 +360,7 @@ extension CodexAccountScopedRefreshTests {
             canReauthenticate: false,
             canRemove: false)
         let usage = self.codexSnapshot(email: "biz@example.com", usedPercent: 12)
+        let candidate = CodexWeeklyResetPublicationCandidate(firstObservedAt: usage.updatedAt, snapshot: usage)
         store._setSnapshotForTesting(usage, provider: .codex)
         store.codexAccountSnapshots = [
             CodexAccountUsageSnapshot(
@@ -356,7 +368,8 @@ extension CodexAccountScopedRefreshTests {
                 snapshot: usage,
                 error: nil,
                 sourceLabel: "api",
-                credits: nil),
+                credits: nil,
+                weeklyResetCandidate: candidate),
         ]
         let published = CreditsSnapshot(
             remaining: 0,
@@ -374,12 +387,14 @@ extension CodexAccountScopedRefreshTests {
         await store.refreshCreditsIfNeeded()
         #expect(store.credits?.codexCreditLimit?.limit == 1000)
         #expect(store.codexAccountSnapshots.first?.credits?.codexCreditLimit?.used == 27)
+        #expect(store.codexAccountSnapshots.first?.weeklyResetCandidate?.createdAt == candidate.createdAt)
 
         store.credits = nil
         store.lastCreditsSnapshot = nil
         store.lastCreditsSource = .none
         store.persistPublishedCodexCreditsIntoAccountSnapshotsIfNeeded()
         #expect(store.codexAccountSnapshots.first?.credits == nil)
+        #expect(store.codexAccountSnapshots.first?.weeklyResetCandidate?.createdAt == candidate.createdAt)
     }
 
     @Test
@@ -423,11 +438,13 @@ extension CodexAccountScopedRefreshTests {
                 sourceLabel: "api",
                 credits: nil),
         ]
-        store.lastCodexAccountScopedRefreshGuard = CodexAccountScopedRefreshGuard(
+        let ownerGuard = CodexAccountScopedRefreshGuard(
             source: .liveSystem,
             identity: .providerAccount(id: "acct-biz"),
             accountKey: "biz@example.com")
+        store.lastCodexAccountScopedRefreshGuard = ownerGuard
         store.lastCreditsSnapshotAccountKey = "biz@example.com"
+        store.lastCreditsSnapshotOwnerGuard = ownerGuard
         store.credits = CreditsSnapshot(
             remaining: 0,
             events: [],

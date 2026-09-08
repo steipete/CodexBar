@@ -60,6 +60,22 @@ struct CodexCostCatchUpPolicyTests {
     }
 
     @Test
+    func `automatic mode keeps thermal precedence over low power mode`() {
+        for powerSource in [CodexCostCatchUpPowerSource.ac, .unknown, .battery] {
+            let decision = CodexCostCatchUpPolicy().decision(for: .init(
+                mode: .automatic,
+                previousActiveDuration: 2,
+                powerSource: powerSource,
+                lowPowerModeEnabled: true,
+                thermalState: .serious))
+
+            #expect(decision == .init(
+                action: .pause(CodexCostCatchUpPolicy.constrainedRetryDelay, .thermal),
+                targetDutyCycle: nil))
+        }
+    }
+
+    @Test
     func `accelerated mode ignores low power but not critical thermal pressure`() {
         let lowPowerDecision = CodexCostCatchUpPolicy().decision(for: .init(
             mode: .accelerated,

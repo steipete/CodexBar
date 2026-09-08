@@ -45,6 +45,7 @@
 "hooks_any_provider" = "Nhà cung cấp bất kỳ";
 "hooks_threshold" = "Chạy khi mức sử dụng ≥";
 "hooks_threshold_placeholder" = "90";
+"hooks_executable" = "Tệp thực thi";
 "hooks_executable_placeholder" = "/usr/local/bin/my-command";
 "hooks_arguments_placeholder" = "Đối số";
 "hooks_argument_placeholder" = "Đối số";
@@ -511,7 +512,6 @@
 "provider_accent_color_reset" = "Dùng mặc định";
 "quota_warnings_title" = "Hạn mức cảnh báo";
 "quota_warning_session" = "phiên";
-"quota_warning_session_capitalized" = "Phiên";
 "quota_warning_weekly" = "hàng tuần";
 "quota_warning_weekly_capitalized" = "Hàng tuần";
 "quota_warning_notification_title" = "%1$@ %2$@ Hạn mức thấp";
@@ -1049,8 +1049,8 @@
 "Source" = "Nguồn";
 "State" = "Trạng thái";
 "Unavailable" = "Không có sẵn";
-"Weekly" = "Không phát hiện được";
-"not detected" = "hàng tuần";
+"Weekly" = "Hàng tuần";
+"not detected" = "Không phát hiện được";
 "Estimated from local Codex logs for the selected account." = "Được ước tính từ nhật ký Codex cục bộ cho tài khoản đã chọn.";
 "minimax_usage_amount_format" = "Mức sử dụng : %@ / %@";
 "minimax_used_percent_format" = "Đã sử dụng %@";
@@ -1486,6 +1486,7 @@
 "Total usage" = "Tổng mức sử dụng";
 "claude_oauth_keychain_access_revoked" = "Quyền truy cập Chuỗi khóa Claude đã bị thu hồi do Claude Code xoay vòng mã thông báo. Nhấp vào Làm mới để cấp lại quyền truy cập hoặc chuyển nguồn sử dụng Claude sang CLI/Web.";
 "claude_showing_last_known_usage" = "Đang hiển thị mức sử dụng đã biết gần nhất, được ghi nhận %@.";
+"claude_limited_usage_detail" = "Thông tin sử dụng ít chi tiết";
 /* Spend dashboard cost analysis */
 "90d" = "90d";
 "Input" = "Input";
@@ -1542,3 +1543,4 @@
 "menu_bar_layout_conditional_default_either_high" = "Phiên hoặc tuần đang ở mức cao";
 "menu_bar_layout_conditional_default_scoped_weekly" = "Tuần theo mô hình đã dùng trên 60%";
 "Spending cap, not balance" = "Hạn mức chi tiêu, không phải số dư";
+"%@ weekly" = "%@ hàng tuần";

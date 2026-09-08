@@ -215,7 +215,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var _test_openMenuRebuildObserver: (@MainActor (NSMenu) -> Void)?
     var _test_providerSwitcherMenuRebuildDebounceNanoseconds: UInt64?
     var _test_codexAmbientLoginRunnerOverride:
-        (@MainActor (TimeInterval) async -> CodexLoginRunner.Result)?
+        (@MainActor (TimeInterval) async -> CLILoginRunner.Result)?
     #endif
     var manualRefreshViewportRestoreState = ManualRefreshViewportRestoreState()
     var blinkTask: Task<Void, Never>?

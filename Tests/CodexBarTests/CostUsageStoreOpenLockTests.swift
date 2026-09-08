@@ -49,7 +49,7 @@ extension CostUsageStoreTests {
         try holder.execute("BEGIN IMMEDIATE")
         try holder.execute("INSERT OR REPLACE INTO meta(key, value) VALUES ('holder', '1')")
 
-        let current = CostUsageStore(cacheRoot: fixture.root)
+        let current = CostUsageStore(cacheRoot: fixture.root, busyTimeoutMilliseconds: 25)
         #expect(await current.fetchFile(path: file.path) == nil)
         #expect(await current.rebuildCount == 0)
         #expect(FileManager.default.fileExists(atPath: current.databaseURL.path))

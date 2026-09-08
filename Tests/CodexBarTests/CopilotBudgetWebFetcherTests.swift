@@ -5,6 +5,44 @@ import Testing
 @Suite(.serialized)
 struct CopilotBudgetWebFetcherTests {
     @Test
+    func `enterprise quota never starts public GitHub budget enrichment`() async {
+        let registered = URLProtocol.registerClass(CopilotBudgetBindingStubURLProtocol.self)
+        defer {
+            if registered {
+                URLProtocol.unregisterClass(CopilotBudgetBindingStubURLProtocol.self)
+            }
+            CopilotBudgetBindingStubURLProtocol.reset()
+        }
+        CopilotBudgetBindingStubURLProtocol.reset()
+        CopilotBudgetBindingStubURLProtocol.handler = { request in
+            guard let url = request.url else { throw URLError(.badURL) }
+            #expect(url.host == "api.example.ghe.com")
+            #expect(url.path == "/copilot_internal/user")
+            return Self.stubResponse(url: url, data: Data("""
+            {"copilot_plan":"business","quota_snapshots":{"premium_interactions":{
+              "entitlement":300,"remaining":240,"percent_remaining":80,"quota_id":"premium"}}}
+            """.utf8))
+        }
+        let settings = ProviderSettingsSnapshot.make(copilot: .init(
+            apiToken: "enterprise-fixture-token",
+            enterpriseHost: "example.ghe.com",
+            selectedAccountExternalIdentifier: "github:api.example.ghe.com:user:42",
+            budgetExtrasEnabled: true,
+            budgetCookieSource: .manual,
+            manualBudgetCookieHeader: "user_session=public-fixture"))
+        let descriptor = ProviderDescriptorRegistry.descriptor(for: .copilot)
+        let outcome = await descriptor.fetchPlan.fetchOutcome(
+            context: Self.makeFetchContext(settings: settings), provider: .copilot)
+        guard case let .success(result) = outcome.result else {
+            Issue.record("Enterprise quota should remain available")
+            return
+        }
+        #expect(result.usage.primary?.usedPercent == 20)
+        #expect(result.usage.extraRateWindows == nil)
+        #expect(CopilotBudgetBindingStubURLProtocol.requests().count == 1)
+    }
+
+    @Test
     func `maps positive copilot budgets to extra rate windows`() {
         let budgets: [CopilotBudgetWebFetcher.Budget] = [
             .init(
@@ -681,6 +719,8 @@ final class CopilotBudgetBindingStubURLProtocol: URLProtocol {
         guard request.url?.scheme == "https" else { return false }
         switch (request.url?.host, request.url?.path) {
         case ("api.github.com", "/copilot_internal/user"),
+             ("api.example.ghe.com", "/copilot_internal/user"),
+             ("api.example.ghe.com", "/user"),
              ("api.github.com", "/user"),
              ("github.com", "/settings/billing/budgets"):
             return true

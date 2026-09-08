@@ -94,6 +94,28 @@ struct CostUsageCatchUpProgressTests {
     }
 
     @Test
+    func `progress tracks a resumable generation target change`() {
+        let path = "/sessions/unfinished.jsonl"
+        var unfinished = CostUsageScanner.makeFileUsage(
+            mtimeUnixMs: 1,
+            size: 200,
+            days: [:],
+            parsedBytes: 100,
+            codexScanFileId: "1:1",
+            codexScanTargetSize: 150,
+            codexScanComplete: false)
+        let initial = CostUsageFetcher.codexScanProgressKey(
+            cache: CostUsageCache(),
+            scopedFiles: [path: unfinished])
+        unfinished.codexScanTargetSize = 175
+        let retargeted = CostUsageFetcher.codexScanProgressKey(
+            cache: CostUsageCache(),
+            scopedFiles: [path: unfinished])
+
+        #expect(retargeted != initial)
+    }
+
+    @Test
     func `progress tracks completed aggregate for existing file backlog`() {
         let path = "/sessions/existing.jsonl"
         let usage = CostUsageScanner.makeFileUsage(

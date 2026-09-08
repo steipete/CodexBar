@@ -41,7 +41,7 @@ struct OverviewSpendSummaryTests {
 
         #expect(summary.primarySpendText == "~$759.56")
         #expect(summary.providerCoverageText == "3 of 4 subscriptions have spend")
-        #expect(summary.tokenText == "~15.7M tokens")
+        #expect(summary.tokenText == "~\(15.7.formatted())M tokens")
         #expect(summary.historyCoverageText == "Coverage: 30 / 30")
         #expect(summary.pricingCoverageText == "Priced 3 · Unpriced 1 · Unmetered 0 · Estimated 0")
         #expect(summary.provenanceText == "List-price equivalent")
@@ -165,7 +165,21 @@ struct OverviewSpendSummaryTests {
         coverage: CostUsageCoverageCounts? = nil,
         provenance: CostProvenance = .listPriceEstimate) -> SpendDashboardModel.CurrencyGroup
     {
-        SpendDashboardModel.CurrencyGroup(
+        let counts = coverage ?? CostUsageCoverageCounts(priced: providers.count)
+        var accumulator = CostUsageCoverageAccumulator()
+        accumulator.add(.init(
+            date: "2026-08-30",
+            inputTokens: nil,
+            outputTokens: nil,
+            totalTokens: totalTokens,
+            costUSD: totalCost,
+            modelsUsed: nil,
+            modelBreakdowns: nil,
+            unpricedRequestCount: counts.unpriced,
+            unmeteredRequestCount: counts.unmetered,
+            estimatedRequestCount: counts.estimated,
+            pricedRequestCount: counts.priced))
+        return SpendDashboardModel.CurrencyGroup(
             currencyCode: currencyCode,
             providers: providers,
             models: [],
@@ -176,7 +190,7 @@ struct OverviewSpendSummaryTests {
             coveredDayCount: coveredDayCount,
             chartDomain: Date(timeIntervalSince1970: 0)...Date(timeIntervalSince1970: 86400),
             modelHistoryCompleteness: totalCost == nil ? .incomplete : .complete,
-            coverage: coverage ?? CostUsageCoverageCounts(priced: providers.count),
+            coverageAccumulator: accumulator,
             provenance: provenance)
     }
 }

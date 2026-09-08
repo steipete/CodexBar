@@ -7,7 +7,7 @@ extension OpenAIDashboardFetcher {
         let webView: WKWebView
         let apiData: DashboardAPIData?
         let verifiedSignedInEmail: String?
-        let subscription: OpenAISubscriptionMetadata?
+        let subscriptionResult: OpenAISubscriptionFetchResult
         let previousSnapshot: OpenAIDashboardSnapshot?
         let deadline: Date
         let startedAt: Date
@@ -35,7 +35,7 @@ extension OpenAIDashboardFetcher {
         let webView = context.webView
         let apiData = context.apiData
         let verifiedSignedInEmail = context.verifiedSignedInEmail
-        let subscription = context.subscription
+        let subscriptionResult = context.subscriptionResult
         let previousSnapshot = context.previousSnapshot
         let deadline = context.deadline
         let startedAt = context.startedAt
@@ -173,7 +173,7 @@ extension OpenAIDashboardFetcher {
                 return Self.makePageSnapshot(
                     scrape: scrape,
                     dashboardData: dashboardData,
-                    subscription: subscription,
+                    subscriptionResult: subscriptionResult,
                     previousSnapshot: previousSnapshot)
             }
 
@@ -185,7 +185,7 @@ extension OpenAIDashboardFetcher {
             return Self.snapshotByMergingAPI(
                 apiData: apiData,
                 verifiedEmail: verifiedSignedInEmail,
-                subscription: subscription,
+                subscriptionResult: subscriptionResult,
                 previous: previousSnapshot)
         }
 
@@ -198,7 +198,7 @@ extension OpenAIDashboardFetcher {
     nonisolated static func makePageSnapshot(
         scrape: ScrapeResult,
         dashboardData: DashboardScrapeData,
-        subscription: OpenAISubscriptionMetadata?,
+        subscriptionResult: OpenAISubscriptionFetchResult,
         previousSnapshot: OpenAIDashboardSnapshot?) -> OpenAIDashboardSnapshot
     {
         self.fillingMissingPageFields(
@@ -215,9 +215,9 @@ extension OpenAIDashboardFetcher {
                 creditsRemaining: dashboardData.creditsRemaining,
                 codexCreditLimit: dashboardData.codexCreditLimit,
                 accountPlan: dashboardData.accountPlan,
-                subscription: subscription)),
+                subscription: subscriptionResult.metadata)),
             from: previousSnapshot,
-            subscription: subscription)
+            subscriptionResult: subscriptionResult)
     }
 
     nonisolated static func shouldWaitForCreditsHistory(

@@ -1038,6 +1038,32 @@ struct UsageStorePlanUtilizationTests {
     }
 
     @MainActor
+    @Test(arguments: [false, true])
+    func `ollama monthly history records all currently reported lanes`(hasWeekly: Bool) async {
+        let store = Self.makeStore()
+        store.settings.historicalTrackingEnabled = true
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 12.5,
+                windowMinutes: ProviderPaceCapability.monthlyWindowSentinelMinutes,
+                resetsAt: now.addingTimeInterval(20 * 24 * 60 * 60),
+                resetDescription: nil),
+            secondary: hasWeekly
+                ? RateWindow(usedPercent: 40, windowMinutes: 10080, resetsAt: nil, resetDescription: nil)
+                : nil,
+            updatedAt: now)
+
+        await store.recordPlanUtilizationHistorySample(provider: .ollama, snapshot: snapshot, now: now)
+
+        let histories = store.planUtilizationHistory(for: .ollama)
+        #expect(findSeries(histories, name: .monthly, windowMinutes: 43200)?.entries.last?.usedPercent == 12.5)
+        #expect(findSeries(histories, name: .session, windowMinutes: 300) == nil)
+        #expect(findSeries(histories, name: .weekly, windowMinutes: 10080)?.entries.last?.usedPercent
+            == (hasWeekly ? 40 : nil))
+    }
+
+    @MainActor
     @Test
     func `stepfun rolling windows keep their session and weekly history lanes`() async {
         let store = Self.makeStore()

@@ -21,15 +21,6 @@ struct OpenAIWebRefreshPolicyContext {
 // MARK: - OpenAI web lifecycle
 
 extension UsageStore {
-    private struct OpenAIDashboardRefreshContext {
-        let targetEmail: String?
-        let allowCurrentSnapshotFallback: Bool
-        let expectedGuard: CodexAccountScopedRefreshGuard?
-        let refreshTaskToken: UUID
-        let allowCodexUsageBackfill: Bool
-        let force: Bool
-    }
-
     private struct OpenAIDashboardCookieImportRequest {
         let normalizedTarget: String?
         let allowAnyAccount: Bool
@@ -113,14 +104,15 @@ extension UsageStore {
         Task { await self.refreshOpenAIDashboardIfNeeded(force: forceRefresh, expectedGuard: expectedGuard) }
     }
 
+    @discardableResult
     func applyOpenAIDashboard(
         _ dash: OpenAIDashboardSnapshot,
         targetEmail: String?,
         expectedGuard: CodexAccountScopedRefreshGuard? = nil,
         refreshTaskToken: UUID? = nil,
-        allowCodexUsageBackfill: Bool = true) async
+        allowCodexUsageBackfill: Bool = true) async -> Bool
     {
-        guard self.shouldApplyOpenAIDashboardRefreshTask(token: refreshTaskToken) else { return }
+        guard self.shouldApplyOpenAIDashboardRefreshTask(token: refreshTaskToken) else { return false }
         self.settings.invalidateCodexAccountReconciliationSnapshotCache()
         let authority = self.evaluateCodexDashboardAuthority(
             dashboard: dash,
@@ -137,7 +129,7 @@ extension UsageStore {
                     expectedGuard: expectedGuard,
                     routingTargetEmail: targetEmail)
             }
-            guard shouldApply else { return }
+            guard shouldApply else { return false }
         }
 
         let attachedAccountEmail = self.codexDashboardAttachmentEmail(from: authority.input)
@@ -151,6 +143,7 @@ extension UsageStore {
             authorityInput: authority.input,
             attachedAccountEmail: attachedAccountEmail,
             allowCodexUsageBackfill: allowCodexUsageBackfill)
+        return authority.decision.disposition == .attach
     }
 
     func applyOpenAIDashboardFailure(
@@ -256,20 +249,32 @@ extension UsageStore {
             self.lastOpenAIDashboardError = nil
             self.openAIDashboardRequiresLogin = false
 
-            // Provider-specific by design: an authorized OpenAI dashboard attaches metadata/backfill to Codex usage.
+            // Provider-specific by design: an authorized OpenAI dashboard attaches credits to Codex usage.
+            let dashboardCredits = decision.allowedEffects.contains(.creditsAttachment)
+                ? dashboard.toCreditsSnapshot()
+                : nil
             if let currentUsage = self.snapshots[.codex] {
-                self.snapshots[.codex] = currentUsage.withSubscriptionMetadata(
-                    expiresAt: dashboard.subscriptionExpiresAt,
-                    renewsAt: dashboard.subscriptionRenewsAt)
+                self.snapshots[.codex] = CodexExtraUsageCost.attaching(to: currentUsage, credits: dashboardCredits)
+            }
+            if decision.allowedEffects.contains(.subscriptionMetadataAttachment) {
+                let didPersist = self.applyOpenAIDashboardSubscriptionMetadata(dashboard)
+                let outcome = didPersist ? "persisted" : "unchanged"
+                self.logOpenAIWeb("subscription metadata \(outcome): authority=attach")
+            } else {
+                self.logOpenAIWeb("subscription metadata skipped: authority=attach effect=not-allowed")
             }
 
+            // Provider-specific by design: an authorized OpenAI dashboard can backfill only the
+            // active Codex usage snapshot.
             if decision.allowedEffects.contains(.usageBackfill),
                allowCodexUsageBackfill,
                self.snapshots[.codex] == nil,
                let usage = dashboard.toUsageSnapshot(provider: .codex, accountEmail: attachedAccountEmail),
                CodexWeeklyResetConfirmation.initialDecision(previous: nil, initial: usage) == .publishInitial
             {
-                self.snapshots[.codex] = usage
+                self.snapshots[.codex] = CodexExtraUsageCost.attaching(
+                    to: usage,
+                    credits: dashboardCredits)
                 self.errors[.codex] = nil
                 self.failureGates[.codex]?.recordSuccess()
                 self.lastSourceLabels[.codex] = "openai-web"
@@ -278,20 +283,22 @@ extension UsageStore {
                     allowLastKnownLiveFallback: false)
             }
 
+            if decision.allowedEffects.contains(.refreshGuardSeed) {
+                self.seedCodexAccountScopedRefreshGuard(accountEmail: attachedAccountEmail)
+            }
+
             if decision.allowedEffects.contains(.creditsAttachment),
                self.credits == nil,
-               let credits = dashboard.toCreditsSnapshot()
+               let credits = dashboardCredits
             {
+                let ownerGuard = self.lastCodexAccountScopedRefreshGuard
                 self.credits = credits
                 self.lastCreditsSnapshot = credits
-                self.lastCreditsSnapshotAccountKey = Self.normalizeCodexAccountScopedKey(attachedAccountEmail)
+                self.lastCreditsSnapshotAccountKey = ownerGuard?.accountKey
+                self.lastCreditsSnapshotOwnerGuard = ownerGuard
                 self.lastCreditsSource = .dashboardWeb
                 self.lastCreditsError = nil
                 self.creditsFailureStreak = 0
-            }
-
-            if decision.allowedEffects.contains(.refreshGuardSeed) {
-                self.seedCodexAccountScopedRefreshGuard(accountEmail: attachedAccountEmail)
             }
 
             if let attachedAccountEmail, !attachedAccountEmail.isEmpty {
@@ -308,6 +315,9 @@ extension UsageStore {
             }
 
         case .displayOnly:
+            self.logOpenAIWeb(
+                "subscription metadata skipped: authority=display-only "
+                    + "reason=same-email-ambiguity persistence=not-attempted")
             self.applyOpenAIDashboardCleanup(decision.cleanup, preserveVisibleDashboard: true)
             self.openAIDashboard = dashboard
             self.openAIDashboardAttachmentAuthorized = false
@@ -317,6 +327,7 @@ extension UsageStore {
             self.openAIDashboardRequiresLogin = false
 
         case .failClosed:
+            self.logOpenAIWeb("subscription metadata skipped: authority=fail-closed")
             self.applyOpenAIDashboardCleanup(decision.cleanup, preserveVisibleDashboard: false)
             self.lastOpenAIDashboardError = self.openAIDashboardPolicyFailureMessage(
                 for: decision,
@@ -360,6 +371,7 @@ extension UsageStore {
         self.lastCreditsError = nil
         self.lastCreditsSnapshot = nil
         self.lastCreditsSnapshotAccountKey = nil
+        self.lastCreditsSnapshotOwnerGuard = nil
         self.lastCreditsSource = .none
         self.creditsFailureStreak = 0
     }
@@ -606,12 +618,10 @@ extension UsageStore {
                 guard self.shouldContinueOpenAIDashboardRefresh(token: context.refreshTaskToken) else { return }
             }
 
-            await self.applyOpenAIDashboard(
+            await self.applyOpenAIDashboardAndScheduleSubscriptionEnrichment(
                 dash,
                 targetEmail: effectiveEmail,
-                expectedGuard: context.expectedGuard,
-                refreshTaskToken: context.refreshTaskToken,
-                allowCodexUsageBackfill: context.allowCodexUsageBackfill)
+                context: context)
         } catch let OpenAIDashboardFetcher.FetchError.noDashboardData(body) {
             guard self.shouldContinueOpenAIDashboardRefresh(token: context.refreshTaskToken) else { return }
             await self.retryOpenAIDashboardAfterNoData(
@@ -695,12 +705,10 @@ extension UsageStore {
                 timeout: Self.openAIWebRetryDashboardFetchTimeout(afterCookieImport: true),
                 force: context.force)
             guard self.shouldContinueOpenAIDashboardRefresh(token: context.refreshTaskToken) else { return }
-            await self.applyOpenAIDashboard(
+            await self.applyOpenAIDashboardAndScheduleSubscriptionEnrichment(
                 dash,
                 targetEmail: effectiveEmail,
-                expectedGuard: context.expectedGuard,
-                refreshTaskToken: context.refreshTaskToken,
-                allowCodexUsageBackfill: context.allowCodexUsageBackfill)
+                context: context)
         } catch {
             guard self.shouldContinueOpenAIDashboardRefresh(token: context.refreshTaskToken) else { return }
             let message = self.preferredOpenAIDashboardFailureMessage(
@@ -748,12 +756,10 @@ extension UsageStore {
                 timeout: Self.openAIWebRetryDashboardFetchTimeout(afterCookieImport: true),
                 force: context.force)
             guard self.shouldContinueOpenAIDashboardRefresh(token: context.refreshTaskToken) else { return }
-            await self.applyOpenAIDashboard(
+            await self.applyOpenAIDashboardAndScheduleSubscriptionEnrichment(
                 dash,
                 targetEmail: effectiveEmail,
-                expectedGuard: context.expectedGuard,
-                refreshTaskToken: context.refreshTaskToken,
-                allowCodexUsageBackfill: context.allowCodexUsageBackfill)
+                context: context)
         } catch let OpenAIDashboardFetcher.FetchError.noDashboardData(retryBody) {
             guard self.shouldContinueOpenAIDashboardRefresh(token: context.refreshTaskToken) else { return }
             let finalBody = retryBody.isEmpty ? body : retryBody
@@ -813,12 +819,10 @@ extension UsageStore {
                 timeout: Self.openAIWebRetryDashboardFetchTimeout(afterCookieImport: true),
                 force: context.force)
             guard self.shouldContinueOpenAIDashboardRefresh(token: context.refreshTaskToken) else { return }
-            await self.applyOpenAIDashboard(
+            await self.applyOpenAIDashboardAndScheduleSubscriptionEnrichment(
                 dash,
                 targetEmail: effectiveEmail,
-                expectedGuard: context.expectedGuard,
-                refreshTaskToken: context.refreshTaskToken,
-                allowCodexUsageBackfill: context.allowCodexUsageBackfill)
+                context: context)
         } catch OpenAIDashboardFetcher.FetchError.loginRequired {
             guard self.shouldContinueOpenAIDashboardRefresh(token: context.refreshTaskToken) else { return }
             await self.applyOpenAIDashboardLoginRequiredFailure(
@@ -1036,6 +1040,9 @@ extension UsageStore {
         self.openAIDashboardRefreshTask = nil
         self.openAIDashboardRefreshTaskKey = nil
         self.openAIDashboardRefreshTaskToken = nil
+        self.openAISubscriptionMetadataEnrichmentTask?.cancel()
+        self.openAISubscriptionMetadataEnrichmentTask = nil
+        self.openAISubscriptionMetadataEnrichmentToken = nil
     }
 
     private func currentOpenAIDashboardCookieImportStatus() -> String? {
@@ -1347,7 +1354,7 @@ extension UsageStore {
         self.logOpenAIWeb("[\(stamp)] OpenAI web \(context) start")
     }
 
-    private func logOpenAIWeb(_ message: String) {
+    func logOpenAIWeb(_ message: String) {
         let safeMessage = LogRedactor.redact(message)
         self.openAIWebLogger.debug(safeMessage)
         self.openAIWebDebugLines.append(safeMessage)

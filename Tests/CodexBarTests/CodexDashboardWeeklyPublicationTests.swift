@@ -56,6 +56,7 @@ extension CodexAccountScopedRefreshTests {
         defer { settings._test_liveSystemCodexAccount = nil }
 
         let now = Date()
+        let creditReset = now.addingTimeInterval(30 * 24 * 60 * 60)
         let store = self.makeUsageStore(settings: settings)
         await store.applyOpenAIDashboard(
             OpenAIDashboardSnapshot(
@@ -72,6 +73,12 @@ extension CodexAccountScopedRefreshTests {
                     resetsAt: now.addingTimeInterval(7 * 24 * 60 * 60),
                     resetDescription: nil),
                 creditsRemaining: nil,
+                codexCreditLimit: CodexCreditLimitSnapshot(
+                    used: 125,
+                    limit: 500,
+                    remainingPercent: 75,
+                    resetsAt: creditReset,
+                    updatedAt: now),
                 accountPlan: "Pro",
                 updatedAt: now),
             targetEmail: "dashboard-ordinary@example.com",
@@ -79,6 +86,9 @@ extension CodexAccountScopedRefreshTests {
 
         #expect(store.openAIDashboard?.signedInEmail == "dashboard-ordinary@example.com")
         #expect(store.snapshots[.codex]?.secondary?.usedPercent == 28)
+        #expect(store.snapshots[.codex]?.providerCost?.used == 125)
+        #expect(store.snapshots[.codex]?.providerCost?.limit == 500)
+        #expect(store.snapshots[.codex]?.providerCost?.resetsAt == creditReset)
         #expect(store.lastSourceLabels[.codex] == "openai-web")
     }
 }

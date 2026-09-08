@@ -31,6 +31,24 @@ struct LocalizationLanguageCatalogTests {
     ]
 
     @Test
+    func `every catalog localizes the complete model weekly phrase with one argument`() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let resources = root.appendingPathComponent("Sources/CodexBar/Resources")
+        let catalogs = try FileManager.default.contentsOfDirectory(at: resources, includingPropertiesForKeys: nil)
+            .filter { $0.pathExtension == "lproj" }
+        #expect(catalogs.count == AppLanguage.allCases.count - 1)
+        for url in catalogs {
+            let catalog = try #require(NSDictionary(contentsOf: url.appendingPathComponent("Localizable.strings"))
+                as? [String: String])
+            let phrase = try #require(catalog["%@ weekly"], "Missing phrase in \(url.lastPathComponent)")
+            #expect(phrase.components(separatedBy: "%@").count == 2)
+            #expect(phrase.count(where: { $0 == "%" }) == 1)
+            #expect(phrase != "%@")
+        }
+    }
+
+    @Test
     func `catalan plugin sidebar uses the same terminology as its pane`() {
         CodexBarLocalizationOverride.$appLanguage.withValue("ca") {
             #expect(SettingsPane.plugins.title == "Connectors")

@@ -3,6 +3,80 @@ import Testing
 @testable import CodexBarCore
 
 struct ZaiProviderTests {
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `unrenderable optional analytics preserve required quota`(engine: ProviderPluginEngineKind) async throws {
+        for (count, name, label) in [
+            (121, "Example", "hour"),
+            (1, String(repeating: "x", count: 121), "hour"),
+            (1, "Example", String(repeating: "x", count: 121)),
+            (1, "  ", "hour"),
+            (1, "Example", "  "),
+            (1, "\u{0085}\u{200B}", "hour"),
+            (1, "Example", "\u{0085}\u{200B}"),
+        ] {
+            let analytics: [String: Any] = [
+                "code": 200, "success": true,
+                "data": [
+                    "x_time": Array(repeating: label, count: count),
+                    "modelDataList": [["modelName": name, "tokensUsage": Array(repeating: 1, count: count)]],
+                ],
+            ]
+            let data = try JSONSerialization.data(withJSONObject: analytics)
+            let snapshot = try await Self.pluginSnapshot(
+                quotaFixture: Self.quotaFixture,
+                modelUsageFixture: #require(String(data: data, encoding: .utf8)),
+                engine: engine)
+            #expect(snapshot.primary?.usedPercent == 25)
+            #expect(snapshot.secondary?.usedPercent == 9)
+            #expect(snapshot.identity?.loginMethod == "Pro")
+            #expect(snapshot.details.map(\.title) == ["Quota details"])
+        }
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines, [
+        String(repeating: "x", count: 120),
+        String(repeating: "e\u{0301}", count: 120),
+        String(repeating: "👩‍👩‍👧‍👦", count: 120),
+    ])
+    func `analytics at the chart and label bounds remain complete`(
+        engine: ProviderPluginEngineKind,
+        name: String) async throws
+    {
+        let analytics: [String: Any] = [
+            "code": 200, "success": true,
+            "data": [
+                "x_time": (0..<120).map { "hour-\($0)" },
+                "modelDataList": [["modelName": name, "tokensUsage": Array(repeating: 1, count: 120)]],
+            ],
+        ]
+        let data = try JSONSerialization.data(withJSONObject: analytics)
+        let snapshot = try await Self.pluginSnapshot(
+            quotaFixture: Self.quotaFixture,
+            modelUsageFixture: #require(String(data: data, encoding: .utf8)),
+            engine: engine)
+        for title in ["Hourly tokens", "Daily tokens"] {
+            let section = try #require(snapshot.details.first { $0.title == title })
+            #expect(section.rows.first?.label == name)
+            #expect(section.rows.first?.value == "120")
+            #expect(section.chart?.points.count == 120)
+        }
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `overflowing optional model aggregates preserve quota`(engine: ProviderPluginEngineKind) async throws {
+        let analytics = #"""
+        {"code":200,"success":true,"data":{"x_time":["hour"],"modelDataList":[
+          {"modelName":"Example A","tokensUsage":[1e308]},
+          {"modelName":"Example B","tokensUsage":[1e308]}
+        ]}}
+        """#
+        let snapshot = try await Self.pluginSnapshot(
+            quotaFixture: Self.quotaFixture, modelUsageFixture: analytics, engine: engine)
+        #expect(snapshot.primary?.usedPercent == 25)
+        #expect(snapshot.secondary?.usedPercent == 9)
+        #expect(snapshot.details.map(\.title) == ["Quota details"])
+    }
+
     @Test
     func `settings reader preserves regional credential precedence`() {
         #expect(ZaiSettingsReader.apiToken(environment: ["Z_AI_API_KEY": " direct-token "]) == "direct-token")
@@ -132,6 +206,24 @@ struct ZaiProviderTests {
     }
 
     @Test
+    func `plugin compacts large model token totals without changing chart values`() async throws {
+        let snapshot = try await Self.pluginSnapshot(
+            quotaFixture: Self.quotaFixture,
+            modelUsageFixture: Self.largeModelUsageFixture)
+        for title in ["Hourly tokens", "Daily tokens"] {
+            let section = try #require(snapshot.details.first { $0.title == title })
+            #expect(section.rows.map(\.label) == ["Example Large", "Example Medium", "Example Small", "Example Exact"])
+            #expect(section.rows.map(\.value) == ["5.3B", "491M", "76.1M", "999999"])
+            let chart = try #require(section.chart)
+            #expect(chart.kind == .bars)
+            #expect(chart.title == title)
+            #expect(chart.unit == "tokens")
+            #expect(chart.points.map(\.label) == ["2026-08-02 08:00", "2026-08-02 09:00"])
+            #expect(chart.points.map(\.value) == [5_470_500_000, 397_699_724])
+        }
+    }
+
+    @Test
     func `plugin preserves explicit MCP duration`() async throws {
         let snapshot = try await Self.pluginSnapshot(quotaFixture: Self.explicitTimeLimitFixture)
 
@@ -194,14 +286,18 @@ struct ZaiProviderTests {
         return (Data(body.utf8), response)
     }
 
-    private static func pluginSnapshot(quotaFixture: String) async throws -> UsageSnapshot {
+    private static func pluginSnapshot(
+        quotaFixture: String,
+        modelUsageFixture: String = Self.modelUsageFixture,
+        engine: ProviderPluginEngineKind = .automatic) async throws -> UsageSnapshot
+    {
         let transport = ProviderHTTPTransportHandler { request in
             let body = request.url?.path.hasSuffix("/quota/limit") == true
                 ? quotaFixture
-                : Self.modelUsageFixture
+                : modelUsageFixture
             return try Self.response(request: request, body: body)
         }
-        return try await ProviderPluginRuntime(bundledPlugin: "zai", transport: transport).fetchUsage(
+        return try await BundledPluginTestSupport.runtime("zai", engine: engine, transport: transport).fetchUsage(
             settings: [
                 "Z_AI_REGION": "global",
                 "Z_AI_USAGE_SCOPE": "personal",
@@ -238,6 +334,15 @@ struct ZaiProviderTests {
       "x_time":["2026-08-02 08:00","2026-08-02 09:00"],
       "modelDataList":[{"modelName":"glm-4.6","tokensUsage":[100,null]},
       {"modelName":"glm-4.5","tokensUsage":[50,25]}]}}
+    """#
+
+    private static let largeModelUsageFixture = #"""
+    {"code":200,"msg":"success","success":true,"data":{
+      "x_time":["2026-08-02 08:00","2026-08-02 09:00"],
+      "modelDataList":[{"modelName":"Example Large","tokensUsage":[5000000000,300000000]},
+      {"modelName":"Example Medium","tokensUsage":[400000000,91075408]},
+      {"modelName":"Example Small","tokensUsage":[70000000,6124317]},
+      {"modelName":"Example Exact","tokensUsage":[500000,499999]}]}}
     """#
 
     private static let emptyModelUsageFixture =

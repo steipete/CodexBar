@@ -169,9 +169,15 @@ extension StatusItemController {
                 guard case let .pace(window) = token else { return nil }
                 return window
             })
-        if metrics.contains(.sessionPace) { paceWindows.insert(.session) }
-        if metrics.contains(.weeklyPace) { paceWindows.insert(.weekly) }
-        if metrics.contains(.automaticPace) { paceWindows.insert(.automatic) }
+        if metrics.contains(.sessionPace) {
+            paceWindows.insert(.session)
+        }
+        if metrics.contains(.weeklyPace) {
+            paceWindows.insert(.weekly)
+        }
+        if metrics.contains(.automaticPace) {
+            paceWindows.insert(.automatic)
+        }
         let needsRunsOut = metrics.contains(.runsOutIn)
         guard !paceWindows.isEmpty || needsRunsOut else { return nil }
 
@@ -189,13 +195,18 @@ extension StatusItemController {
                 let pace = self.store.menuBarLayoutPaceText(
                     provider: provider,
                     window: window,
+                    dataConfidence: snapshot?.dataConfidence ?? .unknown,
                     now: now,
                     minimumElapsedPercent: percentWindow == .weekly ? 1 : nil)
                 return "\(percentWindow.rawValue)=\(pace ?? "nil")"
             }
         if needsRunsOut {
             let runsOutMinutes = (windows.weekly ?? windows.automatic)
-                .flatMap { self.store.weeklyPace(provider: provider, window: $0, now: now) }
+                .flatMap { self.store.weeklyPace(
+                    provider: provider,
+                    window: $0,
+                    dataConfidence: snapshot?.dataConfidence ?? .unknown,
+                    now: now) }
                 .flatMap(\.etaSeconds)
                 .map { Int(($0 / 60).rounded()) }
             components.append("runsOut=\(runsOutMinutes.map { String($0) } ?? "nil")")

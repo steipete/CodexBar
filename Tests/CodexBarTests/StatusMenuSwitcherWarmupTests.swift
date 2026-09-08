@@ -8,23 +8,28 @@ import XCTest
 /// switch attaches cached, pre-laid-out rows (flicker fix follow-up).
 @MainActor
 final class StatusMenuSwitcherWarmupTests: XCTestCase {
-    private func makeController() -> (controller: StatusItemController, menu: NSMenu) {
+    private func makeController(
+        selectedProvider: UsageProvider = .codex,
+        statusChecksEnabled: Bool = false) -> (controller: StatusItemController, menu: NSMenu)
+    {
         StatusItemController.menuCardRenderingEnabled = false
         StatusItemController.setMenuRefreshEnabledForTesting(false)
         let settings = testSettingsStore(
             suiteName: "StatusMenuSwitcherWarmupTests",
             tokenAccountStore: InMemoryTokenAccountStore())
         settings.providerDetectionCompleted = true
-        settings.statusChecksEnabled = false
+        settings.statusChecksEnabled = statusChecksEnabled
         settings.refreshFrequency = .manual
         settings.mergeIcons = true
+        settings.selectedMenuProvider = selectedProvider.instanceID
+        settings.mergedMenuLastSelectedWasOverview = false
         let registry = ProviderRegistry.shared
         for provider in UsageProvider.allCases {
             guard let metadata = registry.metadata[provider] else { continue }
             settings.setProviderEnabled(
                 provider: provider,
                 metadata: metadata,
-                enabled: provider == .claude || provider == .codex)
+                enabled: [.claude, .codex, .grok].contains(provider))
         }
 
         let fetcher = UsageFetcher()
@@ -32,7 +37,7 @@ final class StatusMenuSwitcherWarmupTests: XCTestCase {
         let controller = StatusItemController(
             store: store,
             settings: settings,
-            account: fetcher.loadAccountInfo(),
+            account: AccountInfo(email: nil, plan: nil),
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
             statusBar: testStatusBar())
@@ -94,6 +99,71 @@ final class StatusMenuSwitcherWarmupTests: XCTestCase {
         XCTAssertEqual(firstItems?.count, secondItems?.count)
         for (selection, items) in firstItems ?? [:] {
             XCTAssertTrue(secondItems?[selection]?.elementsEqual(items, by: ===) == true)
+        }
+    }
+
+    func test_warmedStatusSubmenusRemainScopedAcrossSwitchesAndReopen() throws {
+        for initialProvider: UsageProvider in [.claude, .codex, .grok] {
+            for provider: UsageProvider in [.grok, .codex, .claude] where provider != initialProvider {
+                let (controller, menu) = self.makeController(
+                    selectedProvider: initialProvider,
+                    statusChecksEnabled: true)
+                defer { controller.releaseStatusItemsForTesting() }
+                controller.warmMergedSwitcherSiblingContent(in: menu)
+                let caches = try XCTUnwrap(controller.mergedSwitcherContentCaches[ObjectIdentifier(menu)])
+                let cached = try XCTUnwrap(caches[.provider(provider.instanceID)])
+                let cachedStatus = try XCTUnwrap(cached.items.first { $0.title == L("Status Page") })
+                try self.assertStatusProvider(provider, item: cachedStatus, controller: controller)
+
+                controller.preservingMergedSwitcherContentCachesDuringInvalidation {
+                    controller.selectedMenuProvider = provider.instanceID
+                }
+                controller.updateMenuContentPreservingSwitcher(
+                    menu,
+                    context: StatusItemController.MenuUpdateContext(
+                        provider: provider,
+                        currentProvider: provider,
+                        switcherSelection: .provider(provider.instanceID),
+                        menuWidth: controller.menuCardWidth(
+                            for: controller.store.enabledFirstPartyProvidersForDisplay(),
+                            selectedProvider: provider,
+                            descriptor: controller.makeMenuDescriptor(
+                                provider: provider, includeContextualActions: true)),
+                        codexAccountDisplay: nil,
+                        tokenAccountDisplay: nil,
+                        openAIContext: controller.openAIWebContext(currentProvider: provider, showAllAccounts: false),
+                        descriptor: controller.makeMenuDescriptor(provider: provider, includeContextualActions: true)))
+                let liveStatus = try XCTUnwrap(menu.items.first { $0.title == L("Status Page") })
+                XCTAssertTrue(liveStatus.submenu === cachedStatus.submenu)
+                try self.assertStatusProvider(provider, item: liveStatus, controller: controller)
+
+                controller.menuDidClose(menu)
+                controller.menuWillOpen(menu)
+                try self.assertStatusProvider(
+                    provider,
+                    item: XCTUnwrap(menu.items.first { $0.title == L("Status Page") }),
+                    controller: controller)
+            }
+        }
+    }
+
+    private func assertStatusProvider(
+        _ provider: UsageProvider,
+        item: NSMenuItem,
+        controller: StatusItemController) throws
+    {
+        if provider == .grok {
+            XCTAssertNil(item.submenu, "Grok has a website link, not another provider's components")
+            XCTAssertEqual(item.action, #selector(StatusItemController.openStatusPage))
+        } else {
+            let submenu = try XCTUnwrap(item.submenu)
+            if submenu.items.first?.identifier == nil {
+                XCTAssertTrue(controller.hydrateHostedSubviewMenuIfNeeded(submenu))
+            }
+            let link = try XCTUnwrap(submenu.items.last)
+            XCTAssertEqual(link.identifier?.rawValue, provider.rawValue)
+            XCTAssertEqual(link.action, #selector(StatusItemController.openStatusPageFromMenuItem(_:)))
+            XCTAssertTrue(link.target === controller)
         }
     }
 }

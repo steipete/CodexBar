@@ -57,7 +57,7 @@ extension CostUsageStoreExecutorIsolationTests {
         root: URL) throws -> (reason: Process.TerminationReason, status: Int32, standardOutput: String)
     {
         let process = Process()
-        process.executableURL = self.probeExecutableURL
+        process.executableURL = TestBuildProducts.executableURL(named: "CodexBarCostStoreCrashProbe")
         process.arguments = [CostUsageStoreExecutorTestControl.suppressCurrentContextArgument, mode, root.path]
         process.environment = ProcessInfo.processInfo.environment
             .merging([Self.legacyExecutorMode: "legacy"]) { _, forced in forced }
@@ -93,13 +93,5 @@ extension CostUsageStoreExecutorIsolationTests {
 
     private enum ProbeError: Error {
         case timedOut(String)
-    }
-
-    private static var probeExecutableURL: URL {
-        URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent(".build/debug/CodexBarCostStoreCrashProbe")
     }
 }

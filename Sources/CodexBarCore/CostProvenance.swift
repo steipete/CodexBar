@@ -83,6 +83,70 @@ public struct CostUsageCoverageCounts: Sendable, Equatable, Codable {
     }
 }
 
+package enum CostUsageCoverageDetail {
+    case exact
+    case requests
+    case rows
+}
+
+/// Transient aggregation: retain exact coverage, then existing request/row inference if counts cannot fit.
+package struct CostUsageCoverageAccumulator: Sendable, Equatable {
+    package private(set) var exact: CostUsageCoverageCounts? = .init()
+    private var inferred: CostUsageCoverageCounts? = .init()
+    private var rows = CostUsageCoverageCounts()
+
+    package init() {}
+
+    package var counts: CostUsageCoverageCounts {
+        self.exact ?? self.inferred ?? self.rows
+    }
+
+    package mutating func add(_ entry: CostUsageDailyReport.Entry) {
+        // Each materialized input row contributes at most one row, even when request totals overflow.
+        self.rows.merge(entry.coverageCounts(detail: .rows))
+        self.inferred = Self.adding(self.inferred, entry.coverageCounts(detail: .requests))
+        guard self.exact != nil else { return }
+        let explicit = CostUsageCoverageCounts(
+            priced: entry.pricedRequestCount ?? 0,
+            unpriced: entry.unpricedRequestCount ?? 0,
+            unmetered: entry.unmeteredRequestCount ?? 0,
+            estimated: entry.estimatedRequestCount ?? 0)
+        // Validate raw categories before coverageCounts performs inference arithmetic.
+        guard Self.adding(.init(), explicit) != nil else {
+            self.exact = nil
+            return
+        }
+        self.exact = Self.adding(self.exact, entry.coverageCounts)
+    }
+
+    package mutating func merge(_ other: Self) {
+        self.exact = Self.adding(self.exact, other.exact)
+        self.inferred = Self.adding(self.inferred, other.inferred)
+        self.rows.merge(other.rows)
+    }
+
+    private static func adding(
+        _ lhs: CostUsageCoverageCounts?,
+        _ rhs: CostUsageCoverageCounts?) -> CostUsageCoverageCounts?
+    {
+        guard let lhs, let rhs else { return nil }
+        let priced = lhs.priced.addingReportingOverflow(rhs.priced)
+        let unpriced = lhs.unpriced.addingReportingOverflow(rhs.unpriced)
+        let unmetered = lhs.unmetered.addingReportingOverflow(rhs.unmetered)
+        let estimated = lhs.estimated.addingReportingOverflow(rhs.estimated)
+        guard !priced.overflow, !unpriced.overflow, !unmetered.overflow, !estimated.overflow else { return nil }
+        let first = priced.partialValue.addingReportingOverflow(unpriced.partialValue)
+        let second = first.partialValue.addingReportingOverflow(unmetered.partialValue)
+        let total = second.partialValue.addingReportingOverflow(estimated.partialValue)
+        guard !first.overflow, !second.overflow, !total.overflow else { return nil }
+        return CostUsageCoverageCounts(
+            priced: priced.partialValue,
+            unpriced: unpriced.partialValue,
+            unmetered: unmetered.partialValue,
+            estimated: estimated.partialValue)
+    }
+}
+
 /// Token-class mix. `nil` means the source did not establish that class — never treat as zero.
 public struct CostUsageTokenMix: Sendable, Equatable, Codable {
     public var inputTokens: Int?

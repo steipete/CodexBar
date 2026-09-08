@@ -140,6 +140,7 @@ extension StatusItemController {
             context.descriptor.sections,
             to: target,
             width: context.menuWidth,
+            provider: context.currentProvider,
             captureMenu: captureMenu)
     }
 }

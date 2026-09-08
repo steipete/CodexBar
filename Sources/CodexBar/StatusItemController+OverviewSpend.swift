@@ -63,10 +63,10 @@ struct OverviewSpendSummary: Equatable {
             covered: coveredDays,
             requested: model.requestedDays)
 
-        let coverage = model.groups.reduce(into: CostUsageCoverageCounts()) { result, group in
-            result.merge(group.coverage)
+        let coverage = model.groups.reduce(into: CostUsageCoverageAccumulator()) { result, group in
+            result.merge(group.coverageAccumulator)
         }
-        self.pricingCoverageText = spendDashboardCoverageChipText(coverage)
+        self.pricingCoverageText = spendDashboardCoverageChipText(coverage.counts)
         self.provenanceText = model.groups
             .map(\.provenance)
             .reduce(into: [CostProvenance]()) { values, provenance in

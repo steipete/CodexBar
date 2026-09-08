@@ -35,7 +35,8 @@ struct CostUsageScannerClaudeFableTests {
         let parsed = CostUsageScanner.parseClaudeFile(
             fileURL: fileURL,
             range: CostUsageScanner.CostUsageDayRange(since: day, until: day),
-            providerFilter: .all)
+            providerFilter: .all,
+            modelsDevCacheRoot: env.cacheRoot)
 
         #expect(parsed.rows.count == 1)
         #expect(parsed.rows[0].model == "claude-fable-5")
@@ -76,7 +77,8 @@ struct CostUsageScannerClaudeFableTests {
         let parsed = CostUsageScanner.parseClaudeFile(
             fileURL: fileURL,
             range: CostUsageScanner.CostUsageDayRange(since: day, until: day),
-            providerFilter: .all)
+            providerFilter: .all,
+            modelsDevCacheRoot: env.cacheRoot)
 
         #expect(parsed.rows.count == 1)
         #expect(parsed.rows[0].input == 100)
@@ -124,7 +126,8 @@ struct CostUsageScannerClaudeFableTests {
         let parsed = CostUsageScanner.parseClaudeFile(
             fileURL: fileURL,
             range: CostUsageScanner.CostUsageDayRange(since: day, until: day),
-            providerFilter: .all)
+            providerFilter: .all,
+            modelsDevCacheRoot: env.cacheRoot)
 
         #expect(parsed.rows.count == 1)
         #expect(parsed.rows[0].cacheCreate == 30)
@@ -179,7 +182,7 @@ struct CostUsageScannerClaudeFableTests {
             options: options)
         #expect(unpriced.summary?.totalCostUSD == nil)
 
-        let cached = CostUsageClaudeCacheIO.load(provider: .claude, cacheRoot: env.cacheRoot)
+        let cached = CostUsageClaudeCacheIO.load(provider: .claude, cacheRoot: env.cacheRoot).usage
         #expect(cached.days["2026-06-09"]?["claude-custom-cache-model"]?[safe: 7] == 20)
 
         try ModelsDevCache.save(

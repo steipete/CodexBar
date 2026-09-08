@@ -289,12 +289,9 @@ struct GrokOAuthFetchStrategy: ProviderFetchStrategy {
     /// grok.com remains best-effort — when it also has no percent, the proxy's period and plan
     /// metadata are kept with usage still unknown.
     ///
-    /// Two properties keep the enrichment from costing more than it adds. Only a wire-published
-    /// percent is adopted, because the grok.com parser reports its own no-usage-yet frame as 0
-    /// without any percentage on the wire and promoting that would rebuild the fabricated 0%
-    /// #3157 removed. And the request runs under a short deadline: period-only payloads recur on
-    /// every refresh for affected plans, so a grok.com outage must not hold back a proxy snapshot
-    /// that is already valid for the caller's remaining fields.
+    /// Only published percentages and parser-validated implicit zeroes can enrich the proxy.
+    /// A bare inferred zero is insufficient: the parser must validate an active current period.
+    /// The short deadline keeps a grok.com outage from delaying already-valid proxy metadata.
     static let unknownUsageEnrichmentBudget: Duration = .seconds(6)
 
     static func resolvingUnknownUsage(
@@ -315,7 +312,9 @@ struct GrokOAuthFetchStrategy: ProviderFetchStrategy {
         let join = BoundedTaskJoin(sourceTask: Task { try await grpcBilling(credentials) })
         switch await join.value(joinGrace: budget) {
         case let .value(grpcSnapshot):
-            guard grpcSnapshot.usedPercent != nil, grpcSnapshot.usedPercentIsWirePublished else {
+            guard let percent = grpcSnapshot.usedPercent,
+                  grpcSnapshot.usedPercentIsWirePublished || (percent == 0 && grpcSnapshot.usedPercentIsImplicitZero)
+            else {
                 return proxyAnswer
             }
             return (grpcSnapshot.completing(with: proxySnapshot), "grok-web", true)

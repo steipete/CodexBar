@@ -80,7 +80,7 @@ extension SettingsStore {
             if Self.shouldBridgeSharedDefaults(for: self.userDefaults) {
                 Self.sharedDefaults?.set(newValue, forKey: "debugDisableKeychainAccess")
             }
-            KeychainAccessGate.isDisabled = newValue
+            self.keychainAccessPolicy.setDisabled(newValue)
             self.noteBackgroundWorkSettingsChanged()
         }
     }

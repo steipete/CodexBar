@@ -500,7 +500,6 @@
 "provider_accent_color_reset" = "ใช้ค่าเริ่มต้น";
 "quota_warnings_title" = "คําเตือนโควต้า";
 "quota_warning_session" = "เซสชั่น";
-"quota_warning_session_capitalized" = "เซสชั่น";
 "quota_warning_weekly" = "รายสัปดาห์";
 "quota_warning_weekly_capitalized" = "รายสัปดาห์";
 "quota_warning_notification_title" = "โควตา%2$@ของ %1$@ ใกล้หมด";
@@ -566,6 +565,7 @@
 "hooks_any_provider" = "ผู้ให้บริการใดก็ได้";
 "hooks_threshold" = "เรียกใช้เมื่อการใช้งาน ≥";
 "hooks_threshold_placeholder" = "90";
+"hooks_executable" = "ไฟล์ปฏิบัติการ";
 "hooks_executable_placeholder" = "/usr/local/bin/my-command";
 "hooks_arguments_placeholder" = "อาร์กิวเมนต์";
 "hooks_argument_placeholder" = "อาร์กิวเมนต์";
@@ -1489,6 +1489,7 @@
 "Total usage" = "การใช้งานทั้งหมด";
 "claude_oauth_keychain_access_revoked" = "สิทธิ์เข้าถึงพวงกุญแจ Claude ถูกเพิกถอนจากการหมุนเวียนโทเค็นของ Claude Code คลิกรีเฟรชเพื่อให้สิทธิ์อีกครั้ง หรือเปลี่ยนแหล่งที่มาการใช้งาน Claude เป็น CLI/Web";
 "claude_showing_last_known_usage" = "กำลังแสดงการใช้งานล่าสุดที่ทราบ ซึ่งบันทึกเมื่อ %@";
+"claude_limited_usage_detail" = "รายละเอียดการใช้งานมีจำกัด";
 /* Spend dashboard cost analysis */
 "90d" = "90d";
 "Input" = "Input";
@@ -1545,3 +1546,4 @@
 "menu_bar_layout_conditional_default_either_high" = "เซสชันหรือรายสัปดาห์อยู่ในระดับสูง";
 "menu_bar_layout_conditional_default_scoped_weekly" = "รายสัปดาห์ตามโมเดลเกิน 60%";
 "Spending cap, not balance" = "เพดานการใช้จ่าย ไม่ใช่ยอดคงเหลือ";
+"%@ weekly" = "%@ รายสัปดาห์";

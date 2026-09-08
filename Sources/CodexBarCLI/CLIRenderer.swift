@@ -552,6 +552,8 @@ enum CLIRenderer {
         weeklyWorkDays: Int? = nil,
         now: Date = Date()) -> ProviderPacePayload?
     {
+        guard ProviderDescriptorRegistry.descriptor(for: provider).pace
+            .allowsPace(dataConfidence: snapshot.dataConfidence) else { return nil }
         let primary = snapshot.primary.flatMap {
             self.pacePayload(
                 provider: provider,
@@ -605,6 +607,7 @@ enum CLIRenderer {
                 title: labels.primary,
                 window: primary,
                 paceSlot: .primary,
+                dataConfidence: snapshot.dataConfidence,
                 context: context,
                 now: now,
                 lines: &lines)
@@ -634,6 +637,7 @@ enum CLIRenderer {
             title: labels.secondary,
             window: weekly,
             paceSlot: .secondary,
+            dataConfidence: snapshot.dataConfidence,
             context: context,
             now: now,
             lines: &lines)
@@ -688,13 +692,15 @@ enum CLIRenderer {
     {
         guard labels.showsTertiary, let tertiary = snapshot.tertiary else { return }
         lines.append(self.rateLine(title: labels.tertiary, window: tertiary, useColor: context.useColor))
-        if let pace = self.paceLine(
-            provider: provider,
-            window: tertiary,
-            slot: .tertiary,
-            weeklyWorkDays: context.weeklyWorkDays,
-            useColor: context.useColor,
-            now: now)
+        if ProviderDescriptorRegistry.descriptor(for: provider).pace
+            .allowsPace(dataConfidence: snapshot.dataConfidence),
+            let pace = self.paceLine(
+                provider: provider,
+                window: tertiary,
+                slot: .tertiary,
+                weeklyWorkDays: context.weeklyWorkDays,
+                useColor: context.useColor,
+                now: now)
         {
             lines.append(pace)
         }
@@ -805,18 +811,20 @@ enum CLIRenderer {
         title: String,
         window: RateWindow,
         paceSlot: ProviderPaceSlot,
+        dataConfidence: UsageDataConfidence,
         context: RenderContext,
         now: Date,
         lines: inout [String])
     {
         lines.append(self.rateLine(title: title, window: window, useColor: context.useColor))
-        if let pace = self.paceLine(
-            provider: provider,
-            window: window,
-            slot: paceSlot,
-            weeklyWorkDays: context.weeklyWorkDays,
-            useColor: context.useColor,
-            now: now)
+        if ProviderDescriptorRegistry.descriptor(for: provider).pace.allowsPace(dataConfidence: dataConfidence),
+           let pace = self.paceLine(
+               provider: provider,
+               window: window,
+               slot: paceSlot,
+               weeklyWorkDays: context.weeklyWorkDays,
+               useColor: context.useColor,
+               now: now)
         {
             lines.append(pace)
         }

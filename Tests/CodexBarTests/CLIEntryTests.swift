@@ -340,7 +340,8 @@ final class CLIEntryTests: XCTestCase {
         try FileManager.default.createDirectory(at: workingDirectoryURL, withIntermediateDirectories: true)
 
         let executableURL = installURL.appendingPathComponent("CodexBarCLI")
-        try FileManager.default.copyItem(at: Self.cliExecutableURL, to: executableURL)
+        try FileManager.default.copyItem(
+            at: TestBuildProducts.executableURL(named: "CodexBarCLI"), to: executableURL)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executableURL.path)
         try "8.7.6\n".write(
             to: installURL.appendingPathComponent("VERSION"),
@@ -446,14 +447,6 @@ final class CLIEntryTests: XCTestCase {
             ])
         }
         return text
-    }
-
-    private static var cliExecutableURL: URL {
-        URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent(".build/debug/CodexBarCLI")
     }
 
     func test_renderOpenAIWebDashboardTextIncludesSummary() {
@@ -872,7 +865,7 @@ final class CLIEntryTests: XCTestCase {
 
     {
         let process = Process()
-        process.executableURL = Self.cliExecutableURL
+        process.executableURL = TestBuildProducts.executableURL(named: "CodexBarCLI")
         process.arguments = arguments
         process.environment = ProcessInfo.processInfo.environment.merging(environment) { _, override in override }
 

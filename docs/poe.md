@@ -33,10 +33,15 @@ CodexBar requests:
 - `GET https://api.poe.com/usage/points_history`
 
 The current balance request is required. Recent points history is best-effort, so a history error does not hide a valid balance.
+History rows with invalid timestamps are skipped, including numeric timestamps outside the supported date range.
 
 ## Display
 
 The provider shows the current point balance in the menu and menu bar. When available, recent history is grouped by day and shown in the usage detail.
+
+The 30-day history cutoff and today's totals use the same refresh timestamp, so pagination and daily grouping stay consistent throughout a refresh.
+The last 7 and 30 days totals cover rolling time windows, including days without activity. Older activity remains in the
+30-day chart without contributing to the 7-day total.
 
 ## CLI Usage
 

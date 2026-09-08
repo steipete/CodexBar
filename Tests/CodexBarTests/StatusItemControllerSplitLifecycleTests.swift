@@ -6,6 +6,40 @@ import Testing
 @MainActor
 @Suite(.serialized)
 struct StatusItemControllerSplitLifecycleTests {
+    @Test
+    func `placement bounds cover wide left displays without tightening legacy ranges`() {
+        let small = CGRect(x: 0, y: 0, width: 1440, height: 900)
+        let wide = CGRect(x: 0, y: 0, width: 3840, height: 2160)
+        let layouts = [
+            [small, wide.offsetBy(dx: -3840, dy: 0)],
+            [small, wide.offsetBy(dx: 1440, dy: 0)],
+            [small, wide.offsetBy(dx: 0, dy: 900)],
+            [wide, wide.offsetBy(dx: 3840, dy: 0)],
+        ]
+        for (frames, expectedBound) in zip(layouts, [3840.0, 5280, 3840, 7680]) {
+            let bound = MenuBarStatusItemPlacementPreflight.currentMaximumPreferredPosition(screenFrames: frames)
+            #expect(bound == expectedBound)
+            #expect(!MenuBarStatusItemPlacementPreflight.shouldClearPreferredPosition(
+                2500, maximumPreferredPosition: bound))
+            let legacyBound = frames.map { Double($0.maxX) }.max()
+            for position in [1, 42, 2500, 3840, 6247, 8000] where
+                !MenuBarStatusItemPlacementPreflight.shouldClearPreferredPosition(
+                    position, maximumPreferredPosition: legacyBound)
+            {
+                #expect(!MenuBarStatusItemPlacementPreflight.shouldClearPreferredPosition(
+                    position, maximumPreferredPosition: bound))
+            }
+        }
+    }
+
+    @Test
+    func `missing displays retain finite positive saved positions`() {
+        let bound = MenuBarStatusItemPlacementPreflight.currentMaximumPreferredPosition(screenFrames: [])
+        #expect(bound == nil)
+        #expect(!MenuBarStatusItemPlacementPreflight.shouldClearPreferredPosition(
+            20000, maximumPreferredPosition: bound))
+    }
+
     private func disableMenuCardsForTesting() {
         StatusItemController.menuCardRenderingEnabled = false
         StatusItemController.setMenuRefreshEnabledForTesting(false)
@@ -407,6 +441,43 @@ struct StatusItemControllerSplitLifecycleTests {
         #expect(!MenuBarStatusItemPlacementPreflight.prepare(defaults: defaults, autosaveName: "codexbar-merged"))
 
         #expect(defaults.double(forKey: key) == 42)
+    }
+
+    @Test(arguments: [Double.nan, .infinity, -.infinity], [Double?.none, .some(3000)])
+    func `status item placement preflight clears nonfinite positions`(
+        position: Double,
+        maximumPreferredPosition: Double?) throws
+    {
+        let suite = "StatusItemControllerSplitLifecycleTests-placement-nonfinite-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let key = MenuBarStatusItemPlacementPreflight.preferredPositionKey(autosaveName: "codexbar-codex")
+        let legacyKey = MenuBarStatusItemPlacementPreflight.preferredPositionKey(autosaveName: "Item-1")
+        let unrelatedKey = MenuBarStatusItemPlacementPreflight.preferredPositionKey(autosaveName: "Item-0")
+        defaults.set(position, forKey: key)
+        defaults.set(position, forKey: legacyKey)
+        defaults.set(42, forKey: unrelatedKey)
+        #expect(try #require(defaults.object(forKey: key) as? NSNumber).doubleValue.isFinite == false)
+
+        #expect(MenuBarStatusItemPlacementPreflight.prepare(
+            defaults: defaults,
+            autosaveName: "codexbar-codex",
+            legacyDefaultItemIndex: 1,
+            maximumPreferredPosition: maximumPreferredPosition))
+
+        #expect(defaults.object(forKey: key) == nil)
+        #expect(defaults.object(forKey: legacyKey) == nil)
+        #expect(defaults.double(forKey: unrelatedKey) == 42)
+    }
+
+    @Test(arguments: [42.0, 2500.0], [Double?.none, .some(3000)])
+    func `status item placement preflight preserves finite positions without requiring a display bound`(
+        position: Double,
+        maximumPreferredPosition: Double?)
+    {
+        #expect(!MenuBarStatusItemPlacementPreflight.shouldClearPreferredPosition(
+            NSNumber(value: position),
+            maximumPreferredPosition: maximumPreferredPosition))
     }
 
     @Test

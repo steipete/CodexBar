@@ -8,6 +8,59 @@ import Testing
 @Suite(.serialized)
 struct PopupLocalizationTests {
     @Test
+    func `Claude scoped weekly titles localize only the menu label`() throws {
+        let window = RateWindow(usedPercent: 25, windowMinutes: 10080, resetsAt: nil, resetDescription: nil)
+        for (language, expected) in [
+            ("en", "Example Model weekly"),
+            ("zh-Hans", "Example Model 每周"),
+            ("vi", "Example Model hàng tuần"),
+        ] {
+            try CodexBarLocalizationOverride.$appLanguage.withValue(language) {
+                for title in ["Example Model only", "Example Model Only", "Example Model ONLY  ", "Example Model"] {
+                    let scoped = NamedRateWindow(id: "claude-weekly-scoped-example", title: title, window: window)
+                    for showUsed in [true, false] {
+                        let model = try Self.makeClaudeMenuCardModel(
+                            primaryWindowMinutes: 300, extraRateWindows: [scoped], showUsed: showUsed)
+                        let metric = try #require(model.metrics.first { $0.id == scoped.id })
+                        #expect(metric.title == expected)
+                        #expect(metric.percent == (showUsed ? 25 : 75))
+                        #expect(metric.percentStyle == (showUsed ? .used : .left))
+                        #expect(scoped.title == title)
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    func `scoped weekly menu labels preserve model names and other windows`() throws {
+        try CodexBarLocalizationOverride.$appLanguage.withValue("en") {
+            let window = RateWindow(usedPercent: 25, windowMinutes: 10080, resetsAt: nil, resetDescription: nil)
+            let windows = [
+                NamedRateWindow(id: "claude-weekly-scoped-only", title: "Example Only only", window: window),
+                NamedRateWindow(id: "claude-weekly-scoped-unknown", title: "Unknown Model only", window: window),
+                NamedRateWindow(id: "claude-daily-routines", title: "Daily Routines", window: window),
+                NamedRateWindow(id: "custom", title: "Custom only", window: window),
+            ]
+            let claude = try Self.makeClaudeMenuCardModel(primaryWindowMinutes: 300, extraRateWindows: windows)
+            #expect(claude.metrics.suffix(windows.count).map(\.title) == [
+                "Example Only weekly", "Unknown Model weekly", "Daily Routines", "Custom only",
+            ])
+            let other = try Self.makeClaudeMenuCardModel(
+                primaryWindowMinutes: 300, extraRateWindows: windows, provider: .synthetic)
+            #expect(other.metrics.suffix(windows.count).map(\.title) == windows.map(\.title))
+        }
+    }
+
+    @Test
+    func `Vietnamese weekly and missing version labels are not swapped`() {
+        CodexBarLocalizationOverride.$appLanguage.withValue("vi") {
+            #expect(L("Weekly") == "Hàng tuần")
+            #expect(L("not detected") == "Không phát hiện được")
+        }
+    }
+
+    @Test
     func `simplified Chinese derives session quota titles from their duration`() throws {
         try CodexBarLocalizationOverride.$appLanguage.withValue("zh-Hans") {
             for (windowMinutes, expectedTitle) in [(60, "1 小时"), (300, "5 小时"), (720, "12 小时")] {
@@ -333,9 +386,14 @@ struct PopupLocalizationTests {
         }
     }
 
-    private static func makeClaudeMenuCardModel(primaryWindowMinutes: Int) throws -> UsageMenuCardView.Model {
+    private static func makeClaudeMenuCardModel(
+        primaryWindowMinutes: Int,
+        extraRateWindows: [NamedRateWindow] = [],
+        provider: UsageProvider = .claude,
+        showUsed: Bool = false) throws -> UsageMenuCardView.Model
+    {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
-        let metadata = try #require(ProviderDefaults.metadata[.claude])
+        let metadata = try #require(ProviderDefaults.metadata[provider] ?? ProviderDefaults.metadata[.claude])
         let snapshot = UsageSnapshot(
             primary: RateWindow(
                 usedPercent: 10,
@@ -343,9 +401,10 @@ struct PopupLocalizationTests {
                 resetsAt: now.addingTimeInterval(3600),
                 resetDescription: nil),
             secondary: nil,
+            extraRateWindows: extraRateWindows,
             updatedAt: now)
         return UsageMenuCardView.Model.make(.init(
-            provider: .claude,
+            provider: provider,
             metadata: metadata,
             snapshot: snapshot,
             credits: nil,
@@ -357,7 +416,7 @@ struct PopupLocalizationTests {
             account: AccountInfo(email: nil, plan: nil),
             isRefreshing: false,
             lastError: nil,
-            usageBarsShowUsed: false,
+            usageBarsShowUsed: showUsed,
             resetTimeDisplayStyle: .countdown,
             tokenCostUsageEnabled: false,
             showOptionalCreditsAndExtraUsage: true,

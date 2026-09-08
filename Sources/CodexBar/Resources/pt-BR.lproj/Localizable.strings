@@ -45,6 +45,7 @@
 "hooks_any_provider" = "Qualquer provedor";
 "hooks_threshold" = "Executar com uso ≥";
 "hooks_threshold_placeholder" = "90";
+"hooks_executable" = "Executável";
 "hooks_executable_placeholder" = "/usr/local/bin/my-command";
 "hooks_arguments_placeholder" = "Argumentos";
 "hooks_argument_placeholder" = "Argumento";
@@ -512,7 +513,6 @@
 "provider_accent_color_reset" = "Usar padrão";
 "quota_warnings_title" = "Alertas de cota";
 "quota_warning_session" = "sessão";
-"quota_warning_session_capitalized" = "Sessão";
 "quota_warning_weekly" = "semanal";
 "quota_warning_weekly_capitalized" = "Semanal";
 "quota_warning_notification_title" = "%1$@: cota baixa (%2$@)";
@@ -1486,6 +1486,7 @@
 "Total usage" = "Uso total";
 "claude_oauth_keychain_access_revoked" = "O acesso às Chaves do Claude foi revogado pela rotação do token do Claude Code. Clique em Atualizar para conceder o acesso novamente ou altere a fonte de uso do Claude para CLI/Web.";
 "claude_showing_last_known_usage" = "Exibindo o último uso conhecido, capturado %@.";
+"claude_limited_usage_detail" = "Detalhes de uso limitados";
 /* Spend dashboard cost analysis */
 "90d" = "90d";
 "Input" = "Input";
@@ -1541,3 +1542,4 @@
 "menu_bar_layout_conditional_default_either_high" = "Sessão ou semana em nível alto";
 "menu_bar_layout_conditional_default_scoped_weekly" = "Semana por modelo acima de 60%";
 "Spending cap, not balance" = "Limite de gastos, não saldo";
+"%@ weekly" = "%@ semanal";

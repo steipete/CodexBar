@@ -65,7 +65,7 @@ enum CodexPATUsageFetcher {
         request.httpMethod = "GET"
         Self.applyPATHeaders(to: &request, token: token, userAgent: userAgent)
 
-        let data = try await self.perform(request: request, session: transport)
+        let data = try await CodexAuthenticatedHTTPTransport.perform(request: request, transport: transport)
         do {
             return try JSONDecoder().decode(WhoamiResponse.self, from: data).model
         } catch {
@@ -90,7 +90,7 @@ enum CodexPATUsageFetcher {
             request.setValue(accountId, forHTTPHeaderField: "ChatGPT-Account-Id")
         }
 
-        let data = try await self.perform(request: request, session: transport)
+        let data = try await CodexAuthenticatedHTTPTransport.perform(request: request, transport: transport)
         do {
             return try JSONDecoder().decode(CodexUsageResponse.self, from: data)
         } catch {
@@ -105,33 +105,6 @@ enum CodexPATUsageFetcher {
         request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue(CodexCLIUserAgent.originator, forHTTPHeaderField: "originator")
-    }
-
-    private static func perform(
-        request: URLRequest,
-        session transport: any ProviderHTTPTransport) async throws -> Data
-    {
-        do {
-            let response = try await transport.response(for: request)
-            switch response.statusCode {
-            case 200...299:
-                return response.data
-            case 401, 403:
-                throw CodexOAuthFetchError.unauthorized
-            default:
-                let body = String(data: response.data, encoding: .utf8)
-                throw CodexOAuthFetchError.serverError(response.statusCode, body)
-            }
-        } catch let error as CodexOAuthFetchError {
-            throw error
-        } catch is CancellationError {
-            throw CancellationError()
-        } catch {
-            if Task.isCancelled || (error as? URLError)?.code == .cancelled {
-                throw CancellationError()
-            }
-            throw CodexOAuthFetchError.networkError(error)
-        }
     }
 
     private static func firstNonEmpty(_ candidates: String?...) -> String? {

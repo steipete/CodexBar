@@ -116,22 +116,23 @@ codexbar_sparkle_signing_targets() {
     return 1
   fi
 
-  codexbar_require_sparkle_signing_target "$sparkle" "framework root" "$sparkle" || return 1
-  codexbar_require_sparkle_signing_target "$version_dir/Sparkle" "framework binary" "$version_dir" || return 1
+  codexbar_require_sparkle_signing_target "$sparkle" "framework root" "$sparkle" >/dev/null || return 1
+  # Nested signatures and timestamps must exist before an enclosing bundle seals them.
   codexbar_require_sparkle_signing_target "$version_dir/Autoupdate" "autoupdate tool" "$version_dir" || return 1
-  codexbar_require_sparkle_signing_target "$version_dir/Updater.app" "updater app" "$version_dir" || return 1
   codexbar_require_sparkle_signing_target \
     "$version_dir/Updater.app/Contents/MacOS/Updater" "updater executable" "$version_dir" || return 1
-  codexbar_require_sparkle_signing_target \
-    "$version_dir/XPCServices/Downloader.xpc" "downloader xpc" "$version_dir" || return 1
+  codexbar_require_sparkle_signing_target "$version_dir/Updater.app" "updater app" "$version_dir" || return 1
   codexbar_require_sparkle_signing_target \
     "$version_dir/XPCServices/Downloader.xpc/Contents/MacOS/Downloader" \
     "downloader executable" "$version_dir" || return 1
   codexbar_require_sparkle_signing_target \
-    "$version_dir/XPCServices/Installer.xpc" "installer xpc" "$version_dir" || return 1
+    "$version_dir/XPCServices/Downloader.xpc" "downloader xpc" "$version_dir" || return 1
   codexbar_require_sparkle_signing_target \
     "$version_dir/XPCServices/Installer.xpc/Contents/MacOS/Installer" \
     "installer executable" "$version_dir" || return 1
+  codexbar_require_sparkle_signing_target \
+    "$version_dir/XPCServices/Installer.xpc" "installer xpc" "$version_dir" || return 1
+  codexbar_require_sparkle_signing_target "$version_dir/Sparkle" "framework binary" "$version_dir" || return 1
   codexbar_require_sparkle_signing_target "$version_dir" "framework version" "$version_dir" || return 1
   codexbar_require_sparkle_signing_target "$sparkle" "framework root" "$sparkle" || return 1
 }

@@ -75,6 +75,17 @@ struct CodexSystemPromotionUITests {
     }
 
     @Test
+    func `promotion coordinator explains selected workspace auth mismatch`() {
+        let error = CodexAccountPromotionCoordinator.mapUserFacingError(
+            CodexAccountPromotionError.targetManagedAccountWorkspaceDiffersFromAuthDefault)
+
+        #expect(error.title == "Could not switch system account")
+        #expect(error.message.contains("differs from its saved Codex auth default"))
+        #expect(error.message.contains("Keep it as a managed account"))
+        #expect(error.message.contains("will not rewrite Codex-owned auth"))
+    }
+
+    @Test
     func `codex menu descriptor includes system account submenu`() throws {
         let container = try CodexAccountPromotionTestContainer(
             suiteName: "CodexSystemPromotionUITests-menu-descriptor")

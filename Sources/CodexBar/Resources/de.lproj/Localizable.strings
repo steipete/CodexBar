@@ -45,6 +45,7 @@
 "hooks_any_provider" = "Beliebiger Anbieter";
 "hooks_threshold" = "Auslösen bei Nutzung ≥";
 "hooks_threshold_placeholder" = "90";
+"hooks_executable" = "Ausführbare Datei";
 "hooks_executable_placeholder" = "/usr/local/bin/my-command";
 "hooks_arguments_placeholder" = "Argumente";
 "hooks_argument_placeholder" = "Argument";
@@ -513,7 +514,6 @@
 "provider_accent_color_reset" = "Standard verwenden";
 "quota_warnings_title" = "Kontingentwarnungen";
 "quota_warning_session" = "Sitzung";
-"quota_warning_session_capitalized" = "Sitzung";
 "quota_warning_weekly" = "wöchentlich";
 "quota_warning_weekly_capitalized" = "Wöchentlich";
 "quota_warning_notification_title" = "%1$@ %2$@ Kontingent niedrig";
@@ -1486,6 +1486,7 @@
 "Total usage" = "Gesamtnutzung";
 "claude_oauth_keychain_access_revoked" = "Der Zugriff auf den Claude-Schlüsselbund wurde durch die Token-Rotation von Claude Code widerrufen. Klicken Sie auf „Aktualisieren“, um den Zugriff erneut zu gewähren, oder stellen Sie die Claude-Nutzungsquelle auf CLI/Web um.";
 "claude_showing_last_known_usage" = "Letzte bekannte Nutzung wird angezeigt (erfasst: %@).";
+"claude_limited_usage_detail" = "Eingeschränkte Nutzungsdetails";
 /* Spend dashboard cost analysis */
 "90d" = "90d";
 "Input" = "Input";
@@ -1541,3 +1542,4 @@
 "menu_bar_layout_conditional_default_either_high" = "Sitzung oder Woche läuft hoch";
 "menu_bar_layout_conditional_default_scoped_weekly" = "Modellfenster über 60 % genutzt";
 "Spending cap, not balance" = "Ausgabenlimit, kein Guthaben";
+"%@ weekly" = "%@ wöchentlich";

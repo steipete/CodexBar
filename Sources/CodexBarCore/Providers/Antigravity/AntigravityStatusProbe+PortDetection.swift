@@ -1,5 +1,14 @@
 import Foundation
 
+/// Readiness polling may retry an empty kernel lookup while retaining the lsof diagnostic.
+struct AntigravityPortDiscoveryPendingError: LocalizedError {
+    let underlyingError: any Error
+
+    var errorDescription: String? {
+        self.underlyingError.localizedDescription
+    }
+}
+
 /// Parses Linux `/proc/<pid>/net/tcp{,6}` output to recover the listening ports
 /// owned by a process. The parsing is platform-independent for focused tests.
 enum ProcNetTCPListeningPortParser {
@@ -53,20 +62,43 @@ extension AntigravityStatusProbe {
         let lsof = ["/usr/sbin/lsof", "/usr/bin/lsof"].first(where: {
             FileManager.default.isExecutableFile(atPath: $0)
         })
+        return try await Self.linuxListeningPorts(pid: pid, timeout: timeout, lsof: lsof)
+        #endif
+    }
 
+    static func linuxListeningPorts(
+        pid: Int,
+        timeout: TimeInterval,
+        lsof: String?,
+        procRoot: String = "/proc") async throws -> [Int]
+    {
+        try Task.checkCancellation()
+        var lsofError: SubprocessRunnerError?
         if let lsof {
-            return try await Self.lsofListeningPorts(lsof: lsof, pid: pid, timeout: timeout)
+            do {
+                return try await Self.lsofListeningPorts(lsof: lsof, pid: pid, timeout: timeout)
+            } catch let error as SubprocessRunnerError {
+                switch error {
+                case .binaryNotFound, .launchFailed, .nonZeroExit:
+                    lsofError = error
+                case .timedOut, .outputTooLarge:
+                    throw error
+                }
+            } catch let error as AntigravityStatusProbeError {
+                guard case .portDetectionFailed = error else { throw error }
+            }
         }
 
-        // `lsof` is frequently absent on minimal Linux hosts. Fall back to the
-        // kernel's /proc interface, mirroring the /proc/<pid>/cwd fallback that
-        // LocalAgentSessionScanner.cwdByPID already uses when lsof is missing.
-        let ports = Self.procListeningPorts(pid: pid)
+        // Installed lsof can fail on inaccessible mount namespaces. The existing
+        // process-scoped kernel lookup remains usable without broadening socket ownership.
+        try Task.checkCancellation()
+        let ports = Self.procListeningPorts(pid: pid, procRoot: procRoot)
+        try Task.checkCancellation()
         if ports.isEmpty {
+            if let lsofError { throw AntigravityPortDiscoveryPendingError(underlyingError: lsofError) }
             throw AntigravityStatusProbeError.portDetectionFailed("no listening ports found")
         }
         return ports
-        #endif
     }
 
     private static func lsofListeningPorts(

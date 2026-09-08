@@ -142,7 +142,7 @@ extension StatusMenuTests {
         #expect(controller.measuredStandardMenuWidthCache.count == 1)
 
         let menu = NSMenu()
-        controller.addActionableSections([longSection], to: menu, width: longWidth)
+        controller.addActionableSections([longSection], to: menu, width: longWidth, provider: nil)
         guard menu.items.indices.contains(1),
               case let .action(title, .focusAgentSession) = longSection.entries[1],
               let view = menu.items[1].view

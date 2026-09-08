@@ -21,21 +21,27 @@ public struct MoonshotUsageSummary: Sendable {
     public let voucherBalance: Double
     public let cashBalance: Double
     public let updatedAt: Date
+    public let region: MoonshotRegion
 
     public init(
-        availableBalance: Double, voucherBalance: Double, cashBalance: Double, updatedAt: Date)
+        availableBalance: Double,
+        voucherBalance: Double,
+        cashBalance: Double,
+        updatedAt: Date,
+        region: MoonshotRegion = .international)
     {
         self.availableBalance = availableBalance
         self.voucherBalance = voucherBalance
         self.cashBalance = cashBalance
         self.updatedAt = updatedAt
+        self.region = region
     }
 
     public func toUsageSnapshot() -> UsageSnapshot {
-        let balance = UsageFormatter.usdString(self.availableBalance)
+        let balance = self.formatCurrency(self.availableBalance)
         let loginMethod: String
         if self.cashBalance < 0 {
-            let deficit = UsageFormatter.usdString(abs(self.cashBalance))
+            let deficit = self.formatCurrency(abs(self.cashBalance))
             loginMethod = "Balance: \(balance) · \(deficit) in deficit"
         } else {
             loginMethod = "Balance: \(balance)"
@@ -52,6 +58,12 @@ public struct MoonshotUsageSummary: Sendable {
             providerCost: nil,
             updatedAt: self.updatedAt,
             identity: identity)
+    }
+
+    private func formatCurrency(_ value: Double) -> String {
+        self.region == .china
+            ? UsageFormatter.currencyString(value, currencyCode: "CNY")
+            : UsageFormatter.usdString(value)
     }
 }
 
@@ -128,7 +140,7 @@ public struct MoonshotUsageFetcher: Sendable {
             throw MoonshotUsageError.apiError("HTTP \(response.statusCode)")
         }
 
-        let summary = try self.parseSummary(data: response.data)
+        let summary = try self.parseSummary(data: response.data, region: region)
         return MoonshotUsageSnapshot(summary: summary)
     }
 
@@ -136,11 +148,13 @@ public struct MoonshotUsageFetcher: Sendable {
         region.balanceURL
     }
 
-    static func _parseSummaryForTesting(_ data: Data) throws -> MoonshotUsageSummary {
-        try self.parseSummary(data: data)
+    static func _parseSummaryForTesting(
+        _ data: Data, region: MoonshotRegion = .international) throws -> MoonshotUsageSummary
+    {
+        try self.parseSummary(data: data, region: region)
     }
 
-    private static func parseSummary(data: Data) throws -> MoonshotUsageSummary {
+    private static func parseSummary(data: Data, region: MoonshotRegion) throws -> MoonshotUsageSummary {
         let response: MoonshotBalanceResponse
         do {
             response = try JSONDecoder().decode(MoonshotBalanceResponse.self, from: data)
@@ -156,6 +170,7 @@ public struct MoonshotUsageFetcher: Sendable {
             availableBalance: response.data.availableBalance,
             voucherBalance: response.data.voucherBalance,
             cashBalance: response.data.cashBalance,
-            updatedAt: Date())
+            updatedAt: Date(),
+            region: region)
     }
 }

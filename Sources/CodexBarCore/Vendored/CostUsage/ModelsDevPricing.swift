@@ -580,19 +580,12 @@ enum ModelsDevCache {
         encoder.dateEncodingStrategy = .iso8601
         guard let data = try? encoder.encode(artifact) else { return false }
 
-        let tmp = dir.appendingPathComponent(".tmp-\(UUID().uuidString).json", isDirectory: false)
         do {
-            try data.write(to: tmp, options: [.atomic])
-            if FileManager.default.fileExists(atPath: url.path) {
-                _ = try FileManager.default.replaceItemAt(url, withItemAt: tmp)
-            } else {
-                try FileManager.default.moveItem(at: tmp, to: url)
-            }
+            try data.write(to: url, options: [.atomic])
             // The on-disk catalog changed; drop the memo so the next load decodes the fresh file.
             Self.memo.invalidate(path: url.path)
             return true
         } catch {
-            try? FileManager.default.removeItem(at: tmp)
             return false
         }
     }

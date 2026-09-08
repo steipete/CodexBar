@@ -57,12 +57,12 @@ struct CodexDisplacedLivePreservationPlanner {
             return .reject(reason: .liveIdentityMissingForPreservation)
         }
 
-        if let targetAuthIdentity = context.target.authIdentity,
-           CodexIdentityMatcher.matches(
-               targetAuthIdentity.identity,
-               lhsEmail: targetAuthIdentity.email,
-               liveAuthIdentity.identity,
-               rhsEmail: liveAuthIdentity.email)
+        let targetIdentity = context.target.remoteIdentity
+        if CodexIdentityMatcher.matches(
+            targetIdentity.identity,
+            lhsEmail: targetIdentity.email,
+            liveAuthIdentity.identity,
+            rhsEmail: liveAuthIdentity.email)
         {
             return .none(reason: .targetMatchesLiveAuthIdentity)
         }
@@ -100,11 +100,17 @@ struct CodexDisplacedLivePreservationPlanner {
     {
         candidates.first { candidate in
             guard let candidateAuthIdentity = candidate.authIdentity else { return false }
+            let candidateRemoteIdentity = candidate.remoteIdentity
             return CodexIdentityMatcher.matches(
-                candidateAuthIdentity.identity,
-                lhsEmail: candidateAuthIdentity.email,
+                candidateRemoteIdentity.identity,
+                lhsEmail: candidateRemoteIdentity.email,
                 liveAuthIdentity.identity,
-                rhsEmail: liveAuthIdentity.email)
+                rhsEmail: liveAuthIdentity.email) &&
+                CodexIdentityMatcher.matches(
+                    candidateAuthIdentity.identity,
+                    lhsEmail: candidateAuthIdentity.email,
+                    liveAuthIdentity.identity,
+                    rhsEmail: liveAuthIdentity.email)
         }
     }
 
@@ -115,9 +121,9 @@ struct CodexDisplacedLivePreservationPlanner {
     {
         switch liveAuthIdentity.identity {
         case let .providerAccount(id):
-            let providerAccountID = ManagedCodexAccount.normalizeProviderAccountID(id)
+            let providerAccountID = ManagedCodexAccount.normalizeWorkspaceAccountID(id)
             if let destination = candidates.first(where: {
-                guard $0.persisted.providerAccountID == providerAccountID else { return false }
+                guard $0.persisted.effectiveWorkspaceAccountID == providerAccountID else { return false }
                 guard let liveEmail = liveAuthIdentity.email else { return true }
                 return $0.persisted.email == liveEmail
             }),
@@ -128,7 +134,7 @@ struct CodexDisplacedLivePreservationPlanner {
 
             if let liveEmail = liveAuthIdentity.email,
                let destination = candidates.first(where: {
-                   $0.persisted.providerAccountID == nil && $0.persisted.email == liveEmail
+                   $0.persisted.effectiveWorkspaceAccountID == nil && $0.persisted.email == liveEmail
                })
             {
                 return (destination, .persistedLegacyEmailMatch)
@@ -138,7 +144,7 @@ struct CodexDisplacedLivePreservationPlanner {
 
         case let .emailOnly(normalizedEmail):
             guard let destination = candidates.first(where: {
-                $0.persisted.providerAccountID == nil && $0.persisted.email == normalizedEmail
+                $0.persisted.effectiveWorkspaceAccountID == nil && $0.persisted.email == normalizedEmail
             }) else {
                 return nil
             }
@@ -158,17 +164,17 @@ struct CodexDisplacedLivePreservationPlanner {
             return false
         }
 
-        let providerAccountID = ManagedCodexAccount.normalizeProviderAccountID(id)
+        let providerAccountID = ManagedCodexAccount.normalizeWorkspaceAccountID(id)
         return candidates.contains { candidate in
-            guard candidate.persisted.providerAccountID == providerAccountID else { return false }
+            guard candidate.persisted.effectiveWorkspaceAccountID == providerAccountID else { return false }
             if let liveEmail = liveAuthIdentity.email, candidate.persisted.email != liveEmail {
                 return false
             }
             guard case .readable = candidate.homeState else { return false }
-            guard let candidateAuthIdentity = candidate.authIdentity else { return false }
+            guard let candidateIdentity = candidate.authIdentity else { return false }
             return !CodexIdentityMatcher.matches(
-                candidateAuthIdentity.identity,
-                lhsEmail: candidateAuthIdentity.email,
+                candidateIdentity.identity,
+                lhsEmail: candidateIdentity.email,
                 liveAuthIdentity.identity,
                 rhsEmail: liveAuthIdentity.email)
         }

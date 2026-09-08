@@ -45,6 +45,7 @@
 "hooks_any_provider" = "Elke provider";
 "hooks_threshold" = "Uitvoeren bij gebruik ≥";
 "hooks_threshold_placeholder" = "90";
+"hooks_executable" = "Uitvoerbaar bestand";
 "hooks_executable_placeholder" = "/usr/local/bin/my-command";
 "hooks_arguments_placeholder" = "Argumenten";
 "hooks_argument_placeholder" = "Argument";
@@ -515,7 +516,6 @@
 "provider_accent_color_reset" = "Standaard gebruiken";
 "quota_warnings_title" = "Quotumwaarschuwingen";
 "quota_warning_session" = "sessie";
-"quota_warning_session_capitalized" = "Sessie";
 "quota_warning_weekly" = "wekelijks";
 "quota_warning_weekly_capitalized" = "Wekelijks";
 "quota_warning_notification_title" = "%1$@ %2$@ quotum laag";
@@ -1485,6 +1485,7 @@
 "Total usage" = "Totaal gebruik";
 "claude_oauth_keychain_access_revoked" = "De toegang tot de Claude-sleutelhanger is ingetrokken door de tokenrotatie van Claude Code. Klik op Vernieuwen om opnieuw toegang te verlenen of zet de Claude-gebruiksbron op CLI/Web.";
 "claude_showing_last_known_usage" = "De laatst bekende gebruiksgegevens worden weergegeven (vastgelegd: %@).";
+"claude_limited_usage_detail" = "Beperkte gebruiksdetails";
 /* Spend dashboard cost analysis */
 "90d" = "90d";
 "Input" = "Input";
@@ -1540,3 +1541,4 @@
 "menu_bar_layout_conditional_default_either_high" = "Sessie of week loopt hoog op";
 "menu_bar_layout_conditional_default_scoped_weekly" = "Modelweek boven 60% gebruikt";
 "Spending cap, not balance" = "Uitgavenlimiet, geen saldo";
+"%@ weekly" = "%@ wekelijks";

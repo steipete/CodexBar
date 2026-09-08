@@ -500,7 +500,6 @@
 "provider_accent_color_reset" = "استخدام الافتراضي";
 "quota_warnings_title" = "تحذيرات الحصص";
 "quota_warning_session" = "الجلسة";
-"quota_warning_session_capitalized" = "الجلسة";
 "quota_warning_weekly" = "أسبوعيا";
 "quota_warning_weekly_capitalized" = "الأسبوعي";
 "quota_warning_notification_title" = "انخفاض حصة %2$@ لدى %1$@";
@@ -566,6 +565,7 @@
 "hooks_any_provider" = "أي مزود";
 "hooks_threshold" = "التشغيل عند الاستخدام ≥";
 "hooks_threshold_placeholder" = "90";
+"hooks_executable" = "الملف التنفيذي";
 "hooks_executable_placeholder" = "/usr/local/bin/my-command";
 "hooks_arguments_placeholder" = "الوسائط";
 "hooks_argument_placeholder" = "الوسيطة";
@@ -1489,6 +1489,7 @@
 "Total usage" = "إجمالي الاستخدام";
 "claude_oauth_keychain_access_revoked" = "تم إلغاء وصول CodexBar إلى سلسلة مفاتيح Claude بسبب تدوير الرمز المميز في Claude Code. انقر على «تحديث» لمنح الوصول مجددًا، أو بدّل مصدر استخدام Claude إلى CLI/Web.";
 "claude_showing_last_known_usage" = "يتم عرض آخر بيانات استخدام معروفة، تم التقاطها %@.";
+"claude_limited_usage_detail" = "تفاصيل الاستخدام محدودة";
 /* Spend dashboard cost analysis */
 "90d" = "90d";
 "Input" = "Input";
@@ -1545,3 +1546,4 @@
 "menu_bar_layout_conditional_default_either_high" = "الجلسة أو الأسبوع في مستوى مرتفع";
 "menu_bar_layout_conditional_default_scoped_weekly" = "نافذة الطراز الأسبوعية فوق 60٪";
 "Spending cap, not balance" = "حد الإنفاق، وليس الرصيد";
+"%@ weekly" = "%@ أسبوعيًا";

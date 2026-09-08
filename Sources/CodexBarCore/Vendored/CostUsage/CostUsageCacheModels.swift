@@ -14,6 +14,8 @@ struct CostUsageCache: Codable, Equatable, @unchecked Sendable {
     var codexPriorityTurnKeys: [String: String]?
     var codexPriorityTurnIDsByDay: [String: [String]]?
     var codexPriorityTurnsCursor: CostUsageScanner.CodexPriorityTurnsPersistedCursor?
+    /// Last validated report evidence; an empty map is distinct from an older cache without it.
+    var codexResolvedPriorityTurns: [String: CostUsageScanner.CodexPriorityTurnMetadata]?
     var codexScanCatchUpPending: Bool?
     var codexScanProcessedBytes: Int64?
     var codexScanTotalBytes: Int64?

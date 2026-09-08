@@ -17,7 +17,9 @@ struct CommandCodeQuotaTransitionTests {
         let freeTier = self.snapshot(remaining: 0, plan: nil)
         let freeTierWithPurchasedCredits = self.snapshot(remaining: 0, purchasedCredits: 5, plan: nil)
 
-        #expect(missingSubscription.tertiary?.usedPercent == 0)
+        // An unknown grant size must not borrow the free-tier reading: that renders an untouched
+        // monthly bar for a paid plan whose spend is unknown for this refresh.
+        #expect(missingSubscription.tertiary == nil)
         #expect(freeTierWithPurchasedCredits.tertiary?.usedPercent == 0)
 
         let stabilized = UsageStore.commandCodeSnapshotResolvingDepletionOnEnrichmentFailure(
@@ -33,12 +35,12 @@ struct CommandCodeQuotaTransitionTests {
         let startupFailure = UsageStore.commandCodeSnapshotResolvingDepletionOnEnrichmentFailure(
             current: missingSubscription,
             previous: nil)
-        #expect(startupFailure.tertiary?.usedPercent == 0)
+        #expect(startupFailure.tertiary == nil)
 
         let freeTierFailure = UsageStore.commandCodeSnapshotResolvingDepletionOnEnrichmentFailure(
             current: missingSubscription,
             previous: freeTierWithPurchasedCredits)
-        #expect(freeTierFailure.tertiary?.usedPercent == 0)
+        #expect(freeTierFailure.tertiary == nil)
 
         let validFreeTier = UsageStore.commandCodeSnapshotResolvingDepletionOnEnrichmentFailure(
             current: freeTier,
