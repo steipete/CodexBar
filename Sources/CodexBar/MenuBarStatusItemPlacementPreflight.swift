@@ -33,13 +33,9 @@ enum MenuBarStatusItemPlacementPreflight {
     }
 
     static func shouldClearPreferredPosition(_ value: Any, maximumPreferredPosition: Double?) -> Bool {
-        guard let number = value as? NSNumber else { return true }
-        let position = number.doubleValue
-        if !position.isFinite || position <= 0 {
-            return true
-        }
-        guard let maximumPreferredPosition else { return false }
-        return position > maximumPreferredPosition + self.suspiciousPreferredPositionPadding
+        guard let position = (value as? NSNumber)?.doubleValue,
+              position.isFinite, position > 0 else { return true }
+        return maximumPreferredPosition.map { position > $0 + self.suspiciousPreferredPositionPadding } ?? false
     }
 
     private static func clearPreferredPositionIfNeeded(
@@ -55,7 +51,8 @@ enum MenuBarStatusItemPlacementPreflight {
         return true
     }
 
-    private static func currentMaximumPreferredPosition() -> Double? {
-        NSScreen.screens.map { Double($0.frame.maxX) }.max()
+    static func currentMaximumPreferredPosition(screenFrames: [CGRect] = NSScreen.screens.map(\.frame)) -> Double? {
+        // Preserve the legacy parking range while covering wide displays left of the primary screen.
+        screenFrames.map { Double(max($0.width, $0.maxX)) }.max()
     }
 }

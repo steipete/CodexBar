@@ -275,7 +275,8 @@ struct CostUsageScannerForkSplitTests {
         cache.days = usage.days
 
         let report = CostUsageScanner.buildCodexReportFromCache(cache: cache, range: range)
-        let expected = try #require(CostUsagePricing.codexAggregateCostUSD(
+        let expected = try #require(CostUsagePricing.codexCostUSD(
+            aggregate: true,
             model: model,
             inputTokens: 400_000,
             cachedInputTokens: 100_000,

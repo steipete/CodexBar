@@ -52,6 +52,117 @@ struct ClaudeOAuthCredentialsProfileCacheTests {
         }
     }
 
+    enum FreshnessScenario: CaseIterable {
+        case adopt, customProfile, codexbarOwner, environmentOwner, consentDenied, keychainDisabled, neverPrompt
+        case userActionOnly, cooldown, unchangedFingerprint, unreadable, malformed, expiredReplacement
+        case filePrecedence, environmentPrecedence
+    }
+
+    @Test(arguments: FreshnessScenario.allCases)
+    func `expired cache freshness preserves profile and consent boundaries`(scenario: FreshnessScenario) throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        var environment = ["CLAUDE_CONFIG_DIR": root.path, "HOME": root.path]
+        let profile = scenario == .customProfile ? String(repeating: "b", count: 64)
+            : ClaudeOAuthCredentialsStore.historicalDefaultCredentialsProfileIdentifier
+        let expired = self.makeCredentialsData(
+            accessToken: "expired-default-test-token", expiresAt: Date(timeIntervalSinceNow: -3600))
+        let fresh = self.makeCredentialsData(
+            accessToken: "fresh-default-test-token",
+            expiresAt: Date(timeIntervalSinceNow: scenario == .expiredReplacement ? -60 : 3600))
+        if scenario == .filePrecedence {
+            try self.makeCredentialsData(accessToken: "file-test-token")
+                .write(to: root.appendingPathComponent(".credentials.json"))
+        }
+        if scenario == .environmentPrecedence {
+            environment[ClaudeOAuthCredentialsStore.environmentTokenKey] = "environment-test-token"
+        }
+        let oldFingerprint = ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprint(
+            modifiedAt: 1, createdAt: 1, persistentRefHash: "old-test-item")
+        let newFingerprint = ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprint(
+            modifiedAt: 2, createdAt: 1, persistentRefHash: "new-test-item")
+        let fingerprints = ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprintStore(
+            fingerprint: scenario == .unchangedFingerprint ? newFingerprint : oldFingerprint)
+        let keychain = ClaudeOAuthCredentialsStore.ClaudeKeychainOverrideStore(
+            data: scenario == .unreadable ? nil : (scenario == .malformed ? Data("invalid".utf8) : fresh),
+            fingerprint: newFingerprint)
+        let mode: ClaudeOAuthKeychainPromptMode = switch scenario {
+        case .neverPrompt: .never
+        case .userActionOnly: .onlyOnUserAction
+        default: .always
+        }
+        try self.withIsolatedCache {
+            try ClaudeOAuthCredentialsStore.withCredentialsProfileIdentifierOverrideForTesting(profile) {
+                try ClaudeOAuthDirectKeychainReadConsent.withTaskOverrideForTesting(scenario != .consentDenied) {
+                    try ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(mode) {
+                        try ProviderInteractionContext.$current.withValue(.background) {
+                            try ClaudeOAuthKeychainAccessGate.withShouldAllowPromptOverrideForTesting(
+                                scenario != .cooldown)
+                            {
+                                try ClaudeOAuthCredentialsStore.withClaudeKeychainFingerprintStoreOverrideForTesting(
+                                    fingerprints)
+                                {
+                                    try ClaudeOAuthCredentialsStore.withMutableClaudeKeychainOverrideStoreForTesting(
+                                        keychain)
+                                    {
+                                        let key = ClaudeOAuthCredentialsStore
+                                            .cacheKeyForTesting(profileIdentifier: profile)
+                                        let oldHistory = String(repeating: "a", count: 64)
+                                        KeychainCacheStore.store(
+                                            key: key,
+                                            entry: ClaudeOAuthCredentialsStore.CacheEntry(
+                                                data: expired,
+                                                storedAt: Date(),
+                                                owner: scenario == .codexbarOwner ? .codexbar
+                                                    : (scenario == .environmentOwner ? .environment : .claudeCLI),
+                                                historyOwnerIdentifier: oldHistory,
+                                                profileIdentifier: profile))
+                                        let record = KeychainAccessGate.withTaskOverrideForTesting(
+                                            scenario == .keychainDisabled)
+                                        {
+                                            try? ClaudeOAuthCredentialsStore.loadRecord(
+                                                environment: environment,
+                                                allowKeychainPrompt: false,
+                                                respectKeychainPromptCooldown: true,
+                                                allowClaudeKeychainRepairWithoutPrompt: false)
+                                        }
+                                        switch scenario {
+                                        case .adopt, .codexbarOwner:
+                                            let adopted = try #require(record)
+                                            #expect(adopted.credentials.accessToken == "fresh-default-test-token")
+                                            #expect(adopted.owner == .claudeCLI)
+                                            #expect(adopted.source == .claudeKeychain)
+                                            let expectedHistory = try ClaudeOAuthCredentials.parse(data: fresh)
+                                                .historyOwnerIdentifier
+                                            #expect(adopted.historyOwnerIdentifier == expectedHistory)
+                                            #expect(adopted.historyOwnerIdentifier != oldHistory)
+                                            #expect(fingerprints.fingerprint == newFingerprint)
+                                            let second = try ClaudeOAuthCredentialsStore.loadRecord(
+                                                environment: environment,
+                                                allowKeychainPrompt: false,
+                                                allowClaudeKeychainRepairWithoutPrompt: false)
+                                            #expect(second.source == .memoryCache)
+                                            #expect(second.credentials.accessToken == adopted.credentials.accessToken)
+                                        case .filePrecedence:
+                                            #expect(record?.credentials.accessToken == "file-test-token")
+                                        case .environmentPrecedence:
+                                            #expect(record?.credentials.accessToken == "environment-test-token")
+                                        default:
+                                            #expect(record?.credentials.accessToken != "fresh-default-test-token")
+                                        }
+                                        #expect(keychain.data == (scenario == .unreadable ? nil
+                                                : (scenario == .malformed ? Data("invalid".utf8) : fresh)))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     @Test
     func `newer cache from another profile never overrides older credentials file`() throws {
         let tempRoot = FileManager.default.temporaryDirectory

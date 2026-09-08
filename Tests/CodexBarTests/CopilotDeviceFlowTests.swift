@@ -3,6 +3,19 @@ import Foundation
 import Testing
 
 struct CopilotDeviceFlowTests {
+    @Test(arguments: ["github.com", "GITHUB.COM.", "https://github.com:443/login"])
+    func `default https issuer spellings remain public GitHub`(_ host: String) {
+        #expect(CopilotDeviceFlow(enterpriseHost: host).deviceCodeURL?.absoluteString ==
+            "https://github.com/login/device/code")
+        #expect(CopilotUsageFetcher.apiHost(enterpriseHost: host) == "api.github.com")
+    }
+
+    @Test
+    func `enterprise issuer preserves a nondefault port without a trailing dns dot`() {
+        #expect(CopilotUsageFetcher.apiHost(enterpriseHost: "https://example.ghe.com.:8443/path") ==
+            "api.example.ghe.com:8443")
+    }
+
     @Test
     func `prefers verification uri complete when available`() throws {
         let response = try JSONDecoder().decode(

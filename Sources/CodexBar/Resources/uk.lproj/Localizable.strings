@@ -516,7 +516,6 @@
 "provider_accent_color_reset" = "Використовувати типовий";
 "quota_warnings_title" = "Попередження про квоту";
 "quota_warning_session" = "сесії";
-"quota_warning_session_capitalized" = "Сесія";
 "quota_warning_weekly" = "щотижня";
 "quota_warning_weekly_capitalized" = "Щотижня";
 "quota_warning_notification_title" = "%1$@ %2$@ квота низька";
@@ -1543,3 +1542,4 @@
 "menu_bar_layout_conditional_default_either_high" = "Сесія або тиждень на високому рівні";
 "menu_bar_layout_conditional_default_scoped_weekly" = "Тижневе вікно моделі понад 60 %";
 "Spending cap, not balance" = "Ліміт витрат, не баланс";
+"%@ weekly" = "%@ за тиждень";

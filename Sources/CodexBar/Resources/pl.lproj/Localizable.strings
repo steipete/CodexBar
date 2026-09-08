@@ -502,7 +502,6 @@
 "provider_accent_color_reset" = "Użyj domyślnego";
 "quota_warnings_title" = "Ostrzeżenia limitu";
 "quota_warning_session" = "sesja";
-"quota_warning_session_capitalized" = "Sesja";
 "quota_warning_weekly" = "tydzień";
 "quota_warning_weekly_capitalized" = "Tydzień";
 "quota_warning_notification_title" = "Niski limit %1$@ (%2$@)";
@@ -1546,3 +1545,4 @@
 "menu_bar_layout_conditional_default_either_high" = "Sesja lub tydzień na wysokim poziomie";
 "menu_bar_layout_conditional_default_scoped_weekly" = "Tydzień modelu powyżej 60% zużycia";
 "Spending cap, not balance" = "Limit wydatków, nie saldo";
+"%@ weekly" = "%@ tygodniowo";

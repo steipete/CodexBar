@@ -65,6 +65,7 @@ Admin API key setup:
   - CodexBar OAuth cache when available.
   - File fallback: `~/.claude/.credentials.json`.
   - Claude CLI Keychain bootstrap/repair fallback: `Claude Code-credentials`.
+- For the default CLI profile, expired cached credentials can adopt a changed, fresh CLI Keychain token after file fallback. Existing direct-read consent, prompt policy, cooldown, and noninteractive-read checks still apply. Custom profiles are not recovered from the unscoped global item, and CLI credentials are never rewritten by this synchronization.
 - On Claude Code 2.1.x, `Claude Code-credentials` may contain only MCP server OAuth state (`mcpOAuth`) with no `claudeAiOauth`. CodexBar treats that as an OAuth configuration error, does not run background delegated `claude /status` refresh, and surfaces re-auth guidance. Use Web or CLI usage source, or restore a valid Claude OAuth keychain entry. See #1844.
 - Requires `user:profile` scope (CLI tokens with only `user:inference` cannot call usage).
 - Endpoints:
@@ -79,6 +80,7 @@ Admin API key setup:
   - `seven_day` → weekly window; also becomes the primary fallback when `five_hour` is absent or has no utilization.
   - `seven_day_sonnet` / `seven_day_opus` → model-specific weekly window.
   - `limits[].weekly_scoped` → model-specific weekly windows; generic `All models` scopes stay in the main weekly row.
+  - The menu localizes scoped titles as a model name plus weekly duration; canonical snapshot and CLI titles remain unchanged.
   - `seven_day_routines` / `seven_day_cowork` → Daily Routines extra window.
   - Claude Design/Omelette keys are ignored because Claude Design shares the main Claude usage limit.
   - `extra_usage` → Extra usage cost (monthly spend/limit).
@@ -235,7 +237,7 @@ Model-scoped weekly-window proof (synthetic data, no real accounts or credential
 ## Cost usage (local log scan)
 - Source roots:
   - Native Claude logs:
-    - `$CLAUDE_CONFIG_DIR` (comma-separated), each root uses `<root>/projects`.
+    - `$CLAUDE_CONFIG_DIR` selects one literal directory and uses `<root>/projects`; commas are part of its path.
     - Fallback roots:
       - `~/.config/claude/projects`
       - `~/.claude/projects` (Claude Code and current Claude Desktop Code/Cowork CLI sessions)
@@ -258,6 +260,7 @@ Model-scoped weekly-window proof (synthetic data, no real accounts or credential
   - Matching assistant entry IDs within the same session are counted once across roots; distinct turns are retained.
 - Cache:
   - Native provider cache: `~/Library/Caches/CodexBar/cost-usage/claude-v6.json`
+  - The Claude/Vertex cache artifact retains source file identities independently of the shared Codex parser fingerprint. Replacing a transcript rebuilds its rows rather than merging an old prefix into a new suffix; genuine appends still use the saved parse offset. Older entries without identity are rebuilt once before reuse, including during the normal refresh debounce.
   - pi-compatible session cache: `~/Library/Caches/CodexBar/cost-usage/pi-sessions-v8.json`
 
 ## Key files

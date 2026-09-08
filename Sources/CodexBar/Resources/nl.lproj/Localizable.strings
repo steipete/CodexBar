@@ -516,7 +516,6 @@
 "provider_accent_color_reset" = "Standaard gebruiken";
 "quota_warnings_title" = "Quotumwaarschuwingen";
 "quota_warning_session" = "sessie";
-"quota_warning_session_capitalized" = "Sessie";
 "quota_warning_weekly" = "wekelijks";
 "quota_warning_weekly_capitalized" = "Wekelijks";
 "quota_warning_notification_title" = "%1$@ %2$@ quotum laag";
@@ -1542,3 +1541,4 @@
 "menu_bar_layout_conditional_default_either_high" = "Sessie of week loopt hoog op";
 "menu_bar_layout_conditional_default_scoped_weekly" = "Modelweek boven 60% gebruikt";
 "Spending cap, not balance" = "Uitgavenlimiet, geen saldo";
+"%@ weekly" = "%@ wekelijks";

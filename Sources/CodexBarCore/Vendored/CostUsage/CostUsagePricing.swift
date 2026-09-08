@@ -477,57 +477,7 @@ enum CostUsagePricing {
     /// xAI rates price native Grok session summaries, not Codex subscription history. Keep their fingerprint scope
     /// separate so an xAI catalog update cannot invalidate the unrelated Codex session cache.
     static let xaiModelsDevProviderIDs: Set<String> = ["xai"]
-    private static let codexCompatibleModelsDevProviderIDs = CostUsagePricing.codexModelsDevProviderIDs
-        .union(CostUsagePricing.xaiModelsDevProviderIDs)
     private static let claudeModelsDevProviderID = "anthropic"
-
-    /// Returns the provider/model identities that may price a Codex model. Keep this mapping
-    /// shared by direct lookup and unknown-price refresh so a newly downloaded catalog is checked
-    /// under the same identity that was used to resolve the model.
-    static func codexModelsDevPricingTargets(for rawModel: String) -> [(providerID: String, modelID: String)] {
-        let trimmed = rawModel.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return [] }
-        if let slash = trimmed.firstIndex(of: "/") {
-            let routeID = String(trimmed[..<slash]).lowercased()
-            let modelID = String(trimmed[trimmed.index(after: slash)...])
-            guard !routeID.isEmpty, !modelID.isEmpty,
-                  self.codexCompatibleModelsDevProviderIDs.contains(routeID)
-            else { return [] }
-
-            var providerIDs = [routeID]
-            switch routeID {
-            case "kimi-coding":
-                providerIDs.append("kimi-for-coding")
-            case "opencode-free":
-                providerIDs.append("opencode")
-            default:
-                break
-            }
-            var targets = providerIDs.map { ($0, modelID) }
-            // `grok-build-0.1` does not end in `-build` and must remain an exact catalog identity.
-            if routeID == "xai",
-               modelID.hasPrefix("grok-"),
-               modelID.hasSuffix("-build"),
-               modelID.count > "grok-".count + "-build".count
-            {
-                targets.append((routeID, String(modelID.dropLast("-build".count))))
-            }
-            if routeID == self.codexModelsDevProviderID {
-                let normalized = self.normalizeCodexModel(modelID)
-                if normalized != modelID {
-                    targets.append((self.codexModelsDevProviderID, normalized))
-                }
-            }
-            return targets
-        }
-
-        let normalized = self.normalizeCodexModel(trimmed)
-        var targets = [(self.codexModelsDevProviderID, trimmed)]
-        if normalized != trimmed {
-            targets.append((self.codexModelsDevProviderID, normalized))
-        }
-        return targets
-    }
 
     static func normalizeCodexModel(_ raw: String) -> String {
         var trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -599,9 +549,10 @@ enum CostUsagePricing {
         model: String,
         pricingDate: Date? = nil,
         modelsDevCatalog: ModelsDevCatalog?,
-        modelsDevCacheRoot: URL?) -> CodexPricing?
+        modelsDevCacheRoot: URL?,
+        pricingResolver: CodexResolver? = nil) -> CodexPricing?
     {
-        let key = self.normalizeCodexModel(model)
+        let key = pricingResolver?.normalize(model) ?? self.normalizeCodexModel(model)
         guard key != self.codexUnattributedModel else { return nil }
         // Use historical bundled rates when the usage predates a known pricing change and
         // no custom overlay or models.dev catalog entry overrides the lookup.
@@ -611,10 +562,11 @@ enum CostUsagePricing {
         {
             return historical
         }
-        let modelsDevLookup = self.codexModelsDevLookup(
-            model: model,
-            catalog: modelsDevCatalog,
-            cacheRoot: modelsDevCacheRoot)
+        let modelsDevLookup = if let pricingResolver {
+            pricingResolver.lookup(model)
+        } else {
+            self.codexModelsDevLookup(model: model, catalog: modelsDevCatalog, cacheRoot: modelsDevCacheRoot)
+        }
         if let lookup = modelsDevLookup {
             let bundled = lookup.pricing.providerID == self.codexModelsDevProviderID ? self.codex[key] : nil
             // A missing catalog context block means models.dev has no long-context opinion, so use
@@ -657,11 +609,14 @@ enum CostUsagePricing {
     /// Resolves the provider-qualified model IDs written by Codex-compatible clients without
     /// falling back to OpenAI pricing for an unrelated route. Unqualified model IDs retain the
     /// historical OpenAI behavior, including the gpt-5.6 alias lookup.
-    private static func codexModelsDevLookup(
+    static func codexModelsDevLookup(
         model rawModel: String,
         catalog: ModelsDevCatalog?,
         cacheRoot: URL?) -> ModelsDevPricingLookup?
     {
+        #if DEBUG
+        self.codexPricingWorkRecorder?.recordCatalogLookup()
+        #endif
         for target in self.codexModelsDevPricingTargets(for: rawModel) {
             if let lookup = self.modelsDevLookup(
                 providerID: target.providerID,
@@ -684,7 +639,8 @@ enum CostUsagePricing {
         pricingDate: Date? = nil,
         modelsDevCatalog: ModelsDevCatalog? = nil,
         modelsDevCacheRoot: URL? = nil,
-        customPricing: CostUsageCustomPricing? = nil) -> Double?
+        customPricing: CostUsageCustomPricing? = nil,
+        pricingResolver: CodexResolver? = nil) -> Double?
     {
         guard let multiplier = self.codexAPIFastMultiplier(model: model) else { return nil }
         // Keep older models' established cutoff; Astra explicitly publishes long-context Fast rates.
@@ -703,7 +659,8 @@ enum CostUsagePricing {
             pricingDate: pricingDate,
             modelsDevCatalog: modelsDevCatalog,
             modelsDevCacheRoot: modelsDevCacheRoot,
-            customPricing: customPricing)
+            customPricing: customPricing,
+            pricingResolver: pricingResolver)
             .map { $0 * multiplier }
     }
 

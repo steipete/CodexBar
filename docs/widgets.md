@@ -35,6 +35,7 @@ also lets persistence integration tests count reload attempts without calling Wi
 
 ## Extension
 - `Sources/CodexBarWidget` contains timeline + views.
+- Usage, Switcher, History, and Metric widgets use WidgetKit's content margins; their views do not add a second outer inset.
 - `WidgetExtension/CodexBarWidgetExtension.xcodeproj` builds those sources as the packaged macOS WidgetKit app extension.
 - Keep data shape in sync with `WidgetSnapshot` in the main app.
 

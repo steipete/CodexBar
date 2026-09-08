@@ -33,6 +33,7 @@ CodexBar requests:
 - `GET https://api.poe.com/usage/points_history`
 
 The current balance request is required. Recent points history is best-effort, so a history error does not hide a valid balance.
+History rows with invalid timestamps are skipped, including numeric timestamps outside the supported date range.
 
 ## Display
 

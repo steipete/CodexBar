@@ -225,6 +225,7 @@
 
   ctx.pct = (used, limit) => host.pct(Number(used), Number(limit));
   ctx.amountFromPercent = (percent, limit) => host.amountFromPercent(Number(percent), Number(limit));
+  ctx.isDetailLabel = (value) => typeof value === "string" && host.isDetailLabel(value);
 
   return ctx;
 });

@@ -521,7 +521,6 @@
 "provider_accent_color_reset" = "使用預設值";
 "quota_warnings_title" = "配額提醒";
 "quota_warning_session" = "工作階段";
-"quota_warning_session_capitalized" = "工作階段";
 "quota_warning_weekly" = "每週";
 "quota_warning_weekly_capitalized" = "每週";
 "quota_warning_notification_title" = "%1$@ %2$@配額偏低";
@@ -1574,3 +1573,4 @@
 "menu_bar_layout_conditional_default_either_high" = "工作階段或每週用量偏高";
 "menu_bar_layout_conditional_default_scoped_weekly" = "模型專屬每週已用超過 60%";
 "Spending cap, not balance" = "支出上限，並非餘額";
+"%@ weekly" = "%@ 每週";

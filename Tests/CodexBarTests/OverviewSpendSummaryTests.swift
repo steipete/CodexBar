@@ -41,7 +41,7 @@ struct OverviewSpendSummaryTests {
 
         #expect(summary.primarySpendText == "~$759.56")
         #expect(summary.providerCoverageText == "3 of 4 subscriptions have spend")
-        #expect(summary.tokenText == "~15.7M tokens")
+        #expect(summary.tokenText == "~\(15.7.formatted())M tokens")
         #expect(summary.historyCoverageText == "Coverage: 30 / 30")
         #expect(summary.pricingCoverageText == "Priced 3 · Unpriced 1 · Unmetered 0 · Estimated 0")
         #expect(summary.provenanceText == "List-price equivalent")

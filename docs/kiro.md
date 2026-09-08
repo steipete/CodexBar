@@ -27,12 +27,14 @@ Kiro uses the AWS `kiro-cli` tool to fetch usage data. No browser cookies or OAu
    - The CLI report states credits against the plan alone and **omits the overage section entirely for
      organization accounts**, so it can never state the overage cap. The API carries the overage allowance
      on top of the plan, which is the ceiling an account actually spends against.
-   - Endpoint: `POST https://codewhisperer.us-east-1.amazonaws.com/`,
-     header `X-Amz-Target: AmazonCodeWhispererService.GetUsageLimits`, body `{"profileArn": ...}`.
+   - Endpoint follows the CLI profile ARN: US East uses `POST https://codewhisperer.us-east-1.amazonaws.com/`;
+     Frankfurt uses `POST https://q.eu-central-1.amazonaws.com/`. Invalid or unsupported profile ARNs skip enrichment.
+     Header `X-Amz-Target: AmazonCodeWhispererService.GetUsageLimits`, body `{"profileArn": ...}`.
    - Credentials come from the CLI's own state, opened **read-only** (the CLI owns the token and its refresh):
      `~/Library/Application Support/kiro-cli/data.sqlite3`
      - `auth_kv` key `kirocli:odic:token` → `access_token`
      - `state` key `api.codewhisperer.profile` → `arn`
+   - Regional endpoints follow [AWS profile-region routing](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/firewall.html), independently of the IAM Identity Center authentication region.
    - Runs after the CLI probe, so a token the CLI refreshed along the way is already in place.
    - Failure is non-fatal: the plan-relative numbers the CLI produced stand, or a plan-only report keeps
      usage unavailable. An unambiguous positive API allowance can supply the missing plan metrics.

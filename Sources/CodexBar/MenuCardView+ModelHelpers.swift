@@ -776,25 +776,7 @@ extension UsageMenuCardView.Model {
         showUsed: Bool) -> PaceDetail?
     {
         guard let detail = UsagePaceText.sessionDetail(provider: provider, window: window, now: now) else { return nil }
-        let expectedUsed = detail.expectedUsedPercent
-        let actualUsed = window.usedPercent
-        let expectedPercent = showUsed ? expectedUsed : (100 - expectedUsed)
-        let actualPercent = showUsed ? actualUsed : (100 - actualUsed)
-        if expectedPercent.isFinite == false || actualPercent.isFinite == false {
-            return nil
-        }
-        let paceOnTop = actualUsed <= expectedUsed
-        let pacePercent: Double? = if detail.stage == .onTrack {
-            nil
-        } else {
-            expectedPercent
-        }
-        return PaceDetail(
-            leftLabel: detail.leftLabel,
-            rightLabel: detail.rightLabel,
-            pacePercent: pacePercent,
-            paceOnTop: paceOnTop,
-            isPaceDerived: true)
+        return self.paceDetail(detail, window: window, showUsed: showUsed)
     }
 
     static func weeklyPaceDetail(
@@ -806,24 +788,21 @@ extension UsageMenuCardView.Model {
     {
         guard let pace, window.remainingPercent > 0 else { return nil }
         let detail = UsagePaceText.weeklyDetail(provider: provider, pace: pace, now: now)
-        let expectedUsed = detail.expectedUsedPercent
-        let actualUsed = window.usedPercent
-        let expectedPercent = showUsed ? expectedUsed : (100 - expectedUsed)
-        let actualPercent = showUsed ? actualUsed : (100 - actualUsed)
-        if expectedPercent.isFinite == false || actualPercent.isFinite == false {
-            return nil
-        }
-        let paceOnTop = actualUsed <= expectedUsed
-        let pacePercent: Double? = if detail.stage == .onTrack {
-            nil
-        } else {
-            expectedPercent
-        }
+        return self.paceDetail(detail, window: window, showUsed: showUsed)
+    }
+
+    private static func paceDetail(
+        _ detail: UsagePaceText.WeeklyDetail,
+        window: RateWindow,
+        showUsed: Bool) -> PaceDetail?
+    {
+        guard detail.expectedUsedPercent.isFinite, window.usedPercent.isFinite else { return nil }
+        let expectedPercent = showUsed ? detail.expectedUsedPercent : (100 - detail.expectedUsedPercent)
         return PaceDetail(
             leftLabel: detail.leftLabel,
             rightLabel: detail.rightLabel,
-            pacePercent: pacePercent,
-            paceOnTop: paceOnTop,
+            pacePercent: detail.stage == .onTrack ? nil : expectedPercent,
+            paceOnTop: window.usedPercent <= detail.expectedUsedPercent,
             isPaceDerived: true)
     }
 
@@ -969,9 +948,15 @@ extension UsageMenuCardView.Model {
             } else {
                 L("Unavailable")
             }
-            let title = input.provider == .doubao && namedWindow.id.contains("-team-")
-                ? "\(L(namedWindow.title)) (\(L("Team")))"
-                : L(namedWindow.title)
+            // Provider-specific by design: Claude's canonical scoped title remains stable outside the menu.
+            let title = if input.provider == .claude, namedWindow.id.hasPrefix("claude-weekly-scoped-") {
+                String(format: L("%@ weekly"), namedWindow.title.replacingOccurrences(
+                    of: #"\s+only\s*$"#, with: "", options: [.regularExpression, .caseInsensitive]))
+            } else if input.provider == .doubao, namedWindow.id.contains("-team-") {
+                "\(L(namedWindow.title)) (\(L("Team")))"
+            } else {
+                L(namedWindow.title)
+            }
             // Provider-specific by design: Kiro overage remaining copy is unique to that extra window.
             let detailLeftText: String? = if usageKnown {
                 Self.kiroOverageRemainingDetail(
@@ -1045,13 +1030,8 @@ extension UsageMenuCardView.Model {
         namedWindow: NamedRateWindow,
         input: Input) -> String?
     {
-        if namedWindow.window.resetsAt != nil {
-            return self.resetText(
-                for: namedWindow.window,
-                style: input.resetTimeDisplayStyle,
-                now: input.now)
-        }
         if input.provider == .antigravity,
+           namedWindow.window.resetsAt == nil,
            self.isAntigravityQuotaSummaryWindow(namedWindow)
         {
             return self.antigravityQuotaSummaryResetText(namedWindow.window.resetDescription)
@@ -1118,28 +1098,14 @@ extension UsageMenuCardView.Model {
         input: Input) -> PaceDetail?
     {
         guard input.provider == .antigravity else { return nil }
-        switch window.windowMinutes {
-        case nil, 300:
+        if window.windowMinutes == nil {
             return self.sessionPaceDetail(
                 provider: input.provider,
                 window: window,
                 now: input.now,
                 showUsed: input.usageBarsShowUsed)
-        case 10080:
-            let pace = Self.displayableWeeklyPace(UsagePace.weekly(
-                window: window,
-                now: input.now,
-                defaultWindowMinutes: 10080,
-                workDays: input.workDaysPerWeek))
-            return Self.weeklyPaceDetail(
-                provider: input.provider,
-                window: window,
-                now: input.now,
-                pace: pace,
-                showUsed: input.usageBarsShowUsed)
-        default:
-            return nil
         }
+        return self.extraRateWindowPaceDetail(provider: input.provider, window: window, input: input)
     }
 
     static func antigravityMetric(

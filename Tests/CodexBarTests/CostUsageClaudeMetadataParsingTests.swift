@@ -72,7 +72,7 @@ struct CostUsageClaudeMetadataParsingTests {
         let options = CostUsageScanner.Options(claudeProjectsRoots: [env.claudeProjectsRoot], cacheRoot: env.cacheRoot)
         let report = CostUsageScanner.loadDailyReport(
             provider: provider, since: day, until: day, now: day, options: options)
-        let cache = CostUsageClaudeCacheIO.load(provider: provider, cacheRoot: env.cacheRoot)
+        let cache = CostUsageClaudeCacheIO.load(provider: provider, cacheRoot: env.cacheRoot).usage
         #expect(cache.files.values.flatMap { $0.claudeRows ?? [] } == expectedRows)
         #expect(cache.files.values.map(\.parsedBytes) == [parsed.parsedBytes])
         #expect(report.summary?.totalTokens == 32)

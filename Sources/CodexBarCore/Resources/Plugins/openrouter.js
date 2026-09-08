@@ -224,12 +224,11 @@ defineProvider({
             aggregateCost += cost;
             aggregateEstimatedCost += estimatedCost;
             if (
-              !Number.isSafeInteger(aggregateInputTokens) ||
-              !Number.isSafeInteger(aggregateOutputTokens) ||
+              !Number.isSafeInteger(aggregateInputTokens + aggregateOutputTokens) ||
               !Number.isSafeInteger(aggregateReasoningTokens) ||
               !Number.isSafeInteger(aggregateRequests)
             ) {
-              throw new TypeError("activity aggregate exceeded the safe integer range");
+              throw new TypeError("activity aggregate must be within the safe integer range");
             }
             if (!Number.isFinite(aggregateCost) || !Number.isFinite(aggregateEstimatedCost)) {
               throw new TypeError("activity spend aggregate overflowed");

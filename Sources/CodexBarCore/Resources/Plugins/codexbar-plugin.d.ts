@@ -184,6 +184,7 @@ interface CodexBarPluginContext {
   log(...values: unknown[]): void;
   pct(used: number, limit: number): number;
   amountFromPercent(percent: number, limit: number): number;
+  isDetailLabel(value: unknown): boolean;
 }
 
 interface CodexBarProviderDefinition {

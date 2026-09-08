@@ -4,6 +4,56 @@ import Testing
 
 @Suite(CodexCredentialFixtures())
 struct CodexOAuthExpiryPipelineTests {
+    @Test(arguments: ["reset", "spend", "pat-whoami", "pat-usage"], [401, 403])
+    func `Codex endpoints distinguish authentication failures from permission denials`(
+        endpoint: String,
+        code: Int) async throws
+    {
+        let home = CodexCredentialFixtures.root
+        let env = ["CODEX_HOME": home.path]
+        let context = Self.context(mode: .auto, managed: false, home: home)
+        let transport = ProviderHTTPTransportStub { request in
+            if endpoint == "pat-usage", request.url?.path.hasSuffix("/whoami") == true {
+                return try Self.response(request, body: #"{"chatgpt_account_id":"fixture-account"}"#)
+            }
+            return try Self.response(request, code: code, body: "fixture refusal")
+        }
+        do {
+            switch endpoint {
+            case "reset":
+                _ = try await CodexOAuthUsageFetcher.fetchRateLimitResetCredits(
+                    accessToken: "fixture-token", accountId: "fixture-account", env: env, session: transport)
+            case "spend":
+                _ = try await CodexOAuthUsageFetcher.fetchSpendControlsMonthlyUsage(
+                    accessToken: "fixture-token", accountId: "fixture-account", env: env, session: transport)
+            default:
+                _ = try await CodexPATUsageFetcher.fetchUsage(
+                    credentials: CodexPATCredentials(token: "at-fixture"),
+                    cliVersion: "1.0.0",
+                    env: env,
+                    session: transport)
+            }
+            Issue.record("Expected a rejected response")
+        } catch let error as CodexOAuthFetchError {
+            if code == 401 {
+                guard case .unauthorized = error else {
+                    Issue.record("Expected authentication failure")
+                    return
+                }
+            } else {
+                guard case let .serverError(statusCode, body) = error else {
+                    Issue.record("A permission denial must retain its HTTP status")
+                    return
+                }
+                #expect(statusCode == 403)
+                #expect(body == "fixture refusal")
+            }
+            #expect(CodexOAuthFetchStrategy().shouldFallback(on: error, context: context) == (code == 401))
+            #expect(CodexPATFetchStrategy().shouldFallback(on: error, context: context) == (code == 401))
+        }
+        #expect(await transport.requests().count == (endpoint == "pat-usage" ? 2 : 1))
+    }
+
     @Test(arguments: [ProviderSourceMode.auto, .oauth], [false, true])
     func `future expiry keeps OAuth model windows and account scope despite old refresh age`(
         mode: ProviderSourceMode,
@@ -84,13 +134,15 @@ struct CodexOAuthExpiryPipelineTests {
         let transport = ProviderHTTPTransportStub { request in
             #expect(request.httpMethod == "GET")
             #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer \(fixture.token)")
-            if failure == "network" { throw URLError(.timedOut) }
+            if failure == "network" {
+                throw URLError(.timedOut)
+            }
             return try Self.response(request, code: Int(failure) ?? 200, body: "not-json")
         }
         let outcome = await CodexAuthenticatedHTTPTransport.$overrideForTesting.withValue(transport) {
             await Self.pipeline.fetch(context: context, provider: .codex)
         }
-        let unauthorized = failure == "401" || failure == "403"
+        let unauthorized = failure == "401"
         let expectsCLI = unauthorized && mode == .auto && !managed
         guard case let .failure(error) = outcome.result else {
             Issue.record("An expiry hint cannot authenticate a rejected token")
@@ -103,7 +155,7 @@ struct CodexOAuthExpiryPipelineTests {
             let oauthError = try #require(error as? CodexOAuthFetchError)
             switch oauthError {
             case .unauthorized: #expect(unauthorized)
-            case .serverError: #expect(failure == "500")
+            case .serverError: #expect(failure == "403" || failure == "500")
             case .invalidResponse: #expect(failure == "decode")
             case .networkError: #expect(failure == "network")
             }

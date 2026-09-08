@@ -4,6 +4,114 @@ import Testing
 
 @Suite(.serialized)
 struct CostUsageScannerClaudeMemoTests {
+    @Test(arguments: [false, true])
+    func `atomic transcript replacement discards prior rows in warm and cold processes`(cold: Bool) throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 1)
+        let file = try self.writeEvent(env: env, day: day, path: "project/session.jsonl", id: "old", input: 1000)
+        let options = self.options(env: env)
+        #expect(self.load(day: day, options: options).summary?.totalInputTokens == 1000)
+        let original = try #require(CostUsageClaudeFileStamp.read(at: file))
+        var first = self.event(env: env, day: day, id: "replacement-first", input: 7)
+        first["fixturePadding"] = String(repeating: "x", count: Int(original.size) + 32)
+        let replacement = try env.jsonl([first, self.event(env: env, day: day, id: "replacement-last", input: 17)])
+        try Data(replacement.utf8).write(to: file, options: .atomic)
+        let changed = try #require(CostUsageClaudeFileStamp.read(at: file))
+        #expect(changed.fileID != original.fileID)
+        #expect(changed.size > original.size)
+        if cold {
+            CostUsageScanner.evictClaudeReportMemoForTesting(provider: .claude, cacheRoot: env.cacheRoot)
+        }
+
+        let (normal, work) = self.recordedLoad(day: day, options: options)
+        #expect(work.incrementalTranscriptParses == 0)
+        var forced = options
+        forced.forceRescan = true
+        let oracle = self.load(day: day, options: forced)
+        #expect(oracle.summary?.totalInputTokens == 24)
+        #expect(normal.data == oracle.data)
+        #expect(normal.summary == oracle.summary)
+    }
+
+    @Test(arguments: [false, true])
+    func `replacement with unchanged size and modification time is still reparsed`(cold: Bool) throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 1)
+        let file = try self.writeEvent(env: env, day: day, path: "project/session.jsonl", id: "same", input: 1000)
+        try FileManager.default.setAttributes([.modificationDate: day], ofItemAtPath: file.path)
+        let options = self.options(env: env)
+        _ = self.load(day: day, options: options)
+        let original = try #require(CostUsageClaudeFileStamp.read(at: file))
+        let replacement = try env.jsonl([self.event(env: env, day: day, id: "same", input: 2000)])
+        try Data(replacement.utf8).write(to: file, options: .atomic)
+        try FileManager.default.setAttributes(
+            [.modificationDate: day],
+            ofItemAtPath: file.path)
+        let changed = try #require(CostUsageClaudeFileStamp.read(at: file))
+        #expect(changed.fileID != original.fileID)
+        #expect(changed.size == original.size)
+        #expect(changed.mtimeUnixMs == original.mtimeUnixMs)
+        if cold {
+            CostUsageScanner.evictClaudeReportMemoForTesting(provider: .claude, cacheRoot: env.cacheRoot)
+        }
+
+        let (report, work) = self.recordedLoad(day: day, options: options)
+        #expect(report.summary?.totalInputTokens == 2000)
+        #expect(work.transcriptParses == 1)
+        #expect(work.incrementalTranscriptParses == 0)
+    }
+
+    @Test
+    func `cache identities round trip with empty parsed rows and prune removed files`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 1)
+        let file = try env.writeClaudeProjectFile(relativePath: "project/empty.jsonl", contents: "{}\n")
+        let options = self.options(env: env)
+        _ = self.load(day: day, options: options)
+        let artifact = CostUsageClaudeCacheIO.load(provider: .claude, cacheRoot: env.cacheRoot)
+        let path = try #require(artifact.usage.files.keys.first)
+        #expect(artifact.usage.files[path]?.claudeRows == [])
+        #expect(artifact.sourceFileIDs[path] == CostUsageClaudeFileStamp.read(at: file)?.fileID)
+        CostUsageScanner.evictClaudeReportMemoForTesting(provider: .claude, cacheRoot: env.cacheRoot)
+        #expect(self.recordedLoad(day: day, options: options).1.transcriptParses == 0)
+        try FileManager.default.removeItem(at: file)
+        _ = self.load(day: day, options: options)
+        let pruned = CostUsageClaudeCacheIO.load(provider: .claude, cacheRoot: env.cacheRoot)
+        #expect(pruned.usage.files.isEmpty)
+        #expect(pruned.sourceFileIDs.isEmpty)
+    }
+
+    @Test
+    func `legacy cache without file identity is rebuilt once before append reuse`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 1)
+        let file = try self.writeEvent(env: env, day: day, path: "project/session.jsonl", id: "same", input: 10)
+        var options = self.options(env: env)
+        options.refreshMinIntervalSeconds = 60
+        _ = self.load(day: day, options: options)
+        var cache = CostUsageClaudeCacheIO.load(provider: .claude, cacheRoot: env.cacheRoot)
+        #expect(cache.usage.files.count == 1)
+        let path = try #require(cache.usage.files.keys.first)
+        #expect(cache.sourceFileIDs[path] == CostUsageClaudeFileStamp.read(at: file)?.fileID)
+        cache.sourceFileIDs[path] = nil
+        let legacyData = try JSONEncoder().encode(cache.usage)
+        try legacyData.write(to: CostUsageClaudeCacheIO.cacheFileURL(provider: .claude, cacheRoot: env.cacheRoot))
+        CostUsageScanner.evictClaudeReportMemoForTesting(provider: .claude, cacheRoot: env.cacheRoot)
+
+        let (report, work) = self.recordedLoad(day: day, options: options)
+        #expect(report.summary?.totalInputTokens == 10)
+        #expect(work.transcriptParses == 1)
+        #expect(work.incrementalTranscriptParses == 0)
+        let refreshed = CostUsageClaudeCacheIO.load(provider: .claude, cacheRoot: env.cacheRoot)
+        #expect(refreshed.sourceFileIDs[path] == CostUsageClaudeFileStamp.read(at: file)?.fileID)
+        CostUsageScanner.evictClaudeReportMemoForTesting(provider: .claude, cacheRoot: env.cacheRoot)
+        #expect(self.recordedLoad(day: day, options: options).1.transcriptParses == 0)
+    }
+
     @Test
     func `identical warm refresh only inventories sources`() throws {
         let env = try CostUsageTestEnvironment()
@@ -89,6 +197,7 @@ struct CostUsageScannerClaudeMemoTests {
         #expect(report.summary?.totalInputTokens == 30)
         #expect(metrics.cacheDecodes == 1)
         #expect(metrics.transcriptParses == 1)
+        #expect(metrics.incrementalTranscriptParses == 1)
         #expect(metrics.cacheEncodes == 1)
     }
 

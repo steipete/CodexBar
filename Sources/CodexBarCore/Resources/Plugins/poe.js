@@ -37,18 +37,12 @@ defineProvider({
       });
     }
     function entryDate(value) {
-      if (typeof value === "number" && Number.isFinite(value)) {
-        if (value > 100000000000000) return new Date(value / 1000);
-        if (value > 1000000000000) return new Date(value);
-        return new Date(value * 1000);
-      }
-      if (typeof value === "string" && value.trim()) {
-        const numeric = Number(value);
-        if (Number.isFinite(numeric)) return entryDate(numeric);
-        const date = new Date(value);
-        if (Number.isFinite(date.getTime())) return date;
-      }
-      return null;
+      if (typeof value !== "number" && (typeof value !== "string" || !value.trim())) return null;
+      const numeric = Number(value);
+      const date = Number.isFinite(numeric)
+        ? new Date(numeric > 100000000000000 ? numeric / 1000 : numeric > 1000000000000 ? numeric : numeric * 1000)
+        : new Date(value);
+      return Number.isFinite(date.getTime()) ? date : null;
     }
     function timeString(date) {
       const pad = (value) => String(value).padStart(2, "0");

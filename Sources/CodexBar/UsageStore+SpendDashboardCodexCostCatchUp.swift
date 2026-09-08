@@ -38,9 +38,10 @@ extension UsageStore {
         if preferredMode == .accelerated,
            self.spendDashboardCodexCostCatchUpTask == nil
            || self.spendDashboardCodexCostCatchUpMode != .accelerated,
-           case .pause = self.spendDashboardCodexCostCatchUpDecision(
+           case .pause = self.codexCostCatchUpDecision(
                mode: .automatic,
-               previousActiveDuration: nil).action
+               previousActiveDuration: nil,
+               resourceState: self._test_spendDashboardCodexCostCatchUpResourceStateOverride?()).action
         {
             mode = .automatic
         }
@@ -207,9 +208,10 @@ extension UsageStore {
                     return
                 }
 
-                let decision = self.spendDashboardCodexCostCatchUpDecision(
+                let decision = self.codexCostCatchUpDecision(
                     mode: self.spendDashboardCodexCostCatchUpMode,
-                    previousActiveDuration: previousActiveDuration)
+                    previousActiveDuration: previousActiveDuration,
+                    resourceState: self._test_spendDashboardCodexCostCatchUpResourceStateOverride?())
                 switch decision.action {
                 case let .pause(delay, reason):
                     self.publishSpendDashboardCodexCostCatchUpActivity(
@@ -351,22 +353,6 @@ extension UsageStore {
                 historyDays: historyDays,
                 scanDurationPerRefresh: self.spendDashboardCodexCostCatchUpMode.scanDurationPerRefresh,
                 calendar: self.settings.costUsageBucketCalendar)
-    }
-
-    private func spendDashboardCodexCostCatchUpDecision(
-        mode: CodexCostCatchUpMode,
-        previousActiveDuration: TimeInterval?) -> CodexCostCatchUpPolicy.Decision
-    {
-        let resourceState = self._test_spendDashboardCodexCostCatchUpResourceStateOverride?() ?? (
-            powerSource: CodexCostCatchUpPowerSource.current(),
-            lowPowerModeEnabled: ProcessInfo.processInfo.isLowPowerModeEnabled,
-            thermalState: ProcessInfo.processInfo.thermalState)
-        return CodexCostCatchUpPolicy().decision(for: .init(
-            mode: mode,
-            previousActiveDuration: previousActiveDuration,
-            powerSource: resourceState.powerSource,
-            lowPowerModeEnabled: resourceState.lowPowerModeEnabled,
-            thermalState: resourceState.thermalState))
     }
 
     private func publishSpendDashboardCodexCostCatchUpActivity(

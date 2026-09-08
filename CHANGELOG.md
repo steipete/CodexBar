@@ -1,15 +1,43 @@
 # Changelog
 
-## 0.56.8 — Unreleased
+## 0.56.9 — Unreleased
+
+### Performance
+- Codex local costs: reuse model pricing resolution across daily, project, and session report rows without changing token accounting, tariffs, or refresh cadence (#3476). Thanks @brzvsk!
 
 ### Usage & Spend
 - Grok: count completed-turn usage from bounded local CLI session-log scans instead of context-window occupancy, and price it from the spend the CLI recorded, falling back to clearly labeled public xAI list prices where it recorded none; standalone OpenCodex xAI history remains token-only unless the user supplies explicit custom prices (#3135, #3345). Thanks @olddonkey and @initH271!
 - Usage & Spend: include reported OpenCodex Grok OAuth attempts when log import is enabled and the log records request-time credential provenance. Keep API-key and historic traffic excluded, and label OpenCodex dollars as list-price estimates (#3135). Thanks @olddonkey!
 
 ### Fixed
+- Widgets: remove redundant outer padding from Usage, Switcher, History, and Metric views so WidgetKit alone controls their content margins (extracted from #3137). Thanks @iamenahs!
+- Copilot: resolve Enterprise sign-in identities on the configured host, keep equal user IDs on different hosts distinct, and skip public GitHub budget enrichment for Enterprise accounts (#3341). Thanks @Fletcher-Alderton!
+- Kiro: route existing overage enrichment to the CLI profile’s supported region instead of always using US East; reject invalid profile ARNs before sending credentials and retain CLI fallback (#3359). Thanks @zucram!
+- Settings: observe rapid external config replacements and edits that restore earlier app-written contents, while keeping successful app writes out of the external-change sync path.
+- Local usage: honor the app’s Low Power Mode interval for automatic Codex catch-up passes in both usage and Spend Dashboard, while retaining manual acceleration and system thermal pauses.
+- z.ai: preserve required quota when optional model analytics exceed display bounds or overflow; retain valid Unicode labels with shared native validation and normalize token inputs once.
+- Claude: recover an expired default-profile cache from changed, fresh CLI credentials when existing read consent and policy permit, preserving explicit-file precedence and custom-profile isolation (related to #3390).
+- Claude local usage: discard stale cached rows when a transcript is atomically replaced, including across process restarts; retain incremental parsing for genuine appends and rebuild legacy cache entries without file identity once.
+- Antigravity local usage: tolerate bookkeeping steps without UUIDs while retaining duplicate bot-ID ambiguity checks, so valid history remains available without assigning uncertain dates (#3462). Thanks @urda!
+
+## 0.56.8 — 2026-09-07
+
+### Highlights
+- **More reliable account handling**: preserve Codex permission errors, retain Claude quota-warning history across credential refreshes, and keep Copilot accounts distinct (#3466, #3453, #3460).
+- **Accurate provider history**: count Poe weekly usage over the last seven days and keep valid Poe, MiMo, and OpenRouter usage available when optional history contains malformed data (#3449, #3455, #3448, #3458).
+- **Better display support**: preserve menu-bar positions on monitors left of the primary display and translate Claude's model-specific weekly quota labels (#3463, #3459).
+
+### Fixed
+- Copilot: keep verified GitHub user IDs authoritative when matching legacy token accounts, preventing a matching login or display label from replacing a different resolved account.
+- OpenRouter: reject combined Activity token overflow before publishing history so malformed optional data cannot hide valid credits or key quota; share input/output total validation (extracted from #3272). Thanks @akshayprabhu200!
+- Poe: skip out-of-range history timestamps instead of letting date formatting hide a valid point balance; preserve supported timestamp formats and valid activity.
+- Menu bar: preserve valid saved positions on wide monitors placed left of the primary display while retaining the legacy accepted range for menu-manager compatibility (related to #3355).
 - Claude: retain quota-warning history for known accounts across credential refreshes, preventing repeat threshold alerts while preserving recovery crossings and separate account state (partial fix for #3450). Thanks @JonLaliberte!
 - Poe: calculate weekly points, requests, and spend from the last seven elapsed days, so older activity no longer inflates sparse or inactive weeks; share totals aggregation with Today and the 30-day window (#3449). Thanks @Lucenx9!
 - MiMo: skip malformed local session rows before deduplication so valid usage still refreshes the cache, preserving all token buckets and UTC daily/weekly totals with shared aggregation (#3448). Thanks @Lucenx9!
+- Codex: retain HTTP 403 permission failures instead of treating them as expired credentials and launching Auto recovery; share status/cancellation handling across OAuth and PAT requests (extracted from #3379). Thanks @Yuxin-Qiao!
+- Claude: label model-specific weekly quotas with a translated weekly duration while preserving model names and CLI titles; correct swapped Vietnamese Weekly and missing-version labels (#3447). Thanks @gianpaj!
+- Packaging: select the bundled iCloud provisioning profile only for its upstream signing team, preserving alternate-team app/widget groups without incompatible CloudKit entitlements (extracted from #3372). Thanks @krazybean!
 
 ## 0.56.7 — 2026-09-06
 

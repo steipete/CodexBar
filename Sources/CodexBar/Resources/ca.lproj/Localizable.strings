@@ -498,7 +498,6 @@
 "provider_accent_color_reset" = "Usa el valor predeterminat";
 "quota_warnings_title" = "Avisos de quota";
 "quota_warning_session" = "sessió";
-"quota_warning_session_capitalized" = "Sessió";
 "quota_warning_weekly" = "setmanal";
 "quota_warning_weekly_capitalized" = "Setmanal";
 "quota_warning_warn_at" = "Aviseu al";
@@ -1545,3 +1544,4 @@
 "menu_bar_layout_conditional_default_either_high" = "Sessió o setmana en nivell alt";
 "menu_bar_layout_conditional_default_scoped_weekly" = "Setmanal amb àmbit per damunt del 60%";
 "Spending cap, not balance" = "Límit de despesa, no saldo";
+"%@ weekly" = "%@ setmanal";

@@ -15,6 +15,30 @@ enum CodexAuthenticatedHTTPTransport {
         return self.shared
     }
 
+    static func perform(request: URLRequest, transport: any ProviderHTTPTransport) async throws -> Data {
+        do {
+            let response = try await transport.response(for: request)
+            switch response.statusCode {
+            case 200...299:
+                return response.data
+            case 401:
+                throw CodexOAuthFetchError.unauthorized
+            default:
+                let body = String(data: response.data, encoding: .utf8)
+                throw CodexOAuthFetchError.serverError(response.statusCode, body)
+            }
+        } catch let error as CodexOAuthFetchError {
+            throw error
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            if Task.isCancelled || (error as? URLError)?.code == .cancelled {
+                throw CancellationError()
+            }
+            throw CodexOAuthFetchError.networkError(error)
+        }
+    }
+
     static func makeConfiguration() -> URLSessionConfiguration {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.urlCache = nil

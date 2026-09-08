@@ -6,6 +6,67 @@ import Testing
 @MainActor
 @Suite(.serialized)
 struct UsageStoreCodexCostCatchUpTests {
+    @Test(arguments: [CodexCostCatchUpPowerSource.ac, .battery, .unknown])
+    func `app low power mode floors automatic catch-up decisions`(source: CodexCostCatchUpPowerSource) throws {
+        let store = try Self.makeStore(suite: "app-low-power-policy")
+        let resources = (source, false, ProcessInfo.ThermalState.nominal)
+        store.settings.backgroundWorkLowPowerModePreference = .on
+        let decision = store.codexCostCatchUpDecision(
+            mode: .automatic, previousActiveDuration: 0.1, resourceState: resources)
+        #expect(decision.action == .runAfter(1800))
+        #expect(store.codexCostCatchUpDecision(
+            mode: .accelerated, previousActiveDuration: 0.1, resourceState: resources).action == .runAfter(0))
+        store.settings.backgroundWorkLowPowerModePreference = .off
+        #expect(store.codexCostCatchUpDecision(
+            mode: .automatic, previousActiveDuration: 0.1, resourceState: resources)
+            == CodexCostCatchUpPolicy().decision(for: .init(
+                mode: .automatic,
+                previousActiveDuration: 0.1,
+                powerSource: source,
+                lowPowerModeEnabled: false,
+                thermalState: .nominal)))
+        store.settings.backgroundWorkLowPowerModePreference = .on
+        #expect(store.codexCostCatchUpDecision(
+            mode: .automatic,
+            previousActiveDuration: nil,
+            resourceState: (.ac, false, .nominal)).action == .runAfter(1998))
+        #expect(store.codexCostCatchUpDecision(
+            mode: .automatic,
+            previousActiveDuration: 0.1,
+            resourceState: (source, true, .nominal)).action == .pause(60, .lowPower))
+        #expect(store.codexCostCatchUpDecision(
+            mode: .automatic,
+            previousActiveDuration: 0.1,
+            resourceState: (source, true, .serious)).action == .pause(60, .thermal))
+    }
+
+    @Test(arguments: [CodexCostCatchUpMode.automatic, .accelerated])
+    func `app low power preference reaches successive catch-up passes`(mode: CodexCostCatchUpMode) async throws {
+        let store = try Self.makeStore(suite: "app-low-power-worker")
+        store.settings.backgroundWorkLowPowerModePreference = .on
+        var sleeps: [TimeInterval] = []
+        store._test_codexCostCatchUpResourceStateOverride = { (.ac, false, .nominal) }
+        store._test_codexCostCatchUpStatusOverride = { _ in
+            CostUsageFetcher.CodexScanCatchUpStatus(pending: true, progressKey: "pending")
+        }
+        store._test_codexCostCatchUpAdvanceOverride = { _, _, _ in
+            CostUsageFetcher.CodexScanCatchUpStatus(pending: true, progressKey: "progressed")
+        }
+        store._test_codexCostCatchUpSleepOverride = { delay in
+            sleeps.append(delay)
+            if sleeps.count == 2 { throw CancellationError() }
+        }
+        store.startCodexCostCatchUpIfNeeded(mode: mode)
+        let task = try #require(store.codexCostCatchUpTask)
+        await task.value
+        #expect(sleeps.count == 2)
+        if mode == .automatic {
+            #expect(sleeps.allSatisfy { $0 >= 1800 })
+        } else {
+            #expect(sleeps == [0, 0])
+        }
+    }
+
     @Test
     func `combined low power and thermal pressure publishes thermal pause without scanning`() async throws {
         let store = try Self.makeStore(suite: "combined-thermal-pause")

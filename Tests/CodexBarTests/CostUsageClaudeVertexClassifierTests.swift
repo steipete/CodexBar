@@ -203,7 +203,7 @@ struct CostUsageClaudeVertexClassifierTests {
             options.refreshMinIntervalSeconds = 0
             let actualReport = CostUsageScanner.loadDailyReport(
                 provider: provider, since: since, until: until, now: until, options: options)
-            let actualCache = CostUsageClaudeCacheIO.load(provider: provider, cacheRoot: options.cacheRoot)
+            let actualCache = CostUsageClaudeCacheIO.load(provider: provider, cacheRoot: options.cacheRoot).usage
             #expect(actualCache.days.count == 3)
             #expect(actualCache.files.values.contains { $0.claudeRows == actual.rows })
             #expect(actualCache.files.count == 2)
@@ -212,7 +212,7 @@ struct CostUsageClaudeVertexClassifierTests {
             options.claudeLogProviderFilter = .all
             let expectedReport = CostUsageScanner.loadDailyReport(
                 provider: .claude, since: since, until: until, now: until, options: options)
-            let expectedCache = CostUsageClaudeCacheIO.load(provider: .claude, cacheRoot: options.cacheRoot)
+            let expectedCache = CostUsageClaudeCacheIO.load(provider: .claude, cacheRoot: options.cacheRoot).usage
             #expect(actualCache.days == expectedCache.days)
             #expect(actualCache.files.values.contains { $0.parsedBytes == actual.parsedBytes })
             #expect(expectedCache.files.values.map(\.parsedBytes) == [expected.parsedBytes])

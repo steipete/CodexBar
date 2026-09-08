@@ -664,6 +664,35 @@ struct OpenRouterPluginGoldenTests {
 
     private static let defaultCreditsBody = #"{"data":{"total_credits":100,"total_usage":40}}"#
 
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `combined activity token boundary preserves credits across models and days`(
+        engine: ProviderPluginEngineKind) async throws
+    {
+        for date in ["2026-08-17", "2026-08-16"] {
+            for outputTokens in [4_007_199_254_740_991, 4_007_199_254_740_992, 5_000_000_000_000_000] {
+                let body = """
+                {"data":[
+                  {"date":"2026-08-17","model":"example/input","prompt_tokens":5000000000000000,
+                   "completion_tokens":0,"requests":1,"usage":1},
+                  {"date":"\(date)","model":"example/output","prompt_tokens":0,
+                   "completion_tokens":\(outputTokens),"requests":1,"usage":1}
+                ]}
+                """
+                let usage = try await Self.fetch(activityBody: body, engine: engine)
+                #expect(usage.primary?.usedPercent == 25)
+                #expect(usage.detailRow(label: "Remaining")?.value == "$60.00")
+                if outputTokens == 4_007_199_254_740_991 {
+                    #expect(usage.costUsage?.last30DaysTokens == 9_007_199_254_740_991)
+                    #expect(usage.costUsage?.last30DaysRequests == 2)
+                    #expect(usage.costUsage?.last30DaysCostUSD == 2)
+                } else {
+                    #expect(usage.costUsage == nil)
+                    #expect(usage.detailRow(label: "Last 30 days")?.secondaryValue == "Response was invalid")
+                }
+            }
+        }
+    }
+
     private static func fetch(
         creditsBody: String = Self.defaultCreditsBody,
         creditsStatus: Int = 200,
@@ -682,10 +711,12 @@ struct OpenRouterPluginGoldenTests {
 
     private static func fetch(
         activityBody: String,
+        engine: ProviderPluginEngineKind = .automatic,
         now: Date = Date(timeIntervalSince1970: 1_787_079_600)) async throws -> UsageSnapshot
     {
-        let runtime = try ProviderPluginRuntime(
-            bundledPlugin: "openrouter",
+        let runtime = try BundledPluginTestSupport.runtime(
+            "openrouter",
+            engine: engine,
             transport: ProviderHTTPTransportHandler { request in
                 let body = switch request.url?.path {
                 case let path? where path.hasSuffix("/activity"):

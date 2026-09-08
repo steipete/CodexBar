@@ -331,6 +331,47 @@ struct ProviderPluginDetailsParityTests {
     }
 
     @Test(arguments: Self.parityEngines)
+    func `Poe invalid numeric dates preserve balance and supported history timestamps`(
+        engine: ProviderPluginEngineKind) async throws
+    {
+        let now = Date(timeIntervalSince1970: 1_785_816_000)
+        let validRows = """
+        {"creation_time":1785816000,"cost_points":1},
+        {"creation_time":1785816000000,"cost_points":2},
+        {"creation_time":1785816000000000,"cost_points":4},
+        {"creation_time":"1785816000","cost_points":8},
+        {"creation_time":"2026-08-04T04:00:00Z","cost_points":16}
+        """
+        for invalid in ["1e300", "\"1e300\"", "-1e300", "\"-1e300\""] {
+            for includeValidRows in [false, true] {
+                let valid = includeValidRows ? ",\(validRows)" : ""
+                let history = "{\"data\":[{\"creation_time\":\(invalid),\"cost_points\":999}\(valid)]}"
+                let transport = Self.transport { request in
+                    switch request.url?.path {
+                    case "/usage/current_balance": Self.poeBalance
+                    case "/usage/points_history": history
+                    default: throw FixtureError.unexpectedURL(request.url)
+                    }
+                }
+                let sourceURL = try #require(CodexBarCoreResources.bundle?.url(forResource: "poe", withExtension: "js"))
+                let runtime = try ProviderPluginRuntime(
+                    source: String(contentsOf: sourceURL, encoding: .utf8), transport: transport, engine: engine)
+                let result = try await runtime.fetchUsage(secrets: ["POE_API_KEY": "fixture-key"], now: now)
+                let section = try #require(result.details.first)
+                #expect(try section.rows.first == Self.row("Current balance", "2,500 points"))
+                if includeValidRows {
+                    #expect(try section.rows.first { $0.label == "Today" }
+                        == Self.row("Today", "31 points", "5 requests"))
+                    #expect(section.chart?.points.map(\.value) == [31])
+                } else {
+                    #expect(section.rows.count == 1)
+                    #expect(section.chart == nil)
+                }
+            }
+        }
+    }
+
+    @Test(arguments: Self.parityEngines)
     func `Poe history uses the refresh clock for retention and today totals`(
         engine: ProviderPluginEngineKind) async throws
     {

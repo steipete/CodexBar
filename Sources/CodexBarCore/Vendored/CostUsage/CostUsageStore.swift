@@ -80,6 +80,9 @@ actor CostUsageStore {
         parserHash: CodexParserHash.value)
     static let cacheGeneration = "sqlite:\(CostUsageStore.schemaVersion)"
     static let compatiblePredecessorParserHashes: Set<String> = [
+        "9ca89383b9957b07", // Current main; Grok pricing additions preserve native rows and checkpoints.
+        "1a4afd74939160fd", // Previous Grok branch; report refactors preserve native rows and checkpoints.
+        "ba2eca901de4c53d", // Shared report accumulation preserves native rows and checkpoints.
         "9547dc9d7b7675f6", // 0.56.7 main; Grok pricing additions preserve native rows and checkpoints.
         "0bd6588c70196700", // Previous Grok branch; atomic catalog replacement preserves parsed rows and checkpoints.
         "d2e66225d0b33672", // 0.56.6 main; Grok pricing additions preserve native rows and checkpoints.

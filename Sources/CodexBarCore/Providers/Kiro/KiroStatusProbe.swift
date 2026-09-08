@@ -162,15 +162,8 @@ public struct KiroUsageSnapshot: Sendable {
         // The API states whether overage is enabled. The CLI omits the whole overage section for
         // organization accounts, so its status line is only consulted when the API is unavailable.
         let overageCap = self.usageLimits?.overageCap
-        let overagesEnabled: Bool = if let limits = self.usageLimits {
-            if let enabled = limits.overageEnabled {
-                enabled && overageCap != nil
-            } else {
-                self.overagesStatus?
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-                    .lowercased()
-                    .hasPrefix("enabled") == true
-            }
+        let overagesEnabled: Bool = if let enabled = self.usageLimits?.overageEnabled {
+            enabled && overageCap != nil
         } else {
             self.overagesStatus?
                 .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -337,13 +330,9 @@ public struct KiroStatusProbe: Sendable {
     private let usageLimitsFetcher: @Sendable () async throws -> KiroUsageLimits
 
     public init() {
-        self.cliBinaryResolver = { TTYCommandRunner.which("kiro-cli") }
-        self.accountProbeTimeout = 3.0
-        self.usageProbeTimeout = 20.0
-        self.contextProbeTimeout = 8.0
-        self.pipeTimeoutCap = 5.0
-        self.pipeProcessRegistry = .live
-        self.usageLimitsFetcher = { try await KiroUsageLimitsAPI.fetch() }
+        self.init(
+            cliBinaryResolver: { TTYCommandRunner.which("kiro-cli") },
+            usageLimitsFetcher: { try await KiroUsageLimitsAPI.fetch() })
     }
 
     init(

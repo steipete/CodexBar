@@ -332,7 +332,7 @@ struct MenuCardAntigravityTests {
                     window: RateWindow(
                         usedPercent: 9,
                         windowMinutes: 300,
-                        resetsAt: nil,
+                        resetsAt: now.addingTimeInterval(7200),
                         resetDescription: "You have used some of your 5-hour limit, it will fully refresh in "
                             + "4 hours.")),
                 NamedRateWindow(
@@ -407,6 +407,7 @@ struct MenuCardAntigravityTests {
             "73% left",
             "64% left",
         ])
+        #expect(model.metrics[0].resetText == "Resets in 2h")
         #expect(model.metrics[2].resetText == "Resets in 3 hours")
     }
 
