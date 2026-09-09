@@ -44,7 +44,7 @@ struct ManagedCodexAccountCoordinatorTests {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         defer { try? FileManager.default.removeItem(at: root) }
 
-        let loginResult = CodexLoginRunner.Result(outcome: .timedOut, output: "timed out")
+        let loginResult = CLILoginRunner.Result(outcome: .timedOut, output: "timed out")
         let existingAccountID = try #require(UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-222222222222"))
         let service = ManagedCodexAccountService(
             store: InMemoryManagedCodexAccountStoreForCoordinatorTests(
@@ -69,11 +69,11 @@ struct ManagedCodexAccountCoordinatorTests {
 }
 
 private actor BlockingManagedCodexLoginRunner: ManagedCodexLoginRunning {
-    private var waiters: [CheckedContinuation<CodexLoginRunner.Result, Never>] = []
+    private var waiters: [CheckedContinuation<CLILoginRunner.Result, Never>] = []
     private var startedWaiters: [CheckedContinuation<Void, Never>] = []
     private var didStart = false
 
-    func run(homePath _: String, timeout _: TimeInterval) async -> CodexLoginRunner.Result {
+    func run(homePath _: String, timeout _: TimeInterval) async -> CLILoginRunner.Result {
         self.didStart = true
         self.startedWaiters.forEach { $0.resume() }
         self.startedWaiters.removeAll()
@@ -90,16 +90,16 @@ private actor BlockingManagedCodexLoginRunner: ManagedCodexLoginRunning {
     }
 
     func resume() {
-        let result = CodexLoginRunner.Result(outcome: .success, output: "ok")
+        let result = CLILoginRunner.Result(outcome: .success, output: "ok")
         self.waiters.forEach { $0.resume(returning: result) }
         self.waiters.removeAll()
     }
 }
 
 private struct TimedOutManagedCodexLoginRunner: ManagedCodexLoginRunning {
-    let result: CodexLoginRunner.Result
+    let result: CLILoginRunner.Result
 
-    func run(homePath _: String, timeout _: TimeInterval) async -> CodexLoginRunner.Result {
+    func run(homePath _: String, timeout _: TimeInterval) async -> CLILoginRunner.Result {
         self.result
     }
 }

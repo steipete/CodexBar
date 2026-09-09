@@ -165,6 +165,7 @@ struct SpendDashboardPane: View {
         .onAppear {
             self.isVisible = true
             self.controller.update(configuration: self.configuration)
+            self.controller.refreshIfStale()
             if !self.controller.isRefreshing {
                 self.synchronizeCodexCostCatchUp()
             }
@@ -199,6 +200,7 @@ struct SpendDashboardPane: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             self.controller.refreshDateWindow()
+            self.controller.refreshIfStale()
         }
     }
 

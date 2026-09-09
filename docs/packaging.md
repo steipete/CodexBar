@@ -17,6 +17,7 @@ read_when:
 
 ## Bundle contents
 - `CodexBarWidget.appex` is built by `WidgetExtension/CodexBarWidgetExtension.xcodeproj` as a real macOS app extension, then bundled with app-group entitlements.
+- When updating dependencies, refresh both the root `Package.resolved` and the widget workspace's `Package.resolved`, and verify their pinned revisions agree. Packaging deliberately disables automatic dependency resolution.
 - `CodexBarCLI` copied to `CodexBar.app/Contents/Helpers/` for symlinking.
 - SwiftPM resource bundles (e.g. `KeyboardShortcuts_KeyboardShortcuts.bundle`) copied into `Contents/Resources` (required for `KeyboardShortcuts.Recorder`).
 

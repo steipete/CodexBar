@@ -3,6 +3,23 @@ import Testing
 @testable import CodexBarCore
 
 struct MiMoLocalUsageFallbackTests {
+    @Test(arguments: [(Double(Int.max), 2), (Double.greatestFiniteMagnitude, 2), (12.9, 14)])
+    func `numeric token fields reject overflow and preserve truncation`(input: Double, expected: Int) throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("mimo-numeric-\(UUID())")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let file = root.appendingPathComponent("usage.json")
+        let window: [String: Any] = ["input": input, "output": 2]
+        let payload: [String: Any] = [
+            "sessions_scanned": 1,
+            "windows": ["today": window, "week": window, "all_time": window],
+        ]
+        try JSONSerialization.data(withJSONObject: payload).write(to: file)
+        let snapshot = try #require(MiMoLocalUsageFallback.snapshot(cachePath: file.path))
+        #expect(snapshot.planCode == "Local · \(expected) today · \(expected) week · \(expected) total · 1 sessions")
+        #expect(snapshot.toUsageSnapshot(includeBalance: false).primary == nil)
+    }
+
     @Test
     func `returns nil when cache file is missing`() {
         let snap = MiMoLocalUsageFallback.snapshot(

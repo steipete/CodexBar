@@ -329,12 +329,8 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
             let key = CostUsageScanner.CostUsageDayRange.dayKey(from: date)
             let trimmedModel = row.model.trimmingCharacters(in: .whitespacesAndNewlines)
             let model = trimmedModel.isEmpty ? Self.unknownModelName : trimmedModel
-            var dayTotals = totalsByModel[key] ?? [:]
-            var bucket = dayTotals[model] ?? (cost: 0, requestCount: 0)
-            bucket.cost += row.cost
-            bucket.requestCount += row.requestCount
-            dayTotals[model] = bucket
-            totalsByModel[key] = dayTotals
+            totalsByModel[key, default: [:]][model, default: (0, 0)].cost += row.cost
+            totalsByModel[key, default: [:]][model, default: (0, 0)].requestCount += row.requestCount
         }
 
         return totalsByModel.keys.sorted().compactMap { key in

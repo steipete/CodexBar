@@ -7,6 +7,131 @@ import XCTest
 /// Native test-host evidence, deliberately separate from ordinary application startup.
 @MainActor
 final class MenuBarResetWindowNativeProofTests: XCTestCase {
+    func test_pointerEditorAndTimerDelivery() throws {
+        guard let path = ProcessInfo.processInfo.environment["CODEXBAR_RESET_POINTER_DIR"] else {
+            throw XCTSkip("Set CODEXBAR_RESET_POINTER_DIR for isolated pointer proof")
+        }
+        guard SettingsStore.isRunningTests,
+              ProcessInfo.processInfo.environment["CODEXBAR_SUPPRESS_TEST_KEYCHAIN_ACCESS"] == "1"
+        else { return XCTFail("Requires an isolated test host") }
+        let output = URL(fileURLWithPath: path, isDirectory: true)
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        let defaults = InMemoryUserDefaults(values: ["debugDisableKeychainAccess": true])
+        let config = CodexBarConfigStore(fileURL: output.appendingPathComponent("config.json"))
+        try config.save(CodexBarConfig(providers: UsageProvider.allCases.map {
+            ProviderConfig(id: $0.instanceID, enabled: $0 == .claude)
+        }))
+        let settings = self.settings(defaults: defaults, config: config)
+        defer { settings.configFileWatcher?.stop() }
+        settings.menuBarIconStyle = .iconAndPercent
+        settings.setMenuBarLayout(MenuBarLayout(lines: [[.icon, .percent(window: .automatic)]]), for: nil)
+        let isolated = ["HOME": output.path, "CODEX_HOME": output.appendingPathComponent("codex").path]
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: isolated),
+            browserDetection: BrowserDetection(homeDirectory: output.path, cacheTTL: 0),
+            costUsageFetcher: CostUsageFetcher(cacheRoot: output.appendingPathComponent("cost")),
+            settings: settings,
+            historicalUsageHistoryStore: HistoricalUsageHistoryStore(fileURL: output.appendingPathComponent("history")),
+            planUtilizationHistoryStore: PlanUtilizationHistoryStore(directoryURL: nil),
+            startupBehavior: .testing,
+            environmentBase: isolated,
+            widgetSnapshotURL: output.appendingPathComponent("widget.json"),
+            widgetTimelineReloader: {})
+        store._test_providerRefreshOverride = { _ in XCTFail("Unexpected provider transport") }
+        store._test_widgetSnapshotSaveOverride = { _ in }
+        defer { store.stopSharedSpendDashboardPublication() }
+        Self.seedPointerWindows(store: store)
+        let app = NSApplication.shared
+        guard app.delegate == nil else { return XCTFail("Requires a standalone test application") }
+        let previousPolicy = app.activationPolicy()
+        let previousApp = NSWorkspace.shared.frontmostApplication
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 1000, height: 850),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false)
+        window.title = "CodexBar Synthetic Reset Editor Proof"
+        window.isReleasedWhenClosed = false
+        window.contentView = NSHostingView(rootView: ScrollView {
+            MenuBarLayoutEditor(settings: settings, store: store).padding(20)
+        }.preferredColorScheme(.light))
+        defer {
+            window.close()
+            _ = app.setActivationPolicy(previousPolicy)
+            if NSWorkspace.shared.frontmostApplication?.processIdentifier == ProcessInfo.processInfo.processIdentifier {
+                previousApp?.activate()
+            }
+        }
+        _ = app.setActivationPolicy(.regular)
+        app.finishLaunching()
+        window.center()
+        window.makeKeyAndOrderFront(nil)
+        app.activate(ignoringOtherApps: true)
+        let done = output.appendingPathComponent("done").path
+        let deadline = Date().addingTimeInterval(600)
+        while !FileManager.default.fileExists(atPath: done), Date() < deadline {
+            let receipt: [String: String] = [
+                "pid": String(ProcessInfo.processInfo.processIdentifier),
+                "window": String(window.windowNumber),
+                "weeklyPlaced": String(settings.menuBarLayout.lines.joined()
+                    .contains(.windowResetCountdown(window: .weekly))),
+            ]
+            try JSONEncoder().encode(receipt).write(to: output.appendingPathComponent("state.json"), options: .atomic)
+            if let event = app.nextEvent(
+                matching: .any, until: Date().addingTimeInterval(0.02), inMode: .default, dequeue: true)
+            {
+                app.sendEvent(event)
+            }
+            _ = RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.02))
+        }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: done), "Pointer proof timed out")
+        XCTAssertTrue(settings.menuBarLayout.lines.joined().contains(.windowResetCountdown(window: .weekly)))
+        let reloaded = self.settings(defaults: defaults, config: config)
+        defer { reloaded.configFileWatcher?.stop() }
+        XCTAssertEqual(reloaded.menuBarLayout, settings.menuBarLayout)
+        try self.capture(window: window, output: output, name: "pointer-selected")
+        try self.proveTimerDelivery(settings: settings, store: store, output: output)
+    }
+
+    private static func seedPointerWindows(store: UsageStore) {
+        let now = Date()
+        store._setSnapshotForTesting(UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 20,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(3600),
+                resetDescription: nil),
+            secondary: RateWindow(
+                usedPercent: 40,
+                windowMinutes: 10080,
+                resetsAt: now.addingTimeInterval(362),
+                resetDescription: nil),
+            updatedAt: now), provider: .claude)
+    }
+
+    private func proveTimerDelivery(settings: SettingsStore, store: UsageStore, output: URL) throws {
+        Self.seedPointerWindows(store: store)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: AccountInfo(email: nil, plan: nil),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: .system,
+            menuRefreshEnabled: false,
+            observeProviderConfigNotifications: false)
+        defer { controller.releaseStatusItemsForTesting() }
+        controller.updateIcons()
+        let button = try XCTUnwrap(controller.statusItems[.claude]?.button)
+        let before = try XCTUnwrap(button.accessibilityTitle())
+        XCTAssertTrue(controller._test_isMenuBarCountdownRefreshScheduled())
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 3))
+        let after = try XCTUnwrap(button.accessibilityTitle())
+        XCTAssertNotEqual(before, after, "The real scheduled controller task must refresh the status-item output")
+        try JSONEncoder().encode(["before": before, "after": after, "delivery": "scheduled controller task"])
+            .write(to: output.appendingPathComponent("timer.json"), options: .atomic)
+    }
+
     func test_editorAndReloadWithSyntheticWindows() throws {
         let environment = ProcessInfo.processInfo.environment
         guard let directory = environment["CODEXBAR_RESET_NATIVE_PROOF_DIR"] else {

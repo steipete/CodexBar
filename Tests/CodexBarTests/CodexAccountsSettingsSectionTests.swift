@@ -279,7 +279,7 @@ struct CodexAccountsSettingsSectionTests {
 
     @Test
     func `managed codex login failure message includes codex login output`() {
-        let error = ManagedCodexAccountServiceError.loginFailed(CodexLoginRunner.Result(
+        let error = ManagedCodexAccountServiceError.loginFailed(CLILoginRunner.Result(
             outcome: .failed(status: 2),
             output: "Browser selected the existing ChatGPT account"))
 
@@ -401,22 +401,22 @@ private struct TestManagedCodexHomeFactoryForSettingsSectionTests: ManagedCodexH
 }
 
 private struct StubManagedCodexLoginRunnerForSettingsSectionTests: ManagedCodexLoginRunning {
-    let result: CodexLoginRunner.Result
+    let result: CLILoginRunner.Result
 
-    func run(homePath _: String, timeout _: TimeInterval) async -> CodexLoginRunner.Result {
+    func run(homePath _: String, timeout _: TimeInterval) async -> CLILoginRunner.Result {
         self.result
     }
 
     static let success = StubManagedCodexLoginRunnerForSettingsSectionTests(
-        result: CodexLoginRunner.Result(outcome: .success, output: "ok"))
+        result: CLILoginRunner.Result(outcome: .success, output: "ok"))
 }
 
 private actor BlockingManagedCodexLoginRunnerForSettingsSectionTests: ManagedCodexLoginRunning {
-    private var waiters: [CheckedContinuation<CodexLoginRunner.Result, Never>] = []
+    private var waiters: [CheckedContinuation<CLILoginRunner.Result, Never>] = []
     private var startedWaiters: [CheckedContinuation<Void, Never>] = []
     private var didStart = false
 
-    func run(homePath _: String, timeout _: TimeInterval) async -> CodexLoginRunner.Result {
+    func run(homePath _: String, timeout _: TimeInterval) async -> CLILoginRunner.Result {
         self.didStart = true
         self.startedWaiters.forEach { $0.resume() }
         self.startedWaiters.removeAll()
@@ -433,7 +433,7 @@ private actor BlockingManagedCodexLoginRunnerForSettingsSectionTests: ManagedCod
     }
 
     func resume() {
-        let result = CodexLoginRunner.Result(outcome: .success, output: "ok")
+        let result = CLILoginRunner.Result(outcome: .success, output: "ok")
         self.waiters.forEach { $0.resume(returning: result) }
         self.waiters.removeAll()
     }

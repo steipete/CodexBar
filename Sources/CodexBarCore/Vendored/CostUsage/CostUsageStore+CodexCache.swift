@@ -169,7 +169,8 @@ extension CostUsageStore {
                     snapshotCount: previous.snapshotCounts[path] ?? 0,
                     rowCount: previous.rowCounts[path] ?? 0,
                     tokenSnapshotsLoaded: !unloadedTokenSnapshotPaths.contains(path),
-                    canReuseRows: canReuseStoredRows),
+                    canReuseRows: canReuseStoredRows,
+                    eventWhitespaceParsed: baseline.decoded.files[path]?.codexEventWhitespaceParsed),
                 calendar: calendar)
             persistedFiles += 1
             Self.saveCycleCheckpointForTesting?(persistedFiles)
@@ -301,6 +302,7 @@ extension CostUsageStore {
         var hasSeenRawTotals: Bool
         var divergentTotals: Bool?
         var interleavedTotals: Bool?
+        var eventWhitespaceParsed: Bool?
     }
 
     private struct StoredPriorityState: Codable {
@@ -355,6 +357,7 @@ extension CostUsageStore {
         var rowCount: Int
         var tokenSnapshotsLoaded: Bool
         var canReuseRows: Bool
+        var eventWhitespaceParsed: Bool?
     }
 
     private struct CurrentCodexRootDevice {
@@ -491,7 +494,8 @@ extension CostUsageStore {
                 },
                 codexBufferedSubagentLines: Self.bufferedLines(buffers, kind: .subagent),
                 codexBufferedUnresolvedForkLines: Self.bufferedLines(buffers, kind: .unresolvedFork),
-                codexReadRetryBufferPresence: retryPresence.map { $0[file.path] ?? .init() })
+                codexReadRetryBufferPresence: retryPresence.map { $0[file.path] ?? .init() },
+                codexEventWhitespaceParsed: details.eventWhitespaceParsed)
             cache.files[file.path] = usage
         }
         cache.days = Self.days(from: snapshot.dayAggregates)
@@ -852,6 +856,10 @@ extension CostUsageStore {
         baseline: PersistedFileBaseline,
         calendar: Calendar)
     {
+        // Persistence strips detailed payloads; the decoded baseline retains the trusted parser marker.
+        let parserStateChanged = baseline.eventWhitespaceParsed != usage.codexEventWhitespaceParsed
+        let canReuseRows = baseline.canReuseRows && !parserStateChanged
+        let tokenSnapshotsLoaded = baseline.tokenSnapshotsLoaded || parserStateChanged
         let sourceSnapshots = usage.codexTokenSnapshots ?? []
         let sourceRows = usage.codexRows ?? []
         let snapshotCount = sourceSnapshots.count
@@ -865,10 +873,11 @@ extension CostUsageStore {
             workspaceFingerprint: usage.codexWorkspaceContentFingerprint,
             hasRows: usage.codexRows != nil,
             hasTurnIDs: usage.codexTurnIDs != nil,
-            hasTokenSnapshots: !baseline.tokenSnapshotsLoaded || usage.codexTokenSnapshots != nil,
+            hasTokenSnapshots: !tokenSnapshotsLoaded || usage.codexTokenSnapshots != nil,
             hasSeenRawTotals: usage.seenRawTotals != nil,
             divergentTotals: usage.hasDivergentTotals,
-            interleavedTotals: usage.hasInterleavedTotals)
+            interleavedTotals: usage.hasInterleavedTotals,
+            eventWhitespaceParsed: usage.codexEventWhitespaceParsed)
         let file = CostUsageStoreFile(
             path: path,
             inode: Self.inode(from: usage.codexScanFileId),
@@ -899,13 +908,13 @@ extension CostUsageStore {
 
         let oldParsedBytes = baseline.file?.parsedBytes ?? 0
         let newParsedBytes = file.parsedBytes ?? 0
-        let appendSafe = baseline.canReuseRows
+        let appendSafe = canReuseRows
             && baseline.file?.scanState.fileIdentity == file.scanState.fileIdentity
             && oldParsedBytes < newParsedBytes
         let stableCursor = oldParsedBytes == newParsedBytes
-        let snapshotAction: CostUsagePersistenceAction = if baseline.tokenSnapshotsLoaded {
+        let snapshotAction: CostUsagePersistenceAction = if tokenSnapshotsLoaded {
             CostUsagePersistencePlanner.action(
-                canReuse: baseline.canReuseRows,
+                canReuse: canReuseRows,
                 stableCursor: stableCursor,
                 appendSafe: appendSafe,
                 persistedCount: baseline.snapshotCount,
@@ -926,7 +935,7 @@ extension CostUsageStore {
         }
 
         let rowAction = CostUsagePersistencePlanner.action(
-            canReuse: baseline.canReuseRows,
+            canReuse: canReuseRows,
             stableCursor: stableCursor,
             appendSafe: appendSafe,
             persistedCount: baseline.rowCount,
@@ -956,7 +965,7 @@ extension CostUsageStore {
         self.persistBuffers(path: path, usage: usage)
         _ = self.upsertAccumulator(CostUsageStoreAccumulator(
             path: path,
-            eventCount: baseline.tokenSnapshotsLoaded ? snapshotCount : baseline.snapshotCount,
+            eventCount: tokenSnapshotsLoaded ? snapshotCount : baseline.snapshotCount,
             nextUsageRowIndex: CostUsageScanner.nextCodexUsageRowIndex(usage.codexRows),
             countedTotals: Self.totals(usage.lastCountedTotals),
             rawTotalsBaseline: Self.totals(usage.lastRawTotalsBaseline),

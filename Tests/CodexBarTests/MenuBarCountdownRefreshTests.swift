@@ -119,6 +119,30 @@ struct MenuBarCountdownRefreshTests {
         #expect(abs((delay ?? 0) - 30.05) < 0.001)
     }
 
+    @Test(arguments: [
+        (185_430.0, 1890.05), (176_400, 60.05), (176_370, 30.05),
+        (172_800, 60.05), (86400, 60.05), (60.5, 0.55), (1.5, 0.55),
+    ])
+    func `countdown wakes only when its visible text changes`(remaining: Double, expected: Double) throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let reset = now.addingTimeInterval(remaining)
+        let delay = try #require(StatusItemController.menuBarCountdownRefreshDelay(resetDates: [reset], now: now))
+        #expect(abs(delay - expected) < 0.001)
+        let original = UsageFormatter.resetCountdownDescription(from: reset, now: now)
+        #expect(UsageFormatter.resetCountdownDescription(
+            from: reset, now: now.addingTimeInterval(delay - 0.1)) == original)
+        #expect(UsageFormatter.resetCountdownDescription(
+            from: reset, now: now.addingTimeInterval(delay)) != original)
+    }
+
+    @Test
+    func `already now countdown still schedules its reset boundary`() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let reset = now.addingTimeInterval(0.5)
+        let delay = try #require(StatusItemController.menuBarCountdownRefreshDelay(resetDates: [reset], now: now))
+        #expect(abs(delay - 0.55) < 0.001)
+    }
+
     @Test
     func `countdown refresh ignores elapsed reset dates`() {
         let now = Date(timeIntervalSince1970: 1_800_000_000)

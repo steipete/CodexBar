@@ -210,11 +210,16 @@ is limited, using additional rows when needed.
     - `~/.pi/agent/sessions/**/*.jsonl`
     - `~/.omp/agent/sessions/**/*.jsonl`
 - Scanner:
+  - Codex reserve telemetry uses the bundled GPT-5.6 Luna list-price estimate, including existing cached token rows.
+    This estimates API-equivalent cost; it is not a charge for using a subscription reserve allowance.
   - Bundled `gpt-6-astra` pricing covers input, cache reads/writes, output, and the full-request long-context
     threshold above 272K input tokens. Astra Fast pricing is twice the applicable Standard rates when
     existing priority-request evidence selects that mode. Stored token rows are repriced without a history rebuild.
     Rates follow the [OpenAI model card](https://developers.openai.com/api/docs/models/gpt-6-astra) and
     [pricing table](https://developers.openai.com/api/docs/pricing).
+  - Valid JSON whitespace between event fields is accepted during initial scans and appended-session refreshes.
+    Older cached files are reparsed once through the normal scan budget; compatible stores retain their rows and
+    checkpoints until each file is refreshed.
   - Native Codex logs parse `event_msg` token_count entries and `turn_context` model markers; when both are present,
     `turn_context` is authoritative for the model bucket.
   - pi and OMP sessions count assistant-message usage rows and attribute `openai-codex` assistant usage to Codex.
@@ -256,6 +261,7 @@ is limited, using additional rows when needed.
 - Automatic Codex catch-up scheduling in both usage and Spend Dashboard honors the app’s 30-minute Low Power Mode minimum after each pass. Explicit acceleration remains immediate, and physical low-power/thermal pauses retain their own retry policy. The setting applies when the next delay is computed; an already pending sleep is not replanned.
 - Automatic catch-up reports thermal pressure when serious heat and Low Power Mode coexist. Both constraints keep the existing 60-second pause before rechecking resource state.
 - A catch-up worker that loses its account or settings scope clears its abandoned Refreshing activity on exit. Legitimate pauses remain visible, and an older worker cannot clear a replacement worker's activity.
+- When a warm cost refresh reaches its time limit, it saves the remaining file work and completed discovery. Compatible shorter/wider history requests resume that work across the retained scan range; publication still waits for exact inventory validation.
 - Inline cost charts preserve a slot for every day in that window, using the selected cost-bucket time zone and the snapshot's date. Missing days are zero only after history coverage is established; unscanned days and entries without prices remain unknown. Long windows fit within the menu width without dropping dates.
 - **Hide personal information** replaces project/source names with numbered labels and hides their paths in the cost-history submenu; Usage & Spend also masks project names. Costs, tokens, grouping, and stored history are unchanged, and disabling the setting restores the original labels. This is display masking, not data deletion or export sanitization.
 - While a bounded refresh catches up with new session history, established totals remain visible only for the same

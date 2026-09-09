@@ -255,11 +255,12 @@ shared OAuth file can still be used as a fallback credential source.
   Claude/GPT pair pinned at 0%. Menu cards and widgets hide a family once every lane in it reports known zero usage.
   A family with unknown usage stays visible, and every family remains visible when all are untouched, for example
   right after a weekly reset. Provider details is the diagnostic surface and always lists every family, the same
-  principle it already applies to cost data. The filter is display-only: the snapshot, CLI output, and menu-bar
+  principle it already applies to cost data. The filter is display-only: the snapshot, raw CLI JSON, and menu-bar
   ranking still see every window, and menu-bar selection ranks by highest used, so an untouched family never wins.
 - The dashboard-v1 payload keeps every family for its script clients and marks the lanes of an untouched family with
   `idle` instead. The `codexbar serve` web UI skips those rows, so the web card matches the menu without repeating
   the family rule in JavaScript. See `docs/dashboard-api.md`.
+- CLI text and `cards` render quota-summary buckets once, using the same idle-family visibility rule. Missing or disabled quota stays unavailable, including in brief cards, while reset context remains visible. Raw JSON retains every bucket.
 
 ## Local token history
 

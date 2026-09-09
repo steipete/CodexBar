@@ -159,9 +159,14 @@ The accepted multi-account design in
   weekly windows from `usage.scoped`. Identity stays `claude-swap:<slot>`; organization name and alias are never
   used as identity. When two or more slots share an email, cards append ` · organizationName` or ` · Account N`;
   a user-chosen cswap alias replaces that label. Unique emails stay email-only.
-- Display: when claude-swap reports more than one account, the Claude menu and `codexbar cards` show one card per
-  account (active account first, then numeric slot) instead of ambient/token-account Claude cards. With four or more
-  accounts the app menu switches to a compact layout (`AccountMenuLayoutPlanner`): the active account keeps its full
+- Display: when claude-swap reports more than one account, its accounts replace ambient/token-account Claude cards.
+  The app honors **Menu → Multi-account layout**: Segmented shows account buttons and one active account card;
+  pending or failed switches show the requested account's details while the active marker stays source-owned.
+  Expired or otherwise unavailable accounts remain inspectable without activation; selecting the active account
+  returns to its card. If the adapter reports no active account, the menu says so instead of selecting the first row.
+  Buttons wrap into two rows above three accounts. Hide Personal Info uses stable `Account N` slot labels.
+  Stacked shows one card per account (active account first, then numeric slot). With four or more
+  accounts the stacked menu switches to a compact layout (`AccountMenuLayoutPlanner`): the active account keeps its full
   card, inactive accounts become one-line rows sorted by remaining headroom (most constrained first, red/amber below
   50%/10% left, a star on the healthiest activatable account), and healthy rows fold behind a "N more accounts ready"
   summary row. Clicking a compact row expands that account's full card for the current menu session; the summary row
@@ -260,6 +265,7 @@ Model-scoped weekly-window proof (synthetic data, no real accounts or credential
   - Matching assistant entry IDs within the same session are counted once across roots; distinct turns are retained.
 - Cache:
   - Native provider cache: `~/Library/Caches/CodexBar/cost-usage/claude-v6.json`
+  - Report memo: `~/Library/Caches/CodexBar/cost-usage/claude-v6.report-memo.json` stores source stamps and the daily report across launches. It is reused only while transcript inventory, cache/pricing artifacts, requested window, and report-semantics revision still match.
   - The Claude/Vertex cache artifact retains source file identities independently of the shared Codex parser fingerprint. Replacing a transcript rebuilds its rows rather than merging an old prefix into a new suffix; genuine appends still use the saved parse offset. Older entries without identity are rebuilt once before reuse, including during the normal refresh debounce.
   - pi-compatible session cache: `~/Library/Caches/CodexBar/cost-usage/pi-sessions-v8.json`
 

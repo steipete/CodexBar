@@ -306,6 +306,7 @@ struct CostUsageFileUsage: Codable, Equatable {
     var codexBufferedUnresolvedForkLines: [CostUsageScanner.CodexBufferedFastLine]?
     /// Only the store's private read-view adapter uses presence without loading replay bodies.
     var codexReadRetryBufferPresence: CostUsageCodexRetryBufferPresence?
+    var codexEventWhitespaceParsed: Bool? = true
 
     var hasBufferedCodexSubagentLines: Bool {
         self.codexReadRetryBufferPresence?.subagent ?? (self.codexBufferedSubagentLines?.isEmpty == false)

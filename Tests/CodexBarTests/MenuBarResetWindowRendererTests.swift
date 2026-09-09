@@ -6,6 +6,36 @@ import Testing
 
 extension MenuBarLayoutRendererTests {
     @Test
+    func `selected reset accessibility composes the window and value without repeated prepositions`() {
+        let data = self.data()
+        for window in [PercentWindow.session, .weekly, .scopedWeekly] {
+            let label = switch window {
+            case .session: "Session"
+            case .weekly: "Weekly"
+            default: data.scopedWeeklyTitle ?? "Scoped weekly"
+            }
+            for absolute in [false, true] {
+                let token: MenuBarLayoutToken = absolute
+                    ? .windowResetAbsolute(window: window) : .windowResetCountdown(window: window)
+                let output = MenuBarLayoutRenderer().render(
+                    layout: MenuBarLayout(lines: [[token]]), data: data, icon: nil, options: self.options())
+                #expect(output.accessibilityLabel == "\(label): \(output.attributedTitle.string)")
+            }
+        }
+        let text = "Friday at 10:00"
+        let output = MenuBarLayoutRenderer().render(
+            layout: MenuBarLayout(lines: [[.windowResetCountdown(window: .weekly)]]),
+            data: self.resetData(weekly: RateWindow(
+                usedPercent: 40,
+                windowMinutes: 10080,
+                resetsAt: nil,
+                resetDescription: text)),
+            icon: nil,
+            options: self.options())
+        #expect(output.accessibilityLabel == "Weekly: \(text)")
+    }
+
+    @Test
     func `selected reset windows render independently of automatic`() throws {
         let renderer = MenuBarLayoutRenderer()
         for window in [PercentWindow.session, .weekly, .scopedWeekly] {

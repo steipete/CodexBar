@@ -48,8 +48,7 @@ extension StatusItemController {
         }
 
         if let delay = Self.menuBarCountdownRefreshDelay(resetDates: countdownResetDates, now: now) {
-            // Countdown text ticks every minute; refresh on each displayed-minute boundary (the last of
-            // which lands at the reset, flipping a smart-exhausted lane back to the percentage).
+            // Match the formatter's visible precision, then observe expiration for exhausted-lane transitions.
             delays.append(delay)
         }
         if let delay = Self.menuBarAbsoluteRefreshDelay(resetDates: absoluteResetDates, now: now) {
@@ -91,7 +90,10 @@ extension StatusItemController {
             let remaining = resetDate.timeIntervalSince(now)
             guard remaining > 0 else { return nil }
             let displayedMinutes = ceil(remaining / 60)
-            let nextBoundaryRemaining = max(0, displayedMinutes - 1) * 60
+            let displayedHours = floor(displayedMinutes / 60)
+            let nextMinutes = displayedMinutes >= 1440 && displayedHours.truncatingRemainder(dividingBy: 24) > 0
+                ? displayedHours * 60 - 1 : displayedMinutes - 1
+            let nextBoundaryRemaining = remaining >= 1 ? max(1, nextMinutes * 60) : 0
             return max(
                 self.menuBarCountdownRefreshEpsilon,
                 remaining - nextBoundaryRemaining + self.menuBarCountdownRefreshEpsilon)

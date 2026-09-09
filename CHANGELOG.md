@@ -1,23 +1,54 @@
 # Changelog
 
-## 0.56.9 — Unreleased
+## 0.57.1 — Unreleased
 
 ### Added
-- Menu bar layouts: choose session or weekly reset countdowns and reset clocks, including conditional branches, while preserving existing automatic reset tokens (#3356).
+- Menu bar layouts: choose session or weekly reset countdowns and clocks, including conditional branches; preserve older layouts, schedule visible countdown changes, and avoid repeated VoiceOver wording (#3481, #3356). Thanks @vincent-peng!
+
+## 0.57.0 — 2026-09-08
+
+### Highlights
+- **Claude cost breakdowns:** inspect daily usage and top models with the new opt-in CLI `cost --breakdown` output (#3244).
+- **Faster, more accurate cost history:** reuse Claude reports across launches, resume interrupted Codex scans, and recover usage missed by older parsers (#3284, #3411, #3504).
+- **Clearer menus and fresher dashboards:** refresh spend charts when returning to the app, show money or points for balance-only providers, and honor segmented claude-swap account menus (#3107, #3494, #3498).
+- **Hardened updates:** adopt Sparkle 2.9.6's archive-handling and package-signature protections.
+
+### Added
+- CLI: add opt-in Claude `cost --breakdown` daily and top-model details, with consistent calendar or recorded periods and explicit partial-attribution labels (#3244). Thanks @Yuxin-Qiao!
 
 ### Performance
-- Codex local costs: reuse model pricing resolution across daily, project, and session report rows without changing token accounting, tariffs, or refresh cadence (#3476). Thanks @brzvsk!
+- Claude local costs: reuse compatible cost reports across launches instead of decoding unchanged transcript caches; refresh them when history, pricing, or report semantics change (#3284). Thanks @eggyrooch-blip!
+- Codex local costs: reduce repeated pricing work across daily, project, and session reports without changing token accounting or tariffs (#3476). Thanks @brzvsk!
+
+### Security
+- Updates: adopt Sparkle 2.9.6 installer hardening, including archive-moving and package-signature validation fixes.
 
 ### Fixed
-- Widgets: remove redundant outer padding from Usage, Switcher, History, and Metric views so WidgetKit alone controls their content margins (extracted from #3137). Thanks @iamenahs!
-- Copilot: resolve Enterprise sign-in identities on the configured host, keep equal user IDs on different hosts distinct, and skip public GitHub budget enrichment for Enterprise accounts (#3341). Thanks @Fletcher-Alderton!
-- Kiro: route existing overage enrichment to the CLI profile’s supported region instead of always using US East; reject invalid profile ARNs before sending credentials and retain CLI fallback (#3359). Thanks @zucram!
-- Settings: observe rapid external config replacements and edits that restore earlier app-written contents, while keeping successful app writes out of the external-change sync path.
-- Local usage: honor the app’s Low Power Mode interval for automatic Codex catch-up passes in both usage and Spend Dashboard, while retaining manual acceleration and system thermal pauses.
-- z.ai: preserve required quota when optional model analytics exceed display bounds or overflow; retain valid Unicode labels with shared native validation and normalize token inputs once.
-- Claude: recover an expired default-profile cache from changed, fresh CLI credentials when existing read consent and policy permit, preserving explicit-file precedence and custom-profile isolation (related to #3390).
-- Claude local usage: discard stale cached rows when a transcript is atomically replaced, including across process restarts; retain incremental parsing for genuine appends and rebuild legacy cache entries without file identity once.
-- Antigravity local usage: tolerate bookkeeping steps without UUIDs while retaining duplicate bot-ID ambiguity checks, so valid history remains available without assigning uncertain dates (#3462). Thanks @urda!
+- Usage & Spend: refresh expired charts on pane return or app activation, keep cached data visible during loading, and refresh across midnight (#3107). Thanks @Yuxin-Qiao!
+- Codex local costs: resume unfinished scans after a refresh reaches its time limit, without restarting completed file work or discarding compatible history (related to #3411). Thanks @kesslerio!
+- Codex local costs: accept valid JSON whitespace in usage events, retain next-day appended usage, and reparse older files once without deleting compatible stores (#3504).
+- Codex local costs: include previously unpriced usage in GPT-5.6 Luna estimates, including cached reports, without discarding compatible history or scan progress (#3503, #3502). Thanks @BUKOWSKIREAL!
+- Claude local usage: discard stale rows when a transcript is replaced, including across restarts, while retaining incremental parsing for genuine appends.
+- Usage parsing: reject out-of-range counts in MiMo, Pi/OMP, OpenCodex, and Bedrock without crashing; preserve valid fields and refresh affected OpenCodex caches (#3486).
+- Local costs: avoid overflow crashes in OpenCodex and combined reports, leaving unrepresentable totals unavailable while retaining valid neighboring token classes (#3501).
+- Accounts: retain matching cached usage and widget data through transient multi-account refresh failures without refreshing measurement timestamps or reusing changed credentials.
+- Claude: honor segmented account menus for claude-swap, retain unavailable-account diagnostics, and show stable slot numbers when personal information is hidden (#3498, #3382). Thanks @thatlev!
+- Claude: preserve claude-swap's measurement timestamps so cached usage does not appear newly refreshed; retain the fallback for missing or malformed optional timestamps (#3485, extracted from #3452). Thanks @QuantIntellect!
+- Claude: recover expired default-profile usage from fresh CLI credentials when existing consent permits, while preserving explicit-file precedence and custom-profile isolation (related to #3390).
+- Menu bar: show money or points for balance-only providers in the default layout and editor preview, preserve real quota percentages, and avoid duplicate reset text (#3492, #3494). Thanks @zkforge!
+- Widgets: remove redundant padding from Usage, Switcher, History, and Metric widgets so WidgetKit controls their content margins (extracted from #3137). Thanks @iamenahs!
+- Overview: keep highlighted provider cards readable on macOS 15 while retaining fast GPU selection and native submenu interactions (#3173).
+- Copilot: resolve Enterprise identities on the configured host, keep accounts on different hosts distinct, and avoid public GitHub budget requests for Enterprise accounts (#3341). Thanks @Fletcher-Alderton!
+- Antigravity: show each CLI quota bucket once, preserve unavailable usage and reset context, and keep display filtering out of raw JSON (#3489). Thanks @urda!
+- Antigravity local usage: retain valid history around bookkeeping steps without UUIDs, while continuing to reject ambiguous IDs and uncertain dates (#3462). Thanks @urda!
+- Kiro: use the CLI profile's supported region for overage enrichment, reject invalid profile ARNs before sending credentials, and retain CLI fallback (#3359). Thanks @zucram!
+- MiniMax: preserve cached usage and normal retries after DNS, connection, and translated offline failures.
+- z.ai: preserve valid quota when optional model analytics overflow or exceed display bounds, while retaining supported Unicode labels.
+- AWS Bedrock: disclose monitoring charges in both authentication modes, link Cost Explorer pricing, and clarify refresh controls and the informational budget (#3496, related to #3387). Thanks @kyen99!
+- Settings: detect rapid external config replacements and edits that restore earlier app-written contents, without treating successful app writes as external changes.
+- Local usage: honor the app's Low Power Mode interval during automatic Codex catch-up, while retaining manual acceleration and system thermal pauses.
+- CLI login: stop cancelled Codex and Kiro logins and lingering child processes while preserving timeout output and device-flow progress.
+- Subprocesses: handle very large finite timeouts without overflowing or crashing.
 
 ## 0.56.8 — 2026-09-07
 

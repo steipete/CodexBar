@@ -97,10 +97,10 @@ enum BedrockCloudWatchUsageFetcher {
         var converted: [Metric: Int] = [:]
         for metric in Metric.allCases {
             let total = totals[metric] ?? 0
-            guard total.isFinite, total >= 0, total <= Double(Int.max) else {
+            guard total >= 0, let count = Int(exactly: total.rounded()) else {
                 throw BedrockUsageError.cloudWatchParseFailed("invalid metric total")
             }
-            converted[metric] = Int(total.rounded())
+            converted[metric] = count
         }
         return converted
     }

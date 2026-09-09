@@ -531,6 +531,11 @@ enum CostUsagePricing {
             return "gpt-5.6-sol"
         }
 
+        // Codex uses gpt-reserve for the Luna Reserve quota bucket.
+        if trimmed == "gpt-reserve" {
+            return "gpt-5.6-luna"
+        }
+
         if self.codex[trimmed] != nil {
             return trimmed
         }

@@ -8,6 +8,50 @@ extension StatusItemController {
         context: MenuCardContext)
     {
         let accounts = self.store.claudeSwapAccountSnapshots
+        let display = ClaudeSwapAccountMenuDisplay(
+            accounts: accounts,
+            layout: self.settings.multiAccountMenuLayout,
+            switchingAccountID: self.store.claudeSwapTransientState.switchingAccountID,
+            errorAccountID: self.store.claudeSwapTransientState.lastErrorAccountID,
+            inspectedAccountID: self.claudeSwapInspectedAccountID)
+        if display.showsSwitcher {
+            let item = NSMenuItem()
+            item.view = ClaudeSwapAccountSwitcherView(
+                display: display,
+                hidePersonalInfo: self.settings.hidePersonalInfo,
+                width: context.menuWidth,
+                onSelect: { [weak self, weak captureMenu] id in
+                    self?.handleClaudeSwapAccountSelection(id, menu: captureMenu)
+                })
+            item.isEnabled = false
+            menu.addItem(item)
+            menu.addItem(.separator())
+            if !accounts.contains(where: \.isActive) {
+                let notice = NSMenuItem(title: L("No active account"), action: nil, keyEquivalent: "")
+                notice.isEnabled = false
+                menu.addItem(notice)
+            }
+            if let account = display.displayedAccount, !account.isActive {
+                let label = ClaudeSwapAccountMenuDisplay.label(
+                    for: account, hidePersonalInfo: self.settings.hidePersonalInfo)
+                let heading = NSMenuItem(
+                    title: String(format: L("Details for %@"), label),
+                    action: nil,
+                    keyEquivalent: "")
+                heading.isEnabled = false
+                menu.addItem(heading)
+            }
+            if let account = display.displayedAccount {
+                self.addStackedClaudeSwapMenuCards(
+                    accounts: [account],
+                    to: menu,
+                    captureMenu: captureMenu,
+                    context: context)
+            } else if self.addStorageMenuCardSection(to: menu, provider: .claude, width: context.menuWidth) {
+                menu.addItem(.separator())
+            }
+            return
+        }
         let plan = self.compactAccountPlan(for: .claude, accounts: accounts)
         guard plan.usesCompactLayout else {
             self.addStackedClaudeSwapMenuCards(accounts: accounts, to: menu, captureMenu: captureMenu, context: context)
@@ -27,6 +71,30 @@ extension StatusItemController {
             to: menu,
             captureMenu: captureMenu,
             context: context)
+    }
+
+    func resetClaudeSwapAccountInspection() {
+        guard self.claudeSwapInspectedAccountID != nil else { return }
+        self.claudeSwapInspectedAccountID = nil
+        self.invalidateMenus()
+    }
+
+    func handleClaudeSwapAccountSelection(_ id: ProviderAccountIdentity, menu: NSMenu?) {
+        guard self.store.claudeSwapTransientState.task == nil,
+              let account = self.store.claudeSwapAccountSnapshots.first(where: { $0.id == id })
+        else { return }
+        self.advanceMenuInteraction(for: menu)
+        if account.isActive || !account.canActivate {
+            // Inspect sentinel diagnostics without asking the adapter to activate that slot.
+            self.claudeSwapInspectedAccountID = id
+            self.invalidateMenus()
+        } else {
+            self.claudeSwapInspectedAccountID = nil
+            self.store.switchClaudeSwapAccount(id)
+        }
+        if let menu {
+            self.deferSwitcherMenuRebuildIfStillVisible(menu, provider: .claude)
+        }
     }
 
     private func addStackedClaudeSwapMenuCards(

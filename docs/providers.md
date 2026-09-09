@@ -42,11 +42,16 @@ and is not clickable. Custom list-price overlays are documented in `docs/model-p
 Cached and combined reports retain token-class details and known request counts. Coverage is combined from each
 source's existing classification, so a priced source cannot hide another source's unpriced or unmetered rows.
 If coverage totals cannot fit, aggregation falls back to existing request or daily-row inference without changing costs or stored data.
+Token sums that exceed the supported integer range remain unavailable for that aggregation pass; later rows do not
+restore a partial count. Other token classes, pricing, and explicit totals retain their existing meaning. Materialized
+missing values continue to follow the existing partial-data rules; no overflow metadata is added to stored reports.
 
 OpenCodex `~/.opencodex/usage.jsonl` is an opt-in, read-only spend source (off by default). It is not a quota
 Provider. When both OpenCodex logs and native Codex sessions are present they stay on separate rows; merging would
 double-count the same traffic. An optional toggle can hide native Codex while OpenCodex data is present. Export JSON
-emits the currently aggregated model (provenance, mix, coverage).
+emits the currently aggregated model (provenance, mix, coverage). Invalid numeric fields are omitted while valid
+neighboring fields remain available. Existing cached rows are reparsed once after the numeric parser update;
+subsequent unchanged reads continue to reuse the corrected cache.
 
 The view stays local and does not upload usage history. Refreshes retain the last successful model if a replacement
 scan fails, while provider/account configuration changes replace obsolete results. Coverage text reports how many
@@ -649,3 +654,10 @@ JavaScriptCore is the macOS rollback engine. The committed `.js` is generated fr
 - Details: `docs/notion.md`.
 
 See also: `docs/provider.md` for architecture notes.
+
+## Cached usage during account refresh
+
+Transient network failures keep the last successful usage for the same account and credential/configuration scope,
+including multi-account menus and their widget data. The cached measurement time and source remain unchanged;
+failed refreshes do not add fresh utilization-history samples. Normal error reporting still applies after repeated
+failures. Authentication failures and invalidated account scopes do not restore cached usage from another scope.

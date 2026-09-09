@@ -718,7 +718,7 @@ extension UsageMenuCardView.Model {
 
     static func poeBalanceDetailText(input: Input) -> String? {
         guard input.provider == .poe else { return nil }
-        return StatusItemController.poeBalanceDisplayText(snapshot: input.snapshot)
+        return StatusItemController.menuBarBalanceDisplayText(provider: input.provider, snapshot: input.snapshot)
     }
 
     private static func hasLocalCodexTokenUsage(_ input: Input) -> Bool {

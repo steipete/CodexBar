@@ -118,7 +118,7 @@ extension CodexBarCLI {
                        [--json-only]
                        [--json-output] [--log-level <trace|verbose|debug|info|warning|error|critical>] [-v|--verbose]
                        [--provider \(ProviderHelp.list)]
-                       [--no-color] [--pretty] [--refresh] [--provider-native-only]
+                       [--no-color] [--pretty] [--refresh] [--breakdown] [--provider-native-only]
                        [--days <days>] [--group-by project|session]
 
         Description:
@@ -126,6 +126,7 @@ extension CodexBarCLI {
           Antigravity token history is also read locally, with dollar costs left unknown.
           Local readers need no web or provider CLI access; Cursor uses its authenticated dashboard API.
           Use --refresh to bypass cached scan results.
+          Use --breakdown with Claude text output to show daily and model details.
           Experimental: use --provider-native-only to exclude pi and OMP session mirrors.
 
         Examples:
@@ -463,7 +464,7 @@ extension CodexBarCLI {
                        [--json]
                        [--json-only]
                        [--json-output] [--log-level <trace|verbose|debug|info|warning|error|critical>] [-v|--verbose]
-                       [--provider \(ProviderHelp.list)] [--no-color] [--pretty] [--refresh]
+                       [--provider \(ProviderHelp.list)] [--no-color] [--pretty] [--refresh] [--breakdown]
                        [--provider-native-only]
                        [--days <days>] [--group-by project|session]
           codexbar sessions [--json|--json-v2] [--pretty]

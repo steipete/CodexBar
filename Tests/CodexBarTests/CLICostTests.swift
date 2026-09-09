@@ -28,6 +28,17 @@ struct CLICostTests {
     }
 
     @Test
+    func `Claude breakdown is explicit opt in`() throws {
+        let parser = CommandParser(signature: CodexBarCLI._costSignatureForTesting())
+
+        let defaultValues = try parser.parse(arguments: [])
+        #expect(!defaultValues.flags.contains("breakdown"))
+
+        let breakdownValues = try parser.parse(arguments: ["--breakdown"])
+        #expect(breakdownValues.flags.contains("breakdown"))
+    }
+
+    @Test
     func `parses session group by and keeps project parsing`() throws {
         let parser = CommandParser(signature: CodexBarCLI._costSignatureForTesting())
 
