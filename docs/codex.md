@@ -222,6 +222,10 @@ is limited, using additional rows when needed.
     checkpoints until each file is refreshed.
   - Native Codex logs parse `event_msg` token_count entries and `turn_context` model markers; when both are present,
     `turn_context` is authoritative for the model bucket.
+  - A subagent's `subagent_history_start_ordinal` is authoritative: earlier records are inherited context, even if
+    they contain delivery markers or the file ends before child-owned history arrives. Later appends count only
+    the child's own deltas. Older per-file parser revisions refresh through the normal scan budget while stored
+    history and checkpoints remain available.
   - pi and OMP sessions count assistant-message usage rows and attribute `openai-codex` assistant usage to Codex.
   - pi-compatible assistant usage is bucketed by assistant-turn timestamp, so mixed-model sessions can contribute to
     multiple days/models correctly.

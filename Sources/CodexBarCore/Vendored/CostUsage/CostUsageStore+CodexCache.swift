@@ -170,7 +170,7 @@ extension CostUsageStore {
                     rowCount: previous.rowCounts[path] ?? 0,
                     tokenSnapshotsLoaded: !unloadedTokenSnapshotPaths.contains(path),
                     canReuseRows: canReuseStoredRows,
-                    eventWhitespaceParsed: baseline.decoded.files[path]?.codexEventWhitespaceParsed),
+                    parserRevision: baseline.decoded.files[path]?.codexParserRevision),
                 calendar: calendar)
             persistedFiles += 1
             Self.saveCycleCheckpointForTesting?(persistedFiles)
@@ -302,7 +302,7 @@ extension CostUsageStore {
         var hasSeenRawTotals: Bool
         var divergentTotals: Bool?
         var interleavedTotals: Bool?
-        var eventWhitespaceParsed: Bool?
+        var parserRevision: Int?
     }
 
     private struct StoredPriorityState: Codable {
@@ -357,7 +357,7 @@ extension CostUsageStore {
         var rowCount: Int
         var tokenSnapshotsLoaded: Bool
         var canReuseRows: Bool
-        var eventWhitespaceParsed: Bool?
+        var parserRevision: Int?
     }
 
     private struct CurrentCodexRootDevice {
@@ -495,7 +495,7 @@ extension CostUsageStore {
                 codexBufferedSubagentLines: Self.bufferedLines(buffers, kind: .subagent),
                 codexBufferedUnresolvedForkLines: Self.bufferedLines(buffers, kind: .unresolvedFork),
                 codexReadRetryBufferPresence: retryPresence.map { $0[file.path] ?? .init() },
-                codexEventWhitespaceParsed: details.eventWhitespaceParsed)
+                codexParserRevision: details.parserRevision)
             cache.files[file.path] = usage
         }
         cache.days = Self.days(from: snapshot.dayAggregates)
@@ -857,7 +857,7 @@ extension CostUsageStore {
         calendar: Calendar)
     {
         // Persistence strips detailed payloads; the decoded baseline retains the trusted parser marker.
-        let parserStateChanged = baseline.eventWhitespaceParsed != usage.codexEventWhitespaceParsed
+        let parserStateChanged = baseline.parserRevision != usage.codexParserRevision
         let canReuseRows = baseline.canReuseRows && !parserStateChanged
         let tokenSnapshotsLoaded = baseline.tokenSnapshotsLoaded || parserStateChanged
         let sourceSnapshots = usage.codexTokenSnapshots ?? []
@@ -877,7 +877,7 @@ extension CostUsageStore {
             hasSeenRawTotals: usage.seenRawTotals != nil,
             divergentTotals: usage.hasDivergentTotals,
             interleavedTotals: usage.hasInterleavedTotals,
-            eventWhitespaceParsed: usage.codexEventWhitespaceParsed)
+            parserRevision: usage.codexParserRevision)
         let file = CostUsageStoreFile(
             path: path,
             inode: Self.inode(from: usage.codexScanFileId),

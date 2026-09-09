@@ -66,9 +66,9 @@ struct CostUsageWhitespaceRowReplacementTests {
             output: 0)]
         first.codexTokenSnapshots = first.codexTokenSnapshots.map { Array($0.suffix(1)) }
         first.codexTokenCheckpoints = first.codexTokenSnapshots.map { CostUsageScanner.codexTokenCheckpoints(for: $0) }
-        first.codexEventWhitespaceParsed = nil
+        first.codexParserRevision = nil
         legacy.files[firstPath] = first
-        legacy.files[otherPath]?.codexEventWhitespaceParsed = nil
+        legacy.files[otherPath]?.codexParserRevision = nil
         CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: legacy)
         if growing {
             let handle = try FileHandle(forWritingTo: URL(fileURLWithPath: firstPath))
@@ -87,7 +87,7 @@ struct CostUsageWhitespaceRowReplacementTests {
             let partial = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
             let started = try #require(partial.files[firstPath])
             #expect(started.codexScanComplete == false)
-            #expect(started.codexEventWhitespaceParsed == true)
+            #expect(started.hasCurrentCodexParser)
             #expect(started.codexRows?.contains { $0.input == 200 } == false)
             #expect(partial.files[otherPath]?.codexRows?.map(\.input) == [50])
         }

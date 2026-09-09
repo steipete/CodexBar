@@ -5035,8 +5035,9 @@ enum CostUsageScanner {
                 if forkedFromId == nil {
                     forkedFromId = shape.inferredParentSessionID
                 }
+                let explicitStartOrdinal = subagentHistoryStartOrdinal.flatMap { $0 >= 0 ? $0 : nil }
                 let explicitOwnedSuffix: CodexSubagentRolloutShape.CodexSubagentOwnedSuffix? = {
-                    guard let startOrdinal = subagentHistoryStartOrdinal,
+                    guard let startOrdinal = explicitStartOrdinal,
                           let firstOwnedLine = pendingSubagentLines.first(where: {
                               ($0.ordinal ?? Int.min) >= startOrdinal
                           })
@@ -5073,9 +5074,11 @@ enum CostUsageScanner {
                         rawTotalsBaseline: rawTotalsBaseline)
                 }()
 
-                var ownedSuffix = explicitOwnedSuffix ?? shape.ownedSuffix
+                // An explicit ordinal excludes earlier inferred markers even before owned records arrive.
+                let hasExplicitBoundary = explicitStartOrdinal != nil
+                var ownedSuffix = hasExplicitBoundary ? explicitOwnedSuffix : shape.ownedSuffix
                 var locallyConfirmedBoundary = explicitOwnedSuffix != nil
-                if explicitOwnedSuffix != nil {
+                if hasExplicitBoundary {
                     subagentCounterSemantics = .copiedPrefix
                 } else if let candidate = shape.ownedSuffixCandidate {
                     if candidate.isLocallyConfirmed {
@@ -5098,11 +5101,11 @@ enum CostUsageScanner {
                         }
                     }
                 }
+                usesLocalSubagentBoundary = hasExplicitBoundary || ownedSuffix != nil
                 suppressUnownedCopiedPrefix = subagentCounterSemantics == .copiedPrefix
                     && ownedSuffix == nil
-                    && forkedFromId == nil
+                    && (hasExplicitBoundary || forkedFromId == nil)
                 if let ownedSuffix {
-                    usesLocalSubagentBoundary = true
                     previousTotals = nil
                     // Keep totals-derived accounting after the boundary. Real flat-total rows
                     // repeat the previous token payload with a fresh outer timestamp; their
@@ -5339,7 +5342,7 @@ enum CostUsageScanner {
         // Called only after keepCachedCodexFileIfFresh failed. Forced rescans, priority invalidation,
         // and other paths that reread JSONL must still charge the file; the sole zero-work exception
         // is a validated same-size buffered replay.
-        guard let cached, cached.codexEventWhitespaceParsed == true else { return max(0, metadata.size) }
+        guard let cached, cached.hasCurrentCodexParser else { return max(0, metadata.size) }
         if Self.isValidatedSameSizeBufferedCodexForkRetry(metadata: metadata, cached: cached) {
             return 0
         }
@@ -5396,7 +5399,7 @@ enum CostUsageScanner {
         })
         let needsPricingMetadataMigration = !pricingMetadataMigrationPathKeys.isEmpty
         let eventWhitespaceMigrationPathKeys = Set(cache.files.compactMap { path, usage in
-            usage.codexEventWhitespaceParsed == true ? nil : Self.codexPathKey(URL(fileURLWithPath: path))
+            usage.hasCurrentCodexParser ? nil : Self.codexPathKey(URL(fileURLWithPath: path))
         })
         let needsProjectMetadataMigration = cache.codexProjectMetadataVersion != Self.codexProjectMetadataVersion
         let modelsDevLoad = ModelsDevCache.load(now: now, cacheRoot: options.cacheRoot)
@@ -5742,7 +5745,7 @@ enum CostUsageScanner {
             ?? ((options.maxCodexScanDurationPerRefresh ?? 0) > 0)
         // Keep the full window until legacy and partially parsed files finish, even after their marker changes.
         let unfinishedScanStart = cache.roots == Self.codexRootsFingerprint(roots)
-            && cache.files.values.contains { $0.codexEventWhitespaceParsed != true || $0.codexScanComplete == false }
+            && cache.files.values.contains { !$0.hasCurrentCodexParser || $0.codexScanComplete == false }
             ? cache.scanSinceKey : nil
         var retainedScanStart: String? = if let pending = cache.codexActiveLookbackState,
                                             pending.rootPaths == roots.map(Self.codexResolvedPath).sorted()

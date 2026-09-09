@@ -768,7 +768,7 @@ extension CostUsageScanner {
         cache: inout CostUsageCache,
         state: inout CodexScanState) throws -> Bool
     {
-        guard let cached = input.cached, cached.codexEventWhitespaceParsed == true else { return false }
+        guard let cached = input.cached, cached.hasCurrentCodexParser else { return false }
         let needsSessionId = cached.sessionId == nil
         let parsedBytes = cached.parsedBytes ?? cached.size
         let targetSize = cached.codexScanTargetSize ?? cached.size
@@ -909,7 +909,7 @@ extension CostUsageScanner {
         maxBytesToRead: Int64? = nil) throws -> Bool
     {
         try context.checkCancellation?()
-        guard let cached = input.cached, cached.codexEventWhitespaceParsed == true,
+        guard let cached = input.cached, cached.hasCurrentCodexParser,
               cached.sessionId != nil, !context.forceFullScan else { return false }
         guard !Self.cachedCodexFileNeedsPriorityRescan(cached, context: context) else { return false }
         if Self.cachedCodexRowsNeedIdentityRescan(cached) {
@@ -1165,7 +1165,7 @@ extension CostUsageScanner {
             self.applyFileDays(cache: &cache, fileDays: cached.days, sign: -1)
         }
         // Legacy rows can combine events that the corrected parser splits; do not merge them back.
-        let replaceCachedRows = context.dropDeferredCodexRows || input.cached?.codexEventWhitespaceParsed != true
+        let replaceCachedRows = context.dropDeferredCodexRows || input.cached?.hasCurrentCodexParser != true
         let migratedCached = replaceCachedRows
             ? nil : input.cached.map { Self.codexFileUsageWithPricingMetadata($0, context: context) }
         var usageDays = replaceCachedRows
