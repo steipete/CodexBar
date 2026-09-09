@@ -523,10 +523,12 @@ extension UsageStore {
             break
         }
         guard self.isCurrentProviderRefreshGeneration(provider, generation: context.generation) else { return nil }
-        await self.applyProviderRefreshOutcome(
+        await self.applyProviderRefreshOutcome(provider: provider, outcome: outcome, context: context)
+        self.scheduleSupplementalUsageUpdate(
             provider: provider,
             outcome: outcome,
-            context: context)
+            generation: context.generation,
+            accountID: context.tokenAccount?.id)
         return nil
     }
 

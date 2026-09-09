@@ -300,13 +300,16 @@ struct GrokCreditsProxyFetcherTests {
             },
             legacyBilling: {
                 events.append("legacy")
-                return (GrokWebBillingSnapshot(usedPercent: 99, resetsAt: nil), "legacy", false)
+                return GrokWebBillingResult(
+                    snapshot: GrokWebBillingSnapshot(usedPercent: 99, resetsAt: nil),
+                    sourceLabel: "legacy",
+                    authContext: .cookie("sso=legacy"))
             })
 
         #expect(events.values == ["proxy"])
         #expect(result.snapshot.usedPercent == 12.5)
         #expect(result.sourceLabel == "grok-cli-proxy")
-        #expect(result.authenticatedByAuthFile)
+        #expect(result.authContext.credentials?.accessToken == Self.credentials.accessToken)
     }
 
     @Test
@@ -320,18 +323,18 @@ struct GrokCreditsProxyFetcherTests {
             },
             legacyBilling: {
                 events.append("legacy")
-                return (
-                    GrokWebBillingSnapshot(
+                return GrokWebBillingResult(
+                    snapshot: GrokWebBillingSnapshot(
                         usedPercent: 33,
                         resetsAt: Date(timeIntervalSince1970: 1_800_000_003)),
-                    "Chrome",
-                    false)
+                    sourceLabel: "Chrome",
+                    authContext: .cookie("sso=legacy"))
             })
 
         #expect(events.values == ["proxy", "legacy"])
         #expect(result.snapshot.usedPercent == 33)
         #expect(result.sourceLabel == "Chrome")
-        #expect(!result.authenticatedByAuthFile)
+        #expect(result.authContext.cookieHeader == "sso=legacy")
     }
 
     @Test
@@ -345,13 +348,16 @@ struct GrokCreditsProxyFetcherTests {
             },
             legacyBilling: {
                 events.append("legacy")
-                return (GrokWebBillingSnapshot(usedPercent: 42, resetsAt: nil), "Chrome", false)
+                return GrokWebBillingResult(
+                    snapshot: GrokWebBillingSnapshot(usedPercent: 42, resetsAt: nil),
+                    sourceLabel: "Chrome",
+                    authContext: .cookie("sso=legacy"))
             })
 
         #expect(events.values == ["proxy", "legacy"])
         #expect(result.snapshot.usedPercent == 42)
         #expect(result.sourceLabel == "Chrome")
-        #expect(!result.authenticatedByAuthFile)
+        #expect(result.authContext.cookieHeader == "sso=legacy")
     }
 
     @Test
@@ -367,7 +373,10 @@ struct GrokCreditsProxyFetcherTests {
                 },
                 legacyBilling: {
                     events.append("legacy")
-                    return (GrokWebBillingSnapshot(usedPercent: 42, resetsAt: nil), "Chrome", false)
+                    return GrokWebBillingResult(
+                        snapshot: GrokWebBillingSnapshot(usedPercent: 42, resetsAt: nil),
+                        sourceLabel: "Chrome",
+                        authContext: .cookie("sso=legacy"))
                 })
         } throws: { error in
             error is CancellationError
@@ -382,7 +391,10 @@ struct GrokCreditsProxyFetcherTests {
                 },
                 legacyBilling: {
                     events.append("legacy")
-                    return (GrokWebBillingSnapshot(usedPercent: 42, resetsAt: nil), "Chrome", false)
+                    return GrokWebBillingResult(
+                        snapshot: GrokWebBillingSnapshot(usedPercent: 42, resetsAt: nil),
+                        sourceLabel: "Chrome",
+                        authContext: .cookie("sso=legacy"))
                 })
         } throws: { error in
             (error as? URLError)?.code == .cancelled
@@ -411,7 +423,7 @@ struct GrokCreditsProxyFetcherTests {
         #expect(result.snapshot.resetsAt == reset)
         #expect(result.snapshot.subscriptionTier == "SuperGrok Heavy")
         #expect(result.sourceLabel == "grok-web")
-        #expect(result.authenticatedByAuthFile)
+        #expect(result.authContext.credentials?.accessToken == Self.credentials.accessToken)
     }
 
     @Test

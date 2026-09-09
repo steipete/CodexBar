@@ -59,6 +59,43 @@ struct OverviewMenuCardVisibilityTests {
     }
 
     @Test
+    func `overview keeps Grok cards with reset credits and an error subtitle`() throws {
+        let metadata = try #require(ProviderDefaults.metadata[.grok])
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            grokResetCredits: GrokRateLimitResetCreditsSnapshot(
+                expirations: [now.addingTimeInterval(86400)],
+                updatedAt: now),
+            updatedAt: now)
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .grok,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: GrokStatusProbe.usageUnavailableMessage,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        #expect(model.subtitleStyle == .error)
+        #expect(model.metrics.isEmpty)
+        #expect(model.limitResetCredits != nil)
+        #expect(!model.isOverviewErrorOnly)
+    }
+
+    @Test
     func `claude subscription-only quota keeps local cost content`() throws {
         let metadata = try #require(ProviderDefaults.metadata[.claude])
         let now = Date(timeIntervalSince1970: 1_800_000_000)

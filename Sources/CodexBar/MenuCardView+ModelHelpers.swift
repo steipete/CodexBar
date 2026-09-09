@@ -348,6 +348,7 @@ extension UsageMenuCardView.Model {
             self.providerDetails.isEmpty &&
             self.openAIAPIUsage == nil &&
             self.inlineUsageDashboard == nil &&
+            self.limitResetCredits == nil &&
             self.creditsRemaining == nil &&
             self.providerCost == nil &&
             self.tokenUsage == nil &&
@@ -360,7 +361,7 @@ extension UsageMenuCardView.Model {
             !self.providerDetails.isEmpty ||
             self.openAIAPIUsage != nil ||
             self.inlineUsageDashboard != nil ||
-            self.codexResetCredits != nil ||
+            self.limitResetCredits != nil ||
             self.placeholder != nil
     }
 
@@ -371,14 +372,14 @@ extension UsageMenuCardView.Model {
             self.usageNotes.isEmpty &&
             self.providerDetails.isEmpty &&
             self.openAIAPIUsage == nil &&
-            self.codexResetCredits == nil &&
+            self.limitResetCredits == nil &&
             self.placeholder == nil
     }
 
     var usesStackedDetailLayout: Bool {
         !self.metrics.isEmpty ||
             self.creditsText != nil ||
-            self.codexResetCredits != nil ||
+            self.limitResetCredits != nil ||
             self.providerCost != nil ||
             self.tokenUsage != nil
     }
@@ -415,7 +416,7 @@ extension UsageMenuCardView.Model {
                   candidateText: candidate.creditsText,
                   candidateRemaining: candidate.creditsRemaining),
               self.creditsHintText == candidate.creditsHintText,
-              Self.hasCompatibleCodexResetCreditsLayout(self.codexResetCredits, candidate.codexResetCredits),
+              Self.hasCompatibleLimitResetCreditsLayout(self.limitResetCredits, candidate.limitResetCredits),
               self.placeholder == candidate.placeholder,
               Self.hasCompatibleDashboardLayout(self.inlineUsageDashboard, candidate.inlineUsageDashboard),
               Self.hasCompatibleProviderCostLayout(self.providerCost, candidate.providerCost),
@@ -428,9 +429,9 @@ extension UsageMenuCardView.Model {
         return zip(self.metrics, candidate.metrics).allSatisfy(Self.hasCompatibleMetricLayout)
     }
 
-    private static func hasCompatibleCodexResetCreditsLayout(
-        _ current: CodexResetCreditsPresentation?,
-        _ candidate: CodexResetCreditsPresentation?) -> Bool
+    private static func hasCompatibleLimitResetCreditsLayout(
+        _ current: LimitResetCreditsPresentation?,
+        _ candidate: LimitResetCreditsPresentation?) -> Bool
     {
         // The hosted section has a fixed shape; its count and expiry strings can update in place.
         (current == nil) == (candidate == nil)

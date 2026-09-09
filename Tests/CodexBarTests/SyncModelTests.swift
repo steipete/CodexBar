@@ -177,6 +177,84 @@ struct SyncModelTests {
     }
 
     @Test
+    func `Grok fleet snapshots omit live reset coupon details`() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let details = try [
+            ProviderDetailSection(rows: [
+                ProviderDetailSection.Row(
+                    label: "Limit Reset Credits",
+                    value: "1 available",
+                    secondaryValue: "Expires Sep 12"),
+                ProviderDetailSection.Row(
+                    label: "Plan",
+                    value: "SuperGrok"),
+            ]),
+        ]
+        let usage = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            details: details,
+            grokResetCredits: GrokRateLimitResetCreditsSnapshot(
+                expirations: [now.addingTimeInterval(86400)],
+                updatedAt: now),
+            updatedAt: now,
+            identity: ProviderIdentitySnapshot(
+                providerID: .grok,
+                accountEmail: nil,
+                accountOrganization: nil,
+                loginMethod: "SuperGrok"))
+        let payload = AccountSnapshotSyncPayload(
+            provider: .grok,
+            deviceID: "device-id",
+            accountIdentity: "grok-account",
+            displayLabel: "Grok",
+            usage: usage)
+        let decoded = try CanonicalSyncJSON.decode(
+            AccountSnapshotSyncPayload.self,
+            from: CanonicalSyncJSON.encode(payload))
+
+        #expect(payload.usage.grokResetCredits != nil)
+        #expect(payload.usage.detailRow(label: "Limit Reset Credits") != nil)
+        #expect(decoded.usage.grokResetCredits == nil)
+        #expect(decoded.usage.detailRow(label: "Limit Reset Credits") == nil)
+        #expect(decoded.usage.detailRow(label: "Plan")?.value == "SuperGrok")
+    }
+
+    @Test
+    func `non-Grok fleet snapshots preserve same-named reset detail`() throws {
+        let provider = try #require(ProviderInstanceID(rawValue: "example-plugin"))
+        let details = try [
+            ProviderDetailSection(rows: [
+                ProviderDetailSection.Row(
+                    label: "Limit Reset Credits",
+                    value: "Plugin-defined value"),
+            ]),
+        ]
+        let usage = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            details: details,
+            updatedAt: Date(timeIntervalSince1970: 1_800_000_000),
+            identity: ProviderIdentitySnapshot(
+                providerID: provider,
+                accountEmail: nil,
+                accountOrganization: nil,
+                loginMethod: nil))
+        let payload = AccountSnapshotSyncPayload(
+            provider: provider,
+            deviceID: "device-id",
+            accountIdentity: "plugin-account",
+            displayLabel: "Example plugin",
+            usage: usage)
+
+        let decoded = try CanonicalSyncJSON.decode(
+            AccountSnapshotSyncPayload.self,
+            from: CanonicalSyncJSON.encode(payload))
+
+        #expect(decoded.usage.detailRow(label: "Limit Reset Credits")?.value == "Plugin-defined value")
+    }
+
+    @Test
     func `slot keyed snapshot names the leftover email keyed CloudKit record`() {
         let payload = Self.claudeSnapshot(accountID: "claude-swap:2", email: "Owner@Example.com")
         let emailKey = AccountSnapshotSyncPayload.accountKey(for: "owner@example.com")
