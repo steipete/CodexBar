@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Synthetic process ownership tests; never launch Swift or inspect provider data."""
 
+import contextlib
 import ctypes
 import errno
+import io
 import json
 import os
 from pathlib import Path
@@ -12,6 +14,7 @@ import sys
 import tempfile
 import threading
 import time
+import types
 import unittest
 from unittest.mock import Mock, patch
 
@@ -1499,6 +1502,82 @@ int main(int argc, char **argv) {
                     except subprocess.TimeoutExpired:
                         process.kill()
                         process.wait(timeout=2)
+
+
+@patch.object(runner.sys, "platform", "darwin")
+class ContainmentSupportTests(unittest.TestCase):
+    def test_partial_capabilities_name_only_the_missing_ones(self):
+        partial = types.SimpleNamespace(waitid=None, P_PID=0, WEXITED=0)
+        error = runner.containment_support_error(partial)
+        self.assertIsNotNone(error)
+        self.assertIn("WNOHANG", error)
+        self.assertIn("WNOWAIT", error)
+        self.assertNotIn("P_PID", error)
+        self.assertIn(sys.executable, error)
+
+    def test_complete_capabilities_report_no_error(self):
+        complete = types.SimpleNamespace(**{name: 0 for name in runner.CONTAINMENT_CAPABILITIES})
+        self.assertIsNone(runner.containment_support_error(complete))
+
+    def test_run_command_rejects_an_interpreter_without_waitid(self):
+        with (
+            patch.object(runner, "containment_support_error", return_value="no waitid here"),
+            patch.object(runner.subprocess, "Popen") as launch,
+        ):
+            with self.assertRaises(RuntimeError) as raised:
+                runner.run_command(["/bin/echo", "unreachable"])
+            launch.assert_not_called()
+        self.assertEqual(str(raised.exception), "no waitid here")
+
+    def test_unsupported_platform_is_reported(self):
+        with patch.object(runner.sys, "platform", "win32"):
+            self.assertEqual(
+                runner.containment_support_error(),
+                "Swift test process containment requires macOS or Linux, not win32.",
+            )
+
+    def test_main_rejects_missing_containment_before_discovery(self):
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with (
+            patch.object(sys, "argv", ["runner"]),
+            patch.object(runner, "containment_support_error", return_value="no waitid here"),
+            patch.object(runner, "swift_test_list") as discovery,
+            patch.object(runner, "run_group") as execute,
+            patch.object(runner, "print_timing_summary") as timing,
+            patch.object(runner, "append_github_summary") as summary,
+            contextlib.redirect_stdout(stdout),
+            contextlib.redirect_stderr(stderr),
+        ):
+            self.assertEqual(runner.main(), 2)
+        self.assertEqual(stdout.getvalue(), "")
+        self.assertEqual(stderr.getvalue(), "no waitid here\n")
+        discovery.assert_not_called()
+        execute.assert_not_called()
+        timing.assert_not_called()
+        summary.assert_not_called()
+
+    def test_list_only_keeps_discovery_without_containment(self):
+        stdout, stderr = io.StringIO(), io.StringIO()
+        selection = runner.TestSelection("SyntheticTests", "^SyntheticTests/")
+        with (
+            patch.object(sys, "argv", ["runner", "--list-only"]),
+            patch.object(runner, "containment_support_error", return_value="no waitid here") as guard,
+            patch.object(runner, "swift_test_list", return_value=[selection]) as discovery,
+            patch.object(runner, "run_group") as execute,
+            patch.object(runner, "append_github_summary") as summary,
+            contextlib.redirect_stdout(stdout),
+            contextlib.redirect_stderr(stderr),
+        ):
+            self.assertEqual(runner.main(), 0)
+        self.assertEqual(
+            stdout.getvalue(),
+            "Discovered 1 test selections; running 1 selections in 1 groups\nSyntheticTests\n",
+        )
+        self.assertEqual(stderr.getvalue(), "")
+        guard.assert_not_called()
+        discovery.assert_called_once_with(["swift"])
+        execute.assert_not_called()
+        summary.assert_not_called()
 
 
 if __name__ == "__main__":
