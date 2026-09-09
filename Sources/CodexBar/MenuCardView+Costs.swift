@@ -458,7 +458,7 @@ extension UsageMenuCardView.Model {
         }
 
         if style == .prepaidCredits {
-            let balance = UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
+            let balance = UsageFormatter.currencyString(cost.balance ?? cost.used, currencyCode: cost.currencyCode)
             return ProviderCostSection(
                 title: L("Credits"),
                 percentUsed: nil,

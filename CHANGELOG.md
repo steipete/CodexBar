@@ -2,6 +2,24 @@
 
 ## 0.57.1 — Unreleased
 
+### Added
+- Hugging Face: show bearer-token billing spend and the browser-session prepaid Credits wallet together in
+  automatic mode. Private cross-authority identity matching (`whoami-v2` opaque user IDs) gates composition;
+  mismatched or unverifiable accounts still show both values, with the wallet labeled as browser-session data.
+  Stacked token-account batches observe the wallet once and only a uniquely matched account composes it.
+
+### Fixed
+- Hugging Face: decide wallet attribution once per automatic-mode batch, so several matching accounts render the
+  wallet once at provider level instead of nowhere, a unique match no longer duplicates the wallet with a mismatched
+  provider-level copy, and single-account runs with mismatched or unverifiable identity still show one
+  provider-level wallet.
+- Hugging Face: render the provider-level browser wallet in compact multi-account menus, carry it on the live card
+  even when no API snapshot exists, and restrict its failed-refresh recovery to Auto/API transitions that actually
+  displaced a validated Web-owned snapshot, so failed Web refreshes never duplicate it into auxiliary state.
+- Hugging Face: make Cookie-source Refresh import and validate browser credits even when optional usage is hidden,
+  use the existing bounded browser-access retry for explicit cookie refreshes, and restore the combined spend and
+  wallet snapshot immediately after a successful refresh instead of waiting for the next cycle.
+
 ## 0.57.0 — 2026-09-08
 
 ### Highlights

@@ -200,6 +200,29 @@ public enum BrowserCookieAccessGate {
         }
     }
 
+    /// Async variant used by shared single-flight work that must run inside a detached task while
+    /// preserving the initiating caller's browser-access context (`Task.detached` inherits no
+    /// task-locals).
+    static func operationPreservingAccessContext<T: Sendable>(
+        _ operation: @escaping @Sendable () async throws -> T) -> @Sendable () async throws -> T
+    {
+        let interaction = ProviderInteractionContext.current
+        let retryScope = self.explicitRetryScope
+        return {
+            try await ProviderInteractionContext.$current.withValue(interaction) {
+                try await self.$explicitRetryScope.withValue(retryScope) {
+                    try await operation()
+                }
+            }
+        }
+    }
+
+    /// Test-only visibility into whether an explicit browser-cookie retry scope is bound to the
+    /// current task.
+    static var hasExplicitRetryScopeForTesting: Bool {
+        self.explicitRetryScope != nil
+    }
+
     static func withRecordReadInteractionPolicy<T>(_ operation: () throws -> T) rethrows -> T {
         guard ProviderInteractionContext.current == .background else {
             return try operation()
@@ -439,6 +462,21 @@ public enum BrowserCookieAccessGate {
         operation: () async throws -> T) async rethrows -> T
     {
         try await operation()
+    }
+
+    static func operationPreservingAccessContext<T: Sendable>(
+        _ operation: @escaping @Sendable () async throws -> T) -> @Sendable () async throws -> T
+    {
+        let interaction = ProviderInteractionContext.current
+        return {
+            try await ProviderInteractionContext.$current.withValue(interaction) {
+                try await operation()
+            }
+        }
+    }
+
+    static var hasExplicitRetryScopeForTesting: Bool {
+        false
     }
 
     public static func recordIfNeeded(_ error: Error, now: Date = Date()) {}

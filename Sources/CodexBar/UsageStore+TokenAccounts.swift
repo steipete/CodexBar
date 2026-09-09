@@ -147,7 +147,7 @@ extension UsageStore {
     }
 }
 
-private struct TokenAccountFetchResult {
+struct TokenAccountFetchResult {
     let index: Int
     let account: ProviderTokenAccount
     let outcome: ProviderFetchOutcome
@@ -170,18 +170,19 @@ extension UsageStore {
         return self.settings.tokenAccounts(for: provider)
     }
 
-    func shouldFetchAllTokenAccounts(provider: UsageProvider, accounts: [ProviderTokenAccount]) -> Bool {
+    func shouldFetchAllTokenAccounts(
+        provider: UsageProvider,
+        accounts: [ProviderTokenAccount],
+        sourceMode: ProviderSourceMode) -> Bool
+    {
         guard TokenAccountSupportCatalog.support(for: provider) != nil else { return false }
         guard self.settings.effectiveSelectedTokenAccount(for: provider) != nil else { return false }
-        return self.settings.multiAccountMenuLayout == .stacked && accounts.count > 1
-    }
-
-    func shouldFetchAllCodexVisibleAccounts() -> Bool {
-        // PAT is not a per-visible-account credential. Fan-out would fetch the same token for
-        // every row and then reject its whoami identity against other accounts.
-        guard !self.shouldUseAmbientCodexPATForUsage() else { return false }
-        let projection = self.freshCodexVisibleAccountProjectionForAccountRefresh()
-        return self.settings.multiAccountMenuLayout == .stacked && projection.visibleAccounts.count > 1
+        guard self.settings.multiAccountMenuLayout == .stacked, accounts.count > 1 else { return false }
+        guard provider == .huggingface else { return true }
+        // Hugging Face's explicit-Web authority (Web mode or Cookie source Refresh's override) has
+        // no account ownership proof, so it must not fan out across stacked accounts the way
+        // ordinary Auto/API refreshes do. Auto fan-out shares one wallet batch scope.
+        return sourceMode != .web
     }
 
     func shouldUseAmbientCodexPATForUsage() -> Bool {
@@ -386,7 +387,7 @@ extension UsageStore {
             originalAccount, account: currentActiveAccount)
     }
 
-    private func freshCodexVisibleAccountProjectionForAccountRefresh(
+    func freshCodexVisibleAccountProjectionForAccountRefresh(
         requireLiveManagedAuthFor accountIDs: Set<UUID> = []) -> CodexVisibleAccountProjection
     {
         // Auth files can change while account fetches are in flight, so account refreshes bypass the
@@ -559,6 +560,8 @@ extension UsageStore {
         }
     }
 
+    /// Token-account fan-out refresh. Provider-level preparation, including Hugging Face Web-wallet
+    /// displacement, runs before routing reaches this stacked-account branch.
     func refreshTokenAccounts(
         provider: UsageProvider,
         accounts: [ProviderTokenAccount],
@@ -589,9 +592,20 @@ extension UsageStore {
         var selectedAccountSnapshot: TokenAccountUsageSnapshot?
         var sawAnyNonCancellationOutcome = false
 
-        let results = await self.fetchTokenAccountOutcomes(provider: provider, accounts: limitedAccounts)
+        // Provider-specific by design: one shared batch scope makes the whole stacked fan-out
+        // observe the browser wallet once (one billing-page request, one browser identity probe).
+        let huggingFaceWalletScope: HuggingFaceWalletBatchScope? = provider == .huggingface
+            ? HuggingFaceWalletBatchScope()
+            : nil
+        let results = await self.fetchTokenAccountOutcomes(
+            provider: provider,
+            accounts: limitedAccounts,
+            huggingFaceWalletBatchScope: huggingFaceWalletScope)
         guard self.isCurrentProviderRefreshGeneration(provider, generation: generation) else { return }
-        for result in results {
+        let walletReconciliation: HuggingFaceWalletAttributionReconciliation? = provider == .huggingface
+            ? self.reconcileHuggingFaceWalletAttribution(results)
+            : nil
+        for result in walletReconciliation?.results ?? results {
             guard let account = self.uniqueTokenAccount(provider: provider, accountID: result.account.id)
             else { continue }
             let outcome = result.outcome
@@ -603,7 +617,7 @@ extension UsageStore {
                 outcome,
                 provider: provider,
                 account: account,
-                priorSnapshot: priorByAccountID[account.id])
+                priorSnapshot: self.reconcileHuggingFacePrior(priorByAccountID[account.id], walletReconciliation))
             if let snapshot = resolved.snapshot {
                 snapshots.append(snapshot)
             }
@@ -699,30 +713,6 @@ extension UsageStore {
         return limited
     }
 
-    func limitedCodexVisibleAccounts(
-        _ accounts: [CodexVisibleAccount],
-        snapshots: [CodexAccountUsageSnapshot] = [],
-        activeVisibleAccountID: String?) -> [CodexVisibleAccount]
-    {
-        let accounts = CodexAccountPresentationOrdering.orderedAccounts(
-            accounts,
-            snapshots: snapshots,
-            activeVisibleAccountID: activeVisibleAccountID)
-        let limit = Self.tokenAccountMenuSnapshotLimit
-        if accounts.count <= limit {
-            return accounts
-        }
-        var limited = Array(accounts.prefix(limit))
-        if let activeVisibleAccountID,
-           let active = accounts.first(where: { $0.id == activeVisibleAccountID }),
-           !limited.contains(where: { $0.id == activeVisibleAccountID })
-        {
-            limited.removeLast()
-            limited.append(active)
-        }
-        return limited
-    }
-
     func fetchOutcome(
         provider: UsageProvider,
         override: TokenAccountOverride?,
@@ -746,7 +736,8 @@ extension UsageStore {
 
     private func fetchTokenAccountOutcomes(
         provider: UsageProvider,
-        accounts: [ProviderTokenAccount]) async -> [TokenAccountFetchResult]
+        accounts: [ProviderTokenAccount],
+        huggingFaceWalletBatchScope: HuggingFaceWalletBatchScope? = nil) async -> [TokenAccountFetchResult]
     {
         let requests:
             [(
@@ -760,7 +751,10 @@ extension UsageStore {
                     self.providerSpecs[provider]?.descriptor
                         ?? ProviderDescriptorRegistry
                         .descriptor(for: provider)
-                let context = self.makeFetchContext(provider: provider, override: override)
+                let context = self.makeFetchContext(
+                    provider: provider,
+                    override: override,
+                    huggingFaceWalletBatchScope: huggingFaceWalletBatchScope)
                 return (index, account, descriptor, context)
             }
 
@@ -930,13 +924,14 @@ extension UsageStore {
         override: TokenAccountOverride?,
         codexActiveSourceOverride: CodexActiveSource? = nil,
         includeCredits: Bool = false,
-        claudeOwnerCLIRecoveryOnly: Bool = false) -> ProviderFetchContext
+        claudeOwnerCLIRecoveryOnly: Bool = false,
+        huggingFaceWalletBatchScope: HuggingFaceWalletBatchScope? = nil) -> ProviderFetchContext
     {
         let account = ProviderTokenAccountSelection.selectedAccount(
             provider: provider,
             settings: self.settings,
             override: override)
-        let sourceMode = ProviderRegistry.resolvedSourceMode(
+        let sourceMode = Self.requestedSourceModeOverride ?? ProviderRegistry.resolvedSourceMode(
             provider: provider,
             settings: self.settings,
             account: account)
@@ -1019,7 +1014,8 @@ extension UsageStore {
             persistsCLISessions: true,
             persistentCLISessionIdleWindow: ProviderRegistry.persistentCLISessionIdleWindow(
                 refreshInterval: self.normalRefreshIntervalForHeuristics()),
-            resolvedCLIVersion: self.version(for: provider))
+            resolvedCLIVersion: self.version(for: provider),
+            huggingFaceWalletBatchScope: huggingFaceWalletBatchScope)
     }
 
     private func providerConfigMutationIsCurrent(
@@ -1325,15 +1321,15 @@ extension UsageStore {
         sourceLabel: String?,
         hadPriorData: Bool)
     {
-        guard let message = self.tokenAccountErrorMessage(error) else {
-            self.errors[provider.instanceID] = nil
-            return
-        }
         if let snapshot {
             self.snapshots[provider.instanceID] = snapshot
             self.lastKnownResetSnapshots[provider.instanceID] = snapshot
             self.lastSourceLabels[provider.instanceID] = sourceLabel
             self.installProviderDerivedTokenSnapshot(from: snapshot, for: provider)
+        }
+        guard let message = self.tokenAccountErrorMessage(error) else {
+            self.errors[provider.instanceID] = nil
+            return
         }
         let shouldSurface = self.failureGates[provider.instanceID]?
             .shouldSurfaceError(onFailureWithPriorData: hadPriorData) ?? true
@@ -1578,6 +1574,10 @@ extension UsageStore {
             if provider == .deepseek {
                 self.markDeepSeekProfileTransitionUnavailable()
             }
+            // Provider-specific by design: keep a validated Hugging Face browser wallet visible
+            // when a failed token-account refresh replaced the fresh Web snapshot with a cached
+            // wallet-less account snapshot.
+            self.reconcileHuggingFaceWalletAfterFetchFailure(provider: provider, error: error)
             let retained = Self.shouldPreservePriorSnapshot(after: error, hadPriorData: prior != nil)
                 ? prior?.snapshot : nil
             self.publishSelectedAccountFailure(

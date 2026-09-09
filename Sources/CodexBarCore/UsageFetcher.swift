@@ -264,6 +264,10 @@ public struct UsageSnapshot: Codable, Sendable {
         self.replacing(providerCost: .value(providerCost))
     }
 
+    public func appendingDetailSection(_ section: ProviderDetailSection) -> UsageSnapshot {
+        self.replacing(details: .value(self.details + [section]))
+    }
+
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.primary = try container.decodeIfPresent(RateWindow.self, forKey: .primary)

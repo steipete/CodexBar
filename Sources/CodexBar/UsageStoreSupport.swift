@@ -169,3 +169,11 @@ extension UsageStore {
     }
 }
 #endif
+
+extension UsageStore {
+    enum CodexCreditsSource {
+        case none
+        case api
+        case dashboardWeb
+    }
+}

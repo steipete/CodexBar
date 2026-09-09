@@ -25,6 +25,7 @@ enum ProviderTokenAccountSelection {
         settings: SettingsStore,
         override: TokenAccountOverride?) -> Bool
     {
+        if ProviderCookieRefreshAction.isRefreshingCookie { return true }
         guard provider == .deepseek else { return settings.showOptionalCreditsAndExtraUsage }
         guard settings.costUsageEnabled, settings.showOptionalCreditsAndExtraUsage else { return false }
         guard let override, override.provider == provider else { return true }

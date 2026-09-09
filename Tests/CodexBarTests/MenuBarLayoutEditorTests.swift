@@ -290,6 +290,26 @@ struct MenuBarLayoutEditorTests {
         #expect(MenuBarLayoutBalanceResolver.balance(provider: .openrouter, snapshot: snapshot) == "$12.34")
         #expect(MenuBarLayoutBalanceResolver.balance(provider: .codex, snapshot: snapshot) == nil)
         #expect(MenuBarLayoutToken.balance.editorLabel(provider: .openrouter) == L("Balance"))
+
+        let huggingFaceSnapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            providerCost: ProviderCostSnapshot(
+                used: 0,
+                limit: 0,
+                currencyCode: "USD",
+                period: "Prepaid credits",
+                balance: 12.34,
+                updatedAt: Date()),
+            updatedAt: Date())
+        #expect(MenuBarLayoutBalanceResolver.balance(
+            provider: .huggingface,
+            snapshot: huggingFaceSnapshot) == "$12.34")
+        let amounts = MenuBarLayoutBalanceResolver.balanceAmountsUSD(
+            provider: .huggingface,
+            snapshot: huggingFaceSnapshot)
+        #expect(amounts.remaining == 12.34)
+        #expect(amounts.used == nil)
     }
 
     @Test

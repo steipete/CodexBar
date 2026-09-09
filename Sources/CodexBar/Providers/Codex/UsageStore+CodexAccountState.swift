@@ -781,3 +781,37 @@ extension UsageStore {
         }
     }
 }
+
+extension UsageStore {
+    func shouldFetchAllCodexVisibleAccounts() -> Bool {
+        // PAT is not a per-visible-account credential. Fan-out would fetch the same token for
+        // every row and then reject its whoami identity against other accounts.
+        guard !self.shouldUseAmbientCodexPATForUsage() else { return false }
+        let projection = self.freshCodexVisibleAccountProjectionForAccountRefresh()
+        return self.settings.multiAccountMenuLayout == .stacked && projection.visibleAccounts.count > 1
+    }
+
+    func limitedCodexVisibleAccounts(
+        _ accounts: [CodexVisibleAccount],
+        snapshots: [CodexAccountUsageSnapshot] = [],
+        activeVisibleAccountID: String?) -> [CodexVisibleAccount]
+    {
+        let accounts = CodexAccountPresentationOrdering.orderedAccounts(
+            accounts,
+            snapshots: snapshots,
+            activeVisibleAccountID: activeVisibleAccountID)
+        let limit = Self.tokenAccountMenuSnapshotLimit
+        if accounts.count <= limit {
+            return accounts
+        }
+        var limited = Array(accounts.prefix(limit))
+        if let activeVisibleAccountID,
+           let active = accounts.first(where: { $0.id == activeVisibleAccountID }),
+           !limited.contains(where: { $0.id == activeVisibleAccountID })
+        {
+            limited.removeLast()
+            limited.append(active)
+        }
+        return limited
+    }
+}

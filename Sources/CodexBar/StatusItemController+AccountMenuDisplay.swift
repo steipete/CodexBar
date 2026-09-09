@@ -41,6 +41,11 @@ extension StatusItemController {
 
     func tokenAccountMenuDisplay(for provider: UsageProvider) -> TokenAccountMenuDisplay? {
         guard TokenAccountSupportCatalog.support(for: provider) != nil else { return nil }
+        // Provider-specific by design: an explicit-Web Hugging Face wallet is provider-level data
+        // without an account authority and takes precedence over still-valid API account snapshots
+        // in the menu projection. Auto compositions surface the wallet through the account card or
+        // the provider-level wallet section instead.
+        guard !self.isHuggingFaceProviderLevelWebWalletActive(provider) else { return nil }
         // Retained Cursor manual accounts are dormant while Automatic browser discovery owns the live snapshot.
         guard self.settings.effectiveSelectedTokenAccount(for: provider) != nil else { return nil }
         // Eligible claude-swap rows are the selected Claude account source, so do not mix them
@@ -68,6 +73,10 @@ extension StatusItemController {
             snapshots: snapshots,
             activeIndex: activeIndex,
             layout: showAll ? .stacked : .segmented)
+    }
+
+    private func isHuggingFaceProviderLevelWebWalletActive(_ provider: UsageProvider) -> Bool {
+        provider == .huggingface && self.store.lastSourceLabels[provider.instanceID] == "web"
     }
 
     private func tokenAccountSnapshots(

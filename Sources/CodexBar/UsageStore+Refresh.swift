@@ -147,7 +147,8 @@ extension UsageStore {
     func refreshProvider(
         _ provider: UsageProvider,
         allowDisabled: Bool = false,
-        coalesceIfRefreshing: Bool = false) async
+        coalesceIfRefreshing: Bool = false,
+        sourceModeOverride: ProviderSourceMode? = nil) async
     {
         // Codex source reconciliation can persist a settings correction. Perform it before
         // capturing the publication revision so the request cannot invalidate itself.
@@ -198,11 +199,13 @@ extension UsageStore {
                     allowDisabled: allowDisabled)
                 snapshotUpdatedAtBeforeRefresh = self.snapshot(for: provider.instanceID)?.updatedAt
                 didStartRefresh = true
-                await ProviderRefreshRequestContext.withNewRequest {
-                    await self.refreshProviderTracked(
-                        provider,
-                        allowDisabled: allowDisabled,
-                        generation: request.generation)
+                await Self.$requestedSourceModeOverride.withValue(sourceModeOverride) {
+                    await ProviderRefreshRequestContext.withNewRequest {
+                        await self.refreshProviderTracked(
+                            provider,
+                            allowDisabled: allowDisabled,
+                            generation: request.generation)
+                    }
                 }
             }
             let publishedNewSnapshot = didStartRefresh &&
@@ -377,13 +380,28 @@ extension UsageStore {
         }
 
         let tokenAccountPreparation = self.tokenAccountRefreshPreparation(for: provider)
-        if self.shouldFetchAllTokenAccounts(provider: provider, accounts: tokenAccountPreparation.accounts) {
+        let tokenAccount = self.settings.effectiveSelectedTokenAccount(for: provider)
+        let fetchContext = self.makeFetchContext(
+            provider: provider,
+            override: nil,
+            claudeOwnerCLIRecoveryOnly: retryMode == .claudeOwnerCLIRecovery)
+        self.prepareHuggingFaceWalletRefresh(
+            provider: provider,
+            context: fetchContext,
+            selectedTokenAccount: tokenAccount)
+
+        if self.shouldFetchAllTokenAccounts(
+            provider: provider,
+            accounts: tokenAccountPreparation.accounts,
+            sourceMode: fetchContext.sourceMode)
+        {
             await self.refreshTokenAccounts(
                 provider: provider,
                 accounts: tokenAccountPreparation.accounts,
                 generation: generation)
             return nil
-        } else {
+            // Provider-specific by design: Preserve Web authority during this fetch.
+        } else if provider != .huggingface || fetchContext.sourceMode != .web {
             _ = await MainActor.run {
                 self.reconcileSelectedTokenAccountSnapshotBeforeRefresh(
                     provider: provider,
@@ -391,11 +409,7 @@ extension UsageStore {
             }
         }
 
-        let tokenAccount = self.settings.effectiveSelectedTokenAccount(for: provider)
-        let fetchContext = self.makeFetchContext(
-            provider: provider,
-            override: nil,
-            claudeOwnerCLIRecoveryOnly: retryMode == .claudeOwnerCLIRecovery)
+        await self._test_refreshFetchContextObserver?(provider, fetchContext)
         let claudeHasAdminAPIKey = ClaudeAdminAPISettingsReader.apiKey(environment: fetchContext.env) != nil
         let claudeActiveAccountIdentitySourceEligible = Self.shouldTrackClaudeActiveAccountIdentity(
             provider: provider,
@@ -692,7 +706,11 @@ extension UsageStore {
         if context.tokenAccount != nil, currentTokenAccount == nil {
             return
         }
-        let accountScoped = if let tokenAccount = currentTokenAccount {
+        // Hugging Face's explicit-Web wallet has no account authority, so it must never be
+        // relabeled or cached as though it belonged to the selected token account. Identity-matched
+        // Auto compositions carry the API strategy kind and are scoped normally.
+        let isHuggingFaceWebWallet = provider == .huggingface && result.strategyKind == .web
+        let accountScoped = if let tokenAccount = currentTokenAccount, !isHuggingFaceWebWallet {
             self.applyAccountLabel(scoped, provider: provider, account: tokenAccount)
         } else {
             scoped
@@ -749,23 +767,12 @@ extension UsageStore {
             if provider == .deepseek {
                 self.clearDeepSeekProfileTransition()
             }
-            if let tokenSnapshot = self.tokenSnapshot(fromProviderSnapshot: backfilled, provider: provider) {
-                self.publishTokenSnapshot(tokenSnapshot, for: provider)
-                self.tokenErrors[provider.instanceID] = nil
-                self.tokenFailureGates[provider.instanceID]?.recordSuccess()
-            } else if provider == .xai, XAICostUsageMapping.isAnalyticsUnavailable(backfilled) {
-                // Provider-specific by design: prepaid balance without usage history is unavailable,
-                // not a confirmed-empty $0 spend row.
-                self.clearTokenSnapshot(for: provider)
-                self.tokenErrors[provider.instanceID] = nil
-            } else if Self.tokenCostRequiresProviderSnapshot(provider) {
-                self.publishConfirmedEmptyTokenSnapshot(for: provider)
-                self.tokenErrors[provider.instanceID] = nil
-            }
+            self.publishTokenSnapshotTransition(for: backfilled, provider: provider)
             self.lastSourceLabels[provider.instanceID] = result.sourceLabel
+            self.applyHuggingFaceWalletOutcome(provider: provider, result: result)
             self.recordProviderFetchSuccessErrorState(provider: provider)
             self.diagnostics[provider.instanceID] = result.diagnostic
-            if let tokenAccount = currentTokenAccount {
+            if let tokenAccount = currentTokenAccount, !isHuggingFaceWebWallet {
                 self.cacheTokenAccountSnapshot(
                     provider: provider,
                     account: tokenAccount,
@@ -853,6 +860,9 @@ extension UsageStore {
         if provider == .deepseek {
             self.markDeepSeekProfileTransitionUnavailable()
         }
+        // Provider-specific by design: keep a validated Hugging Face browser wallet visible when a
+        // failed refresh replaced the fresh Web snapshot with a wallet-less cached account snapshot.
+        self.reconcileHuggingFaceWalletAfterFetchFailure(provider: provider, error: error)
         self.bindCodexFailurePublicationOwner(
             provider: provider,
             expectedGuard: context.codexExpectedGuard)
@@ -1596,8 +1606,7 @@ extension UsageStore {
     nonisolated static func isPermissionPromptWaiting(_ error: Error) -> Bool {
         let message = error.localizedDescription.lowercased()
         return (message.contains("prompt") && message.contains("waiting")) ||
-            message.contains("permission prompt") ||
-            message.contains("folder trust prompt")
+            message.contains("permission prompt") || message.contains("folder trust prompt")
     }
 
     private func postPermissionPromptNotificationIfNeeded(provider: UsageProvider, error: Error) {

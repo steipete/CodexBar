@@ -57,6 +57,10 @@ public struct ProviderFetchContext: Sendable {
     /// Already-resolved CLI version from Settings (or the CLI's shared detector).
     /// Codex PAT User-Agent consumes this instead of spawning `codex --version`.
     public let resolvedCLIVersion: String?
+    /// Provider-specific by design: Hugging Face shares one batch scope across a stacked
+    /// token-account fan-out (or a multi-account CLI run) so the browser wallet is observed once
+    /// per refresh batch. Nil means the strategy falls back to a one-shot single-fetch scope.
+    public let huggingFaceWalletBatchScope: HuggingFaceWalletBatchScope?
 
     public init(
         runtime: ProviderRuntime,
@@ -79,7 +83,8 @@ public struct ProviderFetchContext: Sendable {
         claudeOwnerCLIRecoveryOnly: Bool = false,
         persistsCLISessions: Bool = false,
         persistentCLISessionIdleWindow: TimeInterval? = nil,
-        resolvedCLIVersion: String? = nil)
+        resolvedCLIVersion: String? = nil,
+        huggingFaceWalletBatchScope: HuggingFaceWalletBatchScope? = nil)
     {
         self.runtime = runtime
         self.sourceMode = sourceMode
@@ -102,6 +107,7 @@ public struct ProviderFetchContext: Sendable {
         self.persistsCLISessions = persistsCLISessions
         self.persistentCLISessionIdleWindow = persistentCLISessionIdleWindow
         self.resolvedCLIVersion = resolvedCLIVersion
+        self.huggingFaceWalletBatchScope = huggingFaceWalletBatchScope
     }
 }
 
@@ -142,6 +148,9 @@ public struct ProviderFetchResult: Sendable {
     public let claudeOAuthKeychainCredentialAbsent: Bool
     /// Whether the winning Claude CLI credential could not be compared with Keychain without prompting.
     public let claudeOAuthKeychainCredentialUnavailable: Bool
+    /// Provider-specific by design: transient Hugging Face browser-wallet outcome. The opaque
+    /// matching identity never enters this type; only balance, timestamp, and attribution.
+    public let huggingFaceWalletOutcome: HuggingFaceBrowserWalletOutcome?
 
     public init(
         usage: UsageSnapshot,
@@ -158,7 +167,8 @@ public struct ProviderFetchResult: Sendable {
         claudeOAuthCredentialOwner: ClaudeOAuthCredentialOwner? = nil,
         claudeOAuthKeychainCredentialMismatch: Bool = false,
         claudeOAuthKeychainCredentialAbsent: Bool = false,
-        claudeOAuthKeychainCredentialUnavailable: Bool = false)
+        claudeOAuthKeychainCredentialUnavailable: Bool = false,
+        huggingFaceWalletOutcome: HuggingFaceBrowserWalletOutcome? = nil)
     {
         self.usage = usage
         self.credits = credits
@@ -175,6 +185,7 @@ public struct ProviderFetchResult: Sendable {
         self.claudeOAuthKeychainCredentialMismatch = claudeOAuthKeychainCredentialMismatch
         self.claudeOAuthKeychainCredentialAbsent = claudeOAuthKeychainCredentialAbsent
         self.claudeOAuthKeychainCredentialUnavailable = claudeOAuthKeychainCredentialUnavailable
+        self.huggingFaceWalletOutcome = huggingFaceWalletOutcome
     }
 
     public func markingMonthlyLimitEnrichmentFailed() -> ProviderFetchResult {
@@ -194,7 +205,29 @@ public struct ProviderFetchResult: Sendable {
             claudeOAuthCredentialOwner: self.claudeOAuthCredentialOwner,
             claudeOAuthKeychainCredentialMismatch: self.claudeOAuthKeychainCredentialMismatch,
             claudeOAuthKeychainCredentialAbsent: self.claudeOAuthKeychainCredentialAbsent,
-            claudeOAuthKeychainCredentialUnavailable: self.claudeOAuthKeychainCredentialUnavailable)
+            claudeOAuthKeychainCredentialUnavailable: self.claudeOAuthKeychainCredentialUnavailable,
+            huggingFaceWalletOutcome: self.huggingFaceWalletOutcome)
+    }
+
+    /// Rebuilds the result around a replacement usage snapshot while preserving every other field.
+    public func replacingUsage(_ usage: UsageSnapshot) -> ProviderFetchResult {
+        ProviderFetchResult(
+            usage: usage,
+            credits: self.credits,
+            dashboard: self.dashboard,
+            sourceLabel: self.sourceLabel,
+            strategyID: self.strategyID,
+            strategyKind: self.strategyKind,
+            codexResetCreditsAttempted: self.codexResetCreditsAttempted,
+            codexMonthlyLimitEnrichmentFailed: self.codexMonthlyLimitEnrichmentFailed,
+            diagnostic: self.diagnostic,
+            claudeOAuthKeychainPersistentRefHash: self.claudeOAuthKeychainPersistentRefHash,
+            claudeOAuthHistoryOwnerIdentifier: self.claudeOAuthHistoryOwnerIdentifier,
+            claudeOAuthCredentialOwner: self.claudeOAuthCredentialOwner,
+            claudeOAuthKeychainCredentialMismatch: self.claudeOAuthKeychainCredentialMismatch,
+            claudeOAuthKeychainCredentialAbsent: self.claudeOAuthKeychainCredentialAbsent,
+            claudeOAuthKeychainCredentialUnavailable: self.claudeOAuthKeychainCredentialUnavailable,
+            huggingFaceWalletOutcome: self.huggingFaceWalletOutcome)
     }
 }
 

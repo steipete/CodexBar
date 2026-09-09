@@ -178,7 +178,39 @@ extension StatusItemController {
         } else {
             override ?? self.store.presentationSnapshot(for: provider)
         }
-        return self.subscriptionMetadataSnapshot(baseSnapshot, provider: provider, surface: surface)
+        let metadataSnapshot = self.subscriptionMetadataSnapshot(
+            baseSnapshot,
+            provider: provider,
+            surface: surface)
+        return self.huggingFaceProviderWalletSnapshot(
+            metadataSnapshot,
+            provider: provider,
+            surface: surface)
+    }
+
+    /// Provider-specific by design (FP-194): when Hugging Face's browser wallet cannot be composed
+    /// into an account snapshot, the store publishes it as one provider-level value. The live
+    /// ambient card carries it as an authority-labeled detail row so both the API spend and the
+    /// wallet remain visible without implying same-account ownership. When no base snapshot exists
+    /// (e.g. a displaced Web-owned snapshot followed by a failed API replacement with no cached
+    /// account snapshot), the wallet rides a minimal identity-less carrier snapshot instead of
+    /// being dropped.
+    private func huggingFaceProviderWalletSnapshot(
+        _ snapshot: UsageSnapshot?,
+        provider: UsageProvider,
+        surface: CodexConsumerProjection.Surface) -> UsageSnapshot?
+    {
+        // Provider-specific by design: only Hugging Face publishes a provider-level browser wallet.
+        guard provider == .huggingface, surface == .liveCard,
+              let publication = self.store.huggingFaceBrowserWallets[provider.instanceID]
+        else { return snapshot }
+        // Return the shared section builder early so an unrenderable publication never
+        // manufactures a base snapshot.
+        guard let section = HuggingFaceWalletPresentation.detailSection(publication) else { return snapshot }
+        if let snapshot {
+            return snapshot.appendingDetailSection(section)
+        }
+        return HuggingFaceWalletPresentation.recoveryCarrierSnapshot(publication)
     }
 
     private func subscriptionMetadataSnapshot(

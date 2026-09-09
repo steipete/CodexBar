@@ -37,6 +37,7 @@ public enum ProviderManifest {
         OllamaProviderDescriptor.descriptor,
         SyntheticProviderDescriptor.descriptor,
         OpenRouterProviderDescriptor.descriptor,
+        HuggingFaceProviderDescriptor.descriptor,
         ElevenLabsProviderDescriptor.descriptor,
         WarpProviderDescriptor.descriptor,
         WindsurfProviderDescriptor.descriptor,

@@ -52,6 +52,7 @@ struct ProviderCredentialCharacterizationTests {
             .init(provider: .codebuff, environmentKey: "CODEBUFF_API_KEY"),
             .init(provider: .crof, environmentKey: "CROF_API_KEY"),
             .init(provider: .doubao, environmentKey: "ARK_API_KEY"),
+            .init(provider: .huggingface, environmentKey: "HF_TOKEN"),
         ]
 
         for fixture in fixtures {
@@ -212,6 +213,7 @@ struct ProviderCredentialCharacterizationTests {
             (.sub2api, "SUB2API_API_KEY"),
             (.ibmbob, "BOBSHELL_API_KEY"),
             (.grok, "GROK_OAUTH_TOKEN"),
+            (.huggingface, "HF_TOKEN"),
         ]
         let cookieProviders: [UsageProvider] = [
             .claude, .cursor, .opencode, .opencodego, .factory, .minimax, .manus,
@@ -284,6 +286,7 @@ struct ProviderCredentialCharacterizationTests {
             (.llmproxy, "LLM_PROXY_API_KEY"), (.litellm, "LITELLM_API_KEY"),
             (.sub2api, "SUB2API_API_KEY"), (.antigravity, "ANTIGRAVITY_OAUTH_CREDENTIALS_JSON"),
             (.ibmbob, "BOBSHELL_API_KEY"),
+            (.huggingface, "HF_TOKEN"),
         ]
         let account = ProviderTokenAccount(
             id: UUID(), label: "fixture", token: "account-token", addedAt: 0, lastUsed: nil)

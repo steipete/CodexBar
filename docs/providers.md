@@ -8,7 +8,7 @@ read_when:
 
 # Providers
 
-CodexBar currently registers 69 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
+CodexBar currently registers 70 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
 OpenCode vs OpenCode Go, because the auth source and quota shape differ.
 
 ## Fetch strategies (current)
@@ -93,6 +93,7 @@ complete when the available scan window covers fewer days.
 | Ollama | API key verifies Cloud API access (`api`); browser cookies expose Cloud quota windows (`web`). |
 | Synthetic | API key from config/env → quota API (`api`). |
 | OpenRouter | API token (config, overrides env) → credits API (`api`). |
+| Hugging Face | Auto: bearer-token API billing spend plus the browser-session prepaid Credits wallet together when both are safely available; cookie-only Auto falls back to the wallet alone. Explicit API and Web selections remain authority-isolated. |
 | Perplexity | Browser cookies/manual cookie/env session token → credits API (`web`). |
 | Xiaomi MiMo | Browser cookies → balance/token plan endpoints (`web`). |
 | Doubao | API key from config/env → Volcengine Ark chat-completions probe (`api`). |
@@ -417,6 +418,33 @@ provider-specific cookie validation, endpoints, login detection, and error trans
 - Override base URL with `OPENROUTER_API_URL` env var.
 - Status: `https://status.openrouter.ai` (link only, no auto-polling yet).
 - Details: `docs/openrouter.md`.
+
+## Hugging Face
+- API spend uses the Hugging Face user access token from `~/.codexbar/config.json` (`providers[].apiKey`), `HF_TOKEN`,
+  `HUGGING_FACE_HUB_TOKEN`, or Hugging Face CLI token files and remains independent of the prepaid wallet.
+- The Web source requests `GET https://huggingface.co/settings/billing` with a normal authenticated Hugging Face
+  browser session cookie. Automatic import is limited to `huggingface.co`; Manual mode accepts a full `Cookie:` header.
+  The `.api` source never looks up cookies.
+- The current wallet is the server-rendered `div[data-props]` field `entity.currentBalanceUsd` for a personal user
+  entity. It is already USD; zero and fractional cents are valid. The legacy top-level `invoiceCreditsCents` value is
+  converted from safe integer cents only when the current field is absent.
+- Auto mode reports bearer-token API billing spend plus the browser-session prepaid Credits wallet
+  together whenever both are safely available. Without an API credential, cookie-only Auto returns the
+  Web prepaid Credits wallet alone. Private identity matching (`whoami-v2` opaque user IDs) gates
+  composition: a uniquely matching token account carries the wallet on its card, several matching
+  accounts strip every composition and render one provider-level `.multipleMatchingAccounts` wallet,
+  and mismatched or unverifiable identity renders one provider-level `unverified` wallet. Explicit API
+  and Web selections remain authority-isolated; Web mode returns a balance-only snapshot without
+  bearer data and never adopts token-account labels, cache keys, or per-account fan-out.
+- A failed Auto/API refresh after a validated browser wallet was published keeps that wallet visible
+  once at provider level as browser-session data (not attributed to any API account) until the next
+  successful refresh supersedes it.
+- The Usage source picker provides explicit API/Web selection, each of which stays authority-isolated. Cookie source
+  Refresh explicitly validates the Web wallet path, commits the staged browser cookies, and immediately follows up
+  with one ordinary Auto refresh so the combined spend-plus-wallet snapshot returns right away.
+- The Balance layout token uses the reported wallet and never derives it from inference allowance, plan, or spend.
+- Status: none yet.
+- Details: `docs/huggingface.md`.
 
 ## Perplexity
 - Browser session cookie from automatic import, manual header/token, or `PERPLEXITY_SESSION_TOKEN` / `PERPLEXITY_COOKIE`.

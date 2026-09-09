@@ -233,6 +233,43 @@ extension StatusItemController {
         }
     }
 
+    /// Provider-specific by design (FP-194): stacked Hugging Face token-account cards carry
+    /// per-account API spend, while a browser wallet that cannot be attributed to exactly one
+    /// account renders once after the account cards as a provider-level authority-labeled section.
+    func addHuggingFaceProviderWalletSection(
+        to menu: NSMenu,
+        provider: UsageProvider,
+        width: CGFloat)
+    {
+        // Provider-specific by design: Hugging Face is the only provider with a provider-level
+        // browser wallet that must render once outside the per-account stacked cards.
+        guard provider == .huggingface,
+              let publication = self.store.huggingFaceBrowserWallets[provider.instanceID],
+              let section = HuggingFaceWalletPresentation.detailSection(publication)
+        else { return }
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            providerCost: nil,
+            details: [section],
+            updatedAt: publication.observedAt,
+            identity: nil)
+        guard let model = self.menuCardModel(
+            for: provider,
+            snapshotOverride: snapshot,
+            forceOverrideCard: true)
+        else { return }
+        let renderedModel = self.menuCardRefreshMonitor.model(for: model.provider, fallback: model)
+        menu.addItem(self.makeMenuCardItem(
+            UsageMenuCardView(model: model, layoutModel: renderedModel, width: width),
+            id: "huggingFaceBrowserWallet",
+            width: width,
+            heightCacheScope: "\(provider.rawValue)-browserWallet",
+            heightCacheFingerprint: renderedModel.heightFingerprint(section: "card"),
+            containsInteractiveControls: true))
+        menu.addItem(.separator())
+    }
+
     // MARK: - Projections
 
     static func projectedTokenAccounts(
