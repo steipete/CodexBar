@@ -217,11 +217,10 @@ extension CodexBarCLI {
                     providers: providers,
                     historyDays: historyDays,
                     force: force)
-                reports.append(contentsOf: providers.compactMap { provider in
-                    summaries.first { $0.provider == provider.rawValue }.map {
-                        RemoteHostCostReport(host: remoteHost, provider: provider, summary: $0)
-                    }
-                })
+                reports.append(contentsOf: Self.remoteHostCostReports(
+                    host: remoteHost,
+                    providers: providers,
+                    summaries: summaries))
             } catch {
                 reports.append(contentsOf: providers.map {
                     RemoteHostCostReport(
@@ -244,6 +243,24 @@ extension CodexBarCLI {
         }
         let failed = reports.contains { $0.error != nil }
         Self.exit(code: failed ? .failure : .success, output: output, kind: failed ? .provider : .runtime)
+    }
+
+    static func remoteHostCostReports(
+        host: String,
+        providers: [UsageProvider],
+        summaries: [RemoteCostSummary]) -> [RemoteHostCostReport]
+    {
+        let summariesByProvider = Dictionary(uniqueKeysWithValues: summaries.map { ($0.provider, $0) })
+        return providers.map { provider in
+            guard let summary = summariesByProvider[provider.rawValue] else {
+                return RemoteHostCostReport(
+                    host: host,
+                    provider: provider,
+                    summary: nil,
+                    error: RemoteCostError.unavailable.localizedDescription)
+            }
+            return RemoteHostCostReport(host: host, provider: provider, summary: summary)
+        }
     }
 
     static func renderHostCostText(_ report: RemoteHostCostReport) -> String {

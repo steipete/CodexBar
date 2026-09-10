@@ -47,6 +47,27 @@ struct CLICostTests {
     }
 
     @Test
+    func `remote reports preserve explicit errors for partial and empty provider responses`() {
+        let claude = RemoteCostFetcherTests.summary(provider: .claude)
+        let partial = CodexBarCLI.remoteHostCostReports(
+            host: "linux",
+            providers: [.codex, .claude],
+            summaries: [claude])
+        #expect(partial.map(\.provider) == ["codex", "claude"])
+        #expect(partial[0].summary == nil)
+        #expect(partial[0].error != nil)
+        #expect(partial[1].summary == claude)
+        #expect(partial[1].error == nil)
+
+        let empty = CodexBarCLI.remoteHostCostReports(
+            host: "linux",
+            providers: [.codex, .claude],
+            summaries: [])
+        #expect(empty.count == 2)
+        #expect(empty.allSatisfy { $0.summary == nil && $0.error != nil })
+    }
+
+    @Test
     func `cost json shortcut does not enable json logs`() throws {
         let signature = CodexBarCLI._costSignatureForTesting()
         let parser = CommandParser(signature: signature)
