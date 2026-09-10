@@ -78,6 +78,19 @@ struct KimiDesktopAuthTokenTests {
     }
 
     @Test
+    func `selects a live desktop access JWT and ignores refresh tokens`() throws {
+        let now = Date(timeIntervalSince1970: 1_000)
+        let refresh = try Self.makeJWT(typ: "refresh", audience: ["kimi.com"], expiry: 5_000)
+        let stale = try Self.makeJWT(typ: "access", audience: ["kimi.com"], expiry: 900)
+        let access = try Self.makeJWT(typ: "access", audience: ["kimi.com"], expiry: 2_000)
+        let other = try Self.makeJWT(typ: "access", audience: ["example.com"], expiry: 4_000)
+        #expect(KimiDesktopAuthToken.selectAccessToken(
+            from: [refresh, stale, other, access],
+            now: now) == access)
+        #expect(KimiDesktopAuthToken.jwtCandidates(in: #"{"access_token":"\#(access)"}"#) == [access])
+    }
+
+    @Test
     func `ignores tokens from unrelated hosts`() throws {
         let environment = try Self.makeEnvironment()
         defer { try? FileManager.default.removeItem(at: environment.root) }
@@ -177,6 +190,23 @@ struct KimiDesktopAuthTokenTests {
 
     private static func exec(db: OpaquePointer?, sql: String) throws {
         guard sqlite3_exec(db, sql, nil, nil, nil) == SQLITE_OK else { throw SQLiteTestError.exec }
+    }
+
+    private static func makeJWT(typ: String, audience: [String], expiry: TimeInterval) throws -> String {
+        let header = try Self.base64URL(JSONSerialization.data(withJSONObject: ["alg": "none", "typ": "JWT"]))
+        let payload = try Self.base64URL(JSONSerialization.data(withJSONObject: [
+            "typ": typ,
+            "aud": audience,
+            "exp": expiry,
+        ]))
+        return "\(header).\(payload).signature"
+    }
+
+    private static func base64URL(_ data: Data) -> String {
+        data.base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .trimmingCharacters(in: CharacterSet(charactersIn: "="))
     }
 
     private enum SQLiteTestError: Error {

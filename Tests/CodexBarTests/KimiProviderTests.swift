@@ -1123,6 +1123,30 @@ struct KimiUsageSnapshotConversionTests {
         #expect(monthly.window.usedPercent == 100)
         #expect(monthly.window.windowMinutes == ProviderPaceCapability.monthlyWindowSentinelMinutes)
         #expect(monthly.window.resetsAt == Self.date("2026-07-23T00:00:00Z"))
+
+        let unusedWeekly = try #require(usageSnapshot.primary)
+        let unusedRateLimit = RateWindow(
+            usedPercent: 0,
+            windowMinutes: KimiProviderDescriptor.sessionWindowMinutes,
+            resetsAt: now.addingTimeInterval(3 * 60 * 60),
+            resetDescription: "Rate: 0/100 per 5 hours")
+        let automatic = KimiProviderDescriptor.descriptor.presentation.menuBarWindow(
+            context: ProviderMenuBarWindowContext(
+                metric: .automatic,
+                snapshot: UsageSnapshot(
+                    primary: unusedWeekly,
+                    secondary: unusedRateLimit,
+                    extraRateWindows: [monthly],
+                    updatedAt: now),
+                supportsAverage: false,
+                prioritizesExhaustedQuotas: false,
+                now: now))
+        guard case let .resolved(window) = automatic else {
+            Issue.record("Kimi automatic menu-bar window should resolve")
+            return
+        }
+        #expect(window?.usedPercent == 100)
+        #expect(window?.windowMinutes == ProviderPaceCapability.monthlyWindowSentinelMinutes)
     }
 
     @Test
