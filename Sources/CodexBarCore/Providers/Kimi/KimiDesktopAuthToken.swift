@@ -5,11 +5,18 @@ import SQLite3
 #elseif canImport(CSQLite3)
 import CSQLite3
 #endif
+#if os(macOS)
+import SweetCookieKit
+#endif
 
 #if canImport(SQLite3) || canImport(CSQLite3)
-/// Read-only access to the official Kimi Desktop Chromium cookie store.
+/// Read-only access to the official Kimi Desktop Chromium session store.
 public enum KimiDesktopAuthToken: Sendable {
     private static let log = CodexBarLog.logger(LogCategories.provider(.kimi, scope: "cookie"))
+    private static let localStorageOrigins = [
+        "https://www.kimi.com",
+        "https://kimi.com",
+    ]
 
     public static func cookiesDatabaseURL(
         homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL
@@ -21,10 +28,41 @@ public enum KimiDesktopAuthToken: Sendable {
             .appendingPathComponent("Cookies", isDirectory: false)
     }
 
+    public static func localStorageDirectoryURL(
+        homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL
+    {
+        homeDirectory
+            .appendingPathComponent("Library", isDirectory: true)
+            .appendingPathComponent("Application Support", isDirectory: true)
+            .appendingPathComponent("kimi-desktop", isDirectory: true)
+            .appendingPathComponent("Local Storage", isDirectory: true)
+            .appendingPathComponent("leveldb", isDirectory: true)
+    }
+
     public static func load(
         homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser) -> String?
     {
-        self.load(databaseURL: self.cookiesDatabaseURL(homeDirectory: homeDirectory))
+        if let cookie = self.load(databaseURL: self.cookiesDatabaseURL(homeDirectory: homeDirectory)) {
+            return cookie
+        }
+        return self.loadLocalStorageAccessToken(homeDirectory: homeDirectory)
+    }
+
+    /// Prefer a live `typ=access` JWT. Current Kimi Desktop builds store that session in Local
+    /// Storage and no longer write a `kimi-auth` cookie.
+    static func selectAccessToken(from candidates: [String], now: Date = Date()) -> String? {
+        var best: (token: String, expiry: TimeInterval)?
+        for candidate in Set(candidates) {
+            guard let claims = self.jwtClaims(candidate),
+                  self.isKimiWebAccessToken(claims),
+                  let expiry = self.jwtExpiry(claims),
+                  expiry > now.timeIntervalSince1970
+            else { continue }
+            if best == nil || expiry > best!.expiry {
+                best = (candidate, expiry)
+            }
+        }
+        return best?.token
     }
 
     static func load(databaseURL: URL) -> String? {
@@ -94,15 +132,75 @@ public enum KimiDesktopAuthToken: Sendable {
 
     /// Cookie expiry and JWT expiry can differ. An old desktop JWT must not shadow a live browser session.
     static func isExpired(_ token: String, now: Date = Date()) -> Bool {
+        guard let claims = self.jwtClaims(token), let expiry = self.jwtExpiry(claims) else { return false }
+        return expiry <= now.timeIntervalSince1970
+    }
+
+    private static func loadLocalStorageAccessToken(homeDirectory: URL) -> String? {
+        #if os(macOS)
+        let levelDBURL = self.localStorageDirectoryURL(homeDirectory: homeDirectory)
+        guard FileManager.default.fileExists(atPath: levelDBURL.path) else { return nil }
+
+        var candidates: [String] = []
+        for origin in self.localStorageOrigins {
+            let entries = SweetCookieKit.ChromiumLocalStorageReader.readEntries(
+                for: origin,
+                in: levelDBURL,
+                logger: nil)
+            for entry in entries {
+                candidates.append(contentsOf: self.jwtCandidates(in: entry.value))
+            }
+        }
+        if candidates.isEmpty {
+            candidates = SweetCookieKit.ChromiumLocalStorageReader.readTokenCandidates(
+                in: levelDBURL,
+                minimumLength: 80,
+                logger: nil)
+        }
+        return self.selectAccessToken(from: candidates)
+        #else
+        _ = homeDirectory
+        return nil
+        #endif
+    }
+
+    static func jwtCandidates(in text: String) -> [String] {
+        guard text.contains("eyJ") else { return [] }
+        let pattern = #"eyJ[A-Za-z0-9_\-]{20,}\.[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+        return regex.matches(in: text, range: range).compactMap { match in
+            guard let tokenRange = Range(match.range, in: text) else { return nil }
+            return String(text[tokenRange])
+        }
+    }
+
+    private static func jwtClaims(_ token: String) -> [String: Any]? {
         let parts = token.split(separator: ".")
-        guard parts.count == 3 else { return false }
+        guard parts.count == 3 else { return nil }
         var payload = String(parts[1]).replacingOccurrences(of: "-", with: "+")
             .replacingOccurrences(of: "_", with: "/")
         payload += String(repeating: "=", count: (4 - payload.count % 4) % 4)
-        guard let data = Data(base64Encoded: payload),
-              let claims = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let expiry = claims["exp"] as? Double else { return false }
-        return expiry <= now.timeIntervalSince1970
+        guard let data = Data(base64Encoded: payload) else { return nil }
+        return (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+    }
+
+    private static func jwtExpiry(_ claims: [String: Any]) -> TimeInterval? {
+        if let expiry = claims["exp"] as? Double { return expiry }
+        if let expiry = claims["exp"] as? Int { return TimeInterval(expiry) }
+        return nil
+    }
+
+    private static func isKimiWebAccessToken(_ claims: [String: Any]) -> Bool {
+        let typ = (claims["typ"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard typ == "access" else { return false }
+        if let audience = claims["aud"] as? String {
+            return audience.contains("kimi.com")
+        }
+        if let audience = claims["aud"] as? [String] {
+            return audience.contains(where: { $0.contains("kimi.com") })
+        }
+        return false
     }
 
     private static func walSidecarsAreMissing(databaseURL: URL) -> Bool {
@@ -133,8 +231,27 @@ public enum KimiDesktopAuthToken: Sendable {
             .appendingPathComponent("Cookies", isDirectory: false)
     }
 
+    public static func localStorageDirectoryURL(
+        homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL
+    {
+        homeDirectory
+            .appendingPathComponent("Library", isDirectory: true)
+            .appendingPathComponent("Application Support", isDirectory: true)
+            .appendingPathComponent("kimi-desktop", isDirectory: true)
+            .appendingPathComponent("Local Storage", isDirectory: true)
+            .appendingPathComponent("leveldb", isDirectory: true)
+    }
+
     public static func load(homeDirectory _: URL = FileManager.default.homeDirectoryForCurrentUser) -> String? {
         nil
+    }
+
+    static func selectAccessToken(from _: [String], now _: Date = Date()) -> String? {
+        nil
+    }
+
+    static func jwtCandidates(in _: String) -> [String] {
+        []
     }
 }
 #endif

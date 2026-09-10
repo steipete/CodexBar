@@ -114,8 +114,15 @@ public enum KimiProviderDescriptor {
         context: ProviderMenuBarWindowContext) -> ProviderMenuBarWindowResolution
     {
         guard context.metric == .automatic else { return .unhandled }
+        // Membership Total usage lives in extraRateWindows. When that pool is empty, the 5-hour
+        // and 7-day Code windows can still look unused and must not hide the exhausted month.
+        let extras = (context.snapshot.extraRateWindows ?? [])
+            .filter(\.usageKnown)
+            .map(\.window)
+        let exhaustedExtra = extras.first { $0.remainingPercent <= 0 }
         return .resolved(
-            ProviderUsagePresentation.exhausted(context.snapshot.primary, context.snapshot.secondary)
+            exhaustedExtra
+                ?? ProviderUsagePresentation.exhausted(context.snapshot.primary, context.snapshot.secondary)
                 ?? context.snapshot.secondary
                 ?? context.snapshot.primary)
     }

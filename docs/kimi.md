@@ -18,6 +18,7 @@ Code subscription credentials.
 
 - Displays weekly request quota (from membership tier)
 - Shows current 5-hour rate limit usage
+- Shows the shared monthly membership pool (`Total usage`) when a web session is available, and prefers that lane in the menu bar when it is exhausted
 - Displays membership from the API/CLI usage response, with the active web subscription title as a fallback
 - Detects the installed Kimi CLI version, including standalone installs outside the GUI app PATH
 - Enriches Code API/CLI usage with the monthly membership pool when a web session is available
@@ -69,7 +70,9 @@ reuse; use an explicit API key for endpoint-override testing.
 3. Enable the Kimi provider toggle
 4. CodexBar will automatically find your session
 
-Automatic mode prefers a usable Kimi Desktop cookie. Expired desktop JWTs are skipped; if the server
+Automatic mode prefers a usable Kimi Desktop session. Current Kimi Desktop builds keep the web access
+JWT in Local Storage and often have no `kimi-auth` cookie; CodexBar reads that store read-only after
+the Cookies database. Expired desktop JWTs are skipped; if the server
 rejects a desktop session, the Web source continues through browser profiles instead of stopping.
 Explicit manual tokens remain authoritative. API-key and CLI quota responses include the membership level, so displaying the tier does not require
 browser access. A web session can supply a subscription title when the usage response omits membership;
@@ -112,7 +115,7 @@ When multiple sources are available, CodexBar uses this order:
 2. Fresh Kimi Code CLI access token (`~/.kimi-code/credentials/kimi-code.json`)
 3. Manual cookie/token (from Settings UI) when web fallback is used
 4. Cookie environment variable (`KIMI_AUTH_TOKEN`)
-5. Kimi Desktop `kimi-auth` cookie
+5. Kimi Desktop `kimi-auth` cookie, then the Desktop Local Storage access JWT
 6. Browser cookies (Arc → Chrome → Safari → Edge → Brave → Chromium)
 
 For Code API and CLI results, sources 3–6 are best-effort enrichment only: the required Code usage remains
