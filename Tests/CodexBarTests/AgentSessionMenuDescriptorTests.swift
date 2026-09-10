@@ -7,14 +7,19 @@ import Testing
 struct AgentSessionMenuDescriptorTests {
     @Test
     func `remote cost presentation preserves unknown coverage and masks host identifiers`() {
-        let report = CodexHostCostReport(host: "private-host", summary: RemoteCodexCostFetcherTests.summary())
-        let hidden = RemoteCodexCostPresentation(report: report, index: 0, hidePersonalInfo: true)
+        let report = RemoteHostCostReport(
+            host: "private-host",
+            provider: .claude,
+            summary: RemoteCostFetcherTests.summary(provider: .claude))
+        let hidden = RemoteCostPresentation(report: report, index: 0, hidePersonalInfo: true)
         #expect(!hidden.title.contains("private-host"))
         #expect(hidden.lines.contains { $0.contains("Partial history") })
-        let shown = RemoteCodexCostPresentation(report: report, index: 0, hidePersonalInfo: false)
-        #expect(shown.title == "private-host")
-        let failed = RemoteCodexCostPresentation(
-            report: CodexHostCostReport(host: "host", summary: nil, error: "Unavailable"),
+        let shown = RemoteCostPresentation(report: report, index: 0, hidePersonalInfo: false)
+        #expect(shown.title.contains("private-host"))
+        #expect(shown.title.contains("Claude"))
+        #expect(shown.lines.contains { $0.contains("subscription charges") })
+        let failed = RemoteCostPresentation(
+            report: RemoteHostCostReport(host: "host", provider: .codex, summary: nil, error: "Unavailable"),
             index: 0,
             hidePersonalInfo: false)
         #expect(failed.lines == ["Unavailable"])
@@ -26,17 +31,30 @@ struct AgentSessionMenuDescriptorTests {
             "agentSessionsManualHosts": "existing-host",
             "agentSessionsEnabled": true,
         ] : [:])
-        let settings = testSettingsStore(suiteName: "RemoteCodexCosts-default-off", userDefaults: defaults)
-        #expect(settings.codexRemoteCostHosts.isEmpty)
-        let store = RemoteCodexCostStore { _, _, _ in
+        let settings = testSettingsStore(suiteName: "RemoteCosts-default-off", userDefaults: defaults)
+        #expect(!settings.remoteCostsEnabled)
+        #expect(settings.remoteCostHosts.isEmpty)
+        let store = RemoteCostStore { _, _, _, _ in
             Issue.record("Remote costs require separate opt-in even when agent sessions are enabled")
-            throw RemoteCodexCostError.unavailable
+            throw RemoteCostError.unavailable
         }
-        store.refresh(hosts: settings.codexRemoteCostHosts, historyDays: 30, force: true)
+        store.refresh(
+            hosts: settings.remoteCostHosts,
+            providers: [.codex, .claude],
+            historyDays: 30,
+            force: true)
         #expect(!store.isRefreshing)
         #expect(store.reports.isEmpty)
         #expect(settings.agentSessionsEnabled == upgrading)
         #expect(settings.agentSessionsManualHosts == (upgrading ? "existing-host" : ""))
+    }
+
+    @Test
+    func `draft Codex-only remote host preference migrates to shared remote hosts`() {
+        let defaults = InMemoryUserDefaults(values: ["codexRemoteCostHosts": "legacy-host"])
+        let settings = testSettingsStore(suiteName: "RemoteCosts-legacy-key", userDefaults: defaults)
+        #expect(!settings.remoteCostsEnabled)
+        #expect(settings.remoteCostHosts == "legacy-host")
     }
 
     @Test

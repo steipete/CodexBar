@@ -73,7 +73,7 @@ extension StatusItemController {
             // producing an infinite open/close/rebuild flicker loop (#2652).
             self.store.noteMenuOpened()
             self.agentSessions.refreshOnMenuOpen()
-            self.store.refreshRemoteCodexCosts()
+            self.store.refreshRemoteCosts()
         }
 
         let trace = self.beginMenuOperationTrace("menuWillOpen", breadcrumb: "menuWillOpen")

@@ -2,8 +2,8 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
-struct RemoteCodexCostFetcherTests {
-    static func summary(days: Int = 30) -> CodexCostSummary {
+struct RemoteCostFetcherTests {
+    static func summary(provider: UsageProvider = .codex, days: Int = 30) -> RemoteCostSummary {
         let snapshot = CostUsageTokenSnapshot(
             sessionTokens: 123,
             sessionCostUSD: 1.25,
@@ -13,18 +13,21 @@ struct RemoteCodexCostFetcherTests {
             historyCoverageIsEstablished: false,
             daily: [],
             updatedAt: Date(timeIntervalSince1970: 1_700_000_000))
-        return CodexCostSummary(snapshot: snapshot, calendar: CostUsageBucketTimeZone.calendar(identifier: "UTC"))
+        return RemoteCostSummary(
+            snapshot: snapshot,
+            provider: provider,
+            calendar: CostUsageBucketTimeZone.calendar(identifier: "UTC"))
     }
 
-    static func json(_ summary: CodexCostSummary) throws -> String {
+    static func json(_ summaries: [RemoteCostSummary]) throws -> String {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
-        return try #require(String(data: encoder.encode([summary]), encoding: .utf8))
+        return try #require(String(data: encoder.encode(summaries), encoding: .utf8))
     }
 
     @Test
     func `summary transport excludes identity paths and conversation data`() throws {
-        let json = try Self.json(Self.summary())
+        let json = try Self.json([Self.summary()])
         let rows = try #require(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [[String: Any]])
         let keys = try #require(rows.first).keys.sorted()
         #expect(keys == [
@@ -36,68 +39,105 @@ struct RemoteCodexCostFetcherTests {
 
     @Test
     func `SSH targets are explicit bounded and cannot introduce shell or SSH options`() throws {
-        #expect(try RemoteCodexCostFetcher.hosts(from: "") == [])
-        #expect(try RemoteCodexCostFetcher.hosts(from: "work, user@host, work") == ["work", "user@host"])
-        #expect(try RemoteCodexCostFetcher.hosts(from: "Alice@server, alice@server, Alice@SERVER") == [
+        #expect(try RemoteCostFetcher.hosts(from: "") == [])
+        #expect(try RemoteCostFetcher.hosts(from: "work, user@host, work") == ["work", "user@host"])
+        #expect(try RemoteCostFetcher.hosts(from: "Alice@server, alice@server, Alice@SERVER") == [
             "Alice@server", "alice@server",
         ])
         for bad in ["-oProxyCommand=evil", "host;touch", "host$(id)", "host'", "host\nother", "user host"] {
-            #expect(throws: RemoteCodexCostError.self) {
-                try RemoteCodexCostFetcher.arguments(host: bad, historyDays: 30, force: false)
+            #expect(throws: RemoteCostError.self) {
+                try RemoteCostFetcher.arguments(
+                    host: bad,
+                    providers: [.codex, .claude],
+                    historyDays: 30,
+                    force: false)
             }
         }
-        #expect(throws: RemoteCodexCostError.self) {
-            try RemoteCodexCostFetcher.hosts(from: (1...9).map { "host\($0)" }.joined(separator: ","))
+        #expect(throws: RemoteCostError.self) {
+            try RemoteCostFetcher.hosts(from: (1...9).map { "host\($0)" }.joined(separator: ","))
         }
-        let args = try RemoteCodexCostFetcher.arguments(host: "user@host", historyDays: 7, force: true)
+        let args = try RemoteCostFetcher.arguments(
+            host: "user@host",
+            providers: [.codex, .claude],
+            historyDays: 7,
+            force: true)
         #expect(args.contains("BatchMode=yes"))
         #expect(args.contains("-T"))
         #expect(args.contains("user@host"))
         let command = try #require(args.last)
+        #expect(command.contains("--provider both"))
         #expect(command.contains("--summary-only --provider-native-only --days 7 --refresh"))
         #expect(!command.contains("||"))
     }
 
     @Test
     func `remote reports retain calendar partial coverage and original host prices`() async throws {
-        let summary = Self.summary()
-        let json = try Self.json(summary)
-        let fetcher = RemoteCodexCostFetcher { _, environment in
+        let summaries = [Self.summary(provider: .codex), Self.summary(provider: .claude)]
+        let json = try Self.json(summaries)
+        let fetcher = RemoteCostFetcher { _, environment in
             #expect(environment == ["PATH": "/usr/bin:/bin"])
             return json
         }
         let received = try await fetcher.fetch(
             host: "linux-host",
+            providers: [.codex, .claude],
             historyDays: 30,
             environment: ["PATH": "/usr/bin:/bin"])
-        #expect(received == summary)
-        #expect(!received.historyCoverageIsEstablished)
-        #expect(received.bucketTimeZone == "GMT")
-        #expect(received.last30DaysCostUSD == 3.5)
+        #expect(received == summaries)
+        #expect(received.allSatisfy { !$0.historyCoverageIsEstablished })
+        #expect(received.allSatisfy { $0.bucketTimeZone == "GMT" })
+        #expect(received.allSatisfy { $0.last30DaysCostUSD == 3.5 })
     }
 
     @Test
     func `remote rejects malformed wrong window negative and oversized summaries`() async throws {
-        let valid = try Self.json(Self.summary())
+        let valid = try Self.json([Self.summary()])
         for invalid in try [
-            "not JSON", "[]", valid.replacingOccurrences(of: "123", with: "-1"),
+            "not JSON", valid.replacingOccurrences(of: "123", with: "-1"),
             valid.replacingOccurrences(of: "\"codex\"", with: "\"claude\""),
-            String(repeating: " ", count: 16385), Self.json(Self.summary(days: 7)),
+            String(repeating: " ", count: 16385), Self.json([Self.summary(days: 7)]),
         ] {
-            let fetcher = RemoteCodexCostFetcher { _, _ in invalid }
-            await #expect(throws: RemoteCodexCostError.self) {
-                try await fetcher.fetch(host: "host", historyDays: 30)
+            let fetcher = RemoteCostFetcher { _, _ in invalid }
+            await #expect(throws: RemoteCostError.self) {
+                try await fetcher.fetch(host: "host", providers: [.codex], historyDays: 30)
+            }
+        }
+    }
+
+    @Test
+    func `remote preserves available providers when another provider has no history`() async throws {
+        let codex = Self.summary(provider: .codex)
+        let fetcher = RemoteCostFetcher { _, _ in try Self.json([codex]) }
+        let received = try await fetcher.fetch(
+            host: "host",
+            providers: [.codex, .claude],
+            historyDays: 30)
+        #expect(received == [codex])
+    }
+
+    @Test
+    func `remote rejects duplicate and unsupported provider summaries`() async throws {
+        let codex = Self.summary(provider: .codex)
+        let claude = Self.summary(provider: .claude)
+        let invalidPayloads = try [
+            Self.json([codex, codex]),
+            Self.json([codex, claude]).replacingOccurrences(of: "\"claude\"", with: "\"cursor\""),
+        ]
+        for invalid in invalidPayloads {
+            let fetcher = RemoteCostFetcher { _, _ in invalid }
+            await #expect(throws: RemoteCostError.self) {
+                try await fetcher.fetch(host: "host", providers: [.codex, .claude], historyDays: 30)
             }
         }
     }
 
     @Test
     func `remote subprocess errors do not expose remote stderr`() async {
-        let fetcher = RemoteCodexCostFetcher { _, _ in
+        let fetcher = RemoteCostFetcher { _, _ in
             throw SubprocessRunnerError.nonZeroExit(code: 1, stderr: "private path or credential")
         }
         do {
-            _ = try await fetcher.fetch(host: "host", historyDays: 30)
+            _ = try await fetcher.fetch(host: "host", providers: [.codex, .claude], historyDays: 30)
             Issue.record("Expected an unavailable-host error")
         } catch {
             #expect(!error.localizedDescription.contains("private path"))

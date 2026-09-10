@@ -691,7 +691,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         guard !self.isReleasedForTesting else { return }
         #endif
         self.synchronizeAgentSessionsForSettingsChange()
-        self.store.refreshRemoteCodexCosts()
+        self.store.refreshRemoteCosts()
         let configChanged = self.settings.configRevision != self.lastConfigRevision
         let orderChanged = self.settings.providerOrder != self.lastProviderOrder
         let localizationChanged = self.menuLocalizationSignature() != self.lastMenuLocalizationSignature

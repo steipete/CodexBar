@@ -1189,11 +1189,19 @@ extension SettingsStore {
         }
     }
 
-    var codexRemoteCostHosts: String {
-        get { self.defaultsState.codexRemoteCostHosts }
+    var remoteCostsEnabled: Bool {
+        get { self.defaultsState.remoteCostsEnabled }
         set {
-            self.defaultsState.codexRemoteCostHosts = newValue
-            self.userDefaults.set(newValue, forKey: "codexRemoteCostHosts")
+            self.defaultsState.remoteCostsEnabled = newValue
+            self.userDefaults.set(newValue, forKey: "remoteCostsEnabled")
+        }
+    }
+
+    var remoteCostHosts: String {
+        get { self.defaultsState.remoteCostHosts }
+        set {
+            self.defaultsState.remoteCostHosts = newValue
+            self.userDefaults.set(newValue, forKey: "remoteCostHosts")
         }
     }
 

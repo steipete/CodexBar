@@ -14,6 +14,12 @@ automatic selection, but the codebase still has multiple active Claude `.auto` d
 pending. For the exact current-state parity contract, see
 [docs/refactor/claude-current-baseline.md](refactor/claude-current-baseline.md).
 
+Remote cost history is available independently through the default-off **Fetch costs from SSH devices** setting. It runs the remote
+CodexBar CLI against that machine's native Claude history and returns only bounded numeric summaries; it does not
+copy transcripts, paths, session identifiers, accounts, or credentials. Reports stay separate by host and provider,
+and Claude dollars are labeled as notional API-rate estimates rather than subscription charges. See
+[Remote Claude and Codex cost reports](codex.md#remote-claude-and-codex-cost-reports-ssh).
+
 When an Anthropic Admin API key is configured, Claude can also show organization-level spend/messages/tokens in the
 same inline dashboard pattern used by the OpenAI API provider.
 

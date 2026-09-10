@@ -13,7 +13,7 @@ struct CLICostTests {
         #expect(!defaults.flags.contains("summaryOnly"))
         let remote = try parser.parse(arguments: ["--provider", "codex", "--remote", "user@host"])
         #expect(remote.options["remote"]?.last == "user@host")
-        let summary = try parser.parse(arguments: ["--provider", "codex", "--json", "--summary-only"])
+        let summary = try parser.parse(arguments: ["--provider", "both", "--json", "--summary-only"])
         #expect(summary.flags.contains("summaryOnly"))
     }
 
@@ -28,17 +28,22 @@ struct CLICostTests {
             historyCoverageIsEstablished: false,
             daily: [],
             updatedAt: Date())
-        let summary = CodexCostSummary(snapshot: snapshot, calendar: .current)
-        let text = CodexBarCLI.renderHostCostText(CodexHostCostReport(host: "linux", summary: summary))
+        let summary = RemoteCostSummary(snapshot: snapshot, provider: .claude, calendar: .current)
+        let text = CodexBarCLI.renderHostCostText(RemoteHostCostReport(
+            host: "linux",
+            provider: .claude,
+            summary: summary))
         #expect(text.contains("linux"))
         #expect(text.contains("Last 7 days"))
         #expect(text.contains("Partial history"))
+        #expect(text.contains("subscription charges are not measured"))
         #expect(!text.contains("$0"))
-        let error = CodexBarCLI.renderHostCostText(CodexHostCostReport(
+        let error = CodexBarCLI.renderHostCostText(RemoteHostCostReport(
             host: "linux",
+            provider: .claude,
             summary: nil,
             error: "Unavailable"))
-        #expect(error == "linux: Unavailable")
+        #expect(error == "linux — Claude: Unavailable")
     }
 
     @Test

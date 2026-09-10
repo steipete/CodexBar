@@ -68,6 +68,7 @@ extension UsageStore {
         {
             // A scoped user refresh can run beside unrelated scheduled work. The scheduled
             // sequence still owns the shared slot, so provider refreshes cannot introduce a third pass.
+            if RemoteCostFetcher.supportedProviders.contains(provider) { self.refreshRemoteCosts(force: true) }
             await self.refreshTokenUsage(provider, force: true)
             self.scheduleMemoryPressureRelief()
             return
@@ -190,6 +191,7 @@ extension UsageStore {
 
     private func refreshTokenUsageSequence(providers: [ProviderInstanceID], force: Bool) async {
         defer { self.tokenRefreshSequenceProvider = nil }
+        self.refreshRemoteCosts(force: force)
         for instanceID in providers {
             if Task.isCancelled {
                 break

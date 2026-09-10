@@ -77,9 +77,11 @@ final class SpendDailyLedgerNativeProofTests: XCTestCase {
         let output = URL(fileURLWithPath: path, isDirectory: true)
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
         let settings = testSettingsStore(suiteName: "RemoteCostNativeProof")
-        let costs = RemoteCodexCostStore { host, _, _ in
-            if host == "offline" { throw RemoteCodexCostError.unavailable }
-            return RemoteCodexCostFetcherTests.summary()
+        settings.remoteCostsEnabled = true
+        settings.remoteCostHosts = "ubuntu, offline"
+        let costs = RemoteCostStore { host, providers, days, _ in
+            if host == "offline" { throw RemoteCostError.unavailable }
+            return providers.map { RemoteCostFetcherTests.summary(provider: $0, days: days) }
         }
         let app = NSApplication.shared
         guard app.delegate == nil else { return XCTFail("Requires a standalone test application") }
@@ -93,13 +95,14 @@ final class SpendDailyLedgerNativeProofTests: XCTestCase {
         window.title = "CodexBar Remote Cost Proof — Synthetic Data"
         window.isReleasedWhenClosed = false
         window.contentView = NSHostingView(rootView: VStack(alignment: .leading, spacing: 24) {
-            RemoteCodexCostHostsEditor(settings: settings)
+            RemoteCostHostsEditor(settings: settings)
             Divider()
-            RemoteCodexCostView(costs: costs, hidePersonalInfo: false)
+            RemoteCostView(costs: costs, hidePersonalInfo: false)
             Spacer()
         }
         .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(nsColor: .windowBackgroundColor))
         .preferredColorScheme(.light))
         defer {
             costs.cancel()
@@ -117,10 +120,10 @@ final class SpendDailyLedgerNativeProofTests: XCTestCase {
         let deadline = Date().addingTimeInterval(600)
         let done = output.appendingPathComponent("done").path
         while !FileManager.default.fileExists(atPath: done), Date() < deadline {
-            costs.refresh(hosts: settings.codexRemoteCostHosts, historyDays: 30)
+            costs.refresh(hosts: settings.remoteCostHosts, providers: [.codex, .claude], historyDays: 30)
             let receipt = [
                 "pid": String(ProcessInfo.processInfo.processIdentifier),
-                "hosts": settings.codexRemoteCostHosts,
+                "hosts": settings.remoteCostHosts,
                 "reports": String(costs.reports.count),
                 "errors": String(costs.reports.count(where: { $0.error != nil })),
             ]

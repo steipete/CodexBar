@@ -9,8 +9,7 @@ import SweetCookieKit
 @MainActor
 extension UsageStore {
     var menuObservationToken: Int {
-        _ = self.remoteCodexCosts.reports
-        _ = self.remoteCodexCosts.configurationError
+        _ = (self.remoteCosts.reports, self.remoteCosts.configurationError)
         _ = self.snapshots
         _ = self.errors
         _ = self.diagnostics
@@ -332,7 +331,7 @@ final class UsageStore {
     @ObservationIgnored let codexFetcher: UsageFetcher
     @ObservationIgnored let claudeFetcher: any ClaudeUsageFetching
     @ObservationIgnored let costUsageFetcher: CostUsageFetcher
-    let remoteCodexCosts: RemoteCodexCostStore
+    let remoteCosts: RemoteCostStore
     @ObservationIgnored let browserDetection: BrowserDetection
     @ObservationIgnored private let registry: ProviderRegistry
     @ObservationIgnored let settings: SettingsStore
@@ -507,7 +506,7 @@ final class UsageStore {
         self.browserDetection = browserDetection
         self.claudeFetcher = claudeFetcher ?? ClaudeUsageFetcher(browserDetection: browserDetection)
         self.costUsageFetcher = costUsageFetcher
-        self.remoteCodexCosts = RemoteCodexCostStore(environment: environmentBase)
+        self.remoteCosts = RemoteCostStore(environment: environmentBase)
         self.settings = settings
         self.registry = registry
         self.environmentBase = environmentBase
@@ -1463,8 +1462,6 @@ extension UsageStore {
     }
 
     func refreshTokenUsage(_ provider: UsageProvider, force: Bool) async {
-        // Provider-specific by design: remote summaries scan native Codex history independently of local costs.
-        if provider == .codex { self.refreshRemoteCodexCosts(force: force) }
         guard ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.supportsTokenCost else {
             self.resetTokenUsageState(for: provider)
             return

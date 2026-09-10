@@ -19,17 +19,20 @@ extension StatusMenuTests {
             preferencesSelection: PreferencesSelection(),
             statusBar: self.makeStatusBarForTesting())
         defer { controller.releaseStatusItemsForTesting() }
-        let section = MenuDescriptor.remoteCodexCostsSection(
-            reports: [.init(host: "spark-test", summary: RemoteCodexCostFetcherTests.summary())],
+        let section = MenuDescriptor.remoteCostsSection(
+            reports: [.init(
+                host: "spark-test",
+                provider: .codex,
+                summary: RemoteCostFetcherTests.summary())],
             configurationError: nil,
             hidePersonalInfo: true)
         let menu = NSMenu()
         controller.addActionableSections([section], to: menu, width: 320, provider: .codex)
         let host = try #require(menu.items.first { $0.submenu != nil })
-        #expect(host.title == "Host 1")
+        #expect(host.title == "Host 1 — Codex")
         let lines = try #require(host.submenu?.items.map(\.title))
         #expect(lines.contains { $0.contains("$1.25") })
-        #expect(lines.contains { $0.contains("Separate from local totals") })
+        #expect(lines.contains { $0.contains("not a subscription bill") })
         #expect(!lines.contains { $0.contains("spark-test") })
     }
 
