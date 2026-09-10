@@ -3,6 +3,44 @@
     <channel>
         <title>CodexBar</title>
         <item>
+            <title>0.58.0</title>
+            <pubDate>Wed, 09 Sep 2026 21:05:54 -0700</pubDate>
+            <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
+            <sparkle:version>141</sparkle:version>
+            <sparkle:shortVersionString>0.58.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[<h2>CodexBar 0.58.0</h2>
+<h3>Highlights</h3>
+<ul>
+<li><strong>Daily spend ledger:</strong> inspect tokens, requests, and spending day by day in Usage &amp; Spend, with your selected time zone and clear labels for unavailable amounts (#2635).</li>
+<li><strong>More useful cost charts:</strong> hover over a daily bar in the menu to see its date, cost, and token count (#3413).</li>
+<li><strong>Menus that fit your workflow:</strong> choose visible usage rows, select session or weekly percentages, and add explicit reset countdowns or clocks to menu-bar layouts (#3196, #3124, #3481).</li>
+<li><strong>Clearer account quotas:</strong> compact account rows now show reset times beside the quotas they belong to (#3477).</li>
+</ul>
+<h3>Added</h3>
+<ul>
+<li>Usage &amp; Spend: add a daily provider ledger for tokens, requests, and spend, honoring selected time zones and distinguishing unknown amounts from zero usage (#2635). Thanks @sahilaidev!</li>
+<li>Inline cost charts: show each day's localized date, cost, and token count on hover without shifting the chart layout (#3413). Thanks @666ghj!</li>
+<li>Provider menus: choose visible usage rows across full and compact menus, Settings previews, and Overview; sync selections and restore hidden rows without changing fetching or alerts (#3196, #3182). Thanks @psufka and @J2TeamNNL!</li>
+<li>Menu bar: choose Auto, Session, or Weekly percent windows in provider settings while preserving custom layout tokens and the global icon style (#3124). Thanks @J2TeamNNL!</li>
+<li>Menu bar layouts: choose session or weekly reset countdowns and clocks, including conditional branches, with support for existing saved layouts (#3481, #3356). Thanks @vincent-peng!</li>
+<li>Account menus: show reset times beside compact account quotas, keeping each time tied to its account and quota window and honoring privacy settings (#3477). Thanks @TobitRE!</li>
+</ul>
+<h3>Fixed</h3>
+<ul>
+<li>OpenCodex local usage: aggregate costs and requests over the full requested history so All-history spend and daily ledger counts remain available (#2635).</li>
+<li>Codex local costs: exclude inherited records before an explicit subagent history boundary, including files with no child-owned usage yet, and refresh older cached counts without discarding stored history (#3527, related to #3524). Thanks @vnnkl!</li>
+<li>Token counts: promote rounded <code>1000K</code> and <code>1000M</code> values to <code>1M</code> and <code>1B</code>, preserve ordinary precision, and handle the full signed integer range without crashing (#3519, fixes #3518). Thanks @harjothkhara!</li>
+</ul>
+<h3>Development</h3>
+<ul>
+<li>Test runner: fail early when Python lacks required process-containment APIs and explain how to select a compatible interpreter (#3517, fixes #3515). Thanks @devYRPauli!</li>
+</ul>
+<p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
+]]></description>
+            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.58.0/CodexBar-macos-universal-0.58.0.zip" length="69328078" type="application/octet-stream" sparkle:edSignature="HU/2gyhJLcpPk/FeZxSsp/2pX07DDYnUIg/ttJGisgf9l+dllUrAn0LZCmdYjSn2G/oRS2XyGWGfUis+smy4AA=="/>
+        </item>
+        <item>
             <title>0.57.0</title>
             <pubDate>Tue, 08 Sep 2026 07:32:45 -0700</pubDate>
             <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
@@ -92,34 +130,6 @@
 <p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
 ]]></description>
             <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.56.8/CodexBar-macos-universal-0.56.8.zip" length="68929522" type="application/octet-stream" sparkle:edSignature="OL4PLUSCl9y9JyGRoD6vdEqkIN/erjnp6TIp2yXpOdC93nhOXwP7CxPICQDgBCSYiwc4idRR12sdPXk1O+mMDg=="/>
-        </item>
-        <item>
-            <title>0.56.7</title>
-            <pubDate>Sun, 06 Sep 2026 07:58:20 -0700</pubDate>
-            <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
-            <sparkle:version>138</sparkle:version>
-            <sparkle:shortVersionString>0.56.7</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <description><![CDATA[<h2>CodexBar 0.56.7</h2>
-<h3>Highlights</h3>
-<ul>
-<li><strong>Live widget freshness labels</strong>: snapshot and stale token-history ages keep advancing between timeline reloads (#3445; partial fix for #3339).</li>
-<li><strong>Reliable Linux caches</strong>: preserve model pricing and Pi/OMP cost history across repeated refreshes (#3444, #3446).</li>
-<li><strong>Clearer provider usage</strong>: retain Command Code monthly usage during subscription timeouts, show Moonshot balances in the correct currency, and explain ElevenLabs API key failures (#3441, #3438, #3437).</li>
-</ul>
-<h3>Fixed</h3>
-<ul>
-<li>Widgets: keep snapshot and stale token-history age labels advancing between timeline reloads, so paused widgets no longer retain fresh-looking timestamps (#3445; partial fix for #3339). Thanks @zhulijin1991!</li>
-<li>Usage &amp; Spend: keep stacked daily and hourly chart segments flush at provider boundaries, rounding only the top of each bar (#3439). Thanks @elijahfriedman!</li>
-<li>Command Code: retain the last confirmed plan for its billing period so subscription timeouts do not erase monthly usage; show the monthly row as unavailable when no plan is known, while preserving rolling five-hour and weekly usage (#3441). Thanks @enieuwy!</li>
-<li>Moonshot: show China-region balances and deficits in CNY while retaining USD for international accounts (#3434, #3438). Thanks @SomSamantray and @doraemonke!</li>
-<li>ElevenLabs: distinguish a missing API key from a rejected key, missing subscription-read permission, or access restrictions, including current and legacy API error formats (#3437). Thanks @benmillerat!</li>
-<li>Pi and OMP cost history: preserve the session cache across repeated Linux refreshes, including saved scan state, provider totals, pricing metadata, and timezone information (#3446).</li>
-<li>Model pricing: preserve cached catalogs across repeated Linux refreshes (#3444; extracted from #3412). Thanks @WeGoToMars!</li>
-</ul>
-<p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
-]]></description>
-            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.56.7/CodexBar-macos-universal-0.56.7.zip" length="68939297" type="application/octet-stream" sparkle:edSignature="HtwgqTGO6bTSAAk66NMS1YIseQ/SXM63G5XjFWn11Ercp22ikUCszfradDI2mobXNTjgHOijpVEZWOGvWaqIBg=="/>
         </item>
         <item>
             <title>0.14.0</title>
