@@ -227,7 +227,7 @@ struct UsageStoreCachedTokenHydrationTests {
                 progressKey: "status-\(statusLoadCount)",
                 staleSnapshotUpdatedAt: statusLoadCount == 1 ? staleAt : nil)
         }
-        store._test_codexCostCatchUpAdvanceOverride = { _, _, _ in
+        store._test_codexCostCatchUpAdvanceOverride = { _, _, _, _ in
             CostUsageFetcher.CodexScanCatchUpStatus(
                 pending: false,
                 progressKey: "complete")

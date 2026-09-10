@@ -45,12 +45,14 @@ struct UsageStoreCodexCostCatchUpTests {
         let store = try Self.makeStore(suite: "app-low-power-worker")
         store.settings.backgroundWorkLowPowerModePreference = .on
         var sleeps: [TimeInterval] = []
+        var durations: [TimeInterval] = []
         store._test_codexCostCatchUpResourceStateOverride = { (.ac, false, .nominal) }
         store._test_codexCostCatchUpStatusOverride = { _ in
             CostUsageFetcher.CodexScanCatchUpStatus(pending: true, progressKey: "pending")
         }
-        store._test_codexCostCatchUpAdvanceOverride = { _, _, _ in
-            CostUsageFetcher.CodexScanCatchUpStatus(pending: true, progressKey: "progressed")
+        store._test_codexCostCatchUpAdvanceOverride = { _, _, _, duration in
+            durations.append(duration)
+            return CostUsageFetcher.CodexScanCatchUpStatus(pending: true, progressKey: "progressed")
         }
         store._test_codexCostCatchUpSleepOverride = { delay in
             sleeps.append(delay)
@@ -60,6 +62,7 @@ struct UsageStoreCodexCostCatchUpTests {
         let task = try #require(store.codexCostCatchUpTask)
         await task.value
         #expect(sleeps.count == 2)
+        #expect(durations == [mode == .automatic ? 2 : 10])
         if mode == .automatic {
             #expect(sleeps.allSatisfy { $0 >= 1800 })
         } else {
@@ -75,7 +78,7 @@ struct UsageStoreCodexCostCatchUpTests {
         store._test_codexCostCatchUpStatusOverride = { _ in
             CostUsageFetcher.CodexScanCatchUpStatus(pending: true, progressKey: "pending")
         }
-        store._test_codexCostCatchUpAdvanceOverride = { _, _, _ in
+        store._test_codexCostCatchUpAdvanceOverride = { _, _, _, _ in
             advanceCount += 1
             return CostUsageFetcher.CodexScanCatchUpStatus(pending: false, progressKey: "complete")
         }
@@ -138,7 +141,7 @@ struct UsageStoreCodexCostCatchUpTests {
     }
 
     @Test
-    func `bounded catch-up automatically publishes only the final stable snapshot`() async throws {
+    func `forced refresh starts automatic catch-up and publishes only the final stable snapshot`() async throws {
         let store = try Self.makeStore(suite: "publishes-final")
         var snapshotLoadCount = 0
         var cachedLoadCount = 0
@@ -159,7 +162,7 @@ struct UsageStoreCodexCostCatchUpTests {
                 pending: statusLoadCount == 1,
                 progressKey: "status-\(statusLoadCount)")
         }
-        store._test_codexCostCatchUpAdvanceOverride = { _, _, _ in
+        store._test_codexCostCatchUpAdvanceOverride = { _, _, _, _ in
             advanceCount += 1
             return CostUsageFetcher.CodexScanCatchUpStatus(
                 pending: advanceCount < 2,
@@ -200,7 +203,7 @@ struct UsageStoreCodexCostCatchUpTests {
         store._test_codexCostCatchUpStatusOverride = { _ in
             CostUsageFetcher.CodexScanCatchUpStatus(pending: true, progressKey: "unchanged")
         }
-        store._test_codexCostCatchUpAdvanceOverride = { _, _, _ in
+        store._test_codexCostCatchUpAdvanceOverride = { _, _, _, _ in
             advanceCount += 1
             return CostUsageFetcher.CodexScanCatchUpStatus(pending: true, progressKey: "unchanged")
         }
@@ -234,7 +237,7 @@ struct UsageStoreCodexCostCatchUpTests {
                 pending: true,
                 progressKey: "validation-0")
         }
-        store._test_codexCostCatchUpAdvanceOverride = { _, _, _ in
+        store._test_codexCostCatchUpAdvanceOverride = { _, _, _, _ in
             advanceCount += 1
             return CostUsageFetcher.CodexScanCatchUpStatus(
                 pending: true,
@@ -296,7 +299,7 @@ struct UsageStoreCodexCostCatchUpTests {
                 pending: statusLoadCount == 1,
                 progressKey: statusLoadCount == 1 ? keys[0] : keys[2])
         }
-        store._test_codexCostCatchUpAdvanceOverride = { _, _, _ in
+        store._test_codexCostCatchUpAdvanceOverride = { _, _, _, _ in
             advanceCount += 1
             return CostUsageFetcher.CodexScanCatchUpStatus(
                 pending: advanceCount < 2,
@@ -333,7 +336,7 @@ struct UsageStoreCodexCostCatchUpTests {
                 pending: statusLoadCount == 2,
                 progressKey: "status-\(statusLoadCount)")
         }
-        store._test_codexCostCatchUpAdvanceOverride = { _, _, _ in
+        store._test_codexCostCatchUpAdvanceOverride = { _, _, _, _ in
             advanceCount += 1
             return CostUsageFetcher.CodexScanCatchUpStatus(
                 pending: false,
@@ -375,7 +378,7 @@ struct UsageStoreCodexCostCatchUpTests {
                 completedFiles: statusLoadCount == 1 ? 0 : 1,
                 totalFiles: 1)
         }
-        store._test_codexCostCatchUpAdvanceOverride = { _, _, _ in
+        store._test_codexCostCatchUpAdvanceOverride = { _, _, _, _ in
             CostUsageFetcher.CodexScanCatchUpStatus(
                 pending: false,
                 progressKey: "complete",
@@ -414,7 +417,7 @@ struct UsageStoreCodexCostCatchUpTests {
                 processedBytes: 50,
                 totalBytes: 100)
         }
-        store._test_codexCostCatchUpAdvanceOverride = { _, _, _ in
+        store._test_codexCostCatchUpAdvanceOverride = { _, _, _, _ in
             advanceCount += 1
             return CostUsageFetcher.CodexScanCatchUpStatus(pending: false, progressKey: "unexpected")
         }
@@ -452,7 +455,8 @@ struct UsageStoreCodexCostCatchUpTests {
     }
 
     private static func makeStore(suite: String) throws -> UsageStore {
-        let settings = testSettingsStore(suiteName: "UsageStoreCodexCostCatchUpTests-\(suite)")
+        let settings = testSettingsStore(
+            suiteName: "UsageStoreCodexCostCatchUpTests-\(suite)", userDefaults: InMemoryUserDefaults())
         settings.costUsageEnabled = true
         settings.costUsageHistoryDays = 30
         let metadata = try #require(ProviderRegistry.shared.metadata[.codex])

@@ -19,11 +19,6 @@ private enum CodexCostCatchUpPublicationError: LocalizedError {
 }
 
 extension UsageStore {
-    func startCodexCostCatchUpIfNeeded(afterRefreshing provider: UsageProvider) {
-        guard provider == .codex else { return }
-        self.startCodexCostCatchUpIfNeeded(mode: .automatic)
-    }
-
     func startCodexCostCatchUpIfNeeded(mode: CodexCostCatchUpMode = .automatic) {
         let scope = self.tokenCostScope(for: .codex)
         let scopeSignature = self.tokenSnapshotScopeSignature(for: .codex)
@@ -345,14 +340,15 @@ extension UsageStore {
         codexHomePath: String?,
         historyDays: Int) async throws -> CostUsageFetcher.CodexScanCatchUpStatus
     {
-        if let override = self._test_codexCostCatchUpAdvanceOverride {
-            return try await override(now, codexHomePath, historyDays)
+        let advance = self._test_codexCostCatchUpAdvanceOverride ?? { now, home, days, duration in
+            try await self.costUsageFetcher.advanceCodexScanCatchUp(
+                now: now,
+                codexHomePath: home,
+                historyDays: days,
+                scanDurationPerRefresh: duration,
+                calendar: self.settings.costUsageBucketCalendar)
         }
-        return try await self.costUsageFetcher.advanceCodexScanCatchUp(
-            now: now,
-            codexHomePath: codexHomePath,
-            historyDays: historyDays,
-            calendar: self.settings.costUsageBucketCalendar)
+        return try await advance(now, codexHomePath, historyDays, self.codexCostCatchUpMode.scanDurationPerRefresh)
     }
 
     func codexCostCatchUpDecision(

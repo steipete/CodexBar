@@ -70,7 +70,7 @@ struct UsageStoreCodexCostCatchUpPublicationTests {
         store._test_codexCostCatchUpStatusOverride = { _ in
             CostUsageFetcher.CodexScanCatchUpStatus(pending: !didAdvance, progressKey: "status")
         }
-        store._test_codexCostCatchUpAdvanceOverride = { _, _, _ in
+        store._test_codexCostCatchUpAdvanceOverride = { _, _, _, _ in
             try Self.append(Self.tokenRecord(iso: iso, input: 200), to: url)
             let completed = try await CostUsageFetcher.loadTokenSnapshot(
                 provider: .codex,
@@ -224,7 +224,7 @@ struct UsageStoreCodexCostCatchUpPublicationTests {
         store._test_codexCostCatchUpStatusOverride = { _ in
             CostUsageFetcher.CodexScanCatchUpStatus(pending: !advanced, progressKey: "status")
         }
-        store._test_codexCostCatchUpAdvanceOverride = { _, _, _ in
+        store._test_codexCostCatchUpAdvanceOverride = { _, _, _, _ in
             advanced = true
             return CostUsageFetcher.CodexScanCatchUpStatus(pending: false, progressKey: "done")
         }
