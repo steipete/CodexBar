@@ -172,6 +172,7 @@ struct CostSummarySettingsSection: View {
 
             if self.settings.costUsageEnabled {
                 CostHistoryDaysEditor(settings: self.settings)
+                RemoteCodexCostHostsEditor(settings: self.settings)
 
                 Toggle(isOn: self.$settings.costComparisonPeriodsEnabled) {
                     SettingsRowLabel(

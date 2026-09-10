@@ -6,6 +6,29 @@ import Testing
 @MainActor
 struct AgentSessionMenuDescriptorTests {
     @Test
+    func `remote cost presentation preserves unknown coverage and masks host identifiers`() {
+        let report = CodexHostCostReport(host: "private-host", summary: RemoteCodexCostFetcherTests.summary())
+        let hidden = RemoteCodexCostPresentation(report: report, index: 0, hidePersonalInfo: true)
+        #expect(!hidden.title.contains("private-host"))
+        #expect(hidden.lines.contains { $0.contains("Partial history") })
+        let shown = RemoteCodexCostPresentation(report: report, index: 0, hidePersonalInfo: false)
+        #expect(shown.title == "private-host")
+        let failed = RemoteCodexCostPresentation(
+            report: CodexHostCostReport(host: "host", summary: nil, error: "Unavailable"),
+            index: 0,
+            hidePersonalInfo: false)
+        #expect(failed.lines == ["Unavailable"])
+    }
+
+    @Test
+    func `remote cost settings start empty and do not reuse discovered agent hosts`() {
+        let settings = testSettingsStore(suiteName: "RemoteCodexCosts-default-off")
+        settings.agentSessionsManualHosts = "existing-host"
+        settings.agentSessionsEnabled = true
+        #expect(settings.codexRemoteCostHosts.isEmpty)
+    }
+
+    @Test
     func `fresh settings omit agent sessions until explicitly enabled`() {
         let settings = testSettingsStore(suiteName: "AgentSessionMenuDescriptorTests-default-off")
         settings.statusChecksEnabled = false

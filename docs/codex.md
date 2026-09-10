@@ -281,6 +281,30 @@ is limited, using additional rows when needed.
   Stale pending path associations are reconciled in the existing cache; surviving forks with missing parents still
   retain their unresolved usage instead of being counted as complete.
 
+### Remote Codex cost reports (SSH)
+
+Enable **Settings → Menu → Cost summary**, then apply one or more explicit SSH aliases in **Remote Codex costs**
+(up to eight, comma-separated). The Codex menu and **Usage & Spend** show each host's Today and configured-history
+report separately. The local charts, account rows, exports, and totals keep their existing scope. Host reports may
+contain overlapping sessions and are deliberately not summed.
+
+- Install a CodexBar CLI with `cost --summary-only` support on each remote host (macOS or Linux), available as
+  `codexbar` in its login-shell PATH. macOS also supports the standard app-bundled helper path.
+- SSH uses the system configuration, existing host-key trust, and batch authentication. Password and host-key prompts
+  are not opened. Configure and verify the SSH alias in a terminal first.
+- The remote CLI scans that host's native Codex history. It excludes pi/OMP mirrors and does not select or authenticate
+  the Mac's active Codex account. Account quota and these host-wide session estimates have different scopes.
+- Only a small numeric summary crosses SSH: tokens, API-equivalent cost, dates, time zone, provenance, and coverage.
+  No transcripts, project paths, session identifiers, or credentials are copied. The receiving app keeps reports only
+  in memory; the host list is a local preference, independent of live-session discovery and iCloud sync.
+- Automatic requests are limited to once per 15 minutes during normal refresh/menu use. **Usage & Spend → Refresh**
+  requests a fresh report. Hosts use their own cost calendar and pricing; the UI shows their time zone and timestamp.
+  Unknown prices and incomplete history remain marked. These estimates are not subscription charges.
+- A disconnected host shows its own error without suppressing local or other hosts' reports. Clear the host field,
+  disable Cost summary, or disable Codex to stop requests and discard the remote reports.
+
+For a one-shot terminal report, use `codexbar cost --provider codex --remote my-server`. See [CLI](cli.md).
+
 ### Usage & Spend account rows
 
 Settings → Usage & Spend performs a separate fixed 30-day scan for every visible Codex account. Each request freezes

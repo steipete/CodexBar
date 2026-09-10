@@ -1,3 +1,4 @@
+import AppKit
 import CodexBarCore
 import Foundation
 import Testing
@@ -5,6 +6,33 @@ import Testing
 
 @MainActor
 extension StatusMenuTests {
+    @Test
+    func `remote cost section survives native menu actionable filtering`() throws {
+        let settings = self.makeSettings()
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+        let section = MenuDescriptor.remoteCodexCostsSection(
+            reports: [.init(host: "spark-test", summary: RemoteCodexCostFetcherTests.summary())],
+            configurationError: nil,
+            hidePersonalInfo: true)
+        let menu = NSMenu()
+        controller.addActionableSections([section], to: menu, width: 320, provider: .codex)
+        let host = try #require(menu.items.first { $0.submenu != nil })
+        #expect(host.title == "Host 1")
+        let lines = try #require(host.submenu?.items.map(\.title))
+        #expect(lines.contains { $0.contains("$1.25") })
+        #expect(lines.contains { $0.contains("Separate from local totals") })
+        #expect(!lines.contains { $0.contains("spark-test") })
+    }
+
     @Test
     func `cost summary display style controls codex menu presentation`() throws {
         self.disableMenuCardsForTesting()

@@ -2,6 +2,9 @@
 
 ## 0.58.1 — Unreleased
 
+### Added
+- Codex costs: opt in to separate SSH host estimates in the menu and Usage & Spend, with path-free CLI summaries and `cost --remote`; preserve local totals and report unavailable hosts independently (related to #3036).
+
 ### Performance
 - Codex activity: read scoped daily totals without decoding unused event history, preserving account boundaries, coverage, and incomplete-scan checks (#3528, related to #3247). Thanks @brzvsk!
 

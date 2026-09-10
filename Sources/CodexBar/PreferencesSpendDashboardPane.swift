@@ -165,6 +165,12 @@ struct SpendDashboardPane: View {
                 self.header
                 self.codexCostCatchUpPanel
                 self.content
+                // Provider-specific by design: SSH cost reports are scoped to the Codex-only summary protocol.
+                if self.settings.costUsageEnabled, self.store.isEnabled(.codex) {
+                    RemoteCodexCostView(
+                        costs: self.store.remoteCodexCosts,
+                        hidePersonalInfo: self.settings.hidePersonalInfo)
+                }
                 self.provenance
                 self.shareAction
             }
@@ -172,6 +178,7 @@ struct SpendDashboardPane: View {
         }
         .background(FocusResigningBackground())
         .onAppear {
+            self.store.refreshRemoteCodexCosts()
             self.isVisible = true
             self.controller.update(configuration: self.configuration)
             self.controller.refreshIfStale()
@@ -243,6 +250,7 @@ struct SpendDashboardPane: View {
 
             Button {
                 self.store.refreshSpendDashboard(accounts: self.codexSpendScanRequests)
+                self.store.refreshRemoteCodexCosts(force: true)
             } label: {
                 if self.controller.isRefreshing {
                     ProgressView().controlSize(.small)
