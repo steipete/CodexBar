@@ -1,0 +1,10 @@
+{
+  "periodStart": "2026-09-01T00:00:00Z",
+  "models": [
+    {
+      "model": "helm-model-a",
+      "limit": 1000000,
+      "consumed": 250000
+    }
+  ]
+}

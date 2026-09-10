@@ -1,0 +1,14 @@
+{
+  "subscription": {
+    "status": "active",
+    "premium": false,
+    "currency": "eur",
+    "currentPeriodStart": 1788549948,
+    "currentPeriodEnd": 1791141948,
+    "cancelAtPeriodEnd": false,
+    "cancelAt": null,
+    "id": "sub_redacted"
+  },
+  "paymentMethod": null,
+  "address": {}
+}

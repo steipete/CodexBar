@@ -367,6 +367,13 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
             return self.settings.minimaxAPIRegion.dashboardURL
         }
 
+        if provider == .helmcode {
+            return HelmcodeDeploymentResolver.dashboardDeployment(
+                settings: self.settings.helmcodeSettingsSnapshot(tokenOverride: nil),
+                environment: environment)
+                .dashboardPageURL
+        }
+
         if provider == .opencodego {
             return self.settings.opencodegoDashboardURL
         }
