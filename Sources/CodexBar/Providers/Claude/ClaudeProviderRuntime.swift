@@ -22,7 +22,7 @@ final class ClaudeProviderRuntime: ProviderRuntime {
         let configuration = Configuration(
             providerEnabled: context.store.isEnabled(.claude),
             enabled: context.settings.claudeSwapEnabled,
-            executablePath: context.settings.claudeSwapExecutablePath)
+            executablePath: context.settings.resolvedClaudeSwapExecutablePath)
         guard configuration != self.lastSwapConfiguration else { return }
         self.lastSwapConfiguration = configuration
 

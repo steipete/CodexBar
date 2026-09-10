@@ -80,6 +80,8 @@ extension SettingsStore {
         }
     }
 
+    /// The path the settings field stores. Empty when the user has not chosen one; the adapter
+    /// consumes `resolvedClaudeSwapExecutablePath` instead so the default location can apply.
     var claudeSwapExecutablePath: String {
         get { self.configSnapshot.providerConfig(for: .claude)?.sanitizedClaudeSwapExecutablePath ?? "" }
         set {
@@ -91,6 +93,18 @@ extension SettingsStore {
                 field: "claudeSwapExecutablePath",
                 value: newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "cleared" : "set")
         }
+    }
+
+    /// The claude-swap install location assumed when the user has not set one, in the tilde form
+    /// the settings field shows as its placeholder.
+    static var defaultClaudeSwapExecutablePath: String {
+        ClaudeSwapExecutableResolver.defaultExecutablePath
+    }
+
+    /// The executable the adapter actually runs. Delegates to the shared resolver so the app,
+    /// `codexbar cards` and the dashboard all agree on what an empty configured path means.
+    var resolvedClaudeSwapExecutablePath: String {
+        ClaudeSwapExecutableResolver.resolve(configured: self.claudeSwapExecutablePath)
     }
 }
 

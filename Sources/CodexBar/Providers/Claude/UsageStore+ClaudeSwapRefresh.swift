@@ -18,14 +18,18 @@ extension UsageStore {
     /// stays external-process-owned and never exposes credentials to CodexBar.
     func shouldFetchClaudeSwapAccounts() -> Bool {
         self.isEnabled(.claude) && self.settings.claudeSwapEnabled &&
-            !self.settings.claudeSwapExecutablePath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            !self.settings.resolvedClaudeSwapExecutablePath.isEmpty
     }
 
     /// Fingerprints the adapter configuration that menu-only account view selections belong to,
     /// so a selection is dropped when the adapter is disabled or its executable path changes.
     /// Never used for identity, credentials, or activation.
     var claudeSwapConfigurationKey: String {
-        self.settings.claudeSwapEnabled ? "on:\(self.settings.claudeSwapExecutablePath)" : "off"
+        guard self.settings.claudeSwapEnabled else { return "off" }
+        // The generation is part of the key so a disable/re-enable cycle on the same executable
+        // produces a different key, rather than matching the old one and restoring a selection
+        // that was supposed to be discarded.
+        return "on:\(self.claudeSwapConfigurationGeneration):\(self.settings.resolvedClaudeSwapExecutablePath)"
     }
 
     /// The active claude-swap account's usage snapshot when the adapter owns Claude
@@ -62,6 +66,9 @@ extension UsageStore {
         self.claudeSwapTransientState.versionProbedPath = nil
         self.claudeSwapTransientState.versionProbeGeneration &+= 1
         self.claudeSwapDetectedVersion = nil
+        // Only ever called on a real configuration teardown (provider stop, or a changed
+        // configuration in reconcileSwapConfiguration), so this cannot churn during normal refreshes.
+        self.claudeSwapConfigurationGeneration &+= 1
         if hadState {
             self.claudeSwapRevision &+= 1
         }
@@ -82,7 +89,7 @@ extension UsageStore {
     }
 
     func refreshClaudeSwapAccounts(generation: UInt64? = nil) async {
-        let executablePath = self.settings.claudeSwapExecutablePath
+        let executablePath = self.settings.resolvedClaudeSwapExecutablePath
         await self.probeClaudeSwapVersionIfNeeded(executablePath: executablePath)
 
         do {
@@ -131,7 +138,7 @@ extension UsageStore {
             return
         }
 
-        let executablePath = self.settings.claudeSwapExecutablePath
+        let executablePath = self.settings.resolvedClaudeSwapExecutablePath
         self.claudeSwapTransientState.switchingAccountID = accountID
         self.claudeSwapTransientState.lastError = nil
         self.claudeSwapTransientState.lastErrorAccountID = nil
@@ -185,6 +192,6 @@ extension UsageStore {
 
     private func isCurrentClaudeSwapConfiguration(executablePath: String) -> Bool {
         self.isEnabled(.claude) && self.settings.claudeSwapEnabled &&
-            self.settings.claudeSwapExecutablePath == executablePath
+            self.settings.resolvedClaudeSwapExecutablePath == executablePath
     }
 }

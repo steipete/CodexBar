@@ -181,6 +181,10 @@ final class UsageStore {
     var claudeSwapLastError: String?
     var claudeSwapDetectedVersion: String?
     var claudeSwapRevision: UInt64 = 0
+    /// Bumped whenever the adapter's configuration is torn down. Menu-only view selections are
+    /// scoped to it, so disabling the adapter and re-enabling it with the same executable cannot
+    /// resurrect a selection made under the previous configuration.
+    var claudeSwapConfigurationGeneration: UInt64 = 0
     @ObservationIgnored var claudeSwapRefreshTask: Task<Void, Never>?
     @ObservationIgnored var claudeSwapTransientState = ClaudeSwapTransientState()
     var tokenSnapshots: [ProviderInstanceID: CostUsageTokenSnapshot] = [:]

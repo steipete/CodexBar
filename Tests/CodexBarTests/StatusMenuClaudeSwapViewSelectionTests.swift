@@ -1,6 +1,7 @@
 import AppKit
 import CodexBarCore
 import Foundation
+import Testing
 import XCTest
 @testable import CodexBar
 
@@ -90,6 +91,10 @@ final class StatusMenuClaudeSwapViewSelectionTests: XCTestCase {
         ]
     }
 
+    private func cardIDs(in menu: NSMenu) -> [String] {
+        menu.items.compactMap { $0.representedObject as? String }.filter { $0.hasPrefix("menuCard") }
+    }
+
     private func assertNoActivationStarted(_ store: UsageStore, file: StaticString = #filePath, line: UInt = #line) {
         XCTAssertNil(store.claudeSwapTransientState.task, file: file, line: line)
         XCTAssertNil(store.claudeSwapTransientState.switchingAccountID, file: file, line: line)
@@ -113,7 +118,9 @@ final class StatusMenuClaudeSwapViewSelectionTests: XCTestCase {
         XCTAssertEqual(store.claudeSwapRevision, revision)
 
         controller.populateMenu(menu, provider: .claude)
-        XCTAssertTrue(menu.items.contains { $0.title == "Details for healthy@example.com" })
+        // The highlighted segment identifies the viewed account; no redundant heading is added.
+        XCTAssertFalse(menu.items.contains { $0.title.hasPrefix("Details for") })
+        XCTAssertEqual(self.cardIDs(in: menu), ["menuCard-0"])
     }
 
     /// Requirement 2: the card keeps its explicit activation action, still gated by validation
@@ -177,23 +184,36 @@ final class StatusMenuClaudeSwapViewSelectionTests: XCTestCase {
         controller.menuWillOpen(menu)
         controller.populateMenu(menu, provider: .claude)
         XCTAssertEqual(controller.claudeSwapViewedAccountID, accounts[1].id)
-        XCTAssertTrue(menu.items.contains { $0.title == "Details for renamed@example.com" })
+        XCTAssertEqual(self.cardIDs(in: menu), ["menuCard-0"])
+        XCTAssertFalse(menu.items.contains { $0.title.hasPrefix("Details for") })
         self.assertNoActivationStarted(store)
     }
 
-    /// Requirement 5: the selection belongs to one adapter configuration.
-    func test_disablingAdapterOrChangingExecutableClearsViewSelection() {
-        for change in ["disable", "path"] {
+    /// Requirement 5: the selection belongs to one adapter configuration. Drives the real
+    /// teardown the provider runtime performs, rather than calling the cleanup helper directly —
+    /// an earlier version of this test did the latter and hid that nothing in production ran it.
+    func test_adapterConfigurationChangeClearsViewSelection() {
+        for change in ["disable", "path", "disableThenReEnableSamePath"] {
             let accounts = self.activeAndInactive()
-            let (controller, _) = self.makeController(accounts: accounts)
+            let (controller, store) = self.makeController(accounts: accounts)
             defer { controller.releaseStatusItemsForTesting() }
             controller.handleClaudeSwapAccountSelection(accounts[1].id, menu: nil)
-            XCTAssertEqual(controller.claudeSwapViewedAccountID, accounts[1].id)
+            XCTAssertEqual(controller.claudeSwapViewedAccountID, accounts[1].id, change)
 
-            if change == "disable" {
+            switch change {
+            case "disable":
                 controller.settings.claudeSwapEnabled = false
-            } else {
+                store.clearClaudeSwapAccountState()
+            case "path":
                 controller.settings.claudeSwapExecutablePath = Self.executablePath + "-other"
+                store.clearClaudeSwapAccountState()
+            default:
+                // Disable and re-enable on the same executable: the configuration key must not
+                // return to its previous value and restore the discarded selection.
+                controller.settings.claudeSwapEnabled = false
+                store.clearClaudeSwapAccountState()
+                controller.settings.claudeSwapEnabled = true
+                store.claudeSwapAccountSnapshots = accounts
             }
 
             XCTAssertNil(controller.claudeSwapViewedAccountID, change)
@@ -246,7 +266,7 @@ final class StatusMenuClaudeSwapViewSelectionTests: XCTestCase {
         self.assertNoActivationStarted(store)
         controller.settings.hidePersonalInfo = true
         controller.populateMenu(menu, provider: .claude)
-        XCTAssertTrue(menu.items.contains { $0.title == "Details for Account 9" })
+        XCTAssertFalse(menu.items.contains { $0.title.hasPrefix("Details for") })
         XCTAssertFalse(menu.items.contains { $0.title.contains("expired@example.com") })
         XCTAssertNil(controller.claudeSwapCardModel(for: unavailable)?.planText)
     }
@@ -262,12 +282,11 @@ final class StatusMenuClaudeSwapViewSelectionTests: XCTestCase {
         store.claudeSwapTransientState.lastErrorAccountID = failed.id
         let menu = controller.makeMenu(for: .claude)
         controller.menuWillOpen(menu)
-        XCTAssertTrue(menu.items.contains { $0.title == "Details for failed@example.com" })
 
         controller.handleClaudeSwapAccountSelection(accounts[1].id, menu: nil)
         controller.populateMenu(menu, provider: .claude)
 
-        XCTAssertTrue(menu.items.contains { $0.title == "Details for healthy@example.com" })
+        XCTAssertEqual(controller.claudeSwapViewedAccountID, accounts[1].id)
         XCTAssertEqual(store.claudeSwapTransientState.lastErrorAccountID, failed.id)
         let failedCard = try XCTUnwrap(controller.claudeSwapCardModel(for: failed))
         XCTAssertTrue(failedCard.subtitleText.contains("switch failed"), failedCard.subtitleText)
@@ -291,5 +310,129 @@ final class StatusMenuClaudeSwapViewSelectionTests: XCTestCase {
             ["menuCard-0", "menuCard-1"])
         XCTAssertFalse(menu.items.contains { $0.title.hasPrefix("Details for") })
         self.assertNoActivationStarted(store)
+    }
+}
+
+/// Coverage for treating the settings placeholder (`~/.local/bin/cswap`) as a real default, so
+/// enabling the adapter works without also typing the path. The filesystem probe is injected, so
+/// these never depend on whether the running machine has claude-swap installed.
+@MainActor
+struct ClaudeSwapDefaultExecutablePathTests {
+    private let defaultPath = "/Users/example/.local/bin/cswap"
+
+    private func resolve(configured: String, installed: Set<String>) -> String {
+        ClaudeSwapExecutableResolver.resolve(
+            configured: configured,
+            defaultPath: self.defaultPath,
+            isExecutable: { installed.contains($0) })
+    }
+
+    @Test
+    func `an unset path falls back to the default location when claude-swap is installed there`() {
+        #expect(self.resolve(configured: "", installed: [self.defaultPath]) == self.defaultPath)
+        #expect(self.resolve(configured: "   ", installed: [self.defaultPath]) == self.defaultPath)
+    }
+
+    @Test
+    func `an unset path stays empty when nothing is installed at the default location`() {
+        // Users without claude-swap must keep seeing no adapter activity and no recurring error.
+        #expect(self.resolve(configured: "", installed: []).isEmpty)
+    }
+
+    @Test
+    func `an explicitly configured path always wins over the default`() {
+        let custom = "/opt/homebrew/bin/cswap"
+        #expect(self.resolve(configured: custom, installed: [self.defaultPath, custom]) == custom)
+        // Even an explicit path that is missing wins, so the user sees an error about their choice
+        // rather than silently running a different executable.
+        #expect(self.resolve(configured: custom, installed: [self.defaultPath]) == custom)
+        #expect(self.resolve(configured: "  \(custom)  ", installed: []) == custom)
+    }
+
+    @Test
+    func `the default matches the path advertised as the settings placeholder`() {
+        #expect(ClaudeSwapExecutableResolver.defaultExecutablePath.hasSuffix("/.local/bin/cswap"))
+        #expect(!ClaudeSwapExecutableResolver.defaultExecutablePath.hasPrefix("~"))
+    }
+}
+
+/// Coverage for the grouped claude-swap settings section that replaced the separate toggle and
+/// path field, so its guidance text matches what the adapter will actually do.
+@MainActor
+struct ClaudeSwapSectionStateTests {
+    private func state(
+        enabled: Bool = true,
+        configured: String = "",
+        resolved: String = "/Users/example/.local/bin/cswap",
+        version: String? = nil,
+        refreshedAt: Date? = nil,
+        error: String? = nil,
+        accounts: [ClaudeSwapSectionAccountRow] = []) -> ClaudeSwapSectionState
+    {
+        ClaudeSwapSectionState(
+            isEnabled: enabled,
+            configuredPath: configured,
+            resolvedPath: resolved,
+            defaultPath: "/Users/example/.local/bin/cswap",
+            detectedVersion: version,
+            lastRefreshAt: refreshedAt,
+            lastError: error,
+            accounts: accounts)
+    }
+
+    @Test
+    func `the status line never repeats the path the field already shows`() {
+        // The field shows the default as its placeholder (or the chosen path as its value), so
+        // printing it again below crowded the row.
+        let usingDefault = self.state(version: "0.24.1", refreshedAt: Date())
+        #expect(usingDefault.usesDefaultPath)
+        let status = usingDefault.statusText ?? ""
+        #expect(!status.contains("/Users/example"))
+        #expect(status.contains("claude-swap 0.24.1"))
+
+        let explicit = self.state(
+            configured: "/opt/homebrew/bin/cswap",
+            resolved: "/opt/homebrew/bin/cswap",
+            version: "0.24.1",
+            refreshedAt: Date())
+        #expect(!explicit.usesDefaultPath)
+        #expect(explicit.statusText?.contains("/opt/homebrew") == false)
+    }
+
+    @Test
+    func `a missing executable names the default location in its short form`() {
+        let state = self.state(resolved: "")
+        #expect(state.needsPath)
+        #expect(state.statusText == "No cswap executable at ~/.local/bin/cswap.")
+        // Placeholder and message agree, and neither uses the expanded absolute path.
+        #expect(ClaudeSwapSectionState.defaultPathPlaceholder == "~/.local/bin/cswap")
+    }
+
+    @Test
+    func `status reports version, account count and errors only once usable`() {
+        let refreshed = Date()
+        let rows = [
+            ClaudeSwapSectionAccountRow(
+                id: ProviderAccountIdentity(source: "claude-swap", opaqueID: "1"),
+                label: "Account 1",
+                isActive: true,
+                note: nil),
+            ClaudeSwapSectionAccountRow(
+                id: ProviderAccountIdentity(source: "claude-swap", opaqueID: "2"),
+                label: "Account 2",
+                isActive: false,
+                note: "Credentials expired"),
+        ]
+        let ok = self.state(version: "0.24.1", refreshedAt: refreshed, accounts: rows)
+        let status = try? #require(ok.statusText)
+        #expect(status?.contains("claude-swap 0.24.1") == true)
+        #expect(status?.contains("2 accounts") == true)
+
+        let failed = self.state(version: "0.24.1", refreshedAt: refreshed, error: "store locked", accounts: rows)
+        #expect(failed.statusText?.contains("store locked") == true)
+        #expect(failed.statusText?.contains("2 accounts") == false)
+
+        // A disabled adapter says nothing at all.
+        #expect(self.state(enabled: false, version: "0.24.1").statusText == nil)
     }
 }
