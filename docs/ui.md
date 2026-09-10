@@ -14,6 +14,7 @@ read_when:
 
 ## Menu bar
 - LSUIElement app: no Dock icon; status item uses custom NSImage.
+- Cached status menus and previously opened submenus follow macOS appearance changes before reopening, preserving the effective Light/Dark and accessibility appearance.
 - Merge Icons toggle combines providers into one status item with a switcher.
 - With the automatic metric selected, switcher progress honors a provider's exhausted-quota selection before
   showing normal weekly progress. Healthy allowances, explicit metric choices, and separate provider pools

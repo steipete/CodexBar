@@ -159,6 +159,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var mergedMenu: NSMenu?
     var providerMenus: [ProviderInstanceID: NSMenu] = [:]
     var fallbackMenu: NSMenu?
+    var menuAppearanceObserver: StatusMenuAppearanceObserver?
     var openMenus: [ObjectIdentifier: NSMenu] = [:]
     var menuRefreshTasks: [ObjectIdentifier: Task<Void, Never>] = [:]
     /// Manual refreshes tracked per scope so refreshing one provider neither greys out nor blocks
