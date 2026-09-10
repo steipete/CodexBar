@@ -691,14 +691,8 @@ extension StatusItemController {
         }
 
         if let codexAccountDisplay = context.codexAccountDisplay, codexAccountDisplay.showAll {
-            if !self.addCompactCodexAccountMenuIfPlanned(
-                display: codexAccountDisplay,
-                to: menu,
-                captureMenu: captureMenu ?? menu,
-                context: context)
-            {
-                self.addStackedCodexMenuCards(codexAccountDisplay, to: menu, context: context)
-            }
+            self.addCodexAccountMenuCards(
+                codexAccountDisplay, to: menu, captureMenu: captureMenu ?? menu, context: context)
             self.addFleetAccountMenuCards(fleetProjection.additionalAccounts, to: menu, context: context)
             return false
         }
