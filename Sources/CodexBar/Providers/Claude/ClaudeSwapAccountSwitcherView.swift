@@ -159,5 +159,13 @@ final class ClaudeSwapAccountSwitcherView: NSView {
     var _test_selectedTitles: [String] {
         self.buttons.filter { $0.state == .on }.map(\.title)
     }
+
+    var _test_toolTips: [String] {
+        self.buttons.compactMap(\.toolTip)
+    }
+
+    func _test_buttons() -> [NSButton] {
+        self.buttons
+    }
     #endif
 }

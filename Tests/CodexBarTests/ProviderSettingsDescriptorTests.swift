@@ -442,22 +442,23 @@ struct ProviderSettingsDescriptorTests {
     }
 
     @Test
-    func `claude single swap account toggle persists and follows integration visibility`() throws {
+    func `claude swap settings moved out of the generic descriptors into their own section`() throws {
         let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-claude-swap-single")
         let context = fixture.settingsContext(provider: .claude)
-        let toggles = ClaudeProviderImplementation().settingsToggles(context: context)
-        let singleAccountToggle = try #require(toggles.first {
-            $0.id == "claude-swap-show-single-account"
-        })
+        let implementation = ClaudeProviderImplementation()
+        let toggleIDs = implementation.settingsToggles(context: context).map(\.id)
+        let fieldIDs = implementation.settingsFields(context: context).map(\.id)
 
-        #expect(singleAccountToggle.binding.wrappedValue == false)
-        #expect(singleAccountToggle.isVisible?() == false)
+        // The grouped ClaudeSwapSectionView owns these now; leaving descriptors behind would
+        // render the same controls twice in the provider pane.
+        #expect(!toggleIDs.contains("claude-swap-accounts"))
+        #expect(!toggleIDs.contains("claude-swap-show-single-account"))
+        #expect(!fieldIDs.contains("claude-swap-executable-path"))
 
+        // The settings they drive still persist through the store the section binds to.
         fixture.settings.claudeSwapEnabled = true
-        #expect(singleAccountToggle.isVisible?() == true)
-        singleAccountToggle.binding.wrappedValue = true
-
-        #expect(fixture.settings.claudeSwapShowSingleAccount)
+        fixture.settings.claudeSwapShowSingleAccount = true
+        #expect(fixture.settings.configSnapshot.providerConfig(for: .claude)?.claudeSwapEnabled == true)
         #expect(fixture.settings.configSnapshot.providerConfig(for: .claude)?.claudeSwapShowSingleAccount == true)
     }
 

@@ -70,7 +70,11 @@ envelope. CodexBar does not need
 
 ## Phase 1 adapter contract
 
-- Disabled by default. User chooses an executable path and enables “Read accounts from claude-swap.”
+- Disabled by default. The user enables “Read accounts from claude-swap” in the provider's grouped claude-swap
+  settings section. The executable defaults to the standard install location `~/.local/bin/cswap` and is only
+  applied when a file is actually executable there, so enabling the adapter works without typing a path while
+  users without claude-swap installed keep seeing no behavior change. An explicitly configured path always wins,
+  including when it is missing, so a wrong path reports an error instead of silently running a different binary.
 - Execute exactly the argument array `cswap --list --json`. Never invoke a shell or accept config-defined passthrough
   arguments.
 - Require `schemaVersion == 1`; reject unknown versions and partial top-level shapes.

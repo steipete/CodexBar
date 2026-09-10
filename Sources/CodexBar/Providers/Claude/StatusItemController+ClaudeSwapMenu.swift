@@ -32,16 +32,9 @@ extension StatusItemController {
                 notice.isEnabled = false
                 menu.addItem(notice)
             }
-            if let account = display.displayedAccount, !account.isActive {
-                let label = ClaudeSwapAccountMenuDisplay.label(
-                    for: account, hidePersonalInfo: self.settings.hidePersonalInfo)
-                let heading = NSMenuItem(
-                    title: String(format: L("Details for %@"), label),
-                    action: nil,
-                    keyEquivalent: "")
-                heading.isEnabled = false
-                menu.addItem(heading)
-            }
+            // No "Details for <account>" heading: the switcher highlights the viewed segment, so a
+            // heading would only restate it. VoiceOver still gets the state from the segment's own
+            // accessibility label.
             if let account = display.displayedAccount {
                 self.addStackedClaudeSwapMenuCards(
                     accounts: [account],

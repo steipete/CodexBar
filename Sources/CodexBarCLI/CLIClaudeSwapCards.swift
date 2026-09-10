@@ -85,7 +85,10 @@ enum CLIClaudeSwapCards {
     typealias AmbientFetch = @Sendable () async -> UsageCommandOutput
 
     static func executablePath(from config: ProviderConfig?) -> String {
-        config?.sanitizedClaudeSwapExecutablePath ?? ""
+        // Shared with the app: an empty configured path falls back to the standard install
+        // location when claude-swap is actually there, so the same config works in both.
+        config?.resolvedClaudeSwapExecutablePath
+            ?? ClaudeSwapExecutableResolver.resolve(configured: nil)
     }
 
     static func isEligible(

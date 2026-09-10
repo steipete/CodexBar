@@ -76,7 +76,8 @@ struct ProvidersPane: View {
             onRefresh: {
                 self.triggerRefresh(for: self.provider)
             },
-            showsSupplementarySettingsContent: self.codexAccountsSectionState(for: self.provider) != nil,
+            showsSupplementarySettingsContent: self.codexAccountsSectionState(for: self.provider) != nil
+                || self.claudeSwapSectionState(for: self.provider) != nil,
             supplementarySettingsContent: {
                 if let state = self.codexAccountsSectionState(for: self.provider) {
                     CodexAccountsSectionView(
@@ -104,6 +105,19 @@ struct ProvidersPane: View {
                                 await self.addManagedCodexAccount()
                             }
                         })
+                }
+                if let state = self.claudeSwapSectionState(for: self.provider) {
+                    ClaudeSwapSectionView(
+                        state: state,
+                        isEnabled: Binding(
+                            get: { self.settings.claudeSwapEnabled },
+                            set: { self.settings.claudeSwapEnabled = $0 }),
+                        executablePath: Binding(
+                            get: { self.settings.claudeSwapExecutablePath },
+                            set: { self.settings.claudeSwapExecutablePath = $0 }),
+                        showsSingleAccountCard: Binding(
+                            get: { self.settings.claudeSwapShowSingleAccount },
+                            set: { self.settings.claudeSwapShowSingleAccount = $0 }))
                 }
             })
             .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
@@ -225,6 +239,30 @@ struct ProvidersPane: View {
         }
 
         return "\(detailLine)\n\(usageText)"
+    }
+
+    /// Projects the claude-swap settings section. Provider-specific by design: the opt-in adapter
+    /// owns its own executable, version probe, and account list.
+    func claudeSwapSectionState(for provider: UsageProvider) -> ClaudeSwapSectionState? {
+        // Provider-specific by design: the opt-in claude-swap adapter owns its own executable,
+        // version probe, and account list, none of which other providers have.
+        guard provider == .claude else { return nil }
+        return ClaudeSwapSectionState(
+            isEnabled: self.settings.claudeSwapEnabled,
+            configuredPath: self.settings.claudeSwapExecutablePath,
+            resolvedPath: self.settings.resolvedClaudeSwapExecutablePath,
+            defaultPath: SettingsStore.defaultClaudeSwapExecutablePath,
+            detectedVersion: self.store.claudeSwapDetectedVersion,
+            lastRefreshAt: self.store.claudeSwapLastRefreshAt,
+            lastError: self.store.claudeSwapLastError,
+            accounts: self.store.claudeSwapAccountSnapshots.map { account in
+                ClaudeSwapSectionAccountRow(
+                    id: account.id,
+                    label: ClaudeSwapAccountMenuDisplay.label(
+                        for: account, hidePersonalInfo: self.settings.hidePersonalInfo),
+                    isActive: account.isActive,
+                    note: account.snapshot == nil ? account.error : nil)
+            })
     }
 
     func codexAccountsSectionState(for provider: UsageProvider) -> CodexAccountsSectionState? {
