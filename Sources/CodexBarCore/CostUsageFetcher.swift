@@ -813,7 +813,7 @@ public struct CostUsageFetcher: Sendable {
         scannerOptions overrideScannerOptions: CostUsageScanner.Options? = nil) async
         -> CostUsageTokenActivityCache?
     {
-        let cachedActivity: CostUsageTokenActivityCache?? = try? await CostUsageScanExecutor.run { _ in
+        try? await CostUsageScanExecutor.run { _ -> CostUsageTokenActivityCache? in
             let options = Self.resolvedScannerOptions(
                 overrideScannerOptions,
                 provider: .codex,
@@ -829,7 +829,7 @@ public struct CostUsageFetcher: Sendable {
             let cache = CostUsageStoreAccess.readView(
                 cacheRoot: options.cacheRoot,
                 calendar: options.calendar,
-                purpose: .report).scoped(to: roots)
+                purpose: .activity).scoped(to: roots)
             guard cache.timeZoneIdentifier == options.calendar.timeZone.identifier,
                   cache.roots == rootsFingerprint,
                   !cache.hasPendingScan,
@@ -868,7 +868,6 @@ public struct CostUsageFetcher: Sendable {
                 coverageSinceKey: coverageSince,
                 coverageUntilKey: coverageUntil)
         }
-        return cachedActivity.flatMap(\.self)
     }
 
     static func loadCachedCodexTokenSnapshotResult(
@@ -889,7 +888,7 @@ public struct CostUsageFetcher: Sendable {
 
         // Snapshot assembly can touch many SQLite rows; keep it off the cooperative pool
         // alongside the scans themselves.
-        let cachedSnapshot: CachedCodexTokenSnapshotResult?? = try? await CostUsageScanExecutor.run { check in
+        return try? await CostUsageScanExecutor.run { check -> CachedCodexTokenSnapshotResult? in
             try check()
             let clampedHistoryDays = max(1, min(365, historyDays))
             let options = Self.resolvedScannerOptions(
@@ -1029,7 +1028,6 @@ public struct CostUsageFetcher: Sendable {
                 lastRefreshAt: piMerged || staleSnapshotUpdatedAt != nil ? nil : nativeScanAt,
                 staleSnapshotUpdatedAt: staleSnapshotUpdatedAt)
         }
-        return cachedSnapshot.flatMap(\.self)
     }
 
     /// Providers whose token-cost snapshot `loadTokenSnapshot` can produce. Cursor is

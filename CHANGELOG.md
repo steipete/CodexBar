@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.58.1 — Unreleased
+
+### Performance
+- Codex activity: read scoped daily totals without decoding unused event history, preserving account boundaries, coverage, and incomplete-scan checks (#3528, related to #3247). Thanks @brzvsk!
+
 ## 0.58.0 — 2026-09-09
 
 ### Highlights

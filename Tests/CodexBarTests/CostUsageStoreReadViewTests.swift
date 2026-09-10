@@ -323,7 +323,7 @@ extension ReadWorkFixture {
             completedFiles: baseline.codexScanCompletedFiles ?? 0,
             totalFiles: baseline.codexScanTotalFiles ?? 0,
             staleSnapshotUpdatedAt: pending ? baseline.codexPreviousReport?.updatedAt : nil)
-        for purpose in [CostUsageStoreReadPurpose.status, .report] {
+        for purpose in [CostUsageStoreReadPurpose.status, .activity, .report] {
             let view = self.store.syncLoadCodexReadView(calendar: self.calendar, purpose: purpose)
             #expect(view.catchUpStatus(roots: roots, rootsFingerprint: fingerprint) == expectedStatus)
             #expect(view.previousReport(range: self.range, rootsFingerprint: fingerprint)
@@ -331,6 +331,9 @@ extension ReadWorkFixture {
                     cache: baseline,
                     range: self.range,
                     rootsFingerprint: fingerprint))
+            if purpose == .activity {
+                #expect(view.scoped(to: roots).days == scoped.days)
+            }
             if purpose == .report {
                 let report = view.scoped(to: roots).dailyReport(range: self.range, cacheRoot: self.env.cacheRoot)
                 let full = self.fullReport(scoped)

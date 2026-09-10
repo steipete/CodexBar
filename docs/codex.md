@@ -236,7 +236,9 @@ is limited, using additional rows when needed.
   - Native session store: `~/Library/Caches/CodexBar/cost-usage/cost-usage.sqlite`
   - pi-compatible session cache: `~/Library/Caches/CodexBar/cost-usage/pi-sessions-v8.json`
     is replaced atomically on macOS and Linux, retaining complete cached scan state across refreshes.
-  - Catch-up status reads progress metadata without loading historical usage JSON or replay bodies. Cached reports
+  - Catch-up status reads progress metadata without loading historical usage JSON or replay bodies. Cached token
+    activity reads scoped daily aggregates without decoding individual usage events, retaining account, time zone,
+    coverage, and incomplete-scan checks. Cached reports
     retain row-level pricing evidence and project/session details, but omit raw token snapshots, accumulator state,
     and replay bodies. File cursor metadata, including JSONL resume state, remains available for progress tracking.
     A native scan loads exact usage rows once, deferring raw token history and checkpoints until a file changes

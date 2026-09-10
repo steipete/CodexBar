@@ -68,8 +68,8 @@ extension CostUsageStore {
                     files: Self.readFiles(database, recorder: recorder),
                     tokenSnapshots: [],
                     usageRows: purpose == .report ? Self.readUsageRows(database, path: nil, recorder: recorder) : [],
-                    fileDayAggregates: purpose == .report ? Self.readFileDayAggregates(database, path: nil) : [],
-                    dayAggregates: purpose == .report
+                    fileDayAggregates: purpose != .status ? Self.readFileDayAggregates(database, path: nil) : [],
+                    dayAggregates: purpose != .status
                         ? Self.readDayAggregates(database, sinceDay: nil, untilDay: nil) : [],
                     forkLineage: Self.readForkLineage(database, path: nil),
                     bufferedLines: [],

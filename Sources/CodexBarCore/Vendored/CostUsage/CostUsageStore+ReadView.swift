@@ -109,5 +109,7 @@ struct CostUsageStoreReadView: Sendable {
 
 enum CostUsageStoreReadPurpose {
     case status
+    /// Scoped token totals and coverage only; no per-event history for detailed reports.
+    case activity
     case report
 }
