@@ -267,6 +267,9 @@ public struct RemoteSessionFetcher: Sendable {
         var seen = Set<String>()
         return hosts.compactMap { rawHost in
             let host = rawHost.trimmingCharacters(in: .whitespacesAndNewlines)
+            let parts = host.split(separator: "@", maxSplits: 1, omittingEmptySubsequences: false)
+            // SSH usernames are case-sensitive; only the hostname can be normalized.
+            let key = parts.count == 2 ? "\(parts[0])@\(parts[1].lowercased())" : host.lowercased()
             let hasUnsafeScalar = host.unicodeScalars.contains { scalar in
                 CharacterSet.controlCharacters.contains(scalar) ||
                     CharacterSet.whitespacesAndNewlines.contains(scalar)
@@ -274,7 +277,7 @@ public struct RemoteSessionFetcher: Sendable {
             guard !host.isEmpty,
                   !host.hasPrefix("-"),
                   !hasUnsafeScalar,
-                  seen.insert(host.lowercased()).inserted
+                  seen.insert(key).inserted
             else { return nil }
             return host
         }

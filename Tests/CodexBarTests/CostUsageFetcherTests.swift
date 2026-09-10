@@ -38,6 +38,9 @@ struct RemoteCodexCostFetcherTests {
     func `SSH targets are explicit bounded and cannot introduce shell or SSH options`() throws {
         #expect(try RemoteCodexCostFetcher.hosts(from: "") == [])
         #expect(try RemoteCodexCostFetcher.hosts(from: "work, user@host, work") == ["work", "user@host"])
+        #expect(try RemoteCodexCostFetcher.hosts(from: "Alice@server, alice@server, Alice@SERVER") == [
+            "Alice@server", "alice@server",
+        ])
         for bad in ["-oProxyCommand=evil", "host;touch", "host$(id)", "host'", "host\nother", "user host"] {
             #expect(throws: RemoteCodexCostError.self) {
                 try RemoteCodexCostFetcher.arguments(host: bad, historyDays: 30, force: false)
