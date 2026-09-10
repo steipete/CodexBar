@@ -53,8 +53,8 @@ Usage source picker:
 - `additional_rate_limits[]` (model-specific limits such as GPT-5.3-Codex-Spark) map to named
   `UsageSnapshot.extraRateWindows` entries. Spark uses stable `codex-spark` / `codex-spark-weekly` ids and
   `Codex Spark 5-hour` / `Codex Spark Weekly` titles. When the field is absent, the snapshot is unchanged.
-- Preferences → Providers → Codex → Show Codex Spark usage hides only the Spark rows in menus and the provider
-  preview. It does not change fetching, history, notifications, widgets, credits, or other extra limits.
+- Preferences → Providers → Codex → Visible usage items lets you hide individual Spark rows in menus, the Settings
+  preview, and Overview. It does not change fetching, history, notifications, widgets, credits, or other extra limits.
 
 ### Optional external OAuth sources (off by default)
 - **External Codex OAuth sources** is a provider setting that must be enabled explicitly before CodexBar reads

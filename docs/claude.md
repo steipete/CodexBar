@@ -84,9 +84,9 @@ Admin API key setup:
   - `seven_day_routines` / `seven_day_cowork` → Daily Routines extra window.
   - Claude Design/Omelette keys are ignored because Claude Design shares the main Claude usage limit.
   - `extra_usage` → Extra usage cost (monthly spend/limit).
-- Preferences → Providers → Claude → Show Daily Routines usage hides only the Daily Routines row in menus and the
-  provider preview. The global optional credits and extra usage setting is its master switch. The Claude-specific
-  setting does not change fetching, history, notifications, widgets, model-scoped weekly limits, hooks, or CLI output.
+- Preferences → Providers → Claude → Visible usage items lets you hide the Daily Routines row in menus, the Settings
+  preview, and Overview. The global optional credits and extra usage setting remains its master switch. Hiding this
+  row does not change fetching, history, notifications, widgets, model-scoped weekly limits, hooks, or CLI output.
 - Preferences → Providers → Claude → Show model-specific weekly usage in widgets controls model-scoped weekly quota
   rows in desktop widgets. It is off by default; turning it on displays every known Claude window with a
   `claude-weekly-scoped-` identifier (for example, Fable). Turning it back off also drops scoped rows that a previous
