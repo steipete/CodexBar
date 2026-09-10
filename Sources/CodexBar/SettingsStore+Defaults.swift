@@ -1189,6 +1189,14 @@ extension SettingsStore {
         }
     }
 
+    var codexRemoteCostHosts: String {
+        get { self.defaultsState.codexRemoteCostHosts }
+        set {
+            self.defaultsState.codexRemoteCostHosts = newValue
+            self.userDefaults.set(newValue, forKey: "codexRemoteCostHosts")
+        }
+    }
+
     var preferredCurrencyCode: String {
         get { self.defaultsState.preferredCurrencyCode }
         set {

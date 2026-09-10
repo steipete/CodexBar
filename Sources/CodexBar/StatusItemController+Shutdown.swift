@@ -23,6 +23,7 @@ extension StatusItemController {
 
     private func cancelShutdownTasks() {
         self.agentSessions.stop()
+        self.store.remoteCodexCosts.cancel()
         self.menuAppearanceObserver?.stop()
         self.menuAppearanceObserver = nil
         self.blinkTask?.cancel()
