@@ -20,12 +20,23 @@ struct AgentSessionMenuDescriptorTests {
         #expect(failed.lines == ["Unavailable"])
     }
 
-    @Test
-    func `remote cost settings start empty and do not reuse discovered agent hosts`() {
-        let settings = testSettingsStore(suiteName: "RemoteCodexCosts-default-off")
-        settings.agentSessionsManualHosts = "existing-host"
-        settings.agentSessionsEnabled = true
+    @Test(arguments: [false, true])
+    func `remote cost settings stay off for fresh and upgraded preferences`(_ upgrading: Bool) {
+        let defaults = InMemoryUserDefaults(values: upgrading ? [
+            "agentSessionsManualHosts": "existing-host",
+            "agentSessionsEnabled": true,
+        ] : [:])
+        let settings = testSettingsStore(suiteName: "RemoteCodexCosts-default-off", userDefaults: defaults)
         #expect(settings.codexRemoteCostHosts.isEmpty)
+        let store = RemoteCodexCostStore { _, _, _ in
+            Issue.record("Remote costs require separate opt-in even when agent sessions are enabled")
+            throw RemoteCodexCostError.unavailable
+        }
+        store.refresh(hosts: settings.codexRemoteCostHosts, historyDays: 30, force: true)
+        #expect(!store.isRefreshing)
+        #expect(store.reports.isEmpty)
+        #expect(settings.agentSessionsEnabled == upgrading)
+        #expect(settings.agentSessionsManualHosts == (upgrading ? "existing-host" : ""))
     }
 
     @Test
