@@ -6,8 +6,10 @@
 - Codex activity: read scoped daily totals without decoding unused event history, preserving account boundaries, coverage, and incomplete-scan checks (#3528, related to #3247). Thanks @brzvsk!
 
 ### Fixed
-- Documentation: point Spark and Daily Routines visibility instructions to the current per-item controls and include Overview in their scope.
+- Codex accounts: replace a misleading automatic CLI-retry promise with account-specific reauthentication guidance when native credentials need renewal (related to #3523). Thanks @zhulijin1991!
 - Menus: refresh cached status menus when macOS appearance changes, including previously opened submenus, so the first opening matches Light/Dark and accessibility appearances (#3526). Thanks @emanuelst!
+
+- Documentation: point Spark and Daily Routines visibility instructions to the current per-item controls and include Overview in their scope.
 
 ## 0.58.0 — 2026-09-09
 

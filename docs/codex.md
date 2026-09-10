@@ -68,6 +68,9 @@ Usage source picker:
   Automatic mode also suppresses unscoped CLI fallback whenever a managed workspace is selected. Explicit
   managed-account workspace selection is stored in CodexBar's private managed-account metadata; it never edits the
   source `auth.json` or publishes an `account_id` change back to another application's credential file.
+- If native credentials need renewal, use **Reauthenticate** for the affected account in Settings → Providers → Codex.
+  For CLI recovery, run `codex login` with that account's existing `CODEX_HOME` and select the intended workspace.
+  The refresh error describes this manual recovery without promising automatic CLI fallback for managed workspaces.
 - Stacked account refreshes retain each managed account's selected workspace through usage publication and menu
   matching, even when its auth file names a different default workspace. Changing the selected workspace while a
   refresh is running discards the old workspace's result.
