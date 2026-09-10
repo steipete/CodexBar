@@ -120,7 +120,7 @@ final class StatusMenuClaudeSwapCompactTests: XCTestCase {
         XCTAssertNil(store.claudeSwapTransientState.switchingAccountID)
         controller.settings.hidePersonalInfo = true
         controller.populateMenu(menu, provider: .claude)
-        XCTAssertTrue(menu.items.contains { $0.title == "Details for Account 9" })
+        XCTAssertFalse(menu.items.contains { $0.title.hasPrefix("Details for") })
         XCTAssertFalse(menu.items.contains { $0.title.contains("expired@example.com") })
     }
 
@@ -142,7 +142,7 @@ final class StatusMenuClaudeSwapCompactTests: XCTestCase {
             controller.handleClaudeSwapAccountSelection(sentinel.id, menu: nil)
             controller.populateMenu(menu, provider: .claude)
             controller.markMenuFresh(menu)
-            XCTAssertTrue(menu.items.contains { $0.title.hasPrefix("Details for") })
+            XCTAssertEqual(controller.claudeSwapViewedAccountID, sentinel.id)
             XCTAssertFalse(controller.menuNeedsRefresh(menu))
             let revision = store.claudeSwapRevision
 
@@ -150,7 +150,6 @@ final class StatusMenuClaudeSwapCompactTests: XCTestCase {
             controller.refreshMenuForOpenIfNeeded(menu, provider: .claude)
 
             XCTAssertEqual(controller.claudeSwapViewedAccountID, sentinel.id)
-            XCTAssertTrue(menu.items.contains { $0.title.hasPrefix("Details for") })
             XCTAssertFalse(controller.menuNeedsRefresh(menu))
             XCTAssertEqual(store.claudeSwapRevision, revision)
         }

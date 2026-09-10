@@ -64,6 +64,8 @@
 - **More reliable menus:** refresh cached menus when macOS appearance changes and surface exhausted Kimi monthly limits even after shorter quota windows reset (#3526, #3543).
 
 ### Added
+- Claude: default the claude-swap executable to `~/.local/bin/cswap` when it is installed there, so enabling the adapter no longer requires typing a path; an explicit path still wins and users without claude-swap see no change.
+- Claude: group the claude-swap toggle, executable, adapter status and discovered accounts into one settings section, replacing the split toggle/field layout whose guidance pointed the wrong way.
 - Claude: select claude-swap accounts in the segmented menu to view their details without switching, keep the viewed account visually distinct from the account claude-swap reports as active, and retain the viewed account across refreshes, reordering, and menu closes; activation stays on the explicit “Switch Account…” card action.
 - Plugins: opt into first-class provider switcher tabs with selected-plugin refresh, plugin-only menus, and continued access to appended plugin cards (#3516, fixes #2988). Thanks @harjothkhara!
 - Menu bar: optionally color Session, Weekly, and Auto pace indicators green when behind pace and red when ahead, preserving signed values, neutral unavailable values, and existing layouts (#3429, fixes #3428). Thanks @jb510!
