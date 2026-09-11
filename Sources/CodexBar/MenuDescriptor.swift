@@ -150,6 +150,28 @@ struct MenuDescriptor {
                 sections.append(actions)
             }
         }
+        let remoteCostProviderIsVisible = provider == nil || provider.map {
+            RemoteCostFetcher.supportedProviders.contains($0)
+        } == true
+        if remoteCostProviderIsVisible, settings.costUsageEnabled {
+            let costs = store.remoteCosts
+            let reports = provider.map { selected in
+                costs.reports.filter { $0.provider == selected.rawValue }
+            } ?? costs.reports
+            if !reports.isEmpty || costs.configurationError != nil {
+                sections.append(Self.remoteCostsSection(
+                    reports: reports,
+                    configurationError: costs.configurationError,
+                    localSnapshots: Dictionary(uniqueKeysWithValues: RemoteCostFetcher.supportedProviders
+                        .compactMap { costProvider in
+                            store.tokenSnapshot(for: costProvider).map { (costProvider, $0) }
+                        }),
+                    combinedHosts: Set(
+                        (try? RemoteCostFetcher.hosts(from: settings.remoteCostCombinedHosts)) ?? []),
+                    hidePersonalInfo: settings.hidePersonalInfo,
+                    now: now))
+            }
+        }
         if agentSessionsEnabled {
             sections.append(Self.agentSessionsSection(
                 localSessions: localAgentSessions,
@@ -160,6 +182,41 @@ struct MenuDescriptor {
         sections.append(Self.metaSection(updateReady: updateReady))
 
         return MenuDescriptor(sections: sections)
+    }
+
+    static func remoteCostsSection(
+        reports: [RemoteHostCostReport],
+        configurationError: String?,
+        localSnapshots: [UsageProvider: CostUsageTokenSnapshot] = [:],
+        combinedHosts: Set<String> = [],
+        hidePersonalInfo: Bool,
+        now: Date = Date()) -> Section
+    {
+        var entries: [Entry] = [.text(L("SSH device costs"), .headline)]
+        if let configurationError { entries.append(.unavailable(L(configurationError), nil)) }
+        for provider in RemoteCostFetcher.supportedProviders {
+            guard reports.contains(where: { $0.provider == provider.rawValue }),
+                  let model = CombinedRemoteCostPresentation(
+                      provider: provider,
+                      local: localSnapshots[provider],
+                      reports: reports,
+                      combinedHosts: combinedHosts)
+            else { continue }
+            entries.append(.submenu(model.title, nil, model.lines.map {
+                SubmenuItem(title: $0, action: nil, isEnabled: false)
+            }))
+        }
+        for report in reports {
+            let model = RemoteCostPresentation(
+                report: report,
+                index: RemoteCostPresentation.hostIndex(of: report, in: reports),
+                hidePersonalInfo: hidePersonalInfo,
+                now: now)
+            entries.append(.submenu(model.title, nil, model.lines.map {
+                SubmenuItem(title: $0, action: nil, isEnabled: false)
+            }))
+        }
+        return Section(entries: entries)
     }
 
     static func agentSessionsSection(

@@ -70,6 +70,96 @@ final class SpendDailyLedgerNativeProofTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: done), "Native proof timed out")
     }
 
+    func test_remoteCostControls() async throws {
+        guard let path = ProcessInfo.processInfo.environment["CODEXBAR_REMOTE_COST_NATIVE_DIR"] else {
+            throw XCTSkip("Set CODEXBAR_REMOTE_COST_NATIVE_DIR for native remote-cost proof")
+        }
+        let output = URL(fileURLWithPath: path, isDirectory: true)
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        let settings = testSettingsStore(suiteName: "RemoteCostNativeProof")
+        settings.remoteCostsEnabled = true
+        settings.remoteCostHosts = "ubuntu, offline"
+        settings.remoteCostCombinedHosts = "ubuntu"
+        let localSnapshot = CostUsageTokenSnapshot(
+            sessionTokens: 4200,
+            sessionCostUSD: 12.50,
+            last30DaysTokens: 84000,
+            last30DaysCostUSD: 240,
+            historyDays: 30,
+            daily: [],
+            updatedAt: Date())
+        let costs = RemoteCostStore { host, providers, days, _ in
+            if host == "offline" { throw RemoteCostError.unavailable }
+            return providers.map { RemoteCostFetcherTests.summary(provider: $0, days: days) }
+        }
+        let app = NSApplication.shared
+        guard app.delegate == nil else { return XCTFail("Requires a standalone test application") }
+        let previousPolicy = app.activationPolicy()
+        let previousApp = NSWorkspace.shared.frontmostApplication
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 580, height: 620),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false)
+        window.title = "CodexBar Remote Cost Proof — Synthetic Data"
+        window.isReleasedWhenClosed = false
+        window.contentView = NSHostingView(rootView: VStack(alignment: .leading, spacing: 24) {
+            RemoteCostHostsEditor(settings: settings)
+            Divider()
+            RemoteCostView(
+                costs: costs,
+                hidePersonalInfo: false,
+                localSnapshots: [.codex: localSnapshot, .claude: localSnapshot],
+                combinedHosts: ["ubuntu"])
+            Spacer()
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(nsColor: .windowBackgroundColor))
+        .preferredColorScheme(.light))
+        defer {
+            costs.cancel()
+            window.close()
+            _ = app.setActivationPolicy(previousPolicy)
+            if NSWorkspace.shared.frontmostApplication?.processIdentifier == ProcessInfo.processInfo.processIdentifier {
+                previousApp?.activate()
+            }
+        }
+        _ = app.setActivationPolicy(.regular)
+        app.finishLaunching()
+        window.center()
+        window.makeKeyAndOrderFront(nil)
+        app.activate(ignoringOtherApps: true)
+        let deadline = Date().addingTimeInterval(600)
+        let done = output.appendingPathComponent("done").path
+        while !FileManager.default.fileExists(atPath: done), Date() < deadline {
+            costs.refresh(hosts: settings.remoteCostHosts, providers: [.codex, .claude], historyDays: 30)
+            let receipt = [
+                "pid": String(ProcessInfo.processInfo.processIdentifier),
+                "hosts": settings.remoteCostHosts,
+                "reports": String(costs.reports.count),
+                "errors": String(costs.reports.count(where: { $0.error != nil })),
+            ]
+            try JSONEncoder().encode(receipt).write(to: output.appendingPathComponent("state.json"), options: .atomic)
+            let capture = output.appendingPathComponent("capture")
+            if FileManager.default.fileExists(atPath: capture.path), let view = window.contentView,
+               let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds)
+            {
+                view.cacheDisplay(in: view.bounds, to: bitmap)
+                try bitmap.representation(using: .png, properties: [:])?
+                    .write(to: output.appendingPathComponent("remote-costs.png"))
+                try FileManager.default.removeItem(at: capture)
+            }
+            if let event = app.nextEvent(
+                matching: .any, until: Date(), inMode: .default, dequeue: true)
+            {
+                app.sendEvent(event)
+            }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: done), "Native proof timed out")
+    }
+
     private static func group() throws -> SpendDashboardModel.CurrencyGroup {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = .gmt

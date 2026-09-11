@@ -73,6 +73,23 @@ See `docs/configuration.md` for the schema.
   - `--refresh` ignores cached scans.
   - `--breakdown` adds Claude-only daily and top-model details to text output. Both sections use the same last seven calendar days (or the shorter requested interval); when that interval has no rows, both explicitly label the latest recorded days. Incomplete attribution is marked partial. Ordinary text, other providers, and JSON output are unchanged.
   - `--provider-native-only` is experimental and excludes pi and OMP session mirrors from Claude and Codex history.
+  - `--remote <ssh-host>` is opt-in for `--provider codex`, `claude`, or `both`. It returns separate native reports for
+    `local` and one explicit SSH host, and never adds hosts or providers together. Copied or resumed histories can
+    overlap, while Claude subscription-equivalent and Codex API-equivalent dollars have different meanings. JSON is
+    an array of `{host, provider, source, summary?, error?}` objects; `source` is `local` or `ssh`. An unavailable host
+    makes the command exit nonzero while preserving successful reports on stdout. This mode cannot be combined with
+    `--group-by`, `--breakdown`, or `--summary-only`. Existing cost output without these flags is unchanged.
+  - `--summary-only --provider codex|claude|both --format json` emits one summary per requested provider containing
+    only numeric cost/token summaries,
+    `updatedAt`, `bucketTimeZone`, `currencyCode`, `historyDays`, `historyCoverageIsEstablished`, `provenance`, and
+    `coverage`. No transcripts, paths, session identifiers, or account metadata are included. This mode always excludes
+    pi/OMP mirrors. `sessionTokens`/`sessionCostUSD` mean Today; `last30DaysTokens`/`last30DaysCostUSD` retain the existing
+    field names but cover the requested `--days` interval. Missing values mean unavailable, not zero.
+  - Both modes preserve the scanning host's pricing and day boundaries. Codex values are API-equivalent estimates;
+    Claude values are notional API-rate estimates and do not measure subscription charges. Remote hosts need an
+    updated CLI supporting `--summary-only`, batch SSH access, and an
+    existing trusted host key. The CLI chooses `codexbar` from the login-shell PATH, or the standard macOS app helper,
+    before running a single scan. It does not transfer raw logs or retry a failed scan through another executable.
 - `codexbar cards` prints a one-shot usage snapshot as a responsive terminal card grid.
   - Reuses the same provider, source, account, credits, and status flags as `codexbar usage`.
   - Account lines and plan badges are included in the card grid by default.

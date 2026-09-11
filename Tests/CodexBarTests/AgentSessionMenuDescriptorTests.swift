@@ -6,6 +6,182 @@ import Testing
 @MainActor
 struct AgentSessionMenuDescriptorTests {
     @Test
+    func `remote cost presentation preserves unknown coverage and masks host identifiers`() {
+        let report = RemoteHostCostReport(
+            host: "private-host",
+            provider: .claude,
+            summary: RemoteCostFetcherTests.summary(provider: .claude))
+        let hidden = RemoteCostPresentation(report: report, index: 0, hidePersonalInfo: true)
+        #expect(!hidden.title.contains("private-host"))
+        #expect(hidden.lines.contains { $0.contains("Partial history") })
+        let shown = RemoteCostPresentation(report: report, index: 0, hidePersonalInfo: false)
+        #expect(shown.title.contains("private-host"))
+        #expect(shown.title.contains("Claude"))
+        #expect(shown.lines.contains { $0.contains("subscription charges") })
+        let failed = RemoteCostPresentation(
+            report: RemoteHostCostReport(host: "host", provider: .codex, summary: nil, error: "Unavailable"),
+            index: 0,
+            hidePersonalInfo: false)
+        #expect(failed.lines == ["Unavailable"])
+    }
+
+    @Test
+    func `selected SSH boxes combine with local totals while retaining separate reports`() throws {
+        let local = CostUsageTokenSnapshot(
+            sessionTokens: 100,
+            sessionCostUSD: 2,
+            last30DaysTokens: 200,
+            last30DaysCostUSD: 4,
+            historyDays: 30,
+            daily: [],
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000))
+        let reports = [
+            RemoteHostCostReport(
+                host: "sandbox",
+                provider: .codex,
+                summary: RemoteCostFetcherTests.summary()),
+            RemoteHostCostReport(
+                host: "other",
+                provider: .codex,
+                summary: RemoteCostFetcherTests.summary()),
+        ]
+        let model = try #require(CombinedRemoteCostPresentation(
+            provider: .codex,
+            local: local,
+            reports: reports,
+            combinedHosts: ["sandbox"]))
+
+        #expect(model.title.contains("Combined"))
+        #expect(model.lines.contains { $0.contains("$3.25") && $0.contains("223 tokens") })
+        #expect(model.lines.contains { $0.contains("$7.50") && $0.contains("656 tokens") })
+        #expect(model.lines.contains { $0.contains("partial") })
+        #expect(model.lines.contains { $0.contains("counted more than once") })
+        #expect(reports.count == 2)
+    }
+
+    @Test(arguments: [false, true])
+    func `remote cost settings stay off for fresh and upgraded preferences`(_ upgrading: Bool) {
+        let defaults = InMemoryUserDefaults(values: upgrading ? [
+            "agentSessionsManualHosts": "existing-host",
+            "agentSessionsEnabled": true,
+        ] : [:])
+        let settings = testSettingsStore(suiteName: "RemoteCosts-default-off", userDefaults: defaults)
+        #expect(!settings.remoteCostsEnabled)
+        #expect(settings.remoteCostHosts.isEmpty)
+        #expect(settings.remoteCostCombinedHosts.isEmpty)
+        let store = RemoteCostStore { _, _, _, _ in
+            Issue.record("Remote costs require separate opt-in even when agent sessions are enabled")
+            throw RemoteCostError.unavailable
+        }
+        store.refresh(
+            hosts: settings.remoteCostHosts,
+            providers: [.codex, .claude],
+            historyDays: 30,
+            force: true)
+        #expect(!store.isRefreshing)
+        #expect(store.reports.isEmpty)
+        #expect(settings.agentSessionsEnabled == upgrading)
+        #expect(settings.agentSessionsManualHosts == (upgrading ? "existing-host" : ""))
+    }
+
+    @Test
+    func `draft Codex-only remote host preference migrates to shared remote hosts`() {
+        let defaults = InMemoryUserDefaults(values: ["codexRemoteCostHosts": "legacy-host"])
+        let settings = testSettingsStore(suiteName: "RemoteCosts-legacy-key", userDefaults: defaults)
+        #expect(!settings.remoteCostsEnabled)
+        #expect(settings.remoteCostHosts == "legacy-host")
+    }
+
+    @Test
+    func `combined SSH host selections persist independently`() {
+        let defaults = InMemoryUserDefaults()
+        let settings = testSettingsStore(suiteName: "RemoteCosts-combined-hosts", userDefaults: defaults)
+        settings.remoteCostHosts = "sandbox, build-box"
+        settings.remoteCostCombinedHosts = "sandbox"
+
+        let reloaded = testSettingsStore(suiteName: "RemoteCosts-combined-hosts-reload", userDefaults: defaults)
+        #expect(reloaded.remoteCostHosts == "sandbox, build-box")
+        #expect(reloaded.remoteCostCombinedHosts == "sandbox")
+    }
+
+    @Test
+    func `selected SSH daily costs aggregate for the chart and keep the SSH color`() throws {
+        func day(_ date: String, tokens: Int, cost: Double) -> CostUsageDailyReport.Entry {
+            CostUsageDailyReport.Entry(
+                date: date,
+                inputTokens: nil,
+                outputTokens: nil,
+                totalTokens: tokens,
+                costUSD: cost,
+                modelsUsed: nil,
+                modelBreakdowns: nil)
+        }
+        let reports = [
+            RemoteHostCostReport(
+                host: "sandbox",
+                provider: .codex,
+                summary: RemoteCostFetcherTests.summary(daily: [day("2026-09-10", tokens: 100, cost: 2)])),
+            RemoteHostCostReport(
+                host: "build-box",
+                provider: .codex,
+                summary: RemoteCostFetcherTests.summary(daily: [day("2026-09-10", tokens: 25, cost: 1)])),
+            RemoteHostCostReport(
+                host: "not-selected",
+                provider: .codex,
+                summary: RemoteCostFetcherTests.summary(daily: [day("2026-09-10", tokens: 900, cost: 9)])),
+        ]
+        let daily = RemoteCostChartSeries.daily(
+            reports: reports,
+            provider: .codex,
+            combinedHosts: ["sandbox", "build-box"])
+        let combined = try #require(daily.first)
+        #expect(daily.count == 1)
+        #expect(combined.totalTokens == 125)
+        #expect(combined.costUSD == 3)
+
+        let defaults = InMemoryUserDefaults()
+        let settings = testSettingsStore(suiteName: "RemoteCosts-chart-color", userDefaults: defaults)
+        #expect(settings.remoteCostChartColor.hexString == "#64D2FF")
+        settings.remoteCostChartColor = ProviderColor(hexString: "#B455FF") ?? .init(hex: 0)
+        let reloaded = testSettingsStore(suiteName: "RemoteCosts-chart-color-reload", userDefaults: defaults)
+        #expect(reloaded.remoteCostChartColor.hexString == "#B455FF")
+    }
+
+    @Test
+    func `SSH chart selection is inert while disabled or unsupported`() {
+        let selected = Set(["sandbox"])
+        #expect(RemoteCostChartSeries.effectiveCombinedHosts(
+            selected,
+            enabled: false,
+            provider: .codex).isEmpty)
+        #expect(RemoteCostChartSeries.effectiveCombinedHosts(
+            selected,
+            enabled: true,
+            provider: .gemini).isEmpty)
+        #expect(RemoteCostChartSeries.effectiveCombinedHosts(
+            selected,
+            enabled: true,
+            provider: .claude) == selected)
+    }
+
+    @Test
+    func `remote daily history makes a chart available without local days`() {
+        let remote = [RemoteCostDailySummary(date: "2026-09-10", totalTokens: 100, costUSD: 2)]
+        #expect(RemoteCostChartSeries.hasDailyHistory(local: [], remote: remote))
+        #expect(RemoteCostChartSeries.hasDailyHistory(
+            local: [CostUsageDailyReport.Entry(
+                date: "2026-09-10",
+                inputTokens: nil,
+                outputTokens: nil,
+                totalTokens: 50,
+                costUSD: 1,
+                modelsUsed: nil,
+                modelBreakdowns: nil)],
+            remote: []))
+        #expect(!RemoteCostChartSeries.hasDailyHistory(local: [], remote: []))
+    }
+
+    @Test
     func `fresh settings omit agent sessions until explicitly enabled`() {
         let settings = testSettingsStore(suiteName: "AgentSessionMenuDescriptorTests-default-off")
         settings.statusChecksEnabled = false

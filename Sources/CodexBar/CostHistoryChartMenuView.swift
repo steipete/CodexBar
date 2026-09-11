@@ -23,14 +23,27 @@ struct CostHistoryChartMenuView: View {
     private struct Point: Identifiable {
         let id: String
         let date: Date
-        let value: Double
+        let localValue: Double
+        let remoteValue: Double
         let costUSD: Double?
         let totalTokens: Int?
         let requestCount: Int?
 
-        init(date: Date, value: Double, costUSD: Double?, totalTokens: Int?, requestCount: Int?) {
+        var value: Double {
+            self.localValue + self.remoteValue
+        }
+
+        init(
+            date: Date,
+            localValue: Double,
+            remoteValue: Double,
+            costUSD: Double?,
+            totalTokens: Int?,
+            requestCount: Int?)
+        {
             self.date = date
-            self.value = value
+            self.localValue = localValue
+            self.remoteValue = remoteValue
             self.costUSD = costUSD
             self.totalTokens = totalTokens
             self.requestCount = requestCount
@@ -59,6 +72,8 @@ struct CostHistoryChartMenuView: View {
 
     private let provider: UsageProvider
     private let daily: [DailyEntry]
+    private let remoteDaily: [RemoteCostDailySummary]
+    private let remoteColor: Color
     private let totalCostUSD: Double?
     private let currencyCode: String
     /// Multiplier applied to source-currency amounts at display time so labels can render
@@ -78,6 +93,8 @@ struct CostHistoryChartMenuView: View {
     init(
         provider: UsageProvider,
         daily: [DailyEntry],
+        remoteDaily: [RemoteCostDailySummary] = [],
+        remoteColor: ProviderColor = .init(hex: 0x64D2FF),
         totalCostUSD: Double?,
         currencyCode: String = "USD",
         costMultiplier: Double = 1,
@@ -92,6 +109,8 @@ struct CostHistoryChartMenuView: View {
     {
         self.provider = provider
         self.daily = daily
+        self.remoteDaily = remoteDaily
+        self.remoteColor = Color(red: remoteColor.red, green: remoteColor.green, blue: remoteColor.blue)
         self.totalCostUSD = totalCostUSD
         self.currencyCode = currencyCode
         self.costMultiplier = costMultiplier
@@ -103,16 +122,27 @@ struct CostHistoryChartMenuView: View {
         self.hidePersonalInfo = hidePersonalInfo
         self.width = width
         self.onMetricChanged = onMetricChanged
-        self._metric = State(initialValue: Self.defaultMetric(provider: provider, daily: daily))
+        self._metric = State(initialValue: Self.defaultMetric(
+            provider: provider,
+            daily: daily,
+            remoteDaily: remoteDaily))
     }
 
     var body: some View {
-        let availableMetrics = Self.availableMetrics(provider: self.provider, daily: self.daily)
+        let availableMetrics = Self.availableMetrics(
+            provider: self.provider,
+            daily: self.daily,
+            remoteDaily: self.remoteDaily)
         let activeMetric = availableMetrics.contains(self.metric)
             ? self.metric
-            : Self.defaultMetric(provider: self.provider, daily: self.daily)
-        let model = Self.makeModel(provider: self.provider, daily: self.daily, metric: activeMetric)
-        let showsHistoryRefreshing = Self.showsHistoryRefreshing(
+            : Self.defaultMetric(provider: self.provider, daily: self.daily, remoteDaily: self.remoteDaily)
+        let model = Self.makeModel(
+            provider: self.provider,
+            daily: self.daily,
+            remoteDaily: self.remoteDaily,
+            remoteColor: self.remoteColor,
+            metric: activeMetric)
+        let historyStatus = Self.historyStatus(
             provider: self.provider,
             metric: activeMetric,
             historyCoverageIsEstablished: self.historyCoverageIsEstablished)
@@ -135,9 +165,18 @@ struct CostHistoryChartMenuView: View {
                     ForEach(model.points) { point in
                         BarMark(
                             x: .value(L("Day"), point.date, unit: .day),
-                            y: .value(activeMetric.title, point.value),
+                            yStart: .value(L("This Mac start"), 0),
+                            yEnd: .value(activeMetric.title, point.localValue),
                             width: .ratio(ChartBarHoverSelection.barWidthRatio))
                             .foregroundStyle(model.barColor)
+                        if point.remoteValue > 0 {
+                            BarMark(
+                                x: .value(L("Day"), point.date, unit: .day),
+                                yStart: .value(L("SSH start"), point.localValue),
+                                yEnd: .value(L("SSH end"), point.value),
+                                width: .ratio(ChartBarHoverSelection.barWidthRatio))
+                                .foregroundStyle(model.remoteColor)
+                        }
                     }
                     if let peak = Self.peakPoint(model: model) {
                         let capStart = max(peak.value - Self.capHeight(maxValue: model.maxValue), 0)
@@ -208,13 +247,31 @@ struct CostHistoryChartMenuView: View {
                     }
                 }
 
-                if availableMetrics.count > 1 || showsHistoryRefreshing {
+                if !self.remoteDaily.isEmpty {
+                    HStack(spacing: 12) {
+                        Label {
+                            Text(L("This Mac"))
+                        } icon: {
+                            Circle().fill(model.barColor).frame(width: 7, height: 7)
+                        }
+                        Label {
+                            Text(L("SSH devices"))
+                        } icon: {
+                            Circle().fill(model.remoteColor).frame(width: 7, height: 7)
+                        }
+                    }
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .accessibilityElement(children: .combine)
+                }
+
+                if availableMetrics.count > 1 || historyStatus != nil {
                     HStack {
-                        if showsHistoryRefreshing {
-                            Text(L("Refreshing"))
+                        if let historyStatus {
+                            Text(historyStatus)
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
-                                .accessibilityLabel(L("Refreshing"))
+                                .accessibilityLabel(historyStatus)
                         }
                         Spacer(minLength: 0)
                         if availableMetrics.count > 1 {
@@ -316,10 +373,13 @@ struct CostHistoryChartMenuView: View {
 
             if let total = self.totalCostUSD {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(String(
+                    let totalText = String(
                         format: L("Est. total (%@): %@"),
                         self.windowLabel ?? Self.windowLabel(days: self.historyDays),
-                        self.costString(total)))
+                        self.costString(total))
+                    Text(Self.coverageQualifiedText(
+                        totalText,
+                        historyCoverageIsEstablished: self.historyCoverageIsEstablished))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -403,6 +463,7 @@ struct CostHistoryChartMenuView: View {
         let dateKeys: [(key: String, date: Date)]
         let axisDates: [Date]
         let barColor: Color
+        let remoteColor: Color
         let peakKey: String?
         let maxValue: Double
         let detailViewportRowCount: Int
@@ -563,44 +624,57 @@ struct CostHistoryChartMenuView: View {
     private static func makeModel(
         provider: UsageProvider,
         daily: [DailyEntry],
+        remoteDaily: [RemoteCostDailySummary] = [],
+        remoteColor: Color = Color(red: 100 / 255, green: 210 / 255, blue: 1),
         metric: ChartMetric) -> Model
     {
         let sorted = daily.sorted { lhs, rhs in lhs.date < rhs.date }
         let detailLayout = self.detailLayout(provider: provider, daily: sorted)
+        let localByDate = Dictionary(sorted.map { ($0.date, $0) }, uniquingKeysWith: { _, last in last })
+        let remoteByDate = Dictionary(remoteDaily.map { ($0.date, $0) }, uniquingKeysWith: { _, last in last })
+        let dayKeys = Set(localByDate.keys).union(remoteByDate.keys).sorted()
         var points: [Point] = []
-        points.reserveCapacity(sorted.count)
+        points.reserveCapacity(dayKeys.count)
 
         var pointsByKey: [String: Point] = [:]
-        pointsByKey.reserveCapacity(sorted.count)
+        pointsByKey.reserveCapacity(dayKeys.count)
 
         var entriesByKey: [String: DailyEntry] = [:]
         entriesByKey.reserveCapacity(sorted.count)
 
         var dateKeys: [(key: String, date: Date)] = []
-        dateKeys.reserveCapacity(sorted.count)
+        dateKeys.reserveCapacity(dayKeys.count)
 
         var peak: (key: String, value: Double)?
         var maxValue: Double = 0
-        for entry in sorted {
-            guard let (value, date) = self.chartPointInput(for: entry, provider: provider, metric: metric) else {
-                continue
+        for dayKey in dayKeys {
+            let localEntry = localByDate[dayKey]
+            let remoteEntry = remoteByDate[dayKey]
+            let localInput = localEntry.flatMap { self.chartPointInput(for: $0, provider: provider, metric: metric) }
+            let remoteInput = remoteEntry.flatMap {
+                self.remoteChartPointInput(for: $0, provider: provider, metric: metric)
             }
+            guard let date = localInput?.date ?? remoteInput?.date else { continue }
+            let localValue = localInput?.value ?? 0
+            let remoteValue = remoteInput?.value ?? 0
+            let value = localValue + remoteValue
             let point = Point(
                 date: date,
-                value: value,
-                costUSD: entry.costUSD.flatMap { $0 >= 0 ? $0 : nil },
-                totalTokens: entry.totalTokens.flatMap { $0 >= 0 ? $0 : nil },
-                requestCount: entry.requestCount)
+                localValue: localValue,
+                remoteValue: remoteValue,
+                costUSD: self.sum(localEntry?.costUSD, remoteEntry?.costUSD),
+                totalTokens: self.sum(localEntry?.totalTokens, remoteEntry?.totalTokens),
+                requestCount: localEntry?.requestCount)
             points.append(point)
-            pointsByKey[entry.date] = point
-            entriesByKey[entry.date] = entry
-            dateKeys.append((entry.date, date))
+            pointsByKey[dayKey] = point
+            if let localEntry { entriesByKey[dayKey] = localEntry }
+            dateKeys.append((dayKey, date))
             if let cur = peak {
                 if value > cur.value {
-                    peak = (entry.date, value)
+                    peak = (dayKey, value)
                 }
             } else {
-                peak = (entry.date, value)
+                peak = (dayKey, value)
             }
             maxValue = max(maxValue, value)
         }
@@ -621,6 +695,7 @@ struct CostHistoryChartMenuView: View {
             dateKeys: dateKeys,
             axisDates: axisDates,
             barColor: barColor,
+            remoteColor: remoteColor,
             peakKey: maxValue > 0 ? peak?.key : nil,
             maxValue: maxValue,
             detailViewportRowCount: detailLayout.viewportRowCount,
@@ -681,9 +756,44 @@ struct CostHistoryChartMenuView: View {
         return (value, date)
     }
 
-    private static func availableMetrics(provider: UsageProvider, daily: [DailyEntry]) -> [ChartMetric] {
+    private static func remoteChartPointInput(
+        for entry: RemoteCostDailySummary,
+        provider: UsageProvider,
+        metric: ChartMetric) -> (value: Double, date: Date)?
+    {
+        let value: Double? = switch metric {
+        case .tokens:
+            entry.totalTokens.map(Double.init)
+        case .cost:
+            entry.costUSD
+        }
+        guard let value, value >= 0,
+              let date = self.dateFromDayKey(entry.date, provider: provider)
+        else { return nil }
+        return (value, date)
+    }
+
+    private static func sum(_ lhs: Double?, _ rhs: Double?) -> Double? {
+        guard lhs != nil || rhs != nil else { return nil }
+        return (lhs ?? 0) + (rhs ?? 0)
+    }
+
+    private static func sum(_ lhs: Int?, _ rhs: Int?) -> Int? {
+        guard lhs != nil || rhs != nil else { return nil }
+        let (sum, overflow) = (lhs ?? 0).addingReportingOverflow(rhs ?? 0)
+        return overflow ? nil : sum
+    }
+
+    private static func availableMetrics(
+        provider: UsageProvider,
+        daily: [DailyEntry],
+        remoteDaily: [RemoteCostDailySummary] = []) -> [ChartMetric]
+    {
         ChartMetric.allCases.filter { metric in
-            daily.contains { self.chartPointInput(for: $0, provider: provider, metric: metric) != nil }
+            daily.contains { self.chartPointInput(for: $0, provider: provider, metric: metric) != nil } ||
+                remoteDaily.contains {
+                    self.remoteChartPointInput(for: $0, provider: provider, metric: metric) != nil
+                }
         }
     }
 
@@ -715,8 +825,12 @@ struct CostHistoryChartMenuView: View {
         return self.gregorianCalendar(timeZone: TimeZone(secondsFromGMT: 0) ?? .gmt)
     }
 
-    private static func defaultMetric(provider: UsageProvider, daily: [DailyEntry]) -> ChartMetric {
-        let available = self.availableMetrics(provider: provider, daily: daily)
+    private static func defaultMetric(
+        provider: UsageProvider,
+        daily: [DailyEntry],
+        remoteDaily: [RemoteCostDailySummary] = []) -> ChartMetric
+    {
+        let available = self.availableMetrics(provider: provider, daily: daily, remoteDaily: remoteDaily)
         // Provider-specific by design: Codex exposes exact local token totals, so its chart defaults to tokens.
         if provider == .codex, available.contains(.tokens) {
             return .tokens
@@ -734,6 +848,27 @@ struct CostHistoryChartMenuView: View {
     {
         // Provider-specific by design: only Codex exposes incremental local-history coverage for token scans.
         provider == .codex && metric == .tokens && !historyCoverageIsEstablished
+    }
+
+    private static func historyStatus(
+        provider: UsageProvider,
+        metric: ChartMetric,
+        historyCoverageIsEstablished: Bool) -> String?
+    {
+        guard !historyCoverageIsEstablished else { return nil }
+        return self.showsHistoryRefreshing(
+            provider: provider,
+            metric: metric,
+            historyCoverageIsEstablished: historyCoverageIsEstablished)
+            ? L("Refreshing")
+            : L("Partial")
+    }
+
+    private static func coverageQualifiedText(
+        _ text: String,
+        historyCoverageIsEstablished: Bool) -> String
+    {
+        historyCoverageIsEstablished ? text : "\(text) · \(L("partial"))"
     }
 
     private static func peakPoint(model: Model) -> Point? {
@@ -1065,10 +1200,14 @@ extension CostHistoryChartMenuView {
         let costMultiplierBitPattern: UInt64
         let historyDays: Int
         let historyCoverageIsEstablished: Bool
+        let remoteHistoryCoverageIsEstablished: Bool
         let windowLabel: String?
         let totalCostBitPattern: UInt64?
+        let remoteTotalCostBitPattern: UInt64?
         let hasDailyEntries: Bool
         let daily: [VisibleDailyFingerprint]
+        let remoteDaily: [VisibleRemoteDailyFingerprint]
+        let remoteColorHex: String
         let projects: [VisibleProjectFingerprint]
         let sessions: [VisibleSessionFingerprint]
     }
@@ -1079,6 +1218,12 @@ extension CostHistoryChartMenuView {
         let requestCount: Int?
         let costBitPattern: UInt64?
         let modelBreakdowns: [VisibleModelBreakdownFingerprint]
+    }
+
+    struct VisibleRemoteDailyFingerprint: Equatable {
+        let date: String
+        let totalTokens: Int?
+        let costBitPattern: UInt64?
     }
 
     struct VisibleModelBreakdownFingerprint: Equatable {
@@ -1123,7 +1268,11 @@ extension CostHistoryChartMenuView {
         provider: UsageProvider,
         hidePersonalInfo: Bool = false,
         displayCurrencyCode: String? = nil,
-        displayCostMultiplier: Double = 1.0) -> RenderFingerprint
+        displayCostMultiplier: Double = 1.0,
+        remoteDaily: [RemoteCostDailySummary] = [],
+        remoteColor: ProviderColor = .init(hex: 0x64D2FF),
+        remoteTotalCostUSD: Double? = nil,
+        remoteHistoryCoverageIsEstablished: Bool = true) -> RenderFingerprint
     {
         let projects = provider == .codex ? snapshot.projects : []
         let sessions = provider == .codex ? snapshot.sessions : []
@@ -1133,8 +1282,10 @@ extension CostHistoryChartMenuView {
             costMultiplierBitPattern: displayCostMultiplier.bitPattern,
             historyDays: snapshot.historyDays,
             historyCoverageIsEstablished: snapshot.historyCoverageIsEstablished,
+            remoteHistoryCoverageIsEstablished: remoteHistoryCoverageIsEstablished,
             windowLabel: snapshot.historyLabel,
             totalCostBitPattern: snapshot.last30DaysCostUSD.map(\.bitPattern),
+            remoteTotalCostBitPattern: remoteTotalCostUSD.map(\.bitPattern),
             hasDailyEntries: !snapshot.daily.isEmpty,
             daily: snapshot.daily
                 .filter { entry in
@@ -1142,6 +1293,13 @@ extension CostHistoryChartMenuView {
                 }
                 .sorted { $0.date < $1.date }
                 .map(self.visibleDailyFingerprint),
+            remoteDaily: remoteDaily.sorted { $0.date < $1.date }.map {
+                VisibleRemoteDailyFingerprint(
+                    date: $0.date,
+                    totalTokens: $0.totalTokens,
+                    costBitPattern: $0.costUSD.map(\.bitPattern))
+            },
+            remoteColorHex: remoteColor.hexString,
             projects: Array(projects.prefix(self.maxVisibleProjectRows).enumerated()).map { index, project in
                 let identity = self.projectIdentity(project, ordinal: index + 1, hidePersonalInfo: hidePersonalInfo)
                 let visibleSources = self.visibleProjectSources(project)
@@ -1222,6 +1380,24 @@ extension CostHistoryChartMenuView {
             historyCoverageIsEstablished: historyCoverageIsEstablished)
     }
 
+    static func _historyStatusForTesting(
+        provider: UsageProvider,
+        metric: ChartMetric,
+        historyCoverageIsEstablished: Bool) -> String?
+    {
+        self.historyStatus(
+            provider: provider,
+            metric: metric,
+            historyCoverageIsEstablished: historyCoverageIsEstablished)
+    }
+
+    static func _coverageQualifiedTextForTesting(
+        _ text: String,
+        historyCoverageIsEstablished: Bool) -> String
+    {
+        self.coverageQualifiedText(text, historyCoverageIsEstablished: historyCoverageIsEstablished)
+    }
+
     static func _dateFromDayKeyForTesting(
         _ key: String,
         provider: UsageProvider,
@@ -1266,6 +1442,19 @@ extension CostHistoryChartMenuView {
         metric: ChartMetric) -> [Double]
     {
         self.makeModel(provider: provider, daily: daily, metric: metric).points.map(\.value)
+    }
+
+    static func _stackedChartValuesForTesting(
+        provider: UsageProvider,
+        daily: [DailyEntry],
+        remoteDaily: [RemoteCostDailySummary],
+        metric: ChartMetric) -> [(local: Double, remote: Double, total: Double)]
+    {
+        self.makeModel(
+            provider: provider,
+            daily: daily,
+            remoteDaily: remoteDaily,
+            metric: metric).points.map { ($0.localValue, $0.remoteValue, $0.value) }
     }
 
     static func _detailViewportConfigurationForTesting(

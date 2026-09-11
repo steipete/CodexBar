@@ -17,6 +17,7 @@
 
 ### Added
 - Plugins: opt into first-class provider switcher tabs with selected-plugin refresh, plugin-only menus, and continued access to appended plugin cards (#3516, fixes #2988). Thanks @harjothkhara!
+- Claude/Codex costs: opt in to SSH host estimates in the menu and Usage & Spend, with path-free CLI summaries, `cost --remote`, per-box reports, configurable stacked SSH chart bars, and an explicit same-account choice to show additive combined estimates with this Mac; report unavailable and incomplete sources independently (related to #3036).
 - Menu bar: optionally color Session, Weekly, and Auto pace indicators green when behind pace and red when ahead, preserving signed values, neutral unavailable values, and existing layouts (#3429, fixes #3428). Thanks @jb510!
 
 ### Performance

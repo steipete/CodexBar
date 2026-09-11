@@ -285,6 +285,40 @@ is limited, using additional rows when needed.
   Stale pending path associations are reconciled in the existing cache; surviving forks with missing parents still
   retain their unresolved usage instead of being counted as complete.
 
+### Remote Claude and Codex cost reports (SSH)
+
+Enable **Settings → Menu → Cost summary**, turn on **Fetch costs from SSH devices**, then apply one or more explicit
+SSH aliases in **Remote costs over SSH** (up to eight, comma-separated). The relevant provider menu and
+**Usage & Spend** show each enabled provider and host's Today and configured-history report separately. Each host also
+has an explicit **Include with this Mac** choice for combined provider totals. Enable it only when that machine uses
+the same provider account; unselected hosts always stay separate. Claude and Codex dollars remain separate because
+subscription-equivalent and API-equivalent estimates have different meanings.
+
+- Install a CodexBar CLI with `cost --summary-only` support on each remote host (macOS or Linux), available as
+  `codexbar` in its login-shell PATH. macOS also supports the standard app-bundled helper path.
+- SSH uses the system configuration, existing host-key trust, and batch authentication. Password and host-key prompts
+  are not opened. Configure and verify the SSH alias in a terminal first.
+- The remote CLI scans that host's native Claude and/or Codex history. It excludes pi/OMP mirrors and does not select
+  or authenticate the Mac's active account. Account quota and these host-wide session estimates have different scopes.
+- Only a small numeric summary crosses SSH: tokens, API-equivalent cost, dates, time zone, provenance, and coverage.
+  No transcripts, project paths, session identifiers, or credentials are copied. The receiving app keeps reports only
+  in memory; the host list is a local preference, independent of live-session discovery and iCloud sync.
+- Combined totals are an explicit local presentation choice. Account identifiers are not transmitted or matched;
+  CodexBar keeps every per-host report visible and marks unavailable or incomplete-history inputs as partial.
+  Selected hosts also appear as a separately colored SSH segment in the existing daily cost/token bars; choose the
+  SSH chart color beside the combined-host controls. The provider-colored segment remains this Mac.
+  Combined values are additive estimates: copied or resumed sessions present on multiple machines can be counted
+  more than once because the bounded summaries contain no session identifiers for cross-host deduplication.
+- Automatic requests are limited to once per 15 minutes during normal refresh/menu use. **Usage & Spend → Refresh**
+  requests a fresh report. Hosts use their own cost calendar and pricing; the UI shows their time zone and timestamp.
+  Unknown prices and incomplete history remain marked. Claude reports are explicitly notional; Codex reports are
+  API-equivalent estimates rather than subscription bills.
+- A disconnected host shows its own error without suppressing local or other hosts' reports. Clear the host field,
+  turn off **Fetch costs from SSH devices**, disable Cost summary, or disable both supported providers to stop requests
+  and discard the remote reports.
+
+For a one-shot terminal report, use `codexbar cost --provider both --remote my-server`. See [CLI](cli.md).
+
 ### Usage & Spend account rows
 
 Settings → Usage & Spend performs a separate fixed 30-day scan for every visible Codex account. Each request freezes

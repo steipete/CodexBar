@@ -3,6 +3,140 @@ import Foundation
 import Testing
 @testable import CodexBar
 
+@MainActor
+struct RemoteCostStoreTests {
+    private actor Calls {
+        var hosts: [String] = []
+        func record(_ host: String) {
+            self.hosts.append(host)
+        }
+    }
+
+    private static func finish(_ store: RemoteCostStore) async throws {
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: .seconds(2))
+        while store.isRefreshing, clock.now < deadline {
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        #expect(!store.isRefreshing)
+    }
+
+    @Test
+    func `empty configuration never contacts a host and repeated opens are throttled`() async throws {
+        let calls = Calls()
+        let store = RemoteCostStore { host, providers, days, _ in
+            await calls.record(host)
+            return providers.map { RemoteCostFetcherTests.summary(provider: $0, days: days) }
+        }
+        let now = Date()
+        store.refresh(hosts: "", providers: [.codex], historyDays: 30, now: now)
+        #expect(await calls.hosts.isEmpty)
+        store.refresh(hosts: "linux", providers: [.codex], historyDays: 30, now: now)
+        try await Self.finish(store)
+        store.refresh(hosts: "linux", providers: [.codex], historyDays: 30, now: now.addingTimeInterval(60))
+        #expect(await calls.hosts == ["linux"])
+        store.refresh(
+            hosts: "linux",
+            providers: [.codex],
+            historyDays: 30,
+            force: true,
+            now: now.addingTimeInterval(60))
+        try await Self.finish(store)
+        #expect(await calls.hosts == ["linux", "linux"])
+    }
+
+    @Test
+    func `one unavailable host does not discard a reachable hosts estimate`() async throws {
+        let store = RemoteCostStore { host, providers, days, _ in
+            if host == "offline" { throw RemoteCostError.unavailable }
+            return providers.map { RemoteCostFetcherTests.summary(provider: $0, days: days) }
+        }
+        store.refresh(hosts: "online, offline", providers: [.codex], historyDays: 30)
+        try await Self.finish(store)
+        #expect(store.reports.map(\.host) == ["online", "offline"])
+        #expect(store.reports[0].summary?.sessionTokens == 123)
+        #expect(store.reports[1].summary == nil)
+        #expect(store.reports[1].error != nil)
+    }
+
+    @Test
+    func `disabled configuration cancels work and does not republish old results`() async throws {
+        let stream = AsyncStream<Void>.makeStream()
+        let started = AsyncStream<Void>.makeStream()
+        let store = RemoteCostStore { _, providers, days, _ in
+            started.continuation.yield(())
+            for await _ in stream.stream {
+                break
+            }
+            return providers.map { RemoteCostFetcherTests.summary(provider: $0, days: days) }
+        }
+        store.refresh(hosts: "linux", providers: [.codex], historyDays: 30)
+        for await _ in started.stream {
+            break
+        }
+        store.refresh(hosts: "", providers: [.codex], historyDays: 30)
+        stream.continuation.finish()
+        started.continuation.finish()
+        try await Task.sleep(for: .milliseconds(20))
+        #expect(store.reports.isEmpty)
+        #expect(!store.isRefreshing)
+    }
+
+    @Test
+    func `host and history window changes discard old scope even inside the refresh interval`() async throws {
+        let store = RemoteCostStore { _, providers, days, _ in
+            providers.map { RemoteCostFetcherTests.summary(provider: $0, days: days) }
+        }
+        store.refresh(hosts: "old-host", providers: [.codex], historyDays: 30)
+        try await Self.finish(store)
+        store.refresh(hosts: "new-host", providers: [.codex], historyDays: 7)
+        #expect(store.reports.allSatisfy { $0.host == "new-host" && $0.summary == nil })
+        try await Self.finish(store)
+        #expect(store.reports.first?.summary?.historyDays == 7)
+    }
+
+    @Test
+    func `invalid configuration clears reports and does not issue an SSH request`() async {
+        let calls = Calls()
+        let store = RemoteCostStore { host, providers, days, _ in
+            await calls.record(host)
+            return providers.map { RemoteCostFetcherTests.summary(provider: $0, days: days) }
+        }
+        store.refresh(hosts: "-oProxyCommand=unsafe", providers: [.codex], historyDays: 30)
+        #expect(await calls.hosts.isEmpty)
+        #expect(store.configurationError != nil)
+        #expect(store.reports.isEmpty)
+    }
+
+    @Test
+    func `one SSH fetch publishes separate Claude and Codex reports`() async throws {
+        let calls = Calls()
+        let store = RemoteCostStore { host, providers, days, _ in
+            await calls.record(host)
+            return providers.map { RemoteCostFetcherTests.summary(provider: $0, days: days) }
+        }
+        store.refresh(hosts: "ubuntu", providers: [.codex, .claude], historyDays: 30)
+        try await Self.finish(store)
+        #expect(await calls.hosts == ["ubuntu"])
+        #expect(store.reports.map(\.provider) == ["codex", "claude"])
+        #expect(store.reports.allSatisfy { $0.host == "ubuntu" && $0.summary != nil })
+    }
+
+    @Test
+    func `one SSH fetch preserves a provider when the other has no history`() async throws {
+        let store = RemoteCostStore { _, _, days, _ in
+            [RemoteCostFetcherTests.summary(provider: .claude, days: days)]
+        }
+        store.refresh(hosts: "ubuntu", providers: [.codex, .claude], historyDays: 30)
+        try await Self.finish(store)
+        #expect(store.reports.map(\.provider) == ["codex", "claude"])
+        #expect(store.reports[0].summary == nil)
+        #expect(store.reports[0].error != nil)
+        #expect(store.reports[1].summary?.provider == "claude")
+        #expect(store.reports[1].error == nil)
+    }
+}
+
 private actor AgentSessionScanHarness {
     struct Call: Equatable, Sendable {
         let includeFileOnlySessions: Bool

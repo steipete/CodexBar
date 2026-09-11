@@ -99,6 +99,28 @@ struct CostHistoryChartMenuViewTests {
             provider: .claude,
             metric: .tokens,
             historyCoverageIsEstablished: false))
+        #expect(CostHistoryChartMenuView._historyStatusForTesting(
+            provider: .codex,
+            metric: .tokens,
+            historyCoverageIsEstablished: false) == L("Refreshing"))
+        #expect(CostHistoryChartMenuView._historyStatusForTesting(
+            provider: .codex,
+            metric: .cost,
+            historyCoverageIsEstablished: false) == L("Partial"))
+        #expect(CostHistoryChartMenuView._historyStatusForTesting(
+            provider: .claude,
+            metric: .tokens,
+            historyCoverageIsEstablished: false) == L("Partial"))
+        #expect(CostHistoryChartMenuView._historyStatusForTesting(
+            provider: .claude,
+            metric: .cost,
+            historyCoverageIsEstablished: true) == nil)
+        #expect(CostHistoryChartMenuView._coverageQualifiedTextForTesting(
+            "Est. total: $12",
+            historyCoverageIsEstablished: false) == "Est. total: $12 · \(L("partial"))")
+        #expect(CostHistoryChartMenuView._coverageQualifiedTextForTesting(
+            "Est. total: $12",
+            historyCoverageIsEstablished: true) == "Est. total: $12")
     }
 
     @Test
@@ -212,6 +234,41 @@ struct CostHistoryChartMenuViewTests {
             provider: .codex,
             daily: daily,
             metric: .tokens) == [150])
+    }
+
+    @Test
+    func `selected SSH history is stacked above this Mac in its own series`() {
+        let local = [Self.dailyEntry(date: "2026-08-12", totalTokens: 150, costUSD: 1.25)]
+        let remote = [
+            RemoteCostDailySummary(date: "2026-08-12", totalTokens: 350, costUSD: 2.75),
+            RemoteCostDailySummary(date: "2026-08-13", totalTokens: 200, costUSD: 1),
+        ]
+        let values = CostHistoryChartMenuView._stackedChartValuesForTesting(
+            provider: .codex,
+            daily: local,
+            remoteDaily: remote,
+            metric: .tokens)
+        #expect(values.count == 2)
+        #expect(values[0].local == 150)
+        #expect(values[0].remote == 350)
+        #expect(values[0].total == 500)
+        #expect(values[1].local == 0)
+        #expect(values[1].remote == 200)
+        #expect(values[1].total == 200)
+
+        let snapshot = Self.makeSnapshot(daily: local)
+        let blue = CostHistoryChartMenuView.renderFingerprint(
+            from: snapshot,
+            provider: .codex,
+            remoteDaily: remote,
+            remoteColor: .init(hex: 0x64D2FF))
+        let purple = CostHistoryChartMenuView.renderFingerprint(
+            from: snapshot,
+            provider: .codex,
+            remoteDaily: remote,
+            remoteColor: .init(hex: 0xB455FF))
+        #expect(blue != purple)
+        #expect(blue.remoteDaily.count == 2)
     }
 
     @Test

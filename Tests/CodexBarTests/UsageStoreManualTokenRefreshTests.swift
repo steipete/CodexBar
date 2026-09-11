@@ -323,6 +323,18 @@ struct UsageStoreManualTokenRefreshTests {
     }
 
     @Test
+    func `automatic menu cost refresh preserves the SSH throttle`() async {
+        let store = Self.makeStore()
+        store._test_tokenUsageRefreshOverride = { _, _ in }
+        defer { store._test_tokenUsageRefreshOverride = nil }
+
+        store.scheduleForcedTokenRefresh()
+        await store.tokenRefreshSequenceTask?.value
+
+        #expect(store.remoteCosts._testLastRequestedForce == false)
+    }
+
+    @Test
     func `menu open cost refresh queues one forced pass behind a running token sequence`() async {
         let store = Self.makeStore()
         let gate = TokenRefreshGate()

@@ -1,3 +1,4 @@
+import CodexBarCore
 import Foundation
 
 struct SettingsDefaultsState {
@@ -87,6 +88,10 @@ struct SettingsDefaultsState {
     var agentSessionsEnabled: Bool
     var agentSessionLabelStyleRaw: String
     var agentSessionsManualHosts: String
+    var remoteCostsEnabled: Bool = false
+    var remoteCostHosts: String = ""
+    var remoteCostCombinedHosts: String = ""
+    var remoteCostChartColor: ProviderColor = .init(hex: 0x64D2FF)
     var preferredCurrencyCode: String
     var iCloudSyncEnabled: Bool
     var iCloudSyncIncludeSecrets: Bool

@@ -290,7 +290,8 @@ extension StatusItemController {
     }
 
     private func costHistoryRenderFingerprint(for provider: UsageProvider) -> HostedSubviewContentFingerprint {
-        guard let snapshot = self.tokenSnapshotForCostHistorySubmenu(provider: provider) else {
+        let remote = self.remoteCostChartSelection(for: provider)
+        guard let snapshot = self.costHistoryChartSnapshot(provider: provider, remote: remote) else {
             return .text("none")
         }
         let displayConversion = self.costHistoryDisplayConversion(for: snapshot)
@@ -299,7 +300,63 @@ extension StatusItemController {
             provider: provider,
             hidePersonalInfo: self.settings.hidePersonalInfo,
             displayCurrencyCode: displayConversion.currencyCode,
-            displayCostMultiplier: displayConversion.multiplier))
+            displayCostMultiplier: displayConversion.multiplier,
+            remoteDaily: remote.daily,
+            remoteColor: self.settings.remoteCostChartColor,
+            remoteTotalCostUSD: remote.totalCostUSD,
+            remoteHistoryCoverageIsEstablished: remote.historyCoverageIsEstablished))
+    }
+
+    private struct RemoteCostChartSelection {
+        let daily: [RemoteCostDailySummary]
+        let totalCostUSD: Double?
+        let historyCoverageIsEstablished: Bool
+    }
+
+    private func remoteCostChartSelection(for provider: UsageProvider) -> RemoteCostChartSelection {
+        let savedCombinedHosts = Set(
+            (try? RemoteCostFetcher.hosts(from: self.settings.remoteCostCombinedHosts)) ?? [])
+        let combinedHosts = RemoteCostChartSeries.effectiveCombinedHosts(
+            savedCombinedHosts,
+            enabled: self.settings.remoteCostsEnabled,
+            provider: provider)
+        let summaries = RemoteCostChartSeries.summaries(
+            reports: self.store.remoteCosts.reports,
+            provider: provider,
+            combinedHosts: combinedHosts)
+        let costs = summaries.compactMap(\.last30DaysCostUSD)
+        return RemoteCostChartSelection(
+            daily: RemoteCostChartSeries.daily(
+                reports: self.store.remoteCosts.reports,
+                provider: provider,
+                combinedHosts: combinedHosts),
+            totalCostUSD: costs.isEmpty ? nil : costs.reduce(0, +),
+            historyCoverageIsEstablished: combinedHosts.isEmpty ||
+                (summaries.count == combinedHosts.count && summaries.allSatisfy(\.historyCoverageIsEstablished)))
+    }
+
+    private func costHistoryChartSnapshot(
+        provider: UsageProvider,
+        remote: RemoteCostChartSelection) -> CostUsageTokenSnapshot?
+    {
+        if let snapshot = self.tokenSnapshotForCostHistorySubmenu(provider: provider) {
+            guard RemoteCostChartSeries.hasDailyHistory(local: snapshot.daily, remote: remote.daily) else { return nil }
+            return snapshot
+        }
+        guard !remote.daily.isEmpty else { return nil }
+        return CostUsageTokenSnapshot(
+            sessionTokens: nil,
+            sessionCostUSD: nil,
+            last30DaysTokens: nil,
+            last30DaysCostUSD: nil,
+            historyDays: self.settings.costUsageHistoryDays,
+            daily: [],
+            updatedAt: .distantPast)
+    }
+
+    func hasCostHistoryChartData(for provider: UsageProvider) -> Bool {
+        let remote = self.remoteCostChartSelection(for: provider)
+        return self.costHistoryChartSnapshot(provider: provider, remote: remote) != nil
     }
 
     /// Resolves the user's preferred display currency for cost-history values, falling back to
@@ -425,8 +482,11 @@ extension StatusItemController {
         provider: UsageProvider,
         width: CGFloat) -> Bool
     {
-        guard let tokenSnapshot = self.tokenSnapshotForCostHistorySubmenu(provider: provider) else { return false }
-        guard !tokenSnapshot.daily.isEmpty else { return false }
+        let remote = self.remoteCostChartSelection(for: provider)
+        guard let tokenSnapshot = self.costHistoryChartSnapshot(
+            provider: provider,
+            remote: remote)
+        else { return false }
 
         if !self.menuCardRenderingEnabledForController {
             let chartItem = NSMenuItem()
@@ -438,14 +498,22 @@ extension StatusItemController {
         }
 
         let displayConversion = self.costHistoryDisplayConversion(for: tokenSnapshot)
+        let totalCostUSD: Double? = if tokenSnapshot.last30DaysCostUSD != nil || remote.totalCostUSD != nil {
+            (tokenSnapshot.last30DaysCostUSD ?? 0) + (remote.totalCostUSD ?? 0)
+        } else {
+            nil
+        }
         let chartView = CostHistoryChartMenuView(
             provider: provider,
             daily: tokenSnapshot.daily,
-            totalCostUSD: tokenSnapshot.last30DaysCostUSD,
+            remoteDaily: remote.daily,
+            remoteColor: self.settings.remoteCostChartColor,
+            totalCostUSD: totalCostUSD,
             currencyCode: displayConversion.currencyCode,
             costMultiplier: displayConversion.multiplier,
             historyDays: tokenSnapshot.historyDays,
-            historyCoverageIsEstablished: tokenSnapshot.historyCoverageIsEstablished,
+            historyCoverageIsEstablished: tokenSnapshot.historyCoverageIsEstablished &&
+                remote.historyCoverageIsEstablished,
             windowLabel: tokenSnapshot.historyLabel,
             projects: provider == .codex ? tokenSnapshot.projects : [],
             sessions: provider == .codex ? tokenSnapshot.sessions : [],

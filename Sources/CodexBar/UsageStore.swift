@@ -9,6 +9,7 @@ import SweetCookieKit
 @MainActor
 extension UsageStore {
     var menuObservationToken: Int {
+        _ = (self.remoteCosts.reports, self.remoteCosts.configurationError)
         _ = self.snapshots
         _ = self.errors
         _ = self.diagnostics
@@ -330,6 +331,7 @@ final class UsageStore {
     @ObservationIgnored let codexFetcher: UsageFetcher
     @ObservationIgnored let claudeFetcher: any ClaudeUsageFetching
     @ObservationIgnored let costUsageFetcher: CostUsageFetcher
+    let remoteCosts: RemoteCostStore
     @ObservationIgnored let browserDetection: BrowserDetection
     @ObservationIgnored private let registry: ProviderRegistry
     @ObservationIgnored let settings: SettingsStore
@@ -504,6 +506,7 @@ final class UsageStore {
         self.browserDetection = browserDetection
         self.claudeFetcher = claudeFetcher ?? ClaudeUsageFetcher(browserDetection: browserDetection)
         self.costUsageFetcher = costUsageFetcher
+        self.remoteCosts = RemoteCostStore(environment: environmentBase)
         self.settings = settings
         self.registry = registry
         self.environmentBase = environmentBase

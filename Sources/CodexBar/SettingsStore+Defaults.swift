@@ -1197,6 +1197,38 @@ extension SettingsStore {
         }
     }
 
+    var remoteCostsEnabled: Bool {
+        get { self.defaultsState.remoteCostsEnabled }
+        set {
+            self.defaultsState.remoteCostsEnabled = newValue
+            self.userDefaults.set(newValue, forKey: "remoteCostsEnabled")
+        }
+    }
+
+    var remoteCostHosts: String {
+        get { self.defaultsState.remoteCostHosts }
+        set {
+            self.defaultsState.remoteCostHosts = newValue
+            self.userDefaults.set(newValue, forKey: "remoteCostHosts")
+        }
+    }
+
+    var remoteCostCombinedHosts: String {
+        get { self.defaultsState.remoteCostCombinedHosts }
+        set {
+            self.defaultsState.remoteCostCombinedHosts = newValue
+            self.userDefaults.set(newValue, forKey: "remoteCostCombinedHosts")
+        }
+    }
+
+    var remoteCostChartColor: ProviderColor {
+        get { self.defaultsState.remoteCostChartColor }
+        set {
+            self.defaultsState.remoteCostChartColor = newValue
+            self.userDefaults.set(newValue.hexString, forKey: "remoteCostChartColor")
+        }
+    }
+
     var preferredCurrencyCode: String {
         get { self.defaultsState.preferredCurrencyCode }
         set {

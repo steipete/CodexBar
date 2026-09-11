@@ -6,6 +6,68 @@ import Testing
 
 struct CLICostTests {
     @Test
+    func `remote cost and summary modes are explicit opt in`() throws {
+        let parser = CommandParser(signature: CodexBarCLI._costSignatureForTesting())
+        let defaults = try parser.parse(arguments: [])
+        #expect(defaults.options["remote"] == nil)
+        #expect(!defaults.flags.contains("summaryOnly"))
+        let remote = try parser.parse(arguments: ["--provider", "codex", "--remote", "user@host"])
+        #expect(remote.options["remote"]?.last == "user@host")
+        let summary = try parser.parse(arguments: ["--provider", "both", "--json", "--summary-only"])
+        #expect(summary.flags.contains("summaryOnly"))
+    }
+
+    @Test
+    func `host text reports preserve partial unknown and error states`() {
+        let snapshot = CostUsageTokenSnapshot(
+            sessionTokens: nil,
+            sessionCostUSD: nil,
+            last30DaysTokens: 123,
+            last30DaysCostUSD: nil,
+            historyDays: 7,
+            historyCoverageIsEstablished: false,
+            daily: [],
+            updatedAt: Date())
+        let summary = RemoteCostSummary(snapshot: snapshot, provider: .claude, calendar: .current)
+        let text = CodexBarCLI.renderHostCostText(RemoteHostCostReport(
+            host: "linux",
+            provider: .claude,
+            summary: summary))
+        #expect(text.contains("linux"))
+        #expect(text.contains("Last 7 days"))
+        #expect(text.contains("Partial history"))
+        #expect(text.contains("subscription charges are not measured"))
+        #expect(!text.contains("$0"))
+        let error = CodexBarCLI.renderHostCostText(RemoteHostCostReport(
+            host: "linux",
+            provider: .claude,
+            summary: nil,
+            error: "Unavailable"))
+        #expect(error == "linux — Claude: Unavailable")
+    }
+
+    @Test
+    func `remote reports preserve explicit errors for partial and empty provider responses`() {
+        let claude = RemoteCostFetcherTests.summary(provider: .claude)
+        let partial = CodexBarCLI.remoteHostCostReports(
+            host: "linux",
+            providers: [.codex, .claude],
+            summaries: [claude])
+        #expect(partial.map(\.provider) == ["codex", "claude"])
+        #expect(partial[0].summary == nil)
+        #expect(partial[0].error != nil)
+        #expect(partial[1].summary == claude)
+        #expect(partial[1].error == nil)
+
+        let empty = CodexBarCLI.remoteHostCostReports(
+            host: "linux",
+            providers: [.codex, .claude],
+            summaries: [])
+        #expect(empty.count == 2)
+        #expect(empty.allSatisfy { $0.summary == nil && $0.error != nil })
+    }
+
+    @Test
     func `cost json shortcut does not enable json logs`() throws {
         let signature = CodexBarCLI._costSignatureForTesting()
         let parser = CommandParser(signature: signature)
