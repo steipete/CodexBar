@@ -84,6 +84,8 @@ public struct GrokStatusProbe: Sendable {
     }
 
     var settingsTransport: any ProviderHTTPTransport = ProviderHTTPClient.shared
+    var identityOnlyFallback: @Sendable (GrokCredentials?, Bool, Error?) -> Bool =
+        GrokStatusProbe.shouldUseIdentityOnlyFallback
 
     public init() {}
 
@@ -128,10 +130,7 @@ public struct GrokStatusProbe: Sendable {
             rpcError = error
         }
 
-        let isIdentityOnly = billing == nil && Self.shouldUseIdentityOnlyFallback(
-            credentials: credentials,
-            billingAttempted: billingAttempted,
-            error: rpcError)
+        let isIdentityOnly = billing == nil && self.identityOnlyFallback(credentials, billingAttempted, rpcError)
         // Terminal CLI failures must reach the provider's web fallback without scanning discarded history.
         guard billing != nil || isIdentityOnly else {
             throw rpcError ?? GrokRPCError.notAuthenticated
@@ -139,13 +138,17 @@ public struct GrokStatusProbe: Sendable {
 
         let localSummary = try await self.localSummary(env)
         let cliVersion = Self.detectVersion(env: env)
+        // Preserve the original eligibility checkpoint after potentially slow local work.
+        if isIdentityOnly, !self.identityOnlyFallback(credentials, billingAttempted, rpcError) {
+            throw rpcError ?? GrokRPCError.notAuthenticated
+        }
         let subscriptionTier = try await Self.loadSettingsTier(
             credentials: credentials,
             session: self.settingsTransport)
         return GrokUsageSnapshot(
             billing: billing,
             webBilling: nil,
-            credentials: Self.credentialsForSnapshot(
+            credentials: isIdentityOnly ? credentials : Self.credentialsForSnapshot(
                 credentials: credentials,
                 billing: billing,
                 webBilling: nil),

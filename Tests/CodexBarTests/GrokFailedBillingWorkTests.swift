@@ -5,9 +5,14 @@ import Testing
 struct GrokFailedBillingWorkTests {
     enum Scenario: String, CaseIterable, Sendable {
         case personalUnavailable, teamUnauthorized, initializationFailure, expiredTeam, teamFallback, billingSuccess
+        case expiresDuringScan, expiresDuringVersion, acceptedIdentity
 
         var acceptsSnapshot: Bool {
-            self == .teamFallback || self == .billingSuccess
+            self == .teamFallback || self == .billingSuccess || self == .acceptedIdentity
+        }
+
+        var scansBeforeResult: Bool {
+            self.acceptsSnapshot || self == .expiresDuringScan || self == .expiresDuringVersion
         }
 
         var errorMessage: String {
@@ -30,7 +35,8 @@ struct GrokFailedBillingWorkTests {
                     "key": "synthetic-token", "refresh_token": "synthetic-refresh",
                     "email": "team@example.com", "team_id": "example-team", "user_id": "example-user",
                     "auth_mode": "oidc", "principal_type": "Team",
-                    "expires_at": scenario == .expiredTeam ? "2000-01-01T00:00:00Z" : "2099-01-01T00:00:00Z",
+                    "expires_at": [.expiredTeam, .acceptedIdentity].contains(scenario)
+                        ? "2000-01-01T00:00:00Z" : "2099-01-01T00:00:00Z",
                 ],
             ])
             try auth.write(to: root.appendingPathComponent("auth.json"))
@@ -55,6 +61,7 @@ struct GrokFailedBillingWorkTests {
         let script = """
         #!/bin/sh
         if [ "$1" = "--version" ]; then
+            if [ "$GROK_TEST_MARK_EXPIRY" = "1" ]; then : > "$GROK_HOME/expiry-marker"; fi
             printf '%s\\n' 'grok synthetic-version'
             exit 0
         fi
@@ -70,6 +77,7 @@ struct GrokFailedBillingWorkTests {
             "GROK_HOME": root.path,
             "GROK_CLI_PATH": binary.path,
             "PATH": "/usr/bin:/bin",
+            "GROK_TEST_MARK_EXPIRY": scenario == .expiresDuringVersion ? "1" : "0",
         ]
         let calls = GrokFetchWorkRecorder()
         let summary = GrokLocalSessionSummary(
@@ -79,10 +87,22 @@ struct GrokFailedBillingWorkTests {
             primaryModel: "example-model",
             models: ["example-model"],
             daily: [.init(date: "2026-09-11", totalTokens: 42, sessionCount: 2, models: [])])
+        let expiryMarker = root.appendingPathComponent("expiry-marker")
         var probe = GrokStatusProbe()
+        if scenario == .expiresDuringScan || scenario == .expiresDuringVersion {
+            probe.identityOnlyFallback = { credentials, attempted, error in
+                GrokStatusProbe.shouldUseIdentityOnlyFallback(
+                    credentials: credentials, billingAttempted: attempted, error: error)
+                    && !FileManager.default.fileExists(atPath: expiryMarker.path)
+            }
+        } else if scenario == .acceptedIdentity {
+            // Model a prior accepted decision without racing a wall clock; the default expired case stays rejected.
+            probe.identityOnlyFallback = { _, _, _ in true }
+        }
         probe.localSummary = { receivedEnvironment in
             #expect(receivedEnvironment == environment)
             await calls.scanned()
+            if scenario == .expiresDuringScan { try Data().write(to: expiryMarker) }
             return summary
         }
         probe.settingsTransport = ProviderHTTPTransportHandler { request in
@@ -99,7 +119,7 @@ struct GrokFailedBillingWorkTests {
             #expect(snapshot.localSummary?.totalTokens == 42)
             #expect(snapshot.localSummary?.daily == summary.daily)
             #expect(snapshot.cliVersion == "synthetic-version")
-            if scenario == .teamFallback {
+            if scenario != .billingSuccess {
                 #expect(snapshot.billing == nil)
                 #expect(snapshot.credentials?.email == "team@example.com")
                 #expect(snapshot.diagnostic == GrokStatusProbe.teamUsageUnavailableMessage)
@@ -115,7 +135,7 @@ struct GrokFailedBillingWorkTests {
             }
             #expect(message == scenario.errorMessage)
         }
-        #expect(await calls.scans == (scenario.acceptsSnapshot ? 1 : 0))
+        #expect(await calls.scans == (scenario.scansBeforeResult ? 1 : 0))
         #expect(await calls.settings == (scenario == .teamFallback ? 1 : 0))
     }
 }
