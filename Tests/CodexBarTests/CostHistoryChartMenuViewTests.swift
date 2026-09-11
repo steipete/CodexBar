@@ -99,6 +99,28 @@ struct CostHistoryChartMenuViewTests {
             provider: .claude,
             metric: .tokens,
             historyCoverageIsEstablished: false))
+        #expect(CostHistoryChartMenuView._historyStatusForTesting(
+            provider: .codex,
+            metric: .tokens,
+            historyCoverageIsEstablished: false) == L("Refreshing"))
+        #expect(CostHistoryChartMenuView._historyStatusForTesting(
+            provider: .codex,
+            metric: .cost,
+            historyCoverageIsEstablished: false) == L("Partial"))
+        #expect(CostHistoryChartMenuView._historyStatusForTesting(
+            provider: .claude,
+            metric: .tokens,
+            historyCoverageIsEstablished: false) == L("Partial"))
+        #expect(CostHistoryChartMenuView._historyStatusForTesting(
+            provider: .claude,
+            metric: .cost,
+            historyCoverageIsEstablished: true) == nil)
+        #expect(CostHistoryChartMenuView._coverageQualifiedTextForTesting(
+            "Est. total: $12",
+            historyCoverageIsEstablished: false) == "Est. total: $12 · \(L("partial"))")
+        #expect(CostHistoryChartMenuView._coverageQualifiedTextForTesting(
+            "Est. total: $12",
+            historyCoverageIsEstablished: true) == "Est. total: $12")
     }
 
     @Test

@@ -142,7 +142,7 @@ struct CostHistoryChartMenuView: View {
             remoteDaily: self.remoteDaily,
             remoteColor: self.remoteColor,
             metric: activeMetric)
-        let showsHistoryRefreshing = Self.showsHistoryRefreshing(
+        let historyStatus = Self.historyStatus(
             provider: self.provider,
             metric: activeMetric,
             historyCoverageIsEstablished: self.historyCoverageIsEstablished)
@@ -265,13 +265,13 @@ struct CostHistoryChartMenuView: View {
                     .accessibilityElement(children: .combine)
                 }
 
-                if availableMetrics.count > 1 || showsHistoryRefreshing {
+                if availableMetrics.count > 1 || historyStatus != nil {
                     HStack {
-                        if showsHistoryRefreshing {
-                            Text(L("Refreshing"))
+                        if let historyStatus {
+                            Text(historyStatus)
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
-                                .accessibilityLabel(L("Refreshing"))
+                                .accessibilityLabel(historyStatus)
                         }
                         Spacer(minLength: 0)
                         if availableMetrics.count > 1 {
@@ -373,10 +373,13 @@ struct CostHistoryChartMenuView: View {
 
             if let total = self.totalCostUSD {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(String(
+                    let totalText = String(
                         format: L("Est. total (%@): %@"),
                         self.windowLabel ?? Self.windowLabel(days: self.historyDays),
-                        self.costString(total)))
+                        self.costString(total))
+                    Text(Self.coverageQualifiedText(
+                        totalText,
+                        historyCoverageIsEstablished: self.historyCoverageIsEstablished))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -845,6 +848,27 @@ struct CostHistoryChartMenuView: View {
     {
         // Provider-specific by design: only Codex exposes incremental local-history coverage for token scans.
         provider == .codex && metric == .tokens && !historyCoverageIsEstablished
+    }
+
+    private static func historyStatus(
+        provider: UsageProvider,
+        metric: ChartMetric,
+        historyCoverageIsEstablished: Bool) -> String?
+    {
+        guard !historyCoverageIsEstablished else { return nil }
+        return self.showsHistoryRefreshing(
+            provider: provider,
+            metric: metric,
+            historyCoverageIsEstablished: historyCoverageIsEstablished)
+            ? L("Refreshing")
+            : L("Partial")
+    }
+
+    private static func coverageQualifiedText(
+        _ text: String,
+        historyCoverageIsEstablished: Bool) -> String
+    {
+        historyCoverageIsEstablished ? text : "\(text) · \(L("partial"))"
     }
 
     private static func peakPoint(model: Model) -> Point? {
@@ -1354,6 +1378,24 @@ extension CostHistoryChartMenuView {
             provider: provider,
             metric: metric,
             historyCoverageIsEstablished: historyCoverageIsEstablished)
+    }
+
+    static func _historyStatusForTesting(
+        provider: UsageProvider,
+        metric: ChartMetric,
+        historyCoverageIsEstablished: Bool) -> String?
+    {
+        self.historyStatus(
+            provider: provider,
+            metric: metric,
+            historyCoverageIsEstablished: historyCoverageIsEstablished)
+    }
+
+    static func _coverageQualifiedTextForTesting(
+        _ text: String,
+        historyCoverageIsEstablished: Bool) -> String
+    {
+        self.coverageQualifiedText(text, historyCoverageIsEstablished: historyCoverageIsEstablished)
     }
 
     static func _dateFromDayKeyForTesting(

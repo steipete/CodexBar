@@ -4,6 +4,22 @@ import Foundation
 import SwiftUI
 
 enum RemoteCostChartSeries {
+    static func effectiveCombinedHosts(
+        _ combinedHosts: Set<String>,
+        enabled: Bool,
+        provider: UsageProvider) -> Set<String>
+    {
+        guard enabled, RemoteCostFetcher.supportedProviders.contains(provider) else { return [] }
+        return combinedHosts
+    }
+
+    static func hasDailyHistory(
+        local: [CostUsageDailyReport.Entry],
+        remote: [RemoteCostDailySummary]) -> Bool
+    {
+        !local.isEmpty || !remote.isEmpty
+    }
+
     static func summaries(
         reports: [RemoteHostCostReport],
         provider: UsageProvider,

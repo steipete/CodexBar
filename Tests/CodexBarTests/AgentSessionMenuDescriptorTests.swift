@@ -148,6 +148,40 @@ struct AgentSessionMenuDescriptorTests {
     }
 
     @Test
+    func `SSH chart selection is inert while disabled or unsupported`() {
+        let selected = Set(["sandbox"])
+        #expect(RemoteCostChartSeries.effectiveCombinedHosts(
+            selected,
+            enabled: false,
+            provider: .codex).isEmpty)
+        #expect(RemoteCostChartSeries.effectiveCombinedHosts(
+            selected,
+            enabled: true,
+            provider: .gemini).isEmpty)
+        #expect(RemoteCostChartSeries.effectiveCombinedHosts(
+            selected,
+            enabled: true,
+            provider: .claude) == selected)
+    }
+
+    @Test
+    func `remote daily history makes a chart available without local days`() {
+        let remote = [RemoteCostDailySummary(date: "2026-09-10", totalTokens: 100, costUSD: 2)]
+        #expect(RemoteCostChartSeries.hasDailyHistory(local: [], remote: remote))
+        #expect(RemoteCostChartSeries.hasDailyHistory(
+            local: [CostUsageDailyReport.Entry(
+                date: "2026-09-10",
+                inputTokens: nil,
+                outputTokens: nil,
+                totalTokens: 50,
+                costUSD: 1,
+                modelsUsed: nil,
+                modelBreakdowns: nil)],
+            remote: []))
+        #expect(!RemoteCostChartSeries.hasDailyHistory(local: [], remote: []))
+    }
+
+    @Test
     func `fresh settings omit agent sessions until explicitly enabled`() {
         let settings = testSettingsStore(suiteName: "AgentSessionMenuDescriptorTests-default-off")
         settings.statusChecksEnabled = false
