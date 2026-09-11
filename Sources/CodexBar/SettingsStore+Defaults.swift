@@ -1205,6 +1205,14 @@ extension SettingsStore {
         }
     }
 
+    var remoteCostCombinedHosts: String {
+        get { self.defaultsState.remoteCostCombinedHosts }
+        set {
+            self.defaultsState.remoteCostCombinedHosts = newValue
+            self.userDefaults.set(newValue, forKey: "remoteCostCombinedHosts")
+        }
+    }
+
     var preferredCurrencyCode: String {
         get { self.defaultsState.preferredCurrencyCode }
         set {

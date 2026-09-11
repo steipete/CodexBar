@@ -79,6 +79,15 @@ final class SpendDailyLedgerNativeProofTests: XCTestCase {
         let settings = testSettingsStore(suiteName: "RemoteCostNativeProof")
         settings.remoteCostsEnabled = true
         settings.remoteCostHosts = "ubuntu, offline"
+        settings.remoteCostCombinedHosts = "ubuntu"
+        let localSnapshot = CostUsageTokenSnapshot(
+            sessionTokens: 4200,
+            sessionCostUSD: 12.50,
+            last30DaysTokens: 84000,
+            last30DaysCostUSD: 240,
+            historyDays: 30,
+            daily: [],
+            updatedAt: Date())
         let costs = RemoteCostStore { host, providers, days, _ in
             if host == "offline" { throw RemoteCostError.unavailable }
             return providers.map { RemoteCostFetcherTests.summary(provider: $0, days: days) }
@@ -97,7 +106,11 @@ final class SpendDailyLedgerNativeProofTests: XCTestCase {
         window.contentView = NSHostingView(rootView: VStack(alignment: .leading, spacing: 24) {
             RemoteCostHostsEditor(settings: settings)
             Divider()
-            RemoteCostView(costs: costs, hidePersonalInfo: false)
+            RemoteCostView(
+                costs: costs,
+                hidePersonalInfo: false,
+                localSnapshots: [.codex: localSnapshot, .claude: localSnapshot],
+                combinedHosts: ["ubuntu"])
             Spacer()
         }
         .padding(24)

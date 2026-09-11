@@ -50,22 +50,100 @@ struct RemoteCostPresentation {
     }
 }
 
+struct CombinedRemoteCostPresentation: Identifiable {
+    let id: String
+    let title: String
+    let lines: [String]
+
+    init?(
+        provider: UsageProvider,
+        local: CostUsageTokenSnapshot?,
+        reports: [RemoteHostCostReport],
+        combinedHosts: Set<String>)
+    {
+        guard !combinedHosts.isEmpty else { return nil }
+        let remote = reports.filter {
+            combinedHosts.contains($0.host) && $0.provider == provider.rawValue
+        }
+        let summaries = remote.compactMap(\.summary)
+        let expectedSources = combinedHosts.count + 1
+        let availableSources = summaries.count + (local == nil ? 0 : 1)
+        let historyDays = local?.historyDays ?? summaries.first?.historyDays ?? 30
+
+        func amount(cost: [Double?], tokens: [Int?]) -> String {
+            let knownCosts = cost.compactMap(\.self)
+            var costTotal: Double? = knownCosts.isEmpty ? nil : 0
+            for value in knownCosts {
+                guard let current = costTotal else { break }
+                let sum = current + value
+                costTotal = sum.isFinite ? sum : nil
+            }
+            let costText = costTotal.map(UsageFormatter.usdString) ?? "—"
+            let knownTokens = tokens.compactMap(\.self)
+            var tokenTotal: Int? = knownTokens.isEmpty ? nil : 0
+            for value in knownTokens {
+                guard let current = tokenTotal else { break }
+                let (sum, overflow) = current.addingReportingOverflow(value)
+                tokenTotal = overflow ? nil : sum
+            }
+            let tokenText = tokenTotal.map(UsageFormatter.tokenCountString) ?? "—"
+            let complete = knownCosts.count == expectedSources && costTotal != nil &&
+                knownTokens.count == expectedSources && tokenTotal != nil
+            return "\(costText) · \(L("%@ tokens", tokenText))" + (complete ? "" : " · \(L("partial"))")
+        }
+
+        self.id = provider.rawValue
+        self.title = L("Combined — %@", RemoteCostPresentation.providerName(provider.rawValue))
+        let todayAmount = amount(
+            cost: [local?.sessionCostUSD] + summaries.map(\.sessionCostUSD),
+            tokens: [local?.sessionTokens] + summaries.map(\.sessionTokens))
+        let historyAmount = amount(
+            cost: [local?.last30DaysCostUSD] + summaries.map(\.last30DaysCostUSD),
+            tokens: [local?.last30DaysTokens] + summaries.map(\.last30DaysTokens))
+        self.lines = [
+            L("This Mac + %d selected SSH boxes", combinedHosts.count),
+            "\(L("Today (device-local days)")): \(todayAmount)",
+            "\(L("Last %d days", historyDays)): \(historyAmount)",
+        ] + (availableSources == expectedSources ? [] : [
+            L("%d of %d sources are currently available.", availableSources, expectedSources),
+        ]) + [RemoteCostPresentation.disclaimer(provider.rawValue)]
+    }
+}
+
 @MainActor
 struct RemoteCostView: View {
     @Bindable var costs: RemoteCostStore
     let hidePersonalInfo: Bool
+    var localSnapshots: [UsageProvider: CostUsageTokenSnapshot] = [:]
+    var combinedHosts: Set<String> = []
 
     var body: some View {
         if !self.costs.reports.isEmpty || self.costs.configurationError != nil {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
-                    Text(L("Remote Claude and Codex estimates")).font(.headline)
+                    Text(L("SSH device costs")).font(.headline)
                     if self.costs.isRefreshing { ProgressView().controlSize(.small) }
                 }
                 Text(L("Per-host estimates stay separate from local totals and from each other."))
                     .font(.caption).foregroundStyle(.secondary)
                 if let error = self.costs.configurationError {
                     Text(L(error)).font(.callout)
+                }
+                ForEach(RemoteCostFetcher.supportedProviders, id: \.self) { provider in
+                    if let model = CombinedRemoteCostPresentation(
+                        provider: provider,
+                        local: self.localSnapshots[provider],
+                        reports: self.costs.reports,
+                        combinedHosts: self.combinedHosts)
+                    {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(model.title).font(.subheadline.weight(.semibold))
+                            ForEach(model.lines, id: \.self) { line in
+                                Text(line).font(.callout).monospacedDigit().foregroundStyle(.secondary)
+                            }
+                        }
+                        .textSelection(.enabled)
+                    }
                 }
                 ForEach(self.costs.reports) { report in
                     let model = RemoteCostPresentation(
@@ -106,8 +184,22 @@ struct RemoteCostHostsEditor: View {
                     .disabled(self.hosts == self.settings.remoteCostHosts)
             }
             .disabled(!self.settings.remoteCostsEnabled)
+            if self.settings.remoteCostsEnabled, !self.configuredHosts.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(L("Combined totals")).font(.subheadline.weight(.medium))
+                    ForEach(self.configuredHosts, id: \.self) { host in
+                        Toggle(isOn: self.combinedBinding(for: host)) {
+                            Text(L("Include %@ with this Mac", host))
+                        }
+                    }
+                    Text(L("Enable only when that box uses the same provider account. " +
+                            "Individual device totals always remain visible."))
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
             Text(L("Reads Claude and Codex summaries over SSH using your existing SSH configuration. " +
-                    "Remote hosts need an updated CodexBar CLI. Disable the toggle to stop connecting."))
+                    "Remote hosts need an updated CodexBar CLI. Cost-only; this does not use Agent Sessions. " +
+                    "Disable the toggle to stop connecting."))
                 .font(.caption).foregroundStyle(.secondary)
             if let error { Text(L(error)).font(.caption).foregroundStyle(.red) }
         }
@@ -119,10 +211,34 @@ struct RemoteCostHostsEditor: View {
         do {
             let hosts = try RemoteCostFetcher.hosts(from: self.hosts)
             self.settings.remoteCostHosts = hosts.joined(separator: ", ")
+            let retainedCombinedHosts = self.combinedHosts.filter(hosts.contains)
+            self.settings.remoteCostCombinedHosts = retainedCombinedHosts.sorted().joined(separator: ", ")
             self.hosts = self.settings.remoteCostHosts
             self.error = nil
         } catch {
             self.error = error.localizedDescription
         }
+    }
+
+    private var configuredHosts: [String] {
+        (try? RemoteCostFetcher.hosts(from: self.settings.remoteCostHosts)) ?? []
+    }
+
+    private var combinedHosts: Set<String> {
+        Set((try? RemoteCostFetcher.hosts(from: self.settings.remoteCostCombinedHosts)) ?? [])
+    }
+
+    private func combinedBinding(for host: String) -> Binding<Bool> {
+        Binding(
+            get: { self.combinedHosts.contains(host) },
+            set: { enabled in
+                var hosts = self.combinedHosts
+                if enabled {
+                    hosts.insert(host)
+                } else {
+                    hosts.remove(host)
+                }
+                self.settings.remoteCostCombinedHosts = hosts.sorted().joined(separator: ", ")
+            })
     }
 }

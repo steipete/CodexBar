@@ -162,6 +162,12 @@ struct MenuDescriptor {
                 sections.append(Self.remoteCostsSection(
                     reports: reports,
                     configurationError: costs.configurationError,
+                    localSnapshots: Dictionary(uniqueKeysWithValues: RemoteCostFetcher.supportedProviders
+                        .compactMap { costProvider in
+                            store.tokenSnapshot(for: costProvider).map { (costProvider, $0) }
+                        }),
+                    combinedHosts: Set(
+                        (try? RemoteCostFetcher.hosts(from: settings.remoteCostCombinedHosts)) ?? []),
                     hidePersonalInfo: settings.hidePersonalInfo,
                     now: now))
             }
@@ -181,11 +187,25 @@ struct MenuDescriptor {
     static func remoteCostsSection(
         reports: [RemoteHostCostReport],
         configurationError: String?,
+        localSnapshots: [UsageProvider: CostUsageTokenSnapshot] = [:],
+        combinedHosts: Set<String> = [],
         hidePersonalInfo: Bool,
         now: Date = Date()) -> Section
     {
-        var entries: [Entry] = [.text(L("Remote Claude and Codex estimates"), .headline)]
+        var entries: [Entry] = [.text(L("SSH device costs"), .headline)]
         if let configurationError { entries.append(.unavailable(L(configurationError), nil)) }
+        for provider in RemoteCostFetcher.supportedProviders {
+            guard reports.contains(where: { $0.provider == provider.rawValue }),
+                  let model = CombinedRemoteCostPresentation(
+                      provider: provider,
+                      local: localSnapshots[provider],
+                      reports: reports,
+                      combinedHosts: combinedHosts)
+            else { continue }
+            entries.append(.submenu(model.title, nil, model.lines.map {
+                SubmenuItem(title: $0, action: nil, isEnabled: false)
+            }))
+        }
         for report in reports {
             let model = RemoteCostPresentation(
                 report: report,

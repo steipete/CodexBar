@@ -170,7 +170,13 @@ struct SpendDashboardPane: View {
                 {
                     RemoteCostView(
                         costs: self.store.remoteCosts,
-                        hidePersonalInfo: self.settings.hidePersonalInfo)
+                        hidePersonalInfo: self.settings.hidePersonalInfo,
+                        localSnapshots: Dictionary(uniqueKeysWithValues: RemoteCostFetcher.supportedProviders
+                            .compactMap { provider in
+                                self.store.tokenSnapshot(for: provider).map { (provider, $0) }
+                            }),
+                        combinedHosts: Set(
+                            (try? RemoteCostFetcher.hosts(from: self.settings.remoteCostCombinedHosts)) ?? []))
                 }
                 self.provenance
                 self.shareAction

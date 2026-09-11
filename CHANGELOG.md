@@ -4,7 +4,7 @@
 
 ### Added
 - Plugins: opt into first-class provider switcher tabs with selected-plugin refresh, plugin-only menus, and continued access to appended plugin cards (#3516, fixes #2988). Thanks @harjothkhara!
-- Claude/Codex costs: opt in to separate SSH host estimates in the menu and Usage & Spend, with path-free CLI summaries and `cost --remote`; preserve local totals and report unavailable hosts independently (related to #3036).
+- Claude/Codex costs: opt in to SSH host estimates in the menu and Usage & Spend, with path-free CLI summaries, `cost --remote`, per-box reports, and an explicit same-account choice to combine selected boxes with this Mac; report unavailable hosts independently (related to #3036).
 
 ### Performance
 - Codex activity: read scoped daily totals without decoding unused event history, preserving account boundaries, coverage, and incomplete-scan checks (#3528, related to #3247). Thanks @brzvsk!

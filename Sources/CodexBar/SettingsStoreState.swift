@@ -88,6 +88,7 @@ struct SettingsDefaultsState {
     var agentSessionsManualHosts: String
     var remoteCostsEnabled: Bool = false
     var remoteCostHosts: String = ""
+    var remoteCostCombinedHosts: String = ""
     var preferredCurrencyCode: String
     var iCloudSyncEnabled: Bool
     var iCloudSyncIncludeSecrets: Bool

@@ -649,6 +649,7 @@ extension SettingsStore {
             ?? AgentSessionLabelStyle.project.rawValue
         let agentSessionsManualHosts = userDefaults.string(forKey: "agentSessionsManualHosts") ?? ""
         let remoteCostsEnabled = userDefaults.object(forKey: "remoteCostsEnabled") as? Bool ?? false
+        let remoteCostCombinedHosts = userDefaults.string(forKey: "remoteCostCombinedHosts") ?? ""
         let preferredCurrencyCode = userDefaults.string(forKey: "preferredCurrencyCode") ?? "USD"
         let iCloudSyncEnabled = userDefaults.object(forKey: "iCloudSyncEnabled") as? Bool ?? false
         let iCloudSyncIncludeSecrets = userDefaults.object(forKey: "iCloudSyncIncludeSecrets") as? Bool ?? true
@@ -748,6 +749,7 @@ extension SettingsStore {
             remoteCostHosts: userDefaults.string(forKey: "remoteCostHosts")
                 ?? userDefaults.string(forKey: "codexRemoteCostHosts")
                 ?? "",
+            remoteCostCombinedHosts: remoteCostCombinedHosts,
             preferredCurrencyCode: preferredCurrencyCode,
             iCloudSyncEnabled: iCloudSyncEnabled,
             iCloudSyncIncludeSecrets: iCloudSyncIncludeSecrets,

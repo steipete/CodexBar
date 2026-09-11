@@ -287,10 +287,10 @@ is limited, using additional rows when needed.
 
 Enable **Settings → Menu → Cost summary**, turn on **Fetch costs from SSH devices**, then apply one or more explicit
 SSH aliases in **Remote costs over SSH** (up to eight, comma-separated). The relevant provider menu and
-**Usage & Spend** show each enabled provider and host's
-Today and configured-history report separately. Local charts, account rows, exports, and totals keep their existing
-scope. Host reports may contain overlapping sessions and are deliberately not summed; Claude and Codex dollars are
-also kept separate because subscription-equivalent and API-equivalent estimates have different meanings.
+**Usage & Spend** show each enabled provider and host's Today and configured-history report separately. Each host also
+has an explicit **Include with this Mac** choice for combined provider totals. Enable it only when that machine uses
+the same provider account; unselected hosts always stay separate. Claude and Codex dollars remain separate because
+subscription-equivalent and API-equivalent estimates have different meanings.
 
 - Install a CodexBar CLI with `cost --summary-only` support on each remote host (macOS or Linux), available as
   `codexbar` in its login-shell PATH. macOS also supports the standard app-bundled helper path.
@@ -301,6 +301,8 @@ also kept separate because subscription-equivalent and API-equivalent estimates 
 - Only a small numeric summary crosses SSH: tokens, API-equivalent cost, dates, time zone, provenance, and coverage.
   No transcripts, project paths, session identifiers, or credentials are copied. The receiving app keeps reports only
   in memory; the host list is a local preference, independent of live-session discovery and iCloud sync.
+- Combined totals are an explicit local presentation choice. Account identifiers are not transmitted or matched;
+  CodexBar keeps every per-host report visible and marks unavailable inputs as partial instead of inventing a total.
 - Automatic requests are limited to once per 15 minutes during normal refresh/menu use. **Usage & Spend → Refresh**
   requests a fresh report. Hosts use their own cost calendar and pricing; the UI shows their time zone and timestamp.
   Unknown prices and incomplete history remain marked. Claude reports are explicitly notional; Codex reports are

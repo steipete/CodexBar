@@ -25,6 +25,39 @@ struct AgentSessionMenuDescriptorTests {
         #expect(failed.lines == ["Unavailable"])
     }
 
+    @Test
+    func `selected SSH boxes combine with local totals while retaining separate reports`() throws {
+        let local = CostUsageTokenSnapshot(
+            sessionTokens: 100,
+            sessionCostUSD: 2,
+            last30DaysTokens: 200,
+            last30DaysCostUSD: 4,
+            historyDays: 30,
+            daily: [],
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000))
+        let reports = [
+            RemoteHostCostReport(
+                host: "sandbox",
+                provider: .codex,
+                summary: RemoteCostFetcherTests.summary()),
+            RemoteHostCostReport(
+                host: "other",
+                provider: .codex,
+                summary: RemoteCostFetcherTests.summary()),
+        ]
+        let model = try #require(CombinedRemoteCostPresentation(
+            provider: .codex,
+            local: local,
+            reports: reports,
+            combinedHosts: ["sandbox"]))
+
+        #expect(model.title.contains("Combined"))
+        #expect(model.lines.contains { $0.contains("$3.25") && $0.contains("223 tokens") })
+        #expect(model.lines.contains { $0.contains("$7.50") && $0.contains("656 tokens") })
+        #expect(!model.lines.contains { $0.contains("partial") })
+        #expect(reports.count == 2)
+    }
+
     @Test(arguments: [false, true])
     func `remote cost settings stay off for fresh and upgraded preferences`(_ upgrading: Bool) {
         let defaults = InMemoryUserDefaults(values: upgrading ? [
@@ -34,6 +67,7 @@ struct AgentSessionMenuDescriptorTests {
         let settings = testSettingsStore(suiteName: "RemoteCosts-default-off", userDefaults: defaults)
         #expect(!settings.remoteCostsEnabled)
         #expect(settings.remoteCostHosts.isEmpty)
+        #expect(settings.remoteCostCombinedHosts.isEmpty)
         let store = RemoteCostStore { _, _, _, _ in
             Issue.record("Remote costs require separate opt-in even when agent sessions are enabled")
             throw RemoteCostError.unavailable
@@ -55,6 +89,18 @@ struct AgentSessionMenuDescriptorTests {
         let settings = testSettingsStore(suiteName: "RemoteCosts-legacy-key", userDefaults: defaults)
         #expect(!settings.remoteCostsEnabled)
         #expect(settings.remoteCostHosts == "legacy-host")
+    }
+
+    @Test
+    func `combined SSH host selections persist independently`() {
+        let defaults = InMemoryUserDefaults()
+        let settings = testSettingsStore(suiteName: "RemoteCosts-combined-hosts", userDefaults: defaults)
+        settings.remoteCostHosts = "sandbox, build-box"
+        settings.remoteCostCombinedHosts = "sandbox"
+
+        let reloaded = testSettingsStore(suiteName: "RemoteCosts-combined-hosts-reload", userDefaults: defaults)
+        #expect(reloaded.remoteCostHosts == "sandbox, build-box")
+        #expect(reloaded.remoteCostCombinedHosts == "sandbox")
     }
 
     @Test
