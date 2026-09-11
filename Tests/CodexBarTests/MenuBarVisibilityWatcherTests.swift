@@ -5,13 +5,16 @@ import Testing
 
 struct MenuBarVisibilityWatcherTests {
     @Test(arguments: [
-        (CGRect(x: 0, y: -900, width: 1440, height: 900), CGRect(x: 0, y: -22, width: 76, height: 22), true),
-        (CGRect(x: 0, y: 1080, width: 1440, height: 900), CGRect(x: 0, y: -900, width: 76, height: 22), false),
-        (CGRect(x: 0, y: -900, width: 1440, height: 900), CGRect(x: 0, y: 1080, width: 76, height: 22), false),
-        (CGRect(x: -1440, y: 180, width: 1440, height: 900), CGRect(x: -100, y: 0, width: 76, height: 22), false),
+        (CGRect(x: 0, y: -900, width: 1440, height: 900), CGRect(x: 0, y: -22, width: 76, height: 22), true, false),
+        (CGRect(x: 0, y: 1080, width: 1440, height: 900), CGRect(x: 0, y: -900, width: 76, height: 22), false, true),
+        (CGRect(x: 0, y: 1080, width: 1440, height: 900), CGRect(x: 0, y: -22, width: 76, height: 22), true, true),
+        (CGRect(x: 0, y: 1080, width: 1440, height: 900), CGRect(x: 0, y: -450, width: 76, height: 22), false, true),
+        (CGRect(x: 0, y: 1080, width: 1440, height: 22), CGRect(x: 0, y: -22, width: 76, height: 22), false, true),
+        (CGRect(x: 0, y: -900, width: 1440, height: 900), CGRect(x: 0, y: 1080, width: 76, height: 22), false, true),
+        (CGRect(x: -1440, y: 180, width: 1440, height: 900), CGRect(x: -100, y: 0, width: 76, height: 22), false, true),
     ])
     func `window probe aligns secondary screen coordinates before recovery decisions`(
-        _ screenFrame: CGRect, _ windowBounds: CGRect, _ blocked: Bool) throws
+        _ screenFrame: CGRect, _ windowBounds: CGRect, _ blocked: Bool, _ contained: Bool) throws
     {
         let windows = MenuBarStatusItemWindowProbe.snapshots(
             matching: ["codexbar-merged"],
@@ -23,7 +26,7 @@ struct MenuBarVisibilityWatcherTests {
             ]],
             screenFrames: [CGRect(x: 0, y: 0, width: 1920, height: 1080), screenFrame])
         let window = try #require(windows.first)
-        #expect(window.isWithinDisplayBounds == !blocked)
+        #expect(window.isWithinDisplayBounds == contained)
         #expect(window.isTahoeBlockedProxy == blocked)
         let detached = StatusItemVisibilitySnapshot(
             isVisible: true,

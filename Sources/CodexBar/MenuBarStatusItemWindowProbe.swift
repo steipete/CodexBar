@@ -15,13 +15,15 @@ struct MenuBarStatusItemWindowSnapshot: Equatable, CustomStringConvertible {
     }
 
     var isTahoeBlockedProxy: Bool {
-        self.ownerName == "Control Center"
+        // A primary-origin proxy can overlap an upper display below that display's menu bar.
+        let isPrimaryOriginProxy = self.bounds.maxY == 0 && self.displayBounds?.minY != self.bounds.minY
+        return self.ownerName == "Control Center"
             && self.isOnscreen
             && abs(self.bounds.minX) <= 1
             && self.bounds.maxY <= 0
             && self.bounds.width > 0
             && self.bounds.height > 0
-            && !self.isWithinDisplayBounds
+            && (!self.isWithinDisplayBounds || isPrimaryOriginProxy)
     }
 
     var description: String {
