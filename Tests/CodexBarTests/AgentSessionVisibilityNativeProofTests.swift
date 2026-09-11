@@ -7,7 +7,7 @@ import XCTest
 /// Opt-in interactive proof using synthetic hosts and the production settings/menu views.
 @MainActor
 final class AgentSessionVisibilityNativeProofTests: XCTestCase {
-    func test_visibilityToggleInSignedHost() throws {
+    func test_visibilityToggleInSignedHost() async throws {
         let env = ProcessInfo.processInfo.environment
         guard let path = env["CODEXBAR_HOST_VISIBILITY_PROOF_DIR"] else {
             throw XCTSkip("Set CODEXBAR_HOST_VISIBILITY_PROOF_DIR for signed native proof")
@@ -91,21 +91,21 @@ final class AgentSessionVisibilityNativeProofTests: XCTestCase {
         window.makeKeyAndOrderFront(nil)
         app.activate(ignoringOtherApps: true)
         sessions.start()
-        try self.waitUntil { sessions.remoteHosts.count == 2 }
+        try await self.waitUntil { sessions.remoteHosts.count == 2 }
         delegate.menuNeedsUpdate(menu)
         try self.receipt("visible", window: window, output: output)
-        try self.waitUntil { settings.agentSessionsHideUnreachableHosts }
+        try await self.waitUntil { settings.agentSessionsHideUnreachableHosts }
         delegate.menuNeedsUpdate(menu)
         XCTAssertFalse(menu.items.contains { $0.title.contains("offline.example.invalid") })
         XCTAssertTrue(menu.items.contains { $0.toolTip == "ready.example.invalid — 0" })
         XCTAssertTrue(defaults.bool(forKey: "agentSessionsHideUnreachableHosts"))
         try self.receipt("hidden", window: window, output: output)
-        try self.waitUntil { !settings.agentSessionsHideUnreachableHosts }
+        try await self.waitUntil { !settings.agentSessionsHideUnreachableHosts }
         delegate.menuNeedsUpdate(menu)
         XCTAssertTrue(menu.items.contains { $0.title.contains("offline.example.invalid") })
         XCTAssertFalse(defaults.bool(forKey: "agentSessionsHideUnreachableHosts"))
         try self.receipt("restored", window: window, output: output)
-        try self.waitUntil { FileManager.default.fileExists(atPath: output.appendingPathComponent("done").path) }
+        try await self.waitUntil { FileManager.default.fileExists(atPath: output.appendingPathComponent("done").path) }
         withExtendedLifetime(delegate) {}
     }
 
@@ -117,7 +117,7 @@ final class AgentSessionVisibilityNativeProofTests: XCTestCase {
             to: output.appendingPathComponent("\(phase).json"), options: .atomic)
     }
 
-    private func waitUntil(_ condition: () -> Bool) throws {
+    private func waitUntil(_ condition: () -> Bool) async throws {
         let deadline = Date().addingTimeInterval(180)
         while !condition(), Date() < deadline {
             if let event = NSApplication.shared.nextEvent(
@@ -125,7 +125,7 @@ final class AgentSessionVisibilityNativeProofTests: XCTestCase {
             {
                 NSApplication.shared.sendEvent(event)
             }
-            RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+            try await Task.sleep(for: .milliseconds(20))
         }
         if !condition() { throw NSError(domain: "HostVisibilityProof", code: 1) }
     }
