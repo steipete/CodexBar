@@ -1558,4 +1558,7 @@
 "Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "选择要在此提供商的菜单、设置预览和概览中显示的用量行。";
 "%@ (unavailable)" = "%@（不可用）";
 "Spending cap, not balance" = "支出上限，并非余额";
+
+"Color Pace Indicator" = "用颜色显示使用节奏";
+"Green pace indicator when behind pace, red when ahead of pace (risk of running out early)" = "使用量低于预期进度时显示绿色（有余量）；高于预期时显示红色（可能提前耗尽配额）。";
 "%@ weekly" = "%@ 每周";

@@ -30,6 +30,7 @@ extension SettingsStore {
         _ = self.providerChangelogLinksEnabled
         _ = self.menuBarShowsBrandIconWithPercent
         _ = self.menuBarHidesCritters
+        _ = self.menuBarColorPace
         _ = self.menuBarHighContrastOnInactiveDisplays
         _ = self.menuBarShowsHighestUsage
         _ = self.menuBarDisplayMode

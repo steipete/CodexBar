@@ -1546,4 +1546,7 @@
 "Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "このプロバイダーのメニュー、設定プレビュー、概要に表示する使用量の行を選択します。";
 "%@ (unavailable)" = "%@（利用不可）";
 "Spending cap, not balance" = "利用上限額（残高ではありません）";
+
+"Color Pace Indicator" = "使用ペースを色分け";
+"Green pace indicator when behind pace, red when ahead of pace (risk of running out early)" = "想定より使用が遅い場合は緑（余裕あり）、速い場合は赤（上限に早く達するおそれ）で表示します。";
 "%@ weekly" = "%@（週間）";
