@@ -441,7 +441,7 @@ struct OpenAIDashboardFetcherCreditsWaitTests {
     @Test
     func `api snapshot keeps previous credits history and overwrites live usage`() {
         let previous = OpenAIDashboardSnapshot(
-            signedInEmail: "old@example.com",
+            signedInEmail: "user@example.com",
             codeReviewRemainingPercent: 81,
             creditEvents: [
                 CreditEvent(date: Date(timeIntervalSince1970: 1_700_000_000), service: "Codex", creditsUsed: 2),
@@ -475,12 +475,12 @@ struct OpenAIDashboardFetcherCreditsWaitTests {
 
         let snapshot = OpenAIDashboardFetcher.snapshotByMergingAPI(
             apiData: apiData,
-            verifiedEmail: "new@example.com",
+            verifiedEmail: "user@example.com",
             subscriptionResult: .success(subscription),
             previous: previous,
             updatedAt: Date(timeIntervalSince1970: 2))
 
-        #expect(snapshot.signedInEmail == "new@example.com")
+        #expect(snapshot.signedInEmail == "user@example.com")
         #expect(snapshot.primaryLimit?.usedPercent == 44)
         #expect(snapshot.creditsRemaining == 7.5)
         #expect(snapshot.accountPlan == "pro")
@@ -613,7 +613,7 @@ struct OpenAIDashboardFetcherCreditsWaitTests {
             subscriptionRenewsAt: Date(timeIntervalSince1970: 1_800_000_000),
             updatedAt: Date(timeIntervalSince1970: 1))
         let incoming = OpenAIDashboardSnapshot(
-            signedInEmail: nil,
+            signedInEmail: "keep@example.com",
             codeReviewRemainingPercent: nil,
             creditEvents: [],
             dailyBreakdown: [],

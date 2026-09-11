@@ -34,6 +34,28 @@ extension OpenAIDashboardFetcher {
         !allowPageScrape
     }
 
+    nonisolated static func snapshotForUnpairedPage(
+        apiData: DashboardAPIData?,
+        verifiedSignedInEmail: String?,
+        pageSignedInEmail: String?,
+        subscriptionResult: OpenAISubscriptionFetchResult = .unavailable,
+        previous: OpenAIDashboardSnapshot?) throws -> OpenAIDashboardSnapshot?
+    {
+        guard let apiData,
+              let verifiedSignedInEmail,
+              !verifiedSignedInEmail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              !self.dashboardEmailsMatch(verifiedSignedInEmail, pageSignedInEmail)
+        else { return nil }
+        guard apiData.hasUsageData else {
+            throw FetchError.noDashboardData(body: "Dashboard page identity does not match the authenticated session.")
+        }
+        return self.snapshotByMergingAPI(
+            apiData: apiData,
+            verifiedEmail: verifiedSignedInEmail,
+            subscriptionResult: subscriptionResult,
+            previous: previous)
+    }
+
     nonisolated static func snapshotByMergingAPI(
         apiData: DashboardAPIData,
         verifiedEmail: String,
@@ -42,9 +64,10 @@ extension OpenAIDashboardFetcher {
         updatedAt: Date = Date()) -> OpenAIDashboardSnapshot
     {
         let email = verifiedEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+        let previous = self.dashboardEmailsMatch(email, previous?.signedInEmail) ? previous : nil
         let usesAPIBalance = apiData.creditsRemaining != nil || apiData.creditsAvailable != nil
         return OpenAIDashboardSnapshot(
-            signedInEmail: email.isEmpty ? previous?.signedInEmail : email,
+            signedInEmail: email.isEmpty ? nil : email,
             codeReviewRemainingPercent: previous?.codeReviewRemainingPercent,
             codeReviewLimit: previous?.codeReviewLimit,
             creditEvents: previous?.creditEvents ?? [],
@@ -76,7 +99,9 @@ extension OpenAIDashboardFetcher {
         from previous: OpenAIDashboardSnapshot?,
         subscriptionResult: OpenAISubscriptionFetchResult = .unavailable) -> OpenAIDashboardSnapshot
     {
-        guard let previous else { return snapshot }
+        guard let previous, self.dashboardEmailsMatch(snapshot.signedInEmail, previous.signedInEmail) else {
+            return snapshot
+        }
         let usesCurrentBalance = snapshot.creditsRemaining != nil || snapshot.creditsAvailable != nil
         let subscriptionExpiresAt = subscriptionResult.succeeded
             ? snapshot.subscriptionExpiresAt
@@ -85,7 +110,7 @@ extension OpenAIDashboardFetcher {
             ? snapshot.subscriptionRenewsAt
             : snapshot.subscriptionRenewsAt ?? previous.subscriptionRenewsAt
         return OpenAIDashboardSnapshot(
-            signedInEmail: snapshot.signedInEmail ?? previous.signedInEmail,
+            signedInEmail: snapshot.signedInEmail,
             codeReviewRemainingPercent: snapshot.codeReviewRemainingPercent
                 ?? previous.codeReviewRemainingPercent,
             codeReviewLimit: snapshot.codeReviewLimit ?? previous.codeReviewLimit,
@@ -104,6 +129,11 @@ extension OpenAIDashboardFetcher {
             subscriptionExpiresAt: subscriptionExpiresAt,
             subscriptionRenewsAt: subscriptionRenewsAt,
             updatedAt: snapshot.updatedAt)
+    }
+
+    private nonisolated static func dashboardEmailsMatch(_ first: String?, _ second: String?) -> Bool {
+        guard let first = CodexIdentityResolver.normalizeEmail(first) else { return false }
+        return first == CodexIdentityResolver.normalizeEmail(second)
     }
 }
 #endif

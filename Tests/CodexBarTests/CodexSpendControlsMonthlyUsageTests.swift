@@ -743,10 +743,10 @@ struct CodexSpendControlsMonthlyUsageTests {
         configuration.protocolClasses = [DashboardSpendControlsURLProtocol.self]
         let transport = CodexAuthenticatedHTTPTransport.makeClient(configuration: configuration)
         return await CodexAuthenticatedHTTPTransport.$overrideForTesting.withValue(transport) {
-            await OpenAIDashboardFetcher.fetchDashboardUsageAPI(
+            try? await OpenAIDashboardFetcher.fetchDashboardAPIResponse(
                 cookieHeader: "session=test",
                 deadline: nil,
-                logger: { _ in })
+                logger: { _ in })?.apiData
         }
     }
     #endif

@@ -645,11 +645,15 @@ public struct OpenAIDashboardFetcher {
             verifiedSignedInEmail: String?)
     {
         let cookieHeader = try await self.chatGPTCookieHeader(in: websiteDataStore, deadline: deadline)
-        let apiData = await self.fetchDashboardUsageAPI(
+        let response = try await self.fetchDashboardAPIResponse(
             cookieHeader: cookieHeader,
             deadline: deadline,
             logger: logger)
-        let verifiedEmail: String? = if apiData?.hasUsageData == true {
+        try Task.checkCancellation()
+        let apiData = response?.apiData
+        let verifiedEmail: String? = if let email = response?.verifiedSignedInEmail {
+            email
+        } else if apiData?.hasUsageData == true {
             await self.fetchSignedInEmailFromAPI(
                 cookieHeader: cookieHeader,
                 deadline: deadline,
@@ -657,59 +661,11 @@ public struct OpenAIDashboardFetcher {
         } else {
             nil
         }
+        try Task.checkCancellation()
         if apiData?.hasUsageData == true, verifiedEmail != nil {
             logger("usage api supplied verified dashboard data")
         }
         return (apiData, verifiedEmail)
-    }
-
-    private static func fetchDashboardUsageAPI(
-        websiteDataStore: WKWebsiteDataStore,
-        logger: @escaping (String) -> Void) async -> DashboardAPIData?
-    {
-        guard let cookieHeader = try? await self.chatGPTCookieHeader(in: websiteDataStore, deadline: nil) else {
-            return nil
-        }
-        return await self.fetchDashboardUsageAPI(cookieHeader: cookieHeader, deadline: nil, logger: logger)
-    }
-
-    static func fetchDashboardUsageAPI(
-        cookieHeader: String,
-        deadline: Date?,
-        logger: @escaping (String) -> Void) async -> DashboardAPIData?
-    {
-        guard !cookieHeader.isEmpty else { return nil }
-        let remaining = deadline.map { self.remainingTimeout(until: $0) } ?? 4
-        guard remaining > 0 else { return nil }
-
-        do {
-            let (data, response) = try await CodexAuthenticatedHTTPTransport.current.data(
-                for: self.dashboardUsageAPIRequest(cookieHeader: cookieHeader, timeout: min(4, remaining)))
-            let status = (response as? HTTPURLResponse)?.statusCode ?? -1
-            logger("usage api status=\(status)")
-            guard status >= 200, status < 300 else { return nil }
-            let decoded = try JSONDecoder().decode(CodexUsageResponse.self, from: data)
-            let result = self.dashboardAPIData(from: decoded)
-            let enrichedResult = await self.fetchSpendControlsMonthlyUsageIfNeeded(
-                result,
-                response: decoded,
-                cookieHeader: cookieHeader,
-                deadline: deadline,
-                logger: logger)
-            let balanceEnrichedResult = await self.fetchWorkspaceRemainingBalanceIfNeeded(
-                enrichedResult,
-                response: decoded,
-                cookieHeader: cookieHeader,
-                deadline: deadline,
-                logger: logger)
-            if balanceEnrichedResult.hasUsageData {
-                logger("usage api supplied language-independent rate/credit data")
-            }
-            return balanceEnrichedResult
-        } catch {
-            logger("usage api unavailable: \(error.localizedDescription)")
-            return nil
-        }
     }
 
     static func fetchSignedInEmailFromAPI(
@@ -1001,13 +957,14 @@ extension OpenAIDashboardFetcher {
 }
 
 extension OpenAIDashboardFetcher {
-    private static func fetchWorkspaceRemainingBalanceIfNeeded(
+    static func fetchWorkspaceRemainingBalanceIfNeeded(
         _ result: DashboardAPIData,
         response: CodexUsageResponse,
-        cookieHeader: String,
+        authentication: (cookieHeader: String, bearerToken: String?),
         deadline: Date?,
-        logger: @escaping (String) -> Void) async -> DashboardAPIData
+        logger: @escaping (String) -> Void) async throws -> DashboardAPIData
     {
+        try Task.checkCancellation()
         guard result.creditsRemaining == nil,
               response.credits?.hasCredits == true,
               response.credits?.unlimited != true,
@@ -1019,12 +976,14 @@ extension OpenAIDashboardFetcher {
         guard remaining > 0,
               let request = self.dashboardWorkspaceRemainingBalanceAPIRequest(
                   accountId: accountId,
-                  cookieHeader: cookieHeader,
+                  cookieHeader: authentication.cookieHeader,
+                  bearerToken: authentication.bearerToken,
                   timeout: min(4, remaining))
         else { return result }
 
         do {
             let (data, response) = try await CodexAuthenticatedHTTPTransport.current.data(for: request)
+            try Task.checkCancellation()
             let status = (response as? HTTPURLResponse)?.statusCode ?? -1
             guard status >= 200, status < 300 else {
                 logger("workspace remaining balance api unavailable: status=\(status)")
@@ -1043,18 +1002,22 @@ extension OpenAIDashboardFetcher {
                 codexCreditLimit: result.codexCreditLimit,
                 accountPlan: result.accountPlan)
         } catch {
-            logger("workspace remaining balance api unavailable: \(error.localizedDescription)")
+            if error is CancellationError || Task.isCancelled || (error as? URLError)?.code == .cancelled {
+                throw CancellationError()
+            }
+            logger("workspace remaining balance api unavailable")
             return result
         }
     }
 
-    private static func fetchSpendControlsMonthlyUsageIfNeeded(
+    static func fetchSpendControlsMonthlyUsageIfNeeded(
         _ result: DashboardAPIData,
         response: CodexUsageResponse,
-        cookieHeader: String,
+        authentication: (cookieHeader: String, bearerToken: String?),
         deadline: Date?,
-        logger: @escaping (String) -> Void) async -> DashboardAPIData
+        logger: @escaping (String) -> Void) async throws -> DashboardAPIData
     {
+        try Task.checkCancellation()
         guard CodexSpendControlsMonthlyUsageGate.shouldFetch(response: response),
               let accountId = response.accountId?.trimmingCharacters(in: .whitespacesAndNewlines),
               !accountId.isEmpty
@@ -1067,7 +1030,8 @@ extension OpenAIDashboardFetcher {
         }
         guard let request = self.dashboardSpendControlsMonthlyUsageAPIRequest(
             accountId: accountId,
-            cookieHeader: cookieHeader,
+            cookieHeader: authentication.cookieHeader,
+            bearerToken: authentication.bearerToken,
             timeout: min(4, remaining))
         else {
             logger("spend controls monthly usage api unavailable: invalid account id")
@@ -1076,6 +1040,7 @@ extension OpenAIDashboardFetcher {
 
         do {
             let (data, response) = try await CodexAuthenticatedHTTPTransport.current.data(for: request)
+            try Task.checkCancellation()
             let status = (response as? HTTPURLResponse)?.statusCode ?? -1
             guard status >= 200, status < 300 else {
                 logger("spend controls monthly usage api unavailable: status=\(status)")
@@ -1093,7 +1058,10 @@ extension OpenAIDashboardFetcher {
                 codexCreditLimit: limit,
                 accountPlan: result.accountPlan)
         } catch {
-            logger("spend controls monthly usage api unavailable: \(error.localizedDescription)")
+            if error is CancellationError || Task.isCancelled || (error as? URLError)?.code == .cancelled {
+                throw CancellationError()
+            }
+            logger("spend controls monthly usage api unavailable")
             return result
         }
     }
@@ -1109,6 +1077,7 @@ extension OpenAIDashboardFetcher {
 
     nonisolated static func dashboardUsageAPIRequest(
         cookieHeader: String,
+        bearerToken: String? = nil,
         timeout: TimeInterval = 4) -> URLRequest
     {
         var request = URLRequest(
@@ -1117,6 +1086,9 @@ extension OpenAIDashboardFetcher {
             timeoutInterval: timeout)
         request.httpMethod = "GET"
         request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
+        if let bearerToken {
+            request.setValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
+        }
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue(Self.dashboardAcceptLanguage, forHTTPHeaderField: "Accept-Language")
         request.setValue("CodexBar", forHTTPHeaderField: "User-Agent")
@@ -1145,6 +1117,7 @@ extension OpenAIDashboardFetcher {
     nonisolated static func dashboardWorkspaceRemainingBalanceAPIRequest(
         accountId: String,
         cookieHeader: String,
+        bearerToken: String? = nil,
         timeout: TimeInterval = 4) -> URLRequest?
     {
         guard let url = self.dashboardWorkspaceRemainingBalanceAPIURL(accountId: accountId) else {
@@ -1156,6 +1129,9 @@ extension OpenAIDashboardFetcher {
             timeoutInterval: timeout)
         request.httpMethod = "GET"
         request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
+        if let bearerToken {
+            request.setValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
+        }
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue(Self.dashboardAcceptLanguage, forHTTPHeaderField: "Accept-Language")
         request.setValue("CodexBar", forHTTPHeaderField: "User-Agent")
@@ -1166,6 +1142,7 @@ extension OpenAIDashboardFetcher {
     nonisolated static func dashboardSpendControlsMonthlyUsageAPIRequest(
         accountId: String,
         cookieHeader: String,
+        bearerToken: String? = nil,
         timeout: TimeInterval = 4) -> URLRequest?
     {
         guard let url = self.dashboardSpendControlsMonthlyUsageAPIURL(accountId: accountId) else {
@@ -1177,6 +1154,9 @@ extension OpenAIDashboardFetcher {
             timeoutInterval: timeout)
         request.httpMethod = "GET"
         request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
+        if let bearerToken {
+            request.setValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
+        }
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue(Self.dashboardAcceptLanguage, forHTTPHeaderField: "Accept-Language")
         request.setValue("CodexBar", forHTTPHeaderField: "User-Agent")

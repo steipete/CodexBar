@@ -69,10 +69,10 @@ struct CodexWorkspaceBalanceDashboardTests {
             return (Data((isBalanceRequest ? payload : usage).utf8), response)
         }
         let result = await CodexAuthenticatedHTTPTransport.$overrideForTesting.withValue(transport) {
-            await OpenAIDashboardFetcher.fetchDashboardUsageAPI(
+            try? await OpenAIDashboardFetcher.fetchDashboardAPIResponse(
                 cookieHeader: "session=fixture",
                 deadline: Date().addingTimeInterval(10),
-                logger: { _ in })
+                logger: { _ in })?.apiData
         }
         #expect(await transport.requests().count == 2)
         return try #require(result)
