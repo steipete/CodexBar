@@ -120,7 +120,7 @@ public enum CodexProviderDescriptor {
                         balances: balances,
                         menuCardStyle: .creditsUsage)
                 },
-                creditResolver: { $0.codexCreditLimit?.remaining ?? $0.remaining },
+                creditResolver: { $0.displayRemaining },
                 iconWindowResolver: self.iconWindows,
                 iconDecorations: [.face],
                 automaticSelectionPrioritizesExhaustedWindow: false,
@@ -431,8 +431,13 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
             updatedAt: updatedAt,
             allowEmptyUsageForResetCreditEnrichment: Self.defersResetCreditFetchToApp(context),
             codexResetCreditsAttempted: resetCreditsAttempted)
-        let spendControlsResult = try await Self.applyingSpendControlsMonthlyLimit(
+        let workspaceBalanceResult = try await Self.applyingWorkspaceRemainingBalance(
             oauthResult,
+            usage: usage,
+            credentials: credentials,
+            context: context)
+        let spendControlsResult = try await Self.applyingSpendControlsMonthlyLimit(
+            workspaceBalanceResult,
             usage: usage,
             credentials: credentials,
             context: context)
@@ -514,22 +519,31 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
     {
         let balance = response.credits?.balance
         let creditLimit = response.resolvedIndividualLimit?.codexCreditLimitSnapshot(updatedAt: updatedAt)
-        guard balance != nil || creditLimit != nil else { return nil }
+        let creditsAvailable = response.credits.map { $0.hasCredits || $0.unlimited }
+        guard balance != nil || creditLimit != nil || creditsAvailable == true else { return nil }
         return CreditsSnapshot(
             remaining: balance ?? 0,
             events: [],
             updatedAt: updatedAt,
             codexCreditLimit: creditLimit,
             // A cap-only response omits the balance entirely; that placeholder zero is unread, not spent.
-            balanceReadSucceeded: balance != nil)
+            balanceReadSucceeded: balance != nil,
+            creditsAvailable: creditsAvailable)
     }
 
     private static func attachingExtraUsage(
         to result: ProviderFetchResult) -> ProviderFetchResult
     {
+        self.replacingCredits(in: result, with: result.credits)
+    }
+
+    private static func replacingCredits(
+        in result: ProviderFetchResult,
+        with credits: CreditsSnapshot?) -> ProviderFetchResult
+    {
         ProviderFetchResult(
-            usage: CodexExtraUsageCost.attaching(to: result.usage, credits: result.credits),
-            credits: result.credits,
+            usage: CodexExtraUsageCost.attaching(to: result.usage, credits: credits),
+            credits: credits,
             dashboard: result.dashboard,
             sourceLabel: result.sourceLabel,
             strategyID: result.strategyID,
@@ -543,6 +557,48 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
             claudeOAuthKeychainCredentialMismatch: result.claudeOAuthKeychainCredentialMismatch,
             claudeOAuthKeychainCredentialAbsent: result.claudeOAuthKeychainCredentialAbsent,
             claudeOAuthKeychainCredentialUnavailable: result.claudeOAuthKeychainCredentialUnavailable)
+    }
+
+    private static func applyingWorkspaceRemainingBalance(
+        _ result: ProviderFetchResult,
+        usage: CodexUsageResponse,
+        credentials: CodexOAuthCredentials,
+        context: ProviderFetchContext,
+        fetcher: (@Sendable (String) async throws -> CodexWorkspaceRemainingBalanceResponse)? = nil) async throws
+        -> ProviderFetchResult
+    {
+        guard context.includeCredits,
+              usage.credits?.hasCredits == true,
+              usage.credits?.unlimited != true,
+              usage.credits?.balance == nil,
+              let accountId = self.firstNonEmptyAccountId(credentials.accountId, usage.accountId)
+        else { return result }
+
+        let fetcher = fetcher ?? { accountId in
+            try await CodexOAuthUsageFetcher.fetchWorkspaceRemainingBalance(
+                accessToken: credentials.accessToken,
+                accountId: accountId,
+                env: context.env)
+        }
+        do {
+            guard let balance = try await fetcher(accountId).balance else { return result }
+            let existing = result.credits
+            let credits = CreditsSnapshot(
+                remaining: balance,
+                events: existing?.events ?? [],
+                updatedAt: Date(),
+                codexCreditLimit: existing?.codexCreditLimit,
+                balanceReadSucceeded: true,
+                creditsAvailable: true,
+                balanceIsWorkspace: true)
+            return self.replacingCredits(in: result, with: credits)
+        } catch {
+            if error is CancellationError || Task.isCancelled {
+                throw CancellationError()
+            }
+            // This endpoint is owner-scoped. A member response or an endpoint change must not discard usage data.
+            return result
+        }
     }
 
     private static func makeResult(
@@ -655,7 +711,9 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
                 events: oauthCredits.events,
                 updatedAt: oauthCredits.updatedAt,
                 codexCreditLimit: cliLimit,
-                balanceReadSucceeded: oauthCredits.balanceReadSucceeded))
+                balanceReadSucceeded: oauthCredits.balanceReadSucceeded,
+                creditsAvailable: oauthCredits.creditsAvailable,
+                balanceIsWorkspace: oauthCredits.balanceIsWorkspace))
     }
 
     private static func applyingSpendControlsMonthlyLimit(
@@ -705,7 +763,9 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
                     events: $0.events,
                     updatedAt: $0.updatedAt,
                     codexCreditLimit: limit,
-                    balanceReadSucceeded: $0.balanceReadSucceeded)
+                    balanceReadSucceeded: $0.balanceReadSucceeded,
+                    creditsAvailable: $0.creditsAvailable,
+                    balanceIsWorkspace: $0.balanceIsWorkspace)
             } ?? CreditsSnapshot(
                 remaining: 0,
                 events: [],
@@ -729,28 +789,6 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
             }
         }
         return nil
-    }
-
-    private static func replacingCredits(
-        in result: ProviderFetchResult,
-        with credits: CreditsSnapshot) -> ProviderFetchResult
-    {
-        self.attachingExtraUsage(to: ProviderFetchResult(
-            usage: result.usage,
-            credits: credits,
-            dashboard: result.dashboard,
-            sourceLabel: result.sourceLabel,
-            strategyID: result.strategyID,
-            strategyKind: result.strategyKind,
-            codexResetCreditsAttempted: result.codexResetCreditsAttempted,
-            codexMonthlyLimitEnrichmentFailed: result.codexMonthlyLimitEnrichmentFailed,
-            diagnostic: result.diagnostic,
-            claudeOAuthKeychainPersistentRefHash: result.claudeOAuthKeychainPersistentRefHash,
-            claudeOAuthHistoryOwnerIdentifier: result.claudeOAuthHistoryOwnerIdentifier,
-            claudeOAuthCredentialOwner: result.claudeOAuthCredentialOwner,
-            claudeOAuthKeychainCredentialMismatch: result.claudeOAuthKeychainCredentialMismatch,
-            claudeOAuthKeychainCredentialAbsent: result.claudeOAuthKeychainCredentialAbsent,
-            claudeOAuthKeychainCredentialUnavailable: result.claudeOAuthKeychainCredentialUnavailable))
     }
 
     private static func fetchResetCreditsIfRequested(
@@ -844,6 +882,22 @@ extension CodexOAuthFetchStrategy {
         -> ProviderFetchResult
     {
         try await self.applyingSpendControlsMonthlyLimit(
+            result,
+            usage: usage,
+            credentials: credentials,
+            context: context,
+            fetcher: fetcher)
+    }
+
+    static func _applyWorkspaceRemainingBalanceForTesting(
+        _ result: ProviderFetchResult,
+        usage: CodexUsageResponse,
+        credentials: CodexOAuthCredentials,
+        context: ProviderFetchContext,
+        fetcher: @escaping @Sendable (String) async throws -> CodexWorkspaceRemainingBalanceResponse) async throws
+        -> ProviderFetchResult
+    {
+        try await self.applyingWorkspaceRemainingBalance(
             result,
             usage: usage,
             credentials: credentials,

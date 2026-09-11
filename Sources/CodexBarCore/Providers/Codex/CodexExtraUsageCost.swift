@@ -21,6 +21,7 @@ public enum CodexExtraUsageCost {
                 resetsAt: limit.resetsAt,
                 balance: extraBalance,
                 balanceUpdatedAt: balanceUpdatedAt,
+                balanceIsWorkspace: credits.hasWorkspaceBalance ? true : nil,
                 // The cap ages on its own: a preserved limit rides along with a newer balance fetch,
                 // so stamping it with `credits.updatedAt` would overstate how fresh the cap is.
                 updatedAt: limit.updatedAt)
@@ -33,11 +34,13 @@ public enum CodexExtraUsageCost {
             period: "Extra usage",
             balance: extraBalance,
             balanceUpdatedAt: balanceUpdatedAt,
+            balanceIsWorkspace: credits.hasWorkspaceBalance ? true : nil,
             updatedAt: credits.updatedAt)
     }
 
     public static func attaching(to snapshot: UsageSnapshot, credits: CreditsSnapshot?) -> UsageSnapshot {
-        guard let cost = self.resolving(liveCredits: credits, attached: snapshot.providerCost) else { return snapshot }
+        let cost = self.resolving(liveCredits: credits, attached: snapshot.providerCost)
+        guard cost != snapshot.providerCost else { return snapshot }
         return snapshot.with(providerCost: cost)
     }
 
@@ -49,6 +52,23 @@ public enum CodexExtraUsageCost {
         liveCredits: CreditsSnapshot?,
         attached: ProviderCostSnapshot?) -> ProviderCostSnapshot?
     {
+        // A fresh hidden workspace response is unavailable, not a successful re-read of the cached pool.
+        // Cap-only refreshes and preservation placeholders lack this explicit availability signal.
+        let attached: ProviderCostSnapshot? = if let attached,
+                                                 attached.currencyCode == Self.currencyCode,
+                                                 attached.balanceIsWorkspace == true,
+                                                 let liveCredits,
+                                                 liveCredits.creditsAvailable == true,
+                                                 !liveCredits.balanceReadSucceeded,
+                                                 let balanceDate = self.balanceDate(attached),
+                                                 liveCredits.updatedAt > balanceDate
+        {
+            attached.limit > 0
+                ? attached.replacing(balance: nil, balanceUpdatedAt: nil, balanceIsWorkspace: nil)
+                : nil
+        } else {
+            attached
+        }
         let live = self.providerCost(from: liveCredits)
         guard let live else { return attached }
         // Reconcile only the account-paired Codex cost, never a different provider or dashboard.
@@ -71,7 +91,8 @@ public enum CodexExtraUsageCost {
         }
         return capSource.replacing(
             balance: balanceSource.balance,
-            balanceUpdatedAt: self.balanceDate(balanceSource))
+            balanceUpdatedAt: self.balanceDate(balanceSource),
+            balanceIsWorkspace: balanceSource.balanceIsWorkspace)
     }
 
     /// The legacy Credits row and menu-bar fallback must use the same account-paired observations.
@@ -101,7 +122,9 @@ public enum CodexExtraUsageCost {
             events: credits.events,
             updatedAt: replaceBalance ? balanceDate ?? credits.updatedAt : credits.updatedAt,
             codexCreditLimit: limit,
-            balanceReadSucceeded: replaceBalance || credits.balanceReadSucceeded)
+            balanceReadSucceeded: replaceBalance || credits.balanceReadSucceeded,
+            creditsAvailable: credits.creditsAvailable,
+            balanceIsWorkspace: replaceBalance ? cost.balanceIsWorkspace == true : credits.balanceIsWorkspace)
     }
 
     private static func balanceDate(_ cost: ProviderCostSnapshot) -> Date? {
@@ -112,6 +135,8 @@ public enum CodexExtraUsageCost {
     /// Purchased extra credits that are distinct from the monthly included/assigned cap.
     public static func purchasedExtraCreditsBalance(from credits: CreditsSnapshot) -> Double? {
         guard credits.balanceReadSucceeded else { return nil }
+        // An independently fetched workspace pool can happen to equal the personal cap's remainder.
+        if credits.hasWorkspaceBalance { return credits.remaining > 0 ? credits.remaining : nil }
         if let monthly = credits.codexCreditLimit {
             guard abs(credits.remaining - monthly.remaining) > 0.000_1, credits.remaining > 0 else {
                 return nil

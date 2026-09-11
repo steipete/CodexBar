@@ -8,6 +8,7 @@ extension OpenAIDashboardFetcher {
         let usageBreakdown: [OpenAIDashboardDailyBreakdown]
         let hasUsageLimits: Bool
         let creditsRemaining: Double?
+        var creditsAvailable: Bool?
         let codexCreditLimit: CodexCreditLimitSnapshot?
     }
 
@@ -17,6 +18,7 @@ extension OpenAIDashboardFetcher {
             || !input.usageBreakdown.isEmpty
             || input.hasUsageLimits
             || input.creditsRemaining != nil
+            || input.creditsAvailable == true
             || input.codexCreditLimit != nil
     }
 
@@ -40,6 +42,7 @@ extension OpenAIDashboardFetcher {
         updatedAt: Date = Date()) -> OpenAIDashboardSnapshot
     {
         let email = verifiedEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+        let usesAPIBalance = apiData.creditsRemaining != nil || apiData.creditsAvailable != nil
         return OpenAIDashboardSnapshot(
             signedInEmail: email.isEmpty ? previous?.signedInEmail : email,
             codeReviewRemainingPercent: previous?.codeReviewRemainingPercent,
@@ -53,7 +56,9 @@ extension OpenAIDashboardFetcher {
             extraRateWindows: apiData.extraRateWindows.isEmpty
                 ? previous?.extraRateWindows
                 : apiData.extraRateWindows,
-            creditsRemaining: apiData.creditsRemaining ?? previous?.creditsRemaining,
+            creditsRemaining: usesAPIBalance ? apiData.creditsRemaining : previous?.creditsRemaining,
+            creditsAvailable: apiData.creditsAvailable ?? previous?.creditsAvailable,
+            balanceIsWorkspace: usesAPIBalance ? apiData.balanceIsWorkspace : previous?.balanceIsWorkspace,
             codexCreditLimit: apiData.codexCreditLimit ?? previous?.codexCreditLimit,
             // Prefer the page-derived plan (more specific, e.g. Pro Lite) over the generic API plan_type.
             accountPlan: previous?.accountPlan ?? apiData.accountPlan,
@@ -72,6 +77,7 @@ extension OpenAIDashboardFetcher {
         subscriptionResult: OpenAISubscriptionFetchResult = .unavailable) -> OpenAIDashboardSnapshot
     {
         guard let previous else { return snapshot }
+        let usesCurrentBalance = snapshot.creditsRemaining != nil || snapshot.creditsAvailable != nil
         let subscriptionExpiresAt = subscriptionResult.succeeded
             ? snapshot.subscriptionExpiresAt
             : snapshot.subscriptionExpiresAt ?? previous.subscriptionExpiresAt
@@ -90,7 +96,9 @@ extension OpenAIDashboardFetcher {
             primaryLimit: snapshot.primaryLimit ?? previous.primaryLimit,
             secondaryLimit: snapshot.secondaryLimit ?? previous.secondaryLimit,
             extraRateWindows: snapshot.extraRateWindows ?? previous.extraRateWindows,
-            creditsRemaining: snapshot.creditsRemaining ?? previous.creditsRemaining,
+            creditsRemaining: usesCurrentBalance ? snapshot.creditsRemaining : previous.creditsRemaining,
+            creditsAvailable: snapshot.creditsAvailable ?? previous.creditsAvailable,
+            balanceIsWorkspace: usesCurrentBalance ? snapshot.balanceIsWorkspace : previous.balanceIsWorkspace,
             codexCreditLimit: snapshot.codexCreditLimit ?? previous.codexCreditLimit,
             accountPlan: snapshot.accountPlan ?? previous.accountPlan,
             subscriptionExpiresAt: subscriptionExpiresAt,

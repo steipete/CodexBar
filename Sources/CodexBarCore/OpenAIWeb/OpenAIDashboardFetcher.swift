@@ -57,6 +57,8 @@ public struct OpenAIDashboardFetcher {
         let rateLimits: (primary: RateWindow?, secondary: RateWindow?)
         let extraRateWindows: [NamedRateWindow]
         let creditsRemaining: Double?
+        var creditsAvailable: Bool?
+        var balanceIsWorkspace: Bool?
         let codexCreditLimit: CodexCreditLimitSnapshot?
         let accountPlan: String?
         let subscription: OpenAISubscriptionMetadata?
@@ -72,6 +74,8 @@ public struct OpenAIDashboardFetcher {
         let rateLimits: (primary: RateWindow?, secondary: RateWindow?)
         let extraRateWindows: [NamedRateWindow]
         let creditsRemaining: Double?
+        var creditsAvailable: Bool?
+        var balanceIsWorkspace: Bool?
         let codexCreditLimit: CodexCreditLimitSnapshot?
         let accountPlan: String?
         let hasDashboardPageSignal: Bool
@@ -93,6 +97,8 @@ public struct OpenAIDashboardFetcher {
             secondaryLimit: components.rateLimits.secondary,
             extraRateWindows: components.extraRateWindows.isEmpty ? nil : components.extraRateWindows,
             creditsRemaining: components.creditsRemaining,
+            creditsAvailable: components.creditsAvailable,
+            balanceIsWorkspace: components.balanceIsWorkspace,
             codexCreditLimit: components.codexCreditLimit,
             accountPlan: components.accountPlan,
             subscriptionExpiresAt: components.subscription?.expiresAt,
@@ -116,7 +122,9 @@ public struct OpenAIDashboardFetcher {
             secondary: apiData?.secondaryLimit ?? parsedRateLimits.secondary)
         let codeReviewLimit = OpenAIDashboardParser.parseCodeReviewLimit(bodyText: bodyText)
         let parsedCreditsRemaining = OpenAIDashboardParser.parseCreditsRemaining(bodyText: bodyText)
-        let creditsRemaining = apiData?.creditsRemaining ?? parsedCreditsRemaining
+        // An explicit API response withholds a balance deliberately; the page may still show a placeholder zero.
+        let usesAPIBalance = apiData?.creditsRemaining != nil || apiData?.creditsAvailable != nil
+        let creditsRemaining = usesAPIBalance ? apiData?.creditsRemaining : parsedCreditsRemaining
         let codexCreditLimit = apiData?.codexCreditLimit
         let accountPlan = scrape.accountPlan ?? apiData?.accountPlan
         let hasParsedUsageLimits = parsedRateLimits.primary != nil || parsedRateLimits.secondary != nil
@@ -134,6 +142,7 @@ public struct OpenAIDashboardFetcher {
             usageBreakdown: usageBreakdown,
             hasUsageLimits: hasUsageLimits,
             creditsRemaining: creditsRemaining,
+            creditsAvailable: apiData?.creditsAvailable,
             codexCreditLimit: codexCreditLimit))
 
         // Codex `additional_rate_limits` (e.g. Codex Spark) only ship over the JSON usage API, so the
@@ -149,28 +158,14 @@ public struct OpenAIDashboardFetcher {
             rateLimits: rateLimits,
             extraRateWindows: extraRateWindows,
             creditsRemaining: creditsRemaining,
+            creditsAvailable: apiData?.creditsAvailable,
+            balanceIsWorkspace: usesAPIBalance ? apiData?.balanceIsWorkspace : nil,
             codexCreditLimit: codexCreditLimit,
             accountPlan: accountPlan,
             hasDashboardPageSignal: self.hasAnyDashboardSignal(
                 hasReturnableData: hasDashboardPageData,
                 creditsHeaderPresent: scrape.creditsHeaderPresent),
             hasReturnableData: hasReturnableData)
-    }
-
-    struct DashboardAPIData {
-        let primaryLimit: RateWindow?
-        let secondaryLimit: RateWindow?
-        let extraRateWindows: [NamedRateWindow]
-        let creditsRemaining: Double?
-        let codexCreditLimit: CodexCreditLimitSnapshot?
-        let accountPlan: String?
-
-        var hasUsageData: Bool {
-            self.primaryLimit != nil
-                || self.secondaryLimit != nil
-                || self.creditsRemaining != nil
-                || self.codexCreditLimit != nil
-        }
     }
 
     public struct ProbeResult: Sendable {
@@ -636,6 +631,7 @@ public struct OpenAIDashboardFetcher {
             extraRateWindows: CodexAdditionalRateLimitMapper.extraRateWindows(
                 from: response.additionalRateLimits),
             creditsRemaining: response.credits?.balance,
+            creditsAvailable: response.credits.map { $0.hasCredits || $0.unlimited },
             codexCreditLimit: response.resolvedIndividualLimit?.codexCreditLimitSnapshot(updatedAt: Date()),
             accountPlan: response.planType?.rawValue)
     }
@@ -700,10 +696,16 @@ public struct OpenAIDashboardFetcher {
                 cookieHeader: cookieHeader,
                 deadline: deadline,
                 logger: logger)
-            if enrichedResult.hasUsageData {
+            let balanceEnrichedResult = await self.fetchWorkspaceRemainingBalanceIfNeeded(
+                enrichedResult,
+                response: decoded,
+                cookieHeader: cookieHeader,
+                deadline: deadline,
+                logger: logger)
+            if balanceEnrichedResult.hasUsageData {
                 logger("usage api supplied language-independent rate/credit data")
             }
-            return enrichedResult
+            return balanceEnrichedResult
         } catch {
             logger("usage api unavailable: \(error.localizedDescription)")
             return nil
@@ -889,6 +891,25 @@ public struct OpenAIDashboardFetcher {
 }
 
 extension OpenAIDashboardFetcher {
+    struct DashboardAPIData {
+        let primaryLimit: RateWindow?
+        let secondaryLimit: RateWindow?
+        let extraRateWindows: [NamedRateWindow]
+        let creditsRemaining: Double?
+        var creditsAvailable: Bool?
+        var balanceIsWorkspace: Bool?
+        let codexCreditLimit: CodexCreditLimitSnapshot?
+        let accountPlan: String?
+
+        var hasUsageData: Bool {
+            self.primaryLimit != nil
+                || self.secondaryLimit != nil
+                || self.creditsRemaining != nil
+                || self.creditsAvailable == true
+                || self.codexCreditLimit != nil
+        }
+    }
+
     struct CreditsHistoryWaitContext {
         let now: Date
         let anyDashboardSignalAt: Date?
@@ -980,6 +1001,53 @@ extension OpenAIDashboardFetcher {
 }
 
 extension OpenAIDashboardFetcher {
+    private static func fetchWorkspaceRemainingBalanceIfNeeded(
+        _ result: DashboardAPIData,
+        response: CodexUsageResponse,
+        cookieHeader: String,
+        deadline: Date?,
+        logger: @escaping (String) -> Void) async -> DashboardAPIData
+    {
+        guard result.creditsRemaining == nil,
+              response.credits?.hasCredits == true,
+              response.credits?.unlimited != true,
+              let accountId = response.accountId?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !accountId.isEmpty
+        else { return result }
+
+        let remaining = deadline.map { self.remainingTimeout(until: $0) } ?? 4
+        guard remaining > 0,
+              let request = self.dashboardWorkspaceRemainingBalanceAPIRequest(
+                  accountId: accountId,
+                  cookieHeader: cookieHeader,
+                  timeout: min(4, remaining))
+        else { return result }
+
+        do {
+            let (data, response) = try await CodexAuthenticatedHTTPTransport.current.data(for: request)
+            let status = (response as? HTTPURLResponse)?.statusCode ?? -1
+            guard status >= 200, status < 300 else {
+                logger("workspace remaining balance api unavailable: status=\(status)")
+                return result
+            }
+            let decoded = try JSONDecoder().decode(CodexWorkspaceRemainingBalanceResponse.self, from: data)
+            guard let balance = decoded.balance else { return result }
+            logger("workspace remaining balance api supplied owner-visible balance")
+            return DashboardAPIData(
+                primaryLimit: result.primaryLimit,
+                secondaryLimit: result.secondaryLimit,
+                extraRateWindows: result.extraRateWindows,
+                creditsRemaining: balance,
+                creditsAvailable: result.creditsAvailable,
+                balanceIsWorkspace: true,
+                codexCreditLimit: result.codexCreditLimit,
+                accountPlan: result.accountPlan)
+        } catch {
+            logger("workspace remaining balance api unavailable: \(error.localizedDescription)")
+            return result
+        }
+    }
+
     private static func fetchSpendControlsMonthlyUsageIfNeeded(
         _ result: DashboardAPIData,
         response: CodexUsageResponse,
@@ -1020,6 +1088,8 @@ extension OpenAIDashboardFetcher {
                 secondaryLimit: result.secondaryLimit,
                 extraRateWindows: result.extraRateWindows,
                 creditsRemaining: result.creditsRemaining,
+                creditsAvailable: result.creditsAvailable,
+                balanceIsWorkspace: result.balanceIsWorkspace,
                 codexCreditLimit: limit,
                 accountPlan: result.accountPlan)
         } catch {
@@ -1061,6 +1131,36 @@ extension OpenAIDashboardFetcher {
         else { return nil }
         return URL(string: "https://chatgpt.com/backend-api/accounts/\(encodedAccountId)" +
             "/spend-controls/current-user/monthly-usage")
+    }
+
+    nonisolated static func dashboardWorkspaceRemainingBalanceAPIURL(accountId: String) -> URL? {
+        var allowedCharacters = CharacterSet.urlPathAllowed
+        allowedCharacters.subtract(CharacterSet(charactersIn: "/?#%"))
+        guard let encodedAccountId = accountId.addingPercentEncoding(withAllowedCharacters: allowedCharacters),
+              !encodedAccountId.isEmpty
+        else { return nil }
+        return URL(string: "https://chatgpt.com/backend-api/accounts/\(encodedAccountId)/remaining_balance")
+    }
+
+    nonisolated static func dashboardWorkspaceRemainingBalanceAPIRequest(
+        accountId: String,
+        cookieHeader: String,
+        timeout: TimeInterval = 4) -> URLRequest?
+    {
+        guard let url = self.dashboardWorkspaceRemainingBalanceAPIURL(accountId: accountId) else {
+            return nil
+        }
+        var request = URLRequest(
+            url: url,
+            cachePolicy: .reloadIgnoringLocalCacheData,
+            timeoutInterval: timeout)
+        request.httpMethod = "GET"
+        request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue(Self.dashboardAcceptLanguage, forHTTPHeaderField: "Accept-Language")
+        request.setValue("CodexBar", forHTTPHeaderField: "User-Agent")
+        request.setValue(accountId, forHTTPHeaderField: "ChatGPT-Account-Id")
+        return request
     }
 
     nonisolated static func dashboardSpendControlsMonthlyUsageAPIRequest(

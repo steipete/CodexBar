@@ -18,6 +18,8 @@ public struct ProviderCostSnapshot: Equatable, Codable, Sendable {
     public let balance: Double?
     /// Successful balance observation, including a confirmed absent balance; independent of the budget age.
     public let balanceUpdatedAt: Date?
+    /// Codex shared workspace provenance; nil for other providers and legacy balance observations.
+    public let balanceIsWorkspace: Bool?
     public let updatedAt: Date
 
     public init(
@@ -30,6 +32,7 @@ public struct ProviderCostSnapshot: Equatable, Codable, Sendable {
         personalUsed: Double? = nil,
         balance: Double? = nil,
         balanceUpdatedAt: Date? = nil,
+        balanceIsWorkspace: Bool? = nil,
         updatedAt: Date)
     {
         self.used = used
@@ -41,14 +44,18 @@ public struct ProviderCostSnapshot: Equatable, Codable, Sendable {
         self.personalUsed = personalUsed
         self.balance = balance
         self.balanceUpdatedAt = balanceUpdatedAt
+        self.balanceIsWorkspace = balanceIsWorkspace
         self.updatedAt = updatedAt
     }
 
     func replacing(balance: Double?) -> Self {
-        self.replacing(balance: balance, balanceUpdatedAt: self.balanceUpdatedAt)
+        self.replacing(
+            balance: balance,
+            balanceUpdatedAt: self.balanceUpdatedAt,
+            balanceIsWorkspace: self.balanceIsWorkspace)
     }
 
-    func replacing(balance: Double?, balanceUpdatedAt: Date?) -> Self {
+    func replacing(balance: Double?, balanceUpdatedAt: Date?, balanceIsWorkspace: Bool?) -> Self {
         Self(
             used: self.used,
             limit: self.limit,
@@ -59,6 +66,7 @@ public struct ProviderCostSnapshot: Equatable, Codable, Sendable {
             personalUsed: self.personalUsed,
             balance: balance,
             balanceUpdatedAt: balanceUpdatedAt,
+            balanceIsWorkspace: balanceIsWorkspace,
             updatedAt: self.updatedAt)
     }
 }

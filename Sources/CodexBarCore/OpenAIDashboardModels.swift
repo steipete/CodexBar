@@ -17,6 +17,9 @@ public struct OpenAIDashboardSnapshot: Codable, Equatable, Sendable {
     /// `wham/usage` response's `additional_rate_limits` array.
     public let extraRateWindows: [NamedRateWindow]?
     public let creditsRemaining: Double?
+    public let creditsAvailable: Bool?
+    /// True only when the balance came from the owner-visible workspace endpoint.
+    public let balanceIsWorkspace: Bool?
     public let codexCreditLimit: CodexCreditLimitSnapshot?
     public let accountPlan: String?
     public let subscriptionExpiresAt: Date?
@@ -35,6 +38,8 @@ public struct OpenAIDashboardSnapshot: Codable, Equatable, Sendable {
         secondaryLimit: RateWindow? = nil,
         extraRateWindows: [NamedRateWindow]? = nil,
         creditsRemaining: Double? = nil,
+        creditsAvailable: Bool? = nil,
+        balanceIsWorkspace: Bool? = nil,
         codexCreditLimit: CodexCreditLimitSnapshot? = nil,
         accountPlan: String? = nil,
         subscriptionExpiresAt: Date? = nil,
@@ -52,6 +57,8 @@ public struct OpenAIDashboardSnapshot: Codable, Equatable, Sendable {
         self.secondaryLimit = secondaryLimit
         self.extraRateWindows = extraRateWindows
         self.creditsRemaining = creditsRemaining
+        self.creditsAvailable = creditsAvailable
+        self.balanceIsWorkspace = balanceIsWorkspace
         self.codexCreditLimit = codexCreditLimit
         self.accountPlan = accountPlan
         self.subscriptionExpiresAt = subscriptionExpiresAt
@@ -71,6 +78,8 @@ public struct OpenAIDashboardSnapshot: Codable, Equatable, Sendable {
         case secondaryLimit
         case extraRateWindows
         case creditsRemaining
+        case creditsAvailable
+        case balanceIsWorkspace
         case codexCreditLimit
         case accountPlan
         case subscriptionExpiresAt
@@ -103,6 +112,8 @@ public struct OpenAIDashboardSnapshot: Codable, Equatable, Sendable {
             [NamedRateWindow].self,
             forKey: .extraRateWindows)
         self.creditsRemaining = try container.decodeIfPresent(Double.self, forKey: .creditsRemaining)
+        self.creditsAvailable = try container.decodeIfPresent(Bool.self, forKey: .creditsAvailable)
+        self.balanceIsWorkspace = try container.decodeIfPresent(Bool.self, forKey: .balanceIsWorkspace)
         self.codexCreditLimit = try container.decodeIfPresent(CodexCreditLimitSnapshot.self, forKey: .codexCreditLimit)
         self.accountPlan = try container.decodeIfPresent(String.self, forKey: .accountPlan)
         self.subscriptionExpiresAt = try container.decodeIfPresent(Date.self, forKey: .subscriptionExpiresAt)
@@ -153,6 +164,8 @@ public struct OpenAIDashboardSnapshot: Codable, Equatable, Sendable {
             secondaryLimit: self.secondaryLimit,
             extraRateWindows: self.extraRateWindows,
             creditsRemaining: self.creditsRemaining,
+            creditsAvailable: self.creditsAvailable,
+            balanceIsWorkspace: self.balanceIsWorkspace,
             codexCreditLimit: self.codexCreditLimit,
             accountPlan: self.accountPlan,
             subscriptionExpiresAt: metadata?.expiresAt,
@@ -176,14 +189,18 @@ extension OpenAIDashboardSnapshot {
     }
 
     public func toCreditsSnapshot() -> CreditsSnapshot? {
-        guard self.creditsRemaining != nil || self.codexCreditLimit != nil else { return nil }
+        guard self.creditsRemaining != nil || self.codexCreditLimit != nil || self.creditsAvailable == true else {
+            return nil
+        }
         return CreditsSnapshot(
             remaining: self.creditsRemaining ?? 0,
             events: self.creditEvents,
             updatedAt: self.updatedAt,
             codexCreditLimit: self.codexCreditLimit,
             // A cap-only dashboard read omits the balance entirely; that placeholder zero is unread, not spent.
-            balanceReadSucceeded: self.creditsRemaining != nil)
+            balanceReadSucceeded: self.creditsRemaining != nil,
+            creditsAvailable: self.creditsAvailable,
+            balanceIsWorkspace: self.balanceIsWorkspace == true)
     }
 }
 

@@ -229,6 +229,42 @@ struct CodexConsumerProjectionTests {
     }
 
     @Test
+    func `menu bar uses workspace balance when individual credit limit is exhausted`() {
+        let store = self.makeStore(suite: "CodexConsumerProjectionTests-workspace-balance-menu-bar")
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 100,
+                    windowMinutes: 300,
+                    resetsAt: now.addingTimeInterval(1800),
+                    resetDescription: nil),
+                secondary: nil,
+                updatedAt: now),
+            provider: .codex)
+        store.credits = CreditsSnapshot(
+            remaining: 1234,
+            events: [],
+            updatedAt: now,
+            codexCreditLimit: CodexCreditLimitSnapshot(
+                used: 1000,
+                limit: 1000,
+                remainingPercent: 0,
+                resetsAt: now.addingTimeInterval(86400),
+                updatedAt: now),
+            balanceReadSucceeded: true,
+            creditsAvailable: true,
+            balanceIsWorkspace: true)
+
+        let projection = store.codexConsumerProjection(surface: .menuBar, now: now)
+
+        #expect(projection.credits?.remaining == 1234)
+        #expect(projection.menuBarFallback == .creditsBalance)
+        #expect(store.codexMenuBarCreditsRemaining(now: now) == 1234)
+    }
+
+    @Test
     func `live card projection keeps buy credits available without dashboard purchase URL`() {
         let store = self.makeStore(suite: "CodexConsumerProjectionTests-buy-credits")
         let now = Date(timeIntervalSince1970: 1_700_000_000)

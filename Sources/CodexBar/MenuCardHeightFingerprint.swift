@@ -18,6 +18,7 @@ extension UsageMenuCardView.Model {
             MenuCardHeightFingerprint.field("placeholder", self.placeholder),
             MenuCardHeightFingerprint.field("credits", self.creditsText),
             "creditsRemaining=\(self.creditsRemaining.map(String.init(describing:)) ?? "nil")",
+            "creditsShowProgress=\(self.creditsShowProgress)",
             MenuCardHeightFingerprint.field("creditsHint", self.creditsHintText),
             MenuCardHeightFingerprint.field("creditsCopy", self.creditsHintCopyText),
             "codexResetCredits=\(self.codexResetCredits?.heightFingerprint ?? "")",

@@ -213,6 +213,8 @@ extension OpenAIDashboardFetcher {
                 rateLimits: dashboardData.rateLimits,
                 extraRateWindows: dashboardData.extraRateWindows,
                 creditsRemaining: dashboardData.creditsRemaining,
+                creditsAvailable: dashboardData.creditsAvailable,
+                balanceIsWorkspace: dashboardData.balanceIsWorkspace,
                 codexCreditLimit: dashboardData.codexCreditLimit,
                 accountPlan: dashboardData.accountPlan,
                 subscription: subscriptionResult.metadata)),
