@@ -620,18 +620,9 @@ public struct CostUsageFetcher: Sendable {
             if provider == .codex {
                 let roots = CostUsageScanner.codexSessionsRoots(options: options.scanOptions)
                 let rootsFingerprint = CostUsageScanner.codexRootsFingerprint(options: options.scanOptions)
-                // Keep a fallback detail read on the same validated connection.
-                let store = CostUsageStore(cacheRoot: options.scanOptions.cacheRoot)
-                var view = store.syncLoadCodexReadView(
-                    calendar: options.scanOptions.calendar,
-                    purpose: .status).scoped(to: roots)
                 let range = CostUsageScanner.CostUsageDayRange(
                     since: since, until: now, calendar: options.scanOptions.calendar)
-                if view.previousReport(range: range, rootsFingerprint: rootsFingerprint) == nil {
-                    view = store.syncLoadCodexReadView(
-                        calendar: options.scanOptions.calendar,
-                        purpose: .report).scoped(to: roots)
-                }
+                let view = Self.codexReportView(options: options.scanOptions, range: range)
                 if let previous = view.previousReport(range: range, rootsFingerprint: rootsFingerprint) {
                     staleSnapshotUpdatedAt = previous.updatedAt
                 } else {
@@ -672,6 +663,21 @@ public struct CostUsageFetcher: Sendable {
                 historyCoverageIsEstablished: provider != .codex
                     || Self.codexScanCatchUpStatus(options: options.scanOptions).historyCoverageIsEstablished)
         }
+    }
+
+    private static func codexReportView(
+        options: CostUsageScanner.Options,
+        range: CostUsageScanner.CostUsageDayRange) -> CostUsageStoreReadView
+    {
+        let roots = CostUsageScanner.codexSessionsRoots(options: options)
+        let rootsFingerprint = CostUsageScanner.codexRootsFingerprint(options: options)
+        // Keep a fallback detail read on the same validated connection.
+        let store = CostUsageStore(cacheRoot: options.cacheRoot)
+        var view = store.syncLoadCodexReadView(calendar: options.calendar, purpose: .status).scoped(to: roots)
+        if view.previousReport(range: range, rootsFingerprint: rootsFingerprint) == nil {
+            view = store.syncLoadCodexReadView(calendar: options.calendar, purpose: .report).scoped(to: roots)
+        }
+        return view
     }
 
     private struct PricingRefreshOptions: Sendable {
@@ -892,23 +898,18 @@ public struct CostUsageFetcher: Sendable {
                 overrideScannerOptions,
                 provider: .codex,
                 codexHomePath: codexHomePath)
-            let until = now
             let since = options.calendar.date(
                 byAdding: .day,
                 value: -(clampedHistoryDays - 1),
                 to: now) ?? now
             let range = CostUsageScanner.CostUsageDayRange(
                 since: since,
-                until: until,
+                until: now,
                 calendar: options.calendar)
             let shouldMergePiUsage = scopedCodexHomePath?.isEmpty != false
             let roots = CostUsageScanner.codexSessionsRoots(options: options)
             let rootsFingerprint = CostUsageScanner.codexRootsFingerprint(options: options)
-            let loadedCache = CostUsageStoreAccess.readView(
-                cacheRoot: options.cacheRoot,
-                calendar: options.calendar,
-                purpose: .report)
-            let cache = loadedCache.scoped(to: roots)
+            let cache = Self.codexReportView(options: options, range: range)
             var reports: [CostUsageDailyReport] = []
             var projects: [CostUsageProjectBreakdown] = []
             var sessions: [CostUsageSessionBreakdown] = []
@@ -978,7 +979,7 @@ public struct CostUsageFetcher: Sendable {
                 let piResult = PiSessionCostScanner.loadCachedDailyReportResult(
                     provider: .codex,
                     since: since,
-                    until: until,
+                    until: now,
                     now: now,
                     cacheRoot: options.cacheRoot,
                     calendar: options.calendar,
@@ -993,8 +994,6 @@ public struct CostUsageFetcher: Sendable {
                     }
                     if let piProject = Self.unknownProjectBreakdown(from: piResult.report) {
                         projects.append(piProject)
-                    }
-                    if !piResult.report.data.isEmpty {
                         sessions = []
                     }
                 }

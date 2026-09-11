@@ -639,10 +639,13 @@ struct OpenCodeGoUsageFetcherErrorTests {
                 contentType: "text/html")
         }
 
+        // The billing fallback needs two hops. Without the completeness wait, the app's 250 ms optional-balance
+        // grace can cancel the balance task before the billing request is sent on a loaded CI runner.
         let snapshot = try await OpenCodeGoUsageFetcher.fetchUsage(
             cookieHeader: "auth=test",
             timeout: 2,
             workspaceIDOverride: "wrk_TEST123",
+            waitForZenBalance: true,
             session: self.makeSession())
 
         #expect(snapshot.zenBalanceUSD == 98.76)
