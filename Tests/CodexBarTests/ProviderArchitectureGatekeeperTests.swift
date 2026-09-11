@@ -2281,15 +2281,7 @@ struct ProviderArchitectureGatekeeperTests {
         AllowedProviderConstruct(
             path: "Sources/CodexBar/PreferencesProvidersPane.swift",
             line: 294,
-            anchor: "guard let state = self.codexAccountsSectionState(for: .codex), state.canReauthenticate(account) else {",
-            expectedProviderIDs: ["codex"],
-            expectedReferenceCount: 1,
-            expectedReferenceFingerprint: ["codex@0"],
-            reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
-        AllowedProviderConstruct(
-            path: "Sources/CodexBar/PreferencesProvidersPane.swift",
-            line: 307,
-            anchor: "guard let state = self.codexAccountsSectionState(for: .codex), state.canReauthenticate(account) else {",
+            anchor: "guard let state = self.codexAccountsSectionState(for: .codex),",
             expectedProviderIDs: ["codex"],
             expectedReferenceCount: 1,
             expectedReferenceFingerprint: ["codex@0"],

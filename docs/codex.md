@@ -68,6 +68,7 @@ Usage source picker:
   Automatic mode also suppresses unscoped CLI fallback whenever a managed workspace is selected. Explicit
   managed-account workspace selection is stored in CodexBar's private managed-account metadata; it never edits the
   source `auth.json` or publishes an `account_id` change back to another application's credential file.
+- **Reauthenticate** follows the credential source shown by the account row: System rows use the existing system Codex login flow even when the same account is also saved; managed rows renew their private managed home. Credentials are not copied between those homes. A queued action is discarded if the row's source or workspace changes.
 - If native credentials need renewal, use **Reauthenticate** for the affected account in Settings → Providers → Codex.
   For CLI recovery, run `codex login` with that account's existing `CODEX_HOME` and select the intended workspace.
   The refresh error describes this manual recovery without promising automatic CLI fallback for managed workspaces.
