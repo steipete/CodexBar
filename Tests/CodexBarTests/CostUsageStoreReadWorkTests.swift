@@ -4,6 +4,67 @@ import Testing
 
 @Suite(.serialized)
 struct CostUsageStoreReadWorkTests {
+    enum FreshSnapshotState: CaseIterable, Sendable {
+        case complete, pending, retainedReport
+    }
+
+    @Test(arguments: FreshSnapshotState.allCases)
+    func `fresh snapshots skip discarded details while retaining a previous report`(
+        state: FreshSnapshotState) async throws
+    {
+        let pending = state != .complete
+        let retainedReport = state == .retainedReport
+        let fixture = try ReadWorkFixture(fileCount: 16, rowsPerFile: 64, incomplete: pending)
+        defer { fixture.remove() }
+        if retainedReport {
+            var cache = fixture.canonical
+            var previousCache = cache
+            previousCache.lastScanUnixMs -= 60000
+            cache.codexPreviousReport = CostUsageCodexPreviousReport(
+                report: fixture.fullReport(cache),
+                cache: previousCache,
+                reportSinceKey: fixture.range.sinceKey,
+                reportUntilKey: fixture.range.untilKey)
+            #expect(!fixture.save(cache).catchUpRequired)
+        }
+        let cached = try #require(await fixture.cachedSnapshot(details: true)).snapshot
+        let expected = CostUsageTokenSnapshot(
+            sessionTokens: cached.sessionTokens,
+            sessionCostUSD: cached.sessionCostUSD,
+            last30DaysTokens: cached.last30DaysTokens,
+            last30DaysCostUSD: cached.last30DaysCostUSD,
+            historyDays: 1,
+            historyCoverageIsEstablished: !pending,
+            costProvenance: .listPriceEstimate,
+            daily: cached.daily,
+            projects: cached.projects,
+            sessions: cached.sessions,
+            updatedAt: cached.updatedAt)
+        let recorder = CostUsageStoreReadWorkRecorder(databaseURL: fixture.store.databaseURL)
+        CostUsageStore.readWorkRecorderForTesting = recorder
+        defer { CostUsageStore.readWorkRecorderForTesting = nil }
+
+        let snapshot = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .codex,
+            environment: [:],
+            now: fixture.now,
+            historyDays: 1,
+            allowPricingRefresh: false,
+            includePiSessions: false,
+            scannerOptions: fixture.options)
+        let work = recorder.snapshot()
+        #expect(snapshot == expected)
+        #expect(snapshot.projects.isEmpty == retainedReport)
+        #expect(snapshot.sessions.isEmpty == retainedReport)
+        #expect(snapshot.updatedAt == fixture.now.addingTimeInterval(retainedReport ? -60 : 0))
+        #expect(work.scannerSnapshotReads == 1)
+        #expect(work.tokenSnapshotRows == 0)
+        #expect(work.integrityChecks == 3)
+        #expect(work.usageRowDecodeAttempts == fixture.rowCount * (retainedReport ? 1 : 2))
+        print("[pending-report-read-proof] state=\(state) rows=\(fixture.rowCount) " +
+            "decoded=\(work.usageRowDecodeAttempts) checks=\(work.integrityChecks)")
+    }
+
     @Test(arguments: [2, 16])
     func `characterize valid store and caller reads`(fileCount: Int) async throws {
         let fixture = try ReadWorkFixture(fileCount: fileCount, rowsPerFile: fileCount == 2 ? 4 : 64)

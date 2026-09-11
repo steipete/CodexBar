@@ -46,6 +46,10 @@ public struct CostUsageFetcher: Sendable {
         package let totalFiles: Int
         package let staleSnapshotUpdatedAt: Date?
 
+        var historyCoverageIsEstablished: Bool {
+            !self.pending && self.progressKey != "scope-mismatch"
+        }
+
         package init(
             pending: Bool,
             progressKey: String,
@@ -359,13 +363,6 @@ public struct CostUsageFetcher: Sendable {
         return view.catchUpStatus(roots: roots, rootsFingerprint: rootsFingerprint)
     }
 
-    private static func codexHistoryCoverageIsEstablished(
-        options: CostUsageScanner.Options) -> Bool
-    {
-        let status = self.codexScanCatchUpStatus(options: options)
-        return !status.pending && status.progressKey != "scope-mismatch"
-    }
-
     private static let establishedEmptyCodexDailyReport = CostUsageDailyReport(data: [], summary: nil)
 
     private static func resolvedScannerOptions(
@@ -619,20 +616,23 @@ public struct CostUsageFetcher: Sendable {
 
             var projects: [CostUsageProjectBreakdown] = []
             var sessions: [CostUsageSessionBreakdown] = []
-            var piDaily: CostUsageDailyReport?
             var staleSnapshotUpdatedAt: Date?
             if provider == .codex {
                 let roots = CostUsageScanner.codexSessionsRoots(options: options.scanOptions)
-                let view = CostUsageStoreAccess.readView(
-                    cacheRoot: options.scanOptions.cacheRoot,
+                let rootsFingerprint = CostUsageScanner.codexRootsFingerprint(options: options.scanOptions)
+                // Keep a fallback detail read on the same validated connection.
+                let store = CostUsageStore(cacheRoot: options.scanOptions.cacheRoot)
+                var view = store.syncLoadCodexReadView(
                     calendar: options.scanOptions.calendar,
-                    purpose: .report).scoped(to: roots)
+                    purpose: .status).scoped(to: roots)
                 let range = CostUsageScanner.CostUsageDayRange(
                     since: since, until: now, calendar: options.scanOptions.calendar)
-                if let previous = view.previousReport(
-                    range: range,
-                    rootsFingerprint: CostUsageScanner.codexRootsFingerprint(options: options.scanOptions))
-                {
+                if view.previousReport(range: range, rootsFingerprint: rootsFingerprint) == nil {
+                    view = store.syncLoadCodexReadView(
+                        calendar: options.scanOptions.calendar,
+                        purpose: .report).scoped(to: roots)
+                }
+                if let previous = view.previousReport(range: range, rootsFingerprint: rootsFingerprint) {
                     staleSnapshotUpdatedAt = previous.updatedAt
                 } else {
                     projects = view.projects(
@@ -655,17 +655,14 @@ public struct CostUsageFetcher: Sendable {
                     options: options.piOptions,
                     checkCancellation: checkCancellation)
                 try checkCancellation()
-                if provider == .codex {
-                    piDaily = piReport
+                if provider == .codex, let project = Self.unknownProjectBreakdown(from: piReport) {
+                    projects.append(project)
+                    sessions = []
                 }
                 daily = CostUsageDailyReport.merged([daily, piReport])
             }
             if provider == .codex {
-                projects = Self.mergedProjectBreakdowns(
-                    projects + [piDaily.flatMap(Self.unknownProjectBreakdown(from:))].compactMap(\.self))
-                if piDaily?.data.isEmpty == false {
-                    sessions = []
-                }
+                projects = Self.mergedProjectBreakdowns(projects)
             }
             return LocalTokenScanResult(
                 daily: daily,
@@ -673,7 +670,7 @@ public struct CostUsageFetcher: Sendable {
                 sessions: sessions,
                 staleSnapshotUpdatedAt: staleSnapshotUpdatedAt,
                 historyCoverageIsEstablished: provider != .codex
-                    || Self.codexHistoryCoverageIsEstablished(options: options.scanOptions))
+                    || Self.codexScanCatchUpStatus(options: options.scanOptions).historyCoverageIsEstablished)
         }
     }
 
