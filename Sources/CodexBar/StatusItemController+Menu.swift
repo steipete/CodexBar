@@ -578,12 +578,35 @@ extension StatusItemController {
         // interaction closures must always reference the live menu they end up serving.
         let interactionMenu = captureMenu ?? menu
         let providerScopes = self.overviewProviderScopes(enabledProviders: enabledProviders)
-        let rows: [(provider: UsageProvider, model: UsageMenuCardView.Model)] = providerScopes.visible
-            .compactMap { provider in
-                guard let model = self.menuCardModel(for: provider) else { return nil }
-                guard !model.isOverviewErrorOnly else { return nil }
-                return (provider: provider, model: model)
+        var rows: [(provider: UsageProvider, identifier: String, model: UsageMenuCardView.Model)] = []
+        for provider in providerScopes.visible {
+            if provider == .codex,
+               let display = self.codexAccountMenuDisplay(for: provider),
+               display.showAll
+            {
+                for account in display.accounts {
+                    let accountSnapshot = display.snapshots.first(where: { $0.id == account.id })
+                    let model = self.menuCardModel(
+                        for: .codex,
+                        snapshotOverride: accountSnapshot?.snapshot,
+                        errorOverride: accountSnapshot?.error,
+                        forceOverrideCard: accountSnapshot == nil,
+                        accountOverride: self.accountInfo(for: account),
+                        historySelectionOverride: self.store.codexPlanUtilizationHistorySelection(
+                            forVisibleAccount: account),
+                        creditsOverride: accountSnapshot?.credits)
+                    guard let model, !model.isOverviewErrorOnly
+                    else { continue }
+                    rows.append((
+                        provider: provider,
+                        identifier: "\(Self.overviewRowIdentifierPrefix)codex-\(account.id)",
+                        model: model))
+                }
+                continue
             }
+            guard let model = self.menuCardModel(for: provider), !model.isOverviewErrorOnly else { continue }
+            rows.append((provider: provider, identifier: "\(Self.overviewRowIdentifierPrefix)\(provider.rawValue)", model: model))
+        }
         guard !rows.isEmpty else { return false }
 
         let t0 = CACurrentMediaTime()
@@ -622,17 +645,18 @@ extension StatusItemController {
         }
 
         for (index, row) in rows.enumerated() {
-            let identifier = "\(Self.overviewRowIdentifierPrefix)\(row.provider.rawValue)"
             let storageText = self.store.storageFootprintText(for: row.provider)
-            let submenu = self.makeOverviewRowSubmenu(
-                provider: row.provider,
-                model: row.model,
-                width: menuWidth)
+            let submenu = row.identifier.contains("codex-")
+                ? nil
+                : self.makeOverviewRowSubmenu(
+                    provider: row.provider,
+                    model: row.model,
+                    width: menuWidth)
             let item = self.makeMenuCardItem(
                 OverviewMenuCardRowView(model: row.model, storageText: storageText, width: menuWidth),
-                id: identifier,
+                id: row.identifier,
                 width: menuWidth,
-                heightCacheScope: row.provider.rawValue,
+                heightCacheScope: row.identifier,
                 heightCacheFingerprint: row.model.heightFingerprint(
                     section: "overview",
                     additional: [UsageMenuCardView.Model.heightFingerprintField("storage", storageText)]),

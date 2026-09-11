@@ -1036,7 +1036,7 @@ extension CodexBarCLI {
                             providerTimeout: providerTimeout,
                             providerDeadline: providerDeadline,
                             providerOperations: runtime.providerOperations,
-                            includeAllCodexAccounts: false),
+                            includeAllCodexAccounts: true),
                         costCollection: ServeCostCollectionContext(
                             configFingerprint: snapshot.cacheToken,
                             providerTimeout: providerTimeout,

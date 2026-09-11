@@ -18,6 +18,7 @@ struct ProviderPayload: Encodable {
     let diagnostic: String?
     let error: ProviderErrorPayload?
     let pace: ProviderPacePayload?
+    let accountActive: Bool?
 
     private enum CodingKeys: String, CodingKey {
         case provider
@@ -47,7 +48,8 @@ struct ProviderPayload: Encodable {
         openaiDashboard: OpenAIDashboardSnapshot?,
         error: ProviderErrorPayload?,
         diagnostic: String? = nil,
-        pace: ProviderPacePayload? = nil)
+        pace: ProviderPacePayload? = nil,
+        accountActive: Bool? = nil)
     {
         self.provider = provider.rawValue
         self.account = account
@@ -62,6 +64,7 @@ struct ProviderPayload: Encodable {
         self.diagnostic = diagnostic
         self.error = error
         self.pace = pace
+        self.accountActive = accountActive
     }
 
     init(
@@ -77,7 +80,8 @@ struct ProviderPayload: Encodable {
         openaiDashboard: OpenAIDashboardSnapshot?,
         error: ProviderErrorPayload?,
         diagnostic: String? = nil,
-        pace: ProviderPacePayload? = nil)
+        pace: ProviderPacePayload? = nil,
+        accountActive: Bool? = nil)
     {
         self.provider = providerID
         self.account = account
@@ -92,6 +96,7 @@ struct ProviderPayload: Encodable {
         self.diagnostic = diagnostic
         self.error = error
         self.pace = pace
+        self.accountActive = accountActive
     }
 }
 

@@ -41,6 +41,7 @@ private struct UsageSuccessRenderInput {
     let provider: UsageProvider
     let accountLabel: String?
     let cacheAccountKey: String?
+    let accountActive: Bool?
     let version: String?
     let source: String
     let status: ProviderStatusPayload?
@@ -378,6 +379,7 @@ extension CodexBarCLI {
         provider: UsageProvider,
         accountLabel: String?,
         cacheAccountKey: String?,
+        accountActive: Bool?,
         version: String?,
         source: String,
         status: ProviderStatusPayload?,
@@ -401,7 +403,8 @@ extension CodexBarCLI {
             openaiDashboard: dashboard,
             error: nil,
             diagnostic: diagnostic,
-            pace: CLIRenderer.providerPacePayload(provider: provider, snapshot: usage, weeklyWorkDays: weeklyWorkDays))
+            pace: CLIRenderer.providerPacePayload(provider: provider, snapshot: usage, weeklyWorkDays: weeklyWorkDays),
+            accountActive: accountActive)
     }
 
     private static func appendSuccessRenderOutput(
@@ -448,6 +451,7 @@ extension CodexBarCLI {
                 provider: input.provider,
                 accountLabel: input.accountLabel,
                 cacheAccountKey: input.cacheAccountKey,
+                accountActive: input.accountActive,
                 version: input.version,
                 source: input.source,
                 status: input.status,
@@ -576,6 +580,7 @@ extension CodexBarCLI {
                     provider: provider,
                     accountLabel: account?.label ?? codexVisibleAccount?.menuDisplayName,
                     cacheAccountKey: cacheAccountKey,
+                    accountActive: codexVisibleAccount?.isActive,
                     version: version,
                     source: source,
                     status: status,
