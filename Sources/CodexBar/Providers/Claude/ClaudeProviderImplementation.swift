@@ -85,13 +85,6 @@ struct ClaudeProviderImplementation: ProviderImplementation {
                 context.settings.claudeOAuthPromptFreeCredentialsEnabled = enabled
             })
 
-        let claudeSwapBinding = Binding(
-            get: { context.settings.claudeSwapEnabled },
-            set: { context.settings.claudeSwapEnabled = $0 })
-        let claudeSwapShowSingleAccountBinding = Binding(
-            get: { context.settings.claudeSwapShowSingleAccount },
-            set: { context.settings.claudeSwapShowSingleAccount = $0 })
-
         return [
             ProviderSettingsToggleDescriptor(
                 id: "claude-model-scoped-weekly-usage-visible",
@@ -134,52 +127,7 @@ struct ClaudeProviderImplementation: ProviderImplementation {
                 onChange: nil,
                 onAppDidBecomeActive: nil,
                 onAppearWhenEnabled: nil),
-            ProviderSettingsToggleDescriptor(
-                id: "claude-swap-accounts",
-                title: "Read accounts from claude-swap",
-                subtitle: "Shows usage and lets you switch accounts through `cswap`. " +
-                    "Credentials stay managed by claude-swap; CodexBar never reads them.",
-                binding: claudeSwapBinding,
-                statusText: { Self.claudeSwapStatusText(store: context.store, settings: context.settings) },
-                actions: [],
-                isVisible: nil,
-                isEnabled: nil,
-                onChange: nil,
-                onAppDidBecomeActive: nil,
-                onAppearWhenEnabled: nil),
-            ProviderSettingsToggleDescriptor(
-                id: "claude-swap-show-single-account",
-                title: "Show account card when only one account is available",
-                subtitle: "Prefer claude-swap over the ambient Claude account presentation.",
-                binding: claudeSwapShowSingleAccountBinding,
-                statusText: nil,
-                actions: [],
-                isVisible: { context.settings.claudeSwapEnabled },
-                isEnabled: nil,
-                onChange: nil,
-                onAppDidBecomeActive: nil,
-                onAppearWhenEnabled: nil),
         ]
-    }
-
-    @MainActor
-    private static func claudeSwapStatusText(store: UsageStore, settings: SettingsStore) -> String? {
-        guard settings.claudeSwapEnabled else { return nil }
-        if settings.claudeSwapExecutablePath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return "Set the cswap executable path below."
-        }
-        var parts: [String] = []
-        if let version = store.claudeSwapDetectedVersion {
-            parts.append("claude-swap \(version)")
-        }
-        if let error = store.claudeSwapLastError {
-            parts.append(error)
-        } else if let refreshedAt = store.claudeSwapLastRefreshAt {
-            let accounts = store.claudeSwapAccountSnapshots.count
-            let accountsText = accounts == 1 ? "1 account" : "\(accounts) accounts"
-            parts.append("\(accountsText), updated \(refreshedAt.relativeDescription())")
-        }
-        return parts.isEmpty ? nil : parts.joined(separator: " — ")
     }
 
     @MainActor
@@ -284,16 +232,6 @@ struct ClaudeProviderImplementation: ProviderImplementation {
                 binding: context.stringBinding(\.claudeAdminAPIKey),
                 actions: [],
                 isVisible: nil,
-                onActivate: nil),
-            ProviderSettingsFieldDescriptor(
-                id: "claude-swap-executable-path",
-                title: "claude-swap executable",
-                subtitle: "Path to the cswap executable (github.com/realiti4/claude-swap).",
-                kind: .plain,
-                placeholder: "~/.local/bin/cswap",
-                binding: context.stringBinding(\.claudeSwapExecutablePath),
-                actions: [],
-                isVisible: { context.settings.claudeSwapEnabled },
                 onActivate: nil),
         ]
     }

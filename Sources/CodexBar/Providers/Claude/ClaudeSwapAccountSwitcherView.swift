@@ -2,11 +2,14 @@ import AppKit
 import CodexBarCore
 
 final class ClaudeSwapAccountSwitcherView: NSView {
+    /// Marks the account claude-swap itself reports as active. Distinct from the viewed segment:
+    /// activation is source-owned, while viewing is a local, non-mutating menu selection.
+    static let activeMarker = "●"
+
     private let accounts: [ProviderAccountUsageSnapshot]
     private let onSelect: (ProviderAccountIdentity) -> Void
     private var buttons: [NSButton] = []
     private var pressedAccountID: ProviderAccountIdentity?
-    private var selectionPending: Bool
     private let preferredSize: NSSize
 
     init(
@@ -17,7 +20,7 @@ final class ClaudeSwapAccountSwitcherView: NSView {
     {
         self.accounts = display.accounts
         self.onSelect = onSelect
-        self.selectionPending = display.switchingAccountID != nil
+        let viewedAccountID = display.displayedAccountID
         let rows = display.accounts.count > 3 ? 2 : 1
         self.preferredSize = NSSize(width: width, height: CGFloat(rows * 26 + (rows - 1) * 4))
         super.init(frame: NSRect(origin: .zero, size: self.preferredSize))
@@ -36,9 +39,14 @@ final class ClaudeSwapAccountSwitcherView: NSView {
             for index in start..<min(start + columns, self.accounts.count) {
                 let account = self.accounts[index]
                 let label = ClaudeSwapAccountMenuDisplay.label(for: account, hidePersonalInfo: hidePersonalInfo)
-                let button = PaddedToggleButton(title: label, target: self, action: #selector(self.handleSelect))
+                let isViewed = account.id == viewedAccountID
+                let title = account.isActive ? "\(Self.activeMarker) \(label)" : label
+                let description = Self.accessibilityDescription(
+                    label: label, isActive: account.isActive, isViewed: isViewed)
+                let button = PaddedToggleButton(title: title, target: self, action: #selector(self.handleSelect))
                 button.tag = index
-                button.toolTip = label
+                button.toolTip = description
+                button.setAccessibilityLabel(description)
                 button.isBordered = false
                 button.setButtonType(.toggle)
                 button.controlSize = .small
@@ -47,10 +55,11 @@ final class ClaudeSwapAccountSwitcherView: NSView {
                 button.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
                 button.wantsLayer = true
                 button.layer?.cornerRadius = 6
-                button.state = account.isActive ? .on : .off
-                button.layer?.backgroundColor = account.isActive ? NSColor.controlAccentColor.cgColor : nil
-                button.contentTintColor = account.isActive ? .white : .secondaryLabelColor
-                button.isEnabled = !self.selectionPending
+                // The filled highlight tracks the viewed segment; the marker glyph tracks the
+                // source-owned active account, so the two states stay independently readable.
+                button.state = isViewed ? .on : .off
+                button.layer?.backgroundColor = isViewed ? NSColor.controlAccentColor.cgColor : nil
+                button.contentTintColor = isViewed ? .white : (account.isActive ? .labelColor : .secondaryLabelColor)
                 row.addArrangedSubview(button)
                 self.buttons.append(button)
             }
@@ -117,20 +126,46 @@ final class ClaudeSwapAccountSwitcherView: NSView {
         self.select(self.accounts[sender.tag].id)
     }
 
-    private func select(_ id: ProviderAccountIdentity) {
-        guard !self.selectionPending, let account = self.accounts.first(where: { $0.id == id }) else { return }
-        if account.canActivate {
-            self.selectionPending = true
-            for button in self.buttons {
-                button.isEnabled = false
-            }
+    /// Builds a privacy-safe description: it reuses the already redacted label and only appends
+    /// state words, so Hide Personal Info still yields `Account N`-shaped text.
+    static func accessibilityDescription(label: String, isActive: Bool, isViewed: Bool) -> String {
+        var description = label
+        if isActive {
+            description += " — " + L("Active")
         }
+        if isViewed {
+            description += " — " + L("Showing details")
+        }
+        return description
+    }
+
+    /// Selection is view-only, so every segment stays clickable — including unavailable accounts
+    /// and while a switch started from a card is still running.
+    private func select(_ id: ProviderAccountIdentity) {
+        guard self.accounts.contains(where: { $0.id == id }) else { return }
         self.onSelect(id)
     }
 
     #if DEBUG
     func _test_select(_ id: ProviderAccountIdentity) {
         self.select(id)
+    }
+
+    var _test_titles: [String] {
+        self.buttons.map(\.title)
+    }
+
+    /// Titles of the segments drawn as selected, i.e. the viewed account.
+    var _test_selectedTitles: [String] {
+        self.buttons.filter { $0.state == .on }.map(\.title)
+    }
+
+    var _test_toolTips: [String] {
+        self.buttons.compactMap(\.toolTip)
+    }
+
+    func _test_buttons() -> [NSButton] {
+        self.buttons
     }
     #endif
 }
