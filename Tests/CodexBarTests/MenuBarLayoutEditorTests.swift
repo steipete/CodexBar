@@ -350,7 +350,7 @@ struct MenuBarLayoutEditorTests {
                 updatedAt: Date(),
                 balanceReadSucceeded: true,
                 creditsAvailable: true,
-                balanceIsWorkspace: true)) == "1234")
+                balanceIsWorkspace: true)) == "1,234")
         #expect(MenuBarLayoutToken.balance.editorLabel(provider: .openrouter) == L("Balance"))
     }
 

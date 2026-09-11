@@ -46,7 +46,7 @@ struct CodexMenuBarBalanceTokenTests {
         store._setSnapshotForTesting(snapshot, provider: .codex)
         store._setErrorForTesting(nil, provider: .codex)
         store.credits = CreditsSnapshot(
-            remaining: 1234,
+            remaining: 1234.73,
             events: [],
             updatedAt: now,
             balanceReadSucceeded: true,
@@ -65,18 +65,18 @@ struct CodexMenuBarBalanceTokenTests {
             store: store)
             .liveData(provider: .codex, snapshot: snapshot)
 
-        #expect(statusItemData.balance == "1234")
-        #expect(previewData.balance == "1234")
+        #expect(statusItemData.balance == "1,235")
+        #expect(previewData.balance == "1,235")
 
         // Exercise the observation wiring: the rate windows do not change when credits arrive later.
         let initialSignature = controller.storeIconObservationSignature()
         store.credits = CreditsSnapshot(
-            remaining: 1233,
+            remaining: 1233.49,
             events: [],
             updatedAt: now,
             creditsAvailable: true,
             balanceIsWorkspace: true)
         #expect(controller.storeIconObservationSignature() != initialSignature)
-        #expect(controller.storeIconObservationSignature().contains("text=1233"))
+        #expect(controller.storeIconObservationSignature().contains("text=1,233"))
     }
 }

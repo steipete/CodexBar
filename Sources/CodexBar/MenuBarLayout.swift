@@ -568,7 +568,8 @@ enum MenuBarLayoutBalanceResolver {
         switch provider {
         case .codex:
             guard let codexCredits, codexCredits.balanceReadSucceeded else { return nil }
-            return UsageFormatter.creditsNumberString(from: codexCredits.remaining)
+            return codexCredits.remaining.rounded().formatted(
+                .number.precision(.fractionLength(0)).locale(Locale(identifier: "en_US")))
         case .openrouter:
             return snapshot?.detailRow(label: "Remaining")?.value
         default:
