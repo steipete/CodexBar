@@ -429,6 +429,7 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
             resetCredits: resetCredits,
             credentials: credentials,
             updatedAt: updatedAt,
+            includeCredits: context.includeCredits,
             allowEmptyUsageForResetCreditEnrichment: Self.defersResetCreditFetchToApp(context),
             codexResetCreditsAttempted: resetCreditsAttempted)
         let workspaceBalanceResult = try await Self.applyingWorkspaceRemainingBalance(
@@ -515,7 +516,8 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
 
     private static func mapCredits(
         response: CodexUsageResponse,
-        updatedAt: Date) -> CreditsSnapshot?
+        updatedAt: Date,
+        includeCredits: Bool) -> CreditsSnapshot?
     {
         let balance = response.credits?.balance
         let creditLimit = response.resolvedIndividualLimit?.codexCreditLimitSnapshot(updatedAt: updatedAt)
@@ -528,7 +530,8 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
             codexCreditLimit: creditLimit,
             // A cap-only response omits the balance entirely; that placeholder zero is unread, not spent.
             balanceReadSucceeded: balance != nil,
-            creditsAvailable: creditsAvailable)
+            // Usage-only refreshes skip the workspace lookup, so a missing amount is not a failed balance read.
+            creditsAvailable: includeCredits || balance != nil ? creditsAvailable : nil)
     }
 
     private static func attachingExtraUsage(
@@ -606,10 +609,14 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
         resetCredits: CodexRateLimitResetCreditsSnapshot? = nil,
         credentials: CodexOAuthCredentials,
         updatedAt: Date,
+        includeCredits: Bool,
         allowEmptyUsageForResetCreditEnrichment: Bool = false,
         codexResetCreditsAttempted: Bool = false) throws -> ProviderFetchResult
     {
-        let credits = Self.mapCredits(response: usageResponse, updatedAt: updatedAt)
+        let credits = Self.mapCredits(
+            response: usageResponse,
+            updatedAt: updatedAt,
+            includeCredits: includeCredits)
         let reconciled = CodexReconciledState.fromOAuth(
             response: usageResponse,
             credentials: credentials,
@@ -935,7 +942,8 @@ extension CodexOAuthFetchStrategy {
         credentials: CodexOAuthCredentials,
         resetCredits: CodexRateLimitResetCreditsSnapshot? = nil,
         sourceMode: ProviderSourceMode = .oauth,
-        allowEmptyUsageForResetCreditEnrichment: Bool = false) throws -> ProviderFetchResult
+        allowEmptyUsageForResetCreditEnrichment: Bool = false,
+        includeCredits: Bool = true) throws -> ProviderFetchResult
     {
         let usageResponse = try JSONDecoder().decode(CodexUsageResponse.self, from: data)
         _ = sourceMode
@@ -944,6 +952,7 @@ extension CodexOAuthFetchStrategy {
             resetCredits: resetCredits,
             credentials: credentials,
             updatedAt: Date(),
+            includeCredits: includeCredits,
             allowEmptyUsageForResetCreditEnrichment: allowEmptyUsageForResetCreditEnrichment)
     }
 

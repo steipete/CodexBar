@@ -13,6 +13,25 @@ extension UsageStore {
         self.makeFetchContext(provider: .codex, override: nil).fetcher
     }
 
+    func preservingCodexCost(
+        in snapshot: UsageSnapshot,
+        for provider: UsageProvider,
+        owner expectedGuard: CodexAccountScopedRefreshGuard?) -> UsageSnapshot
+    {
+        guard provider == .codex,
+              let expectedGuard,
+              expectedGuard.identity != .unresolved,
+              let previousGuard = self.lastCodexUsagePublicationGuard,
+              Self.codexScopedRefreshGuardsMatchAccount(previousGuard, expectedGuard),
+              let previousCost = self.snapshots[.codex]?.providerCost,
+              previousCost.currencyCode == CodexExtraUsageCost.currencyCode
+        else { return snapshot }
+        // A usage-only refresh may skip credits after a dashboard attached a newer balance observation.
+        return snapshot.with(providerCost: CodexExtraUsageCost.resolving(
+            liveCost: snapshot.providerCost,
+            attached: previousCost))
+    }
+
     func scheduleCreditsRefreshIfNeeded(minimumSnapshotUpdatedAt: Date? = nil) {
         let refreshKey = self.codexCreditsRefreshKey(
             expectedGuard: self.freshCodexAccountScopedRefreshGuard())

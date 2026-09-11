@@ -45,8 +45,15 @@ public enum CodexExtraUsageCost {
         liveCredits: CreditsSnapshot?,
         attached: ProviderCostSnapshot?) -> ProviderCostSnapshot?
     {
-        let live = self.providerCost(from: liveCredits)
-        guard let live else { return attached }
+        self.resolving(liveCost: self.providerCost(from: liveCredits), attached: attached)
+    }
+
+    public static func resolving(
+        liveCost: ProviderCostSnapshot?,
+        attached: ProviderCostSnapshot?) -> ProviderCostSnapshot?
+    {
+        guard let live = liveCost else { return attached }
+        guard live.currencyCode == Self.currencyCode else { return live }
         // Reconcile only the account-paired Codex cost, never a different provider or dashboard.
         guard let attached, attached.currencyCode == Self.currencyCode else { return live }
         let liveBalanceDate = self.balanceDate(live)

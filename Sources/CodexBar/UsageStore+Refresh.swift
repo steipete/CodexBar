@@ -722,7 +722,8 @@ extension UsageStore {
             let stabilized = Self.commandCodeSnapshotResolvingDepletionOnEnrichmentFailure(
                 current: profileStable,
                 previous: self.snapshots[provider.instanceID])
-            let backfilled = stabilized.backfillingResetTimes(from: resetBackfillSource)
+            let backfilled = self.preservingCodexCost(in: stabilized, for: provider, owner: context.codexExpectedGuard)
+                .backfillingResetTimes(from: resetBackfillSource)
             let warningAccountDiscriminator = Self.warningAccountDiscriminator(
                 provider: provider,
                 tokenAccount: currentTokenAccount,

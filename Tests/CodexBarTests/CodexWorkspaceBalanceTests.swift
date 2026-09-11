@@ -47,6 +47,25 @@ struct CodexWorkspaceBalanceTests {
             lastRefresh: Date())
     }
 
+    private func mapCreditRefresh(
+        balance: String,
+        includeCredits: Bool,
+        hasCap: Bool) throws -> ProviderFetchResult
+    {
+        let cap = hasCap ? #", "individual_limit": {"limit": 400, "used": 300}"# : ""
+        let json = """
+        {
+          "account_id": "workspace-fixture",
+          "plan_type": "business",
+          "credits": {"has_credits": true, "unlimited": false, "balance": \(balance)}\(cap)
+        }
+        """
+        return try CodexOAuthFetchStrategy._mapResultForTesting(
+            Data(json.utf8),
+            credentials: self.makeCredentials(),
+            includeCredits: includeCredits)
+    }
+
     private func makeContext(includeCredits: Bool = true) -> ProviderFetchContext {
         let browserDetection = BrowserDetection(cacheTTL: 0)
         return ProviderFetchContext(
@@ -82,6 +101,57 @@ struct CodexWorkspaceBalanceTests {
         #expect(result.codexResetCreditsAttempted == original.codexResetCreditsAttempted)
         #expect(result.codexMonthlyLimitEnrichmentFailed == original.codexMonthlyLimitEnrichmentFailed)
         #expect(result.diagnostic == original.diagnostic)
+    }
+
+    @Test(arguments: [false, true], [false, true])
+    func `deferred balance refresh preserves a workspace balance while a requested missing read invalidates it`(
+        includeCredits: Bool,
+        hasCap: Bool) throws
+    {
+        let result = try self.mapCreditRefresh(balance: "null", includeCredits: includeCredits, hasCap: hasCap)
+        let fresh = try #require(result.credits)
+        let retained = CreditsSnapshot(
+            remaining: 1234,
+            events: [],
+            updatedAt: fresh.updatedAt.addingTimeInterval(-60),
+            balanceIsWorkspace: true)
+        let display = try #require(CodexExtraUsageCost.creditsForDisplay(retained, attached: result.usage.providerCost))
+        let expectedRemaining: Double? = includeCredits ? (hasCap ? 100 : nil) : 1234
+
+        // This response has no rate windows: raw availability must still admit a useful partial result.
+        #expect(result.usage.primary == nil)
+        #expect(result.usage.secondary == nil)
+        #expect(fresh.balanceReadSucceeded == false)
+        #expect(fresh.creditsAvailable == (includeCredits ? true : nil))
+        #expect(fresh.codexCreditLimit?.remaining == (hasCap ? 100 : nil))
+        #expect(display.displayRemaining == expectedRemaining)
+        #expect(display.balanceReadSucceeded == !includeCredits)
+        #expect(display.hasWorkspaceBalance == !includeCredits)
+    }
+
+    @Test(arguments: [0.0, 14.0], [false, true])
+    func `usage only numeric balances remain authoritative over an older workspace balance`(
+        balance: Double,
+        hasCap: Bool) throws
+    {
+        let result = try self.mapCreditRefresh(balance: String(balance), includeCredits: false, hasCap: hasCap)
+        let fresh = try #require(result.credits)
+        let retained = CreditsSnapshot(
+            remaining: 1234,
+            events: [],
+            updatedAt: fresh.updatedAt.addingTimeInterval(-60),
+            balanceIsWorkspace: true)
+        let display = try #require(CodexExtraUsageCost.creditsForDisplay(retained, attached: result.usage.providerCost))
+
+        #expect(fresh.balanceReadSucceeded)
+        #expect(fresh.creditsAvailable == true)
+        #expect(fresh.codexCreditLimit?.remaining == (hasCap ? 100 : nil))
+        #expect(display.remaining == balance)
+        #expect(display.balanceReadSucceeded)
+        #expect(display.hasWorkspaceBalance == false)
+        #expect(display.updatedAt == fresh.updatedAt)
+        #expect(result.usage.providerCost?.balance == (balance > 0 ? balance : nil))
+        #expect(result.usage.providerCost?.balanceUpdatedAt == fresh.updatedAt)
     }
 
     @Test(arguments: ["disabled", "unavailable", "unlimited", "known balance", "known zero", "missing account"])
