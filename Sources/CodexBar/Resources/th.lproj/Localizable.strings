@@ -1550,4 +1550,7 @@
 "Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "เลือกแถวการใช้งานที่จะแสดงในเมนูของผู้ให้บริการนี้ ตัวอย่างการตั้งค่า และภาพรวม";
 "%@ (unavailable)" = "%@ (ไม่พร้อมใช้งาน)";
 "Spending cap, not balance" = "เพดานการใช้จ่าย ไม่ใช่ยอดคงเหลือ";
+
+"Color Pace Indicator" = "แสดงสีอัตราการใช้งาน";
+"Green pace indicator when behind pace, red when ahead of pace (risk of running out early)" = "สีเขียวเมื่อใช้งานช้ากว่าอัตราที่คาดไว้ (มีโควตาสำรอง) สีแดงเมื่อเร็วกว่า (เสี่ยงหมดโควตาก่อนเวลา)";
 "%@ weekly" = "%@ รายสัปดาห์";

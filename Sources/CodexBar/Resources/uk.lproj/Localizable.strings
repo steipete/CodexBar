@@ -1546,4 +1546,7 @@
 "Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "Виберіть, які рядки використання відображатимуться в меню цього постачальника, попередньому перегляді налаштувань і огляді.";
 "%@ (unavailable)" = "%@ (недоступний)";
 "Spending cap, not balance" = "Ліміт витрат, не баланс";
+
+"Color Pace Indicator" = "Кольорова індикація темпу";
+"Green pace indicator when behind pace, red when ahead of pace (risk of running out early)" = "Зелений — витрати нижчі за очікуваний темп (є запас); червоний — вищі (ризик дострокового вичерпання квоти).";
 "%@ weekly" = "%@ за тиждень";

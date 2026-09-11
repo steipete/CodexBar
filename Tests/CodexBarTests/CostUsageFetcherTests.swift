@@ -3,7 +3,11 @@ import Testing
 @testable import CodexBarCore
 
 struct RemoteCostFetcherTests {
-    static func summary(provider: UsageProvider = .codex, days: Int = 30) -> RemoteCostSummary {
+    static func summary(
+        provider: UsageProvider = .codex,
+        days: Int = 30,
+        daily: [CostUsageDailyReport.Entry] = []) -> RemoteCostSummary
+    {
         let snapshot = CostUsageTokenSnapshot(
             sessionTokens: 123,
             sessionCostUSD: 1.25,
@@ -11,7 +15,7 @@ struct RemoteCostFetcherTests {
             last30DaysCostUSD: 3.5,
             historyDays: days,
             historyCoverageIsEstablished: false,
-            daily: [],
+            daily: daily,
             updatedAt: Date(timeIntervalSince1970: 1_700_000_000))
         return RemoteCostSummary(
             snapshot: snapshot,
@@ -27,14 +31,27 @@ struct RemoteCostFetcherTests {
 
     @Test
     func `summary transport excludes identity paths and conversation data`() throws {
-        let json = try Self.json([Self.summary()])
+        let daily = CostUsageDailyReport.Entry(
+            date: "2026-09-10",
+            inputTokens: nil,
+            outputTokens: nil,
+            totalTokens: 456,
+            costUSD: 3.5,
+            modelsUsed: nil,
+            modelBreakdowns: nil)
+        let json = try Self.json([Self.summary(daily: [daily])])
         let rows = try #require(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [[String: Any]])
-        let keys = try #require(rows.first).keys.sorted()
+        let row = try #require(rows.first)
+        let keys = row.keys.sorted()
         #expect(keys == [
-            "bucketTimeZone", "coverage", "currencyCode", "historyCoverageIsEstablished", "historyDays",
+            "bucketTimeZone", "coverage", "currencyCode", "daily", "historyCoverageIsEstablished", "historyDays",
             "last30DaysCostUSD", "last30DaysTokens", "provenance", "provider", "sessionCostUSD",
             "sessionTokens", "updatedAt",
         ])
+        let dailyRows = try #require(row["daily"] as? [[String: Any]])
+        #expect(try #require(dailyRows.first).keys.sorted() == ["costUSD", "date", "totalTokens"])
+        #expect(!json.contains("modelsUsed"))
+        #expect(!json.contains("modelBreakdowns"))
     }
 
     @Test
@@ -95,7 +112,7 @@ struct RemoteCostFetcherTests {
         for invalid in try [
             "not JSON", valid.replacingOccurrences(of: "123", with: "-1"),
             valid.replacingOccurrences(of: "\"codex\"", with: "\"claude\""),
-            String(repeating: " ", count: 16385), Self.json([Self.summary(days: 7)]),
+            String(repeating: " ", count: 65537), Self.json([Self.summary(days: 7)]),
         ] {
             let fetcher = RemoteCostFetcher { _, _ in invalid }
             await #expect(throws: RemoteCostError.self) {

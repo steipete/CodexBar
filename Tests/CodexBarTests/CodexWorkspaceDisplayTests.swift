@@ -79,12 +79,22 @@ struct CodexWorkspaceDisplayTests {
                 }))).visibleAccounts
         }
         let original = project(activeIndex: 0, liveIndex: nil)
-        for accounts in [project(activeIndex: 1, liveIndex: nil), project(activeIndex: 1, liveIndex: 1)] {
+        let originalOrdinals = CodexAccountSwitcherLabeling.ordinals(for: original)
+        let originalLabels = CodexAccountSwitcherLabeling.labels(for: original, hidePersonalInfo: true)
+        for accounts in [
+            project(activeIndex: 1, liveIndex: nil),
+            project(activeIndex: 1, liveIndex: 1),
+            project(activeIndex: 0, liveIndex: 0),
+        ] {
+            let ordinals = CodexAccountSwitcherLabeling.ordinals(for: accounts)
+            let labels = CodexAccountSwitcherLabeling.labels(for: accounts, hidePersonalInfo: true)
             for expected in original {
                 let actual = try #require(accounts.first { $0.workspaceAccountID == expected.workspaceAccountID })
                 #expect(actual.displayName == expected.displayName)
                 #expect(actual.menuDisplayName == expected.menuDisplayName)
                 #expect(actual.storedAccountID == expected.storedAccountID)
+                #expect(ordinals[actual.id] == originalOrdinals[expected.id])
+                #expect(labels[actual.id] == originalLabels[expected.id])
             }
         }
     }
@@ -132,6 +142,8 @@ struct CodexWorkspaceDisplayTests {
         #expect(Set(accounts.map(\.displayName)).count == 2)
         #expect(Set(accounts.map(\.menuDisplayName)).count == 2)
         #expect(accounts.map(\.displayName) == project(activePath: paths[1]).map(\.displayName))
+        #expect(CodexAccountSwitcherLabeling.ordinals(for: accounts)
+            == CodexAccountSwitcherLabeling.ordinals(for: project(activePath: paths[1])))
         for (account, path) in zip(accounts, paths) {
             #expect(!account.displayName.contains(path))
             #expect(!account.displayName.contains("shared-workspace"))

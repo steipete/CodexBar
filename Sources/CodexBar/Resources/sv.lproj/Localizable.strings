@@ -1545,4 +1545,7 @@
 "Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "Välj vilka användningsrader som visas i den här leverantörens meny, förhandsvisningen i Inställningar och Översikt.";
 "%@ (unavailable)" = "%@ (inte tillgänglig)";
 "Spending cap, not balance" = "Utgiftstak, inte saldo";
+
+"Color Pace Indicator" = "Färglägg förbrukningstakten";
+"Green pace indicator when behind pace, red when ahead of pace (risk of running out early)" = "Grönt när förbrukningen ligger under förväntad takt (reserv); rött när den ligger över (risk att kvoten tar slut i förtid).";
 "%@ weekly" = "%@ per vecka";

@@ -1547,4 +1547,7 @@
 "Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "Chọn các hàng sử dụng xuất hiện trong menu của nhà cung cấp này, bản xem trước Cài đặt và Tổng quan.";
 "%@ (unavailable)" = "%@ (không khả dụng)";
 "Spending cap, not balance" = "Hạn mức chi tiêu, không phải số dư";
+
+"Color Pace Indicator" = "Tô màu nhịp sử dụng";
+"Green pace indicator when behind pace, red when ahead of pace (risk of running out early)" = "Xanh khi mức sử dụng chậm hơn nhịp dự kiến (còn dư); đỏ khi nhanh hơn (nguy cơ hết hạn mức sớm).";
 "%@ weekly" = "%@ hàng tuần";

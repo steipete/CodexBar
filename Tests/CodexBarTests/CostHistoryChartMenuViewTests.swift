@@ -215,6 +215,41 @@ struct CostHistoryChartMenuViewTests {
     }
 
     @Test
+    func `selected SSH history is stacked above this Mac in its own series`() {
+        let local = [Self.dailyEntry(date: "2026-08-12", totalTokens: 150, costUSD: 1.25)]
+        let remote = [
+            RemoteCostDailySummary(date: "2026-08-12", totalTokens: 350, costUSD: 2.75),
+            RemoteCostDailySummary(date: "2026-08-13", totalTokens: 200, costUSD: 1),
+        ]
+        let values = CostHistoryChartMenuView._stackedChartValuesForTesting(
+            provider: .codex,
+            daily: local,
+            remoteDaily: remote,
+            metric: .tokens)
+        #expect(values.count == 2)
+        #expect(values[0].local == 150)
+        #expect(values[0].remote == 350)
+        #expect(values[0].total == 500)
+        #expect(values[1].local == 0)
+        #expect(values[1].remote == 200)
+        #expect(values[1].total == 200)
+
+        let snapshot = Self.makeSnapshot(daily: local)
+        let blue = CostHistoryChartMenuView.renderFingerprint(
+            from: snapshot,
+            provider: .codex,
+            remoteDaily: remote,
+            remoteColor: .init(hex: 0x64D2FF))
+        let purple = CostHistoryChartMenuView.renderFingerprint(
+            from: snapshot,
+            provider: .codex,
+            remoteDaily: remote,
+            remoteColor: .init(hex: 0xB455FF))
+        #expect(blue != purple)
+        #expect(blue.remoteDaily.count == 2)
+    }
+
+    @Test
     func `token axis uses compact token labels instead of currency`() {
         #expect(CostHistoryChartMenuView._yAxisTokenStringForTesting(1_250_000) == "1.2M")
         #expect(!CostHistoryChartMenuView._yAxisTokenStringForTesting(1_250_000).contains("$"))

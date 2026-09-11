@@ -54,7 +54,8 @@ struct AgentSessionMenuDescriptorTests {
         #expect(model.title.contains("Combined"))
         #expect(model.lines.contains { $0.contains("$3.25") && $0.contains("223 tokens") })
         #expect(model.lines.contains { $0.contains("$7.50") && $0.contains("656 tokens") })
-        #expect(!model.lines.contains { $0.contains("partial") })
+        #expect(model.lines.contains { $0.contains("partial") })
+        #expect(model.lines.contains { $0.contains("counted more than once") })
         #expect(reports.count == 2)
     }
 
@@ -101,6 +102,49 @@ struct AgentSessionMenuDescriptorTests {
         let reloaded = testSettingsStore(suiteName: "RemoteCosts-combined-hosts-reload", userDefaults: defaults)
         #expect(reloaded.remoteCostHosts == "sandbox, build-box")
         #expect(reloaded.remoteCostCombinedHosts == "sandbox")
+    }
+
+    @Test
+    func `selected SSH daily costs aggregate for the chart and keep the SSH color`() throws {
+        func day(_ date: String, tokens: Int, cost: Double) -> CostUsageDailyReport.Entry {
+            CostUsageDailyReport.Entry(
+                date: date,
+                inputTokens: nil,
+                outputTokens: nil,
+                totalTokens: tokens,
+                costUSD: cost,
+                modelsUsed: nil,
+                modelBreakdowns: nil)
+        }
+        let reports = [
+            RemoteHostCostReport(
+                host: "sandbox",
+                provider: .codex,
+                summary: RemoteCostFetcherTests.summary(daily: [day("2026-09-10", tokens: 100, cost: 2)])),
+            RemoteHostCostReport(
+                host: "build-box",
+                provider: .codex,
+                summary: RemoteCostFetcherTests.summary(daily: [day("2026-09-10", tokens: 25, cost: 1)])),
+            RemoteHostCostReport(
+                host: "not-selected",
+                provider: .codex,
+                summary: RemoteCostFetcherTests.summary(daily: [day("2026-09-10", tokens: 900, cost: 9)])),
+        ]
+        let daily = RemoteCostChartSeries.daily(
+            reports: reports,
+            provider: .codex,
+            combinedHosts: ["sandbox", "build-box"])
+        let combined = try #require(daily.first)
+        #expect(daily.count == 1)
+        #expect(combined.totalTokens == 125)
+        #expect(combined.costUSD == 3)
+
+        let defaults = InMemoryUserDefaults()
+        let settings = testSettingsStore(suiteName: "RemoteCosts-chart-color", userDefaults: defaults)
+        #expect(settings.remoteCostChartColor.hexString == "#64D2FF")
+        settings.remoteCostChartColor = ProviderColor(hexString: "#B455FF") ?? .init(hex: 0)
+        let reloaded = testSettingsStore(suiteName: "RemoteCosts-chart-color-reload", userDefaults: defaults)
+        #expect(reloaded.remoteCostChartColor.hexString == "#B455FF")
     }
 
     @Test

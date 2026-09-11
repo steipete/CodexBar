@@ -30,6 +30,7 @@ extension SettingsStore {
         _ = self.providerChangelogLinksEnabled
         _ = self.menuBarShowsBrandIconWithPercent
         _ = self.menuBarHidesCritters
+        _ = self.menuBarColorPace
         _ = self.menuBarHighContrastOnInactiveDisplays
         _ = self.menuBarShowsHighestUsage
         _ = self.menuBarDisplayMode
@@ -77,6 +78,7 @@ extension SettingsStore {
         _ = self.remoteCostsEnabled
         _ = self.remoteCostHosts
         _ = self.remoteCostCombinedHosts
+        _ = self.remoteCostChartColor
         _ = self.iCloudSyncEnabled
         _ = self.iCloudSyncSnapshotsEnabled
         _ = self.iCloudSyncShowFleetAccounts

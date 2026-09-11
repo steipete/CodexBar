@@ -1106,6 +1106,73 @@ struct CostUsageBoundedProgressTests {
             completedCurrentWindowFlatRootPaths: roots)
     }
 
+    @Test
+    func `cache-wide migration reseed keeps the stale queue head ahead of revisited files`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 5, day: 10)
+        var options = Self.boundedOptions(env: env)
+        let since = try #require(options.calendar.date(byAdding: .day, value: -364, to: day))
+        let files = try Self.writeSyntheticCorpus(env: env, day: day, fileCount: 600)
+        for (index, file) in files.enumerated() {
+            try FileManager.default.setAttributes(
+                [.modificationDate: day.addingTimeInterval(Double(-index))], ofItemAtPath: file.path)
+        }
+        options.maxCodexScanDurationPerRefresh = nil
+        _ = CostUsageScanner.loadDailyReport(
+            provider: .codex, since: since, until: day, now: day, options: options)
+        var cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        #expect(cache.files.count == 600)
+        #expect(cache.codexScanCatchUpPending == false)
+
+        // The 88 oldest files still carry the previous parser revision; the newest 512 are current.
+        let stalePaths = files[512...].map { $0.resolvingSymlinksInPath().path }
+        for path in stalePaths {
+            #expect(cache.files[path] != nil)
+            cache.files[path]?.codexParserRevision = nil
+        }
+        cache.codexPricingKey = "migration-generation-1"
+        CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: cache)
+
+        options.maxCodexScanDurationPerRefresh = 60
+        for pass in 1...2 {
+            if pass > 1 {
+                // A cache-wide requirement (pricing key, priority turns) can change on every pass.
+                var mutated = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+                mutated.codexPricingKey = "migration-generation-\(pass)"
+                CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: mutated)
+            }
+            let recorder = CostUsageScanner.CodexScanWorkRecorder()
+            options.codexScanWorkRecorderForTesting = recorder
+            _ = CostUsageScanner.loadDailyReport(
+                provider: .codex,
+                since: since,
+                until: day,
+                now: day.addingTimeInterval(Double(pass)),
+                options: options)
+            #expect(recorder.snapshot().codexFileScanAttempts == CostUsageScanner.codexCatchUpScanCandidateLimit)
+        }
+        let migrated = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        let remainingStale = stalePaths.filter { migrated.files[$0]?.hasCurrentCodexParser != true }
+        #expect(remainingStale.isEmpty, "stale files never reached the bounded pass: \(remainingStale.count)")
+        #expect(migrated.codexActiveLookbackState?.pendingFilePaths.count == 88)
+
+        options.codexScanWorkRecorderForTesting = nil
+        for index in 0..<3 {
+            _ = CostUsageScanner.loadDailyReport(
+                provider: .codex,
+                since: since,
+                until: day,
+                now: day.addingTimeInterval(Double(index + 10)),
+                options: options)
+        }
+        let completed = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        #expect(completed.codexScanCatchUpPending == false)
+        #expect(completed.codexActiveLookbackState == nil)
+        #expect(completed.codexScanCompletedFiles == 600)
+        #expect(completed.codexScanTotalFiles == 600)
+    }
+
     private static func boundedOptions(env: CostUsageTestEnvironment) -> CostUsageScanner.Options {
         var options = CostUsageScanner.Options(
             codexSessionsRoot: env.codexSessionsRoot,

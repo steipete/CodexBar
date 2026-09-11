@@ -272,8 +272,10 @@ is limited, using additional rows when needed.
 - Automatic Codex catch-up scheduling in both usage and Spend Dashboard honors the app’s 30-minute Low Power Mode minimum after each pass. Explicit acceleration remains immediate, and physical low-power/thermal pauses retain their own retry policy. The setting applies when the next delay is computed; an already pending sleep is not replanned.
 - Automatic catch-up reports thermal pressure when serious heat and Low Power Mode coexist. Both constraints keep the existing 60-second pause before rechecking resource state.
 - A catch-up worker that loses its account or settings scope clears its abandoned Refreshing activity on exit. Legitimate pauses remain visible, and an older worker cannot clear a replacement worker's activity.
+- Cache-wide migration reseeding keeps paths already waiting ahead of new revisits. Repeated pricing or priority-turn changes therefore cannot keep the same completed files ahead of the stale tail in each 512-candidate pass. Initial seeding still honors newest-first preference, and publication waits for exact inventory validation. Native Codex stores from published parser fingerprint `4969a789db679c93` adopt the new generation without rebuilding rows, checkpoints, or retained reports; Pi/OMP retains its existing one-time reparse on a parser-hash change.
 - When a warm cost refresh reaches its time limit, it saves the remaining file work and completed discovery. Compatible shorter/wider history requests resume that work across the retained scan range; publication still waits for exact inventory validation.
 - Inline cost charts preserve a slot for every day in that window, using the selected cost-bucket time zone and the snapshot's date. Missing days are zero only after history coverage is established; unscanned days and entries without prices remain unknown. Long windows fit within the menu width without dropping dates.
+- **Hide personal information** also replaces account-switcher emails with numbered labels and sanitizes email addresses embedded in workspace hints. Narrow switchers retain the account number, and tooltips use the same labels without emails.
 - **Hide personal information** replaces project/source names with numbered labels and hides their paths in the cost-history submenu; Usage & Spend also masks project names. Costs, tokens, grouping, and stored history are unchanged, and disabling the setting restores the original labels. This is display masking, not data deletion or export sanitization.
 - While a bounded refresh catches up with new session history, established totals remain visible only for the same
   account, history window, and bucket time zone. An incomplete first scan never borrows another account's totals.
@@ -302,7 +304,11 @@ subscription-equivalent and API-equivalent estimates have different meanings.
   No transcripts, project paths, session identifiers, or credentials are copied. The receiving app keeps reports only
   in memory; the host list is a local preference, independent of live-session discovery and iCloud sync.
 - Combined totals are an explicit local presentation choice. Account identifiers are not transmitted or matched;
-  CodexBar keeps every per-host report visible and marks unavailable inputs as partial instead of inventing a total.
+  CodexBar keeps every per-host report visible and marks unavailable or incomplete-history inputs as partial.
+  Selected hosts also appear as a separately colored SSH segment in the existing daily cost/token bars; choose the
+  SSH chart color beside the combined-host controls. The provider-colored segment remains this Mac.
+  Combined values are additive estimates: copied or resumed sessions present on multiple machines can be counted
+  more than once because the bounded summaries contain no session identifiers for cross-host deduplication.
 - Automatic requests are limited to once per 15 minutes during normal refresh/menu use. **Usage & Spend → Refresh**
   requests a fresh report. Hosts use their own cost calendar and pricing; the UI shows their time zone and timestamp.
   Unknown prices and incomplete history remain marked. Claude reports are explicitly notional; Codex reports are

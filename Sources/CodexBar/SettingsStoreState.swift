@@ -1,3 +1,4 @@
+import CodexBarCore
 import Foundation
 
 struct SettingsDefaultsState {
@@ -31,6 +32,7 @@ struct SettingsDefaultsState {
     var providerChangelogLinksEnabled: Bool
     var menuBarShowsBrandIconWithPercent: Bool
     var menuBarHidesCritters: Bool
+    var menuBarColorPace: Bool
     var menuBarHighContrastOnInactiveDisplays: Bool
     var menuBarDisplayModeRaw: String?
     var menuBarShowsResetTimeWhenExhausted: Bool
@@ -89,6 +91,7 @@ struct SettingsDefaultsState {
     var remoteCostsEnabled: Bool = false
     var remoteCostHosts: String = ""
     var remoteCostCombinedHosts: String = ""
+    var remoteCostChartColor: ProviderColor = .init(hex: 0x64D2FF)
     var preferredCurrencyCode: String
     var iCloudSyncEnabled: Bool
     var iCloudSyncIncludeSecrets: Bool

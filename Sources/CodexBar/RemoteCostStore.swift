@@ -17,6 +17,9 @@ final class RemoteCostStore {
     @ObservationIgnored private var historyDays = 30
     @ObservationIgnored private var lastRefresh: Date?
     @ObservationIgnored private let loader: Loader
+    #if DEBUG
+    @ObservationIgnored private(set) var _testLastRequestedForce: Bool?
+    #endif
 
     init(loader: @escaping Loader = { host, providers, days, force in
         try await RemoteCostFetcher().fetch(
@@ -50,6 +53,9 @@ final class RemoteCostStore {
         force: Bool = false,
         now: Date = Date())
     {
+        #if DEBUG
+        self._testLastRequestedForce = force
+        #endif
         let hosts: [String]
         let providers: [UsageProvider]
         do {

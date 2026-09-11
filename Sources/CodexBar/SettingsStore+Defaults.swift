@@ -325,6 +325,14 @@ extension SettingsStore {
         }
     }
 
+    var menuBarColorPace: Bool {
+        get { self.defaultsState.menuBarColorPace }
+        set {
+            self.defaultsState.menuBarColorPace = newValue
+            self.userDefaults.set(newValue, forKey: "menuBarColorPace")
+        }
+    }
+
     var menuBarHighContrastOnInactiveDisplays: Bool {
         get { self.defaultsState.menuBarHighContrastOnInactiveDisplays }
         set {
@@ -1210,6 +1218,14 @@ extension SettingsStore {
         set {
             self.defaultsState.remoteCostCombinedHosts = newValue
             self.userDefaults.set(newValue, forKey: "remoteCostCombinedHosts")
+        }
+    }
+
+    var remoteCostChartColor: ProviderColor {
+        get { self.defaultsState.remoteCostChartColor }
+        set {
+            self.defaultsState.remoteCostChartColor = newValue
+            self.userDefaults.set(newValue.hexString, forKey: "remoteCostChartColor")
         }
     }
 

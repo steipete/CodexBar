@@ -1549,4 +1549,7 @@
 "Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "Pilih baris penggunaan yang muncul di menu penyedia ini, pratinjau Pengaturan, dan Ringkasan.";
 "%@ (unavailable)" = "%@ (tidak tersedia)";
 "Spending cap, not balance" = "Batas pengeluaran, bukan saldo";
+
+"Color Pace Indicator" = "Warnai laju penggunaan";
+"Green pace indicator when behind pace, red when ahead of pace (risk of running out early)" = "Hijau saat penggunaan lebih lambat dari laju perkiraan (cadangan); merah saat lebih cepat (risiko kuota habis lebih awal).";
 "%@ weekly" = "%@ mingguan";

@@ -1,6 +1,55 @@
+import AppKit
 import CodexBarCore
 import Foundation
 import SwiftUI
+
+enum RemoteCostChartSeries {
+    static func summaries(
+        reports: [RemoteHostCostReport],
+        provider: UsageProvider,
+        combinedHosts: Set<String>) -> [RemoteCostSummary]
+    {
+        reports.compactMap { report in
+            guard combinedHosts.contains(report.host), report.provider == provider.rawValue else { return nil }
+            return report.summary
+        }
+    }
+
+    static func daily(
+        reports: [RemoteHostCostReport],
+        provider: UsageProvider,
+        combinedHosts: Set<String>) -> [RemoteCostDailySummary]
+    {
+        struct Totals {
+            var tokens: Int?
+            var costUSD: Double?
+            var tokenOverflow = false
+        }
+        var byDate: [String: Totals] = [:]
+        for day in self.summaries(reports: reports, provider: provider, combinedHosts: combinedHosts)
+            .flatMap(\.daily)
+        {
+            var totals = byDate[day.date] ?? Totals()
+            if let tokens = day.totalTokens, !totals.tokenOverflow {
+                if let existing = totals.tokens {
+                    let (sum, overflow) = existing.addingReportingOverflow(tokens)
+                    totals.tokens = overflow ? nil : sum
+                    totals.tokenOverflow = overflow
+                } else {
+                    totals.tokens = tokens
+                }
+            }
+            if let cost = day.costUSD {
+                totals.costUSD = (totals.costUSD ?? 0) + cost
+            }
+            byDate[day.date] = totals
+        }
+        return byDate.keys.sorted().compactMap { date in
+            guard let totals = byDate[date], totals.tokens != nil || totals.costUSD != nil else { return nil }
+            return RemoteCostDailySummary(date: date, totalTokens: totals.tokens, costUSD: totals.costUSD)
+        }
+    }
+}
 
 struct RemoteCostPresentation {
     let title: String
@@ -69,6 +118,9 @@ struct CombinedRemoteCostPresentation: Identifiable {
         let expectedSources = combinedHosts.count + 1
         let availableSources = summaries.count + (local == nil ? 0 : 1)
         let historyDays = local?.historyDays ?? summaries.first?.historyDays ?? 30
+        let coverageIsEstablished = local?.historyCoverageIsEstablished == true &&
+            summaries.count == combinedHosts.count &&
+            summaries.allSatisfy(\.historyCoverageIsEstablished)
 
         func amount(cost: [Double?], tokens: [Int?]) -> String {
             let knownCosts = cost.compactMap(\.self)
@@ -88,7 +140,7 @@ struct CombinedRemoteCostPresentation: Identifiable {
             }
             let tokenText = tokenTotal.map(UsageFormatter.tokenCountString) ?? "—"
             let complete = knownCosts.count == expectedSources && costTotal != nil &&
-                knownTokens.count == expectedSources && tokenTotal != nil
+                knownTokens.count == expectedSources && tokenTotal != nil && coverageIsEstablished
             return "\(costText) · \(L("%@ tokens", tokenText))" + (complete ? "" : " · \(L("partial"))")
         }
 
@@ -106,7 +158,10 @@ struct CombinedRemoteCostPresentation: Identifiable {
             "\(L("Last %d days", historyDays)): \(historyAmount)",
         ] + (availableSources == expectedSources ? [] : [
             L("%d of %d sources are currently available.", availableSources, expectedSources),
-        ]) + [RemoteCostPresentation.disclaimer(provider.rawValue)]
+        ]) + [
+            L("Additive estimate; copied or resumed sessions may be counted more than once."),
+            RemoteCostPresentation.disclaimer(provider.rawValue),
+        ]
     }
 }
 
@@ -192,6 +247,10 @@ struct RemoteCostHostsEditor: View {
                             Text(L("Include %@ with this Mac", host))
                         }
                     }
+                    ColorPicker(
+                        L("SSH chart color"),
+                        selection: self.chartColorBinding,
+                        supportsOpacity: false)
                     Text(L("Enable only when that box uses the same provider account. " +
                             "Individual device totals always remain visible."))
                         .font(.caption).foregroundStyle(.secondary)
@@ -239,6 +298,21 @@ struct RemoteCostHostsEditor: View {
                     hosts.remove(host)
                 }
                 self.settings.remoteCostCombinedHosts = hosts.sorted().joined(separator: ", ")
+            })
+    }
+
+    private var chartColorBinding: Binding<Color> {
+        Binding(
+            get: {
+                let color = self.settings.remoteCostChartColor
+                return Color(red: color.red, green: color.green, blue: color.blue)
+            },
+            set: { color in
+                guard let srgb = NSColor(color).usingColorSpace(.sRGB) else { return }
+                self.settings.remoteCostChartColor = ProviderColor(
+                    red: Double(srgb.redComponent),
+                    green: Double(srgb.greenComponent),
+                    blue: Double(srgb.blueComponent))
             })
     }
 }

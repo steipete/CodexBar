@@ -31,6 +31,28 @@ Environment overrides:
 - `DEVIN_BEARER_TOKEN` or `DEVIN_AUTHORIZATION`
 - `DEVIN_ORGANIZATION` or `DEVIN_ORG`
 
+## Linux CLI
+
+Automatic Chrome session import is macOS-only. On Linux, configure manual auth in
+`~/.config/codexbar/config.json` (or your existing legacy config):
+
+```json
+{
+  "version": 1,
+  "providers": [{
+    "id": "devin",
+    "cookieSource": "manual",
+    "cookieHeader": "Bearer YOUR_DEVIN_TOKEN",
+    "workspaceID": "org_YOUR_ORGANIZATION"
+  }]
+}
+```
+
+Run `codexbar usage --provider devin`. You can omit `cookieHeader` when supplying
+`DEVIN_BEARER_TOKEN` or `DEVIN_AUTHORIZATION`, but keep `cookieSource` set to `manual`.
+The organization environment overrides also apply. Environment tokens take precedence
+without enabling automatic auth; an empty override does not fall back to the configured token.
+
 ## Data Source
 
 CodexBar requests:

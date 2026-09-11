@@ -1546,4 +1546,7 @@
 "Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "Escolha quais linhas de uso aparecem no menu deste provedor, na prévia dos Ajustes e na Visão geral.";
 "%@ (unavailable)" = "%@ (indisponível)";
 "Spending cap, not balance" = "Limite de gastos, não saldo";
+
+"Color Pace Indicator" = "Colorir o ritmo";
+"Green pace indicator when behind pace, red when ahead of pace (risk of running out early)" = "Verde quando o uso está abaixo do ritmo previsto (reserva); vermelho quando está acima (risco de esgotar a cota antes da hora).";
 "%@ weekly" = "%@ semanal";

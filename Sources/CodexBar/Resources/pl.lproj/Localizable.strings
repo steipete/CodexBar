@@ -1549,4 +1549,7 @@
 "Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "Wybierz wiersze użycia wyświetlane w menu tego dostawcy, podglądzie ustawień i przeglądzie.";
 "%@ (unavailable)" = "%@ (niedostępne)";
 "Spending cap, not balance" = "Limit wydatków, nie saldo";
+
+"Color Pace Indicator" = "Koloruj tempo zużycia";
+"Green pace indicator when behind pace, red when ahead of pace (risk of running out early)" = "Zielony, gdy zużycie jest wolniejsze od oczekiwanego (rezerwa); czerwony, gdy jest szybsze (ryzyko wcześniejszego wyczerpania limitu).";
 "%@ weekly" = "%@ tygodniowo";

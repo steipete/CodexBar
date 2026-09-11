@@ -1,5 +1,18 @@
 import Foundation
 
+/// One bounded, identity-free device-local day used to draw the SSH portion of cost charts.
+public struct RemoteCostDailySummary: Codable, Sendable, Equatable {
+    public let date: String
+    public let totalTokens: Int?
+    public let costUSD: Double?
+
+    public init(date: String, totalTokens: Int?, costUSD: Double?) {
+        self.date = date
+        self.totalTokens = totalTokens
+        self.costUSD = costUSD
+    }
+}
+
 /// A path-free, account-free report. Values retain the originating host's calendar and pricing.
 public struct RemoteCostSummary: Codable, Sendable, Equatable {
     public let provider: String
@@ -14,6 +27,7 @@ public struct RemoteCostSummary: Codable, Sendable, Equatable {
     public let sessionCostUSD: Double?
     public let last30DaysTokens: Int?
     public let last30DaysCostUSD: Double?
+    public let daily: [RemoteCostDailySummary]
 
     public init(snapshot: CostUsageTokenSnapshot, provider: UsageProvider, calendar: Calendar) {
         self.provider = provider.rawValue
@@ -29,6 +43,11 @@ public struct RemoteCostSummary: Codable, Sendable, Equatable {
         self.sessionCostUSD = snapshot.sessionCostUSD
         self.last30DaysTokens = snapshot.last30DaysTokens
         self.last30DaysCostUSD = snapshot.last30DaysCostUSD
+        self.daily = snapshot.daily
+            .filter { $0.totalTokens != nil || $0.costUSD != nil }
+            .sorted { $0.date < $1.date }
+            .suffix(min(max(snapshot.historyDays, 1), 365))
+            .map { RemoteCostDailySummary(date: $0.date, totalTokens: $0.totalTokens, costUSD: $0.costUSD) }
     }
 
     package func validate(provider: UsageProvider, historyDays: Int) throws {
@@ -41,8 +60,34 @@ public struct RemoteCostSummary: Codable, Sendable, Equatable {
                   .allSatisfy({ $0 >= 0 }),
                   [self.sessionTokens, self.last30DaysTokens].compactMap(\.self).allSatisfy({ $0 >= 0 }),
                   [self.sessionCostUSD, self.last30DaysCostUSD].compactMap(\.self)
-                      .allSatisfy({ $0.isFinite && $0 >= 0 })
+                      .allSatisfy({ $0.isFinite && $0 >= 0 }),
+                      self.daily.count <= min(max(historyDays, 1), 365),
+                      Set(self.daily.map(\.date)).count == self.daily.count,
+                      self.daily.allSatisfy({ day in
+                          Self.isValidDayKey(day.date) &&
+                              day.totalTokens.map { $0 >= 0 } ?? true &&
+                              day.costUSD.map { $0.isFinite && $0 >= 0 } ?? true &&
+                              (day.totalTokens != nil || day.costUSD != nil)
+                      })
         else { throw RemoteCostError.invalidReport }
+    }
+
+    private static func isValidDayKey(_ value: String) -> Bool {
+        let parts = value.split(separator: "-", omittingEmptySubsequences: false)
+        guard value.utf8.count == 10,
+              parts.count == 3,
+              parts[0].count == 4,
+              parts[1].count == 2,
+              parts[2].count == 2,
+              let year = Int(parts[0]),
+              let month = Int(parts[1]),
+              let day = Int(parts[2])
+        else { return false }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+        let components = DateComponents(year: year, month: month, day: day)
+        guard let date = calendar.date(from: components) else { return false }
+        return calendar.dateComponents([.year, .month, .day], from: date) == components
     }
 }
 
@@ -110,7 +155,7 @@ public struct RemoteCostFetcher: Sendable {
                 arguments: arguments,
                 environment: environment,
                 timeout: 60,
-                maxOutputBytes: 16384,
+                maxOutputBytes: 65536,
                 acceptsNonZeroExit: true,
                 label: "fetch remote Claude and Codex costs")
             return result.stdout
@@ -186,7 +231,7 @@ public struct RemoteCostFetcher: Sendable {
         }
         try Task.checkCancellation()
         // Never retain raw subprocess output or report a remote stderr message in the UI.
-        guard output.utf8.count <= 16384 else { throw RemoteCostError.invalidReport }
+        guard output.utf8.count <= 65536 else { throw RemoteCostError.invalidReport }
         guard !output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw RemoteCostError.unavailable
         }
