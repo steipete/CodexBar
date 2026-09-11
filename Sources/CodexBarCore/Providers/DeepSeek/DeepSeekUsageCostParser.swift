@@ -182,6 +182,7 @@ public struct DeepSeekUsageSummary: Sendable, Equatable {
     public let daily: [DeepSeekDailyUsage]
     public let currency: String
     public let apiKeyCount: Int
+    public let period: DeepSeekUsagePeriod
     public let updatedAt: Date
 
     public init(
@@ -196,6 +197,7 @@ public struct DeepSeekUsageSummary: Sendable, Equatable {
         daily: [DeepSeekDailyUsage],
         currency: String,
         apiKeyCount: Int = 0,
+        period: DeepSeekUsagePeriod = .currentMonth,
         updatedAt: Date)
     {
         self.todayTokens = todayTokens
@@ -209,8 +211,14 @@ public struct DeepSeekUsageSummary: Sendable, Equatable {
         self.daily = daily
         self.currency = currency
         self.apiKeyCount = apiKeyCount
+        self.period = period
         self.updatedAt = updatedAt
     }
+}
+
+public enum DeepSeekUsagePeriod: Sendable, Equatable {
+    case last30Days
+    case currentMonth
 }
 
 public struct DeepSeekCategoryBreakdown: Sendable, Equatable {
@@ -496,6 +504,7 @@ enum DeepSeekUsageCostParser {
             daily: dailyUsages,
             currency: input.currency,
             apiKeyCount: 0,
+            period: .currentMonth,
             updatedAt: input.now)
     }
 
@@ -759,6 +768,20 @@ enum DeepSeekUsageCostParser {
             if self.isAuthenticationError(code) { throw DeepSeekUsageError.invalidPlatformToken }
             throw DeepSeekUsageError.apiError("cost code \(code)")
         }
+        if let bizCode = amount.data?.bizCode, bizCode != 0 {
+            if self.isAuthenticationError(bizCode) { throw DeepSeekUsageError.invalidPlatformToken }
+            throw DeepSeekUsageError.apiError("amount biz_code \(bizCode)")
+        }
+        if let bizCode = cost.data?.bizCode, bizCode != 0 {
+            if self.isAuthenticationError(bizCode) { throw DeepSeekUsageError.invalidPlatformToken }
+            throw DeepSeekUsageError.apiError("cost biz_code \(bizCode)")
+        }
+        guard amount.data?.bizData != nil else {
+            throw DeepSeekUsageError.parseFailed("Missing amount biz_data")
+        }
+        guard cost.data?.bizData != nil else {
+            throw DeepSeekUsageError.parseFailed("Missing cost biz_data")
+        }
 
         let start = rangeStart ?? calendar.date(byAdding: .day, value: -29, to: calendar.startOfDay(for: now)) ?? now
         let end = rangeEnd ?? calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now)) ?? now
@@ -794,15 +817,14 @@ enum DeepSeekUsageCostParser {
         }
 
         var dayCosts: [String: Double] = [:]
-        var currency = "CNY"
-        for block in cost.data?.bizData?.data ?? [] {
-            if let blockCurrency = block.currency, !blockCurrency.isEmpty { currency = blockCurrency }
-            for series in block.series ?? [] {
-                if let id = series.apiKey?.id { apiKeyIDs.insert(id) }
-                for bucket in series.buckets ?? [] where bucket.time >= startSeconds && bucket.time < endSeconds {
-                    let date = self.dayString(fromUnix: bucket.time, calendar: calendar)
-                    dayCosts[date, default: 0] += Double(bucket.cost.value) ?? 0
-                }
+        let costBlocks = cost.data?.bizData?.data ?? []
+        let selectedBlock = self.preferredCostBlock(costBlocks)
+        let currency = selectedBlock?.currency?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty ?? "CNY"
+        for series in selectedBlock?.series ?? [] {
+            if let id = series.apiKey?.id { apiKeyIDs.insert(id) }
+            for bucket in series.buckets ?? [] where bucket.time >= startSeconds && bucket.time < endSeconds {
+                let date = self.dayString(fromUnix: bucket.time, calendar: calendar)
+                dayCosts[date, default: 0] += Double(bucket.cost.value) ?? 0
             }
         }
 
@@ -873,11 +895,30 @@ enum DeepSeekUsageCostParser {
             daily: daily,
             currency: currency,
             apiKeyCount: apiKeyIDs.count,
+            period: .last30Days,
             updatedAt: now)
+    }
+
+    private static func preferredCostBlock(_ blocks: [ByAPIKeyCostCurrency]) -> ByAPIKeyCostCurrency? {
+        func spend(_ block: ByAPIKeyCostCurrency) -> Double {
+            (block.series ?? []).reduce(0) { total, series in
+                total + (series.buckets ?? []).reduce(0) { $0 + (Double($1.cost.value) ?? 0) }
+            }
+        }
+        return blocks.first { $0.currency == "USD" && spend($0) > 0 }
+            ?? blocks.first { spend($0) > 0 }
+            ?? blocks.first { $0.currency == "USD" }
+            ?? blocks.first
     }
 
     private static func dayString(fromUnix time: Int, calendar: Calendar) -> String {
         self.AggregationContext.dayString(Date(timeIntervalSince1970: TimeInterval(time)), calendar: calendar)
+    }
+}
+
+private extension String {
+    var nilIfEmpty: String? {
+        self.isEmpty ? nil : self
     }
 }
 
@@ -887,8 +928,9 @@ private struct ByAPIKeyAmountPayload: Decodable {
 }
 
 private struct ByAPIKeyAmountData: Decodable {
+    let bizCode: Int?
     let bizData: ByAPIKeyAmountBiz?
-    enum CodingKeys: String, CodingKey { case bizData = "biz_data" }
+    enum CodingKeys: String, CodingKey { case bizCode = "biz_code"; case bizData = "biz_data" }
 }
 
 private struct ByAPIKeyAmountBiz: Decodable {
@@ -913,8 +955,9 @@ private struct ByAPIKeyCostPayload: Decodable {
 }
 
 private struct ByAPIKeyCostData: Decodable {
+    let bizCode: Int?
     let bizData: ByAPIKeyCostBiz?
-    enum CodingKeys: String, CodingKey { case bizData = "biz_data" }
+    enum CodingKeys: String, CodingKey { case bizCode = "biz_code"; case bizData = "biz_data" }
 }
 
 private struct ByAPIKeyCostBiz: Decodable {

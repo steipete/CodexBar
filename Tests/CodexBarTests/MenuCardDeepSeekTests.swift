@@ -22,6 +22,7 @@ struct MenuCardDeepSeekTests {
                 DeepSeekDailyUsage(date: "2026-05-26", totalTokens: 456, cost: 0.0456, requestCount: 8),
             ],
             currency: "CNY",
+            period: .last30Days,
             updatedAt: now)
     }
 

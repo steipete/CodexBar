@@ -218,7 +218,7 @@ public struct DeepSeekUsageSnapshot: Sendable {
                 label: "Today",
                 value: "\(cost(usage.todayCost)) · \(usage.todayTokens.formatted()) tokens"),
             .makeRow(
-                label: "Last 30 days",
+                label: usage.period == .last30Days ? "Last 30 days" : "This month",
                 value: "\(cost(usage.currentMonthCost)) · \(usage.currentMonthTokens.formatted()) tokens"),
             .makeRow(label: "Requests", value: "\(usage.currentMonthRequestCount)"),
         ]
@@ -296,6 +296,13 @@ public struct DeepSeekUsageFetcher: Sendable {
         var calendar = Calendar(identifier: .gregorian)
         calendar.locale = Locale(identifier: "en_US_POSIX")
         calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+        return calendar
+    }
+
+    private static var localGregorianCalendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = Locale(identifier: "en_US_POSIX")
+        calendar.timeZone = .current
         return calendar
     }
 
@@ -491,7 +498,7 @@ public struct DeepSeekUsageFetcher: Sendable {
         now: Date = Date(),
         calendar: Calendar? = nil) async throws -> DeepSeekUsageSummary
     {
-        let calendar = calendar ?? self.apiCalendar
+        let calendar = calendar ?? self.localGregorianCalendar
         let window = self.usageWindow(now: now, calendar: calendar)
         do {
             let payloads = try await self.fetchUsagePayloads(
