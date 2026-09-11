@@ -53,8 +53,9 @@ struct CodexWorkspaceBalanceReconciliationTests {
                 updatedAt: self.now.addingTimeInterval(-60))
             let cost = CodexExtraUsageCost.resolving(liveCredits: hidden, attached: stale)
             #expect(cost?.balance == nil)
-            #expect(cost?.balanceUpdatedAt == nil)
-            #expect(cost?.limit == (limit > 0 ? limit : nil))
+            #expect(cost?.balanceUpdatedAt == self.now)
+            #expect(cost?.balanceIsUnavailable == true)
+            #expect(cost?.limit == limit)
             let snapshot = UsageSnapshot(
                 primary: nil,
                 secondary: nil,
@@ -86,6 +87,65 @@ struct CodexWorkspaceBalanceReconciliationTests {
         let display = try #require(CodexExtraUsageCost.creditsForDisplay(capOnly, attached: stale))
         #expect(display.displayRemaining == 1234)
         #expect(display.hasWorkspaceBalance)
+    }
+
+    @Test(arguments: [false, true], [false, true])
+    func `hidden workspace observations survive persistence and reject older live balances`(
+        hasCap: Bool,
+        hasCachedBalance: Bool) throws
+    {
+        let old = CreditsSnapshot(
+            remaining: 1234,
+            events: [],
+            updatedAt: self.now.addingTimeInterval(-60),
+            codexCreditLimit: hasCap ? self.credits(balance: 0, workspace: false).codexCreditLimit : nil,
+            balanceIsWorkspace: true)
+        let snapshot = CodexExtraUsageCost.attaching(
+            to: UsageSnapshot(primary: nil, secondary: nil, updatedAt: self.now),
+            credits: hasCachedBalance ? old : nil)
+        let hidden = CreditsSnapshot(
+            remaining: 0,
+            events: [],
+            updatedAt: self.now,
+            balanceReadSucceeded: false,
+            creditsAvailable: true)
+        let attached = CodexExtraUsageCost.attaching(to: snapshot, credits: hidden)
+        let decoded = try JSONDecoder().decode(UsageSnapshot.self, from: JSONEncoder().encode(attached))
+        let resolved = CodexExtraUsageCost.resolving(liveCredits: old, attached: decoded.providerCost)
+        #expect(resolved?.balance == nil)
+        #expect(resolved?.balanceUpdatedAt == self.now)
+        let display = try #require(CodexExtraUsageCost.creditsForDisplay(old, attached: decoded.providerCost))
+        #expect(!display.balanceReadSucceeded)
+        #expect(!display.hasWorkspaceBalance)
+        #expect(display.updatedAt == self.now)
+        #expect(display.displayRemaining == (hasCap ? 100 : nil))
+
+        let placeholder = CreditsSnapshot(
+            remaining: 0,
+            events: [],
+            updatedAt: self.now.addingTimeInterval(30),
+            codexCreditLimit: old.codexCreditLimit,
+            balanceReadSucceeded: false)
+        let refreshed = CodexExtraUsageCost.attaching(to: decoded, credits: placeholder)
+        let stillHidden = try #require(CodexExtraUsageCost.creditsForDisplay(old, attached: refreshed.providerCost))
+        #expect(!stillHidden.balanceReadSucceeded)
+        #expect(stillHidden.displayRemaining == (hasCap ? 100 : nil))
+
+        for balance in [0.0, 1200.0] {
+            let recovered = CreditsSnapshot(
+                remaining: balance,
+                events: [],
+                updatedAt: self.now.addingTimeInterval(60),
+                balanceIsWorkspace: true)
+            let recoveredDisplay = try #require(CodexExtraUsageCost.creditsForDisplay(
+                recovered, attached: refreshed.providerCost))
+            #expect(recoveredDisplay.displayRemaining == balance)
+            #expect(recoveredDisplay.hasWorkspaceBalance)
+            let recoveredCost = try #require(CodexExtraUsageCost.resolving(
+                liveCredits: recovered, attached: refreshed.providerCost))
+            #expect(recoveredCost.balance == (balance > 0 ? balance : nil))
+            #expect(recoveredCost.balanceIsUnavailable == nil)
+        }
     }
 
     @Test

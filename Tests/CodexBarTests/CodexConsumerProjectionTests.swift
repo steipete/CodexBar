@@ -264,6 +264,51 @@ struct CodexConsumerProjectionTests {
         #expect(store.codexMenuBarCreditsRemaining(now: now) == 1234)
     }
 
+    @Test(arguments: [false, true])
+    func `hidden dashboard attachment prevents retained live workspace balance from resurfacing`(hasCap: Bool) throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let old = CreditsSnapshot(
+            remaining: 1234,
+            events: [],
+            updatedAt: now.addingTimeInterval(-60),
+            codexCreditLimit: hasCap ? CodexCreditLimitSnapshot(
+                used: 400,
+                limit: 400,
+                remainingPercent: 0,
+                resetsAt: nil,
+                updatedAt: now.addingTimeInterval(-60)) : nil,
+            balanceIsWorkspace: true)
+        let snapshot = CodexExtraUsageCost.attaching(
+            to: UsageSnapshot(primary: nil, secondary: nil, updatedAt: now),
+            credits: old)
+        let hidden = CreditsSnapshot(
+            remaining: 0,
+            events: [],
+            updatedAt: now,
+            balanceReadSucceeded: false,
+            creditsAvailable: true)
+        let attached = CodexExtraUsageCost.attaching(to: snapshot, credits: hidden)
+        let decoded = try JSONDecoder().decode(UsageSnapshot.self, from: JSONEncoder().encode(attached))
+        for surface in [CodexConsumerProjection.Surface.liveCard, .menuBar, .widget] {
+            let projection = CodexConsumerProjection.make(
+                surface: surface,
+                context: .init(
+                    snapshot: decoded,
+                    rawUsageError: nil,
+                    liveCredits: old,
+                    rawCreditsError: nil,
+                    liveDashboard: nil,
+                    rawDashboardError: nil,
+                    dashboardAttachmentAuthorized: true,
+                    dashboardRequiresLogin: false,
+                    now: now))
+            #expect(projection.credits?.remaining == (hasCap ? 0 : nil))
+            #expect(projection.credits?.snapshot?.balanceReadSucceeded == false)
+            #expect(projection.extraUsageCost?.balance == nil)
+            #expect(projection.menuBarFallback == .none)
+        }
+    }
+
     @Test
     func `live card projection keeps buy credits available without dashboard purchase URL`() {
         let store = self.makeStore(suite: "CodexConsumerProjectionTests-buy-credits")
