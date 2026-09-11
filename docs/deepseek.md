@@ -28,7 +28,11 @@ endpoints.
 4. **Optional detailed usage endpoints**
    - `GET https://platform.deepseek.com/api/v0/usage/amount?month=<month>&year=<year>`
    - `GET https://platform.deepseek.com/api/v0/usage/cost?month=<month>&year=<year>`
+   - `GET https://platform.deepseek.com/api/v0/usage/by_api_key/amount?start=<unix>&end=<unix>&tz=0`
+   - `GET https://platform.deepseek.com/api/v0/usage/by_api_key/cost?start=<unix>&end=<unix>&tz=0`
    - Request headers: `Authorization: Bearer <platform userToken>`, `Accept: application/json`
+   - The month/year endpoints supply the existing daily and monthly detail. CodexBar queries each by-API-key endpoint
+     once for the trailing five hours and once for the trailing seven days, then totals every API key, model, and bucket.
    - These are private dashboard endpoints rather than documented public API endpoints and may change without notice.
 
 ## Platform session
@@ -63,9 +67,12 @@ DeepSeek Platform in Chrome. Authentication failures returned as top-level or ne
 - The menu card shows total balance with the paid vs. granted breakdown:
   e.g. `$50.00 (Paid: $40.00 / Granted: $10.00)`.
 - The API separates granted balance from topped-up balance; CodexBar labels these as granted vs. paid credit.
-- With optional extra usage enabled, the menu shows today's and the current month's cost and tokens,
-  request counts, cache/input/output categories, the top model, and a current-month token chart.
-- The amount and cost requests run concurrently. After balance arrives, CodexBar waits up to five seconds for
+- With optional extra usage enabled, the menu shows rolling 5-hour and 7-day token/spend totals, today's and the
+  current month's cost and tokens, request counts, cache/input/output categories, the top model, and a current-month
+  token chart.
+- The monthly and four rolling amount/cost requests run concurrently. A rolling endpoint failure is isolated, so any
+  available rolling metric and the existing monthly detail can still be shown. After balance arrives, CodexBar waits
+  up to five seconds for
   automatic Chrome resolution and detailed usage. The deadline remains bounded even if a local Chrome read does not
   respond to cancellation. If the optional work fails or times out, the balance and previously validated profile list
   remain available while the menu reports that detailed usage is unavailable.
@@ -73,13 +80,16 @@ DeepSeek Platform in Chrome. Authentication failures returned as top-level or ne
   other account cards remain balance-only so website usage is never duplicated across accounts.
 - When multiple currencies are present, USD is shown preferentially.
 - If total balance is zero, CodexBar shows an add-credits message. If balance is nonzero but `is_available` is false, it shows "Balance unavailable for API calls".
-- There is no session or weekly window — DeepSeek does not expose per-window quota via API.
+- DeepSeek does not expose quota denominators or reset times for these ranges. The 5-hour and weekly values are
+  absolute rolling usage totals, not percentage-based rate-limit meters.
 - Token-account selection injects the selected key into the fetch environment; otherwise CodexBar reads `DEEPSEEK_API_KEY` / `DEEPSEEK_KEY`.
 
 ## Key files
 
 - `Sources/CodexBarCore/Providers/DeepSeek/DeepSeekProviderDescriptor.swift` (descriptor + fetch strategy)
-- `Sources/CodexBarCore/Providers/DeepSeek/DeepSeekUsageFetcher.swift` (HTTP client + JSON parser)
+- `Sources/CodexBarCore/Providers/DeepSeek/DeepSeekUsageFetcher.swift` (HTTP orchestration + balance parsing)
+- `Sources/CodexBarCore/Providers/DeepSeek/DeepSeekUsageCostParser.swift` (monthly usage aggregation)
+- `Sources/CodexBarCore/Providers/DeepSeek/DeepSeekRollingUsageParser.swift` (5-hour and weekly aggregation)
 - `Sources/CodexBarCore/Providers/DeepSeek/DeepSeekPlatformTokenImporter.swift` (Chrome Platform session import)
 - `Sources/CodexBarCore/Providers/DeepSeek/DeepSeekSettingsReader.swift` (env var resolution)
 - `Sources/CodexBar/Providers/DeepSeek/DeepSeekProviderImplementation.swift` (provider activation and token-account visibility)
