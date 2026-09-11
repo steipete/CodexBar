@@ -148,7 +148,7 @@ struct AgentSessionMenuDescriptorTests {
     }
 
     @Test
-    func `unreachable hosts are hidden by default and shown when disabled`() {
+    func `unreachable hosts remain visible until hiding is enabled`() {
         let now = Date(timeIntervalSince1970: 1000)
         let local = Self.session(id: "local", host: "local-mac", activity: now.addingTimeInterval(-60))
         let remoteHosts = [
@@ -160,17 +160,17 @@ struct AgentSessionMenuDescriptorTests {
             localSessions: [local],
             remoteHosts: remoteHosts,
             now: now)
-        #expect(!defaultSection.entries.contains { entry in
+        #expect(defaultSection.entries.contains { entry in
             guard case let .unavailable(title, _) = entry else { return false }
             return title == "offline — unreachable"
         })
 
-        let visibleSection = MenuDescriptor.agentSessionsSection(
+        let hiddenSection = MenuDescriptor.agentSessionsSection(
             localSessions: [local],
             remoteHosts: remoteHosts,
-            hideUnreachableHosts: false,
+            hideUnreachableHosts: true,
             now: now)
-        #expect(visibleSection.entries.contains { entry in
+        #expect(!hiddenSection.entries.contains { entry in
             guard case let .unavailable(title, _) = entry else { return false }
             return title == "offline — unreachable"
         })

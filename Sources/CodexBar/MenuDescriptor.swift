@@ -96,7 +96,7 @@ struct MenuDescriptor {
         codexWorkspacesMenuEnabled: Bool = false,
         agentSessionsEnabled: Bool = false,
         agentSessionLabelStyle: AgentSessionLabelStyle = .project,
-        agentSessionsHideUnreachableHosts: Bool = true,
+        agentSessionsHideUnreachableHosts: Bool = false,
         localAgentSessions: [AgentSession] = [],
         remoteAgentHosts: [RemoteSessionHostResult] = [],
         now: Date = Date()) -> MenuDescriptor
@@ -168,7 +168,7 @@ struct MenuDescriptor {
         localSessions: [AgentSession],
         remoteHosts: [RemoteSessionHostResult],
         labelStyle: AgentSessionLabelStyle = .project,
-        hideUnreachableHosts: Bool = true,
+        hideUnreachableHosts: Bool = false,
         now: Date = Date()) -> Section
     {
         let visibleRemoteHosts = hideUnreachableHosts ? remoteHosts.filter(\.isReachable) : remoteHosts

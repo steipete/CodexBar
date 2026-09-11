@@ -79,6 +79,14 @@ public struct GrokStatusProbe: Sendable {
     public static let usageUnavailableMessage =
         "Grok usage is unavailable because its billing sources did not report a usage percentage."
 
+    var localSummary: @Sendable ([String: String]) async throws -> GrokLocalSessionSummary? = {
+        try await GrokLocalSessionScanner.summarizeOffMainThread(env: $0)
+    }
+
+    var settingsTransport: any ProviderHTTPTransport = ProviderHTTPClient.shared
+    var identityOnlyFallback: @Sendable (GrokCredentials?, Bool, Error?) -> Bool =
+        GrokStatusProbe.shouldUseIdentityOnlyFallback
+
     public init() {}
 
     public static func detectVersion(env: [String: String] = ProcessInfo.processInfo.environment)
@@ -122,44 +130,32 @@ public struct GrokStatusProbe: Sendable {
             rpcError = error
         }
 
-        // Local fallback summary always succeeds (empty if no sessions yet).
-        let localSummary = try await GrokLocalSessionScanner.summarizeOffMainThread(env: env)
-        let cliVersion = Self.detectVersion(env: env)
-
-        // `localSummary` is *not* currently projected into a visible RateWindow or
-        // identity field, so a stale `~/.grok/sessions/` directory must not
-        // suppress the auth-required hint. CLI-only fetches need a billing
-        // response; the provider pipeline owns the separate web fallback.
-        if billing == nil,
-           let credentials,
-           Self.shouldUseIdentityOnlyFallback(
-               credentials: credentials,
-               billingAttempted: billingAttempted,
-               error: rpcError)
-        {
-            let subscriptionTier = try await Self.loadSettingsTier(credentials: credentials)
-            return Self.identityOnlySnapshot(
-                credentials: credentials,
-                localSummary: localSummary,
-                cliVersion: cliVersion,
-                subscriptionTier: subscriptionTier)
-        }
-
-        if billing == nil {
+        let isIdentityOnly = billing == nil && self.identityOnlyFallback(credentials, billingAttempted, rpcError)
+        // Terminal CLI failures must reach the provider's web fallback without scanning discarded history.
+        guard billing != nil || isIdentityOnly else {
             throw rpcError ?? GrokRPCError.notAuthenticated
         }
 
-        let subscriptionTier = try await Self.loadSettingsTier(credentials: credentials)
+        let localSummary = try await self.localSummary(env)
+        let cliVersion = Self.detectVersion(env: env)
+        // Preserve the original eligibility checkpoint after potentially slow local work.
+        if isIdentityOnly, !self.identityOnlyFallback(credentials, billingAttempted, rpcError) {
+            throw rpcError ?? GrokRPCError.notAuthenticated
+        }
+        let subscriptionTier = try await Self.loadSettingsTier(
+            credentials: credentials,
+            session: self.settingsTransport)
         return GrokUsageSnapshot(
             billing: billing,
             webBilling: nil,
-            credentials: Self.credentialsForSnapshot(
+            credentials: isIdentityOnly ? credentials : Self.credentialsForSnapshot(
                 credentials: credentials,
                 billing: billing,
                 webBilling: nil),
             localSummary: localSummary,
             cliVersion: cliVersion,
             updatedAt: Date(),
+            diagnostic: isIdentityOnly ? Self.teamUsageUnavailableMessage : nil,
             subscriptionTier: subscriptionTier)
     }
 

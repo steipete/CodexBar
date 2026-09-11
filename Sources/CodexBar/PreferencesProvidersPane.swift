@@ -290,10 +290,15 @@ struct ProvidersPane: View {
 
     func reauthenticateCodexAccount(_ account: CodexVisibleAccount) async {
         self.codexAccountsNotice = nil
-        if let accountID = account.storedAccountID {
-            guard let state = self.codexAccountsSectionState(for: .codex), state.canReauthenticate(account) else {
-                return
-            }
+        self.settings.invalidateCodexAccountReconciliationSnapshotCache()
+        guard let state = self.codexAccountsSectionState(for: .codex),
+              let current = state.visibleAccounts.first(where: { $0.id == account.id }),
+              current.selectionSource == account.selectionSource,
+              current.storedAccountID == account.storedAccountID,
+              current.workspaceAccountID == account.workspaceAccountID,
+              state.canReauthenticate(current)
+        else { return }
+        if case let .managedAccount(accountID) = current.selectionSource {
             do {
                 _ = try await self.managedCodexAccountCoordinator
                     .authenticateManagedAccount(existingAccountID: accountID)
@@ -304,9 +309,7 @@ struct ProvidersPane: View {
             return
         }
 
-        guard let state = self.codexAccountsSectionState(for: .codex), state.canReauthenticate(account) else {
-            return
-        }
+        guard current.selectionSource == .liveSystem else { return }
 
         self.isAuthenticatingLiveCodexAccount = true
         self.codexAccountPromotionCoordinator.setLiveReauthenticationInProgress(true)

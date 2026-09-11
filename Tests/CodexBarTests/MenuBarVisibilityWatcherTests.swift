@@ -4,6 +4,76 @@ import Testing
 @testable import CodexBar
 
 struct MenuBarVisibilityWatcherTests {
+    @Test(arguments: [
+        (CGRect(x: 0, y: -900, width: 1440, height: 900), CGRect(x: 0, y: -22, width: 76, height: 22), true, false),
+        (CGRect(x: 0, y: 1080, width: 1440, height: 900), CGRect(x: 0, y: -900, width: 76, height: 22), false, true),
+        (CGRect(x: 0, y: 1080, width: 1440, height: 900), CGRect(x: 0, y: -22, width: 76, height: 22), true, true),
+        (CGRect(x: 0, y: 1080, width: 1440, height: 900), CGRect(x: 0, y: -450, width: 76, height: 22), false, true),
+        (CGRect(x: 0, y: 1080, width: 1440, height: 22), CGRect(x: 0, y: -22, width: 76, height: 22), false, true),
+        (CGRect(x: 0, y: -900, width: 1440, height: 900), CGRect(x: 0, y: 1080, width: 76, height: 22), false, true),
+        (CGRect(x: -1440, y: 180, width: 1440, height: 900), CGRect(x: -100, y: 0, width: 76, height: 22), false, true),
+    ])
+    func `window probe aligns secondary screen coordinates before recovery decisions`(
+        _ screenFrame: CGRect, _ windowBounds: CGRect, _ blocked: Bool, _ contained: Bool) throws
+    {
+        let windows = MenuBarStatusItemWindowProbe.snapshots(
+            matching: ["codexbar-merged"],
+            windowInfo: [[
+                kCGWindowName as String: "codexbar-merged",
+                kCGWindowOwnerName as String: "Control Center",
+                kCGWindowIsOnscreen as String: true,
+                kCGWindowBounds as String: windowBounds.dictionaryRepresentation,
+            ]],
+            screenFrames: [CGRect(x: 0, y: 0, width: 1920, height: 1080), screenFrame])
+        let window = try #require(windows.first)
+        #expect(window.isWithinDisplayBounds == contained)
+        #expect(window.isTahoeBlockedProxy == blocked)
+        let detached = StatusItemVisibilitySnapshot(
+            isVisible: true,
+            hasButton: true,
+            hasWindow: true,
+            hasScreen: false,
+            isOnCurrentScreen: false,
+            buttonWidth: 76)
+        let launched = Date(timeIntervalSince1970: 1000)
+        #expect(MenuBarVisibilityWatcher.shouldAttemptStartupRecovery(
+            appLaunchedAt: launched,
+            now: launched.addingTimeInterval(2),
+            snapshots: [detached],
+            windowSnapshots: windows,
+            detectTahoeBlockedStatusItem: true) == blocked)
+        #expect(!MenuBarVisibilityWatcher.shouldAttemptStartupRecovery(
+            appLaunchedAt: launched,
+            now: launched.addingTimeInterval(2),
+            snapshots: [detached],
+            windowSnapshots: windows,
+            detectTahoeBlockedStatusItem: false))
+        #expect(!MenuBarVisibilityWatcher.shouldAttemptStartupRecovery(
+            appLaunchedAt: launched,
+            now: launched.addingTimeInterval(30),
+            snapshots: [detached],
+            windowSnapshots: windows,
+            detectTahoeBlockedStatusItem: true))
+    }
+
+    @Test
+    func `window probe rejects malformed rectangles and unmatched names`() {
+        let malformed: [[String: Any]] = [
+            [:],
+            ["X": 0, "Y": 0, "Width": 76],
+            ["X": "invalid", "Y": 0, "Width": 76, "Height": 22],
+        ]
+        var records = malformed.map {
+            [kCGWindowName as String: "codexbar-merged", kCGWindowBounds as String: $0] as [String: Any]
+        }
+        records.append([
+            kCGWindowName as String: "other-item",
+            kCGWindowBounds as String: CGRect(x: 0, y: 0, width: 76, height: 22).dictionaryRepresentation,
+        ])
+        #expect(MenuBarStatusItemWindowProbe.snapshots(
+            matching: ["codexbar-merged"], windowInfo: records, screenFrames: []).isEmpty)
+    }
+
     @Test
     func `does not flag intentionally hidden status item`() {
         let snapshot = StatusItemVisibilitySnapshot(
@@ -79,7 +149,7 @@ struct MenuBarVisibilityWatcherTests {
                     "Height": 24,
                 ],
             ]],
-            displayBounds: [CGRect(x: 0, y: 0, width: 2056, height: 1329)])
+            screenFrames: [CGRect(x: 0, y: 0, width: 2056, height: 1329)])
 
         #expect(snapshots.count == 1)
         #expect(snapshots.first?.name == "codexbar-merged")
@@ -103,7 +173,7 @@ struct MenuBarVisibilityWatcherTests {
                     "Height": 24,
                 ],
             ]],
-            displayBounds: [CGRect(x: 0, y: 0, width: 2056, height: 1329)])
+            screenFrames: [CGRect(x: 0, y: 0, width: 2056, height: 1329)])
 
         #expect(snapshots.count == 1)
         #expect(snapshots.first?.isOnscreen == true)

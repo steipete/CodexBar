@@ -90,6 +90,7 @@ struct MenuBarLayoutRenderData: Hashable {
 
 struct MenuBarLayoutRenderOptions: Hashable {
     let size: MenuBarLayoutSize
+    let colorPace: Bool
     let highContrast: Bool
     let showUsed: Bool
     let conditionals: [MenuBarLayoutConditional]
@@ -114,9 +115,11 @@ struct MenuBarLayoutRenderOptions: Hashable {
         isDebugApp: Bool,
         isStale: Bool = false,
         now: Date,
-        verticalAdjustment: Int = 0)
+        verticalAdjustment: Int = 0,
+        colorPace: Bool = false)
     {
         self.size = size
+        self.colorPace = colorPace
         self.highContrast = highContrast
         self.showUsed = showUsed
         self.conditionals = conditionals
@@ -132,6 +135,7 @@ struct MenuBarLayoutRenderKey: Hashable {
     let layout: MenuBarLayout
     let data: MenuBarLayoutRenderData
     let size: MenuBarLayoutSize
+    let colorPace: Bool
     let highContrast: Bool
     let showUsed: Bool
     let conditionals: [MenuBarLayoutConditional]
@@ -264,6 +268,7 @@ final class MenuBarLayoutRenderer {
             layout: layout,
             data: data,
             size: options.size,
+            colorPace: options.colorPace,
             highContrast: options.highContrast,
             showUsed: options.showUsed,
             conditionals: options.conditionals,
@@ -408,7 +413,7 @@ final class MenuBarLayoutRenderer {
             leadingIcon: leadingIcon,
             statusImage: !options.highContrast && !options.isStale && !isStacked
                 && !renderedLines.joined().contains(.icon)
-                ? Self.statusImage(title: result)
+                ? Self.statusImage(title: result, foregroundColor: foregroundColor)
                 : nil)
     }
 
@@ -455,14 +460,17 @@ final class MenuBarLayoutRenderer {
         }.filter { !$0.isEmpty }
     }
 
-    private static func statusImage(title: NSAttributedString) -> NSImage? {
+    private static func statusImage(title: NSAttributedString, foregroundColor: NSColor) -> NSImage? {
         guard title.length > 0, !title.string.contains(where: \.isNewline) else { return nil }
-        // Inspect resolved fonts: an ordinary system-font title can fall back to colored emoji glyphs.
+        // Templates discard color. Preserve both explicitly colored text and fallback emoji glyphs.
         let line = CTLineCreateWithAttributedString(title)
         guard let runs = CTLineGetGlyphRuns(line) as? [CTRun] else { return nil }
         for run in runs {
             let attributes = CTRunGetAttributes(run) as NSDictionary
-            guard let font = attributes[kCTFontAttributeName] as? NSFont,
+            let range = CTRunGetStringRange(run)
+            let color = title.attribute(.foregroundColor, at: range.location, effectiveRange: nil) as? NSColor
+            guard color == foregroundColor,
+                  let font = attributes[kCTFontAttributeName] as? NSFont,
                   !CTFontGetSymbolicTraits(font as CTFont).contains(.traitColorGlyphs)
             else { return nil }
         }
@@ -559,11 +567,18 @@ final class MenuBarLayoutRenderer {
             return self.renderPercent(window, data: data, style: style, options: options)
         case let .pace(window):
             let accessibilityPrefix = Self.paceAccessibilityPrefix(window, data: data)
+            var attributes = style.attributes
+            if options.colorPace, let delta = Self.paceDelta(window, data: data), delta.isFinite, delta != 0 {
+                // Use the same rounded numeric delta as the displayed text, never its localized sign.
+                let color: NSColor = delta < 0 ? .systemGreen : .systemRed
+                attributes[.foregroundColor] = options.isStale && !options.highContrast ? color
+                    .withAlphaComponent(0.5) : color
+            }
             return self.optionalTextToken(
                 Self.pace(window, data: data),
                 unavailableLabel: L("%@ unavailable", accessibilityPrefix),
                 accessibilityPrefix: accessibilityPrefix,
-                attributes: style.attributes)
+                attributes: attributes)
         case .usageBar:
             guard let window = data.automatic else {
                 return self.textToken(
@@ -883,6 +898,18 @@ final class MenuBarLayoutRenderer {
         case .weekly: data.weeklyPace
         case .scopedWeekly: nil
         case .automatic: data.automaticPace
+        }
+    }
+
+    private static func paceDelta(
+        _ window: PercentWindow,
+        data: MenuBarLayoutRenderData) -> Double?
+    {
+        switch window {
+        case .session: data.metrics.sessionPaceDelta
+        case .weekly: data.metrics.weeklyPaceDelta
+        case .automatic: data.metrics.automaticPaceDelta
+        case .scopedWeekly: nil
         }
     }
 
