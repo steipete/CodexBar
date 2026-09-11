@@ -208,6 +208,30 @@ final class SpendDashboardScreenshotRenderTests: XCTestCase {
         }
     }
 
+    func test_renderHeatmapMidnightDST() throws {
+        guard let dir = ProcessInfo.processInfo.environment["CODEXBAR_HEATMAP_DST_PROOF_DIR"] else {
+            throw XCTSkip("Set CODEXBAR_HEATMAP_DST_PROOF_DIR to render synthetic heatmap DST proof.")
+        }
+        let directory = URL(fileURLWithPath: dir, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        var calendar = Self.gmtCalendar
+        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "America/Santiago"))
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 9, day: 11, hour: 12)))
+        let points = try (0..<365).map { offset in
+            let date = try XCTUnwrap(calendar.date(byAdding: .day, value: -offset, to: now))
+            return SpendDashboardModel.TokenActivityPoint(
+                day: calendar.startOfDay(for: date),
+                totalTokens: (offset % 7 + 1) * 1000)
+        }
+        let view = AnyView(SpendActivityHeatmapView(points: points, now: now, calendar: calendar)
+            .padding(24)
+            .frame(width: 900)
+            .environment(\.locale, Locale(identifier: "en_US_POSIX"))
+            .background(Color(nsColor: .windowBackgroundColor)))
+        let data = try XCTUnwrap(Self.pngData(for: view))
+        try data.write(to: directory.appendingPathComponent("heatmap-dst.png"))
+    }
+
     private static func chrome(selectedDays: Int, group: SpendDashboardModel.CurrencyGroup) -> some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack(alignment: .top, spacing: 16) {
