@@ -1,19 +1,37 @@
 # Changelog
 
-## 0.58.1 — Unreleased
+## 0.59.1 — Unreleased
 
 ### Added
 - Codex costs: opt in to separate SSH host estimates in the menu and Usage & Spend, with path-free CLI summaries and `cost --remote`; preserve local totals and report unavailable hosts independently (related to #3036).
+
+### Fixed
+- Codex accounts: honor Hide Personal Info in switcher labels and tooltips, redact embedded workspace emails, and preserve distinct account numbers in narrow menus (#3551). Thanks @zenibako!
+- Codex spend: keep waiting history files ahead of repeated migration revisits so large histories can finish bounded catch-up, preserving stored rows and checkpoints (#3548, related to #3411). Thanks @SergeiNikolenko!
+
+## 0.59.0 — 2026-09-10
+
+### Highlights
+- **Plugin switcher tabs:** give custom providers their own tabs, refresh the selected plugin directly, and use plugin-only menus (#3516).
+- **Optional pace colors:** show pace indicators in green when behind pace and red when ahead, while retaining their signed values (#3429).
+- **Better Codex cost tracking:** restore shared spend in multi-account menus and read activity totals without decoding unused event history (#3540, #3528).
+- **More reliable menus:** refresh cached menus when macOS appearance changes and surface exhausted Kimi monthly limits even after shorter quota windows reset (#3526, #3543).
+
+### Added
+- Plugins: opt into first-class provider switcher tabs with selected-plugin refresh, plugin-only menus, and continued access to appended plugin cards (#3516, fixes #2988). Thanks @harjothkhara!
+- Menu bar: optionally color Session, Weekly, and Auto pace indicators green when behind pace and red when ahead, preserving signed values, neutral unavailable values, and existing layouts (#3429, fixes #3428). Thanks @jb510!
 
 ### Performance
 - Codex activity: read scoped daily totals without decoding unused event history, preserving account boundaries, coverage, and incomplete-scan checks (#3528, related to #3247). Thanks @brzvsk!
 
 ### Fixed
-- Website: keep Arabic and Persian hero copy clear of the illustration, preserve natural text direction, and avoid an oversized tablet popover during its reveal (#3514, fixes #3511). Thanks @devYRPauli!
-- Codex accounts: replace a misleading automatic CLI-retry promise with account-specific reauthentication guidance when native credentials need renewal (related to #3523). Thanks @zhulijin1991!
+- Codex accounts: restore shared local spend below multi-account cards in stacked and compact layouts, honoring the selected cost display mode and preserving account-scoped history isolation (#3540). Thanks @kays0x!
 - Menus: refresh cached status menus when macOS appearance changes, including previously opened submenus, so the first opening matches Light/Dark and accessibility appearances (#3526). Thanks @emanuelst!
-
-- Documentation: point Spark and Daily Routines visibility instructions to the current per-item controls and include Overview in their scope.
+- Kimi: show an exhausted monthly membership pool in automatic menu-bar usage even when Code quota windows have reset (#3543, related to #3536, #3537). Thanks @OttoPrua!
+- Devin CLI: load manual bearer and organization settings from config and allow manual quota requests on Linux while keeping browser import macOS-only (#3541). Thanks @Waseemilyas!
+- Codex accounts: replace a misleading automatic CLI-retry promise with account-specific reauthentication guidance when native credentials need renewal (#3534, related to #3523). Thanks @zhulijin1991!
+- Website: keep Arabic and Persian hero copy clear of the illustration, preserve natural text direction, and avoid an oversized tablet popover during its reveal (#3514, fixes #3511). Thanks @devYRPauli!
+- Documentation: point Spark and Daily Routines visibility instructions to the current per-item controls and include Overview in their scope (#3535).
 
 ## 0.58.0 — 2026-09-09
 
@@ -25,7 +43,7 @@
 
 ### Added
 - Usage & Spend: add a daily provider ledger for tokens, requests, and spend, honoring selected time zones and distinguishing unknown amounts from zero usage (#2635). Thanks @sahilaidev!
-- Inline cost charts: show each day’s localized date, cost, and token count on hover without shifting the chart layout (#3413). Thanks @666ghj!
+- Inline cost charts: show each day's localized date, cost, and token count on hover without shifting the chart layout (#3413). Thanks @666ghj!
 - Provider menus: choose visible usage rows across full and compact menus, Settings previews, and Overview; sync selections and restore hidden rows without changing fetching or alerts (#3196, #3182). Thanks @psufka and @J2TeamNNL!
 - Menu bar: choose Auto, Session, or Weekly percent windows in provider settings while preserving custom layout tokens and the global icon style (#3124). Thanks @J2TeamNNL!
 - Menu bar layouts: choose session or weekly reset countdowns and clocks, including conditional branches, with support for existing saved layouts (#3481, #3356). Thanks @vincent-peng!

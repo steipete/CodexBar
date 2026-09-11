@@ -915,10 +915,6 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             || self.fallbackProvider == provider
     }
 
-    var shouldMergeIcons: Bool {
-        self.settings.mergeIcons && self.store.enabledProvidersForDisplay().count > 1
-    }
-
     func switchAccountSubtitle(for target: UsageProvider) -> String? {
         guard self.loginTask != nil, let provider = self.activeLoginProvider, provider == target
         else { return nil }

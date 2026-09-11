@@ -70,6 +70,7 @@ public struct ProviderPluginManifest: Sendable {
     public let id: ProviderInstanceID
     public let name: String
     public let icon: ProviderPluginIcon
+    public let topLevel: Bool
     public let endpoints: Set<ProviderPluginEndpoint>
     public let auth: ProviderPluginAuth?
     public let settings: [ProviderPluginSetting]
@@ -95,6 +96,14 @@ public struct ProviderPluginManifest: Sendable {
         self.id = id
         self.name = try Self.boundedString(definition, property: "name", maximumLength: 80)
         self.icon = try Self.parseIcon(definition.property("icon"), fallbackName: self.name)
+        if let topLevel = definition.property("topLevel"), !topLevel.isUndefined, !topLevel.isNull {
+            guard topLevel.isBoolean else {
+                throw ProviderPluginError.invalidManifest("'topLevel' must be a boolean when present")
+            }
+            self.topLevel = topLevel.boolValue()
+        } else {
+            self.topLevel = false
+        }
 
         let endpointValue = definition.property("endpoints")
         guard let endpointValue, endpointValue.isArray else {

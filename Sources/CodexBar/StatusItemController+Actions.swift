@@ -184,12 +184,13 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
             originatingMenuInteractionGeneration: originatingMenuInteractionGeneration)
     }
 
-    private func startManualRefresh(
+    func startManualRefresh(
         for provider: ProviderInstanceID?,
         originatingMenuID: ObjectIdentifier?,
         originatingMenuInteractionGeneration: Int?)
     {
         let firstPartyProvider = provider?.firstPartyProvider
+        let tracksFirstPartyCards = provider == nil || firstPartyProvider != nil
         let scope: ManualRefreshScope = provider.map(ManualRefreshScope.provider) ?? .global
         let scopedRefreshInFlight = provider.map { self.store.refreshingProviders.contains($0) }
             ?? !self.store.refreshingProviders.isEmpty
@@ -206,7 +207,7 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
               !scopedRefreshInFlight
         else { return }
 
-        let frozenModels = self.frozenManualRefreshMenuCardModels()
+        let frozenModels = tracksFirstPartyCards ? self.frozenManualRefreshMenuCardModels() : [:]
         let viewportRestoreRequests = self.armManualRefreshViewportRestoreRequests(
             originatingMenuID: originatingMenuID,
             originatingMenuInteractionGeneration: originatingMenuInteractionGeneration)
@@ -215,7 +216,9 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
             var completed = false
             defer {
                 self.manualRefreshTasks[scope] = nil
-                self.menuCardRefreshMonitor.endManualRefresh(for: firstPartyProvider)
+                if tracksFirstPartyCards {
+                    self.menuCardRefreshMonitor.endManualRefresh(for: firstPartyProvider)
+                }
                 self.updatePersistentRefreshItemsEnabled()
                 if completed {
                     self.scheduleCompletedManualRefreshViewportRestore(viewportRestoreRequests)
@@ -239,6 +242,12 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
                     for: provider,
                     refreshOpenMenusWhenComplete: true,
                     interaction: .userInitiated)
+            } else if let provider {
+                await self.withProviderInteraction(.userInitiated) {
+                    await self.store.refreshUserPlugin(provider)
+                    guard !Task.isCancelled, !self.hasPreparedForAppShutdown else { return }
+                    self.refreshOpenMenusAfterUserPluginRefresh(provider)
+                }
             } else {
                 await self.performStoreRefresh(
                     enrichmentMode: .forcedBackground,
@@ -249,16 +258,21 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
             completed = true
         }
         self.manualRefreshTasks[scope] = task
-        self.menuCardRefreshMonitor.beginManualRefresh(frozenModels: frozenModels, provider: firstPartyProvider)
+        if tracksFirstPartyCards {
+            self.menuCardRefreshMonitor.beginManualRefresh(frozenModels: frozenModels, provider: firstPartyProvider)
+        }
         self.updatePersistentRefreshItemsEnabled()
     }
 
-    private func manualRefreshProvider(for menu: NSMenu?) -> ProviderInstanceID? {
+    func manualRefreshProvider(for menu: NSMenu?) -> ProviderInstanceID? {
         guard let menu else { return nil }
         if self.shouldMergeIcons {
             guard self.mergedMenu == nil || menu === self.mergedMenu else { return nil }
-            guard !self.isMergedOverviewSelected(in: menu) else { return nil }
-            return self.resolvedMenuProvider()?.instanceID
+            let enabledProviders = self.store.enabledFirstPartyProvidersForDisplay()
+            if let selection = self.resolvedMergedMenuSelection(enabledProviders: enabledProviders) {
+                return selection.instanceID
+            }
+            return self.resolvedMenuProvider(enabledProviders: enabledProviders)?.instanceID
         }
         return self.menuProviders[ObjectIdentifier(menu)]
     }

@@ -1515,4 +1515,7 @@
 "Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "이 제공업체의 메뉴, 설정 미리보기 및 개요에 표시할 사용량 행을 선택합니다.";
 "%@ (unavailable)" = "%@(사용할 수 없음)";
 "Spending cap, not balance" = "지출 한도이며 잔액이 아닙니다";
+
+"Color Pace Indicator" = "사용 속도 색상 표시";
+"Green pace indicator when behind pace, red when ahead of pace (risk of running out early)" = "사용량이 예상 속도보다 낮으면 초록색(여유), 높으면 빨간색(조기 소진 위험)으로 표시합니다.";
 "%@ weekly" = "%@ 주간";

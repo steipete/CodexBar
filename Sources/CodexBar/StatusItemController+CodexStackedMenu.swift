@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 
 extension StatusItemController {
     func addStackedCodexMenuCards(
@@ -63,6 +64,53 @@ extension StatusItemController {
         if self.addStorageMenuCardSection(to: menu, provider: context.currentProvider, width: context.menuWidth) {
             menu.addItem(.separator())
         }
+    }
+
+    func addCodexAccountMenuCards(
+        _ display: CodexAccountMenuDisplay,
+        to menu: NSMenu,
+        captureMenu: NSMenu,
+        context: MenuCardContext)
+    {
+        if !self.addCompactCodexAccountMenuIfPlanned(
+            display: display, to: menu, captureMenu: captureMenu, context: context)
+        {
+            self.addStackedCodexMenuCards(display, to: menu, context: context)
+        }
+        self.addAccountAgnosticCostMenuSection(to: menu, context: context)
+    }
+
+    func addAccountAgnosticCostMenuSection(to menu: NSMenu, context: MenuCardContext) {
+        let provider = context.currentProvider
+        guard self.store.tokenCostIsAccountAgnostic(for: provider),
+              let model = self.menuCardModel(for: provider),
+              model.inlineUsageDashboard != nil || model.tokenUsage != nil
+        else { return }
+        if menu.items.last?.isSeparatorItem != true {
+            menu.addItem(.separator())
+        }
+        let scope = NSMenuItem(title: L("This Mac"), action: nil, keyEquivalent: "")
+        scope.isEnabled = false
+        scope.representedObject = "sharedCodexCostScope"
+        menu.addItem(scope)
+        if let dashboard = model.inlineUsageDashboard {
+            menu.addItem(self.makeMenuCardItem(
+                InlineUsageDashboardContent(model: dashboard)
+                    .padding(.horizontal, UsageMenuCardLayout.horizontalPadding)
+                    .padding(.vertical, 6)
+                    .frame(width: context.menuWidth),
+                id: "sharedCodexInlineCost",
+                width: context.menuWidth,
+                heightCacheScope: provider.rawValue,
+                heightCacheFingerprint: model.heightFingerprint(section: "usage")))
+        }
+        if model.tokenUsage != nil {
+            menu.addItem(self.makeCostMenuCardItem(
+                model: model,
+                submenu: self.makeCostHistorySubmenu(provider: provider, width: context.menuWidth),
+                width: context.menuWidth))
+        }
+        menu.addItem(.separator())
     }
 
     private func addCodexWorkspaceHeader(_ title: String, index: Int, to menu: NSMenu) {

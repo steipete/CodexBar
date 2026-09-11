@@ -114,8 +114,9 @@ public enum KimiProviderDescriptor {
         context: ProviderMenuBarWindowContext) -> ProviderMenuBarWindowResolution
     {
         guard context.metric == .automatic else { return .unhandled }
+        let monthly = context.snapshot.extraRateWindows?.first { $0.id == "kimi-monthly" && $0.usageKnown }?.window
         return .resolved(
-            ProviderUsagePresentation.exhausted(context.snapshot.primary, context.snapshot.secondary)
+            ProviderUsagePresentation.exhausted(monthly, context.snapshot.primary, context.snapshot.secondary)
                 ?? context.snapshot.secondary
                 ?? context.snapshot.primary)
     }

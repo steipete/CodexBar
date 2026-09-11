@@ -108,6 +108,10 @@ private final class QuickJSPluginValue: ProviderPluginValue {
         cqjs_is_number(self.value)
     }
 
+    var isBoolean: Bool {
+        JS_IsBool(self.value)
+    }
+
     var isDate: Bool {
         JS_IsDate(self.value)
     }
@@ -136,6 +140,10 @@ private final class QuickJSPluginValue: ProviderPluginValue {
         var value = Double.nan
         _ = JS_ToFloat64(self.engine.context, &value, self.value)
         return value
+    }
+
+    func boolValue() -> Bool {
+        JS_ToBool(self.engine.context, self.value) == 1
     }
 
     func dateValue() -> Date? {

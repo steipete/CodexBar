@@ -591,4 +591,9 @@ extension UsageStore {
         }
         return false
     }
+
+    func tokenCostIsAccountAgnostic(for provider: UsageProvider) -> Bool {
+        // Provider-specific by design: only Codex's explicit ambient scope spans local accounts.
+        provider == .codex && self.tokenCostScope(for: provider).signature == "codex:ambient"
+    }
 }
