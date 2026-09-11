@@ -39,6 +39,7 @@ The grok.com billing gRPC-web endpoint remains a best-effort fallback.
      fallback, while a team principal degrades to identity-only with an explicit
      unsupported-team-usage diagnostic. When xAI exposes billing on the agent
      protocol, no code change is required.
+   - A terminal CLI billing failure returns before scanning local session history or probing the CLI version, so the provider fallback does not wait for data that would be discarded. Successful billing and the established identity-only team fallback retain local history and plan enrichment.
    - After a successful RPC billing result (or the identity-only team fallback),
      CodexBar still GETs `/v1/settings` for `subscription_tier_display` so the
      billed plan is not lost just because the CLI route succeeded first. The
