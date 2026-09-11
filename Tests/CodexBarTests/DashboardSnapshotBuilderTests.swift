@@ -214,6 +214,7 @@ struct DashboardSnapshotBuilderTests {
         let updatedAt = Date(timeIntervalSince1970: 1_800_000_010)
         let costUpdatedAt = Date(timeIntervalSince1970: 1_800_000_020)
         let resetAt = Date(timeIntervalSince1970: 1_800_003_600)
+        let resetCreditExpiry = Date(timeIntervalSince1970: 1_800_004_000)
         let generatedDay = self.gregorianDayKey(generatedAt)
         let usage = UsageSnapshot(
             primary: RateWindow(
@@ -232,7 +233,20 @@ struct DashboardSnapshotBuilderTests {
                 providerID: .codex,
                 accountEmail: "user@example.com",
                 accountOrganization: nil,
-                loginMethod: "pro"))
+                loginMethod: "pro"),
+            codexResetCredits: CodexRateLimitResetCreditsSnapshot(
+                credits: [CodexRateLimitResetCredit(
+                    id: "reset-credit",
+                    resetType: "codex_rate_limits",
+                    status: .available,
+                    grantedAt: generatedAt,
+                    expiresAt: resetCreditExpiry,
+                    redeemStartedAt: nil,
+                    redeemedAt: nil,
+                    title: "Weekly reset",
+                    description: nil)],
+                availableCount: 1,
+                updatedAt: updatedAt))
 
         let payload = ProviderPayload(
             provider: .codex,
@@ -321,11 +335,74 @@ struct DashboardSnapshotBuilderTests {
 
         #expect(credits["remaining"] as? Double == 112.4)
         #expect(credits["unit"] as? String == "credits")
+        #expect(credits["resetCreditsAvailable"] as? Int == 1)
         #expect(costObject["todayUSD"] as? Double == 1.04)
         #expect(costObject["last30DaysUSD"] as? Double == 18.22)
         #expect(display["accentColor"] as? String == "#49A3B0")
         #expect(display["sortKey"] as? Int == 0)
         #expect(display["priority"] as? String == "normal")
+    }
+
+    @Test
+    func `multi-account Codex dashboard preserves active account and reset details`() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let expiry = Date(timeIntervalSince1970: 1_800_004_000)
+        let reset = CodexRateLimitResetCreditsSnapshot(
+            credits: [CodexRateLimitResetCredit(
+                id: "reset-credit",
+                resetType: "codex_rate_limits",
+                status: .available,
+                grantedAt: now,
+                expiresAt: expiry,
+                redeemStartedAt: nil,
+                redeemedAt: nil,
+                title: "Weekly reset",
+                description: nil)],
+            availableCount: 1,
+            updatedAt: now)
+        func payload(_ email: String, active: Bool) -> ProviderPayload {
+            ProviderPayload(
+                provider: .codex,
+                account: email,
+                cacheAccountKey: "cache-\(email)",
+                version: nil,
+                source: "oauth",
+                status: nil,
+                usage: UsageSnapshot(
+                    primary: nil,
+                    secondary: nil,
+                    tertiary: nil,
+                    updatedAt: now,
+                    identity: ProviderIdentitySnapshot(
+                        providerID: .codex,
+                        accountEmail: email,
+                        accountOrganization: nil,
+                        loginMethod: "pro"),
+                    codexResetCredits: active ? reset : nil),
+                credits: CreditsSnapshot(remaining: 100, events: [], updatedAt: now),
+                antigravityPlanInfo: nil,
+                openaiDashboard: nil,
+                error: nil,
+                accountActive: active)
+        }
+        let snapshot = DashboardSnapshotBuilder.makeSnapshot(
+            usagePayloads: [payload("inactive@example.com", active: false), payload("active@example.com", active: true)],
+            costPayloads: [],
+            config: CodexBarConfig(providers: [ProviderConfig(id: .codex, enabled: true)]),
+            identityMode: .redacted,
+            generatedAt: now,
+            refreshInterval: 60,
+            codexBarVersion: nil)
+        let object = try self.jsonObject(snapshot)
+        let provider = try #require((object["providers"] as? [[String: Any]])?.first)
+        let accounts = try #require(provider["accounts"] as? [[String: Any]])
+        #expect(accounts.count == 2)
+        #expect(accounts[0]["active"] as? Bool == false)
+        #expect(accounts[1]["active"] as? Bool == true)
+        #expect(accounts[1]["label"] as? String == "redacted@example.com")
+        #expect(accounts[1]["id"] as? String != "cache-active@example.com")
+        #expect(accounts[1]["resetCreditsAvailable"] as? Int == 1)
+        #expect((accounts[1]["credits"] as? [String: Any])?["remaining"] as? Double == 100)
     }
 
     @Test

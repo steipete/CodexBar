@@ -33,7 +33,14 @@ enum DashboardSnapshotBuilder {
             costByProvider[cost.provider] = cost
         }
         var attachedClaudeSwap = false
-        let providers = usagePayloads.enumerated().map { index, payload in
+        let codexPayloads = usagePayloads.filter { $0.provider == UsageProvider.codex.rawValue }
+        var emittedCodexProvider = false
+        let providers = usagePayloads.enumerated().compactMap { index, payload -> DashboardProviderPayload? in
+            // Codex's all-account usage path emits one payload per visible account. Keep one
+            // provider row and project the remaining rows into the dashboard's account list.
+            let isCodex = payload.provider == UsageProvider.codex.rawValue
+            if isCodex, emittedCodexProvider { return nil }
+            if isCodex { emittedCodexProvider = true }
             var rowClaudeSwap: DashboardClaudeSwapInput?
             // Provider-specific by design: claude-swap account data belongs only on the first Claude row.
             if !attachedClaudeSwap, UsageProvider(rawValue: payload.provider) == .claude {
@@ -44,13 +51,25 @@ enum DashboardSnapshotBuilder {
                 id: payload.provider,
                 config: config,
                 fallbackSortKey: 10000 + index)
+            let providerPayload = isCodex
+                ? codexPayloads.first(where: { $0.accountActive == true }) ?? payload
+                : payload
             return self.makeProvider(
-                payload: payload,
+                payload: providerPayload,
                 cost: costByProvider[payload.provider],
                 presentation: presentation,
                 identityMode: identityMode,
                 generatedAt: generatedAt,
-                claudeSwap: rowClaudeSwap)
+                claudeSwap: rowClaudeSwap,
+                codexAccounts: payload.provider == UsageProvider.codex.rawValue && codexPayloads.count > 1
+                    ? codexPayloads.enumerated().map { accountIndex, accountPayload in
+                        self.makeCodexAccount(
+                            accountPayload,
+                            active: accountPayload.accountActive ?? (accountIndex == 0),
+                            identityMode: identityMode,
+                            generatedAt: generatedAt)
+                    }
+                    : nil)
         }
 
         let refreshSeconds = self.dashboardRefreshSeconds(refreshInterval)
@@ -113,14 +132,15 @@ enum DashboardSnapshotBuilder {
         presentation: ProviderPresentation,
         identityMode: DashboardIdentityMode,
         generatedAt: Date,
-        claudeSwap: DashboardClaudeSwapInput?) -> DashboardProviderPayload
+        claudeSwap: DashboardClaudeSwapInput?,
+        codexAccounts: [DashboardAccountPayload]? = nil) -> DashboardProviderPayload
     {
         let provider = UsageProvider(rawValue: payload.provider)
         let descriptor = provider.map { ProviderDescriptorRegistry.descriptor(for: $0) }
         let metadata = descriptor?.metadata
 
         let error = payload.error ?? cost?.error
-        let accounts = claudeSwap?.adapterError == nil
+        let accounts = codexAccounts ?? (claudeSwap?.adapterError == nil
             ? claudeSwap?.accounts?.map { account in
                 self.makeClaudeSwapAccount(
                     account,
@@ -128,7 +148,7 @@ enum DashboardSnapshotBuilder {
                     weeklyWorkDays: claudeSwap?.weeklyWorkDays,
                     generatedAt: generatedAt)
             }
-            : nil
+            : nil)
         return DashboardProviderPayload(
             id: presentation.id,
             name: presentation.name,
@@ -137,7 +157,7 @@ enum DashboardSnapshotBuilder {
             status: self.makeStatus(payload.status),
             identity: self.makeIdentity(provider: provider, usage: payload.usage, mode: identityMode),
             windows: self.makeWindows(provider: provider, metadata: metadata, usage: payload.usage),
-            credits: self.makeCredits(payload.credits),
+            credits: self.makeCredits(payload.credits, usage: payload.usage),
             cost: self.makeCost(cost, referenceDate: generatedAt),
             display: presentation.display,
             error: error,
@@ -147,7 +167,41 @@ enum DashboardSnapshotBuilder {
                 error: error,
                 generatedAt: generatedAt),
             accounts: accounts,
-            accountsError: claudeSwap?.adapterError)
+            accountsError: codexAccounts == nil ? claudeSwap?.adapterError : nil)
+    }
+
+    private static func makeCodexAccount(
+        _ payload: ProviderPayload,
+        active: Bool,
+        identityMode: DashboardIdentityMode,
+        generatedAt: Date) -> DashboardAccountPayload
+    {
+        let identity = self.makeIdentity(
+            provider: .codex,
+            usage: payload.usage,
+            mode: identityMode)
+        let rawLabel = payload.account ?? identity?.accountEmail ?? "Codex account"
+        let label = self.redactEmailShapedText(rawLabel, mode: identityMode)
+        let id = "codex-account-\(self.opaqueAccountID(payload.cacheAccountKey ?? rawLabel))"
+        return DashboardAccountPayload(
+            id: id,
+            label: label,
+            active: payload.accountActive ?? active,
+            identity: identity,
+            windows: self.makeWindows(
+                provider: .codex,
+                metadata: ProviderDescriptorRegistry.descriptor(for: .codex).metadata,
+                usage: payload.usage),
+            credits: self.makeCredits(payload.credits, usage: payload.usage),
+            pace: payload.pace,
+            error: payload.error?.message ?? payload.diagnostic,
+            updatedAt: payload.usage?.updatedAt ?? generatedAt,
+            resetCreditsAvailable: payload.usage?.codexResetCredits?.availableCount,
+            resetCredits: self.resetCredits(from: payload.usage, referenceDate: generatedAt))
+    }
+
+    private static func opaqueAccountID(_ value: String) -> String {
+        String(value.utf8.reduce(UInt64(14695981039346656037)) { ($0 ^ UInt64($1)) &* 1099511628211 }, radix: 16)
     }
 
     private static func providerPresentation(
@@ -206,6 +260,7 @@ enum DashboardSnapshotBuilder {
             active: account.isActive,
             identity: identity,
             windows: self.makeWindows(provider: .claude, metadata: metadata, usage: account.snapshot),
+            credits: nil,
             pace: account.snapshot.flatMap {
                 CLIRenderer.providerPacePayload(
                     provider: .claude,
@@ -214,7 +269,20 @@ enum DashboardSnapshotBuilder {
                     now: generatedAt)
             },
             error: account.error,
-            updatedAt: account.snapshot?.updatedAt)
+            updatedAt: account.snapshot?.updatedAt,
+            resetCreditsAvailable: nil,
+            resetCredits: nil)
+    }
+
+    private static func resetCredits(
+        from usage: UsageSnapshot?,
+        referenceDate: Date) -> [DashboardResetCreditPayload]? {
+        guard let credits = usage?.codexResetCredits?.availableCredits(at: referenceDate), !credits.isEmpty else {
+            return nil
+        }
+        return credits.map { credit in
+            DashboardResetCreditPayload(id: credit.id, title: credit.title, expiresAt: credit.expiresAt)
+        }
     }
 
     private static func claudeSwapDashboardLabel(
@@ -476,9 +544,15 @@ enum DashboardSnapshotBuilder {
         min(100, max(0, value))
     }
 
-    private static func makeCredits(_ credits: CreditsSnapshot?) -> DashboardCreditsPayload? {
+    private static func makeCredits(
+        _ credits: CreditsSnapshot?,
+        usage: UsageSnapshot?) -> DashboardCreditsPayload?
+    {
         guard let credits else { return nil }
-        return DashboardCreditsPayload(remaining: credits.remaining, unit: "credits")
+        return DashboardCreditsPayload(
+            remaining: credits.remaining,
+            unit: "credits",
+            resetCreditsAvailable: usage?.codexResetCredits?.availableCount)
     }
 
     private static func makeCost(_ cost: CostPayload?, referenceDate: Date) -> DashboardCostPayload? {

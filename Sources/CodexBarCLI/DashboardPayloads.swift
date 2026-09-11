@@ -135,9 +135,12 @@ struct DashboardAccountPayload: Encodable {
     let active: Bool
     let identity: DashboardIdentityPayload?
     let windows: [DashboardWindowPayload]
+    let credits: DashboardCreditsPayload?
     let pace: ProviderPacePayload?
     let error: String?
     let updatedAt: Date?
+    let resetCreditsAvailable: Int?
+    let resetCredits: [DashboardResetCreditPayload]?
 
     private enum CodingKeys: String, CodingKey {
         case id
@@ -145,9 +148,12 @@ struct DashboardAccountPayload: Encodable {
         case active
         case identity
         case windows
+        case credits
         case pace
         case error
         case updatedAt
+        case resetCreditsAvailable
+        case resetCredits
     }
 
     func encode(to encoder: Encoder) throws {
@@ -157,10 +163,19 @@ struct DashboardAccountPayload: Encodable {
         try container.encode(self.active, forKey: .active)
         try container.encode(self.identity, forKey: .identity)
         try container.encode(self.windows, forKey: .windows)
+        try container.encodeIfPresent(self.credits, forKey: .credits)
         try container.encode(self.pace, forKey: .pace)
         try container.encode(self.error, forKey: .error)
         try container.encode(self.updatedAt, forKey: .updatedAt)
+        try container.encodeIfPresent(self.resetCreditsAvailable, forKey: .resetCreditsAvailable)
+        try container.encodeIfPresent(self.resetCredits, forKey: .resetCredits)
     }
+}
+
+struct DashboardResetCreditPayload: Encodable {
+    let id: String
+    let title: String?
+    let expiresAt: Date?
 }
 
 struct DashboardStatusPayload: Encodable {
@@ -252,6 +267,7 @@ struct DashboardWindowPayload: Encodable {
 struct DashboardCreditsPayload: Encodable {
     let remaining: Double
     let unit: String
+    let resetCreditsAvailable: Int?
 }
 
 struct DashboardCostPayload: Encodable {

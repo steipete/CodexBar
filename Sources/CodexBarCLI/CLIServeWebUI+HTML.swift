@@ -80,6 +80,42 @@ extension CLIServeWebUI {
           margin-bottom: 22px;
         }
 
+        .provider-group-heading {
+          display: flex;
+          align-items: baseline;
+          justify-content: space-between;
+          gap: 12px;
+        }
+
+        .dashboard-settings {
+          position: relative;
+        }
+
+        .dashboard-settings summary {
+          cursor: pointer;
+        }
+
+        .dashboard-settings-panel {
+          position: absolute;
+          right: 0;
+          top: calc(100% + 8px);
+          z-index: 5;
+          width: 250px;
+          padding: 14px;
+          border: 1px solid var(--line);
+          border-radius: 12px;
+          background: var(--surface);
+          box-shadow: var(--shadow);
+        }
+
+        .dashboard-settings-panel label {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin: 8px 0;
+          color: var(--text);
+        }
+
         .brand {
           gap: 10px;
           min-width: 0;
@@ -167,6 +203,13 @@ extension CLIServeWebUI {
 
         .sign-out {
           display: none;
+          padding: 3px 8px;
+          color: var(--muted);
+          font-size: 12px;
+        }
+
+        .settings-button {
+          display: inline-block;
           padding: 3px 8px;
           color: var(--muted);
           font-size: 12px;
@@ -609,6 +652,9 @@ extension CLIServeWebUI {
 
         const tokenKey = "codexbar.dashboardToken";
         const snapshotKey = "codexbar.lastSnapshot";
+        const preferenceKey = "codexbar.dashboardPreferences";
+        const defaultPreferences = { hideSpark: false, showResetCredits: true };
+        let preferences = loadPreferences();
         const providerIconURLs = __PROVIDER_ICON_URLS__;
         const state = {
           snapshot: null,
@@ -635,6 +681,52 @@ extension CLIServeWebUI {
           tokenForm: document.getElementById("token-form"),
           version: document.getElementById("version")
         };
+
+        function loadPreferences() {
+          try {
+            const saved = JSON.parse(localStorage.getItem(preferenceKey) || "{}");
+            // Earlier versions stored these Codex-only choices at the top level.
+            const codex = saved?.providers?.codex || saved || {};
+            return { providers: { codex: {
+              hideSpark: typeof codex.hideSpark === "boolean" ? codex.hideSpark : defaultPreferences.hideSpark,
+              showResetCredits: typeof codex.showResetCredits === "boolean"
+                ? codex.showResetCredits : defaultPreferences.showResetCredits
+            } } };
+          } catch (_) {
+            return { providers: { codex: { ...defaultPreferences } } };
+          }
+        }
+
+        function displayPreferences(providerID) {
+          return preferences.providers[providerID] || { hideSpark: false, showResetCredits: false };
+        }
+
+        function renderDisplaySettings(provider) {
+          // Only Codex currently has configurable display items.
+          if (provider.id !== "codex") return null;
+          const details = node("details", "dashboard-settings");
+          const summary = node("summary", "settings-button", "Display");
+          summary.setAttribute("aria-label", `${provider.name || provider.id} display settings`);
+          details.append(summary);
+          const panel = node("div", "dashboard-settings-panel");
+          panel.append(node("strong", "", `${provider.name || provider.id} display`));
+          for (const [key, text] of [["hideSpark", "Hide Spark usage"],
+                                    ["showResetCredits", "Show Limit Reset count"]]) {
+            const label = node("label");
+            const input = node("input");
+            input.type = "checkbox";
+            input.checked = displayPreferences(provider.id)[key];
+            input.addEventListener("change", () => {
+              preferences.providers[provider.id][key] = input.checked;
+              try { localStorage.setItem(preferenceKey, JSON.stringify(preferences)); } catch (_) {}
+              if (state.snapshot) renderSnapshot(state.snapshot, state.forceStale);
+            });
+            label.append(input, node("span", "", text));
+            panel.append(label);
+          }
+          details.append(panel);
+          return details;
+        }
 
         function storedToken() {
           try {
@@ -852,11 +944,12 @@ extension CLIServeWebUI {
           return dot;
         }
 
-        function visibleWindows(windows) {
+        function visibleWindows(windows, providerID) {
           // The producer marks a window idle when its whole model family reports no usage, which
           // the page cannot work out on its own: a zero percentage also stands for a lane the
           // provider never reported. Script clients still receive every window on the snapshot.
-          return (windows || []).filter(w => w.idle !== true);
+          return (windows || []).filter(w => w.idle !== true &&
+            !(displayPreferences(providerID).hideSpark && (w.kind === "codex-spark" || w.kind === "codex-spark-weekly")));
         }
 
         function worstWindowLevel(windows) {
@@ -888,14 +981,15 @@ extension CLIServeWebUI {
           if (account.active) {
             head.append(pill("active", "active"));
           } else {
-            const level = worstWindowLevel(visibleWindows(account.windows));
+            const level = worstWindowLevel(visibleWindows(account.windows, provider.id));
             if (level) head.append(pill(level, level === "ok" ? "ok" : level === "warning" ? "high" : "critical"));
           }
           card.append(head);
 
-          if (account.updatedAt) {
+          if (account.updatedAt || account.identity?.plan) {
             const identity = node("div", "identity");
-            identity.append(node("span", "", `updated ${relativeTime(account.updatedAt)}`));
+            if (account.identity?.plan) identity.append(node("span", "", account.identity.plan));
+            if (account.updatedAt) identity.append(node("span", "", `updated ${relativeTime(account.updatedAt)}`));
             card.append(identity);
           }
 
@@ -906,8 +1000,26 @@ extension CLIServeWebUI {
           }
 
           const windows = node("div", "windows");
-          for (const window of visibleWindows(account.windows)) windows.append(renderWindow(window));
+          for (const window of visibleWindows(account.windows, provider.id)) windows.append(renderWindow(window));
           card.append(windows);
+          if (account.credits?.remaining !== null && account.credits?.remaining !== undefined) {
+            const credits = node("div", "metrics");
+            const unit = account.credits.unit ? ` ${account.credits.unit}` : "";
+            credits.append(metric("Remaining", `${amount(account.credits.remaining)}${unit}`));
+            card.append(credits);
+          }
+          if (displayPreferences(provider.id).showResetCredits && account.resetCreditsAvailable !== null &&
+              account.resetCreditsAvailable !== undefined) {
+            const metrics = node("div", "metrics");
+            metrics.append(metric("Limit resets", amount(account.resetCreditsAvailable)));
+            card.append(metrics);
+            const nextReset = (account.resetCredits || [])
+              .filter(reset => reset && reset.expiresAt)
+              .sort((left, right) => dateValue(left.expiresAt) - dateValue(right.expiresAt))[0];
+            if (nextReset) {
+              metrics.append(metric("Earliest expiry", relativeTime(nextReset.expiresAt)));
+            }
+          }
           return card;
         }
 
@@ -937,6 +1049,8 @@ extension CLIServeWebUI {
             status.append(dot, node("span", "status-label", statusLabel));
             head.append(status);
           }
+          const settings = renderDisplaySettings(provider);
+          if (settings) head.append(settings);
           card.append(head);
 
           if (provider._pending) {
@@ -960,7 +1074,7 @@ extension CLIServeWebUI {
           }
 
           const windows = node("div", "windows");
-          for (const window of visibleWindows(provider.windows)) windows.append(renderWindow(window));
+          for (const window of visibleWindows(provider.windows, provider.id)) windows.append(renderWindow(window));
           card.append(windows);
           if (provider.accountsError) {
             card.append(node("p", "error-message", provider.accountsError));
@@ -970,6 +1084,10 @@ extension CLIServeWebUI {
           if (provider.credits?.remaining !== null && provider.credits?.remaining !== undefined) {
             const unit = provider.credits.unit ? ` ${provider.credits.unit}` : "";
             metrics.append(metric("Remaining", `${amount(provider.credits.remaining)}${unit}`));
+          }
+          if (displayPreferences(provider.id).showResetCredits && provider.credits?.resetCreditsAvailable !== null &&
+              provider.credits?.resetCreditsAvailable !== undefined) {
+            metrics.append(metric("Limit resets", amount(provider.credits.resetCreditsAvailable)));
           }
           if (provider.cost?.todayUSD !== null && provider.cost?.todayUSD !== undefined) {
             metrics.append(metric("Today", dollars(provider.cost.todayUSD)));
@@ -1024,7 +1142,23 @@ extension CLIServeWebUI {
             const accounts = Array.isArray(provider.accounts) ? provider.accounts : [];
             if (accounts.length) {
               const group = node("section", "group");
-              group.append(node("h2", "group-title", `${provider.name || provider.id} accounts`));
+              const heading = node("div", "provider-group-heading");
+              heading.append(node("h2", "group-title", `${provider.name || provider.id} accounts`));
+              const settings = renderDisplaySettings(provider);
+              if (settings) heading.append(settings);
+              group.append(heading);
+              const summary = node("div", "metrics");
+              if (provider.credits?.remaining !== null && provider.credits?.remaining !== undefined) {
+                const unit = provider.credits.unit ? ` ${provider.credits.unit}` : "";
+                summary.append(metric("Remaining", `${amount(provider.credits.remaining)}${unit}`));
+              }
+              if (provider.cost?.todayUSD !== null && provider.cost?.todayUSD !== undefined) {
+                summary.append(metric("Today", dollars(provider.cost.todayUSD)));
+              }
+              if (provider.cost?.last30DaysUSD !== null && provider.cost?.last30DaysUSD !== undefined) {
+                summary.append(metric("Last 30 days", dollars(provider.cost.last30DaysUSD)));
+              }
+              if (summary.childNodes.length) group.append(summary);
               const grid = node("div", "grid");
               for (const account of accounts) grid.append(renderAccountCard(provider, account));
               if (provider.accountsError) grid.append(node("p", "error-message", provider.accountsError));

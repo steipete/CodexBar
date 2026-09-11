@@ -41,7 +41,8 @@ extension StatusItemController {
             return
         }
         let rawProvider = String(represented.dropFirst(Self.overviewRowIdentifierPrefix.count))
-        guard let provider = UsageProvider(rawValue: rawProvider),
+        let providerRawValue = rawProvider.hasPrefix("codex-") ? UsageProvider.codex.rawValue : rawProvider
+        guard let provider = UsageProvider(rawValue: providerRawValue),
               let menu = sender.menu
         else {
             return
