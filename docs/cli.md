@@ -178,6 +178,9 @@ See `docs/configuration.md` for the schema.
   commands run directly without a shell and receive `CODEXBAR_*` variables plus JSON on stdin. `--format json` and
   `--json-only` return structured per-rule results. See
   `docs/configuration.md#external-event-hooks` for the event, payload, timeout, and security contract.
+- The macOS app emits `usage_updated` after a successful current provider refresh, coalesced to at most once per ten
+  minutes for each provider/account. Its primary and secondary positional quota windows include their cadence in
+  minutes. Synthetic placeholder windows are omitted.
 - `codexbar hooks watch` polls enabled providers and fires matching hooks on real quota and status transitions.
   Without it, hook rules only ever fire from the macOS app, so a headless install can configure hooks that never run.
   - `--interval <seconds>`: poll period. Default `300`, minimum `60`; a smaller value is rejected rather than
@@ -186,7 +189,7 @@ See `docs/configuration.md` for the schema.
   - `--format json`/`--json`/`--pretty`: emit each fired event as JSON.
   - Events are edge-triggered against the previous poll, so a condition that merely persists (a saturated window,
     an ongoing outage) does not re-fire every tick. State is in-memory only: a restart re-establishes baselines and
-    the first poll of any lane fires nothing.
+    the first poll of any lane fires nothing. `watch` does not emit the app-only `usage_updated` event.
   - Run `watch` as one continuous process. Repeated one-shot invocations cannot preserve transition baselines or event
     rate limits between polls.
   - Runs read-only, like `codexbar guard`: it never prompts for credentials. A failed refresh reports

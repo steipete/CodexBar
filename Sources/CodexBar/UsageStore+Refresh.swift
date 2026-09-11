@@ -783,6 +783,7 @@ extension UsageStore {
                 backfilled: backfilled,
                 result: result,
                 context: context)
+            self.emitUsageUpdatedHook(provider: provider, snapshot: backfilled, rateKey: warningAccountDiscriminator)
             return backfilled
         }
         guard let backfilled else { return }

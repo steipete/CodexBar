@@ -152,6 +152,19 @@ extension CodexBarCLI {
     /// A representative event for `hooks test`: quota events report high usage so a
     /// thresholded `quota_low` rule fires; reset reports empty usage.
     static func sampleHookEvent(type: HookEventType, provider: String) -> HookEvent {
+        if type == .usageUpdated {
+            let timestamp = Date()
+            return HookEvent(
+                event: type,
+                provider: provider,
+                usagePercent: 0.5,
+                windowMinutes: 5 * 60,
+                resetAt: timestamp.addingTimeInterval(60 * 60),
+                secondaryUsagePercent: 0.4,
+                secondaryWindowMinutes: 7 * 24 * 60,
+                secondaryResetAt: timestamp.addingTimeInterval(4 * 24 * 60 * 60),
+                timestamp: timestamp)
+        }
         let usagePercent: Double?
         let status: String?
         switch type {
@@ -160,6 +173,9 @@ extension CodexBarCLI {
             status = nil
         case .quotaReset:
             usagePercent = 0
+            status = nil
+        case .usageUpdated:
+            usagePercent = nil
             status = nil
         case .providerUnavailable:
             usagePercent = nil

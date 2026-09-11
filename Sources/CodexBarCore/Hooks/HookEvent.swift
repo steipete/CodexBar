@@ -8,6 +8,8 @@ public enum HookEventType: String, Codable, Sendable, CaseIterable {
     case quotaLow = "quota_low"
     case quotaReached = "quota_reached"
     case quotaReset = "quota_reset"
+    /// A successful provider refresh published a current quota snapshot.
+    case usageUpdated = "usage_updated"
     case providerUnavailable = "provider_unavailable"
     case providerRecovered = "provider_recovered"
     case refreshFailed = "refresh_failed"
@@ -18,7 +20,7 @@ public enum HookEventType: String, Codable, Sendable, CaseIterable {
     /// window would be dropped.
     var isRateLimited: Bool {
         switch self {
-        case .providerUnavailable, .refreshFailed:
+        case .usageUpdated, .providerUnavailable, .refreshFailed:
             true
         case .quotaLow, .quotaReached, .quotaReset, .providerRecovered:
             false
@@ -38,9 +40,14 @@ public struct HookEvent: Codable, Sendable, Equatable {
     public let account: String?
     public let window: String?
     public let usagePercent: Double?
+    public let windowMinutes: Int?
     public let used: Double?
     public let limit: Double?
     public let resetAt: Date?
+    /// Optional positional metadata from `UsageSnapshot.secondary`.
+    public let secondaryUsagePercent: Double?
+    public let secondaryWindowMinutes: Int?
+    public let secondaryResetAt: Date?
     public let status: String?
     public let timestamp: Date
 
@@ -50,9 +57,13 @@ public struct HookEvent: Codable, Sendable, Equatable {
         account: String? = nil,
         window: String? = nil,
         usagePercent: Double? = nil,
+        windowMinutes: Int? = nil,
         used: Double? = nil,
         limit: Double? = nil,
         resetAt: Date? = nil,
+        secondaryUsagePercent: Double? = nil,
+        secondaryWindowMinutes: Int? = nil,
+        secondaryResetAt: Date? = nil,
         status: String? = nil,
         timestamp: Date)
     {
@@ -61,9 +72,13 @@ public struct HookEvent: Codable, Sendable, Equatable {
         self.account = account
         self.window = window
         self.usagePercent = usagePercent
+        self.windowMinutes = windowMinutes
         self.used = used
         self.limit = limit
         self.resetAt = resetAt
+        self.secondaryUsagePercent = secondaryUsagePercent
+        self.secondaryWindowMinutes = secondaryWindowMinutes
+        self.secondaryResetAt = secondaryResetAt
         self.status = status
         self.timestamp = timestamp
     }
@@ -79,9 +94,15 @@ public struct HookEvent: Codable, Sendable, Equatable {
         if let account { env["CODEXBAR_ACCOUNT"] = account }
         if let window { env["CODEXBAR_WINDOW"] = window }
         if let usagePercent { env["CODEXBAR_USAGE_PERCENT"] = Self.number(usagePercent) }
+        if let windowMinutes { env["CODEXBAR_WINDOW_MINUTES"] = String(windowMinutes) }
         if let used { env["CODEXBAR_USED"] = Self.number(used) }
         if let limit { env["CODEXBAR_LIMIT"] = Self.number(limit) }
         if let resetAt { env["CODEXBAR_RESET_AT"] = Self.iso8601String(resetAt) }
+        if let secondaryUsagePercent { env["CODEXBAR_SECONDARY_USAGE_PERCENT"] = Self.number(secondaryUsagePercent) }
+        if let secondaryWindowMinutes {
+            env["CODEXBAR_SECONDARY_WINDOW_MINUTES"] = String(secondaryWindowMinutes)
+        }
+        if let secondaryResetAt { env["CODEXBAR_SECONDARY_RESET_AT"] = Self.iso8601String(secondaryResetAt) }
         if let status { env["CODEXBAR_STATUS"] = status }
         return env
     }

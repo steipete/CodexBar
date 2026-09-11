@@ -337,8 +337,8 @@ extension CodexBarCLI {
         Description:
           Run external commands when quota/provider events occur. Rules are stored in the
           shared config file and are disabled by default. Events:
-          quota_low, quota_reached, quota_reset, provider_unavailable, provider_recovered,
-          refresh_failed.
+          quota_low, quota_reached, quota_reset, usage_updated, provider_unavailable,
+          provider_recovered, refresh_failed.
 
           Commands run directly (no shell), receive event metadata via CODEXBAR_* environment
           variables and a JSON payload on stdin, and are timed out. Only configure commands you trust.
