@@ -2,6 +2,10 @@
 
 ## 0.59.1 — Unreleased
 
+### Fixed
+- Codex accounts: honor Hide Personal Info in switcher labels and tooltips, redact embedded workspace emails, and preserve distinct account numbers in narrow menus (#3551). Thanks @zenibako!
+- Codex spend: keep waiting history files ahead of repeated migration revisits so large histories can finish bounded catch-up, preserving stored rows and checkpoints (#3548, related to #3411). Thanks @SergeiNikolenko!
+
 ## 0.59.0 — 2026-09-10
 
 ### Highlights

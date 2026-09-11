@@ -3,9 +3,15 @@ import Foundation
 
 enum CodexAccountSwitcherLabeling {
     static func ordinals(for accounts: [CodexVisibleAccount]) -> [String: Int] {
+        // The visible ID changes when a managed account becomes live; its persisted slot ID does not.
+        let ordered = accounts.sorted { lhs, rhs in
+            let left = lhs.storedAccountID?.uuidString ?? lhs.id
+            let right = rhs.storedAccountID?.uuidString ?? rhs.id
+            return left == right ? lhs.id < rhs.id : left < right
+        }
         var ordinals: [String: Int] = [:]
-        for (index, id) in accounts.map(\.id).sorted().enumerated() {
-            ordinals[id] = index + 1
+        for (index, account) in ordered.enumerated() {
+            ordinals[account.id] = index + 1
         }
         return ordinals
     }
