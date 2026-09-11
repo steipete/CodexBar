@@ -1,0 +1,19 @@
+Native model-to-chart validation at 6c7693735d130f7aaa71320a1fdf859f6cbefed2
+Build: swift build --target CodexBarCore --jobs 8 (passed)
+Production sources compiled directly: SpendDashboardModel.swift, SpendDashboardModel+ModelBreakdown.swift, SpendActivityHeatmap.swift
+Native CostUsageTokenSnapshot and UsageFormatter linked from CodexBarCore; no copied model or formatter definitions.
+Support shims: source scanDays=365 and English localization helpers.
+Input: 365 synthetic daily entries, America/Santiago, local noon on each listed date.
+This is native model/chart integration proof, not a full application launch.
+
+Sep 6, gaps=false: coverage 2/365
+FAIL: Sep 6, gaps=false covered days
+FAIL: Sep 6, gaps=false total
+FAIL: Sep 6, gaps=false day identity and coverage
+FAIL: Sep 6, gaps=false cumulative
+Sep 7, gaps=false: coverage 365/365
+Sep 11, gaps=false: coverage 365/365
+Rendered native CostUsageTokenSnapshot -> SpendDashboardModel -> SpendActivityHeatmapView
+Sep 12, gaps=false: coverage 365/365
+Sep 13, gaps=false: coverage 365/365
+Failures: 4
