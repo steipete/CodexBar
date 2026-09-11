@@ -2,6 +2,9 @@
 
 ## 0.59.1 — Unreleased
 
+### Added
+- Codex costs: opt in to separate SSH host estimates in the menu and Usage & Spend, with path-free CLI summaries and `cost --remote`; preserve local totals and report unavailable hosts independently (related to #3036).
+
 ### Fixed
 - Codex accounts: honor Hide Personal Info in switcher labels and tooltips, redact embedded workspace emails, and preserve distinct account numbers in narrow menus (#3551). Thanks @zenibako!
 - Codex spend: keep waiting history files ahead of repeated migration revisits so large histories can finish bounded catch-up, preserving stored rows and checkpoints (#3548, related to #3411). Thanks @SergeiNikolenko!

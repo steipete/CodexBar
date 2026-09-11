@@ -6,6 +6,40 @@ import Testing
 @MainActor
 struct AgentSessionMenuDescriptorTests {
     @Test
+    func `remote cost presentation preserves unknown coverage and masks host identifiers`() {
+        let report = CodexHostCostReport(host: "private-host", summary: RemoteCodexCostFetcherTests.summary())
+        let hidden = RemoteCodexCostPresentation(report: report, index: 0, hidePersonalInfo: true)
+        #expect(!hidden.title.contains("private-host"))
+        #expect(hidden.lines.contains { $0.contains("Partial history") })
+        let shown = RemoteCodexCostPresentation(report: report, index: 0, hidePersonalInfo: false)
+        #expect(shown.title == "private-host")
+        let failed = RemoteCodexCostPresentation(
+            report: CodexHostCostReport(host: "host", summary: nil, error: "Unavailable"),
+            index: 0,
+            hidePersonalInfo: false)
+        #expect(failed.lines == ["Unavailable"])
+    }
+
+    @Test(arguments: [false, true])
+    func `remote cost settings stay off for fresh and upgraded preferences`(_ upgrading: Bool) {
+        let defaults = InMemoryUserDefaults(values: upgrading ? [
+            "agentSessionsManualHosts": "existing-host",
+            "agentSessionsEnabled": true,
+        ] : [:])
+        let settings = testSettingsStore(suiteName: "RemoteCodexCosts-default-off", userDefaults: defaults)
+        #expect(settings.codexRemoteCostHosts.isEmpty)
+        let store = RemoteCodexCostStore { _, _, _ in
+            Issue.record("Remote costs require separate opt-in even when agent sessions are enabled")
+            throw RemoteCodexCostError.unavailable
+        }
+        store.refresh(hosts: settings.codexRemoteCostHosts, historyDays: 30, force: true)
+        #expect(!store.isRefreshing)
+        #expect(store.reports.isEmpty)
+        #expect(settings.agentSessionsEnabled == upgrading)
+        #expect(settings.agentSessionsManualHosts == (upgrading ? "existing-host" : ""))
+    }
+
+    @Test
     func `fresh settings omit agent sessions until explicitly enabled`() {
         let settings = testSettingsStore(suiteName: "AgentSessionMenuDescriptorTests-default-off")
         settings.statusChecksEnabled = false

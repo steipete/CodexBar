@@ -150,6 +150,17 @@ struct MenuDescriptor {
                 sections.append(actions)
             }
         }
+        // Provider-specific by design: the SSH summary protocol currently supports native Codex history only.
+        if provider == nil || provider == .codex, settings.costUsageEnabled, store.isEnabled(.codex) {
+            let costs = store.remoteCodexCosts
+            if !costs.reports.isEmpty || costs.configurationError != nil {
+                sections.append(Self.remoteCodexCostsSection(
+                    reports: costs.reports,
+                    configurationError: costs.configurationError,
+                    hidePersonalInfo: settings.hidePersonalInfo,
+                    now: now))
+            }
+        }
         if agentSessionsEnabled {
             sections.append(Self.agentSessionsSection(
                 localSessions: localAgentSessions,
@@ -160,6 +171,25 @@ struct MenuDescriptor {
         sections.append(Self.metaSection(updateReady: updateReady))
 
         return MenuDescriptor(sections: sections)
+    }
+
+    static func remoteCodexCostsSection(
+        reports: [CodexHostCostReport],
+        configurationError: String?,
+        hidePersonalInfo: Bool,
+        now: Date = Date()) -> Section
+    {
+        var entries: [Entry] = [.text(L("Remote Codex estimates"), .headline)]
+        if let configurationError { entries.append(.unavailable(L(configurationError), nil)) }
+        for (index, report) in reports.enumerated() {
+            let model = RemoteCodexCostPresentation(
+                report: report, index: index, hidePersonalInfo: hidePersonalInfo, now: now)
+            let lines = model.lines + [L("Separate from local totals · API estimates, not billed")]
+            entries.append(.submenu(model.title, nil, lines.map {
+                SubmenuItem(title: $0, action: nil, isEnabled: false)
+            }))
+        }
+        return Section(entries: entries)
     }
 
     static func agentSessionsSection(
