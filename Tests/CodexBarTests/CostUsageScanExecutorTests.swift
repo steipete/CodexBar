@@ -13,6 +13,31 @@ struct CostUsageScanExecutorTests {
     }
 
     @Test
+    func `timed scans exclude queue waiting but include their own work`() async throws {
+        let queue = self.makeQueue()
+        let releaseBlocker = DispatchSemaphore(value: 0)
+        queue.async { releaseBlocker.wait() }
+        let submitted = LockedValue(false)
+        let start = ContinuousClock.now
+        let task = Task {
+            submitted.set(true)
+            return try await CostUsageScanExecutor.runTimed(on: queue) { _ in
+                Thread.sleep(forTimeInterval: 0.025)
+                return 42
+            }
+        }
+        #expect(await self.waitUntil { submitted.value })
+        try? await Task.sleep(for: .milliseconds(200))
+        releaseBlocker.signal()
+        let result = try await task.value
+        let elapsed = (ContinuousClock.now - start).components
+        let totalDuration = Double(elapsed.seconds) + Double(elapsed.attoseconds) / 1e18
+        #expect(result.value == 42)
+        #expect(result.activeDuration >= 0.025)
+        #expect(totalDuration - result.activeDuration >= 0.15)
+    }
+
+    @Test
     func `propagates thrown errors`() async {
         struct ScanFailure: Error {}
         let queue = self.makeQueue()

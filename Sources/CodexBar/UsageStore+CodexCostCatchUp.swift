@@ -172,11 +172,10 @@ extension UsageStore {
                         return
                     }
 
-                    let passStartedAt = ContinuousClock.now
                     self.codexCostCatchUpPassIsRunning = true
-                    let nextStatus: CostUsageFetcher.CodexScanCatchUpStatus
+                    let result: CostUsageScanExecutor.TimedResult<CostUsageFetcher.CodexScanCatchUpStatus>
                     do {
-                        nextStatus = try await self.advanceCodexCostCatchUp(
+                        result = try await self.advanceCodexCostCatchUp(
                             now: Date(),
                             codexHomePath: context.codexHomePath,
                             historyDays: context.historyDays)
@@ -185,12 +184,8 @@ extension UsageStore {
                         self.codexCostCatchUpPassIsRunning = false
                         throw error
                     }
-                    let passDuration = ContinuousClock.now - passStartedAt
-                    let durationComponents = passDuration.components
-                    previousActiveDuration = max(
-                        0,
-                        Double(durationComponents.seconds)
-                            + Double(durationComponents.attoseconds) / 1_000_000_000_000_000_000)
+                    let nextStatus = result.value
+                    previousActiveDuration = result.activeDuration
                     didAdvance = true
                     guard self.codexCostCatchUpContextIsCurrent(context) else { return }
                     self.publishCodexCostCatchUpActivity(
@@ -343,10 +338,12 @@ extension UsageStore {
     private func advanceCodexCostCatchUp(
         now: Date,
         codexHomePath: String?,
-        historyDays: Int) async throws -> CostUsageFetcher.CodexScanCatchUpStatus
+        historyDays: Int) async throws -> CostUsageScanExecutor.TimedResult<CostUsageFetcher.CodexScanCatchUpStatus>
     {
         if let override = self._test_codexCostCatchUpAdvanceOverride {
-            return try await override(now, codexHomePath, historyDays)
+            return try await .init(
+                value: override(now, codexHomePath, historyDays),
+                activeDuration: self._test_codexCostCatchUpActiveDuration)
         }
         return try await self.costUsageFetcher.advanceCodexScanCatchUp(
             now: now,
