@@ -1552,3 +1552,18 @@
 "Color Pace Indicator" = "Kullanım hızını renklendir";
 "Green pace indicator when behind pace, red when ahead of pace (risk of running out early)" = "Kullanım beklenen hızın gerisindeyse yeşil (rezerv); ilerisindeyse kırmızı (kotanın erken tükenme riski).";
 "%@ weekly" = "%@ haftalık";
+
+"Claude instances" = "Claude örnekleri";
+"Show Claude instances" = "Claude örneklerini göster";
+"claude_instances_toggle_subtitle" = "Her Claude Code profili için, o profilin kendi Claude CLI'ı üzerinden okunan bir kart gösterir. Claude kartının yerini alır ve claude-swap'ı kapatır.";
+"Add Instance" = "Örnek ekle";
+"Edit" = "Düzenle";
+"Name" = "Ad";
+"Binary path" = "Çalıştırılabilir dosya yolu";
+"claude_instance_binary_footnote" = "Bu örnek için claude çalıştırılabilir dosyasının yolu. Normal claude aramasını kullanmak için boş bırakın.";
+"CLAUDE_CONFIG_DIR path" = "CLAUDE_CONFIG_DIR yolu";
+"claude_instance_config_dir_footnote" = "Bu profil için Claude Code yapılandırma dizini. CodexBar bu profilin kimlik bilgilerini hiçbir zaman okumaz.";
+"Environment" = "Ortam";
+"claude_instance_environment_footnote" = "Her satıra bir KEY=value. CodexBar yapılandırma dosyasında düz metin olarak depolanır; ANTHROPIC_* gibi oturum açma değişkenleri ve OAuth belirteçleri yok sayılır.";
+"Save" = "Kaydet";
+"Use an absolute path or a path starting with ~." = "Mutlak bir yol veya ~ ile başlayan bir yol kullanın.";

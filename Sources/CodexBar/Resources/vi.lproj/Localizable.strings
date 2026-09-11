@@ -1551,3 +1551,18 @@
 "Color Pace Indicator" = "Tô màu nhịp sử dụng";
 "Green pace indicator when behind pace, red when ahead of pace (risk of running out early)" = "Xanh khi mức sử dụng chậm hơn nhịp dự kiến (còn dư); đỏ khi nhanh hơn (nguy cơ hết hạn mức sớm).";
 "%@ weekly" = "%@ hàng tuần";
+
+"Claude instances" = "Phiên bản Claude";
+"Show Claude instances" = "Hiển thị phiên bản Claude";
+"claude_instances_toggle_subtitle" = "Hiển thị một thẻ cho mỗi hồ sơ Claude Code, được đọc thông qua Claude CLI riêng của hồ sơ đó. Thay thế thẻ Claude và tắt claude-swap.";
+"Add Instance" = "Thêm phiên bản";
+"Edit" = "Sửa";
+"Name" = "Tên";
+"Binary path" = "Đường dẫn tệp nhị phân";
+"claude_instance_binary_footnote" = "Đường dẫn đến tệp nhị phân claude cho phiên bản này. Để trống để dùng cách tìm claude thông thường.";
+"CLAUDE_CONFIG_DIR path" = "Đường dẫn CLAUDE_CONFIG_DIR";
+"claude_instance_config_dir_footnote" = "Thư mục cấu hình Claude Code cho hồ sơ này. CodexBar không bao giờ đọc thông tin xác thực của hồ sơ.";
+"Environment" = "Môi trường";
+"claude_instance_environment_footnote" = "Mỗi dòng một KEY=value. Được lưu dưới dạng văn bản thuần trong tệp cấu hình CodexBar; các biến đăng nhập như ANTHROPIC_* và token OAuth sẽ bị bỏ qua.";
+"Save" = "Lưu";
+"Use an absolute path or a path starting with ~." = "Hãy dùng đường dẫn tuyệt đối hoặc đường dẫn bắt đầu bằng ~.";

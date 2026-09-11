@@ -1549,3 +1549,18 @@
 "Color Pace Indicator" = "Gebruikstempo kleuren";
 "Green pace indicator when behind pace, red when ahead of pace (risk of running out early)" = "Groen als het verbruik achterloopt op het verwachte tempo (reserve); rood als het voorloopt (risico op vroegtijdige uitputting).";
 "%@ weekly" = "%@ wekelijks";
+
+"Claude instances" = "Claude-instanties";
+"Show Claude instances" = "Claude-instanties tonen";
+"claude_instances_toggle_subtitle" = "Toont één kaart per Claude Code-profiel, uitgelezen via de eigen Claude CLI van dat profiel. Vervangt de Claude-kaart en schakelt claude-swap uit.";
+"Add Instance" = "Instantie toevoegen";
+"Edit" = "Bewerken";
+"Name" = "Naam";
+"Binary path" = "Pad naar binair bestand";
+"claude_instance_binary_footnote" = "Pad naar het claude-binaire bestand voor deze instantie. Laat leeg om de normale zoekmethode voor claude te gebruiken.";
+"CLAUDE_CONFIG_DIR path" = "CLAUDE_CONFIG_DIR-pad";
+"claude_instance_config_dir_footnote" = "Claude Code-configuratiemap voor dit profiel. CodexBar leest nooit de inloggegevens ervan.";
+"Environment" = "Omgeving";
+"claude_instance_environment_footnote" = "Eén KEY=value per regel. Opgeslagen als platte tekst in het CodexBar-configuratiebestand; inlogvariabelen zoals ANTHROPIC_* en OAuth-tokens worden genegeerd.";
+"Save" = "Opslaan";
+"Use an absolute path or a path starting with ~." = "Gebruik een absoluut pad of een pad dat begint met ~.";

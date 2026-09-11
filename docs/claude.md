@@ -216,6 +216,38 @@ Model-scoped weekly-window proof (synthetic data, no real accounts or credential
 | --- | --- |
 | ![claude-swap card before scoped windows](screenshots/claude-swap-scoped-before.png) | ![claude-swap card with a Fable scoped weekly window](screenshots/claude-swap-scoped-after.png) |
 
+## Claude instances (opt-in)
+
+For people who run several Claude Code profiles side by side (one `CLAUDE_CONFIG_DIR` per account).
+
+- Setup: Preferences → Providers → Claude → **Claude instances** → Add Instance. Each instance has a name, an
+  optional `claude` binary path (empty uses the normal `claude` lookup), a config directory (becomes
+  `CLAUDE_CONFIG_DIR`; `~` is expanded when saved), and optional `KEY=value` environment variables. Turn on
+  **Show Claude instances** to use them.
+- Config: stored on the Claude provider as `claudeInstancesEnabled` and `claudeInstances`
+  (`id`, `name`, `binaryPath`, `configDirectory`, `environment`). Paths are machine-specific and are not cloud-synced.
+  Environment values are stored in plain text, so do not put secrets there.
+- Usage: on each Claude refresh, CodexBar runs each instance's own Claude CLI `/usage` (and `/status` for identity)
+  with that instance's environment, one instance at a time, separately from the ambient Claude refresh. Claude Code
+  reads its own credentials; CodexBar never reads the instance's Keychain item or credentials file, and web/cookie
+  extras stay off because browser cookies are not scoped to a profile. Cards therefore show percentages and reset
+  times only ("via Claude CLI" fidelity).
+- Environment guardrails: `ANTHROPIC_*`, `CLAUDE_CODE_OAUTH_TOKEN`, CodexBar's Claude OAuth token variables, and
+  `CLAUDE_SECURESTORAGE_CONFIG_DIR` are dropped from the inherited environment and ignored per instance, so an
+  instance always uses its own profile's login. `CLAUDE_CONFIG_DIR`, `CLAUDE_CLI_PATH`, and `HOME` belong to the
+  instance fields. Free-form launch arguments are not supported: the probe runs `claude` with tools disabled.
+- Display: when instances are on and have reported, one card per instance replaces the ambient and token-account
+  Claude cards (identity `claude-instance:<id>`, never an email or path). The card label is the instance name plus
+  the account email from `/status`. Stacked, compact (four or more), and segmented layouts are supported; there is no
+  active account, so the segmented switcher only chooses which instance card to show. The first instance with usable
+  usage drives the menu bar icon. A failed refresh keeps that instance's last successful usage with the error shown.
+- claude-swap and Claude instances are mutually exclusive: turning one on turns the other off.
+- Rate limits: the CLI rate-limit cooldown is keyed per explicit `CLAUDE_CONFIG_DIR`, so one rate-limited instance does
+  not pause the others. The default profile keeps its existing cooldown key.
+- Cost: while instances are on, local cost scanning also reads `<configDirectory>/projects` for every instance.
+  Messages that appear in more than one profile are counted once (by message and request ID).
+- Not yet covered: `codexbar cards`, widgets, and cloud-synced account snapshots still show the ambient Claude account.
+
 ## CLI PTY (fallback)
 - Runs `claude` in a PTY session (`ClaudeCLISession`).
 - Default behavior: exit after each probe; Debug → "Keep CLI sessions alive" keeps it running between probes.

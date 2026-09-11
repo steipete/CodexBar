@@ -679,7 +679,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
         }
 
         private func loadViaCLI(model: String, timeout: TimeInterval) async throws -> ClaudeUsageSnapshot {
-            if ClaudeCLIRateLimitGate.blockedUntil() != nil {
+            if ClaudeCLIRateLimitGate.blockedUntil(environment: self.fetcher.environment) != nil {
                 throw ClaudeUsageError.parseFailed(ClaudeCLIRateLimitGate.message)
             }
 
@@ -691,7 +691,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
                     throw error
                 }
                 if ClaudeUsageFetcher.isCLIRateLimitError(error) {
-                    ClaudeCLIRateLimitGate.recordRateLimit()
+                    ClaudeCLIRateLimitGate.recordRateLimit(environment: self.fetcher.environment)
                     throw error
                 }
                 guard Self.shouldTryDirectCLIUsage(after: error) else { throw error }
@@ -704,14 +704,14 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
                         throw directError
                     }
                     if ClaudeUsageFetcher.isCLIRateLimitError(directError) {
-                        ClaudeCLIRateLimitGate.recordRateLimit()
+                        ClaudeCLIRateLimitGate.recordRateLimit(environment: self.fetcher.environment)
                         throw directError
                     }
                     guard Self.directCLIErrorShouldReplacePTYError(directError) else { throw ptyError }
                     throw directError
                 }
             }
-            ClaudeCLIRateLimitGate.recordSuccess()
+            ClaudeCLIRateLimitGate.recordSuccess(environment: self.fetcher.environment)
             snapshot = try await self.fetcher.applyWebExtrasIfNeeded(to: snapshot)
             return snapshot
         }

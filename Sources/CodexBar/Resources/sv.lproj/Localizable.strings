@@ -1549,3 +1549,18 @@
 "Color Pace Indicator" = "Färglägg förbrukningstakten";
 "Green pace indicator when behind pace, red when ahead of pace (risk of running out early)" = "Grönt när förbrukningen ligger under förväntad takt (reserv); rött när den ligger över (risk att kvoten tar slut i förtid).";
 "%@ weekly" = "%@ per vecka";
+
+"Claude instances" = "Claude-instanser";
+"Show Claude instances" = "Visa Claude-instanser";
+"claude_instances_toggle_subtitle" = "Visar ett kort per Claude Code-profil, läst via profilens egen Claude CLI. Ersätter Claude-kortet och stänger av claude-swap.";
+"Add Instance" = "Lägg till instans";
+"Edit" = "Redigera";
+"Name" = "Namn";
+"Binary path" = "Sökväg till binär";
+"claude_instance_binary_footnote" = "Sökväg till claude-binären för den här instansen. Lämna tomt för att använda den vanliga sökningen efter claude.";
+"CLAUDE_CONFIG_DIR path" = "Sökväg för CLAUDE_CONFIG_DIR";
+"claude_instance_config_dir_footnote" = "Konfigurationsmapp för Claude Code för den här profilen. CodexBar läser aldrig dess inloggningsuppgifter.";
+"Environment" = "Miljö";
+"claude_instance_environment_footnote" = "En KEY=value per rad. Sparas i klartext i CodexBars konfigurationsfil; inloggningsvariabler som ANTHROPIC_* och OAuth-token ignoreras.";
+"Save" = "Spara";
+"Use an absolute path or a path starting with ~." = "Använd en absolut sökväg eller en sökväg som börjar med ~.";

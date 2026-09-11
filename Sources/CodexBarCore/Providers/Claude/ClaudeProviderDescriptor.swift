@@ -737,7 +737,7 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
         return context.runtime == .app && context.sourceMode == .auto
     }
 
-    fileprivate static func snapshot(
+    static func snapshot(
         from usage: ClaudeUsageSnapshot,
         dataConfidence: UsageDataConfidence = .unknown) -> UsageSnapshot
     {

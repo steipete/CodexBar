@@ -1,6 +1,18 @@
 {
   "providers" : [
     {
+      "claudeInstances" : [
+        {
+          "binaryPath" : "\/opt\/homebrew\/bin\/claude",
+          "configDirectory" : "\/Users\/fixture\/.claude-work",
+          "environment" : {
+            "HTTPS_PROXY" : "http:\/\/proxy.fixture:8080"
+          },
+          "id" : "fixture-work",
+          "name" : "Work"
+        }
+      ],
+      "claudeInstancesEnabled" : false,
       "claudeSwapEnabled" : true,
       "claudeSwapExecutablePath" : "\/opt\/homebrew\/bin\/claude-swap",
       "claudeSwapShowSingleAccount" : false,

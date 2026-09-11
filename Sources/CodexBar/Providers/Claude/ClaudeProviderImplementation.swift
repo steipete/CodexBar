@@ -29,6 +29,8 @@ struct ClaudeProviderImplementation: ProviderImplementation {
         _ = settings.claudeSwapEnabled
         _ = settings.claudeSwapShowSingleAccount
         _ = settings.claudeSwapExecutablePath
+        _ = settings.claudeInstancesEnabled
+        _ = settings.claudeInstances
     }
 
     @MainActor

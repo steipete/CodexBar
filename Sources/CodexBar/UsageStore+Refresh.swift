@@ -374,6 +374,7 @@ extension UsageStore {
 
         if provider == .claude {
             self.scheduleClaudeSwapAccountRefresh(generation: generation)
+            self.scheduleClaudeInstanceRefresh(generation: generation)
         }
 
         let tokenAccountPreparation = self.tokenAccountRefreshPreparation(for: provider)

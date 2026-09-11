@@ -62,6 +62,10 @@ extension SettingsStore {
         set {
             self.updateProviderConfig(provider: .claude) { entry in
                 entry.claudeSwapEnabled = newValue
+                // claude-swap and Claude instances both replace the ambient cards, so only one can be on.
+                if newValue, entry.claudeInstancesEnabled == true {
+                    entry.claudeInstancesEnabled = false
+                }
             }
             self.logProviderModeChange(provider: .claude, field: "claudeSwapEnabled", value: String(newValue))
         }
@@ -91,6 +95,34 @@ extension SettingsStore {
                 field: "claudeSwapExecutablePath",
                 value: newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "cleared" : "set")
         }
+    }
+
+    var claudeInstancesEnabled: Bool {
+        get { self.configSnapshot.providerConfig(for: .claude)?.claudeInstancesEnabled ?? false }
+        set {
+            self.updateProviderConfig(provider: .claude) { entry in
+                entry.claudeInstancesEnabled = newValue
+                if newValue, entry.claudeSwapEnabled == true {
+                    entry.claudeSwapEnabled = false
+                }
+            }
+            self.logProviderModeChange(provider: .claude, field: "claudeInstancesEnabled", value: String(newValue))
+        }
+    }
+
+    var claudeInstances: [ClaudeInstanceConfig] {
+        get { self.configSnapshot.providerConfig(for: .claude)?.claudeInstances ?? [] }
+        set {
+            self.updateProviderConfig(provider: .claude) { entry in
+                entry.claudeInstances = newValue.isEmpty ? nil : newValue
+            }
+            self.logProviderModeChange(provider: .claude, field: "claudeInstances", value: String(newValue.count))
+        }
+    }
+
+    /// Config directories whose local logs feed Claude cost history while instances are on.
+    var claudeInstanceCostConfigDirectories: [String] {
+        self.configSnapshot.providerConfig(for: .claude)?.enabledClaudeInstanceConfigDirectories ?? []
     }
 }
 

@@ -237,11 +237,18 @@ public struct CostUsageFetcher: Sendable {
         refreshPricingInBackground: Bool = true,
         includePiSessions: Bool = true,
         bypassScannerDebounce: Bool,
-        calendar: Calendar? = nil) async throws -> CostUsageTokenSnapshot
+        calendar: Calendar? = nil,
+        claudeExtraConfigDirectories: [String] = []) async throws -> CostUsageTokenSnapshot
     {
         var options = self.scannerOptionsOverride() ?? CostUsageScanner.Options()
         if let calendar {
             options.calendar = calendar
+        }
+        let instanceRoots = Self.claudeProjectsRoots(forConfigDirectories: claudeExtraConfigDirectories)
+        if provider == .claude, !instanceRoots.isEmpty, options.claudeProjectsRoots == nil {
+            options.claudeProjectsRoots = CostUsageScanner.claudeProjectsRoots(
+                appendingInstanceRoots: instanceRoots,
+                options: options)
         }
         return try await Self.loadTokenSnapshot(
             provider: provider,
@@ -367,6 +374,12 @@ public struct CostUsageFetcher: Sendable {
     }
 
     private static let establishedEmptyCodexDailyReport = CostUsageDailyReport(data: [], summary: nil)
+
+    static func claudeProjectsRoots(forConfigDirectories directories: [String]) -> [URL] {
+        directories.compactMap(ClaudeInstanceEnvironment.normalizedAbsolutePath).map {
+            URL(fileURLWithPath: $0, isDirectory: true).appendingPathComponent("projects", isDirectory: true)
+        }
+    }
 
     private static func resolvedScannerOptions(
         _ override: CostUsageScanner.Options?,

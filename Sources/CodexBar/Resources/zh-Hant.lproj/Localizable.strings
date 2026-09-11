@@ -1581,3 +1581,18 @@
 "Color Pace Indicator" = "以顏色顯示使用節奏";
 "Green pace indicator when behind pace, red when ahead of pace (risk of running out early)" = "使用量低於預期進度時顯示綠色（有餘裕）；高於預期時顯示紅色（可能提前用盡配額）。";
 "%@ weekly" = "%@ 每週";
+
+"Claude instances" = "Claude 執行個體";
+"Show Claude instances" = "顯示 Claude 執行個體";
+"claude_instances_toggle_subtitle" = "為每個 Claude Code 設定檔顯示一張卡片，並透過該設定檔自己的 Claude CLI 讀取。將取代 Claude 卡片並關閉 claude-swap。";
+"Add Instance" = "新增執行個體";
+"Edit" = "編輯";
+"Name" = "名稱";
+"Binary path" = "二進位檔案路徑";
+"claude_instance_binary_footnote" = "此執行個體使用的 claude 二進位檔案路徑。留空則使用一般的 claude 查找方式。";
+"CLAUDE_CONFIG_DIR path" = "CLAUDE_CONFIG_DIR 路徑";
+"claude_instance_config_dir_footnote" = "此設定檔的 Claude Code 設定目錄。CodexBar 絕不會讀取其憑證。";
+"Environment" = "環境變數";
+"claude_instance_environment_footnote" = "每行一個 KEY=value。以純文字儲存在 CodexBar 設定檔中；ANTHROPIC_* 等登入變數和 OAuth 權杖會被忽略。";
+"Save" = "儲存";
+"Use an absolute path or a path starting with ~." = "請使用絕對路徑或以 ~ 開頭的路徑。";

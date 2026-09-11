@@ -1550,3 +1550,18 @@
 "Color Pace Indicator" = "使用ペースを色分け";
 "Green pace indicator when behind pace, red when ahead of pace (risk of running out early)" = "想定より使用が遅い場合は緑（余裕あり）、速い場合は赤（上限に早く達するおそれ）で表示します。";
 "%@ weekly" = "%@（週間）";
+
+"Claude instances" = "Claude インスタンス";
+"Show Claude instances" = "Claude インスタンスを表示";
+"claude_instances_toggle_subtitle" = "Claude Code プロファイルごとにカードを 1 枚表示し、各プロファイル自身の Claude CLI から読み取ります。Claude カードを置き換え、claude-swap をオフにします。";
+"Add Instance" = "インスタンスを追加";
+"Edit" = "編集";
+"Name" = "名前";
+"Binary path" = "バイナリパス";
+"claude_instance_binary_footnote" = "このインスタンスで使う claude バイナリのパス。空欄のままにすると、通常の claude の検索を使用します。";
+"CLAUDE_CONFIG_DIR path" = "CLAUDE_CONFIG_DIR パス";
+"claude_instance_config_dir_footnote" = "このプロファイルの Claude Code 設定ディレクトリ。CodexBar がその認証情報を読み取ることはありません。";
+"Environment" = "環境変数";
+"claude_instance_environment_footnote" = "1 行につき 1 つの KEY=value。CodexBar の設定ファイルにプレーンテキストで保存されます。ANTHROPIC_* などのログイン変数や OAuth トークンは無視されます。";
+"Save" = "保存";
+"Use an absolute path or a path starting with ~." = "絶対パス、または ~ で始まるパスを使用してください。";

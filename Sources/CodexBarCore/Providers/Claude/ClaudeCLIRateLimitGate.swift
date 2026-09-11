@@ -7,34 +7,45 @@ enum ClaudeCLIRateLimitGate {
     static let message = "Claude CLI usage endpoint is rate limited right now. Please try again later."
 
     static func blockedUntil(
+        environment: [String: String] = [:],
         interaction: ProviderInteraction = ProviderInteractionContext.current,
         now: Date = Date()) -> Date?
     {
         guard interaction != .userInitiated else { return nil }
-        return self.currentBlockedUntil(now: now)
+        return self.currentBlockedUntil(environment: environment, now: now)
     }
 
-    static func currentBlockedUntil(now: Date = Date()) -> Date? {
-        guard let raw = UserDefaults.standard.object(forKey: self.blockedUntilKey) as? Double else {
+    static func currentBlockedUntil(environment: [String: String] = [:], now: Date = Date()) -> Date? {
+        let key = self.storageKey(environment: environment)
+        guard let raw = UserDefaults.standard.object(forKey: key) as? Double else {
             return nil
         }
 
         let blockedUntil = Date(timeIntervalSince1970: raw)
         guard blockedUntil > now else {
-            UserDefaults.standard.removeObject(forKey: self.blockedUntilKey)
+            UserDefaults.standard.removeObject(forKey: key)
             return nil
         }
         return blockedUntil
     }
 
-    static func recordRateLimit(now: Date = Date()) {
+    static func recordRateLimit(environment: [String: String] = [:], now: Date = Date()) {
         UserDefaults.standard.set(
             now.addingTimeInterval(self.defaultCooldown).timeIntervalSince1970,
-            forKey: self.blockedUntilKey)
+            forKey: self.storageKey(environment: environment))
     }
 
-    static func recordSuccess() {
-        UserDefaults.standard.removeObject(forKey: self.blockedUntilKey)
+    static func recordSuccess(environment: [String: String] = [:]) {
+        UserDefaults.standard.removeObject(forKey: self.storageKey(environment: environment))
+    }
+
+    /// The default profile keeps the original key. Each explicit `CLAUDE_CONFIG_DIR` gets its own cooldown so one
+    /// rate-limited profile does not pause the others.
+    static func storageKey(environment: [String: String]) -> String {
+        guard let configDirectory = environment[ClaudeConfigPaths.configDirectoryEnvironmentKey],
+              !configDirectory.isEmpty
+        else { return self.blockedUntilKey }
+        return "\(self.blockedUntilKey).\(configDirectory)"
     }
 
     static func isRateLimitError(_ error: Error) -> Bool {
@@ -57,8 +68,8 @@ enum ClaudeCLIRateLimitGate {
     }
 
     #if DEBUG
-    static func resetForTesting() {
-        UserDefaults.standard.removeObject(forKey: self.blockedUntilKey)
+    static func resetForTesting(environment: [String: String] = [:]) {
+        UserDefaults.standard.removeObject(forKey: self.storageKey(environment: environment))
     }
     #endif
 }

@@ -1550,3 +1550,18 @@
 "Color Pace Indicator" = "Кольорова індикація темпу";
 "Green pace indicator when behind pace, red when ahead of pace (risk of running out early)" = "Зелений — витрати нижчі за очікуваний темп (є запас); червоний — вищі (ризик дострокового вичерпання квоти).";
 "%@ weekly" = "%@ за тиждень";
+
+"Claude instances" = "Екземпляри Claude";
+"Show Claude instances" = "Показувати екземпляри Claude";
+"claude_instances_toggle_subtitle" = "Показує по одній картці для кожного профілю Claude Code; дані зчитуються через власний Claude CLI цього профілю. Замінює картку Claude і вимикає claude-swap.";
+"Add Instance" = "Додати екземпляр";
+"Edit" = "Редагувати";
+"Name" = "Ім’я";
+"Binary path" = "Шлях до двійкового файлу";
+"claude_instance_binary_footnote" = "Шлях до двійкового файлу claude для цього екземпляра. Залиште поле порожнім, щоб використовувати звичайний пошук claude.";
+"CLAUDE_CONFIG_DIR path" = "Шлях CLAUDE_CONFIG_DIR";
+"claude_instance_config_dir_footnote" = "Каталог конфігурації Claude Code для цього профілю. CodexBar ніколи не читає його облікові дані.";
+"Environment" = "Середовище";
+"claude_instance_environment_footnote" = "По одній парі KEY=value на рядок. Зберігається відкритим текстом у конфігураційному файлі CodexBar; змінні входу, як-от ANTHROPIC_*, і токени OAuth ігноруються.";
+"Save" = "Зберегти";
+"Use an absolute path or a path starting with ~." = "Використовуйте абсолютний шлях або шлях, що починається з ~.";

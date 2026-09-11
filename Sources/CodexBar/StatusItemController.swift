@@ -291,6 +291,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     /// Compact multi-account layout: accounts the user expanded to full cards this menu session.
     var compactAccountExpandedIDs: Set<ProviderAccountIdentity> = []
     var claudeSwapInspectedAccountID: ProviderAccountIdentity?
+    var claudeInstanceInspectedAccountID: ProviderAccountIdentity?
     /// Compact multi-account layout: providers whose collapsed healthy tail is revealed this menu session.
     var compactAccountExpandedHealthyTailProviders: Set<ProviderInstanceID> = []
     /// Keeps detached merged-menu tab content reusable while the same menu remains open.

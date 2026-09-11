@@ -387,6 +387,11 @@ extension StatusItemController {
                     parts.append(self.providerIdentitySignature(
                         accountSnapshot.snapshot?.identity(for: target.instanceID)))
                 }
+                for accountSnapshot in self.store.claudeInstanceAccountSnapshots {
+                    parts.append(Self.menuIdentityField(accountSnapshot.id.opaqueID))
+                    parts.append(self.providerIdentitySignature(
+                        accountSnapshot.snapshot?.identity(for: target.instanceID)))
+                }
             }
         }
         return parts.joined(separator: "|")

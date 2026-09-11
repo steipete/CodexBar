@@ -1554,3 +1554,18 @@
 "Color Pace Indicator" = "แสดงสีอัตราการใช้งาน";
 "Green pace indicator when behind pace, red when ahead of pace (risk of running out early)" = "สีเขียวเมื่อใช้งานช้ากว่าอัตราที่คาดไว้ (มีโควตาสำรอง) สีแดงเมื่อเร็วกว่า (เสี่ยงหมดโควตาก่อนเวลา)";
 "%@ weekly" = "%@ รายสัปดาห์";
+
+"Claude instances" = "อินสแตนซ์ Claude";
+"Show Claude instances" = "แสดงอินสแตนซ์ Claude";
+"claude_instances_toggle_subtitle" = "แสดงการ์ดหนึ่งใบต่อโปรไฟล์ Claude Code โดยอ่านผ่าน Claude CLI ของโปรไฟล์นั้นเอง แทนที่การ์ด Claude และปิด claude-swap";
+"Add Instance" = "เพิ่มอินสแตนซ์";
+"Edit" = "แก้ไข";
+"Name" = "ชื่อ";
+"Binary path" = "เส้นทางไบนารี";
+"claude_instance_binary_footnote" = "เส้นทางไปยังไบนารี claude สำหรับอินสแตนซ์นี้ เว้นว่างไว้เพื่อใช้การค้นหา claude ตามปกติ";
+"CLAUDE_CONFIG_DIR path" = "เส้นทาง CLAUDE_CONFIG_DIR";
+"claude_instance_config_dir_footnote" = "โฟลเดอร์การกําหนดค่า Claude Code สำหรับโปรไฟล์นี้ CodexBar จะไม่อ่านข้อมูลรับรองของโปรไฟล์นี้";
+"Environment" = "สภาพแวดล้อม";
+"claude_instance_environment_footnote" = "หนึ่ง KEY=value ต่อบรรทัด จัดเก็บเป็นข้อความธรรมดาในไฟล์กําหนดค่า CodexBar ตัวแปรการเข้าสู่ระบบ เช่น ANTHROPIC_* และโทเค็น OAuth จะถูกละเว้น";
+"Save" = "บันทึก";
+"Use an absolute path or a path starting with ~." = "ใช้เส้นทางแบบสัมบูรณ์หรือเส้นทางที่ขึ้นต้นด้วย ~";

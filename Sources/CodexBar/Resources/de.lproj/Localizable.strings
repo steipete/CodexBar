@@ -1550,3 +1550,18 @@
 "Color Pace Indicator" = "Nutzungstempo einfärben";
 "Green pace indicator when behind pace, red when ahead of pace (risk of running out early)" = "Grün bei langsamerem Verbrauch als erwartet (Reserve); Rot bei schnellerem Verbrauch (Risiko einer vorzeitigen Ausschöpfung).";
 "%@ weekly" = "%@ wöchentlich";
+
+"Claude instances" = "Claude-Instanzen";
+"Show Claude instances" = "Claude-Instanzen anzeigen";
+"claude_instances_toggle_subtitle" = "Zeigt eine Karte pro Claude Code-Profil, gelesen über die eigene Claude CLI des jeweiligen Profils. Ersetzt die Claude-Karte und deaktiviert claude-swap.";
+"Add Instance" = "Instanz hinzufügen";
+"Edit" = "Bearbeiten";
+"Name" = "Name";
+"Binary path" = "Pfad zur Binärdatei";
+"claude_instance_binary_footnote" = "Pfad zur claude-Binärdatei für diese Instanz. Leer lassen, um die normale claude-Suche zu verwenden.";
+"CLAUDE_CONFIG_DIR path" = "CLAUDE_CONFIG_DIR-Pfad";
+"claude_instance_config_dir_footnote" = "Claude Code-Konfigurationsverzeichnis für dieses Profil. CodexBar liest niemals dessen Anmeldedaten.";
+"Environment" = "Umgebung";
+"claude_instance_environment_footnote" = "Ein KEY=value pro Zeile. Wird im Klartext in der CodexBar-Konfigurationsdatei gespeichert; Anmeldevariablen wie ANTHROPIC_* und OAuth-Tokens werden ignoriert.";
+"Save" = "Speichern";
+"Use an absolute path or a path starting with ~." = "Verwenden Sie einen absoluten Pfad oder einen Pfad, der mit ~ beginnt.";

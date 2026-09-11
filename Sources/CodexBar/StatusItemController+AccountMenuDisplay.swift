@@ -12,6 +12,11 @@ enum ClaudeSwapMenuPrecedence {
             accountCount: accountCount,
             showSingleAccount: showSingleAccount)
     }
+
+    static func prefersClaudeInstances(provider: UsageProvider, instancesOwnPresentation: Bool) -> Bool {
+        // Provider-specific by design: configured Claude instances replace the ambient Claude cards.
+        provider == .claude && instancesOwnPresentation
+    }
 }
 
 extension StatusItemController {
@@ -48,7 +53,10 @@ extension StatusItemController {
         if ClaudeSwapMenuPrecedence.prefersClaudeSwap(
             provider: provider,
             accountCount: self.store.claudeSwapAccountSnapshots.count,
-            showSingleAccount: self.settings.claudeSwapShowSingleAccount)
+            showSingleAccount: self.settings.claudeSwapShowSingleAccount) ||
+            ClaudeSwapMenuPrecedence.prefersClaudeInstances(
+                provider: provider,
+                instancesOwnPresentation: self.store.claudeInstancesOwnAccountPresentation)
         {
             return nil
         }

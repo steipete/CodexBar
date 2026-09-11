@@ -19,7 +19,7 @@ extension UsageStore {
         _ = self.kiloScopeSnapshots
         _ = self.claudeSwapAccountSnapshots
         _ = self.claudeSwapLastError
-        _ = self.claudeSwapRevision
+        _ = (self.claudeSwapRevision, self.claudeInstanceState)
         _ = self.tokenSnapshots
         _ = self.tokenErrors
         _ = self.tokenRefreshInFlight
@@ -46,7 +46,7 @@ extension UsageStore {
     var iconObservationToken: Int {
         _ = self.snapshots
         _ = self.claudeSwapAccountSnapshots
-        _ = self.claudeSwapRevision
+        _ = (self.claudeSwapRevision, self.claudeInstanceState)
         _ = self.errors
         _ = self.diagnostics
         _ = self.knownLimitsAvailabilityByProvider
@@ -183,6 +183,8 @@ final class UsageStore {
     var claudeSwapRevision: UInt64 = 0
     @ObservationIgnored var claudeSwapRefreshTask: Task<Void, Never>?
     @ObservationIgnored var claudeSwapTransientState = ClaudeSwapTransientState()
+    var claudeInstanceState = ClaudeInstanceState()
+    @ObservationIgnored var claudeInstanceRefresh = ClaudeInstanceRefreshHandle()
     var tokenSnapshots: [ProviderInstanceID: CostUsageTokenSnapshot] = [:]
     var tokenSnapshotPublications: [ProviderInstanceID: TokenSnapshotPublication] = [:]
     var tokenSnapshotPublicationRevisions: [ProviderInstanceID: UInt64] = [:]
@@ -632,8 +634,8 @@ final class UsageStore {
     /// whenever the adapter is disabled, below its presentation threshold, or the
     /// active account has no usable usage windows.
     func menuBarSnapshot(for instanceID: ProviderInstanceID) -> UsageSnapshot? {
-        // Provider-specific by design: claude-swap adapter owns Claude menu-bar presentation; see #2731.
-        self.claudeSwapMenuBarSnapshotOverride(for: instanceID) ?? self.snapshot(for: instanceID)
+        // Provider-specific by design: claude-swap or Claude instances own Claude menu-bar presentation; see #2731.
+        self.claudeAccountSourceMenuBarSnapshotOverride(for: instanceID) ?? self.snapshot(for: instanceID)
     }
 
     func sourceLabel(for provider: UsageProvider) -> String {

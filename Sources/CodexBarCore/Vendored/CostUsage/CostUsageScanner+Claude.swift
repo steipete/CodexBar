@@ -65,6 +65,12 @@ extension CostUsageScanner {
         return self.deduplicatedClaudeProjectRoots(roots)
     }
 
+    /// Default discovery plus Claude instance roots, deduplicated. Callers pass the result as the explicit root list
+    /// only when instances add roots, so the default scan configuration stays unchanged otherwise.
+    static func claudeProjectsRoots(appendingInstanceRoots instanceRoots: [URL], options: Options) -> [URL] {
+        self.deduplicatedClaudeProjectRoots(self.defaultClaudeProjectsRoots(options: options) + instanceRoots)
+    }
+
     private static func deduplicatedClaudeProjectRoots(_ roots: [URL]) -> [URL] {
         var seen: Set<String> = []
         var out: [URL] = []

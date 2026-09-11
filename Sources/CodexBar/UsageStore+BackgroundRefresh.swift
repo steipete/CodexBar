@@ -53,6 +53,7 @@ extension UsageStore {
         if provider == .claude {
             self.widgetUsagePreservationBlockedProviders.insert(provider.instanceID)
             self.clearClaudeSwapAccountState()
+            self.clearClaudeInstanceState()
         }
         self.clearTokenSnapshot(for: provider)
         self.clearSpendDashboardTokenSnapshot(for: provider)

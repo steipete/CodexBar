@@ -1519,3 +1519,18 @@
 "Color Pace Indicator" = "사용 속도 색상 표시";
 "Green pace indicator when behind pace, red when ahead of pace (risk of running out early)" = "사용량이 예상 속도보다 낮으면 초록색(여유), 높으면 빨간색(조기 소진 위험)으로 표시합니다.";
 "%@ weekly" = "%@ 주간";
+
+"Claude instances" = "Claude 인스턴스";
+"Show Claude instances" = "Claude 인스턴스 표시";
+"claude_instances_toggle_subtitle" = "Claude Code 프로필마다 카드 하나를 표시하며, 각 프로필의 Claude CLI를 통해 읽습니다. Claude 카드를 대체하고 claude-swap을 끕니다.";
+"Add Instance" = "인스턴스 추가";
+"Edit" = "편집";
+"Name" = "이름";
+"Binary path" = "바이너리 경로";
+"claude_instance_binary_footnote" = "이 인스턴스에 사용할 claude 바이너리의 경로입니다. 기본 claude 검색을 사용하려면 비워 두세요.";
+"CLAUDE_CONFIG_DIR path" = "CLAUDE_CONFIG_DIR 경로";
+"claude_instance_config_dir_footnote" = "이 프로필의 Claude Code 설정 디렉터리입니다. CodexBar는 해당 자격 증명을 절대 읽지 않습니다.";
+"Environment" = "환경 변수";
+"claude_instance_environment_footnote" = "한 줄에 KEY=value 하나씩 입력하세요. CodexBar 설정 파일에 일반 텍스트로 저장되며, ANTHROPIC_* 및 OAuth 토큰 같은 로그인 변수는 무시됩니다.";
+"Save" = "저장";
+"Use an absolute path or a path starting with ~." = "절대 경로 또는 ~로 시작하는 경로를 사용하세요.";

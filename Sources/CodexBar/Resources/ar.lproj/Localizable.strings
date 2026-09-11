@@ -1554,3 +1554,18 @@
 "Color Pace Indicator" = "تلوين وتيرة الاستخدام";
 "Green pace indicator when behind pace, red when ahead of pace (risk of running out early)" = "أخضر عندما يكون الاستخدام أبطأ من الوتيرة المتوقعة (احتياطي)؛ وأحمر عندما يكون أسرع (خطر النفاد مبكرًا).";
 "%@ weekly" = "%@ أسبوعيًا";
+
+"Claude instances" = "نسخ Claude";
+"Show Claude instances" = "إظهار نسخ Claude";
+"claude_instances_toggle_subtitle" = "يعرض بطاقة واحدة لكل ملف تعريف Claude Code، تُقرأ عبر Claude CLI الخاص بذلك الملف. يحل محل بطاقة Claude ويوقف claude-swap.";
+"Add Instance" = "إضافة نسخة";
+"Edit" = "تعديل";
+"Name" = "الاسم";
+"Binary path" = "مسار الملف الثنائي";
+"claude_instance_binary_footnote" = "مسار الملف الثنائي claude لهذه النسخة. اتركه فارغًا لاستخدام البحث المعتاد عن claude.";
+"CLAUDE_CONFIG_DIR path" = "مسار CLAUDE_CONFIG_DIR";
+"claude_instance_config_dir_footnote" = "مجلد إعدادات Claude Code لملف التعريف هذا. لا يقرأ CodexBar بيانات اعتماده أبدًا.";
+"Environment" = "البيئة";
+"claude_instance_environment_footnote" = "KEY=value واحد في كل سطر. يُخزَّن كنص عادي في ملف إعدادات CodexBar؛ ويتم تجاهل متغيرات تسجيل الدخول مثل ANTHROPIC_* ورموز OAuth.";
+"Save" = "حفظ";
+"Use an absolute path or a path starting with ~." = "استخدم مسارًا مطلقًا أو مسارًا يبدأ بـ ~.";

@@ -82,6 +82,9 @@ extension UsageStore {
                 settings: self.settings,
                 tokenOverride: nil)
             : self.environmentBase
+        let claudeExtraConfigDirectories = provider == .claude
+            ? self.settings.claudeInstanceCostConfigDirectories
+            : []
         return try await withThrowingTaskGroup(of: CostUsageTokenSnapshot.self) { group in
             group.addTask(priority: .utility) {
                 try await fetcher.loadTokenSnapshot(
@@ -95,7 +98,8 @@ extension UsageStore {
                     cursorCookieHeaderOverride: cursorCookieHeaderOverride,
                     allowPricingRefresh: allowPricingRefresh,
                     bypassScannerDebounce: true,
-                    calendar: self.settings.costUsageBucketCalendar)
+                    calendar: self.settings.costUsageBucketCalendar,
+                    claudeExtraConfigDirectories: claudeExtraConfigDirectories)
             }
             group.addTask {
                 try await Task.sleep(nanoseconds: UInt64(timeoutSeconds * 1_000_000_000))

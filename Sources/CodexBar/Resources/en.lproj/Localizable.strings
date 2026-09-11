@@ -1553,3 +1553,18 @@
 "Color Pace Indicator" = "Color Pace Indicator";
 "Green pace indicator when behind pace, red when ahead of pace (risk of running out early)" = "Green pace indicator when behind pace, red when ahead of pace (risk of running out early)";
 "%@ weekly" = "%@ weekly";
+
+"Claude instances" = "Claude instances";
+"Show Claude instances" = "Show Claude instances";
+"claude_instances_toggle_subtitle" = "Shows one card per Claude Code profile, read through that profile's own Claude CLI. Replaces the Claude card and turns off claude-swap.";
+"Add Instance" = "Add Instance";
+"Edit" = "Edit";
+"Name" = "Name";
+"Binary path" = "Binary path";
+"claude_instance_binary_footnote" = "Path to the claude binary for this instance. Leave empty to use the normal claude lookup.";
+"CLAUDE_CONFIG_DIR path" = "CLAUDE_CONFIG_DIR path";
+"claude_instance_config_dir_footnote" = "Claude Code config directory for this profile. CodexBar never reads its credentials.";
+"Environment" = "Environment";
+"claude_instance_environment_footnote" = "One KEY=value per line. Stored in plain text in CodexBar's config file; login variables such as ANTHROPIC_* and OAuth tokens are ignored.";
+"Save" = "Save";
+"Use an absolute path or a path starting with ~." = "Use an absolute path or a path starting with ~.";

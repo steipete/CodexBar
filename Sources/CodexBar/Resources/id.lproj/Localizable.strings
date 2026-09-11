@@ -1553,3 +1553,18 @@
 "Color Pace Indicator" = "Warnai laju penggunaan";
 "Green pace indicator when behind pace, red when ahead of pace (risk of running out early)" = "Hijau saat penggunaan lebih lambat dari laju perkiraan (cadangan); merah saat lebih cepat (risiko kuota habis lebih awal).";
 "%@ weekly" = "%@ mingguan";
+
+"Claude instances" = "Instans Claude";
+"Show Claude instances" = "Tampilkan instans Claude";
+"claude_instances_toggle_subtitle" = "Menampilkan satu kartu per profil Claude Code, dibaca melalui Claude CLI milik profil tersebut. Menggantikan kartu Claude dan menonaktifkan claude-swap.";
+"Add Instance" = "Tambah Instans";
+"Edit" = "Edit";
+"Name" = "Nama";
+"Binary path" = "Path biner";
+"claude_instance_binary_footnote" = "Path ke biner claude untuk instans ini. Biarkan kosong untuk menggunakan pencarian claude biasa.";
+"CLAUDE_CONFIG_DIR path" = "Path CLAUDE_CONFIG_DIR";
+"claude_instance_config_dir_footnote" = "Direktori konfigurasi Claude Code untuk profil ini. CodexBar tidak pernah membaca kredensialnya.";
+"Environment" = "Lingkungan";
+"claude_instance_environment_footnote" = "Satu KEY=value per baris. Disimpan sebagai teks biasa dalam file konfigurasi CodexBar; variabel login seperti ANTHROPIC_* dan token OAuth diabaikan.";
+"Save" = "Simpan";
+"Use an absolute path or a path starting with ~." = "Gunakan path absolut atau path yang diawali dengan ~.";

@@ -76,8 +76,13 @@ struct ProvidersPane: View {
             onRefresh: {
                 self.triggerRefresh(for: self.provider)
             },
-            showsSupplementarySettingsContent: self.codexAccountsSectionState(for: self.provider) != nil,
+            showsSupplementarySettingsContent: self.codexAccountsSectionState(for: self.provider) != nil ||
+                self.provider == .claude,
             supplementarySettingsContent: {
+                // Provider-specific by design: Claude instances configure extra Claude Code profiles.
+                if self.provider == .claude {
+                    ClaudeInstancesSectionView(settings: self.settings, store: self.store)
+                }
                 if let state = self.codexAccountsSectionState(for: self.provider) {
                     CodexAccountsSectionView(
                         state: state,
