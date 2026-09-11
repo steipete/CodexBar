@@ -134,6 +134,79 @@ struct CodexCreditVisibilityTests {
         #expect(title.contains("Unavailable") == !balanceReadSucceeded)
     }
 
+    @Test(arguments: [false, true])
+    func `legacy menu honors attached hidden balance and newer workspace recovery`(hasCap: Bool) throws {
+        let settings = testSettingsStore(
+            suiteName: "CodexCreditVisibilityTests-legacy-attached-balance",
+            userDefaults: InMemoryUserDefaults())
+        settings.showOptionalCreditsAndExtraUsage = true
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing,
+            environmentBase: [:])
+        let old = CreditsSnapshot(
+            remaining: 1234,
+            events: [],
+            updatedAt: Self.now.addingTimeInterval(-60),
+            codexCreditLimit: hasCap ? CodexCreditLimitSnapshot(
+                used: 300,
+                limit: 400,
+                remainingPercent: 25,
+                resetsAt: nil,
+                updatedAt: Self.now.addingTimeInterval(-60)) : nil,
+            balanceIsWorkspace: true)
+        let previous = CodexExtraUsageCost.attaching(to: Self.snapshot, credits: old)
+        let attached = CodexExtraUsageCost.attaching(to: previous, credits: CreditsSnapshot(
+            remaining: 0,
+            events: [],
+            updatedAt: Self.now,
+            balanceReadSucceeded: false,
+            creditsAvailable: true))
+        store.credits = old
+        let hiddenTitle = try self.legacyMenuTitle(store: store, settings: settings, snapshot: attached)
+
+        #expect(hiddenTitle.contains("Unavailable") == !hasCap)
+        #expect(hiddenTitle.contains("100 left") == hasCap)
+        #expect(!hiddenTitle.contains("1,234"))
+        #expect(store.credits == old)
+
+        for balance in [0.0, 42.0] {
+            store.credits = CreditsSnapshot(
+                remaining: balance,
+                events: [],
+                updatedAt: Self.now.addingTimeInterval(60),
+                codexCreditLimit: old.codexCreditLimit,
+                balanceIsWorkspace: true)
+            let title = try self.legacyMenuTitle(store: store, settings: settings, snapshot: attached)
+            #expect(title == "Credits: \(Int(balance)) left")
+            #expect(!title.contains("Unavailable"))
+        }
+    }
+
+    private func legacyMenuTitle(
+        store: UsageStore,
+        settings: SettingsStore,
+        snapshot: UsageSnapshot) throws -> String
+    {
+        var entries: [ProviderMenuEntry] = []
+        CodexProviderImplementation().appendUsageMenuEntries(
+            context: ProviderMenuUsageContext(
+                provider: .codex,
+                store: store,
+                settings: settings,
+                metadata: CodexProviderDescriptor.descriptor.metadata,
+                snapshot: snapshot),
+            entries: &entries)
+        let entry = try #require(entries.first)
+        guard case let .text(title, _) = entry else {
+            Issue.record("Expected a credit balance menu entry")
+            return ""
+        }
+        return title
+    }
+
     private static let now = Date(timeIntervalSince1970: 1_700_000_000)
 
     private static var snapshot: UsageSnapshot {

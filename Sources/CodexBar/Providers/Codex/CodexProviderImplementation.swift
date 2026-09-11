@@ -236,7 +236,10 @@ struct CodexProviderImplementation: ProviderImplementation {
               context.metadata.supportsCredits
         else { return }
 
-        if let credits = context.store.credits {
+        if let credits = CodexExtraUsageCost.creditsForDisplay(
+            context.store.credits,
+            attached: context.snapshot?.providerCost)
+        {
             if let remaining = credits.displayRemaining {
                 entries.append(.text(
                     String(format: L("credits_remaining"), UsageFormatter.creditsString(from: remaining)),
