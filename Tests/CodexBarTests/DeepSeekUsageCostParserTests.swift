@@ -852,6 +852,63 @@ struct DeepSeekUsageCostParserTests {
         #expect(summary.topModel == "deepseek-chat") // 300 tokens vs 150 tokens
         #expect(summary.todayTokens == 450) // 150 + 300
     }
+
+    @Test
+    func `by-api-key series fold into daily totals`() throws {
+        let day = Int(self.fixtureNow.timeIntervalSince1970)
+        let amountJSON = """
+        {
+          "code": 0,
+          "data": {
+            "biz_data": {
+              "series": [{
+                "api_key": {"name": "main", "tracking_id": "key-1"},
+                "model": "deepseek-chat",
+                "buckets": [{
+                  "time": \(day),
+                  "usage": {
+                    "PROMPT_CACHE_HIT_TOKEN": "100",
+                    "PROMPT_CACHE_MISS_TOKEN": 50,
+                    "RESPONSE_TOKEN": 25,
+                    "REQUEST": 2
+                  }
+                }]
+              }]
+            }
+          }
+        }
+        """
+        let costJSON = """
+        {
+          "code": 0,
+          "data": {
+            "biz_data": {
+              "data": [{
+                "currency": "CNY",
+                "series": [{
+                  "api_key": {"name": "main", "tracking_id": "key-1"},
+                  "model": "deepseek-chat",
+                  "buckets": [{"time": \(day), "cost": "0.12"}]
+                }]
+              }]
+            }
+          }
+        }
+        """
+        let summary = try DeepSeekUsageCostParser.parseByAPIKey(
+            amountData: Data(amountJSON.utf8),
+            costData: Data(costJSON.utf8),
+            now: self.fixtureNow,
+            calendar: self.fixtureCalendar)
+        #expect(summary.todayTokens == 175)
+        #expect(summary.todayCost == 0.12)
+        #expect(summary.currentMonthRequestCount == 2)
+        #expect(summary.apiKeyCount == 1)
+        #expect(summary.topModel == "deepseek-chat")
+        #expect(summary.daily.count == 1)
+        #expect(summary.daily[0].totalTokens == 175)
+        #expect(summary.daily[0].cost == 0.12)
+    }
 }
 
 struct DeepSeekUsageCostParserAuthorizationTests {

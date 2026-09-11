@@ -211,39 +211,39 @@ public struct DeepSeekUsageSnapshot: Sendable {
     private static func detailSections(_ usage: DeepSeekUsageSummary) -> [ProviderDetailSection] {
         let symbol = usage.currency == "CNY" ? "¥" : "$"
         let cost: (Double?) -> String = { value in
-            value.map { "\(symbol)\(String(format: "%.4f", max(0, $0)))" } ?? "—"
+            value.map { "\(symbol)\(String(format: "%.2f", max(0, $0)))" } ?? "—"
         }
         var rows: [ProviderDetailSection.Row] = [
             .makeRow(
                 label: "Today",
                 value: "\(cost(usage.todayCost)) · \(usage.todayTokens.formatted()) tokens"),
             .makeRow(
-                label: "This month",
+                label: "Last 30 days",
                 value: "\(cost(usage.currentMonthCost)) · \(usage.currentMonthTokens.formatted()) tokens"),
             .makeRow(label: "Requests", value: "\(usage.currentMonthRequestCount)"),
         ]
+        if usage.apiKeyCount > 0 {
+            rows.append(.makeRow(label: "API keys", value: "\(usage.apiKeyCount)"))
+        }
         if let topModel = usage.topModel {
             rows.append(.makeRow(label: "Top model", value: topModel))
         }
-        for category in usage.categoryBreakdown {
-            rows.append(.makeRow(label: Self.categoryLabel(category.category), value: category.tokens.formatted()))
+        let tokenChart: ProviderDetailSection.Chart? = usage.daily.isEmpty ? nil : .makeChart(
+            title: "Daily tokens",
+            unit: "tokens",
+            points: usage.daily.map { ($0.date, Double($0.totalTokens)) })
+        var sections = [ProviderDetailSection.makeSection(title: "Usage", rows: rows, chart: tokenChart)]
+        let costPoints = usage.daily.compactMap { day -> (label: String, value: Double)? in
+            guard let value = day.cost, value > 0 else { return (day.date, 0) }
+            return (day.date, value)
         }
-        return [.makeSection(
-            title: "Detailed usage",
-            rows: rows,
-            chart: usage.daily.isEmpty ? nil : .makeChart(
-                title: "Daily tokens",
-                unit: "tokens",
-                points: usage.daily.map { ($0.date, Double($0.totalTokens)) }))]
-    }
-
-    private static func categoryLabel(_ category: DeepSeekUsageCategory) -> String {
-        switch category {
-        case .promptCacheHitToken: "Cache-hit input"
-        case .promptCacheMissToken: "Cache-miss input"
-        case .responseToken: "Output"
-        case .request: "Requests"
+        if costPoints.contains(where: { $0.value > 0 }) {
+            sections.append(.makeSection(
+                title: "Spend",
+                rows: [],
+                chart: .makeChart(title: "Daily cost", unit: usage.currency, points: costPoints)))
         }
+        return sections
     }
 }
 
@@ -284,6 +284,10 @@ public struct DeepSeekUsageFetcher: Sendable {
     private static let balanceURL = URL(string: "https://api.deepseek.com/user/balance")!
     private static let usageAmountURL = URL(string: "https://platform.deepseek.com/api/v0/usage/amount")!
     private static let usageCostURL = URL(string: "https://platform.deepseek.com/api/v0/usage/cost")!
+    private static let usageAmountByAPIKeyURL = URL(
+        string: "https://platform.deepseek.com/api/v0/usage/by_api_key/amount")!
+    private static let usageCostByAPIKeyURL = URL(
+        string: "https://platform.deepseek.com/api/v0/usage/by_api_key/cost")!
     private static let platformUserSummaryURL = URL(
         string: "https://platform.deepseek.com/api/v0/users/get_user_summary")!
     private static let timeoutSeconds: TimeInterval = 15
@@ -488,20 +492,50 @@ public struct DeepSeekUsageFetcher: Sendable {
         calendar: Calendar? = nil) async throws -> DeepSeekUsageSummary
     {
         let calendar = calendar ?? self.apiCalendar
-        let period = try self.usagePeriod(now: now, calendar: calendar)
-        let payloads = try await self.fetchUsagePayloads(
-            fetchAmount: {
-                try await self.fetchAmount(platformToken: platformToken, month: period.month, year: period.year)
-            },
-            fetchCost: {
-                try await self.fetchCost(platformToken: platformToken, month: period.month, year: period.year)
-            })
-
-        return try DeepSeekUsageCostParser.parse(
-            amountData: payloads.amount,
-            costData: payloads.cost,
-            now: now,
-            calendar: calendar)
+        let window = self.usageWindow(now: now, calendar: calendar)
+        do {
+            let payloads = try await self.fetchUsagePayloads(
+                fetchAmount: {
+                    try await self.fetchByAPIKey(
+                        url: self.usageAmountByAPIKeyURL,
+                        platformToken: platformToken,
+                        start: window.start,
+                        end: window.end,
+                        timeZoneSeconds: window.timeZoneSeconds)
+                },
+                fetchCost: {
+                    try await self.fetchByAPIKey(
+                        url: self.usageCostByAPIKeyURL,
+                        platformToken: platformToken,
+                        start: window.start,
+                        end: window.end,
+                        timeZoneSeconds: window.timeZoneSeconds)
+                })
+            return try DeepSeekUsageCostParser.parseByAPIKey(
+                amountData: payloads.amount,
+                costData: payloads.cost,
+                now: now,
+                calendar: calendar,
+                rangeStart: window.start,
+                rangeEnd: window.end)
+        } catch {
+            Self.log.warning(
+                "DeepSeek by-key usage unavailable, falling back to monthly totals",
+                metadata: ["reason": self.optionalSummaryFailureReason(error)])
+            let period = try self.usagePeriod(now: now, calendar: calendar)
+            let payloads = try await self.fetchUsagePayloads(
+                fetchAmount: {
+                    try await self.fetchAmount(platformToken: platformToken, month: period.month, year: period.year)
+                },
+                fetchCost: {
+                    try await self.fetchCost(platformToken: platformToken, month: period.month, year: period.year)
+                })
+            return try DeepSeekUsageCostParser.parse(
+                amountData: payloads.amount,
+                costData: payloads.cost,
+                now: now,
+                calendar: calendar)
+        }
     }
 
     public static func fetchPlatformUsage(
@@ -635,6 +669,51 @@ public struct DeepSeekUsageFetcher: Sendable {
         try self.usagePeriod(now: now, calendar: calendar ?? self.apiCalendar)
     }
 
+    private static func usageWindow(now: Date, calendar: Calendar) -> (start: Date, end: Date, timeZoneSeconds: Int) {
+        let today = calendar.startOfDay(for: now)
+        let start = calendar.date(byAdding: .day, value: -29, to: today) ?? today
+        let end = calendar.date(byAdding: .day, value: 1, to: today) ?? now
+        return (start: start, end: end, timeZoneSeconds: calendar.timeZone.secondsFromGMT(for: now))
+    }
+
+    private static func applyPlatformHeaders(_ request: inout URLRequest, platformToken: String) {
+        request.setValue("Bearer \(platformToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("web", forHTTPHeaderField: "x-client-platform")
+        request.timeoutInterval = Self.timeoutSeconds
+    }
+
+    private static func fetchByAPIKey(
+        url: URL,
+        platformToken: String,
+        start: Date,
+        end: Date,
+        timeZoneSeconds: Int) async throws -> Data
+    {
+        guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            throw DeepSeekUsageError.networkError("Invalid URL")
+        }
+        components.queryItems = [
+            URLQueryItem(name: "start", value: String(Int(start.timeIntervalSince1970))),
+            URLQueryItem(name: "end", value: String(Int(end.timeIntervalSince1970))),
+            URLQueryItem(name: "tz", value: String(timeZoneSeconds)),
+        ]
+        guard let requestURL = components.url else {
+            throw DeepSeekUsageError.networkError("Could not construct URL")
+        }
+        var request = URLRequest(url: requestURL)
+        request.httpMethod = "GET"
+        self.applyPlatformHeaders(&request, platformToken: platformToken)
+        let response = try await ProviderHTTPClient.shared.response(for: request)
+        guard response.statusCode == 200 else {
+            if response.statusCode == 401 || response.statusCode == 403 {
+                throw DeepSeekUsageError.invalidPlatformToken
+            }
+            throw DeepSeekUsageError.apiError("HTTP \(response.statusCode)")
+        }
+        return response.data
+    }
+
     private static func usagePeriod(now: Date, calendar: Calendar) throws -> (month: Int, year: Int) {
         let monthComponents = calendar.dateComponents([.month, .year], from: now)
         guard let month = monthComponents.month, let year = monthComponents.year else {
@@ -657,9 +736,7 @@ public struct DeepSeekUsageFetcher: Sendable {
 
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
-        request.setValue("Bearer \(platformToken)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.timeoutInterval = Self.timeoutSeconds
+        self.applyPlatformHeaders(&request, platformToken: platformToken)
 
         let response = try await ProviderHTTPClient.shared.response(for: request)
         let data = response.data
@@ -676,9 +753,7 @@ public struct DeepSeekUsageFetcher: Sendable {
     private static func fetchPlatformBalance(platformToken: String) async throws -> DeepSeekUsageSnapshot {
         var request = URLRequest(url: self.platformUserSummaryURL)
         request.httpMethod = "GET"
-        request.setValue("Bearer \(platformToken)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.timeoutInterval = Self.timeoutSeconds
+        self.applyPlatformHeaders(&request, platformToken: platformToken)
 
         let response = try await ProviderHTTPClient.shared.response(for: request)
         guard response.statusCode == 200 else {
@@ -704,9 +779,7 @@ public struct DeepSeekUsageFetcher: Sendable {
 
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
-        request.setValue("Bearer \(platformToken)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.timeoutInterval = Self.timeoutSeconds
+        self.applyPlatformHeaders(&request, platformToken: platformToken)
 
         let response = try await ProviderHTTPClient.shared.response(for: request)
         let data = response.data
