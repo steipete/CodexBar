@@ -1,0 +1,90 @@
+{
+  "automated_cache_regression_coverage": [
+    "Newer hidden dashboard observation suppresses retained older live balance.",
+    "With and without a monthly cap; with prior cached balance and without prior balance cache.",
+    "Unavailable observation survives Codable persistence and generic cap-only refresh.",
+    "Newer positive or confirmed-zero balances recover visibility.",
+    "Shared projection covers menu-bar, card and widget consumers."
+  ],
+  "bundle_validation": {
+    "build_commit": "3eb0bc835",
+    "build_number": "143",
+    "build_timestamp_utc": "2026-09-11T21:27:06Z",
+    "checkout_bundle_running_verified": true,
+    "claim": "Freshly built bundle launched successfully with existing local state. Menu-bar balance was visible.",
+    "command": "CODEXBAR_SIGNING=adhoc ./Scripts/compile_and_run.sh",
+    "existing_settings_and_cache_preserved": true,
+    "version": "0.59.1"
+  },
+  "limitations": [
+    "Cookie-based live dashboard validation stopped at a local access-permission error; not verified.",
+    "Hidden-balance invalidation and cache persistence transitions were verified with automated tests, not by changing real workspace permissions.",
+    "The supplied before screenshot predates this validation; its exact source revision is unknown."
+  ],
+  "oauth_endpoint_contract": {
+    "additional_field_count": 1,
+    "balance_field_present": true,
+    "balance_field_type": "string",
+    "balance_is_finite": true,
+    "elapsed_ms": 661,
+    "endpoint_role": "workspace_remaining_balance",
+    "method": "GET",
+    "observed_at_utc": "2026-09-11T21:10:04.097212+00:00",
+    "private_values_in_receipt": false,
+    "probe": "direct read-only contract check; production CLI checked separately",
+    "redirects_allowed": false,
+    "response_is_object": true,
+    "status": 200,
+    "transport": "OAuth"
+  },
+  "packaged_cli_oauth": {
+    "balance_is_workspace": true,
+    "balance_read_succeeded": true,
+    "binary_kind": "packaged CLI",
+    "credits_present": true,
+    "dashboard_present": false,
+    "dashboard_workspace_balance": null,
+    "decoded_balance_is_finite": true,
+    "error_present": false,
+    "exit_code": 0,
+    "observed_at_utc": "2026-09-11T21:29:57.848421+00:00",
+    "private_values_in_receipt": false,
+    "probe": "production CodexBarCLI usage",
+    "requested_source": "oauth",
+    "usage_present": true
+  },
+  "packaged_cli_web": {
+    "balance_is_workspace": null,
+    "balance_read_succeeded": null,
+    "binary_kind": "packaged CLI",
+    "credits_present": false,
+    "dashboard_present": false,
+    "dashboard_workspace_balance": null,
+    "decoded_balance_is_finite": false,
+    "error_category": "local_access_permission",
+    "error_code": 1,
+    "error_kind": "provider",
+    "error_present": true,
+    "exit_code": 1,
+    "observed_at_utc": "2026-09-11T21:30:24.701277+00:00",
+    "private_values_in_receipt": false,
+    "probe": "production CodexBarCLI usage",
+    "requested_source": "web",
+    "usage_present": false
+  },
+  "redaction": "No credentials, account identifiers, raw response bodies, account-scoped URLs, personal paths, or balance amounts are included in this JSON. Images intentionally retain menu-bar balance, percentage and reset countdown; nonvisual text and EXIF metadata removed.",
+  "scope": "Authenticated Codex workspace account; remaining-balance endpoint accessible. Workspace role was not separately inspected.",
+  "screenshots": {
+    "after": {
+      "file": "codex-workspace-balance-after.png",
+      "sha256": "9acc06511624eb704b0dc183928d5e746eb8ba72400e266824eb42eeb07944df",
+      "source": "Freshly built checkout bundle; top-menu-bar region only"
+    },
+    "before": {
+      "file": "codex-workspace-balance-before.png",
+      "sha256": "47c6e2611a14dfc642cf1de38f866b416e0613054dcf4d015191c8575144f741",
+      "source": "User-provided pre-fix capture"
+    }
+  },
+  "source_commit": "3eb0bc835101f758f1d66a9b301f200fb8747ccf"
+}
