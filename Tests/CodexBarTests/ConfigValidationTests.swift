@@ -321,8 +321,8 @@ struct ConfigValidationTests {
         }))
 
         #expect(issue.message ==
-            "enterpriseHost is set but only azureopenai, clawrouter, copilot, kimi, litellm, llmproxy, openrouter, " +
-            "sub2api, and wayfinder " +
+            "enterpriseHost is set but only azureopenai, clawrouter, copilot, devin, kimi, litellm, llmproxy, " +
+            "openrouter, sub2api, and wayfinder " +
             "support enterpriseHost.")
     }
 

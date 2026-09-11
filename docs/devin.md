@@ -112,3 +112,35 @@ GET https://app.devin.ai/api/<internal-org-id>/billing/quota/usage
 The response supplies daily and weekly usage percentages plus reset timestamps. CodexBar omits the daily quota when Devin sets `hide_daily_quota` to `true`, while retaining weekly usage and extra balance.
 If Devin changes or expires the browser
 session, sign in again and refresh CodexBar.
+
+### Browser token lifetime
+
+Devin's web session uses Auth0 access tokens that live about 30 minutes. The webapp refreshes them silently while a tab
+is open, and Chrome writes the refreshed token to its local storage on disk. CodexBar imports the freshest token it can
+find (by JWT expiration), so usage tracking works while the webapp has been active recently. If the last browser
+activity is older than the token lifetime, the on-disk token is expired and CodexBar reports invalid credentials until
+you open the webapp again. Manual auth avoids that dependency when a long-lived token is available.
+
+## Devin Enterprise (personal ACU cycle)
+
+Devin Enterprise deployments run on a dedicated host (for example `your-team.devinenterprise.com`) and track usage as a
+monthly **ACU cycle** instead of daily/weekly quota percentages. To follow your own cycle usage against its limit, set
+**Enterprise host** in **Settings → Providers → Devin** to your deployment host (bare host, e.g.
+`your-team.devinenterprise.com`).
+
+When an Enterprise host is set, CodexBar reuses the same browser session (imported from that host) and requests the
+signed-in user's personal analytics instead of the default quota endpoint:
+
+```text
+GET https://<enterprise-host>/api/personal-analytics/usage-limit
+```
+
+The response supplies the current cycle usage and limit, which CodexBar renders as a single monthly window
+(`cycle_usage / cycle_usage_limit`) with a countdown to `cycle_end`:
+
+```json
+{ "cycle_usage_limit": 400, "cycle_usage": 357.5, "cycle_end": "2026-09-17T00:00:00-08:00" }
+```
+
+This uses your personal session and the account's **View Personal Analytics** permission; it reports only your own
+consumption. Leaving Enterprise host empty keeps the default app.devin.ai daily/weekly behavior.

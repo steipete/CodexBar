@@ -20,6 +20,15 @@ extension SettingsStore {
             }
         }
     }
+
+    var devinAPIHost: String {
+        get { self.configSnapshot.providerConfig(for: .devin)?.sanitizedEnterpriseHost ?? "" }
+        set {
+            self.updateProviderConfig(provider: .devin) { entry in
+                entry.enterpriseHost = self.normalizedConfigValue(newValue)
+            }
+        }
+    }
 }
 
 extension SettingsStore {
@@ -28,6 +37,7 @@ extension SettingsStore {
         ProviderSettingsSnapshot.DevinProviderSettings(
             cookieSource: self.devinCookieSource,
             manualBearerToken: self.devinBearerToken,
-            organization: self.devinOrganization)
+            organization: self.devinOrganization,
+            apiHost: self.devinAPIHost)
     }
 }

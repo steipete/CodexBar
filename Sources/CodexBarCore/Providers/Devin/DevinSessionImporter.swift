@@ -40,6 +40,7 @@ enum DevinSessionImporter {
         browserDetection: BrowserDetection,
         candidates: [ChromiumLocalStorageDiscovery.Candidate]? = nil,
         organizationOverride: String? = nil,
+        storageOrigin: String? = nil,
         logger: ((String) -> Void)? = nil) throws -> [SessionInfo]
     {
         #if DEBUG
@@ -48,6 +49,10 @@ enum DevinSessionImporter {
         }
         #endif
 
+        let origin = storageOrigin ?? self.storageOrigin
+        // Non-default origins are enterprise deployments whose personal-analytics endpoints
+        // require the Auth0 access token instead of the app.devin.ai auth1_ session token.
+        let preferAuth0 = storageOrigin != nil
         let log: (String) -> Void = { msg in logger?("[devin-storage] \(msg)") }
         let candidates = candidates ?? ChromiumLocalStorageDiscovery
             .candidates(browsers: self.localStorageBrowsers(browserDetection: browserDetection))
@@ -60,7 +65,7 @@ enum DevinSessionImporter {
         for candidate in candidates {
             let storage: [String: String]
             do {
-                storage = try self.readLocalStorage(from: candidate.url, logger: log)
+                storage = try self.readLocalStorage(from: candidate.url, origin: origin, logger: log)
             } catch {
                 unreadableStorage = true
                 log("Could not read Chrome local storage in \(candidate.label)")
@@ -69,6 +74,7 @@ enum DevinSessionImporter {
             guard let session = self.session(
                 from: storage,
                 organizationOverride: organizationOverride,
+                preferAuth0: preferAuth0,
                 sourceLabel: candidate.label)
             else {
                 continue
@@ -91,9 +97,10 @@ enum DevinSessionImporter {
     static func session(
         from storage: [String: String],
         organizationOverride: String? = nil,
+        preferAuth0: Bool = false,
         sourceLabel: String) -> SessionInfo?
     {
-        guard let accessToken = self.accessToken(from: storage) else {
+        guard let accessToken = self.accessToken(from: storage, preferAuth0: preferAuth0) else {
             return nil
         }
         let organizationInfo = self.organizationInfo(from: storage, organizationOverride: organizationOverride)
@@ -104,7 +111,13 @@ enum DevinSessionImporter {
             sourceLabel: sourceLabel)
     }
 
-    static func accessToken(from storage: [String: String]) -> String? {
+    static func accessToken(from storage: [String: String], preferAuth0: Bool = false) -> String? {
+        // Enterprise personal-analytics uses an Auth0 access token. Keep standard Devin's
+        // Auth1-first order while preferring the freshest Auth0 token for the configured origin.
+        if preferAuth0, let auth0 = self.auth0AccessToken(from: storage) {
+            return auth0
+        }
+
         func firstToken(matching matches: (String) -> Bool, parse: (Any) -> String?) -> String? {
             for (key, value) in storage where matches(key) {
                 if let json = self.jsonObject(from: value), let token = parse(json) {
@@ -116,6 +129,49 @@ enum DevinSessionImporter {
         return firstToken(matching: self.isAuth1StorageKey, parse: self.findAuth1Token)
             ?? firstToken(matching: self.isAuth0StorageKey, parse: self.findAccessToken)
             ?? firstToken(matching: { _ in true }, parse: self.findAccessToken)
+    }
+
+    private static func auth0AccessToken(from storage: [String: String]) -> String? {
+        // Chrome keeps multiple versions of the same auth0 key (old compactions plus the live
+        // write) and the LevelDB scan can surface several of them under slightly different key
+        // spellings. Dictionary iteration order is randomized per process, so returning the
+        // first match intermittently sends an expired token. Always pick the candidate with the
+        // latest JWT expiration instead.
+        var bestToken: String?
+        var bestExpiration = Date.distantPast
+        for (key, value) in storage where self.isAuth0StorageKey(key) {
+            guard let json = self.jsonObject(from: value),
+                  let token = self.findAccessToken(in: json)
+            else {
+                continue
+            }
+            let expiration = self.tokenExpiration(token) ?? .distantPast
+            if bestToken == nil || expiration > bestExpiration {
+                bestToken = token
+                bestExpiration = expiration
+            }
+        }
+        return bestToken
+    }
+
+    /// Decodes the `exp` claim of a JWT access token; nil when the token is not a JWT.
+    static func tokenExpiration(_ token: String) -> Date? {
+        let segments = token.split(separator: ".")
+        guard segments.count == 3 else { return nil }
+        var payload = String(segments[1])
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        while payload.count % 4 != 0 {
+            payload += "="
+        }
+        guard let data = Data(base64Encoded: payload),
+              let claims = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let exp = claims["exp"] as? Double
+        else {
+            return nil
+        }
+        guard exp.isFinite else { return nil }
+        return Date(timeIntervalSince1970: exp)
     }
 
     static func deduplicateSessions(_ sessions: [SessionInfo]) -> [SessionInfo] {
@@ -201,15 +257,19 @@ enum DevinSessionImporter {
         return order.browsersWithProfileData(using: browserDetection)
     }
 
-    static func readLocalStorage(from levelDBURL: URL, logger: ((String) -> Void)? = nil) throws -> [String: String] {
+    static func readLocalStorage(
+        from levelDBURL: URL,
+        origin: String = Self.storageOrigin,
+        logger: ((String) -> Void)? = nil) throws -> [String: String]
+    {
         let entries = SweetCookieKit.ChromiumLocalStorageReader.readEntries(
-            for: self.storageOrigin,
+            for: origin,
             in: levelDBURL,
             logger: logger)
         let textEntries = SweetCookieKit.ChromiumLocalStorageReader.readTextEntries(
             in: levelDBURL,
             logger: logger)
-        let storage = self.localStorageValues(from: entries, textEntries: textEntries)
+        let storage = self.localStorageValues(from: entries, textEntries: textEntries, origin: origin)
         if self.accessToken(from: storage) == nil {
             // The best-effort reader swallows I/O errors; distinguish an inaccessible store from a sign-out.
             let files = try FileManager.default.contentsOfDirectory(
@@ -226,14 +286,15 @@ enum DevinSessionImporter {
 
     static func localStorageValues(
         from entries: [SweetCookieKit.ChromiumLocalStorageEntry],
-        textEntries: [SweetCookieKit.ChromiumLevelDBTextEntry]) -> [String: String]
+        textEntries: [SweetCookieKit.ChromiumLevelDBTextEntry],
+        origin: String = Self.storageOrigin) -> [String: String]
     {
         var storage: [String: String] = [:]
         for entry in entries {
             storage[entry.key] = self.decodedStorageValue(entry.value)
         }
         for entry in textEntries {
-            guard let key = self.localStorageKey(fromRawKey: entry.key),
+            guard let key = self.localStorageKey(fromRawKey: entry.key, origin: origin),
                   self.isUsefulStorageKey(key), storage[key] == nil
             else { continue }
             storage[key] = self.decodedStorageValue(entry.value)
@@ -242,14 +303,41 @@ enum DevinSessionImporter {
         return storage
     }
 
-    private static func localStorageKey(fromRawKey raw: String) -> String? {
+    private static func localStorageKey(fromRawKey raw: String, origin expectedOrigin: String) -> String? {
         guard let separator = raw.firstIndex(of: "\u{0000}") else { return nil }
-        var origin = String(raw[..<separator])
-        if origin.hasPrefix("_") { origin.removeFirst() }
-        origin = String(origin.split(separator: "^", maxSplits: 1).first ?? "")
+        var rawOrigin = String(raw[..<separator])
+        if rawOrigin.hasPrefix("_") { rawOrigin.removeFirst() }
+        rawOrigin = String(rawOrigin.split(separator: "^", maxSplits: 1).first ?? "")
             .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        guard origin == self.storageOrigin || origin == "app.devin.ai" else { return nil }
+        guard self.normalizedStorageOrigin(rawOrigin) == self.normalizedStorageOrigin(expectedOrigin) else {
+            return nil
+        }
         return String(raw[raw.index(after: separator)...]).trimmingCharacters(in: .controlCharacters)
+
+    }
+
+    static func textEntryBelongsToOrigin(_ key: String, origin: String) -> Bool {
+        self.localStorageKey(fromRawKey: key, origin: origin) != nil
+    }
+
+    private static func normalizedStorageOrigin(_ raw: String) -> String? {
+        let value = raw.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        guard !value.isEmpty else { return nil }
+
+        let urlString = value.contains("://") ? value : "https://\(value)"
+        guard let components = URLComponents(string: urlString),
+              components.scheme?.lowercased() == "https",
+              components.user == nil,
+              components.password == nil,
+              components.port == nil,
+              components.query == nil,
+              components.fragment == nil,
+              components.path.isEmpty || components.path == "/",
+              let host = components.host?.lowercased()
+        else {
+            return nil
+        }
+        return host
     }
 
     private static func jsonObject(from raw: String) -> Any? {

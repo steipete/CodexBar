@@ -534,6 +534,172 @@ struct DevinUsageFetcherTests {
         #expect(!DevinUsageFetcher.shouldTryNextSession(after: DevinUsageError.parseFailed("invalid response")))
     }
 
+    // MARK: - Auth0 token freshness
+
+    /// Chrome's LevelDB keeps several versions of the same auth0 key (old compactions plus the
+    /// live write), and the scan can surface them under slightly different key spellings. The
+    /// importer must pick the token with the latest JWT expiration instead of the first match,
+    /// which used to flip-flop between a fresh token and an expired one across launches.
+    @Test
+    func `session importer prefers the freshest auth0 token across duplicated keys`() throws {
+        let staleToken = try Self.jwtToken(expiration: Self.now.addingTimeInterval(-3600))
+        let freshToken = try Self.jwtToken(expiration: Self.now.addingTimeInterval(1800))
+        let storage = [
+            "_https://your-team.devinenterprise.com\u{0000}\u{0001}@@auth0spajs@@::client::audience::scope":
+                #"{"body":{"access_token":"\#(staleToken)"}}"#,
+            "@@auth0spajs@@::client::audience::scope":
+                #"{"body":{"access_token":"\#(freshToken)"}}"#,
+        ]
+
+        // Dictionary iteration order is randomized per process; the freshest token must win
+        // regardless of iteration order, so assert repeatedly.
+        for _ in 0..<20 {
+            let token = try #require(DevinSessionImporter.accessToken(from: storage, preferAuth0: true))
+            #expect(token == freshToken)
+        }
+    }
+
+    @Test
+    func `session importer keeps the freshest auth0 token even when it is expired`() throws {
+        let olderToken = try Self.jwtToken(expiration: Self.now.addingTimeInterval(-7200))
+        let newestExpiredToken = try Self.jwtToken(expiration: Self.now.addingTimeInterval(-60))
+        let storage = [
+            "_https://your-team.devinenterprise.com\u{0000}\u{0001}@@auth0spajs@@::client::audience::scope":
+                #"{"body":{"access_token":"\#(olderToken)"}}"#,
+            "@@auth0spajs@@::client::audience::scope":
+                #"{"body":{"access_token":"\#(newestExpiredToken)"}}"#,
+        ]
+
+        let token = try #require(DevinSessionImporter.accessToken(from: storage, preferAuth0: true))
+        #expect(token == newestExpiredToken)
+    }
+
+    @Test
+    func `token expiration decodes base64url jwt exp claim`() throws {
+        let token = try Self.jwtToken(expiration: Self.now)
+        #expect(try #require(DevinSessionImporter.tokenExpiration(token)) == Self.now)
+        #expect(DevinSessionImporter.tokenExpiration("auth1_abcdefghijklmnopqrstuvwxyz0123456789") == nil)
+        #expect(DevinSessionImporter.tokenExpiration("not-a-jwt") == nil)
+    }
+
+    @Test
+    func `text entry origin filter accepts only matching origins`() {
+        let origin = "https://your-team.devinenterprise.com"
+        #expect(DevinSessionImporter.textEntryBelongsToOrigin(
+            "_https://your-team.devinenterprise.com\u{0000}\u{0001}@@auth0spajs@@::client",
+            origin: origin))
+        #expect(DevinSessionImporter.textEntryBelongsToOrigin(
+            "_https://your-team.devinenterprise.com/\u{0000}\u{0001}@@auth0spajs@@::client",
+            origin: origin))
+        #expect(!DevinSessionImporter.textEntryBelongsToOrigin(
+            "_https://app.devin.ai\u{0000}\u{0001}@@auth0spajs@@::client",
+            origin: origin))
+        #expect(!DevinSessionImporter.textEntryBelongsToOrigin(
+            "@@auth0spajs@@::client::audience::scope",
+            origin: origin))
+    }
+
+    // MARK: - Personal analytics (enterprise ACU cycle)
+
+    @Test
+    func `parses personal analytics usage-limit into a monthly cycle window`() throws {
+        // Real payload captured from your-team.devinenterprise.com/api/personal-analytics/usage-limit.
+        let data = Data("""
+        {
+          "tier_name": "default",
+          "tier_policy": "manual",
+          "cycle_usage_limit": 400,
+          "primary_cycle_usage_limit": 400,
+          "cycle_usage": 357.5093665,
+          "estimated_cycle_usage": 436.96964500845445,
+          "cycle_start": "2026-08-17T00:00:00-08:00",
+          "cycle_end": "2026-09-17T00:00:00-08:00"
+        }
+        """.utf8)
+
+        let snapshot = try DevinUsageParser.parsePersonalAnalytics(
+            data,
+            organization: "org/checklist-facil",
+            now: Self.now)
+
+        #expect(snapshot.cycle != nil)
+        #expect(snapshot.daily == nil)
+        #expect(snapshot.weekly == nil)
+        // 357.5093665 / 400 * 100
+        let percent = try #require(snapshot.cycle?.usedPercent)
+        #expect(abs(percent - 89.377341625) < 0.0001)
+        #expect(snapshot.cycle?.resetsAt?.timeIntervalSince1970 == 1_789_632_000)
+        #expect(snapshot.planName == "Default")
+        #expect(snapshot.organization == "checklist-facil")
+    }
+
+    @Test
+    func `personal analytics cycle maps to a single monthly primary window`() throws {
+        let data = Data(#"{"cycle_usage_limit":400,"cycle_usage":200,"cycle_end":"2026-09-17T00:00:00-08:00"}"#.utf8)
+
+        let usage = try DevinUsageParser
+            .parsePersonalAnalytics(data, organization: nil, now: Self.now)
+            .toUsageSnapshot()
+
+        #expect(usage.primary?.usedPercent == 50)
+        #expect(usage.primary?.windowMinutes == 30 * 24 * 60)
+        #expect(usage.primary?.resetDescription == "Cycle")
+        #expect(usage.secondary == nil)
+        #expect(usage.providerCost == nil)
+    }
+
+    @Test
+    func `personal analytics parsing fails without a positive cycle limit`() {
+        let data = Data(#"{"cycle_usage":10}"#.utf8)
+
+        #expect(throws: DevinUsageError.self) {
+            _ = try DevinUsageParser.parsePersonalAnalytics(data, organization: nil, now: Self.now)
+        }
+    }
+
+    @Test
+    func `custom host normalizes bare hosts, urls, and paths`() {
+        #expect(DevinUsageFetcher.customHost("your-team.devinenterprise.com")?.absoluteString ==
+            "https://your-team.devinenterprise.com")
+        #expect(DevinUsageFetcher.customHost("https://your-team.devinenterprise.com/org/checklist-facil/")?
+            .absoluteString == "https://your-team.devinenterprise.com")
+        #expect(DevinUsageFetcher.customHost("  ") == nil)
+        #expect(DevinUsageFetcher.customHost("localhost") == nil)
+        #expect(DevinUsageFetcher.resolveHost(nil).absoluteString == "https://app.devin.ai")
+    }
+
+    @Test
+    func `fetch uses personal-analytics endpoint on the enterprise host`() async throws {
+        let auth = DevinUsageFetcher.RequestAuth(
+            bearerToken: "secret-token",
+            organization: "org/checklist-facil",
+            internalOrganizationID: "org-81e9ec58086b4df4ba0d565b3c98cb5f",
+            sourceLabel: "test")
+        let stub = ProviderHTTPTransportStub { request in
+            #expect(request.url?.host == "your-team.devinenterprise.com")
+            #expect(request.url?.path == "/api/personal-analytics/usage-limit")
+            #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer secret-token")
+            #expect(request.value(forHTTPHeaderField: "x-cog-org-id") ==
+                "org-81e9ec58086b4df4ba0d565b3c98cb5f")
+            let body = #"{"cycle_usage_limit":400,"cycle_usage":357.5,"cycle_end":"2026-09-17T00:00:00-08:00"}"#
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: nil)!
+            return (Data(body.utf8), response)
+        }
+
+        let snapshot = try await DevinUsageFetcher.fetchQuotaUsage(
+            auth: auth,
+            apiHost: "your-team.devinenterprise.com",
+            now: Self.now,
+            transport: stub)
+
+        #expect(snapshot.cycle?.usedPercent == 89.375)
+        #expect(await stub.requests().count == 1)
+    }
+
     @Test
     func `automatic local storage import does not fall back beyond Chrome`() throws {
         let temp = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -549,4 +715,16 @@ struct DevinUsageFetcherTests {
         #expect(DevinSessionImporter.localStorageBrowsers(browserDetection: detection).isEmpty)
     }
     #endif
+
+    private static func jwtToken(expiration: Date) throws -> String {
+        func base64url(_ data: Data) -> String {
+            data.base64EncodedString()
+                .replacingOccurrences(of: "+", with: "-")
+                .replacingOccurrences(of: "/", with: "_")
+                .trimmingCharacters(in: CharacterSet(charactersIn: "="))
+        }
+        let header = Data(#"{"alg":"none"}"#.utf8)
+        let payload = try JSONSerialization.data(withJSONObject: ["exp": expiration.timeIntervalSince1970])
+        return "\(base64url(header)).\(base64url(payload)).signature"
+    }
 }

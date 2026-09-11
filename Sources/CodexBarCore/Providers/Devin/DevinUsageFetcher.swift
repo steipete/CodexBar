@@ -35,9 +35,35 @@ public struct DevinUsageFetcher: Sendable {
         self.browserDetection = browserDetection
     }
 
+    /// Normalizes a configured enterprise host into an absolute `https://host` URL.
+    /// Accepts bare hosts (`your-team.devinenterprise.com`), full URLs, and values with paths
+    /// (only the scheme+host are kept). Returns nil when the value is empty or invalid.
+    public static func customHost(_ raw: String?) -> URL? {
+        guard let value = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
+            return nil
+        }
+        var host = value
+        if let range = host.range(of: "://") {
+            host = String(host[range.upperBound...])
+        }
+        // Keep only the authority component; drop any path/query.
+        if let slash = host.firstIndex(of: "/") {
+            host = String(host[..<slash])
+        }
+        host = host.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        guard !host.isEmpty, host.contains(".") else { return nil }
+        return URL(string: "https://\(host)")
+    }
+
+    /// The base URL to hit: the custom enterprise host when set, otherwise app.devin.ai.
+    public static func resolveHost(_ raw: String?) -> URL {
+        self.customHost(raw) ?? self.baseURL
+    }
+
     public func fetch(
         bearerTokenOverride: String? = nil,
         organizationOverride: String? = nil,
+        apiHost: String? = nil,
         timeout: TimeInterval = 15,
         logger: ((String) -> Void)? = nil,
         now: Date = Date(),
@@ -46,6 +72,7 @@ public struct DevinUsageFetcher: Sendable {
         let auths = try self.resolveAuths(
             bearerTokenOverride: bearerTokenOverride,
             organizationOverride: organizationOverride,
+            apiHost: apiHost,
             logger: logger)
         var lastError: Error?
         for auth in auths {
@@ -53,6 +80,7 @@ public struct DevinUsageFetcher: Sendable {
                 return try await Self.fetchQuotaUsage(
                     auth: auth,
                     organizationOverride: organizationOverride,
+                    apiHost: apiHost,
                     timeout: timeout,
                     logger: logger,
                     now: now,
@@ -71,6 +99,7 @@ public struct DevinUsageFetcher: Sendable {
     public static func fetchQuotaUsage(
         auth: RequestAuth,
         organizationOverride: String? = nil,
+        apiHost: String? = nil,
         timeout: TimeInterval = 15,
         logger: ((String) -> Void)? = nil,
         now: Date = Date(),
@@ -82,6 +111,20 @@ public struct DevinUsageFetcher: Sendable {
             throw DevinUsageError.missingOrganization
         }
 
+        let host = self.resolveHost(apiHost)
+
+        // Enterprise deployment host: use the personal-analytics ACU cycle endpoint.
+        if let customHost = self.customHost(apiHost) {
+            let data = try await self.fetch(
+                path: "personal-analytics/usage-limit",
+                host: customHost,
+                auth: auth,
+                timeout: timeout,
+                transport: transport)
+            logger?("[devin] Fetched personal-analytics usage-limit from \(customHost.host ?? "")")
+            return try DevinUsageParser.parsePersonalAnalytics(data, organization: organization, now: now)
+        }
+
         var lastError: Error?
         for path in self.candidatePaths(
             organization: organization,
@@ -91,6 +134,7 @@ public struct DevinUsageFetcher: Sendable {
             do {
                 data = try await self.fetch(
                     path: path,
+                    host: host,
                     auth: auth,
                     timeout: timeout,
                     transport: transport)
@@ -130,6 +174,7 @@ public struct DevinUsageFetcher: Sendable {
     private func resolveAuths(
         bearerTokenOverride: String?,
         organizationOverride: String?,
+        apiHost: String? = nil,
         logger: ((String) -> Void)?) throws -> [RequestAuth]
     {
         if let manual = Self.manualAuth(from: bearerTokenOverride, organization: organizationOverride) {
@@ -139,9 +184,11 @@ public struct DevinUsageFetcher: Sendable {
 
         #if os(macOS)
         let normalizedOrganizationOverride = Self.normalizedOrganization(organizationOverride)
+        let storageOrigin = Self.customHost(apiHost)?.absoluteString
         let sessions = try DevinSessionImporter.importSessions(
             browserDetection: self.browserDetection,
             organizationOverride: normalizedOrganizationOverride,
+            storageOrigin: storageOrigin,
             logger: logger)
         guard !sessions.isEmpty else {
             throw DevinUsageError.noSession
@@ -170,11 +217,12 @@ public struct DevinUsageFetcher: Sendable {
 
     private static func fetch(
         path: String,
+        host: URL,
         auth: RequestAuth,
         timeout: TimeInterval,
         transport: any ProviderHTTPTransport) async throws -> Data
     {
-        let url = self.baseURL.appending(path: "api/\(path)")
+        let url = host.appending(path: "api/\(path)")
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.timeoutInterval = timeout

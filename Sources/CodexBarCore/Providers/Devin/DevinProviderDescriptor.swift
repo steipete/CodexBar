@@ -23,9 +23,12 @@ public enum DevinProviderDescriptor {
                     return DevinProviderSettings(
                         cookieSource: settings.cookieSource,
                         manualBearerToken: settings.manualCookieHeader,
-                        organization: context.config?.sanitizedWorkspaceID)
+                        organization: context.config?.sanitizedWorkspaceID,
+                        apiHost: context.config?.sanitizedEnterpriseHost)
                 }),
-            config: ProviderConfigCapabilities(workspaceIDValidationOrder: 4),
+            config: ProviderConfigCapabilities(
+                workspaceIDValidationOrder: 4,
+                supportsEnterpriseHost: true),
             metadata: ProviderMetadata(
                 id: .devin,
                 displayName: "Devin",
@@ -123,6 +126,7 @@ struct DevinWebFetchStrategy: ProviderFetchStrategy {
             bearerTokenOverride: settings?.cookieSource == .manual ? settings?
                 .bearerToken(environment: context.env) : nil,
             organizationOverride: Self.organizationOverride(context: context),
+            apiHost: settings?.apiHost,
             timeout: context.webTimeout,
             logger: logger)
         return self.makeResult(

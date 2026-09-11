@@ -53,6 +53,9 @@ public struct DevinUsageSnapshot: Sendable, Equatable {
     public let organization: String?
     public let updatedAt: Date
     public let overageBalance: Double?
+    /// Present only for enterprise personal-analytics deployments: monthly ACU cycle
+    /// (used vs. cycle limit). When set, it renders as the primary window.
+    public let cycle: DevinQuotaWindow?
 
     public init(
         daily: DevinQuotaWindow?,
@@ -60,7 +63,8 @@ public struct DevinUsageSnapshot: Sendable, Equatable {
         planName: String?,
         organization: String?,
         updatedAt: Date,
-        overageBalance: Double? = nil)
+        overageBalance: Double? = nil,
+        cycle: DevinQuotaWindow? = nil)
     {
         self.daily = daily
         self.weekly = weekly
@@ -68,9 +72,13 @@ public struct DevinUsageSnapshot: Sendable, Equatable {
         self.organization = organization
         self.updatedAt = updatedAt
         self.overageBalance = overageBalance
+        self.cycle = cycle
     }
 
     public func toUsageSnapshot() -> UsageSnapshot {
+        if let cycle {
+            return self.cycleUsageSnapshot(cycle)
+        }
         let primary = self.daily.map {
             RateWindow(
                 usedPercent: $0.usedPercent,
@@ -105,12 +113,70 @@ public struct DevinUsageSnapshot: Sendable, Equatable {
             updatedAt: self.updatedAt,
             identity: identity)
     }
+
+    /// Monthly ACU cycle rendered as a single primary window with a ~30-day span.
+    private func cycleUsageSnapshot(_ cycle: DevinQuotaWindow) -> UsageSnapshot {
+        let primary = RateWindow(
+            usedPercent: cycle.usedPercent,
+            windowMinutes: 30 * 24 * 60,
+            resetsAt: cycle.resetsAt,
+            resetDescription: "Cycle")
+        let identity = ProviderIdentitySnapshot(
+            providerID: .devin,
+            accountEmail: nil,
+            accountOrganization: self.organization,
+            loginMethod: self.planName)
+        return UsageSnapshot(
+            primary: primary,
+            secondary: nil,
+            providerCost: nil,
+            updatedAt: self.updatedAt,
+            identity: identity)
+    }
 }
 
 public enum DevinUsageParser {
     public static func parse(_ data: Data, organization: String?, now: Date = Date()) throws -> DevinUsageSnapshot {
         let object = try JSONSerialization.jsonObject(with: data)
         return try self.parse(object, organization: organization, now: now)
+    }
+
+    /// Parses the Devin webapp `personal-analytics/usage-limit` payload into a single
+    /// monthly-cycle window (ACUs used vs. cycle limit). Used for enterprise deployments
+    /// where the user tracks their own ACU consumption against a cycle limit.
+    public static func parsePersonalAnalytics(
+        _ data: Data,
+        organization: String?,
+        now: Date = Date()) throws -> DevinUsageSnapshot
+    {
+        let object = try JSONSerialization.jsonObject(with: data)
+        return try self.parsePersonalAnalytics(object, organization: organization, now: now)
+    }
+
+    public static func parsePersonalAnalytics(
+        _ object: Any,
+        organization: String?,
+        now: Date = Date()) throws -> DevinUsageSnapshot
+    {
+        guard let dictionary = object as? [String: Any] else {
+            throw DevinUsageError.parseFailed("Devin personal analytics payload was not an object.")
+        }
+        guard let limit = self.double(dictionary["cycle_usage_limit"]), limit > 0 else {
+            throw DevinUsageError.parseFailed("Missing Devin cycle_usage_limit.")
+        }
+        let used = self.double(dictionary["cycle_usage"]) ?? 0
+        let window = DevinQuotaWindow(
+            usedPercent: used / limit * 100,
+            resetsAt: self.date(from: dictionary["cycle_end"]))
+
+        return DevinUsageSnapshot(
+            daily: nil,
+            weekly: nil,
+            planName: (dictionary["tier_name"] as? String).flatMap(self.cleanDisplay),
+            organization: self.displayOrganization(from: organization),
+            updatedAt: now,
+            overageBalance: nil,
+            cycle: window)
     }
 
     public static func parse(_ object: Any, organization: String?, now: Date = Date()) throws -> DevinUsageSnapshot {

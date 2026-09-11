@@ -18,6 +18,7 @@ struct DevinProviderImplementation: ProviderImplementation {
         _ = settings.devinCookieSource
         _ = settings.devinBearerToken
         _ = settings.devinOrganization
+        _ = settings.devinAPIHost
     }
 
     @MainActor
@@ -58,7 +59,9 @@ struct DevinProviderImplementation: ProviderImplementation {
                     ProviderSettingsActionDescriptor.openURL(
                         id: "devin-open-usage",
                         title: "Open Devin Usage",
-                        url: Self.usageURL(organization: context.settings.devinOrganization)),
+                        url: Self.usageURL(
+                            organization: context.settings.devinOrganization,
+                            enterpriseHost: context.settings.devinAPIHost)),
                 ],
                 isVisible: nil),
             ProviderSettingsFieldDescriptor(
@@ -70,24 +73,44 @@ struct DevinProviderImplementation: ProviderImplementation {
                 binding: context.binding(\.devinBearerToken),
                 actions: [],
                 isVisible: { context.settings.devinCookieSource == .manual }),
+            ProviderSettingsFieldDescriptor(
+                id: "devin-enterprise-host",
+                title: "Enterprise host",
+                subtitle: "Optional. For Devin Enterprise deployments, enter your host " +
+                    "(e.g. your-team.devinenterprise.com) to track your personal monthly ACU cycle.",
+                kind: .plain,
+                placeholder: "your-team.devinenterprise.com",
+                binding: context.binding(\.devinAPIHost),
+                actions: [],
+                isVisible: nil),
         ]
     }
 
     @MainActor
-    func loginMenuAction(context _: ProviderMenuLoginContext)
+    func loginMenuAction(context: ProviderMenuLoginContext)
         -> (label: String, action: MenuDescriptor.MenuAction)?
     {
-        ("Open Devin...", .loginToProvider(url: Self.usageURL(organization: nil).absoluteString))
+        (
+            "Open Devin...",
+            .loginToProvider(url: Self.usageURL(
+                organization: nil,
+                enterpriseHost: context.settings.devinAPIHost).absoluteString))
     }
 
     @MainActor
     func runLoginFlow(context: ProviderLoginContext) async -> Bool {
         let organization = context.controller.settings.devinOrganization
-        NSWorkspace.shared.open(Self.usageURL(organization: organization))
+        NSWorkspace.shared.open(Self.usageURL(
+            organization: organization,
+            enterpriseHost: context.controller.settings.devinAPIHost))
         return false
     }
 
-    private static func usageURL(organization: String?) -> URL {
+    private static func usageURL(organization: String?, enterpriseHost: String? = nil) -> URL {
+        // Enterprise deployments expose the user's personal ACU cycle on the My analytics page.
+        if let host = DevinUsageFetcher.customHost(enterpriseHost) {
+            return host.appending(path: "settings/my-analytics")
+        }
         let normalized = DevinUsageFetcher.normalizedOrganization(organization)
         let urlString: String
         if let normalized, normalized.hasPrefix("org/") {
