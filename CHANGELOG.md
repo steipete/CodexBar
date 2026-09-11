@@ -21,6 +21,7 @@
 - Documentation: link the community-maintained CodexBar for Windows companion and AI Monitor USB desk display (#3525, #3544). Thanks @hinneslung and @tobymarks!
 
 ### Development
+- Checks: allow process-fixture startup on loaded Macs before measuring cleanup deadlines, retaining all process-ownership and timeout assertions.
 - Logging: update SwiftLog to 1.15.1 for corrected legacy log forwarding and Swift 6.5 WASI compatibility.
 - Linting: update SwiftLint to 0.65.1, Oxlint to 1.82.0, and Oxfmt to 0.67.0 for correctness and performance fixes, retaining verified macOS and Linux downloads.
 
