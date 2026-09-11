@@ -3059,6 +3059,7 @@ enum CostUsageScanner {
             state: &state)
     }
 
+    /// Keep waiting paths ahead of revisits when changing pricing or priority metadata reseeds the inventory.
     private static func reseedCodexActiveLookbackPathKeys(
         _ pathKeys: some Sequence<String>,
         state: inout CostUsageCodexActiveLookbackState)
@@ -3070,10 +3071,10 @@ enum CostUsageScanner {
             guard queuedPaths.insert(pathKey).inserted else { return }
             reseededPaths.append(pathKey)
         }
-        for path in pathKeys {
+        for path in state.pendingFilePaths {
             append(path)
         }
-        for path in state.pendingFilePaths {
+        for path in pathKeys {
             append(path)
         }
         state.pendingFilePaths = reseededPaths
