@@ -89,7 +89,8 @@ envelope. CodexBar does not need
   usage/identity fields into its model and never logs or persists raw stdout.
 - Never run `auto`, `run`, `--switch`, `--switch-to`, `--add-account`, export, import, purge, or any other command in
   Phase 1.
-- Isolate adapter failure from ambient Claude usage. Users without `claude-swap` see no behavior change.
+- Isolate adapter failure from ambient Claude usage and discard canceled list/version reads. Users without
+  `claude-swap` see no behavior change.
 
 The executable is an optional external dependency, not a bundled component. Preferences should show detected version,
 last refresh, adapter errors, and a link to the upstream project; CodexBar should not install or update it.
@@ -103,8 +104,9 @@ last refresh, adapter errors, and a link to the upstream project; CodexBar shoul
 - Once launched, let the external credential transaction reach its natural exit without forced timeout or
   cancellation. If the adapter setting changes, hide its UI state and discard its result when the original
   configuration is no longer current.
-- Refresh ambient Claude usage and the adapter account list after completion. Show switch errors independently from
-  list-refresh errors and preserve the last successful usage snapshots.
+- Refresh ambient Claude usage and the adapter account list after completion. Publish known switch errors before
+  waiting for that refresh, independently from list-refresh errors, and preserve the last successful usage snapshots.
+  Keep the transaction guard until reconciliation finishes; discard the error if its configuration changes.
 - Keep expired, missing, unknown, and Keychain-inaccessible credential slots non-actionable. Never auto-switch, launch
   sessions, add/import/export/purge accounts, or mutate credentials directly.
 
