@@ -61,6 +61,19 @@ extension CostUsageStore {
         _ = self.removeLegacyCodexArtifactIfPresent()
         return self.withDatabase(default: CostUsageStoreReadView(cache: CostUsageCache())) { database in
             let recorder = self.scopedReadWorkRecorderForTesting
+            let before = try self.databaseStamp(database)
+            if let retained = self.retainedCodexRead,
+               retained.stamp == before,
+               retained.purpose.includes(purpose)
+            {
+                guard retained.decoded.timeZoneIdentifier == nil
+                    || retained.decoded.timeZoneIdentifier == calendar.timeZone.identifier
+                else { return CostUsageStoreReadView(cache: CostUsageCache()) }
+                recorder?.recordReadViewConversion(database: database)
+                return CostUsageStoreReadView(cache: Self.reconciledCodexCache(
+                    retained.decoded,
+                    persistence: retained.persistence))
+            }
             let (snapshot, retryPresence) = try Self.inReadTransaction(database) {
                 let snapshot = try CostUsageStoreSnapshot(
                     metadata: Self.readSingleton(
@@ -81,13 +94,34 @@ extension CostUsageStore {
                 let retryPresence = try Self.readRetryBufferPresence(database, recorder: recorder)
                 return (snapshot, retryPresence)
             }
+            // A read transaction pins data_version. Cache only a snapshot that is still current
+            // after COMMIT so an external writer can never make a stale warm view authoritative.
+            guard let after = try self.databaseStamp(database), before == after else {
+                self.retainedCodexRead = nil
+                return CostUsageStoreReadView(cache: CostUsageCache())
+            }
             guard snapshot.metadata.timeZoneIdentifier == nil
                 || snapshot.metadata.timeZoneIdentifier == calendar.timeZone.identifier
             else { return CostUsageStoreReadView(cache: CostUsageCache()) }
             // Identity/anchor reconciliation touches the filesystem; do not pin a SQLite reader during it.
+            let decoded = Self.decodeCodexCache(
+                from: snapshot,
+                recorder: recorder,
+                retryPresence: retryPresence)
+            let persistence = CodexPersistenceState(snapshot: snapshot)
+            // Activity is a superset of status and becomes the one bounded warm read state.
+            // Detailed reports keep their larger event history transient.
+            if purpose != .report {
+                self.retainedCodexRead = RetainedCodexRead(
+                    decoded: decoded,
+                    persistence: persistence,
+                    stamp: after,
+                    purpose: purpose)
+            }
             recorder?.recordReadViewConversion(database: database)
-            return CostUsageStoreReadView(cache: Self.cache(
-                from: snapshot, recorder: recorder, retryPresence: retryPresence))
+            return CostUsageStoreReadView(cache: Self.reconciledCodexCache(
+                decoded,
+                persistence: persistence))
         }
     }
 
@@ -1378,12 +1412,49 @@ struct CostUsageStoreLoad: @unchecked Sendable {
 }
 
 enum CostUsageStoreAccess {
+    private final class SharedReadStoreRegistry: @unchecked Sendable {
+        private struct Entry {
+            var store: CostUsageStore
+            var access: UInt64
+        }
+
+        private let lock = NSLock()
+        private var entries: [String: Entry] = [:]
+        private var access: UInt64 = 0
+        /// The app normally owns one cache root. Keep a small bound for managed/test roots so
+        /// decoded activity state and idle SQLite connections cannot grow with every path seen.
+        private let capacity = 4
+
+        func store(cacheRoot: URL?) -> CostUsageStore {
+            let candidate = CostUsageStore(cacheRoot: cacheRoot)
+            let key = candidate.databaseURL.standardizedFileURL.path
+            return self.lock.withLock {
+                self.access &+= 1
+                if var entry = self.entries[key] {
+                    entry.access = self.access
+                    self.entries[key] = entry
+                    return entry.store
+                }
+                self.entries[key] = Entry(store: candidate, access: self.access)
+                if self.entries.count > self.capacity,
+                   let oldest = self.entries.min(by: { $0.value.access < $1.value.access })?.key
+                {
+                    self.entries.removeValue(forKey: oldest)
+                }
+                return candidate
+            }
+        }
+    }
+
+    private static let sharedReadStores = SharedReadStoreRegistry()
+
     static func readView(
         cacheRoot: URL?,
         calendar: Calendar,
         purpose: CostUsageStoreReadPurpose) -> CostUsageStoreReadView
     {
-        CostUsageStore(cacheRoot: cacheRoot).syncLoadCodexReadView(calendar: calendar, purpose: purpose)
+        self.sharedReadStores.store(cacheRoot: cacheRoot)
+            .syncLoadCodexReadView(calendar: calendar, purpose: purpose)
     }
 
     static func load(cacheRoot: URL?, calendar: Calendar) -> CostUsageStoreLoad {

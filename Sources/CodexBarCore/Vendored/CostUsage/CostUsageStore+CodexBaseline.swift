@@ -55,6 +55,13 @@ extension CostUsageStore {
         var baseline: CodexDecodedBaseline
     }
 
+    struct RetainedCodexRead {
+        var decoded: CostUsageCache
+        var persistence: CodexPersistenceState
+        var stamp: DatabaseStamp
+        var purpose: CostUsageStoreReadPurpose
+    }
+
     func loadCodexScan(calendar: Calendar) -> CostUsageStoreLoad {
         self.retainedCodexBaseline = nil
         _ = self.removeLegacyCodexArtifactIfPresent()
