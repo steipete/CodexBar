@@ -217,10 +217,9 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
         } else {
             nil
         }
-        let requests = entries.compactMap(\.requestCount)
         let allEntriesCarryRequests = !entries.isEmpty && entries.allSatisfy { $0.requestCount != nil }
         let totalRequests: Int? = if allEntriesCarryRequests {
-            requests.reduce(0, +)
+            CostUsageDailyReport.completeCountSum(entries.map(\.requestCount))
         } else if self.historyCoverageIsEstablished, entries.isEmpty {
             0
         } else {
@@ -276,7 +275,6 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
             return dayKey >= startKey && dayKey <= endKey
         }
         let costs = entries.compactMap(\.costUSD)
-        let tokens = entries.compactMap(\.totalTokens)
         let requests = entries.compactMap(\.requestCount)
         var mix = CostUsageTokenMix()
         var coverage = CostUsageCoverageAccumulator()
@@ -286,16 +284,7 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
         }
         let coversFullHistory = days >= self.historyDays
         let windowMetered = coversFullHistory ? self.meteredCostUSD : nil
-        let totalTokens: Int? = {
-            guard !tokens.isEmpty else { return nil }
-            var sum = 0
-            for t in tokens {
-                let (res, of) = sum.addingReportingOverflow(t)
-                if of { return nil }
-                sum = res
-            }
-            return sum
-        }()
+        let totalTokens = CostUsageDailyReport.completeCountSum(entries.map(\.totalTokens))
         let totalRequests: Int? = {
             guard !requests.isEmpty else { return nil }
             var sum = 0
@@ -869,6 +858,16 @@ extension CostUsageDailyReport {
         return accumulators.map { name, accumulator in
             accumulator.build(modelName: name, includeActivity: false)
         }
+    }
+
+    /// Counts are complete only when every contribution is valid and their sum is representable.
+    package static func completeCountSum(_ values: some Sequence<Int?>) -> Int? {
+        var total = OptionalCountAccumulator()
+        for value in values {
+            guard let value, value >= 0 else { return nil }
+            total.add(value)
+        }
+        return total.value
     }
 
     struct OptionalCountAccumulator {

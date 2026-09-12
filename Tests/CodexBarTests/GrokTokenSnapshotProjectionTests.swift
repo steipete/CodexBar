@@ -104,6 +104,66 @@ struct GrokTokenSnapshotProjectionTests: GrokLocalSessionScannerTestSupport {
         #expect(projected.last30DaysTokens == 85)
     }
 
+    @Test(arguments: [false, true], [false, true])
+    func `native overflow stays unknown through remote and fallback menu projections`(
+        hasRemoteSnapshot: Bool,
+        hasUnknownDay: Bool) throws
+    {
+        let fixture = try self.makeFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        let now = try self.localDate(day: 20, hour: 15)
+        let yesterday = try #require(Calendar.current.date(byAdding: .day, value: -1, to: now))
+        var rows: [[String: Any]] = [self.turn(timestamp: yesterday, usage: [
+            "inputTokens": Int.max, "outputTokens": 0, "totalTokens": Int.max, "costUsdTicks": 100,
+        ])]
+        if hasUnknownDay {
+            rows.append(self.turn(timestamp: yesterday, usage: [
+                "inputTokens": 1, "outputTokens": 0, "totalTokens": 1, "costUsdTicks": 100,
+            ]))
+        }
+        rows.append(self.turn(timestamp: now, usage: [
+            "inputTokens": 1, "outputTokens": 0, "totalTokens": 1, "costUsdTicks": 100,
+        ]))
+        try self.writeUpdates(
+            rows,
+            to: fixture.session.appendingPathComponent("updates.jsonl"),
+            modificationDate: now)
+        let summary = try self.summarize(fixture: fixture, now: now)
+        let published = try #require(summary.toCostUsageTokenSnapshot(historyDays: 365))
+        #expect(published.last30DaysTokens == nil)
+        let store = Self.makeStore(environment: [:])
+        store.publishTokenSnapshot(published, for: .grok)
+        let remote = hasRemoteSnapshot
+            ? UsageSnapshot(primary: nil, secondary: nil, costUsage: published, updatedAt: now) : nil
+        let selected = try #require(store.tokenSnapshotForLiveProviderConsumer(
+            fromProviderSnapshot: remote,
+            provider: .grok,
+            historyDays: 30))
+        #expect(selected.last30DaysTokens == nil)
+        #expect(!selected.historyCoverageIsEstablished)
+        #expect(selected.sessionTokens == 1)
+        #expect(selected.summary(forLastDays: 30).totalTokens == nil)
+        let menu = try #require(UsageMenuCardView.Model.tokenUsageSection(
+            provider: .grok,
+            enabled: true,
+            comparisonPeriodsEnabled: false,
+            snapshot: selected,
+            error: nil))
+        #expect(!menu.monthLine.contains("tokens"))
+        let widget = try #require(UsageStore.widgetTokenUsageSummary(from: selected, provider: .grok))
+        #expect(widget.last30DaysTokens == nil)
+        let dashboard = SpendDashboardModel.build(
+            inputs: [.init(provider: .grok, displayName: "Grok", snapshot: selected)],
+            requestedDays: 30,
+            now: now)
+        let group = try #require(dashboard.groups.first)
+        #expect(group.totalTokens == nil)
+        // Excluding the affected day restores the valid one-day value on both consumer paths.
+        let today = try #require(store.tokenSnapshotForLiveProviderConsumer(
+            fromProviderSnapshot: remote, provider: .grok, historyDays: 1))
+        #expect(today.last30DaysTokens == 1)
+    }
+
     private static func makeStore(environment: [String: String]) -> UsageStore {
         let suite = "GrokTokenSnapshotProjectionTests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!

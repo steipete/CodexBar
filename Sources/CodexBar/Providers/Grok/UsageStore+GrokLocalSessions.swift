@@ -19,8 +19,6 @@ extension UsageStore {
         else { return nil }
         let daily = published.daily.filter { $0.date >= firstDay && $0.date <= lastDay }
         guard !daily.isEmpty else { return nil }
-        let tokens = daily.compactMap(\.totalTokens)
-        let requests = daily.compactMap(\.requestCount)
         // Tokens and requests are recomputed from the retained days, so the cost has to be too. Copying the
         // published total would render the full 365-day amount beside a 30-day token count.
         let costs = daily.compactMap(\.costUSD)
@@ -29,9 +27,9 @@ extension UsageStore {
             sessionTokens: published.sessionTokens,
             sessionCostUSD: published.sessionCostUSD,
             sessionRequests: published.sessionRequests,
-            last30DaysTokens: tokens.isEmpty ? nil : tokens.reduce(0, +),
+            last30DaysTokens: CostUsageDailyReport.completeCountSum(daily.map(\.totalTokens)),
             last30DaysCostUSD: costs.isEmpty ? nil : costs.reduce(0, +),
-            last30DaysRequests: requests.isEmpty ? nil : requests.reduce(0, +),
+            last30DaysRequests: CostUsageDailyReport.completeCountSum(daily.map(\.requestCount)),
             currencyCode: published.currencyCode,
             historyDays: days,
             historyCoverageIsEstablished: published.historyCoverageIsEstablished && published.historyDays >= days,
