@@ -1,0 +1,23 @@
+name: Omarchy integration
+on:
+  pull_request:
+    paths:
+      - 'Integrations/Omarchy/**'
+      - '.github/workflows/omarchy.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'Integrations/Omarchy/**'
+      - '.github/workflows/omarchy.yml'
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test Integrations/Omarchy/test.mjs
+      - run: python3 Integrations/Omarchy/test_install.py
