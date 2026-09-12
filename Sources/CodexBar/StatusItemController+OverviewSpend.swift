@@ -132,11 +132,6 @@ struct OverviewSpendSummaryCardView: View {
         .padding(.horizontal, UsageMenuCardLayout.horizontalPadding)
         .padding(.vertical, 10)
         .frame(width: self.width, alignment: .leading)
-        .background {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color.accentColor.opacity(0.08))
-                .padding(.horizontal, 6)
-        }
     }
 }
 
