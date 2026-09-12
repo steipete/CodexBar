@@ -75,9 +75,20 @@ envelope. CodexBar does not need
 - Require `schemaVersion == 1`; reject unknown versions and partial top-level shapes.
 - Bound runtime and stdout, terminate on timeout, and retain the last successful snapshot with a stale marker.
 - Parse only slot number, active state, usage status, 5-hour/7-day percentages, optional `usage.scoped` display names
-  and percentages, reset timestamps, display-only `organizationName` (always present, may be empty), and optional
-  display-only `alias` when non-empty. Ignore malformed or unknown scoped rows without discarding valid account-wide
-  windows. Unknown extra JSON fields remain ignored. Empty `organizationName` is not an error; `alias` is not required.
+  and percentages, optional `usage.spend` (used, limit, percent, currency, reset), reset timestamps, the additive
+  `disabled` marker, the measurement time `usageFetchedAt`, the display-only `lastGoodUsage` fallback with its own
+  fetch time, display-only `organizationName` (always present, may be empty), and optional display-only `alias` when
+  non-empty. Every one of these is display-only: none is credential material, and none changes which arguments the
+  adapter runs. Ignore malformed or unknown scoped rows without discarding valid account-wide windows. Additive
+  sections (`usage.spend`, `lastGoodUsage`) parse leniently for the same reason: a malformed one is dropped rather
+  than raised, so it cannot suppress otherwise valid rate windows. Unknown extra JSON fields remain ignored. Empty
+  `organizationName` is not an error; `alias` is not required.
+- A row whose live `usage` is null but that carries `lastGoodUsage` renders its last known windows instead of an empty
+  card, dated by that measurement's own fetch time so the existing age label states its true age. Last-known data is
+  display-only: it never makes a non-actionable row actionable, and it is excluded from the menu bar icon, which has
+  no affordance for stating a snapshot's age.
+- claude-swap's human `message` field is never parsed. It embeds the account email, which must not reach the UI through
+  a channel that bypasses Hide Personal Info; only the machine-readable `reason` token is retained.
 - Use optional `usageFetchedAt` for the measurement's last-updated time, so polling the adapter's cache does not make
   old usage appear freshly measured. Missing or malformed timestamps retain the refresh-time fallback and valid windows.
 - Treat email, organization name, and alias as display-only. Never log or persist them. Respect Hide Personal Info.

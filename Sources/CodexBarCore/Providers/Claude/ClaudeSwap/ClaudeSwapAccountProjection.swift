@@ -33,17 +33,19 @@ public enum ClaudeSwapAccountProjection {
         let labels = self.displayLabels(for: ordered, duplicateEmails: duplicateEmails)
         return zip(ordered, labels).map { row, label in
             let id = ProviderAccountIdentity(source: self.sourceName, opaqueID: String(row.number))
-            let snapshot = self.usageSnapshot(
+            let projected = self.usageSnapshot(
                 for: row,
                 previous: previousByID[id],
                 now: now)
+            let snapshot = projected.snapshot
             return ProviderAccountUsageSnapshot(
                 id: id,
                 provider: .claude,
-                displayLabel: label,
+                displayLabel: self.decoratedLabel(label, row: row),
                 accountEmail: row.email.isEmpty ? nil : row.email,
                 isActive: row.isActive,
                 canActivate: !row.isActive && self.canActivate(row),
+                usesLastKnownUsage: projected.usesLastKnownUsage,
                 snapshot: snapshot,
                 error: self.errorText(for: row, snapshot: snapshot, now: now),
                 sourceLabel: self.sourceLabel)
@@ -58,6 +60,13 @@ public enum ClaudeSwapAccountProjection {
         switchError.map { "Account switch failed: \($0)" }
             ?? accountError
             ?? adapterError.map { "Showing the last successful update: \($0)" }
+    }
+
+    /// claude-swap holds `disabled` slots out of its own rotation while keeping
+    /// them fully managed. Mirror its marker so a disabled account reads the same
+    /// in CodexBar as it does in `cswap list`.
+    static func decoratedLabel(_ label: String, row: ClaudeSwapAccountRow) -> String {
+        row.isDisabled ? "\(label) (disabled)" : label
     }
 
     static func displayLabel(for row: ClaudeSwapAccountRow, duplicateEmails: Set<String> = []) -> String {
@@ -116,30 +125,67 @@ public enum ClaudeSwapAccountProjection {
         email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 
+    /// A projected snapshot plus whether it came from claude-swap's last-known
+    /// measurement rather than a live one.
+    struct ProjectedUsage {
+        let snapshot: UsageSnapshot?
+        let usesLastKnownUsage: Bool
+
+        static let none = ProjectedUsage(snapshot: nil, usesLastKnownUsage: false)
+
+        static func live(_ snapshot: UsageSnapshot?) -> ProjectedUsage {
+            ProjectedUsage(snapshot: snapshot, usesLastKnownUsage: false)
+        }
+
+        static func lastKnown(_ snapshot: UsageSnapshot?) -> ProjectedUsage {
+            ProjectedUsage(snapshot: snapshot, usesLastKnownUsage: snapshot != nil)
+        }
+    }
+
     private static func usageSnapshot(
         for row: ClaudeSwapAccountRow,
         previous: ProviderAccountUsageSnapshot?,
-        now: Date) -> UsageSnapshot?
+        now: Date) -> ProjectedUsage
     {
         switch row.usageStatus {
         case .ok, .unavailable:
             if let projected = self.projectedUsageSnapshot(for: row, now: now) {
                 if row.usageStatus == .ok {
-                    return projected
+                    return .live(projected)
                 }
                 if let pruned = self.prunedAtLimitSnapshot(
                     projected,
                     identity: projected.identity ?? self.identitySnapshot(for: row),
                     now: now)
                 {
-                    return pruned
+                    return .live(pruned)
                 }
             }
-            guard row.usageStatus == .unavailable else { return nil }
-            return self.retainedAtLimitSnapshot(previous, matching: row, now: now)
-        case .tokenExpired, .reloginRequired, .apiKey, .keychainUnavailable, .noCredentials, .unknown:
-            return nil
+            guard row.usageStatus == .unavailable else { return .none }
+            if let retained = self.retainedAtLimitSnapshot(previous, matching: row, now: now) {
+                // Retention carries the previous row's provenance forward. A
+                // retained fallback is still a last-known measurement, and must
+                // not be promoted to live just by surviving another refresh.
+                return previous?.usesLastKnownUsage == true ? .lastKnown(retained) : .live(retained)
+            }
+            return .lastKnown(self.lastGoodSnapshot(for: row))
+        case .tokenExpired, .reloginRequired, .apiKey, .keychainUnavailable, .noCredentials,
+             .foreignCredential, .unknown:
+            return .lastKnown(self.lastGoodSnapshot(for: row))
         }
+    }
+
+    /// Display-only fallback for rows whose live `usage` is null. claude-swap
+    /// keeps serving the last successful measurement so its dashboard shows
+    /// numbers rather than an empty row; mirror that instead of blanking the
+    /// card. `updatedAt` carries the measurement's real fetch time, so the
+    /// existing "updated N ago" rendering states its true age.
+    private static func lastGoodSnapshot(for row: ClaudeSwapAccountRow) -> UsageSnapshot? {
+        guard let lastGood = row.lastGoodUsage else { return nil }
+        return self.snapshot(
+            from: lastGood.measurement,
+            row: row,
+            updatedAt: lastGood.fetchedAt)
     }
 
     private static func retainedAtLimitSnapshot(
@@ -195,28 +241,58 @@ public enum ClaudeSwapAccountProjection {
     }
 
     private static func projectedUsageSnapshot(for row: ClaudeSwapAccountRow, now: Date) -> UsageSnapshot? {
-        let primary = row.fiveHour.map { window in
+        // claude-swap serves a per-account cache, so an `ok` row can carry a
+        // measurement fetched minutes ago. Prefer its own fetch time over `now`.
+        self.snapshot(
+            from: row.measurement,
+            row: row,
+            updatedAt: row.usageFetchedAt ?? now)
+    }
+
+    private static func snapshot(
+        from measurement: ClaudeSwapUsageMeasurement,
+        row: ClaudeSwapAccountRow,
+        updatedAt: Date) -> UsageSnapshot?
+    {
+        let primary = measurement.fiveHour.map { window in
             RateWindow(
                 usedPercent: window.usedPercent,
                 windowMinutes: self.fiveHourWindowMinutes,
                 resetsAt: window.resetsAt,
                 resetDescription: nil)
         }
-        let secondary = row.sevenDay.map { window in
+        let secondary = measurement.sevenDay.map { window in
             RateWindow(
                 usedPercent: window.usedPercent,
                 windowMinutes: self.sevenDayWindowMinutes,
                 resetsAt: window.resetsAt,
                 resetDescription: nil)
         }
-        let scoped = self.scopedRateWindows(for: row)
-        guard primary != nil || secondary != nil || !scoped.isEmpty else { return nil }
+        let scoped = self.scopedRateWindows(measurement.scoped)
+        let providerCost = self.providerCost(from: measurement.spend, updatedAt: updatedAt)
+        guard primary != nil || secondary != nil || !scoped.isEmpty || providerCost != nil else { return nil }
         return UsageSnapshot(
             primary: primary,
             secondary: secondary,
             extraRateWindows: scoped.isEmpty ? nil : scoped,
-            updatedAt: row.usageFetchedAt ?? now,
+            providerCost: providerCost,
+            updatedAt: updatedAt,
             identity: self.identitySnapshot(for: row))
+    }
+
+    /// Pay-as-you-go spend for accounts that have it. claude-swap shows this
+    /// beside the 5h/7d bars; CodexBar renders it through the shared cost row.
+    private static func providerCost(
+        from spend: ClaudeSwapSpendWindow?,
+        updatedAt: Date) -> ProviderCostSnapshot?
+    {
+        guard let spend else { return nil }
+        return ProviderCostSnapshot(
+            used: spend.used,
+            limit: spend.limit,
+            currencyCode: spend.currencyCode,
+            resetsAt: spend.resetsAt,
+            updatedAt: updatedAt)
     }
 
     private static func identitySnapshot(for row: ClaudeSwapAccountRow) -> ProviderIdentitySnapshot {
@@ -228,8 +304,8 @@ public enum ClaudeSwapAccountProjection {
             accountID: "\(self.sourceName):\(row.number)")
     }
 
-    private static func scopedRateWindows(for row: ClaudeSwapAccountRow) -> [NamedRateWindow] {
-        ClaudeScopedWeeklyLimitMapper.extraRateWindows(from: row.scoped.map { window in
+    private static func scopedRateWindows(_ windows: [ClaudeSwapScopedUsageWindow]) -> [NamedRateWindow] {
+        ClaudeScopedWeeklyLimitMapper.extraRateWindows(from: windows.map { window in
             ClaudeScopedWeeklyLimitMapper.Limit(
                 kind: "weekly_scoped",
                 group: "weekly",
@@ -254,6 +330,9 @@ public enum ClaudeSwapAccountProjection {
             "claude-swap could not read the active account's Keychain entry."
         case .noCredentials:
             "No stored credentials for this account slot."
+        case .foreignCredential:
+            "claude-swap reports the live credential belongs to a different account. " +
+                "Switch accounts to restore this slot's own login."
         case .unavailable:
             self.atLimitNote(from: snapshot, now: now) ?? self.deferredPollingNote
         case let .unknown(raw):
@@ -299,7 +378,7 @@ public enum ClaudeSwapAccountProjection {
 
     private static func canActivate(_ row: ClaudeSwapAccountRow) -> Bool {
         switch row.usageStatus {
-        case .ok, .apiKey, .unavailable:
+        case .ok, .apiKey, .unavailable, .foreignCredential:
             true
         case .tokenExpired, .reloginRequired, .keychainUnavailable, .noCredentials, .unknown:
             false
