@@ -3,6 +3,7 @@
 ## 0.60.1 — Unreleased
 
 ### Fixed
+- Antigravity: preserve the attempted CLI failure when an unavailable IDE fallback would otherwise replace it with misleading desktop launch guidance (related to #3146). Thanks @gpgpbm4h4y-gif!
 - z.ai: keep missing quota limits unavailable instead of displaying 100% remaining, preserving real zero usage, plan details, and optional analytics.
 - Antigravity: suppress remote model variants that exactly mirror a known pool and reset, preserve distinct quota rows and their saved visibility, and prefer known usage over reset-only duplicates (#3583). Thanks @hhh2210!
 - Codex: reject oversized numeric spend-limit reset timestamps without crashing, preserving valid limits and usage.

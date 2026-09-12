@@ -985,16 +985,25 @@ struct AntigravityCLIHTTPSFetchStrategyTests {
 }
 
 extension AntigravityCLIHTTPSFetchStrategyTests {
-    @Test(arguments: [AntigravityStatusProbeError.notRunning, .missingCSRFToken])
-    func `unavailable IDE cannot replace actionable signed out CLI error`(
-        ideError: AntigravityStatusProbeError) async
+    @Test(arguments: [AntigravityStatusProbeError.notRunning, .missingCSRFToken], [
+        AntigravityStatusProbeError.authenticationRequired,
+        .apiError("quota request rejected"),
+        .timedOut,
+        .parseFailed("missing quota fields"),
+        .portDetectionFailed("no listening ports found"),
+        .accountMismatch(expected: "selected@example.com", found: "other@example.com"),
+    ])
+    func `unavailable IDE cannot replace an attempted source failure`(
+        ideError: AntigravityStatusProbeError,
+        cliError: AntigravityStatusProbeError) async
     {
         let pipeline = ProviderFetchPipeline(
             resolveStrategies: { _ in
                 [
+                    AntigravityFallbackFixtureStrategy(id: "antigravity.app-local", error: .notRunning),
                     AntigravityFallbackFixtureStrategy(
                         id: "antigravity.cli-https",
-                        error: .authenticationRequired),
+                        error: cliError),
                     AntigravityFallbackFixtureStrategy(
                         id: "antigravity.ide-local",
                         error: ideError),
@@ -1004,13 +1013,31 @@ extension AntigravityCLIHTTPSFetchStrategyTests {
 
         let outcome = await pipeline.fetch(context: self.makeFetchContext(), provider: .antigravity)
 
-        #expect(outcome.attempts.map(\.strategyID) == ["antigravity.cli-https", "antigravity.ide-local"])
+        #expect(outcome.attempts.map(\.strategyID) == [
+            "antigravity.app-local", "antigravity.cli-https", "antigravity.ide-local",
+        ])
         do {
             _ = try outcome.result.get()
-            Issue.record("Expected the signed-out CLI failure")
+            Issue.record("Expected the attempted CLI failure")
         } catch {
-            #expect((error as? AntigravityStatusProbeError) == .authenticationRequired)
+            #expect((error as? AntigravityStatusProbeError) == cliError)
         }
+    }
+
+    @Test(arguments: [AntigravityStatusProbeError.notRunning, .missingCSRFToken])
+    func `unavailable fallback preserves transport errors`(current: AntigravityStatusProbeError) {
+        let error = URLError(.cannotConnectToHost)
+        let result = AntigravityProviderDescriptor.resolveFallbackError(error, current)
+        #expect((result as? URLError)?.code == error.code)
+    }
+
+    @Test(arguments: [AntigravityStatusProbeError.notRunning, .missingCSRFToken, .timedOut])
+    func `first error and newly detected fallback remain authoritative`(current: AntigravityStatusProbeError) {
+        let first = AntigravityProviderDescriptor.resolveFallbackError(nil, current)
+        let detected = AntigravityProviderDescriptor.resolveFallbackError(
+            AntigravityStatusProbeError.notRunning, current)
+        #expect((first as? AntigravityStatusProbeError) == current)
+        #expect((detected as? AntigravityStatusProbeError) == current)
     }
 
     @Test
