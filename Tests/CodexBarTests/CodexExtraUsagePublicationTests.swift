@@ -16,6 +16,7 @@ extension CodexAccountScopedRefreshTests {
         await store.applyOpenAIDashboard(
             OpenAIDashboardSnapshot(
                 signedInEmail: fixture.email,
+                accountID: "shared-workspace",
                 codeReviewRemainingPercent: nil,
                 creditEvents: [],
                 dailyBreakdown: [],
