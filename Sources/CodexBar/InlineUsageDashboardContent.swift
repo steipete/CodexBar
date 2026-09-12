@@ -314,21 +314,6 @@ extension UsageMenuCardView.Model {
         ]
     }
 
-    private static func topMistralModel(from entries: [MistralDailyUsageBucket]) -> String? {
-        var tokens: [String: Int] = [:]
-        for entry in entries {
-            for model in entry.models {
-                tokens[model.name, default: 0] += model.totalTokens
-            }
-        }
-        return tokens.max {
-            if $0.value == $1.value {
-                return $0.key > $1.key
-            }
-            return $0.value < $1.value
-        }?.key
-    }
-
     private static func costString(_ value: Double, currencyCode: String) -> String {
         UsageFormatter.currencyString(value, currencyCode: currencyCode)
     }

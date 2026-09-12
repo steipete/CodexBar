@@ -95,7 +95,7 @@ extension CodexBarCLI {
         guard !attempts.isEmpty else { return }
         self.writeStderr("[\(provider.rawValue)] fetch strategies:\n")
         for attempt in attempts {
-            let kindLabel = Self.fetchKindLabel(attempt.kind)
+            let kindLabel = ProviderDiagnosticFetchAttempt.kindLabel(attempt.kind)
             var line = "  - \(attempt.strategyID) (\(kindLabel))"
             line += attempt.wasAvailable ? " available" : " unavailable"
             if let error = attempt.errorDescription, !error.isEmpty {
@@ -134,26 +134,14 @@ extension CodexBarCLI {
         // Provider-specific by design: Kilo exposes its ordered API-to-CLI fallback attempts in verbose output.
         guard provider == .kilo, sourceMode == .auto, !attempts.isEmpty else { return nil }
         let parts = attempts.map { attempt in
-            let label = Self.fetchKindLabel(attempt.kind)
+            let label = ProviderDiagnosticFetchAttempt.kindLabel(attempt.kind)
             let message = attempt.errorDescription?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             if !message.isEmpty {
                 return "\(label): \(message)"
             }
             return "\(label): \(attempt.wasAvailable ? "success" : "unavailable")"
         }
-        guard !parts.isEmpty else { return nil }
         return "Kilo auto fallback attempts: " + parts.joined(separator: " -> ")
-    }
-
-    private static func fetchKindLabel(_ kind: ProviderFetchKind) -> String {
-        switch kind {
-        case .cli: "cli"
-        case .web: "web"
-        case .oauth: "oauth"
-        case .apiToken: "api"
-        case .localProbe: "local"
-        case .webDashboard: "web"
-        }
     }
 
     static func fetchStatus(

@@ -209,8 +209,7 @@ public enum VertexAIOAuthCredentialsStore {
         // Try to get project ID from gcloud config
         let projectId = Self.loadProjectId(environment: environment)
 
-        // Try to extract email from ID token if present
-        let email = Self.extractEmailFromIdToken(json["id_token"] as? String)
+        let email = VertexAIIDToken.email(from: json["id_token"] as? String)
 
         // Parse expiry if present
         var expiryDate: Date?
@@ -299,29 +298,5 @@ public enum VertexAIOAuthCredentialsStore {
         return environment["GOOGLE_CLOUD_PROJECT"]
             ?? environment["GCLOUD_PROJECT"]
             ?? environment["CLOUDSDK_CORE_PROJECT"]
-    }
-
-    private static func extractEmailFromIdToken(_ token: String?) -> String? {
-        guard let token, !token.isEmpty else { return nil }
-
-        let parts = token.components(separatedBy: ".")
-        guard parts.count >= 2 else { return nil }
-
-        var payload = parts[1]
-            .replacingOccurrences(of: "-", with: "+")
-            .replacingOccurrences(of: "_", with: "/")
-
-        let remainder = payload.count % 4
-        if remainder > 0 {
-            payload += String(repeating: "=", count: 4 - remainder)
-        }
-
-        guard let data = Data(base64Encoded: payload, options: .ignoreUnknownCharacters),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-        else {
-            return nil
-        }
-
-        return json["email"] as? String
     }
 }

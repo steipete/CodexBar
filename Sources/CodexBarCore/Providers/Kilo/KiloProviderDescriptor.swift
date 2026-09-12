@@ -114,15 +114,14 @@ struct KiloAPIFetchStrategy: ProviderFetchStrategy {
     let id: String = "kilo.api"
     let kind: ProviderFetchKind = .apiToken
 
-    func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        _ = context
+    func isAvailable(_: ProviderFetchContext) async -> Bool {
         // Keep strategy available so missing credentials surface as KiloUsageError.missingCredentials
         // instead of generic ProviderFetchError.noAvailableStrategy.
-        return true
+        true
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        guard let apiKey = Self.resolveToken(environment: context.env) else {
+        guard let apiKey = KiloSettingsReader.apiKey(environment: context.env) else {
             throw KiloUsageError.missingCredentials
         }
         let usage = try await KiloUsageFetcher.fetchUsage(apiKey: apiKey, environment: context.env)
@@ -136,24 +135,19 @@ struct KiloAPIFetchStrategy: ProviderFetchStrategy {
         guard let kiloError = error as? KiloUsageError else { return false }
         return kiloError == .missingCredentials || kiloError == .unauthorized
     }
-
-    private static func resolveToken(environment: [String: String]) -> String? {
-        KiloSettingsReader.apiKey(environment: environment)
-    }
 }
 
 struct KiloCLIFetchStrategy: ProviderFetchStrategy {
     let id: String = "kilo.cli"
     let kind: ProviderFetchKind = .cli
 
-    func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        _ = context
+    func isAvailable(_: ProviderFetchContext) async -> Bool {
         // Keep strategy available so CLI-specific session failures are surfaced as actionable errors.
-        return true
+        true
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        let token = try Self.resolveToken(environment: context.env)
+        let token = try KiloBearerTokenResolver.resolve(source: .cli, apiKey: nil, environment: context.env).token
         let usage = try await KiloUsageFetcher.fetchUsage(apiKey: token, environment: context.env)
         return self.makeResult(
             usage: usage.toUsageSnapshot(),
@@ -162,37 +156,5 @@ struct KiloCLIFetchStrategy: ProviderFetchStrategy {
 
     func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
         false
-    }
-
-    private static func resolveToken(environment: [String: String]) throws -> String {
-        let authFileURL = Self.authFileURL(environment: environment)
-        let fileManager = FileManager.default
-
-        guard fileManager.fileExists(atPath: authFileURL.path) else {
-            throw KiloUsageError.cliSessionMissing(authFileURL.path)
-        }
-
-        let data: Data
-        do {
-            data = try Data(contentsOf: authFileURL)
-        } catch {
-            throw KiloUsageError.cliSessionUnreadable(authFileURL.path)
-        }
-
-        guard let token = KiloSettingsReader.parseAuthToken(data: data) else {
-            throw KiloUsageError.cliSessionInvalid(authFileURL.path)
-        }
-
-        return token
-    }
-
-    private static func authFileURL(environment: [String: String]) -> URL {
-        if let home = SettingsValue.cleaned(environment["HOME"]) {
-            let expandedHome = NSString(string: home).expandingTildeInPath
-            return KiloSettingsReader.defaultAuthFileURL(
-                homeDirectory: URL(fileURLWithPath: expandedHome, isDirectory: true))
-        }
-        return KiloSettingsReader.defaultAuthFileURL(
-            homeDirectory: FileManager.default.homeDirectoryForCurrentUser)
     }
 }

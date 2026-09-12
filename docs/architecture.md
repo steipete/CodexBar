@@ -45,6 +45,9 @@ read_when:
   rendering mode and projected layout without copying unused settings into a second state object.
 - `SettingsValue` owns whitespace and wrapping-quote normalization for config and provider settings. Readers retain
   their credential precedence, endpoint validation, and provider-specific decoding.
+- Kilo's CLI fetch strategy and organization discovery share `KiloBearerTokenResolver` for auth-file loading.
+  Vertex AI credential loading and renewal share display-only ID-token decoding; diagnostic fetch labels use
+  `ProviderDiagnosticFetchAttempt` across the app and CLI.
 - Core owns status feed fetching, decoding, and status models through `ProviderStatusFetcher`; the app supplies
   localized labels and component UI, and the CLI supplies its existing status payload and English labels.
 - `KeychainStringStore` owns generic-password operations for legacy credential migration. Provider adapters retain

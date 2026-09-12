@@ -78,9 +78,8 @@ public enum VertexAITokenRefresher {
             let expiresIn = json["expires_in"] as? Double ?? 3600
             let newExpiryDate = Date().addingTimeInterval(expiresIn)
 
-            // Extract email from new ID token if present
             let idToken = json["id_token"] as? String
-            let email = Self.extractEmailFromIdToken(idToken) ?? credentials.email
+            let email = VertexAIIDToken.email(from: idToken) ?? credentials.email
 
             return VertexAIOAuthCredentials(
                 accessToken: newAccessToken,
@@ -100,29 +99,5 @@ public enum VertexAITokenRefresher {
     private static func extractErrorCode(from data: Data) -> String? {
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
         return json["error"] as? String
-    }
-
-    private static func extractEmailFromIdToken(_ token: String?) -> String? {
-        guard let token, !token.isEmpty else { return nil }
-
-        let parts = token.components(separatedBy: ".")
-        guard parts.count >= 2 else { return nil }
-
-        var payload = parts[1]
-            .replacingOccurrences(of: "-", with: "+")
-            .replacingOccurrences(of: "_", with: "/")
-
-        let remainder = payload.count % 4
-        if remainder > 0 {
-            payload += String(repeating: "=", count: 4 - remainder)
-        }
-
-        guard let data = Data(base64Encoded: payload, options: .ignoreUnknownCharacters),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-        else {
-            return nil
-        }
-
-        return json["email"] as? String
     }
 }
