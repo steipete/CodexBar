@@ -138,6 +138,12 @@ cover this cleanup without creating status items or changing the user's saved pr
 not establish the cause of a position that changes again after launch; that requires runtime placement evidence.
 
 ### Run Tests Only
+
+Lint tools are installed at repository-pinned versions by `Scripts/install_lint_tools.sh`, with archive checksums
+verified before installation. TypeScript 7 installs its native package for the running Node platform and architecture
+(including Rosetta). Plugin typechecking uses only its declared libraries and source declarations, so unrelated
+ancestor `node_modules/@types` packages do not affect the result. SwiftFormat targets the package's Swift 6.2 floor.
+
 ```bash
 make test
 ```

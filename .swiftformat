@@ -39,8 +39,10 @@
 --enumthreshold 0
 
 # Swift 6 specific
---swiftversion 6.3
+--swiftversion 6.2
 --disable redundantSendable # Keep explicit concurrency contracts visible
+--disable wrapIfStatementBodies,wrapFunctionBodies # Retain compact guards and simple test fixtures
+--disable swiftTestingTestCaseNames,redundantSwiftTestingSuite # Preserve discovered test names and suite declarations
 
 # Other
 --stripunusedargs closure-only
