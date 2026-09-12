@@ -23,18 +23,21 @@ package enum TestProcessSafety {
         arguments: [String] = []) -> Bool
     {
         hasLoadedXCTestCase
-            || processName == "swiftpm-testing-helper"
-            || processName.hasSuffix("PackageTests")
-            || processName.hasSuffix(".xctest")
+            || self.isTestExecutable(processName)
             || environment["XCTestConfigurationFilePath"] != nil
             || environment["XCTestBundlePath"] != nil
             || environment["XCTestSessionIdentifier"] != nil
             || environment["TESTING_LIBRARY_VERSION"] != nil
             || environment["SWIFT_TESTING"] != nil
             || environment["SWIFT_TESTING_ENABLED"] != nil
-            || arguments.contains {
-                let argument = $0.lowercased()
-                return argument.contains("xctest") || argument.contains("swift-testing")
-            }
+            || arguments.first.map(self.isTestExecutable) == true
+    }
+
+    private static func isTestExecutable(_ path: String) -> Bool {
+        // Only the executable identifies a runner; account values and parent directories may contain these words.
+        let name = (path as NSString).lastPathComponent.lowercased()
+        return ["xctest", "xctestrunner", "swift-testing", "swiftpm-testing-helper"].contains(name)
+            || name.hasSuffix("packagetests")
+            || name.hasSuffix(".xctest")
     }
 }

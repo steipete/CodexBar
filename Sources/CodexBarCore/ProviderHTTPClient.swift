@@ -184,12 +184,15 @@ public final class ProviderHTTPClient: ProviderHTTPTransport, @unchecked Sendabl
         return configuration
     }
 
-    private static func sharedSession() -> URLSession {
-        if TestProcessSafety.isRunning {
+    static func sharedSession(
+        isRunningTests: Bool = TestProcessSafety.isRunning,
+        configuration: URLSessionConfiguration = ProviderHTTPClient.defaultConfiguration()) -> URLSession
+    {
+        if isRunningTests {
             // XCTest URLProtocol.registerClass stubs only intercept URLSession.shared on macOS.
             return .shared
         }
-        return self.redirectGuardedSession()
+        return self.redirectGuardedSession(configuration: configuration)
     }
 
     static func redirectGuardedSession(
@@ -232,7 +235,9 @@ final class ProviderHTTPRedirectGuardDelegate: NSObject, URLSessionTaskDelegate,
     }
 
     private static func normalizedPort(_ url: URL) -> Int? {
-        if let port = url.port { return port }
+        if let port = url.port {
+            return port
+        }
         switch url.scheme?.lowercased() {
         case "http": return 80
         case "https": return 443
