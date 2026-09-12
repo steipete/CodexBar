@@ -148,6 +148,7 @@ actor CostUsageStore {
     private let expectedParserHash: String
     private let busyTimeoutMilliseconds: Int32
     private var connection: SQLiteConnection?
+    var requiresReadReopen = false
     private var failureGeneration = UUID()
     var retainedCodexBaseline: RetainedCodexBaseline?
     var retainedCodexRead: RetainedCodexRead?
@@ -516,7 +517,7 @@ extension CostUsageStore {
 
     func ensureDatabase() throws -> OpaquePointer {
         if let database = self.connection?.handle {
-            if try self.connectionMatchesPath(database) {
+            if !self.requiresReadReopen, try self.connectionMatchesPath(database) {
                 return database
             }
             self.retainedCodexBaseline = nil
@@ -526,6 +527,7 @@ extension CostUsageStore {
             self.connection?.close()
             self.connection = nil
         }
+        self.requiresReadReopen = false
         do {
             let opened = try self.openDatabase()
             self.connection = SQLiteConnection(handle: opened, identity: Self.databaseIdentity(at: self.databaseURL))

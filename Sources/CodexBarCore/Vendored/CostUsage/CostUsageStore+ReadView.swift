@@ -114,11 +114,6 @@ enum CostUsageStoreReadPurpose {
     case report
 
     func includes(_ requested: Self) -> Bool {
-        switch (self, requested) {
-        case (.report, _), (.activity, .activity), (.activity, .status), (.status, .status):
-            true
-        default:
-            false
-        }
+        self == requested || self == .report || (self == .activity && requested == .status)
     }
 }

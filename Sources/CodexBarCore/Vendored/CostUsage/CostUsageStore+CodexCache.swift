@@ -61,7 +61,11 @@ extension CostUsageStore {
         _ = self.removeLegacyCodexArtifactIfPresent()
         return self.withDatabase(default: CostUsageStoreReadView(cache: CostUsageCache())) { database in
             let recorder = self.scopedReadWorkRecorderForTesting
-            let before = try self.databaseStamp(database)
+            guard let before = try self.databaseStamp(database) else {
+                self.retainedCodexRead = nil
+                self.requiresReadReopen = true
+                return CostUsageStoreReadView(cache: CostUsageCache())
+            }
             if let retained = self.retainedCodexRead,
                retained.stamp == before,
                retained.purpose.includes(purpose)
@@ -92,12 +96,18 @@ extension CostUsageStore {
                         CostUsageStoreLookbackState.self, database: database, table: "lookback_state"),
                     accumulators: [])
                 let retryPresence = try Self.readRetryBufferPresence(database, recorder: recorder)
+                #if DEBUG
+                try self.runCodexReadCheckpointForTesting()
+                #endif
                 return (snapshot, retryPresence)
             }
             // A read transaction pins data_version. Cache only a snapshot that is still current
             // after COMMIT so an external writer can never make a stale warm view authoritative.
-            guard let after = try self.databaseStamp(database), before == after else {
+            let after = try self.databaseStamp(database)
+            guard let after, before == after else {
                 self.retainedCodexRead = nil
+                // Re-enter open-time compatibility validation on the next access, after this handle's use ends.
+                self.requiresReadReopen = after == nil
                 return CostUsageStoreReadView(cache: CostUsageCache())
             }
             guard snapshot.metadata.timeZoneIdentifier == nil
@@ -1413,14 +1423,8 @@ struct CostUsageStoreLoad: @unchecked Sendable {
 
 enum CostUsageStoreAccess {
     private final class SharedReadStoreRegistry: @unchecked Sendable {
-        private struct Entry {
-            var store: CostUsageStore
-            var access: UInt64
-        }
-
         private let lock = NSLock()
-        private var entries: [String: Entry] = [:]
-        private var access: UInt64 = 0
+        private var entries: [(path: String, store: CostUsageStore)] = []
         /// The app normally owns one cache root. Keep a small bound for managed/test roots so
         /// decoded activity state and idle SQLite connections cannot grow with every path seen.
         private let capacity = 4
@@ -1429,19 +1433,14 @@ enum CostUsageStoreAccess {
             let candidate = CostUsageStore(cacheRoot: cacheRoot)
             let key = candidate.databaseURL.standardizedFileURL.path
             return self.lock.withLock {
-                self.access &+= 1
-                if var entry = self.entries[key] {
-                    entry.access = self.access
-                    self.entries[key] = entry
-                    return entry.store
+                let store: CostUsageStore = if let index = self.entries.firstIndex(where: { $0.path == key }) {
+                    self.entries.remove(at: index).store
+                } else {
+                    candidate
                 }
-                self.entries[key] = Entry(store: candidate, access: self.access)
-                if self.entries.count > self.capacity,
-                   let oldest = self.entries.min(by: { $0.value.access < $1.value.access })?.key
-                {
-                    self.entries.removeValue(forKey: oldest)
-                }
-                return candidate
+                self.entries.append((key, store))
+                if self.entries.count > self.capacity { self.entries.removeFirst() }
+                return store
             }
         }
     }

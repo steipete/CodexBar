@@ -121,11 +121,7 @@ extension CostUsageStore {
                     loadTokenSnapshots: loadTokenSnapshots,
                     recorder: self.scopedReadWorkRecorderForTesting)
                 #if DEBUG
-                if let checkpoint = Self.codexBaselineReadCheckpointForTesting,
-                   checkpoint.databaseURL == self.databaseURL
-                {
-                    try checkpoint.checkpoint()
-                }
+                try self.runCodexReadCheckpointForTesting()
                 #endif
                 return snapshot
             }
@@ -195,6 +191,14 @@ extension CostUsageStore {
     }
 
     #if DEBUG
+    func runCodexReadCheckpointForTesting() throws {
+        if let checkpoint = Self.codexBaselineReadCheckpointForTesting,
+           checkpoint.databaseURL == self.databaseURL
+        {
+            try checkpoint.checkpoint()
+        }
+    }
+
     nonisolated(unsafe) static var codexBaselineReadCheckpointForTesting: (
         databaseURL: URL,
         checkpoint: () throws -> Void)?

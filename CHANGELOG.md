@@ -3,7 +3,7 @@
 ## 0.60.1 — Unreleased
 
 ### Performance
-- Codex activity: reuse validated SQLite and decoded aggregate state across unchanged refreshes, avoiding repeated whole-database integrity reads while preserving replacement and writer invalidation.
+- Codex activity: reuse validated SQLite and decoded aggregate state across unchanged refreshes, preserving replacement, writer, and compatibility invalidation (#3593, related to #3247). Thanks @brzvsk!
 
 ### Fixed
 - z.ai: keep missing quota limits unavailable instead of displaying 100% remaining, preserving real zero usage, plan details, and optional analytics.
