@@ -119,6 +119,15 @@ extension StatusItemController {
     }
 
     private func claudeSwapCardModel(for account: ProviderAccountUsageSnapshot) -> UsageMenuCardView.Model? {
+        var model = self.baseClaudeSwapCardModel(for: account)
+        // The claude-swap label is account state, not a plan name: give the
+        // active account visible weight so it is identifiable at a glance
+        // among sibling cards that otherwise look identical.
+        model?.planEmphasis = account.isActive ? .active : .none
+        return model
+    }
+
+    private func baseClaudeSwapCardModel(for account: ProviderAccountUsageSnapshot) -> UsageMenuCardView.Model? {
         self.menuCardModel(
             for: .claude,
             snapshotOverride: account.snapshot,

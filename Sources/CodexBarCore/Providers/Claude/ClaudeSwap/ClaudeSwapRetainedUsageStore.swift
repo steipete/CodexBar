@@ -14,10 +14,22 @@ public enum ClaudeSwapRetainedUsageStore {
 
     public static func load() -> [ProviderAccountUsageSnapshot] {
         guard let url = self.resolvedFileURL(),
-              let data = try? Data(contentsOf: url),
-              let records = try? JSONDecoder().decode([Record].self, from: data)
+              let data = try? Data(contentsOf: url)
         else { return [] }
+        return self.decode(data)
+    }
+
+    /// The on-disk payload's decoder. Split from `load()` so the cache format
+    /// itself is coverable: tests reach the real records without the store's
+    /// Application Support file, which resolves to nil under xctest.
+    static func decode(_ data: Data) -> [ProviderAccountUsageSnapshot] {
+        guard let records = try? JSONDecoder().decode([Record].self, from: data) else { return [] }
         return records.map(\.account)
+    }
+
+    /// The on-disk payload's encoder, split from `save()` for the same reason.
+    static func encode(_ accounts: [ProviderAccountUsageSnapshot]) -> Data? {
+        try? JSONEncoder().encode(accounts.compactMap(Record.init(account:)))
     }
 
     /// After a relaunch the in-memory array is empty even when this cache still
@@ -30,8 +42,7 @@ public enum ClaudeSwapRetainedUsageStore {
 
     public static func save(_ accounts: [ProviderAccountUsageSnapshot]) {
         guard let url = self.resolvedFileURL() else { return }
-        let records = accounts.compactMap(Record.init(account:))
-        guard let data = try? JSONEncoder().encode(records) else { return }
+        guard let data = self.encode(accounts) else { return }
         try? FileManager.default.createDirectory(
             at: url.deletingLastPathComponent(),
             withIntermediateDirectories: true)
@@ -96,6 +107,11 @@ public enum ClaudeSwapRetainedUsageStore {
         var secondary: RateWindow?
         var extraRateWindows: [NamedRateWindow]?
         var updatedAt: Date
+        /// Provenance must survive the disk round-trip; without it a relaunch
+        /// would promote a retained last-known measurement to live data.
+        /// Absent in payloads written before this field existed: those predate
+        /// the fallback entirely, so decoding them as live is correct.
+        var usesLastKnownUsage: Bool?
 
         init?(account: ProviderAccountUsageSnapshot) {
             guard account.id.source == ClaudeSwapAccountProjection.sourceName,
@@ -114,6 +130,7 @@ public enum ClaudeSwapRetainedUsageStore {
             self.secondary = snapshot.secondary
             self.extraRateWindows = snapshot.extraRateWindows
             self.updatedAt = snapshot.updatedAt
+            self.usesLastKnownUsage = account.usesLastKnownUsage ? true : nil
         }
 
         var account: ProviderAccountUsageSnapshot {
@@ -124,6 +141,7 @@ public enum ClaudeSwapRetainedUsageStore {
                 provider: .claude,
                 displayLabel: "",
                 isActive: false,
+                usesLastKnownUsage: self.usesLastKnownUsage ?? false,
                 snapshot: UsageSnapshot(
                     primary: self.primary,
                     secondary: self.secondary,

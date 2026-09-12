@@ -155,8 +155,11 @@ The accepted multi-account design in
 - Behavior: on each Claude refresh, CodexBar runs `cswap --list --json` independently of the ambient Claude fetch (no
   shell, fixed arguments, bounded runtime and output), requires `schemaVersion == 1`, and parses only slot number,
   active state, usage status, email (display only), display-only `organizationName` (always present, may be empty),
-  optional display-only `alias` when non-empty, the 5-hour/7-day windows, and optional display-only model-scoped
-  weekly windows from `usage.scoped`. Identity stays `claude-swap:<slot>`; organization name and alias are never
+  optional display-only `alias` when non-empty, the 5-hour/7-day windows, optional display-only model-scoped
+  weekly windows from `usage.scoped`, optional pay-as-you-go `usage.spend`, the additive `disabled` marker, the
+  measurement time `usageFetchedAt`, and the display-only `lastGoodUsage` fallback. claude-swap's human `message`
+  field is never parsed: it embeds the account email and must not bypass Hide Personal Info.
+  Identity stays `claude-swap:<slot>`; organization name and alias are never
   used as identity. When two or more slots share an email, cards append ` · organizationName` or ` · Account N`;
   a user-chosen cswap alias replaces that label. Unique emails stay email-only.
 - Display: when claude-swap reports more than one account, its accounts replace ambient/token-account Claude cards.
@@ -188,8 +191,11 @@ The accepted multi-account design in
   stale data, surface the error in provider settings, and never affect the ambient Claude usage card. In terminal
   cards, a list failure retains the current ambient output, adds a distinct `Claude (claude-swap)` footer entry, and
   exits non-zero.
-- Sentinel statuses (`token_expired`, `api_key`, `keychain_unavailable`, `no_credentials`,
-  and unknown future values) render as per-account notes instead of usage bars in both full and brief cards. When
+- Sentinel statuses (`token_expired`, `relogin_required`, `api_key`, `keychain_unavailable`, `no_credentials`,
+  `foreign_credential`, and unknown future values) render as per-account notes in both full and brief cards. When
+  claude-swap still carries a `lastGoodUsage` measurement for such a row, its last known bars stay visible beside the
+  note — dated by that measurement's own fetch time — instead of the card going blank. Last-known data never makes a
+  non-actionable row actionable, and never drives the menu bar icon, which cannot state a snapshot's age. When
   `unavailable` means claude-swap deferred polling because a window is at 100%, CodexBar keeps that slot's last
   projected usage bars and names the exhausted window (5-hour session, 7-day weekly, and/or a scoped model such as
   Fable) plus its reset time — not "Usage fetch failed." A first refresh that is already `unavailable` with no

@@ -12,6 +12,7 @@
 - **Safer account menus:** preserve privacy in Codex account labels and reauthenticate the credential source shown by the selected row.
 
 ### Changes
+- Claude (claude-swap): show the usage the adapter already reports — pay-as-you-go spend, and the last known measurement for rows whose live usage is unavailable, dated by its own fetch time so the card states its true age instead of going blank. Last-known numbers stay off the menu bar icon, which cannot state a snapshot's age. Slots disabled in claude-swap are marked, and the active account's label is emphasized so it is identifiable among sibling cards (#3452).
 - Linux desktop: add a Qt 6 app for Wayland and X11 with separate Usage & Spend and Settings windows, provider ordering, account selection, CLI sign-in actions, local spending charts, notifications, and an optional tray icon. Publish x86_64 and ARM64 archives with a per-user installer; compatible system Qt libraries and a separate CodexBar CLI installation are required (#3573, #3575, #3577).
 - Omarchy: add a native Quickshell bar widget with quota and reset details, keyboard navigation, and theme following, sharing the Linux desktop app’s polling, settings, and notifications (#3568, #3569, #3570, #3571).
 - Codex: show owner-visible workspace credit balances, keep unavailable observations authoritative across refreshes, and scope cached dashboard data to the same workspace (#3563). Thanks @Filip-Ar!
