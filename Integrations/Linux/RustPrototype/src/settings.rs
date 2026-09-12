@@ -12,7 +12,7 @@ impl Default for Settings {
         Self {
             values: json!({"quotaDisplay":"remaining", "resetDisplay":"countdown",
                 "warningColors":true, "notifyThreshold":20, "showPace":false,
-                "showCosts":false, "trayStyle":"meters", "refreshOnOpen":true}),
+                "showCosts":false, "trayStyle":"meters", "refreshOnOpen":true, "followOmarchyTheme":true}),
             error: String::new(),
             path: None,
             blocked: false,
@@ -50,7 +50,9 @@ impl Settings {
                 "resetDisplay" => matches!(value.as_str(), Some("countdown" | "absolute" | "both")),
                 "trayStyle" => matches!(value.as_str(), Some("meters" | "icon")),
                 "notifyThreshold" => value.as_u64().is_some_and(|n| (1..=99).contains(&n)),
-                "warningColors" | "showPace" | "refreshOnOpen" => value.is_boolean(),
+                "warningColors" | "showPace" | "refreshOnOpen" | "followOmarchyTheme" => {
+                    value.is_boolean()
+                }
                 "showCosts" => value == false,
                 _ => false,
             };

@@ -3,7 +3,38 @@
 An isolated feasibility experiment: Rust drives the existing CodexBar QML dashboard,
 creates a dynamic system tray icon, and serves JSON snapshots over a Unix socket.
 Everything displayed is synthetic. This does not invoke the CodexBar CLI, read
-provider credentials, change the released app’s preferences, or install an Omarchy widget.
+provider credentials, change the released app’s preferences, or install an Omarchy widget unless you run the adapter installer below.
+
+## Omarchy
+
+Use the native Quickshell adapter for the bar and quick usage popup. It uses
+Omarchy's colors, font, focus handling and popup placement, and opens Settings
+in a separate themed window. From this directory after building:
+
+```sh
+python3 install-omarchy.py
+./target/debug/codexbar-rust-prototype --background --no-tray
+# In another terminal, if the shell has not reloaded the adapter:
+omarchy restart shell
+```
+
+The installer points the existing CodexBar bar entry at this worktree's Rust
+binary and removes the duplicate prototype tray pin. It preserves other bar
+entries and backs up `shell.json` and the previous adapter under
+`~/.config/codexbar-rust-prototype/backups/`. Pass `--binary PATH` or
+`--config-home PATH` to select another binary or config directory. This is an
+experimental local setup; it does not install a release or enable login startup.
+The bar says **demo**, and all displayed usage remains synthetic.
+
+Opening the popup refreshes usage when refresh-on-open is enabled. Refresh
+responses update the popup immediately; background snapshots are polled every
+five seconds. Settings stay in their own window. Escape dismisses the popup,
+Tab moves between its actions, and R refreshes.
+
+Qt windows follow the generated Omarchy `colors.toml` palette and the system's
+monospace font alias. Theme changes are picked up every ten seconds. The Settings
+checkbox can disable this; systems without an Omarchy palette use Qt's system
+palette and font.
 
 ## Run
 
@@ -24,8 +55,8 @@ Middle-click refreshes, and the context menu offers Usage, Settings, Refresh and
 Settings persist in `$XDG_CONFIG_HOME/codexbar-rust-prototype/settings.json`
 (default `~/.config/codexbar-rust-prototype/settings.json`); use `--config PATH`
 for an isolated profile. Supported preferences are used/remaining quota, reset
-format, warning colors and threshold, static/meter tray style, and refresh on
-tray click. The tray icon, tooltip, dashboard and Omarchy snapshot use the same
+format, warning colors and threshold, static/meter tray style, refresh on
+tray click, and following the Omarchy theme. The tray icon, tooltip, dashboard and Omarchy snapshot use the same
 display preferences. Invalid settings are rejected as a whole; an unreadable or
 malformed settings file is preserved and reported in the settings window.
 
@@ -87,7 +118,9 @@ rejection, malformed/oversized requests, and graceful shutdown/socket removal.
 With tray testing enabled it additionally checks the exported D-Bus pixmap and
 tooltip change and exercises activation, verifies click-to-refresh and panel
 opening, renders Settings separately, and checks preference validation and
-persistence across a process restart. Test settings live in a temporary directory.
+persistence across a process restart. A separate case checks background startup
+and opening only Settings with a fixture Omarchy palette. Test settings and
+themes live in temporary directories.
 It never queries real providers.
 
 Validated locally on x86_64 Omarchy, Qt 6.11.2 and Rust 1.98.1: Cargo build,
@@ -151,9 +184,9 @@ available on the experiment branch; this is not part of production releases.
 ## Remaining work before a migration
 
 This is not a replacement for the released Linux app. Real provider execution,
-timeouts/cancellation, provider settings, spending, notifications, theme following,
+timeouts/cancellation, provider settings, spending, notifications,
 account actions, clipboard and startup controls have not been ported. Display
-settings and the quick tray panel are implemented. Clipboard shows an explanatory
+settings, Omarchy theme colors, and the native bar adapter are implemented. Clipboard shows an explanatory
 dialog; Spending shows an empty disabled view.
 
 The bridge currently transfers JSON and checks it on a 100 ms timer to keep this

@@ -5,10 +5,12 @@ on:
     branches: [experiment/rust-linux-desktop]
     paths:
       - 'Integrations/Linux/**'
+      - 'Integrations/Omarchy/**'
       - '.github/workflows/rust-linux-prototype.yml'
   pull_request:
     paths:
       - 'Integrations/Linux/**'
+      - 'Integrations/Omarchy/**'
       - '.github/workflows/rust-linux-prototype.yml'
 permissions:
   contents: read
@@ -70,7 +72,9 @@ jobs:
             Integrations/Linux/RustPrototype/target
           key: ${{ steps.cache.outputs.cache-primary-key }}
       - name: Render offscreen and exercise IPC
-        run: python3 Integrations/Linux/RustPrototype/tests/smoke.py
+        run: |
+          python3 Integrations/Linux/RustPrototype/tests/test_omarchy.py
+          python3 Integrations/Linux/RustPrototype/tests/smoke.py
       - name: Exercise X11 and Wayland with a tray host
         if: always() && steps.build.outcome == 'success'
         run: bash Integrations/Linux/RustPrototype/tests/desktop-session.sh

@@ -29,11 +29,12 @@ sessions and distro-native packages still need separate compatibility work.
 
 `RustPrototype/` is a separate backend experiment, not the Linux column above.
 It now has a click-to-refresh tray panel, a separate persistent display settings
-window, multi-resolution meter icons, per-window quota tooltips, and shared
+window, a native Omarchy shell popup, theme colors, multi-resolution meter icons, per-window quota tooltips, and shared
 used/remaining and warning preferences. Its IPC snapshot supplies the display
-fields used by the Omarchy adapter. Native ARM64/x86_64 CI covers these paths.
+fields used by the Omarchy adapter. Native ARM64/x86_64 CI covers the Rust
+windows, theme loading, settings and IPC; the Omarchy popup is checked locally.
 
 Usage is still synthetic. The next parity work is real provider execution and
-account selection, followed by spending, notifications, theme following and
+account selection, followed by spending, notifications and
 startup integration. Mac profile management and macOS-only surfaces remain
 separate from the Linux migration.

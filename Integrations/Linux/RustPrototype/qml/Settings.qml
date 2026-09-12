@@ -5,8 +5,8 @@ import QtQuick.Layouts
 ApplicationWindow {
     id: window
     title: "CodexBar prototype — Settings"
-    width: 520; height: 510
-    minimumWidth: 420; minimumHeight: 450
+    width: 560; height: 560
+    minimumWidth: 480; minimumHeight: 520
     property string feedback: ""
     onClosing: function(event) { event.accepted = false; hide(); }
     Shortcut { sequence: "Escape"; onActivated: window.hide() }
@@ -14,7 +14,7 @@ ApplicationWindow {
     function save() {
         if (desktop.saveSettings({quotaDisplay: quota.currentText, resetDisplay: reset.currentText,
             trayStyle: style.currentText, warningColors: warnings.checked, notifyThreshold: threshold.value,
-            refreshOnOpen: refreshOnOpen.checked})) window.feedback = "Settings saved";
+            refreshOnOpen: refreshOnOpen.checked, followOmarchyTheme: theme.checked})) window.feedback = "Settings saved";
     }
     function load() {
         quota.currentIndex = quota.model.indexOf(desktop.settings.quotaDisplay);
@@ -23,6 +23,7 @@ ApplicationWindow {
         warnings.checked = desktop.settings.warningColors;
         threshold.value = desktop.settings.notifyThreshold;
         refreshOnOpen.checked = desktop.settings.refreshOnOpen;
+        theme.checked = desktop.settings.followOmarchyTheme;
         feedback = "";
     }
     onVisibleChanged: if (visible) { load(); console.info("Rust settings opened"); capture.restart(); }
@@ -44,6 +45,7 @@ ApplicationWindow {
         }
         CheckBox { id: warnings; text: "Highlight low quota" }
         CheckBox { id: refreshOnOpen; text: "Refresh when clicking the tray" }
+        CheckBox { id: theme; text: "Follow Omarchy colors and font" }
         Label { text: desktop.configError || window.feedback; visible: text !== ""; wrapMode: Text.Wrap; Layout.fillWidth: true }
         Item { Layout.fillHeight: true }
         RowLayout {

@@ -24,6 +24,48 @@ def eventually(check, timeout=8):
 
 
 class DesktopSmoke(unittest.TestCase):
+    def test_background_theme_and_separate_settings(self):
+        with tempfile.TemporaryDirectory(prefix='cbrust-background-') as directory:
+            path = Path(directory)
+            theme = path / 'state/omarchy/current/theme/colors.toml'
+            theme.parent.mkdir(parents=True)
+            theme.write_text('background = "#1a1b26"\nforeground = "#a9b1d6"\naccent = "#7aa2f7"\n')
+            capture = path / 'window.png'
+            output = path / 'app.log'
+            platform = os.environ.get('PROTOTYPE_QPA', 'offscreen')
+            env = {**os.environ, 'XDG_STATE_HOME': str(path / 'state'),
+                   'QT_QPA_PLATFORM': platform, 'QT_QUICK_BACKEND': 'software',
+                   'QT_QUICK_CONTROLS_STYLE': 'Fusion', 'QT_QPA_PLATFORMTHEME': '',
+                   'CODEXBAR_RUST_CAPTURE': str(capture), 'QT_FORCE_STDERR_LOGGING': '1'}
+            argv = [str(BINARY), '--runtime-dir', directory, '--config', str(path / 'settings.json')]
+            with output.open('w') as log:
+                app = subprocess.Popen(argv + ['--background', '--no-tray'], env=env, stdout=log, stderr=log)
+                try:
+                    eventually(lambda: 'Rust prototype QML loaded' in output.read_text())
+                    def command(name):
+                        return json.loads(subprocess.check_output(argv + [name], env=env, timeout=4))
+                    self.assertEqual(command('--snapshot')['window'], 'background')
+                    self.assertFalse(capture.exists(), 'Background startup displayed the dashboard')
+                    command('--settings')
+                    settings_capture = Path(str(capture) + '.settings.png')
+                    eventually(lambda: settings_capture.exists() and settings_capture.stat().st_size > 1000)
+                    self.assertIn('Captured settings palette: #1a1b26', output.read_text())
+                    self.assertFalse(capture.exists(), 'Opening Settings also displayed the dashboard')
+                    command('--quit')
+                    self.assertEqual(app.wait(timeout=5), 0)
+                    for error in ['ReferenceError', 'TypeError', 'Binding loop', 'Capture failed']:
+                        self.assertNotIn(error, output.read_text())
+                    if os.environ.get('PROTOTYPE_EVIDENCE_DIR'):
+                        evidence = Path(os.environ['PROTOTYPE_EVIDENCE_DIR'])
+                        evidence.mkdir(parents=True, exist_ok=True)
+                        (evidence / f'{platform}-themed-settings.png').write_bytes(settings_capture.read_bytes())
+                        (evidence / f'{platform}-background.log').write_text(output.read_text())
+                finally:
+                    if app.poll() is None:
+                        app.terminate()
+                        app.wait(timeout=5)
+                    print(output.read_text())
+
     def test_window_ipc_and_optional_tray(self):
         with tempfile.TemporaryDirectory(prefix='cbrust-test-') as directory:
             path = Path(directory)
@@ -34,6 +76,7 @@ class DesktopSmoke(unittest.TestCase):
                        'QT_QUICK_BACKEND': 'software', 'QT_QUICK_CONTROLS_STYLE': 'Fusion',
                        'QT_QPA_PLATFORMTHEME': '', 'QT_ACCESSIBILITY': '0', 'NO_AT_BRIDGE': '1',
                        'QT_FORCE_STDERR_LOGGING': '1', 'CODEXBAR_RUST_CAPTURE': str(capture)}
+                env['XDG_STATE_HOME'] = str(path / 'state')
                 with_tray = os.environ.get('PROTOTYPE_TEST_TRAY') == '1'
                 evidence = Path(os.environ['PROTOTYPE_EVIDENCE_DIR']) if os.environ.get('PROTOTYPE_EVIDENCE_DIR') else None
                 platform = env['QT_QPA_PLATFORM']

@@ -45,7 +45,7 @@ pub fn dispatch(command: &str) -> bool {
     let mut state = state().lock().unwrap();
     match command {
         "refresh" => state.refreshes = state.refreshes.wrapping_add(1),
-        "usage" | "spending" | "settings" | "tray" => {
+        "usage" | "spending" | "settings" | "tray" | "background" => {
             state.window = command.into();
             state.window_serial = state.window_serial.wrapping_add(1);
         }

@@ -42,3 +42,10 @@ omarchy plugin validate Integrations/Omarchy
 node --test Integrations/Omarchy/test.mjs Integrations/Omarchy/notifications.test.mjs
 python3 Integrations/Omarchy/test_install.py
 ```
+
+For the separate Rust experiment, use
+[`RustPrototype/install-omarchy.py`](../Linux/RustPrototype/install-omarchy.py)
+after building the prototype. It backs up the current setup and points this same
+native adapter at the Rust binary. Run Rust with `--background --no-tray`; the
+bar supplies the popup and Rust supplies the separate Settings window. The bar
+clearly labels its synthetic data as a demo.

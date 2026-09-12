@@ -26,4 +26,5 @@ cargo clippy --locked --all-targets -- -D warnings
 cargo test --locked
 file target/debug/codexbar-rust-prototype >> "$PROTOTYPE_EVIDENCE_DIR/platform.txt"
 python3 tests/smoke.py
+python3 tests/test_omarchy.py
 bash tests/desktop-session.sh

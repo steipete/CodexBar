@@ -2,6 +2,7 @@ mod bridge;
 mod ipc;
 mod settings;
 mod state;
+mod theme;
 mod tray;
 use cxx_qt::casting::Upcast;
 use cxx_qt_lib::{QGuiApplication, QQmlApplicationEngine, QQmlEngine, QString, QUrl};
@@ -21,6 +22,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         .map(|path| path.join("codexbar-rust-prototype"));
     let mut command = None;
     let mut no_tray = false;
+    let mut background = false;
     let mut config = std::env::var_os("XDG_CONFIG_HOME")
         .map(PathBuf::from)
         .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".config")))
@@ -37,8 +39,9 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             "--snapshot" | "--refresh" | "--usage" | "--spending" | "--settings" | "--tray"
             | "--quit" => command = Some(arg[2..].to_owned()),
             "--no-tray" => no_tray = true,
+            "--background" => background = true,
             "--help" => {
-                println!("Rust/QML spike — synthetic data only\n--runtime-dir PATH --config PATH --no-tray --snapshot --refresh --usage --spending --settings --tray --quit");
+                println!("Rust/QML spike — synthetic data only\n--runtime-dir PATH --config PATH --background --no-tray --snapshot --refresh --usage --spending --settings --tray --quit");
                 return Ok(());
             }
             _ => return Err(format!("Unknown argument: {arg}").into()),
@@ -53,8 +56,11 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         }
         return Ok(());
     }
-    let _server = ipc::Server::start(&directory)?;
     state::load_settings(config.ok_or("Set XDG_CONFIG_HOME or pass --config PATH")?);
+    if background {
+        state::dispatch("background");
+    }
+    let _server = ipc::Server::start(&directory)?;
     let stop = Arc::new(AtomicBool::new(false));
     let tray_thread = if no_tray {
         None
@@ -107,7 +113,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             .on_exit(|_, code| bridge::ffi::QCoreApplication::exit_application(code))
             .release();
     }
-    // Keep production QML files unchanged, loaded directly from this worktree.
+    // Load the shared dashboard directly from this experimental worktree.
     engine
         .as_mut()
         .ok_or("Cannot create QML engine")?
