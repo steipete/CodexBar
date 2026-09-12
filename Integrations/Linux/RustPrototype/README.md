@@ -79,7 +79,7 @@ linker deprecation warning. These are distinct from Rust Clippy diagnostics.
 Repository-wide `make test` and `make check` cannot complete here because `swift`
 and macOS `plutil`, respectively, are unavailable.
 
-## Native ARM CI and Crabbox
+## Native ARM CI
 
 `.github/workflows/rust-linux-prototype.yml` builds on GitHub's native
 `ubuntu-24.04-arm` and `ubuntu-24.04` runners. Both use the locked Cargo dependencies
@@ -99,6 +99,12 @@ Each job uploads platform details, QML captures, a desktop screenshot, exported
 tray pixels/tooltips, and application/compositor logs. Software rendering makes
 these tests repeatable; GPU drivers and physical displays remain separate tests.
 
+### Optional Crabbox run
+
+Native GitHub Actions runners are the validation path for this experiment.
+An additional cloud run is deferred and is not a prerequisite for continuing the
+Rust migration. No cloud credentials are needed by the CI workflow.
+
 For a disposable AWS Graviton run, install Crabbox v0.57.0 or newer and authenticate
 1Password CLI. Copy `aws.env.example` to a private file, replacing its references
 with your existing AWS item's vault/item/field names. Keep references rather than
@@ -116,9 +122,9 @@ a 40 GB disk and a 45-minute lease. The remote command has a 30-minute timeout;
 Direct Crabbox uses the AWS SDK credential chain, so a separate AWS CLI install
 is not required. The wrapper does not forward AWS keys to the test command.
 
-The AWS wrapper has not yet completed a cloud run: the available Crabbox credentials
-were rejected by EC2 during `DescribeInstances`, before any VM was created.
-The successful native ARM result above comes from GitHub Actions.
+The Crabbox wrapper has not completed a cloud run. The successful native ARM
+result above comes from GitHub Actions; the wrapper is retained for optional
+manual testing.
 
 The remote script checks `uname -m` is `aarch64`, installs dependencies, builds
 natively and runs the same suite as CI. Local scripts and workflow changes are
