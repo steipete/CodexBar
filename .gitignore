@@ -7,6 +7,7 @@ xcuserdata/
 
 # Build products
 .build/
+.worktrees/
 DerivedData
 
 # Bundles / artifacts

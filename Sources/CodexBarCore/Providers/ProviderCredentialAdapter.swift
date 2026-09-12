@@ -285,7 +285,8 @@ extension ProviderCredentialAdapter {
         usesRegion: Bool = false,
         configValidator: @escaping ConfigValidator = { _ in [] },
         missingCredentialMessage: MissingCredentialMessage? = nil,
-        accountEnvironmentOverride: @escaping AccountEnvironmentOverride = { _, _ in }) -> Self
+        accountEnvironmentOverride: @escaping AccountEnvironmentOverride = { _, _ in },
+        selectedAccountSourceModeResolver: @escaping SelectedAccountSourceModeResolver = { base, _, _ in base }) -> Self
     {
         Self(
             supportsAPIKeyOverride: true,
@@ -305,6 +306,7 @@ extension ProviderCredentialAdapter {
             authDetector: { environment, _ in resolve(environment) == nil ? [] : ["api"] },
             configValidator: configValidator,
             missingCredentialMessage: missingCredentialMessage,
-            accountEnvironmentOverride: accountEnvironmentOverride)
+            accountEnvironmentOverride: accountEnvironmentOverride,
+            selectedAccountSourceModeResolver: selectedAccountSourceModeResolver)
     }
 }

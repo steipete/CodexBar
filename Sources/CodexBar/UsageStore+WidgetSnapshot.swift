@@ -413,6 +413,11 @@ extension UsageStore {
         {
             return dyn
         }
+        if provider == .venice,
+           let dyn = VeniceProviderDescriptor.primaryLabel(window: snapshot.primary)
+        {
+            return dyn
+        }
         if provider == .amp,
            let dyn = AmpProviderDescriptor.primaryLabel(snapshot: snapshot)
         {
