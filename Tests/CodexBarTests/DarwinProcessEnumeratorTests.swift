@@ -12,6 +12,7 @@ struct DarwinProcessEnumeratorTests {
         let data = Self.procArgsData(arguments: ["/usr/bin/tool", "--flag", "value"])
 
         #expect(DarwinProcessEnumerator.parseProcArgs2(data) == "/usr/bin/tool --flag value")
+        #expect(DarwinProcessEnumerator.parseProcArgs2Arguments(data) == ["/usr/bin/tool", "--flag", "value"])
     }
 
     @Test

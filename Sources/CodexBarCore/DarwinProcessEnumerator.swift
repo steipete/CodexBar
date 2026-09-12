@@ -22,6 +22,12 @@ enum DarwinProcessEnumerator {
     /// Parses the `KERN_PROCARGS2` payload without consuming the environment
     /// strings that follow argv.
     static func parseProcArgs2(_ data: Data) -> String? {
+        self.parseProcArgs2Arguments(data)?.joined(separator: " ")
+    }
+
+    /// Returns the original argv from a `KERN_PROCARGS2` payload. Keeping the
+    /// boundaries matters for flags whose values contain whitespace.
+    static func parseProcArgs2Arguments(_ data: Data) -> [String]? {
         let argumentCountSize = MemoryLayout<Int32>.size
         guard data.count >= argumentCountSize else { return nil }
         let argumentCount = data.withUnsafeBytes { rawBuffer in
@@ -47,7 +53,7 @@ enum DarwinProcessEnumerator {
             arguments.append(argument)
             offset = terminator + 1
         }
-        return arguments.joined(separator: " ")
+        return arguments
     }
 }
 
@@ -95,7 +101,7 @@ extension DarwinProcessEnumerator {
         return (Int32(bitPattern: info.pbi_ppid), Date(timeIntervalSince1970: startInterval))
     }
 
-    static func commandLine(pid: Int32) -> String? {
+    static func arguments(pid: Int32) -> [String]? {
         var mib = [CTL_KERN, KERN_PROCARGS2, pid]
         var byteCount = 0
         guard sysctl(&mib, u_int(mib.count), nil, &byteCount, nil, 0) == 0,
@@ -110,7 +116,11 @@ extension DarwinProcessEnumerator {
         if byteCount < data.count {
             data.removeSubrange(byteCount..<data.count)
         }
-        return self.parseProcArgs2(data)
+        return self.parseProcArgs2Arguments(data)
+    }
+
+    static func commandLine(pid: Int32) -> String? {
+        self.arguments(pid: pid)?.joined(separator: " ")
     }
 
     static func currentWorkingDirectory(pid: Int32) -> String? {

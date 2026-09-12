@@ -1,3 +1,4 @@
+import CoreFoundation
 import Foundation
 
 private final class PiSessionISO8601FormatterBox: @unchecked Sendable {
@@ -15,6 +16,7 @@ private final class PiSessionISO8601FormatterBox: @unchecked Sendable {
     }()
 }
 
+// swiftlint:disable:next type_body_length
 enum PiSessionCostScanner {
     @TaskLocal static var sessionParseObserverForTesting: (@Sendable () -> Void)?
 
@@ -25,6 +27,10 @@ enum PiSessionCostScanner {
         var calendar: Calendar
         var refreshMinIntervalSeconds: TimeInterval = 60
         var forceRescan: Bool = false
+        var environment: [String: String]
+        var workingDirectory: URL?
+        var workingDirectories: [URL]
+        var processContexts: [PiSessionProcessContext]
 
         init(
             piSessionsRoot: URL? = nil,
@@ -32,7 +38,11 @@ enum PiSessionCostScanner {
             cacheRoot: URL? = nil,
             calendar: Calendar = .current,
             refreshMinIntervalSeconds: TimeInterval = 60,
-            forceRescan: Bool = false)
+            forceRescan: Bool = false,
+            environment: [String: String] = ProcessInfo.processInfo.environment,
+            workingDirectory: URL? = nil,
+            workingDirectories: [URL] = [],
+            processContexts: [PiSessionProcessContext] = [])
         {
             self.piSessionsRoot = piSessionsRoot
             self.ompSessionsRoot = ompSessionsRoot
@@ -40,6 +50,10 @@ enum PiSessionCostScanner {
             self.calendar = calendar
             self.refreshMinIntervalSeconds = refreshMinIntervalSeconds
             self.forceRescan = forceRescan
+            self.environment = environment
+            self.workingDirectory = workingDirectory
+            self.workingDirectories = workingDirectories
+            self.processContexts = processContexts
         }
     }
 
@@ -50,11 +64,20 @@ enum PiSessionCostScanner {
         let parsedBytes: Int64
         let sessionID: String?
         let lastModelContext: PiModelContext?
+        let isComplete: Bool
     }
 
     private struct SessionFileCandidate {
         let url: URL
         let rootIndex: Int
+    }
+
+    private struct SessionRoot {
+        let url: URL
+        let missingIsKnownEmpty: Bool
+        let resolutionIsComplete: Bool
+        let preserveAfterProcessExit: Bool
+        let retentionKeys: Set<String>
     }
 
     private struct AssistantIdentity {
@@ -100,6 +123,15 @@ enum PiSessionCostScanner {
                 checkCancellation: nil)) ?? CostUsageDailyReport(data: [], summary: nil)
     }
 
+    struct DailyReportResult {
+        let report: CostUsageDailyReport
+        let isComplete: Bool
+        let lastScanAt: Date?
+        /// The scope represented by `report`, which may be the prior cache scope when a
+        /// newly requested root set could not be inspected completely.
+        let scopeFingerprint: String?
+    }
+
     static func loadDailyReportCancellable(
         provider: UsageProvider,
         since: Date,
@@ -108,9 +140,30 @@ enum PiSessionCostScanner {
         options: Options = Options(),
         checkCancellation: CostUsageScanner.CancellationCheck?) throws -> CostUsageDailyReport
     {
+        try self.loadDailyReportResultCancellable(
+            provider: provider,
+            since: since,
+            until: until,
+            now: now,
+            options: options,
+            checkCancellation: checkCancellation).report
+    }
+
+    static func loadDailyReportResultCancellable(
+        provider: UsageProvider,
+        since: Date,
+        until: Date,
+        now: Date = Date(),
+        options: Options = Options(),
+        checkCancellation: CostUsageScanner.CancellationCheck?) throws -> DailyReportResult
+    {
         // Provider-specific by design: Pi records only OpenAI Codex and Anthropic sessions with distinct pricing.
-        guard provider == .codex || provider == .claude else {
-            return CostUsageDailyReport(data: [], summary: nil)
+        guard provider == .codex || provider == .claude || provider == .pi else {
+            return DailyReportResult(
+                report: CostUsageDailyReport(data: [], summary: nil),
+                isComplete: true,
+                lastScanAt: nil,
+                scopeFingerprint: nil)
         }
 
         let range = CostUsageScanner.CostUsageDayRange(
@@ -124,27 +177,40 @@ enum PiSessionCostScanner {
         let nowMs = Int64(now.timeIntervalSince1970 * 1000)
         let refreshMs = Int64(max(0, options.refreshMinIntervalSeconds) * 1000)
         let pricingContext = self.pricingContext(now: now, cacheRoot: options.cacheRoot)
+        let roots = self.defaultSessionRoots(
+            options: options,
+            previousSessionRootsFingerprint: cache.sessionRootsFingerprint)
+        let sessionRootsFingerprint = self.sessionRootsFingerprint(roots)
         let windowExpanded = self.requestedWindowExpandsCache(range: range, cache: cache)
         let pricingChanged = cache.pricingKey != pricingContext.pricingKey
+        let sessionRootsChanged = cache.sessionRootsFingerprint != sessionRootsFingerprint
+        let cacheBeforeScan = cache
         let shouldRefresh = options.forceRescan
             || windowExpanded
             || pricingChanged
+            || sessionRootsChanged
             || refreshMs == 0
             || cache.lastScanUnixMs == 0
             || nowMs - cache.lastScanUnixMs > refreshMs
+        var scanIsComplete = roots.allSatisfy(\.resolutionIsComplete)
 
         if shouldRefresh {
             try checkCancellation?()
-            let roots = self.defaultSessionRoots(options: options)
             let startCutoff = self.dateFromDayKey(range.scanSinceKey, calendar: range.calendar) ?? since
             var files: [SessionFileCandidate] = []
+            var seenFilePaths = Set<String>()
             for (rootIndex, root) in roots.enumerated() {
-                for url in self.listPiSessionFiles(
-                    root: root,
+                guard root.resolutionIsComplete else { continue }
+                let result = self.listPiSessionFiles(
+                    root: root.url,
                     startCutoffLocal: startCutoff,
-                    calendar: range.calendar)
-                {
-                    files.append(SessionFileCandidate(url: url, rootIndex: rootIndex))
+                    calendar: range.calendar,
+                    missingIsKnownEmpty: root.missingIsKnownEmpty)
+                scanIsComplete = scanIsComplete && result.isComplete
+                for url in result.files {
+                    let canonicalURL = self.canonicalSessionFileURL(url)
+                    guard seenFilePaths.insert(canonicalURL.path).inserted else { continue }
+                    files.append(SessionFileCandidate(url: canonicalURL, rootIndex: rootIndex))
                 }
             }
             files.sort { lhs, rhs in
@@ -155,7 +221,7 @@ enum PiSessionCostScanner {
             let filePathsInScan = Set(files.map(\.url.path))
 
             for file in files {
-                try self.scanPiSessionFile(
+                let fileIsComplete = try self.scanPiSessionFile(
                     fileURL: file.url,
                     cache: &cache,
                     context: ScanContext(
@@ -163,42 +229,92 @@ enum PiSessionCostScanner {
                         forceRescan: options.forceRescan || windowExpanded || pricingChanged,
                         pricingContext: pricingContext,
                         checkCancellation: checkCancellation))
+                scanIsComplete = scanIsComplete && fileIsComplete
             }
             try checkCancellation?()
 
-            for key in cache.files.keys where !filePathsInScan.contains(key) {
-                if let old = cache.files[key] {
-                    self.applyContributions(
-                        daysByProvider: &cache.daysByProvider,
-                        contributions: old.contributions,
-                        sign: -1)
+            if scanIsComplete {
+                for key in cache.files.keys where !filePathsInScan.contains(key) {
+                    if let old = cache.files[key] {
+                        self.applyContributions(
+                            daysByProvider: &cache.daysByProvider,
+                            contributions: old.contributions,
+                            sign: -1)
+                    }
+                    cache.files.removeValue(forKey: key)
                 }
-                cache.files.removeValue(forKey: key)
             }
 
-            try self.rebuildDailyUsage(cache: &cache, files: files, checkCancellation: checkCancellation)
+            if scanIsComplete {
+                try self.rebuildDailyUsage(cache: &cache, files: files, checkCancellation: checkCancellation)
+            } else if sessionRootsChanged {
+                // A changed root fingerprint is a new dataset. If that scope cannot be fully
+                // inspected, discard provisional files from it and retain the previous report
+                // wholesale instead of combining usage from unrelated root sets.
+                cache = cacheBeforeScan
+            } else {
+                // Keep cached files from roots that could not be inspected. Rebuilding from only the
+                // visible roots would silently discard their usage and turn an I/O failure into zero.
+                let visiblePaths = Set(files.map(\.url.path))
+                let preservedFiles = cache.files.keys
+                    .filter { !visiblePaths.contains($0) }
+                    .map { SessionFileCandidate(url: URL(fileURLWithPath: $0), rootIndex: Int.max) }
+                try self.rebuildDailyUsage(
+                    cache: &cache,
+                    files: files + preservedFiles,
+                    checkCancellation: checkCancellation)
+            }
 
-            cache.scanSinceKey = range.scanSinceKey
-            cache.scanUntilKey = range.scanUntilKey
-            cache.pricingKey = pricingContext.pricingKey
-            cache.lastScanUnixMs = nowMs
-            try checkCancellation?()
-            PiSessionCostCacheIO.save(
-                cache: cache,
-                cacheRoot: options.cacheRoot,
-                calendar: range.calendar)
+            if scanIsComplete {
+                cache.scanSinceKey = range.scanSinceKey
+                cache.scanUntilKey = range.scanUntilKey
+                cache.pricingKey = pricingContext.pricingKey
+                cache.sessionRootsFingerprint = sessionRootsFingerprint
+                cache.lastScanUnixMs = nowMs
+                try checkCancellation?()
+                PiSessionCostCacheIO.save(
+                    cache: cache,
+                    cacheRoot: options.cacheRoot,
+                    calendar: range.calendar)
+            }
         }
 
-        return self.buildReport(
-            provider: provider,
-            cache: cache,
-            range: range,
-            pricingContext: pricingContext)
+        // Provider-specific by design: the Pi provider aggregates its Codex and Claude-priced local sessions.
+        let lastScanAt = cache.lastScanUnixMs > 0
+            ? Date(timeIntervalSince1970: TimeInterval(cache.lastScanUnixMs) / 1000)
+            : nil
+        if provider == .pi {
+            let codexReport = self.buildReport(
+                provider: .codex,
+                cache: cache,
+                range: range,
+                pricingContext: pricingContext)
+            let claudeReport = self.buildReport(
+                provider: .claude,
+                cache: cache,
+                range: range,
+                pricingContext: pricingContext)
+            return DailyReportResult(
+                report: CostUsageDailyReport.merged([codexReport, claudeReport]),
+                isComplete: scanIsComplete,
+                lastScanAt: lastScanAt,
+                scopeFingerprint: cache.sessionRootsFingerprint)
+        }
+        return DailyReportResult(
+            report: self.buildReport(
+                provider: provider,
+                cache: cache,
+                range: range,
+                pricingContext: pricingContext),
+            isComplete: scanIsComplete,
+            lastScanAt: lastScanAt,
+            scopeFingerprint: cache.sessionRootsFingerprint)
     }
 
     struct CachedDailyReportResult {
         let report: CostUsageDailyReport
         let lastScanAt: Date?
+        let scopeFingerprint: String?
     }
 
     static func loadCachedDailyReport(
@@ -225,29 +341,56 @@ enum PiSessionCostScanner {
         now: Date = Date(),
         cacheRoot: URL? = nil,
         calendar: Calendar = .current,
+        options: Options? = nil,
         allowEstablishedEmpty: Bool = false) -> CachedDailyReportResult?
     {
-        guard provider == .codex || provider == .claude else { return nil }
+        // Provider-specific by design: cached Pi history is the merged Codex/Claude report above.
+        guard provider == .codex || provider == .claude || provider == .pi else { return nil }
 
         let range = CostUsageScanner.CostUsageDayRange(since: since, until: until, calendar: calendar)
         let cache = PiSessionCostCacheIO.load(cacheRoot: cacheRoot)
         guard cache.timeZoneIdentifier == range.calendar.timeZone.identifier else { return nil }
+        if let options {
+            let expectedRoots = self.defaultSessionRoots(
+                options: options,
+                previousSessionRootsFingerprint: cache.sessionRootsFingerprint)
+            guard self.sessionRootsFingerprint(expectedRoots) == cache.sessionRootsFingerprint else { return nil }
+        }
         guard !allowEstablishedEmpty || cache.lastScanUnixMs > 0 else { return nil }
         guard allowEstablishedEmpty || !cache.daysByProvider.isEmpty else { return nil }
         guard !self.requestedWindowExpandsCache(range: range, cache: cache) else { return nil }
 
         let pricingContext = self.pricingContext(now: now, cacheRoot: cacheRoot)
         guard cache.pricingKey == pricingContext.pricingKey else { return nil }
-        let report = self.buildReport(
-            provider: provider,
-            cache: cache,
-            range: range,
-            pricingContext: pricingContext)
+        // Provider-specific by design: the Pi cache's aggregate view merges its fixed Codex and Claude tariffs.
+        let report = if provider == .pi {
+            CostUsageDailyReport.merged([
+                self.buildReport(
+                    provider: .codex,
+                    cache: cache,
+                    range: range,
+                    pricingContext: pricingContext),
+                self.buildReport(
+                    provider: .claude,
+                    cache: cache,
+                    range: range,
+                    pricingContext: pricingContext),
+            ])
+        } else {
+            self.buildReport(
+                provider: provider,
+                cache: cache,
+                range: range,
+                pricingContext: pricingContext)
+        }
         guard allowEstablishedEmpty || !report.data.isEmpty else { return nil }
         let lastScanAt = cache.lastScanUnixMs > 0
             ? Date(timeIntervalSince1970: TimeInterval(cache.lastScanUnixMs) / 1000)
             : nil
-        return CachedDailyReportResult(report: report, lastScanAt: lastScanAt)
+        return CachedDailyReportResult(
+            report: report,
+            lastScanAt: lastScanAt,
+            scopeFingerprint: cache.sessionRootsFingerprint)
     }
 
     private static func pricingContext(now: Date, cacheRoot: URL?) -> ModelsDevPricingContext {
@@ -284,44 +427,220 @@ enum PiSessionCostScanner {
         return false
     }
 
-    private static func defaultSessionRoots(options: Options) -> [URL] {
+    private static func defaultSessionRoots(
+        options: Options,
+        previousSessionRootsFingerprint: String?) -> [SessionRoot]
+    {
         if options.piSessionsRoot != nil || options.ompSessionsRoot != nil {
-            return [options.piSessionsRoot, options.ompSessionsRoot].compactMap(\.self)
+            return [options.piSessionsRoot, options.ompSessionsRoot]
+                .compactMap(\.self)
+                .map {
+                    SessionRoot(
+                        url: $0,
+                        missingIsKnownEmpty: false,
+                        resolutionIsComplete: true,
+                        preserveAfterProcessExit: false,
+                        retentionKeys: [])
+                }
+        }
+
+        let resolved = PiFamilySessionScanner.costSessionRoots(
+            environment: options.environment,
+            baseDirectories: options.workingDirectories.isEmpty
+                ? options.workingDirectory.map { [$0] }
+                : options.workingDirectories,
+            processContexts: options.processContexts)
+        if !resolved.isEmpty {
+            let resolvedRoots = resolved.map { root in
+                SessionRoot(
+                    url: root.url,
+                    missingIsKnownEmpty: root.missingIsKnownEmpty,
+                    resolutionIsComplete: root.resolutionIsComplete,
+                    preserveAfterProcessExit: root.preserveAfterProcessExit,
+                    retentionKeys: root.retentionKeys)
+            }
+            return self.appendingPreviousSessionRoots(
+                resolvedRoots,
+                fingerprint: previousSessionRootsFingerprint,
+                environment: options.environment)
         }
 
         let home = FileManager.default.homeDirectoryForCurrentUser
-        return [".pi", ".omp"].map { directory in
-            home
-                .appendingPathComponent(directory, isDirectory: true)
-                .appendingPathComponent("agent", isDirectory: true)
-                .appendingPathComponent("sessions", isDirectory: true)
+        // Provider-specific by design: Pi-family stores use the fixed .pi and .omp home directories.
+        let fallbackRoots = [".pi", ".omp"].map { directory in
+            SessionRoot(
+                url: home
+                    .appendingPathComponent(directory, isDirectory: true)
+                    .appendingPathComponent("agent", isDirectory: true)
+                    .appendingPathComponent("sessions", isDirectory: true),
+                missingIsKnownEmpty: true,
+                resolutionIsComplete: true,
+                preserveAfterProcessExit: false,
+                retentionKeys: [])
         }
+        return self.appendingPreviousSessionRoots(
+            fallbackRoots,
+            fingerprint: previousSessionRootsFingerprint,
+            environment: options.environment)
+    }
+
+    private static func appendingPreviousSessionRoots(
+        _ roots: [SessionRoot],
+        fingerprint: String?,
+        environment: [String: String]) -> [SessionRoot]
+    {
+        var output: [SessionRoot] = []
+        var indices: [String: Int] = [:]
+        func appendRoot(_ root: SessionRoot) {
+            guard let index = indices[root.url.path] else {
+                indices[root.url.path] = output.count
+                output.append(root)
+                return
+            }
+            let current = output[index]
+            output[index] = SessionRoot(
+                url: root.url,
+                missingIsKnownEmpty: current.missingIsKnownEmpty && root.missingIsKnownEmpty,
+                resolutionIsComplete: current.resolutionIsComplete && root.resolutionIsComplete,
+                preserveAfterProcessExit: current.preserveAfterProcessExit || root.preserveAfterProcessExit,
+                retentionKeys: current.retentionKeys.union(root.retentionKeys))
+        }
+        roots.forEach(appendRoot)
+        guard let fingerprint, !fingerprint.isEmpty else { return output }
+        let currentRetentionKeys = Set(roots.flatMap(\.retentionKeys))
+        let currentSettingsRetentionKeys = Set(currentRetentionKeys.filter { $0.hasPrefix("settings:") })
+        for component in fingerprint.split(separator: "\u{1E}", omittingEmptySubsequences: true) {
+            let fields = component.split(separator: "\u{1F}", omittingEmptySubsequences: false)
+            guard fields.count >= 4, fields[3] == "live" else { continue }
+            let path = String(fields[0])
+            guard !path.isEmpty, !path.hasPrefix("/.codexbar-unresolved-") else { continue }
+            let retentionKey = fields.count >= 5 && !fields[4].isEmpty ? String(fields[4]) : nil
+            // A settings file is a replacement point: if it now resolves to another root, the
+            // prior root belonged to the superseded selector and must not be carried forward.
+            if let retentionKey, currentRetentionKeys.contains(retentionKey) { continue }
+            if let retentionKey, retentionKey.hasPrefix("settings:") {
+                switch PiFamilySessionScanner.retainedSettingsRootResolution(
+                    retentionKey: retentionKey,
+                    environment: environment)
+                {
+                case .removed:
+                    // The settings selector was removed, so its retained root is obsolete.
+                    continue
+                case let .resolved(url, resolvedRetentionKey):
+                    let resolvedURL = url.standardizedFileURL
+                    appendRoot(SessionRoot(
+                        url: resolvedURL,
+                        missingIsKnownEmpty: fields[1] == "known-empty",
+                        resolutionIsComplete: true,
+                        preserveAfterProcessExit: true,
+                        retentionKeys: [resolvedRetentionKey]))
+                    continue
+                case .unavailable:
+                    // Preserve the cached root while marking the scope incomplete. This avoids
+                    // silently dropping history when the settings file cannot be revalidated.
+                    let url = URL(fileURLWithPath: path, isDirectory: true).standardizedFileURL
+                    appendRoot(SessionRoot(
+                        url: url,
+                        missingIsKnownEmpty: fields[1] == "known-empty",
+                        resolutionIsComplete: false,
+                        preserveAfterProcessExit: true,
+                        retentionKeys: [retentionKey]))
+                    continue
+                }
+            }
+            // Legacy fingerprints did not record provenance. If the current scope has a settings
+            // selector, prefer its current value over an ambiguous retained settings root.
+            if retentionKey == nil, !currentSettingsRetentionKeys.isEmpty { continue }
+            let url = URL(fileURLWithPath: path, isDirectory: true).standardizedFileURL
+            appendRoot(SessionRoot(
+                url: url,
+                missingIsKnownEmpty: fields[1] == "known-empty",
+                resolutionIsComplete: fields[2] == "resolved",
+                preserveAfterProcessExit: true,
+                retentionKeys: retentionKey.map { [$0] } ?? []))
+        }
+        return output
+    }
+
+    private static func sessionRootsFingerprint(_ roots: [SessionRoot]) -> String {
+        roots
+            .flatMap { root in
+                (root.retentionKeys.isEmpty ? [""] : root.retentionKeys.sorted()).map { retentionKey in
+                    [
+                        root.url.path,
+                        root.missingIsKnownEmpty ? "known-empty" : "required",
+                        root.resolutionIsComplete ? "resolved" : "unresolved",
+                        root.preserveAfterProcessExit ? "live" : "configured",
+                        retentionKey,
+                    ].joined(separator: "\u{1F}")
+                }
+            }
+            .joined(separator: "\u{1E}")
+    }
+
+    /// Returns the root scope represented by a Pi scanner configuration. Cached
+    /// reads use this to reject a report produced for a different live or
+    /// configured project root before publishing it.
+    package static func scopeFingerprint(options: Options) -> String {
+        let cache = PiSessionCostCacheIO.load(cacheRoot: options.cacheRoot)
+        return self.scopeFingerprint(
+            options: options,
+            cache: cache)
+    }
+
+    private struct SessionFileListResult {
+        let files: [URL]
+        let isComplete: Bool
     }
 
     private static func listPiSessionFiles(
         root: URL,
         startCutoffLocal: Date,
-        calendar: Calendar) -> [URL]
+        calendar: Calendar,
+        missingIsKnownEmpty: Bool) -> SessionFileListResult
     {
-        guard FileManager.default.fileExists(atPath: root.path) else { return [] }
+        guard FileManager.default.fileExists(atPath: root.path) else {
+            // A missing default store is a known empty store, but a missing configured root may
+            // indicate an unmounted or unavailable location and must keep the scan incomplete.
+            return SessionFileListResult(files: [], isComplete: missingIsKnownEmpty)
+        }
+
+        let rootValues = try? root.resourceValues(forKeys: [.isDirectoryKey])
+        guard rootValues?.isDirectory == true else {
+            return SessionFileListResult(files: [], isComplete: false)
+        }
+        guard FileManager.default.isReadableFile(atPath: root.path) else {
+            return SessionFileListResult(files: [], isComplete: false)
+        }
 
         let keys: Set<URLResourceKey> = [.isRegularFileKey, .contentModificationDateKey]
+        var isComplete = true
         guard let enumerator = FileManager.default.enumerator(
             at: root,
             includingPropertiesForKeys: Array(keys),
-            options: [.skipsHiddenFiles])
+            options: [.skipsHiddenFiles],
+            errorHandler: { _, _ in
+                isComplete = false
+                return true
+            })
         else {
-            return []
+            return SessionFileListResult(files: [], isComplete: false)
         }
 
         var output: [URL] = []
         while let item = enumerator.nextObject() as? URL {
             guard item.pathExtension.lowercased() == "jsonl" else { continue }
-            let values = try? item.resourceValues(forKeys: keys)
-            guard values?.isRegularFile == true else { continue }
+            let values: URLResourceValues
+            do {
+                values = try item.resourceValues(forKeys: keys)
+            } catch {
+                isComplete = false
+                continue
+            }
+            guard values.isRegularFile == true else { continue }
 
             let startedAt = self.parseSessionStartFromFilename(item.lastPathComponent)
-            let modifiedAt = values?.contentModificationDate
+            let modifiedAt = values.contentModificationDate
             if self
                 .shouldIncludeFile(
                     startedAt: startedAt,
@@ -333,7 +652,9 @@ enum PiSessionCostScanner {
             }
         }
 
-        return output.sorted(by: { $0.path < $1.path })
+        return SessionFileListResult(
+            files: output.sorted(by: { $0.path < $1.path }),
+            isComplete: isComplete)
     }
 
     private static func shouldIncludeFile(
@@ -355,7 +676,7 @@ enum PiSessionCostScanner {
         fileURL: URL,
         cache: inout PiSessionCostCache,
         context: ScanContext)
-        throws
+        throws -> Bool
     {
         try context.checkCancellation?()
         let path = fileURL.path
@@ -374,7 +695,7 @@ enum PiSessionCostScanner {
            cached.mtimeUnixMs == mtimeMs,
            cached.size == size
         {
-            return
+            return true
         }
 
         if !context.forceRescan,
@@ -391,6 +712,7 @@ enum PiSessionCostScanner {
                 initialModelContext: cached.lastModelContext,
                 pricingContext: context.pricingContext,
                 checkCancellation: context.checkCancellation)
+            guard delta.isComplete else { return false }
             if !delta.contributions.isEmpty {
                 self.applyContributions(
                     daysByProvider: &cache.daysByProvider,
@@ -411,8 +733,15 @@ enum PiSessionCostScanner {
                 contributions: merged,
                 unkeyedContributions: mergedUnkeyed,
                 entryUsages: mergedEntryUsages))
-            return
+            return true
         }
+
+        let parsed = try self.parsePiSessionFile(
+            fileURL: fileURL,
+            range: context.range,
+            pricingContext: context.pricingContext,
+            checkCancellation: context.checkCancellation)
+        guard parsed.isComplete else { return false }
 
         if let cached {
             self.applyContributions(
@@ -421,11 +750,6 @@ enum PiSessionCostScanner {
                 sign: -1)
         }
 
-        let parsed = try self.parsePiSessionFile(
-            fileURL: fileURL,
-            range: context.range,
-            pricingContext: context.pricingContext,
-            checkCancellation: context.checkCancellation)
         if !parsed.contributions.isEmpty {
             self.applyContributions(daysByProvider: &cache.daysByProvider, contributions: parsed.contributions, sign: 1)
         }
@@ -439,6 +763,7 @@ enum PiSessionCostScanner {
             contributions: parsed.contributions,
             unkeyedContributions: parsed.unkeyedContributions,
             entryUsages: parsed.entryUsages))
+        return true
     }
 
     private static func parsePiSessionFile(
@@ -512,6 +837,7 @@ enum PiSessionCostScanner {
         }
 
         let parsedBytes: Int64
+        var isComplete = true
         do {
             parsedBytes = try CostUsageJsonl.scan(
                 fileURL: fileURL,
@@ -520,10 +846,22 @@ enum PiSessionCostScanner {
                 prefixBytes: Self.maxLineBytes,
                 checkCancellation: checkCancellation,
                 onLine: { line in
-                    guard !line.bytes.isEmpty, !line.wasTruncated else { return }
+                    guard !line.bytes.isEmpty else { return }
+                    if line.wasTruncated {
+                        // Dropping an oversized record must not advance the cache past usage we
+                        // could not parse; retain the previous file snapshot and retry later.
+                        isComplete = false
+                        return
+                    }
                     autoreleasepool {
-                        guard let object = (try? JSONSerialization.jsonObject(with: line.bytes)) as? [String: Any]
-                        else { return }
+                        guard let objectValue = try? JSONSerialization.jsonObject(with: line.bytes),
+                              let object = objectValue as? [String: Any]
+                        else {
+                            // A terminated but malformed/non-object record means the file was not
+                            // fully interpreted; keep the prior cache snapshot and retry later.
+                            isComplete = false
+                            return
+                        }
                         guard let type = object["type"] as? String else { return }
 
                         if type == "session" {
@@ -544,7 +882,13 @@ enum PiSessionCostScanner {
                             message: message,
                             fallback: currentModelContext)
                         guard let identity else { return }
-                        guard let date = self.timestampDate(entry: object, message: message) else { return }
+                        guard let date = self.timestampDate(entry: object, message: message) else {
+                            // A recognized assistant row without a usable timestamp cannot be
+                            // assigned to a day. Keep the scan incomplete so cache advancement
+                            // never permanently hides its usage.
+                            isComplete = false
+                            return
+                        }
                         let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(
                             from: date,
                             calendar: range.calendar)
@@ -562,10 +906,20 @@ enum PiSessionCostScanner {
                             entryID: self.entryIdentifier(from: object))
                     }
                 })
+            // A scan can stop at the last complete newline while an active writer leaves a
+            // partial JSON object at EOF. The committed offset then trails the file size, so
+            // keep the cache incomplete and retry the tail on a later refresh.
+            let observedFileSize = (try? FileManager.default
+                .attributesOfItem(atPath: fileURL.path)[.size] as? NSNumber)?
+                            .int64Value
+            if observedFileSize != parsedBytes {
+                isComplete = false
+            }
         } catch is CancellationError {
             throw CancellationError()
         } catch {
             parsedBytes = startOffset
+            isComplete = false
         }
 
         return ParseResult(
@@ -574,7 +928,8 @@ enum PiSessionCostScanner {
             entryUsages: entryUsages,
             parsedBytes: parsedBytes,
             sessionID: sessionID,
-            lastModelContext: currentModelContext)
+            lastModelContext: currentModelContext,
+            isComplete: isComplete)
     }
 
     private static func sessionIdentifier(from object: [String: Any]) -> String? {
@@ -737,6 +1092,8 @@ enum PiSessionCostScanner {
 
     private static func parseTimestampValue(_ value: Any?) -> Date? {
         if let number = value as? NSNumber {
+            // JSON booleans bridge to NSNumber on Darwin; they are not timestamps.
+            guard CFGetTypeID(number) != CFBooleanGetTypeID() else { return nil }
             let raw = number.doubleValue
             guard raw.isFinite else { return nil }
             if raw > 1_000_000_000_000 {
@@ -837,6 +1194,7 @@ enum PiSessionCostScanner {
         pricingDate: Date? = nil,
         pricingContext: ModelsDevPricingContext? = nil) -> Double?
     {
+        // Provider-specific by design: Pi pricing delegates to the Codex and Claude tariff calculators.
         switch provider {
         case .codex:
             // Pi records input, cache reads, and cache writes as disjoint counts. Codex pricing
@@ -851,6 +1209,7 @@ enum PiSessionCostScanner {
                 pricingDate: pricingDate,
                 modelsDevCatalog: pricingContext?.catalog,
                 modelsDevCacheRoot: pricingContext?.cacheRoot)
+        // Provider-specific by design: Claude uses its own first-party input/cache/output tariff.
         case .claude:
             CostUsagePricing.claudeCostUSD(
                 model: modelName,
@@ -875,6 +1234,7 @@ enum PiSessionCostScanner {
 
 extension PiSessionCostScanner {
     private static func mappedProvider(fromPiProvider provider: String) -> UsageProvider? {
+        // Provider-specific by design: Pi currently records the Codex and Anthropic integrations it can price.
         switch provider.lowercased() {
         case "openai-codex":
             .codex
@@ -1075,6 +1435,10 @@ extension PiSessionCostScanner {
         return calendar.date(from: components) ?? date
     }
 
+    private static func canonicalSessionFileURL(_ url: URL) -> URL {
+        url.standardizedFileURL.resolvingSymlinksInPath().standardizedFileURL
+    }
+
     private static func dateFromDayKey(_ key: String, calendar: Calendar) -> Date? {
         let parts = key.split(separator: "-")
         guard parts.count == 3,
@@ -1111,5 +1475,21 @@ extension PiSessionCostScanner {
 
             return lhs.modelName > rhs.modelName
         }
+    }
+
+    private static func scopeFingerprint(options: Options, cache originalCache: PiSessionCostCache) -> String {
+        let cache = originalCache
+        let roots = self.defaultSessionRoots(
+            options: options,
+            previousSessionRootsFingerprint: cache.sessionRootsFingerprint)
+        // An incomplete root resolution restores the cached report wholesale. Advertise that
+        // retained scope so callers do not reject the report as belonging to a different dataset.
+        if roots.contains(where: { !$0.resolutionIsComplete }),
+           let cachedScope = cache.sessionRootsFingerprint,
+           !cachedScope.isEmpty
+        {
+            return cachedScope
+        }
+        return self.sessionRootsFingerprint(roots)
     }
 }

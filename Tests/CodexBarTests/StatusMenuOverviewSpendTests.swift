@@ -223,6 +223,26 @@ extension StatusMenuTests {
     }
 
     @Test
+    func `overview fallback excludes pi local history from subscription count`() {
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.costUsageEnabled = true
+        let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: UsageFetcher().loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        #expect(store.spendDashboardPublication.configuration == nil)
+        #expect(controller.overviewSpendSubscriptionCount(providers: [.claude, .pi]) == 1)
+    }
+
+    @Test
     func `overview accounts for all six selected providers while summing only available spend`() {
         let settings = self.makeSettings()
         settings.statusChecksEnabled = false

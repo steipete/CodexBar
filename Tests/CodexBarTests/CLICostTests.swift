@@ -84,10 +84,34 @@ struct CLICostTests {
             groupBy: .project,
             format: .text,
             includePiSessions: true))
+        #expect(!CodexBarCLI.costIncludePiSessions(
+            provider: .codex,
+            selectedProviders: [.codex, .pi],
+            groupBy: .none,
+            format: .text,
+            includePiSessions: true))
+        #expect(!CodexBarCLI.costIncludePiSessions(
+            provider: .codex,
+            selectedProviders: [.codex, .pi],
+            groupBy: .none,
+            format: .json,
+            includePiSessions: true))
         #expect(CodexBarCLI.costIncludePiSessions(
             provider: .claude,
             groupBy: .session,
             format: .text,
+            includePiSessions: true))
+        #expect(!CodexBarCLI.costIncludePiSessions(
+            provider: .claude,
+            selectedProviders: [.claude, .pi],
+            groupBy: .none,
+            format: .json,
+            includePiSessions: true))
+        #expect(CodexBarCLI.costIncludePiSessions(
+            provider: .claude,
+            selectedProviders: [.claude],
+            groupBy: .none,
+            format: .json,
             includePiSessions: true))
     }
 

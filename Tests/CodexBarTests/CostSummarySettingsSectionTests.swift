@@ -13,6 +13,6 @@ struct CostSummarySettingsSectionTests {
 
     @Test
     func `cost settings status providers come from ordered descriptor capabilities`() {
-        #expect(CostSummarySettingsSection.costStatusProviders == [.claude, .codex, .cursor])
+        #expect(CostSummarySettingsSection.costStatusProviders == [.claude, .codex, .cursor, .pi])
     }
 }

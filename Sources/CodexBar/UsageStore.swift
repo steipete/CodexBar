@@ -440,6 +440,8 @@ final class UsageStore {
     @ObservationIgnored var lastPermissionPromptNotificationAt: [ProviderInstanceID: Date] = [:]
     @ObservationIgnored var lastTokenFetchAt: [ProviderInstanceID: Date] = [:]
     @ObservationIgnored var lastTokenFetchScope: [ProviderInstanceID: String] = [:]
+    @ObservationIgnored var piHistoryScopeFingerprint: String?
+    @ObservationIgnored var piHistoryScopeGeneration: UInt64 = 0
     @ObservationIgnored var lastSpendDashboardTokenFetchAt: [ProviderInstanceID: Date] = [:]
     @ObservationIgnored var lastSpendDashboardTokenFetchScope: [ProviderInstanceID: String] = [:]
     var spendDashboardTokenRefreshInFlight: Set<ProviderInstanceID> = []
@@ -1497,6 +1499,8 @@ extension UsageStore {
             return
         }
 
+        guard await self.refreshPiHistoryScope(for: provider) else { return }
+
         guard !self.tokenRefreshInFlight.contains(provider.instanceID) else { return }
 
         let now = Date()
@@ -1534,56 +1538,27 @@ extension UsageStore {
         let startedAt = Date()
         self.tokenCostLogger
             .debug("cost usage start provider=\(provider.rawValue) force=\(force)")
+        let refreshContext = TokenUsageRefreshContext(
+            provider: provider,
+            now: now,
+            historyDays: historyDays,
+            costScopeSignature: costScopeSignature,
+            publicationRevision: publicationRevision,
+            providerConfigRevision: providerConfigRevision,
+            startedAt: startedAt)
 
         do {
             // Codex cost usage scans the explicit token-cost scope: selected managed account by
             // default, or this Mac's ambient Codex home when the local ledger is enabled.
-            let snapshot = try await self.loadTokenUsageSnapshot(
+            let result = try await self.loadTokenUsageSnapshot(
                 provider: provider,
                 force: force,
                 now: now,
                 codexHomePath: costScope.codexHomePath,
                 historyDays: historyDays,
-                cursorCookieHeaderOverride: cursorCookieHeaderOverride)
-            try Task.checkCancellation()
-            let completedCostScopeSignature = self.completedTokenCostScopeSignature(
-                provider: provider,
-                historyDays: historyDays,
-                initialSignature: costScopeSignature,
-                snapshot: snapshot)
-            guard self.tokenRefreshPublicationIsCurrent(
-                provider: provider,
-                publicationRevision: publicationRevision,
-                providerConfigRevision: providerConfigRevision,
-                historyDays: historyDays,
-                costScopeSignature: costScopeSignature,
-                fetchedCredentialScopeFingerprint: snapshot.credentialScopeFingerprint)
-            else {
-                self.clearTokenFetchMetadataIfMatching(
-                    provider: provider,
-                    attemptedAt: now,
-                    costScopeSignature: costScopeSignature)
-                self.requestTokenRefreshAfterStaleCompletion(for: provider)
-                return
-            }
-            self.lastTokenFetchScope[provider.instanceID] = completedCostScopeSignature
-            self.startCodexCostCatchUpIfNeeded(afterRefreshing: provider)
-
-            if try self.regularTokenSnapshotIsConfirmedEmpty(snapshot, for: provider) {
-                self.publishConfirmedEmptyTokenSnapshot(for: provider)
-                self.tokenErrors[provider.instanceID] = Self.tokenCostNoDataMessage(for: provider)
-                self.tokenFailureGates[provider.instanceID]?.recordSuccess()
-                return
-            }
-            self.logTokenUsageSuccess(
-                provider: provider,
-                snapshot: snapshot,
-                historyDays: historyDays,
-                startedAt: startedAt)
-            self.publishTokenSnapshot(snapshot, for: provider)
-            self.tokenErrors[provider.instanceID] = nil
-            self.tokenFailureGates[provider.instanceID]?.recordSuccess()
-            self.persistWidgetSnapshot(reason: "token-usage")
+                cursorCookieHeaderOverride: cursorCookieHeaderOverride,
+                includePiSessions: self.shouldIncludePiSessionsInTokenSnapshot(for: provider))
+            try self.commitTokenUsageResult(result, context: refreshContext)
         } catch {
             guard self.tokenRefreshPublicationIsCurrent(
                 provider: provider,
@@ -1627,45 +1602,6 @@ extension UsageStore {
                 self.tokenErrors[provider.instanceID] = nil
             }
         }
-    }
-
-    private func resetTokenUsageState(for provider: UsageProvider) {
-        // Provider-specific by design: resetting Codex token state also cancels its two ledger catch-up workflows.
-        if provider == .codex {
-            self.cancelCodexCostCatchUp()
-            self.cancelSpendDashboardCodexCostCatchUp()
-        }
-        self.clearTokenSnapshot(for: provider)
-        self.clearSpendDashboardTokenSnapshot(for: provider)
-        self.tokenErrors[provider.instanceID] = nil
-        self.tokenFailureGates[provider.instanceID]?.reset()
-        self.lastTokenFetchAt.removeValue(forKey: provider.instanceID)
-        self.lastTokenFetchScope.removeValue(forKey: provider.instanceID)
-        self.lastSpendDashboardTokenFetchAt.removeValue(forKey: provider.instanceID)
-        self.lastSpendDashboardTokenFetchScope.removeValue(forKey: provider.instanceID)
-    }
-
-    private func clearTokenFetchMetadataIfMatching(
-        provider: UsageProvider,
-        attemptedAt: Date,
-        costScopeSignature: String)
-    {
-        guard self.lastTokenFetchAt[provider.instanceID] == attemptedAt,
-              self.lastTokenFetchScope[provider.instanceID] == costScopeSignature
-        else {
-            return
-        }
-        self.lastTokenFetchAt.removeValue(forKey: provider.instanceID)
-        self.lastTokenFetchScope.removeValue(forKey: provider.instanceID)
-    }
-
-    /// Fast failures may retry on the next scheduled pass instead of waiting out the fetch
-    /// TTL; timed-out scans keep the TTL so a slow corpus cannot thrash back-to-back rescans.
-    nonisolated static func tokenFetchFailureAllowsEarlyRetry(_ error: Error) -> Bool {
-        if case CostUsageError.timedOut = error {
-            return false
-        }
-        return true
     }
 }
 

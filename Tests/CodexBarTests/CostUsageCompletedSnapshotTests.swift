@@ -116,19 +116,27 @@ struct CostUsageCompletedSnapshotTests {
                 ]]))
         }
         let since = try #require(options.calendar.date(byAdding: .day, value: -29, to: day))
+        let emptyOMPRoot = env.root.appendingPathComponent("empty-omp", isDirectory: true)
+        try FileManager.default.createDirectory(at: emptyOMPRoot, withIntermediateDirectories: true)
+        let piOptions = PiSessionCostScanner.Options(
+            piSessionsRoot: env.piSessionsRoot,
+            ompSessionsRoot: emptyOMPRoot,
+            cacheRoot: env.cacheRoot,
+            calendar: options.calendar,
+            refreshMinIntervalSeconds: 0)
         _ = PiSessionCostScanner.loadDailyReport(
             provider: .codex,
             since: since,
             until: day,
             now: day.addingTimeInterval(-60),
-            options: PiSessionCostScanner.Options(
-                piSessionsRoot: env.piSessionsRoot,
-                ompSessionsRoot: env.root.appendingPathComponent("empty-omp"),
-                cacheRoot: env.cacheRoot,
-                calendar: options.calendar,
-                refreshMinIntervalSeconds: 0))
+            options: piOptions)
 
-        let completed = await fetcher.loadCompletedCodexTokenSnapshotResult(now: day)
+        let completed = await CostUsageFetcher.loadCachedCodexTokenSnapshotResult(
+            now: day,
+            allowScopedCodexHome: true,
+            requireCompleteHistory: true,
+            scannerOptions: options,
+            piScannerOptions: piOptions)
         #expect(completed?.snapshot.last30DaysTokens == 100 + piTokens)
         #expect(completed?.snapshot.updatedAt == day.addingTimeInterval(-60))
         #expect(completed?.lastRefreshAt == nil)
@@ -146,10 +154,20 @@ struct CostUsageCompletedSnapshotTests {
             default: cache.scanSinceKey = "2026-04-08"
             }
             PiSessionCostCacheIO.save(cache: cache, cacheRoot: env.cacheRoot, calendar: storedCalendar)
-            #expect(await fetcher.loadCompletedCodexTokenSnapshotResult(now: day) == nil)
+            #expect(await CostUsageFetcher.loadCachedCodexTokenSnapshotResult(
+                now: day,
+                allowScopedCodexHome: true,
+                requireCompleteHistory: true,
+                scannerOptions: options,
+                piScannerOptions: piOptions) == nil)
         }
         try Data("invalid JSON".utf8).write(to: PiSessionCostCacheIO.cacheFileURL(cacheRoot: env.cacheRoot))
-        #expect(await fetcher.loadCompletedCodexTokenSnapshotResult(now: day) == nil)
+        #expect(await CostUsageFetcher.loadCachedCodexTokenSnapshotResult(
+            now: day,
+            allowScopedCodexHome: true,
+            requireCompleteHistory: true,
+            scannerOptions: options,
+            piScannerOptions: piOptions) == nil)
     }
 
     @Test

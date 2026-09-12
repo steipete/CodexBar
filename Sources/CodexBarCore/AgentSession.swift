@@ -197,16 +197,26 @@ public struct AgentProcessRecord: Equatable, Sendable {
     public let ppid: Int32
     public let startedAt: Date?
     public let command: String
+    /// Original argv when the platform exposes it. `command` remains the portable fallback.
+    public let arguments: [String]?
 
-    public init(pid: Int32, ppid: Int32, startedAt: Date?, command: String) {
+    public init(
+        pid: Int32,
+        ppid: Int32,
+        startedAt: Date?,
+        command: String,
+        arguments: [String]? = nil)
+    {
         self.pid = pid
         self.ppid = ppid
         self.startedAt = startedAt
         self.command = command
+        self.arguments = arguments
     }
 
     public var executableBasename: String {
-        let firstToken = self.command.split(whereSeparator: \ .isWhitespace).first.map(String.init) ?? ""
+        let firstToken = self.arguments?.first ?? self.command.split(whereSeparator: \ .isWhitespace).first
+            .map(String.init) ?? ""
         let firstBasename = URL(fileURLWithPath: firstToken).lastPathComponent
         if firstBasename == "disclaimer" {
             return firstBasename
@@ -246,7 +256,7 @@ public enum AgentPSOutputParser {
                 return !self.isObviousPiFamilyHelper(record.command)
             }
             if basename == AgentSession.Provider.codex.rawValue {
-                let arguments = self.arguments(record.command)
+                let arguments = self.arguments(record)
                 return self.isCodexAgentExecutable(record.command) &&
                     !arguments.contains("app-server") &&
                     !arguments.contains("--help") &&
@@ -284,7 +294,7 @@ public enum AgentPSOutputParser {
     }
 
     public static func piDialect(for record: AgentProcessRecord) -> AgentSession.Dialect? {
-        let tokens = record.command.split(whereSeparator: \ .isWhitespace).map(String.init)
+        let tokens = [record.executableBasename] + self.arguments(record)
         guard let firstToken = tokens.first else { return nil }
 
         let firstBasename = URL(fileURLWithPath: firstToken).lastPathComponent.lowercased()
@@ -309,7 +319,7 @@ public enum AgentPSOutputParser {
         records.contains { record in
             record.executableBasename.lowercased() == AgentSession.Provider.codex.rawValue &&
                 self.isCodexAgentExecutable(record.command) &&
-                self.arguments(record.command).contains("app-server")
+                self.arguments(record).contains("app-server")
         }
     }
 
@@ -326,13 +336,21 @@ public enum AgentPSOutputParser {
 
         return records.lazy.compactMap { record -> String? in
             guard record.executableBasename.lowercased() == AgentSession.Provider.codex.rawValue,
-                  self.arguments(record.command).contains("app-server"),
-                  let executable = record.command.split(whereSeparator: \ .isWhitespace).first
+                  self.arguments(record).contains("app-server"),
+                  let executable = record.arguments?.first ?? record.command.split(whereSeparator: \ .isWhitespace)
+                      .first.map(String.init)
             else { return nil }
 
-            let path = URL(fileURLWithPath: String(executable)).standardizedFileURL.path
+            let path = URL(fileURLWithPath: executable).standardizedFileURL.path
             return allowedPaths.contains(path) ? path : nil
         }.first
+    }
+
+    private static func arguments(_ record: AgentProcessRecord) -> [String] {
+        if let arguments = record.arguments {
+            return Array(arguments.dropFirst())
+        }
+        return self.arguments(record.command)
     }
 
     private static func arguments(_ command: String) -> [String] {

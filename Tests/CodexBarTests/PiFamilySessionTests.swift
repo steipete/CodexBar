@@ -195,6 +195,37 @@ struct PiFamilySessionTests {
     }
 
     @Test
+    func `scanner preserves direct omp profile layout`() throws {
+        let root = try Self.temporaryDirectory(named: "PiDirectOMPProfile")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let home = root.appendingPathComponent("home", isDirectory: true)
+        let sessionsRoot = home.appendingPathComponent(".omp/profiles/work/sessions", isDirectory: true)
+        try FileManager.default.createDirectory(at: sessionsRoot, withIntermediateDirectories: true)
+
+        let now = Date(timeIntervalSince1970: 1_900_000_000)
+        try Self.writeSession(
+            at: sessionsRoot.appendingPathComponent("direct-omp.jsonl"),
+            dialect: .omp,
+            id: "omp-direct-profile",
+            cwd: "/tmp/direct-omp-profile",
+            modifiedAt: now.addingTimeInterval(-5))
+
+        let sessions = Self.scan(
+            processes: [Self.process(
+                pid: 61,
+                startedAt: now.addingTimeInterval(-60),
+                command: "omp --profile work")],
+            cwdByPID: [61: "/tmp/direct-omp-profile"],
+            environment: ["HOME": home.path],
+            now: now)
+
+        let session = try #require(sessions.first)
+        #expect(session.id == "omp-direct-profile")
+        #expect(session.dialect == .omp)
+        #expect(session.transcriptPath == sessionsRoot.appendingPathComponent("direct-omp.jsonl").path)
+    }
+
+    @Test
     func `missing jsonl and unresolved custom roots retain pid only rows`() throws {
         let root = try Self.temporaryDirectory(named: "PiPIDOnly")
         defer { try? FileManager.default.removeItem(at: root) }

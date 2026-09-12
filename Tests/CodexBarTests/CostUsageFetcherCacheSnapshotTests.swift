@@ -460,7 +460,8 @@ struct CostUsageFetcherCacheSnapshotTests {
         let cached = await CostUsageFetcher.loadCachedCodexTokenSnapshotResult(
             now: hydratedAt,
             historyDays: 1,
-            scannerOptions: options)
+            scannerOptions: options,
+            piScannerOptions: piOptions)
 
         #expect(cached?.snapshot.sessionTokens == 207)
         #expect(cached?.snapshot.updatedAt == oldestScanTime)
@@ -500,7 +501,8 @@ struct CostUsageFetcherCacheSnapshotTests {
         let cached = await CostUsageFetcher.loadCachedCodexTokenSnapshotResult(
             now: day.addingTimeInterval(50 * 60),
             historyDays: 1,
-            scannerOptions: options)
+            scannerOptions: options,
+            piScannerOptions: piOptions)
 
         #expect(cached?.snapshot.sessionTokens == 165)
         #expect(cached?.snapshot.updatedAt == piScanTime)
@@ -551,7 +553,8 @@ struct CostUsageFetcherCacheSnapshotTests {
         let cached = await CostUsageFetcher.loadCachedCodexTokenSnapshot(
             now: hydratedAt,
             historyDays: 1,
-            scannerOptions: options)
+            scannerOptions: options,
+            piScannerOptions: piOptions)
 
         #expect(cached?.sessionTokens == 207)
         #expect(cached?.updatedAt == nativeScanTime)
@@ -716,7 +719,8 @@ struct CostUsageFetcherCacheSnapshotTests {
         let cached = await CostUsageFetcher.loadCachedCodexTokenSnapshot(
             now: day,
             historyDays: 1,
-            scannerOptions: options)
+            scannerOptions: options,
+            piScannerOptions: piOptions)
 
         #expect(cached?.sessionTokens == 207)
         #expect(cached?.last30DaysTokens == 207)
@@ -748,7 +752,8 @@ struct CostUsageFetcherCacheSnapshotTests {
             scannerOptions: CostUsageScanner.Options(
                 codexSessionsRoot: env.codexSessionsRoot,
                 cacheRoot: env.cacheRoot,
-                codexTraceDatabaseURL: env.root.appendingPathComponent("missing-traces.sqlite")))
+                codexTraceDatabaseURL: env.root.appendingPathComponent("missing-traces.sqlite")),
+            piScannerOptions: piOptions)
 
         #expect(cached?.sessionTokens == 165)
         #expect(cached?.last30DaysTokens == 165)
@@ -792,7 +797,8 @@ struct CostUsageFetcherCacheSnapshotTests {
         let cached = await CostUsageFetcher.loadCachedCodexTokenSnapshot(
             now: day,
             historyDays: 1,
-            scannerOptions: options)
+            scannerOptions: options,
+            piScannerOptions: piOptions)
 
         #expect(cached?.sessionTokens == 165)
         #expect(cached?.last30DaysTokens == 165)

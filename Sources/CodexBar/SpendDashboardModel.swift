@@ -6,6 +6,7 @@ struct SpendDashboardModel: Equatable, Sendable {
     enum SourceKind: String, Sendable, Equatable {
         case native
         case openCodex
+        case localHistory
     }
 
     static let openCodexSourceID = "opencodex"
@@ -16,6 +17,7 @@ struct SpendDashboardModel: Equatable, Sendable {
         let modelProviderName: String
         let snapshot: CostUsageTokenSnapshot
         let tokenActivityCache: CostUsageTokenActivityCache?
+        let accounting: PiSnapshotAccounting?
 
         init(
             id: String? = nil,
@@ -24,7 +26,8 @@ struct SpendDashboardModel: Equatable, Sendable {
             modelProviderName: String? = nil,
             snapshot: CostUsageTokenSnapshot,
             tokenActivityCache: CostUsageTokenActivityCache? = nil,
-            sourceKind: SpendDashboardModel.SourceKind = .native)
+            sourceKind: SpendDashboardModel.SourceKind = .native,
+            accounting: PiSnapshotAccounting? = nil)
         {
             self.id = id ?? provider.rawValue
             self.provider = provider
@@ -33,6 +36,7 @@ struct SpendDashboardModel: Equatable, Sendable {
             self.snapshot = snapshot
             self.tokenActivityCache = tokenActivityCache
             self.sourceKind = sourceKind
+            self.accounting = accounting
         }
 
         let sourceKind: SpendDashboardModel.SourceKind

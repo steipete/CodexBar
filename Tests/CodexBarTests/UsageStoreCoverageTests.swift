@@ -77,6 +77,41 @@ struct UsageStoreCoverageTests {
     }
 
     @Test
+    func `claude and codex token ownership follows visible pi cost source`() throws {
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-claude-pi-ownership")
+        settings.costUsageEnabled = true
+        let store = Self.makeUsageStore(settings: settings)
+        let metadata = ProviderRegistry.shared.metadata
+        try settings.setProviderEnabled(
+            provider: .claude,
+            metadata: #require(metadata[.claude]),
+            enabled: true)
+        try settings.setProviderEnabled(
+            provider: .pi,
+            metadata: #require(metadata[.pi]),
+            enabled: false)
+
+        let fallbackSignature = store.tokenSnapshotScopeSignature(for: .claude)
+        #expect(store.shouldIncludePiSessionsInTokenSnapshot(for: .claude))
+        #expect(store.shouldIncludePiSessionsInTokenSnapshot(for: .codex))
+        #expect(fallbackSignature.contains("|piRows=fallback"))
+        let codexFallbackSignature = store.tokenSnapshotScopeSignature(for: .codex)
+        #expect(codexFallbackSignature.contains("|piRows=fallback"))
+
+        try settings.setProviderEnabled(
+            provider: .pi,
+            metadata: #require(metadata[.pi]),
+            enabled: true)
+
+        #expect(!store.shouldIncludePiSessionsInTokenSnapshot(for: .claude))
+        #expect(fallbackSignature != store.tokenSnapshotScopeSignature(for: .claude))
+        #expect(!store.shouldIncludePiSessionsInTokenSnapshot(for: .codex))
+        #expect(codexFallbackSignature != store.tokenSnapshotScopeSignature(for: .codex))
+        #expect(store.tokenSnapshotScopeSignature(for: .codex).contains("|piRows=owned"))
+        #expect(store.shouldIncludePiSessionsInTokenSnapshot(for: .pi))
+    }
+
+    @Test
     func `cursor manual cost refresh rejects an empty cookie without falling back`() async throws {
         let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-cursor-manual-cost")
         settings.costUsageEnabled = true

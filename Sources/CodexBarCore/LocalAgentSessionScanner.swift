@@ -188,6 +188,73 @@ public struct LocalAgentSessionScanner: Sendable {
             directoryBudget: &directoryBudget)
     }
 
+    /// Returns the project directories of live Pi processes so historical cost scans can resolve
+    /// project-level `.pi/settings.json` without assuming the app's own current directory.
+    @concurrent
+    public func piWorkingDirectories(
+        environment: [String: String] = ProcessInfo.processInfo.environment) async -> [URL]
+    {
+        let contexts = await self.piSessionProcessContexts(environment: environment)
+        var seen = Set<String>()
+        return contexts.compactMap { context in
+            guard let workingDirectory = context.workingDirectory,
+                  seen.insert(workingDirectory.path).inserted
+            else { return nil }
+            return workingDirectory
+        }
+    }
+
+    /// Returns the command selectors and project directories of live Pi-family processes so cost scans can
+    /// resolve process-owned `--session-dir` and `--profile` choices alongside project settings.
+    @concurrent
+    public func piSessionProcessContexts(
+        environment: [String: String] = ProcessInfo.processInfo.environment) async -> [PiSessionProcessContext]
+    {
+        let allProcesses = if let processOutputProvider = self.processOutputProvider {
+            await AgentPSOutputParser.parse(processOutputProvider(environment))
+        } else {
+            await self.processRecords(environment: environment)
+        }
+        // Provider-specific by design: only Pi processes provide project roots for Pi history resolution.
+        // Keep every process through context resolution first so duplicate processes do not consume the
+        // process budget before an older process with a distinct session root is considered.
+        let processes = AgentSessionCorrelation.newestProcessesFirst(
+            AgentPSOutputParser.agentProcesses(from: allProcesses)
+                .filter { AgentPSOutputParser.provider(for: $0) == .pi })
+        guard !processes.isEmpty, self.config.maxProcessCount > 0 else { return [] }
+
+        let cwdByPID = if let cwdProvider = self.cwdProvider {
+            await cwdProvider(processes.map(\.pid), environment)
+        } else {
+            await self.cwdByPID(processes.map(\.pid), environment: environment)
+        }
+        var seen = Set<String>()
+        let distinctContexts: [PiSessionProcessContext] = processes.compactMap { process in
+            let workingDirectory = cwdByPID[process.pid]
+                .flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0, isDirectory: true) }
+            guard workingDirectory != nil ||
+                PiFamilySessionScanner.hasCWDIndependentRootSelection(
+                    in: process,
+                    environment: environment)
+            else { return nil }
+            let context = PiSessionProcessContext(
+                command: process.command,
+                arguments: process.arguments,
+                workingDirectory: workingDirectory)
+            let key = PiFamilySessionScanner.processRootSelectorKey(context)
+            guard seen.insert(key).inserted else { return nil }
+            return context
+        }
+        return distinctContexts
+            .prefix(max(0, self.config.maxProcessCount))
+            .sorted {
+                $0.workingDirectory?.path == $1.workingDirectory?.path
+                    ? $0.command < $1.command
+                    : ($0.workingDirectory?.path ?? "<unresolved-cwd>") <
+                    ($1.workingDirectory?.path ?? "<unresolved-cwd>")
+            }
+    }
+
     public static func shouldScanSessionMetadata(
         hasAgentProcesses: Bool,
         includeFileOnlySessions: Bool,
@@ -312,6 +379,7 @@ public struct LocalAgentSessionScanner: Sendable {
                     lastActivityAt: rollout?.modifiedAt,
                     transcriptPath: rollout?.url.path,
                     host: context.host))
+            // Provider-specific by design: Pi-family processes are correlated by PiFamilySessionScanner.
             case .pi:
                 continue
             }
@@ -356,12 +424,14 @@ public struct LocalAgentSessionScanner: Sendable {
             guard let bsdInfo = DarwinProcessEnumerator.bsdInfo(pid: pid),
                   let executablePath = DarwinProcessEnumerator.executablePath(pid: pid)
             else { return nil }
-            let command = DarwinProcessEnumerator.commandLine(pid: pid) ?? executablePath
+            let arguments = DarwinProcessEnumerator.arguments(pid: pid)
+            let command = arguments?.joined(separator: " ") ?? executablePath
             return AgentProcessRecord(
                 pid: pid,
                 ppid: bsdInfo.ppid,
                 startedAt: bsdInfo.startTime,
-                command: command)
+                command: command,
+                arguments: arguments)
         }
         #else
         return await AgentPSOutputParser.parse(self.processOutput(environment: environment))
