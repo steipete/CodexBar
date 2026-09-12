@@ -521,7 +521,7 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
     {
         let balance = response.credits?.balance
         let creditLimit = response.resolvedIndividualLimit?.codexCreditLimitSnapshot(updatedAt: updatedAt)
-        let creditsAvailable = response.credits.map { $0.hasCredits || $0.unlimited }
+        let creditsAvailable = response.credits.map { $0.hasCredits && !$0.unlimited }
         guard balance != nil || creditLimit != nil || creditsAvailable == true else { return nil }
         return CreditsSnapshot(
             remaining: balance ?? 0,

@@ -50,7 +50,7 @@ public struct CreditsSnapshot: Equatable, Codable, Sendable {
     /// False when the provider omitted the balance, including cap-only responses and preservation placeholders.
     /// A successful read of `remaining == 0` stays true so reconciliation can clear a stale balance.
     public let balanceReadSucceeded: Bool
-    /// Whether the provider explicitly reported that credits can be used, even when it withheld the balance.
+    /// Whether the provider explicitly reported a finite credit pool, even when it withheld the balance.
     /// This distinguishes a hidden workspace pool from a confirmed zero balance.
     public let creditsAvailable: Bool?
     /// True only for a balance read from the shared workspace endpoint, independently of a personal cap.
