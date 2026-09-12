@@ -577,6 +577,10 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
               let accountId = self.firstNonEmptyAccountId(credentials.accountId, usage.accountId)
         else { return result }
 
+        if let responseAccount = self.firstNonEmptyAccountId(usage.accountId), responseAccount != accountId {
+            return result
+        }
+
         let fetcher = fetcher ?? { accountId in
             try await CodexOAuthUsageFetcher.fetchWorkspaceRemainingBalance(
                 accessToken: credentials.accessToken,

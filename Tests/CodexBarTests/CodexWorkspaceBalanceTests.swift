@@ -174,11 +174,11 @@ struct CodexWorkspaceBalanceTests {
         self.expectUnchanged(result, original: fixture.result)
     }
 
-    @Test(arguments: ["credential-account", "", "   "])
+    @Test(arguments: ["credential-account", "usage-account", " usage-account ", "", "   "])
     func `workspace enrichment prefers a nonempty credential account and falls back to usage`(
         credentialAccount: String) async throws
     {
-        let fixture = try self.makeFixture()
+        let fixture = try self.makeFixture(accountId: credentialAccount == "credential-account" ? nil : "usage-account")
         let payload = try self.decodeBalance(#"{"balance":1234}"#)
         let result = try await CodexOAuthFetchStrategy._applyWorkspaceRemainingBalanceForTesting(
             fixture.result,
@@ -192,6 +192,22 @@ struct CodexWorkspaceBalanceTests {
 
         #expect(result.credits?.remaining == 1234)
         #expect(result.credits?.hasWorkspaceBalance == true)
+    }
+
+    @Test
+    func `workspace enrichment rejects conflicting credential and response accounts`() async throws {
+        let fixture = try self.makeFixture(accountId: "response-workspace")
+        let result = try await CodexOAuthFetchStrategy._applyWorkspaceRemainingBalanceForTesting(
+            fixture.result,
+            usage: fixture.usage,
+            credentials: self.makeCredentials(accountId: "different-workspace"),
+            context: self.makeContext(),
+            fetcher: { _ in
+                Issue.record("Conflicting account scopes must not fetch a balance")
+                throw URLError(.badURL)
+            })
+        #expect(result.credits == fixture.result.credits)
+        #expect(result.usage.providerCost == fixture.result.usage.providerCost)
     }
 
     @Test(arguments: [401, 403, 404, 500])
