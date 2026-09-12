@@ -194,6 +194,7 @@ is limited, using additional rows when needed.
 ## Credits
 - Web dashboard fills credits only when OAuth/CLI do not provide them. Account-matched extra usage reconciles monthly caps and purchased balances separately; the optional credits setting controls visibility.
 - When usage reports limited workspace credits without an amount, an optional read of the account's `remaining_balance` endpoint uses the same OAuth or browser session. Access depends on workspace permissions. Failure preserves ordinary usage and monthly-limit data.
+- Workspace balances attach and persist only when the dashboard response account ID matches the selected account. Same-email workspace mismatches and old workspace caches without an account ID are rejected by both the app and CLI.
 - A newer explicitly unavailable workspace balance suppresses an older cached amount, including after restart. A later successful positive or zero balance restores visibility. Usage-only refreshes that skip the balance read preserve the account's prior observation; account changes never inherit it.
 - The custom **Balance** menu-bar token supports Codex credits, rounded and grouped as whole credits. Workspace pools remain distinct from a member's monthly cap and do not imply a total pool capacity.
 - CLI RPC: `account/rateLimits/read` → credits balance.

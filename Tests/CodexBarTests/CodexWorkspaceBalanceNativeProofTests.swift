@@ -21,6 +21,14 @@ final class CodexWorkspaceBalanceNativeProofTests: XCTestCase {
         try FileManager.default.createDirectory(
             at: output,
             withIntermediateDirectories: true)
+        var authorityReceipts: [String: [String: Bool]] = [:]
+        for scenario in ["matching", "different", "unscoped", "stale"] {
+            let receipt = try await CodexWorkspaceAuthorityProof.run(scenario: scenario)
+            XCTAssertTrue(receipt.values.allSatisfy { $0 == (scenario == "matching") })
+            authorityReceipts[scenario] = receipt
+        }
+        try JSONSerialization.data(withJSONObject: authorityReceipts, options: [.prettyPrinted, .sortedKeys])
+            .write(to: output.appendingPathComponent("authority.json"))
         let modelFixture = CodexExtraUsageFreshnessTests()
         let old = CreditsSnapshot(
             remaining: 1234.73,
