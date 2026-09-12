@@ -44,40 +44,22 @@ public enum ZenMuxProviderDescriptor {
                 menuCard: ProviderMenuCardPresentation(
                     primaryDescriptionPlacement: .detailLeft,
                     hidesPrimaryResetWithoutDate: true)),
-            fetchPlan: ProviderFetchPlan(
-                sourceModes: [.auto, .api],
-                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [ZenMuxAPIFetchStrategy()] })),
+            fetchPlan: .apiToken(
+                strategyID: "zenmux.api",
+                resolveToken: ZenMuxSettingsReader.managementAPIKey,
+                missingCredentialsError: { ZenMuxUsageError.notConfigured },
+                loadUsage: { credential, context in
+                    let shouldFetchCredits = context.runtime == .app
+                        ? context.includeOptionalUsage
+                        : context.includeCredits
+                    let result = try await ZenMuxUsageFetcher.fetchUsage(
+                        credential,
+                        includePaygBalance: shouldFetchCredits)
+                    return result.usage.toUsageSnapshot(paygBalanceUSD: result.paygBalanceUSD)
+                }),
             cli: ProviderCLIConfig(
                 name: "zenmux",
                 aliases: ["zen-mux"],
                 versionDetector: nil))
-    }
-}
-
-struct ZenMuxAPIFetchStrategy: ProviderFetchStrategy {
-    let id = "zenmux.api"
-    let kind: ProviderFetchKind = .apiToken
-
-    func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        ZenMuxSettingsReader.managementAPIKey(environment: context.env) != nil
-    }
-
-    func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        guard let credential = ZenMuxSettingsReader.managementAPIKey(environment: context.env) else {
-            throw ZenMuxUsageError.notConfigured
-        }
-        let shouldFetchCredits = context.runtime == .app
-            ? context.includeOptionalUsage
-            : context.includeCredits
-        let result = try await ZenMuxUsageFetcher.fetchUsage(
-            credential,
-            includePaygBalance: shouldFetchCredits)
-        return self.makeResult(
-            usage: result.usage.toUsageSnapshot(paygBalanceUSD: result.paygBalanceUSD),
-            sourceLabel: "api")
-    }
-
-    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
-        false
     }
 }

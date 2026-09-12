@@ -71,22 +71,11 @@ public enum ClaudeSwapRetainedUsageStore {
     }
 
     private static func resolvedFileURL() -> URL? {
-        if self.isRunningTests { return nil }
+        if TestProcessSafety.isRunning { return nil }
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
         return base?
             .appendingPathComponent("CodexBar", isDirectory: true)
             .appendingPathComponent("claude-swap-retained-usage.json")
-    }
-
-    private static var isRunningTests: Bool {
-        let environment = ProcessInfo.processInfo.environment
-        if environment["XCTestConfigurationFilePath"] != nil || environment["XCTestBundlePath"] != nil {
-            return true
-        }
-        if ProcessInfo.processInfo.processName.lowercased().contains("xctest") {
-            return true
-        }
-        return CommandLine.arguments.contains { $0.lowercased().contains(".xctest") }
     }
 
     private struct Record: Codable {

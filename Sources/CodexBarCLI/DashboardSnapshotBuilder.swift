@@ -246,11 +246,11 @@ enum DashboardSnapshotBuilder {
         guard let status else { return nil }
         return DashboardStatusPayload(
             level: self.dashboardStatusLevel(status.indicator),
-            label: status.indicator.label,
+            label: status.indicator.cliLabel,
             updatedAt: status.updatedAt)
     }
 
-    private static func dashboardStatusLevel(_ indicator: ProviderStatusPayload.ProviderStatusIndicator) -> String {
+    private static func dashboardStatusLevel(_ indicator: ProviderStatusIndicator) -> String {
         switch indicator {
         case .none:
             "ok"

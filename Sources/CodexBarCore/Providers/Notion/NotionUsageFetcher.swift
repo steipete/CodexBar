@@ -10,7 +10,7 @@ import SweetCookieKit
 #if os(macOS)
 public enum NotionCookieImporter {
     private static let importSessionCacheTTL: TimeInterval = 5
-    private static let importSessionCache = ImportSessionCache(ttl: importSessionCacheTTL)
+    private static let importSessionCache = ExpiringValueCache<SessionInfo>(ttl: importSessionCacheTTL)
     private static let cookieClient = BrowserCookieClient()
     private static let cookieImportOrder: BrowserCookieImportOrder =
         ProviderDefaults.metadata[.notion]?.browserCookieOrder ?? Browser.defaultImportOrder
@@ -107,32 +107,6 @@ public enum NotionCookieImporter {
             best[cookie.name] = (rank, cookie)
         }
         return best.keys.sorted().compactMap { best[$0]?.cookie }
-    }
-
-    private final class ImportSessionCache: @unchecked Sendable {
-        private let ttl: TimeInterval
-        private let lock = NSLock()
-        private var entry: (session: SessionInfo, expiresAt: Date)?
-
-        init(ttl: TimeInterval) {
-            self.ttl = ttl
-        }
-
-        func load(now: Date) -> SessionInfo? {
-            self.lock.lock()
-            defer { self.lock.unlock() }
-            guard let entry = self.entry, entry.expiresAt > now else {
-                self.entry = nil
-                return nil
-            }
-            return entry.session
-        }
-
-        func store(_ session: SessionInfo, now: Date) {
-            self.lock.lock()
-            self.entry = (session, now.addingTimeInterval(self.ttl))
-            self.lock.unlock()
-        }
     }
 }
 #endif

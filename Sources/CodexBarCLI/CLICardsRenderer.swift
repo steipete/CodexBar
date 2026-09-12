@@ -157,7 +157,7 @@ enum CLICardsRenderer {
             now: input.now)
         let statusLine: String?
         if let status = input.status {
-            let line = "Status: \(status.indicator.label)\(status.descriptionSuffix)"
+            let line = "Status: \(status.indicator.cliLabel)\(status.descriptionSuffix)"
             statusLine = CLIRenderer.colorizeStatusLine(line, indicator: status.indicator, useColor: input.useColor)
         } else {
             statusLine = nil
@@ -211,7 +211,7 @@ enum CLICardsRenderer {
         }
 
         let statusLine: String? = renderOptions.status.map { status in
-            let line = "Status: \(status.indicator.label)\(status.descriptionSuffix)"
+            let line = "Status: \(status.indicator.cliLabel)\(status.descriptionSuffix)"
             return CLIRenderer.colorizeStatusLine(
                 line,
                 indicator: status.indicator,

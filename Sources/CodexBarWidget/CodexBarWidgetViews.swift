@@ -558,11 +558,6 @@ struct WidgetUsageRow: Identifiable, Equatable {
     let title: String
     let percentLeft: Double?
 
-    private enum AntigravityQuotaFamily {
-        case gemini
-        case claudeGPT
-    }
-
     static func smallWidgetRowLimit(for entry: WidgetSnapshot.ProviderEntry) -> Int? {
         self.widgetRowLimit(for: entry, family: .small)
     }
@@ -637,9 +632,11 @@ struct WidgetUsageRow: Identifiable, Equatable {
            limit >= 2,
            rows.contains(where: { $0.id.hasPrefix("antigravity-quota-summary-") })
         {
-            var selected = [AntigravityQuotaFamily.gemini, .claudeGPT].compactMap { family in
+            var selected = [AntigravityQuotaFamilyVisibility.KnownFamily.gemini, .claudeGPT].compactMap { family in
                 rows
-                    .filter { self.antigravityQuotaFamily(for: $0) == family }
+                    .filter {
+                        AntigravityQuotaFamilyVisibility.knownFamily(windowID: $0.id, title: $0.title) == family
+                    }
                     .min(by: self.isMoreConstrained)
             }
             let selectedIDs = Set(selected.map(\.id))
@@ -714,27 +711,6 @@ struct WidgetUsageRow: Identifiable, Equatable {
             return nil
         }
         return entry.tokenUsage
-    }
-
-    private static func antigravityQuotaFamily(for row: WidgetUsageRow) -> AntigravityQuotaFamily? {
-        // Provider-specific by design: Antigravity IDs/titles classify Gemini versus third-party quota families.
-        guard row.id.hasPrefix("antigravity-quota-summary-") else { return nil }
-        let id = row.id.lowercased()
-        if id.contains("gemini") {
-            return .gemini
-        }
-        if id.contains("3p") || id.contains("third-party") {
-            return .claudeGPT
-        }
-
-        let title = row.title.lowercased()
-        if title.contains("gemini") {
-            return .gemini
-        }
-        if title.contains("claude") || title.contains("gpt") {
-            return .claudeGPT
-        }
-        return nil
     }
 
     private static func isMoreConstrained(_ lhs: WidgetUsageRow, than rhs: WidgetUsageRow) -> Bool {

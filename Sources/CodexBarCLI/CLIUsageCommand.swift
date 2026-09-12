@@ -127,26 +127,8 @@ extension CodexBarCLI {
                 kind: .args)
         }
 
-        if tokenSelection.usesOverride {
-            guard providerList.count == 1 else {
-                Self.exit(
-                    code: .failure,
-                    message: "Error: account selection requires a single provider.",
-                    output: output,
-                    kind: .args)
-            }
-            // Provider-specific by design: Codex exposes reconciled accounts beyond config token accounts.
-            let supportsAllCodexAccounts = providerList[0] == .codex
-                && tokenSelection.allAccounts
-                && tokenSelection.label == nil
-                && tokenSelection.index == nil
-            guard supportsAllCodexAccounts || TokenAccountSupportCatalog.support(for: providerList[0]) != nil else {
-                Self.exit(
-                    code: .failure,
-                    message: "Error: \(providerList[0].rawValue) does not support token accounts.",
-                    output: output,
-                    kind: .args)
-            }
+        if let message = tokenSelection.providerSelectionError(providerList) {
+            Self.exit(code: .failure, message: "Error: \(message)", output: output, kind: .args)
         }
 
         let browserDetection = BrowserDetection()

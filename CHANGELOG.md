@@ -4,9 +4,13 @@
 
 ### Fixed
 - Antigravity: suppress remote model variants that exactly mirror a known pool and reset, preserve distinct quota rows and their saved visibility, and prefer known usage over reset-only duplicates (#3583). Thanks @hhh2210!
+- Codex: reject oversized numeric spend-limit reset timestamps without crashing, preserving valid limits and usage.
 
 ### Development
 - Tests: fix native macOS SwiftPM test launches when Sparkle is staged beside the test bundle (from #3584). Thanks @hhh2210!
+- Consolidate status feeds, legacy Keychain string operations, API-token strategies, quota presentation, test-runner detection, and checked usage totals under shared owners while preserving provider-specific behavior.
+- Share browser-profile cookie merging, legacy cookie-file encoding, short-lived import caches, OpenCode web parsing, OneConsole quota projection, and terminal scan buffers without merging provider identities or authentication policies.
+- Centralize Chromium local-storage discovery, plugin management-auth policy, and Codex spend-limit number decoding.
 
 ## 0.60.0 — 2026-09-12
 

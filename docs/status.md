@@ -14,6 +14,8 @@ read_when:
 ## Behavior
 - Toggle: Settings → Advanced → “Check provider status”.
 - `UsageStore` polls status and stores `ProviderStatus` for indicator/description.
+- App and CLI share Core's status-feed decoder and transport-injected fetcher. The app requests component summaries and Workspace
+  incidents; CLI `--status` retains its lightweight Statuspage request and existing JSON fields.
 - Menu shows incident summary + freshness; icon overlays indicator.
 - Cached provider tabs retain their own status components and website links, including on the first switch after opening the merged menu; providers without a curated component submenu keep a plain website link.
 

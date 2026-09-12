@@ -30,7 +30,7 @@ enum MenuBarMetricWindowResolver {
         case .monthlyPlan:
             return nil
         case .extraUsage:
-            return Self.extraUsageWindow(snapshot: snapshot)
+            return snapshot.providerCost?.spendLimitWindow
         case .tertiary:
             return Self.requestedWindow(
                 provider: provider,
@@ -50,10 +50,7 @@ enum MenuBarMetricWindowResolver {
             // Claude accounts that only expose an enterprise/extra-usage spend limit have no real
             // session/weekly lanes; surface the spend limit (as `.automatic` does) instead of an empty
             // or 0% placeholder lane.
-            return Self.mostConstrainedWindow(
-                primary: snapshot.primary,
-                secondary: snapshot.secondary,
-                tertiary: nil)
+            return ProviderUsagePresentation.mostConstrained(snapshot.primary, snapshot.secondary)
         case .average:
             return Self.averageWindow(snapshot: snapshot, supportsAverage: supportsAverage)
         case .automatic:
@@ -209,17 +206,6 @@ enum MenuBarMetricWindowResolver {
         ProviderUsagePresentation.window(in: snapshot, following: lanes)
     }
 
-    private static func mostConstrainedWindow(
-        primary: RateWindow?,
-        secondary: RateWindow?,
-        tertiary: RateWindow?)
-        -> RateWindow?
-    {
-        let windows = [primary, secondary, tertiary].compactMap(\.self)
-        guard !windows.isEmpty else { return nil }
-        return windows.max(by: { $0.usedPercent < $1.usedPercent })
-    }
-
     private static func exhaustedWindow(
         primary: RateWindow?,
         secondary: RateWindow?,
@@ -249,15 +235,5 @@ enum MenuBarMetricWindowResolver {
         case .unhandled:
             return nil
         }
-    }
-
-    private static func extraUsageWindow(snapshot: UsageSnapshot?) -> RateWindow? {
-        guard let cost = snapshot?.providerCost, cost.limit > 0 else { return nil }
-        let usedPercent = max(0, min(100, (cost.used / cost.limit) * 100))
-        return RateWindow(
-            usedPercent: usedPercent,
-            windowMinutes: nil,
-            resetsAt: cost.resetsAt,
-            resetDescription: nil)
     }
 }

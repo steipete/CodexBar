@@ -185,7 +185,7 @@ public final class ProviderHTTPClient: ProviderHTTPTransport, @unchecked Sendabl
     }
 
     private static func sharedSession() -> URLSession {
-        if self.isRunningTests {
+        if TestProcessSafety.isRunning {
             // XCTest URLProtocol.registerClass stubs only intercept URLSession.shared on macOS.
             return .shared
         }
@@ -199,17 +199,6 @@ public final class ProviderHTTPClient: ProviderHTTPTransport, @unchecked Sendabl
             configuration: configuration,
             delegate: ProviderHTTPRedirectGuardDelegate(),
             delegateQueue: nil)
-    }
-
-    static var isRunningTests: Bool {
-        let environment = ProcessInfo.processInfo.environment
-        if environment["XCTestConfigurationFilePath"] != nil || environment["XCTestBundlePath"] != nil {
-            return true
-        }
-        if ProcessInfo.processInfo.processName.lowercased().contains("xctest") {
-            return true
-        }
-        return CommandLine.arguments.contains { $0.lowercased().contains(".xctest") }
     }
 
     public func data(for request: URLRequest) async throws -> (Data, URLResponse) {

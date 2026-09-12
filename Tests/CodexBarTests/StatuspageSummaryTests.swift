@@ -14,7 +14,7 @@ struct StatuspageSummaryTests {
         }
         """#.utf8)
 
-        let status = try UsageStore.parseStatuspageStatus(data: data)
+        let status = try ProviderStatusFetcher.parseStatuspageStatus(data: data)
         #expect(status.indicator == .minor)
         #expect(status.description == "Partial System Degradation")
         #expect(status.updatedAt != nil)
@@ -33,7 +33,7 @@ struct StatuspageSummaryTests {
         }
         """#.utf8)
 
-        let components = try UsageStore.parseStatuspageComponents(data: data)
+        let components = try ProviderStatusFetcher.parseStatuspageComponents(data: data)
 
         #expect(components.map(\.name) == ["Codex API", "CLI", "FedRAMP"])
         #expect(components.map(\.indicator) == [.critical, .none, .minor])
@@ -55,7 +55,7 @@ struct StatuspageSummaryTests {
         }
         """#.utf8)
 
-        let components = try UsageStore.parseStatuspageComponents(data: data)
+        let components = try ProviderStatusFetcher.parseStatuspageComponents(data: data)
 
         // Top level: the group followed by the ungrouped leaf. Children are not promoted.
         #expect(components.map(\.name) == ["API", "CLI"])
@@ -72,7 +72,7 @@ struct StatuspageSummaryTests {
 
     @Test
     func `parse statuspage components tolerates missing components`() throws {
-        let components = try UsageStore.parseStatuspageComponents(data: Data("{}".utf8))
+        let components = try ProviderStatusFetcher.parseStatuspageComponents(data: Data("{}".utf8))
         #expect(components.isEmpty)
     }
 
@@ -87,7 +87,7 @@ struct StatuspageSummaryTests {
         }
         """#.utf8)
 
-        let components = try UsageStore.parseStatuspageComponents(data: data)
+        let components = try ProviderStatusFetcher.parseStatuspageComponents(data: data)
 
         #expect(components.map(\.name) == ["API"])
     }
@@ -111,7 +111,7 @@ struct StatuspageSummaryTests {
         }
 
         let baseURL = try #require(URL(string: "https://status.example.test"))
-        let result = try await UsageStore.fetchStatusSummary(from: baseURL, transport: stub)
+        let result = try await ProviderStatusFetcher.fetchStatusSummary(from: baseURL, transport: stub)
 
         #expect(result.status.indicator == .minor)
         #expect(result.status.description == "Partial Outage")
@@ -147,7 +147,7 @@ struct StatuspageSummaryTests {
         }
 
         let baseURL = try #require(URL(string: "https://status.example.test"))
-        let result = try await UsageStore.fetchStatusSummary(from: baseURL, transport: stub)
+        let result = try await ProviderStatusFetcher.fetchStatusSummary(from: baseURL, transport: stub)
 
         #expect(result.status.indicator == .minor)
         #expect(result.status.description == "Elevated error rates")
@@ -182,7 +182,7 @@ struct StatuspageSummaryTests {
         }
         """#.utf8)
 
-        let result = try UsageStore.parseIncidentIOSummary(data: data)
+        let result = try ProviderStatusFetcher.parseIncidentIOSummary(data: data)
 
         #expect(result.components.map(\.name) == ["Codex", "FedRAMP", "Standalone"])
 

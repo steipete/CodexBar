@@ -339,13 +339,7 @@ enum ShareStatsBuilder {
     static func combinedTotalTokens(_ values: [Int?]) -> Int? {
         let known = values.compactMap(\.self)
         guard !known.isEmpty else { return nil }
-        var total = 0
-        for value in known {
-            let result = total.addingReportingOverflow(value)
-            guard !result.overflow else { return nil }
-            total = result.partialValue
-        }
-        return total
+        return CheckedSum.integers(known)
     }
 }
 

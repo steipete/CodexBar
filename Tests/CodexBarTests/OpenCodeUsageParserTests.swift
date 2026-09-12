@@ -8,7 +8,7 @@ struct OpenCodeUsageParserTests {
         let text = ";0x00000089;((self.$R=self.$R||{})[\"codexbar\"]=[]," +
             "($R=>$R[0]=[$R[1]={id:\"wrk_01K6AR1ZET89H8NB691FQ2C2VB\",name:\"Default\",slug:null}])" +
             "($R[\"codexbar\"]))"
-        let ids = OpenCodeUsageFetcher.parseWorkspaceIDs(text: text)
+        let ids = OpenCodeWebParsing.parseWorkspaceIDs(text: text)
         #expect(ids == ["wrk_01K6AR1ZET89H8NB691FQ2C2VB"])
     }
 

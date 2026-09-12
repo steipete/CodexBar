@@ -36,11 +36,6 @@ enum DevinSessionImporter {
         let sourceLabel: String
     }
 
-    struct LocalStorageCandidate {
-        let label: String
-        let url: URL
-    }
-
     static func importSession(
         browserDetection: BrowserDetection,
         organizationOverride: String? = nil,
@@ -71,7 +66,8 @@ enum DevinSessionImporter {
         #endif
 
         let log: (String) -> Void = { msg in logger?("[devin-storage] \(msg)") }
-        let candidates = self.chromeLocalStorageCandidates(browserDetection: browserDetection)
+        let candidates = ChromiumLocalStorageDiscovery
+            .candidates(browsers: self.localStorageBrowsers(browserDetection: browserDetection))
         if !candidates.isEmpty {
             log("Chrome local storage candidates: \(candidates.count)")
         }
@@ -222,46 +218,9 @@ enum DevinSessionImporter {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    static func chromeLocalStorageCandidates(browserDetection: BrowserDetection) -> [LocalStorageCandidate] {
-        let installedBrowsers = self.localStorageBrowsers(browserDetection: browserDetection)
-        let roots = ChromiumProfileLocator
-            .roots(for: installedBrowsers, homeDirectories: BrowserCookieClient.defaultHomeDirectories())
-            .map { (url: $0.url, labelPrefix: $0.labelPrefix) }
-
-        var candidates: [LocalStorageCandidate] = []
-        for root in roots {
-            candidates.append(contentsOf: self.chromeProfileLocalStorageDirs(
-                root: root.url,
-                labelPrefix: root.labelPrefix))
-        }
-        return candidates
-    }
-
     static func localStorageBrowsers(browserDetection: BrowserDetection) -> [Browser] {
         let order = ProviderDefaults.metadata[.devin]?.browserCookieOrder ?? [.chrome]
         return order.browsersWithProfileData(using: browserDetection)
-    }
-
-    private static func chromeProfileLocalStorageDirs(root: URL, labelPrefix: String) -> [LocalStorageCandidate] {
-        guard let entries = try? FileManager.default.contentsOfDirectory(
-            at: root,
-            includingPropertiesForKeys: [.isDirectoryKey],
-            options: [.skipsHiddenFiles])
-        else { return [] }
-
-        return entries.filter { url in
-            guard let isDir = (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory), isDir else {
-                return false
-            }
-            let name = url.lastPathComponent
-            return name == "Default" || name.hasPrefix("Profile ") || name.hasPrefix("user-")
-        }
-        .sorted { $0.lastPathComponent < $1.lastPathComponent }
-        .compactMap { dir in
-            let levelDBURL = dir.appendingPathComponent("Local Storage").appendingPathComponent("leveldb")
-            guard FileManager.default.fileExists(atPath: levelDBURL.path) else { return nil }
-            return LocalStorageCandidate(label: "\(labelPrefix) \(dir.lastPathComponent)", url: levelDBURL)
-        }
     }
 
     private static func readLocalStorage(from levelDBURL: URL, logger: ((String) -> Void)?) -> [String: String] {

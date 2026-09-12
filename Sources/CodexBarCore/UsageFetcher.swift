@@ -794,12 +794,12 @@ private struct RPCSpendControlLimitSnapshot: Decodable, Encodable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.limit = Self.decodeFlexibleDouble(container, forKey: .limit)
-        self.used = Self.decodeFlexibleDouble(container, forKey: .used)
-        self.remainingPercent = Self.decodeFlexibleDouble(container, forKey: .remainingPercent)
-            ?? Self.decodeFlexibleDouble(container, forKey: .remainingPercentSnake)
-        self.resetsAt = Self.decodeFlexibleInt(container, forKey: .resetsAt)
-            ?? Self.decodeFlexibleInt(container, forKey: .resetsAtSnake)
+        self.limit = CodexSpendControlNumber.double(container, forKey: .limit)
+        self.used = CodexSpendControlNumber.double(container, forKey: .used)
+        self.remainingPercent = CodexSpendControlNumber.double(container, forKey: .remainingPercent)
+            ?? CodexSpendControlNumber.double(container, forKey: .remainingPercentSnake)
+        self.resetsAt = CodexSpendControlNumber.integer(container, forKey: .resetsAt)
+            ?? CodexSpendControlNumber.integer(container, forKey: .resetsAtSnake)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -808,38 +808,6 @@ private struct RPCSpendControlLimitSnapshot: Decodable, Encodable {
         try container.encodeIfPresent(self.used, forKey: .used)
         try container.encodeIfPresent(self.remainingPercent, forKey: .remainingPercent)
         try container.encodeIfPresent(self.resetsAt, forKey: .resetsAt)
-    }
-
-    private static func decodeFlexibleDouble(
-        _ container: KeyedDecodingContainer<CodingKeys>,
-        forKey key: CodingKeys) -> Double?
-    {
-        if let value = try? container.decodeIfPresent(Double.self, forKey: key) {
-            return value
-        }
-        if let value = try? container.decodeIfPresent(Int.self, forKey: key) {
-            return Double(value)
-        }
-        if let value = try? container.decodeIfPresent(String.self, forKey: key) {
-            return Double(value.trimmingCharacters(in: .whitespacesAndNewlines))
-        }
-        return nil
-    }
-
-    private static func decodeFlexibleInt(
-        _ container: KeyedDecodingContainer<CodingKeys>,
-        forKey key: CodingKeys) -> Int?
-    {
-        if let value = try? container.decodeIfPresent(Int.self, forKey: key) {
-            return value
-        }
-        if let value = try? container.decodeIfPresent(Double.self, forKey: key) {
-            return Int(value)
-        }
-        if let value = try? container.decodeIfPresent(String.self, forKey: key) {
-            return Int(value.trimmingCharacters(in: .whitespacesAndNewlines))
-        }
-        return nil
     }
 }
 

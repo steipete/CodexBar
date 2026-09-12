@@ -1,5 +1,8 @@
 import CodexBarCore
 import Commander
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 #if canImport(Darwin)
 import Darwin
 #elseif canImport(Glibc)
@@ -153,12 +156,20 @@ extension CodexBarCLI {
         }
     }
 
-    static func fetchStatus(for provider: UsageProvider) async -> ProviderStatusPayload? {
+    static func fetchStatus(
+        for provider: UsageProvider,
+        transport: any ProviderHTTPTransport = ProviderHTTPClient(session: .shared)) async -> ProviderStatusPayload?
+    {
         let urlString = ProviderDescriptorRegistry.descriptor(for: provider).metadata.statusPageURL
         guard let urlString,
               let baseURL = URL(string: urlString) else { return nil }
         do {
-            return try await StatusFetcher.fetch(from: baseURL)
+            let status = try await ProviderStatusFetcher.fetchStatus(from: baseURL, transport: transport)
+            return ProviderStatusPayload(
+                indicator: status.indicator,
+                description: status.description,
+                updatedAt: status.updatedAt,
+                url: urlString)
         } catch {
             return ProviderStatusPayload(
                 indicator: .unknown,
