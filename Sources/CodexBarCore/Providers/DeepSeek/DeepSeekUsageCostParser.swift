@@ -643,7 +643,9 @@ enum DeepSeekUsageCostParser {
         }
 
         let topModel = modelTokens.max {
-            if $0.value == $1.value { return $0.key > $1.key }
+            if $0.value == $1.value {
+                return $0.key > $1.key
+            }
             return $0.value < $1.value
         }?.key
 
@@ -748,40 +750,7 @@ enum DeepSeekUsageCostParser {
         rangeStart: Date? = nil,
         rangeEnd: Date? = nil) throws -> DeepSeekUsageSummary
     {
-        let amount: ByAPIKeyAmountPayload
-        let cost: ByAPIKeyCostPayload
-        do {
-            amount = try JSONDecoder().decode(ByAPIKeyAmountPayload.self, from: amountData)
-        } catch {
-            throw DeepSeekUsageError.parseFailed("amount: \(self.decodingFailureDescription(error))")
-        }
-        do {
-            cost = try JSONDecoder().decode(ByAPIKeyCostPayload.self, from: costData)
-        } catch {
-            throw DeepSeekUsageError.parseFailed("cost: \(self.decodingFailureDescription(error))")
-        }
-        if let code = amount.code, code != 0 {
-            if self.isAuthenticationError(code) { throw DeepSeekUsageError.invalidPlatformToken }
-            throw DeepSeekUsageError.apiError("amount code \(code)")
-        }
-        if let code = cost.code, code != 0 {
-            if self.isAuthenticationError(code) { throw DeepSeekUsageError.invalidPlatformToken }
-            throw DeepSeekUsageError.apiError("cost code \(code)")
-        }
-        if let bizCode = amount.data?.bizCode, bizCode != 0 {
-            if self.isAuthenticationError(bizCode) { throw DeepSeekUsageError.invalidPlatformToken }
-            throw DeepSeekUsageError.apiError("amount biz_code \(bizCode)")
-        }
-        if let bizCode = cost.data?.bizCode, bizCode != 0 {
-            if self.isAuthenticationError(bizCode) { throw DeepSeekUsageError.invalidPlatformToken }
-            throw DeepSeekUsageError.apiError("cost biz_code \(bizCode)")
-        }
-        guard amount.data?.bizData != nil else {
-            throw DeepSeekUsageError.parseFailed("Missing amount biz_data")
-        }
-        guard cost.data?.bizData != nil else {
-            throw DeepSeekUsageError.parseFailed("Missing cost biz_data")
-        }
+        let (amount, cost) = try self.decodeByAPIKeyPayloads(amountData: amountData, costData: costData)
 
         let start = rangeStart ?? calendar.date(byAdding: .day, value: -29, to: calendar.startOfDay(for: now)) ?? now
         let end = rangeEnd ?? calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now)) ?? now
@@ -794,7 +763,9 @@ enum DeepSeekUsageCostParser {
         var apiKeyIDs = Set<String>()
 
         for series in amount.data?.bizData?.series ?? [] {
-            if let id = series.apiKey?.id { apiKeyIDs.insert(id) }
+            if let id = series.apiKey?.id {
+                apiKeyIDs.insert(id)
+            }
             let model = series.model ?? "unknown"
             for bucket in series.buckets ?? [] where bucket.time >= startSeconds && bucket.time < endSeconds {
                 let date = self.dayString(fromUnix: bucket.time, calendar: calendar)
@@ -803,7 +774,9 @@ enum DeepSeekUsageCostParser {
                     items.append(DeepSeekUsageItem(type: type, amount: scalar.value))
                     guard let category = DeepSeekUsageCategory(rawValue: type) else { continue }
                     let value = self.parseTokenAmount(scalar.value)
-                    if category == .request { continue }
+                    if category == .request {
+                        continue
+                    }
                     categoryTotals[category, default: 0] += value
                     modelTokens[model, default: 0] += value
                 }
@@ -821,7 +794,9 @@ enum DeepSeekUsageCostParser {
         let selectedBlock = self.preferredCostBlock(costBlocks)
         let currency = selectedBlock?.currency?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty ?? "CNY"
         for series in selectedBlock?.series ?? [] {
-            if let id = series.apiKey?.id { apiKeyIDs.insert(id) }
+            if let id = series.apiKey?.id {
+                apiKeyIDs.insert(id)
+            }
             for bucket in series.buckets ?? [] where bucket.time >= startSeconds && bucket.time < endSeconds {
                 let date = self.dayString(fromUnix: bucket.time, calendar: calendar)
                 dayCosts[date, default: 0] += Double(bucket.cost.value) ?? 0
@@ -829,21 +804,6 @@ enum DeepSeekUsageCostParser {
         }
 
         let todayString = AggregationContext.dayString(now, calendar: calendar)
-        var todayTokens = 0
-        var todayRequests = 0
-        if let amounts = dayAmounts[todayString] {
-            for items in amounts.values {
-                for item in items {
-                    guard let category = DeepSeekUsageCategory(rawValue: item.type ?? "") else { continue }
-                    if category == .request {
-                        todayRequests += self.parseTokenAmount(item.amount)
-                    } else {
-                        todayTokens += self.parseTokenAmount(item.amount)
-                    }
-                }
-            }
-        }
-
         var periodTokens = 0
         var periodRequests = 0
         var daily: [DeepSeekDailyUsage] = []
@@ -879,16 +839,19 @@ enum DeepSeekUsageCostParser {
             DeepSeekCategoryBreakdown(category: category, tokens: categoryTotals[category] ?? 0, cost: nil)
         }
         let topModel = modelTokens.max {
-            if $0.value == $1.value { return $0.key > $1.key }
+            if $0.value == $1.value {
+                return $0.key > $1.key
+            }
             return $0.value < $1.value
         }?.key
 
+        let today = daily.first { $0.date == todayString }
         return DeepSeekUsageSummary(
-            todayTokens: todayTokens,
+            todayTokens: today?.totalTokens ?? 0,
             currentMonthTokens: periodTokens,
             todayCost: dayCosts[todayString],
             currentMonthCost: dayCosts.values.reduce(0, +),
-            requestCount: todayRequests,
+            requestCount: today?.requestCount ?? 0,
             currentMonthRequestCount: periodRequests,
             topModel: topModel,
             categoryBreakdown: breakdown,
@@ -897,6 +860,55 @@ enum DeepSeekUsageCostParser {
             apiKeyCount: apiKeyIDs.count,
             period: .last30Days,
             updatedAt: now)
+    }
+
+    private static func decodeByAPIKeyPayloads(amountData: Data, costData: Data) throws
+        -> (ByAPIKeyAmountPayload, ByAPIKeyCostPayload)
+    {
+        let amount: ByAPIKeyAmountPayload
+        let cost: ByAPIKeyCostPayload
+        do {
+            amount = try JSONDecoder().decode(ByAPIKeyAmountPayload.self, from: amountData)
+        } catch {
+            throw DeepSeekUsageError.parseFailed("amount: \(self.decodingFailureDescription(error))")
+        }
+        do {
+            cost = try JSONDecoder().decode(ByAPIKeyCostPayload.self, from: costData)
+        } catch {
+            throw DeepSeekUsageError.parseFailed("cost: \(self.decodingFailureDescription(error))")
+        }
+        if let code = amount.code, code != 0 {
+            if self.isAuthenticationError(code) {
+                throw DeepSeekUsageError.invalidPlatformToken
+            }
+            throw DeepSeekUsageError.apiError("amount code \(code)")
+        }
+        if let code = cost.code, code != 0 {
+            if self.isAuthenticationError(code) {
+                throw DeepSeekUsageError.invalidPlatformToken
+            }
+            throw DeepSeekUsageError.apiError("cost code \(code)")
+        }
+        if let bizCode = amount.data?.bizCode, bizCode != 0 {
+            if self.isAuthenticationError(bizCode) {
+                throw DeepSeekUsageError.invalidPlatformToken
+            }
+            throw DeepSeekUsageError.apiError("amount biz_code \(bizCode)")
+        }
+        if let bizCode = cost.data?.bizCode, bizCode != 0 {
+            if self.isAuthenticationError(bizCode) {
+                throw DeepSeekUsageError.invalidPlatformToken
+            }
+            throw DeepSeekUsageError.apiError("cost biz_code \(bizCode)")
+        }
+        guard amount.data?.bizData != nil else {
+            throw DeepSeekUsageError.parseFailed("Missing amount biz_data")
+        }
+        guard cost.data?.bizData != nil else {
+            throw DeepSeekUsageError.parseFailed("Missing cost biz_data")
+        }
+
+        return (amount, cost)
     }
 
     private static func preferredCostBlock(_ blocks: [ByAPIKeyCostCurrency]) -> ByAPIKeyCostCurrency? {
@@ -916,8 +928,8 @@ enum DeepSeekUsageCostParser {
     }
 }
 
-private extension String {
-    var nilIfEmpty: String? {
+extension String {
+    fileprivate var nilIfEmpty: String? {
         self.isEmpty ? nil : self
     }
 }
@@ -985,9 +997,23 @@ private struct ByAPIKeyIdentity: Decodable {
     let name: String?
     let trackingID: String?
     enum CodingKeys: String, CodingKey { case name; case trackingID = "tracking_id" }
+
+    init(from decoder: Decoder) throws {
+        if let trackingID = try? decoder.singleValueContainer().decode(String.self) {
+            self.trackingID = trackingID
+            self.name = nil
+        } else {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            self.trackingID = try container.decodeIfPresent(String.self, forKey: .trackingID)
+            self.name = try container.decodeIfPresent(String.self, forKey: .name)
+        }
+    }
+
     var id: String {
         let tracking = self.trackingID?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if !tracking.isEmpty { return tracking }
+        if !tracking.isEmpty {
+            return tracking
+        }
         let name = self.name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return name.isEmpty ? "unknown" : name
     }

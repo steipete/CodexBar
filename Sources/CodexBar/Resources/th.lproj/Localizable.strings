@@ -1554,3 +1554,6 @@
 "Color Pace Indicator" = "แสดงสีอัตราการใช้งาน";
 "Green pace indicator when behind pace, red when ahead of pace (risk of running out early)" = "สีเขียวเมื่อใช้งานช้ากว่าอัตราที่คาดไว้ (มีโควตาสำรอง) สีแดงเมื่อเร็วกว่า (เสี่ยงหมดโควตาก่อนเวลา)";
 "%@ weekly" = "%@ รายสัปดาห์";
+
+"agent_sessions_hide_unreachable_title" = "ซ่อนโฮสต์ที่เข้าถึงไม่ได้";
+"agent_sessions_hide_unreachable_subtitle" = "ซ่อนโฮสต์เมื่อดึงข้อมูลเซสชันไม่สำเร็จ";

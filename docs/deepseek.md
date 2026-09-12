@@ -30,6 +30,9 @@ endpoints.
      and `.../by_api_key/cost?...` — the same per-key daily buckets the Platform usage page loads.
    - Fallback: `GET https://platform.deepseek.com/api/v0/usage/amount?month=<month>&year=<year>`
      and `.../usage/cost?...` if the per-key endpoints fail.
+   - Daily buckets use Gregorian dates at the current fixed UTC offset in seconds, matching the API across daylight-saving transitions. Monthly fallback keeps
+     Gregorian UTC month selection and date parsing, and is labeled **This month**, not **Last 30 days**.
+   - Cancellation stops enrichment without starting monthly fallback requests.
    - Request headers: `Authorization: Bearer <platform userToken>`, `Accept: application/json`, `x-client-platform: web`
    - These are private dashboard endpoints rather than documented public API endpoints and may change without notice.
 

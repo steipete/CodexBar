@@ -1551,3 +1551,6 @@
 "Color Pace Indicator" = "Tô màu nhịp sử dụng";
 "Green pace indicator when behind pace, red when ahead of pace (risk of running out early)" = "Xanh khi mức sử dụng chậm hơn nhịp dự kiến (còn dư); đỏ khi nhanh hơn (nguy cơ hết hạn mức sớm).";
 "%@ weekly" = "%@ hàng tuần";
+
+"agent_sessions_hide_unreachable_title" = "Ẩn máy chủ không thể truy cập";
+"agent_sessions_hide_unreachable_subtitle" = "Ẩn máy chủ khi không lấy được các phiên của máy chủ đó.";

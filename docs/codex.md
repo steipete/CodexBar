@@ -68,6 +68,7 @@ Usage source picker:
   Automatic mode also suppresses unscoped CLI fallback whenever a managed workspace is selected. Explicit
   managed-account workspace selection is stored in CodexBar's private managed-account metadata; it never edits the
   source `auth.json` or publishes an `account_id` change back to another application's credential file.
+- **Reauthenticate** follows the credential source shown by the account row: System rows use the existing system Codex login flow even when the same account is also saved; managed rows renew their private managed home. Credentials are not copied between those homes. A queued action is discarded if the row's source or workspace changes.
 - If native credentials need renewal, use **Reauthenticate** for the affected account in Settings → Providers → Codex.
   For CLI recovery, run `codex login` with that account's existing `CODEX_HOME` and select the intended workspace.
   The refresh error describes this manual recovery without promising automatic CLI fallback for managed workspaces.
@@ -246,6 +247,8 @@ is limited, using additional rows when needed.
     coverage, and incomplete-scan checks. Cached reports
     retain row-level pricing evidence and project/session details, but omit raw token snapshots, accumulator state,
     and replay bodies. File cursor metadata, including JSONL resume state, remains available for progress tracking.
+    Fresh and cached fetches use progress metadata to recognize retained reports during catch-up, skipping
+    detail-row decoding that would be discarded. Reports without a matching retained result still load exact details.
     A native scan loads exact usage rows once, deferring raw token history and checkpoints until a file changes
     or a fork needs its ancestors. A single-use receipt binds those deferred reads and saves to the original
     connection, database identity and SQLite change observations,
@@ -303,3 +306,7 @@ dashboard labels its values as local estimates and keeps currencies separate.
   `Sources/CodexBarCore/PiSessionCostScanner.swift`,
   `Sources/CodexBarCore/PiSessionCostCache.swift`,
   `Sources/CodexBarCore/Vendored/CostUsage/*`
+
+Automatic local-history catch-up bases its duty-cycle delay on time spent executing its own scan, including cache
+publication. Time waiting behind another account or provider on the shared scan queue does not increase that delay.
+The existing power, thermal, scan-budget, and complete-history publication rules still apply.

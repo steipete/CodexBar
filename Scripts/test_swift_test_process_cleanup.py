@@ -249,7 +249,8 @@ class ProcessCleanupTests(unittest.TestCase):
             )
             timer = None
             try:
-                wait_until(lambda: (sentinel_root / "pid").exists())
+                # Interpreter/file startup is setup; the cleanup deadlines below start afterward.
+                wait_until(lambda: (sentinel_root / "pid").exists(), timeout=10)
                 if interrupt:
                     timer = threading.Timer(2, lambda: os.kill(os.getpid(), signal.SIGINT))
                     timer.start()

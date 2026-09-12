@@ -1550,3 +1550,6 @@
 "Color Pace Indicator" = "使用ペースを色分け";
 "Green pace indicator when behind pace, red when ahead of pace (risk of running out early)" = "想定より使用が遅い場合は緑（余裕あり）、速い場合は赤（上限に早く達するおそれ）で表示します。";
 "%@ weekly" = "%@（週間）";
+
+"agent_sessions_hide_unreachable_title" = "接続できないホストを非表示";
+"agent_sessions_hide_unreachable_subtitle" = "セッションの取得に失敗したホストを非表示にします。";

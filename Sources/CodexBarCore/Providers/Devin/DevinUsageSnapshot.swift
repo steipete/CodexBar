@@ -103,9 +103,15 @@ public enum DevinUsageParser {
     }
 
     public static func parse(_ object: Any, organization: String?, now: Date = Date()) throws -> DevinUsageSnapshot {
-        let current = (object as? [String: Any]).map(self.currentQuotaWindows)
-        let daily = current?.daily ?? self.findWindow(in: object, matching: self.isDailyKey)
-        let weekly = current?.weekly ?? self.findWindow(in: object, matching: self.isWeeklyKey)
+        let dictionary = object as? [String: Any]
+        let hideDaily = (dictionary?["hide_daily_quota"] as? NSNumber)
+            .map { CFGetTypeID($0) == CFBooleanGetTypeID() && $0.boolValue } ?? false
+        let daily = hideDaily ? nil : self.currentQuotaWindow(
+            percent: dictionary?["daily_percentage"],
+            resetsAt: dictionary?["daily_reset_at"]) ?? self.findWindow(in: object, matching: self.isDailyKey)
+        let weekly = self.currentQuotaWindow(
+            percent: dictionary?["weekly_percentage"],
+            resetsAt: dictionary?["weekly_reset_at"]) ?? self.findWindow(in: object, matching: self.isWeeklyKey)
         guard daily != nil || weekly != nil else {
             throw DevinUsageError.parseFailed("Missing Devin quota windows.")
         }
@@ -129,18 +135,6 @@ public enum DevinUsageParser {
     private static func nonnegativeFiniteDouble(_ value: Any?) -> Double? {
         guard let value = self.double(value), value.isFinite, value >= 0 else { return nil }
         return value
-    }
-
-    private static func currentQuotaWindows(_ dictionary: [String: Any])
-        -> (daily: DevinQuotaWindow?, weekly: DevinQuotaWindow?)
-    {
-        let daily = self.currentQuotaWindow(
-            percent: dictionary["daily_percentage"],
-            resetsAt: dictionary["daily_reset_at"])
-        let weekly = self.currentQuotaWindow(
-            percent: dictionary["weekly_percentage"],
-            resetsAt: dictionary["weekly_reset_at"])
-        return (daily, weekly)
     }
 
     private static func currentQuotaWindow(percent: Any?, resetsAt: Any?) -> DevinQuotaWindow? {

@@ -1552,3 +1552,6 @@
 "Color Pace Indicator" = "Kullanım hızını renklendir";
 "Green pace indicator when behind pace, red when ahead of pace (risk of running out early)" = "Kullanım beklenen hızın gerisindeyse yeşil (rezerv); ilerisindeyse kırmızı (kotanın erken tükenme riski).";
 "%@ weekly" = "%@ haftalık";
+
+"agent_sessions_hide_unreachable_title" = "Erişilemeyen ana bilgisayarları gizle";
+"agent_sessions_hide_unreachable_subtitle" = "Oturumları alınamadığında ana bilgisayarları gizle.";

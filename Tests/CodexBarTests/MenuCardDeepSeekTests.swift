@@ -4,11 +4,11 @@ import Testing
 @testable import CodexBar
 
 struct MenuCardDeepSeekTests {
-    private static func sampleDeepSeekSummary(now: Date = Date()) -> DeepSeekUsageSummary {
+    private static func sampleDeepSeekSummary(now: Date = Date(), todayCost: Double = 0.0123) -> DeepSeekUsageSummary {
         DeepSeekUsageSummary(
             todayTokens: 123,
             currentMonthTokens: 456,
-            todayCost: 0.0123,
+            todayCost: todayCost,
             currentMonthCost: 0.0456,
             requestCount: 7,
             currentMonthRequestCount: 8,
@@ -41,6 +41,13 @@ struct MenuCardDeepSeekTests {
             detailedUsageState: detailedUsageState,
             updatedAt: now)
             .toUsageSnapshot()
+    }
+
+    @Test
+    func `usage rows retain fractional cent precision`() {
+        let snapshot = Self.makeSnapshot(
+            now: Date(), usageSummary: Self.sampleDeepSeekSummary(todayCost: 0.0049))
+        #expect(snapshot.details.flatMap(\.rows).first { $0.label == "Today" }?.value == "¥0.0049 · 123 tokens")
     }
 
     @Test
@@ -150,8 +157,8 @@ struct MenuCardDeepSeekTests {
         #expect(details.chart?.title == "Daily tokens")
         #expect(details.chart?.points.map(\.value) == [456])
         #expect(details.title == "Usage")
-        #expect(details.rows.first { $0.label == "Today" }?.value == "¥0.01 · 123 tokens")
-        #expect(details.rows.first { $0.label == "Last 30 days" }?.value == "¥0.05 · 456 tokens")
+        #expect(details.rows.first { $0.label == "Today" }?.value == "¥0.0123 · 123 tokens")
+        #expect(details.rows.first { $0.label == "Last 30 days" }?.value == "¥0.0456 · 456 tokens")
     }
 
     @Test
@@ -190,8 +197,8 @@ struct MenuCardDeepSeekTests {
             "请求",
             "最常用模型",
         ])
-        #expect(details.rows[0].value == "¥0.01 · 123 token 用量")
-        #expect(details.rows[1].value == "¥0.05 · 456 token 用量")
+        #expect(details.rows[0].value == "¥0.0123 · 123 token 用量")
+        #expect(details.rows[1].value == "¥0.0456 · 456 token 用量")
         #expect(details.rows[3].value == "deepseek-chat")
         #expect(details.chart?.title == "每日 token")
         #expect(details.chart?.unit == "token")

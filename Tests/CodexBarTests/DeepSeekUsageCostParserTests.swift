@@ -852,9 +852,11 @@ struct DeepSeekUsageCostParserTests {
         #expect(summary.topModel == "deepseek-chat") // 300 tokens vs 150 tokens
         #expect(summary.todayTokens == 450) // 150 + 300
     }
+}
 
-    @Test
-    func `by-api-key series fold into daily totals`() throws {
+extension DeepSeekUsageCostParserTests {
+    @Test(arguments: [true, false])
+    func `by-api-key series fold into daily totals`(stringKey: Bool) throws {
         let day = Int(self.fixtureNow.timeIntervalSince1970)
         let amountJSON = """
         {
@@ -862,7 +864,7 @@ struct DeepSeekUsageCostParserTests {
           "data": {
             "biz_data": {
               "series": [{
-                "api_key": {"name": "main", "tracking_id": "key-1"},
+                "api_key": \(stringKey ? "\"key-1\"" : "{\"name\":\"main\",\"tracking_id\":\"key-1\"}"),
                 "model": "deepseek-chat",
                 "buckets": [{
                   "time": \(day),
@@ -886,7 +888,7 @@ struct DeepSeekUsageCostParserTests {
               "data": [{
                 "currency": "CNY",
                 "series": [{
-                  "api_key": {"name": "main", "tracking_id": "key-1"},
+                  "api_key": \(stringKey ? "\"key-1\"" : "{\"name\":\"main\",\"tracking_id\":\"key-1\"}"),
                   "model": "deepseek-chat",
                   "buckets": [{"time": \(day), "cost": "0.12"}]
                 }]

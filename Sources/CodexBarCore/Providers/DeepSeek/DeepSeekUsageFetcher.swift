@@ -211,7 +211,7 @@ public struct DeepSeekUsageSnapshot: Sendable {
     private static func detailSections(_ usage: DeepSeekUsageSummary) -> [ProviderDetailSection] {
         let symbol = usage.currency == "CNY" ? "¥" : "$"
         let cost: (Double?) -> String = { value in
-            value.map { "\(symbol)\(String(format: "%.2f", max(0, $0)))" } ?? "—"
+            value.map { "\(symbol)\(String(format: "%.4f", max(0, $0)))" } ?? "—"
         }
         var rows: [ProviderDetailSection.Row] = [
             .makeRow(
@@ -498,50 +498,77 @@ public struct DeepSeekUsageFetcher: Sendable {
         now: Date = Date(),
         calendar: Calendar? = nil) async throws -> DeepSeekUsageSummary
     {
-        let calendar = calendar ?? self.localGregorianCalendar
-        let window = self.usageWindow(now: now, calendar: calendar)
+        try await self.fetchUsageSummary(
+            platformToken: platformToken,
+            now: now,
+            calendar: calendar,
+            transport: ProviderHTTPClient.shared)
+    }
+
+    static func fetchUsageSummary(
+        platformToken: String,
+        now: Date,
+        calendar: Calendar? = nil,
+        localCalendar: Calendar? = nil,
+        transport: any ProviderHTTPTransport) async throws -> DeepSeekUsageSummary
+    {
+        var dailyCalendar = calendar ?? localCalendar ?? self.localGregorianCalendar
+        // The endpoint accepts one offset for the entire range, rather than a named time zone.
+        dailyCalendar.timeZone = TimeZone(secondsFromGMT: dailyCalendar.timeZone.secondsFromGMT(for: now))!
+        let monthlyCalendar = calendar ?? self.apiCalendar
+        let window = self.usageWindow(now: now, calendar: dailyCalendar)
         do {
             let payloads = try await self.fetchUsagePayloads(
                 fetchAmount: {
                     try await self.fetchByAPIKey(
                         url: self.usageAmountByAPIKeyURL,
                         platformToken: platformToken,
-                        start: window.start,
-                        end: window.end,
-                        timeZoneSeconds: window.timeZoneSeconds)
+                        window: window,
+                        transport: transport)
                 },
                 fetchCost: {
                     try await self.fetchByAPIKey(
                         url: self.usageCostByAPIKeyURL,
                         platformToken: platformToken,
-                        start: window.start,
-                        end: window.end,
-                        timeZoneSeconds: window.timeZoneSeconds)
+                        window: window,
+                        transport: transport)
                 })
             return try DeepSeekUsageCostParser.parseByAPIKey(
                 amountData: payloads.amount,
                 costData: payloads.cost,
                 now: now,
-                calendar: calendar,
+                calendar: dailyCalendar,
                 rangeStart: window.start,
                 rangeEnd: window.end)
         } catch {
+            if error is CancellationError || (error as? URLError)?.code == .cancelled {
+                throw error
+            }
+            try Task.checkCancellation()
             Self.log.warning(
                 "DeepSeek by-key usage unavailable, falling back to monthly totals",
                 metadata: ["reason": self.optionalSummaryFailureReason(error)])
-            let period = try self.usagePeriod(now: now, calendar: calendar)
+            let period = try self.usagePeriod(now: now, calendar: monthlyCalendar)
             let payloads = try await self.fetchUsagePayloads(
                 fetchAmount: {
-                    try await self.fetchAmount(platformToken: platformToken, month: period.month, year: period.year)
+                    try await self.fetchAmount(
+                        platformToken: platformToken,
+                        month: period.month,
+                        year: period.year,
+                        transport: transport)
                 },
                 fetchCost: {
-                    try await self.fetchCost(platformToken: platformToken, month: period.month, year: period.year)
+                    try await self.fetchCost(
+                        platformToken: platformToken,
+                        month: period.month,
+                        year: period.year,
+                        transport: transport)
                 })
             return try DeepSeekUsageCostParser.parse(
                 amountData: payloads.amount,
                 costData: payloads.cost,
                 now: now,
-                calendar: calendar)
+                calendar: monthlyCalendar)
         }
     }
 
@@ -687,23 +714,22 @@ public struct DeepSeekUsageFetcher: Sendable {
         request.setValue("Bearer \(platformToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("web", forHTTPHeaderField: "x-client-platform")
-        request.timeoutInterval = Self.timeoutSeconds
+        request.timeoutInterval = self.timeoutSeconds
     }
 
     private static func fetchByAPIKey(
         url: URL,
         platformToken: String,
-        start: Date,
-        end: Date,
-        timeZoneSeconds: Int) async throws -> Data
+        window: (start: Date, end: Date, timeZoneSeconds: Int),
+        transport: any ProviderHTTPTransport) async throws -> Data
     {
         guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
             throw DeepSeekUsageError.networkError("Invalid URL")
         }
         components.queryItems = [
-            URLQueryItem(name: "start", value: String(Int(start.timeIntervalSince1970))),
-            URLQueryItem(name: "end", value: String(Int(end.timeIntervalSince1970))),
-            URLQueryItem(name: "tz", value: String(timeZoneSeconds)),
+            URLQueryItem(name: "start", value: String(Int(window.start.timeIntervalSince1970))),
+            URLQueryItem(name: "end", value: String(Int(window.end.timeIntervalSince1970))),
+            URLQueryItem(name: "tz", value: String(window.timeZoneSeconds)),
         ]
         guard let requestURL = components.url else {
             throw DeepSeekUsageError.networkError("Could not construct URL")
@@ -711,7 +737,7 @@ public struct DeepSeekUsageFetcher: Sendable {
         var request = URLRequest(url: requestURL)
         request.httpMethod = "GET"
         self.applyPlatformHeaders(&request, platformToken: platformToken)
-        let response = try await ProviderHTTPClient.shared.response(for: request)
+        let response = try await transport.response(for: request)
         guard response.statusCode == 200 else {
             if response.statusCode == 401 || response.statusCode == 403 {
                 throw DeepSeekUsageError.invalidPlatformToken
@@ -729,7 +755,12 @@ public struct DeepSeekUsageFetcher: Sendable {
         return (month: month, year: year)
     }
 
-    private static func fetchAmount(platformToken: String, month: Int, year: Int) async throws -> Data {
+    private static func fetchAmount(
+        platformToken: String,
+        month: Int,
+        year: Int,
+        transport: any ProviderHTTPTransport) async throws -> Data
+    {
         guard var components = URLComponents(url: self.usageAmountURL, resolvingAgainstBaseURL: false) else {
             throw DeepSeekUsageError.networkError("Invalid URL")
         }
@@ -745,7 +776,7 @@ public struct DeepSeekUsageFetcher: Sendable {
         request.httpMethod = "GET"
         self.applyPlatformHeaders(&request, platformToken: platformToken)
 
-        let response = try await ProviderHTTPClient.shared.response(for: request)
+        let response = try await transport.response(for: request)
         let data = response.data
         guard response.statusCode == 200 else {
             if response.statusCode == 401 || response.statusCode == 403 {
@@ -772,7 +803,12 @@ public struct DeepSeekUsageFetcher: Sendable {
         return try self.parsePlatformBalance(data: response.data)
     }
 
-    private static func fetchCost(platformToken: String, month: Int, year: Int) async throws -> Data {
+    private static func fetchCost(
+        platformToken: String,
+        month: Int,
+        year: Int,
+        transport: any ProviderHTTPTransport) async throws -> Data
+    {
         guard var components = URLComponents(url: self.usageCostURL, resolvingAgainstBaseURL: false) else {
             throw DeepSeekUsageError.networkError("Invalid URL")
         }
@@ -788,7 +824,7 @@ public struct DeepSeekUsageFetcher: Sendable {
         request.httpMethod = "GET"
         self.applyPlatformHeaders(&request, platformToken: platformToken)
 
-        let response = try await ProviderHTTPClient.shared.response(for: request)
+        let response = try await transport.response(for: request)
         let data = response.data
         guard response.statusCode == 200 else {
             if response.statusCode == 401 || response.statusCode == 403 {

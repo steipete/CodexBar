@@ -831,9 +831,11 @@ public struct CursorStatusProbe: Sendable {
     public var timeout: TimeInterval = 15.0
     let browserDetection: BrowserDetection
     let browserCookieImportOrder: BrowserCookieImportOrder
-    private let urlSession: any ProviderHTTPTransport
-    #if os(macOS)
+    let urlSession: any ProviderHTTPTransport
+    #if os(macOS) || os(Linux)
     let appAuthStore: any CursorAppAuthSessionProviding
+    #endif
+    #if os(macOS)
     let persistAppAuthSession: @Sendable (CursorAppAuthSession) async -> Void
     #endif
     let conditionalMutationCoordinator: CookieHeaderCache.ConditionalMutationCoordinator
@@ -855,6 +857,15 @@ public struct CursorStatusProbe: Sendable {
             persistAppAuthSession: { session in
                 await CursorSessionStore.shared.persistAppSession(session)
             },
+            conditionalMutationCoordinator: .shared)
+        #elseif os(Linux)
+        self.init(
+            baseURL: baseURL,
+            timeout: timeout,
+            browserDetection: browserDetection,
+            browserCookieImportOrder: Self.defaultBrowserCookieImportOrder,
+            urlSession: urlSession,
+            appAuthStore: CursorAppAuthStore(),
             conditionalMutationCoordinator: .shared)
         #else
         self.init(
@@ -885,6 +896,15 @@ public struct CursorStatusProbe: Sendable {
             persistAppAuthSession: { session in
                 await CursorSessionStore.shared.persistAppSession(session)
             },
+            conditionalMutationCoordinator: conditionalMutationCoordinator)
+        #elseif os(Linux)
+        self.init(
+            baseURL: baseURL,
+            timeout: timeout,
+            browserDetection: browserDetection,
+            browserCookieImportOrder: Self.defaultBrowserCookieImportOrder,
+            urlSession: urlSession,
+            appAuthStore: CursorAppAuthStore(),
             conditionalMutationCoordinator: conditionalMutationCoordinator)
         #else
         self.init(
@@ -918,13 +938,7 @@ public struct CursorStatusProbe: Sendable {
         self.conditionalMutationCoordinator = conditionalMutationCoordinator
     }
 
-    /// Fetch Cursor usage using a first-party web session derived from Cursor.app's access token.
-    func fetchWithAppAuthSession(_ session: CursorAppAuthSession) async throws -> CursorStatusSnapshot {
-        try await self.fetchWithCookieHeader(
-            session.cookieHeader(),
-            identityFallback: session.identity)
-    }
-    #else
+    #elseif !os(Linux)
     init(
         baseURL: URL = URL(string: "https://cursor.com")!,
         timeout: TimeInterval = 15.0,
@@ -1340,7 +1354,7 @@ public struct CursorStatusProbe: Sendable {
     }
     #endif
 
-    private func fetchWithCookieHeader(
+    func fetchWithCookieHeader(
         _ cookieHeader: String,
         identityFallback: CursorSessionIdentity? = nil,
         deadline: Date? = nil) async throws -> CursorStatusSnapshot

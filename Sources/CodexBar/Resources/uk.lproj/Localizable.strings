@@ -1550,3 +1550,6 @@
 "Color Pace Indicator" = "Кольорова індикація темпу";
 "Green pace indicator when behind pace, red when ahead of pace (risk of running out early)" = "Зелений — витрати нижчі за очікуваний темп (є запас); червоний — вищі (ризик дострокового вичерпання квоти).";
 "%@ weekly" = "%@ за тиждень";
+
+"agent_sessions_hide_unreachable_title" = "Приховувати недоступні вузли";
+"agent_sessions_hide_unreachable_subtitle" = "Приховувати вузли, якщо не вдалося отримати їхні сеанси.";

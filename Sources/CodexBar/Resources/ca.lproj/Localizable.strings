@@ -1552,3 +1552,6 @@
 "Color Pace Indicator" = "Acoloreix el ritme";
 "Green pace indicator when behind pace, red when ahead of pace (risk of running out early)" = "Verd quan l’ús va per sota del ritme previst (reserva); vermell quan va per sobre (risc d’esgotar la quota abans d’hora).";
 "%@ weekly" = "%@ setmanal";
+
+"agent_sessions_hide_unreachable_title" = "Amaga els amfitrions inaccessibles";
+"agent_sessions_hide_unreachable_subtitle" = "Amaga els amfitrions quan falla la consulta de les seves sessions.";

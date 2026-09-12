@@ -1549,3 +1549,6 @@
 "Color Pace Indicator" = "Färglägg förbrukningstakten";
 "Green pace indicator when behind pace, red when ahead of pace (risk of running out early)" = "Grönt när förbrukningen ligger under förväntad takt (reserv); rött när den ligger över (risk att kvoten tar slut i förtid).";
 "%@ weekly" = "%@ per vecka";
+
+"agent_sessions_hide_unreachable_title" = "Dölj värdar som inte kan nås";
+"agent_sessions_hide_unreachable_subtitle" = "Dölj värdar när deras sessioner inte kan hämtas.";

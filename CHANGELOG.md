@@ -2,9 +2,30 @@
 
 ## 0.59.1 — Unreleased
 
-### Fixed
-- Codex accounts: honor Hide Personal Info in switcher labels and tooltips, redact embedded workspace emails, and preserve distinct account numbers in narrow menus (#3551). Thanks @zenibako!
+### Highlights
+- **Linux Cursor authentication:** reuse the signed-in Cursor app without manually copying cookies.
+- **More reliable local history:** recover Antigravity spend history and prevent scan-queue waiting from multiplying Codex catch-up delays.
+- **Safer account menus:** preserve privacy in Codex account labels and reauthenticate the credential source shown by the selected row.
+
+### Changes
+- Cursor on Linux: restore automatic authentication from the signed-in app, honor absolute XDG/HOME paths, and preserve manual-cookie precedence and explicit web-mode isolation (#3539). Thanks @DonnieFi!
+- Codex spend: exclude time waiting behind other scans from automatic catch-up sleep calculations while preserving scan budgets, power safeguards, and complete-history publication (#3566, related to #3508 and #3411).
+- Antigravity: recover local token history from stable SQLite conversations without WAL sidecars while withholding results changed by concurrent writers (#3532). Thanks @urda!
 - Codex spend: keep waiting history files ahead of repeated migration revisits so large histories can finish bounded catch-up, preserving stored rows and checkpoints (#3548, related to #3411). Thanks @SergeiNikolenko!
+- Codex spend: avoid decoding discarded project/session rows in fresh and cached reads when catch-up retains a previous report, preserving totals, freshness and detailed reports (#3257). Thanks @Carl723000!
+- Codex accounts: reauthenticate the credential source used by the visible row, fixing repeated re-auth on saved accounts that also represent the System login, and reject stale account actions (#3558). Thanks @Nek-12!
+- Codex accounts: honor Hide Personal Info in switcher labels and tooltips, redact embedded workspace emails, and preserve distinct account numbers in narrow menus (#3551). Thanks @zenibako!
+- Agent Sessions: add an opt-in setting to hide hosts whose session fetch failed, while keeping diagnostics visible by default (#3547). Thanks @warthurton!
+- Menu bar: align window and display coordinates so monitors above or below the primary display do not cause missed or false startup recovery.
+- Devin: honor hidden daily quotas even when the response includes daily usage, preserving weekly limits and extra balance (#3542). Thanks @dzienisz!
+- Grok: skip discarded local-history scans and version probes after terminal CLI billing failures, allowing fallback to start sooner (extracted from #3236). Thanks @Yuxin-Qiao!
+- Documentation: link the community-maintained CodexBar for Windows companion and AI Monitor USB desk display (#3525, #3544). Thanks @hinneslung and @tobymarks!
+
+### Development
+- Checks: isolate Claude usage-retry tests from unrelated authentication subprocess startup.
+- Checks: allow process-fixture startup on loaded Macs before measuring cleanup deadlines, retaining all process-ownership and timeout assertions.
+- Logging: update SwiftLog to 1.15.1 for corrected legacy log forwarding and Swift 6.5 WASI compatibility.
+- Linting: update SwiftLint to 0.65.1, Oxlint to 1.82.0, and Oxfmt to 0.67.0 for correctness and performance fixes, retaining verified macOS and Linux downloads.
 
 ## 0.59.0 — 2026-09-10
 

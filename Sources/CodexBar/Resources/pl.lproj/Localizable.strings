@@ -1553,3 +1553,6 @@
 "Color Pace Indicator" = "Koloruj tempo zużycia";
 "Green pace indicator when behind pace, red when ahead of pace (risk of running out early)" = "Zielony, gdy zużycie jest wolniejsze od oczekiwanego (rezerwa); czerwony, gdy jest szybsze (ryzyko wcześniejszego wyczerpania limitu).";
 "%@ weekly" = "%@ tygodniowo";
+
+"agent_sessions_hide_unreachable_title" = "Ukryj nieosiągalne hosty";
+"agent_sessions_hide_unreachable_subtitle" = "Ukryj hosty, gdy pobieranie ich sesji się nie powiedzie.";

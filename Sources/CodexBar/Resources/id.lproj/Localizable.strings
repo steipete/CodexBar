@@ -1553,3 +1553,6 @@
 "Color Pace Indicator" = "Warnai laju penggunaan";
 "Green pace indicator when behind pace, red when ahead of pace (risk of running out early)" = "Hijau saat penggunaan lebih lambat dari laju perkiraan (cadangan); merah saat lebih cepat (risiko kuota habis lebih awal).";
 "%@ weekly" = "%@ mingguan";
+
+"agent_sessions_hide_unreachable_title" = "Sembunyikan host yang tidak terjangkau";
+"agent_sessions_hide_unreachable_subtitle" = "Sembunyikan host saat pengambilan sesinya gagal.";

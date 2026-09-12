@@ -61,5 +61,6 @@ CodexBar requests:
 GET https://app.devin.ai/api/<internal-org-id>/billing/quota/usage
 ```
 
-The response supplies daily and weekly usage percentages plus reset timestamps. If Devin changes or expires the browser
+The response supplies daily and weekly usage percentages plus reset timestamps. CodexBar omits the daily quota when Devin sets `hide_daily_quota` to `true`, while retaining weekly usage and extra balance.
+If Devin changes or expires the browser
 session, sign in again and refresh CodexBar.

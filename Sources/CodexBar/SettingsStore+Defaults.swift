@@ -1197,6 +1197,14 @@ extension SettingsStore {
         }
     }
 
+    var agentSessionsHideUnreachableHosts: Bool {
+        get { self.defaultsState.agentSessionsHideUnreachableHosts }
+        set {
+            self.defaultsState.agentSessionsHideUnreachableHosts = newValue
+            self.userDefaults.set(newValue, forKey: "agentSessionsHideUnreachableHosts")
+        }
+    }
+
     var preferredCurrencyCode: String {
         get { self.defaultsState.preferredCurrencyCode }
         set {

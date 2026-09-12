@@ -4,6 +4,93 @@ import Testing
 
 @Suite(.serialized)
 struct CostUsageStoreReadWorkTests {
+    enum SnapshotReadState: CaseIterable, Sendable {
+        case complete, pending, retainedReport
+    }
+
+    @Test(arguments: SnapshotReadState.allCases)
+    func `retained snapshots skip discarded detail reads`(
+        state: SnapshotReadState) async throws
+    {
+        let pending = state != .complete
+        let retainedReport = state == .retainedReport
+        let fixture = try ReadWorkFixture(fileCount: 16, rowsPerFile: 64, incomplete: pending)
+        defer { fixture.remove() }
+        if retainedReport {
+            var cache = fixture.canonical
+            var previousCache = cache
+            previousCache.lastScanUnixMs -= 60000
+            cache.codexPreviousReport = CostUsageCodexPreviousReport(
+                report: fixture.fullReport(cache),
+                cache: previousCache,
+                reportSinceKey: fixture.range.sinceKey,
+                reportUntilKey: fixture.range.untilKey)
+            #expect(!fixture.save(cache).catchUpRequired)
+        }
+        let recorder = CostUsageStoreReadWorkRecorder(databaseURL: fixture.store.databaseURL)
+        CostUsageStore.readWorkRecorderForTesting = recorder
+        defer { CostUsageStore.readWorkRecorderForTesting = nil }
+
+        let cached = try #require(await fixture.cachedSnapshot(details: true))
+        let cachedWork = recorder.snapshot()
+        #expect(cached.snapshot == Self.expectedRetainedReadSnapshot(
+            fixture, retainedReport: retainedReport, coverage: !pending || retainedReport))
+        #expect(cached.lastRefreshAt == (retainedReport ? nil : fixture.now))
+        #expect(cached.staleSnapshotUpdatedAt == (retainedReport ? fixture.now.addingTimeInterval(-60) : nil))
+        #expect(cachedWork.usageRowDecodeAttempts == (retainedReport ? 0 : fixture.rowCount))
+        #expect(cachedWork.integrityChecks == 1)
+        let complete = await CostUsageFetcher.loadCachedCodexTokenSnapshotResult(
+            now: fixture.now,
+            historyDays: 1,
+            includePiSessions: false,
+            requireCompleteHistory: true,
+            scannerOptions: fixture.options)
+        #expect((complete == nil) == pending)
+        recorder.reset()
+
+        let snapshot = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .codex,
+            environment: [:],
+            now: fixture.now,
+            historyDays: 1,
+            allowPricingRefresh: false,
+            includePiSessions: false,
+            scannerOptions: fixture.options)
+        let work = recorder.snapshot()
+        #expect(snapshot == Self.expectedRetainedReadSnapshot(
+            fixture, retainedReport: retainedReport, coverage: !pending))
+        #expect(snapshot.projects.isEmpty == retainedReport)
+        #expect(snapshot.sessions.isEmpty == retainedReport)
+        #expect(snapshot.updatedAt == fixture.now.addingTimeInterval(retainedReport ? -60 : 0))
+        #expect(work.scannerSnapshotReads == 1)
+        #expect(work.tokenSnapshotRows == 0)
+        #expect(work.integrityChecks == 3)
+        #expect(work.usageRowDecodeAttempts == fixture.rowCount * (retainedReport ? 1 : 2))
+        print("[pending-report-read-proof] state=\(state) rows=\(fixture.rowCount) " +
+            "cached_decoded=\(cachedWork.usageRowDecodeAttempts) cached_checks=\(cachedWork.integrityChecks) " +
+            "fresh_decoded=\(work.usageRowDecodeAttempts) fresh_checks=\(work.integrityChecks)")
+    }
+
+    private static func expectedRetainedReadSnapshot(
+        _ fixture: ReadWorkFixture,
+        retainedReport: Bool,
+        coverage: Bool) -> CostUsageTokenSnapshot
+    {
+        let full = fixture.fullCachedSnapshot(cache: fixture.canonical)
+        return CostUsageTokenSnapshot(
+            sessionTokens: full.sessionTokens,
+            sessionCostUSD: full.sessionCostUSD,
+            last30DaysTokens: full.last30DaysTokens,
+            last30DaysCostUSD: full.last30DaysCostUSD,
+            historyDays: 1,
+            historyCoverageIsEstablished: coverage,
+            costProvenance: .listPriceEstimate,
+            daily: full.daily,
+            projects: retainedReport ? [] : full.projects,
+            sessions: retainedReport ? [] : full.sessions,
+            updatedAt: fixture.now.addingTimeInterval(retainedReport ? -60 : 0))
+    }
+
     @Test(arguments: [2, 16])
     func `characterize valid store and caller reads`(fileCount: Int) async throws {
         let fixture = try ReadWorkFixture(fileCount: fileCount, rowsPerFile: fileCount == 2 ? 4 : 64)
@@ -747,8 +834,10 @@ struct CostUsageStoreReadWorkTests {
         #expect(work.usageRows == fixture.rowCount)
         #expect(work.usageRowDecodeAttempts == fixture.rowCount)
         #expect(work.usagePayloadBytes > 0)
-        #expect(work.retryPresenceRows == (incomplete ? 1 : 0))
-        #expect(work.readViewConversions == 1)
+        // One metadata precheck and one exact report read share the same validated connection.
+        #expect(work.retryPresenceRows == (incomplete ? 2 : 0))
+        #expect(work.readViewConversions == 2)
+        #expect(work.integrityChecks == 1)
         #expect(work.readViewConversionsInTransaction == 0)
     }
 

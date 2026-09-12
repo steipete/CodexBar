@@ -1554,3 +1554,6 @@
 "Color Pace Indicator" = "تلوين وتيرة الاستخدام";
 "Green pace indicator when behind pace, red when ahead of pace (risk of running out early)" = "أخضر عندما يكون الاستخدام أبطأ من الوتيرة المتوقعة (احتياطي)؛ وأحمر عندما يكون أسرع (خطر النفاد مبكرًا).";
 "%@ weekly" = "%@ أسبوعيًا";
+
+"agent_sessions_hide_unreachable_title" = "إخفاء المضيفين غير المتاحين";
+"agent_sessions_hide_unreachable_subtitle" = "إخفاء المضيفين عند تعذّر جلب جلساتهم.";
