@@ -360,9 +360,10 @@ struct CodexSpendControlsMonthlyUsageTests {
 
     @Test
     func `O auth helper replaces a hidden workspace balance with the owner visible balance`() async throws {
-        let usageJSON = self.educationUsageJSON(planType: "business").replacingOccurrences(
-            of: #""credits": {"has_credits": true, "unlimited": false, "balance": "14"}"#,
-            with: #""credits": {"has_credits": true, "unlimited": false, "balance": null}"#)
+        let usageJSON = self.educationUsageJSON(planType: "business", accountId: "credential-account")
+            .replacingOccurrences(
+                of: #""credits": {"has_credits": true, "unlimited": false, "balance": "14"}"#,
+                with: #""credits": {"has_credits": true, "unlimited": false, "balance": null}"#)
         let usage = try self.decodeUsage(usageJSON)
         let original = try CodexOAuthFetchStrategy._mapResultForTesting(
             Data(usageJSON.utf8),
