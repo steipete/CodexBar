@@ -1,5 +1,6 @@
 import Commander
 import Foundation
+import JavaScriptCore
 import Testing
 @testable import CodexBarCLI
 
@@ -12,11 +13,45 @@ struct CLIServeWebUITests {
     func `web ui renders account cards in titled groups for multi account providers`() {
         let html = self.html
         // Multi-account providers render one card per account inside a titled
-        // vertical group; identity falls back to the slot label when redacted.
+        // vertical group; account labels retain the producer's disambiguation.
         #expect(html.contains("function renderAccountCard(provider, account)"))
-        #expect(html.contains("account.identity?.accountEmail || account.label"))
         #expect(html.contains("provider.accountsError"))
         #expect(html.contains("group-title"))
+    }
+
+    @Test
+    func `account cards preserve projected labels before falling back to email`() throws {
+        let start = try #require(self.html.range(of: "function renderAccountCard(provider, account)"))
+        let end = try #require(self.html.range(of: "function renderProvider(provider)"))
+        let renderer = String(self.html[start.lowerBound..<end.lowerBound])
+        let context = try #require(JSContext())
+        context.evaluateScript(#"""
+        const titles = [];
+        function node(tag, className, text) {
+          if (className === "provider-name") titles.push(text);
+          return {style: {setProperty() {}}, classList: {add() {}}, append() {}};
+        }
+        function providerGlyph() { return node("span"); }
+        function accentColor(value) { return value; }
+        function visibleWindows(windows) { return windows || []; }
+        function worstWindowLevel() { return null; }
+        """#)
+        context.evaluateScript(renderer)
+        context.evaluateScript(#"""
+        for (const account of [
+          {label: "Work", identity: {accountEmail: "shared@example.com"}},
+          {label: "shared@example.com · Acme", identity: {accountEmail: "shared@example.com"}},
+          {label: "Account 1", identity: {accountEmail: "s***@example.com"}},
+          {label: "s***@example.com · Acme", identity: {accountEmail: "s***@example.com"}},
+          {label: "", identity: {accountEmail: "fallback@example.com"}},
+          {}
+        ]) renderAccountCard({}, account);
+        """#)
+        #expect(context.exception == nil)
+        #expect(context.evaluateScript("titles")?.toArray() as? [String] == [
+            "Work", "shared@example.com · Acme", "Account 1", "s***@example.com · Acme",
+            "fallback@example.com", "Account",
+        ])
     }
 
     @Test

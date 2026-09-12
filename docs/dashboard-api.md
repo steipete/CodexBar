@@ -198,7 +198,7 @@ The snapshot is a stable display contract, not a raw dump of provider internals.
 
 When the claude-swap integration is enabled, the Claude provider row additionally includes an `accounts` array. This
 is an additive schema-v1 extension: other provider rows and Claude rows without the integration keep their existing
-shape. An account's `label` is its email when known and otherwise falls back to its slot label; `identity` is present
+shape. An account's `label` preserves its alias or disambiguated email/organization label, falling back to its slot label. The web dashboard prefers this projected label over the raw identity email; `identity` is present
 whenever claude-swap reports an email, independently of whether that account's usage fetch succeeds. Both fields follow
 the dashboard identity mode: full by default, or redacted with `--identity redacted`.
 A failure limited to one account stays in that account's `error`; a failure of the whole adapter sets `accountsError`
@@ -270,8 +270,7 @@ while leaving the ambient Claude row intact.
 - `providers[].accounts`: Ordered local multi-account entries when an integration supplies them; an enabled source
   with no accounts emits `[]`.
   - `id`: Stable source and slot identifier, such as `claude-swap:2`.
-  - `label`: Account email when known, otherwise a slot label such as `Account 2`; email labels follow the dashboard
-    identity mode.
+  - `label`: Projected alias or disambiguated email/organization label, otherwise a slot label such as `Account 2`; follows the dashboard identity mode and is preferred for display over `identity.accountEmail`.
   - `active`: Whether this is the source's active account.
   - `identity`: Account email with a `null` plan whenever claude-swap reports one, even if usage fetching fails;
     otherwise `null`. The email local part is hidden only in redacted mode.

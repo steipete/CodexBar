@@ -3,6 +3,7 @@
 ## 0.60.1 — Unreleased
 
 ### Fixed
+- Web dashboard: preserve account aliases and organization labels so Claude accounts sharing an email remain distinguishable, including in redacted mode (follow-up to #3082).
 - Antigravity: suppress remote model variants that exactly mirror a known pool and reset, preserve distinct quota rows and their saved visibility, and prefer known usage over reset-only duplicates (#3583). Thanks @hhh2210!
 
 ### Development

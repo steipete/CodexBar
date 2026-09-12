@@ -882,8 +882,7 @@ extension CLIServeWebUI {
           const head = node("div", "card-head");
           const title = node("div", "provider-title");
           title.append(providerGlyph(provider));
-          const name = account.identity?.accountEmail || account.label || "Account";
-          title.append(node("span", "provider-name", name));
+          title.append(node("span", "provider-name", account.label || account.identity?.accountEmail || "Account"));
           head.append(title);
           if (account.active) {
             head.append(pill("active", "active"));
