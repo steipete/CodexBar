@@ -13,12 +13,12 @@
 - Web dashboard: preserve account aliases and organization labels so Claude accounts sharing an email remain distinguishable, including in redacted mode (follow-up to #3082).
 
 ### Development
-- Refresh Swift Crypto and KeyboardShortcuts, checksum-pinned lint tools, and CI/release build toolchains while retaining the Swift 6.2 and macOS deployment floors; isolate plugin typechecking from unrelated ancestor packages.
 - Remove retired menu views, unused provider helpers, and no-op credential-loading hooks; reuse shared config accessors and simplify redundant menu and account state.
 - Tests: fix native macOS SwiftPM test launches when Sparkle is staged beside the test bundle (from #3584). Thanks @hhh2210!
 - Consolidate status feeds, legacy Keychain string operations, API-token strategies, quota presentation, test-runner detection, and checked usage totals under shared owners while preserving provider-specific behavior.
 - Share browser-profile cookie merging, legacy cookie-file encoding, short-lived import caches, OpenCode web parsing, OneConsole quota projection, and terminal scan buffers without merging provider identities or authentication policies.
 - Centralize Chromium local-storage discovery, plugin management-auth policy, and Codex spend-limit number decoding.
+- Refresh Swift Crypto and KeyboardShortcuts, checksum-pinned lint tools, and CI/release build toolchains while retaining the Swift 6.2 and macOS deployment floors; isolate plugin typechecking from unrelated ancestor packages.
 
 ## 0.60.0 — 2026-09-12
 
