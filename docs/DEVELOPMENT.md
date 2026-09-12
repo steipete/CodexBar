@@ -154,6 +154,10 @@ PATH="$(brew --prefix python@3.14)/libexec/bin:$PATH" make test
 
 `Scripts/test.sh --list-only` does not need process containment, but still invokes `swift test list`, which may build.
 
+The macOS test target explicitly links the existing Sparkle product and locates frameworks in the products directory
+beside its XCTest bundle. This supports native focused tests on fresh SwiftPM builds. The sharded runner retains its
+guarded runtime recovery for differing toolchain layouts, and `make test` remains the full validation path.
+
 Suite commands retain the default 180-second deadline, including SwiftPM startup and discovery.
 The runner reports elapsed time and owned PIDs every 30 seconds even when test output is buffered.
 It tracks process birth identities and descendants, including helpers that create separate process

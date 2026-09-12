@@ -221,7 +221,10 @@ let package = Package(
 
         targets.append(.testTarget(
             name: "CodexBarTests",
-            dependencies: ["CodexBar", "CodexBarCore", "CodexBarCLI", "CodexBarCostStoreCrashProbe", "CodexBarWidget"],
+            dependencies: [
+                "CodexBar", "CodexBarCore", "CodexBarCLI", "CodexBarCostStoreCrashProbe", "CodexBarWidget",
+                .product(name: "Sparkle", package: "Sparkle"),
+            ],
             path: "Tests",
             exclude: [
                 "AdaptiveReplayCLITests",
@@ -238,6 +241,10 @@ let package = Package(
             swiftSettings: [
                 .enableUpcomingFeature("StrictConcurrency"),
                 .enableExperimentalFeature("SwiftTesting"),
+            ],
+            linkerSettings: [
+                // XCTest's executable is three directories below its sibling framework products.
+                .unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "@loader_path/../../.."]),
             ]))
         #endif
 

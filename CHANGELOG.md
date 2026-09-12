@@ -5,6 +5,9 @@
 ### Fixed
 - Antigravity: suppress remote model variants that exactly mirror a known pool and reset, preserve distinct quota rows and their saved visibility, and prefer known usage over reset-only duplicates (#3583). Thanks @hhh2210!
 
+### Development
+- Tests: fix native macOS SwiftPM test launches when Sparkle is staged beside the test bundle (from #3584). Thanks @hhh2210!
+
 ## 0.60.0 — 2026-09-12
 
 ### Highlights
