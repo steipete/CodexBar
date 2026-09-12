@@ -1,0 +1,61 @@
+name: Rust Linux prototype
+on:
+  workflow_dispatch:
+  push:
+    branches: [experiment/rust-linux-desktop]
+    paths:
+      - 'Integrations/Linux/**'
+      - '.github/workflows/rust-linux-prototype.yml'
+  pull_request:
+    paths:
+      - 'Integrations/Linux/**'
+      - '.github/workflows/rust-linux-prototype.yml'
+permissions:
+  contents: read
+concurrency:
+  group: rust-linux-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  desktop:
+    name: Rust desktop (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    env:
+      QMAKE: qmake6
+      CARGO_BUILD_JOBS: '2'
+      RUSTUP_TOOLCHAIN: '1.98.1'
+      PROTOTYPE_EVIDENCE_DIR: ${{ github.workspace }}/rust-evidence
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install build and desktop dependencies
+        run: bash Integrations/Linux/RustPrototype/tests/setup-ubuntu.sh
+      - name: Install Rust
+        run: rustup toolchain install "$RUSTUP_TOOLCHAIN" --profile minimal --component rustfmt --component clippy
+      - name: Build and lint
+        working-directory: Integrations/Linux/RustPrototype
+        run: |
+          set -euo pipefail
+          mkdir -p "$PROTOTYPE_EVIDENCE_DIR"
+          { uname -m; rustc --version; qmake6 -query QT_VERSION; ldd --version | head -1; } > "$PROTOTYPE_EVIDENCE_DIR/platform.txt"
+          cargo fmt --check
+          cargo build --locked
+          cargo clippy --locked --all-targets -- -D warnings
+          file target/debug/codexbar-rust-prototype >> "$PROTOTYPE_EVIDENCE_DIR/platform.txt"
+      - name: Render offscreen and exercise IPC
+        run: python3 Integrations/Linux/RustPrototype/tests/smoke.py
+      - name: Exercise X11 and Wayland with a tray host
+        run: bash Integrations/Linux/RustPrototype/tests/desktop-session.sh
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: rust-linux-${{ matrix.arch }}-evidence
+          path: rust-evidence/
+          if-no-files-found: warn

@@ -34,6 +34,10 @@ class DesktopSmoke(unittest.TestCase):
                        'QT_QPA_PLATFORMTHEME': '', 'QT_ACCESSIBILITY': '0', 'NO_AT_BRIDGE': '1',
                        'QT_FORCE_STDERR_LOGGING': '1', 'CODEXBAR_RUST_CAPTURE': str(capture)}
                 with_tray = os.environ.get('PROTOTYPE_TEST_TRAY') == '1'
+                evidence = Path(os.environ['PROTOTYPE_EVIDENCE_DIR']) if os.environ.get('PROTOTYPE_EVIDENCE_DIR') else None
+                platform = env['QT_QPA_PLATFORM']
+                if evidence:
+                    evidence.mkdir(parents=True, exist_ok=True)
                 argv = [str(BINARY), '--runtime-dir', directory]
                 app = subprocess.Popen(argv + ([] if with_tray else ['--no-tray']), env=env, stdout=log, stderr=log)
                 try:
@@ -75,6 +79,13 @@ class DesktopSmoke(unittest.TestCase):
                     if with_tray:
                         eventually(lambda: tray_property('IconPixmap') != before_icon)
                         self.assertIn('55%', str(tray_property('ToolTip')))
+                        if evidence:
+                            (evidence / f'{platform}-tray.json').write_text(json.dumps({
+                                'before': before_icon, 'after': tray_property('IconPixmap'),
+                                'tooltip': tray_property('ToolTip')}))
+                            if platform == 'xcb':
+                                subprocess.run(['scrot', '--overwrite', '--delay', '1',
+                                    str(evidence / 'x11-desktop.png')], check=True, timeout=5)
                         subprocess.run(['busctl', '--user', 'call', bus_name, '/StatusNotifierItem',
                             'org.kde.StatusNotifierItem', 'Activate', 'ii', '0', '0'], check=True)
                         self.assertGreater(command('--snapshot')['windowSerial'], initial['windowSerial'])
@@ -98,6 +109,10 @@ class DesktopSmoke(unittest.TestCase):
                         app.wait(timeout=5)
                     if os.environ.get('PROTOTYPE_CAPTURE_OUTPUT') and capture.exists():
                         Path(os.environ['PROTOTYPE_CAPTURE_OUTPUT']).write_bytes(capture.read_bytes())
+                    if evidence:
+                        (evidence / f'{platform}-app.log').write_text(log_path.read_text())
+                        if capture.exists():
+                            (evidence / f'{platform}-qml.png').write_bytes(capture.read_bytes())
                     print(log_path.read_text())
 
 
