@@ -162,6 +162,7 @@ public struct OpenAIDashboardSnapshot: Codable, Equatable, Sendable {
     public func withSubscriptionMetadata(_ metadata: OpenAISubscriptionMetadata?) -> Self {
         Self(
             signedInEmail: self.signedInEmail,
+            accountID: self.accountID,
             codeReviewRemainingPercent: self.codeReviewRemainingPercent,
             codeReviewLimit: self.codeReviewLimit,
             creditEvents: self.creditEvents,

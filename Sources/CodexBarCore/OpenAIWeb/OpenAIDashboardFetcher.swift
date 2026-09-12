@@ -152,9 +152,8 @@ public struct OpenAIDashboardFetcher {
         // dashboard HTML scrape never contributes here; we just forward what the apiData decoded.
         let extraRateWindows = apiData?.extraRateWindows ?? []
         return DashboardScrapeData(
-            accountID: apiData?.accountID, signedInEmail: self.firstNonEmpty(
-                scrape.signedInEmail,
-                verifiedSignedInEmail),
+            accountID: apiData?.accountID,
+            signedInEmail: scrape.signedInEmail,
             codeReview: codeReview,
             codeReviewLimit: codeReviewLimit,
             events: events,

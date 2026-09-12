@@ -132,6 +132,13 @@ extension OpenAIDashboardFetcher {
             log("dashboard phase=extract elapsed=\(Self.phaseElapsed(since: context.startedAt))")
             let scrape = try await self.scrape(webView: webView)
             try Task.checkCancellation()
+            if Self.shouldWaitForPageIdentity(
+                verifiedSignedInEmail: verifiedSignedInEmail,
+                pageSignedInEmail: scrape.signedInEmail)
+            {
+                try await Self.sleepForDashboardPoll(.milliseconds(400))
+                continue
+            }
             if let snapshot = try Self.snapshotForUnpairedPage(
                 apiData: apiData,
                 verifiedSignedInEmail: verifiedSignedInEmail,

@@ -114,7 +114,7 @@ extension CodexAccountScopedRefreshTests {
         #expect(store.credits == nil)
     }
 
-    @Test(arguments: ["missing guard", "unresolved identity", "other provider"])
+    @Test(arguments: ["missing guard", "unresolved identity", "other provider", "full credit response"])
     func `extra usage preservation requires a resolved codex publication owner`(scenario: String) async {
         let fixture = await self.makeExtraUsagePublicationFixture()
         let store = fixture.store
@@ -132,7 +132,8 @@ extension CodexAccountScopedRefreshTests {
         let result = store.preservingCodexCost(
             in: current,
             for: scenario == "other provider" ? .claude : .codex,
-            owner: expectedGuard)
+            owner: expectedGuard,
+            includesCredits: scenario == "full credit response")
 
         #expect(result.providerCost == nil)
     }

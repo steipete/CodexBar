@@ -34,6 +34,13 @@ extension OpenAIDashboardFetcher {
         !allowPageScrape
     }
 
+    nonisolated static func shouldWaitForPageIdentity(
+        verifiedSignedInEmail: String?, pageSignedInEmail: String?) -> Bool
+    {
+        CodexIdentityResolver.normalizeEmail(verifiedSignedInEmail) != nil
+            && CodexIdentityResolver.normalizeEmail(pageSignedInEmail) == nil
+    }
+
     nonisolated static func snapshotForUnpairedPage(
         apiData: DashboardAPIData?,
         verifiedSignedInEmail: String?,

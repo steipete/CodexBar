@@ -14,6 +14,7 @@ struct CodexWorkspaceBalanceDashboardTests {
     {
         OpenAIDashboardSnapshot(
             signedInEmail: "user@example.com",
+            accountID: "workspace-a",
             codeReviewRemainingPercent: nil,
             creditEvents: [],
             dailyBreakdown: [],
@@ -31,7 +32,7 @@ struct CodexWorkspaceBalanceDashboardTests {
         workspace: Bool? = nil) -> OpenAIDashboardFetcher.DashboardAPIData
     {
         OpenAIDashboardFetcher.DashboardAPIData(
-            primaryLimit: nil,
+            accountID: "workspace-a", primaryLimit: nil,
             secondaryLimit: nil,
             extraRateWindows: [],
             creditsRemaining: balance,

@@ -23,6 +23,7 @@ extension UsageStore {
 
     private struct ProviderRefreshOutcomeContext {
         let generation: UInt64
+        let includesCredits: Bool
         let claudeUsesConsumerAutoPipeline: Bool
         let codexExpectedGuard: CodexAccountScopedRefreshGuard?
         let tokenAccount: ProviderTokenAccount?
@@ -465,6 +466,7 @@ extension UsageStore {
             generation: generation))
         let outcomeContext = ProviderRefreshOutcomeContext(
             generation: generation,
+            includesCredits: fetchContext.includeCredits,
             claudeUsesConsumerAutoPipeline: Self.isClaudeConsumerAutoPipeline(
                 provider: provider,
                 context: fetchContext,
@@ -722,7 +724,11 @@ extension UsageStore {
             let stabilized = Self.commandCodeSnapshotResolvingDepletionOnEnrichmentFailure(
                 current: profileStable,
                 previous: self.snapshots[provider.instanceID])
-            let backfilled = self.preservingCodexCost(in: stabilized, for: provider, owner: context.codexExpectedGuard)
+            let backfilled = self.preservingCodexCost(
+                in: stabilized,
+                for: provider,
+                owner: context.codexExpectedGuard,
+                includesCredits: context.includesCredits)
                 .backfillingResetTimes(from: resetBackfillSource)
             let warningAccountDiscriminator = Self.warningAccountDiscriminator(
                 provider: provider,

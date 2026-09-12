@@ -16,9 +16,11 @@ extension UsageStore {
     func preservingCodexCost(
         in snapshot: UsageSnapshot,
         for provider: UsageProvider,
-        owner expectedGuard: CodexAccountScopedRefreshGuard?) -> UsageSnapshot
+        owner expectedGuard: CodexAccountScopedRefreshGuard?,
+        includesCredits: Bool = false) -> UsageSnapshot
     {
-        guard provider == .codex,
+        guard !includesCredits,
+              provider == .codex,
               let expectedGuard,
               expectedGuard.identity != .unresolved,
               let previousGuard = self.lastCodexUsagePublicationGuard,

@@ -5,6 +5,14 @@ import Testing
 
 @MainActor
 struct OpenAIDashboardIdentityMergeTests {
+    @Test(arguments: [nil, "", " \n "] as [String?])
+    func `unidentified page waits without inheriting the API identity`(pageEmail: String?) {
+        #expect(OpenAIDashboardFetcher.shouldWaitForPageIdentity(
+            verifiedSignedInEmail: "owner@example.com", pageSignedInEmail: pageEmail))
+        #expect(!OpenAIDashboardFetcher.shouldWaitForPageIdentity(
+            verifiedSignedInEmail: "owner@example.com", pageSignedInEmail: "other@example.com"))
+    }
+
     @Test(arguments: [nil, "", "other@example.com"] as [String?])
     func `API usage excludes all cached fields from an unpaired identity`(previousEmail: String?) {
         let result = OpenAIDashboardFetcher.snapshotByMergingAPI(
@@ -50,7 +58,7 @@ struct OpenAIDashboardIdentityMergeTests {
 
     @Test
     func `normalized matching identities preserve history and independently missing fields`() {
-        let previous = self.previous(email: " Owner@Example.COM \n")
+        let previous = self.previous(email: " Owner@Example.COM \n").withSubscriptionMetadata(nil)
         let apiResult = OpenAIDashboardFetcher.snapshotByMergingAPI(
             apiData: self.apiData(),
             verifiedEmail: "owner@example.com",
@@ -212,7 +220,8 @@ struct OpenAIDashboardIdentityMergeTests {
     @Test(arguments: [nil, "", "workspace-b"] as [String?])
     func `matching email cannot reuse another or unknown workspace`(accountID: String?) throws {
         let previous = self.previous(email: "owner@example.com", accountID: accountID)
-        let persisted = try JSONDecoder().decode(OpenAIDashboardSnapshot.self, from: JSONEncoder().encode(previous))
+        let persisted = try JSONDecoder().decode(
+            OpenAIDashboardSnapshot.self, from: JSONEncoder().encode(previous.withSubscriptionMetadata(nil)))
         let result = OpenAIDashboardFetcher.snapshotByMergingAPI(
             apiData: self.apiData(), verifiedEmail: "owner@example.com", previous: persisted)
         self.expectNoCachedFields(result)
