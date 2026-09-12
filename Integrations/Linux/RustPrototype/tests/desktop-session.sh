@@ -43,6 +43,9 @@ children+=("$!")
 for attempt in {1..100}; do [[ -s "$session_dir/display" ]] && break; sleep 0.1; done
 [[ -s "$session_dir/display" ]]
 export DISPLAY=":$(cat "$session_dir/display")"
+# D-Bus activation otherwise retains the environment from before this script
+# created its private XDG directories (notably for xfconfd).
+dbus-update-activation-environment XDG_RUNTIME_DIR XDG_CONFIG_HOME XDG_CACHE_HOME XDG_DATA_HOME DISPLAY
 GDK_BACKEND=x11 xfce4-panel --disable-wm-check > "$evidence_dir/panel.log" 2>&1 &
 children+=("$!")
 ready=false
@@ -52,7 +55,9 @@ for attempt in {1..100}; do
 done
 [[ "$ready" == true ]] || { cat "$evidence_dir/panel.log"; exit 1; }
 PROTOTYPE_TEST_TRAY=1 PROTOTYPE_QPA=xcb python3 "$script_dir/smoke.py" 2>&1 | tee "$evidence_dir/x11.log"
-weston --backend=headless-backend.so --renderer=pixman --socket=codexbar-test-wayland --idle-time=0 --width=1280 --height=900 \
+# X11 nesting gives Weston a virtual input seat as well as a software output.
+# Qt 6.4 startup stalls against the seatless headless backend.
+weston --backend=x11 --renderer=pixman --socket=codexbar-test-wayland --idle-time=0 --width=1280 --height=900 \
   > "$evidence_dir/weston.log" 2>&1 &
 children+=("$!")
 for attempt in {1..100}; do [[ -S "$XDG_RUNTIME_DIR/codexbar-test-wayland" ]] && break; sleep 0.1; done

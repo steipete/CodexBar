@@ -72,7 +72,14 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         }))
     };
     cxx_qt::init_qml_module!("com.steipete.codexbar.prototype");
+    let trace_startup = std::env::var_os("CODEXBAR_RUST_CAPTURE").is_some();
+    if trace_startup {
+        eprintln!("Rust GUI: creating Qt application");
+    }
     let mut app = QGuiApplication::new();
+    if trace_startup {
+        eprintln!("Rust GUI: Qt application ready");
+    }
     let mut engine = QQmlApplicationEngine::new();
     engine
         .as_mut()
@@ -102,6 +109,9 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             env!("CARGO_MANIFEST_DIR"),
             "/qml/Prototype.qml"
         ))));
+    if trace_startup {
+        eprintln!("Rust GUI: entering event loop");
+    }
     let exit_code = app.as_mut().ok_or("Cannot create Qt application")?.exec();
     stop.store(true, Ordering::Relaxed);
     if let Some(thread) = tray_thread {

@@ -41,7 +41,9 @@ not a relocatable release package.
 
 - CXX-Qt 0.10 exposes Rust state and methods to QML through generated bindings.
 - The production `Dashboard.qml`, `UsageCard.qml`, `UsageChart.qml`, and shared
-  `Usage.js` are reused without edits, through a small QML compatibility facade.
+  `Usage.js` are reused through a small QML compatibility facade. ARM baseline screenshots
+  exposed a Qt 6.4 plan-label layout issue; `UsageCard.qml` now supplies an explicit
+  preferred width, covered by a rendered-geometry assertion.
 - `ksni` 0.3.6 publishes a freedesktop StatusNotifierItem over D-Bus. Rust renders
   the ARGB meter pixels; no Qt Widgets tray wrapper is needed.
 - Snapshot clients run before Qt initialization and work without a display.
@@ -82,9 +84,10 @@ and macOS `plutil`, respectively, are unavailable.
 `ubuntu-24.04-arm` and `ubuntu-24.04` runners. Both use the locked Cargo dependencies
 and Rust 1.98.1. The job runs formatting, Clippy, offscreen smoke tests, and
 `tests/desktop-session.sh`: a private D-Bus session, Xvfb, an Xfce Status Tray,
-and a headless Weston compositor. It tests X11 and Wayland clients against the
+and a software-rendered Weston compositor nested in Xvfb. It tests X11 and Wayland clients against the
 same real StatusNotifier host. The tray host lives on X11; this does not validate
-an Omarchy/Quickshell or KDE/GNOME shell on ARM.
+an Omarchy/Quickshell or KDE/GNOME shell on ARM. Weston uses its X11 backend
+to supply a virtual input seat; the seatless headless backend stalled Qt 6.4 startup.
 
 Each job uploads platform details, QML captures, a desktop screenshot, exported
 tray pixels/tooltips, and application/compositor logs. Software rendering makes

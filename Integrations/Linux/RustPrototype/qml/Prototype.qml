@@ -38,6 +38,16 @@ Item {
         standardButtons: Dialog.Ok
         Label { text: "Settings, spending and clipboard are not implemented in this spike." }
     }
+    function planGeometry(item) {
+        if (typeof item.text === "string" && item.text === desktop.entries[0].plan)
+            return {width: item.width, height: item.height};
+        var children = item.children || [];
+        for (var i = 0; i < children.length; ++i) {
+            var geometry = planGeometry(children[i]);
+            if (geometry) return geometry;
+        }
+        return null;
+    }
     function meterLabels(item) {
         var labels = [];
         if (typeof item.text === "string" && item.text.endsWith("% left")) labels.push(item.text);
@@ -50,6 +60,7 @@ Item {
         interval: 300
         onTriggered: if (dashboard.item && backend.capturePath) {
             console.info("Rendered meters: " + JSON.stringify(root.meterLabels(dashboard.item.contentItem)));
+            console.info("Rendered plan: " + JSON.stringify(root.planGeometry(dashboard.item.contentItem)));
             dashboard.item.contentItem.children[0].grabToImage(function(result) {
                 if (!result.saveToFile(backend.capturePath)) console.error("Capture failed");
             });

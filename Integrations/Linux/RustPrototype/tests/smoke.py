@@ -2,6 +2,7 @@
 """Exercise the compiled Rust/QML spike with synthetic data; never run provider CLIs."""
 import json
 import os
+import re
 from pathlib import Path
 import socket
 import subprocess
@@ -44,6 +45,9 @@ class DesktopSmoke(unittest.TestCase):
                     eventually(lambda: 'Rendered meters: ["75% left","42% left"]' in log_path.read_text())
                     eventually(lambda: capture.exists() and capture.stat().st_size > 1000)
                     self.assertGreater(capture.stat().st_size, 1000)
+                    geometry = json.loads(re.search(r'Rendered plan: (\{[^\n]+\})', log_path.read_text()).group(1))
+                    self.assertGreater(geometry['width'], 100, 'Plan label collapsed into a narrow column')
+                    self.assertLess(geometry['height'], 80, 'Plan label wrapped into too many lines')
                     self.assertEqual(app.poll(), None)
 
                     def command(name):
