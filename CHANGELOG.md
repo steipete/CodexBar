@@ -3,8 +3,8 @@
 ## 0.60.1 — Unreleased
 
 ### Fixed
-- Web dashboard: preserve account aliases and organization labels so Claude accounts sharing an email remain distinguishable, including in redacted mode (follow-up to #3082).
 - Antigravity: suppress remote model variants that exactly mirror a known pool and reset, preserve distinct quota rows and their saved visibility, and prefer known usage over reset-only duplicates (#3583). Thanks @hhh2210!
+- Web dashboard: preserve account aliases and organization labels so Claude accounts sharing an email remain distinguishable, including in redacted mode (follow-up to #3082).
 
 ### Development
 - Tests: fix native macOS SwiftPM test launches when Sparkle is staged beside the test bundle (from #3584). Thanks @hhh2210!
