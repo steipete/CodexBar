@@ -1,0 +1,18 @@
+[package]
+name = "codexbar-rust-prototype"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license = "MIT"
+
+[dependencies]
+cxx = "1"
+cxx-qt = "0.10"
+cxx-qt-lib = { version = "0.10", features = ["qt_full"] }
+ksni = { version = "0.3.6", features = ["blocking"] }
+serde_json = "1"
+fs2 = "0.4"
+rustix = { version = "1", features = ["process"] }
+
+[build-dependencies]
+cxx-qt-build = "0.10"
