@@ -1,0 +1,7 @@
+{
+  "base": 1500,
+  "current": 900,
+  "resetsAt": "2025-08-31T18:00:00.000Z",
+  "overquotaUsed": 0,
+  "runs": { "used": 3, "limit": 20, "remaining": 17, "resetsAt": "2025-08-31T18:00:00.000Z" }
+}

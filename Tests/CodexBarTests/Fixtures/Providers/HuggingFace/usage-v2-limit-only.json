@@ -1,0 +1,10 @@
+{
+  "usage": {
+    "inferenceProviders": {
+      "usedNanoUsd": 1250000000,
+      "includedNanoUsd": 0,
+      "limitNanoUsd": 5000000000,
+      "numRequests": 40
+    }
+  }
+}

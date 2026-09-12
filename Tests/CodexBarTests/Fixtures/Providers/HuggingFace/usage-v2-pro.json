@@ -1,0 +1,13 @@
+{
+  "usage": {
+    "inferenceProviders": {
+      "usedNanoUsd": 450000000,
+      "includedNanoUsd": 2000000000,
+      "limitNanoUsd": 0,
+      "numRequests": 128,
+      "periodStart": "2025-08-01T00:00:00.000Z",
+      "periodEnd": "2025-09-01T00:00:00.000Z"
+    },
+    "jobs": { "usedMicroUsd": 0, "totalMinutes": 0 }
+  }
+}
