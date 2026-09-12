@@ -78,7 +78,14 @@ impl Server {
                     Ok((mut stream, _)) => {
                         let reply = match read_message(&stream) {
                             Ok(value) => {
-                                if crate::state::dispatch(value["command"].as_str().unwrap_or("")) {
+                                if value["command"] == "configure" {
+                                    let ok = crate::state::configure(&value["settings"]);
+                                    let mut snapshot = crate::state::snapshot();
+                                    snapshot["ok"] = json!(ok);
+                                    snapshot
+                                } else if crate::state::dispatch(
+                                    value["command"].as_str().unwrap_or(""),
+                                ) {
                                     crate::state::snapshot()
                                 } else {
                                     json!({"ok": false, "error": "Unknown command"})

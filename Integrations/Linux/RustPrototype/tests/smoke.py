@@ -39,7 +39,8 @@ class DesktopSmoke(unittest.TestCase):
                 platform = env['QT_QPA_PLATFORM']
                 if evidence:
                     evidence.mkdir(parents=True, exist_ok=True)
-                argv = [str(BINARY), '--runtime-dir', directory]
+                config = path / 'settings.json'
+                argv = [str(BINARY), '--runtime-dir', directory, '--config', str(config)]
                 app = subprocess.Popen(argv + ([] if with_tray else ['--no-tray']), env=env, stdout=log, stderr=log)
                 try:
                     eventually(lambda: 'Rendered meters: ["75% left","42% left"]' in log_path.read_text())
@@ -78,6 +79,7 @@ class DesktopSmoke(unittest.TestCase):
                         self.assertIn('75%', str(tray_property('ToolTip')))
 
                     refreshed = command('--refresh')
+                    expected_remaining = 55
                     self.assertEqual(refreshed['entries'][0]['windows'][0]['remaining'], 55)
                     eventually(lambda: 'Rendered meters: ["55% left","42% left"]' in log_path.read_text())
                     if with_tray:
@@ -93,6 +95,14 @@ class DesktopSmoke(unittest.TestCase):
                         subprocess.run(['busctl', '--user', 'call', bus_name, '/StatusNotifierItem',
                             'org.kde.StatusNotifierItem', 'Activate', 'ii', '0', '0'], check=True)
                         self.assertGreater(command('--snapshot')['windowSerial'], initial['windowSerial'])
+                        expected_remaining = 35
+                        eventually(lambda: command('--snapshot')['entries'][0]['windows'][0]['remaining'] == expected_remaining)
+                        eventually(lambda: 'Rust tray panel opened' in log_path.read_text())
+                        eventually(lambda: Path(str(capture) + '.tray.png').exists())
+
+                    command('--settings')
+                    eventually(lambda: 'Rust settings opened' in log_path.read_text())
+                    eventually(lambda: Path(str(capture) + '.settings.png').exists())
 
                     for message in [b'{broken}\n', b'{"command":"unsupported"}\n', b'x' * 65536]:
                         with socket.socket(socket.AF_UNIX) as client:
@@ -100,12 +110,37 @@ class DesktopSmoke(unittest.TestCase):
                             client.connect(str(path / 'desktop.sock'))
                             client.sendall(message)
                             self.assertFalse(json.loads(client.makefile('rb').readline())['ok'])
-                    self.assertEqual(command('--snapshot')['entries'][0]['windows'][0]['remaining'], 55)
+                    self.assertEqual(command('--snapshot')['entries'][0]['windows'][0]['remaining'], expected_remaining)
+                    def configure(changes):
+                        with socket.socket(socket.AF_UNIX) as client:
+                            client.settimeout(3)
+                            client.connect(str(path / 'desktop.sock'))
+                            client.sendall(json.dumps({'command': 'configure', 'settings': changes}).encode() + b'\n')
+                            return json.loads(client.makefile('rb').readline())
+                    self.assertTrue(configure({'quotaDisplay': 'used', 'notifyThreshold': 40})['ok'])
+                    saved = config.read_bytes()
+                    rejected = configure({'quotaDisplay': 'remaining', 'notifyThreshold': 120})
+                    self.assertFalse(rejected['ok'])
+                    self.assertEqual(rejected['settings']['quotaDisplay'], 'used')
+                    window = rejected['entries'][0]['windows'][0]
+                    self.assertEqual(window['displayValue'], 100 - expected_remaining)
+                    self.assertEqual(window['displaySuffix'], 'used')
+                    self.assertEqual(window['warning'], expected_remaining <= 40)
+                    self.assertEqual(config.read_bytes(), saved)
+                    self.assertEqual(config.stat().st_mode & 0o777, 0o600)
+                    if with_tray:
+                        eventually(lambda: 'used' in str(tray_property('ToolTip')))
                     command('--quit')
                     self.assertEqual(app.wait(timeout=5), 0)
                     self.assertFalse((path / 'desktop.sock').exists())
+                    # Preferences survive a fresh process, without reading real user settings.
+                    app = subprocess.Popen(argv + ['--no-tray'], env=env, stdout=log, stderr=log)
+                    eventually(lambda: (path / 'desktop.sock').exists())
+                    eventually(lambda: command('--snapshot')['settings']['quotaDisplay'] == 'used')
+                    command('--quit')
+                    self.assertEqual(app.wait(timeout=5), 0)
                     output = log_path.read_text()
-                    for error in ['ReferenceError', 'TypeError', 'QML load failed', 'Capture failed']:
+                    for error in ['ReferenceError', 'TypeError', 'QML load failed', 'Capture failed', 'Binding loop']:
                         self.assertNotIn(error, output)
                 finally:
                     if app.poll() is None:
@@ -117,6 +152,10 @@ class DesktopSmoke(unittest.TestCase):
                         (evidence / f'{platform}-app.log').write_text(log_path.read_text())
                         if capture.exists():
                             (evidence / f'{platform}-qml.png').write_bytes(capture.read_bytes())
+                        for name in ['tray', 'settings']:
+                            source = Path(str(capture) + f'.{name}.png')
+                            if source.exists():
+                                (evidence / f'{platform}-{name}.png').write_bytes(source.read_bytes())
                     print(log_path.read_text())
 
 

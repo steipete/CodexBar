@@ -24,3 +24,16 @@ imports, advanced menu-bar layout/pace coloring, and macOS-specific surfaces rem
 outside this Linux frontend. The Linux sign-in controls operate on the provider
 CLI's active session; they do not create or switch saved Mac profiles. KDE/GNOME
 sessions and distro-native packages still need separate compatibility work.
+
+## Rust experiment
+
+`RustPrototype/` is a separate backend experiment, not the Linux column above.
+It now has a click-to-refresh tray panel, a separate persistent display settings
+window, multi-resolution meter icons, per-window quota tooltips, and shared
+used/remaining and warning preferences. Its IPC snapshot supplies the display
+fields used by the Omarchy adapter. Native ARM64/x86_64 CI covers these paths.
+
+Usage is still synthetic. The next parity work is real provider execution and
+account selection, followed by spending, notifications, theme following and
+startup integration. Mac profile management and macOS-only surfaces remain
+separate from the Linux migration.

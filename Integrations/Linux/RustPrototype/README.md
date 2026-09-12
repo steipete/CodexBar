@@ -3,7 +3,7 @@
 An isolated feasibility experiment: Rust drives the existing CodexBar QML dashboard,
 creates a dynamic system tray icon, and serves JSON snapshots over a Unix socket.
 Everything displayed is synthetic. This does not invoke the CodexBar CLI, read
-provider credentials, change desktop preferences, or install an Omarchy widget.
+provider credentials, change the released app’s preferences, or install an Omarchy widget.
 
 ## Run
 
@@ -16,9 +16,23 @@ QMAKE=qmake6 cargo build --locked
 ```
 
 The window is titled **CodexBar Rust prototype — DEMO**. Refresh cycles the session
-meter through 75%, 55%, 35% and 15%; the weekly meter stays at 42%. The tray updates
-its two meters, warning color and tooltip from the same state. Left-click opens
-Usage; middle-click refreshes. Its menu offers Usage, Refresh and Quit.
+meter through 75%, 55%, 35% and 15%; the weekly meter stays at 42%. Clicking the
+tray refreshes those meters and opens a compact usage panel. Its **Settings…** button
+opens a separate settings window; **Open Usage & Spend…** opens the full dashboard.
+Middle-click refreshes, and the context menu offers Usage, Settings, Refresh and Quit.
+
+Settings persist in `$XDG_CONFIG_HOME/codexbar-rust-prototype/settings.json`
+(default `~/.config/codexbar-rust-prototype/settings.json`); use `--config PATH`
+for an isolated profile. Supported preferences are used/remaining quota, reset
+format, warning colors and threshold, static/meter tray style, and refresh on
+tray click. The tray icon, tooltip, dashboard and Omarchy snapshot use the same
+display preferences. Invalid settings are rejected as a whole; an unreadable or
+malformed settings file is preserved and reported in the settings window.
+
+The quick panel supports Escape, Ctrl+R and Ctrl+,; Settings supports Ctrl+S.
+Its position follows the tray activation hint on X11. Wayland compositors choose
+the floating window position; an anchored Omarchy popup uses the existing
+Quickshell adapter with `desktopExecutable` set to this prototype binary.
 
 The default runtime directory is `$XDG_RUNTIME_DIR/codexbar-rust-prototype`, separate
 from the installed C++ app. Alternatively pass `--runtime-dir /path/to/private-dir`;
@@ -46,7 +60,7 @@ not a relocatable release package.
   beside the provider with a width capped at half the header. A rendered-geometry
   assertion catches the narrow-column regression.
 - `ksni` 0.3.6 publishes a freedesktop StatusNotifierItem over D-Bus. Rust renders
-  the ARGB meter pixels; no Qt Widgets tray wrapper is needed.
+  the ARGB meter pixels at 16/22/32/64 px; no Qt Widgets tray wrapper is needed.
 - Snapshot clients run before Qt initialization and work without a display.
 - The prototype contains no handwritten C++ source. It still builds generated
   C++ and links Qt. One extra Qt static method, `QCoreApplication::exit`, is bound
@@ -58,6 +72,7 @@ not a relocatable release package.
 
 ```sh
 cargo fmt --check
+QMAKE=qmake6 cargo test --locked
 QMAKE=qmake6 cargo clippy --locked --all-targets -- -D warnings
 python3 tests/smoke.py
 # On a desktop session with a running StatusNotifier host and busctl:
@@ -70,7 +85,10 @@ The smoke test checks rendered QML meter labels before and after refresh, an ima
 capture, JSON snapshots, clients without a usable GUI platform, duplicate launch
 rejection, malformed/oversized requests, and graceful shutdown/socket removal.
 With tray testing enabled it additionally checks the exported D-Bus pixmap and
-tooltip change and exercises activation. It never queries real providers.
+tooltip change and exercises activation, verifies click-to-refresh and panel
+opening, renders Settings separately, and checks preference validation and
+persistence across a process restart. Test settings live in a temporary directory.
+It never queries real providers.
 
 Validated locally on x86_64 Omarchy, Qt 6.11.2 and Rust 1.98.1: Cargo build,
 formatting, Clippy, offscreen rendering, native Wayland, XWayland and StatusNotifierItem.
@@ -133,9 +151,10 @@ available on the experiment branch; this is not part of production releases.
 ## Remaining work before a migration
 
 This is not a replacement for the released Linux app. Real provider execution,
-timeouts/cancellation, settings persistence, spending, notifications, theme following,
-account actions, clipboard and startup controls have not been ported. Settings and
-clipboard actions show an explanatory dialog; Spending shows an empty disabled view.
+timeouts/cancellation, provider settings, spending, notifications, theme following,
+account actions, clipboard and startup controls have not been ported. Display
+settings and the quick tray panel are implemented. Clipboard shows an explanatory
+dialog; Spending shows an empty disabled view.
 
 The bridge currently transfers JSON and checks it on a 100 ms timer to keep this
 experiment small. A production version should expose typed models and notify QML

@@ -1,5 +1,6 @@
 mod bridge;
 mod ipc;
+mod settings;
 mod state;
 mod tray;
 use cxx_qt::casting::Upcast;
@@ -20,20 +21,24 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         .map(|path| path.join("codexbar-rust-prototype"));
     let mut command = None;
     let mut no_tray = false;
+    let mut config = std::env::var_os("XDG_CONFIG_HOME")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".config")))
+        .map(|root| root.join("codexbar-rust-prototype/settings.json"));
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
         match arg.as_str() {
+            "--config" => config = Some(PathBuf::from(args.next().ok_or("Missing settings path")?)),
             "--runtime-dir" => {
                 directory = Some(PathBuf::from(
                     args.next().ok_or("Missing runtime directory")?,
                 ))
             }
-            "--snapshot" | "--refresh" | "--usage" | "--spending" | "--settings" | "--quit" => {
-                command = Some(arg[2..].to_owned())
-            }
+            "--snapshot" | "--refresh" | "--usage" | "--spending" | "--settings" | "--tray"
+            | "--quit" => command = Some(arg[2..].to_owned()),
             "--no-tray" => no_tray = true,
             "--help" => {
-                println!("Rust/QML spike — synthetic data only\n--runtime-dir PATH --no-tray --snapshot --refresh --usage --spending --settings --quit");
+                println!("Rust/QML spike — synthetic data only\n--runtime-dir PATH --config PATH --no-tray --snapshot --refresh --usage --spending --settings --tray --quit");
                 return Ok(());
             }
             _ => return Err(format!("Unknown argument: {arg}").into()),
@@ -49,6 +54,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
     let _server = ipc::Server::start(&directory)?;
+    state::load_settings(config.ok_or("Set XDG_CONFIG_HOME or pass --config PATH")?);
     let stop = Arc::new(AtomicBool::new(false));
     let tray_thread = if no_tray {
         None

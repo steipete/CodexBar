@@ -22,6 +22,8 @@ pub mod ffi {
         fn sync(self: Pin<&mut RustDesktop>);
         #[qinvokable]
         fn dispatch(self: Pin<&mut RustDesktop>, command: &QString);
+        #[qinvokable]
+        fn save_settings(self: Pin<&mut RustDesktop>, changes: &QString) -> bool;
     }
 }
 
@@ -42,6 +44,12 @@ impl Default for RustDesktopState {
     }
 }
 impl ffi::RustDesktop {
+    pub fn save_settings(mut self: Pin<&mut Self>, changes: &QString) -> bool {
+        let ok = serde_json::from_str(&changes.to_string())
+            .is_ok_and(|changes| crate::state::configure(&changes));
+        self.as_mut().sync();
+        ok
+    }
     pub fn sync(self: Pin<&mut Self>) {
         self.set_snapshot_json(QString::from(crate::state::snapshot().to_string().as_str()));
     }

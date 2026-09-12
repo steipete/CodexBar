@@ -60,6 +60,7 @@ jobs:
           cargo fmt --check
           cargo build --locked
           cargo clippy --locked --all-targets -- -D warnings
+          cargo test --locked
           file target/debug/codexbar-rust-prototype >> "$PROTOTYPE_EVIDENCE_DIR/platform.txt"
       - uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         if: steps.cache.outputs.cache-hit != 'true'

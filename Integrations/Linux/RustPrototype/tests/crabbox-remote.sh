@@ -23,6 +23,7 @@ cd "$prototype_dir"
 cargo fmt --check
 cargo build --locked
 cargo clippy --locked --all-targets -- -D warnings
+cargo test --locked
 file target/debug/codexbar-rust-prototype >> "$PROTOTYPE_EVIDENCE_DIR/platform.txt"
 python3 tests/smoke.py
 bash tests/desktop-session.sh

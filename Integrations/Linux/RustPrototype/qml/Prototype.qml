@@ -20,10 +20,17 @@ Item {
         readonly property string updated: data.updated
         readonly property string error: "Prototype — synthetic data only. Refresh changes the meters."
         readonly property string costError: "Spending is outside this prototype."
+        readonly property string configError: data.configError || ""
         function refresh() { backend.dispatch("refresh"); }
         function refreshCosts() { backend.dispatch("refresh"); }
         function showWindow(page) { backend.dispatch(page); }
         function copySummary() { notice.open(); }
+        function saveSettings(changes) { return backend.save_settings(JSON.stringify(changes)); }
+        function captureWindow(window, name) {
+            if (backend.capturePath) window.contentItem.children[0].grabToImage(function(result) {
+                if (!result.saveToFile(backend.capturePath + "." + name + ".png")) console.error("Capture failed");
+            });
+        }
     }
     Loader {
         id: dashboard
@@ -31,13 +38,15 @@ Item {
         onStatusChanged: if (status === Loader.Error) Qt.exit(1)
         onLoaded: { console.info("Production dashboard loaded"); item.title = "CodexBar Rust prototype — DEMO"; item.show(); }
     }
+    Loader { id: trayPanel; source: "TrayPanel.qml"; onStatusChanged: if (status === Loader.Error) Qt.exit(1) }
+    Loader { id: settingsWindow; source: "Settings.qml"; onStatusChanged: if (status === Loader.Error) Qt.exit(1) }
     Dialog {
         id: notice
         parent: dashboard.item ? dashboard.item.contentItem : root
         title: "Rust integration prototype"
         modal: true
         standardButtons: Dialog.Ok
-        Label { text: "Settings, spending and clipboard are not implemented in this spike." }
+        Label { text: "Clipboard support has not been ported yet." }
     }
     function planGeometry(item) {
         if (typeof item.text === "string" && item.text === desktop.entries[0].plan)
@@ -81,9 +90,16 @@ Item {
             if (desktop.data.quit) Qt.quit();
             if (serial !== desktop.data.windowSerial && dashboard.item) {
                 serial = desktop.data.windowSerial;
-                dashboard.item.selectedTab = desktop.data.window === "spending" ? 1 : 0;
-                dashboard.item.show(); dashboard.item.raise(); dashboard.item.requestActivate();
-                if (desktop.data.window === "settings") notice.open();
+                var page = desktop.data.window;
+                if (page === "tray" && trayPanel.item) {
+                    trayPanel.item.present(desktop.data.trayX, desktop.data.trayY);
+                } else if (page === "settings" && settingsWindow.item) {
+                    if (trayPanel.item) trayPanel.item.hide();
+                    settingsWindow.item.show(); settingsWindow.item.raise(); settingsWindow.item.requestActivate();
+                } else {
+                    dashboard.item.selectedTab = page === "spending" ? 1 : 0;
+                    dashboard.item.show(); dashboard.item.raise(); dashboard.item.requestActivate();
+                }
             }
         }
     }
