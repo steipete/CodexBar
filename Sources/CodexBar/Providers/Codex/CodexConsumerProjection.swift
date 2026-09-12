@@ -725,15 +725,7 @@ extension UsageStore {
         case .secondary, .tertiary:
             return second ?? first
         case .extraUsage:
-            return projection.extraUsageCost.flatMap { cost in
-                guard cost.limit > 0 else { return nil }
-                let usedPercent = max(0, min(100, (cost.used / cost.limit) * 100))
-                return RateWindow(
-                    usedPercent: usedPercent,
-                    windowMinutes: nil,
-                    resetsAt: cost.resetsAt,
-                    resetDescription: nil)
-            } ?? first
+            return projection.extraUsageCost?.spendLimitWindow ?? first
         case .average:
             guard self.settings.menuBarMetricSupportsAverage(for: .codex),
                   let primary = first,

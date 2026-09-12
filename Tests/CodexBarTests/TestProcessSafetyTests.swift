@@ -2,6 +2,34 @@ import Testing
 @testable import CodexBarCore
 
 struct TestProcessSafetyTests {
+    @Test
+    func `current process is recognized without callers supplying runner signals`() {
+        #expect(TestProcessSafety.isRunning)
+    }
+
+    @Test(arguments: [["/tmp/Suite.xctest"], ["swift-testing"], ["/tmp/XCTestRunner"]])
+    func `recognizes runner executable arguments`(arguments: [String]) {
+        #expect(TestProcessSafety.isRunningUnderTests(
+            processName: "runner",
+            environment: [:],
+            arguments: arguments))
+    }
+
+    @Test(arguments: [
+        ["/usr/local/bin/codexbar", "--account", "swift-testing"],
+        ["/usr/local/bin/codexbar", "--account", "xctest"],
+        ["/usr/local/bin/codexbar", "--account", "Example.xctest"],
+        ["/tmp/swift-testing/codexbar", "usage"],
+        ["/tmp/Example.xctest/codexbar", "usage"],
+        ["/tmp/XCTestRunnerTools/codexbar", "usage"],
+    ])
+    func `ordinary argument values and installation paths retain production behavior`(arguments: [String]) {
+        #expect(!TestProcessSafety.isRunningUnderTests(
+            processName: "codexbar",
+            environment: [:],
+            arguments: arguments))
+    }
+
     @Test(arguments: [
         ("swiftpm-testing-helper", [:]),
         ("CodexBarPackageTests", [:]),

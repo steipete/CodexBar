@@ -230,12 +230,7 @@ public enum ClaudeProviderDescriptor {
               context.snapshot.tertiary == nil,
               context.snapshot.primary == nil || context.snapshot.primary?.isSyntheticPlaceholder == true
         else { return .unhandled }
-        let usedPercent = max(0, min(100, (cost.used / cost.limit) * 100))
-        return .resolved(RateWindow(
-            usedPercent: usedPercent,
-            windowMinutes: nil,
-            resetsAt: cost.resetsAt,
-            resetDescription: nil))
+        return .resolved(cost.spendLimitWindow)
     }
 
     private static func resolveStrategies(context: ProviderFetchContext) async -> [any ProviderFetchStrategy] {

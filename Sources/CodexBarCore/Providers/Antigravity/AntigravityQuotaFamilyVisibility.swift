@@ -5,6 +5,24 @@ import Foundation
 /// known zero usage. Menu bar and icon selection rank by highest used, so an untouched family
 /// never wins there and this stays a display-only filter.
 public enum AntigravityQuotaFamilyVisibility {
+    package enum KnownFamily: String {
+        case gemini
+        case claudeGPT = "claude-gpt"
+    }
+
+    /// Stable bucket IDs take precedence over display titles on every surface.
+    /// Provider-specific by design: these tokens classify Antigravity quota families, not provider routing.
+    package static func knownFamily(windowID: String, title: String) -> KnownFamily? {
+        guard AntigravityStatusSnapshot.isQuotaSummaryWindowID(windowID) else { return nil }
+        let id = windowID.lowercased()
+        if id.contains("gemini") { return .gemini }
+        if id.contains("3p") || id.contains("third-party") { return .claudeGPT }
+        let title = title.lowercased()
+        if title.contains("gemini") { return .gemini }
+        if title.contains("claude") || title.contains("gpt") { return .claudeGPT }
+        return nil
+    }
+
     /// Window IDs that display surfaces should drop. Empty when every family is untouched, so a card
     /// or widget right after a reset still renders its lanes instead of an empty list.
     public static func idleWindowIDs(in snapshot: UsageSnapshot) -> Set<String> {
@@ -24,22 +42,11 @@ public enum AntigravityQuotaFamilyVisibility {
     /// falls back to the title with its bucket suffix removed, which keeps an unfamiliar family's lanes
     /// on one key so a reset lane never hides while its active sibling stays.
     private static func familyKey(_ namedWindow: NamedRateWindow) -> String {
-        // Provider-specific by design: these tokens are Antigravity's own quota families, not CodexBar providers.
-        let id = namedWindow.id.lowercased()
-        if id.contains("gemini") {
-            return "gemini"
-        }
-        if id.contains("3p") || id.contains("third-party") {
-            return "claude-gpt"
-        }
-        let title = namedWindow.title.lowercased()
-        if title.contains("gemini") {
-            return "gemini"
-        }
-        if title.contains("claude") || title.contains("gpt") {
-            return "claude-gpt"
+        if let family = self.knownFamily(windowID: namedWindow.id, title: namedWindow.title) {
+            return family.rawValue
         }
         // Titles render as a group title plus a bucket title, so drop the bucket half to key per family.
+        let title = namedWindow.title.lowercased()
         for suffix in Self.bucketTitleSuffixes where title.hasSuffix(suffix) {
             let stripped = String(title.dropLast(suffix.count)).trimmingCharacters(in: .whitespaces)
             if !stripped.isEmpty {

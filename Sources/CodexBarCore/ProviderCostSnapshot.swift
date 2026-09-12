@@ -51,6 +51,16 @@ public struct ProviderCostSnapshot: Equatable, Codable, Sendable {
         self.balanceIsUnavailable = nil
     }
 
+    /// Projects a positive spend budget into a quota meter without assigning it a time-window cadence.
+    package var spendLimitWindow: RateWindow? {
+        guard self.limit > 0 else { return nil }
+        return RateWindow(
+            usedPercent: max(0, min(100, (self.used / self.limit) * 100)),
+            windowMinutes: nil,
+            resetsAt: self.resetsAt,
+            resetDescription: nil)
+    }
+
     func replacing(balance: Double?) -> Self {
         self.replacing(
             balance: balance,

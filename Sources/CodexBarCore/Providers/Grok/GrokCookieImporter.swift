@@ -5,7 +5,7 @@ import SweetCookieKit
 
 public enum GrokCookieImporter {
     private static let importSessionCacheTTL: TimeInterval = 5
-    private static let importSessionCache = ImportSessionCache(ttl: importSessionCacheTTL)
+    private static let importSessionCache = ExpiringValueCache<[SessionInfo]>(ttl: importSessionCacheTTL)
     private static let log = CodexBarLog.logger(LogCategories.providers)
     private static let cookieClient = BrowserCookieClient()
     private static let cookieDomains = ["grok.com"]
@@ -65,14 +65,10 @@ public enum GrokCookieImporter {
             logger: log)
 
         var sessions: [SessionInfo] = []
-        let grouped = Dictionary(grouping: sources, by: { $0.store.profile.id })
-        let sortedGroups = grouped.values.sorted { lhs, rhs in
-            self.mergedLabel(for: lhs) < self.mergedLabel(for: rhs)
-        }
 
-        for group in sortedGroups where !group.isEmpty {
-            let label = self.mergedLabel(for: group)
-            let mergedRecords = self.mergeRecords(group)
+        for profile in BrowserCookieProfiles.merge(sources) {
+            let label = profile.label
+            let mergedRecords = profile.records
             guard mergedRecords.contains(where: { $0.name == "sso" || $0.name == "sso-rw" }) else { continue }
             let httpCookies = BrowserCookieClient.makeHTTPCookies(mergedRecords, origin: query.origin)
             guard !httpCookies.isEmpty else { continue }
@@ -118,87 +114,6 @@ public enum GrokCookieImporter {
 
     private static func storeImportSessions(_ sessions: [SessionInfo], now: Date = Date()) {
         self.importSessionCache.store(sessions, now: now)
-    }
-
-    private static func mergedLabel(for sources: [BrowserCookieStoreRecords]) -> String {
-        guard let base = sources.map(\.label).min() else { return "Unknown" }
-        if base.hasSuffix(" (Network)") {
-            return String(base.dropLast(" (Network)".count))
-        }
-        return base
-    }
-
-    private static func mergeRecords(_ sources: [BrowserCookieStoreRecords]) -> [BrowserCookieRecord] {
-        let sortedSources = sources.sorted { lhs, rhs in
-            self.storePriority(lhs.store.kind) < self.storePriority(rhs.store.kind)
-        }
-        var mergedByKey: [String: BrowserCookieRecord] = [:]
-        for source in sortedSources {
-            for record in source.records {
-                let key = self.recordKey(record)
-                if let existing = mergedByKey[key] {
-                    if self.shouldReplace(existing: existing, candidate: record) {
-                        mergedByKey[key] = record
-                    }
-                } else {
-                    mergedByKey[key] = record
-                }
-            }
-        }
-        return Array(mergedByKey.values)
-    }
-
-    private static func storePriority(_ kind: BrowserCookieStoreKind) -> Int {
-        switch kind {
-        case .network: 0
-        case .primary: 1
-        case .safari: 2
-        }
-    }
-
-    private static func recordKey(_ record: BrowserCookieRecord) -> String {
-        "\(record.name)|\(record.domain)|\(record.path)"
-    }
-
-    private static func shouldReplace(existing: BrowserCookieRecord, candidate: BrowserCookieRecord) -> Bool {
-        switch (existing.expires, candidate.expires) {
-        case let (lhs?, rhs?): rhs > lhs
-        case (nil, .some): true
-        case (.some, nil): false
-        case (nil, nil): false
-        }
-    }
-
-    private final class ImportSessionCache: @unchecked Sendable {
-        private let ttl: TimeInterval
-        private let lock = NSLock()
-        private var entry: (sessions: [SessionInfo], expiresAt: Date)?
-
-        init(ttl: TimeInterval) {
-            self.ttl = ttl
-        }
-
-        func load(now: Date) -> [SessionInfo]? {
-            self.lock.lock()
-            defer { self.lock.unlock() }
-            guard let entry = self.entry, entry.expiresAt > now else {
-                self.entry = nil
-                return nil
-            }
-            return entry.sessions
-        }
-
-        func store(_ sessions: [SessionInfo], now: Date) {
-            self.lock.lock()
-            self.entry = (sessions, now.addingTimeInterval(self.ttl))
-            self.lock.unlock()
-        }
-
-        func invalidate() {
-            self.lock.lock()
-            self.entry = nil
-            self.lock.unlock()
-        }
     }
 }
 #else

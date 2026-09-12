@@ -241,10 +241,7 @@ final class SettingsStore {
     static let sharedDefaults = SettingsStore.resolveSharedDefaults()
     static let mergedOverviewProviderLimit = 6
     static let productionCodexAccountReconciliationSnapshotCacheInterval: TimeInterval = 2
-    static let isRunningTests = SettingsStore.resolveIsRunningTests(
-        processName: ProcessInfo.processInfo.processName,
-        environment: ProcessInfo.processInfo.environment,
-        hasLoadedXCTestCase: NSClassFromString("XCTestCase") != nil)
+    static let isRunningTests = TestProcessSafety.isRunning
 
     #if DEBUG
     static var codexAccountReconciliationSnapshotCacheIntervalOverrideForTesting: TimeInterval?
@@ -280,17 +277,6 @@ final class SettingsStore {
     @ObservationIgnored var providerEnablementRevisions: [ProviderInstanceID: UInt64] = [:]
     @ObservationIgnored var providerConfigRevisions: [ProviderInstanceID: UInt64] = [:]
     @ObservationIgnored var providerConfigFingerprints: [ProviderInstanceID: Data] = [:]
-
-    static func resolveIsRunningTests(
-        processName: String,
-        environment: [String: String],
-        hasLoadedXCTestCase: Bool) -> Bool
-    {
-        TestProcessSafety.isRunningUnderTests(
-            processName: processName,
-            environment: environment,
-            hasLoadedXCTestCase: hasLoadedXCTestCase)
-    }
 
     static func resolveSharedDefaults(
         _ resolve: () -> UserDefaults? = { AppGroupSupport.sharedDefaults() }) -> UserDefaults?

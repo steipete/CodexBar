@@ -51,39 +51,18 @@ public enum ChutesProviderDescriptor {
                 menu: ProviderMenuDescriptorPresentation(
                     primaryDescriptionIsDetail: { _ in true },
                     secondaryDescriptionMode: .detailWhenResetDatePresent)),
-            fetchPlan: ProviderFetchPlan(
-                sourceModes: [.auto, .api],
-                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [ChutesAPIFetchStrategy()] })),
+            fetchPlan: .apiToken(
+                strategyID: "chutes.api",
+                resolveToken: ChutesSettingsReader.apiKey,
+                missingCredentialsError: { ChutesSettingsError.missingToken },
+                loadUsage: { apiKey, context in
+                    try await ChutesUsageFetcher.fetchUsage(
+                        apiKey: apiKey,
+                        environment: context.env).toUsageSnapshot()
+                }),
             cli: ProviderCLIConfig(
                 name: "chutes",
                 aliases: ["chutes.ai"],
                 versionDetector: nil))
-    }
-}
-
-struct ChutesAPIFetchStrategy: ProviderFetchStrategy {
-    let id: String = "chutes.api"
-    let kind: ProviderFetchKind = .apiToken
-
-    func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        ChutesSettingsReader.apiKey(environment: context.env) != nil
-    }
-
-    func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        guard let apiKey = ChutesSettingsReader.apiKey(environment: context.env) else {
-            throw ChutesSettingsError.missingToken
-        }
-
-        let usage = try await ChutesUsageFetcher.fetchUsage(
-            apiKey: apiKey,
-            environment: context.env)
-
-        return self.makeResult(
-            usage: usage.toUsageSnapshot(),
-            sourceLabel: "api")
-    }
-
-    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
-        false
     }
 }

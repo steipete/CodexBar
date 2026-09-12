@@ -280,7 +280,7 @@ public struct MistralUsageSnapshot: Codable, Sendable {
             ? Self.safeCostSum(displayedCosts.compactMap(\.self))
             : nil
         let totalTokens = windowTokensAreComplete
-            ? Self.safeIntSum(rowTokens.compactMap(\.self))
+            ? CheckedSum.integers(rowTokens.compactMap(\.self))
             : nil
         return CostUsageTokenSnapshot(
             sessionTokens: latestIndex.flatMap { rowTokens[$0] },
@@ -403,12 +403,12 @@ public struct MistralUsageSnapshot: Codable, Sendable {
 
     private func dailyTokensMatchSnapshot() -> Bool {
         guard self.hasNonnegativeTokenCounters(),
-              let snapshotTokens = Self.safeIntSum([
+              let snapshotTokens = CheckedSum.integers([
                   self.totalInputTokens,
                   self.totalCachedTokens,
                   self.totalOutputTokens,
               ]),
-              let dailyTokens = Self.safeIntSum(self.daily.flatMap { bucket in
+              let dailyTokens = CheckedSum.integers(self.daily.flatMap { bucket in
                   [bucket.inputTokens, bucket.cachedTokens, bucket.outputTokens]
               })
         else { return false }
@@ -439,7 +439,7 @@ public struct MistralUsageSnapshot: Codable, Sendable {
     {
         bucket.models.map { model in
             let modelCost = costsAreComplete && model.cost.isFinite && model.cost >= 0 ? model.cost : nil
-            let modelTokens = tokensAreComplete ? Self.safeIntSum([
+            let modelTokens = tokensAreComplete ? CheckedSum.integers([
                 model.inputTokens,
                 model.cachedTokens,
                 model.outputTokens,
@@ -452,7 +452,7 @@ public struct MistralUsageSnapshot: Codable, Sendable {
     }
 
     private static func tokenTotal(for bucket: MistralDailyUsageBucket) -> Int? {
-        self.safeIntSum([bucket.inputTokens, bucket.cachedTokens, bucket.outputTokens])
+        CheckedSum.integers([bucket.inputTokens, bucket.cachedTokens, bucket.outputTokens])
     }
 
     private static func safeCostSum(_ values: [Double]) -> Double? {
@@ -461,16 +461,6 @@ public struct MistralUsageSnapshot: Codable, Sendable {
             guard value.isFinite else { return nil }
             total += value
             guard total.isFinite else { return nil }
-        }
-        return total
-    }
-
-    private static func safeIntSum(_ values: [Int]) -> Int? {
-        var total = 0
-        for value in values {
-            let addition = total.addingReportingOverflow(value)
-            guard !addition.overflow else { return nil }
-            total = addition.partialValue
         }
         return total
     }

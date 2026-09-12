@@ -1,5 +1,7 @@
-import CodexBarCore
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 /// Shared, lock-guarded ISO8601 formatters for status feeds. Allocating a fresh
 /// `ISO8601DateFormatter` per decoded date field is a measurable share of decoding the
@@ -40,12 +42,12 @@ private enum StatusFeedDateParser {
     }
 }
 
-extension UsageStore {
+package enum ProviderStatusFetcher {
     /// Status feeds decode off the main actor: the Google Workspace incidents payload alone
     /// can be hundreds of kilobytes and cost 150-340ms to decode (#1399), and these helpers
     /// touch no store state.
     @concurrent
-    nonisolated static func fetchStatus(
+    package static func fetchStatus(
         from baseURL: URL,
         transport: any ProviderHTTPTransport = ProviderHTTPClient.shared)
         async throws -> ProviderStatus
@@ -56,33 +58,7 @@ extension UsageStore {
 
         let (data, _) = try await transport.data(for: request)
 
-        struct Response: Decodable {
-            struct Status: Decodable {
-                let indicator: String
-                let description: String?
-            }
-
-            struct Page: Decodable {
-                let updatedAt: Date?
-
-                private enum CodingKeys: String, CodingKey {
-                    case updatedAt = "updated_at"
-                }
-            }
-
-            let page: Page?
-            let status: Status
-        }
-
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = StatusFeedDateParser.decodingStrategy()
-
-        let response = try decoder.decode(Response.self, from: data)
-        let indicator = ProviderStatusIndicator(rawValue: response.status.indicator) ?? .unknown
-        return ProviderStatus(
-            indicator: indicator,
-            description: response.status.description,
-            updatedAt: response.page?.updatedAt)
+        return try Self.parseStatuspageStatus(data: data)
     }
 
     /// Resolves the provider's status and component list.
@@ -93,7 +69,7 @@ extension UsageStore {
     /// back to. `components.json` is used for the flat list because `summary.json` omits unlisted
     /// components such as "FedRAMP".
     @concurrent
-    nonisolated static func fetchStatusSummary(
+    package static func fetchStatusSummary(
         from baseURL: URL,
         transport: any ProviderHTTPTransport = ProviderHTTPClient.shared)
         async throws -> (status: ProviderStatus, components: [ProviderStatusComponent]?)
@@ -140,7 +116,7 @@ extension UsageStore {
     /// Parses incident.io's native status-page summary (`/proxy/<host>`). Groups come from
     /// `structure.items`; per-component statuses come from `affected_components` (anything not
     /// listed there is operational). A group's status aggregates the worst of its children.
-    nonisolated static func parseIncidentIOSummary(
+    package static func parseIncidentIOSummary(
         data: Data)
         throws -> (status: ProviderStatus, components: [ProviderStatusComponent])
     {
@@ -262,7 +238,7 @@ extension UsageStore {
         return (status, topLevel)
     }
 
-    nonisolated static func parseStatuspageStatus(data: Data) throws -> ProviderStatus {
+    package static func parseStatuspageStatus(data: Data) throws -> ProviderStatus {
         struct Response: Decodable {
             struct Status: Decodable {
                 let indicator: String
@@ -291,7 +267,7 @@ extension UsageStore {
             updatedAt: response.page?.updatedAt)
     }
 
-    nonisolated static func parseStatuspageComponents(data: Data) throws -> [ProviderStatusComponent] {
+    package static func parseStatuspageComponents(data: Data) throws -> [ProviderStatusComponent] {
         struct Response: Decodable {
             struct Component: Decodable {
                 let id: String
@@ -351,7 +327,7 @@ extension UsageStore {
     }
 
     @concurrent
-    nonisolated static func fetchWorkspaceStatus(
+    package static func fetchWorkspaceStatus(
         productID: String,
         transport: any ProviderHTTPTransport = ProviderHTTPClient.shared,
         beforeDecoding: (@Sendable () -> Void)? = nil)
@@ -367,7 +343,7 @@ extension UsageStore {
         return try Self.parseGoogleWorkspaceStatus(data: data, productID: productID)
     }
 
-    nonisolated static func parseGoogleWorkspaceStatus(data: Data, productID: String) throws -> ProviderStatus {
+    package static func parseGoogleWorkspaceStatus(data: Data, productID: String) throws -> ProviderStatus {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         decoder.dateDecodingStrategy = StatusFeedDateParser.decodingStrategy()

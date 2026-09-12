@@ -3,6 +3,45 @@ import Testing
 @testable import CodexBarCore
 
 struct ZaiProviderTests {
+    @Test(arguments: BundledPluginTestSupport.engines, [
+        "",
+        #"{"type":"FUTURE_LIMIT","unit":3,"number":5,"percentage":40}"#,
+    ])
+    func `missing recognized limits never fabricate unused quota`(
+        engine: ProviderPluginEngineKind,
+        limits: String) async throws
+    {
+        let fixture = #"""
+        {"code":200,"success":true,"data":{"planName":"Pro","limits":[\#(limits)]}}
+        """#
+        for analytics in [Self.emptyModelUsageFixture, Self.modelUsageFixture] {
+            let snapshot = try await Self.pluginSnapshot(
+                quotaFixture: fixture, modelUsageFixture: analytics, engine: engine)
+            #expect(snapshot.primary == nil)
+            #expect(snapshot.secondary == nil)
+            #expect(snapshot.extraRateWindows?.isEmpty != false)
+            #expect(snapshot.identity?.loginMethod == "Pro")
+            #expect(snapshot.details.map(\.title) == (analytics == Self.emptyModelUsageFixture
+                    ? ["Quota details"] : ["Quota details", "Hourly tokens", "Daily tokens"]))
+        }
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines, ["TOKENS_LIMIT", "CREDIT_LIMIT", "TIME_LIMIT"])
+    func `explicit zero usage remains a real quota window`(
+        engine: ProviderPluginEngineKind,
+        limitType: String) async throws
+    {
+        let fixture = #"""
+        {"code":200,"success":true,"data":{"limits":[
+          {"type":"\#(limitType)","unit":3,"number":5,"percentage":0}
+        ]}}
+        """#
+        let snapshot = try await Self.pluginSnapshot(quotaFixture: fixture, engine: engine)
+        #expect(snapshot.primary?.usedPercent == 0)
+        #expect(snapshot.primary?.windowMinutes == 300)
+        #expect(snapshot.secondary == nil)
+    }
+
     @Test(arguments: BundledPluginTestSupport.engines)
     func `unrenderable optional analytics preserve required quota`(engine: ProviderPluginEngineKind) async throws {
         for (count, name, label) in [

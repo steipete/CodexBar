@@ -1275,13 +1275,7 @@ struct SpendDashboardModel: Equatable, Sendable {
 
     private static func safeIntSum(_ values: [Int]) -> Int? {
         guard !values.isEmpty else { return nil }
-        var result = 0
-        for value in values {
-            let addition = result.addingReportingOverflow(value)
-            guard !addition.overflow else { return nil }
-            result = addition.partialValue
-        }
-        return result
+        return CheckedSum.integers(values)
     }
 
     private static func completeIntSum(_ values: [Int?]) -> Int? {

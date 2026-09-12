@@ -26,7 +26,7 @@ enum CLIRenderer {
                 now: now)
 
         if let status = context.status {
-            let statusLine = "Status: \(status.indicator.label)\(status.descriptionSuffix)"
+            let statusLine = "Status: \(status.indicator.cliLabel)\(status.descriptionSuffix)"
             lines.append(self.colorize(statusLine, indicator: status.indicator, useColor: context.useColor))
         }
 
@@ -479,7 +479,7 @@ enum CLIRenderer {
 
     static func colorizeStatusLine(
         _ text: String,
-        indicator: ProviderStatusPayload.ProviderStatusIndicator,
+        indicator: ProviderStatusIndicator,
         useColor: Bool) -> String
     {
         self.colorize(text, indicator: indicator, useColor: useColor)
@@ -1077,7 +1077,7 @@ enum CLIRenderer {
 
     private static func colorize(
         _ text: String,
-        indicator: ProviderStatusPayload.ProviderStatusIndicator,
+        indicator: ProviderStatusIndicator,
         useColor: Bool)
         -> String
     {
