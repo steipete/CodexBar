@@ -872,7 +872,7 @@ class ReviewRegressionTests(unittest.TestCase):
                     with self.assertRaises(OSError):
                         runner.test_process(123)
 
-    def exercise_initialization_failure(self, failure):
+    def exercise_initialization_failure(self, failure, deferred_kills=0):
         with tempfile.TemporaryDirectory(prefix="codexbar-init-cleanup-") as directory:
             root = Path(directory)
             spawned = []
@@ -899,8 +899,12 @@ class ReviewRegressionTests(unittest.TestCase):
             sent = []
             original_kill = os.kill
             def kill(pid, sig):
+                nonlocal deferred_kills
                 if spawned and pid == spawned[0].pid:
                     sent.append((sig, time.monotonic() - started))
+                    if sig == signal.SIGKILL and deferred_kills:
+                        deferred_kills -= 1
+                        return
                 return original_kill(pid, sig)
             try:
                 with patch.object(runner.subprocess, "Popen", side_effect=spawn), \
@@ -916,8 +920,10 @@ class ReviewRegressionTests(unittest.TestCase):
                 self.assertEqual(len(spawned), 1)
                 self.assertIsNotNone(spawned[0].poll(), "initialization failure leaked direct child")
                 if failure is None:
-                    self.assertEqual([sig for sig, _ in sent], [signal.SIGTERM, signal.SIGKILL])
+                    self.assertEqual([sig for sig, _ in sent[:2]], [signal.SIGTERM, signal.SIGKILL])
+                    self.assertTrue(all(sig == signal.SIGKILL for sig, _ in sent[2:]))
                     self.assertGreaterEqual(sent[0][1], 2, "missing metadata shortened the command deadline")
+                    self.assertGreaterEqual(sent[1][1] - sent[0][1], 3, "cleanup shortened the termination grace")
                     self.assertEqual(spawned[0].returncode, -signal.SIGKILL)
                 self.assertLess(time.monotonic() - started, 9)
             finally:
@@ -936,7 +942,9 @@ class ReviewRegressionTests(unittest.TestCase):
         self.exercise_initialization_failure(KeyboardInterrupt())
 
     def test_initial_missing_metadata_times_out_and_reaps_term_ignoring_child(self):
-        self.exercise_initialization_failure(None)
+        for deferred_kills in (0, 2):
+            with self.subTest(deferred_kills=deferred_kills):
+                self.exercise_initialization_failure(None, deferred_kills=deferred_kills)
 
 
 class ExitTransitionTests(unittest.TestCase):

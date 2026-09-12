@@ -20,7 +20,20 @@ defineProvider({
     });
     if (response.status !== 200) throw new Error(`Manus API error: HTTP ${response.status}`);
     const root = response.json || {};
-    const data = root.data || root.result || root.response || root.availableCredits || root;
+    const data = root.data ?? root.result ?? root.response ?? root.availableCredits ?? root;
+    const creditKeys = [
+      "totalCredits",
+      "freeCredits",
+      "periodicCredits",
+      "addonCredits",
+      "refreshCredits",
+      "maxRefreshCredits",
+      "proMonthlyCredits",
+      "eventCredits",
+    ];
+    if (!creditKeys.some((key) => Object.prototype.hasOwnProperty.call(data, key))) {
+      throw new Error("Manus response missing expected credits fields");
+    }
     const number = (key) => Number(data[key] || 0);
     const total = number("totalCredits");
     const free = number("freeCredits");

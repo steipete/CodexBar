@@ -46,7 +46,7 @@ A single API endpoint is fetched with a bearer token derived from the `session_i
 
 Cookie domain: `manus.im`. Valid `session_id` cookies are cached in Keychain and reused until the session expires.
 
-The response parser tolerates both a direct object and common envelope shapes (`data` / `result` / `response` / `availableCredits`). Payloads missing all expected credit fields are rejected as a parse error rather than surfacing a misleading zero-credit snapshot.
+The native parser and optional cookie plugin tolerate both a direct object and common envelope shapes (`data` / `result` / `response` / `availableCredits`). The selected credits object must contain at least one credit field; empty, error-only, and timing-only objects are rejected rather than surfacing a misleading zero-credit snapshot. Sparse responses and explicit zero balances remain valid.
 
 ## Token accounts
 
