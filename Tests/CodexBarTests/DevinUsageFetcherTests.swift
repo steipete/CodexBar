@@ -130,15 +130,60 @@ struct DevinUsageFetcherTests {
     @Test
     func `keeps weekly quota when current plan hides daily quota`() throws {
         let response: [String: Any] = [
+            "daily_percentage": 0,
+            "daily_reset_at": "2026-06-11T00:00:00-08:00",
             "weekly_percentage": 25,
             "weekly_reset_at": "2026-06-14T00:00:00-08:00",
             "hide_daily_quota": true,
+            "overage_balance": 12,
         ]
 
         let usage = try DevinUsageParser.parse(response, organization: nil, now: Self.now).toUsageSnapshot()
 
         #expect(usage.primary == nil)
         #expect(usage.secondary?.usedPercent == 25)
+        #expect(usage.secondary?.resetsAt?.timeIntervalSince1970 == 1_781_424_000)
+        #expect(usage.providerCost?.used == 12)
+    }
+
+    @Test(arguments: ["true", "false", "null", "1", "\"true\"", "absent"], [false, true])
+    func `daily visibility applies before current and fallback parsing`(_ flag: String, _ fallback: Bool) throws {
+        var response: [String: Any] = fallback ? [
+            "quota_usage": [
+                "daily_quota": ["used_percent": 0.25, "reset_at": "2026-06-11T00:00:00-08:00"],
+                "weekly_quota": ["used_percent": 0.9, "reset_at": "2026-06-14T00:00:00-08:00"],
+            ],
+        ] : [
+            "daily_percentage": 25,
+            "weekly_percentage": 90,
+            "daily_reset_at": "2026-06-11T00:00:00-08:00",
+            "weekly_reset_at": "2026-06-14T00:00:00-08:00",
+        ]
+        if flag != "absent" {
+            response["hide_daily_quota"] = try JSONSerialization.jsonObject(
+                with: Data(flag.utf8), options: [.fragmentsAllowed])
+        }
+        let data = try JSONSerialization.data(withJSONObject: response)
+        let usage = try DevinUsageParser.parse(data, organization: nil, now: Self.now).toUsageSnapshot()
+
+        #expect(usage.primary?.usedPercent == (flag == "true" ? nil : 25))
+        #expect(usage.primary?.resetsAt?.timeIntervalSince1970 == (flag == "true" ? nil : 1_781_164_800))
+        #expect(usage.secondary?.usedPercent == 90)
+        #expect(usage.secondary?.resetsAt?.timeIntervalSince1970 == 1_781_424_000)
+    }
+
+    @Test
+    func `hidden daily data cannot satisfy missing quota windows`() {
+        #expect(throws: DevinUsageError.self) {
+            try DevinUsageParser.parse(
+                [
+                    "hide_daily_quota": true,
+                    "daily_percentage": 0,
+                    "quota_usage": ["daily_quota": ["used_percent": 25]],
+                ],
+                organization: nil,
+                now: Self.now)
+        }
     }
 
     @Test

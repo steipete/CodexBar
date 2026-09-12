@@ -26,6 +26,8 @@ and **Refresh when the menu opens** can still fetch data. Turn off that option a
 Disable AWS Bedrock in Providers to stop its app refreshes; separate CLI invocations can still make billed requests.
 
 The optional monthly budget only changes the displayed progress. It does not cap AWS charges or stop polling.
+The AWS Bedrock provider's Connection settings show these monitoring charges, link to current Cost Explorer pricing,
+and explain how the shared refresh controls reduce requests in both access-key and AWS-profile modes.
 
 ## Authentication
 

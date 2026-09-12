@@ -80,10 +80,16 @@ actor CostUsageStore {
         parserHash: CodexParserHash.value)
     static let cacheGeneration = "sqlite:\(CostUsageStore.schemaVersion)"
     static let compatiblePredecessorParserHashes: Set<String> = [
-        "9ca89383b9957b07", // Current main; Grok pricing additions preserve native rows and checkpoints.
+        "f5fdba377006d7be", // Current main; Grok pricing preserves native rows and parser-revision migration.
+        "c3a879df4eff7187", // Previous Grok branch; legacy files use bounded parser-revision migration.
+        "4969a789db679c93", // 0.58.0 native rows, checkpoints, and reports survive queue reordering.
+        "c4fa7db2cf54bc41", // Parser revisions reparse older native files while preserving stored rows and checkpoints.
+        "ca4bc3875600536f", // Reserve pricing stores retain compatible rows and checkpoints.
+        "7f00691fa96c78d1", // Current-main row and checkpoint formats remain compatible.
+        "9ca89383b9957b07", // Warm refresh cursor retention preserves native rows, checkpoints, and reports.
+        "9547dc9d7b7675f6", // Report lookup memos preserve native usage rows and checkpoints.
+        "ba2eca901de4c53d", // Shared report accumulation preserves native usage rows and checkpoints.
         "1a4afd74939160fd", // Previous Grok branch; report refactors preserve native rows and checkpoints.
-        "ba2eca901de4c53d", // Shared report accumulation preserves native rows and checkpoints.
-        "9547dc9d7b7675f6", // 0.56.7 main; Grok pricing additions preserve native rows and checkpoints.
         "0bd6588c70196700", // Previous Grok branch; atomic catalog replacement preserves parsed rows and checkpoints.
         "d2e66225d0b33672", // 0.56.6 main; Grok pricing additions preserve native rows and checkpoints.
         "b974e5782bad3f29", // Previous Grok branch; native persisted rows remain compatible.

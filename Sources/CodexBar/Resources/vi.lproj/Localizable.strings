@@ -1542,5 +1542,15 @@
 "menu_bar_layout_conditional_default_session_spent" = "Phiên gần cạn";
 "menu_bar_layout_conditional_default_either_high" = "Phiên hoặc tuần đang ở mức cao";
 "menu_bar_layout_conditional_default_scoped_weekly" = "Tuần theo mô hình đã dùng trên 60%";
+"Visible usage items" = "Mục sử dụng hiển thị";
+"Restore Defaults" = "Khôi phục mặc định";
+"Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "Chọn các hàng sử dụng xuất hiện trong menu của nhà cung cấp này, bản xem trước Cài đặt và Tổng quan.";
+"%@ (unavailable)" = "%@ (không khả dụng)";
 "Spending cap, not balance" = "Hạn mức chi tiêu, không phải số dư";
+
+"Color Pace Indicator" = "Tô màu nhịp sử dụng";
+"Green pace indicator when behind pace, red when ahead of pace (risk of running out early)" = "Xanh khi mức sử dụng chậm hơn nhịp dự kiến (còn dư); đỏ khi nhanh hơn (nguy cơ hết hạn mức sớm).";
 "%@ weekly" = "%@ hàng tuần";
+
+"agent_sessions_hide_unreachable_title" = "Ẩn máy chủ không thể truy cập";
+"agent_sessions_hide_unreachable_subtitle" = "Ẩn máy chủ khi không lấy được các phiên của máy chủ đó.";

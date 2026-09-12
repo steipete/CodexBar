@@ -142,6 +142,18 @@ not establish the cause of a position that changes again after launch; that requ
 make test
 ```
 
+`make test` and `make check` require a `python3` that provides `os.waitid` with `WNOWAIT`. Some macOS Python
+builds, including Apple's `/usr/bin/python3`, do not provide it. The test runner then stops before its initial
+Swift discovery/build and names the interpreter path, its version, and the missing attributes. Earlier
+`make check` checks may already have run. For an installed Homebrew Python, select its generic commands with:
+
+```bash
+PATH="$(brew --prefix python@3.14)/libexec/bin:$PATH" make check
+PATH="$(brew --prefix python@3.14)/libexec/bin:$PATH" make test
+```
+
+`Scripts/test.sh --list-only` does not need process containment, but still invokes `swift test list`, which may build.
+
 Suite commands retain the default 180-second deadline, including SwiftPM startup and discovery.
 The runner reports elapsed time and owned PIDs every 30 seconds even when test output is buffered.
 It tracks process birth identities and descendants, including helpers that create separate process
@@ -229,8 +241,9 @@ oracle independently useful. Full optimized scratch parity must copy the final p
 prototype results alone do not carry forward through formatting or edits. Scanner parity does not
 establish pipeline performance; signed optimized builds and synthetic pipeline timing are separate proof.
 
-The shared scanner remains a parser-hash input. Published `e0b0319de43e22d7` is the immediate tested
-compatible predecessor because LF-span scanning preserves persisted semantics, including the priority
+The shared scanner remains a parser-hash input. The warm-refresh cursor repair adopts `9ca89383b9957b07`
+without rebuilding native rows or checkpoints; it changes scheduling, not persisted parsing semantics.
+Published `e0b0319de43e22d7` is also a tested compatible predecessor because LF-span scanning preserves persisted semantics, including the priority
 cursor changes in #3318. The earlier `7e293e8fc9e25700` and existing predecessors remain supported.
 Native adoption retains rows and checkpoints while invalidating old connection receipts.
 Pi/OMP still reparses once when the hash changes,

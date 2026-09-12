@@ -96,6 +96,58 @@ struct MenuBarLayoutEditorTests {
     }
 
     @Test
+    func `reset window choices are available in layout and conditional palettes`() {
+        let choices: [MenuBarLayoutToken] = [
+            .resetCountdown,
+            .resetAbsolute,
+            .windowResetCountdown(window: .session),
+            .windowResetAbsolute(window: .session),
+            .windowResetCountdown(window: .weekly),
+            .windowResetAbsolute(window: .weekly),
+        ]
+        for token in choices {
+            #expect(MenuBarLayoutPaletteTokens.time.contains(token))
+            #expect(MenuBarLayoutPaletteTokens.conditionalBranch.contains(token))
+        }
+        for window in [PercentWindow.scopedWeekly, .automatic] {
+            #expect(!MenuBarLayoutPaletteTokens.time.contains(.windowResetCountdown(window: window)))
+            #expect(!MenuBarLayoutPaletteTokens.time.contains(.windowResetAbsolute(window: window)))
+        }
+    }
+
+    @Test
+    func `reset window labels distinguish countdown and absolute choices accessibly`() {
+        for (window, title) in [(PercentWindow.session, L("Session")), (.weekly, L("Weekly"))] {
+            let countdown = MenuBarLayoutToken.windowResetCountdown(window: window)
+            let absolute = MenuBarLayoutToken.windowResetAbsolute(window: window)
+            let countdownLabel = L("%@: %@", title, L("menu_bar_layout_token_resets_in"))
+            let absoluteLabel = L("%@: %@", title, L("menu_bar_layout_token_reset_at"))
+
+            #expect(countdown.editorLabel(provider: .codex) == countdownLabel)
+            #expect(countdown.editorAccessibilityLabel(provider: .codex) == countdownLabel)
+            #expect(countdown.editorSystemImage == "timer")
+            #expect(absolute.editorLabel(provider: .codex) == absoluteLabel)
+            #expect(absolute.editorAccessibilityLabel(provider: .codex) == absoluteLabel)
+            #expect(absolute.editorSystemImage == "clock")
+        }
+        #expect(MenuBarLayoutToken.resetCountdown.editorLabel(provider: .codex)
+            == L("menu_bar_layout_token_resets_in"))
+        #expect(MenuBarLayoutToken.resetAbsolute.editorLabel(provider: .codex)
+            == L("menu_bar_layout_token_reset_at"))
+    }
+
+    @Test
+    func `reset secondary window labels follow provider cadence`() {
+        let countdown = MenuBarLayoutToken.windowResetCountdown(window: .weekly)
+        let absolute = MenuBarLayoutToken.windowResetAbsolute(window: .weekly)
+
+        #expect(countdown.editorLabel(provider: .notion)
+            == L("%@: %@", L("Monthly"), L("menu_bar_layout_token_resets_in")))
+        #expect(absolute.editorAccessibilityLabel(provider: .notion)
+            == L("%@: %@", L("Monthly"), L("menu_bar_layout_token_reset_at")))
+    }
+
+    @Test
     func `Notion secondary editor labels use monthly cadence`() {
         let percent = MenuBarLayoutToken.percent(window: .weekly)
         let pace = MenuBarLayoutToken.pace(window: .weekly)

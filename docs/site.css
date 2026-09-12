@@ -621,7 +621,10 @@ html.bg-black { background-color: var(--page-bg) !important; }
   width: 100%;
   max-width: 42rem;
   padding-top: clamp(9rem, 21vh, 13rem);
-  text-align: left;
+  /* The mockup art is anchored to the physical right and cannot mirror, so the
+     copy keeps the left side under RTL instead of sliding onto the art. */
+  margin-right: auto;
+  text-align: start;
 }
 
 .hero-cta-row {
@@ -1675,7 +1678,6 @@ html.bg-black { background-color: var(--page-bg) !important; }
     top: var(--tablet-hud-panel-top);
     right: var(--tablet-hud-panel-margin-right);
     width: var(--tablet-hud-panel-width);
-    transform: translate(var(--hud-panel-nudge-x), var(--hud-panel-nudge-y)) scale(var(--tablet-popover-scale));
   }
 }
 
@@ -2329,7 +2331,7 @@ html.bg-black { background-color: var(--page-bg) !important; }
     max-width: none;
     margin-inline: 0;
     padding: 2.25rem 0 0;
-    text-align: left;
+    text-align: start;
   }
 
   .hero-copy .justify-center {

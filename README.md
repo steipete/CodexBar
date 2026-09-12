@@ -4,6 +4,7 @@
 
 [![Latest release](https://img.shields.io/github/v/release/steipete/CodexBar?style=flat-square&color=0a0a0c)](https://github.com/steipete/CodexBar/releases/latest)
 [![macOS 14+](https://img.shields.io/badge/macOS-14%2B-0a0a0c?style=flat-square)](https://github.com/steipete/CodexBar/releases/latest)
+[![Linux desktop](https://img.shields.io/badge/Linux-Qt_6-1793d1?style=flat-square)](Integrations/Linux/README.md)
 [![Homebrew](https://img.shields.io/badge/brew-steipete%2Ftap%2Fcodexbar-orange?style=flat-square)](https://github.com/steipete/homebrew-tap)
 [![AUR](https://img.shields.io/aur/version/codexbar-cli?style=flat-square&color=1793d1)](https://aur.archlinux.org/packages/codexbar-cli)
 [![License: MIT](https://img.shields.io/badge/license-MIT-6e5aff?style=flat-square)](LICENSE)
@@ -12,6 +13,8 @@
 <a href="https://codexbar.app"><img src="docs/social.png" alt="CodexBar — every AI coding limit in your menu bar. 69 providers." width="100%" /></a>
 
 Tiny macOS 14+ menu bar app that keeps **AI coding-provider limits visible** and shows when each window resets. Codex, OpenAI, Claude, Cursor, Gemini, Copilot, Grok, GroqCloud, ElevenLabs, Deepgram, z.ai, MiniMax, Kiro, Zed, Vertex AI, Augment, OpenRouter, LiteLLM, LLM Proxy, Codebuff, Command Code, ClinePass, AWS Bedrock, and many newer coding providers. One status item per provider, or Merge Icons mode with a provider switcher. No Dock icon, minimal UI, dynamic bar icons.
+
+Also available as a [Linux desktop app](Integrations/Linux/README.md) with usage and spending windows, separate settings, desktop notifications, and an optional tray icon. On Omarchy, a native bar widget shares the desktop app’s data and follows your theme.
 
 <img src="docs/codexbar.png" alt="CodexBar menu popover with provider tiles, usage bars, and reset countdowns" width="520" />
 
@@ -24,16 +27,51 @@ Tiny macOS 14+ menu bar app that keeps **AI coding-provider limits visible** and
 
 ## Install
 
-### Requirements
-- macOS 14+ (Sonoma)
+### macOS app
 
-### GitHub Releases
-Download: <https://github.com/steipete/CodexBar/releases>
+Requires macOS 14+ (Sonoma). Download from [GitHub Releases](https://github.com/steipete/CodexBar/releases), or install with Homebrew:
 
-### Homebrew
 ```bash
 brew install --cask codexbar
 ```
+
+### Linux desktop and Omarchy
+
+The Qt 6 desktop app supports Wayland and X11, with an optional Omarchy widget.
+Release binaries target x86_64 and ARM64 and require glibc 2.39+ and Qt 6.4+.
+The installer requires Python 3.
+On Arch/Omarchy, install the runtime dependencies with:
+
+```bash
+sudo pacman -S --needed python qt6-base qt6-declarative qt6-svg qt6-wayland
+```
+
+Desktop archives will be attached automatically to published releases that include
+this integration. From [GitHub Releases](https://github.com/steipete/CodexBar/releases), download
+`CodexBarDesktop-v<version>-linux-x86_64.tar.gz` (or `aarch64`) and its `.sha256` file.
+Install the matching **CodexBarCLI separately** using the options below; when using
+its archive, keep the resource bundle beside the CLI executable.
+
+Replace the archive name and CLI path below with your downloads:
+
+```bash
+archive='CodexBarDesktop-v<version>-linux-x86_64.tar.gz'
+sha256sum -c "$archive.sha256"
+tar -xzf "$archive"
+cd "${archive%.tar.gz}"
+python3 Integrations/Linux/install.py --cli /absolute/path/to/codexbar --omarchy
+~/.local/bin/codexbar-linux --settings
+```
+
+Omit `--omarchy` on other desktops. The installer adds a per-user launcher and
+starts the app at login; add `--no-autostart` to disable that. Open Settings to
+choose providers, then sign in through the provider’s CLI or configure its API key.
+GNOME may need a tray extension; the app’s windows work without a tray.
+
+See the [Linux guide](Integrations/Linux/README.md) for source builds, upgrades,
+and desktop compatibility, and the [macOS feature comparison](Integrations/Linux/MAC_COMPARISON.md)
+for supported features and remaining gaps. Until desktop release assets are
+available, use the source build instructions.
 
 ### CLI Tarballs (macOS/Linux)
 Homebrew formula (Linux today):
@@ -49,7 +87,7 @@ Or download release tarballs from GitHub Releases:
 - Linux (glibc): `CodexBarCLI-v<tag>-linux-aarch64.tar.gz`, `CodexBarCLI-v<tag>-linux-x86_64.tar.gz`
 - Linux (static musl): `CodexBarCLI-v<tag>-linux-musl-aarch64.tar.gz`, `CodexBarCLI-v<tag>-linux-musl-x86_64.tar.gz`
 
-### First run
+### macOS first run
 - Open Settings → Providers and enable what you use.
 - Install/sign in to the provider sources you rely on: CLIs, browser sessions, OAuth/device flow, API keys, local app files, or provider apps depending on the provider.
 - Optional: Settings → Providers → Codex → OpenAI cookies (Automatic or Manual) to add dashboard extras.
@@ -235,8 +273,11 @@ CLI install:
 
 ## Looking for a Windows version?
 - [Win-CodexBar](https://github.com/Finesssee/Win-CodexBar)
+- [CodexBar for Windows](https://github.com/hinneslung/CodexBar-for-Windows) — Native Windows tray app powered by the original CodexBar CLI through WSL2; x64 and ARM64 installers.
 
 ## Linux desktop integration?
+- [Linux desktop app](Integrations/Linux/README.md) — x86_64/ARM64 release archives with an installer; Qt 6 usage and spending windows, separate settings, optional system tray, and desktop notifications using the Linux CLI.
+- [Omarchy native widget](Integrations/Omarchy/README.md) — Compact Quickshell usage popup sharing the Linux desktop app’s backend.
 - [codexbar-waybar](https://github.com/Marouan-chak/codexbar-waybar) — Waybar custom module + GTK4 popover for Hyprland / Sway / other Wayland compositors, built on top of the bundled Linux CLI.
 - [codexbar-cosmic-applet](https://github.com/andrew-verde/codexbar-cosmic-applet) — Native COSMIC (System76) desktop panel applet with a tab per provider, pace projections, and cost/token stats, built on top of the bundled Linux CLI.
 - [Codexbar GNOME](https://extensions.gnome.org/extension/9841/codexbar/) — GNOME Shell extension that brings CodexBar usage into the desktop panel.
@@ -246,6 +287,9 @@ CLI install:
 - [codexbar-plasmoid](https://github.com/psimaker/codexbar-plasmoid) — KDE Plasma 6 widget for CodexBar's meter icon, provider switcher, quota windows, pace, credits, local cost, and status, powered by the bundled Linux CLI.
 - [CodexBar Plasma](https://github.com/Lucenx9/codexbar-plasma) — KDE Plasma 6 widget with multi-provider views, account selection, cost history, notifications, configurable providers, and installable `.plasmoid` releases, powered by the bundled Linux CLI.
 - [CodexBar Meter](https://github.com/noctalia-dev/community-plugins/tree/main/codexbar-meter) — Noctalia v5 bar widget and panel showing every enabled provider's quota windows, credits, and pace, installable from Noctalia's plugin store, built on the bundled Linux CLI.
+
+## Desk display
+- [AI Monitor](https://github.com/tobymarks/esp32-ai-monitor) — ESP32 desk display (Cheap Yellow Display) plus a macOS companion app that shows Claude, ChatGPT, Gemini, Copilot, Cursor and Antigravity limits as rings or bars, fed over USB by the bundled CLI. No Wi-Fi on the device, 3D-printable case.
 
 ## Status bar & terminal integration
 - [showy-quota](https://github.com/enieuwy/showy-quota) — always-on AI plan quota strips for SketchyBar, tmux, and Zellij (standalone WASM plugin), built on `codexbar serve` / the bundled CLI.

@@ -37,6 +37,8 @@ struct GrokOpenCodexUsageTests {
             Self.attempt(changes: ["usageStatus": "unreported"]),
             Self.attempt(changes: ["ordinal": true]), Self.attempt(changes: ["ordinal": 1.5]),
             Self.attempt(changes: ["sendCount": 1.5]),
+            Self.attempt(changes: ["sendCount": true]),
+            Self.attempt(changes: ["ordinal": 1e40]), Self.attempt(changes: ["sendCount": 1e40]),
         ]
         for attempt in rejected {
             #expect(try Self.snapshots([Self.entry(attempts: [attempt])])[.grok] == nil)
@@ -45,6 +47,29 @@ struct GrokOpenCodexUsageTests {
         #expect(Self.snapshots([forgedTop])[.grok] == nil)
         let duplicates = try Self.entry(attempts: [Self.attempt(), Self.attempt()])
         #expect(Self.snapshots([duplicates])[.grok] == nil)
+    }
+
+    @Test func `OAuth attempt aggregation preserves overflow and estimated coverage`() throws {
+        let attempts = [Int.max, 1, 5].enumerated().map { index, value in
+            Self.attempt(ordinal: index + 1, changes: [
+                "usage": ["inputTokens": value, "outputTokens": 2, "totalTokens": value],
+                "totalTokens": value,
+            ])
+        }
+        let entry = try Self.entry(attempts: attempts)
+        #expect(entry.attempts.first?.usage?.inputTokens == Int.max)
+        let snapshot = try #require(Self.snapshots([entry])[.grok])
+        #expect(snapshot.last30DaysTokens == nil)
+        #expect(snapshot.sessionTokens == nil)
+        let day = try #require(snapshot.daily.first)
+        #expect(day.totalTokens == nil)
+        #expect(day.inputTokens == nil)
+        #expect(day.outputTokens == 6)
+        #expect(day.coverageCounts.priced == 0)
+        #expect(day.estimatedRequestCount == 3)
+        #expect(day.modelBreakdowns?.first?.totalTokens == nil)
+        #expect(snapshot.hourly.allSatisfy { $0.totalTokens == nil })
+        #expect(snapshot.costProvenance == .listPriceEstimate)
     }
 
     @Test func `latest request replaces earlier attribution before subscription grouping`() throws {

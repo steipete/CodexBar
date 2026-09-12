@@ -159,6 +159,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var mergedMenu: NSMenu?
     var providerMenus: [ProviderInstanceID: NSMenu] = [:]
     var fallbackMenu: NSMenu?
+    var menuAppearanceObserver: StatusMenuAppearanceObserver?
     var openMenus: [ObjectIdentifier: NSMenu] = [:]
     var menuRefreshTasks: [ObjectIdentifier: Task<Void, Never>] = [:]
     /// Manual refreshes tracked per scope so refreshing one provider neither greys out nor blocks
@@ -215,7 +216,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var _test_openMenuRebuildObserver: (@MainActor (NSMenu) -> Void)?
     var _test_providerSwitcherMenuRebuildDebounceNanoseconds: UInt64?
     var _test_codexAmbientLoginRunnerOverride:
-        (@MainActor (TimeInterval) async -> CodexLoginRunner.Result)?
+        (@MainActor (TimeInterval) async -> CLILoginRunner.Result)?
     #endif
     var manualRefreshViewportRestoreState = ManualRefreshViewportRestoreState()
     var blinkTask: Task<Void, Never>?
@@ -289,6 +290,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var mergedSwitcherWarmupTimer: Timer?
     /// Compact multi-account layout: accounts the user expanded to full cards this menu session.
     var compactAccountExpandedIDs: Set<ProviderAccountIdentity> = []
+    var claudeSwapInspectedAccountID: ProviderAccountIdentity?
     /// Compact multi-account layout: providers whose collapsed healthy tail is revealed this menu session.
     var compactAccountExpandedHealthyTailProviders: Set<ProviderInstanceID> = []
     /// Keeps detached merged-menu tab content reusable while the same menu remains open.
@@ -387,6 +389,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         account: AccountInfo,
         updater: UpdaterProviding,
         preferencesSelection: PreferencesSelection,
+        agentSessions: AgentSessionsStore? = nil,
         managedCodexAccountCoordinator: ManagedCodexAccountCoordinator =
             ManagedCodexAccountCoordinator(),
         codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator? = nil,
@@ -402,7 +405,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.store = store
         self.settings = settings
         self.cloudSyncState = cloudSyncState
-        self.agentSessions = AgentSessionsStore(settings: settings)
+        self.agentSessions = agentSessions ?? AgentSessionsStore(settings: settings)
         self.account = account
         self.updater = updater
         self.preferencesSelection = preferencesSelection
@@ -911,10 +914,6 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     func isVisible(_ provider: UsageProvider) -> Bool {
         self.store.debugForceAnimation || self.isEnabled(provider)
             || self.fallbackProvider == provider
-    }
-
-    var shouldMergeIcons: Bool {
-        self.settings.mergeIcons && self.store.enabledProvidersForDisplay().count > 1
     }
 
     func switchAccountSubtitle(for target: UsageProvider) -> String? {

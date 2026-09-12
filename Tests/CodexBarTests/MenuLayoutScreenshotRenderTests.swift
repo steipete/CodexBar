@@ -785,12 +785,9 @@ final class MenuLayoutScreenshotRenderTests: XCTestCase {
                 case let .compact(compactRow):
                     MenuCardCompactAccountRowView(
                         model: MenuCardCompactAccountRowView.Model(
-                            label: compactRow.label,
-                            headroomPercent: compactRow.headroomPercent,
-                            severity: compactRow.severity,
-                            constraintDetail: compactRow.constraintDetail,
-                            hasError: compactRow.hasError,
-                            showsBestBadge: compactRow.isBestCandidate),
+                            row: compactRow,
+                            resetTimeDisplayStyle: .countdown,
+                            now: Self.now),
                         progressColor: progressColor,
                         width: self.width)
                 case let .collapsedHealthy(count):

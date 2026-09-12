@@ -69,7 +69,10 @@ struct MenuBarLayoutRenderData: Hashable {
     /// `.scopedWeekly` token with the real model rather than assuming Fable.
     let scopedWeeklyTitle: String?
     let automatic: MenuBarLayoutRenderWindow?
-    /// Provider-specific text used by the automatic percent token when no percentage window exists.
+    /// Provider-specific text that replaces the automatic percent token: Mistral spend when its
+    /// automatic lane has no percentage window, balance-only providers (DeepSeek, DeepInfra) whose
+    /// window percent is meaningless, or no-window providers (Moonshot, Poe, OpenCode Go,
+    /// OpenRouter) surfacing their balance instead of a missing-value placeholder.
     let automaticText: String?
     /// Signed pace deltas per window, already formatted (`+11%`, `-8%`, `0%`). Pace needs the store's
     /// historical dataset and work-day setting, so it is resolved upstream like `runsOut` rather than
@@ -87,6 +90,7 @@ struct MenuBarLayoutRenderData: Hashable {
 
 struct MenuBarLayoutRenderOptions: Hashable {
     let size: MenuBarLayoutSize
+    let colorPace: Bool
     let highContrast: Bool
     let showUsed: Bool
     let conditionals: [MenuBarLayoutConditional]
@@ -111,9 +115,11 @@ struct MenuBarLayoutRenderOptions: Hashable {
         isDebugApp: Bool,
         isStale: Bool = false,
         now: Date,
-        verticalAdjustment: Int = 0)
+        verticalAdjustment: Int = 0,
+        colorPace: Bool = false)
     {
         self.size = size
+        self.colorPace = colorPace
         self.highContrast = highContrast
         self.showUsed = showUsed
         self.conditionals = conditionals
@@ -129,6 +135,7 @@ struct MenuBarLayoutRenderKey: Hashable {
     let layout: MenuBarLayout
     let data: MenuBarLayoutRenderData
     let size: MenuBarLayoutSize
+    let colorPace: Bool
     let highContrast: Bool
     let showUsed: Bool
     let conditionals: [MenuBarLayoutConditional]
@@ -136,7 +143,7 @@ struct MenuBarLayoutRenderKey: Hashable {
     let isDebugApp: Bool
     let isStale: Bool
     let verticalAdjustment: Int
-    let resetText: MenuBarLayoutResetText
+    let resetText: [MenuBarLayoutResetText]
     /// Truth value per conditional id. Predicates can read the clock (time to reset), so two renders
     /// with identical data and reset text can still need different branches; keying on the outcomes
     /// keeps the cache correct without putting `now` — which ticks constantly — into the key.
@@ -248,7 +255,10 @@ final class MenuBarLayoutRenderer {
         options: MenuBarLayoutRenderOptions)
         -> MenuBarLayoutRenderedTitle
     {
-        let resetText = MenuBarLayoutResetText(window: data.automatic, now: options.now)
+        let resetWindows = Set(layout.flattenedTokens(conditionals: options.conditionals).compactMap(\.resetWindow))
+        let resetText = PercentWindow.allCases
+            .filter { $0 == .automatic || resetWindows.contains($0) }
+            .map { MenuBarLayoutResetText(window: Self.window($0, data: data), now: options.now) }
         // Evaluate each conditional exactly once per render: the outcome is both a cache-key component
         // and what the token resolver needs, so re-testing per placement would only duplicate work.
         let outcomes = Dictionary(
@@ -258,6 +268,7 @@ final class MenuBarLayoutRenderer {
             layout: layout,
             data: data,
             size: options.size,
+            colorPace: options.colorPace,
             highContrast: options.highContrast,
             showUsed: options.showUsed,
             conditionals: options.conditionals,
@@ -297,7 +308,7 @@ final class MenuBarLayoutRenderer {
         // only the tokens that will actually render. A line left with nothing to render is dropped
         // entirely: keeping it would emit a stray newline, hold the title in stacked typography,
         // and announce a blank line to VoiceOver.
-        let renderedLines = layout.lines
+        var renderedLines = layout.lines
             .map { line in
                 line.compactMap {
                     Self.resolvedDisplayToken(
@@ -308,6 +319,8 @@ final class MenuBarLayoutRenderer {
                 }
             }
             .filter { !$0.isEmpty }
+
+        Self.removeDuplicateBalanceResets(from: &renderedLines, data: data)
 
         let isStacked = renderedLines.count == 2
         let font = NSFont.systemFont(ofSize: Self.fontSize(size: options.size, isStacked: isStacked))
@@ -400,18 +413,64 @@ final class MenuBarLayoutRenderer {
             leadingIcon: leadingIcon,
             statusImage: !options.highContrast && !options.isStale && !isStacked
                 && !renderedLines.joined().contains(.icon)
-                ? Self.statusImage(title: result)
+                ? Self.statusImage(title: result, foregroundColor: foregroundColor)
                 : nil)
     }
 
-    private static func statusImage(title: NSAttributedString) -> NSImage? {
+    private static func removeDuplicateBalanceResets(
+        from lines: inout [[MenuBarLayoutToken]],
+        data: MenuBarLayoutRenderData)
+    {
+        // A balance fallback is not a second reset value when automatic percent already shows it.
+        guard let balance = data.automaticText, data.automatic?.resetsAt == nil,
+              data.automatic?.resetDescription == balance,
+              lines.joined().contains(.percent(window: .automatic))
+        else { return }
+        let separators: Set<MenuBarLayoutToken> = [.separatorDot, .space]
+        lines = lines.map { line in
+            guard line.contains(.resetCountdown) || line.contains(.resetAbsolute) else { return line }
+            var tokens = line
+            while let index = tokens.firstIndex(where: { $0 == .resetCountdown || $0 == .resetAbsolute }) {
+                tokens.remove(at: index)
+                if tokens.prefix(index).allSatisfy(separators.contains) {
+                    while let first = tokens.first, separators.contains(first) {
+                        tokens.removeFirst()
+                    }
+                } else if tokens.dropFirst(index).allSatisfy(separators.contains) {
+                    while let last = tokens.last, separators.contains(last) {
+                        tokens.removeLast()
+                    }
+                } else {
+                    var left = index
+                    var right = index
+                    while left > 0, separators.contains(tokens[left - 1]) {
+                        left -= 1
+                    }
+                    while right < tokens.count, separators.contains(tokens[right]) {
+                        right += 1
+                    }
+                    if left < index, right > index {
+                        let keepRight = tokens[index..<right].contains(.separatorDot)
+                            || !tokens[left..<index].contains(.separatorDot)
+                        tokens.removeSubrange(keepRight ? left..<index : index..<right)
+                    }
+                }
+            }
+            return tokens
+        }.filter { !$0.isEmpty }
+    }
+
+    private static func statusImage(title: NSAttributedString, foregroundColor: NSColor) -> NSImage? {
         guard title.length > 0, !title.string.contains(where: \.isNewline) else { return nil }
-        // Inspect resolved fonts: an ordinary system-font title can fall back to colored emoji glyphs.
+        // Templates discard color. Preserve both explicitly colored text and fallback emoji glyphs.
         let line = CTLineCreateWithAttributedString(title)
         guard let runs = CTLineGetGlyphRuns(line) as? [CTRun] else { return nil }
         for run in runs {
             let attributes = CTRunGetAttributes(run) as NSDictionary
-            guard let font = attributes[kCTFontAttributeName] as? NSFont,
+            let range = CTRunGetStringRange(run)
+            let color = title.attribute(.foregroundColor, at: range.location, effectiveRange: nil) as? NSColor
+            guard color == foregroundColor,
+                  let font = attributes[kCTFontAttributeName] as? NSFont,
                   !CTFontGetSymbolicTraits(font as CTFont).contains(.traitColorGlyphs)
             else { return nil }
         }
@@ -508,11 +567,18 @@ final class MenuBarLayoutRenderer {
             return self.renderPercent(window, data: data, style: style, options: options)
         case let .pace(window):
             let accessibilityPrefix = Self.paceAccessibilityPrefix(window, data: data)
+            var attributes = style.attributes
+            if options.colorPace, let delta = Self.paceDelta(window, data: data), delta.isFinite, delta != 0 {
+                // Use the same rounded numeric delta as the displayed text, never its localized sign.
+                let color: NSColor = delta < 0 ? .systemGreen : .systemRed
+                attributes[.foregroundColor] = options.isStale && !options.highContrast ? color
+                    .withAlphaComponent(0.5) : color
+            }
             return self.optionalTextToken(
                 Self.pace(window, data: data),
                 unavailableLabel: L("%@ unavailable", accessibilityPrefix),
                 accessibilityPrefix: accessibilityPrefix,
-                attributes: style.attributes)
+                attributes: attributes)
         case .usageBar:
             guard let window = data.automatic else {
                 return self.textToken(
@@ -538,6 +604,15 @@ final class MenuBarLayoutRenderer {
                 data.automatic?.resetsAt.map { UsageFormatter.resetDescription(from: $0, now: options.now) }
                     ?? data.automatic?.resetDescription,
                 unavailableLabel: L("Reset time unavailable"),
+                attributes: style.attributes)
+        case let .windowResetCountdown(window), let .windowResetAbsolute(window):
+            let text = MenuBarLayoutResetText(window: Self.window(window, data: data), now: options.now)
+            let label = item.editorLabel(provider: data.provider)
+            let value = item.resetIsAbsolute ? text.absolute : text.countdown
+            return self.optionalTextToken(
+                value,
+                unavailableLabel: L("%@ unavailable", label),
+                accessibilityText: value.map { L("%@: %@", Self.windowAccessibilityLabel(window, data: data), $0) },
                 attributes: style.attributes)
         case .runsOut, .runsOutCompact:
             let isCompact = item == .runsOutCompact
@@ -592,27 +667,32 @@ final class MenuBarLayoutRenderer {
             automaticText: data.automaticText,
             showUsed: options.showUsed)
         let prefix: String
-        let accessibilityPrefix: String
+        let accessibilityPrefix = Self.windowAccessibilityLabel(window, data: data)
         switch window {
         case .session:
             prefix = Self.sessionPrefix(rateWindow)
-            accessibilityPrefix = L("Session")
         case .weekly:
             let secondaryLabel = Self.secondaryLabel(data: data)
             prefix = secondaryLabel.flatMap(\.first).map { String($0).uppercased() } ?? "W"
-            accessibilityPrefix = secondaryLabel ?? L("Weekly")
         case .scopedWeekly:
             prefix = data.scopedWeeklyTitle.map { String($0.prefix(1)).uppercased() } ?? "F"
-            accessibilityPrefix = data.scopedWeeklyTitle ?? L("Scoped weekly")
         case .automatic:
             prefix = ""
-            accessibilityPrefix = L("Usage")
         }
         let display = prefix.isEmpty ? resolvedValue.text : "\(prefix) \(resolvedValue.text)"
         let accessibility = resolvedValue.isAvailable
             ? L("%@ %@", accessibilityPrefix, resolvedValue.text)
             : L("%@ unavailable", accessibilityPrefix)
         return self.textToken(display, accessibilityText: accessibility, attributes: style.attributes)
+    }
+
+    private static func windowAccessibilityLabel(_ window: PercentWindow, data: MenuBarLayoutRenderData) -> String {
+        switch window {
+        case .session: L("Session")
+        case .weekly: self.secondaryLabel(data: data) ?? L("Weekly")
+        case .scopedWeekly: data.scopedWeeklyTitle ?? L("Scoped weekly")
+        case .automatic: L("Usage")
+        }
     }
 
     private static func iconAccessibilityText(data: MenuBarLayoutRenderData) -> String {
@@ -675,12 +755,13 @@ final class MenuBarLayoutRenderer {
         showUsed: Bool)
         -> (text: String, isAvailable: Bool)
     {
+        if window == .automatic, let automaticText {
+            // Provider-supplied balance text overrides only the automatic lane.
+            return (automaticText, true)
+        }
         if let rateWindow {
             let percent = showUsed ? rateWindow.usedPercent : rateWindow.remainingPercent
             return (UsageFormatter.percentString(percent), true)
-        }
-        if window == .automatic, let automaticText {
-            return (automaticText, true)
         }
         return (Self.missingValue, false)
     }
@@ -817,6 +898,18 @@ final class MenuBarLayoutRenderer {
         case .weekly: data.weeklyPace
         case .scopedWeekly: nil
         case .automatic: data.automaticPace
+        }
+    }
+
+    private static func paceDelta(
+        _ window: PercentWindow,
+        data: MenuBarLayoutRenderData) -> Double?
+    {
+        switch window {
+        case .session: data.metrics.sessionPaceDelta
+        case .weekly: data.metrics.weeklyPaceDelta
+        case .automatic: data.metrics.automaticPaceDelta
+        case .scopedWeekly: nil
         }
     }
 

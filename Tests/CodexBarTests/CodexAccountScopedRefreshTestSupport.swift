@@ -5,7 +5,7 @@ import Testing
 
 extension CodexAccountScopedRefreshTests {
     func makeSettingsStore(suite: String) -> SettingsStore {
-        let settings = testSettingsStore(suiteName: suite, prepareDefaults: {
+        let settings = testSettingsStore(suiteName: suite, userDefaults: InMemoryUserDefaults(), prepareDefaults: {
             $0.set(true, forKey: "providerDetectionCompleted")
         })
         settings._test_activeManagedCodexAccount = nil

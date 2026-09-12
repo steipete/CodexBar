@@ -24,6 +24,14 @@ read_when:
 - Settings toggles feed `SettingsStore` → `UsageStore` refresh cadence + feature flags.
 - Runtime-only provider settings flow through typed, descriptor-registered sections in `ProviderSettingsSnapshot`.
 
+## CLI login lifecycle
+- `CodexLoginRunner` and `KiroLoginRunner` resolve their own executable and environment, including Codex home scoping.
+- `CLILoginRunner` owns browser-waiting login processes, bounded output capture, timeout/cancellation, and optional
+  device-flow progress. It returns one shared result type; provider presentations retain their own recovery messages.
+- The login runner and `SubprocessRunner` share `ProcessTermination` and process-tree termination. Cancelling a login
+  stops its child process, joins its progress callback task, and produces no failure alert. Timeouts retain captured
+  diagnostic output, and inherited pipes cannot keep the caller waiting indefinitely.
+
 ## Concurrency & platform
 - Swift 6 strict concurrency enabled; prefer Sendable state and explicit MainActor hops.
 - macOS 14+ targeting; avoid deprecated APIs when refactoring.

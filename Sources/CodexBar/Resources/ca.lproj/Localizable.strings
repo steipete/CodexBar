@@ -1543,5 +1543,15 @@
 "menu_bar_layout_conditional_default_session_spent" = "Sessió gairebé esgotada";
 "menu_bar_layout_conditional_default_either_high" = "Sessió o setmana en nivell alt";
 "menu_bar_layout_conditional_default_scoped_weekly" = "Setmanal amb àmbit per damunt del 60%";
+"Visible usage items" = "Elements d'ús visibles";
+"Restore Defaults" = "Restaura els valors predeterminats";
+"Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "Trieu quines files d'ús es mostren al menú d'aquest proveïdor, a la previsualització de Configuració i a la vista general.";
+"%@ (unavailable)" = "%@ (no disponible)";
 "Spending cap, not balance" = "Límit de despesa, no saldo";
+
+"Color Pace Indicator" = "Acoloreix el ritme";
+"Green pace indicator when behind pace, red when ahead of pace (risk of running out early)" = "Verd quan l’ús va per sota del ritme previst (reserva); vermell quan va per sobre (risc d’esgotar la quota abans d’hora).";
 "%@ weekly" = "%@ setmanal";
+
+"agent_sessions_hide_unreachable_title" = "Amaga els amfitrions inaccessibles";
+"agent_sessions_hide_unreachable_subtitle" = "Amaga els amfitrions quan falla la consulta de les seves sessions.";

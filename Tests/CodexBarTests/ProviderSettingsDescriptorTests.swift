@@ -8,6 +8,26 @@ import Testing
 @Suite(.serialized)
 struct ProviderSettingsDescriptorTests {
     @Test
+    func `bedrock discloses monitoring charges before credentials in either authentication mode`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-bedrock-charges")
+        let context = fixture.settingsContext(provider: .bedrock)
+        for mode in [BedrockAuthMode.keys, .profile] {
+            fixture.settings.bedrockAuthMode = mode.rawValue
+            let groups = BedrockProviderImplementation().settingsActions(context: context)
+            let charges = try #require(groups.first { $0.id == "bedrock-monitoring-charges" })
+            let frequency = try #require(groups.first { $0.id == "bedrock-monitoring-frequency" })
+            #expect(charges.isVisible?() ?? true)
+            #expect(frequency.isVisible?() ?? true)
+            #expect(charges.subtitle.contains("per Cost Explorer request"))
+            #expect(charges.subtitle.contains("multiple requests"))
+            #expect(charges.subtitle.contains("does not cap"))
+            #expect(charges.actions.count == 1)
+            #expect(frequency.subtitle.contains("all providers"))
+            #expect(frequency.subtitle.contains("startup and explicit refreshes"))
+        }
+    }
+
+    @Test
     func `provider settings refresh enables explicit browser retry`() async {
         var observedInteraction: ProviderInteraction?
         var browserRetryAllowed = false
@@ -388,22 +408,17 @@ struct ProviderSettingsDescriptorTests {
     }
 
     @Test
-    func `claude daily routines toggle follows global optional usage setting`() throws {
-        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-claude-routines")
-        let context = fixture.settingsContext(provider: .claude)
-        let toggles = ClaudeProviderImplementation().settingsToggles(context: context)
-        let routinesToggle = try #require(toggles.first {
+    func `provider implementations omit superseded one-off usage visibility toggles`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-shared-usage-items")
+        let claudeContext = fixture.settingsContext(provider: .claude)
+        let codexContext = fixture.settingsContext(provider: .codex)
+
+        #expect(!ClaudeProviderImplementation().settingsToggles(context: claudeContext).contains {
             $0.id == "claude-daily-routines-usage-visible"
         })
-
-        #expect(routinesToggle.binding.wrappedValue)
-        #expect(routinesToggle.isEnabled?() == true)
-
-        routinesToggle.binding.wrappedValue = false
-        #expect(fixture.settings.claudeDailyRoutinesUsageVisible == false)
-
-        fixture.settings.showOptionalCreditsAndExtraUsage = false
-        #expect(routinesToggle.isEnabled?() == false)
+        #expect(!CodexProviderImplementation().settingsToggles(context: codexContext).contains {
+            $0.id == "codex-spark-usage-visible"
+        })
     }
 
     @Test

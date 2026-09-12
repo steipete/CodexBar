@@ -43,24 +43,6 @@ struct SpendActivitySeries {
     let today: Date
     let calendar: Calendar
 
-    init(
-        daily: [Int],
-        isCovered: [Bool],
-        isScanned: [Bool]? = nil,
-        start: Date,
-        rangeStart: Date,
-        today: Date,
-        calendar: Calendar)
-    {
-        self.daily = daily
-        self.isCovered = isCovered
-        self.isScanned = isScanned ?? [Bool](repeating: true, count: daily.count)
-        self.start = start
-        self.rangeStart = rangeStart
-        self.today = today
-        self.calendar = calendar
-    }
-
     static func make(
         from points: [SpendDashboardModel.TokenActivityPoint],
         now: Date = Date(),
@@ -87,7 +69,7 @@ struct SpendActivitySeries {
         let rangeStart = calendar.date(
             byAdding: .day,
             value: -(Self.rangeDayCount - 1),
-            to: today) ?? today
+            to: today).map { calendar.startOfDay(for: $0) } ?? today
         let rangeStartWeekday = calendar.component(.weekday, from: rangeStart)
         let start = calendar.date(
             byAdding: .day,
@@ -98,8 +80,10 @@ struct SpendActivitySeries {
         var isCovered = [Bool](repeating: false, count: cellCount)
         var isScanned = [Bool](repeating: false, count: cellCount)
         for index in 0..<cellCount {
-            guard let date = calendar.date(byAdding: .day, value: index, to: start),
-                  rangeStart...today ~= date
+            // Midnight DST transitions can leave the aligned start at 01:00. Match the day keys above.
+            guard let date = calendar.date(byAdding: .day, value: index, to: start)
+                .map({ calendar.startOfDay(for: $0) }),
+                rangeStart...today ~= date
             else {
                 continue
             }
@@ -120,10 +104,11 @@ struct SpendActivitySeries {
 
     func date(at index: Int) -> Date? {
         self.calendar.date(byAdding: .day, value: index, to: self.start)
+            .map { self.calendar.startOfDay(for: $0) }
     }
 
     func weekStartDate(at week: Int) -> Date? {
-        self.calendar.date(byAdding: .day, value: week * Self.dayCount, to: self.start)
+        self.date(at: week * Self.dayCount)
     }
 
     var visibleDayCount: Int {

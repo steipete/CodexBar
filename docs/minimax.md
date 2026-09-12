@@ -42,6 +42,10 @@ falls back across the provider's supported web requests when needed.
 - Security policy: endpoint overrides are only accepted when they use `https://`, omit userinfo, and do not contain encoded host delimiters. Custom HTTPS proxy/test domains continue to work for compatibility, but `http://` endpoints are rejected so cookies and authorization headers are not sent in cleartext.
 - Strict provider-host mode: set `MINIMAX_REQUIRE_PROVIDER_ENDPOINT_OVERRIDES=true` to additionally reject custom proxy/test domains and only accept MiniMax-owned hosts under `minimax.io` or `minimaxi.com`.
 
+Transport failures retain their URL error codes and MiniMax diagnostic descriptions, so offline, DNS, and connection
+failures preserve existing usage and qualify for the normal startup retry policy regardless of system language.
+Endpoint fallback, rejected-credential handling, and optional billing enrichment keep their existing behavior.
+
 ## Cookie capture (optional override)
 - Open the Coding Plan page and DevTools → Network.
 - Select the request to `/v1/api/openplatform/coding_plan/remains`.

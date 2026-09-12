@@ -1123,6 +1123,18 @@ struct KimiUsageSnapshotConversionTests {
         #expect(monthly.window.usedPercent == 100)
         #expect(monthly.window.windowMinutes == ProviderPaceCapability.monthlyWindowSentinelMinutes)
         #expect(monthly.window.resetsAt == Self.date("2026-07-23T00:00:00Z"))
+
+        let resolution = KimiProviderDescriptor.descriptor.presentation.menuBarWindow(context: .init(
+            metric: .automatic,
+            snapshot: usageSnapshot,
+            supportsAverage: false,
+            prioritizesExhaustedQuotas: false,
+            now: now))
+        guard case let .resolved(window) = resolution else {
+            Issue.record("Kimi automatic usage should resolve the exhausted membership pool")
+            return
+        }
+        #expect(window == monthly.window)
     }
 
     @Test

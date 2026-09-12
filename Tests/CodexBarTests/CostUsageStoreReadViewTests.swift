@@ -47,7 +47,8 @@ extension CostUsageStoreReadWorkTests {
         #expect(result.snapshot.daily == expected.daily)
         #expect(result.snapshot.projects == expected.projects)
         #expect(result.snapshot.sessions == expected.sessions)
-        #expect(reportWork.retryPresenceRows == 1)
+        // The metadata precheck and detail fallback both inspect presence without loading replay bodies.
+        #expect(reportWork.retryPresenceRows == 2)
         #expect(reportWork.usageRows == 8)
         #expect(reportWork.usageRowDecodeAttempts == 8)
         #expect(reportWork.usagePayloadBytes > 0)
@@ -55,7 +56,8 @@ extension CostUsageStoreReadWorkTests {
         #expect(reportWork.bufferedPayloadBytes == 0)
         #expect(reportWork.tokenSnapshotRows == 0)
         #expect(reportWork.accumulatorRows == 0)
-        #expect(reportWork.readViewConversions == 1)
+        #expect(reportWork.readViewConversions == 2)
+        #expect(reportWork.integrityChecks == 1)
         #expect(reportWork.readViewConversionsInTransaction == 0)
         print("[cost-store-read-proof] malformed-replay pending=\(status.pending) " +
             "coverage=\(result.snapshot.historyCoverageIsEstablished) " +
@@ -323,7 +325,7 @@ extension ReadWorkFixture {
             completedFiles: baseline.codexScanCompletedFiles ?? 0,
             totalFiles: baseline.codexScanTotalFiles ?? 0,
             staleSnapshotUpdatedAt: pending ? baseline.codexPreviousReport?.updatedAt : nil)
-        for purpose in [CostUsageStoreReadPurpose.status, .report] {
+        for purpose in [CostUsageStoreReadPurpose.status, .activity, .report] {
             let view = self.store.syncLoadCodexReadView(calendar: self.calendar, purpose: purpose)
             #expect(view.catchUpStatus(roots: roots, rootsFingerprint: fingerprint) == expectedStatus)
             #expect(view.previousReport(range: self.range, rootsFingerprint: fingerprint)
@@ -331,6 +333,9 @@ extension ReadWorkFixture {
                     cache: baseline,
                     range: self.range,
                     rootsFingerprint: fingerprint))
+            if purpose == .activity {
+                #expect(view.scoped(to: roots).days == scoped.days)
+            }
             if purpose == .report {
                 let report = view.scoped(to: roots).dailyReport(range: self.range, cacheRoot: self.env.cacheRoot)
                 let full = self.fullReport(scoped)

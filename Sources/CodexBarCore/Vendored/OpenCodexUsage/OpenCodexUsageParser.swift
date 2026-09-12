@@ -278,10 +278,10 @@ public enum OpenCodexUsageParser {
     private static func attempts(_ value: Any?) -> [OpenCodexUsageAttempt] {
         guard let rows = value as? [[String: Any]] else { return [] }
         return rows.compactMap { row in
-            guard let ordinal = self.nonnegativeInt(row["ordinal"]), ordinal > 0,
+            guard let ordinal = self.nonnegativeInt(row["ordinal"], truncateFractional: false), ordinal > 0,
                   let provider = self.nonEmptyString(row["provider"]),
                   let model = self.nonEmptyString(row["model"]),
-                  let sendCount = self.nonnegativeInt(row["sendCount"])
+                  let sendCount = self.nonnegativeInt(row["sendCount"], truncateFractional: false)
             else { return nil }
             return OpenCodexUsageAttempt(
                 ordinal: ordinal,
@@ -362,13 +362,17 @@ public enum OpenCodexUsageParser {
         return nil
     }
 
-    private static func nonnegativeInt(_ value: Any?) -> Int? {
+    private static func nonnegativeInt(_ value: Any?, truncateFractional: Bool = true) -> Int? {
         guard let number = value as? NSNumber,
               CFGetTypeID(number) != CFBooleanGetTypeID()
         else { return nil }
-        if let integer = value as? Int { return integer >= 0 ? integer : nil }
-        guard let integer = Int(exactly: number.doubleValue), integer >= 0 else { return nil }
-        return integer
+        // Preserve exact integer payloads without trusting NSNumber's clamping `as? Int` bridge.
+        if let integer = Int(number.stringValue) {
+            return integer >= 0 ? integer : nil
+        }
+        let value = truncateFractional ? number.doubleValue.rounded(.towardZero) : number.doubleValue
+        guard let integer = Int(exactly: value) else { return nil }
+        return integer >= 0 ? integer : nil
     }
 
     private static func prefixDigest(

@@ -113,10 +113,17 @@ extension StatusItemController {
 
         var provider: UsageProvider?
         if self.shouldMergeIcons {
-            // Provider-specific by design: Codex is the persisted menu identity fallback when selection is empty.
-            let resolvedProvider = self.resolvedMenuProvider()
-            self.lastMenuProvider = (resolvedProvider ?? .codex).instanceID
-            provider = resolvedProvider
+            let enabledProviders = self.store.enabledFirstPartyProvidersForDisplay()
+            let selection = self.resolvedMergedMenuSelection(enabledProviders: enabledProviders)
+            if Self.isUserPluginSelection(selection), let pluginID = selection?.instanceID {
+                self.lastMenuProvider = pluginID
+                provider = nil
+            } else {
+                // Provider-specific by design: Codex is the persisted menu identity fallback when selection is empty.
+                let resolvedProvider = self.resolvedMenuProvider(enabledProviders: enabledProviders)
+                self.lastMenuProvider = (resolvedProvider ?? .codex).instanceID
+                provider = resolvedProvider
+            }
         } else {
             if let menuProvider = self.menuProviders[ObjectIdentifier(menu)] {
                 self.lastMenuProvider = menuProvider
@@ -169,6 +176,7 @@ extension StatusItemController {
         }
         if self.openMenus.isEmpty {
             self.cancelMergedSwitcherSiblingWarmup()
+            self.resetClaudeSwapAccountInspection()
         }
         self.resetCompactAccountMenuExpansionStateIfIdle()
     }
@@ -246,35 +254,34 @@ extension StatusItemController {
         defer { self.scheduleMergedSwitcherSiblingWarmup(for: menu) }
 
         let enabledProviders = self.store.enabledFirstPartyProvidersForDisplay()
+        let switcherProviderIDs = self.switcherProviderIDs(enabledFirstPartyProviders: enabledProviders)
         let includesOverview = self.includesOverviewTab(enabledProviders: enabledProviders)
-        let switcherSelection = self.shouldMergeIcons && enabledProviders.count > 1
-            ? self.resolvedSwitcherSelection(
-                enabledProviders: enabledProviders,
-                includesOverview: includesOverview)
-            : nil
+        let switcherSelection = self.resolvedMergedMenuSelection(enabledProviders: enabledProviders)
         let isOverviewSelected = switcherSelection == .overview
-        let selectedProvider = if isOverviewSelected {
-            self.resolvedMenuProvider(enabledProviders: enabledProviders)
-        } else {
-            switcherSelection?.provider ?? provider
+        let isPluginSelected = Self.isUserPluginSelection(switcherSelection)
+        let selectedProvider: UsageProvider? = switch switcherSelection {
+        case .overview: self.resolvedMenuProvider(enabledProviders: enabledProviders)
+        case let .provider(instanceID): instanceID.firstPartyProvider
+        case nil: provider
         }
         // Provider-specific by design: Codex remains the empty merged-menu selection fallback.
         let currentProvider = selectedProvider ?? enabledProviders.first ?? .codex
-        let rawCodexAccountDisplay = isOverviewSelected ? nil : self.codexAccountMenuDisplay(for: currentProvider)
-        let codexAccountDisplay = isOverviewSelected
+        let suppressAccountSwitchers = isOverviewSelected || isPluginSelected
+        let rawCodexAccountDisplay = suppressAccountSwitchers ? nil : self.codexAccountMenuDisplay(for: currentProvider)
+        let codexAccountDisplay = suppressAccountSwitchers
             ? nil
             : self.stableCodexAccountMenuDisplay(
                 rawCodexAccountDisplay,
                 menu: menu,
                 provider: currentProvider)
-        let tokenAccountDisplay = isOverviewSelected ? nil : self.tokenAccountMenuDisplay(for: currentProvider)
+        let tokenAccountDisplay = suppressAccountSwitchers ? nil : self.tokenAccountMenuDisplay(for: currentProvider)
         let showAllAccounts = (tokenAccountDisplay?.showAll ?? false) || (codexAccountDisplay?.showAll ?? false)
         let openAIContext = self.openAIWebContext(
             currentProvider: currentProvider,
             showAllAccounts: showAllAccounts)
         let descriptor = self.makeMenuDescriptor(
             provider: selectedProvider,
-            includeContextualActions: !isOverviewSelected)
+            includeContextualActions: !isOverviewSelected && !isPluginSelected)
         let menuWidth = self.menuCardWidth(
             for: enabledProviders,
             selectedProvider: selectedProvider,
@@ -282,7 +289,7 @@ extension StatusItemController {
 
         let hasTokenSwitcher = menu.items.contains { $0.view is TokenAccountSwitcherView }
         let hasCodexSwitcher = menu.items.contains { $0.view is CodexAccountSwitcherView }
-        let switcherProvidersMatch = enabledProviders.map(\.instanceID) == self.lastSwitcherProviders
+        let switcherProvidersMatch = switcherProviderIDs == self.lastSwitcherProviders
         let switcherUsageBarsShowUsedMatch = self.settings.usageBarsShowUsed == self.lastSwitcherUsageBarsShowUsed
         let switcherSelectionMatches = switcherSelection == self.lastMergedSwitcherSelection
         let switcherOverviewAvailabilityMatches = includesOverview == self.lastSwitcherIncludesOverview
@@ -301,7 +308,7 @@ extension StatusItemController {
             abs(view.frame.width - menuWidth) <= 0.5
         } ?? false
         let canSmartUpdate = self.shouldMergeIcons &&
-            enabledProviders.count > 1 &&
+            switcherProviderIDs.count > 1 &&
             !isOverviewSelected &&
             switcherProvidersMatch &&
             switcherUsageBarsShowUsedMatch &&
@@ -342,7 +349,7 @@ extension StatusItemController {
         }
 
         let canPreserveProviderSwitcher = self.shouldMergeIcons &&
-            enabledProviders.count > 1 &&
+            switcherProviderIDs.count > 1 &&
             switcherProvidersMatch &&
             switcherUsageBarsShowUsedMatch &&
             switcherOverviewAvailabilityMatches &&
@@ -436,14 +443,16 @@ extension StatusItemController {
                 selection: context.switcherSelection ?? .provider(context.currentProvider.instanceID),
                 width: context.menuWidth)
             // Track which providers the switcher was built with for smart update detection
-            if self.shouldMergeIcons, context.enabledProviders.count > 1 {
+            if self.shouldMergeIcons,
+               self.switcherProviderIDs(enabledFirstPartyProviders: context.enabledProviders).count > 1
+            {
                 self.rememberMergedSwitcherState(
                     context.enabledProviders,
                     context.switcherSelection,
                     context.includesOverview)
             }
             if self.shouldMergeIcons,
-               context.enabledProviders.count > 1,
+               self.switcherProviderIDs(enabledFirstPartyProviders: context.enabledProviders).count > 1,
                self.addCachedMergedSwitcherContent(
                    for: contentSelection,
                    to: menu,
@@ -515,7 +524,9 @@ extension StatusItemController {
         selection: ProviderSwitcherSelection,
         width: CGFloat)
     {
-        guard self.shouldMergeIcons, enabledProviders.count > 1 else { return }
+        guard self.shouldMergeIcons,
+              self.switcherProviderIDs(enabledFirstPartyProviders: enabledProviders).count > 1
+        else { return }
         let switcherItem = self.makeProviderSwitcherItem(
             providers: enabledProviders,
             includesOverview: includesOverview,
@@ -680,14 +691,8 @@ extension StatusItemController {
         }
 
         if let codexAccountDisplay = context.codexAccountDisplay, codexAccountDisplay.showAll {
-            if !self.addCompactCodexAccountMenuIfPlanned(
-                display: codexAccountDisplay,
-                to: menu,
-                captureMenu: captureMenu ?? menu,
-                context: context)
-            {
-                self.addStackedCodexMenuCards(codexAccountDisplay, to: menu, context: context)
-            }
+            self.addCodexAccountMenuCards(
+                codexAccountDisplay, to: menu, captureMenu: captureMenu ?? menu, context: context)
             self.addFleetAccountMenuCards(fleetProjection.additionalAccounts, to: menu, context: context)
             return false
         }
@@ -809,6 +814,15 @@ extension StatusItemController {
         switcherSelection: ProviderSwitcherSelection,
         captureMenu: NSMenu? = nil)
     {
+        if case let .provider(instanceID) = switcherSelection,
+           UserProviderPluginRegistry.plugin(for: instanceID) != nil
+        {
+            self.addUserPluginMenuCards(
+                to: menu,
+                width: context.menuWidth,
+                selectedPluginID: instanceID)
+            return
+        }
         if switcherSelection == .overview {
             let enabledProviders = self.store.enabledFirstPartyProvidersForDisplay()
             if self.addOverviewRows(
@@ -962,6 +976,9 @@ extension StatusItemController {
     }
 
     private func makeBaseMenu() -> NSMenu {
+        if self.menuAppearanceObserver == nil, !self.hasPreparedForAppShutdown {
+            self.menuAppearanceObserver = StatusMenuAppearanceObserver(controller: self)
+        }
         let menu = StatusItemMenu()
         menu.autoenablesItems = false
         menu.delegate = self
@@ -979,12 +996,16 @@ extension StatusItemController {
     {
         let view = ProviderSwitcherView(
             providers: providers,
+            pluginProviders: self.topLevelUserProviderPlugins(),
             selected: selected,
             includesOverview: includesOverview,
             width: width,
             showsIcons: self.settings.switcherShowsIcons,
             iconProvider: { [weak self] provider in
                 self?.switcherIcon(for: provider) ?? NSImage()
+            },
+            pluginIconProvider: { [weak self] plugin in
+                self?.userPluginSwitcherIcon(for: plugin) ?? NSImage()
             },
             weeklyRemainingProvider: { [weak self] provider in
                 self?.switcherWeeklyRemaining(for: provider)
@@ -1067,6 +1088,7 @@ extension StatusItemController {
             accounts: display.accounts,
             selectedAccountID: display.activeVisibleAccountID,
             width: width,
+            hidePersonalInfo: self.settings.hidePersonalInfo,
             onSelect: { [weak self, weak menu] account in
                 guard let self else { return }
                 self.handleCodexVisibleAccountSelection(account, menu: menu)
@@ -1117,22 +1139,6 @@ extension StatusItemController {
         // Prefer an available provider so the default menu content matches the status icon.
         // Falls back to first display provider when all lack credentials.
         return enabled.first(where: { self.store.isProviderAvailable($0) }) ?? enabled.first
-    }
-
-    func includesOverviewTab(enabledProviders: [UsageProvider]) -> Bool {
-        !self.settings.resolvedMergedOverviewProviders(
-            activeProviders: enabledProviders,
-            maxVisibleProviders: Self.maxOverviewProviders).isEmpty
-    }
-
-    func resolvedSwitcherSelection(
-        enabledProviders: [UsageProvider],
-        includesOverview: Bool) -> ProviderSwitcherSelection
-    {
-        if includesOverview, self.settings.mergedMenuLastSelectedWasOverview {
-            return .overview
-        }
-        return .provider((self.resolvedMenuProvider(enabledProviders: enabledProviders) ?? .codex).instanceID)
     }
 
     func menuProvider(for menu: NSMenu) -> UsageProvider? {
@@ -1260,12 +1266,20 @@ extension StatusItemController {
         let enabledProviders = self.store.enabledFirstPartyProvidersForDisplay()
         guard !enabledProviders.isEmpty else { return [] }
         let includesOverview = self.includesOverviewTab(enabledProviders: enabledProviders)
+        let selection = self.resolvedSwitcherSelection(
+            enabledProviders: enabledProviders,
+            includesOverview: includesOverview)
+        let switcherProviderCount = self.switcherProviderIDs(enabledFirstPartyProviders: enabledProviders).count
+        if self.shouldMergeIcons,
+           switcherProviderCount > 1,
+           Self.isUserPluginSelection(selection)
+        {
+            return []
+        }
 
         if self.shouldMergeIcons,
-           enabledProviders.count > 1,
-           self.resolvedSwitcherSelection(
-               enabledProviders: enabledProviders,
-               includesOverview: includesOverview) == .overview
+           switcherProviderCount > 1,
+           selection == .overview
         {
             return self.settings.resolvedMergedOverviewProviders(
                 activeProviders: enabledProviders,

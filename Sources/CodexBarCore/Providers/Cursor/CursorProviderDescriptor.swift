@@ -95,11 +95,14 @@ public enum CursorProviderDescriptor {
                 name: "cursor",
                 versionDetector: nil,
                 supportsCostCommand: self.supportsCostCommand,
-                browserSupportExemption: { _, _, settings in
+                browserSupportExemption: { sourceMode, _, settings in
                     #if os(Linux)
-                    // Linux supports manual cookies; browser and Cursor.app imports remain macOS-only.
-                    settings?.cursor?.cookieSource == .manual &&
-                        CookieHeaderNormalizer.normalize(settings?.cursor?.manualCookieHeader) != nil
+                    guard settings?.cursor?.cookieSource != .off else { return false }
+                    if settings?.cursor?.cookieSource == .manual {
+                        return CookieHeaderNormalizer.normalize(settings?.cursor?.manualCookieHeader) != nil
+                    }
+                    // App auth needs no browser integration. Explicit web mode still requires a manual cookie.
+                    return sourceMode == .auto || sourceMode == .cli
                     #else
                     false
                     #endif

@@ -6,9 +6,9 @@ struct CodexLoginAlertInfo: Equatable {
 }
 
 enum CodexLoginAlertPresentation {
-    static func alertInfo(for result: CodexLoginRunner.Result) -> CodexLoginAlertInfo? {
+    static func alertInfo(for result: CLILoginRunner.Result) -> CodexLoginAlertInfo? {
         switch result.outcome {
-        case .success:
+        case .success, .cancelled:
             return nil
         case .missingBinary:
             return CodexLoginAlertInfo(
@@ -27,7 +27,7 @@ enum CodexLoginAlertPresentation {
         }
     }
 
-    static func managedLoginFailureMessage(for result: CodexLoginRunner.Result) -> String {
+    static func managedLoginFailureMessage(for result: CLILoginRunner.Result) -> String {
         let baseMessage = L("managed_login_failed")
         guard let info = self.alertInfo(for: result) else { return baseMessage }
         return "\(baseMessage)\n\n\(L("codex_login_output"))\n\(info.message)"

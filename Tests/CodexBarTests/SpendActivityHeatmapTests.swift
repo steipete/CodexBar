@@ -66,6 +66,65 @@ struct SpendActivityHeatmapTests {
         #expect(visibleIndices.last.flatMap(series.date(at:)) == now)
     }
 
+    @Test(arguments: [6, 7, 11, 12, 13])
+    func `annual coverage survives midnight daylight saving transitions`(septemberDay: Int) throws {
+        var calendar = Self.calendar
+        calendar.timeZone = try #require(TimeZone(identifier: "America/Santiago"))
+        let now = try #require(calendar.date(from: DateComponents(
+            year: 2026,
+            month: 9,
+            day: septemberDay,
+            hour: 12)))
+        let points = try (0..<SpendActivitySeries.rangeDayCount).map { offset in
+            let date = try #require(calendar.date(byAdding: .day, value: -offset, to: now))
+            return SpendDashboardModel.TokenActivityPoint(
+                day: calendar.startOfDay(for: date),
+                totalTokens: offset + 1)
+        }
+        let series = SpendActivitySeries.make(from: points, now: now, calendar: calendar)
+        let visibleIndices = series.daily.indices.filter(series.isVisible)
+
+        #expect(series.visibleDayCount == 365)
+        #expect(series.coveredDayCount == 365)
+        #expect(series.daily.reduce(0, +) == (1...365).reduce(0, +))
+        #expect(visibleIndices.first.flatMap(series.date(at:)) == points.last?.day)
+        #expect(visibleIndices.last.flatMap(series.date(at:)) == points.first?.day)
+        for index in visibleIndices {
+            let date = try #require(series.date(at: index))
+            #expect(date == calendar.startOfDay(for: date))
+            #expect(series.daily[index] == points.first { $0.day == date }?.totalTokens)
+        }
+        let weekly = series.weeklyActivity()
+        #expect(weekly.isCovered.count(where: { $0 }) == weekly.isScanned.count(where: { $0 }))
+        #expect(weekly.cumulative().isCovered.last == true)
+    }
+
+    @Test
+    func `midnight daylight saving preserves unscanned days and scanned gaps`() throws {
+        var calendar = Self.calendar
+        calendar.timeZone = try #require(TimeZone(identifier: "America/Santiago"))
+        let now = try #require(calendar.date(from: DateComponents(year: 2026, month: 9, day: 11, hour: 12)))
+        let points = try (0..<365).map { offset in
+            let date = try #require(calendar.date(byAdding: .day, value: -offset, to: now))
+            return SpendDashboardModel.TokenActivityPoint(
+                day: calendar.startOfDay(for: date),
+                totalTokens: offset >= 30 || offset == 10 ? nil : 1,
+                isScanned: offset < 30)
+        }
+        let series = SpendActivitySeries.make(from: points, now: now, calendar: calendar)
+        for point in points {
+            let index = try #require(series.daily.indices.first { series.date(at: $0) == point.day })
+            #expect(series.isScanned[index] == point.isScanned)
+            #expect(series.isCovered[index] == (point.totalTokens != nil))
+        }
+        #expect(series.coveredDayCount == 29)
+        let weekly = series.weeklyActivity()
+        let firstScannedWeek = try #require(weekly.isScanned.firstIndex(of: true))
+        let cumulative = weekly.cumulative()
+        #expect(cumulative.isCovered[firstScannedWeek])
+        #expect(cumulative.isCovered.last == false)
+    }
+
     @Test
     func `mixed provider activity unions available sources per day`() throws {
         let now = try #require(Self.calendar.date(from: DateComponents(year: 2026, month: 7, day: 16)))
@@ -252,6 +311,7 @@ struct SpendActivityHeatmapTests {
         let series = SpendActivitySeries(
             daily: [Int](repeating: 1, count: covered.count),
             isCovered: covered,
+            isScanned: [Bool](repeating: true, count: covered.count),
             start: start,
             rangeStart: start,
             today: today,
@@ -566,6 +626,7 @@ struct SpendActivityHeatmapTests {
         let series = SpendActivitySeries(
             daily: [10, 0],
             isCovered: [true, false],
+            isScanned: [true, true],
             start: start,
             rangeStart: start,
             today: start,

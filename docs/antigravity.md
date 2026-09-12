@@ -255,11 +255,12 @@ shared OAuth file can still be used as a fallback credential source.
   Claude/GPT pair pinned at 0%. Menu cards and widgets hide a family once every lane in it reports known zero usage.
   A family with unknown usage stays visible, and every family remains visible when all are untouched, for example
   right after a weekly reset. Provider details is the diagnostic surface and always lists every family, the same
-  principle it already applies to cost data. The filter is display-only: the snapshot, CLI output, and menu-bar
+  principle it already applies to cost data. The filter is display-only: the snapshot, raw CLI JSON, and menu-bar
   ranking still see every window, and menu-bar selection ranks by highest used, so an untouched family never wins.
 - The dashboard-v1 payload keeps every family for its script clients and marks the lanes of an untouched family with
   `idle` instead. The `codexbar serve` web UI skips those rows, so the web card matches the menu without repeating
   the family rule in JavaScript. See `docs/dashboard-api.md`.
+- CLI text and `cards` render quota-summary buckets once, using the same idle-family visibility rule. Missing or disabled quota stays unavailable, including in brief cards, while reset context remains visible. Raw JSON retains every bucket.
 
 ## Local token history
 
@@ -276,7 +277,12 @@ The cost endpoint and dashboard also include it when Antigravity is selected. To
 costs, and these entry points do not expand the supported timestamp layouts described below.
 
 SQLite is authoritative when present. An unreadable root, malformed database, unsupported event layout, or exhausted
-budget never authorizes replacement by a smaller/stale JSONL cache. Complete empty databases and complete histories
+budget never authorizes replacement by a smaller/stale JSONL cache. Some SQLite builds, including the macOS system
+library, decline a read-only open of a WAL database whose `-wal` and `-shm` sidecars are absent, which is what a
+cleanly closed conversation leaves behind. When that happens and no `-wal` sidecar exists, the reader retries that
+one database with an `immutable=1` open of the main file; it never creates sidecars. The retry counts only when
+the file and its sidecar state are unchanged afterwards. A database with a `-wal` sidecar present stays
+unavailable, because a WAL connection may still hold it. Complete empty databases and complete histories
 outside the selected window establish empty history; absent sources and partial scans do not. Partial reports remain
 diagnostic only: the fetcher withholds their rows. Regular refresh applies its existing failure/retention policy,
 and neither regular refresh nor the dashboard publishes unavailable results as confirmed zero. Failed dashboard
@@ -344,12 +350,16 @@ payload lengths still count as attempted work. Before copying, the selected BLOB
 length. There is no view or sorting step that can buffer payloads ahead of accounting;
 the reader buffers only validated typed events.
 
-Database access uses ordinary `SQLITE_OPEN_READONLY`, never `immutable=1` or an unsafe file copy. This does not mutate
+Database access uses ordinary `SQLITE_OPEN_READONLY` and never an unsafe file copy. This does not mutate
 database records, but SQLite's normal WAL access may create sidecars and coordinate through SHM read marks.
-It is not a guarantee of literal SHM-byte preservation. A platform SQLite build that cannot open a WAL database
-without sidecars reports unavailable rather than bypassing normal coordination. Temporary fixture tests compare DB/WAL contents without
-writer activity, coordinate subsequent writer activity against one read snapshot, and verify reader cleanup after
-cancellation. The fixtures are synthetic and source-linked, not private captures or proof of live installation/UI behavior.
+It is not a guarantee of literal SHM-byte preservation. The one exception is the `immutable=1` retry described
+above for a sidecar-less WAL database that the platform SQLite declines. That connection neither locks nor detects
+changes, so the reader records the file's size, modification time, file system number, and header before the
+retry and accepts the result only when they and the sidecar state are unchanged afterwards. A writer that appears
+and checkpoints during the retry leaves the database incomplete. Temporary fixture tests compare DB/WAL contents
+without writer activity, coordinate subsequent writer activity against one read snapshot, cover a writer that
+checkpoints during the immutable retry, and verify reader cleanup after cancellation. The fixtures are synthetic
+and source-linked, not private captures or proof of live installation/UI behavior.
 
 ## Constraints
 - Internal protocol; fields may change.

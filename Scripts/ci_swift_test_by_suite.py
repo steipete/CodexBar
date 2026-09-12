@@ -432,11 +432,29 @@ def stop_unreaped_child(process: subprocess.Popen) -> None:
     process.wait(timeout=2)
 
 
-def run_command(command: list[str], timeout: int | None = None) -> int:
+CONTAINMENT_CAPABILITIES = ("waitid", "P_PID", "WEXITED", "WNOHANG", "WNOWAIT")
+
+
+def containment_support_error(capabilities: object = os) -> str | None:
     if sys.platform != "darwin" and not sys.platform.startswith("linux"):
-        raise RuntimeError("Swift test process containment requires macOS or Linux")
-    if not all(hasattr(os, name) for name in ("waitid", "P_PID", "WEXITED", "WNOHANG", "WNOWAIT")):
-        raise RuntimeError("Swift test process containment requires waitid with WNOWAIT")
+        return f"Swift test process containment requires macOS or Linux, not {sys.platform}."
+    missing = [name for name in CONTAINMENT_CAPABILITIES if not hasattr(capabilities, name)]
+    if not missing:
+        return None
+    # A version number alone does not tell the reader which build of python3 to reach for.
+    version = ".".join(str(part) for part in sys.version_info[:3])
+    return (
+        "Swift test process containment requires waitid with WNOWAIT. "
+        f"{sys.executable} is Python {version} and does not provide: {', '.join(missing)}. "
+        "Run make test and make check with a python3 that provides them, "
+        "for example Homebrew python@3.14 placed first on PATH."
+    )
+
+
+def run_command(command: list[str], timeout: int | None = None) -> int:
+    error = containment_support_error()
+    if error is not None:
+        raise RuntimeError(error)
     print(f"+ {' '.join(command)}", flush=True)
     started = time.monotonic()
     ownership = None
@@ -699,6 +717,13 @@ def main() -> int:
     if args.group_size < 1:
         print("--group-size must be positive", file=sys.stderr)
         return 2
+    # Discovery builds the package, so report an unusable interpreter before that cost.
+    # --list-only never runs a test command and keeps working without containment.
+    if not args.list_only:
+        error = containment_support_error()
+        if error is not None:
+            print(error, file=sys.stderr)
+            return 2
 
     swift_command = [args.swift_command, *args.swift_command_arg]
     result = 0

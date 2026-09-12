@@ -10,10 +10,11 @@ struct CodexWorkspacesNavigationFixture {
     let settings: SettingsStore
     let store: UsageStore
 
-    init() throws {
+    init(userDefaults: UserDefaults? = nil) throws {
         self.files = try CostUsageTestEnvironment()
         self.settings = testSettingsStore(
             suiteName: "CodexWorkspacesNavigationTests",
+            userDefaults: userDefaults,
             config: CodexBarConfig(providers: UsageProvider.allCases.map {
                 ProviderConfig(id: $0.instanceID, enabled: $0 == .codex)
             }),

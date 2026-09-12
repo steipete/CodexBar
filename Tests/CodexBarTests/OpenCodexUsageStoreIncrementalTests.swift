@@ -11,6 +11,37 @@ import Testing
 @testable import CodexBarCore
 
 struct OpenCodexUsageStoreIncrementalTests {
+    @Test(arguments: [nil, 0] as [Int?])
+    func `legacy numeric cache reparses unchanged logs once`(parserVersion: Int?) throws {
+        let harness = try Harness.make()
+        defer { harness.tearDown() }
+        try harness.writeLines(
+            """
+            {"requestId":"bounds","timestamp":1784179200000,"provider":"openai","model":"gpt-5.4",\
+            "usageStatus":"reported","usage":{"inputTokens":1e40,"outputTokens":7}}
+            """,
+            Harness.line(id: "valid-max", input: Int.max, output: 0))
+        _ = try harness.store.loadEntries(logURL: harness.log)
+        try harness.seedLegacyNumericCache(parserVersion: parserVersion)
+
+        let recorder = OpenCodexUsageParser.LogReadRecorder()
+        let corrected = try OpenCodexUsageStore.withLogReadRecorderForTesting(recorder) {
+            try harness.store.loadEntries(logURL: harness.log)
+        }
+        let bounds = try #require(corrected.first { $0.requestID == "bounds" })
+        #expect(bounds.usage?.inputTokens == nil)
+        #expect(bounds.usage?.outputTokens == 7)
+        #expect(corrected.first { $0.requestID == "valid-max" }?.usage?.inputTokens == Int.max)
+        #expect(recorder.snapshot().completeLines == 2)
+
+        let warmRecorder = OpenCodexUsageParser.LogReadRecorder()
+        let warm = try OpenCodexUsageStore.withLogReadRecorderForTesting(warmRecorder) {
+            try harness.store.loadEntries(logURL: harness.log)
+        }
+        #expect(warm == corrected)
+        #expect(warmRecorder.snapshot().bytesRead == 0)
+    }
+
     @Test
     func `incremental load matches a full parse after appended lines`() throws {
         let harness = try Harness.make()
@@ -672,6 +703,23 @@ private struct Harness {
             }
         }
         return ids
+    }
+
+    func seedLegacyNumericCache(parserVersion: Int?) throws {
+        var db: OpaquePointer?
+        guard sqlite3_open(self.databaseURL.path, &db) == SQLITE_OK else {
+            sqlite3_close(db)
+            throw FixtureError.sqlite
+        }
+        defer { sqlite3_close(db) }
+        let cursorValue = parserVersion.map { "json_set(value, '$.parserVersion', \($0))" }
+            ?? "json_remove(value, '$.parserVersion')"
+        let sql = """
+        UPDATE entries SET input_tokens = \(Int.max) WHERE request_id = 'bounds';
+        UPDATE meta SET value = \(cursorValue) WHERE key = 'parseCursor';
+        """
+        guard sqlite3_exec(db, sql, nil, nil, nil) == SQLITE_OK else { throw FixtureError.sqlite }
+        #expect(sqlite3_changes(db) == 1)
     }
 
     func dropEntriesTable() throws {

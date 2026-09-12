@@ -863,6 +863,8 @@ extension StatusMenuTests {
         // so selection never re-invalidates the SwiftUI graph.
         controller.menu(menu, willHighlight: item)
         #expect(gpuView.isHighlightedForTesting)
+        #expect(!gpuView.allowsVibrancy)
+        #expect(gpuView.subviews.last?.allowsVibrancy == false)
         #expect(!gpuView.swiftUIHighlightStateIsHighlightedForTesting)
 
         controller.menu(menu, willHighlight: nil)
@@ -917,5 +919,9 @@ extension StatusMenuTests {
         #expect(displaced[0].view === cachedContainer)
         #expect(cachedContainer.usesGPUSelectionForTesting)
         #expect(cachedContainer.hasGPUSelectionLayerForTesting)
+        for container in [attachedContainer, cachedContainer] {
+            #expect(!container.allowsVibrancy)
+            #expect(container.subviews.last?.allowsVibrancy == false)
+        }
     }
 }

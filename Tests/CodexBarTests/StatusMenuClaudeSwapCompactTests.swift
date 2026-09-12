@@ -10,7 +10,8 @@ import XCTest
 @MainActor
 final class StatusMenuClaudeSwapCompactTests: XCTestCase {
     private func makeController(
-        accounts: [ProviderAccountUsageSnapshot]) -> (controller: StatusItemController, store: UsageStore)
+        accounts: [ProviderAccountUsageSnapshot],
+        layout: MultiAccountMenuLayout = .stacked) -> (controller: StatusItemController, store: UsageStore)
     {
         StatusItemController.menuCardRenderingEnabled = false
         StatusItemController.setMenuRefreshEnabledForTesting(false)
@@ -21,6 +22,7 @@ final class StatusMenuClaudeSwapCompactTests: XCTestCase {
         settings.statusChecksEnabled = false
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
+        settings.multiAccountMenuLayout = layout
         let registry = ProviderRegistry.shared
         for provider in UsageProvider.allCases {
             guard let metadata = registry.metadata[provider] else { continue }
@@ -45,14 +47,15 @@ final class StatusMenuClaudeSwapCompactTests: XCTestCase {
         email: String,
         isActive: Bool = false,
         sessionUsed: Double,
-        weeklyUsed: Double) -> ProviderAccountUsageSnapshot
+        weeklyUsed: Double,
+        canActivate: Bool = true) -> ProviderAccountUsageSnapshot
     {
         ProviderAccountUsageSnapshot(
             id: ProviderAccountIdentity(source: "claude-swap", opaqueID: String(slot)),
             provider: .claude,
             displayLabel: email,
             isActive: isActive,
-            canActivate: !isActive,
+            canActivate: !isActive && canActivate,
             snapshot: UsageSnapshot(
                 primary: RateWindow(
                     usedPercent: sessionUsed,
@@ -87,6 +90,98 @@ final class StatusMenuClaudeSwapCompactTests: XCTestCase {
 
     private func representedIDs(in menu: NSMenu) -> [String] {
         menu.items.compactMap { $0.representedObject as? String }
+    }
+
+    func test_segmentedRefreshKeepsOneSwitcherAndOneCard() {
+        let accounts = Array(self.sixAccounts().prefix(2))
+        let (controller, store) = self.makeController(accounts: accounts, layout: .segmented)
+        defer { controller.releaseStatusItemsForTesting() }
+        let menu = controller.makeMenu(for: .claude)
+        controller.menuWillOpen(menu)
+        for _ in 0..<2 {
+            XCTAssertEqual(menu.items.count(where: { $0.view is ClaudeSwapAccountSwitcherView }), 1)
+            XCTAssertEqual(self.representedIDs(in: menu).filter { $0.hasPrefix("menuCard") }, ["menuCard-0"])
+            store.claudeSwapAccountSnapshots.reverse()
+            controller.populateMenu(menu, provider: .claude)
+        }
+    }
+
+    func test_segmentedSentinelInspectionNeverStartsActivationAndResetsOnClose() {
+        let sentinel = self.account(
+            slot: 9, email: "expired@example.com", sessionUsed: 0, weeklyUsed: 0, canActivate: false)
+        let (controller, store) = self.makeController(
+            accounts: [self.sixAccounts()[0], sentinel], layout: .segmented)
+        defer { controller.releaseStatusItemsForTesting() }
+        let menu = controller.makeMenu(for: .claude)
+        controller.menuWillOpen(menu)
+        controller.handleClaudeSwapAccountSelection(sentinel.id, menu: nil)
+        XCTAssertEqual(controller.claudeSwapInspectedAccountID, sentinel.id)
+        XCTAssertNil(store.claudeSwapTransientState.task)
+        XCTAssertNil(store.claudeSwapTransientState.switchingAccountID)
+        controller.settings.hidePersonalInfo = true
+        controller.populateMenu(menu, provider: .claude)
+        XCTAssertTrue(menu.items.contains { $0.title == "Details for Account 9" })
+        XCTAssertFalse(menu.items.contains { $0.title.contains("expired@example.com") })
+        controller.menuDidClose(menu)
+        XCTAssertNil(controller.claudeSwapInspectedAccountID)
+    }
+
+    func test_segmentedFreshPersistentMenuDropsInspectionOnReopenWithoutRefresh() {
+        for merged in [false, true] {
+            let sentinel = self.account(
+                slot: 9, email: "expired@example.com", sessionUsed: 0, weeklyUsed: 0, canActivate: false)
+            let (controller, store) = self.makeController(
+                accounts: [self.sixAccounts()[0], sentinel], layout: .segmented)
+            defer { controller.releaseStatusItemsForTesting() }
+            controller.settings.mergeIcons = merged
+            let menu = controller.makeMenu(for: .claude)
+            if merged {
+                controller.mergedMenu = menu
+            } else {
+                controller.providerMenus[.claude] = menu
+            }
+            controller.menuWillOpen(menu)
+            controller.handleClaudeSwapAccountSelection(sentinel.id, menu: nil)
+            controller.populateMenu(menu, provider: .claude)
+            controller.markMenuFresh(menu)
+            XCTAssertTrue(menu.items.contains { $0.title.hasPrefix("Details for") })
+            XCTAssertFalse(controller.menuNeedsRefresh(menu))
+            let revision = store.claudeSwapRevision
+
+            controller.menuDidClose(menu)
+            controller.refreshMenuForOpenIfNeeded(menu, provider: .claude)
+
+            XCTAssertNil(controller.claudeSwapInspectedAccountID)
+            XCTAssertFalse(menu.items.contains { $0.title.hasPrefix("Details for") })
+            XCTAssertFalse(controller.menuNeedsRefresh(menu))
+            XCTAssertEqual(store.claudeSwapRevision, revision)
+        }
+    }
+
+    func test_segmentedNoActiveAccountDoesNotDisplayAmbientUsage() {
+        let inactive = self.account(slot: 7, email: "inactive@example.com", sessionUsed: 10, weeklyUsed: 20)
+        let other = self.account(slot: 9, email: "other@example.com", sessionUsed: 30, weeklyUsed: 40)
+        let (controller, store) = self.makeController(accounts: [inactive, other], layout: .segmented)
+        defer { controller.releaseStatusItemsForTesting() }
+        store.snapshots[.claude] = self.sixAccounts()[0].snapshot
+        let menu = controller.makeMenu(for: .claude)
+        controller.menuWillOpen(menu)
+        XCTAssertTrue(menu.items.contains { $0.title == "No active account" })
+        XCTAssertFalse(self.representedIDs(in: menu).contains { $0.hasPrefix("menuCard") })
+    }
+
+    func test_segmentedInspectionPreservesNoActiveAccountNotice() {
+        let sentinel = self.account(
+            slot: 9, email: "expired@example.com", sessionUsed: 0, weeklyUsed: 0, canActivate: false)
+        let inactive = self.account(slot: 7, email: "inactive@example.com", sessionUsed: 10, weeklyUsed: 20)
+        let (controller, _) = self.makeController(accounts: [inactive, sentinel], layout: .segmented)
+        defer { controller.releaseStatusItemsForTesting() }
+        let menu = controller.makeMenu(for: .claude)
+        controller.menuWillOpen(menu)
+        controller.handleClaudeSwapAccountSelection(sentinel.id, menu: nil)
+        controller.populateMenu(menu, provider: .claude)
+        XCTAssertTrue(menu.items.contains { $0.title == "No active account" })
+        XCTAssertEqual(self.representedIDs(in: menu).filter { $0.hasPrefix("menuCard") }, ["menuCard-0"])
     }
 
     func test_manyAccountsRenderCompactLayoutRows() {

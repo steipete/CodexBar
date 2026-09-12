@@ -53,12 +53,16 @@ struct ProvidersPane: View {
     }
 
     var body: some View {
+        let unfilteredModel = self.unfilteredMenuCardModel(for: self.provider)
         ProviderDetailView(
             provider: self.provider,
             store: self.store,
             isEnabled: self.binding(for: self.provider),
             subtitle: self.providerSubtitle(self.provider),
-            model: self.menuCardModel(for: self.provider),
+            model: unfilteredModel.applyingUsageItemVisibility(
+                hiddenItemIDs: self.settings.hiddenUsageItemIDs(for: self.provider)),
+            usageItems: unfilteredModel.usageItemDescriptors(
+                includingHidden: self.settings.hiddenUsageItemIDs(for: self.provider)),
             openAIWebDiagnostic: self.openAIWebDiagnostic(for: self.provider),
             settingsPickers: self.extraSettingsPickers(for: self.provider),
             settingsToggles: self.extraSettingsToggles(for: self.provider),
@@ -286,10 +290,15 @@ struct ProvidersPane: View {
 
     func reauthenticateCodexAccount(_ account: CodexVisibleAccount) async {
         self.codexAccountsNotice = nil
-        if let accountID = account.storedAccountID {
-            guard let state = self.codexAccountsSectionState(for: .codex), state.canReauthenticate(account) else {
-                return
-            }
+        self.settings.invalidateCodexAccountReconciliationSnapshotCache()
+        guard let state = self.codexAccountsSectionState(for: .codex),
+              let current = state.visibleAccounts.first(where: { $0.id == account.id }),
+              current.selectionSource == account.selectionSource,
+              current.storedAccountID == account.storedAccountID,
+              current.workspaceAccountID == account.workspaceAccountID,
+              state.canReauthenticate(current)
+        else { return }
+        if case let .managedAccount(accountID) = current.selectionSource {
             do {
                 _ = try await self.managedCodexAccountCoordinator
                     .authenticateManagedAccount(existingAccountID: accountID)
@@ -300,9 +309,7 @@ struct ProvidersPane: View {
             return
         }
 
-        guard let state = self.codexAccountsSectionState(for: .codex), state.canReauthenticate(account) else {
-            return
-        }
+        guard current.selectionSource == .liveSystem else { return }
 
         self.isAuthenticatingLiveCodexAccount = true
         self.codexAccountPromotionCoordinator.setLiveReauthenticationInProgress(true)
@@ -524,6 +531,11 @@ struct ProvidersPane: View {
     }
 
     func menuCardModel(for provider: UsageProvider) -> UsageMenuCardView.Model {
+        self.unfilteredMenuCardModel(for: provider).applyingUsageItemVisibility(
+            hiddenItemIDs: self.settings.hiddenUsageItemIDs(for: provider))
+    }
+
+    private func unfilteredMenuCardModel(for provider: UsageProvider) -> UsageMenuCardView.Model {
         let metadata = self.store.metadata(for: provider)
         let snapshot = self.store.presentationSnapshot(for: provider)
         let now = Date()
@@ -604,8 +616,8 @@ struct ProvidersPane: View {
             costSummaryInlineEnabled: true,
             tokenCostMenuSectionEnabled: self.settings.isCostUsageEffectivelyEnabled(for: provider),
             showOptionalCreditsAndExtraUsage: self.settings.showOptionalCreditsAndExtraUsage,
-            claudeDailyRoutinesUsageVisible: self.settings.claudeDailyRoutinesUsageVisible,
-            codexSparkUsageVisible: self.settings.codexSparkUsageVisible,
+            claudeDailyRoutinesUsageVisible: true,
+            codexSparkUsageVisible: true,
             copilotBudgetExtrasEnabled: self.settings.copilotBudgetExtrasEnabled,
             showsAllUsageLanes: true,
             hidePersonalInfo: self.settings.hidePersonalInfo,

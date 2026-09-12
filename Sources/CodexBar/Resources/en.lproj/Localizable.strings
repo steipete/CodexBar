@@ -631,6 +631,8 @@
 "agent_sessions_title" = "Agent sessions";
 "agent_sessions_subtitle" = "Show local and SSH-discovered Codex and Claude Code sessions in the menu.";
 "agent_sessions_hosts_title" = "Additional SSH hosts";
+"agent_sessions_hide_unreachable_title" = "Hide unreachable hosts";
+"agent_sessions_hide_unreachable_subtitle" = "Hide hosts when fetching their sessions fails.";
 "agent_sessions_footer" = "Macs on your tailnet are discovered automatically. Local sessions refresh every 30 seconds; remote hosts every 60 seconds and when the menu opens.";
 "agent_session_labels_title" = "Session labels";
 "agent_session_labels_subtitle" = "Choose how agent sessions are named.";
@@ -1544,5 +1546,12 @@
 "menu_bar_layout_conditional_default_session_spent" = "Session nearly spent";
 "menu_bar_layout_conditional_default_either_high" = "Session or weekly running high";
 "menu_bar_layout_conditional_default_scoped_weekly" = "Scoped weekly over 60% used";
+"Visible usage items" = "Visible usage items";
+"Restore Defaults" = "Restore Defaults";
+"Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "Choose which usage rows appear in this provider's menu, Settings preview, and Overview.";
+"%@ (unavailable)" = "%@ (unavailable)";
 "Spending cap, not balance" = "Spending cap, not balance";
+
+"Color Pace Indicator" = "Color Pace Indicator";
+"Green pace indicator when behind pace, red when ahead of pace (risk of running out early)" = "Green pace indicator when behind pace, red when ahead of pace (risk of running out early)";
 "%@ weekly" = "%@ weekly";

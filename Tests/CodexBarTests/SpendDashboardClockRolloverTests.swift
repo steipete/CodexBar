@@ -192,6 +192,158 @@ struct SpendDashboardClockRolloverTests {
         #expect(controller.model.groups.first?.dailyPoints.count == 1)
     }
 
+    @Test
+    func `dashboard refreshIfStale within five minutes skips reload`() async throws {
+        let loadedAt = try #require(ISO8601DateFormatter().date(from: "2026-07-16T04:00:00Z"))
+        let withinTTL = loadedAt.addingTimeInterval(299)
+        let loadCount = LockIsolated(0)
+        let clock = LockIsolated(loadedAt)
+        let configuration = SpendDashboardConfiguration(
+            costUsageEnabled: true,
+            providerIDs: [UsageProvider.codex.rawValue],
+            codexAccountIdentities: ["rollover"],
+            bucketTimeZoneIdentifier: "UTC")
+        let input = Self.input(day: "2026-07-15", cost: 4, updatedAt: loadedAt)
+        let defaults = try Self.isolatedDefaults(suiteName: "SpendDashboardClockRolloverTests-stale-skip")
+        defer { defaults.removePersistentDomain(forName: "SpendDashboardClockRolloverTests-stale-skip") }
+        let controller = SpendDashboardController(
+            userDefaults: defaults,
+            requestBuilder: { mode in
+                SpendDashboardLoadRequest(
+                    configuration: configuration,
+                    capturedInputs: [],
+                    unavailableSourceIDs: [],
+                    codexRequests: [],
+                    now: clock.value,
+                    force: mode.forcesLoader)
+            },
+            loader: { _ in
+                let count = loadCount.value + 1
+                loadCount.setValue(count)
+                return SpendDashboardLoadResult(inputs: [input], failedSourceIDs: [])
+            },
+            nowProvider: { clock.value })
+
+        controller.update(configuration: configuration)
+        await Self.waitUntil { !controller.isRefreshing }
+        let generation = controller.generation
+        #expect(loadCount.value == 1)
+        #expect(controller.dashboardSnapshotLoadedAt == loadedAt)
+
+        clock.setValue(withinTTL)
+        controller.refreshIfStale()
+        await Task.yield()
+
+        #expect(controller.generation == generation)
+        #expect(loadCount.value == 1)
+        #expect(!controller.isRefreshing)
+    }
+
+    @Test
+    func `dashboard refreshIfStale at five minutes triggers reload and keeps prior model visible`() async throws {
+        let loadedAt = try #require(ISO8601DateFormatter().date(from: "2026-07-16T04:00:00Z"))
+        let atTTL = loadedAt.addingTimeInterval(300)
+        let clock = LockIsolated(loadedAt)
+        let gate = SpendDashboardRolloverGate()
+        let configuration = SpendDashboardConfiguration(
+            costUsageEnabled: true,
+            providerIDs: [UsageProvider.codex.rawValue],
+            codexAccountIdentities: ["rollover"],
+            bucketTimeZoneIdentifier: "UTC")
+        let initialInput = Self.input(day: "2026-07-15", cost: 4, updatedAt: loadedAt)
+        let refreshedInput = Self.input(day: "2026-07-15", cost: 9, updatedAt: atTTL)
+        let defaults = try Self.isolatedDefaults(suiteName: "SpendDashboardClockRolloverTests-stale-refresh")
+        defer { defaults.removePersistentDomain(forName: "SpendDashboardClockRolloverTests-stale-refresh") }
+        let controller = SpendDashboardController(
+            userDefaults: defaults,
+            requestBuilder: { mode in
+                SpendDashboardLoadRequest(
+                    configuration: configuration,
+                    capturedInputs: [],
+                    unavailableSourceIDs: [],
+                    codexRequests: [],
+                    now: clock.value,
+                    force: mode.forcesLoader)
+            },
+            loader: { request in await gate.load(request) },
+            nowProvider: { clock.value })
+
+        controller.update(configuration: configuration)
+        await Self.waitForPendingCount(1, gate: gate)
+        await gate.resume(at: 0, result: SpendDashboardLoadResult(inputs: [initialInput], failedSourceIDs: []))
+        await Self.waitUntil { !controller.isRefreshing }
+        #expect(controller.model.groups.first?.totalCost == 4)
+        let generation = controller.generation
+
+        clock.setValue(atTTL)
+        controller.refreshIfStale()
+        await Self.waitForPendingCount(2, gate: gate)
+
+        // While in-flight, refreshing is active but prior model remains populated (cache-first)
+        #expect(controller.isRefreshing)
+        #expect(controller.generation == generation + 1)
+        #expect(controller.model.groups.first?.totalCost == 4)
+
+        // Repeated activations must not cancel the refresh that is already producing new data.
+        controller.refreshIfStale()
+        #expect(controller.generation == generation + 1)
+        #expect(await gate.pendingCount == 2)
+
+        // Resolving the second load updates the model smoothly
+        await gate.resume(at: 1, result: SpendDashboardLoadResult(inputs: [refreshedInput], failedSourceIDs: []))
+        await Self.waitUntil { !controller.isRefreshing }
+        #expect(controller.model.groups.first?.totalCost == 9)
+        #expect(controller.dashboardSnapshotLoadedAt == atTTL)
+
+        // Immediate subsequent refresh within 300s is skipped
+        clock.setValue(atTTL.addingTimeInterval(10))
+        controller.refreshIfStale()
+        await Task.yield()
+        #expect(controller.generation == generation + 1)
+    }
+
+    @Test
+    func `reopening across midnight refreshes even within snapshot TTL`() async throws {
+        let loadedAt = try #require(ISO8601DateFormatter().date(from: "2026-07-16T23:59:00Z"))
+        let reopenedAt = loadedAt.addingTimeInterval(120)
+        let clock = LockIsolated(loadedAt)
+        let loadCount = LockIsolated(0)
+        let configuration = SpendDashboardConfiguration(
+            costUsageEnabled: true,
+            providerIDs: [UsageProvider.codex.rawValue],
+            codexAccountIdentities: ["rollover"],
+            bucketTimeZoneIdentifier: "UTC")
+        let defaults = try Self.isolatedDefaults(suiteName: "SpendDashboardClockRolloverTests-reopen")
+        defer { defaults.removePersistentDomain(forName: "SpendDashboardClockRolloverTests-reopen") }
+        let input = Self.input(day: "2026-07-16", cost: 4, updatedAt: loadedAt)
+        let controller = SpendDashboardController(
+            userDefaults: defaults,
+            requestBuilder: { mode in
+                SpendDashboardLoadRequest(
+                    configuration: configuration,
+                    capturedInputs: [],
+                    unavailableSourceIDs: [],
+                    codexRequests: [],
+                    now: clock.value,
+                    force: mode.forcesLoader)
+            },
+            loader: { _ in
+                loadCount.setValue(loadCount.value + 1)
+                return SpendDashboardLoadResult(inputs: [input], failedSourceIDs: [])
+            },
+            nowProvider: { clock.value })
+        controller.update(configuration: configuration)
+        await Self.waitUntil { !controller.isRefreshing }
+
+        clock.setValue(reopenedAt)
+        controller.update(configuration: configuration)
+        controller.refreshIfStale()
+        await Self.waitUntil { !controller.isRefreshing }
+
+        #expect(loadCount.value == 2)
+        #expect(controller.dashboardSnapshotLoadedAt == reopenedAt)
+    }
+
     private static let configuration = SpendDashboardConfiguration(
         costUsageEnabled: true,
         providerIDs: [UsageProvider.codex.rawValue],

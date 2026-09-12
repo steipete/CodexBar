@@ -1,0 +1,90 @@
+name: Release Linux desktop
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version label for a test build of the selected ref; never publishes'
+        required: true
+        default: '0.0.0-dev'
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-linux-desktop-${{ github.event.release.tag_name || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.release.tag_name || github.ref }}
+          persist-credentials: false
+      - name: Resolve version
+        id: version
+        env:
+          EVENT: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT" == release ]]; then
+            [[ "$RELEASE_TAG" =~ ^v[0-9][0-9A-Za-z._-]{0,79}$ ]] || { echo 'Invalid release tag' >&2; exit 1; }
+            version=${RELEASE_TAG#v}
+          else
+            version=$INPUT_VERSION
+          fi
+          [[ "$version" =~ ^[0-9][0-9A-Za-z._-]{0,79}$ ]] || { echo 'Invalid version' >&2; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - uses: ./.github/actions/build-linux-desktop
+        id: desktop
+        with:
+          version: ${{ steps.version.outputs.version }}
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: desktop-linux-${{ matrix.arch }}
+          if-no-files-found: error
+          path: |
+            ${{ steps.desktop.outputs.archive }}
+            ${{ steps.desktop.outputs.archive }}.sha256
+
+  publish:
+    needs: build
+    if: github.event_name == 'release'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: desktop-linux-*
+          merge-multiple: true
+          path: assets
+      - name: Verify and upload release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          cd assets
+          for arch in x86_64 aarch64; do
+            asset="CodexBarDesktop-${RELEASE_TAG}-linux-${arch}.tar.gz"
+            test -f "$asset"
+            sha256sum -c "$asset.sha256"
+          done
+          gh release upload "$RELEASE_TAG" ./*.tar.gz ./*.sha256 --repo "$GITHUB_REPOSITORY" --clobber

@@ -71,6 +71,7 @@ struct StatusItemControllerShutdownTests {
         #expect(controller.statusItems.isEmpty)
         #expect(controller.providerMenus.isEmpty)
         #expect(controller.mergedMenu == nil)
+        #expect(controller.menuAppearanceObserver == nil)
     }
 
     @Test

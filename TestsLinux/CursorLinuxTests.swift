@@ -6,8 +6,8 @@ import Testing
 
 struct CursorLinuxTests {
     @Test
-    func `Cursor automatic source without manual cookies requires macOS web support`() {
-        #expect(CodexBarCLI.sourceModeRequiresWebSupport(
+    func `Cursor automatic source supports Linux app authentication`() {
+        #expect(!CodexBarCLI.sourceModeRequiresWebSupport(
             .auto,
             provider: .cursor,
             settings: ProviderSettingsSnapshot.make(

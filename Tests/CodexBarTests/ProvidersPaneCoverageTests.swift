@@ -219,7 +219,7 @@ struct ProvidersPaneCoverageTests {
 
         #expect(pane._test_menuCardModel(for: .claude).metrics.contains { $0.id == "claude-routines" })
 
-        settings.claudeDailyRoutinesUsageVisible = false
+        settings.setUsageItemVisible(false, itemID: .metric("claude-routines"), for: .claude)
         let hiddenModel = pane._test_menuCardModel(for: .claude)
         #expect(!hiddenModel.metrics.contains { $0.id == "claude-routines" })
         #expect(hiddenModel.metrics.contains { $0.id == "claude-weekly-scoped-fable" })
@@ -264,7 +264,10 @@ struct ProvidersPaneCoverageTests {
             $0.id == CodexAdditionalRateLimitMapper.sparkWindowID
         })
 
-        settings.codexSparkUsageVisible = false
+        settings.setUsageItemVisible(
+            false,
+            itemID: .metric(CodexAdditionalRateLimitMapper.sparkWindowID),
+            for: .codex)
         let hiddenModel = pane._test_menuCardModel(for: .codex)
         #expect(!hiddenModel.metrics.contains { $0.id == CodexAdditionalRateLimitMapper.sparkWindowID })
         #expect(hiddenModel.metrics.contains { $0.id == "codex-other-limit" })

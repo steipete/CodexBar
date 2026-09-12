@@ -77,7 +77,7 @@ extension StatusMenuTests {
 
         #expect(controller.menuCardModel(for: .claude)?.metrics.contains { $0.id == "claude-routines" } == true)
 
-        settings.claudeDailyRoutinesUsageVisible = false
+        settings.setUsageItemVisible(false, itemID: .metric("claude-routines"), for: .claude)
         let hiddenModel = try #require(controller.menuCardModel(for: .claude))
         #expect(!hiddenModel.metrics.contains { $0.id == "claude-routines" })
         #expect(hiddenModel.metrics.contains { $0.id == "claude-weekly-scoped-fable" })
@@ -132,7 +132,10 @@ extension StatusMenuTests {
             $0.id == CodexAdditionalRateLimitMapper.sparkWindowID
         } == true)
 
-        settings.codexSparkUsageVisible = false
+        settings.setUsageItemVisible(
+            false,
+            itemID: .metric(CodexAdditionalRateLimitMapper.sparkWindowID),
+            for: .codex)
         let hiddenModel = try #require(controller.menuCardModel(for: .codex))
         #expect(!hiddenModel.metrics.contains { $0.id == CodexAdditionalRateLimitMapper.sparkWindowID })
         #expect(hiddenModel.metrics.contains { $0.id == "codex-other-limit" })

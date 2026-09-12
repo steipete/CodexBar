@@ -769,6 +769,7 @@ enum SpendDashboardSource {
         encoder.append(snapshot.updatedAt.timeIntervalSinceReferenceDate)
         encoder.append(snapshot.last30DaysTokens)
         encoder.append(snapshot.last30DaysCostUSD)
+        encoder.append(snapshot.last30DaysRequests)
         encoder.append(snapshot.daily.count)
         for entry in snapshot.daily {
             encoder.append(entry.date)
@@ -848,7 +849,8 @@ enum SpendDashboardSource {
         providers.compactMap { provider in
             // Provider-specific by design: spend dashboard
             guard provider != .codex else { return nil }
-            var config = settings.providerConfig(for: provider) ?? ProviderConfig(id: provider.instanceID)
+            var config = (settings.providerConfig(for: provider) ?? ProviderConfig(id: provider.instanceID))
+                .fetchIdentityConfig
             config.enabled = nil
             config.quotaWarnings = nil
             // The dashboard follows the effective account, not the whole saved-account collection.
@@ -1172,6 +1174,8 @@ final class SpendDashboardController {
     // Throttle high-frequency date-window refreshes (didBecomeActive bursts).
     private var lastRefreshDateWindowAt: Date?
     private var lastRefreshDateWindowDayStart: Date?
+    private static let dashboardSnapshotTTL: TimeInterval = 5 * 60
+    private(set) var dashboardSnapshotLoadedAt: Date?
 
     init(
         userDefaults: UserDefaults = .standard,
@@ -1512,6 +1516,7 @@ final class SpendDashboardController {
         self.loadedInputs = Self.stableUniqueInputs(nextInputs)
         self.loadedInputScopes = nextInputScopes
         self.loadedAt = request.now
+        self.dashboardSnapshotLoadedAt = self.nowProvider()
         self.lastSuccessfulConfiguration = request.configuration
         self.failedSourceCount = result.failedSourceCount
         self.failedSourceIDs = result.failedSourceIDs
@@ -1570,6 +1575,23 @@ final class SpendDashboardController {
     func refresh() {
         guard let configuration else { return }
         self.update(configuration: configuration, force: true)
+    }
+
+    func refreshIfStale(now: Date? = nil) {
+        guard let configuration,
+              !self.isRefreshing,
+              !self.phase.manualRefreshOutstanding
+        else { return }
+        let now = now ?? self.nowProvider()
+        if let loadedAt = self.dashboardSnapshotLoadedAt,
+           self.failedSourceCount == 0,
+           configuration.bucketCalendar.isDate(self.loadedAt, inSameDayAs: now),
+           now.timeIntervalSince(loadedAt) >= 0,
+           now.timeIntervalSince(loadedAt) < Self.dashboardSnapshotTTL
+        {
+            return
+        }
+        self.startLoad(configuration: configuration, phase: .ordinary)
     }
 
     func selectDays(_ days: Int) {
@@ -1632,6 +1654,7 @@ final class SpendDashboardController {
         self.phase = .ordinary
         self.lastRefreshDateWindowAt = nil
         self.lastRefreshDateWindowDayStart = nil
+        self.dashboardSnapshotLoadedAt = nil
         self.publishCurrentState()
     }
 

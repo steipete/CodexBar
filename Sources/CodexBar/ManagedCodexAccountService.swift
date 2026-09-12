@@ -8,7 +8,7 @@ protocol ManagedCodexHomeProducing: Sendable {
 }
 
 protocol ManagedCodexLoginRunning: Sendable {
-    func run(homePath: String, timeout: TimeInterval) async -> CodexLoginRunner.Result
+    func run(homePath: String, timeout: TimeInterval) async -> CLILoginRunner.Result
 }
 
 protocol ManagedCodexIdentityReading: Sendable {
@@ -35,7 +35,7 @@ protocol ManagedCodexWorkspaceSelecting: Sendable {
 }
 
 enum ManagedCodexAccountServiceError: Error, Equatable {
-    case loginFailed(CodexLoginRunner.Result)
+    case loginFailed(CLILoginRunner.Result)
     case missingEmail
     case workspaceSelectionCancelled
     case unsafeManagedHome(String)
@@ -92,7 +92,7 @@ struct ManagedCodexHomeFactory: ManagedCodexHomeProducing {
 }
 
 struct DefaultManagedCodexLoginRunner: ManagedCodexLoginRunning {
-    func run(homePath: String, timeout: TimeInterval) async -> CodexLoginRunner.Result {
+    func run(homePath: String, timeout: TimeInterval) async -> CLILoginRunner.Result {
         await CodexLoginRunner.run(homePath: homePath, timeout: timeout)
     }
 }
