@@ -32,7 +32,8 @@ struct CodexWorkspaceBalanceDashboardTests {
         workspace: Bool? = nil) -> OpenAIDashboardFetcher.DashboardAPIData
     {
         OpenAIDashboardFetcher.DashboardAPIData(
-            accountID: "workspace-a", primaryLimit: nil,
+            accountID: "workspace-a",
+            primaryLimit: nil,
             secondaryLimit: nil,
             extraRateWindows: [],
             creditsRemaining: balance,

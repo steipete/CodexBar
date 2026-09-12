@@ -194,6 +194,16 @@ extension OpenAIDashboardFetcher {
             try await Self.sleepForDashboardPoll(.milliseconds(500))
         }
 
+        return try await self.finishPageSnapshot(context, lastBody: lastBody, lastError: lastUsageBreakdownError)
+    }
+
+    private func finishPageSnapshot(
+        _ context: PageScrapeContext, lastBody: String?, lastError: String?) async throws -> OpenAIDashboardSnapshot
+    {
+        let apiData = context.apiData
+        let verifiedSignedInEmail = context.verifiedSignedInEmail
+        let webView = context.webView
+        let log = context.log
         if let apiData, apiData.hasUsageData, let verifiedSignedInEmail {
             log("usage api snapshot returned after WebView deadline")
             return Self.snapshotByMergingAPI(
@@ -206,7 +216,7 @@ extension OpenAIDashboardFetcher {
         if context.debugDumpHTML, let html = try? await self.fetchDebugHTML(webView: webView) {
             Self.writeDebugArtifacts(html: html, bodyText: lastBody, logger: log)
         }
-        throw FetchError.noDashboardData(body: lastUsageBreakdownError ?? lastBody ?? "")
+        throw FetchError.noDashboardData(body: lastError ?? lastBody ?? "")
     }
 
     nonisolated static func makePageSnapshot(

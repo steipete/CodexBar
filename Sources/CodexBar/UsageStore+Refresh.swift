@@ -2,25 +2,6 @@ import CodexBarCore
 import Foundation
 
 extension UsageStore {
-    nonisolated static func codexSessionQuotaOwnerKey(
-        for refreshGuard: CodexAccountScopedRefreshGuard?) -> CodexSessionQuotaOwnerKey?
-    {
-        guard let refreshGuard else { return nil }
-        return CodexSessionQuotaOwnerKey(refreshGuard: refreshGuard)
-    }
-
-    nonisolated static func codexSessionQuotaOwnersMatch(
-        _ lhs: CodexAccountScopedRefreshGuard?,
-        _ rhs: CodexAccountScopedRefreshGuard?) -> Bool
-    {
-        guard let lhsKey = self.codexSessionQuotaOwnerKey(for: lhs),
-              let rhsKey = self.codexSessionQuotaOwnerKey(for: rhs)
-        else {
-            return false
-        }
-        return lhsKey == rhsKey
-    }
-
     private struct ProviderRefreshOutcomeContext {
         let generation: UInt64
         let includesCredits: Bool
@@ -720,16 +701,8 @@ extension UsageStore {
             } else {
                 self.lastKnownResetSnapshots[provider.instanceID]
             }
-            let profileStable = self.preservingDeepSeekProfileCatalog(in: accountScoped, provider: provider)
-            let stabilized = Self.commandCodeSnapshotResolvingDepletionOnEnrichmentFailure(
-                current: profileStable,
-                previous: self.snapshots[provider.instanceID])
-            let backfilled = self.preservingCodexCost(
-                in: stabilized,
-                for: provider,
-                owner: context.codexExpectedGuard,
-                includesCredits: context.includesCredits)
-                .backfillingResetTimes(from: resetBackfillSource)
+            let backfilled = self.preparePublishedSnapshot(
+                accountScoped, provider: provider, resetBackfillSource: resetBackfillSource, context: context)
             let warningAccountDiscriminator = Self.warningAccountDiscriminator(
                 provider: provider,
                 tokenAccount: currentTokenAccount,
@@ -870,6 +843,24 @@ extension UsageStore {
             error: error,
             attempts: attempts,
             context: context)
+    }
+
+    private func preparePublishedSnapshot(
+        _ snapshot: UsageSnapshot,
+        provider: UsageProvider,
+        resetBackfillSource: UsageSnapshot?,
+        context: ProviderRefreshOutcomeContext) -> UsageSnapshot
+    {
+        let profileStable = self.preservingDeepSeekProfileCatalog(in: snapshot, provider: provider)
+        let stabilized = Self.commandCodeSnapshotResolvingDepletionOnEnrichmentFailure(
+            current: profileStable,
+            previous: self.snapshots[provider.instanceID])
+        return self.preservingCodexCost(
+            in: stabilized,
+            for: provider,
+            owner: context.codexExpectedGuard,
+            includesCredits: context.includesCredits)
+            .backfillingResetTimes(from: resetBackfillSource)
     }
 
     private func preservingDeepSeekProfileCatalog(
