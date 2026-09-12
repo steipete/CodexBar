@@ -35,9 +35,9 @@ struct DevinProviderImplementation: ProviderImplementation {
                 allowsOff: false,
                 subtitles: {
                     .init(
-                        auto: "Automatically imports the app.devin.ai session from Chrome.",
-                        manual: "Paste an Authorization Bearer token from app.devin.ai.",
-                        off: "Paste an Authorization Bearer token from app.devin.ai.")
+                        auto: L("Automatically imports the app.devin.ai session from Chrome."),
+                        manual: L("Paste an Authorization Bearer token from app.devin.ai."),
+                        off: L("Paste an Authorization Bearer token from app.devin.ai."))
                 },
                 title: "Auth source"),
         ]

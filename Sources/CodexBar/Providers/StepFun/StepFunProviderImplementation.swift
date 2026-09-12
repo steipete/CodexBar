@@ -71,9 +71,9 @@ struct StepFunProviderImplementation: ProviderImplementation {
                 allowsOff: true,
                 subtitles: {
                     .init(
-                        auto: "Uses username + password to login and obtain an Oasis-Token automatically.",
-                        manual: "Manually paste an Oasis-Token from a browser session.",
-                        off: "StepFun authentication is disabled.")
+                        auto: L("Uses username + password to login and obtain an %@ automatically.", "Oasis-Token"),
+                        manual: L("Manually paste an %@ from a browser session.", "Oasis-Token"),
+                        off: L("%@ authentication is disabled.", "StepFun"))
                 },
                 title: "Auth source",
                 trailingText: {

@@ -43,9 +43,9 @@ struct ManusProviderImplementation: ProviderImplementation {
                 allowsOff: true,
                 subtitles: {
                     .init(
-                        auto: "Automatically imports browser session cookies.",
-                        manual: "Paste the session_id value or a full Cookie header.",
-                        off: "Manus cookies are disabled.")
+                        auto: L("Automatically imports browser session cookies."),
+                        manual: L("Paste the %@ value or a full Cookie header.", "session_id"),
+                        off: L("%@ cookies are disabled.", "Manus"))
                 }),
         ]
     }

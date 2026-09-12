@@ -6,6 +6,7 @@
 - Codex activity: reuse validated SQLite and decoded aggregate state across unchanged refreshes, preserving replacement, writer, and compatibility invalidation (#3593, related to #3247). Thanks @brzvsk!
 
 ### Fixed
+- Account cards: keep Grok's cached local costs out of an account card that has no usage snapshot.
 - Codex: prefer fresh authorized subscription dates over stale cache metadata, and keep empty account cards from inheriting another account's identity, usage, or credits.
 - Provider settings: preserve saved configuration for unavailable plugins when reordering providers, and localize Qoder and Qwen Cloud cookie-cache labels consistently.
 - Antigravity: preserve the attempted CLI failure when an unavailable IDE fallback would otherwise replace it with misleading desktop launch guidance (related to #3146). Thanks @gpgpbm4h4y-gif!
@@ -15,6 +16,7 @@
 - Web dashboard: preserve account aliases and organization labels so Claude accounts sharing an email remain distinguishable, including in redacted mode (follow-up to #3082).
 
 ### Development
+- Share Settings and menu card construction with explicit account contexts, and replace English cookie-subtitle parsing with provider-owned localization keys.
 - Keep runtime descriptor replacements consistent across lookup, ordered metadata, and CLI aliases, with synchronization owned by the descriptor store.
 - Share provider settings bindings, cookie pickers, deferred link actions, cookie-source persistence, and typed cookie snapshots; replace the app's mutable provider registry with its immutable generated catalog.
 - Remove retired menu views, unused provider helpers, and no-op credential-loading hooks; reuse shared config accessors and simplify redundant menu and account state.

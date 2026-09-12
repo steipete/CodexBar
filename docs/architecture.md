@@ -41,6 +41,8 @@ read_when:
   runtime registry. Provider settings contexts bind directly to their store; the shared cookie picker owns mode
   conversion, options, and live subtitle selection while providers retain labels, visibility, and cache scopes. Settings
   link actions resolve their provider-supplied destinations when clicked, including region and account selection.
+  Cookie subtitles use explicit localization keys and arguments supplied by providers; the picker selects the current
+  mode and Keychain-disabled explanation without parsing English display text.
 - Descriptor-registered cookie sections preserve their concrete types after app policy resolves credentials. The app
   keeps its automatic default, Keychain-disabled manual mode, and selected-account normalization; CLI inference stays
   separate. Cookie-source writes share config persistence and logging, with provider-specific side effects retained.
@@ -50,6 +52,9 @@ read_when:
   account cards use only their supplied snapshots, identity, and credits. Compact and stacked Codex account layouts share
   the same account-card builder. Reordering visible providers preserves loaded config records for unavailable plugins;
   config decoding retains its existing known-provider rules.
+- `UsageStore.menuCardInput` assembles cards for Settings, the live menu, and explicit account contexts. It owns common
+  quota, pace, warning-marker, and display-preference projection. Settings retains diagnostics and all usage lanes;
+  menus retain their cost display policy and account-scoped forecasts. An account context stays isolated even when empty.
 - App credential properties read directly from the config snapshot and delegate common string writes to the typed
   `SettingsStore` config accessor, which owns normalization, persistence, and secret-update logging. Field activation
   does not trigger credential loading. Legacy provider toggles are read only by the config migrator.

@@ -88,12 +88,13 @@ extension StatusItemController {
         let label = accountSnapshot.account.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
         return self.menuCardModel(
             for: provider,
-            snapshotOverride: accountSnapshot.snapshot,
-            errorOverride: accountSnapshot.error,
-            accountOverride: AccountInfo(email: label.isEmpty ? nil : label, plan: nil),
-            historySelectionOverride: self.store.planUtilizationHistorySelection(
-                for: provider,
-                account: accountSnapshot.account))
+            context: .account(.init(
+                snapshot: accountSnapshot.snapshot,
+                error: accountSnapshot.error,
+                info: AccountInfo(email: label.isEmpty ? nil : label, plan: nil),
+                historySelection: self.store.planUtilizationHistorySelection(
+                    for: provider,
+                    account: accountSnapshot.account))))
     }
 
     func codexAccountMenuDisplay(for provider: UsageProvider) -> CodexAccountMenuDisplay? {

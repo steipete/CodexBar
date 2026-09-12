@@ -8,7 +8,7 @@ import Testing
 struct MenuCardOverrideIsolationTests {
     @Test
     func `explicit selected token account adopts legacy unscoped history`() throws {
-        let store = UsageStorePlanUtilizationTests.makeStore()
+        let store = self.makeStore()
         store.settings.addTokenAccount(provider: .claude, label: "Alice", token: "fixture")
         let account = try #require(store.settings.selectedTokenAccount(for: .claude))
         let accountKey = try #require(
@@ -28,18 +28,9 @@ struct MenuCardOverrideIsolationTests {
     }
 
     @Test
-    func `nil snapshot account card does not inherit ambient Claude costs`() throws {
-        let suite = "MenuCardOverrideIsolationTests-\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defaults.removePersistentDomain(forName: suite)
-        let settings = SettingsStore(
-            userDefaults: defaults,
-            configStore: testConfigStore(suiteName: suite),
-            zaiTokenStore: NoopZaiTokenStore(),
-            syntheticTokenStore: NoopSyntheticTokenStore())
-        settings.costUsageEnabled = true
-        let fetcher = UsageFetcher()
-        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+    func `nil snapshot account card does not inherit ambient Claude costs`() {
+        let store = self.makeStore()
+        store.settings.costUsageEnabled = true
         store._setTokenSnapshotForTesting(
             CostUsageTokenSnapshot(
                 sessionTokens: 123,
@@ -49,44 +40,21 @@ struct MenuCardOverrideIsolationTests {
                 daily: [],
                 updatedAt: Date()),
             provider: .claude)
-        let controller = StatusItemController(
-            store: store,
-            settings: settings,
-            account: fetcher.loadAccountInfo(),
-            updater: DisabledUpdaterController(),
-            preferencesSelection: PreferencesSelection(),
-            statusBar: .system)
 
-        let model = try #require(controller.menuCardModel(
+        let model = store.menuCardModel(
             for: .claude,
-            errorOverride: "Token expired",
-            forceOverrideCard: true,
-            accountOverride: AccountInfo(email: "account@example.com", plan: nil)))
+            context: .account(.init(
+                error: "Token expired",
+                info: AccountInfo(email: "account@example.com", plan: nil))))
 
         #expect(model.tokenUsage == nil)
         #expect(model.email == "account@example.com")
     }
 
     @Test
-    func `account card without its own error does not inherit the ambient Claude error`() throws {
-        let suite = "MenuCardOverrideIsolationTests-\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defaults.removePersistentDomain(forName: suite)
-        let settings = SettingsStore(
-            userDefaults: defaults,
-            configStore: testConfigStore(suiteName: suite),
-            zaiTokenStore: NoopZaiTokenStore(),
-            syntheticTokenStore: NoopSyntheticTokenStore())
-        let fetcher = UsageFetcher()
-        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+    func `account card without its own error does not inherit the ambient Claude error`() {
+        let store = self.makeStore()
         store._setErrorForTesting("Claude OAuth credentials unavailable", provider: .claude)
-        let controller = StatusItemController(
-            store: store,
-            settings: settings,
-            account: fetcher.loadAccountInfo(),
-            updater: DisabledUpdaterController(),
-            preferencesSelection: PreferencesSelection(),
-            statusBar: .system)
         let accountSnapshot = UsageSnapshot(
             primary: RateWindow(usedPercent: 25, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
             secondary: nil,
@@ -97,22 +65,23 @@ struct MenuCardOverrideIsolationTests {
                 accountOrganization: nil,
                 loginMethod: "claude-swap"))
 
-        let model = try #require(controller.menuCardModel(
+        let model = store.menuCardModel(
             for: .claude,
-            snapshotOverride: accountSnapshot,
-            accountOverride: AccountInfo(email: "account@example.com", plan: nil)))
+            context: .account(.init(
+                snapshot: accountSnapshot,
+                info: AccountInfo(email: "account@example.com", plan: nil))))
 
         #expect(model.subtitleStyle != .error)
         #expect(!model.subtitleText.contains("Claude OAuth credentials unavailable"))
 
-        let liveModel = try #require(controller.menuCardModel(for: .claude))
+        let liveModel = store.menuCardModel(for: .claude)
         #expect(liveModel.subtitleStyle == .error)
         #expect(liveModel.subtitleText == "Claude OAuth credentials unavailable")
     }
 
     @Test
     func `stacked token account card uses its own session equivalent history`() throws {
-        let store = UsageStorePlanUtilizationTests.makeStore()
+        let store = self.makeStore()
         store.settings.addTokenAccount(provider: .claude, label: "Alice", token: "fixture")
         store.settings.addTokenAccount(provider: .claude, label: "Bob", token: "fixture")
         let accounts = store.settings.tokenAccounts(for: .claude)
@@ -160,6 +129,7 @@ struct MenuCardOverrideIsolationTests {
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
             statusBar: .system)
+        defer { controller.releaseStatusItemsForTesting() }
 
         let model = try #require(controller.tokenAccountMenuCardModel(
             for: .claude,
@@ -178,23 +148,15 @@ struct MenuCardOverrideIsolationTests {
 
     @Test
     func `failed stacked token account card keeps its configured label`() throws {
-        let suite = "MenuCardOverrideIsolationTests-\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defaults.removePersistentDomain(forName: suite)
-        let settings = SettingsStore(
-            userDefaults: defaults,
-            configStore: testConfigStore(suiteName: suite),
-            zaiTokenStore: NoopZaiTokenStore(),
-            syntheticTokenStore: NoopSyntheticTokenStore())
-        let fetcher = UsageFetcher()
-        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let store = self.makeStore()
         let controller = StatusItemController(
             store: store,
-            settings: settings,
-            account: fetcher.loadAccountInfo(),
+            settings: store.settings,
+            account: AccountInfo(email: nil, plan: nil),
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
             statusBar: .system)
+        defer { controller.releaseStatusItemsForTesting() }
         let account = ProviderTokenAccount(
             id: UUID(),
             label: "Rejected group",
@@ -218,23 +180,15 @@ struct MenuCardOverrideIsolationTests {
 
     @Test
     func `successful stacked token account card prefers fetched identity over configured label`() throws {
-        let suite = "MenuCardOverrideIsolationTests-\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defaults.removePersistentDomain(forName: suite)
-        let settings = SettingsStore(
-            userDefaults: defaults,
-            configStore: testConfigStore(suiteName: suite),
-            zaiTokenStore: NoopZaiTokenStore(),
-            syntheticTokenStore: NoopSyntheticTokenStore())
-        let fetcher = UsageFetcher()
-        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let store = self.makeStore()
         let controller = StatusItemController(
             store: store,
-            settings: settings,
-            account: fetcher.loadAccountInfo(),
+            settings: store.settings,
+            account: AccountInfo(email: nil, plan: nil),
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
             statusBar: .system)
+        defer { controller.releaseStatusItemsForTesting() }
         let account = ProviderTokenAccount(
             id: UUID(),
             label: "Configured group",
@@ -262,6 +216,20 @@ struct MenuCardOverrideIsolationTests {
             accountSnapshot: accountSnapshot))
 
         #expect(model.email == "fetched@example.com")
+    }
+
+    private func makeStore() -> UsageStore {
+        let settings = testSettingsStore(
+            suiteName: "MenuCardOverrideIsolationTests",
+            userDefaults: InMemoryUserDefaults())
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing)
+        store._cancelPlanUtilizationHistoryLoadForTesting()
+        store.planUtilizationHistory = [:]
+        return store
     }
 
     private static func sessionEquivalentHistory(

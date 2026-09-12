@@ -65,9 +65,9 @@ struct KimiProviderImplementation: ProviderImplementation {
                 allowsOff: true,
                 subtitles: {
                     .init(
-                        auto: "Automatic imports browser cookies.",
-                        manual: "Paste a cookie header or the kimi-auth token value.",
-                        off: "Kimi cookies are disabled.")
+                        auto: L("Automatic imports browser cookies."),
+                        manual: L("Paste a cookie header or the kimi-auth token value."),
+                        off: L("%@ cookies are disabled.", "Kimi"))
                 }),
         ]
     }

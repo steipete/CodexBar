@@ -14,9 +14,9 @@ struct CommandCodeProviderImplementation: ProviderImplementation {
                 allowsOff: false,
                 subtitles: {
                     .init(
-                        auto: "Automatic imports browser cookies.",
-                        manual: "Paste a Cookie header or cURL capture from Command Code.",
-                        off: "Command Code cookies are disabled.")
+                        auto: L("Automatic imports browser cookies."),
+                        manual: L("Paste a Cookie header or cURL capture from %@.", "Command Code"),
+                        off: L("%@ cookies are disabled.", "Command Code"))
                 }),
         ]
     }

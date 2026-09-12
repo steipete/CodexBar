@@ -47,9 +47,9 @@ struct OpenCodeProviderImplementation: ProviderImplementation {
                 allowsOff: false,
                 subtitles: {
                     .init(
-                        auto: "Automatic imports browser cookies from opencode.ai.",
-                        manual: "Paste a Cookie header captured from the billing page.",
-                        off: "OpenCode cookies are disabled.")
+                        auto: L("Automatic imports browser cookies from opencode.ai."),
+                        manual: L("Paste a Cookie header captured from %@.", "the billing page"),
+                        off: L("%@ cookies are disabled.", "OpenCode"))
                 },
                 trailingText: {
                     ProviderCookieRefreshAction.trailingText(

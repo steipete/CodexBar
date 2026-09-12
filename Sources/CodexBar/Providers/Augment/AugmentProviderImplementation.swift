@@ -32,9 +32,9 @@ struct AugmentProviderImplementation: ProviderImplementation {
                 allowsOff: false,
                 subtitles: {
                     .init(
-                        auto: "Automatic imports browser cookies.",
-                        manual: "Paste a Cookie header or cURL capture from the Augment dashboard.",
-                        off: "Augment cookies are disabled.")
+                        auto: L("Automatic imports browser cookies."),
+                        manual: L("Paste a Cookie header or cURL capture from %@.", "the Augment dashboard"),
+                        off: L("%@ cookies are disabled.", "Augment"))
                 },
                 trailingText: {
                     ProviderCookieSourceUI.cachedTrailingText(provider: .augment)

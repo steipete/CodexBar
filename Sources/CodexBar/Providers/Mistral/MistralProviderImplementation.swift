@@ -33,9 +33,9 @@ struct MistralProviderImplementation: ProviderImplementation {
                 allowsOff: false,
                 subtitles: {
                     .init(
-                        auto: "Automatic imports browser cookies from admin.mistral.ai.",
-                        manual: "Paste a Cookie header captured from the billing page.",
-                        off: "Mistral cookies are disabled.")
+                        auto: L("Automatic imports browser cookies from admin.mistral.ai."),
+                        manual: L("Paste a Cookie header captured from %@.", "the billing page"),
+                        off: L("%@ cookies are disabled.", "Mistral"))
                 },
                 trailingText: {
                     ProviderCookieSourceUI.cachedTrailingText(provider: .mistral)

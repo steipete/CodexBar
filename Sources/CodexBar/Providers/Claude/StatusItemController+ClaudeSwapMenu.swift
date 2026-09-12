@@ -121,18 +121,17 @@ extension StatusItemController {
     private func claudeSwapCardModel(for account: ProviderAccountUsageSnapshot) -> UsageMenuCardView.Model? {
         self.menuCardModel(
             for: .claude,
-            snapshotOverride: account.snapshot,
-            errorOverride: ClaudeSwapAccountProjection.displayError(
-                accountError: account.error,
-                adapterError: self.store.claudeSwapLastError,
-                switchError: self.store.claudeSwapTransientState.lastErrorAccountID == account.id
-                    ? self.store.claudeSwapTransientState.lastError
-                    : nil),
-            accountOverride: AccountInfo(
-                email: account.displayLabel,
-                plan: nil),
-            planOverride: self.claudeSwapAccountActionLabel(account),
-            sourceLabelOverride: ClaudeSwapAccountProjection.sourceLabel)
+            context: .account(.init(
+                snapshot: account.snapshot,
+                error: ClaudeSwapAccountProjection.displayError(
+                    accountError: account.error,
+                    adapterError: self.store.claudeSwapLastError,
+                    switchError: self.store.claudeSwapTransientState.lastErrorAccountID == account.id
+                        ? self.store.claudeSwapTransientState.lastError
+                        : nil),
+                info: AccountInfo(email: account.displayLabel, plan: nil),
+                plan: self.claudeSwapAccountActionLabel(account),
+                sourceLabel: ClaudeSwapAccountProjection.sourceLabel)))
     }
 
     private func claudeSwapAccountActionLabel(_ account: ProviderAccountUsageSnapshot) -> String? {

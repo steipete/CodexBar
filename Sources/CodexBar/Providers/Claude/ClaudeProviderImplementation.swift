@@ -235,9 +235,9 @@ struct ClaudeProviderImplementation: ProviderImplementation {
                 allowsOff: false,
                 subtitles: {
                     .init(
-                        auto: "Automatic imports browser cookies for the web API.",
-                        manual: "Paste a Cookie header from a claude.ai request.",
-                        off: "Claude cookies are disabled.")
+                        auto: L("Automatic imports browser cookies for the web API."),
+                        manual: L("Paste a Cookie header from %@.", "a claude.ai request"),
+                        off: L("%@ cookies are disabled.", "Claude"))
                 },
                 title: "Claude cookies",
                 isVisible: nil,

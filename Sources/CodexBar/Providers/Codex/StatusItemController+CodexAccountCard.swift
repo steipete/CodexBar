@@ -7,10 +7,11 @@ extension StatusItemController {
     {
         self.menuCardModel(
             for: .codex,
-            snapshotOverride: accountSnapshot?.snapshot,
-            errorOverride: CodexAccountHealth.status(for: account, error: accountSnapshot?.error).label,
-            accountOverride: self.accountInfo(for: account),
-            historySelectionOverride: self.store.codexPlanUtilizationHistorySelection(forVisibleAccount: account),
-            creditsOverride: accountSnapshot?.credits)
+            context: .account(.init(
+                snapshot: accountSnapshot?.snapshot,
+                error: CodexAccountHealth.status(for: account, error: accountSnapshot?.error).label,
+                info: self.accountInfo(for: account),
+                historySelection: self.store.codexPlanUtilizationHistorySelection(forVisibleAccount: account),
+                credits: accountSnapshot?.credits)))
     }
 }

@@ -183,9 +183,9 @@ struct CodexProviderImplementation: ProviderImplementation {
                 allowsOff: true,
                 subtitles: {
                     .init(
-                        auto: "Automatic imports browser cookies for dashboard extras.",
-                        manual: "Paste a Cookie header from a chatgpt.com request.",
-                        off: "Disable OpenAI dashboard cookie usage.")
+                        auto: L("Automatic imports browser cookies for dashboard extras."),
+                        manual: L("Paste a Cookie header from %@.", "a chatgpt.com request"),
+                        off: L("Disable %@ dashboard cookie usage.", "OpenAI"))
                 },
                 title: "OpenAI cookies",
                 isVisible: { context.settings.openAIWebAccessEnabled },

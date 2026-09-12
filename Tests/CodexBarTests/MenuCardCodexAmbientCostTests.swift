@@ -58,8 +58,7 @@ struct MenuCardCodexAmbientCostTests {
     {
         controller.menuCardModel(
             for: .codex,
-            forceOverrideCard: true,
-            accountOverride: AccountInfo(email: email, plan: nil))
+            context: .account(.init(info: AccountInfo(email: email, plan: nil))))
     }
 
     @Test

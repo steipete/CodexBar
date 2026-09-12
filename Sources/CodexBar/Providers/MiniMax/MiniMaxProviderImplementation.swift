@@ -62,9 +62,9 @@ struct MiniMaxProviderImplementation: ProviderImplementation {
                 allowsOff: false,
                 subtitles: {
                     .init(
-                        auto: "Automatic imports browser cookies and local storage tokens.",
-                        manual: "Paste a Cookie header or cURL capture from the Token Plan page.",
-                        off: "MiniMax cookies are disabled.")
+                        auto: L("Automatic imports browser cookies and local storage tokens."),
+                        manual: L("Paste a Cookie header or cURL capture from %@.", "the Token Plan page"),
+                        off: L("%@ cookies are disabled.", "MiniMax"))
                 },
                 isVisible: { authMode().allowsCookies },
                 onChange: nil,

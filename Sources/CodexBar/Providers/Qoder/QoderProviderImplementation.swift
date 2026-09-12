@@ -35,9 +35,9 @@ struct QoderProviderImplementation: ProviderImplementation {
                 allowsOff: false,
                 subtitles: {
                     .init(
-                        auto: "Automatic imports browser cookies.",
-                        manual: "Paste a Cookie header or cURL capture from Qoder usage.",
-                        off: "Qoder cookies are disabled.")
+                        auto: L("Automatic imports browser cookies."),
+                        manual: L("Paste a Cookie header or cURL capture from %@.", "Qoder usage"),
+                        off: L("%@ cookies are disabled.", "Qoder"))
                 },
                 trailingText: {
                     ProviderCookieSourceUI.cachedTrailingText(provider: .qoder)
