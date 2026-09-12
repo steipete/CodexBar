@@ -937,7 +937,7 @@ struct SpendDashboardModel: Equatable, Sendable {
                 requestCount: Self.completeIntSum(providerRows.map(\.requestCount)),
                 totalCost: totalCost))
             guard let nextDay = calendar.date(byAdding: .day, value: 1, to: day) else { return [] }
-            day = nextDay
+            day = calendar.startOfDay(for: nextDay)
         }
         return result
     }
@@ -1031,9 +1031,10 @@ struct SpendDashboardModel: Equatable, Sendable {
             Self.tokenActivityInputSummary(input: $0, bounds: bounds, calendar: calendar)
         }
         return (0..<Self.tokenActivityDayCount).compactMap { offset in
-            guard let day = calendar.date(byAdding: .day, value: offset, to: bounds.lowerBound) else {
+            guard let date = calendar.date(byAdding: .day, value: offset, to: bounds.lowerBound) else {
                 return nil
             }
+            let day = calendar.startOfDay(for: date)
             var total = 0
             var scannedContributors = 0
             var hasUnresolvedScannedProvider = false
@@ -1127,7 +1128,7 @@ struct SpendDashboardModel: Equatable, Sendable {
     private static func bounds(days: Int, now: Date, calendar: Calendar) -> ClosedRange<Date> {
         let end = calendar.startOfDay(for: now)
         let start = calendar.date(byAdding: .day, value: -(days - 1), to: end) ?? end
-        return start...end
+        return calendar.startOfDay(for: start)...end
     }
 
     private static let utcCalendar: Calendar = {

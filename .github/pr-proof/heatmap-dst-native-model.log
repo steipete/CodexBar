@@ -1,19 +1,103 @@
-Native model-to-chart validation at 6c7693735d130f7aaa71320a1fdf859f6cbefed2
-Build: swift build --target CodexBarCore --jobs 8 (passed)
-Production sources compiled directly: SpendDashboardModel.swift, SpendDashboardModel+ModelBreakdown.swift, SpendActivityHeatmap.swift
-Native CostUsageTokenSnapshot and UsageFormatter linked from CodexBarCore; no copied model or formatter definitions.
+Native model-to-chart validation after the midnight-DST model fix.
+Baseline e1762726c: September 6 produced 2/365 and four failed assertions.
+Production sources compiled directly: SpendDashboardModel.swift, SpendDashboardModel+ModelBreakdown.swift, SpendActivityHeatmap.swift.
+Native CostUsageTokenSnapshot and UsageFormatter linked from CodexBarCore.
 Support shims: source scanDays=365 and English localization helpers.
-Input: 365 synthetic daily entries, America/Santiago, local noon on each listed date.
-This is native model/chart integration proof, not a full application launch.
+Input: 365 synthetic daily entries, America/Santiago, local noon.
+This is focused native integration validation, not a full application launch.
 
-Sep 6, gaps=false: coverage 2/365
-FAIL: Sep 6, gaps=false covered days
-FAIL: Sep 6, gaps=false total
-FAIL: Sep 6, gaps=false day identity and coverage
-FAIL: Sep 6, gaps=false cumulative
+Sep 6, gaps=false: coverage 365/365
 Sep 7, gaps=false: coverage 365/365
 Sep 11, gaps=false: coverage 365/365
 Rendered native CostUsageTokenSnapshot -> SpendDashboardModel -> SpendActivityHeatmapView
 Sep 12, gaps=false: coverage 365/365
 Sep 13, gaps=false: coverage 365/365
-Failures: 4
+Failures: 0
+
+Exact repository test suites, linked to the focused native module:
+◇ Test run started.
+↳ Testing Library Version: 1902
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Suite SpendDashboardMidnightDSTTests started.
+◇ Suite SpendActivityHeatmapTests started.
+◇ Test "native model preserves daily keys across midnight DST" started.
+◇ Test "model with a 30 day scan window yields a cumulative view that still draws" started.
+◇ Test "oldest annual day remains visible for every ending weekday" started.
+◇ Test "midnight daylight saving preserves unscanned days and scanned gaps" started.
+◇ Test "mixed provider activity unions available sources per day" started.
+◇ Test "weekly and cumulative activity preserve unavailable coverage" started.
+◇ Test "cumulative activity keeps a leading in window gap unavailable" started.
+◇ Test "weekly and cumulative totals saturate instead of overflowing" started.
+◇ Test "series separates an unscanned prefix from an in window gap" started.
+◇ Test "uncovered heatmap days do not produce a drill-down selection" started.
+◇ Test "annual aggregation output stays fixed with many full year providers" started.
+◇ Test "cumulative activity stays unavailable after a gap" started.
+◇ Test "annual coverage survives midnight daylight saving transitions" started.
+◇ Test "covered empty history is zero while unestablished history remains unavailable" started.
+◇ Test "weekday and date formatting follow the selected resource locale" started.
+◇ Test "trailing unscanned days keep their week and later totals unavailable" started.
+◇ Test "empty shared cache marks only its partial range as confirmed zero" started.
+◇ Test "tooltip prefers sitting above the hovered cell when there is room" started.
+◇ Test "cumulative activity starts at the first scanned week" started.
+◇ Test "shared cache activity uses its wider partial coverage without widening spend" started.
+◇ Test "weekday labels and cells share the same row pitch" started.
+◇ Test "daily levels keep exact boundaries and tolerate Int max" started.
+◇ Test "series uses a Sunday aligned 53 week container for exactly 365 visible days" started.
+◇ Test "token activity unions partial provider coverage instead of requiring every source" started.
+◇ Test "grid keyboard navigation follows rows and weeks without wrapping" started.
+◇ Test "tooltip compacts instead of overflowing a grid shorter than its full height" started.
+◇ Test "scanned provider with unresolved day preserves gap even if other providers have tokens" started.
+◇ Test "tooltip never renders outside the grid when there is no room above" started.
+◇ Test "accessibility descriptions publish localized dates and availability values" started.
+◇ Test "tooltip stays beside the hovered cell and clamps only at the edge" started.
+◇ Test case passing 1 argument augustDay → 2 to "oldest annual day remains visible for every ending weekday" started.
+◇ Test case passing 2 arguments septemberDay → 6, completeHistory → false to "native model preserves daily keys across midnight DST" started.
+◇ Test case passing 2 arguments septemberDay → 6, completeHistory → true to "native model preserves daily keys across midnight DST" started.
+◇ Test case passing 2 arguments septemberDay → 7, completeHistory → false to "native model preserves daily keys across midnight DST" started.
+◇ Test case passing 1 argument augustDay → 3 to "oldest annual day remains visible for every ending weekday" started.
+◇ Test case passing 2 arguments septemberDay → 7, completeHistory → true to "native model preserves daily keys across midnight DST" started.
+◇ Test case passing 1 argument augustDay → 4 to "oldest annual day remains visible for every ending weekday" started.
+◇ Test case passing 2 arguments septemberDay → 11, completeHistory → false to "native model preserves daily keys across midnight DST" started.
+◇ Test case passing 1 argument augustDay → 5 to "oldest annual day remains visible for every ending weekday" started.
+◇ Test case passing 2 arguments septemberDay → 11, completeHistory → true to "native model preserves daily keys across midnight DST" started.
+◇ Test case passing 1 argument augustDay → 6 to "oldest annual day remains visible for every ending weekday" started.
+◇ Test case passing 1 argument augustDay → 7 to "oldest annual day remains visible for every ending weekday" started.
+◇ Test case passing 1 argument augustDay → 8 to "oldest annual day remains visible for every ending weekday" started.
+◇ Test case passing 1 argument septemberDay → 6 to "annual coverage survives midnight daylight saving transitions" started.
+◇ Test case passing 1 argument septemberDay → 7 to "annual coverage survives midnight daylight saving transitions" started.
+◇ Test case passing 1 argument septemberDay → 11 to "annual coverage survives midnight daylight saving transitions" started.
+◇ Test case passing 1 argument septemberDay → 12 to "annual coverage survives midnight daylight saving transitions" started.
+◇ Test case passing 1 argument septemberDay → 13 to "annual coverage survives midnight daylight saving transitions" started.
+✔ Test "weekly and cumulative totals saturate instead of overflowing" passed after 0.666 seconds.
+✔ Test "cumulative activity keeps a leading in window gap unavailable" passed after 0.666 seconds.
+✔ Test "weekly and cumulative activity preserve unavailable coverage" passed after 0.666 seconds.
+✔ Test "mixed provider activity unions available sources per day" passed after 0.666 seconds.
+✔ Test "oldest annual day remains visible for every ending weekday" with 7 test cases passed after 0.666 seconds.
+✔ Test "uncovered heatmap days do not produce a drill-down selection" passed after 0.666 seconds.
+✔ Test "model with a 30 day scan window yields a cumulative view that still draws" passed after 0.666 seconds.
+✔ Test "series separates an unscanned prefix from an in window gap" passed after 0.666 seconds.
+✔ Test "annual aggregation output stays fixed with many full year providers" passed after 0.666 seconds.
+✔ Test "cumulative activity stays unavailable after a gap" passed after 0.666 seconds.
+✔ Test "native model preserves daily keys across midnight DST" with 6 test cases passed after 0.666 seconds.
+✔ Test "covered empty history is zero while unestablished history remains unavailable" passed after 0.666 seconds.
+✔ Test "weekday and date formatting follow the selected resource locale" passed after 0.666 seconds.
+✔ Test "empty shared cache marks only its partial range as confirmed zero" passed after 0.666 seconds.
+✔ Test "tooltip prefers sitting above the hovered cell when there is room" passed after 0.666 seconds.
+✔ Test "cumulative activity starts at the first scanned week" passed after 0.666 seconds.
+✔ Test "weekday labels and cells share the same row pitch" passed after 0.666 seconds.
+✔ Test "daily levels keep exact boundaries and tolerate Int max" passed after 0.666 seconds.
+✔ Test "trailing unscanned days keep their week and later totals unavailable" passed after 0.666 seconds.
+✔ Test "series uses a Sunday aligned 53 week container for exactly 365 visible days" passed after 0.666 seconds.
+✔ Test "shared cache activity uses its wider partial coverage without widening spend" passed after 0.666 seconds.
+✔ Test "grid keyboard navigation follows rows and weeks without wrapping" passed after 0.666 seconds.
+✔ Test "tooltip compacts instead of overflowing a grid shorter than its full height" passed after 0.666 seconds.
+✔ Test "token activity unions partial provider coverage instead of requiring every source" passed after 0.666 seconds.
+✔ Test "tooltip never renders outside the grid when there is no room above" passed after 0.666 seconds.
+✔ Test "tooltip stays beside the hovered cell and clamps only at the edge" passed after 0.666 seconds.
+✔ Test "accessibility descriptions publish localized dates and availability values" passed after 0.666 seconds.
+✔ Suite SpendDashboardMidnightDSTTests passed after 0.667 seconds.
+✔ Test "scanned provider with unresolved day preserves gap even if other providers have tokens" passed after 0.666 seconds.
+✔ Test "annual coverage survives midnight daylight saving transitions" with 5 test cases passed after 0.708 seconds.
+✔ Test "midnight daylight saving preserves unscanned days and scanned gaps" passed after 0.884 seconds.
+✔ Suite SpendActivityHeatmapTests passed after 0.884 seconds.
+✔ Test run with 30 tests in 2 suites passed after 0.885 seconds.
