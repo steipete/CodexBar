@@ -320,8 +320,8 @@ struct MiMoProviderTests {
             updatedAt: Date())
             .toUsageSnapshot()
 
-        let balanceIcon = IconRemainingResolver.resolvedRemaining(snapshot: balanceOnly, style: .mimo)
-        let planIcon = IconRemainingResolver.resolvedRemaining(snapshot: withPlan, style: .mimo)
+        let balanceIcon = IconRemainingResolver.resolvedPercents(snapshot: balanceOnly, style: .mimo, showUsed: false)
+        let planIcon = IconRemainingResolver.resolvedPercents(snapshot: withPlan, style: .mimo, showUsed: false)
 
         #expect(balanceIcon.primary == nil)
         #expect(balanceIcon.secondary == nil)

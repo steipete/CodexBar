@@ -78,8 +78,7 @@ struct KiloProviderImplementation: ProviderImplementation {
                 placeholder: "kilo_...",
                 binding: context.stringBinding(\.kiloAPIToken),
                 actions: [],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
         ]
     }
 

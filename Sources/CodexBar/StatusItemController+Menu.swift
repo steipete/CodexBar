@@ -1250,14 +1250,6 @@ extension StatusItemController {
         }
     }
 
-    private func menuNeedsDelayedRefreshRetry(for menu: NSMenu) -> Bool {
-        let providersToCheck = self.delayedRefreshRetryProviders(for: menu)
-        guard !providersToCheck.isEmpty else { return false }
-        return providersToCheck.contains { provider in
-            self.store.needsUsageRefreshRetry(for: provider)
-        }
-    }
-
     private func delayedRefreshRetryProviders(for menu: NSMenu) -> [UsageProvider] {
         self.renderedProviders(for: menu)
     }

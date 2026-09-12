@@ -46,8 +46,7 @@ struct CrofProviderImplementation: ProviderImplementation {
                             }
                         }),
                 ],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
         ]
     }
 }

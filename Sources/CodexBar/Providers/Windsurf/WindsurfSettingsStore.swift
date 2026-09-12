@@ -31,13 +31,8 @@ extension SettingsStore {
     }
 
     var windsurfCookieHeader: String {
-        get { self.configSnapshot.providerConfig(for: .windsurf)?.sanitizedCookieHeader ?? "" }
-        set {
-            self.updateProviderConfig(provider: .windsurf) { entry in
-                entry.cookieHeader = self.normalizedConfigValue(newValue)
-            }
-            self.logSecretUpdate(provider: .windsurf, field: "cookieHeader", value: newValue)
-        }
+        get { self[providerConfig: .windsurf, field: .cookieHeader] }
+        set { self[providerConfig: .windsurf, field: .cookieHeader] = newValue }
     }
 }
 

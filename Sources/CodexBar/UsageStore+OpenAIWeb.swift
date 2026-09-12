@@ -1173,7 +1173,6 @@ extension UsageStore {
         let importer = OpenAIDashboardBrowserCookieImporter(browserDetection: self.browserDetection)
         switch request.cookieSource {
         case .manual:
-            self.settings.ensureCodexCookieLoaded()
             // Manual OpenAI cookies still come from one provider-level setting. Auto-imported cookies are
             // isolated per managed account, but a manual header is an explicit override owned by settings,
             // so switching managed accounts does not currently swap it underneath the user.

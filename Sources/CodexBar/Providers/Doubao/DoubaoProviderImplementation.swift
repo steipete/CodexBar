@@ -35,8 +35,7 @@ struct DoubaoProviderImplementation: ProviderImplementation {
                             }
                         }),
                 ],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
             ProviderSettingsFieldDescriptor(
                 id: "doubao-secret-access-key",
                 title: "Secret access key",
@@ -45,8 +44,7 @@ struct DoubaoProviderImplementation: ProviderImplementation {
                 placeholder: "",
                 binding: context.stringBinding(\.doubaoSecretAccessKey),
                 actions: [],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
             ProviderSettingsFieldDescriptor(
                 id: "doubao-region",
                 title: "Region",
@@ -55,8 +53,7 @@ struct DoubaoProviderImplementation: ProviderImplementation {
                 placeholder: DoubaoSettingsReader.defaultRegion,
                 binding: context.stringBinding(\.doubaoRegion),
                 actions: [],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
         ]
     }
 }

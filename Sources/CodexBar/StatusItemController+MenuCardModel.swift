@@ -52,40 +52,15 @@ extension StatusItemController {
             errorOverride: errorOverride,
             creditsOverride: surface == .overrideCard ? creditsOverride : nil,
             now: now)
-        let credits: CreditsSnapshot?
-        let creditsError: String?
-        let dashboard: OpenAIDashboardSnapshot?
-        let dashboardError: String?
         let tokenSnapshot: CostUsageTokenSnapshot?
         let tokenError: String?
-        if let codexProjection {
-            credits = codexProjection.credits?.snapshot
-            // Credits and dashboard collection are optional adjuncts. Keep their setup diagnostics in
-            // provider Settings so a signed-out browser does not dominate the glanceable menu card.
-            creditsError = nil
-            dashboard = nil
-            dashboardError = nil
-            if surface == .liveCard {
-                tokenSnapshot = projectedTokenSnapshot ?? storedTokenSnapshot
-                tokenError = self.store.tokenError(for: target)
-            } else {
-                tokenSnapshot = projectedTokenSnapshot
-                tokenError = nil
-            }
-        } else if ProviderDescriptorRegistry.descriptor(for: target).tokenCost.supportsTokenCost,
-                  surface == .liveCard
+        // Account override cards never inherit provider-level token history or errors.
+        if surface == .liveCard,
+           codexProjection != nil || ProviderDescriptorRegistry.descriptor(for: target).tokenCost.supportsTokenCost
         {
-            credits = nil
-            creditsError = nil
-            dashboard = nil
-            dashboardError = nil
             tokenSnapshot = projectedTokenSnapshot ?? storedTokenSnapshot
             tokenError = self.store.tokenError(for: target)
         } else {
-            credits = nil
-            creditsError = nil
-            dashboard = nil
-            dashboardError = nil
             tokenSnapshot = projectedTokenSnapshot
             tokenError = nil
         }
@@ -109,10 +84,11 @@ extension StatusItemController {
             metadata: metadata,
             snapshot: snapshot,
             codexProjection: codexProjection,
-            credits: credits,
-            creditsError: creditsError,
-            dashboard: dashboard,
-            dashboardError: dashboardError,
+            credits: codexProjection?.credits?.snapshot,
+            // Optional dashboard setup diagnostics belong in provider Settings.
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
             tokenSnapshot: tokenSnapshot,
             tokenError: tokenError,
             account: fallbackAccount,

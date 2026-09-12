@@ -32,8 +32,7 @@ struct LiteLLMProviderImplementation: ProviderImplementation {
                 placeholder: "sk-…",
                 binding: context.providerConfigBinding(.apiKey),
                 actions: [],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
             ProviderSettingsFieldDescriptor(
                 id: "litellm-base-url",
                 title: "Base URL",
@@ -42,8 +41,7 @@ struct LiteLLMProviderImplementation: ProviderImplementation {
                 placeholder: "https://litellm.example.com",
                 binding: context.providerConfigBinding(.endpoint),
                 actions: [],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
         ]
     }
 }

@@ -884,21 +884,6 @@ final class ProviderSwitcherView: NSView {
         return floor(available / CGFloat(count))
     }
 
-    private static func paddedImage(_ image: NSImage, leading: CGFloat) -> NSImage {
-        let size = NSSize(width: image.size.width + leading, height: image.size.height)
-        let newImage = NSImage(size: size)
-        newImage.lockFocus()
-        let y = (size.height - image.size.height) / 2
-        image.draw(
-            at: NSPoint(x: leading, y: y),
-            from: NSRect(origin: .zero, size: image.size),
-            operation: .sourceOver,
-            fraction: 1.0)
-        newImage.unlockFocus()
-        newImage.isTemplate = image.isTemplate
-        return newImage
-    }
-
     private static func overviewIcon() -> NSImage {
         if let symbol = NSImage(systemSymbolName: "square.grid.2x2", accessibilityDescription: nil) {
             return symbol

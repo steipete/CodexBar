@@ -146,7 +146,6 @@ struct ProviderSettingsFieldDescriptor: Identifiable {
     let binding: Binding<String>
     let actions: [ProviderSettingsActionDescriptor]
     let isVisible: (() -> Bool)?
-    let onActivate: (() -> Void)?
 }
 
 /// Shared action row descriptor rendered in the Providers settings pane.

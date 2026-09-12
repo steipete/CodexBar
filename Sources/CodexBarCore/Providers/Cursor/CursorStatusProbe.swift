@@ -74,20 +74,6 @@ public enum CursorCookieImporter {
             && BrowserCookieAccessGate.shouldAttempt(browser)
     }
 
-    /// Reads Cursor session cookies from one browser if present (no fallback to other browsers).
-    static func importSessionIfPresent(
-        browser: Browser,
-        applicationURL: URL? = nil,
-        browserDetection: BrowserDetection,
-        logger: ((String) -> Void)? = nil) -> SessionInfo?
-    {
-        self.importSessionsIfPresent(
-            browser: browser,
-            applicationURL: applicationURL,
-            browserDetection: browserDetection,
-            logger: logger).first
-    }
-
     /// Reads all Cursor session-cookie candidates from one browser source order.
     static func importSessionsIfPresent(
         browser: Browser,
@@ -101,21 +87,6 @@ public enum CursorCookieImporter {
             browserDetection: browserDetection,
             requireKnownSessionName: true,
             logger: logger)
-    }
-
-    /// Like ``importSessionIfPresent`` but accepts any non-empty cookie set for Cursor domains so the API can validate
-    /// (used after the strict name pass fails — e.g. new cookie names or host-only cookies).
-    static func importDomainCookiesIfPresent(
-        browser: Browser,
-        applicationURL: URL? = nil,
-        browserDetection: BrowserDetection,
-        logger: ((String) -> Void)? = nil) -> SessionInfo?
-    {
-        self.importDomainCookieSessionsIfPresent(
-            browser: browser,
-            applicationURL: applicationURL,
-            browserDetection: browserDetection,
-            logger: logger).first
     }
 
     /// Reads fallback cookie candidates whose names are not already covered by the strict session-cookie pass.

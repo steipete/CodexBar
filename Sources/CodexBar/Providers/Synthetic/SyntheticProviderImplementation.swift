@@ -20,7 +20,6 @@ struct SyntheticProviderImplementation: ProviderImplementation {
         if SyntheticSettingsReader.apiKey(environment: context.environment) != nil {
             return true
         }
-        context.settings.ensureSyntheticAPITokenLoaded()
         return !context.settings[providerConfig: .synthetic, field: .apiKey]
             .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
@@ -36,8 +35,7 @@ struct SyntheticProviderImplementation: ProviderImplementation {
                 placeholder: "Paste key…",
                 binding: context.providerConfigBinding(.apiKey),
                 actions: [],
-                isVisible: nil,
-                onActivate: { context.settings.ensureSyntheticAPITokenLoaded() }),
+                isVisible: nil),
         ]
     }
 }

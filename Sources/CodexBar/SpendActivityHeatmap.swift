@@ -219,24 +219,6 @@ enum SpendActivityLevels {
         }
     }
 
-    static func weeklyTotals(_ daily: [Int]) -> [Int] {
-        stride(from: 0, to: daily.count, by: SpendActivitySeries.dayCount).map { start in
-            daily[start..<min(start + SpendActivitySeries.dayCount, daily.count)].reduce(0) { total, value in
-                let result = total.addingReportingOverflow(value)
-                return result.overflow ? Int.max : result.partialValue
-            }
-        }
-    }
-
-    static func cumulativeTotals(_ weekly: [Int]) -> [Int] {
-        var sum = 0
-        return weekly.map { value in
-            let result = sum.addingReportingOverflow(value)
-            sum = result.overflow ? Int.max : result.partialValue
-            return sum
-        }
-    }
-
     static func color(forLevel level: Int) -> Color {
         switch level {
         case 4: self.rgb(0x216E39)

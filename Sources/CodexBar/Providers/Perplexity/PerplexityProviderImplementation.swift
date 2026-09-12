@@ -86,8 +86,7 @@ struct PerplexityProviderImplementation: ProviderImplementation {
                             }
                         }),
                 ],
-                isVisible: { context.settings.perplexityCookieSource == .manual },
-                onActivate: nil),
+                isVisible: { context.settings.perplexityCookieSource == .manual }),
         ]
     }
 }

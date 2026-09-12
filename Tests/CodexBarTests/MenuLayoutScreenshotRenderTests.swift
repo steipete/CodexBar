@@ -472,10 +472,8 @@ final class MenuLayoutScreenshotRenderTests: XCTestCase {
                 hintLine: "Costs are estimated from local usage.",
                 errorLine: nil,
                 errorCopyText: nil)
-            let view = AnyView(UsageMenuCardCostSectionView(
+            let view = AnyView(UsageMenuCardView(
                 model: Self.costModel(tokenUsage: tokenUsage),
-                topPadding: 12,
-                bottomPadding: 12,
                 width: Self.width))
             let suffix = isRefreshing ? "refreshing" : "idle"
             let data = try XCTUnwrap(Self.pngData(for: view), "render failed for cached cost \(suffix)")

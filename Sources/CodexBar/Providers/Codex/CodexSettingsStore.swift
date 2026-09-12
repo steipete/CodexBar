@@ -224,8 +224,6 @@ extension SettingsStore {
             self.openAIWebAccessEnabled = newValue.isEnabled
         }
     }
-
-    func ensureCodexCookieLoaded() {}
 }
 
 extension SettingsStore {

@@ -13,23 +13,13 @@ extension SettingsStore {
     }
 
     var ampAPIToken: String {
-        get { self.configSnapshot.providerConfig(for: .amp)?.sanitizedAPIKey ?? "" }
-        set {
-            self.updateProviderConfig(provider: .amp) { entry in
-                entry.apiKey = self.normalizedConfigValue(newValue)
-            }
-            self.logSecretUpdate(provider: .amp, field: "apiKey", value: newValue)
-        }
+        get { self[providerConfig: .amp, field: .apiKey] }
+        set { self[providerConfig: .amp, field: .apiKey] = newValue }
     }
 
     var ampCookieHeader: String {
-        get { self.configSnapshot.providerConfig(for: .amp)?.sanitizedCookieHeader ?? "" }
-        set {
-            self.updateProviderConfig(provider: .amp) { entry in
-                entry.cookieHeader = self.normalizedConfigValue(newValue)
-            }
-            self.logSecretUpdate(provider: .amp, field: "cookieHeader", value: newValue)
-        }
+        get { self[providerConfig: .amp, field: .cookieHeader] }
+        set { self[providerConfig: .amp, field: .cookieHeader] = newValue }
     }
 
     var ampCookieSource: ProviderCookieSource {
@@ -41,10 +31,6 @@ extension SettingsStore {
             self.logProviderModeChange(provider: .amp, field: "cookieSource", value: newValue.rawValue)
         }
     }
-
-    func ensureAmpAPITokenLoaded() {}
-
-    func ensureAmpCookieLoaded() {}
 }
 
 extension SettingsStore {

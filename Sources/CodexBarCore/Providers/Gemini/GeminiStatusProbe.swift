@@ -954,10 +954,6 @@ public struct GeminiStatusProbe: Sendable {
             hostedDomain: json["hd"] as? String)
     }
 
-    private static func extractEmailFromToken(_ idToken: String?) -> String? {
-        self.extractClaimsFromToken(idToken).email
-    }
-
     private struct QuotaBucket: Decodable {
         let remainingFraction: Double?
         let resetTime: String?

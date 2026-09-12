@@ -104,8 +104,7 @@ struct AmpProviderImplementation: ProviderImplementation {
                 isVisible: {
                     context.settings.ampUsageDataSource == .auto ||
                         context.settings.ampUsageDataSource == .api
-                },
-                onActivate: { context.settings.ensureAmpAPITokenLoaded() }),
+                }),
             ProviderSettingsFieldDescriptor(
                 id: "amp-cookie",
                 title: "",
@@ -129,8 +128,7 @@ struct AmpProviderImplementation: ProviderImplementation {
                     (context.settings.ampUsageDataSource == .auto ||
                         context.settings.ampUsageDataSource == .web) &&
                         context.settings.ampCookieSource == .manual
-                },
-                onActivate: { context.settings.ensureAmpCookieLoaded() }),
+                }),
         ]
     }
 }

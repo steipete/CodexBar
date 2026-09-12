@@ -97,8 +97,7 @@ struct WindsurfProviderImplementation: ProviderImplementation {
                 actions: [],
                 isVisible: {
                     context.settings.windsurfCookieSource == .manual
-                },
-                onActivate: nil),
+                }),
         ]
     }
 }

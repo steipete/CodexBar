@@ -32,8 +32,7 @@ struct LLMProxyProviderImplementation: ProviderImplementation {
                 placeholder: "proxy key…",
                 binding: context.providerConfigBinding(.apiKey),
                 actions: [],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
             ProviderSettingsFieldDescriptor(
                 id: "llmproxy-base-url",
                 title: "Base URL",
@@ -42,8 +41,7 @@ struct LLMProxyProviderImplementation: ProviderImplementation {
                 placeholder: "https://proxy.example.com",
                 binding: context.providerConfigBinding(.endpoint),
                 actions: [],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
         ]
     }
 }

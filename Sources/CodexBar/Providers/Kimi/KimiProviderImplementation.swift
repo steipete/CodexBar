@@ -122,8 +122,7 @@ struct KimiProviderImplementation: ProviderImplementation {
                             }
                         }),
                 ],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
             ProviderSettingsFieldDescriptor(
                 id: "kimi-cookie",
                 title: "",
@@ -143,8 +142,7 @@ struct KimiProviderImplementation: ProviderImplementation {
                             }
                         }),
                 ],
-                isVisible: { context.settings.kimiCookieSource == .manual },
-                onActivate: { context.settings.ensureKimiAuthTokenLoaded() }),
+                isVisible: { context.settings.kimiCookieSource == .manual }),
         ]
     }
 }

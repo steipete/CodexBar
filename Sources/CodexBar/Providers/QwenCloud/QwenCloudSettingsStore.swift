@@ -3,13 +3,8 @@ import Foundation
 
 extension SettingsStore {
     var qwenCloudCookieHeader: String {
-        get { self.configSnapshot.providerConfig(for: .qwencloud)?.sanitizedCookieHeader ?? "" }
-        set {
-            self.updateProviderConfig(provider: .qwencloud) { entry in
-                entry.cookieHeader = self.normalizedConfigValue(newValue)
-            }
-            self.logSecretUpdate(provider: .qwencloud, field: "cookieHeader", value: newValue)
-        }
+        get { self[providerConfig: .qwencloud, field: .cookieHeader] }
+        set { self[providerConfig: .qwencloud, field: .cookieHeader] = newValue }
     }
 
     var qwenCloudCookieSource: ProviderCookieSource {

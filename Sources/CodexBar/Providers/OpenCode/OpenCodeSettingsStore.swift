@@ -14,13 +14,8 @@ extension SettingsStore {
     }
 
     var opencodeCookieHeader: String {
-        get { self.configSnapshot.providerConfig(for: .opencode)?.sanitizedCookieHeader ?? "" }
-        set {
-            self.updateProviderConfig(provider: .opencode) { entry in
-                entry.cookieHeader = self.normalizedConfigValue(newValue)
-            }
-            self.logSecretUpdate(provider: .opencode, field: "cookieHeader", value: newValue)
-        }
+        get { self[providerConfig: .opencode, field: .cookieHeader] }
+        set { self[providerConfig: .opencode, field: .cookieHeader] = newValue }
     }
 
     var opencodeCookieSource: ProviderCookieSource {
@@ -32,8 +27,6 @@ extension SettingsStore {
             self.logProviderModeChange(provider: .opencode, field: "cookieSource", value: newValue.rawValue)
         }
     }
-
-    func ensureOpenCodeCookieLoaded() {}
 }
 
 extension SettingsStore {

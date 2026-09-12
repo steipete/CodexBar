@@ -31,13 +31,8 @@ extension SettingsStore {
     }
 
     var kiloAPIToken: String {
-        get { self.configSnapshot.providerConfig(for: .kilo)?.sanitizedAPIKey ?? "" }
-        set {
-            self.updateProviderConfig(provider: .kilo) { entry in
-                entry.apiKey = self.normalizedConfigValue(newValue)
-            }
-            self.logSecretUpdate(provider: .kilo, field: "apiKey", value: newValue)
-        }
+        get { self[providerConfig: .kilo, field: .apiKey] }
+        set { self[providerConfig: .kilo, field: .apiKey] = newValue }
     }
 
     private var kiloExtrasEnabledRaw: Bool {

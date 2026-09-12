@@ -283,8 +283,7 @@ struct ClaudeProviderImplementation: ProviderImplementation {
                 placeholder: "sk-ant-admin...",
                 binding: context.stringBinding(\.claudeAdminAPIKey),
                 actions: [],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
             ProviderSettingsFieldDescriptor(
                 id: "claude-swap-executable-path",
                 title: "claude-swap executable",
@@ -293,8 +292,7 @@ struct ClaudeProviderImplementation: ProviderImplementation {
                 placeholder: "~/.local/bin/cswap",
                 binding: context.stringBinding(\.claudeSwapExecutablePath),
                 actions: [],
-                isVisible: { context.settings.claudeSwapEnabled },
-                onActivate: nil),
+                isVisible: { context.settings.claudeSwapEnabled }),
         ]
     }
 

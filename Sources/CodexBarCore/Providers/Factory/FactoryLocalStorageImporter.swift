@@ -53,16 +53,6 @@ enum FactoryLocalStorageImporter {
         return tokens
     }
 
-    static func hasSafariWorkOSRefreshToken() -> Bool {
-        for candidate in self.safariLocalStorageCandidates() {
-            guard case let .safariSQLite(dbURL) = candidate.kind else { continue }
-            if self.readWorkOSTokenFromSafariSQLite(dbURL: dbURL) != nil {
-                return true
-            }
-        }
-        return false
-    }
-
     // MARK: - Chrome local storage discovery
 
     private enum LocalStorageSourceKind {

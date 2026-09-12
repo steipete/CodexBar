@@ -72,8 +72,7 @@ struct CommandCodeProviderImplementation: ProviderImplementation {
                             }
                         }),
                 ],
-                isVisible: { context.settings.commandcodeCookieSource == .manual },
-                onActivate: { context.settings.ensureCommandCodeCookieLoaded() }),
+                isVisible: { context.settings.commandcodeCookieSource == .manual }),
         ]
     }
 }

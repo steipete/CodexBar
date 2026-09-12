@@ -230,13 +230,6 @@ extension SettingsStore {
             ])
     }
 
-    func ensureTokenAccountsLoaded() {
-        if self.tokenAccountsLoaded {
-            return
-        }
-        self.tokenAccountsLoaded = true
-    }
-
     func reloadTokenAccounts() {
         let log = CodexBarLog.logger(LogCategories.tokenAccounts)
         let accounts: [UsageProvider: ProviderTokenAccountData]
@@ -252,7 +245,6 @@ extension SettingsStore {
             log.error("Failed to reload token accounts: \(error)")
             return
         }
-        self.tokenAccountsLoaded = true
         self.updateProviderTokenAccounts(accounts)
     }
 

@@ -96,8 +96,7 @@ struct QoderProviderImplementation: ProviderImplementation {
                             NSWorkspace.shared.open(Self.usageDashboardURL(settings: context.settings))
                         }),
                 ],
-                isVisible: { context.settings.qoderCookieSource == .manual },
-                onActivate: { context.settings.ensureQoderCookieLoaded() }),
+                isVisible: { context.settings.qoderCookieSource == .manual }),
         ]
     }
 }

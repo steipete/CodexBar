@@ -30,8 +30,6 @@ extension SettingsStore {
         }
     }
 
-    func ensureMoonshotAPITokenLoaded() {}
-
     func hasMoonshotAPIToken(for region: MoonshotRegion) -> Bool {
         guard let config = self.configSnapshot.providerConfig(for: .moonshot),
               config.sanitizedAPIKeyRegion == region.rawValue

@@ -202,30 +202,6 @@ enum CLIRenderer {
         }
     }
 
-    static func gradientRemainingBar(remainingPercent: Double, width: Int) -> String {
-        let clamped = max(0, min(100, remainingPercent))
-        let barWidth = max(4, width)
-        let rawFilled = Int((clamped / 100) * Double(barWidth))
-        let filled = max(0, min(barWidth, rawFilled))
-        let empty = max(0, barWidth - filled)
-        let colors = self.remainingGradientRGB(remainingPercent: clamped)
-        var bar = ""
-        if filled > 0 {
-            for index in 0..<filled {
-                let t = filled == 1 ? 1.0 : Double(index) / Double(filled - 1)
-                let red = Int(Double(colors.dark.0) * (1 - t) + Double(colors.light.0) * t)
-                let green = Int(Double(colors.dark.1) * (1 - t) + Double(colors.light.1) * t)
-                let blue = Int(Double(colors.dark.2) * (1 - t) + Double(colors.light.2) * t)
-                bar += self.ansiTrueColor(red: red, green: green, blue: blue, "█")
-            }
-        }
-        if empty > 0 {
-            let emptyCell = self.ansiTrueColor(red: 48, green: 50, blue: 62, "░")
-            bar += String(repeating: emptyCell, count: empty)
-        }
-        return bar
-    }
-
     static func gradientRemainingTrackBar(remainingPercent: Double, width: Int) -> String {
         let clamped = max(0, min(100, remainingPercent))
         let barWidth = max(4, width)
@@ -278,10 +254,6 @@ enum CLIRenderer {
         self.ansiTrueColor(red: 198, green: 146, blue: 255, text)
     }
 
-    static func colorizeEnhancedAccent(_ text: String) -> String {
-        self.ansiTrueColor(red: 176, green: 132, blue: 232, text)
-    }
-
     static func colorizeEnhancedSubtle(_ text: String) -> String {
         self.ansiTrueColor(red: 130, green: 135, blue: 150, text)
     }
@@ -291,14 +263,7 @@ enum CLIRenderer {
     }
 
     static func colorizeEnhancedBadge(_ source: String) -> String {
-        let r = max(0, min(255, 66))
-        let g = max(0, min(255, 133))
-        let b = max(0, min(255, 244))
-        return "\u{001B}[38;2;245;248;255;48;2;\(r);\(g);\(b)m \(source) \u{001B}[0m"
-    }
-
-    static func colorizeEnhancedPlanBox(_ text: String) -> String {
-        self.ansiTrueColor(red: 220, green: 222, blue: 230, text)
+        "\u{001B}[38;2;245;248;255;48;2;66;133;244m \(source) \u{001B}[0m"
     }
 
     static func colorizeEnhancedPlanLabel(_ text: String) -> String {

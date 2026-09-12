@@ -88,14 +88,6 @@ extension UsageStore {
         self.codexCostCatchUpActivity = nil
     }
 
-    func startAcceleratedCodexCostCatchUp() {
-        self.startCodexCostCatchUpIfNeeded(mode: .accelerated)
-    }
-
-    func returnCodexCostCatchUpToBackground() {
-        self.startCodexCostCatchUpIfNeeded(mode: .automatic)
-    }
-
     func stopCodexCostCatchUp() {
         guard self.codexCostCatchUpTask != nil else { return }
         self.codexCostCatchUpStopRequested = true

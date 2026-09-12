@@ -119,12 +119,6 @@ extension UsageMenuCardView.Model {
         }
     }
 
-    static func isRequiredOpenCodeZenBalance(_ snapshot: UsageSnapshot?) -> Bool {
-        snapshot?.primary == nil &&
-            snapshot?.secondary == nil &&
-            snapshot?.providerCost?.period == "Zen balance"
-    }
-
     static func tokenUsageSnapshot(input: Input) -> CostUsageTokenSnapshot? {
         if usesProviderCostHistoryAsPrimaryDashboard(input.provider), input.snapshot != nil {
             return primaryCostHistorySnapshot(input: input)
