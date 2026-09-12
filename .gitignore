@@ -45,3 +45,7 @@ docs/.astro/
 # Swift Package Manager metadata (leave sources tracked)
 # Packages/
 # Package.resolved
+
+# Rust desktop test evidence and remote runner state
+/rust-evidence/
+/.crabbox/

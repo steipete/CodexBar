@@ -52,10 +52,10 @@ for attempt in {1..100}; do
 done
 [[ "$ready" == true ]] || { cat "$evidence_dir/panel.log"; exit 1; }
 PROTOTYPE_TEST_TRAY=1 PROTOTYPE_QPA=xcb python3 "$script_dir/smoke.py" 2>&1 | tee "$evidence_dir/x11.log"
-weston --backend=headless-backend.so --socket=codexbar-test-wayland --idle-time=0 --width=1280 --height=900 \
+weston --backend=headless-backend.so --renderer=pixman --socket=codexbar-test-wayland --idle-time=0 --width=1280 --height=900 \
   > "$evidence_dir/weston.log" 2>&1 &
 children+=("$!")
 for attempt in {1..100}; do [[ -S "$XDG_RUNTIME_DIR/codexbar-test-wayland" ]] && break; sleep 0.1; done
 [[ -S "$XDG_RUNTIME_DIR/codexbar-test-wayland" ]] || { cat "$evidence_dir/weston.log"; exit 1; }
-WAYLAND_DISPLAY=codexbar-test-wayland PROTOTYPE_TEST_TRAY=1 PROTOTYPE_QPA=wayland \
+WAYLAND_DEBUG=client WAYLAND_DISPLAY=codexbar-test-wayland PROTOTYPE_TEST_TRAY=1 PROTOTYPE_QPA=wayland \
   python3 "$script_dir/smoke.py" 2>&1 | tee "$evidence_dir/wayland.log"

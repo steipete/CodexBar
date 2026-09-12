@@ -76,6 +76,41 @@ linker deprecation warning. These are distinct from Rust Clippy diagnostics.
 Repository-wide `make test` and `make check` cannot complete here because `swift`
 and macOS `plutil`, respectively, are unavailable.
 
+## Native ARM CI and Crabbox
+
+`.github/workflows/rust-linux-prototype.yml` builds on GitHub's native
+`ubuntu-24.04-arm` and `ubuntu-24.04` runners. Both use the locked Cargo dependencies
+and Rust 1.98.1. The job runs formatting, Clippy, offscreen smoke tests, and
+`tests/desktop-session.sh`: a private D-Bus session, Xvfb, an Xfce Status Tray,
+and a headless Weston compositor. It tests X11 and Wayland clients against the
+same real StatusNotifier host. The tray host lives on X11; this does not validate
+an Omarchy/Quickshell or KDE/GNOME shell on ARM.
+
+Each job uploads platform details, QML captures, a desktop screenshot, exported
+tray pixels/tooltips, and application/compositor logs. Software rendering makes
+these tests repeatable; GPU drivers and physical displays remain separate tests.
+
+For a disposable AWS Graviton run, install Crabbox v0.57.0 or newer and authenticate
+1Password CLI. Copy `aws.env.example` to a private file, replacing its references
+with your existing AWS item's vault/item/field names. Keep references rather than
+credential values in that file. From this directory:
+
+```sh
+op run --env-file /absolute/path/to/aws-references.env -- bash tests/run-crabbox.sh
+```
+
+The wrapper requests exactly `c7g.xlarge`, ARM64, Ubuntu 24.04, On-Demand capacity,
+a 40 GB disk and a 45-minute lease. The remote command has a 30-minute timeout;
+`--stop-after always` requests cleanup on success or failure. It collects
+`rust-evidence/*` as Crabbox artifacts. Region defaults to `us-east-1`; set
+`CRABBOX_AWS_REGION` for an account's preferred region. Normal AWS charges apply.
+Direct Crabbox uses the AWS SDK credential chain, so a separate AWS CLI install
+is not required. The wrapper does not forward AWS keys to the test command.
+
+The remote script checks `uname -m` is `aarch64`, installs dependencies, builds
+natively and runs the same suite as CI. Local scripts and workflow changes are
+available on the experiment branch; this is not part of production releases.
+
 ## Remaining work before a migration
 
 This is not a replacement for the released Linux app. Real provider execution,

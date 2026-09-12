@@ -30,25 +30,43 @@ jobs:
             runner: ubuntu-24.04-arm
     env:
       QMAKE: qmake6
-      CARGO_BUILD_JOBS: '2'
+      CARGO_BUILD_JOBS: '4'
       RUSTUP_TOOLCHAIN: '1.98.1'
       PROTOTYPE_EVIDENCE_DIR: ${{ github.workspace }}/rust-evidence
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install build and desktop dependencies
-        run: bash Integrations/Linux/RustPrototype/tests/setup-ubuntu.sh
+        id: dependencies
+        run: |
+          bash Integrations/Linux/RustPrototype/tests/setup-ubuntu.sh
+          echo "qt=$(qmake6 -query QT_VERSION)" >> "$GITHUB_OUTPUT"
       - name: Install Rust
         run: rustup toolchain install "$RUSTUP_TOOLCHAIN" --profile minimal --component rustfmt --component clippy
+      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        id: cache
+        with:
+          path: |
+            ~/.cargo/registry
+            Integrations/Linux/RustPrototype/target
+          key: rust-prototype-${{ runner.os }}-${{ matrix.arch }}-${{ steps.dependencies.outputs.qt }}-${{ env.RUSTUP_TOOLCHAIN }}-${{ hashFiles('Integrations/Linux/RustPrototype/Cargo.lock', 'Integrations/Linux/RustPrototype/tests/setup-ubuntu.sh') }}
       - name: Build and lint
         working-directory: Integrations/Linux/RustPrototype
         run: |
           set -euo pipefail
+          test "$(uname -m)" = "${{ matrix.arch }}"
           mkdir -p "$PROTOTYPE_EVIDENCE_DIR"
           { uname -m; rustc --version; qmake6 -query QT_VERSION; ldd --version | head -1; } > "$PROTOTYPE_EVIDENCE_DIR/platform.txt"
           cargo fmt --check
           cargo build --locked
           cargo clippy --locked --all-targets -- -D warnings
           file target/debug/codexbar-rust-prototype >> "$PROTOTYPE_EVIDENCE_DIR/platform.txt"
+      - uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        if: steps.cache.outputs.cache-hit != 'true'
+        with:
+          path: |
+            ~/.cargo/registry
+            Integrations/Linux/RustPrototype/target
+          key: ${{ steps.cache.outputs.cache-primary-key }}
       - name: Render offscreen and exercise IPC
         run: python3 Integrations/Linux/RustPrototype/tests/smoke.py
       - name: Exercise X11 and Wayland with a tray host
