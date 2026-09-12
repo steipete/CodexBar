@@ -49,6 +49,27 @@ also lets persistence integration tests count reload attempts without calling Wi
 
 Switcher widgets share one remembered provider selection, so switching one updates all Switcher widgets. To keep Claude and Codex visible side by side, add two **CodexBar Usage** widgets and configure each widget's **Provider** separately. Usage widgets read their own configured provider instead of the shared Switcher selection.
 
+## Account selection
+
+Enable **Settings → Menu → Widgets → Keep accounts updated for widgets**, then edit a **CodexBar Usage** widget
+and choose its **Provider** and **Account**. For example, two Claude Usage widgets can pin two different Claude
+accounts while a third widget follows Codex. The existing widget sizes, usage bars and reset countdowns are reused.
+Leaving **Account** unset preserves the existing behavior of following the provider's current account.
+
+The opt-in keeps saved token accounts and visible Codex accounts refreshing independently of the menu's segmented
+or stacked layout, using the existing six-account refresh bound. Claude-swap continues to own its own polling;
+its widget choices use stable slot labels rather than persisting the adapter's personal identity fields.
+**Hide personal info** replaces other account labels with ordinals without changing widget account identities.
+
+An explicitly selected account never falls back to another account if it is removed, unavailable, or belongs to a
+different provider. Last-good account snapshots retain their measurement timestamp. Disabling the setting removes
+account choices and data from the shared snapshot; provider-only widgets keep working.
+
+Pinned account snapshots currently include quota windows only. Provider-level local cost scans, credits, and history
+are not copied into account widgets because their ownership is not necessarily the selected account. The shared
+Usage/History configuration exposes the same account selector, but a pinned account has no local cost history yet.
+Metric, Switcher, and Burn Down widgets retain their existing provider-only configuration.
+
 ## Provider picker support
 The configurable provider widgets currently expose:
 Codex, Claude, Cursor, Gemini, Alibaba, Antigravity, z.ai, Copilot, MiniMax, Kilo, OpenCode, and OpenCode Go.

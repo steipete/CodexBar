@@ -383,6 +383,14 @@ extension SettingsStore {
         set { self.kiroMenuBarDisplayModeRaw = newValue.rawValue }
     }
 
+    var accountWidgetsEnabled: Bool {
+        get { self.defaultsState.accountWidgetsEnabled }
+        set {
+            self.defaultsState.accountWidgetsEnabled = newValue
+            self.userDefaults.set(newValue, forKey: "accountWidgetsEnabled")
+        }
+    }
+
     var multiAccountMenuLayout: MultiAccountMenuLayout {
         get { MultiAccountMenuLayout(rawValue: self.defaultsState.multiAccountMenuLayoutRaw) ?? .segmented }
         set {

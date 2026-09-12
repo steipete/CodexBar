@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A094212AD26F4183B643C101 /* WidgetAccountEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = A094212AD26F4183B643C102 /* WidgetAccountEntity.swift */; };
 		0972D036B563954337344F35 /* CodexBarWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50E5C7D39315A8DA5DC9D18A /* CodexBarWidgetBundle.swift */; };
 		49DB3749D8E8748409CDC4FE /* CodexBarWidgetProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 549C61629C144C190B18EAD9 /* CodexBarWidgetProvider.swift */; };
 		6AE8A91F50B5CE058EC3F7C3 /* BurnDownWidgetViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A57F0B3D6EEDEFD75EE3F3A0 /* BurnDownWidgetViews.swift */; };
@@ -19,6 +20,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		A094212AD26F4183B643C102 /* WidgetAccountEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetAccountEntity.swift; sourceTree = "<group>"; };
 		02F15F392AF9D502F0503F8F /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		1AFF48072AC06EBE060E3AFE /* CombinedBurnDownWidgetViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CombinedBurnDownWidgetViews.swift; sourceTree = "<group>"; };
 		50E5C7D39315A8DA5DC9D18A /* CodexBarWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexBarWidgetBundle.swift; sourceTree = "<group>"; };
@@ -68,6 +70,7 @@
 				A57F0B3D6EEDEFD75EE3F3A0 /* BurnDownWidgetViews.swift */,
 				50E5C7D39315A8DA5DC9D18A /* CodexBarWidgetBundle.swift */,
 				549C61629C144C190B18EAD9 /* CodexBarWidgetProvider.swift */,
+				A094212AD26F4183B643C102 /* WidgetAccountEntity.swift */,
 				84672F595D2C0B83323E2C54 /* CodexBarWidgetViews.swift */,
 				1AFF48072AC06EBE060E3AFE /* CombinedBurnDownWidgetViews.swift */,
 			);
@@ -156,6 +159,7 @@
 				6AE8A91F50B5CE058EC3F7C3 /* BurnDownWidgetViews.swift in Sources */,
 				0972D036B563954337344F35 /* CodexBarWidgetBundle.swift in Sources */,
 				49DB3749D8E8748409CDC4FE /* CodexBarWidgetProvider.swift in Sources */,
+				A094212AD26F4183B643C101 /* WidgetAccountEntity.swift in Sources */,
 				882A41814588292DD631F525 /* CodexBarWidgetViews.swift in Sources */,
 				795FB218DC9B1C0909B4D202 /* CombinedBurnDownWidgetViews.swift in Sources */,
 			);

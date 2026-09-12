@@ -549,6 +549,7 @@ extension SettingsStore {
             ?? KiroMenuBarDisplayMode.automatic.rawValue
         let historicalTrackingEnabled = userDefaults.object(forKey: "historicalTrackingEnabled") as? Bool ?? false
         let multiAccountMenuLayoutRaw = Self.loadMultiAccountMenuLayoutRaw(userDefaults: userDefaults)
+        let accountWidgetsEnabled = userDefaults.bool(forKey: "accountWidgetsEnabled")
         let resolvedPreferences = Self.loadMenuBarMetricPreferences(userDefaults: userDefaults)
         let storedMenuBarLayout = Self.loadMenuBarLayout(userDefaults: userDefaults)
         let menuBarLayoutConditionals = Self.loadMenuBarLayoutConditionals(userDefaults: userDefaults)
@@ -699,6 +700,7 @@ extension SettingsStore {
             kiroMenuBarDisplayModeRaw: kiroMenuBarDisplayModeRaw,
             historicalTrackingEnabled: historicalTrackingEnabled,
             multiAccountMenuLayoutRaw: multiAccountMenuLayoutRaw,
+            accountWidgetsEnabled: accountWidgetsEnabled,
             menuBarMetricPreferencesRaw: resolvedPreferences,
             storedMenuBarLayout: storedMenuBarLayout,
             menuBarLayoutConditionals: menuBarLayoutConditionals,

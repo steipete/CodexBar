@@ -85,6 +85,20 @@ struct MenuPane: View {
                 Text(L("section_content"))
             }
 
+            Section("Widgets") {
+                Toggle(isOn: self.$settings.accountWidgetsEnabled) {
+                    SettingsRowLabel(
+                        "Keep accounts updated for widgets",
+                        subtitle: "Choose an account in each Usage widget. Refreshes up to six accounts per provider.")
+                }
+                .onChange(of: self.settings.accountWidgetsEnabled) { _, enabled in
+                    self.store.persistWidgetSnapshot(reason: "account-widgets-setting")
+                    if enabled {
+                        Task { await self.store.refresh() }
+                    }
+                }
+            }
+
             CostSummarySettingsSection(settings: self.settings, store: self.store)
 
             AgentSessionsSettingsSection(settings: self.settings)

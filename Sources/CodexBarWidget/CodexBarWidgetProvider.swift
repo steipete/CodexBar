@@ -78,6 +78,9 @@ struct ProviderSelectionIntent: AppIntent, WidgetConfigurationIntent {
     @Parameter(title: "Provider", default: .codex)
     var provider: ProviderChoice
 
+    @Parameter(title: "Account")
+    var account: WidgetAccountEntity?
+
     init() {
         self.provider = .codex
     }
@@ -120,6 +123,7 @@ struct CompactMetricSelectionIntent: AppIntent, WidgetConfigurationIntent {
 }
 
 struct CodexBarWidgetEntry: TimelineEntry {
+    var accountID: String?
     let date: Date
     let provider: UsageProvider
     let snapshot: WidgetSnapshot
@@ -150,9 +154,11 @@ struct CodexBarTimelineProvider: AppIntentTimelineProvider {
     func snapshot(for configuration: ProviderSelectionIntent, in context: Context) async -> CodexBarWidgetEntry {
         let provider = configuration.provider.provider
         return CodexBarWidgetEntry(
+            accountID: configuration.account?.id,
             date: Date(),
             provider: provider,
-            snapshot: WidgetSnapshotStore.load() ?? WidgetPreviewData.snapshot())
+            snapshot: (WidgetSnapshotStore.load() ?? WidgetPreviewData.snapshot())
+                .selectingAccount(configuration.account?.id, for: provider))
     }
 
     func timeline(
@@ -160,9 +166,11 @@ struct CodexBarTimelineProvider: AppIntentTimelineProvider {
         in context: Context) async -> Timeline<CodexBarWidgetEntry>
     {
         let provider = configuration.provider.provider
-        let snapshot = WidgetSnapshotStore.load() ?? WidgetPreviewData.emptySnapshot()
+        let snapshot = (WidgetSnapshotStore.load() ?? WidgetPreviewData.emptySnapshot())
+            .selectingAccount(configuration.account?.id, for: provider)
         let now = Date()
-        let entry = CodexBarWidgetEntry(date: now, provider: provider, snapshot: snapshot)
+        let entry = CodexBarWidgetEntry(
+            accountID: configuration.account?.id, date: now, provider: provider, snapshot: snapshot)
         let refresh = BurnDownRefreshSchedule.nextRefresh(snapshot: snapshot, provider: provider, now: now)
         return Timeline(entries: [entry], policy: .after(refresh))
     }
