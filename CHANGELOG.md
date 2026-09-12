@@ -2,6 +2,9 @@
 
 ## 0.60.1 — Unreleased
 
+### Added
+- Meta Muse: add Muse Code provider with local session log scanning for today/7-day token totals, Today and 30-day token cost estimates (standard and Contributor rates), model pricing catalog, inline cost dashboard, and `codexbar usage --provider muse` / `codexbar cost --provider muse` CLI support.
+
 ### Fixed
 - Antigravity: suppress remote model variants that exactly mirror a known pool and reset, preserve distinct quota rows and their saved visibility, and prefer known usage over reset-only duplicates (#3583). Thanks @hhh2210!
 
