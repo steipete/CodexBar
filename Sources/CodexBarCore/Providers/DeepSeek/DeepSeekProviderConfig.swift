@@ -12,10 +12,10 @@ extension ProviderConfig {
     }
 
     public var sanitizedDeepSeekProfileID: String? {
-        Self.clean(self.deepseekProfileID).map(DeepSeekSettingsReader.canonicalProfileID)
+        SettingsValue.cleaned(self.deepseekProfileID).map(DeepSeekSettingsReader.canonicalProfileID)
     }
 
     public var sanitizedDeepSeekProfileScope: String? {
-        Self.clean(self.deepseekProfileScope)
+        SettingsValue.cleaned(self.deepseekProfileScope)
     }
 }

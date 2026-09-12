@@ -148,8 +148,10 @@ actor CostUsageStore {
     private let expectedParserHash: String
     private let busyTimeoutMilliseconds: Int32
     private var connection: SQLiteConnection?
+    var requiresReadReopen = false
     private var failureGeneration = UUID()
     var retainedCodexBaseline: RetainedCodexBaseline?
+    var retainedCodexRead: RetainedCodexRead?
     #if DEBUG
     var codexBaselineReleaseObserverForTesting: (@Sendable () -> Void)?
     #endif
@@ -407,6 +409,7 @@ extension CostUsageStore {
     /// next access reopens the intact file.
     func recoverConnectionAfterFailure() {
         self.retainedCodexBaseline = nil
+        self.retainedCodexRead = nil
         self.failureGeneration = UUID()
         guard let handle = self.connection?.handle else { return }
         if sqlite3_get_autocommit(handle) == 0,
@@ -485,6 +488,7 @@ extension CostUsageStore {
         defer {
             if sqlite3_total_changes64(database) != changes {
                 self.retainedCodexBaseline = nil
+                self.retainedCodexRead = nil
             } else if let retained = self.retainedCodexBaseline,
                       (try? Self.scalarInt(database, "PRAGMA schema_version")) != retained.baseline.stamp.schemaVersion
                       || (try? Self.scalarInt(database, "PRAGMA user_version")) != retained.baseline.stamp.userVersion
@@ -496,6 +500,7 @@ extension CostUsageStore {
             return try operation(database)
         } catch {
             self.retainedCodexBaseline = nil
+            self.retainedCodexRead = nil
             self.failureGeneration = UUID()
             throw error
         }
@@ -504,6 +509,7 @@ extension CostUsageStore {
     #if DEBUG
     func closeConnectionForTesting() {
         self.retainedCodexBaseline = nil
+        self.retainedCodexRead = nil
         self.connection?.close()
         self.connection = nil
     }
@@ -511,15 +517,17 @@ extension CostUsageStore {
 
     func ensureDatabase() throws -> OpaquePointer {
         if let database = self.connection?.handle {
-            if try self.connectionMatchesPath(database) {
+            if !self.requiresReadReopen, try self.connectionMatchesPath(database) {
                 return database
             }
             self.retainedCodexBaseline = nil
+            self.retainedCodexRead = nil
             // Never reopen underneath a transaction (including its COMMIT/ROLLBACK).
             guard sqlite3_get_autocommit(database) != 0 else { throw StoreError.sqlite(SQLITE_IOERR) }
             self.connection?.close()
             self.connection = nil
         }
+        self.requiresReadReopen = false
         do {
             let opened = try self.openDatabase()
             self.connection = SQLiteConnection(handle: opened, identity: Self.databaseIdentity(at: self.databaseURL))
@@ -669,6 +677,7 @@ extension CostUsageStore {
 
     private func rebuildDatabase(reason: String) {
         self.retainedCodexBaseline = nil
+        self.retainedCodexRead = nil
         self.connection?.close()
         self.connection = nil
         for suffix in ["", "-wal", "-shm"] {

@@ -61,6 +61,23 @@ extension CostUsageStore {
         _ = self.removeLegacyCodexArtifactIfPresent()
         return self.withDatabase(default: CostUsageStoreReadView(cache: CostUsageCache())) { database in
             let recorder = self.scopedReadWorkRecorderForTesting
+            guard let before = try self.databaseStamp(database) else {
+                self.retainedCodexRead = nil
+                self.requiresReadReopen = true
+                return CostUsageStoreReadView(cache: CostUsageCache())
+            }
+            if let retained = self.retainedCodexRead,
+               retained.stamp == before,
+               retained.purpose.includes(purpose)
+            {
+                guard retained.decoded.timeZoneIdentifier == nil
+                    || retained.decoded.timeZoneIdentifier == calendar.timeZone.identifier
+                else { return CostUsageStoreReadView(cache: CostUsageCache()) }
+                recorder?.recordReadViewConversion(database: database)
+                return CostUsageStoreReadView(cache: Self.reconciledCodexCache(
+                    retained.decoded,
+                    persistence: retained.persistence))
+            }
             let (snapshot, retryPresence) = try Self.inReadTransaction(database) {
                 let snapshot = try CostUsageStoreSnapshot(
                     metadata: Self.readSingleton(
@@ -79,15 +96,42 @@ extension CostUsageStore {
                         CostUsageStoreLookbackState.self, database: database, table: "lookback_state"),
                     accumulators: [])
                 let retryPresence = try Self.readRetryBufferPresence(database, recorder: recorder)
+                #if DEBUG
+                try self.runCodexReadCheckpointForTesting()
+                #endif
                 return (snapshot, retryPresence)
+            }
+            // A read transaction pins data_version. Cache only a snapshot that is still current
+            // after COMMIT so an external writer can never make a stale warm view authoritative.
+            let after = try self.databaseStamp(database)
+            guard let after, before == after else {
+                self.retainedCodexRead = nil
+                // Re-enter open-time compatibility validation on the next access, after this handle's use ends.
+                self.requiresReadReopen = after == nil
+                return CostUsageStoreReadView(cache: CostUsageCache())
             }
             guard snapshot.metadata.timeZoneIdentifier == nil
                 || snapshot.metadata.timeZoneIdentifier == calendar.timeZone.identifier
             else { return CostUsageStoreReadView(cache: CostUsageCache()) }
             // Identity/anchor reconciliation touches the filesystem; do not pin a SQLite reader during it.
+            let decoded = Self.decodeCodexCache(
+                from: snapshot,
+                recorder: recorder,
+                retryPresence: retryPresence)
+            let persistence = CodexPersistenceState(snapshot: snapshot)
+            // Activity is a superset of status and becomes the one bounded warm read state.
+            // Detailed reports keep their larger event history transient.
+            if purpose != .report {
+                self.retainedCodexRead = RetainedCodexRead(
+                    decoded: decoded,
+                    persistence: persistence,
+                    stamp: after,
+                    purpose: purpose)
+            }
             recorder?.recordReadViewConversion(database: database)
-            return CostUsageStoreReadView(cache: Self.cache(
-                from: snapshot, recorder: recorder, retryPresence: retryPresence))
+            return CostUsageStoreReadView(cache: Self.reconciledCodexCache(
+                decoded,
+                persistence: persistence))
         }
     }
 
@@ -1378,12 +1422,38 @@ struct CostUsageStoreLoad: @unchecked Sendable {
 }
 
 enum CostUsageStoreAccess {
+    private final class SharedReadStoreRegistry: @unchecked Sendable {
+        private let lock = NSLock()
+        private var entries: [(path: String, store: CostUsageStore)] = []
+        /// The app normally owns one cache root. Keep a small bound for managed/test roots so
+        /// decoded activity state and idle SQLite connections cannot grow with every path seen.
+        private let capacity = 4
+
+        func store(cacheRoot: URL?) -> CostUsageStore {
+            let candidate = CostUsageStore(cacheRoot: cacheRoot)
+            let key = candidate.databaseURL.standardizedFileURL.path
+            return self.lock.withLock {
+                let store: CostUsageStore = if let index = self.entries.firstIndex(where: { $0.path == key }) {
+                    self.entries.remove(at: index).store
+                } else {
+                    candidate
+                }
+                self.entries.append((key, store))
+                if self.entries.count > self.capacity { self.entries.removeFirst() }
+                return store
+            }
+        }
+    }
+
+    private static let sharedReadStores = SharedReadStoreRegistry()
+
     static func readView(
         cacheRoot: URL?,
         calendar: Calendar,
         purpose: CostUsageStoreReadPurpose) -> CostUsageStoreReadView
     {
-        CostUsageStore(cacheRoot: cacheRoot).syncLoadCodexReadView(calendar: calendar, purpose: purpose)
+        self.sharedReadStores.store(cacheRoot: cacheRoot)
+            .syncLoadCodexReadView(calendar: calendar, purpose: purpose)
     }
 
     static func load(cacheRoot: URL?, calendar: Calendar) -> CostUsageStoreLoad {

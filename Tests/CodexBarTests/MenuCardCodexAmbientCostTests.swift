@@ -125,10 +125,10 @@ struct MenuCardCodexAmbientCostTests {
     }
 
     @Test(arguments: [2, 5], CostSummaryDisplayStyle.allCases)
-    func `both account layouts honor the shared cost display mode`(count: Int, style: CostSummaryDisplayStyle) throws {
+    func `both account layouts honor the shared cost display mode`(count: Int, style: CostSummaryDisplayStyle) {
         let fixture = Self.makeFixture()
         fixture.settings.costSummaryDisplayStyle = style
-        try withStatusItemControllerForTesting(
+        withStatusItemControllerForTesting(
             store: fixture.store,
             settings: fixture.settings,
             fetcher: fixture.fetcher)

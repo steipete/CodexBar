@@ -258,6 +258,10 @@ is limited, using additional rows when needed.
     connection, database identity and SQLite change observations,
     checking again under the writer lock. Filesystem/anchor and catch-up reconciliation still run at comparison
     time; a concurrent database change requests a rescan. Fresh database opens retain integrity validation.
+  - Up to four recently used cache roots retain validated reader connections and decoded status/activity data.
+    External writes invalidate cached data; database replacement or incompatible metadata reopens the reader through
+    existing validation on its next access. Every read still reconciles file identities, and detailed report history
+    remains transient. Scanner and writer connections keep separate ownership.
   - Saved day/model aggregates group each file's usage rows in one pass per aggregate build. Packed token totals,
     authoritative costs (including zero), and standard/priority estimation buckets retain their existing meanings.
   - Fully read empty session fragments retain completion records even when another file contributes the same session.

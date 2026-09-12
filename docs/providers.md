@@ -17,7 +17,9 @@ Source labels (CLI/header): `openai-web`, `web`, `oauth`, `api`, `local`, `cli`,
 
 Cookie-based providers expose a Cookie source picker (Automatic or Manual) in Settings → Providers.
 Some browser cookie imports are cached in Keychain and reused until the session is invalid. API keys, manual cookie
-headers, source selection, provider ordering, and token accounts are stored in `~/.codexbar/config.json`.
+headers, source selection, provider ordering, and token accounts are stored in the resolved config file.
+New installs use `~/.config/codexbar/config.json`; existing `~/.codexbar/config.json` installs retain that legacy path.
+See [CLI configuration](cli-configuration.md) for `XDG_CONFIG_HOME` and `CODEXBAR_CONFIG` overrides.
 
 ## Usage & Spend settings
 

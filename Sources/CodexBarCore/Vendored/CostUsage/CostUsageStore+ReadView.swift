@@ -112,4 +112,8 @@ enum CostUsageStoreReadPurpose {
     /// Scoped token totals and coverage only; no per-event history for detailed reports.
     case activity
     case report
+
+    func includes(_ requested: Self) -> Bool {
+        self == requested || self == .report || (self == .activity && requested == .status)
+    }
 }

@@ -9,7 +9,7 @@ public enum NeuralWattSettingsReader {
 
     public static func apiKey(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
         for key in self.apiKeyEnvironmentKeys {
-            guard let token = self.cleaned(environment[key]) else { continue }
+            guard let token = SettingsValue.cleaned(environment[key]) else { continue }
             return token
         }
         return nil
@@ -25,26 +25,13 @@ public enum NeuralWattSettingsReader {
     public static func validateEndpointOverrides(
         environment: [String: String] = ProcessInfo.processInfo.environment) throws
     {
-        guard let raw = self.cleaned(environment[self.apiURLEnvironmentKey]) else { return }
+        guard let raw = SettingsValue.cleaned(environment[self.apiURLEnvironmentKey]) else { return }
         guard ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: raw) == nil else { return }
         throw NeuralWattSettingsError.invalidEndpointOverride(self.apiURLEnvironmentKey)
     }
 
-    static func cleaned(_ raw: String?) -> String? {
-        guard var value = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
-            return nil
-        }
-        if (value.hasPrefix("\"") && value.hasSuffix("\"")) ||
-            (value.hasPrefix("'") && value.hasSuffix("'"))
-        {
-            value = String(value.dropFirst().dropLast())
-        }
-        value = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return value.isEmpty ? nil : value
-    }
-
     private static func validAPIURL(environment: [String: String]) -> URL? {
-        guard let raw = self.cleaned(environment[self.apiURLEnvironmentKey]) else { return nil }
+        guard let raw = SettingsValue.cleaned(environment[self.apiURLEnvironmentKey]) else { return nil }
         return ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: raw)
     }
 }

@@ -6,23 +6,8 @@ public struct SyntheticSettingsReader: Sendable {
     public static func apiKey(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
     {
-        if let token = self.cleaned(environment[apiKeyKey]) { return token }
+        if let token = SettingsValue.cleaned(environment[apiKeyKey]) { return token }
         return nil
-    }
-
-    static func cleaned(_ raw: String?) -> String? {
-        guard var value = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
-            return nil
-        }
-
-        if (value.hasPrefix("\"") && value.hasSuffix("\"")) ||
-            (value.hasPrefix("'") && value.hasSuffix("'"))
-        {
-            value = String(value.dropFirst().dropLast())
-        }
-
-        value = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return value.isEmpty ? nil : value
     }
 }
 

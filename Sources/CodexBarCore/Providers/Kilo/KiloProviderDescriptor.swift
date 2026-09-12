@@ -187,7 +187,7 @@ struct KiloCLIFetchStrategy: ProviderFetchStrategy {
     }
 
     private static func authFileURL(environment: [String: String]) -> URL {
-        if let home = KiloSettingsReader.cleaned(environment["HOME"]) {
+        if let home = SettingsValue.cleaned(environment["HOME"]) {
             let expandedHome = NSString(string: home).expandingTildeInPath
             return KiloSettingsReader.defaultAuthFileURL(
                 homeDirectory: URL(fileURLWithPath: expandedHome, isDirectory: true))

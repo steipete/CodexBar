@@ -122,7 +122,7 @@ public struct OpenAIAPIUsageSnapshot: Codable, Equatable, Sendable {
         self.daily = daily.sorted { $0.startTime < $1.startTime }
         self.updatedAt = updatedAt
         self.historyDays = max(1, min(365, historyDays))
-        self.projectID = OpenAIAPISettingsReader.cleaned(projectID)
+        self.projectID = SettingsValue.cleaned(projectID)
     }
 
     public var last30Days: Summary {

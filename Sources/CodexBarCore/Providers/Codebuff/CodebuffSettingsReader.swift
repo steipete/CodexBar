@@ -8,7 +8,7 @@ public enum CodebuffSettingsReader {
 
     /// Returns the API token from environment if present and non-empty.
     public static func apiKey(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
-        self.cleaned(environment[self.apiTokenKey])
+        SettingsValue.cleaned(environment[self.apiTokenKey])
     }
 
     /// Returns the API base URL, defaulting to the production endpoint.
@@ -22,7 +22,7 @@ public enum CodebuffSettingsReader {
     public static func validateEndpointOverrides(
         environment: [String: String] = ProcessInfo.processInfo.environment) throws
     {
-        guard let raw = self.cleaned(environment["CODEBUFF_API_URL"]) else { return }
+        guard let raw = SettingsValue.cleaned(environment["CODEBUFF_API_URL"]) else { return }
         guard ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: raw) == nil else { return }
         throw CodebuffSettingsError.invalidEndpointOverride("CODEBUFF_API_URL")
     }
@@ -49,26 +49,11 @@ public enum CodebuffSettingsReader {
         guard let payload = try? JSONDecoder().decode(CredentialsFile.self, from: data) else {
             return nil
         }
-        return self.cleaned(payload.default?.authToken) ?? self.cleaned(payload.authToken)
-    }
-
-    static func cleaned(_ raw: String?) -> String? {
-        guard var value = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
-            return nil
-        }
-
-        if (value.hasPrefix("\"") && value.hasSuffix("\"")) ||
-            (value.hasPrefix("'") && value.hasSuffix("'"))
-        {
-            value = String(value.dropFirst().dropLast())
-        }
-
-        value = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return value.isEmpty ? nil : value
+        return SettingsValue.cleaned(payload.default?.authToken) ?? SettingsValue.cleaned(payload.authToken)
     }
 
     private static func validAPIURL(environment: [String: String]) -> URL? {
-        guard let raw = self.cleaned(environment["CODEBUFF_API_URL"]) else { return nil }
+        guard let raw = SettingsValue.cleaned(environment["CODEBUFF_API_URL"]) else { return nil }
         return ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: raw)
     }
 }

@@ -223,13 +223,12 @@ public enum AntigravityProviderDescriptor {
     }
 
     static func resolveFallbackError(_ previous: Error?, _ current: Error) -> Error {
-        if (previous as? AntigravityStatusProbeError) == .authenticationRequired,
-           let currentProbeError = current as? AntigravityStatusProbeError,
-           currentProbeError == .notRunning || currentProbeError == .missingCSRFToken
-        {
-            return previous ?? current
+        guard let previous else { return current }
+        return switch current as? AntigravityStatusProbeError {
+        case .notRunning, .missingCSRFToken:
+            (previous as? AntigravityStatusProbeError) == .notRunning ? current : previous
+        default: current
         }
-        return current
     }
 }
 

@@ -57,9 +57,10 @@ struct KeychainStringStoreTests {
     @Test(arguments: [errSecSuccess, errSecItemNotFound])
     func `writes update existing items and add only missing items`(updateStatus: OSStatus) throws {
         let backend = Backend(updateStatus: updateStatus)
-        try KeychainAccessGate.withTaskOverrideForTesting(false) {
+        let stored = try KeychainAccessGate.withTaskOverrideForTesting(false) {
             try self.store(backend).store("  synthetic-value\n")
         }
+        #expect(stored)
         #expect(backend.calls == (updateStatus == errSecSuccess ? ["update"] : ["update", "add"]))
         #expect(backend.attributes?[kSecValueData as String] as? Data == Data("synthetic-value".utf8))
         #expect(backend.attributes?[kSecAttrAccessible as String] as? String ==
@@ -71,9 +72,10 @@ struct KeychainStringStoreTests {
     @Test(arguments: [nil, "", " \n", "invalid-cookie"] as [String?])
     func `empty or rejected writes delete the item`(value: String?) throws {
         let backend = Backend()
-        try KeychainAccessGate.withTaskOverrideForTesting(false) {
+        let stored = try KeychainAccessGate.withTaskOverrideForTesting(false) {
             try self.store(backend).store(value, isValid: { $0 != "invalid-cookie" })
         }
+        #expect(stored)
         #expect(backend.calls == ["delete"])
     }
 

@@ -10,12 +10,12 @@ public enum KimiSettingsReader {
 
     public static func authToken(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
         let raw = environment["KIMI_AUTH_TOKEN"] ?? environment["kimi_auth_token"]
-        return self.cleaned(raw)
+        return SettingsValue.cleaned(raw)
     }
 
     public static func apiKey(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
         for key in self.apiKeyEnvironmentKeys {
-            if let value = self.cleaned(environment[key]) {
+            if let value = SettingsValue.cleaned(environment[key]) {
                 return value
             }
         }
@@ -25,7 +25,7 @@ public enum KimiSettingsReader {
     public static func codeAPIBaseURL(
         environment: [String: String] = ProcessInfo.processInfo.environment) throws -> URL
     {
-        guard let raw = self.cleaned(environment[self.codeAPIBaseURLEnvironmentKey]) else {
+        guard let raw = SettingsValue.cleaned(environment[self.codeAPIBaseURLEnvironmentKey]) else {
             return self.defaultCodeAPIBaseURL
         }
 
@@ -59,7 +59,8 @@ public enum KimiSettingsReader {
         else {
             return false
         }
-        return self.cleaned(credential.accessToken) != nil || self.cleaned(credential.refreshToken) != nil
+        return SettingsValue.cleaned(credential.accessToken) != nil || SettingsValue
+            .cleaned(credential.refreshToken) != nil
     }
 
     static func kimiCodeIdentityHeaders(environment: [String: String]) -> [String: String] {
@@ -81,8 +82,8 @@ public enum KimiSettingsReader {
     }
 
     private static func hasCodeEndpointOverride(environment: [String: String]) -> Bool {
-        if self.cleaned(environment[self.codeAPIBaseURLEnvironmentKey]) != nil { return true }
-        return self.codeOAuthHostEnvironmentKeys.contains { self.cleaned(environment[$0]) != nil }
+        if SettingsValue.cleaned(environment[self.codeAPIBaseURLEnvironmentKey]) != nil { return true }
+        return self.codeOAuthHostEnvironmentKeys.contains { SettingsValue.cleaned(environment[$0]) != nil }
     }
 
     private static func kimiCodeCredential(environment: [String: String]) -> KimiCodeOAuthCredential? {
@@ -102,7 +103,7 @@ public enum KimiSettingsReader {
         let home = self.kimiCodeHomeURL(environment: environment)
         let url = home
             .appendingPathComponent("device_id", isDirectory: false)
-        if let existing = self.cleaned(try? String(contentsOf: url, encoding: .utf8)) {
+        if let existing = SettingsValue.cleaned(try? String(contentsOf: url, encoding: .utf8)) {
             return existing
         }
 
@@ -121,7 +122,7 @@ public enum KimiSettingsReader {
     }
 
     private static func kimiCodeHomeURL(environment: [String: String]) -> URL {
-        if let override = self.cleaned(environment[self.codeHomeEnvironmentKey]) {
+        if let override = SettingsValue.cleaned(environment[self.codeHomeEnvironmentKey]) {
             return URL(fileURLWithPath: override, isDirectory: true)
         }
         return FileManager.default.homeDirectoryForCurrentUser
@@ -155,21 +156,6 @@ public enum KimiSettingsReader {
         #else
         "unknown"
         #endif
-    }
-
-    private static func cleaned(_ raw: String?) -> String? {
-        guard var value = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
-            return nil
-        }
-
-        if (value.hasPrefix("\"") && value.hasSuffix("\"")) ||
-            (value.hasPrefix("'") && value.hasSuffix("'"))
-        {
-            value = String(value.dropFirst().dropLast())
-        }
-
-        value = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return value.isEmpty ? nil : value
     }
 }
 

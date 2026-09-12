@@ -65,22 +65,9 @@ public struct DoubaoSettingsReader: Sendable {
 
     private static func firstValue(in environment: [String: String], keys: [String]) -> String? {
         for key in keys {
-            guard let cleaned = self.cleaned(environment[key]) else { continue }
+            guard let cleaned = SettingsValue.cleaned(environment[key]) else { continue }
             return cleaned
         }
         return nil
-    }
-
-    static func cleaned(_ raw: String?) -> String? {
-        guard var value = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
-            return nil
-        }
-        if (value.hasPrefix("\"") && value.hasSuffix("\"")) ||
-            (value.hasPrefix("'") && value.hasSuffix("'"))
-        {
-            value = String(value.dropFirst().dropLast())
-        }
-        value = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return value.isEmpty ? nil : value
     }
 }

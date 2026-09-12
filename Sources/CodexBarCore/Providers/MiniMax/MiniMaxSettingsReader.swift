@@ -38,7 +38,7 @@ public struct MiniMaxSettingsReader: Sendable {
 
     public static func hostOverride(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
         self.endpointValidator.validatedHost(
-            self.cleaned(environment[self.hostKey]),
+            SettingsValue.cleaned(environment[self.hostKey]),
             policy: self.endpointOverrideHostPolicy(environment: environment))
     }
 
@@ -47,7 +47,7 @@ public struct MiniMaxSettingsReader: Sendable {
     {
         let policy = self.endpointOverrideHostPolicy(environment: environment)
         return self.endpointOverrideKeys.first { key in
-            guard let value = self.cleaned(environment[key]) else { return false }
+            guard let value = SettingsValue.cleaned(environment[key]) else { return false }
             if key == Self.hostKey {
                 return self.endpointValidator.validatedHost(value, policy: policy) == nil
             }
@@ -59,7 +59,7 @@ public struct MiniMaxSettingsReader: Sendable {
         environment: [String: String] = ProcessInfo.processInfo.environment) -> URL?
     {
         self.endpointValidator.validatedURL(
-            self.cleaned(environment[self.codingPlanURLKey]),
+            SettingsValue.cleaned(environment[self.codingPlanURLKey]),
             policy: self.endpointOverrideHostPolicy(environment: environment))
     }
 
@@ -67,7 +67,7 @@ public struct MiniMaxSettingsReader: Sendable {
         environment: [String: String] = ProcessInfo.processInfo.environment) -> URL?
     {
         self.endpointValidator.validatedURL(
-            self.cleaned(environment[self.remainsURLKey]),
+            SettingsValue.cleaned(environment[self.remainsURLKey]),
             policy: self.endpointOverrideHostPolicy(environment: environment))
     }
 
@@ -75,31 +75,16 @@ public struct MiniMaxSettingsReader: Sendable {
         environment: [String: String] = ProcessInfo.processInfo.environment) -> URL?
     {
         self.endpointValidator.validatedURL(
-            self.cleaned(environment[self.billingHistoryURLKey]),
+            SettingsValue.cleaned(environment[self.billingHistoryURLKey]),
             policy: self.endpointOverrideHostPolicy(environment: environment))
     }
 
     static func endpointOverrideHostPolicy(environment: [String: String]) -> ProviderEndpointOverrideValidator
     .HostPolicy {
-        guard let value = self.cleaned(environment[self.requireProviderEndpointOverridesKey])?.lowercased(),
+        guard let value = SettingsValue.cleaned(environment[self.requireProviderEndpointOverridesKey])?.lowercased(),
               ["1", "true", "yes", "on"].contains(value)
         else { return .allowAnyHTTPSHost }
         return .providerOwnedOnly
-    }
-
-    static func cleaned(_ raw: String?) -> String? {
-        guard var value = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
-            return nil
-        }
-
-        if (value.hasPrefix("\"") && value.hasSuffix("\"")) ||
-            (value.hasPrefix("'") && value.hasSuffix("'"))
-        {
-            value = String(value.dropFirst().dropLast())
-        }
-
-        value = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return value.isEmpty ? nil : value
     }
 }
 

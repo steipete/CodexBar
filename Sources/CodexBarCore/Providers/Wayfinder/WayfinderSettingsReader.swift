@@ -19,7 +19,7 @@ public enum WayfinderSettingsReader {
     public static func baseURL(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> URL
     {
-        guard let raw = self.cleaned(environment[self.baseURLEnvironmentKey]) else {
+        guard let raw = SettingsValue.cleaned(environment[self.baseURLEnvironmentKey]) else {
             return self.defaultBaseURL
         }
         // Loopback HTTP is allowed because the gateway is a local service; the default
@@ -30,7 +30,7 @@ public enum WayfinderSettingsReader {
     public static func validateEndpointOverride(
         environment: [String: String] = ProcessInfo.processInfo.environment) throws
     {
-        guard let raw = self.cleaned(environment[self.baseURLEnvironmentKey]) else { return }
+        guard let raw = SettingsValue.cleaned(environment[self.baseURLEnvironmentKey]) else { return }
         guard ProviderEndpointOverrideValidator().validatedURLAllowingLoopbackHTTP(raw) != nil else {
             throw WayfinderSettingsError.invalidEndpointOverride(self.baseURLEnvironmentKey)
         }
@@ -49,18 +49,5 @@ public enum WayfinderSettingsReader {
         components.query = nil
         components.fragment = nil
         return components.url ?? baseURL
-    }
-
-    static func cleaned(_ raw: String?) -> String? {
-        guard var value = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
-            return nil
-        }
-        if (value.hasPrefix("\"") && value.hasSuffix("\"")) ||
-            (value.hasPrefix("'") && value.hasSuffix("'"))
-        {
-            value = String(value.dropFirst().dropLast())
-        }
-        value = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return value.isEmpty ? nil : value
     }
 }

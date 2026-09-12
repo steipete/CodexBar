@@ -6,11 +6,11 @@ public enum PerplexitySettingsReader {
     {
         let raw = environment["PERPLEXITY_SESSION_TOKEN"]
             ?? environment["perplexity_session_token"]
-        if let token = self.cleaned(raw) { return PerplexityCookieHeader.override(from: token) }
+        if let token = SettingsValue.cleaned(raw) { return PerplexityCookieHeader.override(from: token) }
 
         // PERPLEXITY_COOKIE may be a full Cookie header string; preserve the matching session cookie name.
         if let cookieRaw = environment["PERPLEXITY_COOKIE"] {
-            return PerplexityCookieHeader.override(from: self.cleaned(cookieRaw))
+            return PerplexityCookieHeader.override(from: SettingsValue.cleaned(cookieRaw))
         }
         return nil
     }
@@ -19,20 +19,5 @@ public enum PerplexitySettingsReader {
         environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
     {
         self.sessionCookieOverride(environment: environment)?.token
-    }
-
-    private static func cleaned(_ raw: String?) -> String? {
-        guard var value = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
-            return nil
-        }
-
-        if (value.hasPrefix("\"") && value.hasSuffix("\"")) ||
-            (value.hasPrefix("'") && value.hasSuffix("'"))
-        {
-            value = String(value.dropFirst().dropLast())
-        }
-
-        value = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return value.isEmpty ? nil : value
     }
 }

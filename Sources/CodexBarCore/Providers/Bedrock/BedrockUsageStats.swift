@@ -233,7 +233,7 @@ enum BedrockUsageFetcher {
     {
         let ceRegion = "us-east-1"
         let baseURL: URL = if environment[BedrockSettingsReader.apiURLKey] != nil {
-            if let override = BedrockSettingsReader.cleaned(environment[BedrockSettingsReader.apiURLKey]),
+            if let override = SettingsValue.cleaned(environment[BedrockSettingsReader.apiURLKey]),
                let url = ProviderEndpointOverrideValidator().validatedURLAllowingLoopbackHTTP(override)
             {
                 url
@@ -294,7 +294,7 @@ enum BedrockUsageFetcher {
         guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw BedrockUsageError.parseFailed("Invalid Cost Explorer response")
         }
-        return BedrockSettingsReader.cleaned(json["NextPageToken"] as? String)
+        return SettingsValue.cleaned(json["NextPageToken"] as? String)
     }
 
     private static func parseTotalCost(_ pages: [Data]) throws -> Double {

@@ -659,7 +659,7 @@ public struct MiniMaxUsageFetcher: Sendable {
     }
 
     static func url(from raw: String, path: String? = nil, query: String? = nil) -> URL? {
-        guard let cleaned = MiniMaxSettingsReader.cleaned(raw) else { return nil }
+        guard let cleaned = SettingsValue.cleaned(raw) else { return nil }
 
         func compose(_ base: URL) -> URL? {
             var components = URLComponents(url: base, resolvingAgainstBaseURL: false)!
