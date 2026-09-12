@@ -55,11 +55,12 @@ struct CodexAccountsSectionState: Equatable {
     }
 
     var canAddAccount: Bool {
-        !self.hasUnreadableManagedAccountStore &&
-            !self.isAuthenticatingManagedAccount &&
-            !self.isRemovingManagedAccount &&
-            !self.isAuthenticatingLiveAccount &&
-            !self.isPromotingSystemAccount
+        !self.hasUnreadableManagedAccountStore && !self.hasAccountOperationInFlight
+    }
+
+    private var hasAccountOperationInFlight: Bool {
+        self.isAuthenticatingManagedAccount || self.isRemovingManagedAccount ||
+            self.isAuthenticatingLiveAccount || self.isPromotingSystemAccount
     }
 
     var addAccountTitle: String {
@@ -74,11 +75,7 @@ struct CodexAccountsSectionState: Equatable {
     }
 
     var isSystemSelectionDisabled: Bool {
-        self.hasUnreadableManagedAccountStore ||
-            self.isAuthenticatingManagedAccount ||
-            self.isRemovingManagedAccount ||
-            self.isAuthenticatingLiveAccount ||
-            self.isPromotingSystemAccount
+        !self.canAddAccount
     }
 
     func canPromoteToSystem(_ account: CodexVisibleAccount) -> Bool {
@@ -88,34 +85,29 @@ struct CodexAccountsSectionState: Equatable {
     }
 
     func canReauthenticate(_ account: CodexVisibleAccount) -> Bool {
-        guard account.canReauthenticate else { return false }
-        guard self.isAuthenticatingManagedAccount == false else { return false }
-        guard self.isRemovingManagedAccount == false else { return false }
-        guard self.isAuthenticatingLiveAccount == false else { return false }
-        guard self.isPromotingSystemAccount == false else { return false }
-        if account.storedAccountID != nil {
-            return self.hasUnreadableManagedAccountStore == false
+        guard account.canReauthenticate, !self.hasAccountOperationInFlight else { return false }
+        switch account.selectionSource {
+        case .managedAccount:
+            return !self.hasUnreadableManagedAccountStore
+        case .liveSystem:
+            return true
+        case .profileHome:
+            return false
         }
-        return true
     }
 
     func canRemove(_ account: CodexVisibleAccount) -> Bool {
-        guard account.canRemove else { return false }
-        guard self.isAuthenticatingManagedAccount == false else { return false }
-        guard self.isRemovingManagedAccount == false else { return false }
-        guard self.isAuthenticatingLiveAccount == false else { return false }
-        guard self.isPromotingSystemAccount == false else { return false }
-        return self.hasUnreadableManagedAccountStore == false
+        account.canRemove && self.canAddAccount
     }
 
     func reauthenticateTitle(for account: CodexVisibleAccount) -> String {
-        if let accountID = account.storedAccountID,
+        if case let .managedAccount(accountID) = account.selectionSource,
            self.isAuthenticatingManagedAccount,
            self.authenticatingManagedAccountID == accountID
         {
             return L("Re-authenticating…")
         }
-        if account.storedAccountID == nil, self.isAuthenticatingLiveAccount {
+        if account.selectionSource == .liveSystem, self.isAuthenticatingLiveAccount {
             return L("Re-authenticating…")
         }
         return L("Re-auth")
