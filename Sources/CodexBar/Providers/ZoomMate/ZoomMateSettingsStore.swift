@@ -3,13 +3,8 @@ import Foundation
 
 extension SettingsStore {
     var zoomMateCookieHeader: String {
-        get { self.configSnapshot.providerConfig(for: .zoommate)?.sanitizedCookieHeader ?? "" }
-        set {
-            self.updateProviderConfig(provider: .zoommate) { entry in
-                entry.cookieHeader = self.normalizedConfigValue(newValue)
-            }
-            self.logSecretUpdate(provider: .zoommate, field: "cookieHeader", value: newValue)
-        }
+        get { self[providerConfig: .zoommate, field: .cookieHeader] }
+        set { self[providerConfig: .zoommate, field: .cookieHeader] = newValue }
     }
 
     var zoomMateCookieSource: ProviderCookieSource {

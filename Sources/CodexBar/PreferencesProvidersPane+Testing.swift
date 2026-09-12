@@ -230,8 +230,7 @@ enum ProvidersPaneTestHarness {
             placeholder: "Placeholder",
             binding: Binding(get: { "" }, set: { _ in }),
             actions: [actionBordered],
-            isVisible: { true },
-            onActivate: nil)
+            isVisible: { true })
         let fieldSecure = ProviderSettingsFieldDescriptor(
             id: "secure",
             title: "Secure",
@@ -240,8 +239,7 @@ enum ProvidersPaneTestHarness {
             placeholder: "Secure",
             binding: Binding(get: { "" }, set: { _ in }),
             actions: [actionLink],
-            isVisible: { true },
-            onActivate: nil)
+            isVisible: { true })
         let tokenAccountsEmpty = ProviderSettingsTokenAccountsDescriptor(
             id: "accounts-empty",
             title: "Accounts",

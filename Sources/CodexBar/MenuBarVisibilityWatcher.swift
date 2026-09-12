@@ -46,11 +46,6 @@ struct StatusItemStartupVisibilityEvidence: Equatable, CustomStringConvertible {
     }
 }
 
-@MainActor
-func isStatusItemBlocked(_ item: NSStatusItem) -> Bool {
-    MenuBarVisibilityWatcher.isBlockedSnapshot(snapshot: MenuBarVisibilityWatcher.visibilitySnapshot(item))
-}
-
 enum MenuBarVisibilityWatcher {
     static let guidanceShownKey = "hasShownTahoeAllowListGuidance"
     static let guidanceLastShownAtKey = "tahoeAllowListGuidanceLastShownAt"
@@ -101,14 +96,6 @@ enum MenuBarVisibilityWatcher {
             return false
         }
         return !snapshot.hasScreen || !snapshot.isOnCurrentScreen
-    }
-
-    static func hasBlockedVisibleSnapshots(_ snapshots: [StatusItemVisibilitySnapshot]) -> Bool {
-        let visibleItems = snapshots.filter(\.isVisible)
-        guard !visibleItems.isEmpty else { return false }
-        return visibleItems.allSatisfy { snapshot in
-            self.isBlockedSnapshot(snapshot: snapshot)
-        }
     }
 
     static func hasAnyBlockedVisibleSnapshot(_ snapshots: [StatusItemVisibilitySnapshot]) -> Bool {
@@ -170,11 +157,6 @@ enum MenuBarVisibilityWatcher {
         items.map { item in
             self.visibilitySnapshot(item)
         }
-    }
-
-    @MainActor
-    static func hasBlockedVisibleStatusItems(_ items: [NSStatusItem]) -> Bool {
-        self.hasBlockedVisibleSnapshots(self.visibilitySnapshots(items))
     }
 
     static func shouldAttemptStartupRecovery(

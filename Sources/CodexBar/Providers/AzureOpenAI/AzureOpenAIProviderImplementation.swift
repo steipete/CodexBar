@@ -40,8 +40,7 @@ struct AzureOpenAIProviderImplementation: ProviderImplementation {
                 placeholder: "Azure OpenAI key",
                 binding: context.stringBinding(\.azureOpenAIAPIKey),
                 actions: [],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
             ProviderSettingsFieldDescriptor(
                 id: "azure-openai-endpoint",
                 title: "Endpoint",
@@ -50,8 +49,7 @@ struct AzureOpenAIProviderImplementation: ProviderImplementation {
                 placeholder: "https://resource.openai.azure.com",
                 binding: context.stringBinding(\.azureOpenAIEndpoint),
                 actions: [],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
             ProviderSettingsFieldDescriptor(
                 id: "azure-openai-deployment-name",
                 title: "Deployment",
@@ -60,8 +58,7 @@ struct AzureOpenAIProviderImplementation: ProviderImplementation {
                 placeholder: "gpt-4o-mini",
                 binding: context.stringBinding(\.azureOpenAIDeploymentName),
                 actions: [],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
         ]
     }
 }

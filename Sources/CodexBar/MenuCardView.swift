@@ -869,42 +869,6 @@ private struct CreditsBarContent: View {
     }
 }
 
-struct UsageMenuCardCostSectionView: View {
-    let model: UsageMenuCardView.Model
-    let topPadding: CGFloat
-    let bottomPadding: CGFloat
-    let width: CGFloat
-    @Environment(\.menuItemHighlighted) private var isHighlighted
-    @Environment(\.menuCardRefreshMonitor) private var refreshMonitor
-
-    var body: some View {
-        let liveModel = self.liveModel
-        let hasTokenCost = liveModel.tokenUsage != nil
-        return Group {
-            if hasTokenCost {
-                VStack(alignment: .leading, spacing: 10) {
-                    if let tokenUsage = liveModel.tokenUsage {
-                        TokenUsageSectionContent(
-                            provider: liveModel.provider,
-                            tokenUsage: tokenUsage,
-                            showsCodexHint: true,
-                            lineFont: .caption)
-                    }
-                }
-                .padding(.horizontal, UsageMenuCardLayout.horizontalPadding)
-                .padding(.top, self.topPadding)
-                .padding(.bottom, self.bottomPadding)
-                .frame(width: self.width, alignment: .leading)
-            }
-        }
-    }
-
-    private var liveModel: UsageMenuCardView.Model {
-        guard self.model.usesLiveSubtitle else { return self.model }
-        return self.refreshMonitor?.model(for: self.model.provider, fallback: self.model) ?? self.model
-    }
-}
-
 struct UsageMenuCardExtraUsageSectionView: View {
     let model: UsageMenuCardView.Model
     let topPadding: CGFloat

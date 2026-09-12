@@ -43,11 +43,6 @@ extension UsageStore {
         }
     }
 
-    func approveUserPlugin(_ plugin: UserProviderPlugin) throws {
-        let settings = self.settings.pluginConfig(plugin.manifest.id)?.pluginSettings ?? [:]
-        try self.pluginApprovalStore.record(plugin.approvalBinding(settings: settings))
-    }
-
     func deleteUserPlugin(_ plugin: UserProviderPlugin) throws {
         var config = self.settings.configSnapshot
         try UserProviderPluginManager.delete(

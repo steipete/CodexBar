@@ -1184,9 +1184,6 @@ enum CostUsageDateParser {
     private static let isoInternetDateTimeKey = "CostUsageDateParser.isoInternetDateTime"
     private static let dayFormatterKey = "CostUsageDateParser.dayFormatter"
     private static let monthDayYearFormatterKey = "CostUsageDateParser.monthDayYearFormatter"
-    private static let monthYearFormatterKey = "CostUsageDateParser.monthYearFormatter"
-    private static let fullMonthYearFormatterKey = "CostUsageDateParser.fullMonthYearFormatter"
-    private static let yearMonthFormatterKey = "CostUsageDateParser.yearMonthFormatter"
 
     static func parse(_ text: String?) -> Date? {
         guard let text, !text.isEmpty else { return nil }
@@ -1210,23 +1207,6 @@ enum CostUsageDateParser {
         if let d = self.dateFormatter(key: self.monthDayYearFormatterKey, format: "MMM d, yyyy")
             .date(from: trimmed)
         {
-            return d
-        }
-
-        return nil
-    }
-
-    static func parseMonth(_ text: String?) -> Date? {
-        guard let text, !text.isEmpty else { return nil }
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        if let d = self.dateFormatter(key: self.monthYearFormatterKey, format: "MMM yyyy").date(from: trimmed) {
-            return d
-        }
-        if let d = self.dateFormatter(key: self.fullMonthYearFormatterKey, format: "MMMM yyyy").date(from: trimmed) {
-            return d
-        }
-        if let d = self.dateFormatter(key: self.yearMonthFormatterKey, format: "yyyy-MM").date(from: trimmed) {
             return d
         }
 

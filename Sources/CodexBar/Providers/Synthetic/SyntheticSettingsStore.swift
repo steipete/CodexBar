@@ -1,3 +1,0 @@
-extension SettingsStore {
-    func ensureSyntheticAPITokenLoaded() {}
-}

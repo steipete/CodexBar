@@ -37,6 +37,12 @@ read_when:
 - macOS 14+ targeting; avoid deprecated APIs when refactoring.
 
 ## Shared policy ownership
+- App credential properties read directly from the config snapshot and delegate common string writes to the typed
+  `SettingsStore` config accessor, which owns normalization, persistence, and secret-update logging. Field activation
+  does not trigger credential loading. Legacy provider toggles are read only by the config migrator.
+- The native status-item controller owns menu composition. Persistent refresh-row metrics are independent of menu
+  rendering, and screenshot fixtures exercise the active card views. Legacy menu-layout resolution retains its
+  rendering mode and projected layout without copying unused settings into a second state object.
 - Core owns status feed fetching, decoding, and status models through `ProviderStatusFetcher`; the app supplies
   localized labels and component UI, and the CLI supplies its existing status payload and English labels.
 - `KeychainStringStore` owns generic-password operations for legacy credential migration. Provider adapters retain

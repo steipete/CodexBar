@@ -39,8 +39,7 @@ struct NeuralWattProviderImplementation: ProviderImplementation {
                 placeholder: "sk-...",
                 binding: context.providerConfigBinding(.apiKey),
                 actions: [],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
         ]
     }
 }

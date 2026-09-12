@@ -95,8 +95,7 @@ struct MistralProviderImplementation: ProviderImplementation {
                             }
                         }),
                 ],
-                isVisible: { context.settings.mistralCookieSource == .manual },
-                onActivate: nil),
+                isVisible: { context.settings.mistralCookieSource == .manual }),
         ]
     }
 }

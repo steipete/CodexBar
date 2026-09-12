@@ -78,8 +78,7 @@ struct DevinProviderImplementation: ProviderImplementation {
                             NSWorkspace.shared.open(Self.usageURL(organization: context.settings.devinOrganization))
                         }),
                 ],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
             ProviderSettingsFieldDescriptor(
                 id: "devin-bearer-token",
                 title: "Bearer token",
@@ -88,8 +87,7 @@ struct DevinProviderImplementation: ProviderImplementation {
                 placeholder: "Bearer eyJ...",
                 binding: context.stringBinding(\.devinBearerToken),
                 actions: [],
-                isVisible: { context.settings.devinCookieSource == .manual },
-                onActivate: nil),
+                isVisible: { context.settings.devinCookieSource == .manual }),
         ]
     }
 

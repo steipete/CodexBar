@@ -3,13 +3,8 @@ import Foundation
 
 extension SettingsStore {
     var t3ChatCookieHeader: String {
-        get { self.configSnapshot.providerConfig(for: .t3chat)?.sanitizedCookieHeader ?? "" }
-        set {
-            self.updateProviderConfig(provider: .t3chat) { entry in
-                entry.cookieHeader = self.normalizedConfigValue(newValue)
-            }
-            self.logSecretUpdate(provider: .t3chat, field: "cookieHeader", value: newValue)
-        }
+        get { self[providerConfig: .t3chat, field: .cookieHeader] }
+        set { self[providerConfig: .t3chat, field: .cookieHeader] = newValue }
     }
 
     var t3ChatCookieSource: ProviderCookieSource {

@@ -30,7 +30,6 @@ struct ZaiProviderImplementation: ProviderImplementation {
         {
             return true
         }
-        context.settings.ensureZaiAPITokenLoaded()
         return !context.settings.zaiAPIToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
@@ -83,8 +82,7 @@ struct ZaiProviderImplementation: ProviderImplementation {
                             }
                         }),
                 ],
-                isVisible: nil,
-                onActivate: { context.settings.ensureZaiAPITokenLoaded() }),
+                isVisible: nil),
         ]
     }
 }

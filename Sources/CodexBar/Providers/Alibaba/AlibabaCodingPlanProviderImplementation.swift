@@ -100,8 +100,7 @@ struct AlibabaCodingPlanProviderImplementation: ProviderImplementation {
                             NSWorkspace.shared.open(context.settings.alibabaCodingPlanAPIRegion.dashboardURL)
                         }),
                 ],
-                isVisible: nil,
-                onActivate: { context.settings.ensureAlibabaCodingPlanAPITokenLoaded() }),
+                isVisible: nil),
             ProviderSettingsFieldDescriptor(
                 id: "alibaba-coding-plan-cookie",
                 title: "Cookie header",
@@ -121,8 +120,7 @@ struct AlibabaCodingPlanProviderImplementation: ProviderImplementation {
                 ],
                 isVisible: {
                     context.settings.alibabaCodingPlanCookieSource == .manual
-                },
-                onActivate: nil),
+                }),
         ]
     }
 }

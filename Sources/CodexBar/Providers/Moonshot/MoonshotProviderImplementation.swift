@@ -30,7 +30,6 @@ struct MoonshotProviderImplementation: ProviderImplementation {
         if MoonshotSettingsReader.apiKey(for: region, environment: context.environment) != nil {
             return true
         }
-        context.settings.ensureMoonshotAPITokenLoaded()
         return context.settings.hasMoonshotAPIToken(for: region)
     }
 
@@ -79,8 +78,7 @@ struct MoonshotProviderImplementation: ProviderImplementation {
                             NSWorkspace.shared.open(context.settings.moonshotRegion.consoleURL)
                         }),
                 ],
-                isVisible: nil,
-                onActivate: { context.settings.ensureMoonshotAPITokenLoaded() }),
+                isVisible: nil),
         ]
     }
 }

@@ -93,8 +93,7 @@ struct ZoomMateProviderImplementation: ProviderImplementation {
                             }
                         }),
                 ],
-                isVisible: { context.settings.zoomMateCookieSource == .manual },
-                onActivate: nil),
+                isVisible: { context.settings.zoomMateCookieSource == .manual }),
         ]
     }
 }

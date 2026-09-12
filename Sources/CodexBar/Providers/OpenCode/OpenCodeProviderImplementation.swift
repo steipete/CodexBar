@@ -95,8 +95,7 @@ struct OpenCodeProviderImplementation: ProviderImplementation {
                 placeholder: "wrk_…",
                 binding: context.stringBinding(\.opencodeWorkspaceID),
                 actions: [],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
         ]
     }
 }

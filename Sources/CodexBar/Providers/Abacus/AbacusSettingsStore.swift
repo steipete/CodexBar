@@ -3,13 +3,8 @@ import Foundation
 
 extension SettingsStore {
     var abacusCookieHeader: String {
-        get { self.configSnapshot.providerConfig(for: .abacus)?.sanitizedCookieHeader ?? "" }
-        set {
-            self.updateProviderConfig(provider: .abacus) { entry in
-                entry.cookieHeader = self.normalizedConfigValue(newValue)
-            }
-            self.logSecretUpdate(provider: .abacus, field: "cookieHeader", value: newValue)
-        }
+        get { self[providerConfig: .abacus, field: .cookieHeader] }
+        set { self[providerConfig: .abacus, field: .cookieHeader] = newValue }
     }
 
     var abacusCookieSource: ProviderCookieSource {

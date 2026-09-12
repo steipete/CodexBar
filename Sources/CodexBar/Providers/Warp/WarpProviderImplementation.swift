@@ -33,8 +33,7 @@ struct WarpProviderImplementation: ProviderImplementation {
                             }
                         }),
                 ],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
         ]
     }
 }

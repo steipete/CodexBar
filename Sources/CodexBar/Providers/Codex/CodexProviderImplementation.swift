@@ -225,8 +225,7 @@ struct CodexProviderImplementation: ProviderImplementation {
                 actions: [],
                 isVisible: {
                     context.settings.codexCookieSource == .manual
-                },
-                onActivate: { context.settings.ensureCodexCookieLoaded() }),
+                }),
         ]
     }
 

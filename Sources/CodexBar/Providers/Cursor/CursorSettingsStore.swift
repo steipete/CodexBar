@@ -3,13 +3,8 @@ import Foundation
 
 extension SettingsStore {
     var cursorCookieHeader: String {
-        get { self.configSnapshot.providerConfig(for: .cursor)?.sanitizedCookieHeader ?? "" }
-        set {
-            self.updateProviderConfig(provider: .cursor) { entry in
-                entry.cookieHeader = self.normalizedConfigValue(newValue)
-            }
-            self.logSecretUpdate(provider: .cursor, field: "cookieHeader", value: newValue)
-        }
+        get { self[providerConfig: .cursor, field: .cookieHeader] }
+        set { self[providerConfig: .cursor, field: .cookieHeader] = newValue }
     }
 
     var cursorCookieSource: ProviderCookieSource {
@@ -21,8 +16,6 @@ extension SettingsStore {
             self.logProviderModeChange(provider: .cursor, field: "cookieSource", value: newValue.rawValue)
         }
     }
-
-    func ensureCursorCookieLoaded() {}
 }
 
 extension SettingsStore {

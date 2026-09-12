@@ -87,8 +87,7 @@ struct NotionProviderImplementation: ProviderImplementation {
                             }
                         }),
                 ],
-                isVisible: { context.settings.notionCookieSource == .manual },
-                onActivate: nil),
+                isVisible: { context.settings.notionCookieSource == .manual }),
             ProviderSettingsFieldDescriptor(
                 id: "notion-workspace-id",
                 title: "Workspace ID",
@@ -97,8 +96,7 @@ struct NotionProviderImplementation: ProviderImplementation {
                 placeholder: "00000000-0000-0000-0000-000000000000",
                 binding: context.stringBinding(\.notionWorkspaceID),
                 actions: [],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
         ]
     }
 }

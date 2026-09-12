@@ -3,13 +3,8 @@ import Foundation
 
 extension SettingsStore {
     var mistralCookieHeader: String {
-        get { self.configSnapshot.providerConfig(for: .mistral)?.sanitizedCookieHeader ?? "" }
-        set {
-            self.updateProviderConfig(provider: .mistral) { entry in
-                entry.cookieHeader = self.normalizedConfigValue(newValue)
-            }
-            self.logSecretUpdate(provider: .mistral, field: "cookieHeader", value: newValue)
-        }
+        get { self[providerConfig: .mistral, field: .cookieHeader] }
+        set { self[providerConfig: .mistral, field: .cookieHeader] = newValue }
     }
 
     var mistralCookieSource: ProviderCookieSource {
@@ -21,8 +16,6 @@ extension SettingsStore {
             self.logProviderModeChange(provider: .mistral, field: "cookieSource", value: newValue.rawValue)
         }
     }
-
-    func ensureMistralCookieLoaded() {}
 }
 
 extension SettingsStore {

@@ -3,13 +3,8 @@ import Foundation
 
 extension SettingsStore {
     var augmentCookieHeader: String {
-        get { self.configSnapshot.providerConfig(for: .augment)?.sanitizedCookieHeader ?? "" }
-        set {
-            self.updateProviderConfig(provider: .augment) { entry in
-                entry.cookieHeader = self.normalizedConfigValue(newValue)
-            }
-            self.logSecretUpdate(provider: .augment, field: "cookieHeader", value: newValue)
-        }
+        get { self[providerConfig: .augment, field: .cookieHeader] }
+        set { self[providerConfig: .augment, field: .cookieHeader] = newValue }
     }
 
     var augmentCookieSource: ProviderCookieSource {
@@ -21,8 +16,6 @@ extension SettingsStore {
             self.logProviderModeChange(provider: .augment, field: "cookieSource", value: newValue.rawValue)
         }
     }
-
-    func ensureAugmentCookieLoaded() {}
 }
 
 extension SettingsStore {

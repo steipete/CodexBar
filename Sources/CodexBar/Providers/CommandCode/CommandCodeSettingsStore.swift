@@ -3,13 +3,8 @@ import Foundation
 
 extension SettingsStore {
     var commandcodeCookieHeader: String {
-        get { self.configSnapshot.providerConfig(for: .commandcode)?.sanitizedCookieHeader ?? "" }
-        set {
-            self.updateProviderConfig(provider: .commandcode) { entry in
-                entry.cookieHeader = self.normalizedConfigValue(newValue)
-            }
-            self.logSecretUpdate(provider: .commandcode, field: "cookieHeader", value: newValue)
-        }
+        get { self[providerConfig: .commandcode, field: .cookieHeader] }
+        set { self[providerConfig: .commandcode, field: .cookieHeader] = newValue }
     }
 
     var commandcodeCookieSource: ProviderCookieSource {
@@ -21,8 +16,6 @@ extension SettingsStore {
             self.logProviderModeChange(provider: .commandcode, field: "cookieSource", value: newValue.rawValue)
         }
     }
-
-    func ensureCommandCodeCookieLoaded() {}
 }
 
 extension SettingsStore {

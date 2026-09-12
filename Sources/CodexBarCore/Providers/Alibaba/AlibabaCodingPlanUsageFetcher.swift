@@ -889,15 +889,6 @@ public struct AlibabaCodingPlanUsageFetcher: Sendable {
         return nil
     }
 
-    private static func anyPercent(for keys: [String], in dict: [String: Any]) -> Double? {
-        for key in keys {
-            if let value = self.parsePercent(dict[key]) {
-                return value
-            }
-        }
-        return nil
-    }
-
     private static func anyBool(for keys: [String], in dict: [String: Any]) -> Bool? {
         for key in keys {
             if let value = self.parseBool(dict[key]) {

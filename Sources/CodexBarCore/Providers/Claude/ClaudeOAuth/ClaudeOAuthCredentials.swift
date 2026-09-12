@@ -2480,18 +2480,6 @@ public enum ClaudeOAuthCredentialsStore {
             createdAt: row[kSecAttrCreationDate as String] as? Date))
     }
 
-    private static func claudeKeychainLegacyCandidateWithoutPrompt(
-        promptMode: ClaudeOAuthKeychainPromptMode = ClaudeOAuthKeychainPromptPreference
-            .current()) -> ClaudeKeychainCandidate?
-    {
-        switch self.claudeKeychainLegacyCandidateProbeWithoutPrompt(promptMode: promptMode) {
-        case .unavailable:
-            nil
-        case let .value(candidate):
-            candidate
-        }
-    }
-
     private static func loadClaudeKeychainData(
         candidate: ClaudeKeychainCandidate,
         allowKeychainPrompt: Bool,

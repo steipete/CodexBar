@@ -72,8 +72,7 @@ struct T3ChatProviderImplementation: ProviderImplementation {
                             }
                         }),
                 ],
-                isVisible: { context.settings.t3ChatCookieSource == .manual },
-                onActivate: nil),
+                isVisible: { context.settings.t3ChatCookieSource == .manual }),
         ]
     }
 }

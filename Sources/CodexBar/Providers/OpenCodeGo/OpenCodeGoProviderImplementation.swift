@@ -96,8 +96,7 @@ struct OpenCodeGoProviderImplementation: ProviderImplementation {
                 placeholder: "OpenCode API key",
                 binding: context.providerConfigBinding(.apiKey),
                 actions: [],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
             ProviderSettingsFieldDescriptor(
                 id: "opencodego-workspace-id",
                 title: "Workspace ID",
@@ -106,8 +105,7 @@ struct OpenCodeGoProviderImplementation: ProviderImplementation {
                 placeholder: "wrk_…",
                 binding: context.stringBinding(\.opencodegoWorkspaceID),
                 actions: [],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
         ]
     }
 }

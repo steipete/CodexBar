@@ -50,8 +50,7 @@ struct OpenAIAPIProviderImplementation: ProviderImplementation {
                             }
                         }),
                 ],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
             ProviderSettingsFieldDescriptor(
                 id: "openai-project-id",
                 title: "Project ID",
@@ -72,8 +71,7 @@ struct OpenAIAPIProviderImplementation: ProviderImplementation {
                             }
                         }),
                 ],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
         ]
     }
 }

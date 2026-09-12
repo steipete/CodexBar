@@ -24,7 +24,6 @@ struct OllamaProviderImplementation: ProviderImplementation {
         if OllamaAPISettingsReader.apiKey(environment: context.environment) != nil {
             return true
         }
-        context.settings.ensureOllamaAPITokenLoaded()
         if !context.settings.ollamaAPIToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return true
         }
@@ -137,8 +136,7 @@ struct OllamaProviderImplementation: ProviderImplementation {
                             }
                         }),
                 ],
-                isVisible: nil,
-                onActivate: { context.settings.ensureOllamaAPITokenLoaded() }),
+                isVisible: nil),
             ProviderSettingsFieldDescriptor(
                 id: "ollama-cookie",
                 title: "",
@@ -158,8 +156,7 @@ struct OllamaProviderImplementation: ProviderImplementation {
                             }
                         }),
                 ],
-                isVisible: { context.settings.ollamaCookieSource == .manual },
-                onActivate: { context.settings.ensureOllamaCookieLoaded() }),
+                isVisible: { context.settings.ollamaCookieSource == .manual }),
         ]
     }
 }

@@ -29,9 +29,12 @@ struct MiniMaxProviderImplementation: ProviderImplementation {
     @MainActor
     func tokenAccountsVisibility(context: ProviderSettingsContext, support: TokenAccountSupport) -> Bool {
         guard support.requiresManualCookieSource else { return true }
-        if !context.settings.tokenAccounts(for: context.provider).isEmpty { return true }
-        context.settings.ensureMiniMaxAPITokenLoaded()
-        if context.settings.minimaxAuthMode().usesAPIToken { return false }
+        if !context.settings.tokenAccounts(for: context.provider).isEmpty {
+            return true
+        }
+        if context.settings.minimaxAuthMode().usesAPIToken {
+            return false
+        }
         return context.settings.minimaxCookieSource == .manual
     }
 
@@ -44,7 +47,6 @@ struct MiniMaxProviderImplementation: ProviderImplementation {
 
     @MainActor
     func settingsPickers(context: ProviderSettingsContext) -> [ProviderSettingsPickerDescriptor] {
-        context.settings.ensureMiniMaxAPITokenLoaded()
         let authMode: () -> MiniMaxAuthMode = {
             context.settings.minimaxAuthMode()
         }
@@ -102,7 +104,6 @@ struct MiniMaxProviderImplementation: ProviderImplementation {
 
     @MainActor
     func settingsFields(context: ProviderSettingsContext) -> [ProviderSettingsFieldDescriptor] {
-        context.settings.ensureMiniMaxAPITokenLoaded()
         let authMode: () -> MiniMaxAuthMode = {
             context.settings.minimaxAuthMode()
         }
@@ -125,8 +126,7 @@ struct MiniMaxProviderImplementation: ProviderImplementation {
                             NSWorkspace.shared.open(context.settings.minimaxAPIRegion.codingPlanURL)
                         }),
                 ],
-                isVisible: nil,
-                onActivate: { context.settings.ensureMiniMaxAPITokenLoaded() }),
+                isVisible: nil),
             ProviderSettingsFieldDescriptor(
                 id: "minimax-cookie",
                 title: "Cookie header",
@@ -146,8 +146,7 @@ struct MiniMaxProviderImplementation: ProviderImplementation {
                 ],
                 isVisible: {
                     authMode().allowsCookies && context.settings.minimaxCookieSource == .manual
-                },
-                onActivate: { context.settings.ensureMiniMaxCookieLoaded() }),
+                }),
         ]
     }
 }

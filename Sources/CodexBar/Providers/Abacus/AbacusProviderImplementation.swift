@@ -89,8 +89,7 @@ struct AbacusProviderImplementation: ProviderImplementation {
                             }
                         }),
                 ],
-                isVisible: { context.settings.abacusCookieSource == .manual },
-                onActivate: nil),
+                isVisible: { context.settings.abacusCookieSource == .manual }),
         ]
     }
 }
