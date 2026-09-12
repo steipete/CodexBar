@@ -1,0 +1,84 @@
+Codex activity retained-read proof
+Captured: 2026-09-12, Apple Silicon macOS
+
+Scope
+-----
+This transcript covers the SQLite-backed Codex activity read path changed by PR #3593.
+The source database was a private `.backup` of the installed cache. Paths, row IDs,
+and log contents are omitted. The copy's parser metadata was aligned to current main
+so both binaries exercised the same schema and data shape; the original was untouched.
+
+Database shape
+--------------
+database bytes: 131674112
+files: 2270
+file_day_aggregates: 1960
+day_aggregates: 285
+
+Exact revisions
+---------------
+base:      3a7ddffb963424762c16da354bb9e9628e788e1e
+candidate: b69ade32e3a7f4f7766c5abc780ac056cf387114
+
+Deterministic red on base
+-------------------------
+Test: unchanged activity refreshes reuse validated decoded store state
+Three unchanged activity reads returned equal totals, but the new work assertions
+failed as follows:
+
+integrityChecks: expected 1, observed 3
+cacheConversions: expected 1, observed 3
+fileRows: expected 16, observed 48
+
+Candidate green
+---------------
+swift test --filter CostUsageStoreReadWorkTests
+
+Test Suite 'CostUsageStoreReadWorkTests' passed.
+Executed 56 tests, with 0 failures.
+
+For the same three-read regression:
+
+integrityChecks: 1
+cacheConversions: 1
+fileRows: 16
+readViewConversions: 3
+returned totals: identical across all reads
+
+Private real-shape A/B
+----------------------
+The same opt-in benchmark harness was run against exact base and candidate binaries.
+The first candidate read was intentionally excluded from the steady-state comparison;
+cold timings are not compared because the binaries ran sequentially and OS page-cache
+state differed.
+
+base elapsed_ms:
+2170.19 319.99 293.37 318.27 299.27 285.57
+base structural counters after 6 reads:
+integrityChecks=6 cacheConversions=6 fileRows=13620 readViewConversions=6
+
+candidate elapsed_ms:
+18958.85 90.69 90.25 89.17 89.67 88.48
+candidate structural counters after 6 reads:
+integrityChecks=1 cacheConversions=1 fileRows=2270 readViewConversions=6
+
+steady-state warm median (last 5 reads):
+base:      299.27 ms
+candidate: 89.67 ms
+change:    -70.0%
+
+Normalized daily/token totals matched between base and candidate.
+
+Recovery checks
+---------------
+- an external store commit invalidates the decoded state through data_version
+- replacing the database inode reopens it and performs a second integrity check
+- activity state serves later status reads, while detailed report histories are transient
+- filesystem identity and anchor reconciliation still run for every returned view
+
+Final local gate for runtime revision b69ade32
+----------------------------------------------
+Scripts/regenerate-codex-parser-hash.sh --check: passed
+make check: passed, 0 SwiftLint violations
+swift build -c release --product CodexBarCLI: passed
+make test: 1112/1112 selections, 93/93 groups, 0 retries, 0 failures
