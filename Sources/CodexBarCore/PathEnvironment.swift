@@ -260,6 +260,35 @@ public enum BinaryLocator {
         ]
     }
 
+    public static func resolveCoderabbitBinary(
+        env: [String: String] = ProcessInfo.processInfo.environment,
+        loginPATH: [String]? = LoginShellPathCache.shared.current,
+        commandV: (String, String?, TimeInterval, FileManager) -> String? = ShellCommandLocator.commandV,
+        aliasResolver: (String, String?, TimeInterval, FileManager, String) -> String? = ShellCommandLocator
+            .resolveAlias,
+        fileManager: FileManager = .default,
+        home: String = NSHomeDirectory()) -> String?
+    {
+        self.resolveBinary(
+            name: "coderabbit",
+            overrideKey: "CODERABBIT_CLI_PATH",
+            env: env,
+            loginPATH: loginPATH,
+            commandV: commandV,
+            aliasResolver: aliasResolver,
+            wellKnownPaths: self.coderabbitWellKnownPaths(home: home),
+            fileManager: fileManager,
+            home: home)
+    }
+
+    static func coderabbitWellKnownPaths(home: String) -> [String] {
+        [
+            "\(home)/.local/bin/coderabbit",
+            "/opt/homebrew/bin/coderabbit",
+            "/usr/local/bin/coderabbit",
+        ]
+    }
+
     /// Well-known install locations for the Grok Build CLI binary.
     /// Covers the installer's default (`~/.grok/bin/grok`) and the symlinks it sometimes
     /// creates into `~/.local/bin` and `/usr/local/bin`.
