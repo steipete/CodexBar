@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Layouts
 import com.steipete.codexbar.prototype
 
 Item {
@@ -40,7 +41,11 @@ Item {
     }
     function planGeometry(item) {
         if (typeof item.text === "string" && item.text === desktop.entries[0].plan)
-            return {width: item.width, height: item.height};
+            return {width: item.width, height: item.height, object: String(item),
+                implicitWidth: item.implicitWidth, minimumWidth: item.Layout.minimumWidth,
+                preferredWidth: item.Layout.preferredWidth, maximumWidth: item.Layout.maximumWidth,
+                parentWidth: item.parent.width, columnWidth: item.parent.parent.width,
+                contentWidth: item.parent.parent.parent.width};
         var children = item.children || [];
         for (var i = 0; i < children.length; ++i) {
             var geometry = planGeometry(children[i]);
