@@ -24,23 +24,6 @@ enum IconRemainingResolver {
         return (primary: windows.primary, secondary: windows.secondary)
     }
 
-    static func resolvedRemaining(
-        snapshot: UsageSnapshot,
-        style: IconStyle,
-        secondaryOverrideWindowID: String? = nil,
-        now: Date = Date())
-        -> (primary: Double?, secondary: Double?)
-    {
-        let windows = self.resolvedWindows(
-            snapshot: snapshot,
-            style: style,
-            secondaryOverrideWindowID: secondaryOverrideWindowID,
-            now: now)
-        return (
-            primary: windows.primary?.remainingPercent,
-            secondary: windows.secondary?.remainingPercent)
-    }
-
     static func resolvedPercents(
         snapshot: UsageSnapshot,
         style: IconStyle,

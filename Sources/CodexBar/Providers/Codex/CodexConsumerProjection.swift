@@ -557,10 +557,6 @@ struct CodexConsumerProjection {
         }
     }
 
-    static func planUtilizationSeriesNames(snapshot: UsageSnapshot) -> Set<PlanUtilizationSeriesName> {
-        Set(self.rateWindowsByLane(snapshot: snapshot).keys.map { self.planUtilizationRole(for: $0) })
-    }
-
     private enum SnapshotSlot {
         case primary
         case secondary

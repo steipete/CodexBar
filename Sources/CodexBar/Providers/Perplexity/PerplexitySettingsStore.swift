@@ -3,13 +3,8 @@ import Foundation
 
 extension SettingsStore {
     var perplexityManualCookieHeader: String {
-        get { self.configSnapshot.providerConfig(for: .perplexity)?.sanitizedCookieHeader ?? "" }
-        set {
-            self.updateProviderConfig(provider: .perplexity) { entry in
-                entry.cookieHeader = self.normalizedConfigValue(newValue)
-            }
-            self.logSecretUpdate(provider: .perplexity, field: "cookieHeader", value: newValue)
-        }
+        get { self[providerConfig: .perplexity, field: .cookieHeader] }
+        set { self[providerConfig: .perplexity, field: .cookieHeader] = newValue }
     }
 
     var perplexityCookieSource: ProviderCookieSource {

@@ -30,8 +30,7 @@ struct GroqProviderImplementation: ProviderImplementation {
                 placeholder: "gsk_...",
                 binding: context.providerConfigBinding(.apiKey),
                 actions: [],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
         ]
     }
 }

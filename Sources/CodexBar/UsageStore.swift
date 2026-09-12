@@ -1000,22 +1000,6 @@ final class UsageStore {
 }
 
 extension UsageStore {
-    func debugDumpClaude() async {
-        // Provider-specific by design: Claude's debug command owns a raw CLI/web probe artifact and error lane.
-        let fetcher = ClaudeUsageFetcher(
-            browserDetection: self.browserDetection,
-            keepCLISessionsAlive: self.settings.debugKeepCLISessionsAlive)
-        let output = await fetcher.debugRawProbe(model: "sonnet")
-        let url = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("codexbar-claude-probe.txt")
-        try? output.write(to: url, atomically: true, encoding: .utf8)
-        await MainActor.run {
-            let snippet = String(output.prefix(180)).replacingOccurrences(of: "\n", with: " ")
-            self.knownLimitsAvailabilityByProvider.removeValue(forKey: .claude)
-            self.errors[.claude] = "[Claude] \(snippet) (saved: \(url.path))"
-            NSWorkspace.shared.open(url)
-        }
-    }
-
     func dumpLog(toFileFor provider: UsageProvider) async -> URL? {
         let text = await self.debugLog(for: provider)
         let filename = "codexbar-\(provider.rawValue)-probe.txt"
@@ -1031,10 +1015,6 @@ extension UsageStore {
             }
             return nil
         }
-    }
-
-    func debugAugmentDump() async -> String {
-        await AugmentStatusProbe.latestDumps()
     }
 
     func debugLog(for provider: UsageProvider) async -> String {

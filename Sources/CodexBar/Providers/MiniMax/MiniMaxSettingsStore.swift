@@ -15,23 +15,13 @@ extension SettingsStore {
     }
 
     var minimaxCookieHeader: String {
-        get { self.configSnapshot.providerConfig(for: .minimax)?.sanitizedCookieHeader ?? "" }
-        set {
-            self.updateProviderConfig(provider: .minimax) { entry in
-                entry.cookieHeader = self.normalizedConfigValue(newValue)
-            }
-            self.logSecretUpdate(provider: .minimax, field: "cookieHeader", value: newValue)
-        }
+        get { self[providerConfig: .minimax, field: .cookieHeader] }
+        set { self[providerConfig: .minimax, field: .cookieHeader] = newValue }
     }
 
     var minimaxAPIToken: String {
-        get { self.configSnapshot.providerConfig(for: .minimax)?.sanitizedAPIKey ?? "" }
-        set {
-            self.updateProviderConfig(provider: .minimax) { entry in
-                entry.apiKey = self.normalizedConfigValue(newValue)
-            }
-            self.logSecretUpdate(provider: .minimax, field: "apiKey", value: newValue)
-        }
+        get { self[providerConfig: .minimax, field: .apiKey] }
+        set { self[providerConfig: .minimax, field: .apiKey] = newValue }
     }
 
     var minimaxCookieSource: ProviderCookieSource {
@@ -43,10 +33,6 @@ extension SettingsStore {
             self.logProviderModeChange(provider: .minimax, field: "cookieSource", value: newValue.rawValue)
         }
     }
-
-    func ensureMiniMaxCookieLoaded() {}
-
-    func ensureMiniMaxAPITokenLoaded() {}
 
     func minimaxAuthMode(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> MiniMaxAuthMode

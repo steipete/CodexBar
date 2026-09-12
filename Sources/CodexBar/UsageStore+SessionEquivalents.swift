@@ -334,19 +334,6 @@ extension UsageStore {
         }
     }
 
-    func planUtilizationSessionWindow(provider: UsageProvider, snapshot: UsageSnapshot) -> RateWindow? {
-        let standardSessionWindow = [snapshot.primary, snapshot.secondary, snapshot.tertiary]
-            .compactMap(\.self)
-            .first { $0.windowMinutes == Self.sessionWindowMinutes }
-        let extraSessionWindow = snapshot.extraRateWindows?
-            .lazy
-            .first { $0.usageKnown && $0.window.windowMinutes == Self.sessionWindowMinutes }?
-            .window
-        return standardSessionWindow
-            ?? self.sessionQuotaWindow(provider: provider, snapshot: snapshot)?.window
-            ?? extraSessionWindow
-    }
-
     private nonisolated static func antigravitySessionEquivalentWindows(snapshot: UsageSnapshot)
         -> (session: RateWindow, weekly: RateWindow, weeklyWindowID: String?, historyIdentity: String?)?
     {

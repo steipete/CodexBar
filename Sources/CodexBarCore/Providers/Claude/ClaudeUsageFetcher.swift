@@ -1572,37 +1572,6 @@ extension ClaudeUsageFetcher {
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
         return String(data: data, encoding: .utf8)
     }
-
-    private static func oauthCredentialProbeErrorLabel(_ error: Error) -> String {
-        guard let oauthError = error as? ClaudeOAuthCredentialsError else {
-            return String(describing: type(of: error))
-        }
-
-        return switch oauthError {
-        case .decodeFailed:
-            "decodeFailed"
-        case .missingOAuth:
-            "missingOAuth"
-        case .mcpOAuthOnlyKeychain:
-            "mcpOAuthOnlyKeychain"
-        case .missingAccessToken:
-            "missingAccessToken"
-        case .notFound:
-            "notFound"
-        case .keychainAccessRevoked:
-            "keychainAccessRevoked"
-        case let .keychainError(status):
-            "keychainError:\(status)"
-        case .readFailed:
-            "readFailed"
-        case .refreshFailed:
-            "refreshFailed"
-        case .noRefreshToken:
-            "noRefreshToken"
-        case .refreshDelegatedToClaudeCLI:
-            "refreshDelegatedToClaudeCLI"
-        }
-    }
 }
 
 #if DEBUG

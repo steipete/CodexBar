@@ -120,8 +120,7 @@ struct GrokProviderImplementation: ProviderImplementation {
                     (context.settings.grokUsageDataSource == .auto
                         || context.settings.grokUsageDataSource == .web)
                         && context.settings.grokCookieSource == .manual
-                },
-                onActivate: { context.settings.ensureGrokCookieLoaded() }),
+                }),
         ]
     }
 }

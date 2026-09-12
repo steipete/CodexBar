@@ -36,8 +36,7 @@ struct XAIProviderImplementation: ProviderImplementation {
                 placeholder: "xai-...",
                 binding: context.providerConfigBinding(.apiKey),
                 actions: [],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
             ProviderSettingsFieldDescriptor(
                 id: "xai-team-id",
                 title: "Team ID",
@@ -46,8 +45,7 @@ struct XAIProviderImplementation: ProviderImplementation {
                 placeholder: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
                 binding: context.providerConfigBinding(.workspace),
                 actions: [],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
         ]
     }
 }

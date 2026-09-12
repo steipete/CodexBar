@@ -25,23 +25,13 @@ extension SettingsStore {
     }
 
     var factoryAPIKey: String {
-        get { self.configSnapshot.providerConfig(for: .factory)?.sanitizedAPIKey ?? "" }
-        set {
-            self.updateProviderConfig(provider: .factory) { entry in
-                entry.apiKey = self.normalizedConfigValue(newValue)
-            }
-            self.logSecretUpdate(provider: .factory, field: "apiKey", value: newValue)
-        }
+        get { self[providerConfig: .factory, field: .apiKey] }
+        set { self[providerConfig: .factory, field: .apiKey] = newValue }
     }
 
     var factoryCookieHeader: String {
-        get { self.configSnapshot.providerConfig(for: .factory)?.sanitizedCookieHeader ?? "" }
-        set {
-            self.updateProviderConfig(provider: .factory) { entry in
-                entry.cookieHeader = self.normalizedConfigValue(newValue)
-            }
-            self.logSecretUpdate(provider: .factory, field: "cookieHeader", value: newValue)
-        }
+        get { self[providerConfig: .factory, field: .cookieHeader] }
+        set { self[providerConfig: .factory, field: .cookieHeader] = newValue }
     }
 
     var factoryCookieSource: ProviderCookieSource {
@@ -53,8 +43,6 @@ extension SettingsStore {
             self.logProviderModeChange(provider: .factory, field: "cookieSource", value: newValue.rawValue)
         }
     }
-
-    func ensureFactoryCookieLoaded() {}
 }
 
 extension SettingsStore {

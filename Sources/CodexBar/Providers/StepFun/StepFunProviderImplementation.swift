@@ -113,8 +113,7 @@ struct StepFunProviderImplementation: ProviderImplementation {
                 placeholder: "user@example.com",
                 binding: context.stringBinding(\.stepfunUsername),
                 actions: [],
-                isVisible: { context.settings.stepfunCookieSource != .manual },
-                onActivate: nil),
+                isVisible: { context.settings.stepfunCookieSource != .manual }),
             ProviderSettingsFieldDescriptor(
                 id: "stepfun-password",
                 title: "Password",
@@ -123,8 +122,7 @@ struct StepFunProviderImplementation: ProviderImplementation {
                 placeholder: "Password",
                 binding: context.stringBinding(\.stepfunPassword),
                 actions: [],
-                isVisible: { context.settings.stepfunCookieSource != .manual },
-                onActivate: nil),
+                isVisible: { context.settings.stepfunCookieSource != .manual }),
         ]
 
         // Manual mode: show token field
@@ -148,8 +146,7 @@ struct StepFunProviderImplementation: ProviderImplementation {
                             }
                         }),
                 ],
-                isVisible: { context.settings.stepfunCookieSource == .manual },
-                onActivate: nil),
+                isVisible: { context.settings.stepfunCookieSource == .manual }),
         ]
 
         return autoFields + manualFields

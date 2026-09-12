@@ -3,13 +3,8 @@ import Foundation
 
 extension SettingsStore {
     var miMoCookieHeader: String {
-        get { self.configSnapshot.providerConfig(for: .mimo)?.sanitizedCookieHeader ?? "" }
-        set {
-            self.updateProviderConfig(provider: .mimo) { entry in
-                entry.cookieHeader = self.normalizedConfigValue(newValue)
-            }
-            self.logSecretUpdate(provider: .mimo, field: "cookieHeader", value: newValue)
-        }
+        get { self[providerConfig: .mimo, field: .cookieHeader] }
+        set { self[providerConfig: .mimo, field: .cookieHeader] = newValue }
     }
 
     var miMoCookieSource: ProviderCookieSource {
@@ -21,8 +16,6 @@ extension SettingsStore {
             self.logProviderModeChange(provider: .mimo, field: "cookieSource", value: newValue.rawValue)
         }
     }
-
-    func ensureMiMoCookieLoaded() {}
 }
 
 extension SettingsStore {

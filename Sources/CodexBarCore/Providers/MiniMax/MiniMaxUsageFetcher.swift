@@ -672,17 +672,6 @@ public struct MiniMaxUsageFetcher: Sendable {
         return compose(base)
     }
 
-    private static func logCodingPlanStatus(payload: MiniMaxCodingPlanPayload) {
-        let baseResponse = payload.data.baseResp ?? payload.baseResp
-        guard let status = baseResponse?.statusCode else { return }
-        let message = baseResponse?.statusMessage ?? ""
-        if !message.isEmpty {
-            Self.log.debug("MiniMax coding plan status \(status): \(message)")
-        } else {
-            Self.log.debug("MiniMax coding plan status \(status)")
-        }
-    }
-
     private static func looksSignedOut(html: String) -> Bool {
         let lower = self.visibleText(from: html).lowercased()
         return lower.contains("sign in") || lower.contains("log in") || lower.contains("登录") || lower.contains("登入")

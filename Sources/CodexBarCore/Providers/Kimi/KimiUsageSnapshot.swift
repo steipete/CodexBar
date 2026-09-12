@@ -49,12 +49,6 @@ public struct KimiUsageSnapshot: Sendable {
         return fallback.date(from: dateString)
     }
 
-    private static func minutesFromNow(_ date: Date?) -> Int? {
-        guard let date else { return nil }
-        let minutes = Int(date.timeIntervalSince(Date()) / 60)
-        return minutes > 0 ? minutes : nil
-    }
-
     private static func clampedPercent(_ value: Double) -> Double {
         min(100, max(0, value))
     }

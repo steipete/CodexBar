@@ -31,8 +31,7 @@ struct ClawRouterProviderImplementation: ProviderImplementation {
                 placeholder: "ClawRouter key…",
                 binding: context.providerConfigBinding(.apiKey),
                 actions: [],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
             ProviderSettingsFieldDescriptor(
                 id: "clawrouter-base-url",
                 title: "Base URL",
@@ -41,8 +40,7 @@ struct ClawRouterProviderImplementation: ProviderImplementation {
                 placeholder: ClawRouterSettingsReader.defaultBaseURL.absoluteString,
                 binding: context.providerConfigBinding(.endpoint),
                 actions: [],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
         ]
     }
 }

@@ -182,8 +182,7 @@ struct CopilotProviderImplementation: ProviderImplementation {
                 isVisible: {
                     context.settings.copilotBudgetExtrasEnabled &&
                         context.settings.copilotBudgetCookieSource == .manual
-                },
-                onActivate: nil),
+                }),
             ProviderSettingsFieldDescriptor(
                 id: "copilot-enterprise-host",
                 title: "Enterprise host",
@@ -193,8 +192,7 @@ struct CopilotProviderImplementation: ProviderImplementation {
                 placeholder: "github.com",
                 binding: context.stringBinding(\.copilotEnterpriseHost),
                 actions: [],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
             ProviderSettingsFieldDescriptor(
                 id: "copilot-seat-credit-entitlement",
                 title: "Included AI credits (per seat)",
@@ -214,8 +212,7 @@ struct CopilotProviderImplementation: ProviderImplementation {
                         },
                         perform: { context.store.clearCopilotDefaultSeatCreditEntitlement() }),
                 ],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
             ProviderSettingsFieldDescriptor(
                 id: "copilot-add-account",
                 title: "GitHub Login",
@@ -233,8 +230,7 @@ struct CopilotProviderImplementation: ProviderImplementation {
                             await CopilotLoginFlow.run(settings: context.settings)
                         }),
                 ],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
         ]
     }
 

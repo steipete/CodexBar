@@ -43,8 +43,7 @@ struct FireworksProviderImplementation: ProviderImplementation {
                 placeholder: "fw_...",
                 binding: context.stringBinding(\.fireworksAPIToken),
                 actions: [],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
             ProviderSettingsFieldDescriptor(
                 id: "fireworks-account-slug",
                 title: "Account slug",
@@ -64,8 +63,7 @@ struct FireworksProviderImplementation: ProviderImplementation {
                             NSWorkspace.shared.open(FireworksURLs.home)
                         }),
                 ],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
         ]
     }
 }

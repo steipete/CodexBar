@@ -3,13 +3,8 @@ import Foundation
 
 extension SettingsStore {
     var manusManualCookieHeader: String {
-        get { self.configSnapshot.providerConfig(for: .manus)?.sanitizedCookieHeader ?? "" }
-        set {
-            self.updateProviderConfig(provider: .manus) { entry in
-                entry.cookieHeader = self.normalizedConfigValue(newValue)
-            }
-            self.logSecretUpdate(provider: .manus, field: "cookieHeader", value: newValue)
-        }
+        get { self[providerConfig: .manus, field: .cookieHeader] }
+        set { self[providerConfig: .manus, field: .cookieHeader] = newValue }
     }
 
     var manusCookieSource: ProviderCookieSource {

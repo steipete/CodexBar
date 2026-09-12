@@ -150,8 +150,7 @@ struct AlibabaTokenPlanProviderImplementation: ProviderImplementation {
                     (context.settings.alibabaTokenPlanUsageDataSource == .auto
                         || context.settings.alibabaTokenPlanUsageDataSource == .web)
                         && context.settings.alibabaTokenPlanCookieSource == .manual
-                },
-                onActivate: nil),
+                }),
         ]
     }
 }

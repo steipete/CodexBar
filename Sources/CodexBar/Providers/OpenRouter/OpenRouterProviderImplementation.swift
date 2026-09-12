@@ -52,8 +52,7 @@ struct OpenRouterProviderImplementation: ProviderImplementation {
                 placeholder: "sk-or-v1-...",
                 binding: context.providerConfigBinding(.apiKey),
                 actions: [],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
             ProviderSettingsFieldDescriptor(
                 id: "openrouter-api-url",
                 title: "API URL",
@@ -62,8 +61,7 @@ struct OpenRouterProviderImplementation: ProviderImplementation {
                 placeholder: "https://openrouter.ai/api/v1",
                 binding: context.providerConfigBinding(.endpoint),
                 actions: [],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
             ProviderSettingsFieldDescriptor(
                 id: "openrouter-management-api-key",
                 title: "Management API key",
@@ -74,8 +72,7 @@ struct OpenRouterProviderImplementation: ProviderImplementation {
                     key: OpenRouterSettingsReader.managementAPIKeyEnvironmentKey,
                     logField: "managementAPIKey"),
                 actions: [],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
         ]
     }
 }

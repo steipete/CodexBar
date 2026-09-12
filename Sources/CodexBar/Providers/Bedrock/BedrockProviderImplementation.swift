@@ -95,8 +95,7 @@ struct BedrockProviderImplementation: ProviderImplementation {
                 placeholder: "default",
                 binding: context.stringBinding(\.bedrockProfile),
                 actions: [],
-                isVisible: isProfileMode,
-                onActivate: nil),
+                isVisible: isProfileMode),
             ProviderSettingsFieldDescriptor(
                 id: "bedrock-access-key-id",
                 title: "Access key ID",
@@ -105,8 +104,7 @@ struct BedrockProviderImplementation: ProviderImplementation {
                 placeholder: "AKIA...",
                 binding: context.stringBinding(\.bedrockAccessKeyID),
                 actions: [],
-                isVisible: isKeysMode,
-                onActivate: nil),
+                isVisible: isKeysMode),
             ProviderSettingsFieldDescriptor(
                 id: "bedrock-secret-access-key",
                 title: "Secret access key",
@@ -115,8 +113,7 @@ struct BedrockProviderImplementation: ProviderImplementation {
                 placeholder: "",
                 binding: context.stringBinding(\.bedrockSecretAccessKey),
                 actions: [],
-                isVisible: isKeysMode,
-                onActivate: nil),
+                isVisible: isKeysMode),
             ProviderSettingsFieldDescriptor(
                 id: "bedrock-region",
                 title: "Region",
@@ -126,8 +123,7 @@ struct BedrockProviderImplementation: ProviderImplementation {
                 placeholder: "us-east-1",
                 binding: context.stringBinding(\.bedrockRegion),
                 actions: [],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
         ]
     }
 }

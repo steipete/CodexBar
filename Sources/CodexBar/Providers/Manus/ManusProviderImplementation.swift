@@ -100,8 +100,7 @@ struct ManusProviderImplementation: ProviderImplementation {
                             }
                         }),
                 ],
-                isVisible: { context.settings.manusCookieSource == .manual },
-                onActivate: nil),
+                isVisible: { context.settings.manusCookieSource == .manual }),
         ]
     }
 }

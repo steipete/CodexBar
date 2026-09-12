@@ -93,8 +93,7 @@ struct LongCatProviderImplementation: ProviderImplementation {
                             }
                         }),
                 ],
-                isVisible: { context.settings.longcatCookieSource == .manual },
-                onActivate: { context.settings.ensureLongCatCookieLoaded() }),
+                isVisible: { context.settings.longcatCookieSource == .manual }),
         ]
     }
 }

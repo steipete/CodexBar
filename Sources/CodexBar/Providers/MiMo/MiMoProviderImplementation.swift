@@ -81,8 +81,7 @@ struct MiMoProviderImplementation: ProviderImplementation {
                             NSWorkspace.shared.open(url)
                         }),
                 ],
-                isVisible: { context.settings.miMoCookieSource == .manual },
-                onActivate: { context.settings.ensureMiMoCookieLoaded() }),
+                isVisible: { context.settings.miMoCookieSource == .manual }),
         ]
     }
 

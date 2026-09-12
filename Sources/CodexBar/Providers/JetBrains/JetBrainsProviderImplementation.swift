@@ -57,8 +57,7 @@ struct JetBrainsProviderImplementation: ProviderImplementation {
                 isVisible: {
                     let detectedIDEs = JetBrainsIDEDetector.detectInstalledIDEs()
                     return detectedIDEs.isEmpty || !context.settings.jetbrainsIDEBasePath.isEmpty
-                },
-                onActivate: nil),
+                }),
         ]
     }
 

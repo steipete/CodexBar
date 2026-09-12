@@ -31,19 +31,6 @@ extension StatusItemController {
 extension StatusItemController: StatusItemMenuPersistentActionDelegate {
     // MARK: - Actions reachable from menus
 
-    func refreshStore(
-        forceTokenUsage: Bool,
-        refreshOpenMenusWhenComplete: Bool = true,
-        interaction: ProviderInteraction = .userInitiated)
-    {
-        Task {
-            await self.performStoreRefresh(
-                forceTokenUsage: forceTokenUsage,
-                refreshOpenMenusWhenComplete: refreshOpenMenusWhenComplete,
-                interaction: interaction)
-        }
-    }
-
     func performStoreRefresh(
         forceTokenUsage: Bool,
         refreshOpenMenusWhenComplete: Bool,

@@ -84,8 +84,7 @@ struct QwenCloudProviderImplementation: ProviderImplementation {
                 ],
                 isVisible: {
                     context.settings.qwenCloudCookieSource == .manual
-                },
-                onActivate: nil),
+                }),
         ]
     }
 }

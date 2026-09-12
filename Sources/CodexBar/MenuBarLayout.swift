@@ -746,26 +746,14 @@ enum MenuBarLayoutGap: String, CaseIterable, Identifiable, Sendable {
 }
 
 struct MenuBarLayoutResolution: Equatable {
-    struct LegacySettings: Equatable {
-        let iconStyle: MenuBarIconStyle
-        let displayMode: MenuBarDisplayMode
-        let metricPreference: MenuBarMetricPreference
-        let resetTimeDisplayStyle: ResetTimeDisplayStyle
-    }
-
     let layout: MenuBarLayout
-    let legacySettings: LegacySettings?
-
-    var usesLegacyRendering: Bool {
-        self.legacySettings != nil
-    }
+    let usesLegacyRendering: Bool
 
     static func stored(_ layout: MenuBarLayout) -> Self {
-        Self(layout: layout, legacySettings: nil)
+        Self(layout: layout, usesLegacyRendering: false)
     }
 
     static func legacy(
-        iconStyle: MenuBarIconStyle,
         displayMode: MenuBarDisplayMode,
         metricPreference: MenuBarMetricPreference,
         resetTimeDisplayStyle: ResetTimeDisplayStyle,
@@ -774,29 +762,22 @@ struct MenuBarLayoutResolution: Equatable {
     {
         Self(
             layout: MenuBarLayout.migrated(
-                iconStyle: iconStyle,
                 displayMode: displayMode,
                 metricPreference: metricPreference,
                 resetTimeDisplayStyle: resetTimeDisplayStyle,
                 provider: provider),
-            legacySettings: LegacySettings(
-                iconStyle: iconStyle,
-                displayMode: displayMode,
-                metricPreference: metricPreference,
-                resetTimeDisplayStyle: resetTimeDisplayStyle))
+            usesLegacyRendering: true)
     }
 }
 
 extension MenuBarLayout {
     static func migrated(
-        iconStyle: MenuBarIconStyle,
         displayMode: MenuBarDisplayMode,
         metricPreference: MenuBarMetricPreference,
         resetTimeDisplayStyle: ResetTimeDisplayStyle,
         provider: UsageProvider? = nil)
         -> MenuBarLayout
     {
-        _ = iconStyle // Critters and bars keep rendering through their unchanged legacy path.
         let icon: MenuBarLayoutToken = .icon
         // Provider-specific by design: OpenRouter Automatic historically renders remaining credit balance.
         if provider == .openrouter, metricPreference == .automatic {
