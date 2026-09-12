@@ -228,10 +228,8 @@ public enum VertexAIOAuthCredentialsStore {
             expiryDate: expiryDate)
     }
 
-    public static func save(_ credentials: VertexAIOAuthCredentials) throws {
-        // We don't modify gcloud's credentials file; just cache the access token in memory
-        // The refresh happens on each app launch if needed
-    }
+    /// Compatibility no-op; gcloud owns credential persistence.
+    public static func save(_: VertexAIOAuthCredentials) throws {}
 
     private static func parseServiceAccountMetadata(json: [String: Any]) -> ServiceAccountMetadata? {
         guard let email = (json["client_email"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
