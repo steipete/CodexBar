@@ -42,8 +42,9 @@ not a relocatable release package.
 - CXX-Qt 0.10 exposes Rust state and methods to QML through generated bindings.
 - The production `Dashboard.qml`, `UsageCard.qml`, `UsageChart.qml`, and shared
   `Usage.js` are reused through a small QML compatibility facade. ARM baseline screenshots
-  exposed a Qt 6.4 plan-label layout issue; `UsageCard.qml` now supplies an explicit
-  minimum/preferred width based on text metrics, covered by a rendered-geometry assertion.
+  exposed a Qt 6.4 plan-label layout issue; `UsageCard.qml` now anchors the plan
+  beside the provider with a width capped at half the header. A rendered-geometry
+  assertion catches the narrow-column regression.
 - `ksni` 0.3.6 publishes a freedesktop StatusNotifierItem over D-Bus. Rust renders
   the ARGB meter pixels; no Qt Widgets tray wrapper is needed.
 - Snapshot clients run before Qt initialization and work without a display.
@@ -89,6 +90,11 @@ same real StatusNotifier host. The tray host lives on X11; this does not validat
 an Omarchy/Quickshell or KDE/GNOME shell on ARM. Weston uses its X11 backend
 to supply a virtual input seat; the seatless headless backend stalled Qt 6.4 startup.
 
+[Native CI run 34679578167](https://github.com/steipete/CodexBar/actions/runs/34679578167)
+passed on both architectures with Ubuntu 24.04, Qt 6.4.2 and Rust 1.98.1.
+The ARM artifact identifies the executable as ELF ARM aarch64. Both jobs passed
+build/Clippy and all three rendering/IPC modes, including tray updates and activation.
+
 Each job uploads platform details, QML captures, a desktop screenshot, exported
 tray pixels/tooltips, and application/compositor logs. Software rendering makes
 these tests repeatable; GPU drivers and physical displays remain separate tests.
@@ -110,6 +116,10 @@ a 40 GB disk and a 45-minute lease. The remote command has a 30-minute timeout;
 Direct Crabbox uses the AWS SDK credential chain, so a separate AWS CLI install
 is not required. The wrapper does not forward AWS keys to the test command.
 
+The AWS wrapper has not yet completed a cloud run: the available Crabbox credentials
+were rejected by EC2 during `DescribeInstances`, before any VM was created.
+The successful native ARM result above comes from GitHub Actions.
+
 The remote script checks `uname -m` is `aarch64`, installs dependencies, builds
 natively and runs the same suite as CI. Local scripts and workflow changes are
 available on the experiment branch; this is not part of production releases.
@@ -128,13 +138,13 @@ normalization/notification rules need either retained Qt execution or a separate
 tested Rust port. The current fixture is already normalized and does not test that
 part of the migration.
 
-ARM64, the Ubuntu 24.04 release baseline, older Qt versions, KDE/GNOME sessions,
-release packaging, accessibility, memory use and performance are not validated by this experiment.
+KDE/GNOME sessions, Qt versions older than 6.4, release packaging, accessibility,
+memory use and performance are not validated by this experiment.
 Rust does not remove the Qt runtime requirement. `ksni` implements StatusNotifier;
 legacy XEmbed tray support from Qt is not reproduced.
 
 The next useful step is a fixture-backed real CLI runner with typed Rust state,
-followed by native x86_64/ARM64 CI builds, before replacing the production controller.
+covered by the native x86_64/ARM64 CI matrix, before replacing the production controller.
 
 References: [CXX-Qt](https://kdab.github.io/cxx-qt/book/),
 [ksni](https://docs.rs/ksni/0.3.6/ksni/).
