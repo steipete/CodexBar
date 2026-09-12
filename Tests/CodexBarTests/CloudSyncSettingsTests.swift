@@ -193,24 +193,33 @@ struct CloudSyncSettingsTests {
         let first = Data("first".utf8)
         let second = Data("second".utf8)
         let values = WatchedConfigValues()
+        let writes = WatchedConfigValues()
         let watcher = ConfigFileWatcher(fileURL: url) {
             guard let data = try? Data(contentsOf: url) else { return }
             values.append(data)
             if data == first {
-                try? second.write(to: url, options: .atomic)
+                do {
+                    try second.write(to: url, options: .atomic)
+                    writes.append(second)
+                } catch {
+                    writes.append(Data(error.localizedDescription.utf8))
+                }
             }
         }
         defer { watcher.stop() }
         watcher.start()
-        for _ in 0..<100 where !values.snapshot.contains(first) {
-            try first.write(to: url, options: .atomic)
+        try first.write(to: url, options: .atomic)
+        for _ in 0..<100 where writes.snapshot.isEmpty {
             try await Task.sleep(for: .milliseconds(20))
         }
+        #expect(!writes.snapshot.isEmpty)
+        #expect(writes.snapshot.allSatisfy { $0 == second })
         #expect(values.snapshot.contains(first))
         for _ in 0..<100 where !values.snapshot.contains(second) {
             try await Task.sleep(for: .milliseconds(10))
         }
         #expect(values.snapshot.contains(second))
+        #expect(try Data(contentsOf: url) == second)
     }
 
     @Test

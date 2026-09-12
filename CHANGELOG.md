@@ -24,6 +24,7 @@
 - Documentation: link the community-maintained CodexBar for Windows companion and AI Monitor USB desk display (#3525, #3544). Thanks @hinneslung and @tobymarks!
 
 ### Development
+- Checks: make the atomic file-watcher fixture write its initial value once, preserving and verifying the replacement produced inside its callback.
 - Checks: isolate Claude usage-retry tests from unrelated authentication subprocess startup.
 - Checks: allow process-fixture startup on loaded Macs before measuring cleanup deadlines, retaining all process-ownership and timeout assertions.
 - Logging: update SwiftLog to 1.15.1 for corrected legacy log forwarding and Swift 6.5 WASI compatibility.
