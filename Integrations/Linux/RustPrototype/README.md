@@ -43,7 +43,7 @@ not a relocatable release package.
 - The production `Dashboard.qml`, `UsageCard.qml`, `UsageChart.qml`, and shared
   `Usage.js` are reused through a small QML compatibility facade. ARM baseline screenshots
   exposed a Qt 6.4 plan-label layout issue; `UsageCard.qml` now supplies an explicit
-  preferred width, covered by a rendered-geometry assertion.
+  minimum/preferred width based on text metrics, covered by a rendered-geometry assertion.
 - `ksni` 0.3.6 publishes a freedesktop StatusNotifierItem over D-Bus. Rust renders
   the ARGB meter pixels; no Qt Widgets tray wrapper is needed.
 - Snapshot clients run before Qt initialization and work without a display.

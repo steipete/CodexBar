@@ -54,7 +54,8 @@ for attempt in {1..100}; do
   sleep 0.1
 done
 [[ "$ready" == true ]] || { cat "$evidence_dir/panel.log"; exit 1; }
-PROTOTYPE_TEST_TRAY=1 PROTOTYPE_QPA=xcb python3 "$script_dir/smoke.py" 2>&1 | tee "$evidence_dir/x11.log"
+test_status=0
+PROTOTYPE_TEST_TRAY=1 PROTOTYPE_QPA=xcb python3 "$script_dir/smoke.py" 2>&1 | tee "$evidence_dir/x11.log" || test_status=1
 # X11 nesting gives Weston a virtual input seat as well as a software output.
 # Qt 6.4 startup stalls against the seatless headless backend.
 weston --backend=x11 --renderer=pixman --socket=codexbar-test-wayland --idle-time=0 --width=1280 --height=900 \
@@ -63,4 +64,5 @@ children+=("$!")
 for attempt in {1..100}; do [[ -S "$XDG_RUNTIME_DIR/codexbar-test-wayland" ]] && break; sleep 0.1; done
 [[ -S "$XDG_RUNTIME_DIR/codexbar-test-wayland" ]] || { cat "$evidence_dir/weston.log"; exit 1; }
 WAYLAND_DEBUG=client WAYLAND_DISPLAY=codexbar-test-wayland PROTOTYPE_TEST_TRAY=1 PROTOTYPE_QPA=wayland \
-  python3 "$script_dir/smoke.py" 2>&1 | tee "$evidence_dir/wayland.log"
+  python3 "$script_dir/smoke.py" 2>&1 | tee "$evidence_dir/wayland.log" || test_status=1
+exit "$test_status"

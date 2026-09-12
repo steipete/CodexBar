@@ -50,6 +50,7 @@ jobs:
             Integrations/Linux/RustPrototype/target
           key: rust-prototype-${{ runner.os }}-${{ matrix.arch }}-${{ steps.dependencies.outputs.qt }}-${{ env.RUSTUP_TOOLCHAIN }}-${{ hashFiles('Integrations/Linux/RustPrototype/Cargo.lock', 'Integrations/Linux/RustPrototype/tests/setup-ubuntu.sh') }}
       - name: Build and lint
+        id: build
         working-directory: Integrations/Linux/RustPrototype
         run: |
           set -euo pipefail
@@ -70,6 +71,7 @@ jobs:
       - name: Render offscreen and exercise IPC
         run: python3 Integrations/Linux/RustPrototype/tests/smoke.py
       - name: Exercise X11 and Wayland with a tray host
+        if: always() && steps.build.outcome == 'success'
         run: bash Integrations/Linux/RustPrototype/tests/desktop-session.sh
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()

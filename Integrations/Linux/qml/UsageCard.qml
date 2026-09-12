@@ -17,7 +17,17 @@ Frame {
         RowLayout {
             Layout.fillWidth: true
             Label { text: Usage.providerName(root.entry.provider); font.bold: true; font.pixelSize: 18; Layout.fillWidth: true; wrapMode: Text.Wrap }
-            Label { text: root.entry.plan || ""; opacity: 0.65; Layout.preferredWidth: Math.min(implicitWidth, root.width / 2); Layout.maximumWidth: root.width / 2; wrapMode: Text.Wrap; textFormat: Text.PlainText }
+            Label {
+                id: planLabel
+                text: root.entry.plan || ""
+                opacity: 0.65
+                Layout.minimumWidth: Math.min(planMetrics.advanceWidth, root.width / 2)
+                Layout.preferredWidth: Layout.minimumWidth
+                Layout.maximumWidth: root.width / 2
+                wrapMode: Text.Wrap
+                textFormat: Text.PlainText
+                TextMetrics { id: planMetrics; text: planLabel.text; font: planLabel.font }
+            }
         }
         Label {
             text: root.entry.accountLabel || ""
