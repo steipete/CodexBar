@@ -14,19 +14,27 @@ Frame {
         id: content
         width: parent.width
         spacing: 12
-        RowLayout {
+        Item {
             Layout.fillWidth: true
-            Label { text: Usage.providerName(root.entry.provider); font.bold: true; font.pixelSize: 18; Layout.fillWidth: true; wrapMode: Text.Wrap }
+            implicitHeight: Math.max(providerLabel.implicitHeight, planLabel.implicitHeight)
+            Label {
+                id: providerLabel
+                anchors.left: parent.left
+                anchors.right: planLabel.left
+                anchors.rightMargin: planLabel.text ? 8 : 0
+                text: Usage.providerName(root.entry.provider)
+                font.bold: true
+                font.pixelSize: 18
+                wrapMode: Text.Wrap
+            }
             Label {
                 id: planLabel
+                anchors.right: parent.right
+                width: Math.min(implicitWidth, parent.width / 2)
                 text: root.entry.plan || ""
                 opacity: 0.65
-                Layout.minimumWidth: Math.min(planMetrics.advanceWidth, root.width / 2)
-                Layout.preferredWidth: Layout.minimumWidth
-                Layout.maximumWidth: root.width / 2
                 wrapMode: Text.Wrap
                 textFormat: Text.PlainText
-                TextMetrics { id: planMetrics; text: planLabel.text; font: planLabel.font }
             }
         }
         Label {
