@@ -95,7 +95,6 @@ struct MenuBarLayoutTests {
 
     @Test
     func `conditional normalization clamps thresholds and clause count`() {
-        let predicate = MenuBarConditionalPredicate(metric: .session, comparison: .greaterThan, threshold: 0)
         let manyClauses = (0..<6).map { index in
             MenuBarConditionalClause(
                 combinator: index == 0 ? .or : .and,

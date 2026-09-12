@@ -546,7 +546,7 @@ struct CostUsagePerformanceGateTests {
         print("[retention-proof] stale-coverage file retained after over-budget prune: \(retained.path)")
 
         let warmCounter = HeadParseCounter()
-        _ = CostUsageScanner.withCodexSessionHeadParseObserverForTesting {
+        CostUsageScanner.withCodexSessionHeadParseObserverForTesting {
             warmCounter.increment()
         } operation: {
             _ = CostUsageScanner.loadDailyReport(

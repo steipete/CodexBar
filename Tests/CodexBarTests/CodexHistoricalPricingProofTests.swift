@@ -115,10 +115,14 @@ struct CodexHistoricalPricingProofTests {
         source: CostUsageFetcher.loadTokenSnapshot(provider: .codex)
         cutoffUTC: 2026-07-30T00:00:00Z
         fixture: local synthetic codex JSONL sessions scanned through the real scanner path
-        2026-07-29 gpt-5.6-terra costUSD=\(terraBefore.costUSD ?? -1) totalTokens=\(terraBefore.totalTokens)
-        2026-07-30 gpt-5.6-terra costUSD=\(terraAfter.costUSD ?? -1) totalTokens=\(terraAfter.totalTokens)
-        2026-07-29 gpt-5.6-luna costUSD=\(lunaBefore.costUSD ?? -1) totalTokens=\(lunaBefore.totalTokens)
-        2026-07-30 gpt-5.6-luna costUSD=\(lunaAfter.costUSD ?? -1) totalTokens=\(lunaAfter.totalTokens)
+        2026-07-29 gpt-5.6-terra costUSD=\(terraBefore
+            .costUSD ?? -1) totalTokens=\(String(describing: terraBefore.totalTokens))
+        2026-07-30 gpt-5.6-terra costUSD=\(terraAfter
+            .costUSD ?? -1) totalTokens=\(String(describing: terraAfter.totalTokens))
+        2026-07-29 gpt-5.6-luna costUSD=\(lunaBefore
+            .costUSD ?? -1) totalTokens=\(String(describing: lunaBefore.totalTokens))
+        2026-07-30 gpt-5.6-luna costUSD=\(lunaAfter
+            .costUSD ?? -1) totalTokens=\(String(describing: lunaAfter.totalTokens))
         """
         try log.write(
             to: proofRoot.appendingPathComponent("codex-historical-pricing-proof.log"),
@@ -127,7 +131,7 @@ struct CodexHistoricalPricingProofTests {
     }
 
     private func writeCodexSession(env: CostUsageTestEnvironment, fixture: SessionFixture) throws {
-        try env.writeCodexSessionFile(
+        _ = try env.writeCodexSessionFile(
             day: fixture.day,
             filename: fixture.filename,
             contents: env.jsonl([

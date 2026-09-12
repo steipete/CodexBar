@@ -123,7 +123,7 @@ final class DeepSeekUsageNativeProofTests: XCTestCase {
         app.activate(ignoringOtherApps: true)
         try JSONSerialization.data(withJSONObject: [
             "pid": ProcessInfo.processInfo.processIdentifier, "window": window.windowNumber,
-            "todayTokens": summary.todayTokens, "todayCost": summary.todayCost,
+            "todayTokens": summary.todayTokens, "todayCost": XCTUnwrap(summary.todayCost),
         ]).write(to: output.appendingPathComponent("state.json"))
         let deadline = Date().addingTimeInterval(600)
         while !FileManager.default.fileExists(atPath: output.appendingPathComponent("done").path), Date() < deadline {
