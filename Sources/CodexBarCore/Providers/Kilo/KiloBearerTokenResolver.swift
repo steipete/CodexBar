@@ -39,8 +39,8 @@ public enum KiloBearerTokenResolver {
         apiKey: String?,
         environment: [String: String]) throws -> KiloResolvedBearerToken
     {
-        let direct = KiloSettingsReader.cleaned(apiKey)
-        let envValue = KiloSettingsReader.cleaned(environment[KiloSettingsReader.apiTokenKey])
+        let direct = SettingsValue.cleaned(apiKey)
+        let envValue = SettingsValue.cleaned(environment[KiloSettingsReader.apiTokenKey])
         if let token = direct ?? envValue {
             return KiloResolvedBearerToken(token: token, sourceLabel: "api")
         }
@@ -67,7 +67,7 @@ public enum KiloBearerTokenResolver {
     }
 
     static func authFileURL(environment: [String: String]) -> URL {
-        if let home = KiloSettingsReader.cleaned(environment["HOME"]) {
+        if let home = SettingsValue.cleaned(environment["HOME"]) {
             let expandedHome = NSString(string: home).expandingTildeInPath
             return KiloSettingsReader.defaultAuthFileURL(
                 homeDirectory: URL(fileURLWithPath: expandedHome, isDirectory: true))

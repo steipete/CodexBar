@@ -127,7 +127,7 @@ public enum ZenMuxUsageFetcher {
         transport: any ProviderHTTPTransport = ProviderHTTPClient.shared,
         now: Date = Date()) async throws -> (usage: ZenMuxUsageSnapshot, paygBalanceUSD: Double?)
     {
-        guard let credential = ZenMuxSettingsReader.cleaned(rawCredential) else {
+        guard let credential = SettingsValue.cleaned(rawCredential) else {
             throw ZenMuxUsageError.notConfigured
         }
         let subscriptionData = try await self.get(

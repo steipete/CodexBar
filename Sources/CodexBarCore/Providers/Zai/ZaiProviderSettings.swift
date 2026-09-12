@@ -10,8 +10,8 @@ public struct ZaiBigModelTeamContext: Equatable, Sendable {
     public let projectID: String
 
     public init?(organizationID: String?, projectID: String?) {
-        guard let organizationID = ZaiSettingsReader.cleaned(organizationID),
-              let projectID = ZaiSettingsReader.cleaned(projectID)
+        guard let organizationID = SettingsValue.cleaned(organizationID),
+              let projectID = SettingsValue.cleaned(projectID)
         else { return nil }
         self.organizationID = organizationID
         self.projectID = projectID

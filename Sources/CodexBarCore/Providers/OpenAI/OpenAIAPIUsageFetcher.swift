@@ -77,7 +77,7 @@ public enum OpenAIAPIUsageFetcher {
         guard !trimmed.isEmpty else {
             throw OpenAIAPIUsageError.missingCredentials
         }
-        let normalizedProjectID = OpenAIAPISettingsReader.cleaned(projectID)
+        let normalizedProjectID = SettingsValue.cleaned(projectID)
 
         let calendar = Self.utcCalendar
         let clampedHistoryDays = max(1, min(365, historyDays))
@@ -121,7 +121,7 @@ public enum OpenAIAPIUsageFetcher {
                 now: now,
                 calendar: calendar,
                 historyDays: historyDays,
-                projectID: OpenAIAPISettingsReader.cleaned(projectID)))
+                projectID: SettingsValue.cleaned(projectID)))
     }
 
     private static func costsEndpoint(baseURL: URL) -> UsageEndpoint<OpenAICostBucket> {

@@ -213,7 +213,7 @@ extension CodexBarCLI {
             apiKey
         }
 
-        guard let value = Self.cleanConfigSecret(raw) else {
+        guard let value = SettingsValue.cleaned(raw) else {
             throw CLIArgumentError("Missing API key. Pass --api-key <key> or pipe it with --stdin.")
         }
         return value
@@ -270,8 +270,8 @@ extension CodexBarCLI {
         organizationID: String?,
         workspaceID: String?) throws -> ConfigAPIKeyAccountOptions?
     {
-        let cleanedLabel = Self.cleanConfigValue(label)
-        let cleanedScope = Self.cleanConfigValue(usageScope)
+        let cleanedLabel = SettingsValue.cleaned(label)
+        let cleanedScope = SettingsValue.cleaned(usageScope)
         let cleanedOrganizationID = try Self.cleanSingleLineConfigValue(
             organizationID,
             fieldName: "organization-id")
@@ -332,26 +332,8 @@ extension CodexBarCLI {
         }
     }
 
-    private static func cleanConfigSecret(_ raw: String?) -> String? {
-        guard var value = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
-            return nil
-        }
-        if (value.hasPrefix("\"") && value.hasSuffix("\"")) ||
-            (value.hasPrefix("'") && value.hasSuffix("'"))
-        {
-            value = String(value.dropFirst().dropLast())
-        }
-        value = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return value.isEmpty ? nil : value
-    }
-
-    private static func cleanConfigValue(_ raw: String?) -> String? {
-        guard let value = self.cleanConfigSecret(raw) else { return nil }
-        return value
-    }
-
     private static func cleanSingleLineConfigValue(_ raw: String?, fieldName: String) throws -> String? {
-        guard let value = self.cleanConfigValue(raw) else { return nil }
+        guard let value = SettingsValue.cleaned(raw) else { return nil }
         guard !value.contains(where: \.isNewline) else {
             throw CLIArgumentError("--\(fieldName) must be a single line.")
         }

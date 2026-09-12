@@ -43,6 +43,8 @@ read_when:
 - The native status-item controller owns menu composition. Persistent refresh-row metrics are independent of menu
   rendering, and screenshot fixtures exercise the active card views. Legacy menu-layout resolution retains its
   rendering mode and projected layout without copying unused settings into a second state object.
+- `SettingsValue` owns whitespace and wrapping-quote normalization for config and provider settings. Readers retain
+  their credential precedence, endpoint validation, and provider-specific decoding.
 - Core owns status feed fetching, decoding, and status models through `ProviderStatusFetcher`; the app supplies
   localized labels and component UI, and the CLI supplies its existing status payload and English labels.
 - `KeychainStringStore` owns generic-password operations for legacy credential migration. Provider adapters retain

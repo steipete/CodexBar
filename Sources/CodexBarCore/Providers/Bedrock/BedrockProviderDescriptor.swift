@@ -83,7 +83,7 @@ public enum BedrockProviderDescriptor {
         if let configMode {
             environment[BedrockSettingsReader.authModeKey] = configMode.rawValue
         }
-        let baseMode = BedrockSettingsReader
+        let baseMode = SettingsValue
             .cleaned(base[BedrockSettingsReader.authModeKey])
             .flatMap { BedrockAuthMode(rawValue: $0.lowercased()) }
         let mergedAccessKey = config.sanitizedAPIKey ?? BedrockSettingsReader.accessKeyID(environment: base)

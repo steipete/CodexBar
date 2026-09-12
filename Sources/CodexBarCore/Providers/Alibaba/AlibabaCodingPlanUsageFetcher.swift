@@ -287,7 +287,7 @@ public struct AlibabaCodingPlanUsageFetcher: Sendable {
     }
 
     static func url(from rawHost: String, region: AlibabaCodingPlanAPIRegion) -> URL? {
-        let cleaned = AlibabaCodingPlanSettingsReader.cleaned(rawHost)
+        let cleaned = SettingsValue.cleaned(rawHost)
         guard let cleaned else { return nil }
 
         let base = ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: cleaned)
@@ -307,7 +307,7 @@ public struct AlibabaCodingPlanUsageFetcher: Sendable {
     }
 
     static func consoleURL(from rawHost: String, region: AlibabaCodingPlanAPIRegion) -> URL? {
-        let cleaned = AlibabaCodingPlanSettingsReader.cleaned(rawHost)
+        let cleaned = SettingsValue.cleaned(rawHost)
         guard let cleaned else { return nil }
 
         let base = ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: cleaned)
@@ -368,7 +368,7 @@ public struct AlibabaCodingPlanUsageFetcher: Sendable {
     }
 
     static func dashboardURL(from rawHost: String, region: AlibabaCodingPlanAPIRegion) -> URL? {
-        let cleaned = AlibabaCodingPlanSettingsReader.cleaned(rawHost)
+        let cleaned = SettingsValue.cleaned(rawHost)
         guard let cleaned else { return nil }
 
         let base = ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: cleaned)
@@ -428,7 +428,7 @@ public struct AlibabaCodingPlanUsageFetcher: Sendable {
     }
 
     private static func baseURL(from rawHost: String) -> URL? {
-        let cleaned = AlibabaCodingPlanSettingsReader.cleaned(rawHost)
+        let cleaned = SettingsValue.cleaned(rawHost)
         guard let cleaned else { return nil }
 
         let base = ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: cleaned)

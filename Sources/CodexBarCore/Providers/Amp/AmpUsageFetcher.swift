@@ -165,7 +165,7 @@ public struct AmpUsageFetcher: Sendable {
         logger: ((String) -> Void)? = nil,
         now: Date = Date()) async throws -> AmpUsageSnapshot
     {
-        guard let token = AmpSettingsReader.cleaned(apiToken) else {
+        guard let token = SettingsValue.cleaned(apiToken) else {
             throw AmpUsageError.missingAPIToken
         }
         let request = try Self.makeUsageAPIRequest(apiToken: token)

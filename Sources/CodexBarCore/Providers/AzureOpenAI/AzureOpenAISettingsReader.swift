@@ -8,7 +8,7 @@ public enum AzureOpenAISettingsReader {
     public static let defaultAPIVersion = "2024-10-21"
 
     public static func apiKey(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
-        self.cleaned(environment[self.apiKeyEnvironmentKey])
+        SettingsValue.cleaned(environment[self.apiKeyEnvironmentKey])
     }
 
     public static func endpoint(environment: [String: String] = ProcessInfo.processInfo.environment) -> URL? {
@@ -17,15 +17,15 @@ public enum AzureOpenAISettingsReader {
     }
 
     public static func rawEndpoint(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
-        self.cleaned(environment[self.endpointEnvironmentKey])
+        SettingsValue.cleaned(environment[self.endpointEnvironmentKey])
     }
 
     public static func deploymentName(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
-        self.cleaned(environment[self.deploymentNameEnvironmentKey])
+        SettingsValue.cleaned(environment[self.deploymentNameEnvironmentKey])
     }
 
     public static func apiVersion(environment: [String: String] = ProcessInfo.processInfo.environment) -> String {
-        self.cleaned(environment[self.apiVersionEnvironmentKey]) ?? self.defaultAPIVersion
+        SettingsValue.cleaned(environment[self.apiVersionEnvironmentKey]) ?? self.defaultAPIVersion
     }
 
     public static func endpointURL(from rawEndpoint: String) -> URL? {
@@ -41,21 +41,6 @@ public enum AzureOpenAISettingsReader {
         guard self.endpointURL(from: rawEndpoint) != nil else {
             throw AzureOpenAISettingsError.invalidEndpointOverride(self.endpointEnvironmentKey)
         }
-    }
-
-    static func cleaned(_ raw: String?) -> String? {
-        guard var value = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
-            return nil
-        }
-
-        if (value.hasPrefix("\"") && value.hasSuffix("\"")) ||
-            (value.hasPrefix("'") && value.hasSuffix("'"))
-        {
-            value = String(value.dropFirst().dropLast())
-        }
-
-        value = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return value.isEmpty ? nil : value
     }
 }
 

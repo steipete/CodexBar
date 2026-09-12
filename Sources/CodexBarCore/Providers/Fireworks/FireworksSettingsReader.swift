@@ -13,14 +13,8 @@ public struct FireworksSettingsReader: Sendable {
         environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
     {
         for key in [self.configAPIKeyEnvironmentKey] + self.apiKeyEnvironmentKeys {
-            guard let raw = environment[key]?.trimmingCharacters(in: .whitespacesAndNewlines),
-                  !raw.isEmpty
-            else {
-                continue
-            }
-            let cleaned = Self.cleaned(raw)
-            if !cleaned.isEmpty {
-                return cleaned
+            if let value = SettingsValue.cleaned(environment[key]) {
+                return value
             }
         }
         return nil
@@ -30,26 +24,10 @@ public struct FireworksSettingsReader: Sendable {
         environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
     {
         for key in [self.configAccountSlugEnvironmentKey, self.accountSlugEnvironmentKey] {
-            guard let raw = environment[key]?.trimmingCharacters(in: .whitespacesAndNewlines),
-                  !raw.isEmpty
-            else {
-                continue
-            }
-            let cleaned = Self.cleaned(raw)
-            if !cleaned.isEmpty {
-                return cleaned
+            if let value = SettingsValue.cleaned(environment[key]) {
+                return value
             }
         }
         return nil
-    }
-
-    private static func cleaned(_ raw: String) -> String {
-        var value = raw
-        if (value.hasPrefix("\"") && value.hasSuffix("\""))
-            || (value.hasPrefix("'") && value.hasSuffix("'"))
-        {
-            value = String(value.dropFirst().dropLast())
-        }
-        return value.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

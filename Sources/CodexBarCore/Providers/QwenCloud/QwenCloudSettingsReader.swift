@@ -8,13 +8,13 @@ public struct QwenCloudSettingsReader: Sendable {
     public static func cookieHeader(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
     {
-        self.cleaned(environment[self.cookieHeaderKey])
+        SettingsValue.cleaned(environment[self.cookieHeaderKey])
     }
 
     public static func hostOverride(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
     {
-        guard let raw = self.cleaned(environment[self.hostKey]) else { return nil }
+        guard let raw = SettingsValue.cleaned(environment[self.hostKey]) else { return nil }
         // Accept full https:// URLs and normalize bare hosts (e.g. "qwen-cloud.test"
         // or "qwen-cloud.test:8443") to HTTPS, so dashboardURL / defaultQuotaURL
         // always build valid URLs. Mirrors the shared endpoint-override rules used
@@ -25,24 +25,11 @@ public struct QwenCloudSettingsReader: Sendable {
     public static func quotaURL(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> URL?
     {
-        guard let raw = self.cleaned(environment[self.quotaURLKey]) else { return nil }
+        guard let raw = SettingsValue.cleaned(environment[self.quotaURLKey]) else { return nil }
         if let url = URL(string: raw), let scheme = url.scheme {
             return scheme.lowercased() == "https" ? url : nil
         }
         return URL(string: "https://\(raw)")
-    }
-
-    static func cleaned(_ raw: String?) -> String? {
-        guard var value = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
-            return nil
-        }
-        if (value.hasPrefix("\"") && value.hasSuffix("\"")) ||
-            (value.hasPrefix("'") && value.hasSuffix("'"))
-        {
-            value = String(value.dropFirst().dropLast())
-        }
-        value = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return value.isEmpty ? nil : value
     }
 }
 

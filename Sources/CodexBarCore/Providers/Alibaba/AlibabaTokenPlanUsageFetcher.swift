@@ -671,7 +671,7 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
     }
 
     private static func quotaURL(from rawHost: String, region: AlibabaTokenPlanAPIRegion) -> URL? {
-        let cleaned = AlibabaTokenPlanSettingsReader.cleaned(rawHost)
+        let cleaned = SettingsValue.cleaned(rawHost)
         guard let cleaned else { return nil }
         guard let base = ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: cleaned) else { return nil }
         var components = URLComponents(url: base, resolvingAgainstBaseURL: false)
