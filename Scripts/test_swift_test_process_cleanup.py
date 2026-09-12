@@ -251,9 +251,6 @@ class ProcessCleanupTests(unittest.TestCase):
             try:
                 # Interpreter/file startup is setup; the cleanup deadlines below start afterward.
                 wait_until(lambda: (sentinel_root / "pid").exists(), timeout=10)
-                if interrupt:
-                    timer = threading.Timer(2, lambda: os.kill(os.getpid(), signal.SIGINT))
-                    timer.start()
                 started = time.monotonic()
                 command = [sys.executable, __file__, "--fixture", mode, str(child_root), str(ready_delay)]
                 original_refresh = runner.TestProcessOwnership.refresh
@@ -261,11 +258,15 @@ class ProcessCleanupTests(unittest.TestCase):
                 acknowledged = False
                 draining = False
                 def refresh(ownership, **kwargs):
-                    nonlocal acknowledged
+                    nonlocal acknowledged, timer
                     owned = original_refresh(ownership, **kwargs)
                     if not acknowledged and not draining:
                         acknowledged = release_observed_fixture(
                             child_root, owned, include_grandchild=mode == "success-session-tree")
+                        if acknowledged and interrupt:
+                            # Interrupt owned work, not interpreter startup before identities are visible.
+                            timer = threading.Timer(0.05, lambda: os.kill(os.getpid(), signal.SIGINT))
+                            timer.start()
                     return owned
                 def drain(ownership, process):
                     nonlocal draining
@@ -350,7 +351,7 @@ class ProcessCleanupTests(unittest.TestCase):
         self.exercise("failure", 23)
 
     def test_keyboard_interrupt_drains_children_and_propagates(self):
-        self.exercise("timeout", None, interrupt=True)
+        self.exercise("timeout", None, interrupt=True, ready_delay=3)
 
 
 class FixtureReadinessTests(unittest.TestCase):

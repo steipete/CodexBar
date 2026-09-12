@@ -8,6 +8,7 @@
 - **Safer account menus:** preserve privacy in Codex account labels and reauthenticate the credential source shown by the selected row.
 
 ### Changes
+- Usage & Spend: count covered calendar days, align chart labels and ranges with the selected bucket time zone, and preserve historical-pace credits after midnight daylight-saving transitions (follow-up to #3565).
 - Usage & Spend: preserve heatmap coverage, token totals, and daily ledger rows across midnight daylight-saving transitions, retaining real gaps and unscanned days (#3565). Thanks @gabrielrojasc!
 - Cursor on Linux: restore automatic authentication from the signed-in app, honor absolute XDG/HOME paths, and preserve manual-cookie precedence and explicit web-mode isolation (#3539). Thanks @DonnieFi!
 - Codex spend: exclude time waiting behind other scans from automatic catch-up sleep calculations while preserving scan budgets, power safeguards, and complete-history publication (#3566, related to #3508 and #3411).
@@ -23,6 +24,7 @@
 - Documentation: link the community-maintained CodexBar for Windows companion and AI Monitor USB desk display (#3525, #3544). Thanks @hinneslung and @tobymarks!
 
 ### Development
+- Checks: interrupt the process-cleanup fixture after ownership is observed, so slow child startup cannot invalidate the cleanup test.
 - Checks: isolate Claude usage-retry tests from unrelated authentication subprocess startup.
 - Checks: allow process-fixture startup on loaded Macs before measuring cleanup deadlines, retaining all process-ownership and timeout assertions.
 - Logging: update SwiftLog to 1.15.1 for corrected legacy log forwarding and Swift 6.5 WASI compatibility.
