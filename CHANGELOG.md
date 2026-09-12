@@ -11,9 +11,9 @@
 - Codex spend: keep waiting history files ahead of repeated migration revisits so large histories can finish bounded catch-up, preserving stored rows and checkpoints (#3548, related to #3411). Thanks @SergeiNikolenko!
 - Codex accounts: reauthenticate the credential source used by the visible row, fixing repeated re-auth on saved accounts that also represent the System login, and reject stale account actions (#3558). Thanks @Nek-12!
 - Codex accounts: honor Hide Personal Info in switcher labels and tooltips, redact embedded workspace emails, and preserve distinct account numbers in narrow menus (#3551). Thanks @zenibako!
-- Codex menu-bar layouts: show an owner-visible workspace credit balance in the Balance token instead of an unavailable dash, including browser sessions that require an authentication retry. Round displayed credits to whole numbers with thousands separators, and keep the previous balance visible during usage-only refreshes.
 - Menu bar: align window and display coordinates so monitors above or below the primary display do not cause missed or false startup recovery.
 - Devin: honor hidden daily quotas even when the response includes daily usage, preserving weekly limits and extra balance (#3542). Thanks @dzienisz!
+- Codex menu-bar layouts: show an owner-visible workspace credit balance in the Balance token instead of an unavailable dash, including browser sessions that require an authentication retry. Round displayed credits to whole numbers with thousands separators, and keep the previous balance visible during usage-only refreshes.
 - Grok: skip discarded local-history scans and version probes after terminal CLI billing failures, allowing fallback to start sooner (extracted from #3236). Thanks @Yuxin-Qiao!
 
 ### Development
