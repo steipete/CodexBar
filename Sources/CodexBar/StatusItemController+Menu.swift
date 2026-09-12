@@ -1185,6 +1185,7 @@ extension StatusItemController {
             let enabledProviders = self.store.enabledProvidersForBackgroundWork()
             let visibleProviders = self.delayedRefreshRetryProviders(for: menu)
             let visibleInstanceIDs = visibleProviders.map(\.instanceID)
+            let visibleProviderSet = Set(visibleInstanceIDs)
             let plan = MenuOpenRefreshPlan.resolve(.init(
                 refreshAllOnOpen: refreshAllOnOpen,
                 enabledProviders: enabledProviders,
@@ -1222,7 +1223,9 @@ extension StatusItemController {
                 // wait for any in-flight refresh (e.g. a manual refresh) instead of overriding it.
                 await withTaskGroup(of: Void.self) { group in
                     for provider in retryProviders {
-                        let interaction = self.openMenuRefreshInteraction(for: provider)
+                        let interaction = self.openMenuRefreshInteraction(
+                            for: provider,
+                            visibleProviders: visibleProviderSet)
                         group.addTask {
                             await ProviderInteractionContext.$current.withValue(interaction) {
                                 await self.store.refreshProvider(provider, coalesceIfRefreshing: true)
@@ -1233,7 +1236,9 @@ extension StatusItemController {
             } else {
                 for provider in retryProviders {
                     guard !Task.isCancelled else { return }
-                    let interaction = self.openMenuRefreshInteraction(for: provider)
+                    let interaction = self.openMenuRefreshInteraction(
+                        for: provider,
+                        visibleProviders: visibleProviderSet)
                     await ProviderInteractionContext.$current.withValue(interaction) {
                         await self.store.refreshProvider(provider, coalesceIfRefreshing: true)
                     }
@@ -1254,15 +1259,24 @@ extension StatusItemController {
         }
     }
 
-    private func openMenuRefreshInteraction(for provider: UsageProvider) -> ProviderInteraction {
-        Self.openMenuRefreshInteraction(provider: provider, error: self.store.error(for: provider))
+    private func openMenuRefreshInteraction(
+        for provider: UsageProvider,
+        visibleProviders: Set<ProviderInstanceID>) -> ProviderInteraction
+    {
+        Self.openMenuRefreshInteraction(
+            provider: provider,
+            error: self.store.error(for: provider),
+            visibleProviders: visibleProviders)
     }
 
     nonisolated static func openMenuRefreshInteraction(
         provider: UsageProvider,
-        error: String?) -> ProviderInteraction
+        error: String?,
+        visibleProviders: Set<ProviderInstanceID>) -> ProviderInteraction
     {
-        guard provider == .claude, let error, UsageStore.isClaudeCredentialRecoveryError(error) else {
+        guard visibleProviders.contains(provider.instanceID),
+              ProviderCatalog.implementation(for: provider)?.allowsInteractiveMenuRefresh(error: error) == true
+        else {
             return .background
         }
         return .userInitiated

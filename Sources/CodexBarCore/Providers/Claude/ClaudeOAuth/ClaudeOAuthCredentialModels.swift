@@ -261,6 +261,20 @@ public enum ClaudeOAuthCredentialsError: LocalizedError, Sendable {
     case noRefreshToken
     case refreshDelegatedToClaudeCLI
 
+    public static func isCredentialRecoveryError(description: String?) -> Bool {
+        if ClaudeOAuthUnreadableCredentialsError.matches(description: description) {
+            return true
+        }
+        return [
+            Self.missingOAuth.localizedDescription,
+            Self.mcpOAuthOnlyKeychain.localizedDescription,
+            Self.missingAccessToken.localizedDescription,
+            Self.notFound.localizedDescription,
+            Self.keychainAccessRevoked.localizedDescription,
+            Self.noRefreshToken.localizedDescription,
+        ].contains(description)
+    }
+
     public var errorDescription: String? {
         switch self {
         case .decodeFailed:
