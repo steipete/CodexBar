@@ -3,6 +3,7 @@
 ## 0.60.1 — Unreleased
 
 ### Fixed
+- z.ai: keep missing quota limits unavailable instead of displaying 100% remaining, preserving real zero usage, plan details, and optional analytics.
 - Antigravity: suppress remote model variants that exactly mirror a known pool and reset, preserve distinct quota rows and their saved visibility, and prefer known usage over reset-only duplicates (#3583). Thanks @hhh2210!
 
 ### Development
