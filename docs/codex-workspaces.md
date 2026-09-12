@@ -8,11 +8,23 @@ public CLI JSON contract.
 ## Internal navigation scaffold
 
 Debug builds can expose a Codex-only **Workspaces** menu action with
-`CODEXBAR_ENABLE_WORKSPACES_MENU=1`. It opens one reusable native window showing
-**No data yet**; this preparatory navigation slice does not load the index,
-start scans, read account data, or persist window geometry. Release builds
-always disable this gate, even if the environment variable is present. A
-data-backed inspector and an explicit user opt-in remain separate follow-ups.
+`CODEXBAR_ENABLE_WORKSPACES_MENU=1`. It opens one reusable native project and
+session inspector. The inspector is cache-first: it shows the latest available
+local snapshot immediately, keeps that content visible while an explicit
+**Refresh usage data** action requests a new scan, and does not perform an
+a forced refresh merely by opening the window. When detailed cached content is
+absent, the inspector performs one normal sidecar-backed detail load. A
+successful refresh that returns partial source data replaces the rendered snapshot
+and remains labeled partial. A refresh that fails preserves the previously
+rendered snapshot—complete or partial—and adds a recoverable failure notice. The existing hide-personal-information
+projection is applied before paths, workspace names, working directories, or
+session titles reach the inspector. Release builds always disable this gate,
+even if the environment variable is present.
+
+This PR2 scaffold intentionally excludes Models analytics, charts, CSV/export,
+search/filter controls, preference or opt-in changes, background indexing, and
+index rebuild controls. Those remain later PR3/PR4 work; this navigation layer
+does not alter the foundation's scanner, sidecar, or persistence contracts.
 
 ## Data flow
 

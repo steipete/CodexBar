@@ -39,6 +39,7 @@ struct CodexWorkspacesNavigationFixture {
         self.store = UsageStore(
             fetcher: UsageFetcher(environment: environment),
             browserDetection: BrowserDetection(homeDirectory: self.files.root.path, cacheTTL: 0),
+            costUsageFetcher: CostUsageFetcher(cacheRoot: self.files.cacheRoot),
             settings: self.settings,
             startupBehavior: .testing,
             environmentBase: environment)

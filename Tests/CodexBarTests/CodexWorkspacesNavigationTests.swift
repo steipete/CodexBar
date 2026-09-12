@@ -92,10 +92,15 @@ struct CodexWorkspacesNavigationTests {
     @Test
     func `Workspaces presenter reuses a stable native window shell`() throws {
         _ = NSApplication.shared
+        let fixture = try CodexWorkspacesNavigationFixture()
         let presenter = CodexWorkspacesPresenter()
-        let first = presenter.windowControllerForPresentation()
-        let second = presenter.windowControllerForPresentation()
+        let first = presenter.windowControllerForPresentation(store: fixture.store, settings: fixture.settings)
+        let second = presenter.windowControllerForPresentation(store: fixture.store, settings: fixture.settings)
         let window = try #require(first.window)
+        defer {
+            window.close()
+            fixture.cleanup()
+        }
 
         #expect(first === second)
         #expect(window.identifier?.rawValue == CodexWorkspacesWindowIdentity.window)
@@ -111,6 +116,58 @@ struct CodexWorkspacesNavigationTests {
         #expect(!window.isRestorable)
         #expect(window.frameAutosaveName.isEmpty)
         #expect(window.contentViewController != nil)
+    }
+
+    @Test
+    func `window construction defers loading and presentation starts one cache first request`() async throws {
+        _ = NSApplication.shared
+        let fixture = try CodexWorkspacesNavigationFixture()
+        let configuration = self.inspectorConfiguration(fixture)
+        let recorder = InspectorLoadRecorder()
+        let refreshedSnapshot = Self.emptyInspectorSnapshot()
+        let model = CodexWorkspacesInspectorModel(
+            configuration: configuration,
+            cachedSnapshotLoader: { requestedConfiguration in
+                await recorder.recordCached(requestedConfiguration)
+                return nil
+            },
+            snapshotLoader: { requestedConfiguration, forceRefresh, progress in
+                await recorder.recordNormal(requestedConfiguration, forceRefresh: forceRefresh)
+                progress(CodexLocalProjectUsageIndexProgress(phase: .indexingProjects))
+                return refreshedSnapshot
+            })
+        let windowController = CodexWorkspacesWindowController(
+            store: fixture.store,
+            settings: fixture.settings,
+            model: model)
+        defer {
+            windowController.window?.close()
+            fixture.cleanup()
+        }
+
+        #expect(await recorder.cachedConfigurations() == [])
+        #expect(await recorder.normalRequests() == [])
+
+        windowController.present()
+        await model.waitForCurrentLoad()
+
+        #expect(await recorder.cachedConfigurations() == [configuration])
+        #expect(await recorder.normalRequests() == [InspectorLoadRecorder.NormalRequest(
+            configuration: configuration,
+            forceRefresh: false)])
+        #expect(model.snapshot == refreshedSnapshot)
+        #expect(!model.isLoading)
+
+        let window = try #require(windowController.window)
+        window.performClose(nil)
+        #expect(!window.isVisible)
+        windowController.present()
+        #expect(windowController.window === window)
+        #expect(window.isVisible)
+        #expect(await recorder.cachedConfigurations() == [configuration])
+        #expect(await recorder.normalRequests() == [InspectorLoadRecorder.NormalRequest(
+            configuration: configuration,
+            forceRefresh: false)])
     }
 
     private func makeDescriptor(
@@ -133,5 +190,56 @@ struct CodexWorkspacesNavigationTests {
             guard case let .action(title, .openCodexWorkspaces) = entry else { return nil }
             return title
         }
+    }
+
+    private func inspectorConfiguration(
+        _ fixture: CodexWorkspacesNavigationFixture) -> CodexWorkspacesInspectorModel.Configuration
+    {
+        let scope = fixture.store.tokenCostScope(for: .codex)
+        return CodexWorkspacesInspectorModel.Configuration(
+            codexHomePath: scope.codexHomePath,
+            scopeSignature: scope.signature,
+            historyDays: fixture.settings.costUsageHistoryDays,
+            hidePersonalInfo: fixture.settings.hidePersonalInfo)
+    }
+
+    private static func emptyInspectorSnapshot() -> CodexLocalProjectUsageSnapshot {
+        CodexLocalProjectUsageSnapshot(
+            updatedAt: Date(timeIntervalSince1970: 1),
+            historyDays: 30,
+            scopeSignature: "test-scope",
+            rootsFingerprint: [:],
+            indexedFileCount: 0,
+            skippedFileCount: 0,
+            total: .empty,
+            projects: [],
+            sessions: [],
+            daily: [])
+    }
+}
+
+private actor InspectorLoadRecorder {
+    struct NormalRequest: Sendable, Equatable {
+        let configuration: CodexWorkspacesInspectorModel.Configuration
+        let forceRefresh: Bool
+    }
+
+    private var cachedRequests: [CodexWorkspacesInspectorModel.Configuration] = []
+    private var normalLoadRequests: [NormalRequest] = []
+
+    func recordCached(_ configuration: CodexWorkspacesInspectorModel.Configuration) {
+        self.cachedRequests.append(configuration)
+    }
+
+    func recordNormal(_ configuration: CodexWorkspacesInspectorModel.Configuration, forceRefresh: Bool) {
+        self.normalLoadRequests.append(NormalRequest(configuration: configuration, forceRefresh: forceRefresh))
+    }
+
+    func cachedConfigurations() -> [CodexWorkspacesInspectorModel.Configuration] {
+        self.cachedRequests
+    }
+
+    func normalRequests() -> [NormalRequest] {
+        self.normalLoadRequests
     }
 }
