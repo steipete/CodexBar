@@ -8,7 +8,7 @@ read_when:
 
 # Providers
 
-CodexBar currently registers 69 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
+CodexBar currently registers 70 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
 OpenCode vs OpenCode Go, because the auth source and quota shape differ.
 
 ## Fetch strategies (current)
@@ -127,6 +127,7 @@ complete when the available scan window covers fewer days.
 | Zed | Zed editor Keychain session → `cloud.zed.dev/client/users/me` for plan and quota data (`local`). |
 | Notion AI | Browser cookies → workspace resolution and the AI usage allowance API (`web`). |
 | IBM Bob | API key from config/env → profile and per-team Bobcoin budget APIs (`api`). |
+| Meta Muse | Local Muse CLI session logs → token totals and token cost estimates; no quota windows (`local`). |
 
 ## Codex
 - App Auto: OAuth API first; falls back to CLI only when OAuth credentials are missing or auth/refresh is invalid.
@@ -663,3 +664,8 @@ Transient network failures keep the last successful usage for the same account a
 including multi-account menus and their widget data. The cached measurement time and source remain unchanged;
 failed refreshes do not add fresh utilization-history samples. Normal error reporting still applies after repeated
 failures. Authentication failures and invalidated account scopes do not restore cached usage from another scope.
+
+## Meta Muse
+- Scans `~/.local/share/muse/sessions`, `~/.config/muse/sessions`, and `~/.muse/sessions` for local token totals and cost tracking; reports no quota windows.
+- Reads plan tier from `~/.config/muse/settings.json`; optional `META_API_KEY` / `MUSE_API_KEY`.
+- Details: `docs/muse.md`.

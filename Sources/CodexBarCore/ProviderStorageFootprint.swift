@@ -341,6 +341,12 @@ public enum ProviderStoragePathCatalog {
                 homePath("Library/Caches/cursor-compile-cache"),
                 homePath("Library/HTTPStorages/com.todesktop.230313mzl4w4u92"),
             ]
+        case .muse:
+            [
+                homePath(".config/muse"),
+                homePath(".muse"),
+                homePath(".local/share/muse"),
+            ]
         default:
             []
         }
