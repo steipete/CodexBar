@@ -67,9 +67,15 @@ struct GroqUsageFetcherTests {
         #expect(try GroqUsageFetcher._parseScalarForTesting(Data(json.utf8)) == 0)
     }
 
-    @Test
-    func `server error takes precedence over unavailable sample data`() {
-        let json = #"{"status":"error","error":"query unavailable","data":{"result":[{"value":[1,"NaN"]}]}}"#
+    @Test(arguments: [
+        #"{"result":[{"value":[1,"NaN"]}]}"#,
+        #"{"result":[{"value":[1,true]}]}"#,
+        #"{"result":[{"value":false}]}"#,
+        #"{"result":false}"#,
+        "false",
+    ])
+    func `server error takes precedence over unavailable sample data`(payload: String) {
+        let json = #"{"status":"error","error":"query unavailable","data":\#(payload)}"#
         do {
             _ = try GroqUsageFetcher._parseScalarForTesting(Data(json.utf8))
             Issue.record("Expected server error")
@@ -78,6 +84,16 @@ struct GroqUsageFetcherTests {
         } catch {
             Issue.record("Unexpected error category: \(error)")
         }
+    }
+
+    @Test(arguments: [(0.0, "0.00 req/min"), (0.1, "6.00 req/min"), (0.25, "15.0 req/min"), (2.0, "120 req/min")])
+    func `rate labels preserve magnitude based decimal precision`(rate: Double, label: String) {
+        let usage = GroqUsageSnapshot(
+            requestRatePerSecond: rate,
+            inputTokenRatePerSecond: 0,
+            outputTokenRatePerSecond: 0,
+            updatedAt: Date(timeIntervalSince1970: 1)).toUsageSnapshot()
+        #expect(usage.primary?.resetDescription == label)
     }
 
     @Test(arguments: ["requests", "cache", "tokens"])

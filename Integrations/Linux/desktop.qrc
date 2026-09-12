@@ -1,0 +1,10 @@
+<RCC><qresource prefix="/">
+  <file>Shared/Usage.js</file>
+  <file>Shared/Notifications.js</file>
+  <file>qml/Main.qml</file>
+  <file>qml/Dashboard.qml</file>
+  <file>qml/SettingsWindow.qml</file>
+  <file>qml/UsageCard.qml</file>
+  <file>qml/UsageChart.qml</file>
+  <file>icon.svg</file>
+</qresource></RCC>

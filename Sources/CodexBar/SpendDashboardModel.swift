@@ -220,6 +220,10 @@ struct SpendDashboardModel: Equatable, Sendable {
         let hourlyChartDomain: ClosedRange<Date>?
         let timeZone: TimeZone
 
+        var calendar: Calendar {
+            SpendDashboardModel.gregorianCalendar(timeZone: self.timeZone)
+        }
+
         var id: String {
             self.currencyCode
         }
@@ -1144,7 +1148,7 @@ struct SpendDashboardModel: Equatable, Sendable {
     }
 
     private static func chartDomain(bounds: ClosedRange<Date>, calendar: Calendar) -> ClosedRange<Date> {
-        let end = calendar.date(byAdding: .day, value: 1, to: bounds.upperBound) ?? bounds.upperBound
+        let end = calendar.dateInterval(of: .day, for: bounds.upperBound)?.end ?? bounds.upperBound
         return bounds.lowerBound...end
     }
 
@@ -1192,8 +1196,11 @@ struct SpendDashboardModel: Equatable, Sendable {
     }
 
     private static func dayCount(in interval: ClosedRange<Date>?, calendar: Calendar) -> Int {
-        guard let interval else { return 0 }
-        return (calendar.dateComponents([.day], from: interval.lowerBound, to: interval.upperBound).day ?? 0) + 1
+        guard let interval,
+              let first = calendar.ordinality(of: .day, in: .era, for: interval.lowerBound),
+              let last = calendar.ordinality(of: .day, in: .era, for: interval.upperBound)
+        else { return 0 }
+        return last - first + 1
     }
 
     private static func day(
@@ -1399,8 +1406,7 @@ struct SpendDashboardModel: Equatable, Sendable {
     {
         if let selectedDay {
             let start = calendar.startOfDay(for: selectedDay)
-            let end = calendar.date(byAdding: .day, value: 1, to: start) ?? start
-            return start...end
+            return Self.chartDomain(bounds: start...start, calendar: calendar)
         }
         guard let first = points.map(\.hour).min(),
               let last = points.map(\.hour).max(),

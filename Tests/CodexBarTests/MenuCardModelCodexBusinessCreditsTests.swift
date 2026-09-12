@@ -4,6 +4,123 @@ import Testing
 @testable import CodexBar
 
 struct MenuCardModelCodexBusinessCreditsTests {
+    @Test(arguments: [false, true])
+    func `workspace balance omits the invented token progress scale`(balanceIsWorkspace: Bool) throws {
+        let now = Date()
+        let metadata = try #require(ProviderDefaults.metadata[.codex])
+        let credits = CreditsSnapshot(
+            remaining: 1234,
+            events: [],
+            updatedAt: now,
+            creditsAvailable: true,
+            balanceIsWorkspace: balanceIsWorkspace)
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .codex,
+            metadata: metadata,
+            snapshot: nil,
+            credits: credits,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: true,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        #expect(model.creditsRemaining == 1234)
+        #expect(model.creditsShowProgress == !balanceIsWorkspace)
+        var changedProgress = model
+        changedProgress.creditsShowProgress.toggle()
+        #expect(!model.hasCompatibleTrackedLayout(with: changedProgress))
+        #expect(model.heightFingerprint(section: "credits") != changedProgress.heightFingerprint(section: "credits"))
+    }
+
+    @Test
+    func `codex workspace hidden balance never renders as zero credits`() throws {
+        let metadata = try #require(ProviderDefaults.metadata[.codex])
+        let credits = CreditsSnapshot(
+            remaining: 0,
+            events: [],
+            updatedAt: Date(),
+            balanceReadSucceeded: false,
+            creditsAvailable: true)
+
+        let line = UsageMenuCardView.Model.creditsLine(
+            metadata: metadata,
+            snapshot: nil,
+            credits: credits,
+            error: nil)
+
+        #expect(line == "Credits · Balance: Unavailable")
+        #expect(credits.displayRemaining == nil)
+        #expect(UsageMenuCardView.Model.creditsProgressPercent(credits: credits) == nil)
+    }
+
+    @Test
+    func `ordinary credit availability preserves the individual monthly limit display`() throws {
+        let metadata = try #require(ProviderDefaults.metadata[.codex])
+        let now = Date()
+        let credits = CreditsSnapshot(
+            remaining: 0,
+            events: [],
+            updatedAt: now,
+            codexCreditLimit: CodexCreditLimitSnapshot(
+                used: 100,
+                limit: 1000,
+                remainingPercent: 90,
+                resetsAt: nil,
+                updatedAt: now),
+            balanceReadSucceeded: true,
+            creditsAvailable: true)
+
+        #expect(UsageMenuCardView.Model.creditsLine(
+            metadata: metadata,
+            snapshot: nil,
+            credits: credits,
+            error: nil) == "900 left")
+        #expect(credits.displayRemaining == 900)
+        #expect(UsageMenuCardView.Model.creditsProgressPercent(credits: credits) == 90)
+        #expect(UsageMenuCardView.Model.creditsScaleText(credits: credits) == "of 1000")
+    }
+
+    @Test
+    func `codex owner visible workspace balance wins over exhausted individual limit`() throws {
+        let metadata = try #require(ProviderDefaults.metadata[.codex])
+        let now = Date()
+        let credits = CreditsSnapshot(
+            remaining: 1234,
+            events: [],
+            updatedAt: now,
+            codexCreditLimit: CodexCreditLimitSnapshot(
+                used: 1000,
+                limit: 1000,
+                remainingPercent: 0,
+                resetsAt: nil,
+                updatedAt: now),
+            balanceReadSucceeded: true,
+            creditsAvailable: true,
+            balanceIsWorkspace: true)
+
+        let line = UsageMenuCardView.Model.creditsLine(
+            metadata: metadata,
+            snapshot: nil,
+            credits: credits,
+            error: nil)
+
+        #expect(line == "1234 left")
+        #expect(credits.displayRemaining == 1234)
+        #expect(UsageMenuCardView.Model.creditsProgressPercent(credits: credits) == nil)
+        #expect(UsageMenuCardView.Model.creditsScaleText(credits: credits) == nil)
+        #expect(UsageMenuCardView.Model.codexCreditLimitDetail(credits: credits, now: now) == nil)
+    }
+
     @Test
     func `codex business override card shows monthly credit instead of limits unavailable`() throws {
         let now = Date()
