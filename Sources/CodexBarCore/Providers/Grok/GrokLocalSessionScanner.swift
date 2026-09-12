@@ -1,14 +1,15 @@
+import CoreFoundation
 import Foundation
 
 /// One local-calendar day of Grok session-token activity.
 public struct GrokLocalDailyBucket: Sendable, Equatable {
     public let date: String
-    public let inputTokens: Int
-    public let cacheReadTokens: Int
-    public let cacheCreationTokens: Int
-    public let outputTokens: Int
-    public let reasoningTokens: Int
-    public let totalTokens: Int
+    public let inputTokens: Int?
+    public let cacheReadTokens: Int?
+    public let cacheCreationTokens: Int?
+    public let outputTokens: Int?
+    public let reasoningTokens: Int?
+    public let totalTokens: Int?
     public let sessionCount: Int
     public let requestCount: Int
     public let costUSD: Double?
@@ -19,12 +20,12 @@ public struct GrokLocalDailyBucket: Sendable, Equatable {
 
     public init(
         date: String,
-        inputTokens: Int = 0,
-        cacheReadTokens: Int = 0,
-        cacheCreationTokens: Int = 0,
-        outputTokens: Int = 0,
-        reasoningTokens: Int = 0,
-        totalTokens: Int,
+        inputTokens: Int? = 0,
+        cacheReadTokens: Int? = 0,
+        cacheCreationTokens: Int? = 0,
+        outputTokens: Int? = 0,
+        reasoningTokens: Int? = 0,
+        totalTokens: Int?,
         sessionCount: Int,
         requestCount: Int? = nil,
         costUSD: Double? = nil,
@@ -54,7 +55,7 @@ public struct GrokLocalDailyBucket: Sendable, Equatable {
 /// `signals.json` is metadata-only fallback when a session has no completed turns.
 public struct GrokLocalSessionSummary: Sendable {
     public let sessionCount: Int
-    public let totalTokens: Int
+    public let totalTokens: Int?
     public let lastSessionAt: Date?
     public let primaryModel: String?
     public let models: [String]
@@ -66,7 +67,7 @@ public struct GrokLocalSessionSummary: Sendable {
 
     public init(
         sessionCount: Int,
-        totalTokens: Int,
+        totalTokens: Int?,
         lastSessionAt: Date?,
         primaryModel: String?,
         models: [String],
@@ -199,12 +200,12 @@ struct GrokLocalSessionScanLimits: Sendable, Equatable {
 }
 
 private struct GrokParsedTokenUsage: Sendable {
-    let inputTokens: Int
-    let outputTokens: Int
-    let totalTokens: Int
-    let cachedReadTokens: Int
-    let cacheCreationTokens: Int
-    let reasoningTokens: Int
+    let inputTokens: Int?
+    let outputTokens: Int?
+    let totalTokens: Int?
+    let cachedReadTokens: Int?
+    let cacheCreationTokens: Int?
+    let reasoningTokens: Int?
     let modelCalls: Int?
     /// Spend the Grok CLI recorded for this usage, in ticks. `nil` when the record omits it or reports 0.
     let costUsdTicks: Int?
@@ -386,12 +387,12 @@ public enum GrokLocalSessionScanner {
     }
 
     private struct MutableModelBreakdown {
-        var inputTokens = 0
-        var cacheReadTokens = 0
-        var cacheCreationTokens = 0
-        var outputTokens = 0
-        var reasoningTokens = 0
-        var totalTokens = 0
+        var inputTokens: Int? = 0
+        var cacheReadTokens: Int? = 0
+        var cacheCreationTokens: Int? = 0
+        var outputTokens: Int? = 0
+        var reasoningTokens: Int? = 0
+        var totalTokens: Int? = 0
         var requestCount = 0
         var costUSD = 0.0
         var hasPricedCost = false
@@ -399,12 +400,12 @@ public enum GrokLocalSessionScanner {
     }
 
     private struct MutableDailyBucket {
-        var inputTokens = 0
-        var cacheReadTokens = 0
-        var cacheCreationTokens = 0
-        var outputTokens = 0
-        var reasoningTokens = 0
-        var totalTokens = 0
+        var inputTokens: Int? = 0
+        var cacheReadTokens: Int? = 0
+        var cacheCreationTokens: Int? = 0
+        var outputTokens: Int? = 0
+        var reasoningTokens: Int? = 0
+        var totalTokens: Int? = 0
         var requestCount = 0
         var sessionIDs: Set<String> = []
         var modelCounts: [String: Int] = [:]
@@ -695,9 +696,20 @@ public enum GrokLocalSessionScanner {
         let buckets = aggregation.daily.keys.sorted().map { day in
             self.finalize(day: day, bucket: aggregation.daily[day] ?? MutableDailyBucket())
         }
+        let totalTokens = buckets.reduce(Int?(0)) { self.addCounts($0, $1.totalTokens) }
+        historyCoverageIsEstablished = historyCoverageIsEstablished && totalTokens != nil
+            && buckets.allSatisfy { bucket in
+                [
+                    bucket.inputTokens,
+                    bucket.outputTokens,
+                    bucket.cacheReadTokens,
+                    bucket.cacheCreationTokens,
+                    bucket.reasoningTokens,
+                ].allSatisfy { $0 != nil }
+            }
         return GrokLocalSessionSummary(
             sessionCount: sessionCount,
-            totalTokens: buckets.reduce(0) { $0 + $1.totalTokens },
+            totalTokens: totalTokens,
             lastSessionAt: lastSessionAt,
             primaryModel: sortedModels.first,
             models: sortedModels,
@@ -940,21 +952,34 @@ public enum GrokLocalSessionScanner {
     }
 
     private static func tokenUsage(from object: [String: Any]) -> GrokParsedTokenUsage {
-        let inputTokens = max(0, self.integer(object["inputTokens"]) ?? 0)
-        let outputTokens = max(0, self.integer(object["outputTokens"]) ?? 0)
-        let computedTotalTokens = inputTokens + outputTokens
-        let reportedTotalTokens = max(0, self.integer(object["totalTokens"]) ?? 0)
+        let inputTokens = self.tokenCount(object["inputTokens"])
+        let outputTokens = self.tokenCount(object["outputTokens"])
+        let reportedTotalTokens = self.tokenCount(object["totalTokens"])
+        let totalTokens = reportedTotalTokens == 0
+            ? self.addCounts(inputTokens, outputTokens) : reportedTotalTokens
         return GrokParsedTokenUsage(
             inputTokens: inputTokens,
             outputTokens: outputTokens,
-            totalTokens: reportedTotalTokens > 0 || computedTotalTokens == 0
-                ? reportedTotalTokens
-                : computedTotalTokens,
-            cachedReadTokens: max(0, self.integer(object["cachedReadTokens"]) ?? 0),
-            cacheCreationTokens: max(0, self.integer(object["cacheCreationTokens"]) ?? 0),
-            reasoningTokens: max(0, self.integer(object["reasoningTokens"]) ?? 0),
+            totalTokens: totalTokens,
+            cachedReadTokens: self.tokenCount(object["cachedReadTokens"]),
+            cacheCreationTokens: self.tokenCount(object["cacheCreationTokens"]),
+            reasoningTokens: self.tokenCount(object["reasoningTokens"]),
             modelCalls: self.integer(object["modelCalls"]),
             costUsdTicks: self.recordedCostTicks(object["costUsdTicks"]))
+    }
+
+    /// Absent native token classes are zero; malformed or unrepresentable values remain unknown.
+    private static func tokenCount(_ value: Any?) -> Int? {
+        guard let value else { return 0 }
+        guard let count = self.integer(value), count >= 0 else { return nil }
+        return count
+    }
+
+    /// Unknown values stay unknown after later valid contributions at every aggregation level.
+    private static func addCounts(_ lhs: Int?, _ rhs: Int?) -> Int? {
+        guard let lhs, let rhs else { return nil }
+        let (sum, overflow) = lhs.addingReportingOverflow(rhs)
+        return overflow ? nil : sum
     }
 
     /// `costUsdTicks` is the spend the CLI recorded for a turn, already carrying its price tier and any
@@ -966,9 +991,12 @@ public enum GrokLocalSessionScanner {
     }
 
     private static func integer(_ value: Any?) -> Int? {
-        if let value = value as? Int { return value }
-        if let value = value as? NSNumber { return value.intValue }
-        return nil
+        guard let number = value as? NSNumber,
+              CFGetTypeID(number) != CFBooleanGetTypeID()
+        else { return nil }
+        // NSNumber's Int bridge may clamp oversized values. Preserve exact integer payloads first.
+        if let integer = Int(number.stringValue) { return integer }
+        return Int(exactly: number.doubleValue)
     }
 
     private static func readSignalsMetadata(at url: URL, maximumBytes: Int) -> [String]? {
@@ -1009,12 +1037,12 @@ extension GrokLocalSessionScanner {
     {
         guard let day = self.dayKey(for: turn.timestamp, calendar: calendar) else { return }
         var bucket = aggregation.daily[day] ?? MutableDailyBucket()
-        bucket.inputTokens += turn.usage.inputTokens
-        bucket.cacheReadTokens += turn.usage.cachedReadTokens
-        bucket.cacheCreationTokens += turn.usage.cacheCreationTokens
-        bucket.outputTokens += turn.usage.outputTokens
-        bucket.reasoningTokens += turn.usage.reasoningTokens
-        bucket.totalTokens += turn.usage.totalTokens
+        bucket.inputTokens = self.addCounts(bucket.inputTokens, turn.usage.inputTokens)
+        bucket.cacheReadTokens = self.addCounts(bucket.cacheReadTokens, turn.usage.cachedReadTokens)
+        bucket.cacheCreationTokens = self.addCounts(bucket.cacheCreationTokens, turn.usage.cacheCreationTokens)
+        bucket.outputTokens = self.addCounts(bucket.outputTokens, turn.usage.outputTokens)
+        bucket.reasoningTokens = self.addCounts(bucket.reasoningTokens, turn.usage.reasoningTokens)
+        bucket.totalTokens = self.addCounts(bucket.totalTokens, turn.usage.totalTokens)
         bucket.sessionIDs.insert(sessionPath)
 
         // The outer tick is the authoritative turn total, including when model usage is populated.
@@ -1038,12 +1066,12 @@ extension GrokLocalSessionScanner {
             aggregation.modelCounts[sku, default: 0] += requests
             bucket.modelCounts[sku, default: 0] += requests
             var breakdown = bucket.modelBreakdowns[sku] ?? MutableModelBreakdown()
-            breakdown.inputTokens += usage.inputTokens
-            breakdown.cacheReadTokens += usage.cachedReadTokens
-            breakdown.cacheCreationTokens += usage.cacheCreationTokens
-            breakdown.outputTokens += usage.outputTokens
-            breakdown.reasoningTokens += usage.reasoningTokens
-            breakdown.totalTokens += usage.totalTokens
+            breakdown.inputTokens = self.addCounts(breakdown.inputTokens, usage.inputTokens)
+            breakdown.cacheReadTokens = self.addCounts(breakdown.cacheReadTokens, usage.cachedReadTokens)
+            breakdown.cacheCreationTokens = self.addCounts(breakdown.cacheCreationTokens, usage.cacheCreationTokens)
+            breakdown.outputTokens = self.addCounts(breakdown.outputTokens, usage.outputTokens)
+            breakdown.reasoningTokens = self.addCounts(breakdown.reasoningTokens, usage.reasoningTokens)
+            breakdown.totalTokens = self.addCounts(breakdown.totalTokens, usage.totalTokens)
             breakdown.requestCount += requests
 
             if recordedTurnCost != nil {
@@ -1100,6 +1128,11 @@ extension GrokLocalSessionScanner {
         pricingDate: Date,
         pricing: PricingContext) -> Double?
     {
+        guard let inputTokens = usage.inputTokens,
+              let outputTokens = usage.outputTokens,
+              let cachedReadTokens = usage.cachedReadTokens,
+              let cacheCreationTokens = usage.cacheCreationTokens
+        else { return nil }
         let model = "xai/\(sku)"
         guard let resolvedPricing = CostUsagePricing.resolvedCodexPricing(
             model: model,
@@ -1110,16 +1143,16 @@ extension GrokLocalSessionScanner {
 
         guard let callCount = self.validatedModelCallCount(for: usage) else {
             if let threshold = resolvedPricing.thresholdTokens,
-               usage.inputTokens > threshold
+               inputTokens > threshold
             {
                 return nil
             }
             return CostUsagePricing.codexCostUSD(
                 pricing: resolvedPricing,
-                inputTokens: usage.inputTokens,
-                cachedInputTokens: usage.cachedReadTokens,
-                cacheWriteInputTokens: usage.cacheCreationTokens,
-                outputTokens: usage.outputTokens)
+                inputTokens: inputTokens,
+                cachedInputTokens: cachedReadTokens,
+                cacheWriteInputTokens: cacheCreationTokens,
+                outputTokens: outputTokens)
         }
 
         // Without recorded turn or model spend, even splitting approximates public list prices.
@@ -1153,8 +1186,9 @@ extension GrokLocalSessionScanner {
 
     private static func validatedModelCallCount(for usage: GrokParsedTokenUsage) -> Int? {
         guard let modelCalls = usage.modelCalls,
+              let inputTokens = usage.inputTokens,
               modelCalls > 0,
-              modelCalls <= usage.inputTokens,
+              modelCalls <= inputTokens,
               modelCalls <= self.maximumValidatedModelCalls
         else { return nil }
         return modelCalls
@@ -1169,8 +1203,13 @@ extension GrokLocalSessionScanner {
         callCount: Int,
         pricing: CostUsagePricing.CodexPricing) -> [SyntheticCallGroup]
     {
-        let largerInputCallCount = usage.inputTokens % callCount
-        let baseInput = usage.inputTokens / callCount
+        guard let inputTokens = usage.inputTokens,
+              let outputTokens = usage.outputTokens,
+              let cachedReadTokens = usage.cachedReadTokens,
+              let cacheCreationTokens = usage.cacheCreationTokens
+        else { return [] }
+        let largerInputCallCount = inputTokens % callCount
+        let baseInput = inputTokens / callCount
         let threshold = pricing.thresholdTokens
         var ranges: [(range: Range<Int>, isLongContext: Bool)] = []
         if largerInputCallCount > 0 {
@@ -1185,9 +1224,9 @@ extension GrokLocalSessionScanner {
         }
         return ranges.map { group in
             let effectiveInput = self.effectiveInputTotals(
-                inputTokens: usage.inputTokens,
-                cachedReadTokens: usage.cachedReadTokens,
-                cacheCreationTokens: usage.cacheCreationTokens,
+                inputTokens: inputTokens,
+                cachedReadTokens: cachedReadTokens,
+                cacheCreationTokens: cacheCreationTokens,
                 callCount: callCount,
                 range: group.range)
             return SyntheticCallGroup(
@@ -1195,7 +1234,7 @@ extension GrokLocalSessionScanner {
                 cachedReadTokens: effectiveInput.cachedRead,
                 cacheCreationTokens: effectiveInput.cacheCreation,
                 outputTokens: self.distributedTotal(
-                    usage.outputTokens,
+                    outputTokens,
                     count: callCount,
                     range: group.range),
                 isLongContext: group.isLongContext)
