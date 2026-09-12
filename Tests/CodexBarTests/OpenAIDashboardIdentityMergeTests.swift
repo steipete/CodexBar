@@ -5,6 +5,28 @@ import Testing
 
 @MainActor
 struct OpenAIDashboardIdentityMergeTests {
+    @Test(arguments: [nil, "", "workspace-a"] as [String?])
+    func `legacy personal dashboard fields survive page and API refreshes without account IDs`(accountID: String?) {
+        for workspace in [nil, false] as [Bool?] {
+            let previous = self.previous(email: "owner@example.com", accountID: accountID, workspace: workspace)
+            let api = OpenAIDashboardFetcher.snapshotByMergingAPI(
+                apiData: self.apiData(), verifiedEmail: "owner@example.com", previous: previous)
+            let page = OpenAIDashboardFetcher.fillingMissingPageFields(
+                self.incoming(email: "owner@example.com", accountID: nil), from: previous)
+            for result in [api, page] {
+                #expect(result.creditsRemaining == previous.creditsRemaining)
+                #expect(result.creditEvents == previous.creditEvents)
+                #expect(result.dailyBreakdown == previous.dailyBreakdown)
+                #expect(result.usageBreakdown == previous.usageBreakdown)
+                #expect(result.codexCreditLimit == previous.codexCreditLimit)
+                #expect(result.secondaryLimit == previous.secondaryLimit)
+                #expect(result.subscriptionExpiresAt == previous.subscriptionExpiresAt)
+                #expect(result.subscriptionRenewsAt == previous.subscriptionRenewsAt)
+                #expect(!result.requiresWorkspaceBalanceScope)
+            }
+        }
+    }
+
     @Test(arguments: [nil, "", " \n "] as [String?])
     func `unidentified page waits without inheriting the API identity`(pageEmail: String?) {
         #expect(OpenAIDashboardFetcher.shouldWaitForPageIdentity(
@@ -189,7 +211,9 @@ struct OpenAIDashboardIdentityMergeTests {
             updatedAt: Date(timeIntervalSince1970: 1_700_000_100))
     }
 
-    private func previous(email: String?, accountID: String? = "workspace-a") -> OpenAIDashboardSnapshot {
+    private func previous(
+        email: String?, accountID: String? = "workspace-a", workspace: Bool? = true) -> OpenAIDashboardSnapshot
+    {
         let date = Date(timeIntervalSince1970: 1_700_000_000)
         let history = OpenAIDashboardDailyBreakdown(
             day: "2023-11-14",
@@ -208,7 +232,7 @@ struct OpenAIDashboardIdentityMergeTests {
             secondaryLimit: self.window(used: 98),
             creditsRemaining: 1234,
             creditsAvailable: true,
-            balanceIsWorkspace: true,
+            balanceIsWorkspace: workspace,
             codexCreditLimit: CodexCreditLimitSnapshot(
                 used: 300, limit: 400, remainingPercent: 25, resetsAt: nil, updatedAt: date),
             accountPlan: "Previous plan",

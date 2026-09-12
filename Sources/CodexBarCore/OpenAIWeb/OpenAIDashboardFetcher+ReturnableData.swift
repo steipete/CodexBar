@@ -74,7 +74,7 @@ extension OpenAIDashboardFetcher {
     {
         let email = verifiedEmail.trimmingCharacters(in: .whitespacesAndNewlines)
         let previous = self.dashboardEmailsMatch(email, previous?.signedInEmail)
-            && self.dashboardAccountsMatch(apiData.accountID, previous?.accountID) ? previous : nil
+            && self.dashboardCanReuseSnapshot(previous, accountID: apiData.accountID) ? previous : nil
         let usesAPIBalance = apiData.creditsRemaining != nil || apiData.creditsAvailable != nil
         return OpenAIDashboardSnapshot(
             signedInEmail: email.isEmpty ? nil : email,
@@ -111,7 +111,7 @@ extension OpenAIDashboardFetcher {
         subscriptionResult: OpenAISubscriptionFetchResult = .unavailable) -> OpenAIDashboardSnapshot
     {
         guard let previous, self.dashboardEmailsMatch(snapshot.signedInEmail, previous.signedInEmail),
-              self.dashboardAccountsMatch(snapshot.accountID, previous.accountID)
+              self.dashboardCanReuseSnapshot(previous, accountID: snapshot.accountID)
         else {
             return snapshot
         }
@@ -145,9 +145,18 @@ extension OpenAIDashboardFetcher {
             updatedAt: snapshot.updatedAt)
     }
 
-    private nonisolated static func dashboardAccountsMatch(_ first: String?, _ second: String?) -> Bool {
-        guard let first = first?.trimmingCharacters(in: .whitespacesAndNewlines), !first.isEmpty else { return false }
-        return first == second?.trimmingCharacters(in: .whitespacesAndNewlines)
+    private nonisolated static func dashboardCanReuseSnapshot(
+        _ previous: OpenAIDashboardSnapshot?, accountID: String?) -> Bool
+    {
+        guard let previous else { return false }
+        let currentID = ManagedCodexAccount.normalizeWorkspaceAccountID(accountID)
+        let previousID = ManagedCodexAccount.normalizeWorkspaceAccountID(previous.accountID)
+        if previous.requiresWorkspaceBalanceScope {
+            return currentID != nil && currentID == previousID
+        }
+        // Legacy personal dashboards and page-only refreshes predate API account IDs.
+        guard let currentID, let previousID else { return true }
+        return currentID == previousID
     }
 
     private nonisolated static func dashboardEmailsMatch(_ first: String?, _ second: String?) -> Bool {
