@@ -834,8 +834,10 @@ struct CostUsageStoreReadWorkTests {
         #expect(work.usageRows == fixture.rowCount)
         #expect(work.usageRowDecodeAttempts == fixture.rowCount)
         #expect(work.usagePayloadBytes > 0)
-        #expect(work.retryPresenceRows == (incomplete ? 1 : 0))
-        #expect(work.readViewConversions == 1)
+        // One metadata precheck and one exact report read share the same validated connection.
+        #expect(work.retryPresenceRows == (incomplete ? 2 : 0))
+        #expect(work.readViewConversions == 2)
+        #expect(work.integrityChecks == 1)
         #expect(work.readViewConversionsInTransaction == 0)
     }
 
