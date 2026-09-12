@@ -12,16 +12,15 @@ extension UsageStore {
 
     private func widgetAccounts(for provider: UsageProvider, now: Date) -> [WidgetSnapshot.AccountEntry] {
         if provider == .claude, self.settings.claudeSwapEnabled,
-           ClaudeSwapMenuPrecedence.prefersClaudeSwap(
-               provider: .claude,
-               accountCount: self.claudeSwapAccountSnapshots.count,
-               showSingleAccount: self.settings.claudeSwapShowSingleAccount)
+           !self.claudeSwapAccountSnapshots.isEmpty
         {
-            return self.claudeSwapAccountSnapshots.map { account in
-                // The adapter's display identity must not be persisted. Slots are its durable identity.
-                self.widgetAccountEntry(
+            return self.claudeSwapAccountSnapshots.compactMap { account in
+                // Slots can be reused. Bind the pin to the same opaque ownership guard as retained usage,
+                // without persisting the adapter's email, organization, or display label.
+                guard let owner = ClaudeSwapRetainedUsageStore.ownershipFingerprint(for: account) else { return nil }
+                return self.widgetAccountEntry(
                     provider: .claude,
-                    id: "claude/swap:\(account.id.opaqueID)",
+                    id: "claude/swap:\(account.id.opaqueID):\(owner)",
                     label: "Account \(account.id.opaqueID)",
                     snapshot: account.snapshot,
                     now: now)
@@ -34,14 +33,16 @@ extension UsageStore {
                 projection?.visibleAccounts ?? [],
                 snapshots: self.codexAccountSnapshots,
                 activeVisibleAccountID: projection?.activeVisibleAccountID)
-            return accounts.enumerated().map { index, account in
-                let cached = self.codexAccountSnapshots.first {
-                    $0.id == account.id && Self.codexPriorSnapshotAccountMatches($0.account, account: account)
+            return accounts.enumerated().compactMap { index, account in
+                guard let id = Self.widgetCodexAccountID(account) else { return nil }
+                let matches = self.codexAccountSnapshots.filter {
+                    Self.widgetCodexAccountID($0.account) == id &&
+                        Self.codexPriorSnapshotAccountMatches($0.account, account: account)
                 }
-                let snapshot = cached?.snapshot
+                let snapshot = matches.count == 1 ? matches.first?.snapshot : nil
                 return self.widgetAccountEntry(
                     provider: .codex,
-                    id: "codex/visible:\(Self.widgetOpaqueAccountID(account.id))",
+                    id: id,
                     label: self.settings.hidePersonalInfo ? "Account \(index + 1)" : account.menuDisplayName,
                     snapshot: snapshot,
                     now: now)
@@ -64,6 +65,50 @@ extension UsageStore {
 
     static func widgetOpaqueAccountID(_ identity: String) -> String {
         SHA256.hash(data: Data(identity.utf8)).map { String(format: "%02x", $0) }.joined()
+    }
+
+    static func widgetCodexAccountID(_ account: CodexVisibleAccount) -> String? {
+        let identity: String
+        if case let .profileHome(path) = account.selectionSource {
+            guard let owner = Self.widgetCodexOwnerIdentity(account),
+                  let path = CodexHomeScope.normalizedHomePath(path)
+            else { return nil }
+            identity = "profile\0\(path)\0\(owner)"
+        } else if let storedID = account.storedAccountID {
+            // A managed account keeps its identity when promoted to the live system account.
+            identity = "managed\0\(storedID.uuidString.lowercased())"
+        } else if case let .managedAccount(id) = account.selectionSource {
+            identity = "managed\0\(id.uuidString.lowercased())"
+        } else {
+            guard let owner = Self.widgetCodexOwnerIdentity(account) else { return nil }
+            identity = "system\0\(owner)"
+        }
+        // The menu's account.id changes when same-email siblings appear. Neither it nor rotating
+        // credential fingerprints are identities for a persisted widget configuration.
+        return "codex/visible:\(Self.widgetOpaqueAccountID(identity))"
+    }
+
+    private static func widgetCodexOwnerIdentity(_ account: CodexVisibleAccount) -> String? {
+        guard let email = CodexIdentityResolver.normalizeEmail(account.email) else { return nil }
+        if let workspace = ManagedCodexAccount.normalizeWorkspaceAccountID(account.workspaceAccountID) {
+            return "workspace:\(CodexOpenAIWorkspaceIdentity.normalizeWorkspaceAccountID(workspace))\0email:\(email)"
+        }
+        return "email:\(email)"
+    }
+
+    func reconcileCodexWidgetAccountSnapshots(after error: Error? = nil) {
+        guard self.settings.accountWidgetsEnabled, !self.shouldUseAmbientCodexPATForUsage() else {
+            self.codexAccountSnapshots = []
+            return
+        }
+        self.codexAccountSnapshots = Self.codexAccountSnapshots(
+            self.codexAccountSnapshots,
+            reconciledWith: self.settings.codexVisibleAccountProjection)
+        if let error {
+            self.codexAccountSnapshots.removeAll {
+                !Self.shouldPreservePriorSnapshot(after: error, hadPriorData: $0.snapshot != nil)
+            }
+        }
     }
 
     private func widgetAccountEntry(

@@ -14,13 +14,13 @@ struct WidgetAccountEntity: AppEntity {
 }
 
 struct WidgetAccountQuery: EntityQuery {
-    @IntentParameterDependency<ProviderSelectionIntent>(\.$provider)
+    @IntentParameterDependency<AccountUsageSelectionIntent>(\.$provider)
     var intent
 
     func entities(for identifiers: [String]) async throws -> [WidgetAccountEntity] {
         let accounts = WidgetSnapshotStore.load()?.accounts ?? []
         return identifiers.map { id in
-            // Preserve a removed selection so WidgetKit cannot silently change it to the active account.
+            // Keep unavailable references resolvable without restoring a previous private label.
             WidgetAccountEntity(id: id, label: accounts.first { $0.id == id }?.label ?? "Unavailable account")
         }
     }

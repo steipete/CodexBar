@@ -89,7 +89,8 @@ struct MenuPane: View {
                 Toggle(isOn: self.$settings.accountWidgetsEnabled) {
                     SettingsRowLabel(
                         "Keep accounts updated for widgets",
-                        subtitle: "Choose an account in each Usage widget. Refreshes up to six accounts per provider.")
+                        subtitle: "Choose an account in each Account Usage widget. "
+                            + "Refreshes up to six accounts per provider.")
                 }
                 .onChange(of: self.settings.accountWidgetsEnabled) { _, enabled in
                     self.store.persistWidgetSnapshot(reason: "account-widgets-setting")

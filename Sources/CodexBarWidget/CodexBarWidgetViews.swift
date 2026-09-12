@@ -38,7 +38,7 @@ struct CodexBarUsageWidgetView: View {
 
     private var emptyState: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(self.entry.accountID == nil ? "Open CodexBar" : "Account unavailable")
+            Text("Open CodexBar")
                 .font(.body)
                 .fontWeight(.semibold)
             Text("Usage data will appear once the app refreshes.")
@@ -67,7 +67,7 @@ struct CodexBarHistoryWidgetView: View {
 
     private var emptyState: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(self.entry.accountID == nil ? "Open CodexBar" : "Account unavailable")
+            Text("Open CodexBar")
                 .font(.body)
                 .fontWeight(.semibold)
             Text("Usage history will appear after a refresh.")
@@ -160,10 +160,7 @@ private struct CompactMetricView: View {
     var body: some View {
         let display = CompactMetricFormatter.display(for: self.entry, metric: self.metric)
         VStack(alignment: .leading, spacing: 8) {
-            HeaderView(
-                provider: self.entry.provider,
-                updatedAt: self.entry.updatedAt,
-                accountLabel: self.entry.accountLabel)
+            HeaderView(provider: self.entry.provider, updatedAt: self.entry.updatedAt)
             VStack(alignment: .leading, spacing: 2) {
                 Text(display.value)
                     .font(.title2)
@@ -777,10 +774,7 @@ private struct HistoryView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HeaderView(
-                provider: self.entry.provider,
-                updatedAt: self.entry.updatedAt,
-                accountLabel: self.entry.accountLabel)
+            HeaderView(provider: self.entry.provider, updatedAt: self.entry.updatedAt)
             UsageHistoryChart(
                 points: self.entry.dailyUsage,
                 color: WidgetColors.color(for: self.entry.provider),
