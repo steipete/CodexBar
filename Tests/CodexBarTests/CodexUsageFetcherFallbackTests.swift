@@ -121,6 +121,146 @@ struct CodexUsageFetcherFallbackTests {
     }
 
     @Test
+    func `native credential refresh coalesces and renews without reading CLI usage`() async throws {
+        let stubCLIPath = try self.makeNativeRefreshStubCodexCLI()
+        let requestPath = stubCLIPath + ".requests"
+        defer {
+            try? FileManager.default.removeItem(atPath: stubCLIPath)
+            try? FileManager.default.removeItem(atPath: requestPath)
+            try? FileManager.default.removeItem(atPath: stubCLIPath + ".pid")
+        }
+
+        let fetcher = self.makeStubUsageFetcher(stubCLIPath)
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            for _ in 0..<2 {
+                group.addTask {
+                    try await fetcher.refreshNativeCodexCredentials()
+                }
+            }
+            try await group.waitForAll()
+        }
+
+        let messages = try String(contentsOfFile: requestPath, encoding: .utf8)
+            .split(whereSeparator: \.isNewline)
+            .map { try #require(JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any]) }
+        #expect(messages.count == 1)
+        #expect(messages.first?["method"] as? String == "account/read")
+        #expect((messages.first?["params"] as? [String: Any])?["refreshToken"] as? Bool == true)
+    }
+
+    @Test
+    func `canceling native renewal terminates its app server`() async throws {
+        let path = try self.makeNativeRefreshStubCodexCLI(delaySeconds: 30)
+        defer {
+            for suffix in ["", ".requests", ".pid"] {
+                try? FileManager.default.removeItem(atPath: path + suffix)
+            }
+        }
+        let fetcher = self.makeStubUsageFetcher(path)
+        let renewal = Task { try await fetcher.refreshNativeCodexCredentials() }
+        defer { renewal.cancel() }
+        let readyDeadline = ContinuousClock.now + .seconds(10)
+        while !FileManager.default.fileExists(atPath: path + ".requests"),
+              ContinuousClock.now < readyDeadline
+        {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        try #require(FileManager.default.fileExists(atPath: path + ".requests"))
+        let pid = try #require(Int32(String(contentsOfFile: path + ".pid", encoding: .utf8)))
+        renewal.cancel()
+        await #expect(throws: CancellationError.self) { try await renewal.value }
+        let exitDeadline = ContinuousClock.now + .seconds(5)
+        while kill(pid, 0) == 0, ContinuousClock.now < exitDeadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(kill(pid, 0) != 0, "Canceled renewal must stop its own app-server process")
+    }
+
+    @Test
+    func `canceled renewal delays replacement until old app server exits`() async throws {
+        try await self.runReplacementWaitsForOldExit(ignoreTerm: false)
+    }
+
+    @Test
+    func `canceled renewal delays replacement until term-ignoring app server is killed`() async throws {
+        try await self.runReplacementWaitsForOldExit(ignoreTerm: true)
+    }
+
+    private func runReplacementWaitsForOldExit(ignoreTerm: Bool) async throws {
+        let path = try self.makeSlowExitNativeRefreshStubCodexCLI(responseDelaySeconds: 5)
+        let launchesPath = path + ".launches"
+        let requestsPath = path + ".requests"
+        let pidPath = path + ".pid"
+        defer {
+            for suffix in ["", ".requests", ".pid", ".launches"] {
+                try? FileManager.default.removeItem(atPath: path + suffix)
+            }
+        }
+        let fetcher = self.makeStubUsageFetcher(
+            path,
+            extraEnvironment: ["CODEXBAR_TEST_IGNORE_TERM": ignoreTerm ? "1" : "0"])
+
+        func launchCount() -> Int {
+            guard let text = try? String(contentsOfFile: launchesPath, encoding: .utf8) else { return 0 }
+            return text.split(whereSeparator: \.isNewline).count
+        }
+
+        let first = Task { try await fetcher.refreshNativeCodexCredentials() }
+        defer { first.cancel() }
+        let readyDeadline = ContinuousClock.now + .seconds(10)
+        while launchCount() == 0 || !FileManager.default.fileExists(atPath: pidPath),
+              ContinuousClock.now < readyDeadline
+        {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        try #require(launchCount() == 1)
+        let oldPid = try #require(Int32(String(contentsOfFile: pidPath, encoding: .utf8)))
+        first.cancel()
+        await #expect(throws: CancellationError.self) { try await first.value }
+
+        // The old server needs ~0.4s to escalate from TERM to KILL, so at 0.3s it must
+        // still be alive and no replacement may have launched yet.
+        let second = Task { try await fetcher.refreshNativeCodexCredentials() }
+        defer { second.cancel() }
+        try await Task.sleep(for: .milliseconds(300))
+        #expect(launchCount() == 1, "Replacement must not launch before the old app server exits")
+        #expect(kill(oldPid, 0) == 0, "Old app server must still be alive at the checkpoint")
+
+        // A single parent-side poller records the order of the two decisive events.
+        var events: [String] = []
+        let orderDeadline = ContinuousClock.now + .seconds(20)
+        while events.count < 2, ContinuousClock.now < orderDeadline {
+            if kill(oldPid, 0) != 0, !events.contains("old-exited") {
+                events.append("old-exited")
+            }
+            if launchCount() >= 2, !events.contains("second-launched") {
+                events.append("second-launched")
+            }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        try await second.value
+        #expect(events == ["old-exited", "second-launched"])
+        #expect(launchCount() == 2)
+        #expect(kill(oldPid, 0) != 0, "Canceled renewal must stop its own app-server process")
+        let requests = try String(contentsOfFile: requestsPath, encoding: .utf8)
+            .split(whereSeparator: \.isNewline)
+        #expect(requests.count == 2, "Each generation must perform exactly one credential refresh")
+    }
+
+    @Test
+    func `native credential refresh outlives the ordinary RPC request timeout`() async throws {
+        let stubCLIPath = try self.makeNativeRefreshStubCodexCLI(delaySeconds: 3.2)
+        defer {
+            try? FileManager.default.removeItem(atPath: stubCLIPath)
+            try? FileManager.default.removeItem(atPath: stubCLIPath + ".requests")
+            try? FileManager.default.removeItem(atPath: stubCLIPath + ".pid")
+        }
+
+        let fetcher = self.makeStubUsageFetcher(stubCLIPath)
+        try await fetcher.refreshNativeCodexCredentials()
+    }
+
+    @Test
     func `CLI plan and credits response without usage windows keeps unavailable limits`() async throws {
         let stubCLIPath = try self.makePlanOnlyStubCodexCLI(includeCredits: true)
         defer { try? FileManager.default.removeItem(atPath: stubCLIPath) }
@@ -325,14 +465,19 @@ struct CodexUsageFetcherFallbackTests {
 
     private func makeStubUsageFetcher(
         _ stubCLIPath: String,
-        requestTimeoutSeconds: TimeInterval = 3.0) -> UsageFetcher
+        requestTimeoutSeconds: TimeInterval = 3.0,
+        extraEnvironment: [String: String] = [:]) -> UsageFetcher
     {
-        UsageFetcher(
-            environment: [
-                "PATH": "/usr/bin:/bin",
-                "CODEX_CLI_PATH": stubCLIPath,
-                "CODEXBAR_TEST_RPC_REQUEST_PATH": stubCLIPath + ".requests",
-            ],
+        var environment = [
+            "PATH": "/usr/bin:/bin",
+            "CODEX_CLI_PATH": stubCLIPath,
+            "CODEXBAR_TEST_RPC_REQUEST_PATH": stubCLIPath + ".requests",
+        ]
+        for (key, value) in extraEnvironment {
+            environment[key] = value
+        }
+        return UsageFetcher(
+            environment: environment,
             initializeTimeoutSeconds: 20.0,
             requestTimeoutSeconds: requestTimeoutSeconds,
             // Absolute-interpreter fixtures must not capture the user's real login-shell PATH.
@@ -463,6 +608,110 @@ struct CodexUsageFetcherFallbackTests {
         """
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("codex-plan-only-stub-\(UUID().uuidString)", isDirectory: false)
+        try Data(script.utf8).write(to: url)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
+        return url.path
+    }
+
+    private func makeNativeRefreshStubCodexCLI(delaySeconds: Double = 0) throws -> String {
+        let script = """
+        #!/usr/bin/python3 -S
+        import json
+        import os
+        import sys
+        import time
+
+        request_path = os.environ["CODEXBAR_TEST_RPC_REQUEST_PATH"]
+        with open(request_path[:-len(".requests")] + ".pid", "w") as output:
+            output.write(str(os.getpid()))
+        if "app-server" not in sys.argv[1:]:
+            sys.exit(92)
+        for line in sys.stdin:
+            if not line.strip():
+                continue
+            message = json.loads(line)
+            method = message.get("method")
+            if method == "initialized":
+                continue
+            identifier = message.get("id")
+            if method == "initialize":
+                payload = {"id": identifier, "result": {}}
+            elif method == "account/read":
+                with open(request_path, "a", encoding="utf-8") as output:
+                    output.write(json.dumps(message) + "\\n")
+                time.sleep(\(delaySeconds))
+                payload = {
+                    "id": identifier,
+                    "result": {"account": {"type": "future-provider-shape"}}
+                }
+            else:
+                payload = {"id": identifier, "error": {"message": "unexpected method: " + str(method)}}
+            print(json.dumps(payload), flush=True)
+        """
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codex-native-refresh-stub-\(UUID().uuidString)", isDirectory: false)
+        try Data(script.utf8).write(to: url)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
+        return url.path
+    }
+
+    private func makeSlowExitNativeRefreshStubCodexCLI(responseDelaySeconds: Double) throws -> String {
+        let script = """
+        #!/usr/bin/python3 -S
+        import json
+        import os
+        import signal
+        import sys
+        import time
+
+        request_path = os.environ["CODEXBAR_TEST_RPC_REQUEST_PATH"]
+        with open(request_path[:-len(".requests")] + ".pid", "w") as output:
+            output.write(str(os.getpid()))
+        with open(request_path[:-len(".requests")] + ".launches", "a", encoding="utf-8") as output:
+            output.write("launch " + str(os.getpid()) + "\\n")
+        ignore_term = os.environ.get("CODEXBAR_TEST_IGNORE_TERM") == "1"
+
+        def on_term(signum, frame):
+            if ignore_term:
+                return
+            # Simulate a slow graceful shutdown: the parent must escalate to
+            # SIGKILL after its bounded TERM wait instead of assuming the exit.
+            time.sleep(2.0)
+            os._exit(0)
+
+        signal.signal(signal.SIGTERM, on_term)
+        if "app-server" not in sys.argv[1:]:
+            sys.exit(92)
+        while True:
+            line = sys.stdin.readline()
+            if line == "":
+                # stdin EOF (the parent closes it first during teardown): stay alive
+                # until TERM/KILL so the test observes the real termination path.
+                signal.pause()
+                continue
+            if not line.strip():
+                continue
+            message = json.loads(line)
+            method = message.get("method")
+            if method == "initialized":
+                continue
+            identifier = message.get("id")
+            if method == "initialize":
+                payload = {"id": identifier, "result": {}}
+            elif method == "account/read":
+                with open(request_path, "a", encoding="utf-8") as output:
+                    output.write(json.dumps(message) + "\\n")
+                time.sleep(\(responseDelaySeconds))
+                payload = {
+                    "id": identifier,
+                    "result": {"account": {"type": "future-provider-shape"}}
+                }
+            else:
+                payload = {"id": identifier, "error": {"message": "unexpected method: " + str(method)}}
+            print(json.dumps(payload), flush=True)
+        """
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codex-slow-exit-stub-\(UUID().uuidString)", isDirectory: false)
         try Data(script.utf8).write(to: url)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
         return url.path

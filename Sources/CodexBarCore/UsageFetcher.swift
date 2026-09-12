@@ -886,6 +886,7 @@ private enum RPCRequestRaceResult<Value: Sendable>: Sendable {
 private final class CodexRPCClient: @unchecked Sendable {
     // Provider-specific by design: Codex RPC owns its dedicated subprocess log category.
     private static let log = CodexBarLog.logger(LogCategories.provider(.codex, scope: "rpc"))
+    private static let accountRefreshTimeoutSeconds: TimeInterval = 30
     private let process = Process()
     private let stdin = RPCChildProcessInput()
     private let stdoutPipe = Pipe()
@@ -1006,6 +1007,13 @@ private final class CodexRPCClient: @unchecked Sendable {
         return try self.decodeResult(from: message)
     }
 
+    func refreshAccount() async throws {
+        _ = try await self.request(
+            method: "account/read",
+            params: ["refreshToken": true],
+            timeout: Self.accountRefreshTimeoutSeconds)
+    }
+
     func fetchRateLimits() async throws -> RPCRateLimitsResponse {
         let message = try await self.request(method: "account/rateLimits/read")
         return try self.decodeResult(from: message)
@@ -1014,6 +1022,22 @@ private final class CodexRPCClient: @unchecked Sendable {
     func shutdown() {
         Self.log.debug("Codex RPC stopping")
         RPCChildProcessTeardown.terminate(process: self.process, stdin: self.stdin)
+    }
+
+    /// Terminates the child and confirms it actually exited. The confirmation wait runs
+    /// detached so a canceled renewal still verifies its own child is gone before the
+    /// coordinator may hand the home to the next generation. Returns false when the
+    /// child cannot be confirmed exited within the bound; callers must not treat a sent
+    /// SIGKILL as an exit barrier.
+    func shutdownAndConfirmExit(timeoutSeconds: TimeInterval = 5.0) async -> Bool {
+        RPCChildProcessTeardown.terminate(process: self.process, stdin: self.stdin)
+        await Task.detached(priority: .utility) {
+            let deadline = Date().addingTimeInterval(timeoutSeconds)
+            while self.process.isRunning, Date() < deadline {
+                try? await Task.sleep(for: .milliseconds(50))
+            }
+        }.value
+        return !self.process.isRunning
     }
 
     // MARK: - JSON-RPC helpers
@@ -1189,6 +1213,35 @@ public struct UsageFetcher: Sendable {
             throw UsageError.noRateLimitsFound
         }
         return usage
+    }
+
+    /// Ask the credential-owning Codex app-server to renew the scoped native auth file.
+    /// This intentionally does not consume app-server usage because it cannot carry CodexBar's
+    /// selected managed-workspace header.
+    func refreshNativeCodexCredentials() async throws {
+        let home = CodexHomeScope.ambientHomeURL(env: self.environment).standardizedFileURL.path
+        try await CodexNativeCredentialRefreshCoordinator.shared.refresh(home: home) {
+            let rpc = try CodexRPCClient(
+                arguments: self.codexArguments,
+                environment: self.environment,
+                initializeTimeoutSeconds: self.initializeTimeoutSeconds,
+                requestTimeoutSeconds: self.requestTimeoutSeconds,
+                resolveExecutable: self.codexExecutableResolver)
+            // Every exit must confirm the child is gone before the coordinator may hand
+            // the home to a queued renewal. A sent SIGKILL is not an exit barrier.
+            do {
+                try await rpc.initialize(clientName: "codexbar", clientVersion: "0.5.4")
+                try await rpc.refreshAccount()
+            } catch {
+                guard await rpc.shutdownAndConfirmExit() else {
+                    throw CodexCredentialRenewalError.previousProcessExitUnconfirmed
+                }
+                throw error
+            }
+            guard await rpc.shutdownAndConfirmExit() else {
+                throw CodexCredentialRenewalError.previousProcessExitUnconfirmed
+            }
+        }
     }
 
     public func loadLatestCLIAccountSnapshot() async throws -> CodexCLIAccountSnapshot {

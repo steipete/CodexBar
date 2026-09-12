@@ -41,12 +41,10 @@ struct CodexOAuthExpiryPipelineTests {
                     return
                 }
             } else {
-                guard case let .serverError(statusCode, body) = error else {
-                    Issue.record("A permission denial must retain its HTTP status")
+                guard case .forbidden = error else {
+                    Issue.record("Expected a terminal permission denial")
                     return
                 }
-                #expect(statusCode == 403)
-                #expect(body == "fixture refusal")
             }
             #expect(CodexOAuthFetchStrategy().shouldFallback(on: error, context: context) == (code == 401))
             #expect(CodexPATFetchStrategy().shouldFallback(on: error, context: context) == (code == 401))
@@ -98,28 +96,18 @@ struct CodexOAuthExpiryPipelineTests {
                 throw URLError(.cancelled)
             }
             let recovery = CodexOAuthNativeRefreshCLIStrategy(binaryResolver: { _ in "/fixture/codex" })
-            #expect(await recovery.isAvailable(context) == (mode == .oauth && !managed))
+            #expect(await recovery.isAvailable(context))
             let outcome = await CodexAuthenticatedHTTPTransport.$overrideForTesting.withValue(transport) {
                 await Self.pipeline.fetch(context: context, provider: .codex)
             }
-            if managed {
-                guard case let .failure(error) = outcome.result,
-                      case .nativeRefreshRequired = error as? CodexOAuthCredentialsError
-                else {
-                    Issue.record("Managed scope must retain nativeRefreshRequired without CLI recovery")
-                    continue
-                }
-                #expect(!error.localizedDescription.contains("will retry"))
-                #expect(error.localizedDescription.contains("Codex home"))
-                #expect(outcome.attempts.filter { $0.kind == .cli && $0.wasAvailable }.isEmpty)
-            } else {
-                guard case let .failure(error) = outcome.result, error is CLISelected else {
-                    Issue.record("Native refresh must be handed to the CLI")
-                    continue
-                }
-                #expect(outcome.attempts.last?.strategyID
-                    == (mode == .auto ? "codex.cli" : "codex.oauth-native-refresh-cli"))
+            guard case let .failure(error) = outcome.result, error is CLISelected else {
+                Issue.record("Native refresh must be handed to the credential-owning CLI")
+                continue
             }
+            let expectedRecoveryID = managed || mode == .oauth
+                ? "codex.oauth-native-refresh-cli"
+                : "codex.cli"
+            #expect(outcome.attempts.last?.strategyID == expectedRecoveryID)
             #expect(await transport.requests().isEmpty)
             try fixture.expectUnchanged()
         }
@@ -146,19 +134,24 @@ struct CodexOAuthExpiryPipelineTests {
             await Self.pipeline.fetch(context: context, provider: .codex)
         }
         let unauthorized = failure == "401"
-        let expectsCLI = unauthorized && mode == .auto && !managed
+        let forbidden = failure == "403"
+        let expectsCLI = unauthorized
         guard case let .failure(error) = outcome.result else {
             Issue.record("An expiry hint cannot authenticate a rejected token")
             return
         }
         if expectsCLI {
             #expect(error is CLISelected)
-            #expect(outcome.attempts.last?.strategyID == "codex.cli")
+            let expectedRecoveryID = managed || mode == .oauth
+                ? "codex.oauth-native-refresh-cli"
+                : "codex.cli"
+            #expect(outcome.attempts.last?.strategyID == expectedRecoveryID)
         } else {
             let oauthError = try #require(error as? CodexOAuthFetchError)
             switch oauthError {
             case .unauthorized: #expect(unauthorized)
-            case .serverError: #expect(failure == "403" || failure == "500")
+            case .forbidden: #expect(forbidden)
+            case .serverError: #expect(failure == "500")
             case .invalidResponse: #expect(failure == "decode")
             case .networkError: #expect(failure == "network")
             }
