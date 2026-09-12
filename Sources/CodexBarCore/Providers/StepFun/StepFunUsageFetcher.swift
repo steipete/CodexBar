@@ -256,24 +256,19 @@ public struct StepFunUsageSnapshot: Sendable {
             accountOrganization: nil,
             loginMethod: loginMethod)
 
-        // Token Plan (Credit pool) carries no live 5h/weekly windows. Show the credit
-        // balance as the primary window and drop the meaningless 0%-left rate windows
-        // entirely. Coding Plan keeps its rolling windows and falls through below.
-        if self.isCreditPlan, let creditRate = self.creditLeftRate {
-            let creditUsedPercent = max(0, min(100, (1.0 - creditRate) * 100))
-            let resetDate = self.creditResetTime ?? Date.distantFuture
-            let resetDescription = UsageFormatter.resetDescription(from: resetDate)
-            // Populate windowMinutes so the monthly credit pool feeds the plan-utilization
-            // history + pace forecast, matching the Codex/Claude windows. Only when the credit
-            // pool has a real monthly reset (otherwise the pace projection is meaningless).
-            let creditWindowMinutes = self.creditResetTime == nil
-                ? nil
-                : ProviderPaceCapability.monthlyWindowSentinelMinutes
-            let creditWindow = RateWindow(
-                usedPercent: creditUsedPercent,
-                windowMinutes: creditWindowMinutes,
-                resetsAt: resetDate,
-                resetDescription: resetDescription)
+        // Credit plans have no rolling windows, even before a credit balance is available.
+        if self.isCreditPlan {
+            let creditWindow = self.creditLeftRate.map { creditRate in
+                let resetDate = self.creditResetTime ?? Date.distantFuture
+                // Only a real monthly reset can feed plan-utilization history and pace.
+                return RateWindow(
+                    usedPercent: max(0, min(100, (1.0 - creditRate) * 100)),
+                    windowMinutes: self.creditResetTime.map { _ in
+                        ProviderPaceCapability.monthlyWindowSentinelMinutes
+                    },
+                    resetsAt: resetDate,
+                    resetDescription: UsageFormatter.resetDescription(from: resetDate))
+            }
 
             return UsageSnapshot(
                 primary: creditWindow,

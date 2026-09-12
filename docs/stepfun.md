@@ -57,6 +57,7 @@ authenticated via an Oasis-Token obtained through a username + password login fl
   - Without bucket sizes, uses `subscription_credit_left_rate` (or `topup_credit_left_rate` when
     no subscription rate exists); the independent percentages cannot be safely added.
   - No secondary window — credit plans don't have 5h/weekly rate-limit windows.
+  - Credit plans with no balance data yet display no quota windows until a credit balance is available.
   - `usedPercent = (1.0 - credit_left_rate) × 100`.
 - Plan name is shown as the `loginMethod` label in the menu card (e.g. "Plus").
 - When auth source is set to **Off**, no background refreshes occur.
@@ -72,4 +73,4 @@ authenticated via an Oasis-Token obtained through a username + password login fl
 - `Sources/CodexBarCore/Providers/StepFun/StepFunSettingsReader.swift` (env var resolution)
 - `Sources/CodexBar/Providers/StepFun/StepFunProviderImplementation.swift` (settings fields + activation logic)
 - `Sources/CodexBar/Providers/StepFun/StepFunSettingsStore.swift` (SettingsStore extension)
-- `Tests/CodexBarTests/StepFunUsageFetcherTests.swift` (26 test cases)
+- `Tests/CodexBarTests/StepFunUsageFetcherTests.swift`
