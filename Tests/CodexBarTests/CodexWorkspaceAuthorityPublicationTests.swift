@@ -17,16 +17,19 @@ struct CodexWorkspaceAuthorityPublicationTests {
                 trustedCurrentUsageEmail: nil,
                 dashboardSignedInEmail: email,
                 dashboardAccountID: "other-personal-scope",
-                balanceIsWorkspace: false,
+                requiresWorkspaceBalanceScope: false,
                 knownOwners: [CodexDashboardKnownOwnerCandidate(
                     identity: .providerAccount(id: "workspace-a"), normalizedEmail: email)]),
             routing: CodexDashboardRoutingHints(targetEmail: nil, lastKnownDashboardRoutingEmail: nil)))
         #expect(decision.allowedEffects.contains(.cachedDashboardReuse))
     }
 
-    @Test(arguments: ["matching", "different", "unscoped", "stale"])
-    func `workspace authority governs app publication and CLI cache reuse`(scenario: String) async throws {
-        let receipt = try await CodexWorkspaceAuthorityProof.run(scenario: scenario)
+    @Test(arguments: ["matching", "different", "unscoped", "stale"], [false, true])
+    func `workspace authority governs app publication and CLI cache reuse`(
+        scenario: String,
+        unavailable: Bool) async throws
+    {
+        let receipt = try await CodexWorkspaceAuthorityProof.run(scenario: scenario, unavailable: unavailable)
         let expected = scenario == "matching"
         for (effect, allowed) in receipt {
             #expect(allowed == expected, "\(scenario): \(effect)")
@@ -71,18 +74,18 @@ enum CodexWorkspaceAuthorityProof {
         return result.credits == original.credits && result.credits?.hasWorkspaceBalance != true
     }
 
-    static func run(scenario: String) async throws -> [String: Bool] {
+    static func run(scenario: String, unavailable: Bool = false) async throws -> [String: Bool] {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("workspace-proof-\(UUID())")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
         return try await CodexCredentialFileAccess.withFixtureScope(.init(roots: [root])) {
             try await OpenAIDashboardCacheStore.$cacheURLOverride.withValue(root.appendingPathComponent("cache.json")) {
-                try await self.exercise(scenario: scenario, root: root)
+                try await self.exercise(scenario: scenario, unavailable: unavailable, root: root)
             }
         }
     }
 
-    private static func exercise(scenario: String, root: URL) async throws -> [String: Bool] {
+    private static func exercise(scenario: String, unavailable: Bool, root: URL) async throws -> [String: Bool] {
         let fixture = try CodexWorkspacesNavigationFixture(userDefaults: InMemoryUserDefaults())
         defer { fixture.cleanup() }
         let email = "fixture@example.com"
@@ -105,15 +108,15 @@ enum CodexWorkspaceAuthorityProof {
             dailyBreakdown: [],
             usageBreakdown: [],
             creditsPurchaseURL: nil,
-            creditsRemaining: 42,
+            creditsRemaining: unavailable ? nil : 42,
             creditsAvailable: true,
-            balanceIsWorkspace: true,
+            balanceIsWorkspace: !unavailable,
             updatedAt: Date())
         await fixture.store.applyOpenAIDashboard(dashboard, targetEmail: email, expectedGuard: expectedGuard)
         var receipt = [
             "appDashboardAttached": fixture.store.openAIDashboardAttachmentAuthorized,
-            "appCreditsAttached": fixture.store.credits?.displayRemaining == 42,
-            "appCacheWritten": OpenAIDashboardCacheStore.load()?.snapshot.creditsRemaining == 42,
+            "appCreditsAttached": fixture.store.credits != nil,
+            "appCacheWritten": OpenAIDashboardCacheStore.load() != nil,
         ]
         let context = try self.cliContext(root: root, id: selectedID, email: email)
         do {

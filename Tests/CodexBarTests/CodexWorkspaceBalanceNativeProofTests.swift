@@ -26,6 +26,9 @@ final class CodexWorkspaceBalanceNativeProofTests: XCTestCase {
             let receipt = try await CodexWorkspaceAuthorityProof.run(scenario: scenario)
             XCTAssertTrue(receipt.values.allSatisfy { $0 == (scenario == "matching") })
             authorityReceipts[scenario] = receipt
+            let unavailable = try await CodexWorkspaceAuthorityProof.run(scenario: scenario, unavailable: true)
+            XCTAssertTrue(unavailable.values.allSatisfy { $0 == (scenario == "matching") })
+            authorityReceipts[scenario + "Unavailable"] = unavailable
         }
         let rejectsUnscopedOAuth = try await CodexWorkspaceAuthorityProof.unscopedOAuthBalanceIsRejected()
         XCTAssertTrue(rejectsUnscopedOAuth)

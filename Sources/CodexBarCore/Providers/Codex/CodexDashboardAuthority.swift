@@ -66,7 +66,7 @@ public struct CodexDashboardOwnershipProofContext: Equatable, Sendable {
     public let trustedCurrentUsageEmail: String?
     public let dashboardSignedInEmail: String?
     public let dashboardAccountID: String?
-    public let balanceIsWorkspace: Bool
+    public let requiresWorkspaceBalanceScope: Bool
     public let knownOwners: [CodexDashboardKnownOwnerCandidate]
 
     public init(
@@ -75,7 +75,7 @@ public struct CodexDashboardOwnershipProofContext: Equatable, Sendable {
         trustedCurrentUsageEmail: String?,
         dashboardSignedInEmail: String?,
         dashboardAccountID: String? = nil,
-        balanceIsWorkspace: Bool = false,
+        requiresWorkspaceBalanceScope: Bool = false,
         knownOwners: [CodexDashboardKnownOwnerCandidate])
     {
         self.currentIdentity = currentIdentity
@@ -83,7 +83,7 @@ public struct CodexDashboardOwnershipProofContext: Equatable, Sendable {
         self.trustedCurrentUsageEmail = trustedCurrentUsageEmail
         self.dashboardSignedInEmail = dashboardSignedInEmail
         self.dashboardAccountID = dashboardAccountID
-        self.balanceIsWorkspace = balanceIsWorkspace
+        self.requiresWorkspaceBalanceScope = requiresWorkspaceBalanceScope
         self.knownOwners = knownOwners
     }
 }
@@ -194,7 +194,7 @@ public enum CodexDashboardAuthority {
 
         // Workspace balances require response identity at the final publication/cache boundary.
         // Personal-credit dashboards retain their existing email-based authority contract.
-        if proof.balanceIsWorkspace {
+        if proof.requiresWorkspaceBalanceScope {
             guard case let .providerAccount(id) = currentIdentity,
                   ManagedCodexAccount.normalizeWorkspaceAccountID(proof.dashboardAccountID) == id
             else {

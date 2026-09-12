@@ -28,6 +28,10 @@ public struct OpenAIDashboardSnapshot: Codable, Equatable, Sendable {
     public let subscriptionRenewsAt: Date?
     public let updatedAt: Date
 
+    public var requiresWorkspaceBalanceScope: Bool {
+        self.balanceIsWorkspace == true || (self.creditsAvailable == true && self.creditsRemaining == nil)
+    }
+
     public init(
         signedInEmail: String?,
         accountID: String? = nil,
