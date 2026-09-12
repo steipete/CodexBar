@@ -82,8 +82,8 @@ extension CodexBarCLI {
         guard _NSGetExecutablePath(nil, &size) != 0 else { return nil }
         var buffer = [Int8](repeating: 0, count: Int(size))
         guard _NSGetExecutablePath(&buffer, &size) == 0 else { return nil }
-        let bytes = buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }
-        return String(decoding: bytes, as: UTF8.self)
+        let bytes = buffer.map { UInt8(bitPattern: $0) }
+        return String(decodingCString: bytes, as: UTF8.self)
         #elseif os(Linux)
         let path = "/proc/self/exe"
         guard FileManager.default.fileExists(atPath: path) else { return nil }
