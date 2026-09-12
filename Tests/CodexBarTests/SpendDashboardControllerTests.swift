@@ -53,9 +53,11 @@ struct SpendDashboardControllerTests {
         #expect(contexts.first?.includePiSessions == false)
     }
 
-    @Test
-    func `Codex auth rotation invalidates stale spend while retaining unrelated providers`() async throws {
-        let home = FileManager.default.temporaryDirectory
+    @Test(CodexCredentialFixtures(), arguments: [Duration.zero, .milliseconds(100)])
+    func `Codex auth rotation invalidates stale spend while retaining unrelated providers`(
+        completionDelay: Duration) async throws
+    {
+        let home = CodexCredentialFixtures.root
             .appendingPathComponent(
                 "SpendDashboardControllerTests-auth-rotation-\(UUID().uuidString)",
                 isDirectory: true)
@@ -72,7 +74,7 @@ struct SpendDashboardControllerTests {
             authFingerprint: CodexAuthFingerprint.fingerprint(data: originalAuth),
             authFileWasReadable: true,
             cacheIdentity: "auth-rotation")
-        let gate = SpendDashboardCodexSnapshotGate()
+        let gate = SpendDashboardPendingLoads<CostUsageTokenSnapshot>()
         let recorder = SpendDashboardLoadResultRecorder()
         let configuration = SpendDashboardConfiguration(
             costUsageEnabled: true,
@@ -91,27 +93,34 @@ struct SpendDashboardControllerTests {
                     force: mode.forcesLoader)
             },
             loader: { request in
-                let result = await SpendDashboardSource.load(request, codexSnapshotLoader: { context in
-                    await gate.load(context)
+                let result = await SpendDashboardSource.load(request, codexSnapshotLoader: { _ in
+                    let snapshot = try await gate.load()
+                    try await Task.sleep(for: completionDelay)
+                    return snapshot
                 })
                 await recorder.record(result)
                 return result
             })
+        defer {
+            controller.stop()
+            gate.close()
+        }
 
         controller.update(configuration: configuration)
-        await Self.waitForCodexPendingCount(1, gate: gate)
-        await gate.resume(at: 0, snapshot: Self.input(cost: 6).snapshot)
-        await Self.waitUntil { !controller.isRefreshing }
+        try await gate.waitForPendingCount(1)
+        gate.resume(returning: Self.input(cost: 6).snapshot)
+        try await SpendDashboardStateWait.until { !controller.isRefreshing }
         #expect(controller.model.groups.first?.totalCost == 8)
 
         controller.refresh()
-        await Self.waitForCodexPendingCount(1, gate: gate)
+        try await gate.waitForPendingCount(1)
         let replacementAuth = Data("{\"profile\":\"owner-two\"}".utf8)
         try replacementAuth.write(to: authURL, options: .atomic)
-        await gate.resume(at: 0, snapshot: Self.input(cost: 99).snapshot)
-        await Self.waitUntil { !controller.isRefreshing }
+        gate.resume(returning: Self.input(cost: 99).snapshot)
+        try await SpendDashboardStateWait.until { !controller.isRefreshing }
 
         let results = await recorder.results
+        try #require(results.count == 2)
         #expect(results.last?.invalidatedSourceIDs == ["codex:account"])
         #expect(results.last?.failedSourceIDs == ["codex:account"])
         #expect(controller.failedSourceCount == 1)
@@ -332,7 +341,7 @@ struct SpendDashboardControllerTests {
             settings: settings,
             startupBehavior: .testing,
             environmentBase: [:])
-        store.publishConfirmedEmptyTokenSnapshot(for: .claude)
+        store._setSpendDashboardTokenSnapshotForTesting(nil, for: .claude)
 
         let request = await SpendDashboardSource.makeRequest(
             settings: settings,
@@ -865,16 +874,6 @@ struct SpendDashboardControllerTests {
         Issue.record("Timed out waiting for \(count) pending loads")
     }
 
-    private static func waitForCodexPendingCount(_ count: Int, gate: SpendDashboardCodexSnapshotGate) async {
-        for _ in 0..<1000 {
-            if await gate.pendingCount == count {
-                return
-            }
-            await Task.yield()
-        }
-        Issue.record("Timed out waiting for \(count) pending Codex loads")
-    }
-
     static func waitUntil(_ condition: @MainActor () -> Bool) async {
         for _ in 0..<1000 {
             if condition() {
@@ -965,6 +964,7 @@ struct SpendDashboardControllerRevisionTests {
             ("history coverage", Self.completenessSnapshot(historyCoverageIsEstablished: false)),
             ("last 30 day tokens", Self.completenessSnapshot(last30DaysTokens: 1)),
             ("last 30 day cost", Self.completenessSnapshot(last30DaysCostUSD: 1)),
+            ("last 30 day requests", Self.completenessSnapshot(last30DaysRequests: 1)),
             ("entry input tokens", Self.completenessSnapshot(entryInputTokens: 1)),
             ("entry cache read tokens", Self.completenessSnapshot(entryCacheReadTokens: 1)),
             ("entry cache creation tokens", Self.completenessSnapshot(entryCacheCreationTokens: 1)),
@@ -1052,6 +1052,45 @@ struct SpendDashboardControllerRevisionTests {
         }
     }
 
+    @Test
+    func `cached request aggregate replacement reloads ledger availability`() async throws {
+        let baseline = Self.completenessSnapshot(entryRequestCount: 3)
+        let replacement = Self.completenessSnapshot(
+            last30DaysRequests: 99,
+            entryRequestCount: 3)
+        let (settings, store) = Self.revisionStore(
+            suiteName: "SpendDashboardControllerTests-request-aggregate-replacement")
+        let baselineConfiguration = Self.configuration(snapshot: baseline, settings: settings, store: store)
+        let baselineRevision = store.tokenSnapshotPublicationRevision(for: .claude)
+        let replacementConfiguration = Self.configuration(snapshot: replacement, settings: settings, store: store)
+        let gate = SpendDashboardLoaderGate()
+        let controller = Self.controller(gate: gate)
+
+        #expect(store.tokenSnapshotPublicationRevision(for: .claude) == baselineRevision)
+        #expect(baseline.daily == replacement.daily)
+        #expect(baselineConfiguration.sourceRevisions != replacementConfiguration.sourceRevisions)
+
+        controller.update(configuration: baselineConfiguration)
+        await Self.waitForPendingCount(1, gate: gate)
+        await gate.resume(at: 0, result: .init(
+            inputs: [Self.input(provider: .claude, snapshot: baseline)],
+            failedSourceIDs: []))
+        await Self.waitUntil { !controller.isRefreshing }
+        let baselineGroup = try #require(controller.model.groups.first)
+        #expect(baselineGroup.dailySummaries.contains { $0.requestCount == 3 })
+
+        controller.update(configuration: replacementConfiguration)
+        await Self.waitForPendingCount(1, gate: gate)
+        await gate.resume(at: 0, result: .init(
+            inputs: [Self.input(provider: .claude, snapshot: replacement)],
+            failedSourceIDs: []))
+        await Self.waitUntil { !controller.isRefreshing }
+
+        #expect(controller.generation == 2)
+        let replacementGroup = try #require(controller.model.groups.first)
+        #expect(replacementGroup.dailySummaries.allSatisfy { $0.requestCount == nil })
+    }
+
     private static func controller(gate: SpendDashboardLoaderGate) -> SpendDashboardController {
         let controllerBox = SpendDashboardControllerBox()
         let controller = SpendDashboardController(
@@ -1098,7 +1137,7 @@ struct SpendDashboardControllerRevisionTests {
         settings: SettingsStore,
         store: UsageStore) -> SpendDashboardConfiguration
     {
-        store._setTokenSnapshotForTesting(snapshot, provider: .claude)
+        store._setSpendDashboardTokenSnapshotForTesting(snapshot, for: .claude)
         return SpendDashboardSource.configuration(settings: settings, store: store)
     }
 
@@ -1115,6 +1154,7 @@ struct SpendDashboardControllerRevisionTests {
         historyCoverageIsEstablished: Bool = true,
         last30DaysTokens: Int? = 0,
         last30DaysCostUSD: Double? = 0,
+        last30DaysRequests: Int? = nil,
         entryInputTokens: Int? = nil,
         entryCacheReadTokens: Int? = nil,
         entryCacheCreationTokens: Int? = nil,
@@ -1151,6 +1191,7 @@ struct SpendDashboardControllerRevisionTests {
             sessionCostUSD: nil,
             last30DaysTokens: last30DaysTokens,
             last30DaysCostUSD: last30DaysCostUSD,
+            last30DaysRequests: last30DaysRequests,
             historyCoverageIsEstablished: historyCoverageIsEstablished,
             daily: [entry],
             updatedAt: Date(timeIntervalSince1970: 1_784_179_200))
@@ -1229,25 +1270,6 @@ private actor SpendDashboardLoadResultRecorder {
 
     func record(_ result: SpendDashboardLoadResult) {
         self.results.append(result)
-    }
-}
-
-private actor SpendDashboardCodexSnapshotGate {
-    private var continuations: [CheckedContinuation<CostUsageTokenSnapshot, Never>] = []
-
-    var pendingCount: Int {
-        self.continuations.count
-    }
-
-    func load(_ context: CodexSpendSnapshotLoadContext) async -> CostUsageTokenSnapshot {
-        _ = context
-        return await withCheckedContinuation { continuation in
-            self.continuations.append(continuation)
-        }
-    }
-
-    func resume(at index: Int, snapshot: CostUsageTokenSnapshot) {
-        self.continuations.remove(at: index).resume(returning: snapshot)
     }
 }
 

@@ -8,11 +8,26 @@ public struct GrokWebBillingSnapshot: Sendable, Equatable {
     public let usedPercent: Double?
     public let resetsAt: Date?
     public let subscriptionTier: String?
+    /// False when `usedPercent` was inferred rather than read off the wire. The credits frame can
+    /// describe a billing period while carrying no percentage field at all, and that shape is
+    /// reported as 0 for the surface's own no-usage-yet contract. A caller that merges two billing
+    /// surfaces must not promote such a value to a published percent.
+    public let usedPercentIsWirePublished: Bool
+    /// The parser validated an active current period with an omitted proto3 usage scalar.
+    public let usedPercentIsImplicitZero: Bool
 
-    public init(usedPercent: Double?, resetsAt: Date?, subscriptionTier: String? = nil) {
+    public init(
+        usedPercent: Double?,
+        resetsAt: Date?,
+        subscriptionTier: String? = nil,
+        usedPercentIsWirePublished: Bool = true,
+        usedPercentIsImplicitZero: Bool = false)
+    {
         self.usedPercent = usedPercent
         self.resetsAt = resetsAt
         self.subscriptionTier = subscriptionTier
+        self.usedPercentIsWirePublished = usedPercentIsWirePublished
+        self.usedPercentIsImplicitZero = usedPercentIsImplicitZero
     }
 
     /// Overlay the CLI settings plan name. Usage percent stays on the existing credits rules.
@@ -20,7 +35,21 @@ public struct GrokWebBillingSnapshot: Sendable, Equatable {
         GrokWebBillingSnapshot(
             usedPercent: self.usedPercent,
             resetsAt: self.resetsAt,
-            subscriptionTier: GrokPlan.displayName(from: raw) ?? self.subscriptionTier)
+            subscriptionTier: GrokPlan.displayName(from: raw) ?? self.subscriptionTier,
+            usedPercentIsWirePublished: self.usedPercentIsWirePublished,
+            usedPercentIsImplicitZero: self.usedPercentIsImplicitZero)
+    }
+
+    /// Keep period and plan metadata a second billing surface did not publish. Usage percent
+    /// always stays with the surface that produced this snapshot, so an unknown percent is
+    /// never backfilled from another response.
+    func completing(with other: GrokWebBillingSnapshot) -> GrokWebBillingSnapshot {
+        GrokWebBillingSnapshot(
+            usedPercent: self.usedPercent,
+            resetsAt: other.resetsAt ?? self.resetsAt,
+            subscriptionTier: self.subscriptionTier ?? other.subscriptionTier,
+            usedPercentIsWirePublished: self.usedPercentIsWirePublished,
+            usedPercentIsImplicitZero: self.usedPercentIsImplicitZero)
     }
 }
 
@@ -284,10 +313,19 @@ public enum GrokWebBillingFetcher {
         }
         let noUsageYet =
             parsedPercent == nil && scan.fixed32Fields.isEmpty && reset != nil && hasUsagePeriod
+        let currentPeriodStart = resetFields.first { $0.path == [1, 8, 2, 1] }?.date
+        let currentPeriodEnd = resetFields.first { $0.path == [1, 8, 3, 1] }?.date
+        let hasActiveCurrentPeriod = scan.varintFields.contains {
+            $0.path == [1, 8, 1] && ($0.value == 1 || $0.value == 2)
+        } && currentPeriodStart.map { $0 <= now } == true && currentPeriodEnd.map { $0 > now } == true
         guard let percent = parsedPercent ?? (noUsageYet ? 0 : nil) else {
             throw GrokWebBillingError.parseFailed
         }
-        return GrokWebBillingSnapshot(usedPercent: percent, resetsAt: reset)
+        return GrokWebBillingSnapshot(
+            usedPercent: percent,
+            resetsAt: reset,
+            usedPercentIsWirePublished: parsedPercent != nil,
+            usedPercentIsImplicitZero: noUsageYet && payloads.count == 1 && scan.isComplete && hasActiveCurrentPeriod)
     }
 
     static func looksLikeProtobufPayload(_ data: Data) -> Bool {
@@ -401,10 +439,12 @@ public enum GrokWebBillingFetcher {
 
         var fixed32Fields: [Fixed32Field] = []
         var varintFields: [VarintField] = []
+        var isComplete = true
 
         mutating func merge(_ other: ProtobufScan) {
             self.fixed32Fields.append(contentsOf: other.fixed32Fields)
             self.varintFields.append(contentsOf: other.varintFields)
+            self.isComplete = self.isComplete && other.isComplete
         }
     }
 
@@ -425,7 +465,8 @@ public enum GrokWebBillingFetcher {
 
         while index < bytes.count {
             let fieldStart = index
-            guard let key = Self.readVarint(bytes, index: &index), key != 0 else {
+            guard let key = Self.readVarint(bytes, index: &index), key >> 3 > 0, key >> 3 <= 536_870_911 else {
+                scan.isComplete = false
                 index = fieldStart + 1
                 continue
             }
@@ -438,21 +479,26 @@ public enum GrokWebBillingFetcher {
                 if let value = Self.readVarint(bytes, index: &index) {
                     scan.varintFields.append(ProtobufScan.VarintField(path: fieldPath, value: value))
                 } else {
+                    scan.isComplete = false
                     index = fieldStart + 1
                 }
             case 1:
-                guard index + 8 <= bytes.count else { return (scan, nextOrder) }
+                guard index + 8 <= bytes.count else {
+                    scan.isComplete = false
+                    return (scan, nextOrder)
+                }
                 index += 8
             case 2:
                 guard let length = Self.readVarint(bytes, index: &index),
                       length <= UInt64(bytes.count - index)
                 else {
+                    scan.isComplete = false
                     index = fieldStart + 1
                     continue
                 }
                 let start = index
                 let end = index + Int(length)
-                if depth < 4 {
+                if depth < 4, Self.isKnownBillingMessage(path: fieldPath) {
                     let nested = Self.scanProtobuf(
                         Data(bytes[start..<end]),
                         depth: depth + 1,
@@ -463,7 +509,10 @@ public enum GrokWebBillingFetcher {
                 }
                 index = end
             case 5:
-                guard index + 4 <= bytes.count else { return (scan, nextOrder) }
+                guard index + 4 <= bytes.count else {
+                    scan.isComplete = false
+                    return (scan, nextOrder)
+                }
                 let bitPattern =
                     UInt32(bytes[index])
                     | (UInt32(bytes[index + 1]) << 8)
@@ -477,11 +526,25 @@ public enum GrokWebBillingFetcher {
                 nextOrder += 1
                 index += 4
             default:
+                scan.isComplete = false
                 index = fieldStart + 1
             }
         }
 
         return (scan, nextOrder)
+    }
+
+    private static func isKnownBillingMessage(path: [UInt64]) -> Bool {
+        // The billing descriptor declares these messages; other length-delimited fields may be opaque bytes.
+        switch path {
+        case [1],
+             [1, 2], [1, 3], [1, 4], [1, 5], [1, 6], [1, 7], [1, 8], [1, 12],
+             [1, 6, 1], [1, 6, 2], [1, 6, 3], [1, 8, 2], [1, 8, 3],
+             [1, 6, 3, 2], [1, 6, 3, 3]:
+            true
+        default:
+            false
+        }
     }
 
     private static func readVarint(_ bytes: [UInt8], index: inout Int) -> UInt64? {
@@ -490,6 +553,7 @@ public enum GrokWebBillingFetcher {
         while index < bytes.count, shift < 64 {
             let byte = bytes[index]
             index += 1
+            if shift == 63, byte > 1 { return nil }
             value |= UInt64(byte & 0x7F) << shift
             if byte & 0x80 == 0 {
                 return value

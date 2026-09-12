@@ -51,7 +51,7 @@ struct CostUsageCacheWideMigrationTests {
     }
 
     @Test
-    func `cache wide migration reorders a partially drained queue newest first`() throws {
+    func `cache wide migration preserves discovered waiters before reseeded files`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
         let day = try env.makeLocalNoon(year: 2026, month: 5, day: 10)
@@ -90,10 +90,10 @@ struct CostUsageCacheWideMigrationTests {
         let migratedCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         #expect(recorder.snapshot().codexFileScanAttempts == CostUsageScanner.codexCatchUpScanCandidateLimit)
         #expect(recorder.attemptedCodexFilePaths().contains(newestURL.path))
-        #expect(!recorder.attemptedCodexFilePaths().contains(oldestURL.path))
+        #expect(recorder.attemptedCodexFilePaths().contains(oldestURL.path))
         #expect(migratedCache.codexActiveLookbackState?.pendingFilePaths.count
             == corpusSize - CostUsageScanner.codexCatchUpScanCandidateLimit)
-        #expect(migratedCache.codexActiveLookbackState?.pendingFilePaths.contains(oldestURL.path) == true)
+        #expect(migratedCache.codexActiveLookbackState?.pendingFilePaths.contains(oldestURL.path) == false)
     }
 
     @Test(arguments: CacheWideMigrationCase.allCases)
@@ -198,7 +198,7 @@ struct CostUsageCacheWideMigrationTests {
         #expect(secondMetrics.codexProgressAccountingVisits == 0)
         #expect(secondRecorder.attemptedCodexFilePaths().contains(targetURL.path))
         #expect(secondCache.codexActiveLookbackState?.pendingFilePaths.isEmpty == true)
-        #expect(secondCache.codexScanCompletedFiles == corpusSize - 1)
+        #expect(secondCache.codexScanCompletedFiles == corpusSize)
         #expect(secondCache.codexScanTotalFiles == corpusSize)
         #expect(secondCache.codexScanCatchUpPending == true)
 
@@ -289,7 +289,7 @@ struct CostUsageCacheWideMigrationTests {
                     + #"{"total_token_usage":{"input_tokens":100,"cached_input_tokens":20,"output_tokens":10},"#
                     + #""model":"openai/gpt-5.2-codex"}}}"#,
             ]
-            return try env.writeCodexSessionFile(
+            return try env.seedCodexSessionFile(
                 day: day,
                 filename: String(format: "migration-%04d.jsonl", index),
                 contents: lines.joined(separator: "\n") + "\n")

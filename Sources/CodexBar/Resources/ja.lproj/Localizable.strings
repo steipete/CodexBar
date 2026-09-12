@@ -45,6 +45,7 @@
 "hooks_any_provider" = "すべてのプロバイダー";
 "hooks_threshold" = "使用率 ≥ で実行";
 "hooks_threshold_placeholder" = "90";
+"hooks_executable" = "実行ファイル";
 "hooks_executable_placeholder" = "/usr/local/bin/my-command";
 "hooks_arguments_placeholder" = "引数";
 "hooks_argument_placeholder" = "引数";
@@ -239,6 +240,7 @@
 "No cost history data." = "コスト履歴データがありません。";
 "No data available" = "データがありません";
 "No data yet" = "まだデータがありません";
+"Workspaces" = "ワークスペース";
 "No enabled providers available for Overview." = "概要に表示できる有効なプロバイダがありません。";
 "No providers selected" = "プロバイダが選択されていません";
 "No token accounts yet." = "トークンアカウントはまだありません。";
@@ -511,7 +513,6 @@
 "provider_accent_color_reset" = "デフォルトを使用";
 "quota_warnings_title" = "クォータ警告";
 "quota_warning_session" = "セッション";
-"quota_warning_session_capitalized" = "セッション";
 "quota_warning_weekly" = "週間";
 "quota_warning_weekly_capitalized" = "週間";
 "quota_warning_notification_title" = "%1$@ の%2$@クォータが残りわずか";
@@ -614,6 +615,8 @@
 "display_mode_subtitle" = "メニューバーに表示する内容を選択します（ペースは使用量と想定値の比較を表示します）。";
 "show_quota_warning_markers_title" = "クォータ警告マーカーを表示";
 "show_quota_warning_markers_subtitle" = "クォータ警告が設定されている場合、使用量バーにしきい値の目盛りを描画します。";
+"show_pace_title" = "ペースを表示";
+"show_pace_subtitle" = "使用状況バーに、予定より進んでいるか遅れているかを示す線と予測テキストを表示します。";
 "weekly_progress_work_days_title" = "週間進捗の作業日";
 "weekly_progress_work_days_subtitle" = "週間使用量バーの目盛りとペース計算に使用する作業日を設定します。";
 "workday_tick_appearance_title" = "稼働日の目盛りの表示";
@@ -650,6 +653,8 @@
 "section_keyboard_shortcut" = "キーボードショートカット";
 "open_menu_shortcut_title" = "メニューを開く";
 "open_menu_shortcut_subtitle" = "どこからでもメニューバーのメニューを開きます。";
+"record_shortcut" = "キーを記録";
+"press_shortcut" = "キーを押してください";
 "install_cli" = "CLI をインストール";
 "install_cli_subtitle" = "CodexBarCLI を codexbar として /usr/local/bin と /opt/homebrew/bin にシンボリックリンクします。";
 "cli_not_found" = "アプリバンドル内に CodexBarCLI が見つかりません。";
@@ -660,6 +665,9 @@
 "surprise_me_subtitle" = "エージェントたちがメニューバーで少し遊ぶのが好きか試してみてください。";
 "hide_personal_info_title" = "個人情報を隠す";
 "hide_personal_info_subtitle" = "メニューバーとメニュー UI のメールアドレスを伏せ字にします。";
+"hide_cost_history_identity_subtitle" = "保存データを変更せずに、コスト履歴のプロジェクト名・ソース名とパスも非表示にします。";
+"Project %d" = "プロジェクト %d";
+"Source %d" = "ソース %d";
 "show_provider_storage_usage_title" = "プロバイダのストレージ使用量を表示";
 "show_provider_storage_usage_subtitle" = "ローカルディスクの使用量をメニューに表示します。既知のプロバイダ所有パスをバックグラウンドでスキャンします。";
 "section_keychain_access" = "キーチェーンアクセス";
@@ -927,6 +935,7 @@
 "Monthly" = "月間";
 "Sonnet" = "Sonnet";
 "Overages" = "超過分";
+"Overage" = "超過分";
 "Activity" = "アクティビティ";
 "Copied" = "コピーしました";
 "Copy error" = "エラーをコピー";
@@ -937,6 +946,7 @@
 "Balance updates in near-real time (up to 5 min lag)" = "残高はほぼリアルタイムで更新されます（最大5分の遅延）";
 "Daily billing data finalizes at 07:00 UTC" = "日次請求データは 07:00 UTC に確定します";
 "%@ of %@ credits left" = "クレジット残り %@ / %@";
+"of %@" = "/ %@";
 "%@ of %@ bonus credits left" = "ボーナスクレジット残り %@ / %@";
 "%@ / %@ (%@ remaining)" = "%@ / %@（残り %@）";
 "%@/%@ left" = "残り %@/%@";
@@ -948,6 +958,7 @@
 "Full in ~1 regen" = "約1回の再生成で満タン";
 "Full in ~%.0f regens" = "約%.0f回の再生成で満タン";
 "Overage usage" = "超過使用量";
+"Overage credits left" = "残り超過クレジット";
 "Overage cost" = "超過コスト";
 "credits" = "クレジット";
 "Zen balance" = "Zen 残高";
@@ -1328,6 +1339,12 @@
 "By subscription" = "サブスクリプション別";
 "No model-level history" = "モデル別の履歴はありません";
 "Daily estimated spend" = "日別推定支出";
+"Hourly estimated spend" = "時間別推定支出";
+"Hour" = "時";
+"%d hours of usage data across %d services" = "%d 時間の使用データ（%d サービス）";
+"1 hour of usage data across 1 service" = "1 時間の使用データ（1 サービス）";
+"%d hours of usage data across 1 service" = "%d 時間の使用データ（1 サービス）";
+"1 hour of usage data across %d services" = "1 時間の使用データ（%d サービス）";
 "≈%d full 5h windows of weekly left · %d windows until reset" = "週間枠は約%d回分の完全な5時間ウィンドウ · リセットまで%d回";
 "Weekly cannot run out before reset at this pace" = "このペースではリセット前に週間枠を使い切れません";
 "Weekly can run out ≈%d windows early" = "週間枠は約%dウィンドウ早く使い切る可能性があります";
@@ -1357,6 +1374,9 @@
 "menu_bar_layout_preset_compact_stacked" = "コンパクトな2段表示";
 "menu_bar_layout_preset_custom" = "カスタム";
 "menu_bar_layout_live_preview" = "ライブプレビュー";
+"menu_bar_layout_default_preview" = "デフォルトレイアウトのプレビュー";
+"menu_bar_layout_overrides_notice" = "次の有効なプロバイダーは独自の保存済みレイアウトを使用しています：";
+"menu_bar_layout_use_all_accessibility" = "%@：全プロバイダーのレイアウトを使用";
 "menu_bar_layout_strip" = "メニューバー表示";
 "menu_bar_layout_remove_line_break" = "改行を削除";
 "menu_bar_layout_chip_hint" = "選択、ドラッグで並べ替え、または削除アクションを使用します。";
@@ -1364,6 +1384,7 @@
 "menu_bar_layout_empty_line" = "ここにトークンをドロップ";
 "menu_bar_layout_line" = "%d 行目";
 "menu_bar_layout_drag_remove" = "ここへドラッグして削除";
+"menu_bar_layout_remove_selected" = "選択項目を削除";
 "menu_bar_layout_size" = "サイズ";
 "menu_bar_layout_size_small" = "小";
 "menu_bar_layout_size_regular" = "標準";
@@ -1423,6 +1444,7 @@
 "More" = "多";
 
 /* Provider Plugins */
+"Plugins" = "Plugins";
 "Install…" = "インストール…";
 "Install plugin" = "プラグインをインストール";
 "Copies a JavaScript or TypeScript file into the plugins directory." = "JavaScript または TypeScript ファイルをプラグインディレクトリにコピーします。";
@@ -1464,6 +1486,7 @@
 "Total usage" = "合計使用量";
 "claude_oauth_keychain_access_revoked" = "Claude Code のトークン更新により、Claude キーチェーンへのアクセスが取り消されました。「更新」をクリックしてアクセスを再許可するか、Claude の使用量の取得元を CLI/Web に切り替えてください。";
 "claude_showing_last_known_usage" = "最後に取得した既知の使用量を表示しています（取得: %@）。";
+"claude_limited_usage_detail" = "使用量の詳細情報は限られています";
 /* Spend dashboard cost analysis */
 "90d" = "90d";
 "Input" = "Input";
@@ -1484,5 +1507,49 @@
 "Include OpenCodex usage logs" = "Include OpenCodex usage logs";
 "Hide native Codex when OpenCodex is present" = "Hide native Codex when OpenCodex is present";
 "Export JSON" = "Export JSON";
+"Copy JSON" = "JSONをコピー";
 "Sources" = "Sources";
 "OpenCodex" = "OpenCodex";
+"menu_bar_layout_token_conditional" = "条件付き";
+"menu_bar_layout_group_conditionals" = "条件";
+"menu_bar_layout_conditional_add" = "新しい条件";
+"menu_bar_layout_conditional_edit" = "条件を編集";
+"menu_bar_layout_conditional_remove" = "ライブラリから削除";
+"menu_bar_layout_conditional_save" = "保存";
+"menu_bar_layout_conditional_if" = "もし";
+"menu_bar_layout_conditional_then" = "表示";
+"menu_bar_layout_conditional_else" = "それ以外は表示";
+"menu_bar_layout_conditional_and" = "かつ";
+"menu_bar_layout_conditional_none" = "条件はまだありません";
+"menu_bar_layout_conditional_hide" = "非表示";
+"menu_bar_layout_conditional_name" = "名前";
+"menu_bar_layout_conditional_name_placeholder" = "例：セッションチェック";
+"menu_bar_layout_conditional_name_error" = "一意の名前を入力してください";
+"menu_bar_layout_conditional_used" = "使用";
+"menu_bar_layout_conditional_remaining" = "残り";
+"menu_bar_layout_conditional_metric_resets_in" = "%@ のリセットまで";
+"menu_bar_layout_conditional_metric_scoped_weekly" = "スコープ別週間";
+"menu_bar_layout_conditional_duplicate" = "複製";
+"menu_bar_layout_conditional_or" = "または";
+"menu_bar_layout_conditional_add_condition" = "条件を追加";
+"menu_bar_layout_conditional_summary" = "もし %1$@ なら %2$@ を表示し、それ以外は %3$@ を表示";
+"menu_bar_layout_conditional_copy_name" = "%@（コピー）";
+"menu_bar_layout_conditional_copy_name_numbered" = "%1$@（コピー %2$d）";
+"menu_bar_layout_conditional_unavailable" = "条件を利用できません";
+"menu_bar_layout_conditional_default_session_busy" = "セッション使用率 50% 超";
+"menu_bar_layout_conditional_default_weekly_high" = "週間使用率 90% 超";
+"menu_bar_layout_conditional_default_session_spent" = "セッションがほぼ上限";
+"menu_bar_layout_conditional_default_either_high" = "セッションまたは週間が高水準";
+"menu_bar_layout_conditional_default_scoped_weekly" = "モデル別週間の使用率 60% 超";
+"Visible usage items" = "表示する使用量項目";
+"Restore Defaults" = "デフォルトに戻す";
+"Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "このプロバイダーのメニュー、設定プレビュー、概要に表示する使用量の行を選択します。";
+"%@ (unavailable)" = "%@（利用不可）";
+"Spending cap, not balance" = "利用上限額（残高ではありません）";
+
+"Color Pace Indicator" = "使用ペースを色分け";
+"Green pace indicator when behind pace, red when ahead of pace (risk of running out early)" = "想定より使用が遅い場合は緑（余裕あり）、速い場合は赤（上限に早く達するおそれ）で表示します。";
+"%@ weekly" = "%@（週間）";
+
+"agent_sessions_hide_unreachable_title" = "接続できないホストを非表示";
+"agent_sessions_hide_unreachable_subtitle" = "セッションの取得に失敗したホストを非表示にします。";

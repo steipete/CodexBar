@@ -314,7 +314,13 @@ struct ProviderInlineDashboardModelTests {
             now: now))
 
         #expect(model.inlineUsageDashboard?.kpis.first?.value == "€1.50")
-        #expect(model.inlineUsageDashboard?.points.first?.accessibilityValue == "2023-11-14: €1.50")
+        #expect(model.inlineUsageDashboard?.points.first?.accessibilityValue ==
+            "Nov 14, 2023: €1.50 · 150 tokens")
+        #expect(model.inlineUsageDashboard?.points.first?.hoverDetail == .init(
+            dateLabel: "Nov 14, 2023",
+            cost: 1.5,
+            tokenCount: 150,
+            currencyCode: "EUR"))
         #expect(model.inlineUsageDashboard?.detailLines.contains("Top model: mistral-large") == true)
     }
 
@@ -472,6 +478,42 @@ struct FactoryMenuCardModelTests {
             now: now))
 
         #expect(model.metrics.map(\.title) == ["5-hour", "Weekly", "Monthly"])
+    }
+
+    @Test
+    func `factory time window labels localize in simplified chinese`() throws {
+        try CodexBarLocalizationOverride.$appLanguage.withValue("zh-Hans") {
+            let now = Date()
+            let snapshot = UsageSnapshot(
+                primary: RateWindow(usedPercent: 12, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+                secondary: RateWindow(usedPercent: 34, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+                tertiary: RateWindow(usedPercent: 56, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+                updatedAt: now,
+                identity: nil)
+            let metadata = try #require(ProviderDefaults.metadata[.factory])
+
+            let model = UsageMenuCardView.Model.make(.init(
+                provider: .factory,
+                metadata: metadata,
+                snapshot: snapshot,
+                credits: nil,
+                creditsError: nil,
+                dashboard: nil,
+                dashboardError: nil,
+                tokenSnapshot: nil,
+                tokenError: nil,
+                account: AccountInfo(email: nil, plan: nil),
+                isRefreshing: false,
+                lastError: nil,
+                usageBarsShowUsed: true,
+                resetTimeDisplayStyle: .countdown,
+                tokenCostUsageEnabled: false,
+                showOptionalCreditsAndExtraUsage: true,
+                hidePersonalInfo: false,
+                now: now))
+
+            #expect(model.metrics.map(\.title) == ["5 小时", "每周", "每月"])
+        }
     }
 
     @Test
@@ -1056,7 +1098,7 @@ struct MenuCardModelTests {
             metric: metric)
         #expect(popupTitle == "API key limit")
         #expect(metric.resetText == nil)
-        #expect(model.providerDetails.flatMap(\.rows).first { $0.label == "API key budget" }?.value == "$20.00")
+        #expect(model.providerDetails.flatMap(\.rows).first { $0.label == "API key limit" }?.value == "$20.00")
         #expect(metric.detailRightText == nil)
     }
 
@@ -1099,7 +1141,7 @@ struct MenuCardModelTests {
         #expect(model.creditsText == nil)
         #expect(model.placeholder == nil)
         #expect(model.usageNotes.isEmpty)
-        #expect(model.providerDetails.flatMap(\.rows).first { $0.label == "API key budget" }?.value ==
+        #expect(model.providerDetails.flatMap(\.rows).first { $0.label == "API key limit" }?.value ==
             "No limit configured")
     }
 
@@ -1140,7 +1182,7 @@ struct MenuCardModelTests {
 
         #expect(model.metrics.isEmpty)
         #expect(model.usageNotes.isEmpty)
-        #expect(model.providerDetails.flatMap(\.rows).first { $0.label == "API key budget" }?.value ==
+        #expect(model.providerDetails.flatMap(\.rows).first { $0.label == "API key limit" }?.value ==
             "Unavailable right now")
     }
 

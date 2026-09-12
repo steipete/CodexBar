@@ -1,5 +1,5 @@
 ---
-summary: "Alibaba Token Plan provider notes: Team and Personal/Solo variants, cookie auth, and setup."
+summary: "Alibaba Token Plan provider notes: Team and Personal/Solo variants, Bailian CLI/browser auth, and setup."
 read_when:
   - Adding or modifying the Alibaba Token Plan provider
   - Debugging Alibaba Token Plan cookie import or subscription summary fetching
@@ -14,6 +14,7 @@ The Alibaba Token Plan provider tracks Team credits and Personal/Solo rolling-wi
 
 - **Token-plan usage display**: Shows used, total, and remaining token-plan credits when Bailian returns quota totals.
 - **Personal/Solo windows**: Shows 5-hour and 7-day usage, reset times, and tier-specific quota totals.
+- **Bailian CLI auth**: Reuses an already signed-in `bl` executable without importing browser cookies.
 - **Cookie-based auth**: Uses browser cookies or a pasted `Cookie:` header.
 - **Expiry awareness**: Shows the nearest token-plan expiration date as the reset time when the subscription summary includes it.
 
@@ -22,7 +23,8 @@ The Alibaba Token Plan provider tracks Team credits and Personal/Solo rolling-wi
 1. Open **Settings -> Providers**
 2. Enable **Alibaba Token Plan**
 3. Choose the matching **Gateway region** Team or Personal/Solo variant
-4. Leave **Cookie source** on **Auto** (recommended)
+4. Leave **Usage source** on **Auto** to try the signed-in Bailian CLI first, then browser cookies
+5. Leave **Cookie source** on **Auto** unless using a manually pasted browser cookie
 
 ### Manual cookie import (optional)
 
@@ -33,6 +35,11 @@ The Alibaba Token Plan provider tracks Team credits and Personal/Solo rolling-wi
 
 ## How it works
 
+- Automatic mode runs `bl usage token-plan --console-region <region> --console-site <site> --output json` first.
+  A missing CLI, expired CLI login, or unsupported response falls back to the existing browser-cookie path.
+- Explicit **Bailian CLI** and **Browser cookies** modes stay strict and do not switch sources.
+- The Bailian subprocess receives only PATH, home/config discovery, locale, timezone, and proxy variables; ambient
+  API keys, browser cookies, cloud credentials, and SSH agent state are not inherited.
 - Team variants fetch `GetSubscriptionSummary` from the selected international or mainland console and parse the
   credit pool without probing Personal endpoints.
 - Personal/Solo variants fetch `usage`, `subscription`, and `quota-config` from the rolling-window API. International
@@ -45,7 +52,7 @@ The Alibaba Token Plan provider tracks Team credits and Personal/Solo rolling-wi
 
 ## Limitations
 
-- Alibaba Token Plan currently supports the Bailian web-cookie path only
+- Bailian CLI mode requires a signed-in `bl` executable on PATH; browser cookies remain available as a fallback
 - API-key auth, token cost summaries, and automatic status polling are not supported
 - Live provider auth is not exercised by the test suite; endpoint changes rely on reporter confirmation after release
 

@@ -166,7 +166,11 @@ extension UsageStore {
         }
 
         if let weeklyWindow = self.predictivePaceWarningWeeklyWindow(provider: provider, snapshot: snapshot),
-           let weeklyPace = self.weeklyPace(provider: provider, window: weeklyWindow, now: now)
+           let weeklyPace = self.weeklyPace(
+               provider: provider,
+               window: weeklyWindow,
+               dataConfidence: snapshot.dataConfidence,
+               now: now)
         {
             candidates.append((window: .weekly, rateWindow: weeklyWindow, pace: weeklyPace))
         }

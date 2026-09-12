@@ -3,7 +3,7 @@ import Testing
 @testable import CodexBar
 @testable import CodexBarCore
 
-@Suite(.serialized)
+@Suite(.serialized, CodexCredentialFixtures())
 @MainActor
 struct CodexManagedOpenAIWebTests {
     @Test
@@ -52,7 +52,7 @@ struct CodexManagedOpenAIWebTests {
     @Test
     func `managed codex open A I web targets runtime auth backed email for selected account`() throws {
         let settings = self.makeSettingsStore(suite: "CodexManagedOpenAIWebTests-managed-runtime-email")
-        let managedHome = FileManager.default.temporaryDirectory
+        let managedHome = CodexCredentialFixtures.root
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         defer { try? FileManager.default.removeItem(at: managedHome) }
         try Self.writeCodexAuthFile(

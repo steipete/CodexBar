@@ -65,8 +65,8 @@ public struct CopilotDeviceFlow: Sendable {
            let parsedHost = components.host,
            !parsedHost.isEmpty
         {
-            host = parsedHost
-            if let port = components.port {
+            host = parsedHost.trimmingCharacters(in: CharacterSet(charactersIn: "."))
+            if let port = components.port, port != 443 {
                 host += ":\(port)"
             }
         } else {

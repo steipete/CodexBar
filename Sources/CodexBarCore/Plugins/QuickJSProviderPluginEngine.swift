@@ -16,6 +16,7 @@ private enum QuickJSHostFunction: Int32 {
     case nextDailyReset
     case pct
     case amountFromPercent
+    case isDetailLabel
 }
 
 enum QuickJSRuntimeLimits {
@@ -107,6 +108,10 @@ private final class QuickJSPluginValue: ProviderPluginValue {
         cqjs_is_number(self.value)
     }
 
+    var isBoolean: Bool {
+        JS_IsBool(self.value)
+    }
+
     var isDate: Bool {
         JS_IsDate(self.value)
     }
@@ -135,6 +140,10 @@ private final class QuickJSPluginValue: ProviderPluginValue {
         var value = Double.nan
         _ = JS_ToFloat64(self.engine.context, &value, self.value)
         return value
+    }
+
+    func boolValue() -> Bool {
+        JS_ToBool(self.engine.context, self.value) == 1
     }
 
     func dateValue() -> Date? {
@@ -466,6 +475,7 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
             (.nextDailyReset, "nextDailyReset", 2),
             (.pct, "pct", 2),
             (.amountFromPercent, "amountFromPercent", 2),
+            (.isDetailLabel, "isDetailLabel", 1),
         ] {
             let value = cqjs_new_host_function(self.context, function.rawValue, name, Int32(count))
             guard JS_SetPropertyStr(self.context, host, name, value) >= 0 else {
@@ -518,6 +528,9 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
                 return try self.hostPercentage(values)
             case .amountFromPercent:
                 return try self.hostAmountFromPercent(values)
+            case .isDetailLabel:
+                let label = try values.first.map { try self.string(from: $0) } ?? ""
+                return JS_NewBool(self.context, (try? ProviderDetailSection.Row(label: label, value: "—")) != nil)
             }
         } catch {
             return self.throwError(error)
@@ -730,7 +743,30 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         }
         if let auth = self.manifest.auth {
-            guard let credential = secrets[auth.secret], !credential.isEmpty else {
+            var secretName = auth.secret
+            // Provider-specific by design: first-party OpenRouter Activity uses a separately scoped management key,
+            // and the broker pins that exceptional credential to the official read-only endpoint.
+            if let managementAuth = options["openRouterManagementAuth"] {
+                let managementSecret = "OPENROUTER_MANAGEMENT_API_KEY"
+                guard let managementAuth = managementAuth as? Bool,
+                      managementAuth,
+                      self.manifest.id.firstPartyProvider == .openrouter,
+                      self.manifest.settings.first(where: { $0.key == managementSecret })?.kind == .secure,
+                      method == "GET",
+                      url.scheme?.lowercased() == "https",
+                      url.host?.lowercased() == "openrouter.ai",
+                      url.port == nil,
+                      url.user == nil,
+                      url.password == nil,
+                      url.path == "/api/v1/activity",
+                      url.fragment == nil
+                else {
+                    throw ProviderPluginError.secretAccess(
+                        "OpenRouter management auth is unavailable for this plugin")
+                }
+                secretName = managementSecret
+            }
+            guard let credential = secrets[secretName], !credential.isEmpty else {
                 throw ProviderPluginError.secretAccess("required auth secret is unavailable")
             }
             let value = switch auth.type {

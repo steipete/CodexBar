@@ -45,6 +45,7 @@
 "hooks_any_provider" = "任何提供者";
 "hooks_threshold" = "使用率 ≥ 時執行";
 "hooks_threshold_placeholder" = "90";
+"hooks_executable" = "執行檔";
 "hooks_executable_placeholder" = "/usr/local/bin/my-command";
 "hooks_arguments_placeholder" = "引數";
 "hooks_argument_placeholder" = "引數";
@@ -247,6 +248,7 @@
 "No credits history data." = "尚無額度歷史資料。";
 "No data available" = "沒有可用資料";
 "No data yet" = "尚無資料";
+"Workspaces" = "工作區";
 "No enabled providers available for Overview." = "「概覽」中沒有可用的已啟用提供者。";
 "No providers selected" = "未選擇提供者";
 "No token accounts yet." = "尚無 token 帳號。";
@@ -519,7 +521,6 @@
 "provider_accent_color_reset" = "使用預設值";
 "quota_warnings_title" = "配額提醒";
 "quota_warning_session" = "工作階段";
-"quota_warning_session_capitalized" = "工作階段";
 "quota_warning_weekly" = "每週";
 "quota_warning_weekly_capitalized" = "每週";
 "quota_warning_notification_title" = "%1$@ %2$@配額偏低";
@@ -616,6 +617,8 @@
 "display_mode_subtitle" = "選擇選單列要顯示的內容（進度會比較目前用量和時間進度）。";
 "show_quota_warning_markers_title" = "顯示配額提醒標記";
 "show_quota_warning_markers_subtitle" = "設定配額提醒後，在使用量條上繪製門檻刻度標記。";
+"show_pace_title" = "顯示用量節奏";
+"show_pace_subtitle" = "在用量條上顯示領先或落後的標記線和預測文字。";
 "weekly_progress_work_days_title" = "每週進度工作日標記";
 "weekly_progress_work_days_subtitle" = "設定用於每週用量條刻度與進度計算的工作日。";
 "workday_tick_appearance_title" = "工作日刻度外觀";
@@ -650,6 +653,8 @@
 "section_keyboard_shortcut" = "快速鍵";
 "open_menu_shortcut_title" = "開啟選單";
 "open_menu_shortcut_subtitle" = "從任意位置觸發選單列選單。";
+"record_shortcut" = "設定快速鍵";
+"press_shortcut" = "按下快速鍵";
 "install_cli" = "安裝 CLI";
 "install_cli_subtitle" = "將 CodexBarCLI 作為 codexbar 符號連結到 /usr/local/bin 和 /opt/homebrew/bin。";
 "cli_not_found" = "在 App 套件中找不到 CodexBarCLI。";
@@ -661,6 +666,9 @@
 "surprise_me_subtitle" = "讓選單列上的 Agent 多一點變化。";
 "hide_personal_info_title" = "隱藏個人資訊";
 "hide_personal_info_subtitle" = "在選單列和選單介面中隱藏電子郵件地址。";
+"hide_cost_history_identity_subtitle" = "同時隱藏費用歷史中的專案和來源名稱及路徑，不變更已儲存的資料。";
+"Project %d" = "專案 %d";
+"Source %d" = "來源 %d";
 "show_provider_storage_usage_title" = "顯示提供者儲存使用量";
 "show_provider_storage_usage_subtitle" = "在選單中顯示本機磁碟使用量。會在背景掃描已知的提供者專用路徑。";
 "section_keychain_access" = "鑰匙圈存取";
@@ -803,6 +811,7 @@
 "Monthly" = "每月";
 "Sonnet" = "Sonnet";
 "Overages" = "超額";
+"Overage" = "超額";
 "Activity" = "活動";
 "Copied" = "已複製";
 "Copy error" = "複製錯誤";
@@ -813,6 +822,7 @@
 "Balance updates in near-real time (up to 5 min lag)" = "餘額接近即時更新（最多延遲 5 分鐘）";
 "Daily billing data finalizes at 07:00 UTC" = "每日帳單資料會在 UTC 07:00 完成結算";
 "%@ of %@ credits left" = "剩餘 %@ / %@ 點額度";
+"of %@" = "/ %@";
 "%@ of %@ bonus credits left" = "剩餘 %@ / %@ 點獎勵額度";
 "%@ / %@ (%@ remaining)" = "%@ / %@（剩餘 %@）";
 "%@/%@ left" = "剩餘 %@ / %@";
@@ -824,6 +834,7 @@
 "Full in ~1 regen" = "約 1 次恢復後全滿";
 "Full in ~%.0f regens" = "約 %.0f 次恢復後全滿";
 "Overage usage" = "超額使用量";
+"Overage credits left" = "剩餘超額額度";
 "Overage cost" = "超額費用";
 "credits" = "額度";
 "Zen balance" = "Zen 餘額";
@@ -1358,6 +1369,12 @@
 "By subscription" = "依訂閱";
 "No model-level history" = "尚無模型層級歷史";
 "Daily estimated spend" = "每日預估支出";
+"Hourly estimated spend" = "每小時預估支出";
+"Hour" = "小時";
+"%d hours of usage data across %d services" = "%d 小時用量，涵蓋 %d 個服務";
+"1 hour of usage data across 1 service" = "1 小時用量，涵蓋 1 個服務";
+"%d hours of usage data across 1 service" = "%d 小時用量，涵蓋 1 個服務";
+"1 hour of usage data across %d services" = "1 小時用量，涵蓋 %d 個服務";
 "≈%d full 5h windows of weekly left · %d windows until reset" = "每週額度約剩 %d 個完整 5 小時視窗 · 距重置還有 %d 個視窗";
 "Weekly cannot run out before reset at this pace" = "依此速度，每週額度無法在重置前用完";
 "Weekly can run out ≈%d windows early" = "每週額度可能提前約 %d 個視窗用完";
@@ -1387,6 +1404,9 @@
 "menu_bar_layout_preset_compact_stacked" = "緊湊堆疊";
 "menu_bar_layout_preset_custom" = "自訂";
 "menu_bar_layout_live_preview" = "即時預覽";
+"menu_bar_layout_default_preview" = "預設佈局預覽";
+"menu_bar_layout_overrides_notice" = "以下已啟用的供應商使用各自儲存的佈局：";
+"menu_bar_layout_use_all_accessibility" = "%@：使用所有供應商的佈局";
 "menu_bar_layout_strip" = "選單列條帶";
 "menu_bar_layout_remove_line_break" = "移除換行";
 "menu_bar_layout_chip_hint" = "選取、拖曳以重新排序，或使用移除動作。";
@@ -1394,6 +1414,7 @@
 "menu_bar_layout_empty_line" = "將項目拖放到此處";
 "menu_bar_layout_line" = "第 %d 行";
 "menu_bar_layout_drag_remove" = "拖到此處以移除";
+"menu_bar_layout_remove_selected" = "移除所選";
 "menu_bar_layout_size" = "大小";
 "menu_bar_layout_size_small" = "小";
 "menu_bar_layout_size_regular" = "一般";
@@ -1453,6 +1474,7 @@
 "More" = "多";
 
 /* Provider Plugins */
+"Plugins" = "Plugins";
 "Install…" = "安裝…";
 "Install plugin" = "安裝外掛程式";
 "Copies a JavaScript or TypeScript file into the plugins directory." = "將 JavaScript 或 TypeScript 檔案複製到外掛程式目錄。";
@@ -1494,6 +1516,7 @@
 "Total usage" = "總用量";
 "claude_oauth_keychain_access_revoked" = "Claude Code 輪替權杖後撤銷了 Claude 鑰匙圈的存取權。按一下「重新整理」以重新授權，或將 Claude 使用量來源切換為 CLI/Web。";
 "claude_showing_last_known_usage" = "正在顯示於 %@ 擷取的最後已知使用量。";
+"claude_limited_usage_detail" = "使用量詳細資訊有限";
 /* Spend dashboard cost analysis */
 "90d" = "90d";
 "Input" = "Input";
@@ -1514,5 +1537,50 @@
 "Include OpenCodex usage logs" = "Include OpenCodex usage logs";
 "Hide native Codex when OpenCodex is present" = "Hide native Codex when OpenCodex is present";
 "Export JSON" = "Export JSON";
+"Copy JSON" = "複製 JSON";
 "Sources" = "Sources";
 "OpenCodex" = "OpenCodex";
+
+"menu_bar_layout_token_conditional" = "條件";
+"menu_bar_layout_group_conditionals" = "條件";
+"menu_bar_layout_conditional_add" = "新增條件";
+"menu_bar_layout_conditional_edit" = "編輯條件";
+"menu_bar_layout_conditional_remove" = "從庫中移除";
+"menu_bar_layout_conditional_save" = "儲存";
+"menu_bar_layout_conditional_if" = "如果";
+"menu_bar_layout_conditional_then" = "則顯示";
+"menu_bar_layout_conditional_else" = "否則顯示";
+"menu_bar_layout_conditional_and" = "和";
+"menu_bar_layout_conditional_or" = "或";
+"menu_bar_layout_conditional_add_condition" = "新增條件";
+"menu_bar_layout_conditional_none" = "暫無條件";
+"menu_bar_layout_conditional_hide" = "隱藏";
+"menu_bar_layout_conditional_name" = "名稱";
+"menu_bar_layout_conditional_name_placeholder" = "例如：工作階段檢查";
+"menu_bar_layout_conditional_name_error" = "請輸入唯一名稱";
+"menu_bar_layout_conditional_used" = "已用";
+"menu_bar_layout_conditional_remaining" = "剩餘";
+"menu_bar_layout_conditional_metric_resets_in" = "%@ 重置倒數";
+"menu_bar_layout_conditional_metric_scoped_weekly" = "範圍每週";
+"menu_bar_layout_conditional_duplicate" = "複製";
+"menu_bar_layout_conditional_summary" = "如果 %1$@ 則 %2$@ 否則 %3$@";
+"menu_bar_layout_conditional_copy_name" = "%@（副本）";
+"menu_bar_layout_conditional_copy_name_numbered" = "%1$@（副本 %2$d）";
+"menu_bar_layout_conditional_unavailable" = "條件不可用";
+"menu_bar_layout_conditional_default_session_busy" = "工作階段已用超過 50%";
+"menu_bar_layout_conditional_default_weekly_high" = "每週已用超過 90%";
+"menu_bar_layout_conditional_default_session_spent" = "工作階段即將用盡";
+"menu_bar_layout_conditional_default_either_high" = "工作階段或每週用量偏高";
+"menu_bar_layout_conditional_default_scoped_weekly" = "模型專屬每週已用超過 60%";
+"Visible usage items" = "可見用量項目";
+"Restore Defaults" = "回復預設值";
+"Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "選擇要在此供應商的選單、設定預覽與概覽中顯示的用量列。";
+"%@ (unavailable)" = "%@（無法使用）";
+"Spending cap, not balance" = "支出上限，並非餘額";
+
+"Color Pace Indicator" = "以顏色顯示使用節奏";
+"Green pace indicator when behind pace, red when ahead of pace (risk of running out early)" = "使用量低於預期進度時顯示綠色（有餘裕）；高於預期時顯示紅色（可能提前用盡配額）。";
+"%@ weekly" = "%@ 每週";
+
+"agent_sessions_hide_unreachable_title" = "隱藏無法連線的主機";
+"agent_sessions_hide_unreachable_subtitle" = "擷取工作階段失敗時隱藏該主機。";

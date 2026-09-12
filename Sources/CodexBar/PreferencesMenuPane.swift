@@ -23,6 +23,12 @@ struct MenuPane: View {
                         subtitle: L("show_quota_warning_markers_subtitle"))
                 }
 
+                Toggle(isOn: self.$settings.paceVisible) {
+                    SettingsRowLabel(
+                        L("show_pace_title"),
+                        subtitle: L("show_pace_subtitle"))
+                }
+
                 SettingsMenuPicker(
                     selection: self.$settings.weeklyProgressWorkDays,
                     options: MenuSettingsMenuOptions.weeklyProgressWorkDays,
@@ -114,6 +120,13 @@ struct AgentSessionsSettingsSection: View {
                     Text(style.label)
                 })
                 .disabled(!self.settings.agentSessionsEnabled)
+
+            Toggle(isOn: self.$settings.agentSessionsHideUnreachableHosts) {
+                SettingsRowLabel(
+                    L("agent_sessions_hide_unreachable_title"),
+                    subtitle: L("agent_sessions_hide_unreachable_subtitle"))
+            }
+            .disabled(!self.settings.agentSessionsEnabled)
 
             AgentSessionHostsEditor(settings: self.settings)
         } header: {

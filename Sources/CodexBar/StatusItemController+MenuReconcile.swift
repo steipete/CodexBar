@@ -55,7 +55,9 @@ extension StatusItemController {
 
         func updatable(_ shape: MenuRowShape, _ newItem: NSMenuItem) -> Bool {
             guard shape.isSeparator == newItem.isSeparatorItem else { return false }
-            if shape.isSeparator { return true }
+            if shape.isSeparator {
+                return true
+            }
             guard !shape.requiresNativeImageReplacement,
                   !self.shouldReplaceNativeImageItemDuringReconcile(newItem)
             else { return false }
@@ -118,7 +120,12 @@ extension StatusItemController {
             let requiresNativeImageReplacement =
                 self.shouldReplaceNativeImageItemDuringReconcile(liveItem) ||
                 self.shouldReplaceNativeImageItemDuringReconcile(newItem)
-            if liveItem.isSeparatorItem == newItem.isSeparatorItem, !requiresNativeImageReplacement {
+            let hasCompatibleItemClass =
+                ObjectIdentifier(type(of: liveItem)) == ObjectIdentifier(type(of: newItem))
+            if liveItem.isSeparatorItem == newItem.isSeparatorItem,
+               hasCompatibleItemClass,
+               !requiresNativeImageReplacement
+            {
                 if !liveItem.isSeparatorItem {
                     self.swapMenuItemContents(liveItem, newItem)
                 }
@@ -191,7 +198,9 @@ extension StatusItemController {
     }
 
     private func updateMenuItemInPlace(_ liveItem: NSMenuItem, from newItem: NSMenuItem) {
-        if liveItem.isSeparatorItem { return }
+        if liveItem.isSeparatorItem {
+            return
+        }
         let remainsHighlighted = liveItem.menu.map {
             self.highlightedMenuItems[ObjectIdentifier($0)] === liveItem
         } ?? false
@@ -243,11 +252,12 @@ extension StatusItemController {
         {
             let livePayload = liveHosting.rowPayload
             let cachedPayload = cachedHosting.rowPayload
+            let liveSize = liveHosting.intrinsicContentSize
+            let cachedSize = cachedHosting.intrinsicContentSize
             self.replantMenuCardRowPayload(cachedPayload, into: liveHosting)
             self.replantMenuCardRowPayload(livePayload, into: cachedHosting)
-            let liveFrame = liveHosting.frame
-            liveHosting.frame = cachedHosting.frame
-            cachedHosting.frame = liveFrame
+            liveHosting.applyMeasuredSize(width: cachedSize.width, height: cachedSize.height)
+            cachedHosting.applyMeasuredSize(width: liveSize.width, height: liveSize.height)
             self.swapMenuItemMetadataKeepingViews(liveItem, cachedItem)
             return
         }

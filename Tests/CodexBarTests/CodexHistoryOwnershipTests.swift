@@ -15,6 +15,16 @@ struct CodexHistoryOwnershipTests {
     }
 
     @Test
+    func `normalizes canonical provider-account ids case insensitively`() {
+        let key = CodexHistoryOwnership.canonicalKey(for: .providerAccount(id: "WORKSPACE-X"))
+        let persisted = CodexHistoryOwnership.classifyPersistedKey(
+            "codex:v1:provider-account:WORKSPACE-X")
+
+        #expect(key == "codex:v1:provider-account:workspace-x")
+        #expect(persisted == .canonical("codex:v1:provider-account:workspace-x"))
+    }
+
+    @Test
     func `serializes canonical email-hash key`() {
         let key = CodexHistoryOwnership.canonicalKey(for: .emailOnly(normalizedEmail: self.normalizedEmail))
 

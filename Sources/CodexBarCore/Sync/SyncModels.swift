@@ -40,6 +40,8 @@ public struct ProviderIntentPayload: Codable, Sendable {
     /// older client that predates accent colors sends. An empty string means the user cleared the
     /// override. A hex string sets it. Without this, an older client would erase a newer Mac's color.
     public var accentColor: String?
+    /// Three-state like accentColor: nil means an older sender, [] clears all hidden items.
+    public var hiddenUsageItemIDs: [String]?
     public var kiloKnownOrganizations: [KiloOrganization]?
     public var kiloEnabledOrganizationIDs: [String]?
     public var deepseekProfileID: String?
@@ -59,6 +61,8 @@ public struct ProviderIntentPayload: Codable, Sendable {
         self.quotaWarnings = config.quotaWarnings
         // Always report, so that clearing an override propagates as an empty string.
         self.accentColor = config.accentColor ?? ""
+        // Preserve the three states: nil predates the preference, [] explicitly shows every item.
+        self.hiddenUsageItemIDs = config.hiddenUsageItemIDs
         self.kiloKnownOrganizations = config.kiloKnownOrganizations
         self.kiloEnabledOrganizationIDs = config.kiloEnabledOrganizationIDs
         self.deepseekProfileID = config.deepseekProfileID
@@ -92,6 +96,10 @@ public struct ProviderIntentPayload: Codable, Sendable {
         // An older client omits the field entirely. Keep the local color rather than erase it.
         if let accentColor = self.accentColor {
             result.accentColor = accentColor.isEmpty ? nil : accentColor
+        }
+        // Older clients omit the field. Keep the local selection rather than erase it.
+        if let hiddenUsageItemIDs = self.hiddenUsageItemIDs {
+            result.hiddenUsageItemIDs = hiddenUsageItemIDs
         }
         result.kiloKnownOrganizations = self.kiloKnownOrganizations
         result.kiloEnabledOrganizationIDs = self.kiloEnabledOrganizationIDs
@@ -225,6 +233,43 @@ public struct AccountSnapshotSyncPayload: Codable, Sendable {
         }
         return CanonicalSyncJSON.hash(data: Data(identity.lowercased().utf8))
     }
+
+    /// CloudKit record IDs cannot be renamed. Claude Swap snapshots keyed by
+    /// `claude-swap:<slot>` replace a same-device email-keyed record; that
+    /// predecessor is deleted only after the slot-keyed replacement is saved.
+    /// Other providers must not classify an email-to-durable-ID change as obsolete.
+    public func emailKeyedPredecessorRecordName() -> String? {
+        // Provider-specific by design: only Claude Swap slot keys retire leftover email-keyed CloudKit snapshots.
+        guard self.provider == .claude,
+              self.usage.identity?.loginMethod == ClaudeSwapAccountProjection.sourceLabel
+        else { return nil }
+        let accountID = self.usage.identity?.accountID?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard accountID.hasPrefix("\(ClaudeSwapAccountProjection.sourceName):") else { return nil }
+        let emailKey = Self.accountKey(for: self.usage.identity?.accountEmail)
+        guard emailKey != "default",
+              Self.accountKey(for: accountID) == self.accountKey,
+              emailKey != self.accountKey
+        else {
+            return nil
+        }
+        return "snap-\(self.provider.rawValue)-\(emailKey)-\(self.deviceID)"
+    }
+
+    public static func obsoleteEmailKeyedRecordNames(
+        liveSnapshots: [AccountSnapshotSyncPayload],
+        knownRecordNames: Set<String>) -> Set<String>
+    {
+        let liveNames = Set(liveSnapshots.map(\.recordName))
+        var obsolete: Set<String> = []
+        for snapshot in liveSnapshots {
+            guard let predecessor = snapshot.emailKeyedPredecessorRecordName(),
+                  !liveNames.contains(predecessor),
+                  knownRecordNames.contains(predecessor)
+            else { continue }
+            obsolete.insert(predecessor)
+        }
+        return obsolete
+    }
 }
 
 public struct SyncedPreferences: Codable, Sendable {
@@ -240,6 +285,7 @@ public struct SyncedPreferences: Codable, Sendable {
     public var quotaWarningSoundEnabled: Bool
     public var quotaWarningOnScreenAlertEnabled: Bool
     public var quotaWarningMarkersVisible: Bool
+    public var paceVisible: Bool?
     public var weeklyProgressWorkDays: Int?
     public var workdayTickAppearance: String?
     public var usageBarsShowUsed: Bool
@@ -272,6 +318,7 @@ public struct SyncedPreferences: Codable, Sendable {
         quotaWarningSoundEnabled: Bool,
         quotaWarningOnScreenAlertEnabled: Bool,
         quotaWarningMarkersVisible: Bool,
+        paceVisible: Bool? = nil,
         weeklyProgressWorkDays: Int?,
         workdayTickAppearance: String? = nil,
         usageBarsShowUsed: Bool,
@@ -303,6 +350,7 @@ public struct SyncedPreferences: Codable, Sendable {
         self.quotaWarningSoundEnabled = quotaWarningSoundEnabled
         self.quotaWarningOnScreenAlertEnabled = quotaWarningOnScreenAlertEnabled
         self.quotaWarningMarkersVisible = quotaWarningMarkersVisible
+        self.paceVisible = paceVisible
         self.weeklyProgressWorkDays = weeklyProgressWorkDays
         self.workdayTickAppearance = workdayTickAppearance
         self.usageBarsShowUsed = usageBarsShowUsed

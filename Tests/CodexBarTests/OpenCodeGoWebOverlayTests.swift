@@ -83,6 +83,7 @@ struct OpenCodeGoWebOverlayTests {
     private func makeContext(
         includeOptionalUsage: Bool = true,
         settings: ProviderSettingsSnapshot? = nil,
+        env: [String: String] = [:],
         selectedTokenAccountID: UUID? = nil) -> ProviderFetchContext
     {
         ProviderFetchContext(
@@ -93,9 +94,9 @@ struct OpenCodeGoWebOverlayTests {
             webTimeout: 1,
             webDebugDumpHTML: false,
             verbose: false,
-            env: [:],
+            env: env,
             settings: settings,
-            fetcher: UsageFetcher(environment: [:]),
+            fetcher: UsageFetcher(environment: env),
             claudeFetcher: StubClaudeFetcher(),
             browserDetection: BrowserDetection(cacheTTL: 0),
             selectedTokenAccountID: selectedTokenAccountID)
@@ -244,6 +245,46 @@ struct OpenCodeGoWebOverlayTests {
         } catch {
             Issue.record("Expected invalidCredentials, got \(error)")
         }
+    }
+
+    @Test
+    func `local strategy prefers API windows while preserving local history and web balance`() async throws {
+        let observedKeys = Recorder<String>()
+        let webCalls = Recorder<String>()
+        let strategy = OpenCodeGoLocalUsageFetchStrategy(
+            localSnapshotLoader: { _ in Self.localEstimate() },
+            webUsageOverlayFetcher: { _, cookieHeader in
+                webCalls.append(cookieHeader)
+                return Self.webUsage(zenBalanceUSD: 42.5)
+            },
+            apiUsageOverlayFetcher: { _, apiKey in
+                observedKeys.append(apiKey)
+                return try OpenCodeGoUsageFetcher.parseAPIUsage(
+                    text: """
+                    {"usage": {
+                      "rolling": {"percent": 3, "resetInSec": 18100},
+                      "weekly": {"percent": 1, "resetInSec": 266500},
+                      "monthly": {"percent": 0, "resetInSec": 1539100}
+                    }}
+                    """,
+                    now: Self.updatedAt.addingTimeInterval(3))
+            })
+
+        let result = try await strategy.fetch(self.makeContext(
+            settings: self.makeManualCookieSettings(),
+            env: [OpenCodeGoSettingsReader.apiKeyEnvironmentKey: "go_test"]))
+
+        #expect(result.sourceLabel == "local+api")
+        #expect(observedKeys.values == ["go_test"])
+        #expect(webCalls.values == ["auth=test"])
+        #expect(result.usage.primary?.usedPercent == 3)
+        #expect(result.usage.secondary?.usedPercent == 1)
+        #expect(result.usage.tertiary?.usedPercent == 0)
+        #expect(result.usage.opencodegoUsage?.daily.count == 1)
+        #expect(result.usage.opencodegoUsage?.daily.first?.costUSD == 11.52)
+        #expect(result.usage.opencodegoUsage?.daily.first?.requestCount == 748)
+        #expect(result.usage.providerCost?.used == 42.5)
+        #expect(result.usage.dataConfidence != .estimated)
     }
 
     @Test

@@ -4,6 +4,30 @@ import Testing
 
 struct OpenAIDashboardFetcherCreditsWaitTests {
     @Test
+    func `subscription enrichment changes only subscription metadata`() {
+        let snapshot = OpenAIDashboardSnapshot(
+            signedInEmail: "user@example.com",
+            codeReviewRemainingPercent: 90,
+            creditEvents: [],
+            dailyBreakdown: [],
+            usageBreakdown: [],
+            creditsPurchaseURL: nil,
+            creditsRemaining: 10,
+            accountPlan: "Pro",
+            updatedAt: Date(timeIntervalSince1970: 1000.0))
+        let renewal = Date(timeIntervalSince1970: 2000.0)
+
+        let enriched = snapshot.withSubscriptionMetadata(.init(expiresAt: nil, renewsAt: renewal))
+
+        #expect(enriched.signedInEmail == snapshot.signedInEmail)
+        #expect(enriched.creditsRemaining == snapshot.creditsRemaining)
+        #expect(enriched.accountPlan == snapshot.accountPlan)
+        #expect(enriched.updatedAt == snapshot.updatedAt)
+        #expect(enriched.subscriptionRenewsAt == renewal)
+        #expect(enriched.subscriptionExpiresAt == nil)
+    }
+
+    @Test
     func `waits after scroll request`() {
         let now = Date()
         let shouldWait = OpenAIDashboardFetcher.shouldWaitForCreditsHistory(.init(
@@ -370,7 +394,6 @@ struct OpenAIDashboardFetcherCreditsWaitTests {
         let snapshot = OpenAIDashboardFetcher.snapshotByMergingAPI(
             apiData: apiData,
             verifiedEmail: "user@example.com",
-            subscription: nil,
             previous: previous,
             updatedAt: Date(timeIntervalSince1970: 2))
 
@@ -453,7 +476,7 @@ struct OpenAIDashboardFetcherCreditsWaitTests {
         let snapshot = OpenAIDashboardFetcher.snapshotByMergingAPI(
             apiData: apiData,
             verifiedEmail: "new@example.com",
-            subscription: subscription,
+            subscriptionResult: .success(subscription),
             previous: previous,
             updatedAt: Date(timeIntervalSince1970: 2))
 
@@ -494,7 +517,7 @@ struct OpenAIDashboardFetcherCreditsWaitTests {
         let snapshot = OpenAIDashboardFetcher.snapshotByMergingAPI(
             apiData: apiData,
             verifiedEmail: "user@example.com",
-            subscription: subscription,
+            subscriptionResult: .success(subscription),
             previous: previous,
             updatedAt: Date(timeIntervalSince1970: 2))
 
@@ -529,9 +552,39 @@ struct OpenAIDashboardFetcherCreditsWaitTests {
         let snapshot = OpenAIDashboardFetcher.fillingMissingPageFields(
             incoming,
             from: previous,
-            subscription: subscription)
+            subscriptionResult: .success(subscription))
 
         #expect(snapshot.subscriptionExpiresAt != nil)
+        #expect(snapshot.subscriptionRenewsAt == nil)
+    }
+
+    @Test
+    func `successful empty subscription response clears stale dates`() {
+        let previous = OpenAIDashboardSnapshot(
+            signedInEmail: "user@example.com",
+            codeReviewRemainingPercent: nil,
+            creditEvents: [],
+            dailyBreakdown: [],
+            usageBreakdown: [],
+            creditsPurchaseURL: nil,
+            subscriptionRenewsAt: Date(timeIntervalSince1970: 1_800_000_000),
+            updatedAt: Date(timeIntervalSince1970: 1))
+        let apiData = OpenAIDashboardFetcher.DashboardAPIData(
+            primaryLimit: nil,
+            secondaryLimit: nil,
+            extraRateWindows: [],
+            creditsRemaining: nil,
+            codexCreditLimit: nil,
+            accountPlan: nil)
+
+        let snapshot = OpenAIDashboardFetcher.snapshotByMergingAPI(
+            apiData: apiData,
+            verifiedEmail: "user@example.com",
+            subscriptionResult: .success(nil),
+            previous: previous,
+            updatedAt: Date(timeIntervalSince1970: 2))
+
+        #expect(snapshot.subscriptionExpiresAt == nil)
         #expect(snapshot.subscriptionRenewsAt == nil)
     }
 
@@ -598,5 +651,26 @@ struct OpenAIDashboardFetcherCreditsWaitTests {
         let metadata = OpenAIDashboardFetcher.subscriptionMetadata(from: Data(json.utf8))
         #expect(metadata?.renewsAt != nil)
         #expect(metadata?.expiresAt == nil)
+    }
+
+    @Test
+    func `subscription api explicit empty payload is successful`() {
+        let json = #"{"active_until":null,"will_renew":false}"#
+        let result = OpenAIDashboardFetcher.subscriptionMetadataResult(from: Data(json.utf8))
+        #expect(result == .success(nil))
+    }
+
+    @Test
+    func `subscription api malformed payload is unavailable`() {
+        let json = #"{"active_until":"not-a-date","will_renew":true}"#
+        let result = OpenAIDashboardFetcher.subscriptionMetadataResult(from: Data(json.utf8))
+        #expect(result == .unavailable)
+    }
+
+    @Test
+    func `subscription api missing fields is unavailable`() {
+        let json = #"{}"#
+        let result = OpenAIDashboardFetcher.subscriptionMetadataResult(from: Data(json.utf8))
+        #expect(result == .unavailable)
     }
 }

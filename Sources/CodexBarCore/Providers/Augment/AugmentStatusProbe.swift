@@ -269,23 +269,15 @@ public actor AugmentSessionStore {
     private var hasLoadedFromDisk = false
     private let fileURL: URL
 
-    private init() {
-        let fm = FileManager.default
-        let appSupport = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? fm.temporaryDirectory
-        let dir = appSupport.appendingPathComponent("CodexBar", isDirectory: true)
-        try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
-        self.fileURL = dir.appendingPathComponent("augment-session.json")
+    init(fileURL: URL? = nil) {
+        self.fileURL = fileURL ?? ProviderSessionStoreFile.url(for: "augment-session.json")
+        guard fileURL == nil else { return }
+        try? FileManager.default.createDirectory(
+            at: self.fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
 
         // Load saved cookies on init
         Task { await self.loadFromDiskIfNeeded() }
     }
-
-    #if DEBUG
-    init(fileURL: URL) {
-        self.fileURL = fileURL
-    }
-    #endif
 
     public func setCookies(_ cookies: [HTTPCookie]) {
         self.hasLoadedFromDisk = true

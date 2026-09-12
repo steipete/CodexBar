@@ -281,10 +281,10 @@ struct UsageStoreCoverageTests {
         #expect(menuLines.contains { $0.hasPrefix("Amp Free:") })
     }
 
-    @Test
+    @Test(CodexCredentialFixtures())
     func `account info caches codex auth parsing until config revision changes`() throws {
         let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-account-info-cache")
-        let home = FileManager.default.temporaryDirectory.appendingPathComponent(
+        let home = CodexCredentialFixtures.root.appendingPathComponent(
             "usage-store-account-info-\(UUID().uuidString)",
             isDirectory: true)
         defer { try? FileManager.default.removeItem(at: home) }

@@ -69,7 +69,21 @@ struct SpendDashboardModelTests {
         let providers = Set(ProviderDescriptorRegistry.all
             .filter(\.tokenCost.supportsTokenCost)
             .map(\.id))
-        #expect(providers == [.codex, .claude, .vertexai, .openai, .mistral, .bedrock, .cursor, .opencodego])
+        #expect(providers == [
+            .codex,
+            .claude,
+            .vertexai,
+            .openai,
+            .mistral,
+            .bedrock,
+            .cursor,
+            .grok,
+            .opencodego,
+            .openrouter,
+            .xai,
+            // Antigravity joined via the tokscale-compatible local usage readers.
+            .antigravity,
+        ])
     }
 
     @Test
@@ -764,10 +778,10 @@ struct SpendDashboardModelTests {
         #expect(spendDashboardModelHistoryPresentation(group) == .partial)
     }
 
-    @Test
+    @Test(CodexCredentialFixtures())
     func `Codex requests freeze source home auth and cache identity`() throws {
         let id = try #require(UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE"))
-        let home = FileManager.default.temporaryDirectory
+        let home = CodexCredentialFixtures.root
             .appendingPathComponent("SpendDashboardModelTests-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: home) }
@@ -826,6 +840,14 @@ struct SpendDashboardModelTests {
             index: 1,
             count: 2))
         #expect(changedRequest.cacheIdentity != request.cacheIdentity)
+        let rebucketedRequest = try #require(SpendDashboardSource.codexRequest(
+            account: account,
+            homePath: request.homePath,
+            providerName: "Codex",
+            index: 1,
+            count: 2,
+            bucketTimeZoneIdentifier: "Pacific/Kiritimati"))
+        #expect(rebucketedRequest.cacheIdentity != request.cacheIdentity)
 
         let authData = Data("{\"tokens\":\"synthetic\"}".utf8)
         try authData.write(to: CodexAuthFingerprint.authFileURL(homePath: home.path))
@@ -1189,6 +1211,111 @@ extension SpendDashboardModelTests {
         let month = SpendDashboardModel.build(inputs: [input], requestedDays: 30, now: now)
         #expect(week.groups[0].meteredCost == nil)
         #expect(month.groups[0].meteredCost == 4.5)
+    }
+
+    @Test
+    func `vendor reported daily spend keeps vendor metered provenance`() throws {
+        let snapshot = CostUsageTokenSnapshot(
+            sessionTokens: nil,
+            sessionCostUSD: nil,
+            last30DaysTokens: 10,
+            last30DaysCostUSD: 3.5,
+            costProvenance: .vendorMetered,
+            daily: [Self.entry(day: "2026-07-16", cost: 3.5)],
+            updatedAt: Self.now)
+        let input = SpendDashboardModel.ProviderInput(
+            provider: .openrouter,
+            displayName: "OpenRouter",
+            snapshot: snapshot)
+
+        let model = SpendDashboardModel.build(inputs: [input], requestedDays: 30, now: Self.now)
+        let group = try #require(model.groups.first)
+
+        #expect(group.totalCost == 3.5)
+        #expect(group.provenance == .vendorMetered)
+        #expect(group.meteredCost == nil)
+    }
+
+    @Test
+    func `hourly points come from request buckets instead of session last activity`() {
+        let now = Date(timeIntervalSince1970: 1_784_179_200)
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+        let firstHour = calendar.dateInterval(of: .hour, for: now)?.start ?? now
+        let secondHour = calendar.date(byAdding: .hour, value: 1, to: firstHour) ?? firstHour
+        let openCodex = SpendDashboardModel.ProviderInput(
+            id: SpendDashboardModel.openCodexSourceID,
+            provider: .codex,
+            displayName: "OpenCodex",
+            snapshot: CostUsageTokenSnapshot(
+                sessionTokens: 17,
+                sessionCostUSD: 2,
+                last30DaysTokens: 17,
+                last30DaysCostUSD: 2,
+                historyDays: 7,
+                costProvenance: .listPriceEstimate,
+                daily: [Self.entry(day: "2026-07-16", cost: 2, tokens: 17)],
+                sessions: [
+                    CostUsageSessionBreakdown(
+                        sessionID: "chat-1",
+                        lastActivity: secondHour,
+                        inputTokens: 14,
+                        cachedInputTokens: nil,
+                        outputTokens: 3,
+                        totalTokens: 17,
+                        requestCount: 2,
+                        costUSD: 2,
+                        modelBreakdowns: []),
+                ],
+                hourly: [
+                    CostUsageHourlyEntry(hour: firstHour, totalTokens: 12, costUSD: 1.2),
+                    CostUsageHourlyEntry(hour: secondHour, totalTokens: 5, costUSD: 0.8),
+                ],
+                updatedAt: now),
+            sourceKind: .openCodex)
+        let native = SpendDashboardModel.ProviderInput(
+            id: "codex",
+            provider: .codex,
+            displayName: "Codex",
+            snapshot: CostUsageTokenSnapshot(
+                sessionTokens: 40,
+                sessionCostUSD: 3,
+                last30DaysTokens: 40,
+                last30DaysCostUSD: 3,
+                historyDays: 7,
+                costProvenance: .listPriceEstimate,
+                daily: [Self.entry(day: "2026-07-16", cost: 3, tokens: 40)],
+                sessions: [
+                    CostUsageSessionBreakdown(
+                        sessionID: "native-1",
+                        lastActivity: secondHour,
+                        inputTokens: 30,
+                        cachedInputTokens: nil,
+                        outputTokens: 10,
+                        totalTokens: 40,
+                        requestCount: 1,
+                        costUSD: 3,
+                        modelBreakdowns: []),
+                ],
+                updatedAt: now))
+        let combined = SpendDashboardModel.build(
+            inputs: [openCodex, native],
+            requestedDays: 7,
+            now: now,
+            calendar: calendar)
+        #expect(combined.groups[0].hourlyPoints.map(\.hour) == [firstHour, secondHour])
+        #expect(combined.groups[0].hourlyPoints.map(\.cost) == [1.2, 0.8])
+        #expect(Set(combined.groups[0].hourlyPoints.map(\.sourceID)) == [SpendDashboardModel.openCodexSourceID])
+
+        let selected = SpendDashboardModel.build(
+            inputs: [openCodex],
+            requestedDays: 7,
+            now: now,
+            calendar: calendar,
+            selectedDay: calendar.startOfDay(for: now))
+        #expect(selected.groups[0].hourlyPoints.count == 2)
+        #expect(selected.groups[0].hourlyChartDomain?.lowerBound == calendar.startOfDay(for: now))
+        #expect(combined.groups[0].timeZone == calendar.timeZone)
     }
 }
 

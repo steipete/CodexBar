@@ -224,6 +224,7 @@
 "No cost history data." = "داده های تاریخچه رایگان.";
 "No data available" = "داده ای در دسترس نیست";
 "No data yet" = "هنوز داده ای وجود ندارد";
+"Workspaces" = "فضاهای کاری";
 "No enabled providers available for Overview." = "هیچ ارائه دهنده فعالی برای مرور کلی در دسترس نیست.";
 "No providers selected" = "هیچ ارائه دهنده ای انتخاب نشده است";
 "No token accounts yet." = "هنوز حساب توکنی ندارم.";
@@ -499,7 +500,6 @@
 "provider_accent_color_reset" = "استفاده از پیش‌فرض";
 "quota_warnings_title" = "هشدارهای سهمیه";
 "quota_warning_session" = "جلسه";
-"quota_warning_session_capitalized" = "جلسه";
 "quota_warning_weekly" = "هفتگی";
 "quota_warning_weekly_capitalized" = "هفتگی";
 "quota_warning_notification_title" = "سهمیه %2$@ در %1$@ رو به اتمام است";
@@ -565,6 +565,7 @@
 "hooks_any_provider" = "هر ارائه‌دهنده";
 "hooks_threshold" = "اجرا در مصرف ≥";
 "hooks_threshold_placeholder" = "90";
+"hooks_executable" = "فایل اجرایی";
 "hooks_executable_placeholder" = "/usr/local/bin/my-command";
 "hooks_arguments_placeholder" = "آرگومان‌ها";
 "hooks_argument_placeholder" = "آرگومان";
@@ -623,6 +624,8 @@
 "display_mode_subtitle" = "انتخاب کنید که در نوار منو چه چیزی نمایش داده شود (Pace میزان مصرف در مقابل مورد انتظار را نشان می دهد).";
 "show_quota_warning_markers_title" = "نشانگرهای هشدار سهمیه را نشان دهید";
 "show_quota_warning_markers_subtitle" = "علامت تیک آستانه را روی نوارهای استفاده هنگام پیکربندی هشدارهای سهمیه رسم کنید.";
+"show_pace_title" = "نمایش آهنگ مصرف";
+"show_pace_subtitle" = "نوار جلوتر یا عقب‌تر بودن و متن پیش‌بینی را روی نوارهای مصرف نشان می‌دهد.";
 "weekly_progress_work_days_title" = "روزهای کاری پیشرفت هفتگی";
 "weekly_progress_work_days_subtitle" = "روزهای کاری را برای نشانگرهای نوار مصرف هفتگی و محاسبات سرعت تعیین کنید.";
 "workday_tick_appearance_title" = "نمایش نشانه‌های روز کاری";
@@ -659,6 +662,8 @@
 "section_keyboard_shortcut" = "میانبر کیبورد";
 "open_menu_shortcut_title" = "منوی باز";
 "open_menu_shortcut_subtitle" = "منوی نوار منو را از هر جایی فعال کنید.";
+"record_shortcut" = "ثبت میانبر";
+"press_shortcut" = "میانبر را فشار دهید";
 "install_cli" = "نصب CLI";
 "install_cli_subtitle" = "Symlink CodexBarCLI به /usr/local/bin و /opt/homebrew/bin به عنوان codexbar.";
 "cli_not_found" = "CodexBarCLI در بسته برنامه ها یافت نمی شود.";
@@ -669,6 +674,9 @@
 "surprise_me_subtitle" = "بررسی کن که آیا دوست داری مأمورانت آنجا خوش بگذرانند یا نه.";
 "hide_personal_info_title" = "مخفی کردن اطلاعات شخصی";
 "hide_personal_info_subtitle" = "آدرس های ایمیل مبهم در نوار منو و رابط کاربری منو.";
+"hide_cost_history_identity_subtitle" = "نام و مسیر پروژه‌ها و منابع را در تاریخچهٔ هزینه‌ها نیز بدون تغییر داده‌های ذخیره‌شده پنهان می‌کند.";
+"Project %d" = "پروژهٔ %d";
+"Source %d" = "منبع %d";
 "show_provider_storage_usage_title" = "استفاده از ذخیره سازی ارائه دهنده را نمایش دهید";
 "show_provider_storage_usage_subtitle" = "استفاده محلی از دیسک را در منوها نمایش دهید. مسیرهای شناخته شده متعلق به ارائه دهندگان را در پس زمینه اسکن می کند.";
 "section_keychain_access" = "دسترسی Keychain";
@@ -937,6 +945,7 @@
 "Monthly" = "ماهانه";
 "Sonnet" = "سونت";
 "Overages" = "اضافه هزینه ها";
+"Overage" = "اضافه هزینه";
 "Activity" = "فعالیت ها";
 "Copied" = "کپی شده";
 "Copy error" = "خطای کپی";
@@ -947,6 +956,7 @@
 "Balance updates in near-real time (up to 5 min lag)" = "به روزرسانی تعادل تقریبا در زمان واقعی (تا ۵ دقیقه تأخیر)";
 "Daily billing data finalizes at 07:00 UTC" = "داده های صورتحساب روزانه در ساعت ۰۷:۰۰ نهایی می شود UTC";
 "%@ of %@ credits left" = "%@ از %@ اعتبار باقی مانده";
+"of %@" = "از %@";
 "%@ of %@ bonus credits left" = "%@ از %@ اعتبار اضافی باقی مانده";
 "%@ / %@ (%@ remaining)" = "%@ / %@ (%@ باقی مانده)";
 "%@/%@ left" = "%@/%@ باقی مانده";
@@ -958,6 +968,7 @@
 "Full in ~1 regen" = "بازیابی کامل ~۱";
 "Full in ~%.0f regens" = "بازسازی های کامل ~%.0f";
 "Overage usage" = "استفاده بیش از حد";
+"Overage credits left" = "اعتبار اضافی باقی‌مانده";
 "Overage cost" = "هزینه اضافی";
 "credits" = "اعتبارات";
 "Zen balance" = "تعادل ذن";
@@ -1331,6 +1342,12 @@
 "By subscription" = "بر اساس اشتراک";
 "No model-level history" = "تاریخچه‌ای در سطح مدل وجود ندارد";
 "Daily estimated spend" = "برآورد هزینه روزانه";
+"Hourly estimated spend" = "برآورد هزینه ساعتی";
+"Hour" = "ساعت";
+"%d hours of usage data across %d services" = "%d ساعت داده استفاده در %d سرویس";
+"1 hour of usage data across 1 service" = "1 ساعت داده استفاده در 1 سرویس";
+"%d hours of usage data across 1 service" = "%d ساعت داده استفاده در 1 سرویس";
+"1 hour of usage data across %d services" = "1 ساعت داده استفاده در %d سرویس";
 "≈%d full 5h windows of weekly left · %d windows until reset" = "حدود %d بازه کامل ۵ ساعته از سهم هفتگی مانده · %d بازه تا بازنشانی";
 "Weekly cannot run out before reset at this pace" = "با این روند، سهم هفتگی پیش از بازنشانی تمام نمی‌شود";
 "Weekly can run out ≈%d windows early" = "سهم هفتگی ممکن است حدود %d بازه زودتر تمام شود";
@@ -1360,6 +1377,9 @@
 "menu_bar_layout_preset_compact_stacked" = "پشتهٔ فشرده";
 "menu_bar_layout_preset_custom" = "عرف";
 "menu_bar_layout_live_preview" = "پیش‌نمایش زنده";
+"menu_bar_layout_default_preview" = "پیش‌نمایش چیدمان پیش‌فرض";
+"menu_bar_layout_overrides_notice" = "این ارائه‌دهندگان فعال از چیدمان‌های ذخیره‌شدهٔ خود استفاده می‌کنند:";
+"menu_bar_layout_use_all_accessibility" = "%@: استفاده از چیدمان همهٔ ارائه‌دهندگان";
 "menu_bar_layout_strip" = "نوار منو";
 "menu_bar_layout_remove_line_break" = "حذف شکست خط";
 "menu_bar_layout_chip_hint" = "انتخاب کنید، برای مرتب‌سازی بکشید یا از عمل حذف استفاده کنید.";
@@ -1367,6 +1387,7 @@
 "menu_bar_layout_empty_line" = "نشانه را اینجا رها کنید";
 "menu_bar_layout_line" = "خط %d";
 "menu_bar_layout_drag_remove" = "برای حذف به اینجا بکشید";
+"menu_bar_layout_remove_selected" = "حذف انتخاب‌شده";
 "menu_bar_layout_size" = "اندازه";
 "menu_bar_layout_size_small" = "کوچک";
 "menu_bar_layout_size_regular" = "معمولی";
@@ -1426,6 +1447,7 @@
 "More" = "بیشتر";
 
 /* Provider Plugins */
+"Plugins" = "Plugins";
 "Install…" = "نصب…";
 "Install plugin" = "نصب افزونه";
 "Copies a JavaScript or TypeScript file into the plugins directory." = "یک فایل JavaScript یا TypeScript را در پوشهٔ افزونه‌ها کپی می‌کند.";
@@ -1467,6 +1489,7 @@
 "Total usage" = "مصرف کل";
 "claude_oauth_keychain_access_revoked" = "دسترسی به Keychain کلود با چرخش توکن Claude Code لغو شد. برای اعطای مجدد دسترسی روی «تازه‌سازی» کلیک کنید، یا منبع استفاده Claude را به CLI/Web تغییر دهید.";
 "claude_showing_last_known_usage" = "آخرین میزان استفاده شناخته‌شده که در %@ ثبت شده نمایش داده می‌شود.";
+"claude_limited_usage_detail" = "جزئیات استفاده محدود است";
 /* Spend dashboard cost analysis */
 "90d" = "90d";
 "Input" = "Input";
@@ -1487,5 +1510,50 @@
 "Include OpenCodex usage logs" = "Include OpenCodex usage logs";
 "Hide native Codex when OpenCodex is present" = "Hide native Codex when OpenCodex is present";
 "Export JSON" = "Export JSON";
+"Copy JSON" = "کپی JSON";
 "Sources" = "Sources";
 "OpenCodex" = "OpenCodex";
+
+"menu_bar_layout_token_conditional" = "شرطی";
+"menu_bar_layout_group_conditionals" = "شروط";
+"menu_bar_layout_conditional_add" = "شرطی جدید";
+"menu_bar_layout_conditional_edit" = "ویرایش شرطی";
+"menu_bar_layout_conditional_remove" = "حذف از کتابخانه";
+"menu_bar_layout_conditional_save" = "ذخیره";
+"menu_bar_layout_conditional_if" = "اگر";
+"menu_bar_layout_conditional_then" = "سپس نمایش بده";
+"menu_bar_layout_conditional_else" = "در غیر این صورت نمایش بده";
+"menu_bar_layout_conditional_and" = "و";
+"menu_bar_layout_conditional_none" = "هنوز شرطی وجود ندارد";
+"menu_bar_layout_conditional_hide" = "پنهان کن";
+"menu_bar_layout_conditional_name" = "نام";
+"menu_bar_layout_conditional_name_placeholder" = "مثلاً: بررسی جلسه";
+"menu_bar_layout_conditional_name_error" = "نامی منحصربهفرد وارد کنید";
+"menu_bar_layout_conditional_used" = "استفاده‌شده";
+"menu_bar_layout_conditional_remaining" = "باقی‌مانده";
+"menu_bar_layout_conditional_metric_resets_in" = "بازنشانی %@ در";
+"menu_bar_layout_conditional_metric_scoped_weekly" = "هفتگی با دامنه";
+"menu_bar_layout_conditional_duplicate" = "تکرار";
+"menu_bar_layout_conditional_or" = "یا";
+"menu_bar_layout_conditional_add_condition" = "افزودن شرط";
+"menu_bar_layout_conditional_summary" = "اگر %1$@ سپس %2$@ در غیر این صورت %3$@";
+"menu_bar_layout_conditional_copy_name" = "%@ (رونوشت)";
+"menu_bar_layout_conditional_copy_name_numbered" = "%1$@ (رونوشت %2$d)";
+"menu_bar_layout_conditional_unavailable" = "شرط در دسترس نیست";
+"menu_bar_layout_conditional_default_session_busy" = "بیش از ۵۰٪ نشست مصرف شده";
+"menu_bar_layout_conditional_default_weekly_high" = "بیش از ۹۰٪ هفته مصرف شده";
+"menu_bar_layout_conditional_default_session_spent" = "نشست تقریباً تمام شده";
+"menu_bar_layout_conditional_default_either_high" = "نشست یا هفته در سطح بالا";
+"menu_bar_layout_conditional_default_scoped_weekly" = "پنجره هفتگی مدل بیش از ۶۰٪";
+"Visible usage items" = "موارد قابل مشاهده استفاده";
+"Restore Defaults" = "بازیابی پیش‌فرض‌ها";
+"Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "انتخاب کنید کدام ردیف‌های استفاده در منوی این ارائه‌دهنده، پیش‌نمایش تنظیمات و نمای کلی نمایش داده شوند.";
+"%@ (unavailable)" = "%@ (در دسترس نیست)";
+"Spending cap, not balance" = "سقف هزینه، نه موجودی";
+
+"Color Pace Indicator" = "رنگ‌بندی آهنگ مصرف";
+"Green pace indicator when behind pace, red when ahead of pace (risk of running out early)" = "سبز وقتی مصرف از آهنگ مورد انتظار عقب‌تر است (ذخیره)؛ قرمز وقتی جلوتر است (خطر تمام شدن زودهنگام سهمیه).";
+"%@ weekly" = "%@ هفتگی";
+
+"agent_sessions_hide_unreachable_title" = "پنهان کردن میزبان‌های در دسترس نبودنی";
+"agent_sessions_hide_unreachable_subtitle" = "میزبان‌ها را در صورت ناموفق بودن دریافت نشست‌هایشان پنهان کنید.";

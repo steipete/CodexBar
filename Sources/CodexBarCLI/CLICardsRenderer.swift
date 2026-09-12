@@ -10,14 +10,14 @@ import Darwin
 
 struct CLICardMetric: Sendable, Equatable {
     let label: String
-    let remainingPercent: Double
+    let remainingPercent: Double?
     let resetText: String?
     let resetAt: Date?
     let detailText: String?
 
     init(
         label: String,
-        remainingPercent: Double,
+        remainingPercent: Double?,
         resetText: String?,
         resetAt: Date? = nil,
         detailText: String? = nil)
@@ -328,11 +328,14 @@ enum CLICardsRenderer {
                 innerWidth: innerWidth,
                 useColor: useColor,
                 enhanced: enhanced))
-            lines.append(Self.metricBarLine(
+            if let bar = Self.metricBarLine(
                 metric: metric,
                 innerWidth: innerWidth,
                 useColor: useColor,
-                enhanced: enhanced))
+                enhanced: enhanced)
+            {
+                lines.append(bar)
+            }
             if let resetText = metric.resetText {
                 lines.append(Self.contentLine(
                     resetText,
@@ -442,17 +445,16 @@ enum CLICardsRenderer {
         useColor: Bool,
         enhanced: Bool) -> String
     {
-        let percentText = UsageFormatter.usageLine(
-            remaining: metric.remainingPercent,
-            used: 100 - metric.remainingPercent,
-            showUsed: false)
-        let coloredPercent: String = if useColor, enhanced {
-            CLIRenderer.colorizeEnhancedRemainingPercent(percentText, remainingPercent: metric.remainingPercent)
+        let coloredPercent: String
+        if let remaining = metric.remainingPercent {
+            let percentText = UsageFormatter.usageLine(remaining: remaining, used: 100 - remaining, showUsed: false)
+            coloredPercent = if useColor, enhanced {
+                CLIRenderer.colorizeEnhancedRemainingPercent(percentText, remainingPercent: remaining)
+            } else {
+                CLIRenderer.colorizeCardPercent(percentText, remainingPercent: remaining, useColor: useColor)
+            }
         } else {
-            CLIRenderer.colorizeCardPercent(
-                percentText,
-                remainingPercent: metric.remainingPercent,
-                useColor: useColor)
+            coloredPercent = "Unavailable"
         }
         let label: String = if useColor, enhanced {
             CLIRenderer.colorizeEnhancedReadable(metric.label)
@@ -470,14 +472,15 @@ enum CLICardsRenderer {
         metric: CLICardMetric,
         innerWidth: Int,
         useColor: Bool,
-        enhanced: Bool) -> String
+        enhanced: Bool) -> String?
     {
+        guard let remaining = metric.remainingPercent else { return nil }
         let barWidth = max(4, innerWidth - 4)
         let bar: String = if useColor, enhanced {
-            CLIRenderer.gradientRemainingTrackBar(remainingPercent: metric.remainingPercent, width: barWidth)
+            CLIRenderer.gradientRemainingTrackBar(remainingPercent: remaining, width: barWidth)
         } else {
             CLIRenderer.cardBlockBar(
-                remainingPercent: metric.remainingPercent,
+                remainingPercent: remaining,
                 width: barWidth,
                 useColor: useColor)
         }

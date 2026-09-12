@@ -25,12 +25,36 @@ make_sparkle_version() {
     "$version_dir/XPCServices/Installer.xpc/Contents/MacOS/Installer"
 }
 
+assert_inside_out_signing_order() {
+  local sparkle="$1"
+  local version="$2"
+  local targets="$3"
+  local version_dir="$sparkle/Versions/$version"
+  local expected
+  expected=$(printf '%s\n' \
+    "$version_dir/Autoupdate" \
+    "$version_dir/Updater.app/Contents/MacOS/Updater" \
+    "$version_dir/Updater.app" \
+    "$version_dir/XPCServices/Downloader.xpc/Contents/MacOS/Downloader" \
+    "$version_dir/XPCServices/Downloader.xpc" \
+    "$version_dir/XPCServices/Installer.xpc/Contents/MacOS/Installer" \
+    "$version_dir/XPCServices/Installer.xpc" \
+    "$version_dir/Sparkle" \
+    "$version_dir" \
+    "$sparkle")
+  if [[ "$targets" != "$expected" ]]; then
+    echo "ERROR: Sparkle signing must seal nested code before its containing bundle." >&2
+    exit 1
+  fi
+}
+
 SINGLE="$TEMP_DIR/Single Sparkle.framework"
 make_sparkle_version "$SINGLE" B
 single_version=$(codexbar_sparkle_version_dir "$SINGLE")
 [[ "$single_version" == "$SINGLE/Versions/B" ]]
 
 single_targets=$(codexbar_sparkle_signing_targets "$SINGLE")
+assert_inside_out_signing_order "$SINGLE" B "$single_targets"
 grep -Fqx "$SINGLE" <<<"$single_targets"
 grep -Fqx "$SINGLE/Versions/B/Sparkle" <<<"$single_targets"
 grep -Fqx "$SINGLE/Versions/B/XPCServices/Installer.xpc/Contents/MacOS/Installer" <<<"$single_targets"
@@ -41,6 +65,7 @@ make_sparkle_version "$CURRENT" C
 ln -s C "$CURRENT/Versions/Current"
 current_version=$(codexbar_sparkle_version_dir "$CURRENT")
 [[ "$current_version" == "$CURRENT/Versions/C" ]]
+assert_inside_out_signing_order "$CURRENT" C "$(codexbar_sparkle_signing_targets "$CURRENT")"
 
 rm "$CURRENT/Versions/C/Autoupdate"
 if codexbar_sparkle_signing_targets "$CURRENT" >"$TEMP_DIR/missing-target.out" 2>"$TEMP_DIR/missing-target.log"; then

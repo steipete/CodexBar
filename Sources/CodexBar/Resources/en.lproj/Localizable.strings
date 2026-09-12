@@ -8,6 +8,7 @@
 "ollama_browser_cookie_decryption_disabled" = "%@ cookie decryption is disabled in CodexBar; enable Keychain access and refresh.";
 "claude_oauth_keychain_access_revoked" = "Claude Keychain access was revoked by Claude Code's token rotation. Click Refresh to re-grant access, or switch Claude Usage source to CLI/Web.";
 "claude_showing_last_known_usage" = "Showing last-known usage captured %@.";
+"claude_limited_usage_detail" = "Limited usage detail";
 
 " providers" = " providers";
 "(System)" = "(System)";
@@ -204,6 +205,7 @@
 "No cost history data." = "No cost history data.";
 "No data available" = "No data available";
 "No data yet" = "No data yet";
+"Workspaces" = "Workspaces";
 "No enabled providers available for Overview." = "No enabled providers available for Overview.";
 "No providers selected" = "No providers selected";
 "No token accounts yet." = "No token accounts yet.";
@@ -479,7 +481,6 @@
 "provider_accent_color_reset" = "Use default";
 "quota_warnings_title" = "Quota warnings";
 "quota_warning_session" = "session";
-"quota_warning_session_capitalized" = "Session";
 "quota_warning_weekly" = "weekly";
 "quota_warning_weekly_capitalized" = "Weekly";
 "quota_warning_notification_title" = "%1$@ %2$@ quota low";
@@ -546,6 +547,7 @@
 "hooks_any_provider" = "Any provider";
 "hooks_threshold" = "Fire at usage ≥";
 "hooks_threshold_placeholder" = "90";
+"hooks_executable" = "Executable";
 "hooks_executable_placeholder" = "/usr/local/bin/my-command";
 "hooks_arguments_placeholder" = "Arguments";
 "hooks_argument_placeholder" = "Argument";
@@ -603,6 +605,8 @@
 "display_mode_subtitle" = "Choose what to show in the menu bar (Pace shows usage vs. expected).";
 "show_quota_warning_markers_title" = "Show quota warning markers";
 "show_quota_warning_markers_subtitle" = "Draw threshold tick marks on usage bars when quota warnings are configured.";
+"show_pace_title" = "Show pace";
+"show_pace_subtitle" = "Show the ahead/behind stripe and forecast text on usage bars.";
 "weekly_progress_work_days_title" = "Work days";
 "weekly_progress_work_days_subtitle" = "Set work days for weekly usage-bar markers and pace calculations.";
 "workday_tick_appearance_title" = "Workday tick appearance";
@@ -627,6 +631,8 @@
 "agent_sessions_title" = "Agent sessions";
 "agent_sessions_subtitle" = "Show local and SSH-discovered Codex and Claude Code sessions in the menu.";
 "agent_sessions_hosts_title" = "Additional SSH hosts";
+"agent_sessions_hide_unreachable_title" = "Hide unreachable hosts";
+"agent_sessions_hide_unreachable_subtitle" = "Hide hosts when fetching their sessions fails.";
 "agent_sessions_footer" = "Macs on your tailnet are discovered automatically. Local sessions refresh every 30 seconds; remote hosts every 60 seconds and when the menu opens.";
 "agent_session_labels_title" = "Session labels";
 "agent_session_labels_subtitle" = "Choose how agent sessions are named.";
@@ -639,6 +645,8 @@
 "section_keyboard_shortcut" = "Keyboard shortcut";
 "open_menu_shortcut_title" = "Open menu";
 "open_menu_shortcut_subtitle" = "Trigger the menu bar menu from anywhere.";
+"record_shortcut" = "Record Shortcut";
+"press_shortcut" = "Press Shortcut";
 "install_cli" = "Install CLI";
 "install_cli_subtitle" = "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar.";
 "cli_not_found" = "CodexBarCLI not found in app bundle.";
@@ -649,6 +657,9 @@
 "surprise_me_subtitle" = "Check if you like your agents having some fun up there.";
 "hide_personal_info_title" = "Hide personal information";
 "hide_personal_info_subtitle" = "Obscure email addresses in the menu bar and menu UI.";
+"hide_cost_history_identity_subtitle" = "Also hide cost-history project/source names and paths without changing stored data.";
+"Project %d" = "Project %d";
+"Source %d" = "Source %d";
 "show_provider_storage_usage_title" = "Show provider storage usage";
 "show_provider_storage_usage_subtitle" = "Show local disk usage in menus. Scans known provider-owned paths in the background.";
 "section_keychain_access" = "Keychain access";
@@ -917,6 +928,7 @@
 "Monthly" = "Monthly";
 "Sonnet" = "Sonnet";
 "Overages" = "Overages";
+"Overage" = "Overage";
 "Activity" = "Activity";
 "Copied" = "Copied";
 "Copy error" = "Copy error";
@@ -927,6 +939,7 @@
 "Balance updates in near-real time (up to 5 min lag)" = "Balance updates in near-real time (up to 5 min lag)";
 "Daily billing data finalizes at 07:00 UTC" = "Daily billing data finalizes at 07:00 UTC";
 "%@ of %@ credits left" = "%@ of %@ credits left";
+"of %@" = "of %@";
 "%@ of %@ bonus credits left" = "%@ of %@ bonus credits left";
 "%@ / %@ (%@ remaining)" = "%@ / %@ (%@ remaining)";
 "%@/%@ left" = "%@/%@ left";
@@ -938,6 +951,7 @@
 "Full in ~1 regen" = "Full in ~1 regen";
 "Full in ~%.0f regens" = "Full in ~%.0f regens";
 "Overage usage" = "Overage usage";
+"Overage credits left" = "Overage credits left";
 "Overage cost" = "Overage cost";
 "credits" = "credits";
 "Zen balance" = "Zen balance";
@@ -1312,6 +1326,12 @@
 "By subscription" = "By subscription";
 "No model-level history" = "No model-level history";
 "Daily estimated spend" = "Daily estimated spend";
+"Hourly estimated spend" = "Hourly estimated spend";
+"Hour" = "Hour";
+"%d hours of usage data across %d services" = "%d hours of usage data across %d services";
+"1 hour of usage data across 1 service" = "1 hour of usage data across 1 service";
+"%d hours of usage data across 1 service" = "%d hours of usage data across 1 service";
+"1 hour of usage data across %d services" = "1 hour of usage data across %d services";
 "Input" = "Input";
 "Output" = "Output";
 "Cache write" = "Cache write";
@@ -1330,6 +1350,7 @@
 "Include OpenCodex usage logs" = "Include OpenCodex usage logs";
 "Hide native Codex when OpenCodex is present" = "Hide native Codex when OpenCodex is present";
 "Export JSON" = "Export JSON";
+"Copy JSON" = "Copy JSON";
 "Sources" = "Sources";
 "OpenCodex" = "OpenCodex";
 "≈%d full 5h windows of weekly left · %d windows until reset" = "≈%d full 5h windows of weekly left · %d windows until reset";
@@ -1361,6 +1382,9 @@
 "menu_bar_layout_preset_compact_stacked" = "Compact stacked";
 "menu_bar_layout_preset_custom" = "Custom";
 "menu_bar_layout_live_preview" = "Live preview";
+"menu_bar_layout_default_preview" = "Default layout preview";
+"menu_bar_layout_overrides_notice" = "These enabled providers use their own saved layouts:";
+"menu_bar_layout_use_all_accessibility" = "%@: Use all-providers layout";
 "menu_bar_layout_strip" = "Menu bar strip";
 "menu_bar_layout_remove_line_break" = "Remove line break";
 "menu_bar_layout_chip_hint" = "Select, drag to reorder, or use the Remove action.";
@@ -1368,6 +1392,7 @@
 "menu_bar_layout_empty_line" = "Drop a token here";
 "menu_bar_layout_line" = "Line %d";
 "menu_bar_layout_drag_remove" = "Drag here to remove";
+"menu_bar_layout_remove_selected" = "Remove selected";
 "menu_bar_layout_size" = "Size";
 "menu_bar_layout_size_small" = "Small";
 "menu_bar_layout_size_regular" = "Regular";
@@ -1450,6 +1475,7 @@
 "More" = "More";
 
 /* Provider Plugins */
+"Plugins" = "Plugins";
 "Install…" = "Install…";
 "Install plugin" = "Install plugin";
 "Copies a JavaScript or TypeScript file into the plugins directory." = "Copies a JavaScript or TypeScript file into the plugins directory.";
@@ -1489,3 +1515,43 @@
 "5-hour usage" = "5-hour usage";
 "7-day usage" = "7-day usage";
 "Total usage" = "Total usage";
+"menu_bar_layout_token_conditional" = "Conditional";
+"menu_bar_layout_group_conditionals" = "Conditionals";
+"menu_bar_layout_conditional_add" = "New Conditional";
+"menu_bar_layout_conditional_edit" = "Edit Conditional";
+"menu_bar_layout_conditional_remove" = "Remove from Library";
+"menu_bar_layout_conditional_save" = "Save";
+"menu_bar_layout_conditional_if" = "If";
+"menu_bar_layout_conditional_then" = "Then show";
+"menu_bar_layout_conditional_else" = "Else show";
+"menu_bar_layout_conditional_and" = "and";
+"menu_bar_layout_conditional_or" = "or";
+"menu_bar_layout_conditional_add_condition" = "Add Condition";
+"menu_bar_layout_conditional_none" = "No conditionals yet";
+"menu_bar_layout_conditional_hide" = "Hide";
+"menu_bar_layout_conditional_duplicate" = "Duplicate";
+"menu_bar_layout_conditional_name" = "Name";
+"menu_bar_layout_conditional_name_placeholder" = "e.g. Session check";
+"menu_bar_layout_conditional_name_error" = "Enter a unique name";
+"menu_bar_layout_conditional_used" = "used";
+"menu_bar_layout_conditional_remaining" = "remaining";
+"menu_bar_layout_conditional_metric_resets_in" = "%@ resets in";
+"menu_bar_layout_conditional_metric_scoped_weekly" = "Scoped weekly";
+"menu_bar_layout_conditional_summary" = "If %1$@ then %2$@ else %3$@";
+"menu_bar_layout_conditional_copy_name" = "%@ (copy)";
+"menu_bar_layout_conditional_copy_name_numbered" = "%1$@ (copy %2$d)";
+"menu_bar_layout_conditional_unavailable" = "Conditional unavailable";
+"menu_bar_layout_conditional_default_session_busy" = "Session over 50% used";
+"menu_bar_layout_conditional_default_weekly_high" = "Weekly over 90% used";
+"menu_bar_layout_conditional_default_session_spent" = "Session nearly spent";
+"menu_bar_layout_conditional_default_either_high" = "Session or weekly running high";
+"menu_bar_layout_conditional_default_scoped_weekly" = "Scoped weekly over 60% used";
+"Visible usage items" = "Visible usage items";
+"Restore Defaults" = "Restore Defaults";
+"Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "Choose which usage rows appear in this provider's menu, Settings preview, and Overview.";
+"%@ (unavailable)" = "%@ (unavailable)";
+"Spending cap, not balance" = "Spending cap, not balance";
+
+"Color Pace Indicator" = "Color Pace Indicator";
+"Green pace indicator when behind pace, red when ahead of pace (risk of running out early)" = "Green pace indicator when behind pace, red when ahead of pace (risk of running out early)";
+"%@ weekly" = "%@ weekly";

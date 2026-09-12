@@ -21,16 +21,42 @@ headers, source selection, provider ordering, and token accounts are stored in `
 
 ## Usage & Spend settings
 
-Settings → Usage & Spend combines local 7- or 30-day estimated history only for enabled descriptors that advertise
-token-cost support: Codex, Claude, Vertex AI, OpenAI, Mistral, and AWS Bedrock. Providers without a cost-history
-contract are omitted instead of appearing as empty subscriptions.
+Settings → Usage & Spend is a local estimated-cost history page, not a billing receipt and not the menu-bar quota
+card. Range choices are 7 / 30 / 90 days and All (the scan window is 365 days). Amounts are list-price equivalents
+unless a source also reports plan-metered spend, in which case both columns appear. Day buckets use a pinned IANA
+timezone stored when cost tracking is first enabled.
 
-Each native currency has its own total, subscription/model ranking, and daily chart. CodexBar never adds or ranks
-amounts across currencies. Coverage text reports how many days of the selected local calendar window are covered by
-the scan window; a 30-day selection is not labeled as complete when the available scan window covers fewer days.
+Regular token-history publications also refresh outdated independent Usage & Spend sources, including Claude,
+through their own 365-day scan. The dashboard never substitutes the shorter menu history for that scan. Updates
+arriving during a scan coalesce into a follow-up; a failed attempt waits for a new token publication or manual
+dashboard refresh before retrying. Codex account-cache ownership and provider-derived spend sources are unchanged.
+
+Native cost-history sources are the descriptors that advertise token-cost support: Codex, Claude, OpenAI Admin,
+Mistral, AWS Bedrock, Vertex AI, Cursor, and OpenCode Go. Providers without that contract are omitted instead of
+appearing as empty subscriptions. Each native currency has its own total, ranking, and daily chart; CodexBar never
+adds or ranks amounts across currencies.
+
+The page also shows token mix (input / output / cache / reasoning), priced/unpriced/unmetered/estimated coverage,
+sessions, Codex projects, and a 365-day token heatmap. A heatmap day with no coverage is a gap, not zero activity,
+and is not clickable. Custom list-price overlays are documented in `docs/model-pricing.md`.
+Cached and combined reports retain token-class details and known request counts. Coverage is combined from each
+source's existing classification, so a priced source cannot hide another source's unpriced or unmetered rows.
+If coverage totals cannot fit, aggregation falls back to existing request or daily-row inference without changing costs or stored data.
+Token sums that exceed the supported integer range remain unavailable for that aggregation pass; later rows do not
+restore a partial count. Other token classes, pricing, and explicit totals retain their existing meaning. Materialized
+missing values continue to follow the existing partial-data rules; no overflow metadata is added to stored reports.
+
+OpenCodex `~/.opencodex/usage.jsonl` is an opt-in, read-only spend source (off by default). It is not a quota
+Provider. When both OpenCodex logs and native Codex sessions are present they stay on separate rows; merging would
+double-count the same traffic. An optional toggle can hide native Codex while OpenCodex data is present. Export JSON
+emits the currently aggregated model (provenance, mix, coverage). Invalid numeric fields are omitted while valid
+neighboring fields remain available. Existing cached rows are reparsed once after the numeric parser update;
+subsequent unchanged reads continue to reuse the corrected cache.
 
 The view stays local and does not upload usage history. Refreshes retain the last successful model if a replacement
-scan fails, while provider/account configuration changes replace obsolete results.
+scan fails, while provider/account configuration changes replace obsolete results. Coverage text reports how many
+days of the selected local calendar window are covered by the scan window; a 30-day selection is not labeled as
+complete when the available scan window covers fewer days.
 
 | Provider | Strategies (ordered for auto) |
 | --- | --- |
@@ -42,9 +68,9 @@ scan fails, while provider/account configuration changes replace obsolete result
 | Antigravity | Local LSP/HTTP probe (`local`). |
 | Cursor | Web API via cookies → legacy stored session → Cursor.app local auth (`web`). |
 | OpenCode | Web dashboard via cookies (`web`). |
-| OpenCode Go | Unscoped Auto: local SQLite usage (`local`) → web dashboard (`web`). Scoped Auto (selected account/manual cookie/workspace): web → local. Explicit Web: web only. |
+| OpenCode Go | Unscoped Auto: local SQLite cost history with API overlay (`local+api`) → usage API (`api`) → web dashboard (`web`). Scoped Auto (selected account/manual cookie/workspace): web → local → API. Explicit API/Web: selected source only. |
 | Alibaba Coding Plan | Console RPC via web cookies (auto/manual) with API key fallback (`web`, `api`). |
-| Alibaba Token Plan | Bailian subscription summary API via browser or manual cookies (`web`). |
+| Alibaba Token Plan | Signed-in Bailian CLI (`cli`) → subscription summary API via browser or manual cookies (`web`). |
 | Qwen Cloud | Qwen Cloud 5-hour/weekly Token Plan APIs via browser or manual cookies (`web`). |
 | Droid/Factory | API key (`FACTORY_API_KEY` / config) → web cookies → stored tokens → local storage → WorkOS cookies (`auto`, `api`, `web`). |
 | Devin | Chrome localStorage session or manual Bearer token → daily and weekly quota API (`web`). |
@@ -107,6 +133,7 @@ scan fails, while provider/account configuration changes replace obsolete result
 - CLI RPC default: `codex ... app-server` JSON-RPC (`account/read`, `account/rateLimits/read`).
 - CLI PTY: manual diagnostics/parser coverage only; automatic refresh does not launch bare Codex TUI.
 - Local cost usage: scans `CODEX_HOME` (or `~/.codex`) `sessions` and sibling `archived_sessions` JSONL files for the configured history window.
+- Completed cost catch-up publishes validated cached history without starting another scan. Native and included Pi/OMP caches must cover the requested window; unavailable or incompatible history preserves existing totals until a later refresh. Token timestamps retain the actual cache scan time. This does not resolve catch-up that remains pending while an active log continuously grows.
 - Status: Statuspage.io (OpenAI).
 - Details: `docs/codex.md`.
 
@@ -174,7 +201,7 @@ scan fails, while provider/account configuration changes replace obsolete result
 ## Kilo
 - API token from `~/.codexbar/config.json` (`providers[].apiKey`) or `KILO_API_KEY`.
 - Auto mode tries API first and falls back to CLI auth when API credentials are missing or unauthorized.
-- CLI auth source: `~/.local/share/kilo/auth.json` (`kilo.access`), typically created by `kilo login`.
+- CLI auth source: `~/.local/share/kilo/auth.json` (`kilo.access`), typically created by `kilo auth login`.
 - Status: none yet.
 - Details: `docs/kilo.md`.
 
@@ -196,6 +223,7 @@ scan fails, while provider/account configuration changes replace obsolete result
 - Web API via browser cookies (`cursor.com` + `cursor.sh`).
 - Fallbacks: a legacy stored session, then Cursor.app local auth.
 - Add Account and Switch Account open Cursor's authenticator in a supported browser; Switch Account prefers stable account IDs and falls back to normalized email when IDs are unavailable. CodexBar uses the supported system HTTPS handler when possible and otherwise asks the user to choose an eligible supported browser.
+- Grok Bot weekly included usage is a fourth Cursor card bar from `POST /api/dashboard/get-sand-usage-status` (same session). Accounts without a Bot allowance omit the bar.
 - Status: Statuspage.io (Cursor).
 - Details: `docs/cursor.md`.
 
@@ -205,12 +233,15 @@ scan fails, while provider/account configuration changes replace obsolete result
 - Details: `docs/opencode.md`.
 
 ## OpenCode Go
+- Preferred usage source: `GET https://opencode.ai/zen/go/v1/usage` with an API key from Settings,
+  `providers[].apiKey`, or `OPENCODE_API_KEY`.
 - Web dashboard via browser or manual cookies (`opencode.ai`).
-- Unscoped Auto mode prefers local usage from `~/.local/share/opencode/opencode.db` on macOS and Linux, then falls back
-  to web when local history is unavailable.
+- Unscoped Auto mode prefers local cost history from `~/.local/share/opencode/opencode.db` on macOS and Linux,
+  enriches it with API quota windows when configured, then falls back to standalone API and legacy web sources.
 - Auto mode stays web-first for selected token accounts, manual cookies, and workspace overrides; explicit Web mode does
   not include local fallback.
-- Uses the workspace Go page/server data for rolling 5-hour, weekly, and optional monthly usage windows.
+- Uses the public usage API for rolling 5-hour, weekly, and monthly usage windows, with the workspace Go page/server
+  data retained as a compatibility fallback.
 - Optional workspace ID comes from `~/.codexbar/config.json` (`providers[].workspaceID`) or `CODEXBAR_OPENCODEGO_WORKSPACE_ID`.
 - Status: none yet.
 - Details: `docs/opencode.md`.
@@ -225,6 +256,8 @@ scan fails, while provider/account configuration changes replace obsolete result
 - Details: `docs/alibaba-coding-plan.md`.
 
 ## Alibaba Token Plan
+- Auto tries the signed-in Bailian `bl` CLI first, then falls back to browser/manual cookies; explicit CLI/Web modes
+  remain source-strict.
 - Explicit Team variants post to `GetSubscriptionSummary`; explicit Personal/Solo variants fetch the 5-hour and
   weekly rolling windows plus subscription/quota metadata without probing across plan types.
 - Cookie sources: browser import (`auto`), manual Cookie header, or `ALIBABA_TOKEN_PLAN_COOKIE`.
@@ -481,6 +514,7 @@ provider-specific cookie validation, endpoints, login detection, and error trans
 - Linux CLI supports configured manual cookies; automatic browser import remains macOS-only.
 - Reads 5-hour and weekly rolling limits plus monthly USD credits and billing-cycle usage from `api.commandcode.ai`.
 - Automatic import looks for better-auth session cookies from `commandcode.ai` / `www.commandcode.ai`.
+- Debug builds support `COMMANDCODE_API_URL` for synthetic loopback tests; release builds use the official billing endpoint.
 - Status: none yet.
 - Details: `docs/command-code.md`.
 
@@ -620,3 +654,10 @@ JavaScriptCore is the macOS rollback engine. The committed `.js` is generated fr
 - Details: `docs/notion.md`.
 
 See also: `docs/provider.md` for architecture notes.
+
+## Cached usage during account refresh
+
+Transient network failures keep the last successful usage for the same account and credential/configuration scope,
+including multi-account menus and their widget data. The cached measurement time and source remain unchanged;
+failed refreshes do not add fresh utilization-history samples. Normal error reporting still applies after repeated
+failures. Authentication failures and invalidated account scopes do not restore cached usage from another scope.

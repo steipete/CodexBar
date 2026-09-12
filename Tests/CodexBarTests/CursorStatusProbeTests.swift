@@ -389,6 +389,7 @@ struct CursorStatusProbeTests {
         #expect(usageSnapshot.providerCost?.used == 5.0)
         #expect(usageSnapshot.providerCost?.limit == 100.0)
         #expect(usageSnapshot.providerCost?.currencyCode == "USD")
+        #expect(usageSnapshot.extraRateWindows == nil)
 
         let roundTripped = try JSONDecoder().decode(
             UsageSnapshot.self,
@@ -651,104 +652,9 @@ struct CursorStatusProbeTests {
         let usageSnapshot = snapshot.toUsageSnapshot()
         #expect(usageSnapshot.detailRow(label: "Request quota") == nil)
     }
-
-    // MARK: - Session Store Serialization
-
-    @Test
-    func `session store saves and loads cookies`() async {
-        let store = CursorSessionStore.shared
-
-        // Clear any existing cookies
-        await store.clearCookies()
-
-        // Create test cookies with Date properties
-        let cookieProps: [HTTPCookiePropertyKey: Any] = [
-            .name: "testCookie",
-            .value: "testValue",
-            .domain: "cursor.com",
-            .path: "/",
-            .expires: Date(timeIntervalSince1970: 1_800_000_000),
-            .secure: true,
-        ]
-
-        guard let cookie = HTTPCookie(properties: cookieProps) else {
-            Issue.record("Failed to create test cookie")
-            return
-        }
-
-        // Save cookies
-        await store.setCookies([cookie])
-
-        // Verify cookies are stored
-        let storedCookies = await store.getCookies()
-        #expect(storedCookies.count == 1)
-        #expect(storedCookies.first?.name == "testCookie")
-        #expect(storedCookies.first?.value == "testValue")
-
-        // Clean up
-        await store.clearCookies()
-    }
-
-    @Test
-    func `session store reloads from disk when needed`() async {
-        let store = CursorSessionStore.shared
-        await store.resetForTesting()
-
-        let cookieProps: [HTTPCookiePropertyKey: Any] = [
-            .name: "diskCookie",
-            .value: "diskValue",
-            .domain: "cursor.com",
-            .path: "/",
-            .expires: Date(timeIntervalSince1970: 1_800_000_000),
-            .secure: true,
-        ]
-
-        guard let cookie = HTTPCookie(properties: cookieProps) else {
-            Issue.record("Failed to create test cookie")
-            return
-        }
-
-        await store.setCookies([cookie])
-        await store.resetForTesting(clearDisk: false)
-
-        let reloaded = await store.getCookies()
-        #expect(reloaded.count == 1)
-        #expect(reloaded.first?.name == "diskCookie")
-        #expect(reloaded.first?.value == "diskValue")
-
-        await store.clearCookies()
-    }
-
-    @Test
-    func `session store has valid session loads from disk`() async {
-        let store = CursorSessionStore.shared
-        await store.resetForTesting()
-
-        let cookieProps: [HTTPCookiePropertyKey: Any] = [
-            .name: "validCookie",
-            .value: "validValue",
-            .domain: "cursor.com",
-            .path: "/",
-            .expires: Date(timeIntervalSince1970: 1_800_000_000),
-            .secure: true,
-        ]
-
-        guard let cookie = HTTPCookie(properties: cookieProps) else {
-            Issue.record("Failed to create test cookie")
-            return
-        }
-
-        await store.setCookies([cookie])
-        await store.resetForTesting(clearDisk: false)
-
-        let hasSession = await store.hasValidSession()
-        #expect(hasSession)
-
-        await store.clearCookies()
-    }
 }
 
-private final class CursorStatusProbeTestSession {
+final class CursorStatusProbeTestSession {
     let urlSession: URLSession
     private let sessionID: String
 
@@ -778,7 +684,7 @@ private final class CursorStatusProbeTestSession {
     }
 }
 
-private func makeCursorStatusProbeResponse(
+func makeCursorStatusProbeResponse(
     url: URL,
     body: String,
     statusCode: Int,
@@ -886,7 +792,9 @@ extension CursorStatusProbeTests {
 
         #expect(snapshot.planPercentUsed == 30.0)
         #expect(snapshot.accountEmail == nil)
-        #expect(testSession.requestCount == 2)
+        #expect(snapshot.sandUsage == nil)
+        #expect(testSession.requestCount == 3)
+        #expect(testSession.requestPaths.contains(CursorSandUsageStatus.endpointPath))
     }
 
     @Test
@@ -945,6 +853,10 @@ extension CursorStatusProbeTests {
             let requestURL = try #require(request.url)
             #expect(request.value(forHTTPHeaderField: "Authorization") == nil)
             #expect(request.value(forHTTPHeaderField: "Cookie") == expectedCookie)
+            if requestURL.path == CursorSandUsageStatus.endpointPath {
+                #expect(request.httpMethod == "POST")
+                return makeCursorStatusProbeResponse(url: requestURL, body: "{}", statusCode: 404)
+            }
             #expect(request.httpMethod == "GET")
 
             switch requestURL.path {
@@ -1009,6 +921,7 @@ extension CursorStatusProbeTests {
         #expect(snapshot.accountName == "Test User")
         #expect(testSession.requestPaths.sorted() == [
             "/api/auth/me",
+            "/api/dashboard/get-sand-usage-status",
             "/api/usage",
             "/api/usage-summary",
         ])
@@ -1207,6 +1120,8 @@ extension CursorStatusProbeTests {
                     url: requestURL,
                     body: #"{"gpt-4":{}}"#,
                     statusCode: 200)
+            case "/api/dashboard/get-sand-usage-status":
+                return makeCursorStatusProbeResponse(url: requestURL, body: "{}", statusCode: 404)
             default:
                 Issue.record("App-session precedence test unexpectedly requested \(requestURL.path)")
                 throw URLError(.badURL)
@@ -1228,6 +1143,7 @@ extension CursorStatusProbeTests {
         #expect(snapshot.accountEmail == "app@example.com")
         #expect(testSession.requestPaths.sorted() == [
             "/api/auth/me",
+            "/api/dashboard/get-sand-usage-status",
             "/api/usage",
             "/api/usage-summary",
         ])
@@ -1291,6 +1207,7 @@ extension CursorStatusProbeTests {
         #expect(snapshot.accountEmail == nil)
         #expect(testSession.requestPaths.sorted() == [
             "/api/auth/me",
+            "/api/dashboard/get-sand-usage-status",
             "/api/usage",
             "/api/usage-summary",
         ])
@@ -1439,11 +1356,15 @@ extension CursorStatusProbeTests {
         #expect(CursorStatusProbe.commitBrowserLoginSession(staleSession))
         defer { CookieHeaderCache.clear(provider: .cursor) }
 
-        let testSession = CursorStatusProbeTestSession { request in
+        let replacementCommitted = LockIsolated<Bool?>(nil)
+        let handler: @Sendable (URLRequest) throws -> (HTTPURLResponse, Data) = { request in
             let requestURL = try #require(request.url)
             let cookie = request.value(forHTTPHeaderField: "Cookie")
             if cookie == staleSession.cookieHeader {
-                #expect(CursorStatusProbe.commitBrowserLoginSession(replacementSession))
+                // Only the required response is guaranteed to run before fetch and cache teardown finish.
+                if requestURL.path == "/api/usage-summary" {
+                    replacementCommitted.setValue(CursorStatusProbe.commitBrowserLoginSession(replacementSession))
+                }
                 return makeCursorStatusProbeResponse(
                     url: requestURL,
                     body: #"{"error":"unauthorized"}"#,
@@ -1465,6 +1386,7 @@ extension CursorStatusProbeTests {
                 throw URLError(.badURL)
             }
         }
+        let testSession = CursorStatusProbeTestSession(handler: handler)
 
         let baseURL = try #require(URL(string: "https://cursor-web.test"))
         let snapshot = try await CursorStatusProbe(
@@ -1475,8 +1397,10 @@ extension CursorStatusProbeTests {
             appAuthStore: CursorAppAuthSessionProviderStub(session: nil)).fetch()
 
         #expect(snapshot.accountEmail == "replacement@example.com")
+        #expect(replacementCommitted.value == true)
         #expect(CookieHeaderCache.load(provider: .cursor)?.cookieHeader == replacementSession.cookieHeader)
         #expect(CookieHeaderCache.load(provider: .cursor)?.authenticationFailurePolicy == .stopFallback)
+        try self.replayOptionalResponsesAfterCacheCleanup(cookieHeader: staleSession.cookieHeader, handler: handler)
     }
 
     @Test
@@ -1487,14 +1411,17 @@ extension CursorStatusProbeTests {
         #expect(CursorStatusProbe.commitBrowserLoginSession(selectedSession))
         defer { CookieHeaderCache.clear(provider: .cursor) }
 
-        let testSession = CursorStatusProbeTestSession { request in
+        let backgroundReplacementStored = LockIsolated<Bool?>(nil)
+        let handler: @Sendable (URLRequest) throws -> (HTTPURLResponse, Data) = { request in
             let requestURL = try #require(request.url)
             let cookie = request.value(forHTTPHeaderField: "Cookie")
             if cookie == selectedSession.cookieHeader {
-                #expect(!CookieHeaderCache.storeResult(
-                    provider: .cursor,
-                    cookieHeader: "background=replacement",
-                    sourceLabel: "Background refresh"))
+                if requestURL.path == "/api/usage-summary" {
+                    backgroundReplacementStored.setValue(CookieHeaderCache.storeResult(
+                        provider: .cursor,
+                        cookieHeader: "background=replacement",
+                        sourceLabel: "Background refresh"))
+                }
             } else {
                 Issue.record("Rejected selected session unexpectedly switched to \(cookie ?? "<none>")")
             }
@@ -1503,6 +1430,7 @@ extension CursorStatusProbeTests {
                 body: #"{"error":"unauthorized"}"#,
                 statusCode: 401)
         }
+        let testSession = CursorStatusProbeTestSession(handler: handler)
 
         let baseURL = try #require(URL(string: "https://cursor-web.test"))
         let probe = CursorStatusProbe(
@@ -1515,9 +1443,27 @@ extension CursorStatusProbeTests {
         await #expect(throws: CursorStatusProbeError.self) {
             _ = try await probe.fetch()
         }
+        #expect(backgroundReplacementStored.value == false)
         #expect(!testSession.requestCookies.contains("background=replacement"))
         #expect(CookieHeaderCache.load(provider: .cursor)?.cookieHeader == selectedSession.cookieHeader)
         #expect(CookieHeaderCache.load(provider: .cursor)?.authenticationFailurePolicy == .stopFallback)
+        try self.replayOptionalResponsesAfterCacheCleanup(cookieHeader: selectedSession.cookieHeader, handler: handler)
+    }
+
+    private func replayOptionalResponsesAfterCacheCleanup(
+        cookieHeader: String,
+        handler: @Sendable (URLRequest) throws -> (HTTPURLResponse, Data)) throws
+    {
+        CookieHeaderCache.clear(provider: .cursor)
+        // Replay retained callbacks after teardown without depending on URLSession cancellation timing.
+        for path in ["/api/auth/me", "/api/dashboard/get-sand-usage-status"] {
+            let url = try #require(URL(string: "https://cursor-web.test\(path)"))
+            var request = URLRequest(url: url)
+            request.httpMethod = path == "/api/auth/me" ? "GET" : "POST"
+            request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
+            _ = try handler(request)
+            #expect(CookieHeaderCache.load(provider: .cursor) == nil)
+        }
     }
 }
 

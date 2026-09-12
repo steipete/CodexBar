@@ -1,0 +1,33 @@
+CodexBar menu bar conditional tokens - runtime proof
+Captured: 2026-08-19T20:12:13+01:00
+Bundle:   ./CodexBar.app (release, packaged via Scripts/package_app.sh)
+Provider shown: Claude (usage 87%)
+
+=== 1. Starter library seeds on the fresh-install path ===
+The menuBarLayoutConditionals key was deleted before launch, then the app was started.
+The five shipped rules appear in Settings > Menu Bar > Conditionals
+(see menubar-conditionals-editor.png), wrapping across two rows.
+
+menuBarLayoutConditionals: <absent>
+-> Seeding happens in memory only; nothing is written at load. A library the user
+   empties therefore stays empty, because any edit/remove writes the key and the
+   stored value wins from then on.
+
+=== 2. Downgrade projection keeps the legacy blob 0.53.x-decodable ===
+Layout under test is stacked, and line 2 holds only a conditional reference:
+
+menuBarLayoutV2 (current): {"lines":[[{"icon":{}},{"percent":{"window":"automatic"}}],[{"conditional":{"id":"B715B1D1-8C1D-4E99-8050-2B5A4EF4B684"}}]]}
+menuBarLayout   (legacy) : {"lines":[[{"icon":{}},{"percent":{"window":"automatic"}}]]}
+
+-> The legacy blob carries no "conditional" token, so an older decoder reads the
+   layout instead of failing on an unknown case and discarding the whole blob.
+
+=== 3. A hidden branch collapses its line ===
+Session usage sits below the shipped rule's 50% threshold, so line 2 resolves to
+.hidden and the whole line drops out.
+
+status item AXTitle: Claude icon, Usage 87%
+
+-> One line announced. No "Line 2" segment, no blank trailing line, and the title
+   keeps single-line typography. The editor's Live preview shows "87%" on one row
+   while the Menu bar strip still lists two rows (screenshot above).

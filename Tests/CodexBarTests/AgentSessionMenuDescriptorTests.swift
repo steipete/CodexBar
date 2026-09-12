@@ -114,7 +114,7 @@ struct AgentSessionMenuDescriptorTests {
     }
 
     @Test
-    func `adaptive-only metadata reads require a detected agent process`() {
+    func `adaptive-only metadata reads require an agent or trusted codex app server`() {
         #expect(!LocalAgentSessionScanner.shouldScanSessionMetadata(
             hasAgentProcesses: false,
             includeFileOnlySessions: false))
@@ -124,6 +124,10 @@ struct AgentSessionMenuDescriptorTests {
         #expect(LocalAgentSessionScanner.shouldScanSessionMetadata(
             hasAgentProcesses: false,
             includeFileOnlySessions: true))
+        #expect(LocalAgentSessionScanner.shouldScanSessionMetadata(
+            hasAgentProcesses: false,
+            includeFileOnlySessions: false,
+            hasTrustedCodexAppServer: true))
     }
 
     @Test
@@ -144,6 +148,35 @@ struct AgentSessionMenuDescriptorTests {
     }
 
     @Test
+    func `unreachable hosts remain visible until hiding is enabled`() {
+        let now = Date(timeIntervalSince1970: 1000)
+        let local = Self.session(id: "local", host: "local-mac", activity: now.addingTimeInterval(-60))
+        let remoteHosts = [
+            RemoteSessionHostResult(host: "clawmac", sessions: [], error: nil),
+            RemoteSessionHostResult(host: "offline", sessions: [], error: "Connection timed out"),
+        ]
+
+        let defaultSection = MenuDescriptor.agentSessionsSection(
+            localSessions: [local],
+            remoteHosts: remoteHosts,
+            now: now)
+        #expect(defaultSection.entries.contains { entry in
+            guard case let .unavailable(title, _) = entry else { return false }
+            return title == "offline — unreachable"
+        })
+
+        let hiddenSection = MenuDescriptor.agentSessionsSection(
+            localSessions: [local],
+            remoteHosts: remoteHosts,
+            hideUnreachableHosts: true,
+            now: now)
+        #expect(!hiddenSection.entries.contains { entry in
+            guard case let .unavailable(title, _) = entry else { return false }
+            return title == "offline — unreachable"
+        })
+    }
+
+    @Test
     func `session section counts groups and renders unreachable hosts`() {
         let now = Date(timeIntervalSince1970: 1000)
         let local = Self.session(id: "local", host: "local-mac", activity: now.addingTimeInterval(-60))
@@ -154,6 +187,7 @@ struct AgentSessionMenuDescriptorTests {
                 RemoteSessionHostResult(host: "clawmac", sessions: [remote], error: nil),
                 RemoteSessionHostResult(host: "offline", sessions: [], error: "Connection timed out"),
             ],
+            hideUnreachableHosts: false,
             now: now)
 
         guard case let .text(header, .headline) = section.entries[0] else {

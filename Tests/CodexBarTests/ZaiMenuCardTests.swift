@@ -79,6 +79,97 @@ struct ZaiMenuCardTests {
     }
 
     @MainActor
+    @Test
+    func `model localizes zai usage sections in simplified chinese`() throws {
+        let model = try CodexBarLocalizationOverride.$appLanguage.withValue("zh-Hans") {
+            try Self.costSummaryModel(style: .inlineSummary)
+        }
+
+        #expect(model.providerDetails.map(\.title) == ["配额详情", "每小时 token", "每日 token"])
+        #expect(model.providerDetails[0].rows[0].label == "Token 配额")
+        #expect(model.providerDetails[0].rows[0].value == "已使用 3%")
+        #expect(model.providerDetails[1].rows[0].label == "GLM-5.3")
+        #expect(model.providerDetails[1].chart?.title == "每小时 token")
+        #expect(model.providerDetails[1].chart?.unit == "token")
+    }
+
+    @Test
+    func `model localizes zai quota values and periodic reset in simplified chinese`() throws {
+        let now = Date()
+        let details = try ProviderDetailSection(title: "Quota details", rows: [
+            .init(label: "Token quota", value: "45% used"),
+            .init(label: "Session token quota", value: "0% used"),
+            .init(label: "MCP quota", value: "6.4% used", secondaryValue: "1000 limit · 936 remaining"),
+            .init(label: "Credit quota", value: "12% used", secondaryValue: "1000 limit"),
+            .init(label: "Session credit quota", value: "13% used", secondaryValue: "936 remaining"),
+            .init(label: "Quota rate", value: "Peak", secondaryValue: "off-peak in 2h 30m"),
+            .init(label: "Quota rate", value: "Off-peak", secondaryValue: "peak now"),
+            .init(label: "search-prime", value: "64"),
+        ])
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 0, windowMinutes: 300, resetsAt: nil, resetDescription: "5-hour"),
+            secondary: RateWindow(
+                usedPercent: 45,
+                windowMinutes: 10080,
+                resetsAt: now.addingTimeInterval(3 * 24 * 60 * 60),
+                resetDescription: nil),
+            extraRateWindows: [NamedRateWindow(
+                id: "zai-mcp",
+                title: "MCP",
+                window: RateWindow(usedPercent: 6.4, windowMinutes: nil, resetsAt: nil, resetDescription: "MCP"))],
+            details: [details],
+            updatedAt: now,
+            identity: ProviderIdentitySnapshot(
+                providerID: .zai,
+                accountEmail: nil,
+                accountOrganization: nil,
+                loginMethod: "Pro"))
+        let metadata = try #require(ProviderDefaults.metadata[.zai])
+
+        let model = CodexBarLocalizationOverride.$appLanguage.withValue("zh-Hans") {
+            UsageMenuCardView.Model.make(.init(
+                provider: .zai,
+                metadata: metadata,
+                snapshot: snapshot,
+                credits: nil,
+                creditsError: nil,
+                dashboard: nil,
+                dashboardError: nil,
+                tokenSnapshot: nil,
+                tokenError: nil,
+                account: AccountInfo(email: nil, plan: nil),
+                isRefreshing: false,
+                lastError: nil,
+                usageBarsShowUsed: false,
+                resetTimeDisplayStyle: .countdown,
+                tokenCostUsageEnabled: false,
+                showOptionalCreditsAndExtraUsage: true,
+                hidePersonalInfo: false,
+                now: now))
+        }
+
+        #expect(model.metrics.first?.title == "5 小时")
+        #expect(model.metrics.first?.resetText == "每 5 小时重置")
+        let rows = try #require(model.providerDetails.first?.rows)
+        #expect(rows[0].value == "已使用 45%")
+        #expect(rows[1].label == "会话 Token 配额")
+        #expect(rows[1].value == "已使用 0%")
+        #expect(rows[2].label == "MCP 配额")
+        #expect(rows[2].value == "已使用 6.4%")
+        #expect(rows[2].secondaryValue == "上限 1000 · 剩余 936")
+        #expect(rows[3].label == "额度配额")
+        #expect(rows[3].secondaryValue == "上限 1000")
+        #expect(rows[4].label == "会话额度配额")
+        #expect(rows[4].secondaryValue == "剩余 936")
+        #expect(rows[5].label == "配额费率")
+        #expect(rows[5].value == "高峰")
+        #expect(rows[5].secondaryValue == "非高峰 2 小时 30 分钟后")
+        #expect(rows[6].value == "非高峰")
+        #expect(rows[6].secondaryValue == "高峰 现在")
+        #expect(rows[7].label == "search-prime")
+    }
+
+    @MainActor
     private static func costSummaryModel(style: CostSummaryDisplayStyle) throws -> UsageMenuCardView.Model {
         let settings = testSettingsStore(suiteName: "ZaiMenuCardTests-cost-summary-\(style.rawValue)")
         settings.costUsageEnabled = true

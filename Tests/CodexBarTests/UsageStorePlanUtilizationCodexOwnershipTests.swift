@@ -6,6 +6,38 @@ import Testing
 struct UsageStorePlanUtilizationCodexOwnershipTests {
     @MainActor
     @Test
+    func `codex plan history migrates pre-normalization provider account key casing`() throws {
+        let store = UsageStorePlanUtilizationTests.makeStore()
+        let persistedKey = "codex:v1:provider-account:WORKSPACE-X"
+        let canonicalKey = try #require(CodexHistoryOwnership.canonicalKey(for: .providerAccount(
+            id: "workspace-x")))
+        let weekly = planSeries(name: .weekly, windowMinutes: 10080, entries: [
+            planEntry(at: Date(timeIntervalSince1970: 1_700_000_000), usedPercent: 20),
+        ])
+        store.planUtilizationHistory[.codex] = PlanUtilizationHistoryBuckets(accounts: [
+            persistedKey: [weekly],
+        ])
+        store.settings._test_liveSystemCodexAccount = ObservedSystemCodexAccount(
+            email: "person@example.com",
+            workspaceAccountID: "workspace-x",
+            codexHomePath: "/Users/test/.codex",
+            observedAt: Date(),
+            identity: .providerAccount(id: "workspace-x"))
+        defer { store.settings._test_liveSystemCodexAccount = nil }
+        store._setSnapshotForTesting(
+            UsageStorePlanUtilizationTests.makeSnapshot(provider: .codex, email: "person@example.com"),
+            provider: .codex)
+
+        let history = store.planUtilizationHistory(for: .codex)
+        let buckets = try #require(store.planUtilizationHistory[.codex])
+
+        #expect(history == [weekly])
+        #expect(buckets.accounts[canonicalKey] == [weekly])
+        #expect(buckets.accounts[persistedKey] == nil)
+    }
+
+    @MainActor
+    @Test
     func `codex plan history aliases pre-upgrade codex email hash bucket into canonical email hash`() throws {
         let store = UsageStorePlanUtilizationTests.makeStore()
         let snapshot = UsageStorePlanUtilizationTests.makeSnapshot(provider: .codex, email: "alice@example.com")
@@ -425,6 +457,75 @@ struct UsageStorePlanUtilizationCodexOwnershipTests {
         #expect(history == [weekly])
         #expect(buckets.unscoped == [bootstrap])
         #expect(buckets.accounts[canonicalKey] == [weekly])
+    }
+
+    @MainActor
+    @Test(arguments: [false, true])
+    func `selected workspace does not adopt ambiguous runtime owner history without live evidence`(
+        emailOnlyRuntime: Bool) throws
+    {
+        let store = UsageStorePlanUtilizationTests.makeStore()
+        let managedAccount = ManagedCodexAccount(
+            id: UUID(),
+            email: "member@example.com",
+            workspaceAccountID: "selected-workspace",
+            managedHomePath: "/tmp/selected-workspace",
+            createdAt: 1,
+            updatedAt: 2,
+            lastAuthenticatedAt: 3)
+        let runtimeIdentity: CodexIdentity = emailOnlyRuntime
+            ? .emailOnly(normalizedEmail: managedAccount.email)
+            : .providerAccount(id: "auth-default")
+        let reconciliationSnapshot = CodexAccountReconciliationSnapshot(
+            storedAccounts: [managedAccount],
+            activeStoredAccount: managedAccount,
+            liveSystemAccount: nil,
+            matchingStoredAccountForLiveSystemAccount: nil,
+            activeSource: .managedAccount(id: managedAccount.id),
+            hasUnreadableAddedAccountStore: false,
+            storedAccountRuntimeIdentities: [
+                managedAccount.id: runtimeIdentity,
+            ],
+            storedAccountRuntimeEmails: [managedAccount.id: managedAccount.email])
+        let selectedWorkspaceKey = try #require(
+            CodexHistoryOwnership.canonicalKey(for: .providerAccount(id: "selected-workspace")))
+        let canonicalEmailHashKey = CodexHistoryOwnership.canonicalEmailHashKey(for: managedAccount.email)
+        let legacyEmailHash = UsageStore._codexLegacyPlanUtilizationEmailHashKeyForTesting(
+            normalizedEmail: managedAccount.email)
+        let unscoped = planSeries(name: .session, windowMinutes: 300, entries: [
+            planEntry(at: Date(timeIntervalSince1970: 1_699_900_000), usedPercent: 10),
+        ])
+        let canonicalEmail = planSeries(name: .session, windowMinutes: 300, entries: [
+            planEntry(at: Date(timeIntervalSince1970: 1_699_950_000), usedPercent: 15),
+        ])
+        let legacyEmail = planSeries(name: .weekly, windowMinutes: 10080, entries: [
+            planEntry(at: Date(timeIntervalSince1970: 1_700_000_000), usedPercent: 20),
+        ])
+
+        store.planUtilizationHistory[.codex] = PlanUtilizationHistoryBuckets(
+            unscoped: [unscoped],
+            accounts: [
+                canonicalEmailHashKey: [canonicalEmail],
+                legacyEmailHash: [legacyEmail],
+            ])
+        store.settings._test_codexAccountSnapshotLoader = { _ in reconciliationSnapshot }
+        store.settings._test_activeManagedCodexAccount = managedAccount
+        store.settings.codexActiveSource = .managedAccount(id: managedAccount.id)
+        defer {
+            store.settings._test_codexAccountSnapshotLoader = nil
+            store.settings._test_activeManagedCodexAccount = nil
+            store.settings.codexActiveSource = .liveSystem
+        }
+
+        let history = store.planUtilizationHistory(for: .codex)
+        let buckets = try #require(store.planUtilizationHistory[.codex])
+
+        #expect(history.isEmpty)
+        #expect(buckets.preferredAccountKey == selectedWorkspaceKey)
+        #expect(buckets.unscoped == [unscoped])
+        #expect(buckets.accounts[canonicalEmailHashKey] == [canonicalEmail])
+        #expect(buckets.accounts[legacyEmailHash] == [legacyEmail])
+        #expect(buckets.accounts[selectedWorkspaceKey] == nil)
     }
 
     @MainActor

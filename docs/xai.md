@@ -69,6 +69,9 @@ spend with today/30-day totals. When xAI reports its analytics cardinality cap (
 "Last 30 days (partial)" and the snapshot is marked estimated instead of exact. Prepaid money is not a quota, so no
 session or weekly meters are synthesized.
 
+The same daily spend series is published into Settings → Usage & Spend and Overview as vendor-metered USD. The prepaid
+ledger balance is remaining credit and is never treated as spend.
+
 ## CLI Usage
 
 ```bash

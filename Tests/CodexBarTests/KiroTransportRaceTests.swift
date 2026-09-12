@@ -68,12 +68,19 @@ struct KiroTransportRaceTests {
             fi
             if [ "$1" = "chat" ] && [ "$3" = "/usage" ]; then
               if [ -t 1 ]; then
+                printf '%s\n' "$$" > "${0%/*}/pty.pid"
                 printf 'Estimated Usage | resets on 2026-06-01 | KIRO FREE\n'
                 printf 'Credits (49 of 50 covered in plan)\n'
                 printf '████████████████████ 98%%\n'
                 exit 91
               fi
-              sleep 1
+              printf '%s\n' "$$" > "${0%/*}/pipe.ready"
+              attempts=0
+              while [ ! -e "${0%/*}/pipe.release" ]; do
+                attempts=$((attempts + 1))
+                [ "$attempts" -lt 2000 ] || exit 92
+                sleep 0.01
+              done
               printf 'Estimated Usage | resets on 2026-06-01 | KIRO FREE\n'
               printf 'Credits (12.50 of 50 covered in plan)\n'
               printf '████████████████████ 25%%\n'
@@ -86,12 +93,40 @@ struct KiroTransportRaceTests {
             """)
         defer { try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent()) }
 
-        let snapshot = try await KiroStatusProbe(
-            cliBinaryResolver: { cliURL.path },
-            usageProbeTimeout: 2,
-            pipeTimeoutCap: 0.2).fetch()
+        let root = cliURL.deletingLastPathComponent()
+        let registry = KiroTestProcessRegistry()
+        defer { registry.terminateAll() }
+        let probe = KiroProcessTestSupport.makeFunctionalProbe(
+            cliURL: cliURL,
+            pipeTimeoutCap: 0.2,
+            processRegistry: registry)
+        let task = Task { try await probe.fetch() }
 
-        #expect(snapshot.creditsUsed == 12.50)
+        do {
+            let pipePID = try await KiroProcessTestSupport.waitForPID(in: root.appendingPathComponent("pipe.ready"))
+            try #require(registry.isRegistered(pipePID))
+            let ptyPID = try await KiroProcessTestSupport.waitForPID(in: root.appendingPathComponent("pty.pid"))
+            // Observe process exit before releasing the pipe; this does not certify PTY event consumption.
+            try await KiroProcessTestSupport.waitForExit(
+                of: ptyPID,
+                timeout: KiroProcessTestSupport.fixtureSetupTimeout,
+                description: "the failed PTY fixture to exit before releasing valid pipe output")
+            try KiroProcessTestSupport.touch(root.appendingPathComponent("pipe.release"))
+
+            let snapshot = try await task.value
+            #expect(snapshot.creditsUsed == 12.50)
+            #expect(registry.activePIDs().isEmpty)
+            try await KiroProcessTestSupport.waitForExit(
+                of: Array(registry.observedPIDs()),
+                timeout: KiroProcessTestSupport.fixtureSetupTimeout,
+                description: "the owned pipe fixtures to exit")
+        } catch {
+            task.cancel()
+            registry.terminateAll()
+            // Joining fetch also joins the PTY runner's scoped cancellation cleanup before removing the fixture.
+            _ = try? await task.value
+            throw error
+        }
     }
 
     @Test

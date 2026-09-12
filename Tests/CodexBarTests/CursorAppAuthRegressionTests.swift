@@ -7,8 +7,11 @@ import Testing
 struct CursorAppAuthRegressionTests {
     @Test
     func `session store replaces app auth accounts and keeps the file owner only`() async throws {
-        let store = CursorSessionStore.shared
-        await store.clearCookies()
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cursor-session-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let fileURL = directory.appendingPathComponent("cursor-session.json")
+        let store = CursorSessionStore(fileURL: fileURL)
         let firstToken = try makeCursorAppAuthToken(
             subject: "auth0|first-account",
             expiration: Date(timeIntervalSinceNow: 3600))
@@ -18,8 +21,8 @@ struct CursorAppAuthRegressionTests {
 
         await store.persistAppSession(CursorAppAuthSession(accessToken: firstToken))
         await store.persistAppSession(CursorAppAuthSession(accessToken: secondToken))
-        await store.resetForTesting(clearDisk: false)
-        let cookies = await store.getCookies()
+        let reader = CursorSessionStore(fileURL: fileURL)
+        let cookies = await reader.getCookies()
         let cookie = try #require(cookies.first)
 
         #expect(cookies.count == 1)
@@ -28,11 +31,6 @@ struct CursorAppAuthRegressionTests {
         #expect(CursorAppAuthSession.isPersistedCookie(cookie))
         #expect(cookie.expiresDate != nil)
 
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? FileManager.default.temporaryDirectory
-        let fileURL = appSupport
-            .appendingPathComponent("CodexBar", isDirectory: true)
-            .appendingPathComponent("cursor-session.json")
         let attributes = try FileManager.default.attributesOfItem(atPath: fileURL.path)
         let permissions = try #require(attributes[.posixPermissions] as? NSNumber)
         #expect(permissions.intValue & 0o077 == 0)

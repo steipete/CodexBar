@@ -1,0 +1,6 @@
+panel: NSSavePanel
+action: save
+path: /Users/yuxinqiao/Developer/CodexBar-spend-prs/.github/pr-proof/spend-export-native-saved.json
+filename: codexbar-spend-last-7-days.json
+screenshot: spend-export-save-panel.png
+injectedDestination: false

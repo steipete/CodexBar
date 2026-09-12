@@ -357,6 +357,49 @@ struct StatusItemIconObservationSignatureTests {
     }
 
     @Test
+    func `direct tertiary lane token changes the store icon observation signature`() {
+        let (_, store, controller) = self.makeController(
+            suiteName: "StatusItemIconObservationSignatureTests-tertiary-lane",
+            menuBarLayout: MenuBarLayout(lines: [[.icon, .lanePercent(lane: .tertiary)]]),
+            provider: .cursor)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        store._setSnapshotForTesting(
+            Self.makeLaneSnapshot(primary: 90, secondary: 20, tertiary: 60),
+            provider: .cursor)
+        let baseline = controller.storeIconObservationSignature()
+
+        store._setSnapshotForTesting(
+            Self.makeLaneSnapshot(primary: 90, secondary: 20, tertiary: 61),
+            provider: .cursor)
+
+        #expect(baseline.contains("layoutLanes=tertiary="))
+        #expect(controller.storeIconObservationSignature() != baseline)
+    }
+
+    @Test
+    func `direct lane layout ignores unused lane churn`() {
+        let (_, store, controller) = self.makeController(
+            suiteName: "StatusItemIconObservationSignatureTests-unused-lane",
+            menuBarLayout: MenuBarLayout(lines: [[.icon, .lanePercent(lane: .secondary)]]),
+            provider: .cursor)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        store._setSnapshotForTesting(
+            Self.makeLaneSnapshot(primary: 90, secondary: 20, tertiary: 60),
+            provider: .cursor)
+        let baseline = controller.storeIconObservationSignature()
+
+        store._setSnapshotForTesting(
+            Self.makeLaneSnapshot(primary: 90, secondary: 20, tertiary: 61),
+            provider: .cursor)
+
+        #expect(baseline.contains("layoutLanes=secondary="))
+        #expect(!baseline.contains("tertiary="))
+        #expect(controller.storeIconObservationSignature() == baseline)
+    }
+
+    @Test
     func `custom OpenRouter balance token changes the store icon observation signature`() throws {
         let (settings, store, controller) = self.makeController(
             suiteName: "StatusItemIconObservationSignatureTests-openrouter-balance",
@@ -396,7 +439,7 @@ struct StatusItemIconObservationSignatureTests {
         #expect(store.snapshot(for: .codex)?.primary?.usedPercent == usagePrimaryPercent)
         #expect(controller.lastObservedStoreIconWorkSignature != baseline)
         #expect(
-            controller.menuBarLayoutCostStrings(provider: .codex).last30Days ==
+            controller.menuBarLayoutCosts(provider: .codex).last30Days ==
                 UsageFormatter.currencyString(12.50, currencyCode: "USD"))
     }
 
@@ -483,6 +526,36 @@ struct StatusItemIconObservationSignatureTests {
             identity: ProviderIdentitySnapshot(
                 providerID: provider.instanceID,
                 accountEmail: email,
+                accountOrganization: nil,
+                loginMethod: "plus"))
+    }
+
+    private static func makeLaneSnapshot(
+        primary primaryUsedPercent: Double,
+        secondary secondaryUsedPercent: Double,
+        tertiary tertiaryUsedPercent: Double)
+        -> UsageSnapshot
+    {
+        UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: primaryUsedPercent,
+                windowMinutes: 300,
+                resetsAt: nil,
+                resetDescription: nil),
+            secondary: RateWindow(
+                usedPercent: secondaryUsedPercent,
+                windowMinutes: 10080,
+                resetsAt: nil,
+                resetDescription: nil),
+            tertiary: RateWindow(
+                usedPercent: tertiaryUsedPercent,
+                windowMinutes: nil,
+                resetsAt: nil,
+                resetDescription: nil),
+            updatedAt: Date(timeIntervalSince1970: 100),
+            identity: ProviderIdentitySnapshot(
+                providerID: .cursor,
+                accountEmail: "icon@example.com",
                 accountOrganization: nil,
                 loginMethod: "plus"))
     }

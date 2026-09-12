@@ -18,16 +18,14 @@ extension StatusItemController {
                 view.applySize(width: width, height: PersistentRefreshRowMetrics.defaults.rowHeight)
                 continue
             }
-            guard let view = item.view, view is any MenuCardMeasuring else { continue }
+            guard let view = item.view, let measuring = view as? any MenuCardMeasuring else { continue }
             guard abs(view.frame.width - width) > 0.5 else { continue }
             let id = item.representedObject as? String ?? "menuCard"
             let scope = self.menuProvider(for: menu)?.rawValue ?? id
             let height = self.cachedMenuCardHeight(for: id, scope: scope, width: width) {
                 self.menuCardHeight(for: view, width: width)
             }
-            view.frame = NSRect(
-                origin: .zero,
-                size: NSSize(width: width, height: height))
+            measuring.applyMeasuredSize(width: width, height: height)
         }
     }
 
@@ -89,7 +87,7 @@ extension StatusItemController {
         {
             self.menuCardHeight(for: hosting, width: width)
         }
-        hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: height))
+        hosting.applyMeasuredSize(width: width, height: height)
         return self.makeMenuCardNSMenuItem(
             hosting: hosting,
             id: id,

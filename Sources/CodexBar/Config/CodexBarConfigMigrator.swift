@@ -31,6 +31,7 @@ struct CodexBarConfigMigrator {
     static func loadOrMigrate(
         configStore: CodexBarConfigStore,
         userDefaults: UserDefaults,
+        keychainAccessDisabled: Bool,
         stores: LegacyStores) -> CodexBarConfig
     {
         let log = CodexBarLog.logger(LogCategories.configMigration)
@@ -42,6 +43,7 @@ struct CodexBarConfigMigrator {
         // newly-added cookie-source keys are picked up on every launch.
         self.applyLegacyCookieSources(userDefaults: userDefaults, config: &config, state: &state)
         self.bindLegacyMoonshotAPIKeyRegion(config: &config, state: &state)
+        self.applyLegacyUsageVisibility(userDefaults: userDefaults, config: &config, state: &state)
 
         let migrationCompleted = userDefaults.bool(forKey: Self.legacyMigrationCompletedKey)
         if !migrationCompleted {
@@ -74,6 +76,12 @@ struct CodexBarConfigMigrator {
             return config.normalized()
         }
 
+        // A disabled Keychain read looks empty to legacy stores, not successfully migrated.
+        // Keep permitted file/default imports, but preserve cleanup and completion for a later retry.
+        guard !keychainAccessDisabled else {
+            return config.normalized()
+        }
+
         guard state.legacyLoadFailures.isEmpty else {
             log.error(
                 "Legacy migration deferred because one or more sources were unreadable",
@@ -91,6 +99,26 @@ struct CodexBarConfigMigrator {
         }
 
         return config.normalized()
+    }
+
+    private static func applyLegacyUsageVisibility(
+        userDefaults: UserDefaults,
+        config: inout CodexBarConfig,
+        state: inout MigrationState)
+    {
+        // Provider-specific by design: upgrade the two retired visibility toggles before sync reads config.
+        let legacySelections: [(UsageProvider, String, [String])] = [
+            (.codex, "codexSparkUsageVisible", ["metric:codex-spark", "metric:codex-spark-weekly"]),
+            (.claude, "claudeDailyRoutinesUsageVisible", ["metric:claude-routines"]),
+        ]
+        for (provider, key, hiddenIDs) in legacySelections {
+            guard userDefaults.object(forKey: key) as? Bool == false,
+                  let index = config.providers.firstIndex(where: { $0.id == provider.instanceID }),
+                  config.providers[index].hiddenUsageItemIDs == nil
+            else { continue }
+            config.providers[index].hiddenUsageItemIDs = hiddenIDs
+            state.didUpdate = true
+        }
     }
 
     private static func applyLegacyOrderAndToggles(

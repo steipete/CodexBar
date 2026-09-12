@@ -1,0 +1,147 @@
+{
+  "generatedAt" : "2026-08-23T05:39:37Z",
+  "host" : {
+    "codexBarVersion" : null,
+    "refreshIntervalSeconds" : 0
+  },
+  "providers" : [
+    {
+      "cost" : null,
+      "credits" : null,
+      "display" : {
+        "accentColor" : "#49A3B0",
+        "priority" : "normal",
+        "sortKey" : 0
+      },
+      "enabled" : true,
+      "error" : {
+        "code" : 1,
+        "kind" : "provider",
+        "message" : "Network error: The operation couldn’t be completed. Operation not permitted"
+      },
+      "id" : "codex",
+      "identity" : null,
+      "name" : "Codex",
+      "source" : "auto",
+      "status" : null,
+      "updatedAt" : "2026-08-23T05:39:36Z",
+      "windows" : [
+
+      ]
+    },
+    {
+      "cost" : null,
+      "credits" : null,
+      "display" : {
+        "accentColor" : "#3B82F6",
+        "priority" : "normal",
+        "sortKey" : 10
+      },
+      "enabled" : true,
+      "error" : null,
+      "id" : "opencodego",
+      "identity" : null,
+      "name" : "OpenCode Go",
+      "source" : "local",
+      "status" : null,
+      "updatedAt" : "2026-08-23T05:39:32Z",
+      "windows" : [
+        {
+          "kind" : "session",
+          "label" : "5-hour",
+          "remainingPercent" : 100,
+          "resetAt" : "2026-08-23T10:39:32Z",
+          "usedPercent" : 0
+        },
+        {
+          "kind" : "weekly",
+          "label" : "Weekly",
+          "remainingPercent" : 92.1,
+          "resetAt" : "2026-08-23T23:59:59Z",
+          "usedPercent" : 7.9
+        },
+        {
+          "kind" : "tertiary",
+          "label" : "Monthly",
+          "remainingPercent" : 96,
+          "resetAt" : "2026-09-20T04:11:23Z",
+          "usedPercent" : 4
+        }
+      ]
+    },
+    {
+      "cost" : null,
+      "credits" : null,
+      "display" : {
+        "accentColor" : "#60BA7E",
+        "priority" : "normal",
+        "sortKey" : 20
+      },
+      "enabled" : true,
+      "error" : {
+        "code" : 1,
+        "kind" : "provider",
+        "message" : "antigravity usage timed out"
+      },
+      "id" : "antigravity",
+      "identity" : null,
+      "name" : "Antigravity",
+      "source" : "auto",
+      "status" : null,
+      "updatedAt" : "2026-08-23T05:39:37Z",
+      "windows" : [
+
+      ]
+    },
+    {
+      "cost" : null,
+      "credits" : null,
+      "display" : {
+        "accentColor" : "#00BFA5",
+        "priority" : "normal",
+        "sortKey" : 30
+      },
+      "enabled" : true,
+      "error" : {
+        "code" : 1,
+        "kind" : "provider",
+        "message" : "The operation couldn’t be completed. Operation not permitted"
+      },
+      "id" : "cursor",
+      "identity" : null,
+      "name" : "Cursor",
+      "source" : "auto",
+      "status" : null,
+      "updatedAt" : "2026-08-23T05:39:37Z",
+      "windows" : [
+
+      ]
+    },
+    {
+      "cost" : null,
+      "credits" : null,
+      "display" : {
+        "accentColor" : "#527DF0",
+        "priority" : "normal",
+        "sortKey" : 40
+      },
+      "enabled" : true,
+      "error" : {
+        "code" : 1,
+        "kind" : "provider",
+        "message" : "The operation couldn’t be completed. Operation not permitted"
+      },
+      "id" : "deepseek",
+      "identity" : null,
+      "name" : "DeepSeek",
+      "source" : "auto",
+      "status" : null,
+      "updatedAt" : "2026-08-23T05:39:37Z",
+      "windows" : [
+
+      ]
+    }
+  ],
+  "schemaVersion" : 1,
+  "staleAfterSeconds" : 180
+}

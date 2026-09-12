@@ -46,6 +46,9 @@ extension StatusItemController {
     /// immediately re-measures the live view via `fittingSize`; that extra SwiftUI hierarchy was
     /// pure overhead on a popup-menu hot path, so callers now size the displayed view directly.
     func hostedSubviewFittingHeight(for view: NSView, width: CGFloat) -> CGFloat {
+        if let scrollView = view as? CostHistoryMenuScrollView {
+            return scrollView.fittingHeight(width: width)
+        }
         view.frame = NSRect(origin: .zero, size: NSSize(width: width, height: 1))
         view.layoutSubtreeIfNeeded()
         return view.fittingSize.height
@@ -159,6 +162,10 @@ extension StatusItemController {
 
     func refreshHostedSubviewMenu(_ menu: NSMenu) {
         let width = self.renderedMenuWidth(for: menu)
+        for item in menu.items {
+            (item.view as? CostHistoryMenuScrollView)?.updateSize(
+                width: width, maximumHeight: CostHistoryMenuScrollView.maximumHeight(for: menu))
+        }
         guard let identity = self.hostedSubviewIdentity(for: menu) else {
             self.refreshHostedSubviewHeights(in: menu)
             return
@@ -290,6 +297,7 @@ extension StatusItemController {
         return .costHistory(CostHistoryChartMenuView.renderFingerprint(
             from: snapshot,
             provider: provider,
+            hidePersonalInfo: self.settings.hidePersonalInfo,
             displayCurrencyCode: displayConversion.currencyCode,
             displayCostMultiplier: displayConversion.multiplier))
     }
@@ -441,14 +449,16 @@ extension StatusItemController {
             windowLabel: tokenSnapshot.historyLabel,
             projects: provider == .codex ? tokenSnapshot.projects : [],
             sessions: provider == .codex ? tokenSnapshot.sessions : [],
+            hidePersonalInfo: self.settings.hidePersonalInfo,
             width: width)
         let hosting = MenuHostingView(rootView: chartView)
-        hosting.applyMeasuredHeight(
+        let scrollView = CostHistoryMenuScrollView(
+            hosting: hosting,
             width: width,
-            height: self.hostedSubviewFittingHeight(for: hosting, width: width))
+            maximumHeight: CostHistoryMenuScrollView.maximumHeight(for: submenu))
 
         let chartItem = NSMenuItem()
-        chartItem.view = hosting
+        chartItem.view = scrollView
         chartItem.isEnabled = true
         chartItem.representedObject = Self.costHistoryChartID
         chartItem.toolTip = provider.rawValue

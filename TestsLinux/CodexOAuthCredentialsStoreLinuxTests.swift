@@ -18,7 +18,9 @@ struct CodexOAuthCredentialsStoreLinuxTests {
             accountId: "account-123",
             lastRefresh: Date())
 
-        try CodexOAuthCredentialsStore.save(credentials, env: ["CODEX_HOME": codexHome.path])
+        try CodexCredentialFileAccess.withFixtureScope(.init(roots: [codexHome])) {
+            try CodexOAuthCredentialsStore.save(credentials, env: ["CODEX_HOME": codexHome.path])
+        }
 
         let authURL = codexHome.appendingPathComponent("auth.json")
         let attributes = try FileManager.default.attributesOfItem(atPath: authURL.path)

@@ -16,6 +16,7 @@ struct OpenCodeGoProviderImplementation: ProviderImplementation {
         _ = settings.opencodegoCookieSource
         _ = settings.opencodegoCookieHeader
         _ = settings.opencodegoWorkspaceID
+        _ = settings[providerConfig: .opencodego, field: .apiKey]
     }
 
     @MainActor
@@ -87,6 +88,16 @@ struct OpenCodeGoProviderImplementation: ProviderImplementation {
     @MainActor
     func settingsFields(context: ProviderSettingsContext) -> [ProviderSettingsFieldDescriptor] {
         [
+            ProviderSettingsFieldDescriptor(
+                id: "opencodego-api-key",
+                title: "API key",
+                subtitle: "Preferred for Go usage limits. Also reads OPENCODE_API_KEY.",
+                kind: .secure,
+                placeholder: "OpenCode API key",
+                binding: context.providerConfigBinding(.apiKey),
+                actions: [],
+                isVisible: nil,
+                onActivate: nil),
             ProviderSettingsFieldDescriptor(
                 id: "opencodego-workspace-id",
                 title: "Workspace ID",

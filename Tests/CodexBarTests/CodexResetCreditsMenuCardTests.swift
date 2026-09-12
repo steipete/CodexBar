@@ -1,5 +1,7 @@
+import AppKit
 import CodexBarCore
 import Foundation
+import SwiftUI
 import Testing
 @testable import CodexBar
 
@@ -89,16 +91,113 @@ struct CodexResetCreditsMenuCardTests {
     }
 
     @Test
-    func `hosted usage model keeps reset inventory compatible with live refresh`() throws {
+    func `changing reset credit countdown keeps hosted layout compatible`() throws {
+        let (current, candidate) = try Self.weeklyResetTransitionModels()
+
+        #expect(current.codexResetCredits?.expirySummaryText == "1d 6h")
+        #expect(candidate.codexResetCredits?.expirySummaryText == "18h")
+        #expect(current.codexResetCredits != candidate.codexResetCredits)
+        #expect(current.hasCompatibleTrackedLayout(with: candidate))
+    }
+
+    @Test
+    func `metric metadata may disappear but cannot appear in frozen tracked layout`() throws {
+        let (withMetadata, withoutMetadata) = try Self.weeklyResetTransitionModels()
+        let currentWeekly = try #require(withMetadata.metrics.first { $0.id == "secondary" })
+        let candidateWeekly = try #require(withoutMetadata.metrics.first { $0.id == "secondary" })
+
+        #expect(currentWeekly.linePresentation(title: currentWeekly.title).metaText != nil)
+        #expect(candidateWeekly.linePresentation(title: candidateWeekly.title).metaText == nil)
+        #expect(withMetadata.hasCompatibleTrackedLayout(with: withoutMetadata))
+        #expect(!withoutMetadata.hasCompatibleTrackedLayout(with: withMetadata))
+    }
+
+    @MainActor
+    @Test
+    func `tracked refresh rejects a different account even while personal information is hidden`() throws {
         let now = Date(timeIntervalSince1970: 1_781_726_400)
-        let model = try Self.model(
-            snapshot: Self.snapshot(
-                now: now,
-                credits: [Self.credit(id: "finite", status: .available, now: now, expiresIn: 86400)]),
+        let snapshot = Self.snapshot(
+            now: now,
+            credits: [Self.credit(id: "finite", status: .available, now: now, expiresIn: 86400)])
+        let frozen = try Self.model(
+            snapshot: snapshot,
+            email: "first@example.com",
+            hidePersonalInfo: true,
+            now: now)
+        let switched = try Self.model(
+            snapshot: snapshot,
+            email: "second@example.com",
+            hidePersonalInfo: true,
+            now: now)
+        let sameAccount = try Self.model(
+            snapshot: snapshot,
+            email: " FIRST@EXAMPLE.COM ",
+            hidePersonalInfo: true,
+            now: now)
+        let firstWorkspace = try Self.model(
+            snapshot: snapshot,
+            email: "shared@example.com",
+            accountID: "first-workspace",
+            hidePersonalInfo: true,
+            now: now)
+        let secondWorkspace = try Self.model(
+            snapshot: snapshot,
+            email: "shared@example.com",
+            accountID: "second-workspace",
+            hidePersonalInfo: true,
             now: now)
 
-        #expect(model.codexResetCredits != nil)
-        #expect(model.hasCompatibleTrackedLayout(with: model))
+        #expect(frozen.email == switched.email)
+        #expect(frozen.accountIdentityFingerprint != switched.accountIdentityFingerprint)
+        #expect(frozen.accountIdentityFingerprint == sameAccount.accountIdentityFingerprint)
+        #expect(firstWorkspace.accountIdentityFingerprint != secondWorkspace.accountIdentityFingerprint)
+        #expect(!frozen.hasCompatibleTrackedLayout(with: switched))
+        #expect(!switched.hasCompatibleTrackedLayout(with: frozen))
+        #expect(!firstWorkspace.hasCompatibleTrackedLayout(with: secondWorkspace))
+        #expect(frozen.hasCompatibleTrackedLayout(with: sameAccount))
+
+        let monitor = MenuCardRefreshMonitor(
+            resolveModel: { _ in switched },
+            isProviderRefreshActive: { _ in false })
+        monitor.beginManualRefresh(frozenModels: [.codex: frozen], provider: .codex)
+        #expect(!monitor.publishResolvedModelIfCompatible(for: .codex))
+        #expect(monitor.model(for: .codex, fallback: frozen).accountIdentityFingerprint
+            == frozen.accountIdentityFingerprint)
+    }
+
+    @MainActor
+    @Test
+    func `refresh monitor publishes reset usage when reset credit countdown changes`() throws {
+        let (frozen, resolved) = try Self.weeklyResetTransitionModels()
+        let frozenResetText = try #require(frozen.metrics.first { $0.id == "secondary" }?.resetText)
+        let resolvedResetText = try #require(resolved.metrics.first { $0.id == "secondary" }?.resetText)
+        let monitor = MenuCardRefreshMonitor(
+            resolveModel: { _ in resolved },
+            isProviderRefreshActive: { _ in false })
+        monitor.beginManualRefresh(frozenModels: [.codex: frozen], provider: .codex)
+
+        #expect(resolvedResetText.count > frozenResetText.count)
+        #expect(monitor.publishResolvedModelIfCompatible(for: .codex))
+        let visible = monitor.model(for: .codex, fallback: frozen)
+        #expect(visible.metrics.map(\.percent) == resolved.metrics.map(\.percent))
+        #expect(visible.metrics.map(\.percent) != frozen.metrics.map(\.percent))
+        #expect(visible.codexResetCredits == resolved.codexResetCredits)
+
+        let width: CGFloat = 320
+        let constraint = CGSize(width: width, height: .greatestFiniteMagnitude)
+        let frozenSize = NSHostingController(rootView: UsageMenuCardUsageSectionView(
+            model: frozen,
+            layoutModel: frozen,
+            showBottomDivider: false,
+            bottomPadding: 6,
+            width: width)).sizeThatFits(in: constraint)
+        let resolvedSize = NSHostingController(rootView: UsageMenuCardUsageSectionView(
+            model: resolved,
+            layoutModel: frozen,
+            showBottomDivider: false,
+            bottomPadding: 6,
+            width: width)).sizeThatFits(in: constraint)
+        #expect(abs(resolvedSize.height - frozenSize.height) < 0.5)
     }
 
     @Test
@@ -115,42 +214,124 @@ struct CodexResetCreditsMenuCardTests {
         #expect(model.hasCompatibleTrackedLayout(with: model))
     }
 
+    @Test
+    func `adding or removing reset inventory requires hosted layout rebuild`() throws {
+        let now = Date(timeIntervalSince1970: 1_781_726_400)
+        let withInventory = try Self.model(
+            snapshot: Self.snapshot(
+                now: now,
+                credits: [Self.credit(id: "finite", status: .available, now: now, expiresIn: 86400)]),
+            now: now)
+        let withoutInventory = try Self.model(
+            snapshot: UsageSnapshot(primary: nil, secondary: nil, updatedAt: now),
+            now: now)
+
+        #expect(!withInventory.hasCompatibleTrackedLayout(with: withoutInventory))
+        #expect(!withoutInventory.hasCompatibleTrackedLayout(with: withInventory))
+    }
+
+    private static func weeklyResetTransitionModels() throws -> (
+        frozen: UsageMenuCardView.Model,
+        resolved: UsageMenuCardView.Model)
+    {
+        let now = Date(timeIntervalSince1970: 1_781_726_400)
+        let later = now.addingTimeInterval(12 * 60 * 60)
+        let credit = Self.credit(id: "finite", status: .available, now: now, expiresIn: 30 * 60 * 60)
+        let frozen = try Self.model(
+            snapshot: Self.snapshot(
+                now: now,
+                primary: RateWindow(
+                    usedPercent: 45,
+                    windowMinutes: 300,
+                    resetsAt: now.addingTimeInterval(24 * 60 * 60),
+                    resetDescription: nil),
+                secondary: RateWindow(
+                    usedPercent: 18,
+                    windowMinutes: 10080,
+                    resetsAt: now.addingTimeInterval(2 * 24 * 60 * 60),
+                    resetDescription: nil),
+                credits: [credit]),
+            now: now)
+        let resolved = try Self.model(
+            snapshot: Self.snapshot(
+                now: later,
+                primary: RateWindow(
+                    usedPercent: 45,
+                    windowMinutes: 300,
+                    resetsAt: now.addingTimeInterval(24 * 60 * 60),
+                    resetDescription: nil),
+                secondary: RateWindow(
+                    usedPercent: 0,
+                    windowMinutes: 10080,
+                    resetsAt: now.addingTimeInterval(9 * 24 * 60 * 60),
+                    resetDescription: nil),
+                credits: [credit]),
+            now: later)
+        return (frozen, resolved)
+    }
+
     private static func model(
         snapshot: UsageSnapshot,
+        email: String? = nil,
+        accountID: String? = nil,
         showOptionalUsage: Bool = true,
         resetStyle: ResetTimeDisplayStyle = .countdown,
+        hidePersonalInfo: Bool = false,
         now: Date) throws -> UsageMenuCardView.Model
     {
+        let snapshot = email.map {
+            snapshot.withIdentity(ProviderIdentitySnapshot(
+                providerID: .codex,
+                accountEmail: $0,
+                accountOrganization: nil,
+                loginMethod: nil,
+                accountID: accountID))
+        } ?? snapshot
         let metadata = try #require(ProviderDefaults.metadata[.codex])
+        let codexProjection = CodexConsumerProjection.make(
+            surface: .liveCard,
+            context: CodexConsumerProjection.Context(
+                snapshot: snapshot,
+                rawUsageError: nil,
+                liveCredits: nil,
+                rawCreditsError: nil,
+                liveDashboard: nil,
+                rawDashboardError: nil,
+                dashboardAttachmentAuthorized: false,
+                dashboardRequiresLogin: false,
+                now: now))
         return UsageMenuCardView.Model.make(UsageMenuCardView.Model.Input(
             provider: .codex,
             metadata: metadata,
             snapshot: snapshot,
+            codexProjection: codexProjection,
             credits: nil,
             creditsError: nil,
             dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,
-            account: AccountInfo(email: nil, plan: nil),
+            account: AccountInfo(email: email, plan: nil),
             isRefreshing: false,
             lastError: nil,
             usageBarsShowUsed: false,
             resetTimeDisplayStyle: resetStyle,
             tokenCostUsageEnabled: false,
             showOptionalCreditsAndExtraUsage: showOptionalUsage,
-            hidePersonalInfo: false,
+            hidePersonalInfo: hidePersonalInfo,
             now: now))
     }
 
     private static func snapshot(
         now: Date,
+        primary: RateWindow? = nil,
+        secondary: RateWindow? = nil,
         credits: [CodexRateLimitResetCredit],
         availableCount: Int? = nil) -> UsageSnapshot
     {
         UsageSnapshot(
-            primary: nil,
-            secondary: nil,
+            primary: primary,
+            secondary: secondary,
             codexResetCredits: CodexRateLimitResetCreditsSnapshot(
                 credits: credits,
                 availableCount: availableCount ?? credits.count,

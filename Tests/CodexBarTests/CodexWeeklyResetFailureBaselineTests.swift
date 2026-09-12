@@ -6,7 +6,7 @@ import Testing
 @MainActor
 extension CodexAccountScopedRefreshTests {
     @Test
-    func `hard failure keeps trusted weekly baseline for later low observations`() async {
+    func `hard failure keeps trusted weekly baseline when a low lacks strong evidence`() async {
         let suite = "CodexWeeklyResetFailureBaselineTests-hard-failure"
         let email = "failure-baseline@example.com"
         let settings = self.makeSettingsStore(suite: suite)
@@ -65,17 +65,19 @@ extension CodexAccountScopedRefreshTests {
         #expect(primaryOnlyPublishedAt == primaryOnly.updatedAt)
         #expect(store.snapshots[.codex]?.secondary == nil)
 
+        let initialLow = self.codexWeeklySnapshot(
+            email: email,
+            weeklyUsedPercent: 0.2,
+            weeklyReset: boundary,
+            updatedAt: now.addingTimeInterval(-30))
+        let confirmedLow = self.codexWeeklySnapshot(
+            email: email,
+            weeklyUsedPercent: 0.5,
+            weeklyReset: boundary,
+            updatedAt: now.addingTimeInterval(-20))
         let loader = SequencedCodexSnapshotLoader(steps: [
-            .success(self.codexWeeklySnapshot(
-                email: email,
-                weeklyUsedPercent: 0.2,
-                weeklyReset: boundary,
-                updatedAt: now.addingTimeInterval(-30))),
-            .success(self.codexWeeklySnapshot(
-                email: email,
-                weeklyUsedPercent: 0.5,
-                weeklyReset: boundary,
-                updatedAt: now.addingTimeInterval(-20))),
+            .success(initialLow),
+            .success(confirmedLow),
         ])
         self.installContextualCodexProvider(on: store) { _ in try await loader.load() }
 

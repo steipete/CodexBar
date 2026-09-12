@@ -5,6 +5,15 @@ sessions, models, and days. This foundation is local-only library behavior; it
 does not add a remote API, provider authentication flow, billing interface, or
 public CLI JSON contract.
 
+## Internal navigation scaffold
+
+Debug builds can expose a Codex-only **Workspaces** menu action with
+`CODEXBAR_ENABLE_WORKSPACES_MENU=1`. It opens one reusable native window showing
+**No data yet**; this preparatory navigation slice does not load the index,
+start scans, read account data, or persist window geometry. Release builds
+always disable this gate, even if the environment variable is present. A
+data-backed inspector and an explicit user opt-in remain separate follow-ups.
+
 ## Data flow
 
 `CostUsageScanner` remains authoritative for JSONL parsing, cumulative-token

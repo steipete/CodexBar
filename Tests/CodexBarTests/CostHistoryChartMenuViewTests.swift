@@ -7,6 +7,81 @@ import Testing
 // swiftlint:disable:next type_body_length
 struct CostHistoryChartMenuViewTests {
     @Test
+    func `privacy masks project and source identity without changing visible costs or grouping`() {
+        let projects = Self.makeProjects(count: 6, sourcesPerProject: 3)
+        let snapshot = Self.makeSnapshot(projects: projects)
+        let original = CostHistoryChartMenuView.renderFingerprint(from: snapshot, provider: .codex)
+        let hidden = CostHistoryChartMenuView.renderFingerprint(
+            from: snapshot, provider: .codex, hidePersonalInfo: true)
+
+        #expect(hidden != original)
+        #expect(hidden.hidePersonalInfo)
+        #expect(hidden.daily == original.daily)
+        #expect(hidden.sessions == original.sessions)
+        #expect(hidden.totalCostBitPattern == original.totalCostBitPattern)
+        #expect(hidden.projects.count == original.projects.count)
+        for (index, pair) in zip(original.projects, hidden.projects).enumerated() {
+            #expect(pair.1.name == L("Project %d", index + 1))
+            #expect(pair.1.path == nil)
+            #expect(pair.1.totalTokens == pair.0.totalTokens)
+            #expect(pair.1.totalCostBitPattern == pair.0.totalCostBitPattern)
+            #expect(pair.1.visibleSourceCount == 3)
+            #expect(pair.1.sources.count == 2)
+            for (sourceIndex, sources) in zip(pair.0.sources, pair.1.sources).enumerated() {
+                #expect(sources.1.name == L("Source %d", sourceIndex + 1))
+                #expect(sources.1.path == nil)
+                #expect(sources.1.totalTokens == sources.0.totalTokens)
+                #expect(sources.1.totalCostBitPattern == sources.0.totalCostBitPattern)
+            }
+        }
+        #expect(snapshot.projects == projects)
+        #expect(CostHistoryChartMenuView.renderFingerprint(
+            from: snapshot, provider: .codex, hidePersonalInfo: false) == original)
+    }
+
+    @Test
+    func `privacy preserves differing single sources and hides pathless names`() {
+        let samePath = Self.project(path: "/Users/example/project", sourcePath: "/Users/example/project")
+        let worktree = Self.project(path: "/Users/example/project", sourcePath: "/Users/example/worktree")
+        let snapshot = Self.makeSnapshot(projects: [samePath, worktree])
+        let hidden = CostHistoryChartMenuView.renderFingerprint(
+            from: snapshot, provider: .codex, hidePersonalInfo: true)
+        #expect(hidden.projects[0].sources.isEmpty)
+        #expect(hidden.projects[1].sources.count == 1)
+        #expect(hidden.projects[1].sources[0].path == nil)
+
+        let identity = CostHistoryIdentity(
+            name: "private-project-name", path: nil, placeholder: "Project 1", hidePersonalInfo: true)
+        #expect(identity.name == "Project 1")
+        #expect(identity.path == nil)
+    }
+
+    @Test
+    func `spend project privacy preserves raw identity and numbers for every rank`() {
+        for rank in 1...12 {
+            let row = SpendDashboardModel.ProjectRow(
+                rank: rank,
+                provider: .codex,
+                providerName: "Codex",
+                sourceID: "codex",
+                projectName: "private-project-\(rank)",
+                path: "/Users/example/Projects/private-project-\(rank)",
+                totalTokens: rank * 100,
+                totalCost: Double(rank))
+            let original = row
+            let visible = row.displayIdentity(hidePersonalInfo: false)
+            let hidden = row.displayIdentity(hidePersonalInfo: true)
+            #expect(visible.name == row.projectName)
+            #expect(visible.path == row.path)
+            #expect(hidden.name == L("Project %d", rank))
+            #expect(hidden.path == nil)
+            #expect(row == original)
+            #expect(row.id == original.id)
+            #expect(row.displayIdentity(hidePersonalInfo: false) == visible)
+        }
+    }
+
+    @Test
     func `partial Codex token history is marked refreshing until coverage completes`() {
         #expect(CostHistoryChartMenuView._showsHistoryRefreshingForTesting(
             provider: .codex,
@@ -878,6 +953,7 @@ struct CostHistoryChartMenuViewTests {
             provider: .codex,
             daily: daily,
             totalCostUSD: nil,
+            hidePersonalInfo: false,
             width: 320))
         hosting.frame = CGRect(x: 0, y: 0, width: 320, height: 1)
         hosting.layoutSubtreeIfNeeded()

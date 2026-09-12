@@ -287,6 +287,49 @@ struct StatusMenuCodexSwitcherPresentationTests {
     }
 
     @Test
+    func `codex account snapshot store roundtrips monthly credit limits`() {
+        let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: fileURL) }
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let credits = CreditsSnapshot(
+            remaining: 0,
+            events: [],
+            updatedAt: now,
+            codexCreditLimit: CodexCreditLimitSnapshot(
+                used: 27,
+                limit: 1000,
+                remainingPercent: 73,
+                resetsAt: nil,
+                updatedAt: now))
+
+        let account = CodexVisibleAccount(
+            id: "biz@example.com",
+            email: "biz@example.com",
+            workspaceAccountID: "acct-biz",
+            storedAccountID: nil,
+            selectionSource: .liveSystem,
+            isActive: true,
+            isLive: true,
+            canReauthenticate: true,
+            canRemove: false)
+        let store = FileCodexAccountUsageSnapshotStore(fileURL: fileURL)
+        store.store([
+            CodexAccountUsageSnapshot(
+                account: account,
+                snapshot: self.snapshot(email: account.email, percent: 0),
+                error: nil,
+                sourceLabel: "oauth",
+                credits: credits),
+        ])
+
+        let hydrated = store.load(for: [account])
+
+        #expect(hydrated.first?.credits?.codexCreditLimit?.used == 27)
+        #expect(hydrated.first?.credits?.codexCreditLimit?.limit == 1000)
+        #expect(hydrated.first?.credits?.codexCreditLimit?.remainingPercent == 73)
+    }
+
+    @Test
     func `codex account snapshot store rejects mismatched workspace records`() {
         let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: fileURL) }

@@ -43,6 +43,7 @@ defineProvider({
       `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")} ${String(date.getUTCHours()).padStart(2, "0")}:${String(date.getUTCMinutes()).padStart(2, "0")}:${String(date.getUTCSeconds()).padStart(2, "0")}`;
     let daily = [];
     let partial = false;
+    let historyAvailable = false;
     try {
       const usage = await ctx.http.postJSON(`${root}/usage`, {
         body: {
@@ -61,21 +62,29 @@ defineProvider({
         );
       }
       if (usage.status >= 200 && usage.status < 300) {
+        if (!usage.json || !Array.isArray(usage.json.timeSeries)) {
+          throw new Error("invalid xAI usage history");
+        }
         const totals = {};
-        for (const series of usage.json.timeSeries || [])
-          for (const point of series.dataPoints || []) {
+        for (const series of usage.json.timeSeries) {
+          if (!series || !Array.isArray(series.dataPoints)) {
+            throw new Error("invalid xAI usage history");
+          }
+          for (const point of series.dataPoints) {
             const date = new Date(point.timestamp);
-            const value = (point.values || [0])[0] || 0;
-            if (!Number.isFinite(date.getTime()) || typeof value !== "number" || !Number.isFinite(value)) {
+            const value = Array.isArray(point.values) ? point.values[0] : undefined;
+            if (!Number.isFinite(date.getTime()) || typeof value !== "number" || !Number.isFinite(value) || value < 0) {
               throw new Error("invalid xAI usage history");
             }
             const day = date.toISOString().slice(0, 10);
             totals[day] = (totals[day] || 0) + value;
           }
+        }
         daily = Object.keys(totals)
           .sort()
           .map((day) => ({ label: day, value: totals[day] }));
         partial = usage.json.limitReached === true;
+        historyAvailable = true;
       }
     } catch (error) {
       if (/rejected the Management API key/.test(error.message)) throw error;
@@ -94,7 +103,9 @@ defineProvider({
               value: `$${daily.reduce((sum, point) => sum + point.value, 0).toFixed(2)}`,
             },
           ],
-          chart: daily.length ? { kind: "bars", title: "Daily spend", unit: "USD", points: daily } : undefined,
+          // Emit an empty chart on successful history so spend mapping can tell
+          // "zero days" from "analytics unavailable".
+          chart: historyAvailable ? { kind: "bars", title: "Daily spend", unit: "USD", points: daily } : undefined,
         },
       ],
     };

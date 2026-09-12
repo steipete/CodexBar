@@ -88,6 +88,10 @@ final class CodexAccountPromotionCoordinator {
                 L("CodexBar could not find saved auth for that account. Re-authenticate it and try again.")
             case .targetManagedAccountAuthUnreadable:
                 L("CodexBar could not read saved auth for that account. Re-authenticate it and try again.")
+            case .targetManagedAccountWorkspaceDiffersFromAuthDefault:
+                L(
+                    "That managed account uses a workspace that differs from its saved Codex auth default. " +
+                        "Keep it as a managed account; CodexBar will not rewrite Codex-owned auth to promote it.")
             case .liveAccountUnreadable:
                 L("CodexBar could not read the current system account on this Mac.")
             case .liveAccountMissingIdentityForPreservation:

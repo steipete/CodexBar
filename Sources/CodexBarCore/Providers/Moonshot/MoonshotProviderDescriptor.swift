@@ -71,6 +71,12 @@ public enum MoonshotProviderDescriptor {
                 supportsTokenCost: false,
                 noDataMessage: { "Moonshot / Kimi Open Platform cost summary is not available." }),
             presentation: ProviderUsagePresentation(
+                identityPresenter: { provider, snapshot in
+                    guard let balance = snapshot.loginMethod(for: provider), !balance.isEmpty else {
+                        return ProviderIdentityPresentation(badge: nil, plan: nil)
+                    }
+                    return ProviderIdentityPresentation(badge: balance, plan: balance)
+                },
                 planRow: ProviderPlanRowPresentation(label: "Balance", stripsBalancePrefix: true)),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .api],

@@ -54,6 +54,7 @@ extension CostUsageScanner {
         var modelsDevCatalog: ModelsDevCatalog
         var modelsDevCacheRoot: URL?
         var customPricing: CostUsageCustomPricing
+        var pricingResolver: CostUsagePricing.CodexResolver
     }
 
     static func unmeteredForkReportEntry(day: String, unmetered: Int) -> CostUsageDailyReport.Entry? {
@@ -73,9 +74,14 @@ extension CostUsageScanner {
         day: String,
         models: [String: [Int]],
         unmetered: Int,
-        pricing: CodexReportDayPricingContext) -> CostUsageDailyReport.Entry
+        pricing: CodexReportDayPricingContext) -> CostUsageDailyReport.Entry?
     {
-        let modelNames = models.keys.sorted()
+        let modelNames = models.keys
+            .filter { OpenCodexRouteDispatcher.countsTowardCodexSubscription(modelName: $0) }
+            .sorted()
+        if modelNames.isEmpty {
+            return Self.unmeteredForkReportEntry(day: day, unmetered: unmetered)
+        }
         var dayInput = 0
         var dayCacheRead = 0
         var dayOutput = 0
@@ -85,6 +91,7 @@ extension CostUsageScanner {
         var dayCostSeen = false
 
         for model in modelNames {
+            guard OpenCodexRouteDispatcher.countsTowardCodexSubscription(modelName: model) else { continue }
             let packed = models[model] ?? [0, 0, 0]
             let input = packed[safe: 0] ?? 0
             let cached = packed[safe: 1] ?? 0
@@ -105,7 +112,8 @@ extension CostUsageScanner {
                 priorityTurns: pricing.priorityTurns,
                 modelsDevCatalog: pricing.modelsDevCatalog,
                 modelsDevCacheRoot: pricing.modelsDevCacheRoot,
-                customPricing: pricing.customPricing)
+                customPricing: pricing.customPricing,
+                pricingResolver: pricing.pricingResolver)
             let group = CodexDayModelKey(day: day, model: model)
             let rowCostIsTrusted = !pricing.unresolvedRowGroups.contains(group)
                 && !pricing.modeOwnershipMismatchGroups.contains(group)
@@ -116,14 +124,16 @@ extension CostUsageScanner {
                     && pricing.authoritativeCostEvidenceGroups.contains(group))
                 || rowCost?.hasIncompletePricing == true
                 ? nil
-                : CostUsagePricing.codexAggregateCostUSD(
+                : CostUsagePricing.codexCostUSD(
+                    aggregate: true,
                     model: model,
                     inputTokens: input,
                     cachedInputTokens: cached,
                     outputTokens: output,
                     modelsDevCatalog: pricing.modelsDevCatalog,
                     modelsDevCacheRoot: pricing.modelsDevCacheRoot,
-                    customPricing: pricing.customPricing)
+                    customPricing: pricing.customPricing,
+                    pricingResolver: pricing.pricingResolver)
             let cost = rowCostIsTrusted
                 ? rowCost?.totalCostUSD ?? aggregateCost
                 : aggregateCost
@@ -178,7 +188,8 @@ extension CostUsageFileUsage {
 
         // Missing-parent forks keep empty billed days on purpose. Session timestamps still
         // place them in the scan window so force-rescan prune cannot drop the unmetered gap.
-        let isIncompleteFork = self.codexBufferedUnresolvedForkLines != nil
+        let isIncompleteFork = (self.codexReadRetryBufferPresence?.unresolvedFork
+            ?? (self.codexBufferedUnresolvedForkLines != nil))
             || CostUsageScanner.isUnresolvedMissingParentFork(self)
         guard isIncompleteFork else { return false }
 

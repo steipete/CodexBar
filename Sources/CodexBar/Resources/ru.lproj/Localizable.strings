@@ -45,6 +45,7 @@
 "hooks_any_provider" = "Любой провайдер";
 "hooks_threshold" = "Запускать при использовании ≥";
 "hooks_threshold_placeholder" = "90";
+"hooks_executable" = "Исполняемый файл";
 "hooks_executable_placeholder" = "/usr/local/bin/my-command";
 "hooks_arguments_placeholder" = "Аргументы";
 "hooks_argument_placeholder" = "Аргумент";
@@ -241,6 +242,7 @@
 "No cost history data." = "Нет истории расходов.";
 "No data available" = "Нет доступных данных";
 "No data yet" = "Данных пока нет";
+"Workspaces" = "Рабочие пространства";
 "No enabled providers available for Overview." = "Нет включённых провайдеров для обзора.";
 "No providers selected" = "Провайдеры не выбраны";
 "No token accounts yet." = "Токен-аккаунтов пока нет.";
@@ -515,7 +517,6 @@
 "provider_accent_color_reset" = "Использовать по умолчанию";
 "quota_warnings_title" = "Предупреждения о квотах";
 "quota_warning_session" = "сеанс";
-"quota_warning_session_capitalized" = "Сеанс";
 "quota_warning_weekly" = "неделя";
 "quota_warning_weekly_capitalized" = "Неделя";
 "quota_warning_notification_title" = "Низкая квота %1$@ %2$@";
@@ -618,6 +619,8 @@
 "display_mode_subtitle" = "Выберите, что показывать в строке меню: темп сравнивает фактическое использование с ожидаемым.";
 "show_quota_warning_markers_title" = "Показывать маркеры предупреждений о квоте";
 "show_quota_warning_markers_subtitle" = "Рисует отметки порогов на индикаторах использования, если настроены предупреждения о квотах.";
+"show_pace_title" = "Показывать темп";
+"show_pace_subtitle" = "Показывает полосу опережения или отставания и текст прогноза на полосах использования.";
 "weekly_progress_work_days_title" = "Рабочие дни для недельного прогресса";
 "weekly_progress_work_days_subtitle" = "Задаёт рабочие дни для недельных отметок использования и расчёта темпа.";
 "workday_tick_appearance_title" = "Вид отметок рабочих дней";
@@ -654,6 +657,8 @@
 "section_keyboard_shortcut" = "Сочетание клавиш";
 "open_menu_shortcut_title" = "Открыть меню";
 "open_menu_shortcut_subtitle" = "Вызывать меню строки меню из любого места.";
+"record_shortcut" = "Добавить";
+"press_shortcut" = "Запись…";
 "install_cli" = "Установить CLI";
 "install_cli_subtitle" = "Создать symlink CodexBarCLI как codexbar в /usr/local/bin и /opt/homebrew/bin.";
 "cli_not_found" = "CodexBarCLI не найден в комплекте приложения.";
@@ -664,6 +669,9 @@
 "surprise_me_subtitle" = "Включите, если хотите немного оживить индикаторы агентов в строке меню.";
 "hide_personal_info_title" = "Скрыть личную информацию";
 "hide_personal_info_subtitle" = "Скрывает email-адреса в строке меню и интерфейсе меню.";
+"hide_cost_history_identity_subtitle" = "Также скрывает названия и пути проектов и источников в истории расходов, не изменяя сохранённые данные.";
+"Project %d" = "Проект %d";
+"Source %d" = "Источник %d";
 "show_provider_storage_usage_title" = "Показать использование хранилища провайдера";
 "show_provider_storage_usage_subtitle" = "Показывать использование локального диска в меню. Сканирует известные пути, принадлежащие провайдеру, в фоновом режиме.";
 "section_keychain_access" = "Доступ к Keychain";
@@ -932,6 +940,7 @@
 "Monthly" = "Ежемесячно";
 "Sonnet" = "Sonnet";
 "Overages" = "Перерасходы";
+"Overage" = "Перерасход";
 "Activity" = "Активность";
 "Copied" = "Скопировано";
 "Copy error" = "Ошибка копирования";
@@ -942,6 +951,7 @@
 "Balance updates in near-real time (up to 5 min lag)" = "Обновления баланса практически в реальном времени (с задержкой до 5 минут)";
 "Daily billing data finalizes at 07:00 UTC" = "Данные ежедневного биллинга фиксируются в 07:00 UTC";
 "%@ of %@ credits left" = "Осталось %@ из %@ кредитов";
+"of %@" = "из %@";
 "%@ of %@ bonus credits left" = "Осталось %@ из %@ бонусных кредитов";
 "%@ / %@ (%@ remaining)" = "%@ / %@ (осталось %@)";
 "%@/%@ left" = "%@/%@ осталось";
@@ -953,6 +963,7 @@
 "Full in ~1 regen" = "Заполнится примерно за 1 пополнение";
 "Full in ~%.0f regens" = "Заполнится примерно за %.0f пополнений";
 "Overage usage" = "Перерасход";
+"Overage credits left" = "Оставшиеся кредиты перерасхода";
 "Overage cost" = "Стоимость перерасхода";
 "credits" = "кредиты";
 "Zen balance" = "Баланс Zen";
@@ -1329,6 +1340,12 @@
 "By subscription" = "По подпискам";
 "No model-level history" = "Нет истории по моделям";
 "Daily estimated spend" = "Предполагаемые ежедневные расходы";
+"Hourly estimated spend" = "Предполагаемые почасовые расходы";
+"Hour" = "Час";
+"%d hours of usage data across %d services" = "%d часов данных использования по %d службам";
+"1 hour of usage data across 1 service" = "1 час данных использования по 1 службе";
+"%d hours of usage data across 1 service" = "%d часов данных использования по 1 службе";
+"1 hour of usage data across %d services" = "1 час данных использования по %d службам";
 "≈%d full 5h windows of weekly left · %d windows until reset" = "≈%d полных 5-часовых окон недельного лимита · %d окон до сброса";
 "Weekly cannot run out before reset at this pace" = "При таком темпе недельный лимит не может закончиться до сброса";
 "Weekly can run out ≈%d windows early" = "Недельный лимит может закончиться на ≈%d окон раньше";
@@ -1358,6 +1375,9 @@
 "menu_bar_layout_preset_compact_stacked" = "Компактно в две строки";
 "menu_bar_layout_preset_custom" = "Пользовательский";
 "menu_bar_layout_live_preview" = "Предпросмотр";
+"menu_bar_layout_default_preview" = "Предпросмотр макета по умолчанию";
+"menu_bar_layout_overrides_notice" = "Эти включённые провайдеры используют собственные сохранённые макеты:";
+"menu_bar_layout_use_all_accessibility" = "%@: Использовать макет для всех провайдеров";
 "menu_bar_layout_strip" = "Строка меню";
 "menu_bar_layout_remove_line_break" = "Удалить разрыв строки";
 "menu_bar_layout_chip_hint" = "Выберите, перетащите для изменения порядка или используйте действие удаления.";
@@ -1365,6 +1385,7 @@
 "menu_bar_layout_empty_line" = "Перетащите элемент сюда";
 "menu_bar_layout_line" = "Строка %d";
 "menu_bar_layout_drag_remove" = "Перетащите сюда для удаления";
+"menu_bar_layout_remove_selected" = "Удалить выбранное";
 "menu_bar_layout_size" = "Размер";
 "menu_bar_layout_size_small" = "Маленький";
 "menu_bar_layout_size_regular" = "Обычный";
@@ -1424,6 +1445,7 @@
 "More" = "Больше";
 
 /* Provider Plugins */
+"Plugins" = "Plugins";
 "Install…" = "Установить…";
 "Install plugin" = "Установить плагин";
 "Copies a JavaScript or TypeScript file into the plugins directory." = "Копирует файл JavaScript или TypeScript в каталог плагинов.";
@@ -1465,6 +1487,7 @@
 "Total usage" = "Общее использование";
 "claude_oauth_keychain_access_revoked" = "Доступ к Связке ключей Claude был отозван из-за ротации токена в Claude Code. Нажмите «Обновить», чтобы повторно предоставить доступ, или переключите источник использования Claude на CLI/Web.";
 "claude_showing_last_known_usage" = "Показаны последние известные данные об использовании (получены %@).";
+"claude_limited_usage_detail" = "Ограниченная детализация использования";
 /* Spend dashboard cost analysis */
 "90d" = "90d";
 "Input" = "Input";
@@ -1485,5 +1508,49 @@
 "Include OpenCodex usage logs" = "Include OpenCodex usage logs";
 "Hide native Codex when OpenCodex is present" = "Hide native Codex when OpenCodex is present";
 "Export JSON" = "Export JSON";
+"Copy JSON" = "Копировать JSON";
 "Sources" = "Sources";
 "OpenCodex" = "OpenCodex";
+"menu_bar_layout_token_conditional" = "Условный";
+"menu_bar_layout_group_conditionals" = "Условия";
+"menu_bar_layout_conditional_add" = "Новое условие";
+"menu_bar_layout_conditional_edit" = "Изменить условие";
+"menu_bar_layout_conditional_remove" = "Удалить из библиотеки";
+"menu_bar_layout_conditional_save" = "Сохранить";
+"menu_bar_layout_conditional_if" = "Если";
+"menu_bar_layout_conditional_then" = "Показать";
+"menu_bar_layout_conditional_else" = "Иначе показать";
+"menu_bar_layout_conditional_and" = "и";
+"menu_bar_layout_conditional_or" = "или";
+"menu_bar_layout_conditional_add_condition" = "Добавить условие";
+"menu_bar_layout_conditional_none" = "Условий пока нет";
+"menu_bar_layout_conditional_hide" = "Скрыть";
+"menu_bar_layout_conditional_name" = "Название";
+"menu_bar_layout_conditional_name_placeholder" = "напр., Проверка сеанса";
+"menu_bar_layout_conditional_name_error" = "Введите уникальное название";
+"menu_bar_layout_conditional_used" = "использовано";
+"menu_bar_layout_conditional_remaining" = "осталось";
+"menu_bar_layout_conditional_metric_resets_in" = "сброс %@ через";
+"menu_bar_layout_conditional_metric_scoped_weekly" = "Недельный по области";
+"menu_bar_layout_conditional_duplicate" = "Дублировать";
+"menu_bar_layout_conditional_summary" = "Если %1$@, то показать %2$@, иначе показать %3$@";
+"menu_bar_layout_conditional_copy_name" = "%@ (копия)";
+"menu_bar_layout_conditional_copy_name_numbered" = "%1$@ (копия %2$d)";
+"menu_bar_layout_conditional_unavailable" = "Условие недоступно";
+"menu_bar_layout_conditional_default_session_busy" = "Сессия использована более 50 %";
+"menu_bar_layout_conditional_default_weekly_high" = "Неделя использована более 90 %";
+"menu_bar_layout_conditional_default_session_spent" = "Сессия почти исчерпана";
+"menu_bar_layout_conditional_default_either_high" = "Сессия или неделя на высоком уровне";
+"menu_bar_layout_conditional_default_scoped_weekly" = "Недельное окно модели более 60 %";
+"Visible usage items" = "Видимые показатели использования";
+"Restore Defaults" = "Восстановить настройки по умолчанию";
+"Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "Выберите, какие строки использования отображаются в меню этого провайдера, в предпросмотре настроек и в обзоре.";
+"%@ (unavailable)" = "%@ (недоступно)";
+"Spending cap, not balance" = "Лимит расходов, не баланс";
+
+"Color Pace Indicator" = "Цветовая индикация темпа";
+"Green pace indicator when behind pace, red when ahead of pace (risk of running out early)" = "Зелёный — расход ниже ожидаемого темпа (есть запас); красный — выше (риск досрочного исчерпания квоты).";
+"%@ weekly" = "%@ за неделю";
+
+"agent_sessions_hide_unreachable_title" = "Скрывать недоступные узлы";
+"agent_sessions_hide_unreachable_subtitle" = "Скрывать узлы, если не удалось получить их сеансы.";

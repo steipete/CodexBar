@@ -28,6 +28,11 @@ A user-initiated import or acknowledged Claude repair may attempt interactive au
 chosen to continue. Denials temporarily suppress repeated Chromium-family attempts so one browser cannot lead to a
 prompt storm across the others.
 
+Scheduled Chromium imports can recover during that denial cooldown when the current no-UI Safe Storage preflight
+explicitly confirms access. Interaction-required, missing, or failed preflights still suppress the import, and the
+actual read remains non-interactive. This recovery does not clear the user-initiated denial cooldown or override
+disabled Keychain access.
+
 Provider-owned child processes are a separate boundary. CodexBar may intentionally launch a provider CLI such as
 Claude for usage. That executable owns its credential behavior, which CodexBar cannot constrain or fully inspect.
 
@@ -41,6 +46,11 @@ when CodexBar itself has not changed.
 
 The item's accessibility class controls when its data is available, such as after the first unlock. It does not grant
 a changed executable access and does not repair a code-signature ACL mismatch.
+
+If a CodexBar-owned cache item's legacy ACL rejects the installed app, cache reads, writes, and clears share a
+five-minute cooldown. This limits repeated Security.framework validation and associated memory growth. After repairing
+or removing the stale cache item in Keychain Access, the next access after that cooldown rechecks it without requiring
+an app restart. A temporarily locked Keychain or an incomplete ACL validation remains retryable sooner.
 
 ## Allow Once and Always Allow
 
@@ -56,6 +66,11 @@ applications.” In Keychain Access, adding only the installed, stably signed `C
 
 Open **CodexBar → Settings → Advanced** and enable **Disable Keychain access**. The stored setting is applied
 immediately; relaunching is useful when diagnosing another already-running copy.
+
+Startup resolves the local preference, falling back to the current shared app-group preference only when no local
+value is stored, before legacy credential migration. While access is disabled, permitted file-backed and manual-default
+imports can still be saved, but legacy credential cleanup and migration completion remain pending for a later launch
+with access enabled.
 
 This setting blocks CodexBar-owned Security.framework item reads and writes, including foreign-item readers such as
 Zed, and disables Chromium Safe Storage decryption. Browser-cookie import that needs Keychain is skipped. It does not

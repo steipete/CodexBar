@@ -8,6 +8,26 @@ import Testing
 @Suite(.serialized)
 struct ProviderSettingsDescriptorTests {
     @Test
+    func `bedrock discloses monitoring charges before credentials in either authentication mode`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-bedrock-charges")
+        let context = fixture.settingsContext(provider: .bedrock)
+        for mode in [BedrockAuthMode.keys, .profile] {
+            fixture.settings.bedrockAuthMode = mode.rawValue
+            let groups = BedrockProviderImplementation().settingsActions(context: context)
+            let charges = try #require(groups.first { $0.id == "bedrock-monitoring-charges" })
+            let frequency = try #require(groups.first { $0.id == "bedrock-monitoring-frequency" })
+            #expect(charges.isVisible?() ?? true)
+            #expect(frequency.isVisible?() ?? true)
+            #expect(charges.subtitle.contains("per Cost Explorer request"))
+            #expect(charges.subtitle.contains("multiple requests"))
+            #expect(charges.subtitle.contains("does not cap"))
+            #expect(charges.actions.count == 1)
+            #expect(frequency.subtitle.contains("all providers"))
+            #expect(frequency.subtitle.contains("startup and explicit refreshes"))
+        }
+    }
+
+    @Test
     func `provider settings refresh enables explicit browser retry`() async {
         var observedInteraction: ProviderInteraction?
         var browserRetryAllowed = false
@@ -109,6 +129,26 @@ struct ProviderSettingsDescriptorTests {
         #expect(project.subtitle.contains(OpenAIAPISettingsReader.projectIDEnvironmentKey))
         #expect(fixture.settings[providerConfig: .openai, field: .secretWorkspace(logField: "projectID")] == "proj_abc")
         #expect(fixture.settings.providerConfig(for: .openai)?.sanitizedWorkspaceID == "proj_abc")
+    }
+
+    @Test
+    func `openrouter exposes a secure management key setting`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-openrouter-management")
+        let context = fixture.settingsContext(provider: .openrouter)
+
+        let fields = OpenRouterProviderImplementation().settingsFields(context: context)
+        let managementKey = try #require(fields.first(where: { $0.id == "openrouter-management-api-key" }))
+        managementKey.binding.wrappedValue = " fixture-management-key "
+
+        #expect(managementKey.title == "Management API key")
+        #expect(managementKey.kind == .secure)
+        #expect(managementKey.binding.wrappedValue == "fixture-management-key")
+        #expect(fixture.settings.providerConfig(for: .openrouter)?.pluginSecrets?[
+            OpenRouterSettingsReader.managementAPIKeyEnvironmentKey,
+        ] == "fixture-management-key")
+
+        managementKey.binding.wrappedValue = " "
+        #expect(fixture.settings.providerConfig(for: .openrouter)?.pluginSecrets == nil)
     }
 
     @Test
@@ -368,22 +408,17 @@ struct ProviderSettingsDescriptorTests {
     }
 
     @Test
-    func `claude daily routines toggle follows global optional usage setting`() throws {
-        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-claude-routines")
-        let context = fixture.settingsContext(provider: .claude)
-        let toggles = ClaudeProviderImplementation().settingsToggles(context: context)
-        let routinesToggle = try #require(toggles.first {
+    func `provider implementations omit superseded one-off usage visibility toggles`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-shared-usage-items")
+        let claudeContext = fixture.settingsContext(provider: .claude)
+        let codexContext = fixture.settingsContext(provider: .codex)
+
+        #expect(!ClaudeProviderImplementation().settingsToggles(context: claudeContext).contains {
             $0.id == "claude-daily-routines-usage-visible"
         })
-
-        #expect(routinesToggle.binding.wrappedValue)
-        #expect(routinesToggle.isEnabled?() == true)
-
-        routinesToggle.binding.wrappedValue = false
-        #expect(fixture.settings.claudeDailyRoutinesUsageVisible == false)
-
-        fixture.settings.showOptionalCreditsAndExtraUsage = false
-        #expect(routinesToggle.isEnabled?() == false)
+        #expect(!CodexProviderImplementation().settingsToggles(context: codexContext).contains {
+            $0.id == "codex-spark-usage-visible"
+        })
     }
 
     @Test
@@ -647,11 +682,58 @@ extension ProviderSettingsDescriptorTests {
         let pickers = implementation.settingsPickers(context: context)
         let fields = implementation.settingsFields(context: context)
         let regionPicker = try #require(pickers.first(where: { $0.id == "alibaba-token-plan-region" }))
+        let usagePicker = try #require(pickers.first(where: { $0.id == "alibaba-token-plan-usage-source" }))
+        let cookiePicker = try #require(pickers.first(where: { $0.id == "alibaba-token-plan-cookie-source" }))
 
-        #expect(pickers.contains(where: { $0.id == "alibaba-token-plan-cookie-source" }))
+        #expect(usagePicker.options.map(\.title) == ["Auto", "Bailian CLI", "Browser cookies"])
+        usagePicker.binding.wrappedValue = ProviderSourceMode.cli.rawValue
+        #expect(fixture.settings.alibabaTokenPlanUsageDataSource == .cli)
+        #expect(fixture.settings.configSnapshot.providerConfig(for: .alibabatokenplan)?.source == .cli)
+        #expect(implementation.sourceMode(context: ProviderSourceModeContext(
+            provider: .alibabatokenplan,
+            settings: fixture.settings)) == .cli)
+        #expect(implementation.defaultSourceLabel(context: ProviderSourceLabelContext(
+            provider: .alibabatokenplan,
+            settings: fixture.settings,
+            store: fixture.store,
+            descriptor: ProviderDescriptorRegistry.descriptor(for: .alibabatokenplan))) == "cli")
+        #expect(cookiePicker.isVisible?() == false)
+        usagePicker.binding.wrappedValue = ProviderSourceMode.web.rawValue
+        #expect(cookiePicker.isVisible?() == true)
+        #expect(fields.first?.isVisible?() == true)
+        usagePicker.binding.wrappedValue = ProviderSourceMode.auto.rawValue
+        #expect(fixture.settings.alibabaTokenPlanUsageDataSource == .auto)
+        #expect(fixture.settings.configSnapshot.providerConfig(for: .alibabatokenplan)?.source == .auto)
+        #expect(usagePicker.trailingText?() == nil)
         #expect(Set(regionPicker.options.map(\.id)) == ["intl", "cn", "intl-personal", "cn-personal"])
         #expect(fields.contains(where: { $0.id == "alibaba-token-plan-cookie" }))
         #expect(fields.first?.actions.contains(where: { $0.id == "alibaba-token-plan-open-dashboard" }) == true)
+    }
+
+    @Test
+    func `alibaba token plan unset source defaults to CLI first Auto`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-alibaba-token-plan-legacy")
+        let implementation = AlibabaTokenPlanProviderImplementation()
+        let context = fixture.settingsContext(provider: .alibabatokenplan)
+
+        #expect(fixture.settings.configSnapshot.providerConfig(for: .alibabatokenplan)?.source == nil)
+        #expect(fixture.settings.alibabaTokenPlanUsageDataSource == .auto)
+        #expect(implementation.sourceMode(context: ProviderSourceModeContext(
+            provider: .alibabatokenplan,
+            settings: fixture.settings)) == .auto)
+        #expect(implementation.defaultSourceLabel(context: ProviderSourceLabelContext(
+            provider: .alibabatokenplan,
+            settings: fixture.settings,
+            store: fixture.store,
+            descriptor: ProviderDescriptorRegistry.descriptor(for: .alibabatokenplan))) == "auto")
+
+        let usagePicker = try #require(implementation.settingsPickers(context: context)
+            .first(where: { $0.id == "alibaba-token-plan-usage-source" }))
+        #expect(usagePicker.binding.wrappedValue == ProviderSourceMode.auto.rawValue)
+
+        usagePicker.binding.wrappedValue = ProviderSourceMode.web.rawValue
+        #expect(fixture.settings.alibabaTokenPlanUsageDataSource == .web)
+        #expect(fixture.settings.configSnapshot.providerConfig(for: .alibabatokenplan)?.source == .web)
     }
 
     @Test

@@ -4,7 +4,7 @@ import Testing
 @testable import CodexBarCLI
 @testable import CodexBarCore
 
-@Suite(.serialized)
+@Suite(.serialized, CodexCredentialFixtures())
 @MainActor
 struct CodexDashboardWorkedExampleParityTests {
     @Test
@@ -460,7 +460,7 @@ struct CodexDashboardWorkedExampleParityTests {
     }
 
     private func makeAuthHome(email: String?, accountId: String? = nil) throws -> URL {
-        let homeURL = FileManager.default.temporaryDirectory.appendingPathComponent(
+        let homeURL = CodexCredentialFixtures.root.appendingPathComponent(
             UUID().uuidString,
             isDirectory: true)
         try self.writeCodexAuthFile(homeURL: homeURL, email: email, accountId: accountId)
@@ -468,7 +468,7 @@ struct CodexDashboardWorkedExampleParityTests {
     }
 
     private func makeEmptyHome() -> URL {
-        let homeURL = FileManager.default.temporaryDirectory.appendingPathComponent(
+        let homeURL = CodexCredentialFixtures.root.appendingPathComponent(
             UUID().uuidString,
             isDirectory: true)
         try? FileManager.default.createDirectory(at: homeURL, withIntermediateDirectories: true)

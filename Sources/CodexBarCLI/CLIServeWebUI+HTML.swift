@@ -852,6 +852,13 @@ extension CLIServeWebUI {
           return dot;
         }
 
+        function visibleWindows(windows) {
+          // The producer marks a window idle when its whole model family reports no usage, which
+          // the page cannot work out on its own: a zero percentage also stands for a lane the
+          // provider never reported. Script clients still receive every window on the snapshot.
+          return (windows || []).filter(w => w.idle !== true);
+        }
+
         function worstWindowLevel(windows) {
           const worst = Math.max(...(windows || []).map(w => finiteNumber(w.usedPercent)), -1);
           if (worst < 0) return null;
@@ -881,7 +888,7 @@ extension CLIServeWebUI {
           if (account.active) {
             head.append(pill("active", "active"));
           } else {
-            const level = worstWindowLevel(account.windows);
+            const level = worstWindowLevel(visibleWindows(account.windows));
             if (level) head.append(pill(level, level === "ok" ? "ok" : level === "warning" ? "high" : "critical"));
           }
           card.append(head);
@@ -892,13 +899,14 @@ extension CLIServeWebUI {
             card.append(identity);
           }
 
+          // At-limit claude-swap cards carry both a deferred/limit note and retained
+          // windows; keep those bars visible instead of returning after the note.
           if (account.error) {
             card.append(node("p", "error-message", account.error));
-            return card;
           }
 
           const windows = node("div", "windows");
-          for (const window of account.windows || []) windows.append(renderWindow(window));
+          for (const window of visibleWindows(account.windows)) windows.append(renderWindow(window));
           card.append(windows);
           return card;
         }
@@ -952,7 +960,7 @@ extension CLIServeWebUI {
           }
 
           const windows = node("div", "windows");
-          for (const window of provider.windows || []) windows.append(renderWindow(window));
+          for (const window of visibleWindows(provider.windows)) windows.append(renderWindow(window));
           card.append(windows);
           if (provider.accountsError) {
             card.append(node("p", "error-message", provider.accountsError));

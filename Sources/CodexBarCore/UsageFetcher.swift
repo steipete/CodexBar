@@ -146,6 +146,8 @@ public struct UsageSnapshot: Codable, Sendable {
     public let tertiary: RateWindow?
     public let extraRateWindows: [NamedRateWindow]?
     public let providerCost: ProviderCostSnapshot?
+    /// Live provider-reported cost history supplied through the generic plugin contract.
+    public let costUsage: CostUsageTokenSnapshot?
     public let details: [ProviderDetailSection]
     public let deepseekDetailedUsageState: DeepSeekDetailedUsageState
     public let deepseekPlatformProfiles: [DeepSeekPlatformProfile]
@@ -191,6 +193,7 @@ public struct UsageSnapshot: Codable, Sendable {
         tertiary: RateWindow? = nil,
         extraRateWindows: [NamedRateWindow]? = nil,
         providerCost: ProviderCostSnapshot? = nil,
+        costUsage: CostUsageTokenSnapshot? = nil,
         details: [ProviderDetailSection] = [],
         deepseekDetailedUsageState: DeepSeekDetailedUsageState = .notRequested,
         deepseekPlatformProfiles: [DeepSeekPlatformProfile] = [],
@@ -215,6 +218,7 @@ public struct UsageSnapshot: Codable, Sendable {
         self.tertiary = tertiary
         self.extraRateWindows = extraRateWindows
         self.providerCost = providerCost
+        self.costUsage = costUsage
         self.details = details
         self.deepseekDetailedUsageState = deepseekDetailedUsageState
         self.deepseekPlatformProfiles = deepseekPlatformProfiles
@@ -256,6 +260,10 @@ public struct UsageSnapshot: Codable, Sendable {
         self.replacing(tertiary: .value(tertiary))
     }
 
+    public func with(providerCost: ProviderCostSnapshot?) -> UsageSnapshot {
+        self.replacing(providerCost: .value(providerCost))
+    }
+
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.primary = try container.decodeIfPresent(RateWindow.self, forKey: .primary)
@@ -263,6 +271,7 @@ public struct UsageSnapshot: Codable, Sendable {
         self.tertiary = try container.decodeIfPresent(RateWindow.self, forKey: .tertiary)
         self.extraRateWindows = try container.decodeIfPresent([NamedRateWindow].self, forKey: .extraRateWindows)
         self.providerCost = try container.decodeIfPresent(ProviderCostSnapshot.self, forKey: .providerCost)
+        self.costUsage = nil // Live-only provider history; refresh from the authoritative source.
         self.details = try container.decodeIfPresent([ProviderDetailSection].self, forKey: .details) ?? []
         try ProviderDetailSection.validateSections(self.details)
         self.deepseekDetailedUsageState = .notRequested // Live-only fetch state
@@ -400,6 +409,19 @@ public struct UsageSnapshot: Codable, Sendable {
     public func backfillingResetTimes(from cached: UsageSnapshot?, now: Date = .init()) -> UsageSnapshot {
         guard let cached else { return self }
         guard Self.identitiesMatch(self.identity, cached.identity) else { return self }
+        func eligibleCachedReset(_ candidate: RateWindow?, for current: RateWindow?) -> RateWindow? {
+            // Provider-specific by design: z.ai's five-hour Coding Plan must not regain an impossible reset.
+            guard self.identity?.providerID == .zai,
+                  current?.windowMinutes == 300, current?.resetDescription == "5-hour"
+            else { return candidate }
+            guard cached.identity?.providerID == self.identity?.providerID,
+                  candidate?.windowMinutes == 300, candidate?.resetDescription == "5-hour",
+                  let reset = candidate?.resetsAt,
+                  reset.timeIntervalSince1970.isFinite,
+                  reset.timeIntervalSince(now) <= 5 * 3600 + 60
+            else { return nil }
+            return candidate
+        }
         // Amp's percentage-based daily quota supersedes the legacy rolling-replenishment cadence. Do not attach
         // that older exact reset to the new daily window; other providers retain the shared backfill behavior.
         // Provider-specific by design: Amp daily quotas must not inherit its obsolete rolling-reset cadence.
@@ -410,9 +432,12 @@ public struct UsageSnapshot: Codable, Sendable {
         } else {
             cached.primary
         }
-        let primary = self.primary?.backfillingResetTime(from: cachedPrimary, now: now)
-        let secondary = self.secondary?.backfillingResetTime(from: cached.secondary, now: now)
-        let tertiary = self.tertiary?.backfillingResetTime(from: cached.tertiary, now: now)
+        let primary = self.primary?.backfillingResetTime(
+            from: eligibleCachedReset(cachedPrimary, for: self.primary), now: now)
+        let secondary = self.secondary?.backfillingResetTime(
+            from: eligibleCachedReset(cached.secondary, for: self.secondary), now: now)
+        let tertiary = self.tertiary?.backfillingResetTime(
+            from: eligibleCachedReset(cached.tertiary, for: self.tertiary), now: now)
         if primary == self.primary, secondary == self.secondary, tertiary == self.tertiary {
             return self
         }
@@ -464,6 +489,7 @@ public struct UsageSnapshot: Codable, Sendable {
         secondary: Replacement<RateWindow?> = .unchanged,
         tertiary: Replacement<RateWindow?> = .unchanged,
         extraRateWindows: Replacement<[NamedRateWindow]?> = .unchanged,
+        providerCost: Replacement<ProviderCostSnapshot?> = .unchanged,
         details: Replacement<[ProviderDetailSection]> = .unchanged,
         deepseekDetailedUsageState: Replacement<DeepSeekDetailedUsageState> = .unchanged,
         deepseekPlatformProfiles: Replacement<[DeepSeekPlatformProfile]> = .unchanged,
@@ -478,7 +504,8 @@ public struct UsageSnapshot: Codable, Sendable {
             secondary: secondary.resolving(self.secondary),
             tertiary: tertiary.resolving(self.tertiary),
             extraRateWindows: extraRateWindows.resolving(self.extraRateWindows),
-            providerCost: self.providerCost,
+            providerCost: providerCost.resolving(self.providerCost),
+            costUsage: self.costUsage,
             details: details.resolving(self.details),
             deepseekDetailedUsageState: deepseekDetailedUsageState.resolving(self.deepseekDetailedUsageState),
             deepseekPlatformProfiles: deepseekPlatformProfiles.resolving(self.deepseekPlatformProfiles),
@@ -841,7 +868,7 @@ private final class CodexRPCClient: @unchecked Sendable {
     // Provider-specific by design: Codex RPC owns its dedicated subprocess log category.
     private static let log = CodexBarLog.logger(LogCategories.provider(.codex, scope: "rpc"))
     private let process = Process()
-    private let stdinPipe = Pipe()
+    private let stdin = RPCChildProcessInput()
     private let stdoutPipe = Pipe()
     private let stderrPipe = Pipe()
     private let stdoutLineStream: AsyncStream<Data>
@@ -852,7 +879,7 @@ private final class CodexRPCClient: @unchecked Sendable {
 
     init(
         executable: String = "codex", // Provider-specific by design: this RPC client launches Codex app-server.
-        arguments: [String] = ["-s", "read-only", "-a", "untrusted", "app-server"],
+        arguments: [String] = ["-s", "read-only", "-a", "never", "app-server"],
         environment: [String: String] = ProcessInfo.processInfo.environment,
         initializeTimeoutSeconds: TimeInterval = 8.0,
         requestTimeoutSeconds: TimeInterval = 3.0,
@@ -883,7 +910,7 @@ private final class CodexRPCClient: @unchecked Sendable {
         self.process.environment = env
         self.process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
         self.process.arguments = [resolvedExec] + arguments
-        self.process.standardInput = self.stdinPipe
+        self.process.standardInput = self.stdin.pipe
         self.process.standardOutput = self.stdoutPipe
         self.process.standardError = self.stderrPipe
 
@@ -906,7 +933,7 @@ private final class CodexRPCClient: @unchecked Sendable {
         let stdoutLineContinuation = self.stdoutLineContinuation
         let stdoutBuffer = BoundedLineBuffer()
         let process = self.process
-        let stdinPipe = self.stdinPipe
+        let stdin = self.stdin
         stdoutHandle.readabilityHandler = { handle in
             let data = handle.availableData
             if data.isEmpty {
@@ -920,7 +947,7 @@ private final class CodexRPCClient: @unchecked Sendable {
                 Self.log.warning("Codex RPC line exceeded memory limit; terminating process")
                 handle.readabilityHandler = nil
                 DispatchQueue.global(qos: .userInitiated).async {
-                    RPCChildProcessTeardown.terminate(process: process, stdinPipe: stdinPipe)
+                    RPCChildProcessTeardown.terminate(process: process, stdin: stdin)
                 }
                 stdoutLineContinuation.finish()
                 return
@@ -967,7 +994,7 @@ private final class CodexRPCClient: @unchecked Sendable {
 
     func shutdown() {
         Self.log.debug("Codex RPC stopping")
-        RPCChildProcessTeardown.terminate(process: self.process, stdinPipe: self.stdinPipe)
+        RPCChildProcessTeardown.terminate(process: self.process, stdin: self.stdin)
     }
 
     // MARK: - JSON-RPC helpers
@@ -1046,9 +1073,9 @@ private final class CodexRPCClient: @unchecked Sendable {
         // Dispatch off the timeout task so the bounded TERM-to-KILL wait cannot delay the timeout
         // error or let the stdout-EOF failure win the race; `shutdown()` remains the synchronous backstop.
         let process = self.process
-        let stdinPipe = self.stdinPipe
+        let stdin = self.stdin
         DispatchQueue.global(qos: .userInitiated).async {
-            RPCChildProcessTeardown.terminate(process: process, stdinPipe: stdinPipe)
+            RPCChildProcessTeardown.terminate(process: process, stdin: stdin)
         }
     }
 
@@ -1064,9 +1091,13 @@ private final class CodexRPCClient: @unchecked Sendable {
     }
 
     private func sendPayload(_ payload: [String: Any]) throws {
-        let data = try JSONSerialization.data(withJSONObject: payload)
-        self.stdinPipe.fileHandleForWriting.write(data)
-        self.stdinPipe.fileHandleForWriting.write(Data([0x0A]))
+        var data = try JSONSerialization.data(withJSONObject: payload)
+        data.append(0x0A)
+        do {
+            try self.stdin.write(data)
+        } catch {
+            throw RPCWireError.requestFailed("codex app-server stdin closed: \(error.localizedDescription)")
+        }
     }
 
     private func readNextMessage() async throws -> [String: Any] {
@@ -1116,14 +1147,14 @@ public struct UsageFetcher: Sendable {
         self.initializeTimeoutSeconds = 8.0
         self.requestTimeoutSeconds = 3.0
         self.codexExecutableResolver = defaultCodexExecutableResolver
-        self.codexArguments = ["-s", "read-only", "-a", "untrusted", "app-server"]
+        self.codexArguments = ["-s", "read-only", "-a", "never", "app-server"]
     }
 
     init(
         environment: [String: String],
         initializeTimeoutSeconds: TimeInterval,
         requestTimeoutSeconds: TimeInterval,
-        codexArguments: [String] = ["-s", "read-only", "-a", "untrusted", "app-server"],
+        codexArguments: [String] = ["-s", "read-only", "-a", "never", "app-server"],
         codexExecutableResolver: @escaping CodexExecutableResolver = defaultCodexExecutableResolver)
     {
         self.environment = environment
@@ -1305,6 +1336,9 @@ public struct UsageFetcher: Sendable {
     {
         let updatedAt = Date()
         let balance = limits.credits.map { self.parseCredits($0.balance) }
+        // `parseCredits` substitutes 0 for a missing or unparseable string, so the raw field decides
+        // whether the balance was actually read.
+        let balanceWasRead = limits.credits.map { $0.balance.flatMap(Double.init) != nil } ?? false
         let creditLimit = self.codexCreditLimit(
             from: limits,
             rateLimitsByLimitId: rateLimitsByLimitId,
@@ -1314,7 +1348,9 @@ public struct UsageFetcher: Sendable {
             remaining: balance ?? 0,
             events: [],
             updatedAt: updatedAt,
-            codexCreditLimit: creditLimit)
+            codexCreditLimit: creditLimit,
+            // A cap-only response omits the balance entirely; that placeholder zero is unread, not spent.
+            balanceReadSucceeded: balanceWasRead)
     }
 
     private static func codexCreditLimit(

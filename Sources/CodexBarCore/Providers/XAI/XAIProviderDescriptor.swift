@@ -39,8 +39,11 @@ public enum XAIProviderDescriptor {
                     ProviderColor(hex: 0xF5F5F7),
                 ]),
             tokenCost: ProviderTokenCostConfig(
-                supportsTokenCost: false,
-                noDataMessage: { "xAI spend history comes from the Management API billing endpoints." }),
+                supportsTokenCost: true,
+                noDataMessage: {
+                    "xAI daily spend requires a Management API key and team ID. "
+                        + "Prepaid balance is not treated as spend."
+                }),
             presentation: ProviderUsagePresentation(
                 identityPresenter: { provider, snapshot in
                     guard let plan = snapshot.loginMethod(for: provider), !plan.isEmpty else {

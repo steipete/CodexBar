@@ -45,6 +45,7 @@
 "hooks_any_provider" = "Tout fournisseur";
 "hooks_threshold" = "Déclencher à l’utilisation ≥";
 "hooks_threshold_placeholder" = "90";
+"hooks_executable" = "Exécutable";
 "hooks_executable_placeholder" = "/usr/local/bin/my-command";
 "hooks_arguments_placeholder" = "Arguments";
 "hooks_argument_placeholder" = "Argument";
@@ -239,6 +240,7 @@
 "No cost history data." = "Aucune donnée historique des coûts.";
 "No data available" = "Aucune donnée disponible";
 "No data yet" = "Aucune donnée pour l'instant";
+"Workspaces" = "Espaces de travail";
 "No enabled providers available for Overview." = "Aucun fournisseur activé disponible pour la présentation.";
 "No providers selected" = "Aucun fournisseur sélectionné";
 "No token accounts yet." = "Aucun compte symbolique pour l'instant.";
@@ -514,7 +516,6 @@
 "provider_accent_color_reset" = "Utiliser la valeur par défaut";
 "quota_warnings_title" = "Alertes de quota";
 "quota_warning_session" = "session";
-"quota_warning_session_capitalized" = "Session";
 "quota_warning_weekly" = "hebdomadaire";
 "quota_warning_weekly_capitalized" = "Hebdomadaire";
 "quota_warning_notification_title" = "%1$@ %2$@ : quota faible";
@@ -617,6 +618,8 @@
 "display_mode_subtitle" = "Choisissez ce que vous voulez afficher dans la barre de menu (Pace affiche l'utilisation par rapport à celle attendue).";
 "show_quota_warning_markers_title" = "Afficher les marqueurs d'avertissement de quota";
 "show_quota_warning_markers_subtitle" = "Dessinez des coches de seuil sur les barres d’utilisation lorsque des avertissements de quota sont configurés.";
+"show_pace_title" = "Afficher le rythme";
+"show_pace_subtitle" = "Affiche la bande d'avance ou de retard et le texte de prévision sur les barres d'utilisation.";
 "weekly_progress_work_days_title" = "Jours de travail hebdomadaires";
 "weekly_progress_work_days_subtitle" = "Définit les jours ouvrés pour les repères des barres d’utilisation hebdomadaire et le calcul du rythme.";
 "workday_tick_appearance_title" = "Apparence des repères de jours ouvrés";
@@ -653,6 +656,8 @@
 "section_keyboard_shortcut" = "Raccourci clavier";
 "open_menu_shortcut_title" = "Ouvrir le menu";
 "open_menu_shortcut_subtitle" = "Déclenchez le menu de la barre de menus depuis n'importe où.";
+"record_shortcut" = "Enregistrer le raccourci";
+"press_shortcut" = "Saisir un raccourci";
 "install_cli" = "Installer la CLI";
 "install_cli_subtitle" = "Lien symbolique CodexBarCLI vers /usr/local/bin et /opt/homebrew/bin en tant que codexbar.";
 "cli_not_found" = "CodexBarCLI introuvable dans l'ensemble d'applications.";
@@ -663,6 +668,9 @@
 "surprise_me_subtitle" = "Vérifiez si vous aimez que vos agents s'amusent là-haut.";
 "hide_personal_info_title" = "Masquer les informations personnelles";
 "hide_personal_info_subtitle" = "Adresses e-mail obscures dans la barre de menus et l'interface utilisateur du menu.";
+"hide_cost_history_identity_subtitle" = "Masque aussi les noms et chemins des projets et sources dans l’historique des coûts, sans modifier les données enregistrées.";
+"Project %d" = "Projet %d";
+"Source %d" = "Source %d";
 "show_provider_storage_usage_title" = "Afficher l'utilisation du stockage du fournisseur";
 "show_provider_storage_usage_subtitle" = "Afficher l'utilisation du disque local dans les menus. Analyse les chemins connus appartenant au fournisseur en arrière-plan.";
 "section_keychain_access" = "Accès au Trousseau";
@@ -930,6 +938,7 @@
 "Monthly" = "Mensuel";
 "Sonnet" = "Sonnet";
 "Overages" = "Dépassements";
+"Overage" = "Dépassement";
 "Activity" = "Activité";
 "Copied" = "Copié";
 "Copy error" = "Erreur de copie";
@@ -940,6 +949,7 @@
 "Balance updates in near-real time (up to 5 min lag)" = "Mises à jour du solde en temps quasi réel (jusqu'à 5 minutes de décalage)";
 "Daily billing data finalizes at 07:00 UTC" = "Les données de facturation quotidiennes se terminent à 07h00 UTC";
 "%@ of %@ credits left" = "%@ sur %@ crédits restants";
+"of %@" = "sur %@";
 "%@ of %@ bonus credits left" = "%@ de %@ crédits bonus restants";
 "%@ / %@ (%@ remaining)" = "%@ / %@ (%@ restant)";
 "%@/%@ left" = "%@/%@ gauche";
@@ -951,6 +961,7 @@
 "Full in ~1 regen" = "Complet en ~1 régénération";
 "Full in ~%.0f regens" = "Plein en ~%.0f régénérations";
 "Overage usage" = "Utilisation excédentaire";
+"Overage credits left" = "Crédits de dépassement restants";
 "Overage cost" = "Coût excédentaire";
 "credits" = "crédits";
 "Zen balance" = "L'équilibre zen";
@@ -1327,6 +1338,12 @@
 "By subscription" = "Par abonnement";
 "No model-level history" = "Aucun historique au niveau des modèles";
 "Daily estimated spend" = "Dépenses quotidiennes estimées";
+"Hourly estimated spend" = "Dépenses horaires estimées";
+"Hour" = "Heure";
+"%d hours of usage data across %d services" = "%d heures de données d’usage sur %d services";
+"1 hour of usage data across 1 service" = "1 heure de données d’usage sur 1 service";
+"%d hours of usage data across 1 service" = "%d heures de données d’usage sur 1 service";
+"1 hour of usage data across %d services" = "1 heure de données d’usage sur %d services";
 "≈%d full 5h windows of weekly left · %d windows until reset" = "≈%d fenêtres complètes de 5 h de quota hebdomadaire · %d fenêtres avant réinitialisation";
 "Weekly cannot run out before reset at this pace" = "Le quota hebdomadaire ne peut pas être épuisé avant la réinitialisation à ce rythme";
 "Weekly can run out ≈%d windows early" = "Le quota hebdomadaire peut être épuisé ≈%d fenêtres plus tôt";
@@ -1356,6 +1373,9 @@
 "menu_bar_layout_preset_compact_stacked" = "Empilement compact";
 "menu_bar_layout_preset_custom" = "Personnalisé";
 "menu_bar_layout_live_preview" = "Aperçu en direct";
+"menu_bar_layout_default_preview" = "Aperçu de la disposition par défaut";
+"menu_bar_layout_overrides_notice" = "Ces fournisseurs activés utilisent leurs propres dispositions enregistrées :";
+"menu_bar_layout_use_all_accessibility" = "%@ : Utiliser la disposition de tous les fournisseurs";
 "menu_bar_layout_strip" = "Bande de la barre des menus";
 "menu_bar_layout_remove_line_break" = "Supprimer le saut de ligne";
 "menu_bar_layout_chip_hint" = "Sélectionnez, faites glisser pour réorganiser ou utilisez l’action Supprimer.";
@@ -1363,6 +1383,7 @@
 "menu_bar_layout_empty_line" = "Déposez un jeton ici";
 "menu_bar_layout_line" = "Ligne %d";
 "menu_bar_layout_drag_remove" = "Faites glisser ici pour supprimer";
+"menu_bar_layout_remove_selected" = "Retirer la sélection";
 "menu_bar_layout_size" = "Taille";
 "menu_bar_layout_size_small" = "Petite";
 "menu_bar_layout_size_regular" = "Normale";
@@ -1422,6 +1443,7 @@
 "More" = "Plus";
 
 /* Provider Plugins */
+"Plugins" = "Plugins";
 "Install…" = "Installer…";
 "Install plugin" = "Installer l’extension";
 "Copies a JavaScript or TypeScript file into the plugins directory." = "Copie un fichier JavaScript ou TypeScript dans le répertoire des extensions.";
@@ -1463,6 +1485,7 @@
 "Total usage" = "Utilisation totale";
 "claude_oauth_keychain_access_revoked" = "L’accès au trousseau Claude a été révoqué par la rotation du jeton de Claude Code. Cliquez sur Actualiser pour accorder à nouveau l’accès, ou définissez la source d’utilisation de Claude sur CLI/Web.";
 "claude_showing_last_known_usage" = "Affichage de la dernière utilisation connue, capturée %@.";
+"claude_limited_usage_detail" = "Détails d’utilisation limités";
 /* Spend dashboard cost analysis */
 "90d" = "90d";
 "Input" = "Input";
@@ -1483,5 +1506,49 @@
 "Include OpenCodex usage logs" = "Include OpenCodex usage logs";
 "Hide native Codex when OpenCodex is present" = "Hide native Codex when OpenCodex is present";
 "Export JSON" = "Export JSON";
+"Copy JSON" = "Copier le JSON";
 "Sources" = "Sources";
 "OpenCodex" = "OpenCodex";
+"menu_bar_layout_token_conditional" = "Conditionnel";
+"menu_bar_layout_group_conditionals" = "Conditionnels";
+"menu_bar_layout_conditional_add" = "Nouveau conditionnel";
+"menu_bar_layout_conditional_edit" = "Modifier le conditionnel";
+"menu_bar_layout_conditional_remove" = "Retirer de la bibliothèque";
+"menu_bar_layout_conditional_save" = "Enregistrer";
+"menu_bar_layout_conditional_if" = "Si";
+"menu_bar_layout_conditional_then" = "Alors afficher";
+"menu_bar_layout_conditional_else" = "Sinon afficher";
+"menu_bar_layout_conditional_and" = "et";
+"menu_bar_layout_conditional_or" = "ou";
+"menu_bar_layout_conditional_add_condition" = "Ajouter une condition";
+"menu_bar_layout_conditional_none" = "Aucun conditionnel pour l\u2019instant";
+"menu_bar_layout_conditional_hide" = "Masquer";
+"menu_bar_layout_conditional_name" = "Nom";
+"menu_bar_layout_conditional_name_placeholder" = "p. ex. Vérification de session";
+"menu_bar_layout_conditional_name_error" = "Saisissez un nom unique";
+"menu_bar_layout_conditional_used" = "utilisé";
+"menu_bar_layout_conditional_remaining" = "restant";
+"menu_bar_layout_conditional_metric_resets_in" = "%@ réinitialisé dans";
+"menu_bar_layout_conditional_metric_scoped_weekly" = "Hebdomadaire ciblé";
+"menu_bar_layout_conditional_duplicate" = "Dupliquer";
+"menu_bar_layout_conditional_summary" = "Si %1$@ alors %2$@ sinon %3$@";
+"menu_bar_layout_conditional_copy_name" = "%@ (copie)";
+"menu_bar_layout_conditional_copy_name_numbered" = "%1$@ (copie %2$d)";
+"menu_bar_layout_conditional_unavailable" = "Condition indisponible";
+"menu_bar_layout_conditional_default_session_busy" = "Session au-delà de 50 % utilisés";
+"menu_bar_layout_conditional_default_weekly_high" = "Semaine au-delà de 90 % utilisés";
+"menu_bar_layout_conditional_default_session_spent" = "Session presque épuisée";
+"menu_bar_layout_conditional_default_either_high" = "Session ou semaine à un niveau élevé";
+"menu_bar_layout_conditional_default_scoped_weekly" = "Semaine par modèle au-delà de 60 %";
+"Visible usage items" = "Éléments d’utilisation visibles";
+"Restore Defaults" = "Rétablir les valeurs par défaut";
+"Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "Choisissez les lignes d’utilisation affichées dans le menu de ce fournisseur, l’aperçu des réglages et la vue d’ensemble.";
+"%@ (unavailable)" = "%@ (indisponible)";
+"Spending cap, not balance" = "Plafond de dépenses, pas le solde";
+
+"Color Pace Indicator" = "Colorer le rythme";
+"Green pace indicator when behind pace, red when ahead of pace (risk of running out early)" = "Vert si la consommation est inférieure au rythme prévu (réserve) ; rouge si elle est supérieure (risque d’épuisement anticipé).";
+"%@ weekly" = "%@ hebdomadaire";
+
+"agent_sessions_hide_unreachable_title" = "Masquer les hôtes inaccessibles";
+"agent_sessions_hide_unreachable_subtitle" = "Masquer les hôtes lorsque la récupération de leurs sessions échoue.";

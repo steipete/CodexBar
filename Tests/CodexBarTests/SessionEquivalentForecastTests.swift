@@ -341,7 +341,7 @@ struct SessionEquivalentForecastTests {
     }
 
     @Test
-    func `rejects hostile dates percentages and unsorted history`() throws {
+    func `rejects hostile dates and percentages and normalizes unsorted history`() throws {
         let now = Date(timeIntervalSince1970: 1_900_000_000)
         let session = RateWindow(
             usedPercent: 20,
@@ -380,15 +380,18 @@ struct SessionEquivalentForecastTests {
         let encodedSession = try JSONEncoder().encode(fixture.histories[0])
         var sessionJSON = try #require(JSONSerialization.jsonObject(with: encodedSession) as? [String: Any])
         let entriesJSON = try #require(sessionJSON["entries"] as? [[String: Any]])
+        // Decoding sorts entries (PlanUtilizationSeriesHistory.init(from:)), so a reversed payload
+        // normalizes to the same series and yields the same estimate as the sorted fixture above.
         sessionJSON["entries"] = Array(entriesJSON.reversed())
         let shuffledData = try JSONSerialization.data(withJSONObject: sessionJSON)
         let shuffledSession = try JSONDecoder().decode(PlanUtilizationSeriesHistory.self, from: shuffledData)
-        #expect((shuffledSession.entries.first?.capturedAt ?? .distantPast)
-            > (shuffledSession.entries.last?.capturedAt ?? .distantFuture))
-        #expect(SessionEquivalentBurnEstimator.estimate(
+        #expect(shuffledSession == fixture.histories[0])
+        let shuffledEstimate = try #require(SessionEquivalentBurnEstimator.estimate(
             histories: [shuffledSession, fixture.histories[1]],
             currentSessionResetsAt: fixture.currentSessionReset,
-            now: fixture.currentSessionReset.addingTimeInterval(-3600)) == nil)
+            now: fixture.currentSessionReset.addingTimeInterval(-3600)))
+        #expect(shuffledEstimate.sampleCount == 3)
+        #expect(shuffledEstimate.medianWeeklyPercentPerWindow == 6)
 
         let huge = UsagePaceText.sessionEquivalentDetail(forecast: SessionEquivalentForecast(
             estimatedWindowsToExhaustWeekly: .greatestFiniteMagnitude,

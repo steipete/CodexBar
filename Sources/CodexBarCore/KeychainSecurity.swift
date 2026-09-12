@@ -59,15 +59,9 @@ enum KeychainTestSafety {
         processName: String,
         environment: [String: String]) -> Bool
     {
-        processName == "swiftpm-testing-helper"
-            || processName.hasSuffix("PackageTests")
-            || processName.hasSuffix(".xctest")
-            || environment["XCTestConfigurationFilePath"] != nil
-            || environment["XCTestBundlePath"] != nil
-            || environment["XCTestSessionIdentifier"] != nil
-            || environment["TESTING_LIBRARY_VERSION"] != nil
-            || environment["SWIFT_TESTING"] != nil
-            || environment["SWIFT_TESTING_ENABLED"] != nil
+        TestProcessSafety.isRunningUnderTests(
+            processName: processName,
+            environment: environment)
     }
 }
 

@@ -26,9 +26,7 @@ struct FireworksProviderImplementation: ProviderImplementation {
 
     @MainActor
     func isAvailable(context: ProviderAvailabilityContext) -> Bool {
-        if FireworksSettingsReader.apiKey(environment: context.environment) != nil,
-           FireworksSettingsReader.accountSlug(environment: context.environment) != nil
-        {
+        if FireworksSettingsReader.apiKey(environment: context.environment) != nil {
             return true
         }
         return context.settings.hasFireworksCredentials
@@ -50,21 +48,20 @@ struct FireworksProviderImplementation: ProviderImplementation {
             ProviderSettingsFieldDescriptor(
                 id: "fireworks-account-slug",
                 title: "Account slug",
-                subtitle: "The segment after /accounts/ in your app.fireworks.ai URLs, e.g. x0mh0x for "
-                    + "app.fireworks.ai/accounts/x0mh0x. Required because Fireworks has no whoami endpoint.",
+                subtitle: "Optional when the API key can access one account; CodexBar discovers it automatically. "
+                    + "For multiple accounts, find the slug in the app.fireworks.ai home account switcher or run "
+                    + "firectl whoami.",
                 kind: .plain,
                 placeholder: "x0mh0x",
                 binding: context.stringBinding(\.fireworksAccountSlug),
                 actions: [
                     ProviderSettingsActionDescriptor(
                         id: "fireworks-open-billing",
-                        title: "Open Fireworks billing",
+                        title: "Open Fireworks",
                         style: .link,
                         isVisible: nil,
                         perform: {
-                            NSWorkspace.shared.open(
-                                FireworksURLs.billing(
-                                    accountSlug: context.settings.fireworksAccountSlug))
+                            NSWorkspace.shared.open(FireworksURLs.home)
                         }),
                 ],
                 isVisible: nil,
@@ -74,11 +71,5 @@ struct FireworksProviderImplementation: ProviderImplementation {
 }
 
 enum FireworksURLs {
-    static func billing(accountSlug: String) -> URL {
-        let slug = accountSlug.trimmingCharacters(in: .whitespacesAndNewlines)
-        if slug.isEmpty {
-            return URL(string: "https://app.fireworks.ai")!
-        }
-        return URL(string: "https://app.fireworks.ai/accounts/\(slug)/settings/billing")!
-    }
+    static let home = URL(string: "https://app.fireworks.ai")!
 }

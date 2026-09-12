@@ -2,7 +2,9 @@ import CodexBarCore
 import Foundation
 
 enum IconRemainingResolver {
-    private static let visibleZeroPercent = 0.0001
+    /// The renderer caches percentages in tenths. This is the smallest robust value that has a distinct cache
+    /// key from zero while still rounding to a zero-pixel fill in the 30-pixel meter.
+    private static let visibleZeroPercent = 0.1
 
     static func resolvedWindows(
         snapshot: UsageSnapshot,
@@ -43,7 +45,6 @@ enum IconRemainingResolver {
         snapshot: UsageSnapshot,
         style: IconStyle,
         showUsed: Bool,
-        renderingStyle: IconStyle? = nil,
         secondaryOverrideWindowID: String? = nil,
         now: Date = Date())
         -> (primary: Double?, secondary: Double?)
@@ -56,13 +57,13 @@ enum IconRemainingResolver {
         var percents = (
             primary: showUsed ? windows.primary?.usedPercent : windows.primary?.remainingPercent,
             secondary: showUsed ? windows.secondary?.usedPercent : windows.secondary?.remainingPercent)
-        // Provider style chooses the usage lanes; rendering style controls renderer-specific layout sentinels.
-        // Merged icons still resolve Warp's lanes, but render as `.combined` and must keep the real percentage.
+        // Provider style chooses both the usage lanes and provider-specific layout sentinels. This must also
+        // apply when the visual rendering style is `.combined`, because the renderer receives provider policy
+        // separately from its visual style.
         let presentation = UsageProvider(rawValue: style.rawValue)
             .map { ProviderDescriptorRegistry.descriptor(for: $0).presentation }
         if showUsed,
            presentation?.treatsExhaustedSecondaryIconWindowAsMissing == true,
-           (renderingStyle ?? style) == style,
            let secondary = windows.secondary
         {
             if secondary.remainingPercent <= 0 {

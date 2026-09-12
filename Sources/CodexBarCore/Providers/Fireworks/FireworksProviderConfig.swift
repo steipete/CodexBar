@@ -1,8 +1,8 @@
 import Foundation
 
 extension ProviderConfig {
-    /// Account slug (the segment after `/accounts/` in console URLs) that owns `apiKey`.
-    /// Fireworks does not expose a whoami endpoint, so the slug cannot be derived from the key.
+    /// Account slug that owns `apiKey`. When omitted, CodexBar discovers it from the
+    /// accounts visible to the Fireworks API key.
     public var accountSlug: String? {
         get { self.extensionValue(forKey: "accountSlug") }
         set { self.setExtensionValue(newValue, forKey: "accountSlug") }

@@ -159,9 +159,9 @@ func `FileManagedCodexAccountStore drops duplicate canonical emails on load`() t
     #expect(loaded.accounts.first?.managedHomePath == "/tmp/managed-home-1")
 }
 
-@Test
+@Test(CodexCredentialFixtures())
 func `FileManagedCodexAccountStore keeps same email rows when hydrated provider account I Ds differ`() throws {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let root = CodexCredentialFixtures.root.appendingPathComponent(UUID().uuidString, isDirectory: true)
     defer { try? FileManager.default.removeItem(at: root) }
 
     let fileURL = root.appendingPathComponent("managed.json", isDirectory: false)
@@ -238,8 +238,49 @@ func `managed account set keeps same provider account I D when emails differ`() 
 }
 
 @Test
+func `managed account set keeps explicit same email workspaces separate from legacy`() {
+    let personalID = UUID()
+    let teamID = UUID()
+    let duplicatePersonalID = UUID()
+    let personal = ManagedCodexAccount(
+        id: personalID,
+        email: "user@example.com",
+        workspaceAccountID: "WORKSPACE-PERSONAL",
+        managedHomePath: "/tmp/managed-home-personal",
+        createdAt: 10,
+        updatedAt: 20,
+        lastAuthenticatedAt: nil)
+    let team = ManagedCodexAccount(
+        id: teamID,
+        email: "USER@example.com",
+        workspaceAccountID: "workspace-team",
+        managedHomePath: "/tmp/managed-home-team",
+        createdAt: 30,
+        updatedAt: 40,
+        lastAuthenticatedAt: nil)
+    let duplicatePersonal = ManagedCodexAccount(
+        id: duplicatePersonalID,
+        email: "user@example.com",
+        providerAccountID: "workspace-personal",
+        managedHomePath: "/tmp/managed-home-duplicate-personal",
+        createdAt: 50,
+        updatedAt: 60,
+        lastAuthenticatedAt: nil)
+
+    let set = ManagedCodexAccountSet(
+        version: FileManagedCodexAccountStore.currentVersion,
+        accounts: [personal, team, duplicatePersonal])
+
+    #expect(set.accounts.count == 2)
+    #expect(set.account(email: "user@example.com", providerAccountID: "workspace-personal")?.id == personalID)
+    #expect(set.account(email: "user@example.com", providerAccountID: "WORKSPACE-PERSONAL")?.id == personalID)
+    #expect(set.account(email: "user@example.com", providerAccountID: "workspace-team")?.id == teamID)
+    #expect(set.account(email: "user@example.com") == nil)
+}
+
+@Test(CodexCredentialFixtures())
 func `FileManagedCodexAccountStore hydrates provider account I D from id token when account field is absent`() throws {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let root = CodexCredentialFixtures.root.appendingPathComponent(UUID().uuidString, isDirectory: true)
     defer { try? FileManager.default.removeItem(at: root) }
 
     let fileURL = root.appendingPathComponent("managed.json", isDirectory: false)
@@ -390,9 +431,9 @@ func `FileManagedCodexAccountStore ignores legacy active account key on load`() 
     #expect(loaded.account(id: accountID)?.email == "user@example.com")
 }
 
-@Test
+@Test(CodexCredentialFixtures())
 func `FileManagedCodexAccountStore upgrades v1 rows and writes readable v2 file without reauth`() throws {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let root = CodexCredentialFixtures.root.appendingPathComponent(UUID().uuidString, isDirectory: true)
     defer { try? FileManager.default.removeItem(at: root) }
 
     let fileURL = root.appendingPathComponent("managed.json", isDirectory: false)

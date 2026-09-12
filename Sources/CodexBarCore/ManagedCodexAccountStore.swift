@@ -100,6 +100,10 @@ public struct FileManagedCodexAccountStore: ManagedCodexAccountStoring, @uncheck
     }
 
     public static func defaultURL() -> URL {
+        if CodexCredentialFileAccess.isTestContext {
+            return FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+                .appendingPathComponent("managed-codex-accounts.json")
+        }
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? FileManager.default.homeDirectoryForCurrentUser
         return base

@@ -8,11 +8,13 @@ extension UsageStore {
     func weeklyPace(
         provider: UsageProvider,
         window: RateWindow,
+        dataConfidence: UsageDataConfidence,
         now: Date = .init(),
         minimumExpectedPercent: Double = 3,
         minimumElapsedPercent: Double? = nil) -> UsagePace?
     {
-        guard window.remainingPercent > 0 else { return nil }
+        guard ProviderDescriptorRegistry.descriptor(for: provider).pace.allowsPace(dataConfidence: dataConfidence),
+              window.remainingPercent > 0 else { return nil }
         let resolved: UsagePace?
         let elapsedWindow: RateWindow
         let workDays = self.settings.weeklyProgressWorkDays
@@ -67,6 +69,7 @@ extension UsageStore {
     func menuBarLayoutPaceText(
         provider: UsageProvider,
         window: RateWindow?,
+        dataConfidence: UsageDataConfidence,
         now: Date = .init(),
         minimumExpectedPercent: Double = 3,
         minimumElapsedPercent: Double? = nil)
@@ -77,11 +80,36 @@ extension UsageStore {
                 self.weeklyPace(
                     provider: provider,
                     window: $0,
+                    dataConfidence: dataConfidence,
                     now: now,
                     minimumExpectedPercent: minimumExpectedPercent,
                     minimumElapsedPercent: minimumElapsedPercent)
             }
             .flatMap { MenuBarDisplayText.paceText(pace: $0) }
+    }
+
+    /// Numeric twin of `menuBarLayoutPaceText`, rounded to whole percentage points like the text so a
+    /// conditional predicate always compares exactly the value the menu bar shows.
+    func menuBarLayoutPaceDelta(
+        provider: UsageProvider,
+        window: RateWindow?,
+        dataConfidence: UsageDataConfidence,
+        now: Date = .init(),
+        minimumExpectedPercent: Double = 3,
+        minimumElapsedPercent: Double? = nil)
+        -> Double?
+    {
+        window
+            .flatMap {
+                self.weeklyPace(
+                    provider: provider,
+                    window: $0,
+                    dataConfidence: dataConfidence,
+                    now: now,
+                    minimumExpectedPercent: minimumExpectedPercent,
+                    minimumElapsedPercent: minimumElapsedPercent)
+            }
+            .map { $0.deltaPercent.rounded() }
     }
 
     /// A learned Codex curve can stay flat near the start of a weekly window even as the window
@@ -138,8 +166,12 @@ extension UsageStore {
                 accountKey: ownership.canonicalKey)
             let dataset = await historyStore.loadCodexDataset(
                 canonicalAccountKey: ownership.canonicalKey,
-                canonicalEmailHashKey: ownership.canonicalEmailHashKey,
-                legacyEmailHash: ownership.historicalLegacyEmailHash,
+                canonicalEmailHashKey: ownership.hasAdjacentEmailScopeAmbiguity
+                    ? nil
+                    : ownership.canonicalEmailHashKey,
+                legacyEmailHash: ownership.hasAdjacentEmailScopeAmbiguity
+                    ? nil
+                    : ownership.historicalLegacyEmailHash,
                 hasAdjacentMultiAccountVeto: ownership.hasAdjacentMultiAccountVeto)
             await MainActor.run { [weak self] in
                 self?.setCodexHistoricalDataset(dataset, accountKey: ownership.canonicalKey)
@@ -155,8 +187,12 @@ extension UsageStore {
         let ownership = self.codexOwnershipContext()
         let dataset = await self.historicalUsageHistoryStore.loadCodexDataset(
             canonicalAccountKey: ownership.canonicalKey,
-            canonicalEmailHashKey: ownership.canonicalEmailHashKey,
-            legacyEmailHash: ownership.historicalLegacyEmailHash,
+            canonicalEmailHashKey: ownership.hasAdjacentEmailScopeAmbiguity
+                ? nil
+                : ownership.canonicalEmailHashKey,
+            legacyEmailHash: ownership.hasAdjacentEmailScopeAmbiguity
+                ? nil
+                : ownership.historicalLegacyEmailHash,
             hasAdjacentMultiAccountVeto: ownership.hasAdjacentMultiAccountVeto)
         self.setCodexHistoricalDataset(dataset, accountKey: ownership.canonicalKey)
         if let dashboard = self.openAIDashboard {
@@ -218,8 +254,12 @@ extension UsageStore {
                 accountKey: ownership.canonicalKey)
             let dataset = await historyStore.loadCodexDataset(
                 canonicalAccountKey: ownership.canonicalKey,
-                canonicalEmailHashKey: ownership.canonicalEmailHashKey,
-                legacyEmailHash: ownership.historicalLegacyEmailHash,
+                canonicalEmailHashKey: ownership.hasAdjacentEmailScopeAmbiguity
+                    ? nil
+                    : ownership.canonicalEmailHashKey,
+                legacyEmailHash: ownership.hasAdjacentEmailScopeAmbiguity
+                    ? nil
+                    : ownership.historicalLegacyEmailHash,
                 hasAdjacentMultiAccountVeto: ownership.hasAdjacentMultiAccountVeto)
             await MainActor.run { [weak self] in
                 self?.setCodexHistoricalDataset(dataset, accountKey: ownership.canonicalKey)

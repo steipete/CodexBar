@@ -102,6 +102,7 @@ struct GrokWebBillingFetcherTests {
 
         #expect(snapshot.usedPercent == 42.5)
         #expect(snapshot.resetsAt == Date(timeIntervalSince1970: TimeInterval(reset)))
+        #expect(snapshot.usedPercentIsWirePublished)
     }
 
     @Test
@@ -382,7 +383,7 @@ struct GrokWebBillingFetcherTests {
             claudeFetcher: ClaudeUsageFetcher(browserDetection: browserDetection),
             browserDetection: browserDetection)
 
-        let result = try await GrokWebFetchStrategy().fetch(context) {
+        let result = try await GrokWebFetchStrategy.isolated.fetch(context) { _ in
             throw GrokWebBillingError.teamUsageUnsupported
         } settingsTier: { _ in
             "SuperGrok Heavy"
@@ -399,9 +400,9 @@ struct GrokWebBillingFetcherTests {
     @Test
     func `web strategy does not attach auth-file settings tier to cookie billing`() async throws {
         let asked = LockIsolated(false)
-        let result = try await GrokWebFetchStrategy().fetch(
+        let result = try await GrokWebFetchStrategy.isolated.fetch(
             Self.webContext(grokHome: nil),
-            webBilling: {
+            webBilling: { _ in
                 (
                     GrokWebBillingSnapshot(
                         usedPercent: 0,
@@ -422,9 +423,9 @@ struct GrokWebBillingFetcherTests {
 
     @Test
     func `web strategy applies settings tier when billing used the auth file`() async throws {
-        let result = try await GrokWebFetchStrategy().fetch(
+        let result = try await GrokWebFetchStrategy.isolated.fetch(
             Self.webContext(grokHome: nil),
-            webBilling: {
+            webBilling: { _ in
                 (
                     GrokWebBillingSnapshot(
                         usedPercent: 0,
@@ -437,13 +438,52 @@ struct GrokWebBillingFetcherTests {
         #expect(result.sourceLabel == "grok-cli-proxy")
         #expect(result.usage.loginMethod(for: .grok) == "SuperGrok Heavy")
         #expect(result.usage.primary?.usedPercent == 0)
+        #expect(result.diagnostic == nil)
+    }
+
+    @Test
+    func `period-only billing keeps account details and surfaces an explicit usage diagnostic`() async throws {
+        let grokHome = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CodexBar-GrokUnknownUsage-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: grokHome, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: grokHome) }
+        let auth = #"""
+        {
+          "https://auth.x.ai::client": {
+            "key": "personal-token",
+            "email": "personal@example.com",
+            "team_id": "team-123",
+            "principal_type": "Personal"
+          }
+        }
+        """#
+        try Data(auth.utf8).write(to: grokHome.appendingPathComponent("auth.json"))
+
+        let result = try await GrokWebFetchStrategy.isolated.fetch(
+            Self.webContext(grokHome: grokHome),
+            webBilling: { _ in
+                (
+                    GrokWebBillingSnapshot(
+                        usedPercent: nil,
+                        resetsAt: Date(timeIntervalSince1970: 1_800_000_003)),
+                    "grok-cli-proxy",
+                    true)
+            },
+            settingsTier: { _ in "SuperGrok Heavy" })
+
+        #expect(result.sourceLabel == "grok-cli-proxy")
+        #expect(result.diagnostic == GrokStatusProbe.usageUnavailableMessage)
+        #expect(result.usage.primary == nil)
+        #expect(result.usage.loginMethod(for: .grok) == "SuperGrok Heavy")
+        #expect(result.usage.accountEmail(for: .grok) == "personal@example.com")
+        #expect(result.usage.accountOrganization(for: .grok) == "team-123")
     }
 
     @Test
     func `web strategy keeps credits when settings enrichment fails`() async throws {
-        let result = try await GrokWebFetchStrategy().fetch(
+        let result = try await GrokWebFetchStrategy.isolated.fetch(
             Self.webContext(grokHome: nil),
-            webBilling: {
+            webBilling: { _ in
                 (
                     GrokWebBillingSnapshot(
                         usedPercent: 18,
@@ -623,6 +663,9 @@ struct GrokWebBillingFetcherTests {
 
         #expect(snapshot.usedPercent == 0)
         #expect(snapshot.resetsAt == Date(timeIntervalSince1970: 1_780_272_000))
+        // The frame carries no percentage field at all, so this zero is the surface's own
+        // no-usage-yet reading and must never travel as a published percent.
+        #expect(!snapshot.usedPercentIsWirePublished)
     }
 
     @Test

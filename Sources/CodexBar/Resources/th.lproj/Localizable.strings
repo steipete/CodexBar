@@ -224,6 +224,7 @@
 "No cost history data." = "ไม่มีข้อมูลประวัติค่าใช้จ่าย";
 "No data available" = "ไม่มีข้อมูล";
 "No data yet" = "ยังไม่มีข้อมูล";
+"Workspaces" = "พื้นที่ทำงาน";
 "No enabled providers available for Overview." = "ไม่มีผู้ให้บริการที่เปิดใช้งานสําหรับภาพรวม";
 "No providers selected" = "ไม่มีผู้ให้บริการที่เลือก";
 "No token accounts yet." = "ยังไม่มีบัญชีโทเค็น";
@@ -499,7 +500,6 @@
 "provider_accent_color_reset" = "ใช้ค่าเริ่มต้น";
 "quota_warnings_title" = "คําเตือนโควต้า";
 "quota_warning_session" = "เซสชั่น";
-"quota_warning_session_capitalized" = "เซสชั่น";
 "quota_warning_weekly" = "รายสัปดาห์";
 "quota_warning_weekly_capitalized" = "รายสัปดาห์";
 "quota_warning_notification_title" = "โควตา%2$@ของ %1$@ ใกล้หมด";
@@ -565,6 +565,7 @@
 "hooks_any_provider" = "ผู้ให้บริการใดก็ได้";
 "hooks_threshold" = "เรียกใช้เมื่อการใช้งาน ≥";
 "hooks_threshold_placeholder" = "90";
+"hooks_executable" = "ไฟล์ปฏิบัติการ";
 "hooks_executable_placeholder" = "/usr/local/bin/my-command";
 "hooks_arguments_placeholder" = "อาร์กิวเมนต์";
 "hooks_argument_placeholder" = "อาร์กิวเมนต์";
@@ -623,6 +624,8 @@
 "display_mode_subtitle" = "เลือกสิ่งที่จะแสดงในแถบเมนู (อัตราก้าวแสดงการใช้งานเทียบกับที่คาดไว้)";
 "show_quota_warning_markers_title" = "แสดงเครื่องหมายเตือนโควต้า";
 "show_quota_warning_markers_subtitle" = "วาดเครื่องหมายถูกเกณฑ์บนแถบการใช้งานเมื่อมีการกําหนดค่าคําเตือนโควต้า";
+"show_pace_title" = "แสดงอัตราการใช้งาน";
+"show_pace_subtitle" = "แสดงแถบบอกว่าเร็วหรือช้ากว่ากำหนด และข้อความคาดการณ์บนแถบการใช้งาน";
 "weekly_progress_work_days_title" = "วันทํางานความคืบหน้ารายสัปดาห์";
 "weekly_progress_work_days_subtitle" = "กําหนดวันทํางานสําหรับเครื่องหมายแถบการใช้งานรายสัปดาห์และการคํานวณความเร็ว";
 "workday_tick_appearance_title" = "ลักษณะขีดวันทำงาน";
@@ -659,6 +662,8 @@
 "section_keyboard_shortcut" = "แป้นพิมพ์ลัด";
 "open_menu_shortcut_title" = "เปิดเมนู";
 "open_menu_shortcut_subtitle" = "ทริกเกอร์เมนูแถบเมนูได้จากทุกที่";
+"record_shortcut" = "บันทึกปุ่มลัด";
+"press_shortcut" = "กดปุ่มลัด";
 "install_cli" = "ติดตั้ง CLI";
 "install_cli_subtitle" = "Symlink CodexBarCLI เป็น /usr/local/bin และ /opt/homebrew/bin เป็น codexbar";
 "cli_not_found" = "ไม่พบ CodexBarCLI ใน App Bundle";
@@ -669,6 +674,9 @@
 "surprise_me_subtitle" = "ตรวจสอบว่าคุณชอบให้ตัวแทนของคุณสนุกสนานที่นั่นหรือไม่";
 "hide_personal_info_title" = "ซ่อนข้อมูลส่วนบุคคล";
 "hide_personal_info_subtitle" = "ปิดบังที่อยู่อีเมลในแถบเมนูและ UI เมนู";
+"hide_cost_history_identity_subtitle" = "ซ่อนชื่อและเส้นทางของโปรเจกต์และแหล่งข้อมูลในประวัติค่าใช้จ่ายด้วย โดยไม่เปลี่ยนข้อมูลที่บันทึกไว้";
+"Project %d" = "โปรเจกต์ %d";
+"Source %d" = "แหล่งข้อมูล %d";
 "show_provider_storage_usage_title" = "แสดงการใช้พื้นที่เก็บข้อมูลของผู้ให้บริการ";
 "show_provider_storage_usage_subtitle" = "แสดงการใช้ดิสก์ในเครื่องในเมนู สแกนเส้นทางที่รู้จักโดยผู้ให้บริการในเบื้องหลัง";
 "section_keychain_access" = "การเข้าถึง Keychain";
@@ -937,6 +945,7 @@
 "Monthly" = "รายเดือน";
 "Sonnet" = "โคลง";
 "Overages" = "ส่วนเกิน";
+"Overage" = "ส่วนเกิน";
 "Activity" = "กิจกรรม";
 "Copied" = "คัดลอกแล้ว";
 "Copy error" = "ข้อผิดพลาดในการคัดลอก";
@@ -947,6 +956,7 @@
 "Balance updates in near-real time (up to 5 min lag)" = "อัปเดตเครื่องชั่งแบบเกือบเรียลไทม์ (หน่วงสูงสุด 5 นาที)";
 "Daily billing data finalizes at 07:00 UTC" = "ข้อมูลการเรียกเก็บเงินรายวันจะสรุปเวลา 07:00 น. UTC";
 "%@ of %@ credits left" = "เหลือ %@ จาก %@ หน่วยกิต";
+"of %@" = "จาก %@";
 "%@ of %@ bonus credits left" = "%@ จาก %@ เครดิตโบนัสที่เหลืออยู่";
 "%@ / %@ (%@ remaining)" = "%@ / %@ (เหลือ %@)";
 "%@/%@ left" = "เหลือ %@/%@";
@@ -958,6 +968,7 @@
 "Full in ~1 regen" = "เต็มที่ ~1 รีเจน";
 "Full in ~%.0f regens" = "เต็มไปด้วยการฟื้นฟู ~%.0f ครั้ง";
 "Overage usage" = "การใช้งานส่วนเกิน";
+"Overage credits left" = "เครดิตส่วนเกินที่เหลือ";
 "Overage cost" = "ค่าใช้จ่ายส่วนเกิน";
 "credits" = "เครดิต";
 "Zen balance" = "ความสมดุลแบบเซน";
@@ -1331,6 +1342,12 @@
 "By subscription" = "แยกตามการสมัครสมาชิก";
 "No model-level history" = "ไม่มีประวัติระดับโมเดล";
 "Daily estimated spend" = "ค่าใช้จ่ายรายวันโดยประมาณ";
+"Hourly estimated spend" = "ค่าใช้จ่ายรายชั่วโมงโดยประมาณ";
+"Hour" = "ชั่วโมง";
+"%d hours of usage data across %d services" = "ข้อมูลการใช้งาน %d ชั่วโมง จาก %d บริการ";
+"1 hour of usage data across 1 service" = "ข้อมูลการใช้งาน 1 ชั่วโมง จาก 1 บริการ";
+"%d hours of usage data across 1 service" = "ข้อมูลการใช้งาน %d ชั่วโมง จาก 1 บริการ";
+"1 hour of usage data across %d services" = "ข้อมูลการใช้งาน 1 ชั่วโมง จาก %d บริการ";
 "≈%d full 5h windows of weekly left · %d windows until reset" = "เหลือโควตารายสัปดาห์ ≈%d ช่วงเต็ม 5 ชม. · อีก %d ช่วงจนรีเซ็ต";
 "Weekly cannot run out before reset at this pace" = "ด้วยอัตรานี้ โควตารายสัปดาห์จะไม่หมดก่อนรีเซ็ต";
 "Weekly can run out ≈%d windows early" = "โควตารายสัปดาห์อาจหมดเร็วขึ้น ≈%d ช่วง";
@@ -1360,6 +1377,9 @@
 "menu_bar_layout_preset_compact_stacked" = "ซ้อนแบบกะทัดรัด";
 "menu_bar_layout_preset_custom" = "กําหนดเอง";
 "menu_bar_layout_live_preview" = "ตัวอย่างสด";
+"menu_bar_layout_default_preview" = "ตัวอย่างเค้าโครงเริ่มต้น";
+"menu_bar_layout_overrides_notice" = "ผู้ให้บริการที่เปิดใช้งานเหล่านี้ใช้เค้าโครงที่บันทึกไว้ของตนเอง:";
+"menu_bar_layout_use_all_accessibility" = "%@: ใช้เค้าโครงสำหรับผู้ให้บริการทั้งหมด";
 "menu_bar_layout_strip" = "แถบเมนู";
 "menu_bar_layout_remove_line_break" = "ลบการขึ้นบรรทัดใหม่";
 "menu_bar_layout_chip_hint" = "เลือก ลากเพื่อจัดลำดับใหม่ หรือใช้การทำงานลบ";
@@ -1367,6 +1387,7 @@
 "menu_bar_layout_empty_line" = "วางโทเค็นที่นี่";
 "menu_bar_layout_line" = "บรรทัด %d";
 "menu_bar_layout_drag_remove" = "ลากมาที่นี่เพื่อลบ";
+"menu_bar_layout_remove_selected" = "ลบรายการที่เลือก";
 "menu_bar_layout_size" = "ขนาด";
 "menu_bar_layout_size_small" = "เล็ก";
 "menu_bar_layout_size_regular" = "ปกติ";
@@ -1426,6 +1447,7 @@
 "More" = "มาก";
 
 /* Provider Plugins */
+"Plugins" = "Plugins";
 "Install…" = "ติดตั้ง…";
 "Install plugin" = "ติดตั้งปลั๊กอิน";
 "Copies a JavaScript or TypeScript file into the plugins directory." = "คัดลอกไฟล์ JavaScript หรือ TypeScript ไปยังโฟลเดอร์ปลั๊กอิน";
@@ -1467,6 +1489,7 @@
 "Total usage" = "การใช้งานทั้งหมด";
 "claude_oauth_keychain_access_revoked" = "สิทธิ์เข้าถึงพวงกุญแจ Claude ถูกเพิกถอนจากการหมุนเวียนโทเค็นของ Claude Code คลิกรีเฟรชเพื่อให้สิทธิ์อีกครั้ง หรือเปลี่ยนแหล่งที่มาการใช้งาน Claude เป็น CLI/Web";
 "claude_showing_last_known_usage" = "กำลังแสดงการใช้งานล่าสุดที่ทราบ ซึ่งบันทึกเมื่อ %@";
+"claude_limited_usage_detail" = "รายละเอียดการใช้งานมีจำกัด";
 /* Spend dashboard cost analysis */
 "90d" = "90d";
 "Input" = "Input";
@@ -1487,5 +1510,50 @@
 "Include OpenCodex usage logs" = "Include OpenCodex usage logs";
 "Hide native Codex when OpenCodex is present" = "Hide native Codex when OpenCodex is present";
 "Export JSON" = "Export JSON";
+"Copy JSON" = "คัดลอก JSON";
 "Sources" = "Sources";
 "OpenCodex" = "OpenCodex";
+
+"menu_bar_layout_token_conditional" = "ตามเงื่อนไข";
+"menu_bar_layout_group_conditionals" = "เงื่อนไข";
+"menu_bar_layout_conditional_add" = "เงื่อนไขใหม่";
+"menu_bar_layout_conditional_edit" = "แก้ไขเงื่อนไข";
+"menu_bar_layout_conditional_remove" = "ลบออกจากไลบรารี";
+"menu_bar_layout_conditional_save" = "บันทึก";
+"menu_bar_layout_conditional_if" = "ถ้า";
+"menu_bar_layout_conditional_then" = "จากนั้นแสดง";
+"menu_bar_layout_conditional_else" = "มิฉะนั้นแสดง";
+"menu_bar_layout_conditional_and" = "และ";
+"menu_bar_layout_conditional_or" = "หรือ";
+"menu_bar_layout_conditional_add_condition" = "เพิ่มเงื่อนไข";
+"menu_bar_layout_conditional_none" = "ยังไม่มีเงื่อนไข";
+"menu_bar_layout_conditional_hide" = "ซ่อน";
+"menu_bar_layout_conditional_name" = "ชื่อ";
+"menu_bar_layout_conditional_name_placeholder" = "เช่น ตรวจสอบเซสชัน";
+"menu_bar_layout_conditional_name_error" = "ป้อนชื่อที่ไม่ซ้ำกัน";
+"menu_bar_layout_conditional_used" = "ที่ใช้";
+"menu_bar_layout_conditional_remaining" = "ที่เหลือ";
+"menu_bar_layout_conditional_metric_resets_in" = "%@ รีเซ็ตใน";
+"menu_bar_layout_conditional_metric_scoped_weekly" = "รายสัปดาห์ตามขอบเขต";
+"menu_bar_layout_conditional_duplicate" = "ทำสำเนา";
+"menu_bar_layout_conditional_summary" = "ถ้า %1$@ จากนั้น %2$@ มิฉะนั้น %3$@";
+"menu_bar_layout_conditional_copy_name" = "%@ (สำเนา)";
+"menu_bar_layout_conditional_copy_name_numbered" = "%1$@ (สำเนา %2$d)";
+"menu_bar_layout_conditional_unavailable" = "เงื่อนไขไม่พร้อมใช้งาน";
+"menu_bar_layout_conditional_default_session_busy" = "ใช้เซสชันเกิน 50%";
+"menu_bar_layout_conditional_default_weekly_high" = "ใช้รายสัปดาห์เกิน 90%";
+"menu_bar_layout_conditional_default_session_spent" = "เซสชันเกือบหมด";
+"menu_bar_layout_conditional_default_either_high" = "เซสชันหรือรายสัปดาห์อยู่ในระดับสูง";
+"menu_bar_layout_conditional_default_scoped_weekly" = "รายสัปดาห์ตามโมเดลเกิน 60%";
+"Visible usage items" = "รายการการใช้งานที่มองเห็น";
+"Restore Defaults" = "คืนค่าเริ่มต้น";
+"Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "เลือกแถวการใช้งานที่จะแสดงในเมนูของผู้ให้บริการนี้ ตัวอย่างการตั้งค่า และภาพรวม";
+"%@ (unavailable)" = "%@ (ไม่พร้อมใช้งาน)";
+"Spending cap, not balance" = "เพดานการใช้จ่าย ไม่ใช่ยอดคงเหลือ";
+
+"Color Pace Indicator" = "แสดงสีอัตราการใช้งาน";
+"Green pace indicator when behind pace, red when ahead of pace (risk of running out early)" = "สีเขียวเมื่อใช้งานช้ากว่าอัตราที่คาดไว้ (มีโควตาสำรอง) สีแดงเมื่อเร็วกว่า (เสี่ยงหมดโควตาก่อนเวลา)";
+"%@ weekly" = "%@ รายสัปดาห์";
+
+"agent_sessions_hide_unreachable_title" = "ซ่อนโฮสต์ที่เข้าถึงไม่ได้";
+"agent_sessions_hide_unreachable_subtitle" = "ซ่อนโฮสต์เมื่อดึงข้อมูลเซสชันไม่สำเร็จ";

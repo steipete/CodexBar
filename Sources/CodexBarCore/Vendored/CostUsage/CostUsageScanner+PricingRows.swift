@@ -6,7 +6,8 @@ extension CostUsageScanner {
         priorityTurns: [String: CodexPriorityTurnMetadata] = [:],
         modelsDevCatalog: ModelsDevCatalog?,
         modelsDevCacheRoot: URL?,
-        customPricing: CostUsageCustomPricing? = nil) -> Double?
+        customPricing: CostUsageCustomPricing? = nil,
+        pricingResolver: CostUsagePricing.CodexResolver? = nil) -> Double?
     {
         if let authoritativeCostNanos = row.knownCostNanos {
             return Double(authoritativeCostNanos) / self.costScale
@@ -17,23 +18,28 @@ extension CostUsageScanner {
             ?? row.pricingModel
             ?? row.model
         let overlay = customPricing ?? .empty
+        let pricingDate = row.timestampUnixMs.map { Date(timeIntervalSince1970: Double($0) / 1000) }
         let baseCost = CostUsagePricing.codexCostUSD(
             model: pricedModel,
             inputTokens: row.input,
             cachedInputTokens: row.cached,
             outputTokens: row.output,
+            pricingDate: pricingDate,
             modelsDevCatalog: modelsDevCatalog,
             modelsDevCacheRoot: modelsDevCacheRoot,
-            customPricing: overlay)
+            customPricing: overlay,
+            pricingResolver: pricingResolver)
         guard isPriority else { return baseCost }
         guard let priorityCost = CostUsagePricing.codexPriorityCostUSD(
             model: pricedModel,
             inputTokens: row.input,
             cachedInputTokens: row.cached,
             outputTokens: row.output,
+            pricingDate: pricingDate,
             modelsDevCatalog: modelsDevCatalog,
             modelsDevCacheRoot: modelsDevCacheRoot,
-            customPricing: overlay)
+            customPricing: overlay,
+            pricingResolver: pricingResolver)
         else { return baseCost }
         return max(priorityCost, baseCost ?? priorityCost)
     }

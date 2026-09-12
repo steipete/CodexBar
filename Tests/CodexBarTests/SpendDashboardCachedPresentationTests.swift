@@ -1,5 +1,6 @@
 import CodexBarCore
 import Foundation
+import os.lock
 import Testing
 @testable import CodexBar
 
@@ -107,6 +108,113 @@ struct SpendDashboardCachedPresentationTests {
     }
 
     @Test
+    func `successful incomplete Codex refresh keeps the retained established total`() async {
+        let gate = SpendDashboardCachedLoaderGate()
+        let configuration = Self.configuration(account: "account|cache")
+        let controller = SpendDashboardController(
+            requestBuilder: { mode in
+                Self.request(configuration: configuration, force: mode.forcesLoader)
+            },
+            cachedLoader: { _ in
+                SpendDashboardLoadResult(
+                    inputs: [Self.input(id: "codex:account", cost: 3)],
+                    failedSourceIDs: [])
+            },
+            loader: { request in await gate.load(request) })
+
+        controller.update(configuration: configuration)
+        await Self.waitForPendingCount(1, gate: gate)
+        await gate.resume(at: 0, result: .init(
+            inputs: [Self.input(
+                id: "codex:account",
+                cost: 9,
+                historyCoverageIsEstablished: false)],
+            failedSourceIDs: []))
+        await Self.waitUntil { !controller.isRefreshing }
+
+        #expect(controller.failedSourceCount == 0)
+        #expect(controller.model.groups.first?.totalCost == 3)
+        #expect(Set(controller.model.groups.flatMap(\.providers).map(\.id)) == ["codex:account"])
+    }
+
+    @Test
+    func `incomplete Codex refresh rejects a retained total from another bucket time zone`() async {
+        let gate = SpendDashboardCachedLoaderGate()
+        let utc = Self.configuration(account: "account|cache", bucketTimeZoneIdentifier: "UTC")
+        let pacific = Self.configuration(
+            account: "account|cache",
+            bucketTimeZoneIdentifier: "America/Los_Angeles")
+        let activeConfiguration = OSAllocatedUnfairLock(initialState: utc)
+        let controller = SpendDashboardController(
+            requestBuilder: { mode in
+                Self.request(
+                    configuration: activeConfiguration.withLock { $0 },
+                    force: mode.forcesLoader)
+            },
+            cachedLoader: { _ in
+                SpendDashboardLoadResult(
+                    inputs: [Self.input(id: "codex:account", cost: 3)],
+                    failedSourceIDs: [])
+            },
+            loader: { request in await gate.load(request) })
+
+        controller.update(configuration: utc)
+        await Self.waitForPendingCount(1, gate: gate)
+        #expect(controller.model.groups.first?.totalCost == 3)
+
+        activeConfiguration.withLock { $0 = pacific }
+        controller.update(configuration: pacific)
+        await gate.resume(at: 0, result: .init(inputs: [], failedSourceIDs: []))
+        await Self.waitForPendingCount(1, gate: gate)
+        await gate.resume(at: 0, result: .init(
+            inputs: [Self.input(
+                id: "codex:account",
+                cost: 9,
+                historyCoverageIsEstablished: false)],
+            failedSourceIDs: []))
+        await Self.waitUntil { !controller.isRefreshing }
+
+        #expect(controller.failedSourceCount == 0)
+        #expect(controller.configuration?.bucketCalendar.timeZone.identifier == "America/Los_Angeles")
+        #expect(controller.model.groups.first?.timeZone.identifier == "America/Los_Angeles")
+        #expect(controller.model.groups.first?.totalCost == nil)
+        #expect(controller.model.groups.first?.providers.first?.totalCost == nil)
+    }
+
+    @Test
+    func `incomplete Codex refresh rejects a retained total from another history window`() async {
+        let gate = SpendDashboardCachedLoaderGate()
+        let configuration = Self.configuration(account: "account|cache")
+        let controller = SpendDashboardController(
+            requestBuilder: { mode in
+                Self.request(configuration: configuration, force: mode.forcesLoader)
+            },
+            cachedLoader: { _ in
+                SpendDashboardLoadResult(
+                    inputs: [Self.input(id: "codex:account", cost: 3, historyDays: 30)],
+                    failedSourceIDs: [])
+            },
+            loader: { request in await gate.load(request) })
+
+        controller.update(configuration: configuration)
+        await Self.waitForPendingCount(1, gate: gate)
+        #expect(controller.model.groups.first?.totalCost == 3)
+
+        await gate.resume(at: 0, result: .init(
+            inputs: [Self.input(
+                id: "codex:account",
+                cost: 9,
+                historyDays: SpendDashboardSource.scanDays,
+                historyCoverageIsEstablished: false)],
+            failedSourceIDs: []))
+        await Self.waitUntil { !controller.isRefreshing }
+
+        #expect(controller.failedSourceCount == 0)
+        #expect(controller.model.groups.first?.totalCost == nil)
+        #expect(controller.model.groups.first?.providers.first?.totalCost == nil)
+    }
+
+    @Test
     func `cached Codex totals stay bound to their account cache`() async {
         let first = Self.scanRequest(id: "first", cacheIdentity: "first-cache")
         let second = Self.scanRequest(id: "second", cacheIdentity: "second-cache")
@@ -137,9 +245,9 @@ struct SpendDashboardCachedPresentationTests {
         #expect(SpendDashboardSource.codexCacheRoot(for: second).lastPathComponent == "second-cache")
     }
 
-    @Test
+    @Test(CodexCredentialFixtures())
     func `cached Codex totals reject an account rotation during hydration`() async throws {
-        let home = FileManager.default.temporaryDirectory
+        let home = CodexCredentialFixtures.root
             .appendingPathComponent("SpendDashboardCachedAuth-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: home) }
@@ -172,11 +280,15 @@ struct SpendDashboardCachedPresentationTests {
 
     private nonisolated static let fixtureNow = Date(timeIntervalSince1970: 1_784_179_200)
 
-    private static func configuration(account: String) -> SpendDashboardConfiguration {
+    private static func configuration(
+        account: String,
+        bucketTimeZoneIdentifier: String = "") -> SpendDashboardConfiguration
+    {
         SpendDashboardConfiguration(
             costUsageEnabled: true,
             providerIDs: [UsageProvider.codex.rawValue],
-            codexAccountIdentities: [account])
+            codexAccountIdentities: [account],
+            bucketTimeZoneIdentifier: bucketTimeZoneIdentifier)
     }
 
     private static func request(
@@ -209,7 +321,9 @@ struct SpendDashboardCachedPresentationTests {
 
     private nonisolated static func input(
         id: String? = nil,
-        cost: Double) -> SpendDashboardModel.ProviderInput
+        cost: Double,
+        historyDays: Int = 30,
+        historyCoverageIsEstablished: Bool = true) -> SpendDashboardModel.ProviderInput
     {
         let entry = CostUsageDailyReport.Entry(
             date: "2026-07-15",
@@ -224,6 +338,8 @@ struct SpendDashboardCachedPresentationTests {
             sessionCostUSD: nil,
             last30DaysTokens: 10,
             last30DaysCostUSD: cost,
+            historyDays: historyDays,
+            historyCoverageIsEstablished: historyCoverageIsEstablished,
             daily: [entry],
             updatedAt: Self.fixtureNow)
         return SpendDashboardModel.ProviderInput(

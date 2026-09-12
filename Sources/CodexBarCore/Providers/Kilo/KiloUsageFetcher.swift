@@ -213,13 +213,13 @@ public enum KiloUsageError: LocalizedError, Sendable, Equatable {
         case .missingCredentials:
             "Kilo API credentials missing. Set KILO_API_KEY."
         case let .cliSessionMissing(path):
-            "Kilo CLI session not found at \(path). Run `kilo login` to create ~/.local/share/kilo/auth.json."
+            "Kilo CLI session not found at \(path). Run `kilo auth login` to create ~/.local/share/kilo/auth.json."
         case let .cliSessionUnreadable(path):
-            "Kilo CLI session file is unreadable at \(path). Fix permissions or run `kilo login` again."
+            "Kilo CLI session file is unreadable at \(path). Fix permissions or run `kilo auth login` again."
         case let .cliSessionInvalid(path):
-            "Kilo CLI session file is invalid at \(path). Run `kilo login` to refresh auth.json."
+            "Kilo CLI session file is invalid at \(path). Run `kilo auth login` to refresh auth.json."
         case .unauthorized:
-            "Kilo authentication failed (401/403). Refresh KILO_API_KEY or run `kilo login`."
+            "Kilo authentication failed (401/403). Refresh KILO_API_KEY or run `kilo auth login`."
         case .endpointNotFound:
             "Kilo API endpoint not found (404). Verify the tRPC batch path and procedure names."
         case let .serviceUnavailable(statusCode):

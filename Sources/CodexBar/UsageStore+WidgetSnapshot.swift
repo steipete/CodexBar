@@ -50,18 +50,36 @@ extension UsageStore {
                 return
             }
 
-            let widgetSnapshotURL = self.widgetSnapshotURL
-            await Task.detached(priority: .utility) {
-                if let widgetSnapshotURL {
-                    WidgetSnapshotStore.save(snapshot, to: widgetSnapshotURL)
-                } else {
-                    WidgetSnapshotStore.save(snapshot)
-                }
-            }.value
-            #if canImport(WidgetKit)
-            WidgetCenter.shared.reloadAllTimelines()
-            #endif
+            await Self.saveWidgetSnapshot(
+                snapshot,
+                to: self.widgetSnapshotURL,
+                isRunningTests: SettingsStore.isRunningTests,
+                reloadTimelines: self.widgetTimelineReloader)
         }
+    }
+
+    static func saveWidgetSnapshot(
+        _ snapshot: WidgetSnapshot,
+        to url: URL?,
+        isRunningTests: Bool,
+        reloadTimelines: @MainActor () -> Void) async
+    {
+        await Task.detached(priority: .utility) {
+            if let url {
+                WidgetSnapshotStore.save(snapshot, to: url)
+            } else {
+                WidgetSnapshotStore.save(snapshot)
+            }
+        }.value
+        // Opting into file persistence in tests never opts into WidgetKit side effects.
+        guard !isRunningTests else { return }
+        reloadTimelines()
+    }
+
+    static func reloadWidgetTimelines() {
+        #if canImport(WidgetKit)
+        WidgetCenter.shared.reloadAllTimelines()
+        #endif
     }
 
     /// Builds outbound snapshots only from this Mac's UsageStore; remote fleet snapshots live in CloudSyncState.
@@ -111,7 +129,7 @@ extension UsageStore {
                 provider: accountSnapshot.provider.instanceID,
                 deviceID: deviceID,
                 accountIdentity: identity,
-                displayLabel: accountSnapshot.displayLabel,
+                displayLabel: accountSnapshot.accountEmail ?? "Account \(accountSnapshot.id.opaqueID)",
                 usage: usage)
             payloads[payload.recordName] = payload
         }
@@ -342,8 +360,16 @@ extension UsageStore {
         provider: UsageProvider) -> WidgetSnapshot.TokenUsageSummary?
     {
         guard let snapshot else { return nil }
-        let fallbackTokens = snapshot.daily.compactMap(\.totalTokens).reduce(0, +)
-        let monthTokensValue = snapshot.last30DaysTokens ?? (fallbackTokens > 0 ? fallbackTokens : nil)
+        let fallbackTokens: Int? = {
+            var sum = 0
+            for t in snapshot.daily.compactMap(\.totalTokens) {
+                let (res, of) = sum.addingReportingOverflow(t)
+                if of { return nil }
+                sum = res
+            }
+            return sum > 0 ? sum : nil
+        }()
+        let monthTokensValue = snapshot.last30DaysTokens ?? fallbackTokens
         let sessionLabel = if provider == .bedrock || provider == .mistral {
             "Latest billing day"
         } else if provider == .codex {
@@ -366,6 +392,46 @@ extension UsageStore {
             sessionLabel: sessionLabel,
             last30DaysLabel: monthLabel,
             updatedAt: snapshot.updatedAt)
+    }
+
+    private nonisolated static func widgetPrimaryTitle(
+        provider: UsageProvider,
+        snapshot: UsageSnapshot,
+        metadata: ProviderMetadata?) -> String
+    {
+        // Legacy request-based Cursor plans track a request quota, not the token-based "Total" pool.
+        if provider == .cursor, snapshot.detailRow(label: "Request quota") != nil {
+            return "Requests"
+        }
+        if provider == .grok,
+           let dyn = GrokProviderDescriptor.displayLabel(window: snapshot.primary)
+        {
+            return dyn
+        }
+        if provider == .doubao,
+           let dyn = DoubaoProviderDescriptor.primaryLabel(window: snapshot.primary)
+        {
+            return dyn
+        }
+        if provider == .amp,
+           let dyn = AmpProviderDescriptor.primaryLabel(snapshot: snapshot)
+        {
+            return dyn
+        }
+        if provider == .crof {
+            return CrofProviderDescriptor.primaryLabel(snapshot: snapshot)
+        }
+        if provider == .alibabatokenplan,
+           let dyn = AlibabaTokenPlanProviderDescriptor.primaryLabel(window: snapshot.primary)
+        {
+            return dyn
+        }
+        if provider == .ollama,
+           let dyn = OllamaProviderDescriptor.primaryLabel(window: snapshot.primary)
+        {
+            return dyn
+        }
+        return metadata?.sessionLabel ?? "Session"
     }
 
     private func widgetUsageRows(
@@ -421,36 +487,7 @@ extension UsageStore {
             return rows
         }
 
-        let primaryTitle: String = {
-            // Legacy request-based Cursor plans track a request quota, not the token-based "Total" pool.
-            if provider == .cursor, snapshot.detailRow(label: "Request quota") != nil {
-                return "Requests"
-            }
-            if provider == .grok,
-               let dyn = GrokProviderDescriptor.displayLabel(window: snapshot.primary)
-            {
-                return dyn
-            }
-            if provider == .doubao,
-               let dyn = DoubaoProviderDescriptor.primaryLabel(window: snapshot.primary)
-            {
-                return dyn
-            }
-            if provider == .amp,
-               let dyn = AmpProviderDescriptor.primaryLabel(snapshot: snapshot)
-            {
-                return dyn
-            }
-            if provider == .crof {
-                return CrofProviderDescriptor.primaryLabel(snapshot: snapshot)
-            }
-            if provider == .alibabatokenplan,
-               let dyn = AlibabaTokenPlanProviderDescriptor.primaryLabel(window: snapshot.primary)
-            {
-                return dyn
-            }
-            return metadata?.sessionLabel ?? "Session"
-        }()
+        let primaryTitle = Self.widgetPrimaryTitle(provider: provider, snapshot: snapshot, metadata: metadata)
         let secondaryTitle = if provider == .amp {
             AmpProviderDescriptor.secondaryLabel(snapshot: snapshot) ?? metadata?.weeklyLabel ?? "Weekly"
         } else if provider == .alibabatokenplan {
@@ -476,6 +513,20 @@ extension UsageStore {
                 title: metadata?.opusLabel ?? "Opus",
                 percentLeft: snapshot.tertiary?.remainingPercent))
         }
+        // Provider-specific by design: Cursor Grok Bot weekly included usage is a named extraRateWindow.
+        if provider == .cursor {
+            rows.append(contentsOf: (snapshot.extraRateWindows ?? []).compactMap { namedWindow in
+                guard namedWindow.id == CursorSandUsageStatus.extraWindowID, namedWindow.usageKnown else {
+                    return nil
+                }
+                return WidgetSnapshot.WidgetUsageRowSnapshot(
+                    id: namedWindow.id,
+                    title: namedWindow.title,
+                    percentLeft: namedWindow.window.remainingPercent,
+                    window: namedWindow.window)
+            })
+        }
+
         if provider == .claude, self.settings.claudeModelScopedWeeklyUsageVisible {
             // Claude fetchers place model-scoped weekly quotas (for example, Fable) in extraRateWindows.
             // Keep the widget projection generic so newly surfaced Claude model quotas appear without UI changes.

@@ -197,8 +197,19 @@ struct UsageStoreCachedTokenHydrationTests {
             environmentBase: [:])
         var observedStalePresentation = false
         var statusLoadCount = 0
-        store._test_cachedCodexTokenSnapshotLoaderOverride = { _, _, _ in
-            (Self.cachedTokenSnapshot(), nil, staleAt)
+        var cachedLoadCount = 0
+        store._test_cachedCodexTokenSnapshotLoaderOverride = { now, _, _ in
+            cachedLoadCount += 1
+            if cachedLoadCount == 1 {
+                return (Self.cachedTokenSnapshot(), nil, staleAt)
+            }
+            return (CostUsageTokenSnapshot(
+                sessionTokens: 84,
+                sessionCostUSD: 2,
+                last30DaysTokens: 84,
+                last30DaysCostUSD: 2,
+                daily: [],
+                updatedAt: now), now, nil)
         }
         store._test_tokenUsageSnapshotLoaderOverride = { _, _, now, _, _ in
             CostUsageTokenSnapshot(

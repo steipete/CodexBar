@@ -1,0 +1,33 @@
+CodexBar cached menu-card shell swap - native runtime proof
+Captured: 2026-08-20T12:27:38+05:30
+Commit: f411a02817c20ebc7ff5f844d78925fe8f4b177c
+Host: macOS 26.3 (25D125), arm64
+
+Setup
+- Ad-hoc debug app bundle using the binary built from the commit above and launched
+  under a disposable bundle/preferences domain.
+- Keychain access and web extras were disabled. The attached frame contains no
+  account identity or usage values.
+- MenuSwitchFlickerProbe drove the real merged NSMenu and captured its WindowServer
+  composite with CGWindowListCreateImage.
+
+Run
+- Two native-menu sessions, six programmatic provider/overview switches each.
+- 176 + 236 = 412 captured samples; nil captures: 0 in both sessions.
+- Production trace recorded 12 cached-swap paths and one reconcile path (the initial
+  menu construction for session two).
+- The attached frame is the first cached Claude -> Codex switch, captured at
+  session +449.2 ms. The switch was handled at +406 ms; the cached swap ran from
+  process +504.6 ms to +511.3 ms.
+
+Visual check around that cached switch
+- Pre-switch frames at +409.2 ms and +429.0 ms were byte-identical.
+- Post-switch frames at +449.2 ms and +469.9 ms were byte-identical.
+- A system-blue pixel scan found zero blue pixels below y=140 in all four frames.
+  The only system-blue region was the expected selected provider segment in the
+  switcher header. No native blue selection layer appeared behind the card.
+
+Limit
+- This host is macOS 26.3, not the reporter's macOS 27 build. The source regression
+  and subclass-preservation test are deterministic; macOS 27 visual confirmation
+  remains useful.

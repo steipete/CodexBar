@@ -3,7 +3,7 @@ import Foundation
 import Testing
 @testable import CodexBar
 
-@Suite(.serialized)
+@Suite(.serialized, CodexCredentialFixtures())
 @MainActor
 struct CodexPresentationCharacterizationTests {
     @Test
@@ -220,7 +220,7 @@ struct CodexPresentationCharacterizationTests {
     func `Codex menu prefers snapshot identity over conflicting fallback account info`() throws {
         let settings = self.makeSettingsStore(suite: "CodexPresentationCharacterizationTests-snapshot-precedence")
         settings.statusChecksEnabled = false
-        let managedHome = FileManager.default.temporaryDirectory
+        let managedHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-presentation-fallback-\(UUID().uuidString)", isDirectory: true)
         let managedAccount = ManagedCodexAccount(
             id: UUID(),
@@ -280,7 +280,7 @@ struct CodexPresentationCharacterizationTests {
     func `Codex menu falls back per field when snapshot identity is partial`() {
         let settings = self.makeSettingsStore(suite: "CodexPresentationCharacterizationTests-partial-fallback")
         settings.statusChecksEnabled = false
-        let managedHome = FileManager.default.temporaryDirectory
+        let managedHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-presentation-partial-\(UUID().uuidString)", isDirectory: true)
         let managedAccount = ManagedCodexAccount(
             id: UUID(),

@@ -238,4 +238,51 @@ struct CursorMenuCardModelTests {
         #expect(model.metrics.map(\.title) == ["Requests"])
         #expect(model.metrics.first?.detailText == "Request quota: 347 / 500")
     }
+
+    @Test
+    func `grok bot extra window renders after monthly bars`() throws {
+        let now = Date(timeIntervalSince1970: 0)
+        let monthlyReset = now.addingTimeInterval(26 * 24 * 3600)
+        let weeklyReset = now.addingTimeInterval(3 * 24 * 3600)
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 1, windowMinutes: 43200, resetsAt: monthlyReset, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 1, windowMinutes: 43200, resetsAt: monthlyReset, resetDescription: nil),
+            tertiary: RateWindow(usedPercent: 0, windowMinutes: 43200, resetsAt: monthlyReset, resetDescription: nil),
+            extraRateWindows: [
+                NamedRateWindow(
+                    id: CursorSandUsageStatus.extraWindowID,
+                    title: CursorSandUsageStatus.extraWindowTitle,
+                    window: RateWindow(
+                        usedPercent: 100,
+                        windowMinutes: 10080,
+                        resetsAt: weeklyReset,
+                        resetDescription: nil)),
+            ],
+            updatedAt: now,
+            identity: nil)
+        let metadata = try #require(ProviderDefaults.metadata[.cursor])
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .cursor,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        #expect(model.metrics.map(\.title) == ["Total", "Cursor", "Third Party", "Grok Bot"])
+        #expect(model.metrics.last?.percentLabel == "0% left")
+    }
 }

@@ -78,12 +78,19 @@ extension SettingsSectionFooter where Content == Text {
 struct OpenMenuShortcutRecorder: NSViewRepresentable {
     static let preferredWidth: CGFloat = 170
 
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
     func makeNSView(context: Context) -> KeyboardShortcuts.RecorderCocoa {
-        KeyboardShortcuts.RecorderCocoa(for: .openMenu)
+        let recorder = KeyboardShortcuts.RecorderCocoa(for: .openMenu)
+        context.coordinator.attach(to: recorder)
+        return recorder
     }
 
     func updateNSView(_ nsView: KeyboardShortcuts.RecorderCocoa, context: Context) {
         nsView.shortcutName = .openMenu
+        context.coordinator.attach(to: nsView)
     }
 
     func sizeThatFits(
@@ -97,6 +104,57 @@ struct OpenMenuShortcutRecorder: NSViewRepresentable {
 
     static func fittedSize(intrinsicHeight: CGFloat) -> CGSize {
         CGSize(width: self.preferredWidth, height: intrinsicHeight)
+    }
+
+    @MainActor
+    final class Coordinator: NSObject {
+        private weak var recorder: KeyboardShortcuts.RecorderCocoa?
+        private var placeholderUpdateTask: Task<Void, Never>?
+
+        override init() {
+            super.init()
+            let center = NotificationCenter.default
+            center.addObserver(
+                self,
+                selector: #selector(self.textDidBeginEditing(_:)),
+                name: NSControl.textDidBeginEditingNotification,
+                object: nil)
+            center.addObserver(
+                self,
+                selector: #selector(self.textDidEndEditing(_:)),
+                name: NSControl.textDidEndEditingNotification,
+                object: nil)
+        }
+
+        deinit {
+            NotificationCenter.default.removeObserver(self)
+        }
+
+        func attach(to recorder: KeyboardShortcuts.RecorderCocoa) {
+            self.recorder = recorder
+            self.updatePlaceholder(isRecording: recorder.currentEditor() != nil)
+        }
+
+        @objc private func textDidBeginEditing(_ notification: Notification) {
+            guard notification.object as? KeyboardShortcuts.RecorderCocoa === self.recorder else { return }
+            self.updatePlaceholder(isRecording: true)
+        }
+
+        @objc private func textDidEndEditing(_ notification: Notification) {
+            guard notification.object as? KeyboardShortcuts.RecorderCocoa === self.recorder else { return }
+            self.updatePlaceholder(isRecording: false)
+        }
+
+        private func updatePlaceholder(isRecording: Bool) {
+            guard let recorder = self.recorder else { return }
+            let placeholder = L(isRecording ? "press_shortcut" : "record_shortcut")
+            recorder.placeholderString = placeholder
+            self.placeholderUpdateTask?.cancel()
+            self.placeholderUpdateTask = Task { @MainActor [weak self, weak recorder] in
+                guard !Task.isCancelled, let self, let recorder, self.recorder === recorder else { return }
+                recorder.placeholderString = placeholder
+            }
+        }
     }
 }
 

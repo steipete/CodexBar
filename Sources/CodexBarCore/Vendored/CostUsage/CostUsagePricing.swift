@@ -174,6 +174,19 @@ enum CostUsagePricing {
             outputCostPerToken: 1.8e-4,
             cacheReadInputCostPerToken: nil,
             displayLabel: nil),
+        // https://developers.openai.com/api/docs/models/gpt-6-astra and /api/docs/pricing.
+        // The full request switches to long-context rates above 272K input tokens, including Fast mode.
+        "gpt-6-astra": CodexPricing(
+            inputCostPerToken: 1e-5,
+            outputCostPerToken: 5e-5,
+            cacheReadInputCostPerToken: 1e-6,
+            displayLabel: nil,
+            cacheWriteInputCostPerToken: 1.25e-5,
+            thresholdTokens: 272_000,
+            inputCostPerTokenAboveThreshold: 2e-5,
+            outputCostPerTokenAboveThreshold: 7.5e-5,
+            cacheReadInputCostPerTokenAboveThreshold: 2e-6,
+            cacheWriteInputCostPerTokenAboveThreshold: 2.5e-5),
         // GPT-5.6 Sol/Terra/Luna (OpenAI pricing page + model cards).
         // Long context: prompts with >272K input tokens are 2x input / 1.5x output for the full
         // request. Cache writes: 1.25x uncached input. API Fast support and multipliers are applied
@@ -233,6 +246,7 @@ enum CostUsagePricing {
                 self.optionalPricingFingerprint(pricing.cacheReadInputCostPerTokenAboveThreshold),
                 self.optionalPricingFingerprint(pricing.cacheWriteInputCostPerTokenAboveThreshold),
                 self.optionalPricingFingerprint(self.codexAPIFastMultiplier(model: model)),
+                "fastLongContext=\(self.codexAPIFastAllowsLongContext(model: model))",
             ].joined(separator: "|"))
         }
         return parts.joined(separator: "\n")
@@ -396,6 +410,35 @@ enum CostUsagePricing {
             cacheReadInputCostPerTokenAboveThreshold: 6e-7),
     ]
 
+    // GPT-5.6 Terra and Luna rates effective before 2026-07-30 (Unix 1785369600).
+    // Sol pricing was unchanged. Values from OpenAI pricing page snapshot in PR #2521.
+    // Co-authored-by: iam-brain (historical rate values).
+    static let codexGPT56PricingCutoff = Date(timeIntervalSince1970: 1_785_369_600)
+    private static let codexHistoricalPricing: [String: CodexPricing] = [
+        "gpt-5.6-terra": CodexPricing(
+            inputCostPerToken: 2.5e-6,
+            outputCostPerToken: 1.5e-5,
+            cacheReadInputCostPerToken: 2.5e-7,
+            displayLabel: nil,
+            cacheWriteInputCostPerToken: 3.125e-6,
+            thresholdTokens: 272_000,
+            inputCostPerTokenAboveThreshold: 5e-6,
+            outputCostPerTokenAboveThreshold: 2.25e-5,
+            cacheReadInputCostPerTokenAboveThreshold: 5e-7,
+            cacheWriteInputCostPerTokenAboveThreshold: 6.25e-6),
+        "gpt-5.6-luna": CodexPricing(
+            inputCostPerToken: 1e-6,
+            outputCostPerToken: 6e-6,
+            cacheReadInputCostPerToken: 1e-7,
+            displayLabel: nil,
+            cacheWriteInputCostPerToken: 1.25e-6,
+            thresholdTokens: 272_000,
+            inputCostPerTokenAboveThreshold: 2e-6,
+            outputCostPerTokenAboveThreshold: 9e-6,
+            cacheReadInputCostPerTokenAboveThreshold: 2e-7,
+            cacheWriteInputCostPerTokenAboveThreshold: 2.5e-6),
+    ]
+
     private static let claudeFullContextStandardPricingCutoff = Date(timeIntervalSince1970: 1_773_360_000)
     private static let claudeHistoricalLongContext: [String: ClaudePricing] = [
         "claude-opus-4-6": ClaudePricing(
@@ -488,6 +531,11 @@ enum CostUsagePricing {
             return "gpt-5.6-sol"
         }
 
+        // Codex uses gpt-reserve for the Luna Reserve quota bucket.
+        if trimmed == "gpt-reserve" {
+            return "gpt-5.6-luna"
+        }
+
         if self.codex[trimmed] != nil {
             return trimmed
         }
@@ -545,15 +593,26 @@ enum CostUsagePricing {
 
     static func resolvedCodexPricing(
         model: String,
+        pricingDate: Date? = nil,
         modelsDevCatalog: ModelsDevCatalog?,
-        modelsDevCacheRoot: URL?) -> CodexPricing?
+        modelsDevCacheRoot: URL?,
+        pricingResolver: CodexResolver? = nil) -> CodexPricing?
     {
-        let key = self.normalizeCodexModel(model)
+        let key = pricingResolver?.normalize(model) ?? self.normalizeCodexModel(model)
         guard key != self.codexUnattributedModel else { return nil }
-        let modelsDevLookup = self.codexModelsDevLookup(
-            model: model,
-            catalog: modelsDevCatalog,
-            cacheRoot: modelsDevCacheRoot)
+        // Use historical bundled rates when the usage predates a known pricing change and
+        // no custom overlay or models.dev catalog entry overrides the lookup.
+        if let pricingDate,
+           pricingDate < self.codexGPT56PricingCutoff,
+           let historical = self.codexHistoricalPricing[key]
+        {
+            return historical
+        }
+        let modelsDevLookup = if let pricingResolver {
+            pricingResolver.lookup(model)
+        } else {
+            self.codexModelsDevLookup(model: model, catalog: modelsDevCatalog, cacheRoot: modelsDevCacheRoot)
+        }
         if let lookup = modelsDevLookup {
             let bundled = lookup.pricing.providerID == self.codexModelsDevProviderID ? self.codex[key] : nil
             // A missing catalog context block means models.dev has no long-context opinion, so use
@@ -596,11 +655,14 @@ enum CostUsagePricing {
     /// Resolves the provider-qualified model IDs written by Codex-compatible clients without
     /// falling back to OpenAI pricing for an unrelated route. Unqualified model IDs retain the
     /// historical OpenAI behavior, including the gpt-5.6 alias lookup.
-    private static func codexModelsDevLookup(
+    static func codexModelsDevLookup(
         model rawModel: String,
         catalog: ModelsDevCatalog?,
         cacheRoot: URL?) -> ModelsDevPricingLookup?
     {
+        #if DEBUG
+        self.codexPricingWorkRecorder?.recordCatalogLookup()
+        #endif
         for target in self.codexModelsDevPricingTargets(for: rawModel) {
             if let lookup = self.modelsDevLookup(
                 providerID: target.providerID,
@@ -620,14 +682,17 @@ enum CostUsagePricing {
         cachedInputTokens: Int = 0,
         cacheWriteInputTokens: Int = 0,
         outputTokens: Int,
+        pricingDate: Date? = nil,
         modelsDevCatalog: ModelsDevCatalog? = nil,
         modelsDevCacheRoot: URL? = nil,
-        customPricing: CostUsageCustomPricing? = nil) -> Double?
+        customPricing: CostUsageCustomPricing? = nil,
+        pricingResolver: CodexResolver? = nil) -> Double?
     {
         guard let multiplier = self.codexAPIFastMultiplier(model: model) else { return nil }
-        // OpenAI does not support API Fast processing for long-context requests. Do not combine
-        // the independent Standard long-context and Fast short-context rate tables.
-        if max(0, inputTokens) > self.codexPriorityInputTokenLimit {
+        // Keep older models' established cutoff; Astra explicitly publishes long-context Fast rates.
+        if max(0, inputTokens) > self.codexPriorityInputTokenLimit,
+           !self.codexAPIFastAllowsLongContext(model: model)
+        {
             return nil
         }
 
@@ -637,9 +702,11 @@ enum CostUsagePricing {
             cachedInputTokens: cachedInputTokens,
             outputTokens: outputTokens,
             cacheWriteInputTokens: cacheWriteInputTokens,
+            pricingDate: pricingDate,
             modelsDevCatalog: modelsDevCatalog,
             modelsDevCacheRoot: modelsDevCacheRoot,
-            customPricing: customPricing)
+            customPricing: customPricing,
+            pricingResolver: pricingResolver)
             .map { $0 * multiplier }
     }
 
@@ -647,10 +714,14 @@ enum CostUsagePricing {
     /// distinct from ChatGPT/Codex Fast credit multipliers, which do not represent a USD charge.
     static func codexAPIFastMultiplier(model: String) -> Double? {
         switch self.normalizeCodexModel(model) {
-        case "gpt-5.4", "gpt-5.4-mini", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna": 2
+        case "gpt-5.4", "gpt-5.4-mini", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-6-astra": 2
         case "gpt-5.5": 2.5
         default: nil
         }
+    }
+
+    private static func codexAPIFastAllowsLongContext(model: String) -> Bool {
+        self.normalizeCodexModel(model) == "gpt-6-astra"
     }
 
     static func codexCostUSD(
@@ -710,6 +781,17 @@ enum CostUsagePricing {
             cacheCreation1h: cacheCreationInputTokens1h,
             output: outputTokens)
         let key = self.normalizeClaudeModel(model)
+        return self.claudeCostUSD(normalizedModel: key, tokens: tokens, pricingDate: pricingDate) {
+            self.claudeModelsDevLookup(model: model, catalog: modelsDevCatalog, cacheRoot: modelsDevCacheRoot)
+        }
+    }
+
+    private static func claudeCostUSD(
+        normalizedModel key: String,
+        tokens: ClaudeCostTokens,
+        pricingDate: Date?,
+        modelsDevLookup: () -> ModelsDevPricingLookup?) -> Double?
+    {
         if let pricingDate,
            let historicalPricing = self.claudeHistoricalLongContext[key],
            let currentPricing = self.claude[key]
@@ -720,11 +802,7 @@ enum CostUsagePricing {
                     : currentPricing,
                 tokens: tokens)
         }
-        if let lookup = self.claudeModelsDevLookup(
-            model: model,
-            catalog: modelsDevCatalog,
-            cacheRoot: modelsDevCacheRoot)
-        {
+        if let lookup = modelsDevLookup() {
             return self.claudeCostUSD(
                 pricing: lookup.pricing,
                 tokens: tokens)
@@ -808,6 +886,96 @@ enum CostUsagePricing {
 }
 
 extension CostUsagePricing {
+    /// One synchronous Claude scan owns the catalog snapshot and exact-input model memos.
+    final class ClaudeResolver {
+        static let memoEntryLimit = 1024
+
+        private struct LookupResult {
+            let value: ModelsDevPricingLookup?
+        }
+
+        private let now: Date
+        private let cacheRoot: URL?
+        private var catalog: ModelsDevCatalog?
+        // String equality folds canonically equivalent Unicode; serialized model spelling must survive.
+        private var normalizedModels: [[UInt8]: String] = [:]
+        private var lookups: [[UInt8]: LookupResult] = [:]
+
+        init(now: Date, cacheRoot: URL?) {
+            self.now = now
+            self.cacheRoot = cacheRoot
+        }
+
+        init(catalog: ModelsDevCatalog) {
+            self.now = Date(timeIntervalSince1970: 0)
+            self.cacheRoot = nil
+            self.catalog = catalog
+        }
+
+        @discardableResult
+        func prepareCatalog() -> ModelsDevCatalog {
+            if let catalog = self.catalog {
+                return catalog
+            }
+            let catalog = CostUsagePricing.modelsDevCatalog(now: self.now, cacheRoot: self.cacheRoot)
+                ?? ModelsDevCatalog(providers: [:])
+            self.catalog = catalog
+            return catalog
+        }
+
+        func normalize(_ model: String) -> String {
+            let key = Array(model.utf8)
+            if let normalized = self.normalizedModels[key] {
+                return normalized
+            }
+            #if DEBUG
+            CostUsageScanner.recordClaudeScanWork(.normalizationCacheMiss)
+            #endif
+            let normalized = CostUsagePricing.normalizeClaudeModel(model)
+            if self.normalizedModels.count < Self.memoEntryLimit {
+                self.normalizedModels[key] = normalized
+            }
+            return normalized
+        }
+
+        private func lookup(_ model: String) -> ModelsDevPricingLookup? {
+            let key = Array(model.utf8)
+            if let result = self.lookups[key] {
+                return result.value
+            }
+            let value = CostUsagePricing.claudeModelsDevLookup(
+                model: model, catalog: self.prepareCatalog(), cacheRoot: nil)
+            #if DEBUG
+            CostUsageScanner.recordClaudeScanWork(.catalogModelLookup(found: value != nil))
+            #endif
+            if self.lookups.count < Self.memoEntryLimit {
+                self.lookups[key] = LookupResult(value: value)
+            }
+            return value
+        }
+
+        func costUSD(
+            model: String,
+            inputTokens: Int,
+            cacheReadInputTokens: Int,
+            cacheCreationInputTokens: Int,
+            cacheCreationInputTokens1h: Int = 0,
+            outputTokens: Int,
+            pricingDate: Date? = nil) -> Double?
+        {
+            let tokens = ClaudeCostTokens(
+                input: inputTokens,
+                cacheRead: cacheReadInputTokens,
+                cacheCreation: cacheCreationInputTokens,
+                cacheCreation1h: cacheCreationInputTokens1h,
+                output: outputTokens)
+            let key = self.normalize(model)
+            return CostUsagePricing.claudeCostUSD(normalizedModel: key, tokens: tokens, pricingDate: pricingDate) {
+                self.lookup(model)
+            }
+        }
+    }
+
     /// Bare Claude-routed IDs may match first-party models.dev vendors. Recognizable model families
     /// stay with their vendor, while unknown bare IDs must have one unambiguous catalog match.
     /// Provider-specific by design: first-party vendor routing for bare Claude model IDs.
@@ -822,6 +990,20 @@ extension CostUsagePricing {
     ]
 
     static func claudeModelsDevPricingTargets(for rawModel: String) -> [(providerID: String, modelID: String)] {
+        var targets = self.claudeUnaliasedModelsDevPricingTargets(for: rawModel)
+        // Claude's documented context-window alias stays inside Kimi Code, after every exact route match.
+        if targets.contains(where: {
+            $0.providerID == "kimi-for-coding"
+                && $0.modelID.trimmingCharacters(in: .whitespacesAndNewlines) == "k3[1m]"
+        }) {
+            targets.append(("kimi-for-coding", "k3"))
+        }
+        return targets
+    }
+
+    private static func claudeUnaliasedModelsDevPricingTargets(
+        for rawModel: String) -> [(providerID: String, modelID: String)]
+    {
         let trimmed = rawModel.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return [] }
         if let slash = trimmed.firstIndex(of: "/") {
@@ -868,7 +1050,7 @@ extension CostUsagePricing {
         if ["gemini-", "gemma-", "deep-research-", "veo-", "lyria-"].contains(where: model.hasPrefix) {
             return ["google"]
         }
-        if model == "kimi-for-coding" || model == "k3" || model.hasPrefix("k3-") {
+        if model == "kimi-for-coding" || model == "k3" || model == "k3[1m]" || model.hasPrefix("k3-") {
             return ["kimi-for-coding"]
         }
         if model.hasPrefix("kimi-") || model.hasPrefix("moonshot-") {

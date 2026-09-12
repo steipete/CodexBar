@@ -1,0 +1,11 @@
+command: CODEXBAR_LAYOUT_PROOF_DIR=.github/pr-proof swift test --filter 'MenuBarLayoutTests|StatusItemIconObservationSignatureTests|ProviderArchitectureGatekeeperTests'
+result: 92 tests in 3 suites passed after 85.698 seconds
+
+startup migrates pre-V2 direct-lane layouts into V2 and an older-readable fallback: passed
+startup writes a missing fallback when only the V2 layout key exists: passed
+lane layout load prefers a legacy blob edited by an older release: passed
+Kimi lane overrides dual-write reversed semantic windows: passed
+direct tertiary lane token changes the store icon observation signature: passed (60% -> 61%)
+direct lane layout ignores unused lane churn: passed
+
+SettingsStore.init ran against a suite that had only the pre-V2 keys (menuBarLayout, menuBarLayoutOverrides) seeded with lanePercent tokens. After load, both V2 keys existed and the legacy blobs decoded as 0.53.0 percent-window tokens. See menubar-lane-startup-migration.json.

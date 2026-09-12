@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+@testable import CodexBar
 @testable import CodexBarCore
 
 private final class AntigravityQuotaSummaryPathRecorder: @unchecked Sendable {
@@ -21,6 +22,66 @@ private final class AntigravityQuotaSummaryPathRecorder: @unchecked Sendable {
 }
 
 struct AntigravityQuotaSummaryTests {
+    @MainActor
+    @Test
+    func `semantic cadences resolve parsed quotas independently of family representatives`() throws {
+        let json = antigravityQuotaSummaryJSON(
+            geminiSession: 0.86,
+            geminiWeekly: 0.55,
+            claudeSession: 1,
+            claudeWeekly: 1)
+        let usage = try AntigravityStatusProbe.parseQuotaSummaryResponse(Data(json.utf8)).toUsageSnapshot()
+        let rows = try #require(usage.extraRateWindows)
+
+        #expect(rows.map { $0.window.remainingPercent.rounded() } == [86, 55, 100, 100])
+        #expect(rows.map(\.usageKnown) == [true, true, true, true])
+        #expect(usage.primary == rows[1].window)
+        #expect(usage.secondary == rows[2].window)
+
+        let windows = MenuBarLayoutSemanticWindowResolver.windows(provider: .antigravity, snapshot: usage)
+        #expect(windows.session == rows[0].window)
+        #expect(windows.weekly == rows[1].window)
+
+        let data = MenuBarLayoutRenderData(
+            provider: .antigravity,
+            iconKey: "antigravity",
+            providerName: nil,
+            accountLabel: nil,
+            laneLabels: MenuBarLayoutLaneLabels(provider: .antigravity, snapshot: usage),
+            primary: MenuBarLayoutRenderWindow(usage.primary),
+            secondary: MenuBarLayoutRenderWindow(usage.secondary),
+            tertiary: MenuBarLayoutRenderWindow(usage.tertiary),
+            session: MenuBarLayoutRenderWindow(windows.session),
+            weekly: MenuBarLayoutRenderWindow(windows.weekly),
+            scopedWeekly: nil,
+            scopedWeeklyTitle: nil,
+            automatic: nil,
+            automaticText: nil,
+            sessionPace: nil,
+            weeklyPace: nil,
+            automaticPace: nil,
+            runsOut: nil,
+            balance: nil,
+            costToday: nil,
+            cost30d: nil,
+            metrics: .unavailable)
+        let rendered = MenuBarLayoutRenderer().render(
+            layout: MenuBarLayout(lines: [[.percent(window: .session), .separatorDot, .percent(window: .weekly)]]),
+            data: data,
+            icon: nil,
+            options: MenuBarLayoutRenderOptions(
+                size: .regular,
+                highContrast: false,
+                showUsed: false,
+                conditionals: [],
+                appearanceName: "antigravity-proof",
+                isDebugApp: false,
+                now: Date(timeIntervalSince1970: 1_782_000_000)))
+
+        #expect(rendered.attributedTitle.string == "5h 86%\u{2009}·\u{2009}W 55%")
+        #expect(rendered.accessibilityLabel == "\(L("%@ %@", L("Session"), "86%")), \(L("%@ %@", L("Weekly"), "55%"))")
+    }
+
     @Test
     func `parses quota summary response into two model groups with session before weekly windows`() throws {
         let snapshot = try AntigravityStatusProbe.parseQuotaSummaryResponse(
@@ -371,7 +432,12 @@ struct AntigravityQuotaSummaryTests {
     }
 }
 
-private func antigravityQuotaSummaryJSON() -> String {
+func antigravityQuotaSummaryJSON(
+    geminiSession: Double = 0.91,
+    geminiWeekly: Double = 0.82,
+    claudeSession: Double = 0.73,
+    claudeWeekly: Double = 0.64) -> String
+{
     """
     {
       "response": {
@@ -384,14 +450,14 @@ private func antigravityQuotaSummaryJSON() -> String {
               {
                 "bucketId": "gemini-weekly",
                 "displayName": "Weekly Limit",
-                "remaining": { "remainingFraction": 0.82 },
+                "remaining": { "remainingFraction": \(geminiWeekly) },
                 "description": "You have used some of your weekly limit, it will fully refresh in 5 days, 11 hours.",
                 "resetTime": "2026-06-19T08:45:39Z"
               },
               {
                 "bucketId": "gemini-5h",
                 "displayName": "Five Hour Limit",
-                "remaining": { "remainingFraction": 0.91 },
+                "remaining": { "remainingFraction": \(geminiSession) },
                 "description": "You have used some of your 5-hour limit, it will fully refresh in 4 hours.",
                 "resetTime": "2026-06-15T11:39:34Z"
               }
@@ -404,14 +470,14 @@ private func antigravityQuotaSummaryJSON() -> String {
               {
                 "bucketId": "3p-weekly",
                 "displayName": "Weekly Limit",
-                "remaining": { "remainingFraction": 0.64 },
+                "remaining": { "remainingFraction": \(claudeWeekly) },
                 "description": "You have used some of your weekly limit, it will fully refresh in 6 days, 22 hours.",
                 "resetTime": "2026-06-20T00:39:54Z"
               },
               {
                 "bucketId": "3p-5h",
                 "displayName": "Five Hour Limit",
-                "remaining": { "remainingFraction": 0.73 },
+                "remaining": { "remainingFraction": \(claudeSession) },
                 "description": "You have used some of your 5-hour limit, it will fully refresh in 3 hours, 38 minutes.",
                 "resetTime": "2026-06-15T12:52:10Z"
               }

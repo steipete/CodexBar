@@ -352,12 +352,11 @@ enum ShareStatsBuilder {
 enum ShareStatsFormatting {
     static func compactCount(_ value: Int) -> String {
         let magnitude = abs(Double(value))
-        let divisor: Double
-        let suffix: String
+        let (divisor, suffix): (Double, String)
         switch magnitude {
-        case 1_000_000_000...: divisor = 1_000_000_000; suffix = "B"
-        case 1_000_000...: divisor = 1_000_000; suffix = "M"
-        case 1000...: divisor = 1000; suffix = "K"
+        case 1_000_000_000...: (divisor, suffix) = (1_000_000_000, "B")
+        case 1_000_000...: (divisor, suffix) = (1_000_000, "M")
+        case 1000...: (divisor, suffix) = (1000, "K")
         default: return value.formatted(.number.grouping(.automatic))
         }
         let scaled = Double(value) / divisor

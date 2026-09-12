@@ -80,7 +80,7 @@ public enum GrokCreditsProxyFetcher {
 
         if resetsAt != nil {
             return GrokWebBillingSnapshot(
-                usedPercent: 0,
+                usedPercent: nil,
                 resetsAt: resetsAt,
                 subscriptionTier: subscriptionTier)
         }

@@ -1,6 +1,47 @@
 import Foundation
+#if os(macOS)
+import Security
+#endif
 
 extension KeychainCacheStore {
+    #if DEBUG
+    @TaskLocal static var bundledAdHocProcessOverrideForTesting: Bool?
+    #endif
+
+    /// Ad-hoc app rebuilds cannot satisfy legacy Keychain ACLs created by an earlier executable identity.
+    /// Keep cookie caches process-local for those builds; certificate-signed development and release apps
+    /// retain the persistent Keychain cache.
+    static var isBundledAdHocProcess: Bool {
+        #if DEBUG
+        if let override = self.bundledAdHocProcessOverrideForTesting {
+            return override
+        }
+        #endif
+        return self.detectedBundledAdHocProcess
+    }
+
+    private static let detectedBundledAdHocProcess: Bool = {
+        #if os(macOS)
+        guard let appBundle = Self.appBundleURL(containing: Bundle.main.bundleURL)
+            ?? Bundle.main.executableURL.flatMap(Self.appBundleURL(containing:))
+        else { return false }
+        return !Self.hasCodeSigningCertificate(at: appBundle)
+        #else
+        return false
+        #endif
+    }()
+
+    #if DEBUG
+    static func withBundledAdHocProcessForTesting<T>(
+        _ enabled: Bool,
+        operation: () throws -> T) rethrows -> T
+    {
+        try self.$bundledAdHocProcessOverrideForTesting.withValue(enabled) {
+            try operation()
+        }
+    }
+    #endif
+
     static func trustedApplicationPathsForCacheAccess(
         bundleURL: URL = Bundle.main.bundleURL,
         executableURL: URL? = Bundle.main.executableURL,
@@ -47,5 +88,27 @@ extension KeychainCacheStore {
             current.deleteLastPathComponent()
         }
         return nil
+    }
+
+    static func hasCodeSigningCertificate(at bundleURL: URL) -> Bool {
+        #if os(macOS)
+        var staticCode: SecStaticCode?
+        guard SecStaticCodeCreateWithPath(bundleURL as CFURL, SecCSFlags(), &staticCode) == errSecSuccess,
+              let staticCode
+        else { return false }
+
+        var information: CFDictionary?
+        guard SecCodeCopySigningInformation(
+            staticCode,
+            SecCSFlags(rawValue: kSecCSSigningInformation),
+            &information) == errSecSuccess,
+            let values = information as? [String: Any],
+            let certificates = values[kSecCodeInfoCertificates as String] as? [SecCertificate]
+        else { return false }
+        return !certificates.isEmpty
+        #else
+        _ = bundleURL
+        return false
+        #endif
     }
 }

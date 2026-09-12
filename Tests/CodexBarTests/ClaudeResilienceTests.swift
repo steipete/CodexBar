@@ -1264,10 +1264,21 @@ extension ClaudeResilienceTests {
 
                 await store.refreshProvider(.claude)
                 let result = await MainActor.run {
-                    (
+                    let snapshot = store.presentationSnapshot(for: .claude)
+                    let card = CodexBarLocalizationOverride.$appLanguage.withValue("en") {
+                        ClaudeUsageDetailTestSupport.model(
+                            snapshot: snapshot,
+                            lastError: store.userFacingError(for: .claude),
+                            sourceLabel: store.sourceLabel(for: .claude))
+                    }
+                    return (
                         primary: store.snapshot(for: .claude)?.primary?.usedPercent,
                         secondary: store.snapshot(for: .claude)?.secondary?.usedPercent,
                         updatedAt: store.snapshot(for: .claude)?.updatedAt,
+                        identity: snapshot?.identity,
+                        confidence: snapshot?.dataConfidence,
+                        sourceMode: store.settings.claudeUsageDataSource,
+                        notes: card.usageNotes,
                         rawError: store.error(for: .claude),
                         userFacingError: store.userFacingError(for: .claude))
                 }
@@ -1275,6 +1286,10 @@ extension ClaudeResilienceTests {
                 #expect(result.primary == 21)
                 #expect(result.secondary == 42)
                 #expect(result.updatedAt == weeklyCapturedAt)
+                #expect(result.identity == nil)
+                #expect(result.confidence == .percentOnly)
+                #expect(result.sourceMode == .auto)
+                #expect(result.notes == ["Limited usage detail"])
                 #expect(result.rawError == ClaudeOAuthCredentialsError.keychainAccessRevoked.localizedDescription)
                 #expect(result.userFacingError?.contains("Showing last-known usage captured") == true)
             }

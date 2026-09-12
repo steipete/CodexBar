@@ -41,18 +41,22 @@ struct SettingsStoreCodexAccountReconciliationSnapshotLoader: CodexAccountReconc
 struct DefaultCodexAuthMaterialReader: CodexAuthMaterialReading {
     func readAuthData(homeURL: URL) throws -> Data? {
         let authFileURL = CodexAccountPromotionService.authFileURL(for: homeURL)
-        guard FileManager.default.fileExists(atPath: authFileURL.path) else {
+        guard CodexCredentialFileAccess.fileExists(at: authFileURL) else {
             return nil
         }
-        return try Data(contentsOf: authFileURL)
+        return try CodexCredentialFileAccess.read(at: authFileURL)
     }
 }
 
 struct DefaultCodexLiveAuthSwapper: CodexLiveAuthSwapping {
     func swapLiveAuthData(_ data: Data, liveHomeURL: URL) throws {
-        try FileManager.default.createDirectory(at: liveHomeURL, withIntermediateDirectories: true)
-
         let liveAuthURL = CodexAccountPromotionService.authFileURL(for: liveHomeURL)
+        guard CodexCredentialFileAccess.permits(liveAuthURL) else { throw CodexOAuthCredentialsError.notFound }
+        if try CodexCredentialFileAccess.substituteWriteForTesting(at: liveAuthURL) {
+            return
+        }
+        try CodexCredentialFileAccess.createDirectory(forCredentialAt: liveAuthURL)
+
         let stagedAuthURL = liveHomeURL.appendingPathComponent(
             "auth.json.codexbar-staged-\(UUID().uuidString)",
             isDirectory: false)
@@ -137,6 +141,7 @@ enum CodexAccountPromotionError: Error, Equatable {
     case targetManagedAccountNotFound
     case targetManagedAccountAuthMissing
     case targetManagedAccountAuthUnreadable
+    case targetManagedAccountWorkspaceDiffersFromAuthDefault
     case liveAccountUnreadable
     case liveAccountMissingIdentityForPreservation
     case liveAccountAPIKeyOnlyUnsupported
@@ -227,11 +232,16 @@ final class CodexAccountPromotionService {
                 resultingActiveSource: resultingActiveSource)
         }
 
+        guard !context.target.selectedWorkspaceDiffersFromAuthDefault else {
+            throw CodexAccountPromotionError.targetManagedAccountWorkspaceDiffersFromAuthDefault
+        }
+
         let targetAuthMaterial = try self.requiredTargetAuthMaterial(from: context.target)
         let preservationPlan = CodexDisplacedLivePreservationPlanner().makePlan(context: context)
         let executionResult = try CodexDisplacedLivePreservationExecutor(
             store: self.store,
             homeFactory: self.homeFactory,
+            authMaterialReader: self.authMaterialReader,
             fileManager: self.fileManager)
             .execute(plan: preservationPlan, context: context)
 
@@ -258,7 +268,7 @@ final class CodexAccountPromotionService {
 
     private func convergedActiveSource(for context: PreparedPromotionContext) -> CodexActiveSource? {
         if let liveAuthIdentity = context.live.authIdentity {
-            let targetIdentity = context.target.authIdentity ?? context.target.persistedIdentity
+            let targetIdentity = context.target.remoteIdentity
             guard CodexIdentityMatcher.matches(
                 targetIdentity.identity,
                 lhsEmail: targetIdentity.email,
@@ -284,7 +294,7 @@ final class CodexAccountPromotionService {
         }
 
         guard CodexIdentityMatcher.matches(
-            context.snapshot.runtimeIdentity(for: context.target.persisted),
+            context.snapshot.managedRemoteIdentity(for: context.target.persisted),
             lhsEmail: context.snapshot.runtimeEmail(for: context.target.persisted),
             context.snapshot.runtimeIdentity(for: liveSystemAccount),
             rhsEmail: liveSystemAccount.email)

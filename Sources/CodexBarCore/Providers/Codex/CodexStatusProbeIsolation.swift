@@ -28,7 +28,7 @@ enum CodexStatusProbeIsolation {
             "-s",
             "read-only",
             "-a",
-            "untrusted",
+            "never",
             "-c",
             "history.persistence=\"none\"",
             "-c",

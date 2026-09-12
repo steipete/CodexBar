@@ -40,6 +40,27 @@ interface CodexBarCostSnapshot {
   balance?: number | null;
 }
 
+interface CodexBarCostUsageEntry {
+  date: string;
+  inputTokens: number;
+  outputTokens: number;
+  reasoningTokens?: number | null;
+  requests: number;
+  cost: number;
+  /** Portion of cost that is estimated rather than deducted by the provider. */
+  estimatedCost?: number | null;
+  model?: string | null;
+}
+
+interface CodexBarCostUsageSnapshot {
+  currency: string;
+  historyDays: number;
+  historyLabel?: string | null;
+  /** Inclusive YYYY-MM-DD end of the reported window. */
+  windowEnd: string;
+  entries: CodexBarCostUsageEntry[];
+}
+
 interface CodexBarIdentitySnapshot {
   email?: string | null;
   organization?: string | null;
@@ -73,6 +94,8 @@ interface CodexBarUsageSnapshot {
   tertiary?: CodexBarRateWindow | null;
   extraWindows?: CodexBarNamedRateWindow[] | null;
   cost?: CodexBarCostSnapshot | null;
+  /** Exact provider-reported daily spend. The host validates and sums every numeric row. */
+  costUsage?: CodexBarCostUsageSnapshot | null;
   identity?: CodexBarIdentitySnapshot | null;
   subscriptionRenewsAt?: Date | string | null;
   subscriptionExpiresAt?: Date | string | null;
@@ -161,12 +184,15 @@ interface CodexBarPluginContext {
   log(...values: unknown[]): void;
   pct(used: number, limit: number): number;
   amountFromPercent(percent: number, limit: number): number;
+  isDetailLabel(value: unknown): boolean;
 }
 
 interface CodexBarProviderDefinition {
   id: string;
   name: string;
   icon?: { monogram?: string; tint?: string };
+  /** Shows this plugin as its own provider-switcher tab. */
+  topLevel?: boolean;
   endpoints: CodexBarEndpoint[];
   auth?: CodexBarAuth;
   settings: CodexBarSetting[];

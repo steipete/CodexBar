@@ -201,7 +201,7 @@ public final class ProviderHTTPClient: ProviderHTTPTransport, @unchecked Sendabl
             delegateQueue: nil)
     }
 
-    private static var isRunningTests: Bool {
+    static var isRunningTests: Bool {
         let environment = ProcessInfo.processInfo.environment
         if environment["XCTestConfigurationFilePath"] != nil || environment["XCTestBundlePath"] != nil {
             return true

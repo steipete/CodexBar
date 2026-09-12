@@ -224,6 +224,7 @@
 "No cost history data." = "Tidak ada data riwayat biaya.";
 "No data available" = "Tidak ada data tersedia";
 "No data yet" = "Belum ada data";
+"Workspaces" = "Ruang Kerja";
 "No enabled providers available for Overview." = "Tidak ada penyedia aktif untuk Ikhtisar.";
 "No providers selected" = "Tidak ada penyedia dipilih";
 "No token accounts yet." = "Belum ada akun token.";
@@ -501,7 +502,6 @@
 "provider_accent_color_reset" = "Gunakan bawaan";
 "quota_warnings_title" = "Peringatan kuota";
 "quota_warning_session" = "sesi";
-"quota_warning_session_capitalized" = "Sesi";
 "quota_warning_weekly" = "mingguan";
 "quota_warning_weekly_capitalized" = "Mingguan";
 "quota_warning_notification_title" = "%1$@ kuota %2$@ rendah";
@@ -566,6 +566,7 @@
 "hooks_any_provider" = "Penyedia apa pun";
 "hooks_threshold" = "Picu saat penggunaan ≥";
 "hooks_threshold_placeholder" = "90";
+"hooks_executable" = "Berkas yang dapat dijalankan";
 "hooks_executable_placeholder" = "/usr/local/bin/my-command";
 "hooks_arguments_placeholder" = "Argumen";
 "hooks_argument_placeholder" = "Argumen";
@@ -625,6 +626,8 @@
 "display_mode_subtitle" = "Pilih apa yang ditampilkan di menu bar (Pace menampilkan penggunaan vs. perkiraan).";
 "show_quota_warning_markers_title" = "Tampilkan penanda peringatan kuota";
 "show_quota_warning_markers_subtitle" = "Gambar tanda centang ambang batas pada bilah penggunaan saat peringatan kuota dikonfigurasi.";
+"show_pace_title" = "Tampilkan laju";
+"show_pace_subtitle" = "Menampilkan garis unggul atau tertinggal dan teks perkiraan pada bilah penggunaan.";
 "weekly_progress_work_days_title" = "Hari kerja progres mingguan";
 "weekly_progress_work_days_subtitle" = "Atur hari kerja untuk penanda bilah penggunaan mingguan dan perhitungan pace.";
 "workday_tick_appearance_title" = "Tampilan tanda hari kerja";
@@ -661,6 +664,8 @@
 "section_keyboard_shortcut" = "Pintasan keyboard";
 "open_menu_shortcut_title" = "Buka menu";
 "open_menu_shortcut_subtitle" = "Picu menu bar dari mana saja.";
+"record_shortcut" = "Rekam pintasan";
+"press_shortcut" = "Tekan pintasan";
 "install_cli" = "Pasang CLI";
 "install_cli_subtitle" = "Symlink CodexBarCLI ke /usr/local/bin dan /opt/homebrew/bin sebagai codexbar.";
 "cli_not_found" = "CodexBarCLI tidak ditemukan di bundel aplikasi.";
@@ -671,6 +676,9 @@
 "surprise_me_subtitle" = "Centang jika Anda suka agen bersenang-senang di atas sana.";
 "hide_personal_info_title" = "Sembunyikan informasi pribadi";
 "hide_personal_info_subtitle" = "Samarkan alamat email di menu bar dan antarmuka menu.";
+"hide_cost_history_identity_subtitle" = "Juga sembunyikan nama dan jalur proyek/sumber dalam riwayat biaya tanpa mengubah data tersimpan.";
+"Project %d" = "Proyek %d";
+"Source %d" = "Sumber %d";
 "show_provider_storage_usage_title" = "Tampilkan penggunaan penyimpanan penyedia";
 "show_provider_storage_usage_subtitle" = "Tampilkan penggunaan disk lokal di menu. Memindai path milik penyedia di latar belakang.";
 "section_keychain_access" = "Akses Keychain";
@@ -939,6 +947,7 @@
 "Monthly" = "Bulanan";
 "Sonnet" = "Sonnet";
 "Overages" = "Kelebihan";
+"Overage" = "Kelebihan";
 "Activity" = "Aktivitas";
 "Copied" = "Disalin";
 "Copy error" = "Salin error";
@@ -949,6 +958,7 @@
 "Balance updates in near-real time (up to 5 min lag)" = "Saldo diperbarui hampir real-time (hingga 5 menit keterlambatan)";
 "Daily billing data finalizes at 07:00 UTC" = "Data tagihan harian final pada 07:00 UTC";
 "%@ of %@ credits left" = "%@ dari %@ kredit tersisa";
+"of %@" = "dari %@";
 "%@ of %@ bonus credits left" = "%@ dari %@ kredit bonus tersisa";
 "%@ / %@ (%@ remaining)" = "%@ / %@ (%@ tersisa)";
 "%@/%@ left" = "%@/%@ tersisa";
@@ -960,6 +970,7 @@
 "Full in ~1 regen" = "Penuh dalam ~1 regenerasi";
 "Full in ~%.0f regens" = "Penuh dalam ~%.0f regenerasi";
 "Overage usage" = "Penggunaan kelebihan";
+"Overage credits left" = "Sisa kredit kelebihan";
 "Overage cost" = "Biaya kelebihan";
 "credits" = "kredit";
 "Zen balance" = "Saldo Zen";
@@ -1331,6 +1342,12 @@
 "By subscription" = "Berdasarkan langganan";
 "No model-level history" = "Tidak ada riwayat tingkat model";
 "Daily estimated spend" = "Perkiraan pengeluaran harian";
+"Hourly estimated spend" = "Perkiraan pengeluaran per jam";
+"Hour" = "Jam";
+"%d hours of usage data across %d services" = "%d jam data penggunaan di %d layanan";
+"1 hour of usage data across 1 service" = "1 jam data penggunaan di 1 layanan";
+"%d hours of usage data across 1 service" = "%d jam data penggunaan di 1 layanan";
+"1 hour of usage data across %d services" = "1 jam data penggunaan di %d layanan";
 "≈%d full 5h windows of weekly left · %d windows until reset" = "≈%d jendela 5 jam penuh dari kuota mingguan tersisa · %d jendela hingga reset";
 "Weekly cannot run out before reset at this pace" = "Kuota mingguan tidak dapat habis sebelum reset dengan laju ini";
 "Weekly can run out ≈%d windows early" = "Kuota mingguan dapat habis ≈%d jendela lebih awal";
@@ -1360,6 +1377,9 @@
 "menu_bar_layout_preset_compact_stacked" = "Tumpukan ringkas";
 "menu_bar_layout_preset_custom" = "Kustom";
 "menu_bar_layout_live_preview" = "Pratinjau langsung";
+"menu_bar_layout_default_preview" = "Pratinjau tata letak default";
+"menu_bar_layout_overrides_notice" = "Penyedia aktif ini menggunakan tata letak tersimpan sendiri:";
+"menu_bar_layout_use_all_accessibility" = "%@: Gunakan tata letak semua penyedia";
 "menu_bar_layout_strip" = "Strip bar menu";
 "menu_bar_layout_remove_line_break" = "Hapus pemisah baris";
 "menu_bar_layout_chip_hint" = "Pilih, seret untuk mengurutkan ulang, atau gunakan tindakan Hapus.";
@@ -1367,6 +1387,7 @@
 "menu_bar_layout_empty_line" = "Letakkan token di sini";
 "menu_bar_layout_line" = "Baris %d";
 "menu_bar_layout_drag_remove" = "Seret ke sini untuk menghapus";
+"menu_bar_layout_remove_selected" = "Hapus yang dipilih";
 "menu_bar_layout_size" = "Ukuran";
 "menu_bar_layout_size_small" = "Kecil";
 "menu_bar_layout_size_regular" = "Reguler";
@@ -1426,6 +1447,7 @@
 "More" = "Banyak";
 
 /* Provider Plugins */
+"Plugins" = "Plugins";
 "Install…" = "Pasang…";
 "Install plugin" = "Pasang plugin";
 "Copies a JavaScript or TypeScript file into the plugins directory." = "Menyalin file JavaScript atau TypeScript ke direktori plugin.";
@@ -1467,6 +1489,7 @@
 "Total usage" = "Total penggunaan";
 "claude_oauth_keychain_access_revoked" = "Akses Rantai Kunci Claude dicabut akibat rotasi token Claude Code. Klik Segarkan untuk memberikan akses lagi, atau ubah sumber penggunaan Claude ke CLI/Web.";
 "claude_showing_last_known_usage" = "Menampilkan penggunaan terakhir yang diketahui, diambil %@.";
+"claude_limited_usage_detail" = "Rincian penggunaan terbatas";
 /* Spend dashboard cost analysis */
 "90d" = "90d";
 "Input" = "Input";
@@ -1487,5 +1510,49 @@
 "Include OpenCodex usage logs" = "Include OpenCodex usage logs";
 "Hide native Codex when OpenCodex is present" = "Hide native Codex when OpenCodex is present";
 "Export JSON" = "Export JSON";
+"Copy JSON" = "Salin JSON";
 "Sources" = "Sources";
 "OpenCodex" = "OpenCodex";
+"menu_bar_layout_token_conditional" = "Bersyarat";
+"menu_bar_layout_group_conditionals" = "Kondisional";
+"menu_bar_layout_conditional_add" = "Kondisional Baru";
+"menu_bar_layout_conditional_edit" = "Edit Kondisional";
+"menu_bar_layout_conditional_remove" = "Hapus dari Perpustakaan";
+"menu_bar_layout_conditional_save" = "Simpan";
+"menu_bar_layout_conditional_if" = "Jika";
+"menu_bar_layout_conditional_then" = "Lalu tampilkan";
+"menu_bar_layout_conditional_else" = "Jika tidak, tampilkan";
+"menu_bar_layout_conditional_and" = "dan";
+"menu_bar_layout_conditional_none" = "Belum ada kondisional";
+"menu_bar_layout_conditional_hide" = "Sembunyikan";
+"menu_bar_layout_conditional_name" = "Nama";
+"menu_bar_layout_conditional_name_placeholder" = "mis. Pemeriksaan sesi";
+"menu_bar_layout_conditional_name_error" = "Masukkan nama yang unik";
+"menu_bar_layout_conditional_used" = "terpakai";
+"menu_bar_layout_conditional_remaining" = "tersisa";
+"menu_bar_layout_conditional_metric_resets_in" = "%@ disetel ulang dalam";
+"menu_bar_layout_conditional_metric_scoped_weekly" = "Mingguan terbatas";
+"menu_bar_layout_conditional_duplicate" = "Duplikat";
+"menu_bar_layout_conditional_or" = "atau";
+"menu_bar_layout_conditional_add_condition" = "Tambah Kondisi";
+"menu_bar_layout_conditional_summary" = "Jika %1$@ maka %2$@, jika tidak %3$@";
+"menu_bar_layout_conditional_copy_name" = "%@ (salinan)";
+"menu_bar_layout_conditional_copy_name_numbered" = "%1$@ (salinan %2$d)";
+"menu_bar_layout_conditional_unavailable" = "Kondisional tidak tersedia";
+"menu_bar_layout_conditional_default_session_busy" = "Sesi di atas 50% terpakai";
+"menu_bar_layout_conditional_default_weekly_high" = "Mingguan di atas 90% terpakai";
+"menu_bar_layout_conditional_default_session_spent" = "Sesi hampir habis";
+"menu_bar_layout_conditional_default_either_high" = "Sesi atau mingguan sedang tinggi";
+"menu_bar_layout_conditional_default_scoped_weekly" = "Mingguan per model di atas 60%";
+"Visible usage items" = "Item penggunaan yang terlihat";
+"Restore Defaults" = "Pulihkan Default";
+"Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "Pilih baris penggunaan yang muncul di menu penyedia ini, pratinjau Pengaturan, dan Ringkasan.";
+"%@ (unavailable)" = "%@ (tidak tersedia)";
+"Spending cap, not balance" = "Batas pengeluaran, bukan saldo";
+
+"Color Pace Indicator" = "Warnai laju penggunaan";
+"Green pace indicator when behind pace, red when ahead of pace (risk of running out early)" = "Hijau saat penggunaan lebih lambat dari laju perkiraan (cadangan); merah saat lebih cepat (risiko kuota habis lebih awal).";
+"%@ weekly" = "%@ mingguan";
+
+"agent_sessions_hide_unreachable_title" = "Sembunyikan host yang tidak terjangkau";
+"agent_sessions_hide_unreachable_subtitle" = "Sembunyikan host saat pengambilan sesinya gagal.";

@@ -17,6 +17,15 @@ struct BrowserCookieOrderStatusStringTests {
     }
 
     @Test
+    func `claude cookie import prefers chrome without dropping fallback browsers`() throws {
+        let order = try #require(ProviderDefaults.metadata[.claude]?.browserCookieOrder)
+
+        #expect(order.first == .chrome)
+        #expect(order.count == Browser.defaultImportOrder.count)
+        #expect(Set(order) == Set(Browser.defaultImportOrder))
+    }
+
+    @Test
     func `cursor no session includes browser login hint`() {
         let order = ProviderDefaults.metadata[.cursor]?.browserCookieOrder ?? Browser.defaultImportOrder
         let message = CursorStatusProbeError.noSessionCookie.errorDescription ?? ""

@@ -80,7 +80,7 @@ extension SettingsStore {
             if Self.shouldBridgeSharedDefaults(for: self.userDefaults) {
                 Self.sharedDefaults?.set(newValue, forKey: "debugDisableKeychainAccess")
             }
-            KeychainAccessGate.isDisabled = newValue
+            self.keychainAccessPolicy.setDisabled(newValue)
             self.noteBackgroundWorkSettingsChanged()
         }
     }
@@ -257,6 +257,14 @@ extension SettingsStore {
         }
     }
 
+    var paceVisible: Bool {
+        get { self.defaultsState.paceVisible }
+        set {
+            self.defaultsState.paceVisible = newValue
+            self.userDefaults.set(newValue, forKey: "paceVisible")
+        }
+    }
+
     var weeklyProgressWorkDays: Int? {
         get { self.defaultsState.weeklyProgressWorkDays }
         set {
@@ -314,6 +322,14 @@ extension SettingsStore {
         set {
             self.defaultsState.menuBarHidesCritters = newValue
             self.userDefaults.set(newValue, forKey: "menuBarHidesCritters")
+        }
+    }
+
+    var menuBarColorPace: Bool {
+        get { self.defaultsState.menuBarColorPace }
+        set {
+            self.defaultsState.menuBarColorPace = newValue
+            self.userDefaults.set(newValue, forKey: "menuBarColorPace")
         }
     }
 
@@ -408,8 +424,30 @@ extension SettingsStore {
         }
         set {
             self.defaultsState.storedMenuBarLayout = newValue
-            self.persistMenuBarLayout(newValue, key: "menuBarLayout")
+            self.persistMenuBarLayout(newValue)
         }
+    }
+
+    var menuBarLayoutConditionals: [MenuBarLayoutConditional] {
+        get { self.defaultsState.menuBarLayoutConditionals }
+        set {
+            self.defaultsState.menuBarLayoutConditionals = newValue
+            self.persistMenuBarLayoutConditionals()
+        }
+    }
+
+    func removeMenuBarLayoutConditional(id: UUID) {
+        self.menuBarLayoutConditionals.removeAll { $0.id == id }
+        if let stored = self.defaultsState.storedMenuBarLayout,
+           let stripped = stored.removingConditional(id: id)
+        {
+            self.menuBarLayout = stripped
+        }
+        for (key, layout) in self.defaultsState.menuBarLayoutOverridesRaw {
+            guard let stripped = layout.removingConditional(id: id) else { continue }
+            self.defaultsState.menuBarLayoutOverridesRaw[key] = stripped
+        }
+        self.persistMenuBarLayoutOverrides()
     }
 
     var hasStoredMenuBarLayout: Bool {
@@ -490,14 +528,28 @@ extension SettingsStore {
         }
     }
 
-    private func persistMenuBarLayout(_ layout: MenuBarLayout, key: String) {
-        guard let data = try? JSONEncoder().encode(layout) else { return }
-        self.userDefaults.set(data, forKey: key)
+    private func persistMenuBarLayout(_ layout: MenuBarLayout) {
+        guard let blobs = try? MenuBarLayoutPersistence.encoded(layout) else { return }
+        self.userDefaults.set(blobs.current, forKey: MenuBarLayoutUserDefaultsKey.layoutCurrent)
+        self.userDefaults.set(blobs.released, forKey: MenuBarLayoutUserDefaultsKey.layoutReleased)
+        self.userDefaults.set(blobs.legacy, forKey: MenuBarLayoutUserDefaultsKey.layout)
+    }
+
+    private func persistMenuBarLayoutConditionals() {
+        guard let blobs = try? MenuBarLayoutPersistence
+            .encodedLibrary(self.defaultsState.menuBarLayoutConditionals)
+        else { return }
+        self.userDefaults.set(blobs.current, forKey: MenuBarLayoutUserDefaultsKey.conditionalsCurrent)
+        self.userDefaults.set(blobs.released, forKey: MenuBarLayoutUserDefaultsKey.conditionalsReleased)
+        self.userDefaults.set(blobs.legacy, forKey: MenuBarLayoutUserDefaultsKey.conditionals)
     }
 
     private func persistMenuBarLayoutOverrides() {
-        guard let data = try? JSONEncoder().encode(self.defaultsState.menuBarLayoutOverridesRaw) else { return }
-        self.userDefaults.set(data, forKey: "menuBarLayoutOverrides")
+        guard let blobs = try? MenuBarLayoutPersistence.encodedOverrides(self.defaultsState.menuBarLayoutOverridesRaw)
+        else { return }
+        self.userDefaults.set(blobs.current, forKey: MenuBarLayoutUserDefaultsKey.overridesCurrent)
+        self.userDefaults.set(blobs.released, forKey: MenuBarLayoutUserDefaultsKey.overridesReleased)
+        self.userDefaults.set(blobs.legacy, forKey: MenuBarLayoutUserDefaultsKey.overrides)
     }
 
     var copilotIconSecondaryWindowIDRaw: String {
@@ -1142,6 +1194,14 @@ extension SettingsStore {
         set {
             self.defaultsState.agentSessionsManualHosts = newValue
             self.userDefaults.set(newValue, forKey: "agentSessionsManualHosts")
+        }
+    }
+
+    var agentSessionsHideUnreachableHosts: Bool {
+        get { self.defaultsState.agentSessionsHideUnreachableHosts }
+        set {
+            self.defaultsState.agentSessionsHideUnreachableHosts = newValue
+            self.userDefaults.set(newValue, forKey: "agentSessionsHideUnreachableHosts")
         }
     }
 

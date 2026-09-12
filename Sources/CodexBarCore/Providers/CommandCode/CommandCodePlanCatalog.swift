@@ -24,6 +24,7 @@ public enum CommandCodePlanCatalog {
         Plan(id: "individual-go", displayName: "Go", monthlyCreditsUSD: 10),
         Plan(id: "individual-goat", displayName: "GOAT", monthlyCreditsUSD: 70),
         Plan(id: "individual-pro", displayName: "Pro", monthlyCreditsUSD: 30),
+        Plan(id: "individual-pro-v1", displayName: "Pro", monthlyCreditsUSD: 80),
         Plan(id: "individual-max", displayName: "Max", monthlyCreditsUSD: 150),
         Plan(id: "individual-ultra", displayName: "Ultra", monthlyCreditsUSD: 300),
     ]

@@ -22,6 +22,7 @@ extension SettingsStore {
         _ = self.quotaWarningSoundEnabled
         _ = self.quotaWarningOnScreenAlertEnabled
         _ = self.quotaWarningMarkersVisible
+        _ = self.paceVisible
         _ = self.weeklyProgressWorkDays
         _ = self.workdayTickAppearance
         _ = self.usageBarsShowUsed
@@ -29,6 +30,7 @@ extension SettingsStore {
         _ = self.providerChangelogLinksEnabled
         _ = self.menuBarShowsBrandIconWithPercent
         _ = self.menuBarHidesCritters
+        _ = self.menuBarColorPace
         _ = self.menuBarHighContrastOnInactiveDisplays
         _ = self.menuBarShowsHighestUsage
         _ = self.menuBarDisplayMode
@@ -73,6 +75,7 @@ extension SettingsStore {
         _ = self.agentSessionsEnabled
         _ = self.agentSessionLabelStyle
         _ = self.agentSessionsManualHosts
+        _ = self.agentSessionsHideUnreachableHosts
         _ = self.iCloudSyncEnabled
         _ = self.iCloudSyncSnapshotsEnabled
         _ = self.iCloudSyncShowFleetAccounts

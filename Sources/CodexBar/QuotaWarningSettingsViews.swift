@@ -240,7 +240,7 @@ struct FocusResigningBackground: View {
 extension QuotaWarningWindow {
     var localizedCapitalizedDisplayName: String {
         switch self {
-        case .session: L("quota_warning_session_capitalized")
+        case .session: L("Session")
         case .weekly: L("quota_warning_weekly_capitalized")
         }
     }

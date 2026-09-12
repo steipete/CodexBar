@@ -40,6 +40,12 @@ struct PlanUtilizationSeriesHistory: Codable, Equatable, Sendable {
     let windowMinutes: Int
     let entries: [PlanUtilizationHistoryEntry]
 
+    private enum CodingKeys: String, CodingKey {
+        case name
+        case windowMinutes
+        case entries
+    }
+
     init(name: PlanUtilizationSeriesName, windowMinutes: Int, entries: [PlanUtilizationHistoryEntry]) {
         self.name = name
         self.windowMinutes = windowMinutes
@@ -54,6 +60,14 @@ struct PlanUtilizationSeriesHistory: Codable, Equatable, Sendable {
             let rhsReset = rhs.resetsAt?.timeIntervalSince1970 ?? Date.distantPast.timeIntervalSince1970
             return lhsReset < rhsReset
         }
+    }
+
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let name = try container.decode(PlanUtilizationSeriesName.self, forKey: .name)
+        let windowMinutes = try container.decode(Int.self, forKey: .windowMinutes)
+        let entries = try container.decode([PlanUtilizationHistoryEntry].self, forKey: .entries)
+        self.init(name: name, windowMinutes: windowMinutes, entries: entries)
     }
 
     var latestCapturedAt: Date? {

@@ -106,7 +106,7 @@ struct CodexUsageFetcherFallbackTests {
     }
 
     @Test
-    func `CLI usage loads plan only RPC response as unavailable limits`() async throws {
+    func `CLI usage starts app server with current read-only noninteractive arguments`() async throws {
         let stubCLIPath = try self.makePlanOnlyStubCodexCLI()
         defer { try? FileManager.default.removeItem(atPath: stubCLIPath) }
 
@@ -152,12 +152,13 @@ struct CodexUsageFetcherFallbackTests {
     @Test
     func `hung CLI RPC rate limits request times out within budget`() async throws {
         let stubCLIPath = try self.makeHungRateLimitsStubCodexCLI()
-        defer { try? FileManager.default.removeItem(atPath: stubCLIPath) }
+        let requestPath = stubCLIPath + ".requests"
+        defer {
+            try? FileManager.default.removeItem(atPath: stubCLIPath)
+            try? FileManager.default.removeItem(atPath: requestPath)
+        }
 
-        let fetcher = UsageFetcher(
-            environment: ["CODEX_CLI_PATH": stubCLIPath],
-            initializeTimeoutSeconds: 20.0,
-            requestTimeoutSeconds: 0.2)
+        let fetcher = self.makeStubUsageFetcher(stubCLIPath, requestTimeoutSeconds: 0.2)
 
         let started = Date()
         do {
@@ -175,17 +176,19 @@ struct CodexUsageFetcherFallbackTests {
 
         let elapsed = Date().timeIntervalSince(started)
         #expect(elapsed < 5.0, "Hung RPC request must fail fast, took \(elapsed)s")
+        #expect(try String(contentsOfFile: requestPath, encoding: .utf8) == "account/rateLimits/read\n")
     }
 
     @Test
     func `repeated hung CLI RPC requests stay bounded`() async throws {
         let stubCLIPath = try self.makeHungRateLimitsStubCodexCLI()
-        defer { try? FileManager.default.removeItem(atPath: stubCLIPath) }
+        let requestPath = stubCLIPath + ".requests"
+        defer {
+            try? FileManager.default.removeItem(atPath: stubCLIPath)
+            try? FileManager.default.removeItem(atPath: requestPath)
+        }
 
-        let fetcher = UsageFetcher(
-            environment: ["CODEX_CLI_PATH": stubCLIPath],
-            initializeTimeoutSeconds: 20.0,
-            requestTimeoutSeconds: 0.2)
+        let fetcher = self.makeStubUsageFetcher(stubCLIPath, requestTimeoutSeconds: 0.2)
 
         for attempt in 1...2 {
             let started = Date()
@@ -193,17 +196,50 @@ struct CodexUsageFetcherFallbackTests {
                 _ = try await fetcher.loadLatestCredits()
                 Issue.record("Expected hung Codex RPC credits request \(attempt) to time out")
             } catch let error as RPCWireError {
-                guard case .timeout = error else {
+                guard case let .timeout(method) = error else {
                     Issue.record("Expected RPC timeout on attempt \(attempt), got \(error)")
                     return
                 }
+                #expect(method == "account/rateLimits/read")
             } catch {
                 Issue.record("Expected RPCWireError.timeout on attempt \(attempt), got \(type(of: error)): \(error)")
             }
 
             let elapsed = Date().timeIntervalSince(started)
             #expect(elapsed < 5.0, "Hung RPC request \(attempt) must fail fast, took \(elapsed)s")
+            #expect(try String(contentsOfFile: requestPath, encoding: .utf8)
+                == String(repeating: "account/rateLimits/read\n", count: attempt))
         }
+    }
+
+    @Test(arguments: ["account/rateLimits/read", "account\\/rateLimits\\/read"])
+    func `hung fixture recognizes both JSON slash encodings`(method: String) async throws {
+        let stubCLIPath = try self.makeHungRateLimitsStubCodexCLI()
+        let requestPath = stubCLIPath + ".requests"
+        defer {
+            try? FileManager.default.removeItem(atPath: stubCLIPath)
+            try? FileManager.default.removeItem(atPath: requestPath)
+        }
+        let stdin = RPCChildProcessInput()
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: stubCLIPath)
+        process.arguments = ["app-server"]
+        process.environment = ["CODEXBAR_TEST_RPC_REQUEST_PATH": requestPath]
+        process.standardInput = stdin.pipe
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        try process.run()
+        defer { RPCChildProcessTeardown.terminate(process: process, stdin: stdin) }
+        try stdin.write(Data("{\"id\":2,\"method\":\"\(method)\"}\n".utf8))
+
+        let deadline = ContinuousClock.now.advanced(by: .seconds(20))
+        while (try? String(contentsOfFile: requestPath, encoding: .utf8)) != "account/rateLimits/read\n",
+              ContinuousClock.now < deadline
+        {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(try String(contentsOfFile: requestPath, encoding: .utf8) == "account/rateLimits/read\n")
+        #expect(process.isRunning)
     }
 
     private static let decodeMismatchBodyMessage = """
@@ -287,11 +323,22 @@ struct CodexUsageFetcherFallbackTests {
     }
     """
 
-    private func makeStubUsageFetcher(_ stubCLIPath: String) -> UsageFetcher {
+    private func makeStubUsageFetcher(
+        _ stubCLIPath: String,
+        requestTimeoutSeconds: TimeInterval = 3.0) -> UsageFetcher
+    {
         UsageFetcher(
-            environment: ["CODEX_CLI_PATH": stubCLIPath],
+            environment: [
+                "PATH": "/usr/bin:/bin",
+                "CODEX_CLI_PATH": stubCLIPath,
+                "CODEXBAR_TEST_RPC_REQUEST_PATH": stubCLIPath + ".requests",
+            ],
             initializeTimeoutSeconds: 20.0,
-            requestTimeoutSeconds: 3.0)
+            requestTimeoutSeconds: requestTimeoutSeconds,
+            // Absolute-interpreter fixtures must not capture the user's real login-shell PATH.
+            codexExecutableResolver: { _, _ in
+                CodexExecutableResolution(executable: stubCLIPath, loginPATH: [])
+            })
     }
 
     private func makeDecodeMismatchStubCodexCLI(
@@ -367,6 +414,11 @@ struct CodexUsageFetcherFallbackTests {
         import sys
 
         args = sys.argv[1:]
+        expected_prefix = ["-s", "read-only", "-a", "never", "app-server"]
+        if args[:5] != expected_prefix:
+            sys.stderr.write(f"unexpected Codex arguments: {args!r}\\n")
+            sys.exit(64)
+
         if "app-server" in args:
             for line in sys.stdin:
                 if not line.strip():
@@ -490,8 +542,9 @@ struct CodexUsageFetcherFallbackTests {
             *'"method":"initialize"'*|*'"method": "initialize"'*)
               printf '%s\\n' '{"id":1,"result":{}}'
               ;;
-            *'"method":"account/rateLimits/read"'*|*'"method": "account/rateLimits/read"'*)
-              sleep 30
+            *'"account/rateLimits/read"'*|*'"account\\/rateLimits\\/read"'*)
+              printf '%s\\n' 'account/rateLimits/read' >> "$CODEXBAR_TEST_RPC_REQUEST_PATH"
+              exec /bin/sleep 30
               ;;
             *)
               printf '%s\\n' '{"id":1,"result":{}}'

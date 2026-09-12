@@ -86,6 +86,52 @@ struct GeminiProviderMigrationSettingsTests {
     }
 
     @Test
+    func `google shutdown observation arms the login guard`() {
+        let settings = self.makeSettings()
+        let store = self.makeStore(settings: settings)
+
+        store.observeGeminiConsumerTierDeprecation(from: GeminiStatusProbeError.consumerTierDeprecated)
+
+        #expect(store.geminiObservedConsumerTierDeprecation)
+        #expect(store.geminiObservedGoogleConsumerTierShutdown)
+    }
+
+    @Test
+    func `local antigravity handoff does not arm the login guard`() {
+        let settings = self.makeSettings()
+        let store = self.makeStore(settings: settings)
+
+        store.observeGeminiConsumerTierDeprecation(
+            from: GeminiStatusProbeError.oauthCredentialsUnavailableWithAntigravity)
+
+        #expect(store.geminiObservedConsumerTierDeprecation)
+        #expect(!store.geminiObservedGoogleConsumerTierShutdown)
+    }
+
+    @Test
+    func `local handoff after a google shutdown keeps the login guard armed`() {
+        let settings = self.makeSettings()
+        let store = self.makeStore(settings: settings)
+        store.observeGeminiConsumerTierDeprecation(from: GeminiStatusProbeError.consumerTierDeprecated)
+
+        store.observeGeminiConsumerTierDeprecation(
+            from: GeminiStatusProbeError.oauthCredentialsUnavailableWithAntigravity)
+
+        #expect(store.geminiObservedGoogleConsumerTierShutdown)
+    }
+
+    @Test
+    func `clearing the observation disarms the login guard`() {
+        let settings = self.makeSettings()
+        let store = self.makeStore(settings: settings)
+        store.observeGeminiConsumerTierDeprecation(from: GeminiStatusProbeError.consumerTierDeprecated)
+
+        store.clearGeminiConsumerTierDeprecationObservation()
+
+        #expect(!store.geminiObservedGoogleConsumerTierShutdown)
+    }
+
+    @Test
     func `settings action appears when local antigravity handoff was observed`() {
         let settings = self.makeSettings()
         let store = self.makeStore(settings: settings)

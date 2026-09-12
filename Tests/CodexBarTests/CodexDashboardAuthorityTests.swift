@@ -75,6 +75,7 @@ struct CodexDashboardAuthorityTests {
 
         #expect(decision.disposition == .displayOnly)
         #expect(decision.reason == .sameEmailAmbiguity(email: "shared@example.com"))
+        #expect(decision.allowedEffects.isEmpty)
     }
 
     @Test
@@ -360,6 +361,7 @@ struct CodexDashboardAuthorityTests {
 
         #expect(decision.disposition == .attach)
         #expect(decision.allowedEffects == Set([
+            .subscriptionMetadataAttachment,
             .usageBackfill,
             .creditsAttachment,
             .refreshGuardSeed,

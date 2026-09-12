@@ -41,6 +41,7 @@ third-party Kimi relays.
 ## Usage details
 
 - The menu card shows the available balance.
+- Balances and deficits use the selected API region's currency: USD for International and CNY for China mainland. Amounts are displayed as returned by the API, without currency conversion.
 - If `cash_balance` is negative, the card also surfaces the deficit.
 - There is no session or weekly window — Moonshot / Kimi API does not expose per-window quota via API.
 - Settings config takes precedence over environment variables when both are present.

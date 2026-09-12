@@ -31,21 +31,25 @@ protocol AntigravityCLIProcessLaunching: Sendable {
 
 enum AntigravityCLIAuthenticationPrompt {
     static let evidence = Data("Select login method:".utf8)
-    private static let promptPattern = #"select\s+login\s+method\s*:?"#
+    private static let authenticationPatterns = [
+        #"select\s+login\s+method\s*:?"#,
+        #"you\s+are\s+not\s+logged\s+into\s+antigravity"#,
+        #"keyring\s*auth\s*:\s*timed\s+out\b"#,
+    ]
 
     static func contains(_ output: Data) -> Bool {
         // `agy` briefly prints "You are currently not signed in" before it
-        // auto-refreshes an existing login. The actual blocking state is the
-        // interactive login-method prompt. The exact prompt is a CLI-owned TUI
-        // string, so keep matching tolerant to casing and whitespace changes.
+        // auto-refreshes an existing login. Only a blocking login prompt, an
+        // explicit Antigravity logout, or exhausted keyring authentication
+        // establishes that the managed session cannot recover its credentials.
         if output.range(of: self.evidence) != nil {
             return true
         }
         let asciiBytes = output.map { $0 < 0x80 ? $0 : 0x20 }
         let text = String(bytes: asciiBytes, encoding: .utf8) ?? ""
-        return text.range(
-            of: self.promptPattern,
-            options: [.regularExpression, .caseInsensitive]) != nil
+        return self.authenticationPatterns.contains { pattern in
+            text.range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil
+        }
     }
 }
 
@@ -1087,12 +1091,16 @@ final class AntigravitySpawnedPTYProcessHandle: AntigravityCLIProcessHandle, @un
                     retries = 0
                     continue
                 }
-                if written == 0 { break }
+                if written == 0 {
+                    break
+                }
 
                 let err = errno
                 if err == EINTR || err == EAGAIN || err == EWOULDBLOCK {
                     retries += 1
-                    if retries > 200 { return }
+                    if retries > 200 {
+                        return
+                    }
                     usleep(5000)
                     continue
                 }

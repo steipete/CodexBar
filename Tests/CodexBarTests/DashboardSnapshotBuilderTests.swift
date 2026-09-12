@@ -132,8 +132,8 @@ struct DashboardSnapshotBuilderTests {
         #expect(object["generatedAt"] as? String == "2027-01-15T08:00:00Z")
     }
 
-    @Test
-    func `producer provider filter collects and returns exactly one row`() async throws {
+    @Test(arguments: [UsageProvider.codex, .antigravity])
+    func `producer provider filter collects and returns exactly one row`(provider: UsageProvider) async throws {
         let recorder = DashboardProviderSelectionRecorder()
         let producer = DashboardSnapshotProducer(
             collectUsage: { providers in
@@ -168,13 +168,13 @@ struct DashboardSnapshotBuilderTests {
             config: config,
             refreshInterval: 60,
             codexBarVersion: nil,
-            providers: [.codex])
+            providers: [provider])
         let object = try self.jsonObject(result.payload)
         let providers = try #require(object["providers"] as? [[String: Any]])
 
-        #expect(providers.compactMap { $0["id"] as? String } == ["codex"])
-        #expect(await recorder.usageProviders() == [.codex])
-        #expect(await recorder.costProviders() == [.codex])
+        #expect(providers.compactMap { $0["id"] as? String } == [provider.rawValue])
+        #expect(await recorder.usageProviders() == [provider])
+        #expect(await recorder.costProviders() == [provider])
     }
 
     @Test

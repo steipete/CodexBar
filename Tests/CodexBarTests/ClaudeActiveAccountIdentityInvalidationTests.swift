@@ -678,17 +678,25 @@ struct ClaudeActiveAccountIdentityInvalidationTests {
         outcome: ProviderFetchOutcome,
         environment: [String: String] = [:]) throws -> ClaudeIdentityFixture
     {
-        let settings = testSettingsStore(suiteName: "ClaudeActiveAccountIdentityInvalidationTests")
+        var config = testConfigWithAllProvidersDisabled()
+        let claudeIndex = try #require(config.providers.firstIndex { $0.id == UsageProvider.claude.instanceID })
+        config.providers[claudeIndex].enabled = true
+        let settings = testSettingsStore(
+            suiteName: "ClaudeActiveAccountIdentityInvalidationTests",
+            config: config,
+            prepareDefaults: { defaults in
+                // An existing config otherwise opts this fresh fixture into OpenAI web access.
+                defaults.set(false, forKey: "openAIWebAccessEnabled")
+            })
         settings.refreshFrequency = .manual
         settings.statusChecksEnabled = false
         settings.claudeUsageDataSource = source
-        let metadata = ProviderRegistry.shared.metadata
-        for provider in UsageProvider.allCases {
-            try settings.setProviderEnabled(
-                provider: provider,
-                metadata: #require(metadata[provider]),
-                enabled: provider == .claude)
-        }
+        #expect(settings.enabledProvidersOrdered(metadataByProvider: ProviderRegistry.shared.metadata)
+            == [UsageProvider.claude.instanceID])
+        #expect(settings.claudeUsageDataSource == source)
+        #expect(settings.refreshFrequency == .manual)
+        #expect(settings.statusChecksEnabled == false)
+        #expect(settings.openAIWebAccessEnabled == false)
 
         let store = UsageStore(
             fetcher: UsageFetcher(environment: environment),

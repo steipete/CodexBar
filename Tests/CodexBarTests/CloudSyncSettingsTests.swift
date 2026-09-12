@@ -67,6 +67,27 @@ struct CloudSyncSettingsTests {
     }
 
     @Test
+    func `legacy synced preferences without pace visibility decode compatibly`() throws {
+        let fixture = try self.makeFixture("legacy-pace-visible")
+        let payload = PreferencesSyncPayload(preferences: fixture.store.syncedPreferences)
+        let encoded = try CanonicalSyncJSON.encode(payload)
+        var object = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        var preferences = try #require(object["preferences"] as? [String: Any])
+        preferences.removeValue(forKey: "paceVisible")
+        object["preferences"] = preferences
+        let legacyData = try JSONSerialization.data(withJSONObject: object)
+
+        let decoded = try CanonicalSyncJSON.decode(PreferencesSyncPayload.self, from: legacyData)
+
+        #expect(decoded.preferences.paceVisible == nil)
+
+        // An absent key must leave the local value untouched, not reset it.
+        fixture.store.paceVisible = false
+        fixture.store.applySyncedPreferences(decoded.preferences)
+        #expect(fixture.store.paceVisible == false)
+    }
+
+    @Test
     func `config watcher suppresses self writes and observes external atomic replacement`() async throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("ConfigFileWatcherTests-\(UUID().uuidString)", isDirectory: true)
@@ -81,8 +102,9 @@ struct CloudSyncSettingsTests {
         try await Task.sleep(for: .milliseconds(150))
 
         let ownWrite = Data("{\"value\":2}".utf8)
-        watcher.noteAppWrite(data: ownWrite)
-        try ownWrite.write(to: url, options: .atomic)
+        try ConfigFileWatcher.withAppWrite(ownWrite, watcher: watcher) {
+            try ownWrite.write(to: url, options: .atomic)
+        }
         try await Task.sleep(for: .milliseconds(350))
         #expect(changes.value == 0)
 
@@ -90,6 +112,105 @@ struct CloudSyncSettingsTests {
         try await Task.sleep(for: .milliseconds(500))
         watcher.stop()
         #expect(changes.value >= 1)
+    }
+
+    @Test
+    func `app writes still execute without an active watcher and failed writes remain observable`() async throws {
+        enum Failure: Error { case write }
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("config.json")
+        let original = Data("original".utf8)
+        let replacement = Data("replacement".utf8)
+        try ConfigFileWatcher.withAppWrite(original, watcher: nil) { try original.write(to: url) }
+        let values = WatchedConfigValues()
+        let watcher = ConfigFileWatcher(fileURL: url) {
+            if let data = try? Data(contentsOf: url) {
+                values.append(data)
+            }
+        }
+        defer { watcher.stop() }
+        #expect(throws: Failure.self) {
+            try ConfigFileWatcher.withAppWrite(replacement, watcher: watcher) { throw Failure.write }
+        }
+        try replacement.write(to: url, options: .atomic)
+        watcher.start()
+        for _ in 0..<100 where !values.snapshot.contains(replacement) {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(values.snapshot.contains(replacement))
+        watcher.stop()
+        try ConfigFileWatcher.withAppWrite(original, watcher: watcher) { try original.write(to: url) }
+        #expect(try Data(contentsOf: url) == original)
+    }
+
+    @Test
+    func `external config edits can restore contents previously written by the app`() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("config.json")
+        let original = Data("a".utf8)
+        let external = Data("b".utf8)
+        try original.write(to: url, options: .atomic)
+        let values = WatchedConfigValues()
+        let watcher = ConfigFileWatcher(fileURL: url) {
+            if let data = try? Data(contentsOf: url) {
+                values.append(data)
+            }
+        }
+        defer { watcher.stop() }
+        try ConfigFileWatcher.withAppWrite(original, watcher: watcher) {
+            try original.write(to: url, options: .atomic)
+        }
+        watcher.start()
+        for _ in 0..<100 where !values.snapshot.contains(external) {
+            let handle = try FileHandle(forWritingTo: url)
+            try handle.write(contentsOf: external)
+            try handle.close()
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(values.snapshot.contains(external))
+        let handle = try FileHandle(forWritingTo: url)
+        try handle.write(contentsOf: original)
+        try handle.close()
+        for _ in 0..<100 where !values.snapshot.contains(original) {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(values.snapshot.contains(original))
+    }
+
+    @Test(arguments: [false, true])
+    func `atomic replacement during a watcher callback is observed after rearming`(
+        fileInitiallyExists: Bool) async throws
+    {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("config.json")
+        if fileInitiallyExists { try Data("initial".utf8).write(to: url, options: .atomic) }
+        let first = Data("first".utf8)
+        let second = Data("second".utf8)
+        let values = WatchedConfigValues()
+        let watcher = ConfigFileWatcher(fileURL: url) {
+            guard let data = try? Data(contentsOf: url) else { return }
+            values.append(data)
+            if data == first {
+                try? second.write(to: url, options: .atomic)
+            }
+        }
+        defer { watcher.stop() }
+        watcher.start()
+        for _ in 0..<100 where !values.snapshot.contains(first) {
+            try first.write(to: url, options: .atomic)
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(values.snapshot.contains(first))
+        for _ in 0..<100 where !values.snapshot.contains(second) {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(values.snapshot.contains(second))
     }
 
     @Test
@@ -141,6 +262,38 @@ struct CloudSyncSettingsTests {
 
         #expect(envelope.dirtyProviders.isEmpty)
         #expect(!envelope.preferencesDirty)
+        #expect(envelope.pendingSnapshotDeletes.isEmpty)
+    }
+
+    @Test
+    func `pending snapshot deletes survive persistence round trip`() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CloudSyncPendingDeletesTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let fileURL = directory.appendingPathComponent("engine-state.json")
+        let persistence = CloudSyncPersistence(fileURL: fileURL)
+        var envelope = CloudSyncPersistence.Envelope(stateSerialization: nil, encodedSystemFields: [:])
+        envelope.pendingSnapshotDeletes = ["snap-claude-old-device-id"]
+        try persistence.save(envelope)
+
+        #expect(persistence.load().pendingSnapshotDeletes == ["snap-claude-old-device-id"])
+    }
+
+    @Test
+    func `pending predecessor deletes survive persistence round trip`() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CloudSyncPendingPredecessorsTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let fileURL = directory.appendingPathComponent("engine-state.json")
+        let persistence = CloudSyncPersistence(fileURL: fileURL)
+        var envelope = CloudSyncPersistence.Envelope(stateSerialization: nil, encodedSystemFields: [:])
+        envelope.pendingPredecessorDeletes = ["snap-claude-slot-device-id": ["snap-claude-old-device-id"]]
+        try persistence.save(envelope)
+
+        #expect(
+            persistence.load().pendingPredecessorDeletes["snap-claude-slot-device-id"] == [
+                "snap-claude-old-device-id",
+            ])
     }
 
     @Test
@@ -195,18 +348,17 @@ struct CloudSyncSettingsTests {
         let coordinator = CloudSyncCoordinator(settings: fixture.store, persistence: persistence)
         coordinator.start()
         defer { coordinator.stop() }
-        try fixture.store.configStore.save(fixture.store.configSnapshot)
-        try await Task.sleep(for: .milliseconds(500))
-
         var updated = fixture.store.configSnapshot
         var claude = try #require(updated.providerConfig(for: .claude))
         claude.extrasEnabled = !(claude.extrasEnabled ?? false)
         updated.setProviderConfig(claude)
         try fixture.store.configStore.save(updated)
 
-        for _ in 0..<100 where persistence.load().dirtyProviders.isEmpty {
-            try await Task.sleep(for: .milliseconds(10))
+        let deadline = ContinuousClock.now.advanced(by: .seconds(10))
+        while persistence.load().dirtyProviders.isEmpty, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(20))
         }
+        #expect(fixture.store.configSnapshot.providerConfig(for: .claude)?.extrasEnabled == claude.extrasEnabled)
 
         let envelope = persistence.load()
         let recordNames = CloudSyncDirtyState.configurationRecordNamesToQueue(
@@ -329,6 +481,35 @@ struct CloudSyncSettingsTests {
         #expect(backoff.nextDelay(serverRetryAfter: 30) == 30)
     }
 
+    @Test
+    func `delegate events leave callback context before engine work and stay ordered`() async {
+        let queue = CloudSyncDelegateEventQueue()
+        let recorder = CloudSyncDelegateEventRecorder()
+
+        let inheritedCallbackContext = await withCheckedContinuation { continuation in
+            CloudSyncDelegateCallbackContext.$isActive.withValue(true) {
+                queue.enqueue {
+                    continuation.resume(returning: CloudSyncDelegateCallbackContext.isActive)
+                }
+            }
+        }
+
+        #expect(!inheritedCallbackContext)
+
+        await withCheckedContinuation { continuation in
+            queue.enqueue {
+                try? await Task.sleep(for: .milliseconds(50))
+                await recorder.append(1)
+            }
+            queue.enqueue {
+                await recorder.append(2)
+                continuation.resume()
+            }
+        }
+
+        #expect(await recorder.values == [1, 2])
+    }
+
     private func makeFixture(_ name: String) throws -> (store: SettingsStore, defaults: UserDefaults) {
         let suite = "CloudSyncSettingsTests-\(name)"
         let defaults = try #require(UserDefaults(suiteName: suite))
@@ -361,5 +542,30 @@ private final class LockedCounter: @unchecked Sendable {
 
     func increment() {
         self.lock.withLock { self.storage += 1 }
+    }
+}
+
+private enum CloudSyncDelegateCallbackContext {
+    @TaskLocal static var isActive = false
+}
+
+private actor CloudSyncDelegateEventRecorder {
+    private(set) var values: [Int] = []
+
+    func append(_ value: Int) {
+        self.values.append(value)
+    }
+}
+
+private final class WatchedConfigValues: @unchecked Sendable {
+    private let lock = NSLock()
+    private var values: [Data] = []
+
+    var snapshot: [Data] {
+        self.lock.withLock { self.values }
+    }
+
+    func append(_ data: Data) {
+        self.lock.withLock { self.values.append(data) }
     }
 }

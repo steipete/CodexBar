@@ -143,9 +143,10 @@ struct SpendDashboardTokenProvenanceTests {
         var loadCount = 0
         store._test_tokenUsageSnapshotLoaderOverride = { _, _, _, _, _ in
             loadCount += 1
-            return loadCount == 1 ? Self.tokenSnapshot(cost: 4) : Self.emptyTokenSnapshot()
+            return loadCount <= 2 ? Self.tokenSnapshot(cost: 4) : Self.emptyTokenSnapshot()
         }
         await store.refreshTokenUsageNow(for: .bedrock, force: true)
+        await store.refreshSpendDashboardTokenUsageNow(for: .bedrock, force: true)
         let controller = Self.dashboardController(settings: settings, store: store, now: now)
         controller.update(configuration: SpendDashboardSource.configuration(settings: settings, store: store))
         await Self.waitUntil { !controller.isRefreshing }
@@ -154,17 +155,17 @@ struct SpendDashboardTokenProvenanceTests {
         controller.refresh()
         await Self.waitUntil { !controller.isRefreshing }
 
-        #expect(loadCount == 2)
+        #expect(loadCount == 3)
         #expect(controller.model.groups.isEmpty)
         #expect(controller.failedSourceCount == 0)
         #expect(store.tokenSnapshot(for: .bedrock)?.last30DaysCostUSD == 4)
         let publication = store.spendDashboardTokenSnapshotPublicationForCurrentConfig(for: .bedrock)
         #expect(publication?.snapshot == nil)
-        #expect(publication?.publicationRevision == 1)
+        #expect(publication?.publicationRevision == 2)
     }
 
     @Test
-    func `first open accepts current empty publication without redundant refresh`() async {
+    func `first open accepts current independent empty publication without redundant refresh`() async {
         let (settings, store) = Self.makeStore(provider: .bedrock)
         var loadCount = 0
         store._test_tokenUsageSnapshotLoaderOverride = { _, _, _, _, _ in
@@ -172,13 +173,14 @@ struct SpendDashboardTokenProvenanceTests {
             return Self.emptyTokenSnapshot()
         }
         await store.refreshTokenUsageNow(for: .bedrock, force: true)
+        await store.refreshSpendDashboardTokenUsageNow(for: .bedrock, force: true)
         let publicationRevision = store.tokenSnapshotPublicationRevision(for: .bedrock)
         let controller = Self.dashboardController(settings: settings, store: store, now: Self.fixtureNow)
 
         controller.update(configuration: SpendDashboardSource.configuration(settings: settings, store: store))
         await Self.waitUntil { !controller.isRefreshing }
 
-        #expect(loadCount == 1)
+        #expect(loadCount == 2)
         #expect(controller.model.groups.isEmpty)
         #expect(controller.failedSourceCount == 0)
         #expect(store.tokenSnapshotPublicationRevision(for: .bedrock) == publicationRevision)

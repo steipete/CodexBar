@@ -16,6 +16,8 @@ public struct ProviderCostSnapshot: Equatable, Codable, Sendable {
     public let personalUsed: Double?
     /// Remaining prepaid balance, when the provider exposes it separately from spend and budget.
     public let balance: Double?
+    /// Successful balance observation, including a confirmed absent balance; independent of the budget age.
+    public let balanceUpdatedAt: Date?
     public let updatedAt: Date
 
     public init(
@@ -27,6 +29,7 @@ public struct ProviderCostSnapshot: Equatable, Codable, Sendable {
         nextRegenAmount: Double? = nil,
         personalUsed: Double? = nil,
         balance: Double? = nil,
+        balanceUpdatedAt: Date? = nil,
         updatedAt: Date)
     {
         self.used = used
@@ -37,10 +40,15 @@ public struct ProviderCostSnapshot: Equatable, Codable, Sendable {
         self.nextRegenAmount = nextRegenAmount
         self.personalUsed = personalUsed
         self.balance = balance
+        self.balanceUpdatedAt = balanceUpdatedAt
         self.updatedAt = updatedAt
     }
 
     func replacing(balance: Double?) -> Self {
+        self.replacing(balance: balance, balanceUpdatedAt: self.balanceUpdatedAt)
+    }
+
+    func replacing(balance: Double?, balanceUpdatedAt: Date?) -> Self {
         Self(
             used: self.used,
             limit: self.limit,
@@ -50,6 +58,7 @@ public struct ProviderCostSnapshot: Equatable, Codable, Sendable {
             nextRegenAmount: self.nextRegenAmount,
             personalUsed: self.personalUsed,
             balance: balance,
+            balanceUpdatedAt: balanceUpdatedAt,
             updatedAt: self.updatedAt)
     }
 }

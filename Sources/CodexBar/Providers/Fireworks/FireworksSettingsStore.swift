@@ -23,7 +23,7 @@ extension SettingsStore {
 
     var hasFireworksCredentials: Bool {
         guard let config = self.configSnapshot.providerConfig(for: .fireworks) else { return false }
-        return config.sanitizedAPIKey != nil && config.sanitizedAccountSlug != nil
+        return config.sanitizedAPIKey != nil
     }
 }
 

@@ -7,21 +7,56 @@ import Testing
 @Suite(.serialized)
 struct SpendDashboardOpenCodexSourceTests {
     @Test
+    func `OpenCodex publication distinguishes unavailable and confirmed empty`() {
+        let configuration = SpendDashboardConfiguration(
+            costUsageEnabled: true,
+            providerIDs: [],
+            codexAccountIdentities: [],
+            openCodexUsageLogsEnabled: true)
+        let request = SpendDashboardLoadRequest(
+            configuration: configuration,
+            capturedInputs: [],
+            unavailableSourceIDs: [],
+            codexRequests: [],
+            now: Date(timeIntervalSince1970: 1_787_079_600),
+            force: false)
+
+        let unavailable = SpendDashboardSource.mergingOpenCodexInputsWithObservation(
+            [],
+            request: request,
+            environment: ["TESTING_LIBRARY_VERSION": "1"])
+        #expect(unavailable.observation == .unavailable)
+
+        let confirmedEmpty = SpendDashboardSource.mergingOpenCodexInputsWithObservation(
+            [],
+            request: request,
+            environment: ["OPENCODEX_HOME": "/tmp/opencodex-publication-test"],
+            entryLoader: { _ in [] })
+        #expect(confirmedEmpty.observation == .confirmedEmpty)
+
+        let failed = SpendDashboardSource.mergingOpenCodexInputsWithObservation(
+            [],
+            request: request,
+            environment: ["OPENCODEX_HOME": "/tmp/opencodex-publication-test"],
+            entryLoader: { _ in throw CocoaError(.fileReadCorruptFile) })
+        #expect(failed.observation == .unavailable)
+    }
+
+    @Test
     func `OpenCodex-only configuration still starts a dashboard load`() async {
         let gate = SpendDashboardLoaderGate()
         let controller = SpendDashboardControllerTests.controller(gate: gate)
         controller.update(configuration: SpendDashboardConfiguration(
             costUsageEnabled: true,
-            providerIDs: [],
+            providerIDs: [UsageProvider.codex.rawValue],
             codexAccountIdentities: [],
             openCodexUsageLogsEnabled: true))
         await SpendDashboardControllerTests.waitForPendingCount(1, gate: gate)
         #expect(controller.isRefreshing)
         await gate.resume(at: 0, result: .init(inputs: [
             SpendDashboardModel.ProviderInput(
-                id: SpendDashboardModel.openCodexSourceID,
                 provider: .codex,
-                displayName: "OpenCodex",
+                displayName: "Codex",
                 snapshot: CostUsageTokenSnapshot(
                     sessionTokens: 0,
                     sessionCostUSD: 0,
@@ -37,11 +72,12 @@ struct SpendDashboardOpenCodexSourceTests {
                             modelsUsed: nil,
                             modelBreakdowns: nil),
                     ],
-                    updatedAt: Date(timeIntervalSince1970: 1_784_179_200)),
-                sourceKind: .openCodex),
+                    updatedAt: Date(timeIntervalSince1970: 1_784_179_200))),
         ], failedSourceIDs: []))
         await SpendDashboardControllerTests.waitUntil { !controller.isRefreshing }
-        #expect(controller.model.groups.first?.providers.first?.id == SpendDashboardModel.openCodexSourceID)
+        #expect(controller.model.groups.first?.providers.contains { $0.provider == .codex } == true)
+        #expect(controller.model.groups.first?.providers
+            .contains { $0.id == SpendDashboardModel.openCodexSourceID } == false)
     }
 
     @Test

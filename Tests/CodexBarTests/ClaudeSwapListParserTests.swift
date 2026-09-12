@@ -50,6 +50,8 @@ struct ClaudeSwapListParserTests {
         let first = try #require(list.accounts.first)
         #expect(first.number == 1)
         #expect(first.email == "work@example.com")
+        #expect(first.organizationName.isEmpty)
+        #expect(first.alias == nil)
         #expect(first.isActive == false)
         #expect(first.usageStatus == .ok)
         #expect(first.fiveHour?.usedPercent == 25.0)
@@ -64,6 +66,8 @@ struct ClaudeSwapListParserTests {
 
         let second = try #require(list.accounts.last)
         #expect(second.isActive == true)
+        #expect(second.organizationName.isEmpty)
+        #expect(second.alias == nil)
         #expect(second.fiveHour?.usedPercent == 80)
         #expect(second.fiveHour?.resetsAt == nil)
         #expect(second.sevenDay == nil)
@@ -102,6 +106,46 @@ struct ClaudeSwapListParserTests {
         #expect(row.scoped.map(\.name) == ["Fable", "All models"])
         #expect(row.scoped.map(\.usedPercent) == [100, 17])
         #expect(row.scoped.first?.resetsAt == Date(timeIntervalSince1970: 1_784_620_800))
+    }
+
+    @Test
+    func `decodes display only organization name and optional alias`() throws {
+        let json = """
+        {
+          "schemaVersion": 1,
+          "activeAccountNumber": 1,
+          "accounts": [
+            {
+              "number": 1,
+              "email": "shared@example.com",
+              "organizationName": "Sendbird",
+              "alias": "Work",
+              "organizationUuid": "ignored-uuid",
+              "isOrganization": true,
+              "active": true,
+              "usageStatus": "ok",
+              "usage": null
+            },
+            {
+              "number": 2,
+              "email": "shared@example.com",
+              "organizationName": "  ",
+              "alias": "",
+              "active": false,
+              "usageStatus": "ok",
+              "usage": null
+            }
+          ]
+        }
+        """
+
+        let accounts = try self.parse(json).accounts
+        let first = try #require(accounts.first)
+        #expect(first.organizationName == "Sendbird")
+        #expect(first.alias == "Work")
+        let second = try #require(accounts.last)
+        #expect(second.organizationName.isEmpty)
+        #expect(second.alias == nil)
     }
 
     @Test

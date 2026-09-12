@@ -1,9 +1,12 @@
 import Foundation
 
-#if os(macOS)
 #if canImport(SQLite3)
 import SQLite3
+#elseif canImport(CSQLite3)
+import CSQLite3
 #endif
+#if canImport(FoundationNetworking)
+import FoundationNetworking
 #endif
 
 #if os(macOS) || os(Linux)
@@ -102,7 +105,7 @@ struct CursorSessionIdentity: Equatable, Sendable {
 }
 #endif
 
-#if os(macOS)
+#if os(macOS) || os(Linux)
 struct CursorAppAuthSession: Equatable, Sendable {
     static let persistedCookieMarker = "CodexBar Cursor.app local auth"
 
@@ -207,27 +210,26 @@ struct CursorAppAuthStore: CursorAppAuthSessionProviding {
     }
 
     static func resolveDefaultDBPath(
-        home: String = NSHomeDirectory(),
+        home: String? = nil,
         environment: [String: String] = ProcessInfo.processInfo.environment,
         fileManager: FileManager = .default) -> String
     {
         #if os(macOS)
         _ = environment
         _ = fileManager
-        return "\(home)/Library/Application Support/Cursor/User/globalStorage/state.vscdb"
+        return "\(home ?? NSHomeDirectory())/Library/Application Support/Cursor/User/globalStorage/state.vscdb"
         #elseif os(Linux)
         let configHome = environment[CodexBarConfigStore.xdgConfigHomeEnvironmentKey]?
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        let expandedConfigHome = configHome.map { ($0 as NSString).expandingTildeInPath }
-        let base: String = if let expandedConfigHome,
-                              !expandedConfigHome.isEmpty,
-                              (expandedConfigHome as NSString).isAbsolutePath
+        if let configHome,
+           !configHome.isEmpty,
+           configHome.hasPrefix("/")
         {
-            expandedConfigHome
-        } else {
-            "\(home)/.config"
+            return "\(configHome)/Cursor/User/globalStorage/state.vscdb"
         }
-        return "\(base)/Cursor/User/globalStorage/state.vscdb"
+
+        let resolvedHome = self.resolveLinuxHome(home: home, environment: environment)
+        return "\(resolvedHome)/.config/Cursor/User/globalStorage/state.vscdb"
         #else
         _ = home
         _ = environment
@@ -235,6 +237,28 @@ struct CursorAppAuthStore: CursorAppAuthSessionProviding {
         return ""
         #endif
     }
+
+    #if os(Linux)
+    /// Prefer an injected home, then an absolute process `HOME`, then the account database home.
+    private static func resolveLinuxHome(
+        home: String?,
+        environment: [String: String]) -> String
+    {
+        if let home {
+            return home
+        }
+
+        let envHome = environment["HOME"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let envHome,
+           !envHome.isEmpty,
+           envHome.hasPrefix("/")
+        {
+            return envHome
+        }
+
+        return NSHomeDirectory()
+    }
+    #endif
 
     func loadSession() throws -> CursorAppAuthSession? {
         guard FileManager.default.fileExists(atPath: self.dbPath) else { return nil }
@@ -306,6 +330,17 @@ struct CursorAppAuthStore: CursorAppAuthSessionProviding {
         case SQLITE_BLOB:
             guard let bytes = sqlite3_column_blob(stmt, index) else { return nil }
             let data = Data(bytes: bytes, count: Int(sqlite3_column_bytes(stmt, index)))
+            // ASCII UTF16LE is also valid UTF8 with NULs, so the fallback below cannot recognize it.
+            if data.count.isMultiple(of: 2),
+               stride(from: 0, to: data.count, by: 2).allSatisfy({
+                   (1..<128).contains(data[$0]) && data[$0 + 1] == 0
+               }),
+               let decoded = String(data: data, encoding: .utf16LittleEndian),
+               // Keep invalid-but-present tokens present: a missing session permits cached-account fallback.
+               !decoded.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            {
+                return decoded
+            }
             return String(data: data, encoding: .utf8)
                 ?? String(data: data, encoding: .utf16LittleEndian)
         default:

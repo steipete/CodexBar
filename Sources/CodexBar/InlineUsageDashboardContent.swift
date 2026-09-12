@@ -2,6 +2,19 @@ import CodexBarCore
 import SwiftUI
 
 struct InlineUsageDashboardModel: Equatable {
+    struct HoverDetail: Equatable {
+        let dateLabel: String
+        let cost: Double?
+        let tokenCount: Int?
+        let currencyCode: String
+
+        var summary: String {
+            let cost = self.cost.map { UsageFormatter.currencyString($0, currencyCode: self.currencyCode) } ?? "—"
+            let tokens = self.tokenCount.map(UsageFormatter.tokenCountString) ?? "—"
+            return L("%@: %@ · %@ tokens", self.dateLabel, cost, tokens)
+        }
+    }
+
     struct KPI: Equatable {
         let title: String
         let value: String
@@ -11,8 +24,9 @@ struct InlineUsageDashboardModel: Equatable {
     struct Point: Equatable, Identifiable {
         let id: String
         let label: String
-        let value: Double
+        let value: Double?
         let accessibilityValue: String
+        var hoverDetail: HoverDetail?
     }
 
     enum ValueStyle: Equatable {
@@ -102,7 +116,8 @@ extension UsageMenuCardView.Model {
                 provider: input.provider,
                 snapshot: tokenSnapshot,
                 comparisonPeriodsEnabled: input.costComparisonPeriodsEnabled,
-                preferredCurrencyCode: input.preferredCurrencyCode)
+                preferredCurrencyCode: input.preferredCurrencyCode,
+                calendar: input.costUsageBucketCalendar)
         }
         if menuCard.supportsInlineTokenCostDashboard,
            input.costSummaryInlineEnabled,
@@ -113,7 +128,8 @@ extension UsageMenuCardView.Model {
                 provider: input.provider,
                 snapshot: tokenSnapshot,
                 comparisonPeriodsEnabled: input.costComparisonPeriodsEnabled,
-                preferredCurrencyCode: input.preferredCurrencyCode)
+                preferredCurrencyCode: input.preferredCurrencyCode,
+                calendar: input.costUsageBucketCalendar)
         }
         return nil
     }
@@ -133,7 +149,8 @@ extension UsageMenuCardView.Model {
         provider: UsageProvider,
         snapshot: CostUsageTokenSnapshot,
         comparisonPeriodsEnabled: Bool,
-        preferredCurrencyCode: String) -> InlineUsageDashboardModel
+        preferredCurrencyCode: String,
+        calendar: Calendar) -> InlineUsageDashboardModel
     {
         let displayCurrencyCode = UsageFormatter.convertedCost(
             0,
@@ -186,14 +203,14 @@ extension UsageMenuCardView.Model {
         } else {
             L("%@ cost", historyDays == 1 ? L("Today") : String(format: L("Last %d days"), historyDays))
         }
-        let points = snapshot.daily.suffix(historyDays).compactMap { entry -> InlineUsageDashboardModel.Point? in
-            guard let cost = entry.costUSD else { return nil }
-            return InlineUsageDashboardModel.Point(
-                id: entry.date,
-                label: Self.shortDayLabel(entry.date),
-                value: convertedValue(cost),
-                accessibilityValue: "\(entry.date): \(convertedString(cost))")
-        }
+        let points = Self.inlineCostHistoryPoints(
+            days: Self.inlineCostHistoryDays(
+                snapshot: snapshot,
+                historyDays: historyDays,
+                preservesCalendarDays: tokenCost.preservesCalendarDaysInCharts,
+                calendar: calendar),
+            displayCurrencyCode: displayCurrencyCode,
+            convertedValue: convertedValue)
         let latest = CostUsageTokenSnapshot.latestEntry(in: snapshot.daily)
         let usesLatestPrimary = tokenCost.primaryValue == .latestDaily
         let primaryCostUSD = usesLatestPrimary ? latest?.costUSD : snapshot.sessionCostUSD
@@ -334,6 +351,87 @@ extension UsageMenuCardView.Model {
         return "\(rawDay)"
     }
 
+    private static func inlineCostHistoryDays(
+        snapshot: CostUsageTokenSnapshot,
+        historyDays: Int,
+        preservesCalendarDays: Bool,
+        calendar sourceCalendar: Calendar)
+        -> [(date: String, costUSD: Double?, totalTokens: Int?)]
+    {
+        let existingDays = snapshot.daily.suffix(historyDays)
+            .compactMap { entry -> (date: String, costUSD: Double?, totalTokens: Int?)? in
+                guard entry.costUSD != nil || entry.totalTokens != nil else { return nil }
+                return (entry.date, entry.costUSD, entry.totalTokens)
+            }
+        guard preservesCalendarDays else { return existingDays }
+
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = sourceCalendar.timeZone
+        let endDate = calendar.startOfDay(for: snapshot.updatedAt)
+        guard let startDate = calendar.date(byAdding: .day, value: -(historyDays - 1), to: endDate) else {
+            return existingDays
+        }
+
+        let entriesByDay = Dictionary(snapshot.daily.map { ($0.date, $0) }, uniquingKeysWith: { _, newer in newer })
+        return (0..<historyDays).compactMap { offset in
+            guard let date = calendar.date(byAdding: .day, value: offset, to: startDate) else { return nil }
+            let dayKey = Self.inlineCostHistoryDayKey(date, calendar: calendar)
+            if let entry = entriesByDay[dayKey] {
+                return (date: dayKey, costUSD: entry.costUSD, totalTokens: entry.totalTokens)
+            }
+            // A missing date is zero only after the scan has covered the requested history.
+            return (
+                date: dayKey,
+                costUSD: snapshot.historyCoverageIsEstablished ? 0 : nil,
+                totalTokens: snapshot.historyCoverageIsEstablished ? 0 : nil)
+        }
+    }
+
+    private static func inlineCostHistoryPoints(
+        days: [(date: String, costUSD: Double?, totalTokens: Int?)],
+        displayCurrencyCode: String,
+        convertedValue: (Double) -> Double) -> [InlineUsageDashboardModel.Point]
+    {
+        let parser = DateFormatter()
+        parser.locale = Locale(identifier: "en_US_POSIX")
+        parser.timeZone = TimeZone(secondsFromGMT: 0)
+        parser.dateFormat = "yyyy-MM-dd"
+        let formatter = DateFormatter()
+        formatter.locale = codexBarLocalizedLocale()
+        formatter.timeZone = parser.timeZone
+        formatter.setLocalizedDateFormatFromTemplate("yMMMd")
+        return days.map { day in
+            let dateLabel = parser.date(from: day.date).map(formatter.string(from:)) ?? day.date
+            let costUSD = day.costUSD.flatMap { $0 >= 0 ? $0 : nil }
+            let tokenCount = day.totalTokens.flatMap { $0 >= 0 ? $0 : nil }
+            let convertedCost = costUSD.map(convertedValue)
+            let hoverDetail: InlineUsageDashboardModel.HoverDetail? = if costUSD != nil || tokenCount != nil {
+                .init(
+                    dateLabel: dateLabel,
+                    cost: convertedCost,
+                    tokenCount: tokenCount,
+                    currencyCode: displayCurrencyCode)
+            } else {
+                nil
+            }
+            return InlineUsageDashboardModel.Point(
+                id: day.date,
+                label: Self.shortDayLabel(day.date),
+                value: convertedCost,
+                accessibilityValue: hoverDetail?.summary ?? "\(dateLabel): \(L("Unknown"))",
+                hoverDetail: hoverDetail)
+        }
+    }
+
+    private static func inlineCostHistoryDayKey(_ date: Date, calendar: Calendar) -> String {
+        let components = calendar.dateComponents([.year, .month, .day], from: date)
+        return String(
+            format: "%04d-%02d-%02d",
+            components.year ?? 0,
+            components.month ?? 0,
+            components.day ?? 0)
+    }
+
     private static func shortModelName(_ name: String) -> String {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.count > 26 else { return trimmed }
@@ -373,6 +471,7 @@ struct InlineUsageDashboardContent: View {
             if !self.model.points.isEmpty {
                 MiniUsageBars(model: self.model)
                     .frame(height: 58)
+                    .accessibilityElement(children: .contain)
                     .accessibilityLabel(self.model.accessibilityLabel)
             }
             self.detailLines
@@ -432,36 +531,101 @@ struct InlineUsageDashboardContent: View {
     private struct MiniUsageBars: View {
         let model: InlineUsageDashboardModel
         @Environment(\.menuItemHighlighted) private var isHighlighted
+        @Environment(\.layoutDirection) private var layoutDirection
+        @State private var selectedPointID: String?
 
         var body: some View {
-            let scale = UsageChartScale(values: self.model.points.map(\.value))
+            let scale = UsageChartScale(values: self.model.points.compactMap(\.value))
+            let hoverDetail = self.model.points
+                .first(where: { $0.id == self.selectedPointID })?
+                .hoverDetail
             VStack(alignment: .trailing, spacing: 2) {
-                if let currencyCode = self.model.currencyCode, scale.maximum > 0 {
-                    Text(UsageFormatter.compactCurrencyString(scale.maximum, currencyCode: currencyCode))
+                if let currencyCode = self.model.currencyCode {
+                    let scaleLabel = scale.maximum > 0
+                        ? UsageFormatter.compactCurrencyString(scale.maximum, currencyCode: currencyCode)
+                        : " "
+                    Text(hoverDetail?.summary ?? scaleLabel)
                         .font(.caption2)
                         .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
                         .monospacedDigit()
                         .lineLimit(1)
+                        .minimumScaleFactor(0.72)
                         .allowsTightening(true)
+                        .frame(maxWidth: .infinity, alignment: hoverDetail == nil ? .trailing : .leading)
+                        .opacity(hoverDetail != nil || scale.maximum > 0 ? 1 : 0)
+                        .accessibilityHidden(hoverDetail != nil)
                 }
                 GeometryReader { geometry in
-                    HStack(alignment: .bottom, spacing: 2) {
-                        ForEach(self.model.points) { point in
-                            RoundedRectangle(cornerRadius: 1.5, style: .continuous)
-                                .fill(self.fill(for: point, scale: scale))
-                                .frame(maxWidth: .infinity)
-                                .frame(height: self.height(for: point, scale: scale, available: geometry.size.height))
-                                .accessibilityLabel(point.accessibilityValue)
+                    let layout = InlineUsageBarLayout(width: geometry.size.width, count: self.model.points.count)
+                    ZStack {
+                        HStack(alignment: .bottom, spacing: layout.spacing) {
+                            ForEach(self.model.points) { point in
+                                let barHeight = self.height(
+                                    for: point,
+                                    scale: scale,
+                                    available: geometry.size.height)
+                                RoundedRectangle(cornerRadius: 1.5, style: .continuous)
+                                    .fill(self.fill(for: point, scale: scale))
+                                    .frame(width: layout.barWidth)
+                                    .frame(height: barHeight)
+                                    .overlay {
+                                        if point.id == self.selectedPointID {
+                                            RoundedRectangle(cornerRadius: 1.5, style: .continuous)
+                                                .strokeBorder(
+                                                    MenuHighlightStyle.primary(self.isHighlighted),
+                                                    lineWidth: layout.selectionStrokeWidth(barHeight: barHeight))
+                                        }
+                                    }
+                                    .accessibilityLabel(point.accessibilityValue)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                        .overlay(alignment: .bottomLeading) {
+                            Rectangle()
+                                .fill(MenuHighlightStyle.secondary(self.isHighlighted).opacity(0.22))
+                                .frame(height: 1)
+                        }
+
+                        if self.model.points.contains(where: { $0.hoverDetail != nil }) {
+                            MouseLocationReader { location in
+                                self.updateSelection(location: location, layout: layout)
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .contentShape(Rectangle())
                         }
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                    .overlay(alignment: .bottomLeading) {
-                        Rectangle()
-                            .fill(MenuHighlightStyle.secondary(self.isHighlighted).opacity(0.22))
-                            .frame(height: 1)
+                    .onChange(of: geometry.size.width) { _, _ in
+                        self.clearSelection()
+                    }
+                    .onChange(of: self.model.points) { previousPoints, points in
+                        let nextPointID = InlineUsageBarHoverSelection.reconciledPointID(
+                            current: self.selectedPointID,
+                            previousPoints: previousPoints,
+                            points: points)
+                        guard self.selectedPointID != nextPointID else { return }
+                        self.selectedPointID = nextPointID
+                    }
+                    .onChange(of: self.layoutDirection) { _, _ in
+                        self.clearSelection()
                     }
                 }
             }
+        }
+
+        private func updateSelection(location: CGPoint?, layout: InlineUsageBarLayout) {
+            let nextPointID = InlineUsageBarHoverSelection.pointID(
+                current: self.selectedPointID,
+                locationX: location?.x,
+                layout: layout,
+                layoutDirection: self.layoutDirection,
+                points: self.model.points)
+            guard self.selectedPointID != nextPointID else { return }
+            self.selectedPointID = nextPointID
+        }
+
+        private func clearSelection() {
+            guard self.selectedPointID != nil else { return }
+            self.selectedPointID = nil
         }
 
         private func height(
@@ -469,13 +633,15 @@ struct InlineUsageDashboardContent: View {
             scale: UsageChartScale,
             available: CGFloat) -> CGFloat
         {
-            let ratio = scale.fraction(for: point.value)
+            guard let value = point.value else { return 1 }
+            let ratio = scale.fraction(for: value)
             guard ratio > 0 else { return 1 }
             return max(3, CGFloat(ratio) * available)
         }
 
         private func fill(for point: InlineUsageDashboardModel.Point, scale: UsageChartScale) -> Color {
-            let ratio = max(0.18, scale.fraction(for: point.value))
+            guard let value = point.value else { return .clear }
+            let ratio = max(0.18, scale.fraction(for: value))
             if self.isHighlighted {
                 return Color.white.opacity(0.55 + ratio * 0.35)
             }
@@ -495,5 +661,75 @@ struct InlineUsageDashboardContent: View {
                 return Color(red: 0.16, green: 0.62, blue: 0.36)
             }
         }
+    }
+}
+
+struct InlineUsageBarLayout {
+    let spacing: CGFloat
+    let barWidth: CGFloat
+    private let width: CGFloat
+    private let barCount: Int
+
+    init(width: CGFloat, count: Int) {
+        self.width = max(0, width)
+        self.barCount = max(0, count)
+        let layoutCount = max(1, self.barCount)
+        self.spacing = self.barCount <= 1 ? 0 : min(2, self.width / CGFloat(layoutCount) / 4)
+        self.barWidth = self.barCount == 0
+            ? 0
+            : max(0, (self.width - self.spacing * CGFloat(self.barCount - 1)) / CGFloat(self.barCount))
+    }
+
+    func selectionStrokeWidth(barHeight: CGFloat) -> CGFloat {
+        min(1, self.barWidth / 2, max(0, barHeight) / 2)
+    }
+
+    func contains(_ locationX: CGFloat) -> Bool {
+        self.barCount > 0 && self.width > 0 && locationX >= 0 && locationX <= self.width
+    }
+
+    func index(atX locationX: CGFloat, layoutDirection: LayoutDirection = .leftToRight) -> Int? {
+        guard self.contains(locationX), self.barWidth > 0 else { return nil }
+
+        let stride = self.barWidth + self.spacing
+        guard stride > 0 else { return nil }
+        let resolvedX = layoutDirection == .rightToLeft ? self.width - locationX : locationX
+        if self.spacing < 1 {
+            let nearest = Int(((resolvedX - self.barWidth / 2) / stride).rounded())
+            return min(max(nearest, 0), self.barCount - 1)
+        }
+        let index = min(Int(resolvedX / stride), self.barCount - 1)
+        let offset = resolvedX - CGFloat(index) * stride
+        let tolerance = max(1, self.width) * CGFloat.ulpOfOne * 8
+        return offset <= self.barWidth + tolerance ? index : nil
+    }
+}
+
+enum InlineUsageBarHoverSelection {
+    static func reconciledPointID(
+        current: String?,
+        previousPoints: [InlineUsageDashboardModel.Point],
+        points: [InlineUsageDashboardModel.Point]) -> String?
+    {
+        guard previousPoints.map(\.id) == points.map(\.id), let current else { return nil }
+        return points.contains { $0.id == current && $0.hoverDetail != nil } ? current : nil
+    }
+
+    static func pointID(
+        current: String?,
+        locationX: CGFloat?,
+        layout: InlineUsageBarLayout,
+        layoutDirection: LayoutDirection,
+        points: [InlineUsageDashboardModel.Point]) -> String?
+    {
+        guard let locationX else { return nil }
+        guard layout.contains(locationX) else { return nil }
+        guard let index = layout.index(atX: locationX, layoutDirection: layoutDirection) else {
+            return current.flatMap { currentID in
+                points.contains { $0.id == currentID && $0.hoverDetail != nil } ? currentID : nil
+            }
+        }
+        guard points.indices.contains(index), points[index].hoverDetail != nil else { return nil }
+        return points[index].id
     }
 }

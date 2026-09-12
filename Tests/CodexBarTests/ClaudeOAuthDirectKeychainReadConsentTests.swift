@@ -164,28 +164,11 @@ struct ClaudeOAuthDirectKeychainReadConsentTests {
             rawText: nil)
         let degraded = ClaudeOAuthFetchStrategy._snapshotForTesting(from: usage, dataConfidence: .percentOnly)
         #expect(degraded.dataConfidence == .percentOnly)
-        let card = UsageMenuCardView.Model.make(UsageMenuCardView.Model.Input(
-            provider: .claude,
-            metadata: ProviderDescriptorRegistry.descriptor(for: .claude).metadata,
-            snapshot: degraded,
-            credits: nil,
-            creditsError: nil,
-            dashboard: nil,
-            dashboardError: nil,
-            tokenSnapshot: nil,
-            tokenError: nil,
-            account: AccountInfo(email: nil, plan: nil),
-            isRefreshing: false,
-            lastError: nil,
-            usageBarsShowUsed: true,
-            resetTimeDisplayStyle: .countdown,
-            tokenCostUsageEnabled: false,
-            showOptionalCreditsAndExtraUsage: true,
-            hidePersonalInfo: false,
-            now: Date()))
-        #expect(card.usageNotes == [L("Usage via Claude CLI (limited detail)")])
+        let card = ClaudeUsageDetailTestSupport.model(snapshot: degraded)
+        #expect(card.usageNotes == [L("claude_limited_usage_detail")])
         let oauth = ClaudeOAuthFetchStrategy._snapshotForTesting(from: usage)
         #expect(oauth.dataConfidence == .unknown)
+        #expect(ClaudeUsageDetailTestSupport.model(snapshot: oauth).usageNotes.isEmpty)
     }
 
     // MARK: - Consent revocation invalidates cached credentials

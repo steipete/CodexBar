@@ -49,6 +49,7 @@ struct CodexProviderImplementation: ProviderImplementation {
     func sourceMode(context: ProviderSourceModeContext) -> ProviderSourceMode {
         switch context.settings.codexUsageDataSource {
         case .auto: .auto
+        case .pat: .api
         case .oauth: .oauth
         case .cli: .cli
         }
@@ -101,21 +102,6 @@ struct CodexProviderImplementation: ProviderImplementation {
                 statusText: nil,
                 actions: [],
                 isVisible: nil,
-                onChange: nil,
-                onAppDidBecomeActive: nil,
-                onAppearWhenEnabled: nil),
-            ProviderSettingsToggleDescriptor(
-                id: "codex-spark-usage-visible",
-                title: "Show Codex Spark usage",
-                subtitle: [
-                    "Shows Codex Spark quota rows in the menu and provider preview.",
-                    "Requires optional credits and extra usage in Display settings.",
-                ].joined(separator: " "),
-                binding: context.boolBinding(\.codexSparkUsageVisible),
-                statusText: nil,
-                actions: [],
-                isVisible: nil,
-                isEnabled: { context.settings.showOptionalCreditsAndExtraUsage },
                 onChange: nil,
                 onAppDidBecomeActive: nil,
                 onAppearWhenEnabled: nil),
@@ -284,6 +270,10 @@ struct CodexProviderImplementation: ProviderImplementation {
 
     @MainActor
     func appendActionMenuEntries(context: ProviderMenuActionContext, entries: inout [ProviderMenuEntry]) {
+        if context.codexWorkspacesMenuEnabled {
+            entries.append(.action(L("Workspaces"), .openCodexWorkspaces))
+        }
+
         let projection = context.settings.codexVisibleAccountProjection
         guard !projection.visibleAccounts.isEmpty else { return }
 

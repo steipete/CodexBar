@@ -94,6 +94,8 @@ struct StatusMenuScopedCodexRefreshTests {
 
             store._test_providerRefreshOverride = { provider in
                 #expect(provider == .codex)
+                // A settings reload can invalidate the revision-bound fallback account cache.
+                store.accountInfoCache[.codex] = nil
                 store.snapshots[.codex] = Self.snapshot(
                     usedPercent: 37,
                     updatedAt: initialUpdatedAt.addingTimeInterval(60))
@@ -139,11 +141,13 @@ struct StatusMenuScopedCodexRefreshTests {
             let enrichmentDidStart = await creditsStarted.waitUntilSignaled()
             #expect(enrichmentDidStart)
             guard enrichmentDidStart else {
+                releaseCredits.resume()
                 await refreshTask.value
                 return
             }
 
             let expectedCore = try #require(coreModel)
+            #expect(frozen.hasCompatibleTrackedLayout(with: expectedCore))
             let visibleWhileBlocked = monitor.model(for: .codex, fallback: frozen)
             #expect(!monitor.isManualRefreshInFlight(for: .codex))
             #expect(visibleWhileBlocked.metrics.map(\.percent) == expectedCore.metrics.map(\.percent))
@@ -268,7 +272,12 @@ struct StatusMenuScopedCodexRefreshTests {
                     resetsAt: updatedAt.addingTimeInterval(7200),
                     resetDescription: nil)
             },
-            updatedAt: updatedAt)
+            updatedAt: updatedAt,
+            identity: ProviderIdentitySnapshot(
+                providerID: .codex,
+                accountEmail: "fixture@example.com",
+                accountOrganization: nil,
+                loginMethod: "pro"))
     }
 
     private func emitProbe(_ line: String) {

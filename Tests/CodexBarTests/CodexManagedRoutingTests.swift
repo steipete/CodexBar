@@ -3,7 +3,7 @@ import Testing
 @testable import CodexBar
 @testable import CodexBarCore
 
-@Suite(.serialized)
+@Suite(.serialized, CodexCredentialFixtures())
 @MainActor
 struct CodexManagedRoutingTests {
     @Test
@@ -176,7 +176,7 @@ struct CodexManagedRoutingTests {
     @Test
     func `provider registry prefers live system routing when managed and live share email`() {
         let settings = self.makeSettingsStore(suite: "CodexManagedRoutingTests-same-email-prefers-live")
-        let managedHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+        let managedHome = CodexCredentialFixtures.root.appendingPathComponent(
             UUID().uuidString,
             isDirectory: true)
         let liveHomePath = "/tmp/system-remote-home"
@@ -216,7 +216,7 @@ struct CodexManagedRoutingTests {
     @Test
     func `provider registry keeps managed routing when same email rows differ by identity strength`() throws {
         let settings = self.makeSettingsStore(suite: "CodexManagedRoutingTests-same-email-split-by-identity")
-        let managedHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+        let managedHome = CodexCredentialFixtures.root.appendingPathComponent(
             UUID().uuidString,
             isDirectory: true)
         let liveHomePath = "/tmp/system-remote-home"
@@ -291,7 +291,7 @@ struct CodexManagedRoutingTests {
     @Test
     func `codex provider refresh persists live correction for stale managed source`() async {
         let settings = self.makeSettingsStore(suite: "CodexManagedRoutingTests-provider-refresh-persists-correction")
-        let ambientHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+        let ambientHome = CodexCredentialFixtures.root.appendingPathComponent(
             UUID().uuidString,
             isDirectory: true)
         defer { try? FileManager.default.removeItem(at: ambientHome) }
@@ -320,7 +320,7 @@ struct CodexManagedRoutingTests {
     @Test
     func `full refresh persists live correction for stale managed source`() async {
         let settings = self.makeSettingsStore(suite: "CodexManagedRoutingTests-full-refresh-persists-correction")
-        let ambientHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+        let ambientHome = CodexCredentialFixtures.root.appendingPathComponent(
             UUID().uuidString,
             isDirectory: true)
         defer { try? FileManager.default.removeItem(at: ambientHome) }
@@ -525,7 +525,7 @@ struct CodexManagedRoutingTests {
     @Test
     func `provider registry ignores debug managed home override without explicit managed source`() throws {
         let settings = self.makeSettingsStore(suite: "CodexManagedRoutingTests-debug-home-override")
-        let managedHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+        let managedHome = CodexCredentialFixtures.root.appendingPathComponent(
             UUID().uuidString,
             isDirectory: true)
         defer { try? FileManager.default.removeItem(at: managedHome) }
@@ -548,7 +548,7 @@ struct CodexManagedRoutingTests {
     @Test
     func `provider registry builds codex fetcher scoped to managed home`() throws {
         let settings = self.makeSettingsStore(suite: "CodexManagedRoutingTests-registry-fetcher")
-        let managedHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+        let managedHome = CodexCredentialFixtures.root.appendingPathComponent(
             UUID().uuidString,
             isDirectory: true)
         defer { try? FileManager.default.removeItem(at: managedHome) }
@@ -577,7 +577,7 @@ struct CodexManagedRoutingTests {
     @Test
     func `usage store builds codex fetch context with source override without persisting selection`() throws {
         let settings = self.makeSettingsStore(suite: "CodexManagedRoutingTests-usage-source-override")
-        let managedHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+        let managedHome = CodexCredentialFixtures.root.appendingPathComponent(
             UUID().uuidString,
             isDirectory: true)
         defer { try? FileManager.default.removeItem(at: managedHome) }
@@ -621,7 +621,7 @@ struct CodexManagedRoutingTests {
     @Test
     func `usage store builds codex token account fetcher scoped to managed home`() throws {
         let settings = self.makeSettingsStore(suite: "CodexManagedRoutingTests-usage-store")
-        let managedHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+        let managedHome = CodexCredentialFixtures.root.appendingPathComponent(
             UUID().uuidString,
             isDirectory: true)
         defer { try? FileManager.default.removeItem(at: managedHome) }
@@ -648,7 +648,7 @@ struct CodexManagedRoutingTests {
     @Test
     func `usage store builds codex credits fetcher scoped to managed home`() throws {
         let settings = self.makeSettingsStore(suite: "CodexManagedRoutingTests-credits-fetcher")
-        let managedHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+        let managedHome = CodexCredentialFixtures.root.appendingPathComponent(
             UUID().uuidString,
             isDirectory: true)
         defer { try? FileManager.default.removeItem(at: managedHome) }
@@ -673,7 +673,7 @@ struct CodexManagedRoutingTests {
 
     @Test
     func `default managed codex identity reader preserves provider account from scoped auth`() throws {
-        let managedHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+        let managedHome = CodexCredentialFixtures.root.appendingPathComponent(
             UUID().uuidString,
             isDirectory: true)
         defer { try? FileManager.default.removeItem(at: managedHome) }
@@ -693,7 +693,7 @@ struct CodexManagedRoutingTests {
 
     @Test
     func `codex O auth strategy availability reads auth from context env`() async throws {
-        let managedHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+        let managedHome = CodexCredentialFixtures.root.appendingPathComponent(
             UUID().uuidString,
             isDirectory: true)
         defer { try? FileManager.default.removeItem(at: managedHome) }
@@ -714,7 +714,7 @@ struct CodexManagedRoutingTests {
 
     @Test
     func `codex O auth credentials store loads and saves using explicit env`() throws {
-        let managedHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+        let managedHome = CodexCredentialFixtures.root.appendingPathComponent(
             UUID().uuidString,
             isDirectory: true)
         defer { try? FileManager.default.removeItem(at: managedHome) }

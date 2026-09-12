@@ -93,7 +93,7 @@ extension UsageStore {
             return
         }
         do {
-            let credits = try await self.loadLatestCodexCredits()
+            let credits = try await self.loadLatestCodexCredits(expectedGuard: expectedGuard)
             guard !Task.isCancelled else { return }
             guard let applyGuard = self.codexScopedNonUsageSuccessApplyGuard(
                 expectedGuard: expectedGuard) else { return }
@@ -103,9 +103,11 @@ extension UsageStore {
                 self.lastCreditsError = nil
                 self.lastCreditsSnapshot = credits
                 self.lastCreditsSnapshotAccountKey = applyGuard.accountKey
-                self.lastCreditsSource = .api
+                self.lastCreditsSnapshotOwnerGuard = applyGuard
+                self.lastCreditsSource = credits == nil ? .none : .api
                 self.creditsFailureStreak = 0
                 self.lastCodexAccountScopedRefreshGuard = applyGuard
+                self.persistPublishedCodexCreditsIntoAccountSnapshotsIfNeeded()
             }
             let codexSnapshot = await MainActor.run {
                 self.snapshots[.codex]
@@ -132,7 +134,8 @@ extension UsageStore {
                 self.reconcileCodexPublishedUsageOwner(with: expectedGuard)
                 await MainActor.run {
                     if let cached = self.lastCreditsSnapshot,
-                       self.lastCreditsSnapshotAccountKey == expectedGuard.accountKey
+                       let cachedOwnerGuard = self.lastCreditsSnapshotOwnerGuard,
+                       Self.codexScopedRefreshGuardsMatchAccount(cachedOwnerGuard, expectedGuard)
                     {
                         self.credits = cached
                         self.lastCreditsError = nil
@@ -151,7 +154,8 @@ extension UsageStore {
             await MainActor.run {
                 self.creditsFailureStreak += 1
                 if let cached = self.lastCreditsSnapshot,
-                   self.lastCreditsSnapshotAccountKey == expectedGuard.accountKey
+                   let cachedOwnerGuard = self.lastCreditsSnapshotOwnerGuard,
+                   Self.codexScopedRefreshGuardsMatchAccount(cachedOwnerGuard, expectedGuard)
                 {
                     self.credits = cached
                     let stamp = cached.updatedAt.formatted(date: .abbreviated, time: .shortened)
@@ -167,7 +171,9 @@ extension UsageStore {
         }
     }
 
-    private func loadLatestCodexCredits() async throws -> CreditsSnapshot {
+    private func loadLatestCodexCredits(
+        expectedGuard: CodexAccountScopedRefreshGuard) async throws -> CreditsSnapshot?
+    {
         if let override = self._test_codexCreditsLoaderOverride {
             return try await override()
         }
@@ -175,19 +181,33 @@ extension UsageStore {
         let context = self.makeFetchContext(provider: .codex, override: nil, includeCredits: true)
         let strategies = await descriptor.fetchPlan.pipeline.resolveStrategies(context)
         var lastAvailableError: Error?
+        let prior = await MainActor.run { () -> CreditsSnapshot? in
+            guard let cachedOwnerGuard = self.lastCreditsSnapshotOwnerGuard,
+                  Self.codexScopedRefreshGuardsMatchAccount(cachedOwnerGuard, expectedGuard)
+            else {
+                return nil
+            }
+            return self.lastCreditsSnapshot
+        }
 
-        for strategy in strategies {
+        strategyLoop: for strategy in strategies {
             guard await strategy.isAvailable(context) else { continue }
             do {
                 let result = try await strategy.fetch(context)
-                if let credits = result.credits {
+                switch CodexMonthlyCreditPreservation.standaloneRefreshOutcome(
+                    incoming: result.credits,
+                    prior: prior,
+                    enrichmentFailed: result.codexMonthlyLimitEnrichmentFailed)
+                {
+                case let .published(credits):
                     return credits
+                case .notFound:
+                    lastAvailableError = UsageError.noRateLimitsFound
+                    guard context.sourceMode == .auto else { break strategyLoop }
                 }
-                lastAvailableError = UsageError.noRateLimitsFound
-                guard context.sourceMode == .auto else { break }
             } catch {
                 lastAvailableError = error
-                guard strategy.shouldFallback(on: error, context: context) else { break }
+                guard strategy.shouldFallback(on: error, context: context) else { break strategyLoop }
             }
         }
         throw lastAvailableError ?? ProviderFetchError.noAvailableStrategy(.codex)
@@ -265,5 +285,86 @@ extension UsageStore {
     func cancelCodexPlanHistoryBackfill() {
         self.codexPlanHistoryBackfillTask?.cancel()
         self.codexPlanHistoryBackfillTask = nil
+    }
+
+    func publishHydratedCodexCreditsIfNeeded(
+        from persistedCredits: CreditsSnapshot?,
+        ownerGuard: CodexAccountScopedRefreshGuard)
+    {
+        guard let credits = CodexMonthlyCreditPreservation.hydrationCredits(
+            existingCredits: self.credits,
+            persistedCredits: persistedCredits)
+        else { return }
+        self.credits = credits
+        self.lastCreditsError = nil
+        self.lastCreditsSnapshot = credits
+        self.lastCreditsSnapshotAccountKey = ownerGuard.accountKey
+        self.lastCreditsSnapshotOwnerGuard = ownerGuard
+        self.lastCreditsSource = .api
+    }
+
+    func shouldPublishSelectedCodexCredits(
+        _ result: ProviderFetchResult,
+        publishedCredits: CreditsSnapshot?,
+        publicationGuard: CodexAccountScopedRefreshGuard) -> Bool
+    {
+        let ownerMatches = self.lastCreditsSnapshotOwnerGuard.map {
+            Self.codexScopedRefreshGuardsMatchAccount($0, publicationGuard)
+        } ?? false
+        let cachedCredits = ownerMatches
+            ? self.lastCreditsSnapshot
+            : nil
+        let currentCredits = ownerMatches
+            ? self.credits
+            : nil
+        return CodexMonthlyCreditPreservation.shouldPublishSelectedCredits(
+            enrichmentFailed: result.codexMonthlyLimitEnrichmentFailed,
+            publishedCredits: publishedCredits,
+            currentCredits: currentCredits,
+            cachedCredits: cachedCredits)
+    }
+
+    func persistPublishedCodexCreditsIntoAccountSnapshotsIfNeeded() {
+        guard let refreshGuard = self.lastCreditsSnapshotOwnerGuard,
+              let accountKey = refreshGuard.accountKey
+        else { return }
+        var matches = self.codexAccountSnapshots.indices.filter { index in
+            Self.codexAccountSnapshot(
+                self.codexAccountSnapshots[index],
+                matchesPublishedCreditsAccountKey: accountKey,
+                refreshGuard: refreshGuard)
+        }
+        if matches.count > 1,
+           let activeID = self.settings.codexVisibleAccountProjection.activeVisibleAccountID
+        {
+            matches = matches.filter { self.codexAccountSnapshots[$0].id == activeID }
+        }
+        guard matches.count == 1, let index = matches.first else { return }
+        let row = self.codexAccountSnapshots[index]
+        self.codexAccountSnapshots[index] = CodexAccountUsageSnapshot(
+            account: row.account,
+            snapshot: row.snapshot,
+            error: row.error,
+            sourceLabel: row.sourceLabel,
+            credits: self.credits,
+            weeklyResetCandidate: row.weeklyResetCandidate)
+        self.codexAccountUsageSnapshotStore?.store(self.codexAccountSnapshots)
+    }
+
+    private static func codexAccountSnapshot(
+        _ row: CodexAccountUsageSnapshot,
+        matchesPublishedCreditsAccountKey accountKey: String,
+        refreshGuard: CodexAccountScopedRefreshGuard?) -> Bool
+    {
+        guard CodexIdentityResolver.normalizeEmail(row.account.email) == accountKey else { return false }
+        guard let refreshGuard else { return true }
+        guard row.account.selectionSource == refreshGuard.source else { return false }
+        switch refreshGuard.identity {
+        case let .providerAccount(id):
+            return CodexOpenAIWorkspaceResolver.normalizeWorkspaceAccountID(row.account.workspaceAccountID)
+                == CodexOpenAIWorkspaceResolver.normalizeWorkspaceAccountID(id)
+        case .emailOnly, .unresolved:
+            return true
+        }
     }
 }

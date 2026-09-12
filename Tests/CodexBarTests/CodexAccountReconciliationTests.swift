@@ -3,7 +3,7 @@ import Foundation
 import Testing
 @testable import CodexBar
 
-@Suite(.serialized)
+@Suite(.serialized, CodexCredentialFixtures())
 struct CodexAccountReconciliationTests {
     @MainActor
     private static func makeSettings(suite: String) throws -> SettingsStore {
@@ -99,7 +99,7 @@ struct CodexAccountReconciliationTests {
     func `settings store reconciliation environment override drives live observation with synthetic store`() throws {
         let suite = "CodexAccountReconciliationTests-environment-only"
         let settings = try Self.makeSettings(suite: suite)
-        let ambientHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+        let ambientHome = CodexCredentialFixtures.root.appendingPathComponent(
             UUID().uuidString,
             isDirectory: true)
         try Self.writeCodexAuthFile(homeURL: ambientHome, email: "ambient@example.com", plan: "pro")
@@ -129,7 +129,7 @@ struct CodexAccountReconciliationTests {
     func `settings store can reuse short lived codex reconciliation snapshot`() throws {
         let suite = "CodexAccountReconciliationTests-short-lived-cache"
         let settings = try Self.makeSettings(suite: suite)
-        let ambientHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+        let ambientHome = CodexCredentialFixtures.root.appendingPathComponent(
             UUID().uuidString,
             isDirectory: true)
         try Self.writeCodexAuthFile(homeURL: ambientHome, email: "cached@example.com", plan: "pro")
@@ -157,7 +157,7 @@ struct CodexAccountReconciliationTests {
     func `codex active source write invalidates short lived reconciliation snapshot`() throws {
         let suite = "CodexAccountReconciliationTests-active-source-cache-invalidation"
         let settings = try Self.makeSettings(suite: suite)
-        let ambientHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+        let ambientHome = CodexCredentialFixtures.root.appendingPathComponent(
             UUID().uuidString,
             isDirectory: true)
         try Self.writeCodexAuthFile(homeURL: ambientHome, email: "before@example.com", plan: "pro")
@@ -521,7 +521,7 @@ struct CodexAccountReconciliationTests {
 
     @Test
     func `provider account does not collapse with email only live account on same email`() throws {
-        let managedHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+        let managedHome = CodexCredentialFixtures.root.appendingPathComponent(
             UUID().uuidString,
             isDirectory: true)
         defer { try? FileManager.default.removeItem(at: managedHome) }
@@ -842,7 +842,7 @@ struct CodexAccountReconciliationTests {
     func `selecting authenticated managed account keeps managed source for split identity rows`() throws {
         let suite = "CodexAccountReconciliationTests-select-authenticated-managed-split"
         let settings = try Self.makeSettings(suite: suite)
-        let managedHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+        let managedHome = CodexCredentialFixtures.root.appendingPathComponent(
             UUID().uuidString,
             isDirectory: true)
         let storeURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)

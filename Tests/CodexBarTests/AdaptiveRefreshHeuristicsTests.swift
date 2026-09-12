@@ -12,6 +12,35 @@ import Testing
 @MainActor
 struct AdaptiveRefreshHeuristicsTests {
     @Test
+    func `heuristics fixture seeds disabled providers without enabling web access`() throws {
+        let store = Self.makeStore(suite: "heuristics-fixture-state", frequency: .adaptive)
+        let metadata = ProviderRegistry.shared.metadata
+        for provider in UsageProvider.allCases where metadata[provider] != nil {
+            let entry = try #require(store.settings.configSnapshot.providerConfig(for: provider.instanceID))
+            #expect(entry.enabled == false)
+        }
+        #expect(store.settings.enabledProvidersOrdered(metadataByProvider: metadata).isEmpty)
+        #expect(store.settings.refreshFrequency == .adaptive)
+        #expect(store.settings.providerDetectionCompleted)
+        #expect(store.settings.backgroundWorkLowPowerModePreference == .off)
+        #expect(!store.settings.openAIWebAccessEnabled)
+        #expect(store.completedRefreshCountForTesting == 0)
+    }
+
+    @Test
+    func `reset boundary fixture enables only stubbed codex`() throws {
+        let store = Self.makeStoreWithStubbedCodex(suite: "heuristics-stub-fixture-state", frequency: .manual)
+        let metadata = ProviderRegistry.shared.metadata
+        for provider in UsageProvider.allCases where metadata[provider] != nil {
+            let entry = try #require(store.settings.configSnapshot.providerConfig(for: provider.instanceID))
+            #expect(entry.enabled == (provider == .codex))
+        }
+        #expect(store.settings.enabledProvidersOrdered(metadataByProvider: metadata) == [.codex])
+        #expect(!store.settings.openAIWebAccessEnabled)
+        #expect(store.completedRefreshCountForTesting == 0)
+    }
+
+    @Test
     func `manual keeps the heuristics interval nil`() {
         let store = Self.makeStore(suite: "heuristics-manual-nil", frequency: .manual)
         #expect(store.normalRefreshIntervalForHeuristics() == nil)
@@ -149,10 +178,15 @@ struct AdaptiveRefreshHeuristicsTests {
     }
 
     private static func makeStore(suite: String, frequency: RefreshFrequency) -> UsageStore {
-        let settings = testSettingsStore(suiteName: "AdaptiveRefreshHeuristicsTests-\(suite)")
+        let settings = testSettingsStore(
+            suiteName: "AdaptiveRefreshHeuristicsTests-\(suite)",
+            config: testConfigWithAllProvidersDisabled(),
+            prepareDefaults: { defaults in
+                // An existing config otherwise opts this fresh fixture into OpenAI web access.
+                defaults.set(false, forKey: "openAIWebAccessEnabled")
+            })
         settings.providerDetectionCompleted = true
         settings.refreshFrequency = frequency
-        Self.disableAllProviders(settings: settings)
         return UsageStore(
             fetcher: UsageFetcher(environment: [:]),
             browserDetection: BrowserDetection(cacheTTL: 0),
@@ -187,16 +221,6 @@ struct AdaptiveRefreshHeuristicsTests {
     }
 
     private nonisolated static let stubbedCodexEmail = "adaptive-heuristics@example.com"
-
-    /// Keeps `refresh()` cheap and deterministic: no provider fetch can replace the snapshot
-    /// injected by the reset-boundary tests or slow the pipeline tests down.
-    private static func disableAllProviders(settings: SettingsStore) {
-        let metadata = ProviderRegistry.shared.metadata
-        for provider in UsageProvider.allCases {
-            guard let providerMetadata = metadata[provider] else { continue }
-            settings.setProviderEnabled(provider: provider, metadata: providerMetadata, enabled: false)
-        }
-    }
 
     private nonisolated static func snapshot(updatedAt: Date, primaryResetsAt: Date) -> UsageSnapshot {
         UsageSnapshot(

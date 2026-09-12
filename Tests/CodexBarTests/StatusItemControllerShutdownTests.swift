@@ -71,6 +71,7 @@ struct StatusItemControllerShutdownTests {
         #expect(controller.statusItems.isEmpty)
         #expect(controller.providerMenus.isEmpty)
         #expect(controller.mergedMenu == nil)
+        #expect(controller.menuAppearanceObserver == nil)
     }
 
     @Test
@@ -106,6 +107,54 @@ struct StatusItemControllerShutdownTests {
         #expect(controller.openMenus.isEmpty)
         #expect(controller.statusItem.menu == nil)
         #expect(didTerminate)
+    }
+
+    @Test
+    func `settings route closes tracked menus before requesting the window`() {
+        let controller = self.makeController()
+        defer {
+            StatusItemController.menuCardRenderingEnabled = !SettingsStore.isRunningTests
+            StatusItemController.resetMenuRefreshEnabledForTesting()
+        }
+        let menu = controller.makeMenu()
+        controller.menuWillOpen(menu)
+
+        var didRequestSettings = false
+        var requestedPane: SettingsPane? = .about
+        var hadOpenMenuWhenRequested = true
+        controller.setSettingsOpenHandler { pane in
+            didRequestSettings = true
+            requestedPane = pane
+            hadOpenMenuWhenRequested = !controller.openMenus.isEmpty
+        }
+
+        controller.showSettingsGeneral()
+
+        #expect(didRequestSettings)
+        #expect(requestedPane == nil)
+        #expect(!hadOpenMenuWhenRequested)
+        #expect(controller.openMenus.isEmpty)
+    }
+
+    @Test
+    func `provider settings action opens the requested provider pane`() {
+        let controller = self.makeController()
+        defer {
+            StatusItemController.menuCardRenderingEnabled = !SettingsStore.isRunningTests
+            StatusItemController.resetMenuRefreshEnabledForTesting()
+        }
+        var requestedPane: SettingsPane?
+        controller.setSettingsOpenHandler { requestedPane = $0 }
+
+        let (selector, representedObject) = controller.selector(for: .providerSettings(.claude))
+        #expect(selector == #selector(StatusItemController.showProviderSettings(_:)))
+        #expect(representedObject as? String == UsageProvider.claude.rawValue)
+
+        let item = NSMenuItem(title: "Open Claude Settings…", action: selector, keyEquivalent: "")
+        item.representedObject = representedObject
+        controller.showProviderSettings(item)
+
+        #expect(requestedPane == .provider(UsageProvider.claude.instanceID))
     }
 
     @Test

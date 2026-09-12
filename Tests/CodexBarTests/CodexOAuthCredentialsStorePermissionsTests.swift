@@ -2,6 +2,7 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
+@Suite(CodexCredentialFixtures())
 struct CodexOAuthCredentialsStorePermissionsTests {
     private enum PublishProbeError: Error, Equatable {
         case stop
@@ -10,7 +11,7 @@ struct CodexOAuthCredentialsStorePermissionsTests {
     @Test
     func `saving O auth credentials keeps auth json private`() throws {
         #if os(macOS) || os(Linux)
-        let codexHome = FileManager.default.temporaryDirectory
+        let codexHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-oauth-permissions-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: codexHome) }
 
@@ -35,7 +36,7 @@ struct CodexOAuthCredentialsStorePermissionsTests {
     @Test
     func `auth json is private before atomic publication`() throws {
         #if os(macOS) || os(Linux)
-        let codexHome = FileManager.default.temporaryDirectory
+        let codexHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-oauth-staging-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: codexHome) }
         try FileManager.default.createDirectory(at: codexHome, withIntermediateDirectories: true)

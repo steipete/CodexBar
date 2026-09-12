@@ -138,6 +138,7 @@ struct AntigravityCLIHTTPSFetchStrategyTests {
             "antigravity.app-local",
             "antigravity.cli-https",
             "antigravity.ide-local",
+            "antigravity.offline",
         ])
 
         let autoStrategies = await descriptor.fetchPlan.pipeline.resolveStrategies(
@@ -146,6 +147,7 @@ struct AntigravityCLIHTTPSFetchStrategyTests {
             "antigravity.app-local",
             "antigravity.cli-https",
             "antigravity.ide-local",
+            "antigravity.offline",
         ])
     }
 
@@ -166,11 +168,13 @@ struct AntigravityCLIHTTPSFetchStrategyTests {
             "antigravity.cli-https",
             "antigravity.ide-local",
             "antigravity.oauth",
+            "antigravity.offline",
         ])
         #expect(cliStrategies.map(\.id) == [
             "antigravity.app-local",
             "antigravity.cli-https",
             "antigravity.ide-local",
+            "antigravity.offline",
         ])
         #expect(oauthStrategies.map(\.id) == ["antigravity.oauth"])
     }
@@ -189,6 +193,7 @@ struct AntigravityCLIHTTPSFetchStrategyTests {
             "antigravity.cli-https",
             "antigravity.ide-local",
             "antigravity.oauth",
+            "antigravity.offline",
         ])
     }
 
@@ -215,6 +220,7 @@ struct AntigravityCLIHTTPSFetchStrategyTests {
             "antigravity.cli-https",
             "antigravity.ide-local",
             "antigravity.oauth",
+            "antigravity.offline",
         ])
     }
 
@@ -640,6 +646,37 @@ struct AntigravityCLIHTTPSFetchStrategyTests {
     }
 
     @Test
+    func `cli HTTPS stops when managed agy reports exhausted keyring authentication`() async {
+        let output = AntigravityCLIOutputSequence([
+            Data("You are currently not signed in.\nSigning in...".utf8),
+            Data("keyringAuth: timed out after 10s, skipping keyring auth".utf8),
+        ])
+        let portPolls = AntigravityCLICounter()
+
+        do {
+            _ = try await AntigravityCLIHTTPSFetchStrategy.waitForSnapshot(
+                pid: 123,
+                deadline: Date().addingTimeInterval(2),
+                dependencies: AntigravityCLIHTTPSFetchStrategy.SnapshotWaitDependencies(
+                    pollIntervalNanoseconds: 0,
+                    listeningPorts: { _, _ in
+                        portPolls.increment()
+                        return []
+                    },
+                    drainOutput: { output.next() },
+                    fetchSnapshot: { _ in
+                        Issue.record("An unauthenticated helper must not fetch a snapshot")
+                        throw AntigravityStatusProbeError.notRunning
+                    }))
+            Issue.record("Expected authentication failure")
+        } catch AntigravityStatusProbeError.authenticationRequired {
+            #expect(portPolls.value == 1)
+        } catch {
+            Issue.record("Expected authenticationRequired, got \(error)")
+        }
+    }
+
+    @Test
     func `cli HTTPS rechecks signed out prompt after snapshot readiness`() async {
         let output = AntigravityCLIOutputSequence([
             Data(),
@@ -944,5 +981,145 @@ struct AntigravityCLIHTTPSFetchStrategyTests {
         func detectVersion() -> String? {
             nil
         }
+    }
+}
+
+extension AntigravityCLIHTTPSFetchStrategyTests {
+    @Test(arguments: [AntigravityStatusProbeError.notRunning, .missingCSRFToken])
+    func `unavailable IDE cannot replace actionable signed out CLI error`(
+        ideError: AntigravityStatusProbeError) async
+    {
+        let pipeline = ProviderFetchPipeline(
+            resolveStrategies: { _ in
+                [
+                    AntigravityFallbackFixtureStrategy(
+                        id: "antigravity.cli-https",
+                        error: .authenticationRequired),
+                    AntigravityFallbackFixtureStrategy(
+                        id: "antigravity.ide-local",
+                        error: ideError),
+                ]
+            },
+            resolveFallbackError: AntigravityProviderDescriptor.resolveFallbackError)
+
+        let outcome = await pipeline.fetch(context: self.makeFetchContext(), provider: .antigravity)
+
+        #expect(outcome.attempts.map(\.strategyID) == ["antigravity.cli-https", "antigravity.ide-local"])
+        do {
+            _ = try outcome.result.get()
+            Issue.record("Expected the signed-out CLI failure")
+        } catch {
+            #expect((error as? AntigravityStatusProbeError) == .authenticationRequired)
+        }
+    }
+
+    @Test
+    func `signed out CLI still allows a usable IDE fallback`() async throws {
+        let pipeline = ProviderFetchPipeline(
+            resolveStrategies: { _ in
+                [
+                    AntigravityFallbackFixtureStrategy(
+                        id: "antigravity.cli-https",
+                        error: .authenticationRequired),
+                    AntigravityFallbackFixtureStrategy(id: "antigravity.ide-local", error: nil),
+                ]
+            },
+            resolveFallbackError: AntigravityProviderDescriptor.resolveFallbackError)
+
+        let outcome = await pipeline.fetch(context: self.makeFetchContext(), provider: .antigravity)
+
+        #expect(try outcome.result.get().sourceLabel == "ide")
+        #expect(outcome.attempts.count == 2)
+    }
+
+    @Test
+    func `specific later fallback error replaces signed out CLI error`() {
+        let result = AntigravityProviderDescriptor.resolveFallbackError(
+            AntigravityStatusProbeError.authenticationRequired,
+            AntigravityStatusProbeError.apiError("OAuth credentials expired"))
+
+        #expect((result as? AntigravityStatusProbeError) == .apiError("OAuth credentials expired"))
+    }
+}
+
+extension AntigravityCLIHTTPSFetchStrategyTests {
+    @Test
+    func `cli HTTPS retains the last pending port diagnostic until the readiness deadline`() async {
+        let attempts = AntigravityCLICounter()
+        let start = Date(timeIntervalSinceReferenceDate: 0)
+        let clock = AntigravityCLITestClock(date: start)
+        do {
+            _ = try await AntigravityCLIHTTPSFetchStrategy.waitForSnapshot(
+                pid: 123,
+                deadline: start.addingTimeInterval(5),
+                dependencies: AntigravityCLIHTTPSFetchStrategy.SnapshotWaitDependencies(
+                    pollIntervalNanoseconds: 0,
+                    listeningPorts: { _, _ in
+                        let attempt = attempts.increment()
+                        throw AntigravityPortDiscoveryPendingError(underlyingError:
+                            SubprocessRunnerError.nonZeroExit(code: 1, stderr: "namespace warning \(attempt)"))
+                    },
+                    drainOutput: { Data() },
+                    fetchSnapshot: { _ in
+                        Issue.record("Missing listeners must not fetch usage")
+                        throw AntigravityStatusProbeError.timedOut
+                    },
+                    now: { clock.now() }))
+            Issue.record("Expected the final port discovery diagnostic")
+        } catch let SubprocessRunnerError.nonZeroExit(code, stderr) {
+            #expect(attempts.value == 2)
+            #expect(code == 1)
+            #expect(stderr == "namespace warning 2")
+        } catch {
+            Issue.record("Expected the original diagnostic, got \(error)")
+        }
+    }
+
+    @Test
+    func `cli HTTPS retains endpoint readiness failure over a later port warning`() async {
+        let attempts = AntigravityCLICounter()
+        let start = Date(timeIntervalSinceReferenceDate: 0)
+        let clock = AntigravityCLITestClock(date: start)
+        await #expect(throws: AntigravityStatusProbeError.apiError("quota service warming")) {
+            try await AntigravityCLIHTTPSFetchStrategy.waitForSnapshot(
+                pid: 123,
+                deadline: start.addingTimeInterval(5),
+                dependencies: AntigravityCLIHTTPSFetchStrategy.SnapshotWaitDependencies(
+                    pollIntervalNanoseconds: 0,
+                    listeningPorts: { _, _ in
+                        if attempts.increment() == 1 { return [50080] }
+                        throw AntigravityPortDiscoveryPendingError(underlyingError:
+                            SubprocessRunnerError.nonZeroExit(code: 1, stderr: "namespace warning"))
+                    },
+                    drainOutput: { Data() },
+                    fetchSnapshot: { _ in
+                        throw AntigravityStatusProbeError.apiError("quota service warming")
+                    },
+                    now: { clock.now() }))
+        }
+        #expect(attempts.value == 2)
+    }
+}
+
+private struct AntigravityFallbackFixtureStrategy: ProviderFetchStrategy {
+    let id: String
+    let error: AntigravityStatusProbeError?
+    let kind: ProviderFetchKind = .localProbe
+
+    func isAvailable(_: ProviderFetchContext) async -> Bool {
+        true
+    }
+
+    func fetch(_: ProviderFetchContext) async throws -> ProviderFetchResult {
+        if let error {
+            throw error
+        }
+        return self.makeResult(
+            usage: UsageSnapshot(primary: nil, secondary: nil, updatedAt: Date()),
+            sourceLabel: "ide")
+    }
+
+    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
+        true
     }
 }

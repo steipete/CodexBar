@@ -244,20 +244,15 @@ public struct RemoteSessionFetcher: Sendable {
 
     /// Environment that keeps the dual-mode Tailscale app binary in CLI mode.
     ///
-    /// With no shell/terminal marker present the binary boots the full menu-bar GUI
-    /// (SkyLight/WindowServer, status icon) instead of running the CLI: it never emits
-    /// JSON, the probe times out, and the Tailscale icon flickers on every refresh. A
-    /// set `TERM` or `SHLVL` forces CLI mode (argv[0] casing and `XPC_SERVICE_NAME` do
-    /// not). `SHLVL` is what the app's own `/bin/sh` CLI wrapper injects, so we mirror it here.
-    ///
-    /// Applied to every probe, not just the app-binary fallback: it is redundant but harmless for the
-    /// CLI wrapper (itself a `/bin/sh` script that already exports `SHLVL`), and injecting it
-    /// unconditionally keeps CLI mode guaranteed regardless of which binary `tailscaleBinary` resolves.
-    /// An existing `TERM`/`SHLVL` (real terminal context) is left untouched.
+    /// Shell markers alone can still select the GUI path and crash newer app binaries. Force the
+    /// documented CLI override for every candidate, including symlinks to the app. Retain the shell
+    /// marker for older installations without changing an existing terminal context.
     package static func tailscaleCLIEnvironment(from environment: [String: String]) -> [String: String] {
-        guard environment["TERM"] == nil, environment["SHLVL"] == nil else { return environment }
         var environment = environment
-        environment["SHLVL"] = "1"
+        environment["TAILSCALE_BE_CLI"] = "1"
+        if environment["TERM"] == nil, environment["SHLVL"] == nil {
+            environment["SHLVL"] = "1"
+        }
         return environment
     }
 

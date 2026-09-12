@@ -43,6 +43,96 @@ private final class OpenCodeGoContinuationBox<Value: Sendable>: @unchecked Senda
 
 @Suite(.serialized)
 struct OpenCodeGoUsageFetcherErrorTests {
+    @Test(arguments: [
+        (12, 8, 35),
+        (3, 1, 0),
+        (1, 1, 1),
+        (0, 0, 0),
+        (100, 100, 100),
+        (0.5, 0.5, 0.5),
+        (1, nil, nil),
+        (1, 1, nil),
+        (1, nil, 1),
+    ] as [(Double, Double?, Double?)])
+    func `public usage API sends bearer token and preserves percent units`(
+        rolling: Double,
+        weekly: Double?,
+        monthly: Double?) async throws
+    {
+        defer { OpenCodeGoStubURLProtocol.handler = nil }
+        let resetDates = [
+            "2026-08-12T02:00:00.000Z",
+            "2026-08-18T00:00:00.000Z",
+            "2026-09-01T00:00:00.000Z",
+        ]
+        var windows: [String: Any] = ["rolling": ["percent": rolling, "resetsAt": resetDates[0]]]
+        if let weekly {
+            windows["weekly"] = ["percent": weekly, "resetsAt": resetDates[1]]
+        }
+        if let monthly {
+            windows["monthly"] = ["percent": monthly, "resetsAt": resetDates[2]]
+        }
+        let data = try JSONSerialization.data(withJSONObject: ["usage": windows])
+        let body = try #require(String(data: data, encoding: .utf8))
+        let requests = OpenCodeGoRequestRecorder<URLRequest>()
+        OpenCodeGoStubURLProtocol.handler = { request in
+            guard let url = request.url else { throw URLError(.badURL) }
+            requests.append(request)
+            return Self.makeResponse(url: url, body: body, statusCode: 200, contentType: "application/json")
+        }
+
+        let now = Date(timeIntervalSince1970: 1_786_493_600)
+        let snapshot = try await OpenCodeGoUsageFetcher.fetchAPIUsage(
+            apiKey: "go_secret",
+            timeout: 2,
+            now: now,
+            session: self.makeSession())
+
+        #expect(requests.values.count == 1)
+        #expect(requests.values.first?.url?.path == "/zen/go/v1/usage")
+        #expect(requests.values.first?.value(forHTTPHeaderField: "Authorization") == "Bearer go_secret")
+        let usage = snapshot.toUsageSnapshot()
+        #expect(usage.primary?.usedPercent == rolling)
+        #expect(usage.secondary?.usedPercent == weekly)
+        #expect(usage.tertiary?.usedPercent == monthly)
+        #expect(snapshot.hasWeeklyUsage == (weekly != nil))
+        #expect(snapshot.hasMonthlyUsage == (monthly != nil))
+
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        #expect(usage.primary?.resetsAt == formatter.date(from: resetDates[0]))
+        #expect(usage.secondary?.resetsAt == weekly.flatMap { _ in formatter.date(from: resetDates[1]) })
+        #expect(usage.tertiary?.resetsAt == monthly.flatMap { _ in formatter.date(from: resetDates[2]) })
+    }
+
+    @Test
+    func `public usage API maps unauthorized response to invalid credentials`() async {
+        defer { OpenCodeGoStubURLProtocol.handler = nil }
+        OpenCodeGoStubURLProtocol.handler = { request in
+            guard let url = request.url else { throw URLError(.badURL) }
+            return Self.makeResponse(
+                url: url,
+                body: #"{"error":"unauthorized"}"#,
+                statusCode: 401,
+                contentType: "application/json")
+        }
+
+        do {
+            _ = try await OpenCodeGoUsageFetcher.fetchAPIUsage(
+                apiKey: "bad",
+                timeout: 2,
+                session: self.makeSession())
+            Issue.record("Expected invalidCredentials")
+        } catch let error as OpenCodeGoUsageError {
+            guard case .invalidCredentials = error else {
+                Issue.record("Expected invalidCredentials, got \(error)")
+                return
+            }
+        } catch {
+            Issue.record("Expected OpenCodeGoUsageError, got \(error)")
+        }
+    }
+
     @Test
     func `dashboard URL uses normalized workspace ID`() {
         #expect(
@@ -549,10 +639,13 @@ struct OpenCodeGoUsageFetcherErrorTests {
                 contentType: "text/html")
         }
 
+        // The billing fallback needs two hops. Without the completeness wait, the app's 250 ms optional-balance
+        // grace can cancel the balance task before the billing request is sent on a loaded CI runner.
         let snapshot = try await OpenCodeGoUsageFetcher.fetchUsage(
             cookieHeader: "auth=test",
             timeout: 2,
             workspaceIDOverride: "wrk_TEST123",
+            waitForZenBalance: true,
             session: self.makeSession())
 
         #expect(snapshot.zenBalanceUSD == 98.76)

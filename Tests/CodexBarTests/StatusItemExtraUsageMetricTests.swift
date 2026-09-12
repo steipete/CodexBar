@@ -180,6 +180,73 @@ struct StatusItemExtraUsageMetricTests {
     }
 
     @Test
+    func `menu bar extra usage preference uses percent for Codex monthly credits`() {
+        let (store, controller) = self.makeController(
+            suiteName: "StatusItemExtraUsageMetricTests-codex-percent-text",
+            provider: .codex)
+        defer { controller.releaseStatusItemsForTesting() }
+        controller.settings.showOptionalCreditsAndExtraUsage = true
+        let now = Date()
+        store.credits = CreditsSnapshot(
+            remaining: 0,
+            events: [],
+            updatedAt: now,
+            codexCreditLimit: CodexCreditLimitSnapshot(
+                used: 2000.66,
+                limit: 2000,
+                remainingPercent: 0,
+                resetsAt: nil,
+                updatedAt: now))
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 5, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            providerCost: ProviderCostSnapshot(
+                used: 2000.66,
+                limit: 2000,
+                currencyCode: CodexExtraUsageCost.currencyCode,
+                period: "Extra usage",
+                updatedAt: now),
+            updatedAt: now)
+
+        store._setSnapshotForTesting(snapshot, provider: .codex)
+        store._setErrorForTesting(nil, provider: .codex)
+
+        let displayText = controller.menuBarDisplayText(for: .codex, snapshot: snapshot)
+
+        #expect(displayText == "100%")
+    }
+
+    @Test
+    func `menu bar extra usage preference uses the attached cap when live codex credits lack one`() {
+        let (store, controller) = self.makeController(
+            suiteName: "StatusItemExtraUsageMetricTests-codex-attached-cap",
+            provider: .codex)
+        defer { controller.releaseStatusItemsForTesting() }
+        controller.settings.showOptionalCreditsAndExtraUsage = true
+        let now = Date()
+        // An authorized dashboard attaches its cap to the usage snapshot but leaves known credits alone,
+        // so the live credits here carry only a purchased balance.
+        store.credits = CreditsSnapshot(remaining: 14.5, events: [], updatedAt: now)
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 5, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            providerCost: ProviderCostSnapshot(
+                used: 120,
+                limit: 400,
+                currencyCode: CodexExtraUsageCost.currencyCode,
+                period: "Monthly credit limit",
+                updatedAt: now),
+            updatedAt: now)
+
+        store._setSnapshotForTesting(snapshot, provider: .codex)
+        store._setErrorForTesting(nil, provider: .codex)
+
+        let window = controller.menuBarMetricWindow(for: .codex, snapshot: snapshot)
+
+        #expect(window?.usedPercent == 30)
+    }
+
+    @Test
     func `menu bar extra usage preference falls back to existing percent text when provider cost is unavailable`() {
         let (store, controller) = self.makeController(
             suiteName: "StatusItemExtraUsageMetricTests-fallback-percent",

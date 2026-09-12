@@ -45,6 +45,7 @@
 "hooks_any_provider" = "모든 공급자";
 "hooks_threshold" = "사용량 ≥ 에서 실행";
 "hooks_threshold_placeholder" = "90";
+"hooks_executable" = "실행 파일";
 "hooks_executable_placeholder" = "/usr/local/bin/my-command";
 "hooks_arguments_placeholder" = "인수";
 "hooks_argument_placeholder" = "인수";
@@ -217,6 +218,7 @@
 "Loading animations" = "로딩 애니메이션";
 "Loading…" = "불러오는 중…";
 "Local" = "로컬";
+"Local session cost estimates" = "로컬 세션 비용 추정치";
 "Logging" = "로깅";
 "Login failed" = "로그인 실패";
 "Login shell PATH (startup capture)" = "로그인 셸 PATH(시작 시 캡처)";
@@ -239,6 +241,7 @@
 "No cost history data." = "비용 기록 데이터가 없습니다.";
 "No data available" = "사용 가능한 데이터 없음";
 "No data yet" = "아직 데이터 없음";
+"Workspaces" = "작업 공간";
 "No enabled providers available for Overview." = "개요에 사용할 수 있는 공급자가 없습니다.";
 "No providers selected" = "선택된 공급자 없음";
 "No token accounts yet." = "아직 토큰 계정이 없습니다.";
@@ -509,7 +512,6 @@
 "provider_accent_color_reset" = "기본값 사용";
 "quota_warnings_title" = "할당량 경고";
 "quota_warning_session" = "세션";
-"quota_warning_session_capitalized" = "세션";
 "quota_warning_weekly" = "주간";
 "quota_warning_weekly_capitalized" = "주간";
 "quota_warning_notification_title" = "%1$@ %2$@ 할당량 부족";
@@ -606,6 +608,8 @@
 "display_mode_subtitle" = "메뉴 막대에 표시할 내용을 선택하세요(사용 속도는 사용량 대 예상치를 표시).";
 "show_quota_warning_markers_title" = "할당량 경고 표시기 표시";
 "show_quota_warning_markers_subtitle" = "할당량 경고가 구성된 경우 사용량 막대에 임계값 눈금 표시를 그립니다.";
+"show_pace_title" = "사용 속도 표시";
+"show_pace_subtitle" = "사용량 막대에 예상보다 빠른지 느린지를 나타내는 선과 예측 텍스트를 표시합니다.";
 "weekly_progress_work_days_title" = "주간 진행률 근무일";
 "weekly_progress_work_days_subtitle" = "주간 사용량 막대 눈금과 페이스 계산에 사용할 근무일을 설정합니다.";
 "workday_tick_appearance_title" = "근무일 눈금 모양";
@@ -640,6 +644,8 @@
 "section_keyboard_shortcut" = "키보드 단축키";
 "open_menu_shortcut_title" = "메뉴 열기";
 "open_menu_shortcut_subtitle" = "어디서나 메뉴 막대 메뉴를 실행합니다.";
+"record_shortcut" = "단축키 등록";
+"press_shortcut" = "단축키 입력";
 "install_cli" = "CLI 설치";
 "install_cli_subtitle" = "CodexBarCLI를 codexbar로 /usr/local/bin 및 /opt/homebrew/bin에 심볼릭 링크합니다.";
 "cli_not_found" = "앱 번들에서 CodexBarCLI를 찾을 수 없습니다.";
@@ -650,6 +656,9 @@
 "surprise_me_subtitle" = "에이전트가 저 위에서 조금 즐기는 모습이 마음에 드는지 확인해 보세요.";
 "hide_personal_info_title" = "개인 정보 가리기";
 "hide_personal_info_subtitle" = "메뉴 막대와 메뉴 UI에서 이메일 주소를 가립니다.";
+"hide_cost_history_identity_subtitle" = "저장된 데이터를 변경하지 않고 비용 기록의 프로젝트 및 소스 이름과 경로도 숨깁니다.";
+"Project %d" = "프로젝트 %d";
+"Source %d" = "소스 %d";
 "show_provider_storage_usage_title" = "공급자 저장 공간 사용량 표시";
 "show_provider_storage_usage_subtitle" = "메뉴에 로컬 디스크 사용량을 표시합니다. 알려진 공급자 소유 경로를 백그라운드에서 스캔합니다.";
 "section_keychain_access" = "키체인 접근";
@@ -898,6 +907,7 @@
 "Monthly" = "월간";
 "Sonnet" = "Sonnet";
 "Overages" = "초과분";
+"Overage" = "초과분";
 "Activity" = "활동";
 "Copied" = "복사됨";
 "Copy error" = "오류 복사";
@@ -908,6 +918,7 @@
 "Balance updates in near-real time (up to 5 min lag)" = "잔액은 거의 실시간으로 업데이트됩니다(최대 5분 지연)";
 "Daily billing data finalizes at 07:00 UTC" = "일간 청구 데이터는 07:00 UTC에 확정됩니다";
 "%@ of %@ credits left" = "크레딧 %2$@개 중 %1$@개 남음";
+"of %@" = "/ %@";
 "%@ of %@ bonus credits left" = "보너스 크레딧 %2$@개 중 %1$@개 남음";
 "%@ / %@ (%@ remaining)" = "%@ / %@ (%@ 남음)";
 "%@/%@ left" = "%@/%@ 남음";
@@ -919,6 +930,7 @@
 "Full in ~1 regen" = "약 1회 재생성 후 가득 참";
 "Full in ~%.0f regens" = "약 %.0f회 재생성 후 가득 참";
 "Overage usage" = "초과 사용량";
+"Overage credits left" = "남은 초과 크레딧";
 "Overage cost" = "초과 비용";
 "credits" = "크레딧";
 "Zen balance" = "Zen 잔액";
@@ -1185,6 +1197,7 @@
 "Username" = "사용자 이름";
 "Uses username + password to login and obtain an Oasis-Token automatically." = "사용자 이름 + 비밀번호로 로그인하여 Oasis-Token을 자동으로 가져옵니다.";
 "Uses username + password to login and obtain an %@ automatically." = "사용자 이름 + 비밀번호로 로그인하여 %@을(를) 자동으로 가져옵니다.";
+"Uses this Mac's Codex sessions instead of the selected managed account's session history. Works with organization API keys and does not require OpenAI billing or administrator access. Uses locally cached or bundled model prices without making a network request. This provider-specific toggle does not enable cost summaries for other providers." = "선택한 관리 계정의 세션 기록 대신 이 Mac의 Codex 세션을 사용합니다.\n조직 API 키를 지원하며 OpenAI 결제 정보나 관리자 권한 없이 사용할 수 있습니다.\n네트워크 요청 없이 로컬에 캐시되었거나 앱에 포함된 모델 가격을 사용합니다.\n이 공급자 전용 설정은 다른 공급자의 비용 요약을 활성화하지 않습니다.";
 "Utilization End" = "사용률 종료";
 "Utilization Start" = "사용률 시작";
 "Verbosity" = "상세도";
@@ -1295,6 +1308,12 @@
 "By subscription" = "구독별";
 "No model-level history" = "모델별 내역이 없습니다";
 "Daily estimated spend" = "일별 예상 지출";
+"Hourly estimated spend" = "시간별 예상 지출";
+"Hour" = "시간";
+"%d hours of usage data across %d services" = "%d시간 사용 데이터, %d개 서비스";
+"1 hour of usage data across 1 service" = "1시간 사용 데이터, 1개 서비스";
+"%d hours of usage data across 1 service" = "%d시간 사용 데이터, 1개 서비스";
+"1 hour of usage data across %d services" = "1시간 사용 데이터, %d개 서비스";
 "≈%d full 5h windows of weekly left · %d windows until reset" = "주간 한도 약 %d개의 전체 5시간 창 남음 · 재설정까지 %d개 창";
 "Weekly cannot run out before reset at this pace" = "이 속도라면 재설정 전에 주간 한도를 소진할 수 없습니다";
 "Weekly can run out ≈%d windows early" = "주간 한도가 약 %d개 창 일찍 소진될 수 있습니다";
@@ -1324,6 +1343,9 @@
 "menu_bar_layout_preset_compact_stacked" = "압축 스택";
 "menu_bar_layout_preset_custom" = "사용자 설정";
 "menu_bar_layout_live_preview" = "실시간 미리보기";
+"menu_bar_layout_default_preview" = "기본 레이아웃 미리보기";
+"menu_bar_layout_overrides_notice" = "다음 활성 제공자는 별도로 저장한 레이아웃을 사용합니다:";
+"menu_bar_layout_use_all_accessibility" = "%@: 모든 제공자 레이아웃 사용";
 "menu_bar_layout_strip" = "메뉴 막대 스트립";
 "menu_bar_layout_remove_line_break" = "줄 바꿈 제거";
 "menu_bar_layout_chip_hint" = "선택하거나 드래그해 순서를 바꾸거나 제거 동작을 사용하세요.";
@@ -1331,6 +1353,7 @@
 "menu_bar_layout_empty_line" = "여기에 토큰 놓기";
 "menu_bar_layout_line" = "%d번째 줄";
 "menu_bar_layout_drag_remove" = "여기로 드래그해 제거";
+"menu_bar_layout_remove_selected" = "선택 항목 제거";
 "menu_bar_layout_size" = "크기";
 "menu_bar_layout_size_small" = "작게";
 "menu_bar_layout_size_regular" = "보통";
@@ -1390,6 +1413,7 @@
 "More" = "많음";
 
 /* Provider Plugins */
+"Plugins" = "Plugins";
 "Install…" = "설치…";
 "Install plugin" = "플러그인 설치";
 "Copies a JavaScript or TypeScript file into the plugins directory." = "JavaScript 또는 TypeScript 파일을 플러그인 디렉터리에 복사합니다.";
@@ -1431,6 +1455,7 @@
 "Total usage" = "총 사용량";
 "claude_oauth_keychain_access_revoked" = "Claude Code의 토큰 교체로 Claude 키체인 접근 권한이 취소되었습니다. 새로 고침을 클릭해 접근 권한을 다시 부여하거나 Claude 사용량 소스를 CLI/Web으로 전환하세요.";
 "claude_showing_last_known_usage" = "마지막으로 확인된 사용량을 표시 중입니다(캡처: %@).";
+"claude_limited_usage_detail" = "사용량 세부 정보가 제한적입니다";
 /* Spend dashboard cost analysis */
 "90d" = "90d";
 "Input" = "Input";
@@ -1451,5 +1476,49 @@
 "Include OpenCodex usage logs" = "Include OpenCodex usage logs";
 "Hide native Codex when OpenCodex is present" = "Hide native Codex when OpenCodex is present";
 "Export JSON" = "Export JSON";
+"Copy JSON" = "JSON 복사";
 "Sources" = "Sources";
 "OpenCodex" = "OpenCodex";
+"menu_bar_layout_token_conditional" = "조건부";
+"menu_bar_layout_group_conditionals" = "조건";
+"menu_bar_layout_conditional_add" = "새 조건";
+"menu_bar_layout_conditional_edit" = "조건 편집";
+"menu_bar_layout_conditional_remove" = "라이브러리에서 제거";
+"menu_bar_layout_conditional_save" = "저장";
+"menu_bar_layout_conditional_if" = "만약";
+"menu_bar_layout_conditional_then" = "표시";
+"menu_bar_layout_conditional_else" = "그 외에는 표시";
+"menu_bar_layout_conditional_and" = "그리고";
+"menu_bar_layout_conditional_or" = "또는";
+"menu_bar_layout_conditional_add_condition" = "조건 추가";
+"menu_bar_layout_conditional_none" = "아직 조건이 없습니다";
+"menu_bar_layout_conditional_hide" = "숨기기";
+"menu_bar_layout_conditional_name" = "이름";
+"menu_bar_layout_conditional_name_placeholder" = "예: 세션 확인";
+"menu_bar_layout_conditional_name_error" = "고유한 이름을 입력하세요";
+"menu_bar_layout_conditional_used" = "사용";
+"menu_bar_layout_conditional_remaining" = "남음";
+"menu_bar_layout_conditional_metric_resets_in" = "%@ 재설정까지";
+"menu_bar_layout_conditional_metric_scoped_weekly" = "범위별 주간";
+"menu_bar_layout_conditional_duplicate" = "복제";
+"menu_bar_layout_conditional_summary" = "만약 %1$@이면 %2$@을 표시하고, 그렇지 않으면 %3$@을 표시";
+"menu_bar_layout_conditional_copy_name" = "%@ (복사본)";
+"menu_bar_layout_conditional_copy_name_numbered" = "%1$@ (복사본 %2$d)";
+"menu_bar_layout_conditional_unavailable" = "조건을 사용할 수 없음";
+"menu_bar_layout_conditional_default_session_busy" = "세션 50% 초과 사용";
+"menu_bar_layout_conditional_default_weekly_high" = "주간 90% 초과 사용";
+"menu_bar_layout_conditional_default_session_spent" = "세션 거의 소진";
+"menu_bar_layout_conditional_default_either_high" = "세션 또는 주간 사용량 높음";
+"menu_bar_layout_conditional_default_scoped_weekly" = "모델별 주간 60% 초과 사용";
+"Visible usage items" = "표시할 사용량 항목";
+"Restore Defaults" = "기본값 복원";
+"Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "이 제공업체의 메뉴, 설정 미리보기 및 개요에 표시할 사용량 행을 선택합니다.";
+"%@ (unavailable)" = "%@(사용할 수 없음)";
+"Spending cap, not balance" = "지출 한도이며 잔액이 아닙니다";
+
+"Color Pace Indicator" = "사용 속도 색상 표시";
+"Green pace indicator when behind pace, red when ahead of pace (risk of running out early)" = "사용량이 예상 속도보다 낮으면 초록색(여유), 높으면 빨간색(조기 소진 위험)으로 표시합니다.";
+"%@ weekly" = "%@ 주간";
+
+"agent_sessions_hide_unreachable_title" = "연결할 수 없는 호스트 숨기기";
+"agent_sessions_hide_unreachable_subtitle" = "세션을 가져오지 못한 호스트를 숨깁니다.";

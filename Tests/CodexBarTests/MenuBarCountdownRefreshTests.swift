@@ -8,6 +8,104 @@ import Testing
 @Suite(.serialized)
 struct MenuBarCountdownRefreshTests {
     @Test
+    func `mixed selected reset styles schedule only their corresponding windows`() throws {
+        let settings = testSettingsStore(suiteName: "MenuBarCountdownRefreshTests-selected-mixed")
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.menuBarShowsBrandIconWithPercent = true
+        settings.menuBarLayout = MenuBarLayout(lines: [[
+            .windowResetCountdown(window: .session), .windowResetAbsolute(window: .weekly),
+        ]])
+        if let metadata = ProviderRegistry.shared.metadata[.codex] {
+            settings.setProviderEnabled(
+                provider: .codex,
+                metadata: metadata,
+                enabled: true)
+        }
+        let fetcher = UsageFetcher()
+        let store = UsageStore(
+            fetcher: fetcher,
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: testStatusBar())
+        defer { controller.releaseStatusItemsForTesting() }
+        let now = Date()
+        let sessionReset = now.addingTimeInterval(3650)
+        let weeklyReset = now.addingTimeInterval(86410)
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 30,
+                    windowMinutes: 300,
+                    resetsAt: sessionReset,
+                    resetDescription: nil),
+                secondary: RateWindow(
+                    usedPercent: 60,
+                    windowMinutes: 10080,
+                    resetsAt: weeklyReset,
+                    resetDescription: nil),
+                updatedAt: now),
+            provider: .codex)
+        let countdownDates = controller.menuBarLayoutResetDates(
+            for: .codex,
+            now: now,
+            absolute: false)
+        let absoluteDates = controller.menuBarLayoutResetDates(
+            for: .codex,
+            now: now,
+            absolute: true)
+        #expect(countdownDates == [sessionReset])
+        #expect(absoluteDates == [weeklyReset])
+        #expect(controller.menuBarLayoutResetDates(
+            for: .codex,
+            now: now) == [sessionReset, weeklyReset])
+        let delay = try #require(StatusItemController.menuBarCountdownRefreshDelay(
+            resetDates: countdownDates,
+            now: now))
+        #expect(abs(delay - 50.05) < 0.001)
+
+        for weekly in [
+            nil,
+            RateWindow(
+                usedPercent: 0,
+                windowMinutes: 10080,
+                resetsAt: weeklyReset,
+                resetDescription: nil,
+                isSyntheticPlaceholder: true),
+            RateWindow(
+                usedPercent: 60,
+                windowMinutes: 10080,
+                resetsAt: nil,
+                resetDescription: "Friday at 10:00"),
+        ] {
+            store._setSnapshotForTesting(
+                UsageSnapshot(
+                    primary: RateWindow(
+                        usedPercent: 30,
+                        windowMinutes: 300,
+                        resetsAt: sessionReset,
+                        resetDescription: nil),
+                    secondary: weekly,
+                    updatedAt: now),
+                provider: .codex)
+            #expect(controller.menuBarLayoutResetDates(
+                for: .codex,
+                now: now,
+                absolute: false) == [sessionReset])
+            #expect(controller.menuBarLayoutResetDates(
+                for: .codex,
+                now: now,
+                absolute: true).isEmpty)
+        }
+    }
+
+    @Test
     func `countdown refresh delay follows the next displayed minute boundary`() {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
 
@@ -19,6 +117,30 @@ struct MenuBarCountdownRefreshTests {
             now: now)
 
         #expect(abs((delay ?? 0) - 30.05) < 0.001)
+    }
+
+    @Test(arguments: [
+        (185_430.0, 1890.05), (176_400, 60.05), (176_370, 30.05),
+        (172_800, 60.05), (86400, 60.05), (60.5, 0.55), (1.5, 0.55),
+    ])
+    func `countdown wakes only when its visible text changes`(remaining: Double, expected: Double) throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let reset = now.addingTimeInterval(remaining)
+        let delay = try #require(StatusItemController.menuBarCountdownRefreshDelay(resetDates: [reset], now: now))
+        #expect(abs(delay - expected) < 0.001)
+        let original = UsageFormatter.resetCountdownDescription(from: reset, now: now)
+        #expect(UsageFormatter.resetCountdownDescription(
+            from: reset, now: now.addingTimeInterval(delay - 0.1)) == original)
+        #expect(UsageFormatter.resetCountdownDescription(
+            from: reset, now: now.addingTimeInterval(delay)) != original)
+    }
+
+    @Test
+    func `already now countdown still schedules its reset boundary`() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let reset = now.addingTimeInterval(0.5)
+        let delay = try #require(StatusItemController.menuBarCountdownRefreshDelay(resetDates: [reset], now: now))
+        #expect(abs(delay - 0.55) < 0.001)
     }
 
     @Test
@@ -510,6 +632,99 @@ struct MenuBarCountdownRefreshTests {
         controller.handleMenuBarTimeEnvironmentChange()
 
         #expect(controller._test_isMenuBarCountdownRefreshScheduled())
+    }
+
+    /// A pace or run-out predicate compares a clock-derived value, so it needs a tick even when the
+    /// layout carries no pace or reset token to trigger the token-gated schedulers.
+    @Test(arguments: [MenuBarConditionalMetric.runsOutIn, .weeklyPace, .sessionPace, .automaticPace])
+    func `predicate-only clock-derived conditional schedules a refresh`(metric: MenuBarConditionalMetric) {
+        let controller = Self.makePredicateOnlyController(
+            suite: "MenuBarCountdownRefreshTests-predicate-only-\(metric.rawValue)",
+            metric: metric)
+        defer { controller.releaseStatusItemsForTesting() }
+        #expect(controller._test_isMenuBarCountdownRefreshScheduled())
+    }
+
+    /// Money predicates move only when new provider data arrives, so they must not pin a clock tick.
+    @Test
+    func `predicate-only cost conditional schedules nothing`() {
+        let controller = Self.makePredicateOnlyController(
+            suite: "MenuBarCountdownRefreshTests-predicate-only-cost",
+            metric: .costToday)
+        defer { controller.releaseStatusItemsForTesting() }
+        #expect(!controller._test_isMenuBarCountdownRefreshScheduled())
+    }
+
+    /// A reset-countdown predicate gets an exact wake-up at `resetsAt - threshold` rather than a tick.
+    @Test
+    func `predicate-only reset countdown conditional schedules its flip instant`() {
+        let controller = Self.makePredicateOnlyController(
+            suite: "MenuBarCountdownRefreshTests-predicate-only-reset",
+            metric: .sessionResetsIn,
+            threshold: 0.25)
+        defer { controller.releaseStatusItemsForTesting() }
+        #expect(controller._test_isMenuBarCountdownRefreshScheduled())
+    }
+
+    /// Places a single conditional whose only clause reads `metric`, with no pace, reset, or countdown
+    /// token anywhere in the layout, so the token-gated schedulers cannot be what fires.
+    private static func makePredicateOnlyController(
+        suite: String,
+        metric: MenuBarConditionalMetric,
+        threshold: Double = 1)
+        -> StatusItemController
+    {
+        let settings = testSettingsStore(suiteName: suite)
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.menuBarShowsBrandIconWithPercent = true
+        if let metadata = ProviderRegistry.shared.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: metadata, enabled: true)
+        }
+
+        let conditional = MenuBarLayoutConditional(
+            name: "gate",
+            clauses: [MenuBarConditionalClause(
+                combinator: nil,
+                predicate: MenuBarConditionalPredicate(
+                    metric: metric,
+                    comparison: .lessThan,
+                    threshold: threshold))],
+            thenToken: .percent(window: .session),
+            elseToken: .hidden)
+        settings.menuBarLayoutConditionals = [conditional]
+        settings.menuBarLayout = MenuBarLayout(lines: [[.icon, .conditional(id: conditional.id)]])
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(
+            fetcher: fetcher,
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: testStatusBar())
+
+        let now = Date()
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 42,
+                    windowMinutes: 300,
+                    resetsAt: now.addingTimeInterval(3600),
+                    resetDescription: nil),
+                secondary: RateWindow(
+                    usedPercent: 60,
+                    windowMinutes: 10080,
+                    resetsAt: now.addingTimeInterval(3 * 24 * 60 * 60),
+                    resetDescription: nil),
+                updatedAt: now),
+            provider: .codex)
+        controller.updateIcons()
+        return controller
     }
 
     @Test

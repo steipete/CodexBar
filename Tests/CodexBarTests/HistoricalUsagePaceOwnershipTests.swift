@@ -178,6 +178,61 @@ extension HistoricalUsagePaceTests {
     }
 
     @MainActor
+    @Test(arguments: [false, true])
+    func `selected workspace does not adopt ambiguous runtime owner legacy history without live evidence`(
+        emailOnlyRuntime: Bool) async throws
+    {
+        let historyStore = HistoricalUsageHistoryStore(fileURL: Self.makeTempURL())
+        let managedAccount = ManagedCodexAccount(
+            id: UUID(),
+            email: "member@example.com",
+            workspaceAccountID: "selected-workspace",
+            managedHomePath: "/tmp/selected-workspace",
+            createdAt: 1,
+            updatedAt: 2,
+            lastAuthenticatedAt: 3)
+        let runtimeIdentity: CodexIdentity = emailOnlyRuntime
+            ? .emailOnly(normalizedEmail: managedAccount.email)
+            : .providerAccount(id: "auth-default")
+        let reconciliationSnapshot = CodexAccountReconciliationSnapshot(
+            storedAccounts: [managedAccount],
+            activeStoredAccount: managedAccount,
+            liveSystemAccount: nil,
+            matchingStoredAccountForLiveSystemAccount: nil,
+            activeSource: .managedAccount(id: managedAccount.id),
+            hasUnreadableAddedAccountStore: false,
+            storedAccountRuntimeIdentities: [
+                managedAccount.id: runtimeIdentity,
+            ],
+            storedAccountRuntimeEmails: [managedAccount.id: managedAccount.email])
+        let resetsAt = Date(timeIntervalSince1970: 1_770_000_000)
+        let legacyEmailHash = CodexHistoryOwnership.legacyEmailHash(normalizedEmail: managedAccount.email)
+        let selectedWorkspaceKey = try #require(
+            CodexHistoryOwnership.canonicalKey(for: .providerAccount(id: "selected-workspace")))
+        await Self.recordCompleteWeek(
+            into: historyStore,
+            resetsAt: resetsAt,
+            accountKey: legacyEmailHash)
+
+        let store = try Self.makeUsageStoreForHistoricalTests(
+            suite: "HistoricalUsagePaceTests-selected-workspace-runtime-owner-\(emailOnlyRuntime)",
+            historicalUsageHistoryStore: historyStore)
+        store.settings._test_codexAccountSnapshotLoader = { _ in reconciliationSnapshot }
+        store.settings._test_activeManagedCodexAccount = managedAccount
+        store.settings.codexActiveSource = .managedAccount(id: managedAccount.id)
+        defer {
+            store.settings._test_codexAccountSnapshotLoader = nil
+            store.settings._test_activeManagedCodexAccount = nil
+            store.settings.codexActiveSource = .liveSystem
+        }
+
+        await store.refreshHistoricalDatasetIfNeeded()
+
+        #expect(store.codexHistoricalDataset == nil)
+        #expect(store.codexHistoricalDatasetAccountKey == selectedWorkspaceKey)
+    }
+
+    @MainActor
     @Test
     func `refresh historical dataset ignores extra saved managed accounts for adjacent veto`() async throws {
         let historyStore = HistoricalUsageHistoryStore(fileURL: Self.makeTempURL())
@@ -249,6 +304,25 @@ extension HistoricalUsagePaceTests {
             canonicalAccountKey: providerAccountKey,
             canonicalEmailHashKey: canonicalEmailHashKey,
             legacyEmailHash: legacyEmailHash,
+            hasAdjacentMultiAccountVeto: false)
+
+        #expect(dataset?.weeks.count == 1)
+    }
+
+    @Test
+    func `history store reads pre-normalization provider account key casing`() async throws {
+        let store = HistoricalUsageHistoryStore(fileURL: Self.makeTempURL())
+        let resetsAt = Date(timeIntervalSince1970: 1_770_000_000)
+        let persistedKey = "codex:v1:provider-account:WORKSPACE-X"
+        let canonicalKey = try #require(CodexHistoryOwnership.canonicalKey(for: .providerAccount(
+            id: "workspace-x")))
+
+        await Self.recordCompleteWeek(into: store, resetsAt: resetsAt, accountKey: persistedKey)
+
+        let dataset = await store.loadCodexDataset(
+            canonicalAccountKey: canonicalKey,
+            canonicalEmailHashKey: nil,
+            legacyEmailHash: nil,
             hasAdjacentMultiAccountVeto: false)
 
         #expect(dataset?.weeks.count == 1)

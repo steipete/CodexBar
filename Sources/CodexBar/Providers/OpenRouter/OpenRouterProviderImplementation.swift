@@ -18,6 +18,14 @@ struct OpenRouterProviderImplementation: ProviderImplementation {
     }
 
     @MainActor
+    func settingsSnapshot(context: ProviderSettingsSnapshotContext) -> ProviderSettingsSnapshotContribution? {
+        ProviderDescriptorRegistry.descriptor(for: self.id).settingsSection.credentialContribution(
+            context: ProviderCredentialSettingsContext(
+                config: context.settings.providerConfig(for: self.id),
+                account: nil))
+    }
+
+    @MainActor
     func isAvailable(context: ProviderAvailabilityContext) -> Bool {
         if OpenRouterSettingsReader.apiToken(environment: context.environment) != nil {
             return true
@@ -53,6 +61,18 @@ struct OpenRouterProviderImplementation: ProviderImplementation {
                 kind: .plain,
                 placeholder: "https://openrouter.ai/api/v1",
                 binding: context.providerConfigBinding(.endpoint),
+                actions: [],
+                isVisible: nil,
+                onActivate: nil),
+            ProviderSettingsFieldDescriptor(
+                id: "openrouter-management-api-key",
+                title: "Management API key",
+                subtitle: "Optional. Enables exact 30-day account spend from OpenRouter Activity.",
+                kind: .secure,
+                placeholder: "sk-or-v1-...",
+                binding: context.providerConfigSecretBinding(
+                    key: OpenRouterSettingsReader.managementAPIKeyEnvironmentKey,
+                    logField: "managementAPIKey"),
                 actions: [],
                 isVisible: nil,
                 onActivate: nil),

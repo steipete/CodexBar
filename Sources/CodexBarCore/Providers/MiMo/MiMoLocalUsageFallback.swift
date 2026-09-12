@@ -121,18 +121,16 @@ public enum MiMoLocalUsageFallback {
     }
 
     private static func intValue(_ raw: Any?) -> Int {
-        if let i = raw as? Int {
-            return max(0, i)
+        if let number = raw as? NSNumber {
+            if let integer = Int(number.stringValue) {
+                return max(0, integer)
+            }
+            let numeric = number.doubleValue
+            guard numeric >= 0 else { return 0 }
+            return Int(exactly: numeric.rounded(.towardZero)) ?? 0
         }
-        if let d = raw as? Double,
-           d.isFinite,
-           d >= 0,
-           d <= Double(Int.max)
-        {
-            return Int(d)
-        }
-        if let s = raw as? String, let i = Int(s) {
-            return max(0, i)
+        if let string = raw as? String, let integer = Int(string) {
+            return max(0, integer)
         }
         return 0
     }

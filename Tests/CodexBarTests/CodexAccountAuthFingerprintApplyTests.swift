@@ -250,6 +250,7 @@ extension CodexAccountScopedRefreshTests {
         #expect(store.credits?.remaining == 42)
         #expect(store.lastCreditsSnapshotAccountKey == "alpha@example.com")
         #expect(store.lastCodexAccountScopedRefreshGuard?.authFingerprint == "new-token-material")
+        #expect(store.lastCreditsSnapshotOwnerGuard?.authFingerprint == "new-token-material")
         #expect(store.lastCreditsError == nil)
     }
 
@@ -462,9 +463,9 @@ extension CodexAccountScopedRefreshTests {
 
         let targetID = try #require(UUID(uuidString: "DDDDDDDD-EEEE-FFFF-AAAA-444444444444"))
         let siblingID = try #require(UUID(uuidString: "DDDDDDDD-EEEE-FFFF-AAAA-333333333333"))
-        let targetHome = FileManager.default.temporaryDirectory
+        let targetHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-visible-managed-token-\(UUID().uuidString)", isDirectory: true)
-        let siblingHome = FileManager.default.temporaryDirectory
+        let siblingHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-visible-managed-token-sibling-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: targetHome, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: siblingHome, withIntermediateDirectories: true)
@@ -567,9 +568,9 @@ extension CodexAccountScopedRefreshTests {
 
         let targetID = try #require(UUID(uuidString: "DDDDDDDD-EEEE-FFFF-AAAA-121212121212"))
         let siblingID = try #require(UUID(uuidString: "DDDDDDDD-EEEE-FFFF-AAAA-131313131313"))
-        let targetHome = FileManager.default.temporaryDirectory
+        let targetHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-visible-managed-auth-file-\(UUID().uuidString)", isDirectory: true)
-        let siblingHome = FileManager.default.temporaryDirectory
+        let siblingHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-visible-managed-auth-file-sibling-\(UUID().uuidString)", isDirectory: true)
         try Self.writeCodexAuthFile(
             homeURL: targetHome,
@@ -669,9 +670,9 @@ extension CodexAccountScopedRefreshTests {
 
         let targetID = try #require(UUID(uuidString: "DDDDDDDD-EEEE-FFFF-AAAA-161616161616"))
         let siblingID = try #require(UUID(uuidString: "DDDDDDDD-EEEE-FFFF-AAAA-171717171717"))
-        let targetHome = FileManager.default.temporaryDirectory
+        let targetHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-visible-managed-current-failure-\(UUID().uuidString)", isDirectory: true)
-        let siblingHome = FileManager.default.temporaryDirectory
+        let siblingHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-visible-managed-current-sibling-\(UUID().uuidString)", isDirectory: true)
         try Self.writeCodexAuthFile(
             homeURL: targetHome,
@@ -771,9 +772,9 @@ extension CodexAccountScopedRefreshTests {
 
         let targetID = try #require(UUID(uuidString: "DDDDDDDD-EEEE-FFFF-AAAA-141414141414"))
         let siblingID = try #require(UUID(uuidString: "DDDDDDDD-EEEE-FFFF-AAAA-151515151515"))
-        let targetHome = FileManager.default.temporaryDirectory
+        let targetHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-visible-managed-auth-success-\(UUID().uuidString)", isDirectory: true)
-        let siblingHome = FileManager.default.temporaryDirectory
+        let siblingHome = CodexCredentialFixtures.root
             .appendingPathComponent(
                 "codex-visible-managed-auth-success-sibling-\(UUID().uuidString)",
                 isDirectory: true)
@@ -887,9 +888,9 @@ extension CodexAccountScopedRefreshTests {
 
         let targetID = try #require(UUID(uuidString: "DDDDDDDD-EEEE-FFFF-AAAA-171717171717"))
         let siblingID = try #require(UUID(uuidString: "DDDDDDDD-EEEE-FFFF-AAAA-181818181818"))
-        let targetHome = FileManager.default.temporaryDirectory
+        let targetHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-visible-migrated-managed-\(UUID().uuidString)", isDirectory: true)
-        let siblingHome = FileManager.default.temporaryDirectory
+        let siblingHome = CodexCredentialFixtures.root
             .appendingPathComponent(
                 "codex-visible-migrated-managed-sibling-\(UUID().uuidString)",
                 isDirectory: true)
@@ -1011,9 +1012,9 @@ extension CodexAccountScopedRefreshTests {
 
         let targetID = try #require(UUID(uuidString: "DDDDDDDD-EEEE-FFFF-AAAA-191919191919"))
         let siblingID = try #require(UUID(uuidString: "DDDDDDDD-EEEE-FFFF-AAAA-202020202020"))
-        let targetHome = FileManager.default.temporaryDirectory
+        let targetHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-visible-managed-auth-email-\(UUID().uuidString)", isDirectory: true)
-        let siblingHome = FileManager.default.temporaryDirectory
+        let siblingHome = CodexCredentialFixtures.root
             .appendingPathComponent(
                 "codex-visible-managed-auth-email-sibling-\(UUID().uuidString)",
                 isDirectory: true)
@@ -1130,7 +1131,7 @@ extension CodexAccountScopedRefreshTests {
             suite: "CodexAccountScopedRefreshTests-managed-auth-file-fingerprint")
         settings.refreshFrequency = .manual
         let accountID = try #require(UUID(uuidString: "DDDDDDDD-EEEE-FFFF-AAAA-555555555555"))
-        let managedHome = FileManager.default.temporaryDirectory
+        let managedHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-managed-auth-file-\(UUID().uuidString)", isDirectory: true)
         try Self.writeCodexAuthFile(
             homeURL: managedHome,
@@ -1284,7 +1285,7 @@ extension CodexAccountScopedRefreshTests {
         settings.refreshFrequency = .manual
 
         let accountID = try #require(UUID(uuidString: "DDDDDDDD-EEEE-FFFF-AAAA-161616161616"))
-        let managedHome = FileManager.default.temporaryDirectory
+        let managedHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-managed-provider-email-\(UUID().uuidString)", isDirectory: true)
         try Self.writeCodexAuthFile(
             homeURL: managedHome,
@@ -1339,7 +1340,7 @@ extension CodexAccountScopedRefreshTests {
         settings.refreshFrequency = .manual
 
         let accountID = try #require(UUID(uuidString: "DDDDDDDD-EEEE-FFFF-AAAA-171717171717"))
-        let managedHome = FileManager.default.temporaryDirectory
+        let managedHome = CodexCredentialFixtures.root
             .appendingPathComponent("codex-managed-usage-without-email-\(UUID().uuidString)", isDirectory: true)
         try Self.writeCodexAuthFile(
             homeURL: managedHome,
@@ -1399,7 +1400,7 @@ extension CodexAccountScopedRefreshTests {
         settings.refreshFrequency = .manual
 
         let accountID = try #require(UUID(uuidString: "DDDDDDDD-EEEE-FFFF-AAAA-181818181818"))
-        let managedHome = FileManager.default.temporaryDirectory
+        let managedHome = CodexCredentialFixtures.root
             .appendingPathComponent(
                 "codex-managed-provider-email-without-email-\(UUID().uuidString)",
                 isDirectory: true)

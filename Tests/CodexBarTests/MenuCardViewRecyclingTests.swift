@@ -151,12 +151,12 @@ extension StatusMenuTests {
             ]),
         ]
 
-        let narrowWidth = controller.measuredMenuCardWidth(for: [narrow])
-        let stableWidth = controller.measuredMenuCardWidth(for: [narrow, wide])
+        let narrowWidth = controller.measuredMenuCardWidth(for: [(.codex, narrow)])
+        let stableWidth = controller.measuredMenuCardWidth(for: [(.codex, narrow), (.claude, wide)])
 
         #expect(narrowWidth == StatusItemController.menuCardBaseWidth)
         #expect(stableWidth > narrowWidth)
-        #expect(controller.measuredMenuCardWidth(for: [wide, narrow]) == stableWidth)
+        #expect(controller.measuredMenuCardWidth(for: [(.claude, wide), (.codex, narrow)]) == stableWidth)
     }
 
     @Test
@@ -364,6 +364,41 @@ extension StatusMenuTests {
 
         #expect(menu.items.first === outgoing)
         #expect(displacedIncoming.first === incoming)
+    }
+
+    @Test
+    func `cached provider content preserves menu item subclasses across switch back`() {
+        let previousRendering = StatusItemController.menuCardRenderingEnabled
+        StatusItemController.menuCardRenderingEnabled = true
+        defer { StatusItemController.menuCardRenderingEnabled = previousRendering }
+
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        let controller = self.makeRecyclingController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let plainItem = NSMenuItem(title: "Overview", action: nil, keyEquivalent: "")
+        let cardItem = controller.makeMenuCardItem(Text("Codex"), id: "codex", width: 300)
+        let menu = NSMenu()
+        menu.addItem(plainItem)
+
+        let displacedPlain = controller.replaceMenuContentKeepingRowsVisible(
+            menu,
+            fromIndex: 0,
+            with: [cardItem])
+
+        #expect(menu.items.first === cardItem)
+        #expect(menu.items.first is MenuCardMenuItem)
+        #expect(displacedPlain.first === plainItem)
+
+        let displacedCard = controller.replaceMenuContentKeepingRowsVisible(
+            menu,
+            fromIndex: 0,
+            with: displacedPlain)
+
+        #expect(menu.items.first === plainItem)
+        #expect(!(menu.items.first is MenuCardMenuItem))
+        #expect(displacedCard.first === cardItem)
     }
 
     @Test
@@ -828,6 +863,8 @@ extension StatusMenuTests {
         // so selection never re-invalidates the SwiftUI graph.
         controller.menu(menu, willHighlight: item)
         #expect(gpuView.isHighlightedForTesting)
+        #expect(!gpuView.allowsVibrancy)
+        #expect(gpuView.subviews.last?.allowsVibrancy == false)
         #expect(!gpuView.swiftUIHighlightStateIsHighlightedForTesting)
 
         controller.menu(menu, willHighlight: nil)
@@ -882,5 +919,9 @@ extension StatusMenuTests {
         #expect(displaced[0].view === cachedContainer)
         #expect(cachedContainer.usesGPUSelectionForTesting)
         #expect(cachedContainer.hasGPUSelectionLayerForTesting)
+        for container in [attachedContainer, cachedContainer] {
+            #expect(!container.allowsVibrancy)
+            #expect(container.subviews.last?.allowsVibrancy == false)
+        }
     }
 }

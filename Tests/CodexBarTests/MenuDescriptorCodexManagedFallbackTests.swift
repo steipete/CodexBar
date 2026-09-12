@@ -5,7 +5,7 @@ import Testing
 
 @MainActor
 struct MenuDescriptorCodexManagedFallbackTests {
-    @Test
+    @Test(CodexCredentialFixtures())
     func `codex account section prefers managed fallback over ambient account`() throws {
         let suite = "MenuDescriptorCodexManagedFallbackTests"
         let defaults = try #require(UserDefaults(suiteName: suite))
@@ -30,10 +30,10 @@ struct MenuDescriptorCodexManagedFallbackTests {
             tokenAccountStore: InMemoryTokenAccountStore())
         settings.statusChecksEnabled = false
 
-        let ambientHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+        let ambientHome = CodexCredentialFixtures.root.appendingPathComponent(
             UUID().uuidString,
             isDirectory: true)
-        let managedHome = FileManager.default.temporaryDirectory.appendingPathComponent(
+        let managedHome = CodexCredentialFixtures.root.appendingPathComponent(
             UUID().uuidString,
             isDirectory: true)
         defer {

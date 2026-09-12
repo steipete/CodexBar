@@ -89,6 +89,30 @@ Gemini uses the Gemini CLI OAuth credentials and private quota APIs. No browser 
 - When quota, `loadCodeAssist`, or token-refresh responses include Google's unsupported-client
   migration signal (`UNSUPPORTED_CLIENT`, `IneligibleTierError`, or Antigravity migration copy),
   CodexBar surfaces `consumerTierDeprecated` with guidance to use the Antigravity provider.
+- Google's live shape is an HTTP **200** `loadCodeAssist` body with no `currentTier` and the consumer tier
+  listed under `ineligibleTiers[].reasonCode == "UNSUPPORTED_CLIENT"`; the follow-up `retrieveUserQuota`
+  call then fails with HTTP 403 `SUBSCRIPTION_REQUIRED` and no migration wording. CodexBar reads the
+  200 body's `ineligibleTiers` directly, and maps that 403 to `consumerTierDeprecated` only when the same
+  fetch saw the unsupported-client flag **and** the account is not on `standard-tier` — a licensed
+  account's 403 stays `HTTP 403`.
+- The unsupported-client flag itself is suppressed for accounts the shutdown does not cover: a named
+  `paidTier.name` (authoritative even without `currentTier`) and an `hd` claim (Workspace/education, which
+  `resolveAccountPlan` reads as Workspace when paired with `free-tier`). Both would otherwise be pre-empted
+  by the earlier `loadCodeAssist` branch, which runs before the plan resolver.
+- `UsageStore.geminiMigrationObservation` records which sentinel the last refresh produced
+  (`none` / `localAntigravityHandoff` / `googleConsumerTierShutdown`); a later local-tooling failure never
+  downgrades a shutdown already seen. `geminiObservedConsumerTierDeprecation` (either sentinel) drives the
+  settings action; the narrower `geminiObservedGoogleConsumerTierShutdown` drives the login guard. While
+  the narrow one is set **for this session**,
+  the Gemini login action stops clearing `~/.gemini/oauth_creds.json` and launching Gemini CLI — whose
+  OAuth step fails with the same message — and shows the Antigravity guidance instead. The local
+  `oauthCredentialsUnavailableWithAntigravity` handoff deliberately does not guard login: there,
+  reinstalling or relaunching Gemini CLI is the fix, and Workspace accounts must keep that path.
+- The guard warns rather than blocks: its alert offers **Switch Account…** next to Cancel (Cancel is the
+  default, since confirming clears credentials). Confirming re-runs the ordinary login without the guard,
+  which is how a user moves from a shut-down consumer account to a Workspace, education, or Code Assist
+  Standard/Enterprise one. The observation is not cleared by confirming, so the settings action stays put
+  and the next attempt warns again.
 - Settings shows an **Enable Antigravity provider** action only after CodexBar observes
   `consumerTierDeprecated` during a Gemini refresh (typed sentinel state, not user-facing text matching).
 - The action is explicit: CodexBar never automatically enables Antigravity or falls back to it.

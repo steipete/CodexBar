@@ -14,15 +14,18 @@ struct CodexDisplacedLivePreservationExecutionResult: Equatable {
 struct CodexDisplacedLivePreservationExecutor {
     private let store: any ManagedCodexAccountStoring
     private let homeFactory: any ManagedCodexHomeProducing
+    private let authMaterialReader: any CodexAuthMaterialReading
     private let fileManager: FileManager
 
     init(
         store: any ManagedCodexAccountStoring,
         homeFactory: any ManagedCodexHomeProducing,
+        authMaterialReader: any CodexAuthMaterialReading = DefaultCodexAuthMaterialReader(),
         fileManager: FileManager = .default)
     {
         self.store = store
         self.homeFactory = homeFactory
+        self.authMaterialReader = authMaterialReader
         self.fileManager = fileManager
     }
 
@@ -46,7 +49,9 @@ struct CodexDisplacedLivePreservationExecutor {
 
         case .importNew:
             let importedAccount = try self.importDisplacedLiveAccount(from: context)
-            return try self.commitImportedAccount(importedAccount)
+            return try self.commitImportedAccount(
+                importedAccount,
+                excludingTargetID: context.target.persisted.id)
 
         case let .refreshExisting(destination, _),
              let .repairExisting(destination, _):
@@ -82,6 +87,9 @@ struct CodexDisplacedLivePreservationExecutor {
         }
 
         let importedHomeURL = self.homeFactory.makeHomeURL()
+        guard CodexCredentialFileAccess.permits(CodexAccountPromotionService.authFileURL(for: importedHomeURL)) else {
+            throw CodexAccountPromotionError.displacedLiveImportFailed
+        }
         let importedAccountID = Self.accountID(for: importedHomeURL)
 
         do {
@@ -118,7 +126,9 @@ struct CodexDisplacedLivePreservationExecutor {
         }
     }
 
-    private func commitImportedAccount(_ importedAccount: CodexPreparedImportedAccount) throws
+    private func commitImportedAccount(
+        _ importedAccount: CodexPreparedImportedAccount,
+        excludingTargetID: UUID) throws
         -> CodexDisplacedLivePreservationExecutionResult
     {
         do {
@@ -126,7 +136,9 @@ struct CodexDisplacedLivePreservationExecutor {
             try self.store.storeAccounts(ManagedCodexAccountSet(
                 version: latestManagedAccounts.version,
                 accounts: latestManagedAccounts.accounts + [importedAccount.account]))
-            return try self.resolveImportedAccountAfterCommit(importedAccount)
+            return try self.resolveImportedAccountAfterCommit(
+                importedAccount,
+                excludingTargetID: excludingTargetID)
         } catch let error as CodexAccountPromotionError {
             try? self.removeManagedHomeIfSafe(importedAccount.homeURL)
             throw error
@@ -136,7 +148,9 @@ struct CodexDisplacedLivePreservationExecutor {
         }
     }
 
-    private func resolveImportedAccountAfterCommit(_ importedAccount: CodexPreparedImportedAccount) throws
+    private func resolveImportedAccountAfterCommit(
+        _ importedAccount: CodexPreparedImportedAccount,
+        excludingTargetID: UUID) throws
         -> CodexDisplacedLivePreservationExecutionResult
     {
         let persistedManagedAccounts = try self.store.loadAccounts()
@@ -147,10 +161,12 @@ struct CodexDisplacedLivePreservationExecutor {
 
         guard let existingManagedAccount = self.repairDestination(
             in: persistedManagedAccounts,
-            for: importedAccount.account)
+            for: importedAccount.account,
+            excludingTargetID: excludingTargetID)
         else {
             throw CodexAccountPromotionError.managedStoreCommitFailed
         }
+        try self.validateRepairDestination(existingManagedAccount, for: importedAccount.account)
 
         let repairedManagedAccount = ManagedCodexAccount(
             id: existingManagedAccount.id,
@@ -178,21 +194,50 @@ struct CodexDisplacedLivePreservationExecutor {
             displacedLiveDisposition: .alreadyManaged(managedAccountID: existingManagedAccount.id))
     }
 
+    private func validateRepairDestination(
+        _ existingManagedAccount: ManagedCodexAccount,
+        for importedAccount: ManagedCodexAccount) throws
+    {
+        guard let providerAccountID = importedAccount.providerAccountID else { return }
+        let homeURL = URL(fileURLWithPath: existingManagedAccount.managedHomePath, isDirectory: true)
+        guard let authData = try? self.authMaterialReader.readAuthData(homeURL: homeURL),
+              (try? CodexOAuthCredentialsStore.parse(data: authData)) != nil,
+              let authIdentity = try? PreparedPromotionContextBuilder.runtimeAccount(from: authData)
+        else {
+            // Missing or unreadable auth is the repair case already accepted by the planner.
+            return
+        }
+
+        let importedIdentity = CodexIdentity.providerAccount(id: providerAccountID)
+        guard CodexIdentityMatcher.matches(
+            authIdentity.identity,
+            lhsEmail: authIdentity.email,
+            importedIdentity,
+            rhsEmail: importedAccount.email)
+        else {
+            throw CodexAccountPromotionError.displacedLiveManagedAccountConflict
+        }
+    }
+
     private func repairDestination(
         in persistedManagedAccounts: ManagedCodexAccountSet,
-        for importedAccount: ManagedCodexAccount) -> ManagedCodexAccount?
+        for importedAccount: ManagedCodexAccount,
+        excludingTargetID: UUID) -> ManagedCodexAccount?
     {
-        if let providerAccountID = importedAccount.providerAccountID {
-            return persistedManagedAccounts.account(
+        let candidates = ManagedCodexAccountSet(
+            version: persistedManagedAccounts.version,
+            accounts: persistedManagedAccounts.accounts.filter { $0.id != excludingTargetID })
+        if let workspaceAccountID = importedAccount.effectiveWorkspaceAccountID {
+            return candidates.account(
                 email: importedAccount.email,
-                providerAccountID: providerAccountID)
+                providerAccountID: workspaceAccountID)
         }
 
         let normalizedEmail = importedAccount.email
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
-        return persistedManagedAccounts.accounts.first {
-            $0.email == normalizedEmail && $0.providerAccountID == nil
+        return candidates.accounts.first {
+            $0.email == normalizedEmail && $0.effectiveWorkspaceAccountID == nil
         }
     }
 
@@ -234,6 +279,10 @@ struct CodexDisplacedLivePreservationExecutor {
                 lastAuthenticatedAt: now)
 
             let refreshedHomeURL = URL(fileURLWithPath: persistedManagedAccount.managedHomePath, isDirectory: true)
+            guard CodexCredentialFileAccess.permits(CodexAccountPromotionService.authFileURL(for: refreshedHomeURL))
+            else {
+                throw CodexAccountPromotionError.displacedLiveImportFailed
+            }
             do {
                 try self.homeFactory.validateManagedHomeForDeletion(refreshedHomeURL)
             } catch {
@@ -258,6 +307,7 @@ struct CodexDisplacedLivePreservationExecutor {
 
     private func writeManagedAuthData(_ data: Data, to homeURL: URL) throws {
         let authFileURL = CodexAccountPromotionService.authFileURL(for: homeURL)
+        guard CodexCredentialFileAccess.permits(authFileURL) else { throw CodexOAuthCredentialsError.notFound }
         try data.write(to: authFileURL, options: .atomic)
         try self.fileManager.setAttributes(
             [.posixPermissions: NSNumber(value: Int16(0o600))],
@@ -265,6 +315,7 @@ struct CodexDisplacedLivePreservationExecutor {
     }
 
     private func removeManagedHomeIfSafe(_ homeURL: URL) throws {
+        guard CodexCredentialFileAccess.permits(CodexAccountPromotionService.authFileURL(for: homeURL)) else { return }
         try self.homeFactory.validateManagedHomeForDeletion(homeURL)
         if self.fileManager.fileExists(atPath: homeURL.path) {
             try self.fileManager.removeItem(at: homeURL)

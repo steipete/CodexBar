@@ -163,17 +163,18 @@ public struct MiniMaxUsageFetcher: Sendable {
                     remainsURL: remainsURL,
                     now: now,
                     transport: transport)
-            } catch let error as MiniMaxUsageError {
+            } catch {
+                guard error is MiniMaxUsageError || self.shouldTryNextEndpoint(after: error) else { throw error }
                 lastError = error
                 guard remainsURL == region.tokenPlanRemainsURL,
-                      self.shouldTryLegacyAPIEndpoint(after: error)
+                      self.shouldTryNextEndpoint(after: error, retryRejectedCredentials: true)
                 else {
                     if tokenPlanCredentialFailure {
                         throw MiniMaxUsageError.invalidCredentials
                     }
                     throw error
                 }
-                if case .invalidCredentials = error {
+                if case .invalidCredentials? = error as? MiniMaxUsageError {
                     tokenPlanCredentialFailure = true
                 }
                 Self.log.debug("MiniMax token-plan API failed, trying legacy coding-plan endpoint")
@@ -232,10 +233,14 @@ public struct MiniMaxUsageFetcher: Sendable {
         return normalizedMessage == "invalid api key" ? .invalidCredentials : error
     }
 
-    private static func shouldTryLegacyAPIEndpoint(after error: MiniMaxUsageError) -> Bool {
-        switch error {
+    private static func shouldTryNextEndpoint(after error: Error, retryRejectedCredentials: Bool = false) -> Bool {
+        guard let error = error as? MiniMaxUsageError else {
+            let error = error as NSError
+            return error.domain == NSURLErrorDomain && error.code != NSURLErrorCancelled
+        }
+        return switch error {
         case .invalidCredentials:
-            true
+            retryRejectedCredentials
         case let .apiError(message):
             message.contains("HTTP 404") || message.contains("HTTP 405")
         case .networkError, .parseFailed:
@@ -323,9 +328,9 @@ public struct MiniMaxUsageFetcher: Sendable {
                     context: context,
                     remainsContext: remainsContext,
                     now: now)
-            } catch let error as MiniMaxUsageError {
+            } catch {
                 lastError = error
-                guard self.shouldTryNextRemainsURL(after: error) else { throw error }
+                guard self.shouldTryNextEndpoint(after: error) else { throw error }
                 Self.log.debug("MiniMax remains API failed for \(baseRemainsURL.host ?? "unknown host"), trying next")
             }
         }
@@ -400,31 +405,15 @@ public struct MiniMaxUsageFetcher: Sendable {
         return try MiniMaxUsageParser.parse(html: html, now: now)
     }
 
-    private static func shouldTryNextRemainsURL(after error: MiniMaxUsageError) -> Bool {
-        switch error {
-        case .invalidCredentials:
-            false
-        case let .apiError(message):
-            message.contains("HTTP 404") || message.contains("HTTP 405")
-        case .networkError, .parseFailed:
-            true
-        }
-    }
-
     private static func normalizedTransportError(_ error: Error) -> Error {
-        if error is MiniMaxUsageError || error is CancellationError {
-            return error
-        }
-        if let urlError = error as? URLError {
-            if urlError.code == .cancelled {
-                return error
-            }
-            if urlError.code == .badServerResponse {
-                return MiniMaxUsageError.networkError("Invalid response")
-            }
-            return MiniMaxUsageError.networkError(urlError.localizedDescription)
-        }
-        return error
+        let original = error as NSError
+        guard original.domain == NSURLErrorDomain, original.code != NSURLErrorCancelled else { return error }
+        // Keep transport identity for cache/retry policy and MiniMax text for diagnostic classification.
+        var userInfo = original.userInfo
+        let description = original.code == NSURLErrorBadServerResponse ? "Invalid response" : original
+            .localizedDescription
+        userInfo[NSLocalizedDescriptionKey] = MiniMaxUsageError.networkError(description).localizedDescription
+        return NSError(domain: original.domain, code: original.code, userInfo: userInfo)
     }
 
     private static func shouldRethrowAfterHTMLFallback(_ error: Error) -> Bool {

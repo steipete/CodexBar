@@ -12,7 +12,7 @@ public enum OpenCodeGoUsageError: LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .invalidCredentials:
-            "OpenCode Go session cookie is invalid or expired."
+            "OpenCode Go credentials are invalid or expired."
         case let .networkError(message):
             "OpenCode Go network error: \(message)"
         case let .apiError(message):
@@ -28,6 +28,7 @@ public struct OpenCodeGoUsageFetcher: Sendable {
     private static let baseURL = URL(string: "https://opencode.ai")!
     private static let authURL = URL(string: "https://opencode.ai/auth")!
     private static let serverURL = URL(string: "https://opencode.ai/_server")!
+    private static let usageAPIURL = URL(string: "https://opencode.ai/zen/go/v1/usage")!
     private static let workspacesServerID = "def39973159c7f0483d8793a822b8dbb10d067e12c65455fcb4608459ba0234f"
     private static let billingServerID = "c83b78a614689c38ebee981f9b39a8b377716db85c1fd7dbab604adc02d3313d"
 
@@ -202,6 +203,41 @@ public struct OpenCodeGoUsageFetcher: Sendable {
                 since: zenBalanceStart,
                 waitForZenBalance: waitForZenBalance))
         return snapshot.withZenBalanceUSD(zenBalance)
+    }
+
+    public static func fetchAPIUsage(
+        apiKey: String,
+        timeout: TimeInterval,
+        now: Date = Date(),
+        session: URLSession? = nil) async throws -> OpenCodeGoUsageSnapshot
+    {
+        let token = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !token.isEmpty else {
+            throw OpenCodeGoSettingsError.missingAPIKey
+        }
+
+        var request = URLRequest(url: self.usageAPIURL)
+        request.httpMethod = "GET"
+        request.timeoutInterval = timeout
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("CodexBar", forHTTPHeaderField: "User-Agent")
+
+        let response = try await (session ?? self.redirectGuardSession).response(for: request)
+        guard response.statusCode == 200 else {
+            if response.statusCode == 401 || response.statusCode == 403 {
+                throw OpenCodeGoUsageError.invalidCredentials
+            }
+            let body = String(data: response.data, encoding: .utf8) ?? ""
+            if let message = self.extractServerErrorMessage(from: body) {
+                throw OpenCodeGoUsageError.apiError("HTTP \(response.statusCode): \(message)")
+            }
+            throw OpenCodeGoUsageError.apiError("HTTP \(response.statusCode)")
+        }
+        guard let text = String(data: response.data, encoding: .utf8) else {
+            throw OpenCodeGoUsageError.parseFailed("Response was not UTF-8.")
+        }
+        return try self.parseAPIUsage(text: text, now: now)
     }
 
     static func requiredZenBalanceFallback(
@@ -435,6 +471,29 @@ extension OpenCodeGoUsageFetcher {
             throw OpenCodeGoUsageError.parseFailed("Missing usage fields.")
         }
         return text
+    }
+
+    static func parseAPIUsage(text: String, now: Date) throws -> OpenCodeGoUsageSnapshot {
+        guard let data = text.data(using: .utf8),
+              let dict = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let usage = dict["usage"] as? [String: Any],
+              let rolling = usage["rolling"] as? [String: Any]
+        else {
+            throw OpenCodeGoUsageError.parseFailed("Missing usage fields.")
+        }
+        let renewsAt = self.dateValue(from: self.value(from: usage, keys: self.renewAtKeys))
+            ?? self.dateValue(from: self.value(from: dict, keys: self.renewAtKeys))
+        guard let snapshot = self.buildSnapshot(
+            rolling: rolling,
+            weekly: usage["weekly"] as? [String: Any],
+            monthly: usage["monthly"] as? [String: Any],
+            now: now,
+            renewsAt: renewsAt,
+            directPercentEncoding: .percent)
+        else {
+            throw OpenCodeGoUsageError.parseFailed("Missing usage fields.")
+        }
+        return snapshot
     }
 
     static func parseSubscription(text: String, now: Date) throws -> OpenCodeGoUsageSnapshot {
@@ -715,25 +774,35 @@ extension OpenCodeGoUsageFetcher {
         return nil
     }
 
+    private enum DirectPercentEncoding {
+        case percent
+        case fractionOrPercent
+    }
+
     private static func buildSnapshot(
         rolling: [String: Any],
         weekly: [String: Any]?,
         monthly: [String: Any]?,
         now: Date,
-        renewsAt: Date? = nil) -> OpenCodeGoUsageSnapshot?
+        renewsAt: Date? = nil,
+        directPercentEncoding: DirectPercentEncoding = .fractionOrPercent) -> OpenCodeGoUsageSnapshot?
     {
-        guard let rollingWindow = self.parseWindow(rolling, now: now) else {
+        guard let rollingWindow = self.parseWindow(rolling, now: now, directPercentEncoding: directPercentEncoding)
+        else {
             return nil
         }
 
         let weeklyWindow: (percent: Double, resetInSec: Int)?
         if let weekly {
-            guard let parsed = self.parseWindow(weekly, now: now) else { return nil }
+            guard let parsed = self.parseWindow(weekly, now: now, directPercentEncoding: directPercentEncoding)
+            else { return nil }
             weeklyWindow = parsed
         } else {
             weeklyWindow = nil
         }
-        let monthlyWindow = monthly.flatMap { self.parseWindow($0, now: now) }
+        let monthlyWindow = monthly.flatMap {
+            self.parseWindow($0, now: now, directPercentEncoding: directPercentEncoding)
+        }
 
         return OpenCodeGoUsageSnapshot(
             hasWeeklyUsage: weeklyWindow != nil,
@@ -748,7 +817,11 @@ extension OpenCodeGoUsageFetcher {
             updatedAt: now)
     }
 
-    private static func parseWindow(_ dict: [String: Any], now: Date) -> (percent: Double, resetInSec: Int)? {
+    private static func parseWindow(
+        _ dict: [String: Any],
+        now: Date,
+        directPercentEncoding: DirectPercentEncoding = .fractionOrPercent) -> (percent: Double, resetInSec: Int)?
+    {
         var percent: Double?
 
         for key in self.percentKeys {
@@ -757,8 +830,7 @@ extension OpenCodeGoUsageFetcher {
                 break
             }
         }
-        // A direct percent field may arrive as a fraction (0...1) or a percent (0...100), so it goes
-        // through the `<= 1` heuristic below. A computed used/limit percent is already 0...100 and must not.
+        // Dashboard JSON may use fractions. API fields and computed used/limit percentages already use 0...100.
         let percentIsDirect = percent != nil
 
         if percent == nil {
@@ -784,7 +856,7 @@ extension OpenCodeGoUsageFetcher {
         }
 
         guard var resolvedPercent = percent else { return nil }
-        if percentIsDirect, resolvedPercent <= 1.0, resolvedPercent >= 0 {
+        if percentIsDirect, directPercentEncoding == .fractionOrPercent, resolvedPercent <= 1.0, resolvedPercent >= 0 {
             resolvedPercent *= 100
         }
         resolvedPercent = max(0, min(100, resolvedPercent))

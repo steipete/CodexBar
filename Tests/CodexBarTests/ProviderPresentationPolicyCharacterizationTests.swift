@@ -175,6 +175,15 @@ struct ProviderPresentationPolicyCharacterizationTests {
     }
 
     @Test
+    func `missing secondary lane reservation is claude only`() {
+        for provider in UsageProvider.allCases {
+            let actual = ProviderDescriptorRegistry.descriptor(for: provider)
+                .presentation.reservesMissingSecondaryIconLane
+            #expect(actual == (provider == .claude), "Unexpected missing-lane policy for \(provider.rawValue)")
+        }
+    }
+
+    @Test
     func `credit visibility exceptions are pinned`() {
         let codex = ProviderDescriptorRegistry.descriptor(for: .codex).metadata
         let amp = ProviderDescriptorRegistry.descriptor(for: .amp).metadata

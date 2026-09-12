@@ -23,6 +23,8 @@ extension StatusItemController {
 
     private func cancelShutdownTasks() {
         self.agentSessions.stop()
+        self.menuAppearanceObserver?.stop()
+        self.menuAppearanceObserver = nil
         self.blinkTask?.cancel()
         self.blinkTask = nil
         self.menuBarCountdownRefreshTask?.cancel()
@@ -35,6 +37,7 @@ extension StatusItemController {
         self.manualRefreshTasks.removeAll()
         self.store.cancelForcedRefreshEnrichment()
         self.store.cancelRequiredRefresh()
+        self.store.stopSharedSpendDashboardPublication()
         self.menuCardRefreshMonitor.resetManualRefresh()
         self.screenChangeVisibilityTask?.cancel()
         self.screenChangeVisibilityTask = nil

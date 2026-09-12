@@ -269,7 +269,7 @@ struct CLICardsClaudeSwapTests {
             "Token expired. Switch to this account in claude-swap to refresh it.",
             "claude-swap could not read the active account's Keychain entry.",
             "No stored credentials for this account slot.",
-            "Usage fetch failed.",
+            "Polling deferred until a limit resets.",
             "Unrecognized claude-swap status: future_status",
             "No usage windows reported.",
         ])
@@ -277,7 +277,7 @@ struct CLICardsClaudeSwapTests {
 
     @Test
     func `active sentinel account remains active and metrics less in full and brief cards`() async {
-        let problem = "Usage fetch failed."
+        let problem = "Polling deferred until a limit resets."
         let output = await CLIClaudeSwapCards.fetch(
             eligible: true,
             executablePath: "/fake/cswap",
@@ -311,6 +311,42 @@ struct CLICardsClaudeSwapTests {
         #expect(rows.first?.accountProblem == problem)
         #expect(rows.first?.metricLabel == nil)
         #expect(rows.first?.usedPercent == nil)
+    }
+
+    @Test
+    func `unavailable at limit windows keep metrics and name the exhausted window`() async {
+        let reset = Date(timeIntervalSince1970: 1_700_003_600)
+        let output = await CLIClaudeSwapCards.fetch(
+            eligible: true,
+            executablePath: "/fake/cswap",
+            renderOptions: self.renderOptions(),
+            ambientFetch: { self.ambientOutput(failed: true) },
+            accountListReader: { _ in
+                ClaudeSwapAccountList(activeAccountNumber: 1, accounts: [
+                    ClaudeSwapAccountRow(
+                        number: 1,
+                        email: "limited@example.com",
+                        isActive: true,
+                        usageStatus: .unavailable,
+                        fiveHour: ClaudeSwapUsageWindow(usedPercent: 100, resetsAt: reset),
+                        sevenDay: ClaudeSwapUsageWindow(usedPercent: 100, resetsAt: reset)),
+                    self.row(number: 2),
+                ])
+            })
+
+        #expect(output.exitCode == .success)
+        let activeCard = output.cards.first
+        #expect(activeCard?.accountLine == "limited@example.com")
+        #expect(activeCard?.isActive == true)
+        #expect(activeCard?.accountProblem ==
+            "Session limit reached. Resets in 1h. Weekly limit reached. Resets in 1h.")
+        #expect(activeCard?.metrics.isEmpty == false)
+        #expect(activeCard?.metrics.contains { $0.remainingPercent == 0 } == true)
+        #expect(activeCard?.accountProblem?.contains("Usage fetch failed") != true)
+
+        let rows = CLICardsBriefRenderer.makeRows(cards: activeCard.map { [$0] } ?? [])
+        #expect(rows.first?.accountProblem?.contains("Session limit reached") == true)
+        #expect(rows.first?.usedPercent == 100)
     }
 
     @Test

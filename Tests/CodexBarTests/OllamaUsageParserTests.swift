@@ -205,4 +205,160 @@ struct OllamaUsageParserTests {
         #expect(snapshot.sessionUsedPercent == 1.2)
         #expect(snapshot.weeklyUsedPercent == 3.4)
     }
+
+    @Test
+    func `parses monthly dollar usage from new settings HTML`() throws {
+        // Captured monthly-credit markup includes line breaks inside closing tags.
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let html = """
+        <div>
+          <h2 class="text-xl font-medium flex items-center space-x-2">
+            <span>Included usage</span>
+            <span
+              class="text-xs font-normal px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-600 capitalize"
+              >pro</span
+            >
+          </h2>
+          <h2 id="header-email">user@example.com</h2>
+          <div>
+            <div class="flex justify-between mb-2">
+              <span class="text-sm">Monthly usage</span>
+              <span class="text-sm "
+                >$7.50 of $60 used</span
+              >
+            </div>
+            <div class="relative group" data-usage-meter>
+              <div
+                class="relative h-3 overflow-hidden rounded-full bg-neutral-200"
+                data-usage-track
+                aria-label="Monthly usage $7.50 of $60 used"
+              >
+                <div class="flex h-full overflow-hidden bg-neutral-950" style="width: 12.5%; ">
+                </div>
+              </div>
+            </div>
+            <div
+              class="text-xs text-neutral-500 mt-1 local-time"
+              data-time="2026-09-30T15:14:29Z"
+            >
+              Resets in 4 weeks.
+            </div>
+          </div>
+        </div>
+        """
+
+        let snapshot = try OllamaUsageParser.parse(html: html, now: now)
+
+        #expect(snapshot.planName == "pro")
+        #expect(snapshot.accountEmail == "user@example.com")
+        #expect(snapshot.monthlyUsedPercent == 12.5)
+        #expect(snapshot.sessionUsedPercent == nil)
+        #expect(snapshot.weeklyUsedPercent == nil)
+
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        let expectedReset = formatter.date(from: "2026-09-30T15:14:29Z")
+        #expect(snapshot.monthlyResetsAt == expectedReset)
+
+        let usage = snapshot.toUsageSnapshot()
+        #expect(usage.primary?.windowMinutes == ProviderPaceCapability.monthlyWindowSentinelMinutes)
+        #expect(usage.primary?.usedPercent == 12.5)
+        #expect(usage.primary?.resetsAt == expectedReset)
+        #expect(usage.secondary == nil)
+        #expect(usage.identity?.loginMethod == "pro")
+    }
+
+    @Test
+    func `monthly dollar usage handles thousands separators`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let html = """
+        <div>
+          <span>Monthly usage</span>
+          <span>$1,250 of $5,000 used</span>
+        </div>
+        """
+
+        let snapshot = try OllamaUsageParser.parse(html: html, now: now)
+
+        #expect(snapshot.monthlyUsedPercent == 25)
+    }
+
+    @Test
+    func `monthly dollar usage with zero limit falls back to meter width`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let html = """
+        <div>
+          <span>Monthly usage</span>
+          <span>$0 of $0 used</span>
+          <div style="width: 25%; "></div>
+        </div>
+        """
+
+        let snapshot = try OllamaUsageParser.parse(html: html, now: now)
+
+        #expect(snapshot.monthlyUsedPercent == 25)
+    }
+
+    @Test(arguments: [
+        "$1,25 of $5,000 used",
+        "$1,,250 of $5,000 used",
+        "$1,250 of $5,00 used",
+        "$\(String(repeating: "9", count: 400)) of $60 used",
+        "$7.50 of $\(String(repeating: "9", count: 400)) used",
+        "$\(String(repeating: "9", count: 308)) of $0.01 used",
+    ])
+    func `invalid monthly dollar amounts require a valid meter fallback`(dollarUsage: String) throws {
+        let html = """
+        <div>
+          <span>Monthly usage</span>
+          <span>\(dollarUsage)</span>
+        </div>
+        """
+
+        #expect {
+            try OllamaUsageParser.parse(html: html)
+        } throws: { error in
+            guard case OllamaUsageError.parseFailed = error else { return false }
+            return true
+        }
+
+        let snapshot = try OllamaUsageParser.parse(html: html + #"<div style="width: 17%;"></div>"#)
+        #expect(snapshot.monthlyUsedPercent == 17)
+    }
+
+    @Test
+    func `invalid monthly dollars do not borrow the next usage blocks meter`() throws {
+        let html = """
+        <div><span>Monthly usage</span><span>$1,25 of $60 used</span></div>
+        <div><span>Weekly usage</span><div style="width: 42%;"></div></div>
+        """
+
+        let snapshot = try OllamaUsageParser.parse(html: html)
+
+        #expect(snapshot.monthlyUsedPercent == nil)
+        #expect(snapshot.weeklyUsedPercent == 42)
+    }
+
+    @Test
+    func `legacy session only page keeps the session primary window`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let html = """
+        <div>
+          <span>Cloud Usage</span>
+          <span>free</span>
+          <span>Session usage</span>
+          <span>0.1% used</span>
+          <div class="local-time" data-time="2026-01-30T18:00:00Z">Resets in 3 hours</div>
+        </div>
+        """
+
+        let snapshot = try OllamaUsageParser.parse(html: html, now: now)
+
+        #expect(snapshot.monthlyUsedPercent == nil)
+        #expect(snapshot.sessionUsedPercent == 0.1)
+
+        let usage = snapshot.toUsageSnapshot()
+        #expect(usage.primary?.windowMinutes == 5 * 60)
+        #expect(usage.secondary == nil)
+    }
 }

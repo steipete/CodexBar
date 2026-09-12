@@ -51,22 +51,53 @@ struct KeychainNoUIQueryTests {
     }
 
     @Test
+    func `generic password preflight memo is scoped to one operation`() {
+        var checkCount = 0
+
+        KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { _, _ in
+            checkCount += 1
+            return .allowed
+        } operation: {
+            KeychainAccessPreflight.withMemoizedGenericPasswordChecks {
+                _ = KeychainAccessPreflight.checkGenericPassword(service: "Chrome Safe Storage", account: "Chrome")
+                _ = KeychainAccessPreflight.checkGenericPassword(service: "Chrome Safe Storage", account: "Chrome")
+                _ = KeychainAccessPreflight.checkGenericPassword(service: "Chrome Safe Storage", account: "Canary")
+            }
+            _ = KeychainAccessPreflight.checkGenericPassword(service: "Chrome Safe Storage", account: "Chrome")
+        }
+
+        #expect(checkCount == 3)
+    }
+
+    @Test
     func `decrypt ACL requires successful code signature validation without a prompt selector`() {
-        #expect(KeychainAccessPreflight.decryptACLAllowsCurrentProcess(
-            trustedApplicationValidationResults: [true],
-            promptSelector: []))
-        #expect(!KeychainAccessPreflight.decryptACLAllowsCurrentProcess(
-            trustedApplicationValidationResults: [false],
-            promptSelector: []))
-        #expect(!KeychainAccessPreflight.decryptACLAllowsCurrentProcess(
-            trustedApplicationValidationResults: [],
-            promptSelector: []))
-        #expect(KeychainAccessPreflight.decryptACLAllowsCurrentProcess(
-            trustedApplicationValidationResults: nil,
-            promptSelector: []))
-        #expect(!KeychainAccessPreflight.decryptACLAllowsCurrentProcess(
-            trustedApplicationValidationResults: [true],
-            promptSelector: .init(rawValue: 1)))
+        #expect(KeychainAccessPreflight.evaluateDecryptACL(
+            trustedApplicationValidationStatuses: [errSecSuccess],
+            promptSelector: []) == .allowed)
+        #expect(KeychainAccessPreflight.evaluateDecryptACL(
+            trustedApplicationValidationStatuses: [OSStatus(CSSMERR_CSP_VERIFY_FAILED)],
+            promptSelector: []) == .rejected)
+        #expect(KeychainAccessPreflight.evaluateDecryptACL(
+            trustedApplicationValidationStatuses: [],
+            promptSelector: []) == .rejected)
+        #expect(KeychainAccessPreflight.evaluateDecryptACL(
+            trustedApplicationValidationStatuses: nil,
+            promptSelector: []) == .allowed)
+        #expect(KeychainAccessPreflight.evaluateDecryptACL(
+            trustedApplicationValidationStatuses: [errSecSuccess],
+            promptSelector: .init(rawValue: 1)) == .rejected)
+    }
+
+    @Test
+    func `validator errors remain indeterminate unless another trusted application matches`() {
+        for status: OSStatus? in [nil, errSecInteractionNotAllowed, errSecNotAvailable, errSecParam] {
+            #expect(KeychainAccessPreflight.evaluateDecryptACL(
+                trustedApplicationValidationStatuses: [OSStatus(CSSMERR_CSP_VERIFY_FAILED), status],
+                promptSelector: []) == .indeterminate)
+            #expect(KeychainAccessPreflight.evaluateDecryptACL(
+                trustedApplicationValidationStatuses: [status, errSecSuccess],
+                promptSelector: []) == .allowed)
+        }
     }
 
     @Test
@@ -83,11 +114,15 @@ struct KeychainNoUIQueryTests {
         let (createStatus, trustedApplication) = KeychainCacheStore.createTrustedApplication(path: candidate.path)
         #expect(createStatus == errSecSuccess)
         let application = try #require(trustedApplication)
-        #expect(KeychainAccessPreflight.trustedApplication(application, validatesExecutableAt: candidate.path))
+        #expect(KeychainAccessPreflight.trustedApplication(
+            application,
+            validatesExecutableAt: candidate.path) == errSecSuccess)
 
         try fileManager.removeItem(at: candidate)
         try fileManager.copyItem(atPath: "/usr/bin/true", toPath: candidate.path)
-        #expect(!KeychainAccessPreflight.trustedApplication(application, validatesExecutableAt: candidate.path))
+        #expect(KeychainAccessPreflight.trustedApplication(
+            application,
+            validatesExecutableAt: candidate.path) == OSStatus(CSSMERR_CSP_VERIFY_FAILED))
     }
 
     @Test

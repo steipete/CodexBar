@@ -20,7 +20,9 @@ extension StatusItemController {
         accountOverride: AccountInfo? = nil,
         historySelectionOverride: PlanUtilizationHistorySelection? = nil,
         planOverride: String? = nil,
-        subtitleOverride: String? = nil) -> UsageMenuCardView.Model?
+        subtitleOverride: String? = nil,
+        sourceLabelOverride: String? = nil,
+        creditsOverride: CreditsSnapshot? = nil) -> UsageMenuCardView.Model?
     {
         // Provider-specific by design: Codex is the historical card fallback when no enabled provider is available.
         let target = provider ?? self.store.enabledFirstPartyProvidersForDisplay().first ?? .codex
@@ -48,6 +50,7 @@ extension StatusItemController {
             surface: surface,
             snapshotOverride: snapshotOverride,
             errorOverride: errorOverride,
+            creditsOverride: surface == .overrideCard ? creditsOverride : nil,
             now: now)
         let credits: CreditsSnapshot?
         let creditsError: String?
@@ -87,7 +90,7 @@ extension StatusItemController {
             tokenError = nil
         }
 
-        let sourceLabel = surface == .liveCard ? self.store.sourceLabel(for: target) : nil
+        let sourceLabel = sourceLabelOverride ?? (surface == .liveCard ? self.store.sourceLabel(for: target) : nil)
         // Provider-specific by design: Kilo's automatic source mode is surfaced as card fallback context.
         let kiloAutoMode = target == .kilo && self.settings.kiloUsageDataSource == .auto
         let (weeklyPace, sessionEquivalentForecast) = self.resolvePaceAndForecast(
@@ -142,8 +145,8 @@ extension StatusItemController {
                 self.settings.costSummaryShowsSubmenu(for: target),
             costComparisonPeriodsEnabled: self.settings.costComparisonPeriodsEnabled,
             showOptionalCreditsAndExtraUsage: self.settings.showOptionalCreditsAndExtraUsage,
-            claudeDailyRoutinesUsageVisible: self.settings.claudeDailyRoutinesUsageVisible,
-            codexSparkUsageVisible: self.settings.codexSparkUsageVisible,
+            claudeDailyRoutinesUsageVisible: true,
+            codexSparkUsageVisible: true,
             copilotBudgetExtrasEnabled: self.settings.copilotBudgetExtrasEnabled,
             sourceLabel: sourceLabel,
             subtitleOverride: subtitleOverride,
@@ -157,10 +160,13 @@ extension StatusItemController {
             ],
             workDaysPerWeek: self.settings.weeklyProgressWorkDays,
             workdayTickAppearance: self.settings.workdayTickAppearance,
+            paceVisible: self.settings.paceVisible,
             usesLiveSubtitle: surface == .liveCard,
             preferredCurrencyCode: self.settings.preferredCurrencyCode,
+            costUsageBucketCalendar: self.settings.costUsageBucketCalendar,
             now: now)
-        return UsageMenuCardView.Model.make(input)
+        return UsageMenuCardView.Model.make(input).applyingUsageItemVisibility(
+            hiddenItemIDs: self.settings.hiddenUsageItemIDs(for: target))
     }
 
     private func menuCardSnapshot(
@@ -218,10 +224,18 @@ extension StatusItemController {
         let weeklyPace = if let codexProjection,
                             let weekly = codexProjection.rateWindow(for: .weekly)
         {
-            self.store.weeklyPace(provider: target, window: weekly, now: now)
+            self.store.weeklyPace(
+                provider: target,
+                window: weekly,
+                dataConfidence: snapshot?.dataConfidence ?? .unknown,
+                now: now)
         } else {
             paceWindow.flatMap { window in
-                self.store.weeklyPace(provider: target, window: window, now: now)
+                self.store.weeklyPace(
+                    provider: target,
+                    window: window,
+                    dataConfidence: snapshot?.dataConfidence ?? .unknown,
+                    now: now)
             }
         }
         let forecast: SessionEquivalentForecast? = if let codexProjection,

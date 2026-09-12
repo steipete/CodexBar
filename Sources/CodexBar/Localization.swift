@@ -213,6 +213,24 @@ func L(_ key: String, language: String) -> String {
     return codexBarLocalizedString(key, bundle: bundle, resourceBundle: resourceBundle)
 }
 
+/// Uses an explicit duration for Simplified Chinese quota surfaces while preserving the generic
+/// `Session` translation for conversations and other non-quota UI.
+func localizedSessionQuotaLabel(_ label: String, windowMinutes: Int?) -> String {
+    let localizedLabel = L(label)
+    guard label == "Session",
+          localizedBundle().bundleURL.lastPathComponent.caseInsensitiveCompare("zh-Hans.lproj") == .orderedSame,
+          let windowMinutes
+    else { return localizedLabel }
+
+    if windowMinutes == 7 * 24 * 60 {
+        return L("Weekly")
+    }
+    guard (60...(12 * 60)).contains(windowMinutes), windowMinutes.isMultiple(of: 60) else {
+        return localizedLabel
+    }
+    return "\(codexBarLocalizedInteger(windowMinutes / 60)) \(L("Hour"))"
+}
+
 func codexBarLocalizedLocale() -> Locale {
     codexBarLocale(forLanguage: resolvedAppLanguage())
 }

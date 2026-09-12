@@ -1,17 +1,59 @@
 import CodexBarCore
 import SwiftUI
 
-/// One-line menu row for an inactive account in the compact multi-account layout:
-/// label on the left, constraint summary plus a mini headroom bar on the right.
+/// Compact menu row for an inactive account: identity and a mini headroom bar,
+/// followed by quota details with their provider-reported reset times.
 /// Clicking the row expands it into the full usage card.
 struct MenuCardCompactAccountRowView: View {
     struct Model: Equatable {
         let label: String
         let headroomPercent: Double?
         let severity: AccountMenuLayoutPlanner.Severity?
-        let constraintDetail: String?
+        let detailLines: [String]
         let hasError: Bool
         let showsBestBadge: Bool
+
+        init(
+            row: AccountMenuLayoutPlanner.CompactRow,
+            resetTimeDisplayStyle: ResetTimeDisplayStyle,
+            hidePersonalInfo: Bool = false,
+            now: Date = .init())
+        {
+            self.label = PersonalInfoRedactor.redactEmail(row.label, isEnabled: hidePersonalInfo)
+            self.headroomPercent = row.headroomPercent
+            self.severity = row.severity
+            self.detailLines = row.windowDetails.map { detail in
+                let title = localizedSessionQuotaLabel(detail.label, windowMinutes: detail.window.windowMinutes)
+                let percent = UsageFormatter.percentText(
+                    detail.window.remainingPercent,
+                    suffix: L("usage_percent_suffix_left"))
+                let reset: String? = switch detail.resetPresentation {
+                case .standard:
+                    UsageFormatter.resetLine(for: detail.window, style: resetTimeDisplayStyle, now: now)
+                case .hidden:
+                    nil
+                case .providerDescription:
+                    detail.window.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines)
+                }
+                let line = ["\(title) \(percent)", reset].compactMap(\.self).filter { !$0.isEmpty }
+                    .joined(separator: " · ")
+                return PersonalInfoRedactor.redactEmails(in: line, isEnabled: hidePersonalInfo) ?? line
+            }
+            self.hasError = row.hasError
+            self.showsBestBadge = row.isBestCandidate
+        }
+
+        var accessibilityText: String {
+            var parts = [self.label]
+            if let label = self.headroomLabel {
+                parts.append(String(format: L("%@ remaining"), label))
+            }
+            parts.append(contentsOf: self.detailLines)
+            if self.hasError {
+                parts.append(L("Account unavailable"))
+            }
+            return parts.joined(separator: ", ")
+        }
 
         var headroomLabel: String? {
             self.headroomPercent.map { "\(Int($0.rounded()))%" }
@@ -22,7 +64,7 @@ struct MenuCardCompactAccountRowView: View {
                 "compactAccount",
                 self.label,
                 self.headroomLabel ?? "-",
-                self.constraintDetail ?? "-",
+                self.detailLines.joined(separator: "|"),
                 self.hasError ? "error" : "ok",
                 self.showsBestBadge ? "best" : "plain",
             ].joined(separator: "|")
@@ -76,20 +118,20 @@ struct MenuCardCompactAccountRowView: View {
                         .frame(minWidth: 34, alignment: .trailing)
                 }
             }
-            if let detail = self.model.constraintDetail {
+            ForEach(Array(self.model.detailLines.enumerated()), id: \.offset) { _, detail in
                 Text(detail)
                     .font(.footnote)
                     .foregroundStyle(self.model.severity == .critical
                         ? MenuHighlightStyle.error(self.isHighlighted)
                         : MenuHighlightStyle.secondary(self.isHighlighted))
-                    .lineLimit(1)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(.horizontal, UsageMenuCardLayout.horizontalPadding)
         .padding(.vertical, 5)
         .frame(width: self.width, alignment: .leading)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(self.accessibilityText)
+        .accessibilityLabel(self.model.accessibilityText)
     }
 
     private var severityColor: Color {
@@ -108,20 +150,6 @@ struct MenuCardCompactAccountRowView: View {
         case .warning: return Color(nsColor: .systemOrange)
         case .healthy, .none: return MenuHighlightStyle.normalSecondaryText
         }
-    }
-
-    private var accessibilityText: String {
-        var parts = [self.model.label]
-        if let label = self.model.headroomLabel {
-            parts.append(String(format: L("%@ remaining"), label))
-        }
-        if let detail = self.model.constraintDetail {
-            parts.append(detail)
-        }
-        if self.model.hasError {
-            parts.append(L("Account unavailable"))
-        }
-        return parts.joined(separator: ", ")
     }
 }
 

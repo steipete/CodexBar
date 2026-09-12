@@ -2,6 +2,7 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
+@Suite(CodexCredentialFixtures())
 struct CodexOAuthTests {
     private func makeContext(
         runtime: ProviderRuntime = .app,
@@ -87,7 +88,7 @@ struct CodexOAuthTests {
 
     @Test
     func `reset-credit token load ignores an API key beside O auth tokens`() throws {
-        let home = FileManager.default.temporaryDirectory
+        let home = CodexCredentialFixtures.root
             .appendingPathComponent("codexbar-reset-credit-oauth-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: home) }
@@ -811,7 +812,7 @@ struct CodexOAuthTests {
 
     @Test
     func `native refresh recovery is unavailable when Codex CLI is missing`() async throws {
-        let home = FileManager.default.temporaryDirectory
+        let home = CodexCredentialFixtures.root
             .appendingPathComponent("codexbar-native-refresh-no-cli-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: home) }

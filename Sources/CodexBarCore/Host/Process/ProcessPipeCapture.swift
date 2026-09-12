@@ -19,11 +19,9 @@ package final class ProcessPipeCapture: @unchecked Sendable {
     private var isStopping = false
     private var continuation: CheckedContinuation<Void, Never>?
     #if os(Linux)
-    private let readerQueue = DispatchQueue(label: "com.steipete.CodexBar.process-pipe-capture.reader")
     private let callbackQueue = DispatchQueue(label: "com.steipete.CodexBar.process-pipe-capture.callback")
-    private var readSource: DispatchSourceRead?
-    private var sourceStarted = false
-    private var sourceCancelled = false
+    private var readerStarted = false
+    private var readerExited = false
     private var callbackScheduled = false
     private var callbackRequested = false
     #endif
@@ -48,6 +46,14 @@ package final class ProcessPipeCapture: @unchecked Sendable {
 
     #if os(Linux)
     package func start(linuxDescriptorSetup: @Sendable (Int32) -> Bool) {
+        self.condition.lock()
+        guard !self.readerStarted, !self.isFinished, !self.isStopping else {
+            self.condition.unlock()
+            return
+        }
+        self.readerStarted = true
+        self.condition.unlock()
+
         let fileDescriptor = self.handle.fileDescriptor
         guard linuxDescriptorSetup(fileDescriptor) else {
             self.finishFailedLinuxStart()
@@ -55,20 +61,14 @@ package final class ProcessPipeCapture: @unchecked Sendable {
         }
 
         // FileHandle.readabilityHandler duplicates the descriptor on Linux and traps if dup(2) returns EMFILE.
-        // A dispatch read source monitors the pipe's existing descriptor, so descriptor exhaustion cannot trigger
-        // Foundation's precondition failure.
-        let source = DispatchSource.makeReadSource(fileDescriptor: fileDescriptor, queue: self.readerQueue)
-        source.setEventHandler { [weak self] in
-            self?.handleLinuxReadableData(fileDescriptor: fileDescriptor)
+        // DispatchSourceRead avoids that duplication, but Swift 6.3's Linux epoll backend can unregister and free
+        // a pipe's shared muxnote on its target queue while the manager queue is still traversing the HUP event.
+        // Poll on an owned thread instead: the reader keeps sole descriptor-close ownership, while the bounded poll
+        // interval keeps stop() responsive without allocating a wakeup descriptor that would break the EMFILE path.
+        Thread.detachNewThread { [self] in
+            Thread.current.name = "CodexBar pipe capture"
+            self.runLinuxReader(fileDescriptor: fileDescriptor)
         }
-        source.setCancelHandler { [weak self] in
-            self?.finishLinuxSourceCancellation()
-        }
-        self.condition.lock()
-        self.readSource = source
-        self.sourceStarted = true
-        self.condition.unlock()
-        source.resume()
     }
     #endif
 
@@ -166,6 +166,42 @@ package final class ProcessPipeCapture: @unchecked Sendable {
     }
 
     #if os(Linux)
+    private func runLinuxReader(fileDescriptor: Int32) {
+        var pollDescriptor = pollfd(fd: fileDescriptor, events: Int16(POLLIN), revents: 0)
+
+        while true {
+            self.condition.lock()
+            let shouldStop = self.isStopping
+            self.condition.unlock()
+            if shouldStop { break }
+
+            pollDescriptor.revents = 0
+            #if canImport(Glibc)
+            let pollResult = Glibc.poll(&pollDescriptor, 1, 25)
+            #elseif canImport(Musl)
+            let pollResult = Musl.poll(&pollDescriptor, 1, 25)
+            #endif
+            if pollResult < 0 {
+                if errno == EINTR { continue }
+                self.finishLinuxRead(reachedEOF: false)
+                break
+            }
+            if pollResult == 0 { continue }
+
+            self.handleLinuxReadableData(fileDescriptor: fileDescriptor)
+            self.condition.lock()
+            let finished = self.isFinished || self.isStopping
+            self.condition.unlock()
+            if finished { break }
+        }
+
+        try? self.handle.close()
+        self.condition.lock()
+        self.readerExited = true
+        self.condition.broadcast()
+        self.condition.unlock()
+    }
+
     private func handleLinuxReadableData(fileDescriptor: Int32) {
         self.condition.lock()
         guard !self.isStopping else {
@@ -215,14 +251,12 @@ package final class ProcessPipeCapture: @unchecked Sendable {
         }
 
         var continuation: CheckedContinuation<Void, Never>?
-        var sourceToCancel: DispatchSourceRead?
         self.condition.lock()
         if reachedEnd {
             self.isFinished = true
             self.didReachEOF = true
             continuation = self.continuation
             self.continuation = nil
-            sourceToCancel = self.readSource
         }
         self.activeCallbacks -= 1
         if self.activeCallbacks == 0 || reachedEnd {
@@ -230,10 +264,25 @@ package final class ProcessPipeCapture: @unchecked Sendable {
         }
         self.condition.unlock()
 
-        sourceToCancel?.cancel()
         if receivedData {
             self.scheduleLinuxDataCallback()
         }
+        continuation?.resume()
+    }
+
+    private func finishLinuxRead(reachedEOF: Bool) {
+        let continuation: CheckedContinuation<Void, Never>?
+        self.condition.lock()
+        if self.isStopping {
+            continuation = nil
+        } else {
+            self.isFinished = true
+            self.didReachEOF = reachedEOF
+            continuation = self.continuation
+            self.continuation = nil
+            self.condition.broadcast()
+        }
+        self.condition.unlock()
         continuation?.resume()
     }
 
@@ -271,20 +320,12 @@ package final class ProcessPipeCapture: @unchecked Sendable {
         try? self.handle.close()
         self.condition.lock()
         self.isFinished = true
+        self.readerExited = true
         let continuation = self.continuation
         self.continuation = nil
         self.condition.broadcast()
         self.condition.unlock()
         continuation?.resume()
-    }
-
-    private func finishLinuxSourceCancellation() {
-        try? self.handle.close()
-        self.condition.lock()
-        self.sourceCancelled = true
-        self.readSource = nil
-        self.condition.broadcast()
-        self.condition.unlock()
     }
     #endif
 
@@ -311,13 +352,17 @@ package final class ProcessPipeCapture: @unchecked Sendable {
         let continuation: CheckedContinuation<Void, Never>?
         let snapshot: Data
         #if os(Linux)
-        let source: DispatchSourceRead?
         self.condition.lock()
         self.isStopping = true
-        source = self.readSource
-        self.readSource = nil
+        let closeUnstartedReader = !self.readerStarted
+        if closeUnstartedReader {
+            self.readerExited = true
+        }
+        self.condition.broadcast()
         self.condition.unlock()
-        source?.cancel()
+        if closeUnstartedReader {
+            try? self.handle.close()
+        }
         #else
         self.handle.readabilityHandler = nil
         #endif
@@ -325,7 +370,7 @@ package final class ProcessPipeCapture: @unchecked Sendable {
         self.condition.lock()
         self.isStopping = true
         #if os(Linux)
-        while self.activeCallbacks > 0 || (self.sourceStarted && !self.sourceCancelled) {
+        while self.activeCallbacks > 0 || (self.readerStarted && !self.readerExited) {
             self.condition.wait()
         }
         #else
@@ -339,11 +384,8 @@ package final class ProcessPipeCapture: @unchecked Sendable {
         snapshot = self.data
         self.condition.unlock()
 
-        // Explicitly close the read-end file descriptor. On Linux
-        // swift-corelibs-foundation, clearing readabilityHandler does not
-        // release the underlying dup'd monitor fd, so the pipe read end leaks
-        // if we rely solely on closeOnDealloc. Closing here prevents the
-        // long-running fd growth that leads to EMFILE/SIGILL (issue #2234).
+        // Linux closes from the reader's single exit path (or the never-started path above). On Darwin,
+        // clearing readabilityHandler does not release its duplicated monitor descriptor immediately.
         #if !os(Linux)
         try? self.handle.close()
         #endif

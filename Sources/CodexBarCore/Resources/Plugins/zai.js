@@ -4,8 +4,10 @@ defineProvider({
   endpoints: [
     "https://api.z.ai",
     "https://open.bigmodel.cn",
+    "https://www.bigmodel.cn",
     { setting: "Z_AI_QUOTA_ENDPOINT", policy: "https" },
     { setting: "Z_AI_MODEL_USAGE_ENDPOINT", policy: "https" },
+    { setting: "Z_AI_BALANCE_ENDPOINT", policy: "https" },
   ],
   auth: { type: "bearer", secret: "Z_AI_API_KEY" },
   settings: [
@@ -16,6 +18,7 @@ defineProvider({
     { key: "Z_AI_PROJECT", title: "Project", type: "plain" },
     { key: "Z_AI_QUOTA_ENDPOINT", title: "Quota endpoint", type: "plain" },
     { key: "Z_AI_MODEL_USAGE_ENDPOINT", title: "Model usage endpoint", type: "plain" },
+    { key: "Z_AI_BALANCE_ENDPOINT", title: "Balance endpoint", type: "plain" },
   ],
 
   async fetchUsage(ctx) {
@@ -94,7 +97,10 @@ defineProvider({
       } else if (limit.windowMinutes !== null) {
         result.windowMinutes = limit.windowMinutes;
       }
-      if (limit.reset !== null) result.resetsAt = ctx.date.unixMillis(limit.reset);
+      // A five-hour Coding Plan reset cannot be ten hours away; never guess a timezone correction.
+      const isFiveHourPlan = limit.raw.type !== "TIME_LIMIT" && limit.windowMinutes === 300;
+      const resetIsPlausible = !isFiveHourPlan || limit.reset <= ctx.date.nowMillis() + (5 * 3600 + 60) * 1000;
+      if (limit.reset !== null && resetIsPlausible) result.resetsAt = ctx.date.unixMillis(limit.reset);
       if (limit.raw.type === "TIME_LIMIT") result.resetDescription = "MCP";
       else if (limit.windowMinutes === 300) result.resetDescription = "5-hour";
       else if (limit.windowMinutes !== null) {
@@ -201,6 +207,55 @@ defineProvider({
     );
     if (plan) result.identity.loginMethod = plan.trim();
 
+    // BigModel CN pay-as-you-go account balance (www.bigmodel.cn console endpoint,
+    // verified 2026-08: accepts both "Bearer <key>" and raw-key Authorization).
+    // z.ai global has no documented equivalent, so the row is CN-only. Best-effort —
+    // a failed balance lookup must never break quota display.
+    if (region === "bigmodel-cn") {
+      try {
+        const balanceEndpoint =
+          ctx.settings.get("Z_AI_BALANCE_ENDPOINT") ||
+          "https://www.bigmodel.cn/api/biz/account/query-customer-account-report";
+        // Optional lookup: bound it well below the fetch deadline so a stalling balance
+        // service can neither delay the later model-usage requests nor discard the
+        // already-fetched quota snapshot.
+        const response = await ctx.http.getJSON(balanceEndpoint, { timeoutSeconds: 5 });
+        const body = response.json;
+        if (response.status === 200 && body && typeof body === "object" && body.success === true) {
+          const data = body.data && typeof body.data === "object" ? body.data : {};
+          // Number(null) is 0, which would silently defeat the fallback below and
+          // render misleading ¥0.00 rows — only actual numeric values participate.
+          const numeric = (value) => (value === null || value === undefined ? undefined : Number(value));
+          const available = numeric(data.availableBalance);
+          const current = numeric(data.balance);
+          const value = Number.isFinite(available) ? available : current;
+          if (Number.isFinite(value)) {
+            const recharged = numeric(data.rechargeAmount);
+            const granted = numeric(data.giveAmount);
+            const spent = numeric(data.totalSpendAmount);
+            const secondary = [];
+            if (Number.isFinite(recharged)) secondary.push(`recharged ¥${recharged.toFixed(2)}`);
+            if (Number.isFinite(granted) && granted > 0) secondary.push(`granted ¥${granted.toFixed(2)}`);
+            if (Number.isFinite(spent)) secondary.push(`spent ¥${spent.toFixed(2)}`);
+            result.details[0].rows.push({
+              label: "Account balance",
+              value: `¥${Number(value).toFixed(2)}`,
+              secondaryValue: secondary.join(" · ") || undefined,
+            });
+          }
+        }
+      } catch {}
+    }
+
+    function compactTokenCount(value) {
+      const divisor = value >= 1_000_000_000 ? 1_000_000_000 : value >= 1_000_000 ? 1_000_000 : null;
+      if (divisor === null) return String(value);
+      const suffix = divisor === 1_000_000_000 ? "B" : "M";
+      const digits = value >= divisor * 100 ? 0 : value >= divisor * 10 ? 1 : 2;
+      const scaled = (value / divisor).toFixed(digits);
+      return `${scaled.replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "")}${suffix}`;
+    }
+
     async function modelUsage(daysBack) {
       const end = ctx.date.now();
       const start = new Date(end);
@@ -223,27 +278,30 @@ defineProvider({
       if (!body || body.success !== true || body.code !== 200) throw new Error("invalid model usage response");
       const data = body.data || {};
       const labels = Array.isArray(data.x_time) ? data.x_time : [];
-      const models = Array.isArray(data.modelDataList) ? data.modelDataList : [];
+      const models = (Array.isArray(data.modelDataList) ? data.modelDataList : []).map((model) => ({
+        name: model && typeof model.modelName === "string" ? model.modelName : "Unknown",
+        tokens:
+          model && Array.isArray(model.tokensUsage)
+            ? model.tokensUsage.map((value) => (Number.isInteger(value) && value > 0 ? value : 0))
+            : [],
+      }));
       const points = labels
-        .map((label, index) => {
-          let total = 0;
-          for (const model of models) {
-            const value = model && Array.isArray(model.tokensUsage) ? model.tokensUsage[index] : null;
-            if (Number.isInteger(value) && value > 0) total += value;
-          }
-          return { label: String(label), value: total };
-        })
+        .map((label, index) => ({
+          label: String(label),
+          value: models.reduce((sum, model) => sum + (model.tokens[index] || 0), 0),
+        }))
         .filter((point) => point.value > 0);
       const totals = models
-        .map((model) => ({
-          name: model && typeof model.modelName === "string" ? model.modelName : "Unknown",
-          tokens:
-            model && Array.isArray(model.tokensUsage)
-              ? model.tokensUsage.reduce((sum, value) => sum + (Number.isInteger(value) && value > 0 ? value : 0), 0)
-              : 0,
-        }))
+        .map((model) => ({ name: model.name, tokens: model.tokens.reduce((sum, value) => sum + value, 0) }))
         .filter((item) => item.tokens > 0)
         .sort((a, b) => b.tokens - a.tokens || a.name.localeCompare(b.name));
+      if (
+        points.length > 120 ||
+        points.some((point) => !Number.isFinite(point.value) || !ctx.isDetailLabel(point.label)) ||
+        totals.slice(0, 20).some((item) => !Number.isFinite(item.tokens) || !ctx.isDetailLabel(item.name))
+      ) {
+        throw new Error("model usage exceeds display bounds");
+      }
       return { points, totals };
     }
 
@@ -256,7 +314,10 @@ defineProvider({
         if (usage.points.length) {
           result.details.push({
             title,
-            rows: usage.totals.slice(0, 20).map((item) => ({ label: item.name, value: String(item.tokens) })),
+            rows: usage.totals.slice(0, 20).map((item) => ({
+              label: item.name,
+              value: compactTokenCount(item.tokens),
+            })),
             chart: { kind: "bars", title, unit: "tokens", points: usage.points },
           });
         }

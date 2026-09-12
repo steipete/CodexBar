@@ -52,6 +52,18 @@ struct CodexSpendControlsMonthlyUsageTests {
         """
     }
 
+    private func malformedNestedLimitJSON(enforcementMode: String = "HARD_CAP") -> String {
+        """
+        {
+          "current_month_usage": 12,
+          "effective_monthly_limit": {
+            "limit": {"amount": 7000},
+            "enforcement_mode": "\(enforcementMode)"
+          }
+        }
+        """
+    }
+
     private func monthlyUsageJSON(
         usage: String = "3046.4506806135178",
         limit: String = "7000",
@@ -149,6 +161,87 @@ struct CodexSpendControlsMonthlyUsageTests {
 
         #expect(zero.codexCreditLimitSnapshot(updatedAt: Date()) == nil)
         #expect(missing.codexCreditLimitSnapshot(updatedAt: Date()) == nil)
+        #expect(!zero.monthlyLimitMappingFailed)
+        #expect(!missing.monthlyLimitMappingFailed)
+    }
+
+    @Test
+    func `unmappable nested limit is an enrichment failure not confirmed absence`() throws {
+        let malformed = try self.decodeMonthlyUsage(self.malformedNestedLimitJSON())
+
+        #expect(malformed.codexCreditLimitSnapshot(updatedAt: Date()) == nil)
+        #expect(malformed.monthlyLimitMappingFailed)
+    }
+
+    @Test
+    func `disabled enforcement wins over an unmappable nested limit`() throws {
+        let disabled = try self.decodeMonthlyUsage(
+            self.malformedNestedLimitJSON(enforcementMode: "disabled"))
+
+        #expect(disabled.codexCreditLimitSnapshot(updatedAt: Date()) == nil)
+        #expect(!disabled.monthlyLimitMappingFailed)
+    }
+
+    @Test
+    func `unmappable current month usage is an enrichment failure`() throws {
+        let malformed = try self.decodeMonthlyUsage(
+            self.monthlyUsageJSON(usage: #"{"amount":12}"#))
+
+        #expect(malformed.codexCreditLimitSnapshot(updatedAt: Date())?.limit == 7000)
+        #expect(malformed.monthlyLimitMappingFailed)
+    }
+
+    @Test
+    func `absent cap overrides malformed current month usage`() throws {
+        let absent = try self.decodeMonthlyUsage(#"{"current_month_usage":{"amount":12}}"#)
+
+        #expect(absent.codexCreditLimitSnapshot(updatedAt: Date()) == nil)
+        #expect(!absent.monthlyLimitMappingFailed)
+    }
+
+    @Test
+    func `unmappable enforcement mode is an enrichment failure`() throws {
+        let malformed = try self.decodeMonthlyUsage(
+            #"""
+            {
+              "current_month_usage": 12,
+              "effective_monthly_limit": {
+                "limit": 7000,
+                "enforcement_mode": {"mode": "HARD_CAP"}
+              }
+            }
+            """#)
+
+        #expect(malformed.codexCreditLimitSnapshot(updatedAt: Date())?.limit == 7000)
+        #expect(malformed.monthlyLimitMappingFailed)
+    }
+
+    @Test
+    func `zero limit confirms absence even with unmappable enforcement`() throws {
+        let zero = try self.decodeMonthlyUsage(
+            #"""
+            {
+              "current_month_usage": 12,
+              "effective_monthly_limit": {
+                "limit": 0,
+                "enforcement_mode": {"mode": "HARD_CAP"}
+              }
+            }
+            """#)
+
+        #expect(zero.codexCreditLimitSnapshot(updatedAt: Date()) == nil)
+        #expect(!zero.monthlyLimitMappingFailed)
+    }
+
+    @Test
+    func `non-finite usage and limit strings are mapping failures`() throws {
+        let nanUsage = try self.decodeMonthlyUsage(self.monthlyUsageJSON(usage: #""NaN""#))
+        #expect(nanUsage.codexCreditLimitSnapshot(updatedAt: Date())?.limit == 7000)
+        #expect(nanUsage.monthlyLimitMappingFailed)
+
+        let infiniteLimit = try self.decodeMonthlyUsage(self.monthlyUsageJSON(limit: #""Infinity""#))
+        #expect(infiniteLimit.codexCreditLimitSnapshot(updatedAt: Date()) == nil)
+        #expect(infiniteLimit.monthlyLimitMappingFailed)
     }
 
     @Test
@@ -186,11 +279,13 @@ struct CodexSpendControlsMonthlyUsageTests {
     }
 
     @Test
-    func `missing plan does not gate the monthly endpoint`() throws {
-        let response = try self.decodeUsage(self.educationUsageJSON(planType: nil))
+    func `missing or unknown plan still fetches when spend controls are present`() throws {
+        let missing = try self.decodeUsage(self.educationUsageJSON(planType: nil))
+        #expect(missing.planType == nil)
+        #expect(CodexSpendControlsMonthlyUsageGate.shouldFetch(response: missing))
 
-        #expect(response.planType == nil)
-        #expect(!CodexSpendControlsMonthlyUsageGate.shouldFetch(response: response))
+        let unknown = try self.decodeUsage(self.educationUsageJSON(planType: "not-a-plan"))
+        #expect(CodexSpendControlsMonthlyUsageGate.shouldFetch(response: unknown))
     }
 
     @Test
@@ -227,6 +322,7 @@ struct CodexSpendControlsMonthlyUsageTests {
         #expect(enriched.credits?.codexCreditLimit?.limit == 7000)
         #expect(enriched.sourceLabel == original.sourceLabel)
         #expect(enriched.strategyID == original.strategyID)
+        #expect(!enriched.codexMonthlyLimitEnrichmentFailed)
     }
 
     @Test
@@ -276,6 +372,136 @@ struct CodexSpendControlsMonthlyUsageTests {
         #expect(result.strategyID == original.strategyID)
         #expect(result.strategyKind == original.strategyKind)
         #expect(result.diagnostic == original.diagnostic)
+        #expect(!original.codexMonthlyLimitEnrichmentFailed)
+        #expect(result.codexMonthlyLimitEnrichmentFailed)
+    }
+
+    @Test
+    func `O auth helper treats a missing account id as enrichment failure`() async throws {
+        let usageJSON = self.educationUsageJSON(accountId: nil)
+        let usage = try self.decodeUsage(usageJSON)
+        let original = try CodexOAuthFetchStrategy._mapResultForTesting(
+            Data(usageJSON.utf8),
+            credentials: self.makeCredentials())
+
+        let invocations = InvocationCounter()
+        let result = try await CodexOAuthFetchStrategy._applySpendControlsMonthlyLimitForTesting(
+            original,
+            usage: usage,
+            credentials: self.makeCredentials(),
+            context: self.makeContext(),
+            fetcher: { _ in
+                await invocations.increment()
+                throw ExpectedError.failed
+            })
+
+        #expect(await invocations.count() == 0)
+        #expect(result.credits == original.credits)
+        #expect(result.codexMonthlyLimitEnrichmentFailed)
+    }
+
+    @Test
+    func `O auth helper treats unmappable nested limit as enrichment failure`() async throws {
+        let usageJSON = self.educationUsageJSON()
+        let usage = try self.decodeUsage(usageJSON)
+        let original = try CodexOAuthFetchStrategy._mapResultForTesting(
+            Data(usageJSON.utf8),
+            credentials: self.makeCredentials())
+        let payload = try self.decodeMonthlyUsage(self.malformedNestedLimitJSON())
+
+        let result = try await CodexOAuthFetchStrategy._applySpendControlsMonthlyLimitForTesting(
+            original,
+            usage: usage,
+            credentials: self.makeCredentials(accountId: "credential-account"),
+            context: self.makeContext(),
+            fetcher: { _ in payload })
+
+        #expect(result.credits == original.credits)
+        #expect(result.credits?.codexCreditLimit == nil)
+        #expect(result.codexMonthlyLimitEnrichmentFailed)
+    }
+
+    @Test
+    func `O auth helper treats disabled unmappable limit as confirmed absence`() async throws {
+        let usageJSON = self.educationUsageJSON()
+        let usage = try self.decodeUsage(usageJSON)
+        let original = try CodexOAuthFetchStrategy._mapResultForTesting(
+            Data(usageJSON.utf8),
+            credentials: self.makeCredentials())
+        let payload = try self.decodeMonthlyUsage(self.malformedNestedLimitJSON(enforcementMode: "disabled"))
+
+        let result = try await CodexOAuthFetchStrategy._applySpendControlsMonthlyLimitForTesting(
+            original,
+            usage: usage,
+            credentials: self.makeCredentials(accountId: "credential-account"),
+            context: self.makeContext(),
+            fetcher: { _ in payload })
+
+        #expect(result.credits == original.credits)
+        #expect(result.credits?.codexCreditLimit == nil)
+        #expect(!result.codexMonthlyLimitEnrichmentFailed)
+    }
+
+    @Test
+    func `O auth helper treats unmappable current month usage as enrichment failure`() async throws {
+        let usageJSON = self.educationUsageJSON()
+        let usage = try self.decodeUsage(usageJSON)
+        let original = try CodexOAuthFetchStrategy._mapResultForTesting(
+            Data(usageJSON.utf8),
+            credentials: self.makeCredentials())
+        let payload = try self.decodeMonthlyUsage(self.monthlyUsageJSON(usage: #"{"amount":12}"#))
+
+        let result = try await CodexOAuthFetchStrategy._applySpendControlsMonthlyLimitForTesting(
+            original,
+            usage: usage,
+            credentials: self.makeCredentials(accountId: "credential-account"),
+            context: self.makeContext(),
+            fetcher: { _ in payload })
+
+        #expect(result.credits == original.credits)
+        #expect(result.codexMonthlyLimitEnrichmentFailed)
+    }
+
+    @Test
+    func `O auth helper treats absent cap as confirmed despite malformed usage`() async throws {
+        let usageJSON = self.educationUsageJSON()
+        let usage = try self.decodeUsage(usageJSON)
+        let original = try CodexOAuthFetchStrategy._mapResultForTesting(
+            Data(usageJSON.utf8),
+            credentials: self.makeCredentials())
+        let payload = try self.decodeMonthlyUsage(#"{"current_month_usage":{"amount":12}}"#)
+
+        let result = try await CodexOAuthFetchStrategy._applySpendControlsMonthlyLimitForTesting(
+            original,
+            usage: usage,
+            credentials: self.makeCredentials(accountId: "credential-account"),
+            context: self.makeContext(),
+            fetcher: { _ in payload })
+
+        #expect(result.credits == original.credits)
+        #expect(result.credits?.codexCreditLimit == nil)
+        #expect(!result.codexMonthlyLimitEnrichmentFailed)
+    }
+
+    @Test
+    func `O auth helper treats disabled monthly cap as confirmed absence`() async throws {
+        let usageJSON = self.educationUsageJSON()
+        let usage = try self.decodeUsage(usageJSON)
+        let original = try CodexOAuthFetchStrategy._mapResultForTesting(
+            Data(usageJSON.utf8),
+            credentials: self.makeCredentials())
+        let payload = try self.decodeMonthlyUsage(self.monthlyUsageJSON(enforcementMode: "disabled"))
+
+        let result = try await CodexOAuthFetchStrategy._applySpendControlsMonthlyLimitForTesting(
+            original,
+            usage: usage,
+            credentials: self.makeCredentials(accountId: "credential-account"),
+            context: self.makeContext(),
+            fetcher: { _ in payload })
+
+        #expect(result.credits == original.credits)
+        #expect(result.credits?.codexCreditLimit == nil)
+        #expect(!result.codexMonthlyLimitEnrichmentFailed)
     }
 
     @Test

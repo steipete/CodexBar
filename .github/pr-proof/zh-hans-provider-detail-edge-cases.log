@@ -1,0 +1,104 @@
+$WORKTREE/Tests/CodexBarTests/OpenCodeGoUsageFetcherCLIWaitTests.swift:213:79: warning: conformance of 'OpenCodeGoCLIWaitStubURLProtocol' to protocol 'Sendable' is already unavailable
+211 | }
+212 |
+213 | private final class OpenCodeGoCLIWaitStubURLProtocol: URLProtocol, @unchecked Sendable {
+    |                     |                                                         `- warning: conformance of 'OpenCodeGoCLIWaitStubURLProtocol' to protocol 'Sendable' is already unavailable
+    |                     `- note: 'OpenCodeGoCLIWaitStubURLProtocol' inherits conformance to protocol 'Sendable' from superclass here
+214 |     private static let handlerBox = LockIsolated<((URLRequest) throws -> (HTTPURLResponse, Data))?>(nil)
+215 |     static var handler: ((URLRequest) throws -> (HTTPURLResponse, Data))? {
+Build complete! (34.86s)
+Test Suite 'Selected tests' started at 2026-08-20 10:52:41.809.
+Test Suite 'CodexBarPackageTests.xctest' started at 2026-08-20 10:52:41.809.
+Test Suite 'CodexBarPackageTests.xctest' passed at 2026-08-20 10:52:41.809.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+Test Suite 'Selected tests' passed at 2026-08-20 10:52:41.809.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+◇ Test run started.
+↳ Testing Library Version: 1902
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Suite MenuCardDeepSeekTests started.
+◇ Test "model hides deepseek usage when cost summary is disabled despite extras enabled" started.
+◇ Test "model localizes deepseek balance fallback messages in simplified chinese" started.
+◇ Test "model shows deepseek usage when cost summary and extras are enabled" started.
+◇ Test "browser only sign in remains visible when cost summary is disabled" started.
+◇ Test "model hides deepseek usage when extras are disabled despite cost summary enabled" started.
+◇ Test "model explains that detailed usage needs a platform session" started.
+◇ Test "model shows balance as status text instead of percentage detail" started.
+◇ Test "model shows balance without stale deepseek usage while refreshing" started.
+◇ Test "model asks for a profile when multiple deepseek sessions are valid" started.
+◇ Test "model localizes deepseek balance components in simplified chinese" started.
+◇ Test "model explains unavailable deepseek usage when cost summary is enabled" started.
+◇ Test "model localizes deepseek usage details in simplified chinese" started.
+✔ Test "model localizes deepseek balance fallback messages in simplified chinese" passed after 0.008 seconds.
+✔ Test "model explains unavailable deepseek usage when cost summary is enabled" passed after 0.008 seconds.
+✔ Test "browser only sign in remains visible when cost summary is disabled" passed after 0.008 seconds.
+✔ Test "model explains that detailed usage needs a platform session" passed after 0.008 seconds.
+✔ Test "model asks for a profile when multiple deepseek sessions are valid" passed after 0.008 seconds.
+✔ Test "model hides deepseek usage when cost summary is disabled despite extras enabled" passed after 0.008 seconds.
+✔ Test "model localizes deepseek balance components in simplified chinese" passed after 0.008 seconds.
+✔ Test "model shows balance as status text instead of percentage detail" passed after 0.008 seconds.
+✔ Test "model hides deepseek usage when extras are disabled despite cost summary enabled" passed after 0.008 seconds.
+✔ Test "model shows deepseek usage when cost summary and extras are enabled" passed after 0.008 seconds.
+✔ Test "model shows balance without stale deepseek usage while refreshing" passed after 0.008 seconds.
+✔ Test "model localizes deepseek usage details in simplified chinese" passed after 0.008 seconds.
+✔ Suite MenuCardDeepSeekTests passed after 0.009 seconds.
+✔ Test run with 12 tests in 1 suite passed after 0.009 seconds.
+Build complete! (0.19s)
+Test Suite 'Selected tests' started at 2026-08-20 10:52:42.835.
+Test Suite 'CodexBarPackageTests.xctest' started at 2026-08-20 10:52:42.835.
+Test Suite 'CodexBarPackageTests.xctest' passed at 2026-08-20 10:52:42.835.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+Test Suite 'Selected tests' passed at 2026-08-20 10:52:42.835.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+◇ Test run started.
+↳ Testing Library Version: 1902
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Suite ZaiMenuCardTests started.
+◇ Test "inline style keeps zai inline cost summary details" started.
+◇ Test "zai metrics titles are 5-hour weekly and MCP when session token limit present" started.
+◇ Test "model localizes zai quota values and periodic reset in simplified chinese" started.
+◇ Test "model localizes zai usage sections in simplified chinese" started.
+◇ Test "submenu only hides zai inline cost summary details" started.
+✔ Test "model localizes zai quota values and periodic reset in simplified chinese" passed after 0.006 seconds.
+✔ Test "zai metrics titles are 5-hour weekly and MCP when session token limit present" passed after 0.006 seconds.
+2026-08-20T10:52:43+0800 info com.steipete.codexbar.logging: path=$HOME/Library/Logs/CodexBar/CodexBar.log [CodexBarCore] File logging disabled
+2026-08-20T10:52:43+0800 info com.steipete.codexbar.settings: enabled=0 [CodexBarCore] Claude web extras updated
+2026-08-20T10:52:43+0800 info com.steipete.codexbar.settings: enabled=0 [CodexBarCore] OpenAI web access updated
+✔ Test "inline style keeps zai inline cost summary details" passed after 0.010 seconds.
+2026-08-20T10:52:43+0800 info com.steipete.codexbar.logging: path=$HOME/Library/Logs/CodexBar/CodexBar.log [CodexBarCore] File logging disabled
+2026-08-20T10:52:43+0800 info com.steipete.codexbar.settings: enabled=0 [CodexBarCore] Claude web extras updated
+2026-08-20T10:52:43+0800 info com.steipete.codexbar.settings: enabled=0 [CodexBarCore] OpenAI web access updated
+✔ Test "model localizes zai usage sections in simplified chinese" passed after 0.016 seconds.
+2026-08-20T10:52:43+0800 info com.steipete.codexbar.logging: path=$HOME/Library/Logs/CodexBar/CodexBar.log [CodexBarCore] File logging disabled
+2026-08-20T10:52:43+0800 info com.steipete.codexbar.settings: enabled=0 [CodexBarCore] Claude web extras updated
+2026-08-20T10:52:43+0800 info com.steipete.codexbar.settings: enabled=0 [CodexBarCore] OpenAI web access updated
+✔ Test "submenu only hides zai inline cost summary details" passed after 0.021 seconds.
+✔ Suite ZaiMenuCardTests passed after 0.021 seconds.
+✔ Test run with 5 tests in 1 suite passed after 0.021 seconds.
+Build complete! (0.18s)
+Test Suite 'Selected tests' started at 2026-08-20 10:52:43.837.
+Test Suite 'CodexBarPackageTests.xctest' started at 2026-08-20 10:52:43.837.
+Test Suite 'CodexBarPackageTests.xctest' passed at 2026-08-20 10:52:43.837.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+Test Suite 'Selected tests' passed at 2026-08-20 10:52:43.837.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+◇ Test run started.
+↳ Testing Library Version: 1902
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Suite UserFacingLocalizationCoverageTests started.
+◇ Test "spend dashboard chart keeps validated points when aggregate total is unavailable" started.
+◇ Test "hourly chart labels include the date across multiple days" started.
+◇ Test "spend dashboard model breakdown state stays precise and localized" started.
+◇ Test "hourly chart labels disambiguate repeated DST fallback hours" started.
+◇ Test "provider detail localization preserves technical identifiers" started.
+◇ Test "selected user-facing UI surfaces avoid raw English literals" started.
+✔ Test "spend dashboard model breakdown state stays precise and localized" passed after 0.001 seconds.
+✔ Test "hourly chart labels disambiguate repeated DST fallback hours" passed after 0.002 seconds.
+✔ Test "spend dashboard chart keeps validated points when aggregate total is unavailable" passed after 0.005 seconds.
+✔ Test "hourly chart labels include the date across multiple days" passed after 0.005 seconds.
+✔ Test "provider detail localization preserves technical identifiers" passed after 0.005 seconds.
+✔ Test "selected user-facing UI surfaces avoid raw English literals" passed after 0.023 seconds.
+✔ Suite UserFacingLocalizationCoverageTests passed after 0.023 seconds.
+✔ Test run with 6 tests in 1 suite passed after 0.023 seconds.
+app locale checker tests OK
+App locales OK: Checked 22 catalogs against 1472 English keys.

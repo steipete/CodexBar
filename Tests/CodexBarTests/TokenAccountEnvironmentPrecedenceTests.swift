@@ -6,6 +6,30 @@ import Testing
 
 @Suite(.serialized)
 struct AlibabaTokenPlanRegionSelectionTests {
+    @Test
+    func `Alibaba Token Plan CLI config without source defaults to Auto`() throws {
+        let config = CodexBarConfig(
+            providers: [ProviderConfig(id: .alibabatokenplan)])
+        let tokenContext = try TokenAccountCLIContext(
+            selection: TokenAccountCLISelection(label: nil, index: nil, allAccounts: false),
+            config: config,
+            verbose: false)
+
+        #expect(tokenContext.preferredSourceMode(for: .alibabatokenplan) == .auto)
+    }
+
+    @Test
+    func `explicit Alibaba Token Plan Auto source remains Auto in CLI`() throws {
+        let config = CodexBarConfig(
+            providers: [ProviderConfig(id: .alibabatokenplan, source: .auto)])
+        let tokenContext = try TokenAccountCLIContext(
+            selection: TokenAccountCLISelection(label: nil, index: nil, allAccounts: false),
+            config: config,
+            verbose: false)
+
+        #expect(tokenContext.preferredSourceMode(for: .alibabatokenplan) == .auto)
+    }
+
     @Test @MainActor
     func `fresh app settings default to International`() {
         let settings = testSettingsStore(suiteName: "AlibabaTokenPlanRegionSelectionTests-fresh")
@@ -139,7 +163,7 @@ struct ZaiTokenAccountEnvironmentPrecedenceTests {
     }
 }
 
-@Suite(.serialized)
+@Suite(.serialized, CodexCredentialFixtures())
 @MainActor
 struct TokenAccountEnvironmentPrecedenceTests {
     @Test
@@ -590,7 +614,7 @@ struct TokenAccountEnvironmentPrecedenceTests {
 
     @Test
     func `codex all accounts selection exposes configured accounts and scopes CLI homes`() throws {
-        let root = FileManager.default.temporaryDirectory
+        let root = CodexCredentialFixtures.root
             .appendingPathComponent("codex-cli-all-accounts-\(UUID().uuidString)", isDirectory: true)
         let ambientHome = root.appendingPathComponent("ambient", isDirectory: true)
         let firstHome = root.appendingPathComponent("first", isDirectory: true)
@@ -696,7 +720,7 @@ struct TokenAccountEnvironmentPrecedenceTests {
 
     @Test
     func `codex CLI ignores relative profile homes`() throws {
-        let root = FileManager.default.temporaryDirectory
+        let root = CodexCredentialFixtures.root
             .appendingPathComponent("codex-cli-relative-profile-\(UUID().uuidString)", isDirectory: true)
         let ambientHome = root.appendingPathComponent("ambient", isDirectory: true)
         let managedStoreURL = root.appendingPathComponent("managed-codex-accounts.json")
@@ -1107,7 +1131,7 @@ extension TokenAccountEnvironmentPrecedenceTests {
     }
 
     fileprivate static func makeTempCodexHome(email: String, plan: String, accountId: String) -> URL {
-        let home = FileManager.default.temporaryDirectory
+        let home = CodexCredentialFixtures.root
             .appendingPathComponent("codex-known-owner-\(UUID().uuidString)", isDirectory: true)
         try? FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
         let credentials = CodexOAuthCredentials(

@@ -5,6 +5,37 @@ import Testing
 
 @MainActor
 struct UsageStoreWidgetSnapshotTests {
+    @Test(arguments: [300, 43200])
+    func `widget snapshot keeps Ollama period labels consistent`(minutes: Int) async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let settings = testSettingsStore(
+            suiteName: "UsageStoreWidgetSnapshotTests-ollama-\(minutes)",
+            config: testConfigWithAllProvidersDisabled())
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(homeDirectory: root.path, fileExists: { _ in false }),
+            settings: settings,
+            startupBehavior: .testing,
+            environmentBase: [:],
+            widgetSnapshotURL: root.appendingPathComponent("widget.json"))
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(usedPercent: 12.5, windowMinutes: minutes, resetsAt: nil, resetDescription: nil),
+                secondary: nil,
+                updatedAt: Date(timeIntervalSince1970: 1_789_473_600)),
+            provider: .ollama)
+        var saved: WidgetSnapshot?
+        store._test_widgetSnapshotSaveOverride = { saved = $0 }
+        defer { store._test_widgetSnapshotSaveOverride = nil }
+
+        store.persistWidgetSnapshot(reason: "ollama-period-label-test")
+        await store.widgetSnapshotPersistTask?.value
+
+        let entry = try #require(saved?.entries.first { $0.provider == .ollama })
+        #expect(entry.usageRows?.map(\.title) == [minutes == 43200 ? "Monthly" : "Session"])
+        #expect(entry.usageRows?.compactMap(\.percentLeft) == [87.5])
+    }
+
     @Test
     func `widget snapshot preserves raw Codex windows for timeline projection`() async throws {
         let suite = "UsageStoreWidgetSnapshotTests-codex-weekly-cap"

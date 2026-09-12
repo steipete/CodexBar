@@ -11,10 +11,40 @@ private struct SpendDashboardCodexCostCatchUpContext {
 }
 
 extension UsageStore {
-    func synchronizeSpendDashboardCodexCostCatchUp(accounts: [CodexSpendScanRequest]) {
-        let mode = self.spendDashboardCodexCostCatchUpTask == nil
-            ? .automatic
-            : self.spendDashboardCodexCostCatchUpMode
+    func refreshSpendDashboard(accounts: [CodexSpendScanRequest]) {
+        self.sharedSpendDashboardController().refresh()
+        guard self.spendDashboardCodexCostCatchUpRequiresExplicitResume else { return }
+        self.startSpendDashboardCodexCostCatchUpIfNeeded(accounts: accounts, mode: .automatic)
+    }
+
+    func synchronizeSpendDashboardCodexCostCatchUp(
+        accounts: [CodexSpendScanRequest],
+        preferredMode: CodexCostCatchUpMode? = nil)
+    {
+        let accounts = Self.uniqueSpendDashboardCodexAccounts(accounts)
+        guard !accounts.isEmpty,
+              self.settings.isCostUsageEffectivelyEnabled(for: .codex),
+              self.isEnabled(.codex)
+        else {
+            self.cancelSpendDashboardCodexCostCatchUp()
+            return
+        }
+        // Observation-driven reloads must not undo a stop or repeatedly retry a stalled/failed pass.
+        // Explicit Refresh uses startSpendDashboardCodexCostCatchUpIfNeeded directly.
+        guard !self.spendDashboardCodexCostCatchUpStopRequested,
+              !self.spendDashboardCodexCostCatchUpRequiresExplicitResume else { return }
+        var mode = preferredMode
+            ?? (self.spendDashboardCodexCostCatchUpTask == nil ? .automatic : self.spendDashboardCodexCostCatchUpMode)
+        if preferredMode == .accelerated,
+           self.spendDashboardCodexCostCatchUpTask == nil
+           || self.spendDashboardCodexCostCatchUpMode != .accelerated,
+           case .pause = self.codexCostCatchUpDecision(
+               mode: .automatic,
+               previousActiveDuration: nil,
+               resourceState: self._test_spendDashboardCodexCostCatchUpResourceStateOverride?()).action
+        {
+            mode = .automatic
+        }
         self.startSpendDashboardCodexCostCatchUpIfNeeded(accounts: accounts, mode: mode)
     }
 
@@ -72,11 +102,16 @@ extension UsageStore {
             guard let self else { return }
             defer {
                 if self.spendDashboardCodexCostCatchUpToken == token {
+                    // Scope invalidation can exit without publishing a terminal activity.
+                    if self.spendDashboardCodexCostCatchUpActivity?.phase == .indexing {
+                        self.spendDashboardCodexCostCatchUpActivity = nil
+                    }
                     self.spendDashboardCodexCostCatchUpTask = nil
                     self.spendDashboardCodexCostCatchUpToken = nil
                     self.spendDashboardCodexCostCatchUpScopeSignature = nil
-                    if self.spendDashboardCodexCostCatchUpRestartRequested {
-                        self.spendDashboardCodexCostCatchUpRestartRequested = false
+                    let restartRequested = self.spendDashboardCodexCostCatchUpRestartRequested
+                    self.spendDashboardCodexCostCatchUpRestartRequested = false
+                    if restartRequested, !self.spendDashboardCodexCostCatchUpRequiresExplicitResume {
                         self.startSpendDashboardCodexCostCatchUpIfNeeded(
                             accounts: context.accounts,
                             mode: self.spendDashboardCodexCostCatchUpMode)
@@ -118,6 +153,17 @@ extension UsageStore {
         self.spendDashboardCodexCostCatchUpPassIsRunning = false
         self.spendDashboardCodexCostCatchUpRestartRequested = false
         self.spendDashboardCodexCostCatchUpActivity = nil
+    }
+
+    private var spendDashboardCodexCostCatchUpRequiresExplicitResume: Bool {
+        guard let activity = self.spendDashboardCodexCostCatchUpActivity,
+              activity.phase == .paused else { return false }
+        switch activity.pauseReason {
+        case .user, .noProgress, .error:
+            return true
+        case .lowPower, .thermal, .none:
+            return false
+        }
     }
 
     private func runSpendDashboardCodexCostCatchUp(
@@ -162,9 +208,10 @@ extension UsageStore {
                     return
                 }
 
-                let decision = self.spendDashboardCodexCostCatchUpDecision(
+                let decision = self.codexCostCatchUpDecision(
                     mode: self.spendDashboardCodexCostCatchUpMode,
-                    previousActiveDuration: previousActiveDuration)
+                    previousActiveDuration: previousActiveDuration,
+                    resourceState: self._test_spendDashboardCodexCostCatchUpResourceStateOverride?())
                 switch decision.action {
                 case let .pause(delay, reason):
                     self.publishSpendDashboardCodexCostCatchUpActivity(
@@ -195,21 +242,22 @@ extension UsageStore {
                 }
 
                 let previousStatus = statuses[account.cacheIdentity]
-                let passStartedAt = ContinuousClock.now
                 self.spendDashboardCodexCostCatchUpPassIsRunning = true
-                let nextStatus: CostUsageFetcher.CodexScanCatchUpStatus
+                let result: CostUsageScanExecutor.TimedResult<CostUsageFetcher.CodexScanCatchUpStatus>
                 do {
-                    nextStatus = try await self.advanceSpendDashboardCodexCostCatchUp(
+                    defer {
+                        // A cancelled pass can finish after its replacement has started.
+                        if self.spendDashboardCodexCostCatchUpToken == context.token {
+                            self.spendDashboardCodexCostCatchUpPassIsRunning = false
+                        }
+                    }
+                    result = try await self.advanceSpendDashboardCodexCostCatchUp(
                         account: account,
                         now: Date(),
                         historyDays: context.historyDays)
-                    self.spendDashboardCodexCostCatchUpPassIsRunning = false
-                } catch {
-                    self.spendDashboardCodexCostCatchUpPassIsRunning = false
-                    throw error
                 }
-                previousActiveDuration = Self.spendDashboardCodexCatchUpDuration(
-                    since: passStartedAt)
+                let nextStatus = result.value
+                previousActiveDuration = result.activeDuration
                 didChangeCache = didChangeCache || nextStatus.progressKey != previousStatus?.progressKey
                 statuses[account.cacheIdentity] = nextStatus
                 if nextStatus.pending,
@@ -238,6 +286,7 @@ extension UsageStore {
             } catch is CancellationError {
                 return
             } catch {
+                guard self.spendDashboardCodexCostCatchUpContextIsCurrent(context) else { return }
                 self.publishSpendDashboardCodexCostCatchUpActivity(
                     statuses: statuses,
                     context: context,
@@ -289,10 +338,12 @@ extension UsageStore {
     private func advanceSpendDashboardCodexCostCatchUp(
         account: CodexSpendScanRequest,
         now: Date,
-        historyDays: Int) async throws -> CostUsageFetcher.CodexScanCatchUpStatus
+        historyDays: Int) async throws -> CostUsageScanExecutor.TimedResult<CostUsageFetcher.CodexScanCatchUpStatus>
     {
         if let override = self._test_spendDashboardCodexCostCatchUpAdvanceOverride {
-            return try await override(account, now, historyDays)
+            return try await .init(
+                value: override(account, now, historyDays),
+                activeDuration: self._test_spendDashboardCodexCostCatchUpActiveDuration)
         }
         return try await CostUsageFetcher(
             cacheRoot: SpendDashboardSource.codexCacheRoot(for: account),
@@ -301,23 +352,8 @@ extension UsageStore {
                 now: now,
                 codexHomePath: account.homePath,
                 historyDays: historyDays,
+                scanDurationPerRefresh: self.spendDashboardCodexCostCatchUpMode.scanDurationPerRefresh,
                 calendar: self.settings.costUsageBucketCalendar)
-    }
-
-    private func spendDashboardCodexCostCatchUpDecision(
-        mode: CodexCostCatchUpMode,
-        previousActiveDuration: TimeInterval?) -> CodexCostCatchUpPolicy.Decision
-    {
-        let resourceState = self._test_spendDashboardCodexCostCatchUpResourceStateOverride?() ?? (
-            powerSource: CodexCostCatchUpPowerSource.current(),
-            lowPowerModeEnabled: ProcessInfo.processInfo.isLowPowerModeEnabled,
-            thermalState: ProcessInfo.processInfo.thermalState)
-        return CodexCostCatchUpPolicy().decision(for: .init(
-            mode: mode,
-            previousActiveDuration: previousActiveDuration,
-            powerSource: resourceState.powerSource,
-            lowPowerModeEnabled: resourceState.lowPowerModeEnabled,
-            thermalState: resourceState.thermalState))
     }
 
     private func publishSpendDashboardCodexCostCatchUpActivity(
@@ -370,15 +406,5 @@ extension UsageStore {
         _ statuses: [String: CostUsageFetcher.CodexScanCatchUpStatus]) -> Bool
     {
         statuses.values.contains(where: \.pending)
-    }
-
-    private static func spendDashboardCodexCatchUpDuration(
-        since start: ContinuousClock.Instant) -> TimeInterval
-    {
-        let components = (ContinuousClock.now - start).components
-        return max(
-            0,
-            Double(components.seconds)
-                + Double(components.attoseconds) / 1_000_000_000_000_000_000)
     }
 }
