@@ -71,6 +71,45 @@ fn tooltip(snapshot: &serde_json::Value) -> String {
 fn icon(snapshot: &serde_json::Value, size: usize) -> Icon {
     let settings = &snapshot["settings"];
     let mut data = vec![0; size * size * 4];
+    if settings["trayStyle"] == "icon" {
+        // The app's bracket-and-bars mark, distinct from a full quota meter.
+        let segments = [
+            (22.0, 18.0, 10.0, 32.0),
+            (10.0, 32.0, 22.0, 46.0),
+            (42.0, 18.0, 54.0, 32.0),
+            (54.0, 32.0, 42.0, 46.0),
+            (28.0, 40.0, 28.0, 27.0),
+            (36.0, 40.0, 36.0, 20.0),
+        ];
+        for y in 0..size {
+            for x in 0..size {
+                let px = (x as f64 + 0.5) * 64.0 / size as f64;
+                let py = (y as f64 + 0.5) * 64.0 / size as f64;
+                let mut pixel = [0, 0, 0, 0];
+                if (px - px.clamp(16.0, 48.0)).hypot(py - py.clamp(16.0, 48.0)) <= 13.0 {
+                    pixel = [255, 27, 35, 53];
+                }
+                for (index, &(ax, ay, bx, by)) in segments.iter().enumerate() {
+                    let t = (((px - ax) * (bx - ax) + (py - ay) * (by - ay))
+                        / ((bx - ax) * (bx - ax) + (by - ay) * (by - ay)))
+                        .clamp(0.0, 1.0);
+                    if (px - ax - t * (bx - ax)).hypot(py - ay - t * (by - ay)) <= 2.5 {
+                        pixel = if index < 4 {
+                            [255, 166, 200, 255]
+                        } else {
+                            [255, 121, 223, 189]
+                        };
+                    }
+                }
+                data[(y * size + x) * 4..(y * size + x + 1) * 4].copy_from_slice(&pixel);
+            }
+        }
+        return Icon {
+            width: size as i32,
+            height: size as i32,
+            data,
+        };
+    }
     let left = size / 8;
     let width = size - 2 * left;
     for index in 0..2 {
@@ -78,9 +117,7 @@ fn icon(snapshot: &serde_json::Value, size: usize) -> Icon {
             .as_u64()
             .unwrap_or(0)
             .min(100) as usize;
-        let value = if settings["trayStyle"] == "icon" {
-            100
-        } else if settings["quotaDisplay"] == "used" {
+        let value = if settings["quotaDisplay"] == "used" {
             100 - remaining
         } else {
             remaining
@@ -108,9 +145,25 @@ fn icon(snapshot: &serde_json::Value, size: usize) -> Icon {
         data,
     }
 }
+
 pub fn start() -> Result<ksni::blocking::Handle<Tray>, ksni::Error> {
     Tray {
         snapshot: crate::state::snapshot(),
     }
     .spawn()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn static_mark_is_independent_of_quota() {
+        let mut snapshot = crate::state::snapshot();
+        snapshot["settings"]["trayStyle"] = "icon".into();
+        let before = icon(&snapshot, 22).data;
+        snapshot["entries"][0]["windows"][0]["remaining"] = 0.into();
+        assert_eq!(before, icon(&snapshot, 22).data);
+        snapshot["settings"]["trayStyle"] = "meters".into();
+        assert_ne!(before, icon(&snapshot, 22).data);
+    }
 }
