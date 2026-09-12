@@ -126,6 +126,19 @@ final class GrokRPCClient: @unchecked Sendable {
         return try self.decodeResult(from: message)
     }
 
+    /// The CLI owns refresh and persistence; never exchange its refresh token here.
+    func fetchValidBearerToken() async throws -> String? {
+        struct TokenResponse: Decodable {
+            let token: String?
+        }
+        struct TokenResult: Decodable {
+            let result: TokenResponse?
+        }
+        let message = try await self.request(method: "_x.ai/auth/getBearerToken", params: [:])
+        let response: TokenResult = try self.decodeResult(from: message)
+        return response.result?.token
+    }
+
     func shutdown() {
         Self.log.debug("Grok RPC stopping")
         RPCChildProcessTeardown.terminate(process: self.process, stdin: self.stdin)
@@ -236,9 +249,6 @@ final class GrokRPCClient: @unchecked Sendable {
     private func readNextMessage() async throws -> [String: Any] {
         for await lineData in self.stdoutLineStream {
             if lineData.isEmpty { continue }
-            if let preview = String(data: lineData.prefix(300), encoding: .utf8) {
-                Self.log.debug("grok rpc <- \(preview)")
-            }
             if let json = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any] {
                 return json
             }

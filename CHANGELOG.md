@@ -3,6 +3,7 @@
 ## 0.60.1 — Unreleased
 
 ### Fixed
+- Grok: recover expired xAI OIDC credentials through the shared CLI owner before OAuth billing, preserving the reloaded account and team metadata without adding a CodexBar credential writer.
 - Antigravity: suppress remote model variants that exactly mirror a known pool and reset, preserve distinct quota rows and their saved visibility, and prefer known usage over reset-only duplicates (#3583). Thanks @hhh2210!
 
 ## 0.60.0 — 2026-09-12

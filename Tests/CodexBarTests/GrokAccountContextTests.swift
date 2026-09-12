@@ -3,6 +3,92 @@ import Testing
 @testable import CodexBarCore
 
 struct GrokAccountContextTests {
+    @Test(arguments: [false, true])
+    func `expired oauth recovers through CLI owner before billing and team enrichment`(team: Bool) async throws {
+        let fixture = try GrokAccountFixture()
+        defer { fixture.remove() }
+        let principal = team ? "Team" : "Personal"
+        try fixture.write(account: "a", principal: principal, expired: true, recoverable: true)
+        var strategy = GrokOAuthFetchStrategy(
+            mode: .proxy,
+            proxyBilling: { credentials in
+                #expect(credentials.accessToken == "fake-renewed-a")
+                #expect(!credentials.isExpired)
+                if team { throw GrokWebBillingError.teamUsageUnsupported }
+                return GrokWebBillingSnapshot(usedPercent: 37, resetsAt: nil)
+            },
+            webStrategy: .isolated,
+            settingsTier: { credentials in
+                #expect(credentials?.accessToken == "fake-renewed-a")
+                #expect(credentials?.isTeamPrincipal == team)
+                return "SuperGrok Heavy"
+            })
+        strategy.recoverCredentials = { original, environment in
+            try await GrokSessionRecovery.recover(original, environment: environment) { _ in
+                // Stand-in for the CLI's persisted rotation, not a CodexBar writer.
+                try fixture.write(
+                    account: "a", principal: principal, recoverable: true, accessToken: "fake-renewed-a")
+                return "fake-renewed-a"
+            }
+        }
+        let result = try await strategy.fetch(fixture.context())
+        #expect(result.usage.accountEmail(for: .grok) == "a@example.com")
+        #expect(result.usage.accountOrganization(for: .grok) == "team-a")
+        #expect(result.usage.loginMethod(for: .grok) == "SuperGrok Heavy")
+        #expect(result.usage.primary?.usedPercent == (team ? nil : 37))
+        #expect(result.diagnostic == (team ? GrokStatusProbe.teamUsageUnavailableMessage : nil))
+    }
+
+    @Test(arguments: ["account-switch", "logout", "new-generation"])
+    func `recovery rejects authority changes while CLI is suspended`(change: String) async throws {
+        let fixture = try GrokAccountFixture()
+        defer { fixture.remove() }
+        try fixture.write(account: "a", expired: true, recoverable: true)
+        let environment = fixture.context().env
+        let original = try GrokCredentialsStore.load(env: environment)
+        let gate = GrokBillingGate()
+        let task = Task {
+            try await GrokSessionRecovery.recover(original, environment: environment) { _ in
+                await gate.suspend()
+                return "fake-renewed-a"
+            }
+        }
+        await gate.waitUntilSuspended()
+        let url = fixture.home.appendingPathComponent("auth.json")
+        let replacement = Result {
+            if change == "logout" {
+                try FileManager.default.removeItem(at: url)
+            } else {
+                try fixture.write(
+                    account: change == "account-switch" ? "b" : "a",
+                    recoverable: true,
+                    accessToken: "fake-new-login")
+            }
+        }
+        let expected = try? Data(contentsOf: url)
+        await gate.resume()
+        try replacement.get()
+        await #expect(throws: (any Error).self) { try await task.value }
+        #expect((try? Data(contentsOf: url)) == expected)
+    }
+
+    @Test
+    func `recovery does not rotate credentials already replaced before its request`() async throws {
+        let fixture = try GrokAccountFixture()
+        defer { fixture.remove() }
+        try fixture.write(account: "a", expired: true, recoverable: true)
+        let environment = fixture.context().env
+        let original = try GrokCredentialsStore.load(env: environment)
+        try fixture.write(account: "b", recoverable: true)
+        await #expect(throws: GrokWebBillingError.self) {
+            try await GrokSessionRecovery.recover(original, environment: environment) { _ in
+                Issue.record("A replaced account must not initiate token renewal")
+                return nil
+            }
+        }
+        #expect(try GrokCredentialsStore.load(env: environment).userId == "user-b")
+    }
+
     @Test
     func `billing retains account A when auth is replaced while suspended`() async throws {
         let fixture = try GrokAccountFixture()
@@ -285,15 +371,23 @@ private struct GrokAccountFixture: Sendable {
         try FileManager.default.createDirectory(at: self.home, withIntermediateDirectories: true)
     }
 
-    func write(account: String, principal: String = "Personal", expired: Bool = false) throws {
+    func write(
+        account: String,
+        principal: String = "Personal",
+        expired: Bool = false,
+        recoverable: Bool = false,
+        accessToken: String? = nil) throws
+    {
         let data = try JSONSerialization.data(withJSONObject: [
             "https://auth.x.ai::fake-client": [
-                "key": "fake-token-\(account)",
+                "key": accessToken ?? "fake-token-\(account)",
                 "refresh_token": "fake-refresh-\(account)",
                 "email": "\(account)@example.com",
                 "team_id": "team-\(account)",
                 "user_id": "user-\(account)",
                 "auth_mode": "oidc",
+                "oidc_issuer": recoverable ? "https://auth.x.ai" : "",
+                "oidc_client_id": recoverable ? "fake-client" : "",
                 "principal_type": principal,
                 "expires_at": expired ? "2000-01-01T00:00:00Z" : "2099-01-01T00:00:00Z",
             ],

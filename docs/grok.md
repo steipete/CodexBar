@@ -143,8 +143,21 @@ The grok.com billing gRPC-web endpoint remains a best-effort fallback.
 - Required fields per entry: `key` (bearer token), `refresh_token`, `expires_at`,
   `auth_mode`, `email`, `team_id`, `user_id`, `first_name`/`last_name`.
   `principal_type` is optional because older auth files do not include it.
-- Tokens are issued by `grok login` and expire after ~7 days; refresh is handled by
-  the CLI itself (CodexBar does not refresh; it just reads the cached credential).
+- Tokens are issued by `grok login`; the CLI remains the only refresh-token
+  consumer and `auth.json` writer. For an expired xAI OIDC credential, the OAuth
+  fetch path asks `grok agent --leader stdio` for `_x.ai/auth/getBearerToken`.
+  The shared CLI leader owns renewal; the probe process is only a client.
+  CodexBar reloads the auth file and requires an unexpired token matching the
+  response and the original scope, user, email, team, principal, issuer, and client.
+  A missing or mismatching reloaded record, an unsupported CLI method, or a failed
+  refresh fails the fetch rather than writing credentials or opening a login flow.
+  Pasted tokens, browser cookies, and legacy session credentials do not use this
+  recovery path. Explicit `GROK_AUTH`, `GROK_AUTH_PATH`, or
+  `GROK_AUTH_PROVIDER_COMMAND` overrides also disable auth-file recovery.
+- This is a read-side identity guard, not a replacement for the CLI's persistence
+  contract. Concurrent account-change and logout behavior remains a release gate
+  for the credential owner; read-side tests do not prove cross-process persistence
+  safety.
 - If `auth.json` is missing or expired, paste a SuperGrok bearer into Grok token
   accounts or set `GROK_OAUTH_TOKEN`. Cookie-shaped values and `xai-` management
   keys are rejected. The pasted token uses the same CLI-proxy credits URL.
@@ -155,15 +168,20 @@ The grok.com billing gRPC-web endpoint remains a best-effort fallback.
   SuperGrok Heavy with no `creditUsagePercent` is unknown usage from that payload,
   not 0%; the grok.com retry above can still supply a percent, including its
   no-usage-yet zero.
-- Each OAuth fetch captures credentials once for billing, bearer retries, identity,
-  and settings enrichment. Replacing `auth.json` during an awaited request cannot
-  relabel the result with the new account. Cookie usage stays separate from this
-  captured account; local session scanning and CLI behavior are unchanged.
+- Each OAuth fetch uses one credential capture for billing, bearer retries, identity,
+  and settings enrichment. Expired credentials are replaced by the validated
+  post-recovery capture before billing starts. Replacing `auth.json` during billing
+  cannot relabel the result with the new account. Cookie usage stays separate from
+  this capture; local session scanning is unchanged.
 
 
 ## JSON-RPC contract
 
 - Transport: stdin/stdout, newline-delimited JSON-RPC 2.0 (no Content-Length framing).
+- Bearer recovery uses `_x.ai/auth/getBearerToken` on the wire. ACP strips the
+  leading underscore before dispatching to the CLI's `x.ai/auth/getBearerToken`
+  handler. The JSON-RPC `result` contains a second extension `result` envelope:
+  `{"result":{"token":"..."}}`. A null token is not successful recovery.
 - `initialize` params:
   ```json
   {

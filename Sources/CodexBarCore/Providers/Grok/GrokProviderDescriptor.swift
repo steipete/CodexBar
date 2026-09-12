@@ -215,6 +215,9 @@ struct GrokOAuthFetchStrategy: ProviderFetchStrategy {
     let grpcBilling: GrokWebFetchStrategy.ProxyBillingFetch
     let webStrategy: GrokWebFetchStrategy
     let settingsTier: GrokWebFetchStrategy.SettingsTierFetch?
+    var recoverCredentials: @Sendable (GrokCredentials, [String: String]) async throws -> GrokCredentials = {
+        try await GrokSessionRecovery.recover($0, environment: $1)
+    }
 
     init(
         mode: Mode = .proxyThenGrpc,
@@ -248,7 +251,11 @@ struct GrokOAuthFetchStrategy: ProviderFetchStrategy {
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        try await self.webStrategy.fetch(context) { capturedCredentials in
+        var captured = self.webStrategy.loadCredentials(context)
+        if case let .success(credentials) = captured, credentials.isExpired {
+            captured = try await .success(self.recoverCredentials(credentials, context.env))
+        }
+        return try await self.webStrategy.fetch(context, credentials: captured) { capturedCredentials in
             let credentials = try capturedCredentials.get()
             guard !credentials.isExpired else {
                 throw GrokWebBillingError.missingCredentials
@@ -399,11 +406,12 @@ struct GrokWebFetchStrategy: ProviderFetchStrategy {
 
     func fetch(
         _ context: ProviderFetchContext,
+        credentials: Result<GrokCredentials, Error>? = nil,
         webBilling fetchWebBilling: @escaping WebBillingFetch,
         settingsTier loadSettingsTier: SettingsTierFetch? = nil) async throws -> ProviderFetchResult
     {
         // Billing and enrichment share one capture even if `grok login` replaces auth.json during an await.
-        let capturedCredentials = self.loadCredentials(context)
+        let capturedCredentials = credentials ?? self.loadCredentials(context)
         let authCredentials = (try? capturedCredentials.get()).flatMap { credentials in
             credentials.isExpired ? nil : credentials
         }
