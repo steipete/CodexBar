@@ -764,6 +764,10 @@ extension UsageStore {
             }
             self.lastSourceLabels[provider.instanceID] = result.sourceLabel
             self.recordProviderFetchSuccessErrorState(provider: provider)
+            if provider == .claude, result.strategyKind == .cli {
+                // A successful Claude CLI fallback is authoritative for the displayed quota.
+                self.errors[provider.instanceID] = nil
+            }
             self.diagnostics[provider.instanceID] = result.diagnostic
             if let tokenAccount = currentTokenAccount {
                 self.cacheTokenAccountSnapshot(
@@ -980,6 +984,19 @@ extension UsageStore {
         let activeAccountUuid: String?
         let activeAccountIdentity: String?
         let wasStable: Bool
+    }
+
+    nonisolated static func isClaudeCredentialRecoveryError(_ error: String) -> Bool {
+        if ClaudeOAuthUnreadableCredentialsError.matches(description: error) {
+            return true
+        }
+        return [
+            ClaudeOAuthCredentialsError.missingOAuth.localizedDescription,
+            ClaudeOAuthCredentialsError.missingAccessToken.localizedDescription,
+            ClaudeOAuthCredentialsError.notFound.localizedDescription,
+            ClaudeOAuthCredentialsError.keychainAccessRevoked.localizedDescription,
+            ClaudeOAuthCredentialsError.noRefreshToken.localizedDescription,
+        ].contains(error)
     }
 
     private nonisolated static func claudeCredentialsChanged(

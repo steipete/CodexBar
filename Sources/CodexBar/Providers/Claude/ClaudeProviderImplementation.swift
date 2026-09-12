@@ -355,6 +355,9 @@ struct ClaudeProviderImplementation: ProviderImplementation {
             accountCount: context.store.claudeSwapAccountSnapshots.count,
             showSingleAccount: context.settings.claudeSwapShowSingleAccount)
         guard !context.hasAccount || swapOwnsAccountPresentation else { return nil }
+        if !swapOwnsAccountPresentation, context.store.hasSatisfiedUsageFetch(for: .claude) {
+            return nil
+        }
         return (L("Sign in with Claude Code..."), .switchAccount(.claude))
     }
 
