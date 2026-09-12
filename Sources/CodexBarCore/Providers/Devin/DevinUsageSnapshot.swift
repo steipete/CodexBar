@@ -39,10 +39,15 @@ public enum DevinUsageError: LocalizedError, Sendable {
 public struct DevinQuotaWindow: Sendable, Equatable {
     public let usedPercent: Double
     public let resetsAt: Date?
+    /// Raw ACU values for enterprise personal-analytics cycles; nil for percent-only windows.
+    public let used: Double?
+    public let limit: Double?
 
-    public init(usedPercent: Double, resetsAt: Date? = nil) {
+    public init(usedPercent: Double, resetsAt: Date? = nil, used: Double? = nil, limit: Double? = nil) {
         self.usedPercent = min(100, max(0, usedPercent))
         self.resetsAt = resetsAt
+        self.used = used
+        self.limit = limit
     }
 }
 
@@ -114,7 +119,8 @@ public struct DevinUsageSnapshot: Sendable, Equatable {
             identity: identity)
     }
 
-    /// Monthly ACU cycle rendered as a single primary window with a ~30-day span.
+    /// Monthly ACU cycle rendered as a single primary window with a ~30-day span, plus
+    /// Kiro-style ACU credit rows (left/used/total) when the raw cycle values are known.
     private func cycleUsageSnapshot(_ cycle: DevinQuotaWindow) -> UsageSnapshot {
         let primary = RateWindow(
             usedPercent: cycle.usedPercent,
@@ -126,10 +132,19 @@ public struct DevinUsageSnapshot: Sendable, Equatable {
             accountEmail: nil,
             accountOrganization: self.organization,
             loginMethod: self.planName)
+        var details: [ProviderDetailSection] = []
+        if let used = cycle.used, let limit = cycle.limit {
+            details.append(.makeSection(title: "Usage", rows: [
+                .makeRow(label: "ACUs left", value: UsageFormatter.creditsNumberString(from: max(0, limit - used))),
+                .makeRow(label: "ACUs used", value: UsageFormatter.creditsNumberString(from: used)),
+                .makeRow(label: "ACUs total", value: UsageFormatter.creditsNumberString(from: limit)),
+            ]))
+        }
         return UsageSnapshot(
             primary: primary,
             secondary: nil,
             providerCost: nil,
+            details: details,
             updatedAt: self.updatedAt,
             identity: identity)
     }
@@ -167,7 +182,9 @@ public enum DevinUsageParser {
         let used = self.double(dictionary["cycle_usage"]) ?? 0
         let window = DevinQuotaWindow(
             usedPercent: used / limit * 100,
-            resetsAt: self.date(from: dictionary["cycle_end"]))
+            resetsAt: self.date(from: dictionary["cycle_end"]),
+            used: used,
+            limit: limit)
 
         return DevinUsageSnapshot(
             daily: nil,

@@ -50,8 +50,7 @@ struct DevinProviderImplementation: ProviderImplementation {
             ProviderSettingsFieldDescriptor(
                 id: "devin-organization",
                 title: "Organization",
-                subtitle: "Optional for automatic auth. Use a slug, URL, or internal org-... / org_... ID. " +
-                    "Manual auth may need the x-cog-org-id header from a successful Devin quota request.",
+                subtitle: "Optional. Use the slug from app.devin.ai/org/<slug>, or paste the full Devin org URL.",
                 kind: .plain,
                 placeholder: "org/example-org",
                 binding: context.binding(\.devinOrganization),
@@ -59,7 +58,7 @@ struct DevinProviderImplementation: ProviderImplementation {
                     ProviderSettingsActionDescriptor.openURL(
                         id: "devin-open-usage",
                         title: "Open Devin Usage",
-                        url: Self.usageURL(
+                        url: DevinUsageFetcher.dashboardURL(
                             organization: context.settings.devinOrganization,
                             enterpriseHost: context.settings.devinAPIHost)),
                 ],
@@ -90,36 +89,18 @@ struct DevinProviderImplementation: ProviderImplementation {
     func loginMenuAction(context: ProviderMenuLoginContext)
         -> (label: String, action: MenuDescriptor.MenuAction)?
     {
-        (
-            "Open Devin...",
-            .loginToProvider(url: Self.usageURL(
-                organization: nil,
-                enterpriseHost: context.settings.devinAPIHost).absoluteString))
+        ("Open Devin...", .loginToProvider(url: DevinUsageFetcher.dashboardURL(
+            organization: nil,
+            enterpriseHost: context.settings.devinAPIHost).absoluteString))
     }
 
     @MainActor
     func runLoginFlow(context: ProviderLoginContext) async -> Bool {
         let organization = context.controller.settings.devinOrganization
-        NSWorkspace.shared.open(Self.usageURL(
+        NSWorkspace.shared.open(DevinUsageFetcher.dashboardURL(
             organization: organization,
             enterpriseHost: context.controller.settings.devinAPIHost))
         return false
-    }
-
-    private static func usageURL(organization: String?, enterpriseHost: String? = nil) -> URL {
-        // Enterprise deployments expose the user's personal ACU cycle on the My analytics page.
-        if let host = DevinUsageFetcher.customHost(enterpriseHost) {
-            return host.appending(path: "settings/my-analytics")
-        }
-        let normalized = DevinUsageFetcher.normalizedOrganization(organization)
-        let urlString: String
-        if let normalized, normalized.hasPrefix("org/") {
-            let slug = String(normalized.dropFirst(4))
-            urlString = "https://app.devin.ai/org/\(slug)/settings/usage"
-        } else {
-            urlString = "https://app.devin.ai/settings/usage"
-        }
-        return URL(string: urlString) ?? URL(string: "https://app.devin.ai")!
     }
 
     @MainActor

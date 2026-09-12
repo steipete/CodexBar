@@ -60,6 +60,24 @@ public struct DevinUsageFetcher: Sendable {
         self.customHost(raw) ?? self.baseURL
     }
 
+    /// The usage page to open for the signed-in user: the My analytics page on the enterprise
+    /// host when set (where the personal ACU cycle lives), otherwise the org-scoped usage page
+    /// on app.devin.ai.
+    public static func dashboardURL(organization: String?, enterpriseHost: String? = nil) -> URL {
+        if let host = self.customHost(enterpriseHost) {
+            return host.appending(path: "settings/my-analytics")
+        }
+        let normalized = self.normalizedOrganization(organization)
+        let urlString: String
+        if let normalized, normalized.hasPrefix("org/") {
+            let slug = String(normalized.dropFirst(4))
+            urlString = "https://app.devin.ai/org/\(slug)/settings/usage"
+        } else {
+            urlString = "https://app.devin.ai/settings/usage"
+        }
+        return URL(string: urlString) ?? URL(string: "https://app.devin.ai")!
+    }
+
     public func fetch(
         bearerTokenOverride: String? = nil,
         organizationOverride: String? = nil,

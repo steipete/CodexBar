@@ -356,6 +356,26 @@ struct DevinUsageFetcherTests {
         #expect(auth.sourceLabel == "manual")
     }
 
+    @Test
+    func `dashboard url follows enterprise host and organization settings`() {
+        #expect(DevinUsageFetcher.dashboardURL(
+            organization: nil,
+            enterpriseHost: "your-team.devinenterprise.com").absoluteString ==
+            "https://your-team.devinenterprise.com/settings/my-analytics")
+        #expect(DevinUsageFetcher.dashboardURL(
+            organization: "org/example-org",
+            enterpriseHost: nil).absoluteString ==
+            "https://app.devin.ai/org/example-org/settings/usage")
+        #expect(DevinUsageFetcher.dashboardURL(
+            organization: "https://app.devin.ai/org/example-org/settings/usage",
+            enterpriseHost: nil).absoluteString ==
+            "https://app.devin.ai/org/example-org/settings/usage")
+        #expect(DevinUsageFetcher.dashboardURL(
+            organization: nil,
+            enterpriseHost: nil).absoluteString ==
+            "https://app.devin.ai/settings/usage")
+    }
+
     #if os(macOS)
     @Test
     func `empty app organization setting preserves imported organization`() async throws {
@@ -629,8 +649,17 @@ struct DevinUsageFetcherTests {
         let percent = try #require(snapshot.cycle?.usedPercent)
         #expect(abs(percent - 89.377341625) < 0.0001)
         #expect(snapshot.cycle?.resetsAt?.timeIntervalSince1970 == 1_789_632_000)
+        #expect(snapshot.cycle?.used == 357.5093665)
+        #expect(snapshot.cycle?.limit == 400)
         #expect(snapshot.planName == "Default")
         #expect(snapshot.organization == "checklist-facil")
+
+        let usage = snapshot.toUsageSnapshot()
+        let section = try #require(usage.details.first)
+        #expect(section.title == "Usage")
+        #expect(section.rows.map(\.label) == ["ACUs left", "ACUs used", "ACUs total"])
+        // 400 - 357.5093665, 357.5093665, 400
+        #expect(section.rows.map(\.value) == ["42.49", "357.51", "400"])
     }
 
     @Test
@@ -646,6 +675,8 @@ struct DevinUsageFetcherTests {
         #expect(usage.primary?.resetDescription == "Cycle")
         #expect(usage.secondary == nil)
         #expect(usage.providerCost == nil)
+        #expect(usage.details.count == 1)
+        #expect(usage.details.first?.rows.map(\.value) == ["200", "200", "400"])
     }
 
     @Test
