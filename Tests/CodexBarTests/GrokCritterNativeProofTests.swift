@@ -16,8 +16,12 @@ final class GrokCritterNativeProofTests: XCTestCase {
               env["CODEXBAR_TEST_SESSION_FILE_ISOLATION"] == "1",
               env["CODEXBAR_ALLOW_TEST_KEYCHAIN_ACCESS"] != "1"
         else { return XCTFail("Use a credential-isolated test host") }
-        let output = URL(fileURLWithPath: path, isDirectory: true)
-        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        let output = URL(
+            fileURLWithPath: path,
+            isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: output,
+            withIntermediateDirectories: true)
         let app = NSApplication.shared
         guard app.delegate == nil else { return XCTFail("Use a standalone test host") }
         let previousApp = NSWorkspace.shared.frontmostApplication
@@ -34,7 +38,10 @@ final class GrokCritterNativeProofTests: XCTestCase {
         let deadline = Date().addingTimeInterval(900)
         while !FileManager.default.fileExists(atPath: output.appendingPathComponent("done").path), Date() < deadline {
             if let event = app.nextEvent(
-                matching: .any, until: Date().addingTimeInterval(0.02), inMode: .default, dequeue: true)
+                matching: .any,
+                until: Date().addingTimeInterval(0.02),
+                inMode: .default,
+                dequeue: true)
             {
                 app.sendEvent(event)
             }
@@ -49,16 +56,31 @@ private final class GrokCritterProofHost: NSObject {
     let output: URL
     let window: NSWindow
     let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-    let hide = NSButton(checkboxWithTitle: "Hide Critters", target: nil, action: nil)
-    let dark = NSButton(checkboxWithTitle: "Dark appearance", target: nil, action: nil)
-    let stale = NSButton(checkboxWithTitle: "Stale usage", target: nil, action: nil)
+    let hide = NSButton(
+        checkboxWithTitle: "Hide Critters",
+        target: nil,
+        action: nil)
+    let dark = NSButton(
+        checkboxWithTitle: "Dark appearance",
+        target: nil,
+        action: nil)
+    let stale = NSButton(
+        checkboxWithTitle: "Stale usage",
+        target: nil,
+        action: nil)
     let examples = NSStackView()
 
     init(output: URL) {
         self.output = output
         self.window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 740, height: 440),
-            styleMask: [.titled, .closable], backing: .buffered, defer: false)
+            contentRect: NSRect(
+                x: 0,
+                y: 0,
+                width: 740,
+                height: 440),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false)
         super.init()
         self.window.title = "CodexBar — Synthetic Grok Critter Proof"
         self.window.isReleasedWhenClosed = false
@@ -76,7 +98,11 @@ private final class GrokCritterProofHost: NSObject {
         ])
         stack.orientation = .vertical
         stack.spacing = 24
-        stack.edgeInsets = NSEdgeInsets(top: 25, left: 25, bottom: 25, right: 25)
+        stack.edgeInsets = NSEdgeInsets(
+            top: 25,
+            left: 25,
+            bottom: 25,
+            right: 25)
         self.window.contentView = stack
         self.item.autosaveName = "codexbar-synthetic-grok-b7"
     }
@@ -103,8 +129,12 @@ private final class GrokCritterProofHost: NSObject {
         }
         for (index, values) in [(60.0 as Double?, nil as Double?), (nil, 60.0), (60.0, 40.0)].enumerated() {
             let image = IconRenderer.makeIcon(
-                primaryRemaining: values.0, weeklyRemaining: values.1, creditsRemaining: nil,
-                stale: self.stale.state == .on, style: .grok, hideCritters: self.hide.state == .on)
+                primaryRemaining: values.0,
+                weeklyRemaining: values.1,
+                creditsRemaining: nil,
+                stale: self.stale.state == .on,
+                style: .grok,
+                hideCritters: self.hide.state == .on)
             if index == 0 {
                 self.item.button?.image = image
             }
@@ -128,7 +158,8 @@ private final class GrokCritterProofHost: NSObject {
         ]
         do {
             try JSONSerialization.data(withJSONObject: record).write(
-                to: self.output.appendingPathComponent("state.json"), options: .atomic)
+                to: self.output.appendingPathComponent("state.json"),
+                options: .atomic)
         } catch {
             XCTFail("Could not write synthetic proof receipt")
         }
