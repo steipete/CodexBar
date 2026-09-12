@@ -358,6 +358,10 @@ struct ClaudeProviderImplementation: ProviderImplementation {
         return (L("Sign in with Claude Code..."), .switchAccount(.claude))
     }
 
+    func allowsInteractiveMenuRefresh(error: String?) -> Bool {
+        ClaudeOAuthCredentialsError.isCredentialRecoveryError(description: error)
+    }
+
     @MainActor
     private func shouldOpenSettingsForCloudflareChallenge(context: ProviderMenuLoginContext) -> Bool {
         let source = context.settings.claudeSettingsSnapshot(tokenOverride: nil).usageDataSource

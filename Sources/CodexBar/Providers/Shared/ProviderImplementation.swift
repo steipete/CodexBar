@@ -92,6 +92,9 @@ protocol ProviderImplementation: Sendable {
     func loginMenuAction(context: ProviderMenuLoginContext) -> (
         label: String, action: MenuDescriptor.MenuAction)?
 
+    /// Whether an open-menu retry may run the provider's prompt-capable recovery path.
+    func allowsInteractiveMenuRefresh(error: String?) -> Bool
+
     /// Optional provider-specific login flow. Returns whether to refresh after completion.
     @MainActor
     func runLoginFlow(context: ProviderLoginContext) async -> Bool
@@ -207,6 +210,10 @@ extension ProviderImplementation {
         -> (label: String, action: MenuDescriptor.MenuAction)?
     {
         nil
+    }
+
+    func allowsInteractiveMenuRefresh(error _: String?) -> Bool {
+        false
     }
 
     @MainActor
