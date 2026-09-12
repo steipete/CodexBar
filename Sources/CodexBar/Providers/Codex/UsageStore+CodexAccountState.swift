@@ -445,6 +445,8 @@ extension UsageStore {
                 expectedScopedEmail: self.currentCodexDashboardExpectedScopedEmail(),
                 trustedCurrentUsageEmail: self.trustedCurrentCodexUsageEmailForDashboardAuthority(),
                 dashboardSignedInEmail: dashboard.signedInEmail,
+                dashboardAccountID: dashboard.accountID,
+                requiresWorkspaceBalanceScope: dashboard.requiresWorkspaceBalanceScope,
                 knownOwners: self.codexDashboardKnownOwnerCandidates()),
             routing: CodexDashboardRoutingHints(
                 targetEmail: CodexIdentityResolver.normalizeEmail(routingTargetEmail),

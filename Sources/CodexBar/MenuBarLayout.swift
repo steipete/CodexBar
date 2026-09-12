@@ -559,12 +559,22 @@ enum MenuBarLayoutSemanticWindowResolver {
 enum MenuBarLayoutBalanceResolver {
     static func balance(
         provider: UsageProvider,
-        snapshot: UsageSnapshot?)
+        snapshot: UsageSnapshot?,
+        codexCredits: CreditsSnapshot? = nil)
         -> String?
     {
-        // Provider-specific by design: only OpenRouter exposes its credit balance as the "Remaining" detail row.
-        guard provider == .openrouter else { return nil }
-        return snapshot?.detailRow(label: "Remaining")?.value
+        // Provider-specific by design: Codex credits live outside UsageSnapshot, while OpenRouter exposes
+        // its credit balance as the "Remaining" detail row.
+        switch provider {
+        case .codex:
+            guard let codexCredits, codexCredits.balanceReadSucceeded else { return nil }
+            return codexCredits.remaining.rounded().formatted(
+                .number.precision(.fractionLength(0)).locale(Locale(identifier: "en_US")))
+        case .openrouter:
+            return snapshot?.detailRow(label: "Remaining")?.value
+        default:
+            return nil
+        }
     }
 
     /// Numeric USD amounts behind OpenRouter's "Credits" detail rows. The plugin formats both rows as

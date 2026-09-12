@@ -52,7 +52,9 @@ enum CodexMonthlyCreditPreservation {
             events: incoming.events,
             updatedAt: incoming.updatedAt,
             codexCreditLimit: priorLimit,
-            balanceReadSucceeded: incoming.balanceReadSucceeded)
+            balanceReadSucceeded: incoming.balanceReadSucceeded,
+            creditsAvailable: incoming.creditsAvailable,
+            balanceIsWorkspace: incoming.balanceIsWorkspace)
     }
 
     enum StandaloneRefreshOutcome: Equatable {

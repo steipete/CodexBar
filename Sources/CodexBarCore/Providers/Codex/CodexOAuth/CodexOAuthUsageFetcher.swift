@@ -388,12 +388,33 @@ public enum CodexOAuthFetchError: LocalizedError, Sendable {
     }
 }
 
+struct CodexWorkspaceRemainingBalanceResponse: Decodable, Sendable {
+    let balance: Double?
+
+    private enum CodingKeys: String, CodingKey {
+        case balance
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let decoded: Double? = if let value = try? container.decodeIfPresent(Double.self, forKey: .balance) {
+            value
+        } else if let value = try? container.decodeIfPresent(String.self, forKey: .balance) {
+            Double(value.trimmingCharacters(in: .whitespacesAndNewlines))
+        } else {
+            nil
+        }
+        self.balance = decoded.flatMap { $0.isFinite ? max(0, $0) : nil }
+    }
+}
+
 public enum CodexOAuthUsageFetcher {
     private static let defaultChatGPTBaseURL = "https://chatgpt.com/backend-api/"
     private static let chatGPTUsagePath = "/wham/usage"
     private static let codexUsagePath = "/api/codex/usage"
     private static let rateLimitResetCreditsPath = "/wham/rate-limit-reset-credits"
     private static let spendControlsMonthlyUsagePathSuffix = "/spend-controls/current-user/monthly-usage"
+    private static let workspaceRemainingBalancePathSuffix = "/remaining_balance"
 
     public static func fetchUsage(
         accessToken: String,
@@ -460,6 +481,48 @@ public enum CodexOAuthUsageFetcher {
             env: env,
             timeout: timeout,
             session: CodexAuthenticatedHTTPTransport.current)
+    }
+
+    static func fetchWorkspaceRemainingBalance(
+        accessToken: String,
+        accountId: String,
+        env: [String: String] = ProcessInfo.processInfo.environment,
+        timeout: TimeInterval = 4) async throws -> CodexWorkspaceRemainingBalanceResponse
+    {
+        try await self.fetchWorkspaceRemainingBalance(
+            accessToken: accessToken,
+            accountId: accountId,
+            env: env,
+            timeout: timeout,
+            session: CodexAuthenticatedHTTPTransport.current)
+    }
+
+    static func fetchWorkspaceRemainingBalance(
+        accessToken: String,
+        accountId: String,
+        env: [String: String] = ProcessInfo.processInfo.environment,
+        timeout: TimeInterval = 4,
+        session transport: any ProviderHTTPTransport) async throws -> CodexWorkspaceRemainingBalanceResponse
+    {
+        guard let url = self.resolveWorkspaceRemainingBalanceURL(env: env, accountId: accountId) else {
+            throw CodexOAuthFetchError.invalidResponse
+        }
+        var request = URLRequest(
+            url: url,
+            cachePolicy: .reloadIgnoringLocalCacheData,
+            timeoutInterval: timeout)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("CodexBar", forHTTPHeaderField: "User-Agent")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue(accountId, forHTTPHeaderField: "ChatGPT-Account-Id")
+
+        let data = try await CodexAuthenticatedHTTPTransport.perform(request: request, transport: transport)
+        do {
+            return try JSONDecoder().decode(CodexWorkspaceRemainingBalanceResponse.self, from: data)
+        } catch {
+            throw CodexOAuthFetchError.invalidResponse
+        }
     }
 
     public static func fetchSpendControlsMonthlyUsage(
@@ -559,6 +622,25 @@ public enum CodexOAuthUsageFetcher {
 
     private static func resolveSpendControlsMonthlyUsageURL(env: [String: String], accountId: String) -> URL? {
         self.resolveSpendControlsMonthlyUsageURL(env: env, configContents: nil, accountId: accountId)
+    }
+
+    private static func resolveWorkspaceRemainingBalanceURL(env: [String: String], accountId: String) -> URL? {
+        self.resolveWorkspaceRemainingBalanceURL(env: env, configContents: nil, accountId: accountId)
+    }
+
+    private static func resolveWorkspaceRemainingBalanceURL(
+        env: [String: String],
+        configContents: String?,
+        accountId: String) -> URL?
+    {
+        let baseURL = self.resolveChatGPTBaseURL(env: env, configContents: configContents)
+        let normalized = self.normalizeChatGPTBaseURL(baseURL)
+        guard normalized.contains("/backend-api") else { return nil }
+        var allowedCharacters = CharacterSet.urlPathAllowed
+        allowedCharacters.subtract(CharacterSet(charactersIn: "/?#%"))
+        let encodedAccountId = accountId.addingPercentEncoding(withAllowedCharacters: allowedCharacters)
+        guard let encodedAccountId, !encodedAccountId.isEmpty else { return nil }
+        return URL(string: normalized + "/accounts/\(encodedAccountId)" + Self.workspaceRemainingBalancePathSuffix)
     }
 
     private static func resolveSpendControlsMonthlyUsageURL(
@@ -712,6 +794,17 @@ extension CodexOAuthUsageFetcher {
         accountId: String) -> URL?
     {
         self.resolveSpendControlsMonthlyUsageURL(
+            env: env,
+            configContents: configContents,
+            accountId: accountId)
+    }
+
+    static func _resolveWorkspaceRemainingBalanceURLForTesting(
+        env: [String: String] = [:],
+        configContents: String? = nil,
+        accountId: String) -> URL?
+    {
+        self.resolveWorkspaceRemainingBalanceURL(
             env: env,
             configContents: configContents,
             accountId: accountId)

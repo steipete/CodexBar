@@ -1015,6 +1015,11 @@ struct MenuBarLayoutPreview: View {
         let balanceAmounts = MenuBarLayoutBalanceResolver.balanceAmountsUSD(
             provider: provider,
             snapshot: snapshot)
+        let codexCredits = self.store.codexConsumerProjectionIfNeeded(
+            for: provider,
+            surface: .menuBar,
+            snapshotOverride: snapshot,
+            now: now)?.credits?.snapshot
         // Thresholds are USD, and `convertedCost` returns the source amount unchanged when no rate
         // exists, so keep the datum only when the conversion actually landed in USD.
         let toUSD = { (value: Double) -> Double? in
@@ -1060,7 +1065,10 @@ struct MenuBarLayoutPreview: View {
                 dataConfidence: snapshot.dataConfidence,
                 now: now),
             runsOut: runsOut,
-            balance: MenuBarLayoutBalanceResolver.balance(provider: provider, snapshot: snapshot),
+            balance: MenuBarLayoutBalanceResolver.balance(
+                provider: provider,
+                snapshot: snapshot,
+                codexCredits: codexCredits),
             costToday: costToday.map {
                 UsageFormatter.currencyString($0, currencyCode: cost?.currencyCode ?? "USD")
             },

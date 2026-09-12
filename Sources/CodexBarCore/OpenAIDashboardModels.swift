@@ -2,6 +2,8 @@ import Foundation
 
 public struct OpenAIDashboardSnapshot: Codable, Equatable, Sendable {
     public let signedInEmail: String?
+    /// Account/workspace scope returned by the authenticated usage API.
+    public let accountID: String?
     public let codeReviewRemainingPercent: Double?
     public let codeReviewLimit: RateWindow?
     public let creditEvents: [CreditEvent]
@@ -17,14 +19,22 @@ public struct OpenAIDashboardSnapshot: Codable, Equatable, Sendable {
     /// `wham/usage` response's `additional_rate_limits` array.
     public let extraRateWindows: [NamedRateWindow]?
     public let creditsRemaining: Double?
+    public let creditsAvailable: Bool?
+    /// True only when the balance came from the owner-visible workspace endpoint.
+    public let balanceIsWorkspace: Bool?
     public let codexCreditLimit: CodexCreditLimitSnapshot?
     public let accountPlan: String?
     public let subscriptionExpiresAt: Date?
     public let subscriptionRenewsAt: Date?
     public let updatedAt: Date
 
+    public var requiresWorkspaceBalanceScope: Bool {
+        self.balanceIsWorkspace == true || (self.creditsAvailable == true && self.creditsRemaining == nil)
+    }
+
     public init(
         signedInEmail: String?,
+        accountID: String? = nil,
         codeReviewRemainingPercent: Double?,
         codeReviewLimit: RateWindow? = nil,
         creditEvents: [CreditEvent],
@@ -35,6 +45,8 @@ public struct OpenAIDashboardSnapshot: Codable, Equatable, Sendable {
         secondaryLimit: RateWindow? = nil,
         extraRateWindows: [NamedRateWindow]? = nil,
         creditsRemaining: Double? = nil,
+        creditsAvailable: Bool? = nil,
+        balanceIsWorkspace: Bool? = nil,
         codexCreditLimit: CodexCreditLimitSnapshot? = nil,
         accountPlan: String? = nil,
         subscriptionExpiresAt: Date? = nil,
@@ -42,6 +54,7 @@ public struct OpenAIDashboardSnapshot: Codable, Equatable, Sendable {
         updatedAt: Date)
     {
         self.signedInEmail = signedInEmail
+        self.accountID = accountID
         self.codeReviewRemainingPercent = codeReviewRemainingPercent
         self.codeReviewLimit = codeReviewLimit
         self.creditEvents = creditEvents
@@ -52,6 +65,8 @@ public struct OpenAIDashboardSnapshot: Codable, Equatable, Sendable {
         self.secondaryLimit = secondaryLimit
         self.extraRateWindows = extraRateWindows
         self.creditsRemaining = creditsRemaining
+        self.creditsAvailable = creditsAvailable
+        self.balanceIsWorkspace = balanceIsWorkspace
         self.codexCreditLimit = codexCreditLimit
         self.accountPlan = accountPlan
         self.subscriptionExpiresAt = subscriptionExpiresAt
@@ -61,6 +76,7 @@ public struct OpenAIDashboardSnapshot: Codable, Equatable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case signedInEmail
+        case accountID
         case codeReviewRemainingPercent
         case codeReviewLimit
         case creditEvents
@@ -71,6 +87,8 @@ public struct OpenAIDashboardSnapshot: Codable, Equatable, Sendable {
         case secondaryLimit
         case extraRateWindows
         case creditsRemaining
+        case creditsAvailable
+        case balanceIsWorkspace
         case codexCreditLimit
         case accountPlan
         case subscriptionExpiresAt
@@ -81,6 +99,7 @@ public struct OpenAIDashboardSnapshot: Codable, Equatable, Sendable {
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.signedInEmail = try container.decodeIfPresent(String.self, forKey: .signedInEmail)
+        self.accountID = try container.decodeIfPresent(String.self, forKey: .accountID)
         self.codeReviewRemainingPercent = try container.decodeIfPresent(
             Double.self,
             forKey: .codeReviewRemainingPercent)
@@ -103,6 +122,8 @@ public struct OpenAIDashboardSnapshot: Codable, Equatable, Sendable {
             [NamedRateWindow].self,
             forKey: .extraRateWindows)
         self.creditsRemaining = try container.decodeIfPresent(Double.self, forKey: .creditsRemaining)
+        self.creditsAvailable = try container.decodeIfPresent(Bool.self, forKey: .creditsAvailable)
+        self.balanceIsWorkspace = try container.decodeIfPresent(Bool.self, forKey: .balanceIsWorkspace)
         self.codexCreditLimit = try container.decodeIfPresent(CodexCreditLimitSnapshot.self, forKey: .codexCreditLimit)
         self.accountPlan = try container.decodeIfPresent(String.self, forKey: .accountPlan)
         self.subscriptionExpiresAt = try container.decodeIfPresent(Date.self, forKey: .subscriptionExpiresAt)
@@ -132,7 +153,9 @@ public struct OpenAIDashboardSnapshot: Codable, Equatable, Sendable {
             let services = serviceTotals
                 .map { OpenAIDashboardServiceUsage(service: $0.key, creditsUsed: $0.value) }
                 .sorted { lhs, rhs in
-                    if lhs.creditsUsed == rhs.creditsUsed { return lhs.service < rhs.service }
+                    if lhs.creditsUsed == rhs.creditsUsed {
+                        return lhs.service < rhs.service
+                    }
                     return lhs.creditsUsed > rhs.creditsUsed
                 }
             let total = services.reduce(0) { $0 + $1.creditsUsed }
@@ -143,6 +166,7 @@ public struct OpenAIDashboardSnapshot: Codable, Equatable, Sendable {
     public func withSubscriptionMetadata(_ metadata: OpenAISubscriptionMetadata?) -> Self {
         Self(
             signedInEmail: self.signedInEmail,
+            accountID: self.accountID,
             codeReviewRemainingPercent: self.codeReviewRemainingPercent,
             codeReviewLimit: self.codeReviewLimit,
             creditEvents: self.creditEvents,
@@ -153,6 +177,8 @@ public struct OpenAIDashboardSnapshot: Codable, Equatable, Sendable {
             secondaryLimit: self.secondaryLimit,
             extraRateWindows: self.extraRateWindows,
             creditsRemaining: self.creditsRemaining,
+            creditsAvailable: self.creditsAvailable,
+            balanceIsWorkspace: self.balanceIsWorkspace,
             codexCreditLimit: self.codexCreditLimit,
             accountPlan: self.accountPlan,
             subscriptionExpiresAt: metadata?.expiresAt,
@@ -176,14 +202,18 @@ extension OpenAIDashboardSnapshot {
     }
 
     public func toCreditsSnapshot() -> CreditsSnapshot? {
-        guard self.creditsRemaining != nil || self.codexCreditLimit != nil else { return nil }
+        guard self.creditsRemaining != nil || self.codexCreditLimit != nil || self.creditsAvailable == true else {
+            return nil
+        }
         return CreditsSnapshot(
             remaining: self.creditsRemaining ?? 0,
             events: self.creditEvents,
             updatedAt: self.updatedAt,
             codexCreditLimit: self.codexCreditLimit,
             // A cap-only dashboard read omits the balance entirely; that placeholder zero is unread, not spent.
-            balanceReadSucceeded: self.creditsRemaining != nil)
+            balanceReadSucceeded: self.creditsRemaining != nil,
+            creditsAvailable: self.creditsAvailable,
+            balanceIsWorkspace: self.balanceIsWorkspace == true)
     }
 }
 

@@ -47,22 +47,41 @@ public struct CreditsSnapshot: Equatable, Codable, Sendable {
     public let events: [CreditEvent]
     public let updatedAt: Date
     public let codexCreditLimit: CodexCreditLimitSnapshot?
-    /// False only for a preservation placeholder when the credits fetch itself failed.
+    /// False when the provider omitted the balance, including cap-only responses and preservation placeholders.
     /// A successful read of `remaining == 0` stays true so reconciliation can clear a stale balance.
     public let balanceReadSucceeded: Bool
+    /// Whether the provider explicitly reported a finite credit pool, even when it withheld the balance.
+    /// This distinguishes a hidden workspace pool from a confirmed zero balance.
+    public let creditsAvailable: Bool?
+    /// True only for a balance read from the shared workspace endpoint, independently of a personal cap.
+    public let balanceIsWorkspace: Bool
+
+    public var hasWorkspaceBalance: Bool {
+        self.balanceReadSucceeded && self.balanceIsWorkspace
+    }
+
+    /// Keep monthly-only accounts useful without exposing an unread placeholder as a real zero.
+    public var displayRemaining: Double? {
+        if self.hasWorkspaceBalance { return self.remaining }
+        return self.codexCreditLimit?.remaining ?? (self.balanceReadSucceeded ? self.remaining : nil)
+    }
 
     public init(
         remaining: Double,
         events: [CreditEvent],
         updatedAt: Date,
         codexCreditLimit: CodexCreditLimitSnapshot? = nil,
-        balanceReadSucceeded: Bool = true)
+        balanceReadSucceeded: Bool = true,
+        creditsAvailable: Bool? = nil,
+        balanceIsWorkspace: Bool = false)
     {
         self.remaining = remaining
         self.events = events
         self.updatedAt = updatedAt
         self.codexCreditLimit = codexCreditLimit
         self.balanceReadSucceeded = balanceReadSucceeded
+        self.creditsAvailable = creditsAvailable
+        self.balanceIsWorkspace = balanceIsWorkspace
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -71,6 +90,8 @@ public struct CreditsSnapshot: Equatable, Codable, Sendable {
         case updatedAt
         case codexCreditLimit
         case balanceReadSucceeded
+        case creditsAvailable
+        case balanceIsWorkspace
     }
 
     public init(from decoder: Decoder) throws {
@@ -82,6 +103,8 @@ public struct CreditsSnapshot: Equatable, Codable, Sendable {
             CodexCreditLimitSnapshot.self,
             forKey: .codexCreditLimit)
         self.balanceReadSucceeded = try container.decodeIfPresent(Bool.self, forKey: .balanceReadSucceeded) ?? true
+        self.creditsAvailable = try container.decodeIfPresent(Bool.self, forKey: .creditsAvailable)
+        self.balanceIsWorkspace = try container.decodeIfPresent(Bool.self, forKey: .balanceIsWorkspace) ?? false
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -91,6 +114,8 @@ public struct CreditsSnapshot: Equatable, Codable, Sendable {
         try container.encode(self.updatedAt, forKey: .updatedAt)
         try container.encodeIfPresent(self.codexCreditLimit, forKey: .codexCreditLimit)
         try container.encode(self.balanceReadSucceeded, forKey: .balanceReadSucceeded)
+        try container.encodeIfPresent(self.creditsAvailable, forKey: .creditsAvailable)
+        try container.encode(self.balanceIsWorkspace, forKey: .balanceIsWorkspace)
     }
 }
 

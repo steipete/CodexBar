@@ -267,6 +267,7 @@ extension CodexBarCLI {
         {
             OpenAIDashboardSnapshot(
                 signedInEmail: cache.snapshot.signedInEmail,
+                accountID: cache.snapshot.accountID,
                 codeReviewRemainingPercent: cache.snapshot.codeReviewRemainingPercent,
                 codeReviewLimit: cache.snapshot.codeReviewLimit,
                 creditEvents: cache.snapshot.creditEvents,
@@ -275,6 +276,16 @@ extension CodexBarCLI {
                     maxDays: 30),
                 usageBreakdown: cache.snapshot.usageBreakdown,
                 creditsPurchaseURL: cache.snapshot.creditsPurchaseURL,
+                primaryLimit: cache.snapshot.primaryLimit,
+                secondaryLimit: cache.snapshot.secondaryLimit,
+                extraRateWindows: cache.snapshot.extraRateWindows,
+                creditsRemaining: cache.snapshot.creditsRemaining,
+                creditsAvailable: cache.snapshot.creditsAvailable,
+                balanceIsWorkspace: cache.snapshot.balanceIsWorkspace,
+                codexCreditLimit: cache.snapshot.codexCreditLimit,
+                accountPlan: cache.snapshot.accountPlan,
+                subscriptionExpiresAt: cache.snapshot.subscriptionExpiresAt,
+                subscriptionRenewsAt: cache.snapshot.subscriptionRenewsAt,
                 updatedAt: cache.snapshot.updatedAt)
         } else {
             cache.snapshot

@@ -113,6 +113,10 @@ extension StatusItemController {
         let balanceAmounts = MenuBarLayoutBalanceResolver.balanceAmountsUSD(
             provider: provider,
             snapshot: snapshot)
+        let codexCredits = self.menuBarLayoutCodexCredits(
+            provider: provider,
+            snapshot: snapshot,
+            now: now)
         let providerName = L(self.store.metadata(for: provider).displayName)
         let accountLabel = self.menuBarLayoutAccountLabel(provider: provider, snapshot: snapshot)
         let automatic = MenuBarLayoutRenderWindow(windows.automatic)
@@ -152,7 +156,10 @@ extension StatusItemController {
                 dataConfidence: snapshot?.dataConfidence ?? .unknown,
                 now: now),
             runsOut: runsOut,
-            balance: MenuBarLayoutBalanceResolver.balance(provider: provider, snapshot: snapshot),
+            balance: MenuBarLayoutBalanceResolver.balance(
+                provider: provider,
+                snapshot: snapshot,
+                codexCredits: codexCredits),
             costToday: costs.today,
             cost30d: costs.last30Days,
             metrics: MenuBarLayoutRenderMetrics(
@@ -177,6 +184,18 @@ extension StatusItemController {
                 balanceUsedUSD: balanceAmounts.used,
                 costTodayUSD: costs.todayUSD,
                 cost30dUSD: costs.last30DaysUSD))
+    }
+
+    func menuBarLayoutCodexCredits(
+        provider: UsageProvider,
+        snapshot: UsageSnapshot?,
+        now: Date = .init()) -> CreditsSnapshot?
+    {
+        self.store.codexConsumerProjectionIfNeeded(
+            for: provider,
+            surface: .menuBar,
+            snapshotOverride: snapshot,
+            now: now)?.credits?.snapshot
     }
 
     func menuBarLayoutAccountLabel(provider: UsageProvider, snapshot: UsageSnapshot?) -> String? {
