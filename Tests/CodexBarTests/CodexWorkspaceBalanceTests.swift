@@ -175,7 +175,7 @@ struct CodexWorkspaceBalanceTests {
     }
 
     @Test(arguments: ["credential-account", "usage-account", " usage-account ", "", "   "])
-    func `workspace enrichment prefers a nonempty credential account and falls back to usage`(
+    func `workspace enrichment requires a response account matching any credential scope`(
         credentialAccount: String) async throws
     {
         let fixture = try self.makeFixture(accountId: credentialAccount == "credential-account" ? nil : "usage-account")
@@ -186,12 +186,17 @@ struct CodexWorkspaceBalanceTests {
             credentials: self.makeCredentials(accountId: credentialAccount),
             context: self.makeContext(),
             fetcher: { accountId in
-                #expect(accountId == (credentialAccount == "credential-account" ? credentialAccount : "usage-account"))
+                #expect(credentialAccount != "credential-account", "An unscoped response must not fetch a balance")
+                #expect(accountId == "usage-account")
                 return payload
             })
 
-        #expect(result.credits?.remaining == 1234)
-        #expect(result.credits?.hasWorkspaceBalance == true)
+        if credentialAccount == "credential-account" {
+            self.expectUnchanged(result, original: fixture.result)
+        } else {
+            #expect(result.credits?.remaining == 1234)
+            #expect(result.credits?.hasWorkspaceBalance == true)
+        }
     }
 
     @Test

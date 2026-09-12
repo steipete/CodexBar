@@ -27,6 +27,9 @@ final class CodexWorkspaceBalanceNativeProofTests: XCTestCase {
             XCTAssertTrue(receipt.values.allSatisfy { $0 == (scenario == "matching") })
             authorityReceipts[scenario] = receipt
         }
+        let rejectsUnscopedOAuth = try await CodexWorkspaceAuthorityProof.unscopedOAuthBalanceIsRejected()
+        XCTAssertTrue(rejectsUnscopedOAuth)
+        authorityReceipts["oauthMissingResponseAccount"] = ["rejected": rejectsUnscopedOAuth]
         try JSONSerialization.data(withJSONObject: authorityReceipts, options: [.prettyPrinted, .sortedKeys])
             .write(to: output.appendingPathComponent("authority.json"))
         let modelFixture = CodexExtraUsageFreshnessTests()

@@ -36,6 +36,41 @@ struct CodexWorkspaceAuthorityPublicationTests {
 
 @MainActor
 enum CodexWorkspaceAuthorityProof {
+    static func unscopedOAuthBalanceIsRejected() async throws -> Bool {
+        let data = Data(#"{"plan_type":"business","credits":{"has_credits":true,"balance":null}}"#.utf8)
+        let credentials = CodexOAuthCredentials(
+            accessToken: "fixture-access",
+            refreshToken: "fixture-refresh",
+            idToken: nil,
+            accountId: "workspace-a",
+            lastRefresh: Date())
+        let original = try CodexOAuthFetchStrategy._mapResultForTesting(data, credentials: credentials)
+        let browser = BrowserDetection(cacheTTL: 0)
+        let context = ProviderFetchContext(
+            runtime: .app,
+            sourceMode: .oauth,
+            includeCredits: true,
+            webTimeout: 10,
+            webDebugDumpHTML: false,
+            verbose: false,
+            env: [:],
+            settings: nil,
+            fetcher: UsageFetcher(environment: [:]),
+            claudeFetcher: ClaudeUsageFetcher(browserDetection: browser),
+            browserDetection: browser)
+        let result = try await CodexOAuthFetchStrategy._applyWorkspaceRemainingBalanceForTesting(
+            original,
+            usage: CodexOAuthUsageFetcher._decodeUsageResponseForTesting(data),
+            credentials: credentials,
+            context: context,
+            fetcher: { _ in
+                try JSONDecoder().decode(
+                    CodexWorkspaceRemainingBalanceResponse.self,
+                    from: Data(#"{"balance":42}"#.utf8))
+            })
+        return result.credits == original.credits && result.credits?.hasWorkspaceBalance != true
+    }
+
     static func run(scenario: String) async throws -> [String: Bool] {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("workspace-proof-\(UUID())")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)

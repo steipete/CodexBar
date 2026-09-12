@@ -574,10 +574,10 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
               usage.credits?.hasCredits == true,
               usage.credits?.unlimited != true,
               usage.credits?.balance == nil,
-              let accountId = self.firstNonEmptyAccountId(credentials.accountId, usage.accountId)
+              let accountId = self.firstNonEmptyAccountId(usage.accountId)
         else { return result }
 
-        if let responseAccount = self.firstNonEmptyAccountId(usage.accountId), responseAccount != accountId {
+        if let credentialAccount = self.firstNonEmptyAccountId(credentials.accountId), credentialAccount != accountId {
             return result
         }
 
