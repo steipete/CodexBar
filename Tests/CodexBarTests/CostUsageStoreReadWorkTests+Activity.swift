@@ -80,9 +80,12 @@ extension CostUsageStoreReadWorkTests {
     }
 
     @Test
-    func `warm activity still reconciles changed source files`() throws {
+    func `warm activity revalidates reconciled catch up after source replacement`() async throws {
         let fixture = try ReadWorkFixture(fileCount: 2, rowsPerFile: 4)
         defer { fixture.remove() }
+        var metadata = await fixture.store.fetchMetadata()
+        metadata.catchUpPending = true
+        #expect(await fixture.store.setMetadata(metadata))
         let recorder = CostUsageStoreReadWorkRecorder(databaseURL: fixture.store.databaseURL)
         CostUsageStore.readWorkRecorderForTesting = recorder
         defer { CostUsageStore.readWorkRecorderForTesting = nil }
