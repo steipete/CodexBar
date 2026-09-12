@@ -210,6 +210,7 @@ extension OpenAIDashboardFetcher {
     {
         self.fillingMissingPageFields(
             self.makeDashboardSnapshot(.init(
+                accountID: dashboardData.accountID,
                 signedInEmail: dashboardData.signedInEmail,
                 scrape: scrape,
                 codeReview: dashboardData.codeReview,

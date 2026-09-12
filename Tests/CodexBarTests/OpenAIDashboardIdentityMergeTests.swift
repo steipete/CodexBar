@@ -76,12 +76,16 @@ struct OpenAIDashboardIdentityMergeTests {
     }
 
     @Test(arguments: [nil, "", "other@example.com"] as [String?])
-    func `unpaired page identity returns only verified API data`(pageEmail: String?) throws {
+    func `missing page identity waits and mismatched page returns verified API data`(pageEmail: String?) throws {
         let result = try OpenAIDashboardFetcher.snapshotForUnpairedPage(
             apiData: self.apiData(balance: 14),
             verifiedSignedInEmail: "owner@example.com",
             pageSignedInEmail: pageEmail,
             previous: self.previous(email: "other@example.com"))
+        if pageEmail?.isEmpty != false {
+            #expect(result == nil)
+            return
+        }
         let snapshot = try #require(result)
 
         #expect(snapshot.signedInEmail == "owner@example.com")
@@ -133,12 +137,16 @@ struct OpenAIDashboardIdentityMergeTests {
             accountPlan: "business")
         #expect(!apiData.hasUsageData)
         do {
-            _ = try OpenAIDashboardFetcher.snapshotForUnpairedPage(
+            let result = try OpenAIDashboardFetcher.snapshotForUnpairedPage(
                 apiData: apiData,
                 verifiedSignedInEmail: "owner@example.com",
                 pageSignedInEmail: pageEmail,
                 previous: self.previous(email: "owner@example.com"))
-            Issue.record("Unpaired API metadata must not be attributed to the page account")
+            if pageEmail == nil {
+                #expect(result == nil)
+            } else {
+                Issue.record("Unpaired API metadata must not be attributed to the page account")
+            }
         } catch let OpenAIDashboardFetcher.FetchError.noDashboardData(body) {
             #expect(!body.contains("owner@example.com"))
             #expect(!body.contains("other@example.com"))
@@ -149,6 +157,7 @@ struct OpenAIDashboardIdentityMergeTests {
 
     private func apiData(balance: Double? = nil) -> OpenAIDashboardFetcher.DashboardAPIData {
         OpenAIDashboardFetcher.DashboardAPIData(
+            accountID: "workspace-a",
             primaryLimit: self.window(used: 12),
             secondaryLimit: nil,
             extraRateWindows: [],
@@ -159,9 +168,10 @@ struct OpenAIDashboardIdentityMergeTests {
             accountPlan: "business")
     }
 
-    private func incoming(email: String?) -> OpenAIDashboardSnapshot {
+    private func incoming(email: String?, accountID: String? = "workspace-a") -> OpenAIDashboardSnapshot {
         OpenAIDashboardSnapshot(
             signedInEmail: email,
+            accountID: accountID,
             codeReviewRemainingPercent: nil,
             creditEvents: [],
             dailyBreakdown: [],
@@ -171,7 +181,7 @@ struct OpenAIDashboardIdentityMergeTests {
             updatedAt: Date(timeIntervalSince1970: 1_700_000_100))
     }
 
-    private func previous(email: String?) -> OpenAIDashboardSnapshot {
+    private func previous(email: String?, accountID: String? = "workspace-a") -> OpenAIDashboardSnapshot {
         let date = Date(timeIntervalSince1970: 1_700_000_000)
         let history = OpenAIDashboardDailyBreakdown(
             day: "2023-11-14",
@@ -179,6 +189,7 @@ struct OpenAIDashboardIdentityMergeTests {
             totalCreditsUsed: 2)
         return OpenAIDashboardSnapshot(
             signedInEmail: email,
+            accountID: accountID,
             codeReviewRemainingPercent: 81,
             codeReviewLimit: self.window(used: 19),
             creditEvents: [CreditEvent(date: date, service: "Codex", creditsUsed: 2)],
@@ -196,6 +207,18 @@ struct OpenAIDashboardIdentityMergeTests {
             subscriptionExpiresAt: date.addingTimeInterval(3600),
             subscriptionRenewsAt: date.addingTimeInterval(7200),
             updatedAt: date)
+    }
+
+    @Test(arguments: [nil, "", "workspace-b"] as [String?])
+    func `matching email cannot reuse another or unknown workspace`(accountID: String?) throws {
+        let previous = self.previous(email: "owner@example.com", accountID: accountID)
+        let persisted = try JSONDecoder().decode(OpenAIDashboardSnapshot.self, from: JSONEncoder().encode(previous))
+        let result = OpenAIDashboardFetcher.snapshotByMergingAPI(
+            apiData: self.apiData(), verifiedEmail: "owner@example.com", previous: persisted)
+        self.expectNoCachedFields(result)
+        #expect(result.accountID == "workspace-a")
+        let incoming = self.incoming(email: "owner@example.com")
+        #expect(OpenAIDashboardFetcher.fillingMissingPageFields(incoming, from: persisted) == incoming)
     }
 
     private func window(used: Double) -> RateWindow {

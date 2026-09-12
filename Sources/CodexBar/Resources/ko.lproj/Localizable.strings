@@ -1519,3 +1519,6 @@
 "Color Pace Indicator" = "사용 속도 색상 표시";
 "Green pace indicator when behind pace, red when ahead of pace (risk of running out early)" = "사용량이 예상 속도보다 낮으면 초록색(여유), 높으면 빨간색(조기 소진 위험)으로 표시합니다.";
 "%@ weekly" = "%@ 주간";
+
+"agent_sessions_hide_unreachable_title" = "연결할 수 없는 호스트 숨기기";
+"agent_sessions_hide_unreachable_subtitle" = "세션을 가져오지 못한 호스트를 숨깁니다.";

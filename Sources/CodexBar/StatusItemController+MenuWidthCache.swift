@@ -55,6 +55,7 @@ extension StatusItemController {
             codexWorkspacesMenuEnabled: codexWorkspacesMenuEnabled,
             agentSessionsEnabled: self.settings.agentSessionsEnabled,
             agentSessionLabelStyle: self.settings.agentSessionLabelStyle,
+            agentSessionsHideUnreachableHosts: self.settings.agentSessionsHideUnreachableHosts,
             localAgentSessions: self.agentSessions.localSessions,
             remoteAgentHosts: self.agentSessions.remoteHosts)
     }

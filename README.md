@@ -235,6 +235,7 @@ CLI install:
 
 ## Looking for a Windows version?
 - [Win-CodexBar](https://github.com/Finesssee/Win-CodexBar)
+- [CodexBar for Windows](https://github.com/hinneslung/CodexBar-for-Windows) — Native Windows tray app powered by the original CodexBar CLI through WSL2; x64 and ARM64 installers.
 
 ## Linux desktop integration?
 - [codexbar-waybar](https://github.com/Marouan-chak/codexbar-waybar) — Waybar custom module + GTK4 popover for Hyprland / Sway / other Wayland compositors, built on top of the bundled Linux CLI.
@@ -246,6 +247,9 @@ CLI install:
 - [codexbar-plasmoid](https://github.com/psimaker/codexbar-plasmoid) — KDE Plasma 6 widget for CodexBar's meter icon, provider switcher, quota windows, pace, credits, local cost, and status, powered by the bundled Linux CLI.
 - [CodexBar Plasma](https://github.com/Lucenx9/codexbar-plasma) — KDE Plasma 6 widget with multi-provider views, account selection, cost history, notifications, configurable providers, and installable `.plasmoid` releases, powered by the bundled Linux CLI.
 - [CodexBar Meter](https://github.com/noctalia-dev/community-plugins/tree/main/codexbar-meter) — Noctalia v5 bar widget and panel showing every enabled provider's quota windows, credits, and pace, installable from Noctalia's plugin store, built on the bundled Linux CLI.
+
+## Desk display
+- [AI Monitor](https://github.com/tobymarks/esp32-ai-monitor) — ESP32 desk display (Cheap Yellow Display) plus a macOS companion app that shows Claude, ChatGPT, Gemini, Copilot, Cursor and Antigravity limits as rings or bars, fed over USB by the bundled CLI. No Wi-Fi on the device, 3D-printable case.
 
 ## Status bar & terminal integration
 - [showy-quota](https://github.com/enieuwy/showy-quota) — always-on AI plan quota strips for SketchyBar, tmux, and Zellij (standalone WASM plugin), built on `codexbar serve` / the bundled CLI.

@@ -1549,3 +1549,6 @@
 "Color Pace Indicator" = "Gebruikstempo kleuren";
 "Green pace indicator when behind pace, red when ahead of pace (risk of running out early)" = "Groen als het verbruik achterloopt op het verwachte tempo (reserve); rood als het voorloopt (risico op vroegtijdige uitputting).";
 "%@ weekly" = "%@ wekelijks";
+
+"agent_sessions_hide_unreachable_title" = "Onbereikbare hosts verbergen";
+"agent_sessions_hide_unreachable_subtitle" = "Verberg hosts wanneer het ophalen van hun sessies mislukt.";

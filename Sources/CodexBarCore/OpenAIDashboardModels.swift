@@ -2,6 +2,8 @@ import Foundation
 
 public struct OpenAIDashboardSnapshot: Codable, Equatable, Sendable {
     public let signedInEmail: String?
+    /// Account/workspace scope returned by the authenticated usage API.
+    public let accountID: String?
     public let codeReviewRemainingPercent: Double?
     public let codeReviewLimit: RateWindow?
     public let creditEvents: [CreditEvent]
@@ -28,6 +30,7 @@ public struct OpenAIDashboardSnapshot: Codable, Equatable, Sendable {
 
     public init(
         signedInEmail: String?,
+        accountID: String? = nil,
         codeReviewRemainingPercent: Double?,
         codeReviewLimit: RateWindow? = nil,
         creditEvents: [CreditEvent],
@@ -47,6 +50,7 @@ public struct OpenAIDashboardSnapshot: Codable, Equatable, Sendable {
         updatedAt: Date)
     {
         self.signedInEmail = signedInEmail
+        self.accountID = accountID
         self.codeReviewRemainingPercent = codeReviewRemainingPercent
         self.codeReviewLimit = codeReviewLimit
         self.creditEvents = creditEvents
@@ -68,6 +72,7 @@ public struct OpenAIDashboardSnapshot: Codable, Equatable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case signedInEmail
+        case accountID
         case codeReviewRemainingPercent
         case codeReviewLimit
         case creditEvents
@@ -90,6 +95,7 @@ public struct OpenAIDashboardSnapshot: Codable, Equatable, Sendable {
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.signedInEmail = try container.decodeIfPresent(String.self, forKey: .signedInEmail)
+        self.accountID = try container.decodeIfPresent(String.self, forKey: .accountID)
         self.codeReviewRemainingPercent = try container.decodeIfPresent(
             Double.self,
             forKey: .codeReviewRemainingPercent)
@@ -143,7 +149,9 @@ public struct OpenAIDashboardSnapshot: Codable, Equatable, Sendable {
             let services = serviceTotals
                 .map { OpenAIDashboardServiceUsage(service: $0.key, creditsUsed: $0.value) }
                 .sorted { lhs, rhs in
-                    if lhs.creditsUsed == rhs.creditsUsed { return lhs.service < rhs.service }
+                    if lhs.creditsUsed == rhs.creditsUsed {
+                        return lhs.service < rhs.service
+                    }
                     return lhs.creditsUsed > rhs.creditsUsed
                 }
             let total = services.reduce(0) { $0 + $1.creditsUsed }

@@ -121,6 +121,13 @@ struct AgentSessionsSettingsSection: View {
                 })
                 .disabled(!self.settings.agentSessionsEnabled)
 
+            Toggle(isOn: self.$settings.agentSessionsHideUnreachableHosts) {
+                SettingsRowLabel(
+                    L("agent_sessions_hide_unreachable_title"),
+                    subtitle: L("agent_sessions_hide_unreachable_subtitle"))
+            }
+            .disabled(!self.settings.agentSessionsEnabled)
+
             AgentSessionHostsEditor(settings: self.settings)
         } header: {
             Text(L("section_agent_sessions"))

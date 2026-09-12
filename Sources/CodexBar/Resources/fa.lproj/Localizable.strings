@@ -1554,3 +1554,6 @@
 "Color Pace Indicator" = "رنگ‌بندی آهنگ مصرف";
 "Green pace indicator when behind pace, red when ahead of pace (risk of running out early)" = "سبز وقتی مصرف از آهنگ مورد انتظار عقب‌تر است (ذخیره)؛ قرمز وقتی جلوتر است (خطر تمام شدن زودهنگام سهمیه).";
 "%@ weekly" = "%@ هفتگی";
+
+"agent_sessions_hide_unreachable_title" = "پنهان کردن میزبان‌های در دسترس نبودنی";
+"agent_sessions_hide_unreachable_subtitle" = "میزبان‌ها را در صورت ناموفق بودن دریافت نشست‌هایشان پنهان کنید.";

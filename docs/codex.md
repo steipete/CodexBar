@@ -192,7 +192,10 @@ is limited, using additional rows when needed.
 4) Last imported browser cookie email (cached).
 
 ## Credits
-- Web dashboard fills credits only when OAuth/CLI do not provide them. Account-matched extra usage reconciles monthly caps and purchased balances separately: a newer confirmed zero clears an old balance, while an unread balance preserves the last successful reading. Extra usage shows monthly spend/limit and a distinct purchased balance when available; the optional credits setting controls visibility.
+- Web dashboard fills credits only when OAuth/CLI do not provide them. Account-matched extra usage reconciles monthly caps and purchased balances separately; the optional credits setting controls visibility.
+- When usage reports limited workspace credits without an amount, an optional read of the account's `remaining_balance` endpoint uses the same OAuth or browser session. Access depends on workspace permissions. Failure preserves ordinary usage and monthly-limit data.
+- A newer explicitly unavailable workspace balance suppresses an older cached amount, including after restart. A later successful positive or zero balance restores visibility. Usage-only refreshes that skip the balance read preserve the account's prior observation; account changes never inherit it.
+- The custom **Balance** menu-bar token supports Codex credits, rounded and grouped as whole credits. Workspace pools remain distinct from a member's monthly cap and do not imply a total pool capacity.
 - CLI RPC: `account/rateLimits/read` → credits balance.
 - CLI PTY diagnostics can still parse `Credits:` from saved/manual `/status` output.
 
@@ -247,6 +250,8 @@ is limited, using additional rows when needed.
     coverage, and incomplete-scan checks. Cached reports
     retain row-level pricing evidence and project/session details, but omit raw token snapshots, accumulator state,
     and replay bodies. File cursor metadata, including JSONL resume state, remains available for progress tracking.
+    Fresh and cached fetches use progress metadata to recognize retained reports during catch-up, skipping
+    detail-row decoding that would be discarded. Reports without a matching retained result still load exact details.
     A native scan loads exact usage rows once, deferring raw token history and checkpoints until a file changes
     or a fork needs its ancestors. A single-use receipt binds those deferred reads and saves to the original
     connection, database identity and SQLite change observations,
@@ -304,3 +309,7 @@ dashboard labels its values as local estimates and keeps currencies separate.
   `Sources/CodexBarCore/PiSessionCostScanner.swift`,
   `Sources/CodexBarCore/PiSessionCostCache.swift`,
   `Sources/CodexBarCore/Vendored/CostUsage/*`
+
+Automatic local-history catch-up bases its duty-cycle delay on time spent executing its own scan, including cache
+publication. Time waiting behind another account or provider on the shared scan queue does not increase that delay.
+The existing power, thermal, scan-budget, and complete-history publication rules still apply.

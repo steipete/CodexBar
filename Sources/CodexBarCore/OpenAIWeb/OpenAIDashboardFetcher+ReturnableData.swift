@@ -44,6 +44,8 @@ extension OpenAIDashboardFetcher {
         guard let apiData,
               let verifiedSignedInEmail,
               !verifiedSignedInEmail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              let pageSignedInEmail,
+              !pageSignedInEmail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               !self.dashboardEmailsMatch(verifiedSignedInEmail, pageSignedInEmail)
         else { return nil }
         guard apiData.hasUsageData else {
@@ -64,10 +66,12 @@ extension OpenAIDashboardFetcher {
         updatedAt: Date = Date()) -> OpenAIDashboardSnapshot
     {
         let email = verifiedEmail.trimmingCharacters(in: .whitespacesAndNewlines)
-        let previous = self.dashboardEmailsMatch(email, previous?.signedInEmail) ? previous : nil
+        let previous = self.dashboardEmailsMatch(email, previous?.signedInEmail)
+            && self.dashboardAccountsMatch(apiData.accountID, previous?.accountID) ? previous : nil
         let usesAPIBalance = apiData.creditsRemaining != nil || apiData.creditsAvailable != nil
         return OpenAIDashboardSnapshot(
             signedInEmail: email.isEmpty ? nil : email,
+            accountID: apiData.accountID,
             codeReviewRemainingPercent: previous?.codeReviewRemainingPercent,
             codeReviewLimit: previous?.codeReviewLimit,
             creditEvents: previous?.creditEvents ?? [],
@@ -99,7 +103,9 @@ extension OpenAIDashboardFetcher {
         from previous: OpenAIDashboardSnapshot?,
         subscriptionResult: OpenAISubscriptionFetchResult = .unavailable) -> OpenAIDashboardSnapshot
     {
-        guard let previous, self.dashboardEmailsMatch(snapshot.signedInEmail, previous.signedInEmail) else {
+        guard let previous, self.dashboardEmailsMatch(snapshot.signedInEmail, previous.signedInEmail),
+              self.dashboardAccountsMatch(snapshot.accountID, previous.accountID)
+        else {
             return snapshot
         }
         let usesCurrentBalance = snapshot.creditsRemaining != nil || snapshot.creditsAvailable != nil
@@ -111,6 +117,7 @@ extension OpenAIDashboardFetcher {
             : snapshot.subscriptionRenewsAt ?? previous.subscriptionRenewsAt
         return OpenAIDashboardSnapshot(
             signedInEmail: snapshot.signedInEmail,
+            accountID: snapshot.accountID,
             codeReviewRemainingPercent: snapshot.codeReviewRemainingPercent
                 ?? previous.codeReviewRemainingPercent,
             codeReviewLimit: snapshot.codeReviewLimit ?? previous.codeReviewLimit,
@@ -129,6 +136,11 @@ extension OpenAIDashboardFetcher {
             subscriptionExpiresAt: subscriptionExpiresAt,
             subscriptionRenewsAt: subscriptionRenewsAt,
             updatedAt: snapshot.updatedAt)
+    }
+
+    private nonisolated static func dashboardAccountsMatch(_ first: String?, _ second: String?) -> Bool {
+        guard let first = first?.trimmingCharacters(in: .whitespacesAndNewlines), !first.isEmpty else { return false }
+        return first == second?.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private nonisolated static func dashboardEmailsMatch(_ first: String?, _ second: String?) -> Bool {

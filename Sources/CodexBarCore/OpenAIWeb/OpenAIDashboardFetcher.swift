@@ -47,6 +47,7 @@ public struct OpenAIDashboardFetcher {
     }
 
     struct DashboardSnapshotComponents {
+        var accountID: String?
         let signedInEmail: String?
         let scrape: ScrapeResult
         let codeReview: Double?
@@ -65,6 +66,7 @@ public struct OpenAIDashboardFetcher {
     }
 
     struct DashboardScrapeData {
+        var accountID: String?
         let signedInEmail: String?
         let codeReview: Double?
         let codeReviewLimit: RateWindow?
@@ -87,6 +89,7 @@ public struct OpenAIDashboardFetcher {
     {
         OpenAIDashboardSnapshot(
             signedInEmail: components.signedInEmail,
+            accountID: components.accountID,
             codeReviewRemainingPercent: components.codeReview,
             codeReviewLimit: components.codeReviewLimit,
             creditEvents: components.events,
@@ -149,7 +152,9 @@ public struct OpenAIDashboardFetcher {
         // dashboard HTML scrape never contributes here; we just forward what the apiData decoded.
         let extraRateWindows = apiData?.extraRateWindows ?? []
         return DashboardScrapeData(
-            signedInEmail: self.firstNonEmpty(scrape.signedInEmail, verifiedSignedInEmail),
+            accountID: apiData?.accountID, signedInEmail: self.firstNonEmpty(
+                scrape.signedInEmail,
+                verifiedSignedInEmail),
             codeReview: codeReview,
             codeReviewLimit: codeReviewLimit,
             events: events,
@@ -626,6 +631,7 @@ public struct OpenAIDashboardFetcher {
 
     nonisolated static func dashboardAPIData(from response: CodexUsageResponse) -> DashboardAPIData {
         DashboardAPIData(
+            accountID: response.accountId,
             primaryLimit: self.rateWindow(from: response.rateLimit?.primaryWindow),
             secondaryLimit: self.rateWindow(from: response.rateLimit?.secondaryWindow),
             extraRateWindows: CodexAdditionalRateLimitMapper.extraRateWindows(
@@ -848,6 +854,7 @@ public struct OpenAIDashboardFetcher {
 
 extension OpenAIDashboardFetcher {
     struct DashboardAPIData {
+        var accountID: String?
         let primaryLimit: RateWindow?
         let secondaryLimit: RateWindow?
         let extraRateWindows: [NamedRateWindow]
@@ -993,6 +1000,7 @@ extension OpenAIDashboardFetcher {
             guard let balance = decoded.balance else { return result }
             logger("workspace remaining balance api supplied owner-visible balance")
             return DashboardAPIData(
+                accountID: result.accountID,
                 primaryLimit: result.primaryLimit,
                 secondaryLimit: result.secondaryLimit,
                 extraRateWindows: result.extraRateWindows,
@@ -1049,6 +1057,7 @@ extension OpenAIDashboardFetcher {
             let decoded = try JSONDecoder().decode(CodexSpendControlsMonthlyUsageResponse.self, from: data)
             guard let limit = decoded.codexCreditLimitSnapshot(updatedAt: Date()) else { return result }
             return DashboardAPIData(
+                accountID: result.accountID,
                 primaryLimit: result.primaryLimit,
                 secondaryLimit: result.secondaryLimit,
                 extraRateWindows: result.extraRateWindows,
