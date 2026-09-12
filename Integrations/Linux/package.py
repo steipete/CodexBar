@@ -15,11 +15,14 @@ def main():
     parser.add_argument('--version', required=True)
     parser.add_argument('--output', type=Path, default=REPO / '.local/packages')
     args = parser.parse_args()
-    if not re.fullmatch(r'[a-zA-Z0-9][a-zA-Z0-9._-]{0,79}', args.version):
-        parser.error('Version must contain only letters, numbers, dots, underscores and hyphens')
+    if not re.fullmatch(r'[0-9][a-zA-Z0-9._-]{0,79}', args.version):
+        parser.error('Version must start with a digit and contain only letters, numbers, dots, underscores and hyphens')
     if not args.binary.is_file():
         parser.error('Build the desktop app first, or supply --binary')
-    name = f'codexbar-linux-{args.version}-{platform.machine()}'
+    architecture = {'x86_64': 'x86_64', 'aarch64': 'aarch64', 'arm64': 'aarch64'}.get(platform.machine())
+    if architecture is None:
+        parser.error('Supported architectures: x86_64 and aarch64')
+    name = f'CodexBarDesktop-v{args.version}-linux-{architecture}'
     args.output.mkdir(parents=True, exist_ok=True)
     destination = args.output / f'{name}.tar.gz'
     files = {

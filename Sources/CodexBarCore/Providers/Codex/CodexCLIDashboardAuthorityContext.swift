@@ -14,6 +14,8 @@ public enum CodexCLIDashboardAuthorityContext {
                 expectedScopedEmail: auth.email,
                 trustedCurrentUsageEmail: nil,
                 dashboardSignedInEmail: dashboard.signedInEmail,
+                dashboardAccountID: dashboard.accountID,
+                requiresWorkspaceBalanceScope: dashboard.requiresWorkspaceBalanceScope,
                 knownOwners: context.settings?.codex?.dashboardAuthorityKnownOwners ?? []),
             routing: CodexDashboardRoutingHints(
                 targetEmail: CodexIdentityResolver.normalizeEmail(routingTargetEmail),
@@ -38,6 +40,8 @@ public enum CodexCLIDashboardAuthorityContext {
                 expectedScopedEmail: auth.email,
                 trustedCurrentUsageEmail: trustedCurrentUsageEmail,
                 dashboardSignedInEmail: dashboard.signedInEmail,
+                dashboardAccountID: dashboard.accountID,
+                requiresWorkspaceBalanceScope: dashboard.requiresWorkspaceBalanceScope,
                 knownOwners: context.settings?.codex?.dashboardAuthorityKnownOwners ?? []),
             routing: CodexDashboardRoutingHints(
                 targetEmail: auth.email,

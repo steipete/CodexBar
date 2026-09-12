@@ -341,6 +341,16 @@ struct MenuBarLayoutEditorTests {
 
         #expect(MenuBarLayoutBalanceResolver.balance(provider: .openrouter, snapshot: snapshot) == "$12.34")
         #expect(MenuBarLayoutBalanceResolver.balance(provider: .codex, snapshot: snapshot) == nil)
+        #expect(MenuBarLayoutBalanceResolver.balance(
+            provider: .codex,
+            snapshot: snapshot,
+            codexCredits: CreditsSnapshot(
+                remaining: 1234,
+                events: [],
+                updatedAt: Date(),
+                balanceReadSucceeded: true,
+                creditsAvailable: true,
+                balanceIsWorkspace: true)) == "1,234")
         #expect(MenuBarLayoutToken.balance.editorLabel(provider: .openrouter) == L("Balance"))
     }
 

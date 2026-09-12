@@ -25,7 +25,8 @@ Settings → Usage & Spend is a local estimated-cost history page, not a billing
 card. Range choices are 7 / 30 / 90 days and All (the scan window is 365 days). Amounts are list-price equivalents
 unless a source also reports plan-metered spend, in which case both columns appear. Day buckets use a pinned IANA
 timezone stored when cost tracking is first enabled. Heatmap and ledger dates remain aligned to local calendar
-days across daylight-saving transitions, including zones where midnight is skipped.
+days across daylight-saving transitions, including zones where midnight is skipped. Coverage counts civil days,
+and daily/hourly chart labels use the bucket time zone. Their ranges end at the next local day boundary rather than a fixed 24 hours.
 
 Regular token-history publications also refresh outdated independent Usage & Spend sources, including Claude,
 through their own 365-day scan. The dashboard never substitutes the shorter menu history for that scan. Updates

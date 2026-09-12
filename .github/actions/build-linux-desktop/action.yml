@@ -1,0 +1,62 @@
+name: Build and test Linux desktop
+description: Build the Qt desktop, test with fake providers, and package it with a checksum.
+inputs:
+  version:
+    description: Desktop version without the v prefix
+    required: true
+outputs:
+  archive:
+    description: Packaged archive path
+    value: ${{ steps.package.outputs.archive }}
+runs:
+  using: composite
+  steps:
+    - name: Validate version
+      shell: bash
+      env:
+        DESKTOP_VERSION: ${{ inputs.version }}
+      run: |
+        set -euo pipefail
+        [[ "$DESKTOP_VERSION" =~ ^[0-9][0-9A-Za-z._-]{0,79}$ ]] || { echo 'Invalid desktop version' >&2; exit 1; }
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+    - name: Install Qt 6
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y qt6-base-dev qt6-declarative-dev qt6-wayland libqt6svg6 qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-layouts qml6-module-qtquick-window qml6-module-qtquick-templates qml6-module-qtqml-workerscript
+    - name: Build and test
+      shell: bash
+      env:
+        CODEXBAR_DESKTOP_VERSION: ${{ inputs.version }}
+      run: |
+        set -euo pipefail
+        node --test Integrations/Omarchy/test.mjs Integrations/Omarchy/notifications.test.mjs
+        python3 Integrations/Omarchy/test_install.py
+        mkdir -p .local/linux-build .local/linux-account-tests
+        (
+          cd .local/linux-build
+          qmake6 ../../Integrations/Linux/codexbar-linux.pro
+          make -j2
+          test "$(./codexbar-linux --version)" = "codexbar-linux $CODEXBAR_DESKTOP_VERSION"
+        )
+        python3 Integrations/Linux/tests/test_desktop.py
+        (
+          cd .local/linux-account-tests
+          qmake6 ../../Integrations/Linux/tests/accounts.pro
+          make -j2
+          ./tst_accounts
+        )
+        python3 Integrations/Linux/tests/test_package.py
+        bash Scripts/test_release_checksum.sh
+    - name: Package and checksum
+      id: package
+      shell: bash
+      env:
+        DESKTOP_VERSION: ${{ inputs.version }}
+      run: |
+        set -euo pipefail
+        archive=$(python3 Integrations/Linux/package.py --version "$DESKTOP_VERSION")
+        Scripts/generate_release_checksum.sh "$archive"
+        echo "archive=$archive" >> "$GITHUB_OUTPUT"

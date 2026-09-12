@@ -245,6 +245,11 @@ dollars. Local session scans run on the dedicated background usage-scan queue;
 menu cards and spend views reuse the already-published snapshot instead of
 walking the session directory whenever they render.
 
+## Menu bar appearance
+
+Grok quota icons show a visor and twin antennae in both single- and two-meter layouts.
+Enable **Hide Critters** to use plain quota bars. Status badges retain their normal placement.
+
 ## Status
 
 xAI has not exposed a Statuspage-style status feed yet. The "View Status" link

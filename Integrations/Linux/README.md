@@ -5,6 +5,35 @@ system tray icon, and a launcher entry. The Swift `codexbar` CLI owns provider
 fetching and authentication. The desktop owns polling, settings, notifications,
 and a private local socket for desktop adapters. No HTTP server is needed.
 
+## Release downloads
+
+Starting with releases that include this integration, GitHub Releases provides
+`CodexBarDesktop-v<version>-linux-x86_64.tar.gz` and
+`CodexBarDesktop-v<version>-linux-aarch64.tar.gz`, each with a `.sha256` file.
+These contain the desktop and optional Omarchy adapter. Download the matching
+`CodexBarCLI` archive separately and keep its resource bundle beside the CLI.
+
+The release binaries build on Ubuntu 24.04 (glibc 2.39, Qt 6.4). Install the Qt
+runtime and QML modules from your distro. On older systems, build from source.
+Arch/Omarchy dependencies are listed below; Ubuntu packages are listed in
+`.github/actions/build-linux-desktop/action.yml` (the `-dev` packages are only
+needed for building).
+
+```sh
+# Download the archive and its checksum into the same directory.
+# Replace <version> below with the downloaded version (use aarch64 for ARM64):
+archive='CodexBarDesktop-v<version>-linux-x86_64.tar.gz'
+sha256sum -c "$archive.sha256"
+tar -xzf "$archive"
+cd "${archive%.tar.gz}"
+python3 Integrations/Linux/install.py --cli /absolute/path/to/codexbar --omarchy
+~/.local/bin/codexbar-linux --settings
+```
+
+Omit `--omarchy` on other desktops. To upgrade, quit CodexBar, install the new
+archive, and reopen it. Preferences are preserved. There is no desktop auto-updater
+or distro repository package yet. Ordinary CI artifacts are previews, not releases.
+
 ## Build and install
 
 Requires Linux, C++17, make, qmake6, and Qt 6.4 or newer: Base, Declarative/Quick,
@@ -31,7 +60,7 @@ backs up existing preferences before changes. Reinstallation preserves disabled
 autostart. A release archive can also be installed without a checkout:
 
 ```sh
-# Inside an extracted codexbar-linux archive:
+# Inside an extracted CodexBarDesktop archive:
 python3 Integrations/Linux/install.py --cli /absolute/path/to/codexbar --omarchy
 ```
 

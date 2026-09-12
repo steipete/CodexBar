@@ -139,7 +139,7 @@ public enum DeepSeekProviderDescriptor {
                     movePrimaryDetailToStatus: { _ in true }),
                 menu: ProviderMenuDescriptorPresentation(primaryDescriptionIsDetail: { _ in true }),
                 optionalDetails: ProviderOptionalDetailsPresentation(
-                    costSummaryTitles: ["Detailed usage"])),
+                    costSummaryTitles: ["Usage", "Spend"])),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .api, .web],
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),

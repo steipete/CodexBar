@@ -5,46 +5,44 @@ on:
       - 'Integrations/Omarchy/**'
       - 'Integrations/Linux/**'
       - '.github/workflows/omarchy.yml'
+      - '.github/workflows/release-linux-desktop.yml'
+      - '.github/actions/build-linux-desktop/**'
+      - 'Scripts/generate_release_checksum.sh'
+      - 'Scripts/test_release_checksum.sh'
   push:
     branches: [main]
     paths:
       - 'Integrations/Omarchy/**'
       - 'Integrations/Linux/**'
       - '.github/workflows/omarchy.yml'
+      - '.github/workflows/release-linux-desktop.yml'
+      - '.github/actions/build-linux-desktop/**'
+      - 'Scripts/generate_release_checksum.sh'
+      - 'Scripts/test_release_checksum.sh'
 permissions:
   contents: read
 jobs:
   test:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/build-linux-desktop
+        id: desktop
         with:
-          node-version: '22'
-      - run: node --test Integrations/Omarchy/test.mjs Integrations/Omarchy/notifications.test.mjs
-      - run: python3 Integrations/Omarchy/test_install.py
-      - name: Install Qt 6
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y qt6-base-dev qt6-declarative-dev libqt6svg6 qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-layouts qml6-module-qtquick-window qml6-module-qtquick-templates qml6-module-qtqml-workerscript
-      - name: Build desktop
-        run: |
-          mkdir -p .local/linux-build
-          cd .local/linux-build
-          qmake6 ../../Integrations/Linux/codexbar-linux.pro
-          make -j2
-      - run: python3 Integrations/Linux/tests/test_desktop.py
-      - name: Test account terminal actions
-        run: |
-          mkdir -p .local/linux-account-tests
-          cd .local/linux-account-tests
-          qmake6 ../../Integrations/Linux/tests/accounts.pro
-          make -j2
-          ./tst_accounts
-      - run: python3 Integrations/Linux/tests/test_package.py
-      - name: Package desktop
-        run: python3 Integrations/Linux/package.py --version ci
-      - uses: actions/upload-artifact@v4
+          version: '0.0.0-ci'
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: codexbar-linux
-          path: .local/packages/*.tar.gz
+          name: desktop-linux-${{ matrix.arch }}
+          if-no-files-found: error
+          path: |
+            ${{ steps.desktop.outputs.archive }}
+            ${{ steps.desktop.outputs.archive }}.sha256

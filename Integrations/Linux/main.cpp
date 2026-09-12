@@ -45,7 +45,7 @@ int main(int argc, char **argv) {
     // IPC clients do not load a GUI platform plugin or instantiate a second backend.
     auto application = std::make_unique<QCoreApplication>(argc, argv);
     QCoreApplication::setApplicationName("codexbar-linux");
-    QCoreApplication::setApplicationVersion("0.1.0");
+    QCoreApplication::setApplicationVersion(QStringLiteral(CODEXBAR_DESKTOP_VERSION));
     QCommandLineParser parser;
     parser.setApplicationDescription("CodexBar desktop for Linux · Qt windows and optional tray");
     parser.addHelpOption(); parser.addVersionOption();

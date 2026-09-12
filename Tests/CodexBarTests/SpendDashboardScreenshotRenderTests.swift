@@ -262,6 +262,42 @@ final class SpendDashboardScreenshotRenderTests: XCTestCase {
         try data.write(to: directory.appendingPathComponent("heatmap-dst.png"))
     }
 
+    func test_renderMidnightCoverage() throws {
+        guard let dir = ProcessInfo.processInfo.environment["CODEXBAR_DAY_BOUNDARY_PROOF_DIR"] else {
+            throw XCTSkip("Set CODEXBAR_DAY_BOUNDARY_PROOF_DIR for synthetic day-boundary proof.")
+        }
+        let directory = URL(fileURLWithPath: dir, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        var calendar = Self.gmtCalendar
+        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "America/Santiago"))
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 9, day: 7, hour: 12)))
+        let snapshot = Self.snapshot(
+            entries: [
+                Self.entry(day: "2026-09-06", cost: 1, tokens: 1000, model: "fixture-model"),
+                Self.entry(day: "2026-09-07", cost: 1, tokens: 1000, model: "fixture-model"),
+            ],
+            historyDays: 2,
+            now: now)
+        let previous = try XCTUnwrap(calendar.date(byAdding: .day, value: -1, to: now))
+        for (name, selectedDay) in [("coverage", Date?.none), ("selected-day", Optional(previous))] {
+            let model = SpendDashboardModel.build(
+                inputs: [.init(provider: .codex, displayName: "Synthetic Codex", snapshot: snapshot)],
+                requestedDays: 7,
+                now: now,
+                calendar: calendar,
+                selectedDay: selectedDay)
+            let group = try XCTUnwrap(model.groups.first)
+            let view = AnyView(SpendDashboardCurrencySection(group: group, requestedDays: 7, hidePersonalInfo: true)
+                .padding(24).frame(width: 900)
+                .background(Color(nsColor: .windowBackgroundColor))
+                .preferredColorScheme(.light)
+                .environment(\.locale, Locale(identifier: "en_US_POSIX")))
+            try XCTUnwrap(Self.pngData(for: view)).write(to: directory.appendingPathComponent(name + ".png"))
+            try JSONEncoder().encode(["coveredDays": group.coveredDayCount])
+                .write(to: directory.appendingPathComponent(name + ".json"))
+        }
+    }
+
     private static func chrome(selectedDays: Int, group: SpendDashboardModel.CurrencyGroup) -> some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack(alignment: .top, spacing: 16) {

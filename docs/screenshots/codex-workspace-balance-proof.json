@@ -1,0 +1,192 @@
+{
+  "automated_cache_regression_coverage": [
+    "Newer hidden dashboard observation suppresses retained older live balance.",
+    "With and without a monthly cap; with prior cached balance and without prior balance cache.",
+    "Unavailable observation survives Codable persistence and generic cap-only refresh.",
+    "Newer positive or confirmed-zero balances recover visibility.",
+    "Shared projection covers menu-bar, card and widget consumers.",
+    "Usage-only OAuth refreshes that skip the balance lookup do not invalidate an older valid workspace balance, with and without a monthly cap.",
+    "Requested unavailable observations still invalidate older balances; actual numeric balances, including zero, remain authoritative."
+  ],
+  "automated_validation": {
+    "focused_scope": "Authentication, identity pairing, dashboard, workspace balance, monthly limits, request handling, credit visibility, account-scoped publication, architecture gates, menu-bar formatting, preview, and redraw observation.",
+    "focused_suites": 16,
+    "focused_tests": 448,
+    "format_lint_command": "make check",
+    "format_lint_violations": 0,
+    "full_suite_command": "make test",
+    "full_suite_counts": {
+      "First-pass failed groups": 0,
+      "First-pass successful groups": 90,
+      "Recovered groups": 0,
+      "Selected groups": 90,
+      "Selected selections": 1076,
+      "Timed out groups": 0
+    },
+    "retry_note": "All groups passed on the first attempt."
+  },
+  "browser_cookie_production_core": {
+    "exit_code": 0,
+    "finished_at_utc": "2026-09-11T22:22:49.633572+00:00",
+    "private_values_in_receipt": false,
+    "result": {
+      "authEmailPresent": true,
+      "balanceIsWorkspace": true,
+      "balancePresent": true,
+      "dashboardEmailMatchesAuth": true,
+      "dashboardReturned": true,
+      "decodedBalanceIsFinite": true,
+      "importSucceeded": true,
+      "importedEmailMatchesAuth": true,
+      "probe": "unmodified rebuilt production core; request observer only; no diagnostic authentication shim",
+      "requests": [
+        {
+          "authMode": "cookie_only",
+          "authorizationHeaderAbsent": true,
+          "cookieHeaderPresent": true,
+          "role": "identity",
+          "status": 200
+        },
+        {
+          "authMode": "cookie_only",
+          "authorizationHeaderAbsent": true,
+          "cookieHeaderPresent": true,
+          "role": "session_identity",
+          "sessionEmailMatchesAuth": true,
+          "sessionTokenPresent": true,
+          "status": 200
+        },
+        {
+          "authMode": "cookie_only",
+          "authorizationHeaderAbsent": true,
+          "cookieHeaderPresent": true,
+          "role": "usage",
+          "status": 401,
+          "usageEligibility": {
+            "accountIDPresent": false,
+            "creditsFieldPresent": false,
+            "creditsObjectPresent": false,
+            "decoded": true,
+            "decodedBalancePresent": false,
+            "workspaceEnrichmentEligible": false
+          }
+        },
+        {
+          "authMode": "cookie_only",
+          "authorizationHeaderAbsent": true,
+          "cookieHeaderPresent": true,
+          "role": "session_identity",
+          "sessionEmailMatchesAuth": true,
+          "sessionTokenPresent": true,
+          "status": 200
+        },
+        {
+          "authMode": "cookie_and_bearer",
+          "authorizationHeaderAbsent": false,
+          "cookieHeaderPresent": true,
+          "role": "usage",
+          "status": 200,
+          "usageEligibility": {
+            "accountIDPresent": true,
+            "creditsFieldPresent": true,
+            "creditsObjectPresent": true,
+            "decoded": true,
+            "decodedBalancePresent": false,
+            "hasCredits": true,
+            "unlimited": false,
+            "workspaceEnrichmentEligible": true
+          }
+        },
+        {
+          "authMode": "cookie_and_bearer",
+          "authorizationHeaderAbsent": false,
+          "cookieHeaderPresent": true,
+          "role": "monthly_limit",
+          "status": 401
+        },
+        {
+          "authMode": "cookie_and_bearer",
+          "authorizationHeaderAbsent": false,
+          "cookieHeaderPresent": true,
+          "role": "workspace_remaining_balance",
+          "status": 200,
+          "workspaceBalanceShape": {
+            "balanceFieldPresent": true,
+            "balanceFieldType": "string",
+            "decodedBalanceIsFinite": true,
+            "objectPresent": true
+          }
+        }
+      ],
+      "sourceBrowser": "chrome",
+      "usagePresent": true,
+      "workspaceSuccessEvent": true
+    },
+    "started_at_utc": "2026-09-11T22:22:23.043304+00:00"
+  },
+  "bundle_validation": {
+    "build_commit": "f832b4cba",
+    "build_number": "143",
+    "build_timestamp_utc": "2026-09-11T23:29:10Z",
+    "checkout_bundle_running_verified": true,
+    "claim": "Fresh bundle launched with existing local state; the cropped menu bar showed rounded credits with thousands separators.",
+    "command": "CODEXBAR_SIGNING=adhoc ./Scripts/compile_and_run.sh",
+    "existing_settings_and_cache_preserved": true,
+    "version": "0.59.1"
+  },
+  "cookie_probe_fetcher_sources_match_source_commit": true,
+  "limitations": [
+    "Browser proof covers normal Chrome import and the rebuilt production fetcher in one process; a passive observer forwarded requests unchanged. No standalone cookie CLI success is claimed.",
+    "The optional monthly endpoint returned HTTP 401 during the browser check; usage and workspace balance still succeeded.",
+    "Hidden-balance and cache-persistence transitions were verified with automated tests; real workspace permissions were not changed.",
+    "The supplied before image predates this validation; its exact source revision is unknown."
+  ],
+  "oauth_endpoint_contract": {
+    "additional_field_count": 1,
+    "balance_field_present": true,
+    "balance_field_type": "string",
+    "balance_is_finite": true,
+    "elapsed_ms": 661,
+    "endpoint_role": "workspace_remaining_balance",
+    "method": "GET",
+    "observed_at_utc": "2026-09-11T21:10:04.097212+00:00",
+    "private_values_in_receipt": false,
+    "probe": "direct read-only contract check; production CLI checked separately",
+    "redirects_allowed": false,
+    "response_is_object": true,
+    "status": 200,
+    "transport": "OAuth"
+  },
+  "packaged_cli_oauth": {
+    "balance_is_workspace": true,
+    "balance_read_succeeded": true,
+    "binary_kind": "packaged CLI",
+    "credits_present": true,
+    "dashboard_present": false,
+    "dashboard_workspace_balance": null,
+    "decoded_balance_is_finite": true,
+    "error_present": false,
+    "exit_code": 0,
+    "observed_at_utc": "2026-09-11T23:32:21.466202+00:00",
+    "private_values_in_receipt": false,
+    "probe": "production CodexBarCLI usage",
+    "requested_source": "oauth",
+    "resolved_source": "oauth",
+    "usage_present": true
+  },
+  "redaction": "No credentials, account identifiers, raw response bodies, account-scoped URLs, personal paths, or balance amounts are included in this JSON. Images intentionally retain menu-bar balance, percentage and reset countdown; nonvisual text and EXIF metadata removed.",
+  "scope": "Authenticated Codex workspace account; remaining-balance endpoint accessible. Workspace role was not separately inspected.",
+  "screenshots": {
+    "after": {
+      "file": "codex-workspace-balance-after.png",
+      "sha256": "c35719d7313c01e78a4f6911347c7edbe048610ab3dfdca8e1e1ed967c95421c",
+      "source": "Freshly built checkout bundle; top-menu-bar region only"
+    },
+    "before": {
+      "file": "codex-workspace-balance-before.png",
+      "sha256": "47c6e2611a14dfc642cf1de38f866b416e0613054dcf4d015191c8575144f741",
+      "source": "User-provided pre-fix capture"
+    }
+  },
+  "source_commit": "f832b4cba6d23483ab169ccf7df053ff31980da5"
+}

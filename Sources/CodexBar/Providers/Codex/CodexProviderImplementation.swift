@@ -236,11 +236,17 @@ struct CodexProviderImplementation: ProviderImplementation {
               context.metadata.supportsCredits
         else { return }
 
-        if let credits = context.store.credits {
-            let remaining = credits.codexCreditLimit?.remaining ?? credits.remaining
-            entries.append(.text(
-                String(format: L("credits_remaining"), UsageFormatter.creditsString(from: remaining)),
-                .primary))
+        if let credits = CodexExtraUsageCost.creditsForDisplay(
+            context.store.credits,
+            attached: context.snapshot?.providerCost)
+        {
+            if let remaining = credits.displayRemaining {
+                entries.append(.text(
+                    String(format: L("credits_remaining"), UsageFormatter.creditsString(from: remaining)),
+                    .primary))
+            } else {
+                entries.append(.text("\(L("Credits")) · \(L("Balance")): \(L("Unavailable"))", .secondary))
+            }
             if let limit = credits.codexCreditLimit {
                 var parts = [
                     L("%@ used", UsageFormatter.creditsNumberString(from: limit.used)),
