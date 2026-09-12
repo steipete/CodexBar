@@ -1,6 +1,49 @@
 import CodexBarCore
 
 enum ProviderCookieSourceUI {
+    struct Subtitles {
+        let auto: String
+        let manual: String
+        let off: String
+    }
+
+    @MainActor
+    static func picker(
+        id: String,
+        context: ProviderSettingsContext,
+        source: ReferenceWritableKeyPath<SettingsStore, ProviderCookieSource>,
+        allowsOff: Bool,
+        subtitles: @escaping () -> Subtitles,
+        title: String = "Cookie source",
+        subtitle: String? = nil,
+        isVisible: (() -> Bool)? = nil,
+        onChange: ((String) async -> Void)? = nil,
+        trailingText: (() -> String?)? = nil,
+        trailingActions: [ProviderSettingsActionDescriptor] = []) -> ProviderSettingsPickerDescriptor
+    {
+        ProviderSettingsPickerDescriptor(
+            id: id,
+            title: title,
+            subtitle: subtitle ?? subtitles().auto,
+            dynamicSubtitle: {
+                let text = subtitles()
+                return self.subtitle(
+                    source: context.settings[keyPath: source],
+                    keychainDisabled: context.settings.debugDisableKeychainAccess,
+                    auto: text.auto,
+                    manual: text.manual,
+                    off: text.off)
+            },
+            binding: context.rawValueBinding(source, fallback: .auto),
+            options: self.options(
+                allowsOff: allowsOff,
+                keychainDisabled: context.settings.debugDisableKeychainAccess),
+            isVisible: isVisible,
+            onChange: onChange,
+            trailingText: trailingText,
+            trailingActions: trailingActions)
+    }
+
     static let keychainDisabledPrefixKey =
         "Keychain access is disabled in Advanced, so browser cookie import is unavailable."
 

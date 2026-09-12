@@ -1,7 +1,6 @@
 import AppKit
 import CodexBarCore
 import Foundation
-import SwiftUI
 
 struct GrokProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .grok
@@ -37,11 +36,7 @@ struct GrokProviderImplementation: ProviderImplementation {
 
     @MainActor
     func settingsPickers(context: ProviderSettingsContext) -> [ProviderSettingsPickerDescriptor] {
-        let sourceBinding = Binding(
-            get: { context.settings.grokUsageDataSource.rawValue },
-            set: { raw in
-                context.settings.grokUsageDataSource = ProviderSourceMode(rawValue: raw) ?? .auto
-            })
+        let sourceBinding = context.rawValueBinding(\.grokUsageDataSource, fallback: .auto)
         let sourceOptions: [ProviderSettingsPickerOption] = [
             ProviderSettingsPickerOption(id: ProviderSourceMode.auto.rawValue, title: "Auto"),
             ProviderSettingsPickerOption(id: ProviderSourceMode.cli.rawValue, title: "Grok CLI"),
@@ -51,24 +46,6 @@ struct GrokProviderImplementation: ProviderImplementation {
             ProviderSettingsPickerOption(
                 id: ProviderSourceMode.web.rawValue, title: "Browser cookies"),
         ]
-        let cookieBinding = Binding(
-            get: { context.settings.grokCookieSource.rawValue },
-            set: { raw in
-                context.settings.grokCookieSource = ProviderCookieSource(rawValue: raw) ?? .auto
-            })
-        let cookieOptions = ProviderCookieSourceUI.options(
-            allowsOff: true,
-            keychainDisabled: context.settings.debugDisableKeychainAccess)
-
-        let cookieSubtitle: () -> String? = {
-            ProviderCookieSourceUI.subtitle(
-                source: context.settings.grokCookieSource,
-                keychainDisabled: context.settings.debugDisableKeychainAccess,
-                auto: "Automatic imports grok.com cookies from Chrome.",
-                manual: "Paste a Cookie header from a grok.com request.",
-                off: "Grok cookies are disabled.")
-        }
-
         return [
             ProviderSettingsPickerDescriptor(
                 id: "grok-usage-source",
@@ -79,13 +56,17 @@ struct GrokProviderImplementation: ProviderImplementation {
                 options: sourceOptions,
                 isVisible: nil,
                 onChange: nil),
-            ProviderSettingsPickerDescriptor(
+            ProviderCookieSourceUI.picker(
                 id: "grok-cookie-source",
-                title: "Cookie source",
-                subtitle: "Automatic imports grok.com cookies from Chrome.",
-                dynamicSubtitle: cookieSubtitle,
-                binding: cookieBinding,
-                options: cookieOptions,
+                context: context,
+                source: \.grokCookieSource,
+                allowsOff: true,
+                subtitles: {
+                    .init(
+                        auto: "Automatic imports grok.com cookies from Chrome.",
+                        manual: "Paste a Cookie header from a grok.com request.",
+                        off: "Grok cookies are disabled.")
+                },
                 isVisible: {
                     context.settings.grokUsageDataSource == .auto
                         || context.settings.grokUsageDataSource == .web
@@ -103,18 +84,12 @@ struct GrokProviderImplementation: ProviderImplementation {
                 subtitle: "",
                 kind: .secure,
                 placeholder: "Cookie: …",
-                binding: context.stringBinding(\.grokCookieHeader),
+                binding: context.binding(\.grokCookieHeader),
                 actions: [
-                    ProviderSettingsActionDescriptor(
+                    ProviderSettingsActionDescriptor.openURL(
                         id: "grok-open-usage",
                         title: "Open grok.com usage",
-                        style: .link,
-                        isVisible: nil,
-                        perform: {
-                            if let url = URL(string: "https://grok.com/?_s=usage") {
-                                NSWorkspace.shared.open(url)
-                            }
-                        }),
+                        url: URL(string: "https://grok.com/?_s=usage")),
                 ],
                 isVisible: {
                     (context.settings.grokUsageDataSource == .auto

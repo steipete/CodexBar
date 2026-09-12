@@ -6,10 +6,12 @@ import CodexBarCore
 /// provider is added, aside from enum/metadata work in `CodexBarCore`.
 enum ProviderCatalog {
     /// All provider implementations shipped in the app.
-    static let all: [any ProviderImplementation] = ProviderImplementationRegistry.all
+    static let all: [any ProviderImplementation] = ProviderImplementationManifest.implementations
+
+    private static let byID = Dictionary(uniqueKeysWithValues: ProviderCatalog.all.map { ($0.id, $0) })
 
     /// Lookup for a single provider implementation.
     static func implementation(for id: UsageProvider) -> (any ProviderImplementation)? {
-        ProviderImplementationRegistry.implementation(for: id)
+        self.byID[id]
     }
 }

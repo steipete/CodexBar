@@ -1,4 +1,3 @@
-import AppKit
 import CodexBarCore
 import Foundation
 
@@ -35,16 +34,10 @@ struct ZenMuxProviderImplementation: ProviderImplementation {
                 placeholder: "ZenMux management key…",
                 binding: context.providerConfigBinding(.apiKey),
                 actions: [
-                    ProviderSettingsActionDescriptor(
+                    ProviderSettingsActionDescriptor.openURL(
                         id: "zenmux-open-management",
                         title: "Open ZenMux Management",
-                        style: .link,
-                        isVisible: nil,
-                        perform: {
-                            if let url = URL(string: "https://zenmux.ai/platform/management") {
-                                NSWorkspace.shared.open(url)
-                            }
-                        }),
+                        url: URL(string: "https://zenmux.ai/platform/management")),
                 ],
                 isVisible: nil),
         ]

@@ -1,4 +1,3 @@
-import AppKit
 import CodexBarCore
 import Foundation
 
@@ -22,16 +21,10 @@ struct CodebuffProviderImplementation: ProviderImplementation {
                 placeholder: "cb_...",
                 binding: context.providerConfigBinding(.apiKey),
                 actions: [
-                    ProviderSettingsActionDescriptor(
+                    ProviderSettingsActionDescriptor.openURL(
                         id: "codebuff-open-dashboard",
                         title: "Open Codebuff Dashboard",
-                        style: .link,
-                        isVisible: nil,
-                        perform: {
-                            if let url = URL(string: "https://www.codebuff.com/usage") {
-                                NSWorkspace.shared.open(url)
-                            }
-                        }),
+                        url: URL(string: "https://www.codebuff.com/usage")),
                 ],
                 isVisible: nil),
         ]

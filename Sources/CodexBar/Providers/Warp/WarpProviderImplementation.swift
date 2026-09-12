@@ -1,4 +1,3 @@
-import AppKit
 import CodexBarCore
 import Foundation
 
@@ -22,16 +21,10 @@ struct WarpProviderImplementation: ProviderImplementation {
                 placeholder: "wk-...",
                 binding: context.providerConfigBinding(.apiKey),
                 actions: [
-                    ProviderSettingsActionDescriptor(
+                    ProviderSettingsActionDescriptor.openURL(
                         id: "warp-open-api-keys",
                         title: "Open Warp API Key Guide",
-                        style: .link,
-                        isVisible: nil,
-                        perform: {
-                            if let url = URL(string: "https://docs.warp.dev/reference/cli/api-keys") {
-                                NSWorkspace.shared.open(url)
-                            }
-                        }),
+                        url: URL(string: "https://docs.warp.dev/reference/cli/api-keys")),
                 ],
                 isVisible: nil),
         ]

@@ -1,7 +1,5 @@
-import AppKit
 import CodexBarCore
 import Foundation
-import SwiftUI
 
 struct AlibabaCodingPlanProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .alibaba
@@ -29,43 +27,23 @@ struct AlibabaCodingPlanProviderImplementation: ProviderImplementation {
 
     @MainActor
     func settingsPickers(context: ProviderSettingsContext) -> [ProviderSettingsPickerDescriptor] {
-        let binding = Binding(
-            get: { context.settings.alibabaCodingPlanAPIRegion.rawValue },
-            set: { raw in
-                context.settings
-                    .alibabaCodingPlanAPIRegion = AlibabaCodingPlanAPIRegion(rawValue: raw) ?? .international
-            })
+        let binding = context.rawValueBinding(\.alibabaCodingPlanAPIRegion, fallback: .international)
         let options = AlibabaCodingPlanAPIRegion.allCases.map {
             ProviderSettingsPickerOption(id: $0.rawValue, title: $0.displayName)
         }
 
-        let cookieBinding = Binding(
-            get: { context.settings.alibabaCodingPlanCookieSource.rawValue },
-            set: { raw in
-                context.settings.alibabaCodingPlanCookieSource = ProviderCookieSource(rawValue: raw) ?? .auto
-            })
-        let cookieOptions = ProviderCookieSourceUI.options(
-            allowsOff: false,
-            keychainDisabled: context.settings.debugDisableKeychainAccess)
-        let cookieSubtitle: () -> String? = {
-            ProviderCookieSourceUI.subtitle(
-                source: context.settings.alibabaCodingPlanCookieSource,
-                keychainDisabled: context.settings.debugDisableKeychainAccess,
-                auto: "Automatic imports browser cookies from Model Studio/Bailian.",
-                manual: "Paste a Cookie header from modelstudio.console.alibabacloud.com.",
-                off: "Alibaba cookies are disabled.")
-        }
-
         return [
-            ProviderSettingsPickerDescriptor(
+            ProviderCookieSourceUI.picker(
                 id: "alibaba-coding-plan-cookie-source",
-                title: "Cookie source",
-                subtitle: "Automatic imports browser cookies from Model Studio/Bailian.",
-                dynamicSubtitle: cookieSubtitle,
-                binding: cookieBinding,
-                options: cookieOptions,
-                isVisible: nil,
-                onChange: nil,
+                context: context,
+                source: \.alibabaCodingPlanCookieSource,
+                allowsOff: false,
+                subtitles: {
+                    .init(
+                        auto: "Automatic imports browser cookies from Model Studio/Bailian.",
+                        manual: "Paste a Cookie header from modelstudio.console.alibabacloud.com.",
+                        off: "Alibaba cookies are disabled.")
+                },
                 trailingText: {
                     ProviderCookieSourceUI.cachedTrailingText(provider: .alibaba)
                 }),
@@ -89,16 +67,12 @@ struct AlibabaCodingPlanProviderImplementation: ProviderImplementation {
                 subtitle: "Stored in ~/.codexbar/config.json. Paste your Coding Plan API key from Model Studio.",
                 kind: .secure,
                 placeholder: "cpk-...",
-                binding: context.stringBinding(\.alibabaCodingPlanAPIToken),
+                binding: context.binding(\.alibabaCodingPlanAPIToken),
                 actions: [
-                    ProviderSettingsActionDescriptor(
+                    ProviderSettingsActionDescriptor.openURL(
                         id: "alibaba-coding-plan-open-dashboard",
                         title: "Open Coding Plan",
-                        style: .link,
-                        isVisible: nil,
-                        perform: {
-                            NSWorkspace.shared.open(context.settings.alibabaCodingPlanAPIRegion.dashboardURL)
-                        }),
+                        url: context.settings.alibabaCodingPlanAPIRegion.dashboardURL),
                 ],
                 isVisible: nil),
             ProviderSettingsFieldDescriptor(
@@ -107,16 +81,12 @@ struct AlibabaCodingPlanProviderImplementation: ProviderImplementation {
                 subtitle: "",
                 kind: .secure,
                 placeholder: "Cookie: ...",
-                binding: context.stringBinding(\.alibabaCodingPlanCookieHeader),
+                binding: context.binding(\.alibabaCodingPlanCookieHeader),
                 actions: [
-                    ProviderSettingsActionDescriptor(
+                    ProviderSettingsActionDescriptor.openURL(
                         id: "alibaba-coding-plan-open-dashboard-cookie",
                         title: "Open Coding Plan",
-                        style: .link,
-                        isVisible: nil,
-                        perform: {
-                            NSWorkspace.shared.open(context.settings.alibabaCodingPlanAPIRegion.dashboardURL)
-                        }),
+                        url: context.settings.alibabaCodingPlanAPIRegion.dashboardURL),
                 ],
                 isVisible: {
                     context.settings.alibabaCodingPlanCookieSource == .manual

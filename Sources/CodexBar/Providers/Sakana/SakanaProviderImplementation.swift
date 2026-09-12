@@ -1,4 +1,3 @@
-import AppKit
 import CodexBarCore
 import Foundation
 
@@ -33,16 +32,10 @@ struct SakanaProviderImplementation: ProviderImplementation {
                 placeholder: "Cookie: ...",
                 binding: context.providerConfigBinding(.cookieHeader),
                 actions: [
-                    ProviderSettingsActionDescriptor(
+                    ProviderSettingsActionDescriptor.openURL(
                         id: "sakana-open-dashboard",
                         title: "Open Sakana AI Console",
-                        style: .link,
-                        isVisible: nil,
-                        perform: {
-                            if let url = URL(string: "https://console.sakana.ai/billing") {
-                                NSWorkspace.shared.open(url)
-                            }
-                        }),
+                        url: URL(string: "https://console.sakana.ai/billing")),
                 ],
                 isVisible: nil),
         ]

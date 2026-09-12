@@ -9,22 +9,6 @@ extension SettingsStore {
 
     var cursorCookieSource: ProviderCookieSource {
         get { self.resolvedCookieSource(provider: .cursor, fallback: .auto) }
-        set {
-            self.updateProviderConfig(provider: .cursor) { entry in
-                entry.cookieSource = newValue
-            }
-            self.logProviderModeChange(provider: .cursor, field: "cookieSource", value: newValue.rawValue)
-        }
-    }
-}
-
-extension SettingsStore {
-    func cursorSettingsSnapshot(tokenOverride: TokenAccountOverride?) -> ProviderSettingsSnapshot
-    .CursorProviderSettings {
-        self.resolvedCookieSettings(
-            provider: .cursor,
-            configuredSource: self.cursorCookieSource,
-            configuredHeader: self.cursorCookieHeader,
-            tokenOverride: tokenOverride)
+        set { self.setCookieSource(newValue, provider: .cursor) }
     }
 }

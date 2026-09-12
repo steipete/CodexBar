@@ -343,16 +343,6 @@ struct PopupLocalizationTests {
             provider: .kilo,
             settings: settings,
             store: store,
-            boolBinding: { keyPath in
-                Binding(
-                    get: { settings[keyPath: keyPath] },
-                    set: { settings[keyPath: keyPath] = $0 })
-            },
-            stringBinding: { keyPath in
-                Binding(
-                    get: { settings[keyPath: keyPath] },
-                    set: { settings[keyPath: keyPath] = $0 })
-            },
             statusText: { _ in nil },
             setStatusText: { _, _ in },
             lastAppActiveRunAt: { _ in nil },

@@ -27,12 +27,7 @@ extension SettingsStore {
 
     var copilotBudgetCookieSource: ProviderCookieSource {
         get { self.resolvedCookieSource(provider: .copilot, fallback: .auto) }
-        set {
-            self.updateProviderConfig(provider: .copilot) { entry in
-                entry.cookieSource = newValue
-            }
-            self.logProviderModeChange(provider: .copilot, field: "cookieSource", value: newValue.rawValue)
-        }
+        set { self.setCookieSource(newValue, provider: .copilot) }
     }
 
     var copilotIconSecondaryWindowID: String {

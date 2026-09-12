@@ -22,12 +22,7 @@ extension SettingsStore {
 
     var windsurfCookieSource: ProviderCookieSource {
         get { self.resolvedCookieSource(provider: .windsurf, fallback: .auto) }
-        set {
-            self.updateProviderConfig(provider: .windsurf) { entry in
-                entry.cookieSource = newValue
-            }
-            self.logProviderModeChange(provider: .windsurf, field: "cookieSource", value: newValue.rawValue)
-        }
+        set { self.setCookieSource(newValue, provider: .windsurf) }
     }
 
     var windsurfCookieHeader: String {

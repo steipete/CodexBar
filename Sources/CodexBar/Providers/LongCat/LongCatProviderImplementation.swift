@@ -1,7 +1,5 @@
-import AppKit
 import CodexBarCore
 import Foundation
-import SwiftUI
 
 struct LongCatProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .longcat
@@ -21,11 +19,6 @@ struct LongCatProviderImplementation: ProviderImplementation {
     }
 
     @MainActor
-    func settingsSnapshot(context: ProviderSettingsSnapshotContext) -> ProviderSettingsSnapshotContribution? {
-        .longcat(context.settings.longcatSettingsSnapshot(tokenOverride: context.tokenOverride))
-    }
-
-    @MainActor
     func defaultSourceLabel(context: ProviderSourceLabelContext) -> String? {
         context.settings.longcatUsageDataSource.rawValue
     }
@@ -40,34 +33,18 @@ struct LongCatProviderImplementation: ProviderImplementation {
 
     @MainActor
     func settingsPickers(context: ProviderSettingsContext) -> [ProviderSettingsPickerDescriptor] {
-        let cookieBinding = Binding(
-            get: { context.settings.longcatCookieSource.rawValue },
-            set: { raw in
-                context.settings.longcatCookieSource = ProviderCookieSource(rawValue: raw) ?? .auto
-            })
-        let options = ProviderCookieSourceUI.options(
-            allowsOff: true,
-            keychainDisabled: context.settings.debugDisableKeychainAccess)
-
-        let subtitle: () -> String? = {
-            ProviderCookieSourceUI.subtitle(
-                source: context.settings.longcatCookieSource,
-                keychainDisabled: context.settings.debugDisableKeychainAccess,
-                auto: "Automatic imports longcat.chat cookies from your browser.",
-                manual: "Paste a Cookie header copied from longcat.chat.",
-                off: "LongCat cookies are disabled.")
-        }
-
-        return [
-            ProviderSettingsPickerDescriptor(
+        [
+            ProviderCookieSourceUI.picker(
                 id: "longcat-cookie-source",
-                title: "Cookie source",
-                subtitle: "Automatic imports longcat.chat cookies from your browser.",
-                dynamicSubtitle: subtitle,
-                binding: cookieBinding,
-                options: options,
-                isVisible: nil,
-                onChange: nil),
+                context: context,
+                source: \.longcatCookieSource,
+                allowsOff: true,
+                subtitles: {
+                    .init(
+                        auto: "Automatic imports longcat.chat cookies from your browser.",
+                        manual: "Paste a Cookie header copied from longcat.chat.",
+                        off: "LongCat cookies are disabled.")
+                }),
         ]
     }
 
@@ -80,18 +57,12 @@ struct LongCatProviderImplementation: ProviderImplementation {
                 subtitle: "",
                 kind: .secure,
                 placeholder: "Cookie: \u{2026}",
-                binding: context.stringBinding(\.longcatManualCookieHeader),
+                binding: context.binding(\.longcatManualCookieHeader),
                 actions: [
-                    ProviderSettingsActionDescriptor(
+                    ProviderSettingsActionDescriptor.openURL(
                         id: "longcat-open-console",
                         title: "Open Console",
-                        style: .link,
-                        isVisible: nil,
-                        perform: {
-                            if let url = URL(string: "https://longcat.chat/platform/") {
-                                NSWorkspace.shared.open(url)
-                            }
-                        }),
+                        url: URL(string: "https://longcat.chat/platform/")),
                 ],
                 isVisible: { context.settings.longcatCookieSource == .manual }),
         ]

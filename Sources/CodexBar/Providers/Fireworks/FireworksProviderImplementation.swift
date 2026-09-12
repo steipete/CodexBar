@@ -1,7 +1,5 @@
-import AppKit
 import CodexBarCore
 import Foundation
-import SwiftUI
 
 struct FireworksProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .fireworks
@@ -41,7 +39,7 @@ struct FireworksProviderImplementation: ProviderImplementation {
                 subtitle: "Create a key at app.fireworks.ai/settings. The same key authorizes billing reads.",
                 kind: .secure,
                 placeholder: "fw_...",
-                binding: context.stringBinding(\.fireworksAPIToken),
+                binding: context.binding(\.fireworksAPIToken),
                 actions: [],
                 isVisible: nil),
             ProviderSettingsFieldDescriptor(
@@ -52,16 +50,12 @@ struct FireworksProviderImplementation: ProviderImplementation {
                     + "firectl whoami.",
                 kind: .plain,
                 placeholder: "x0mh0x",
-                binding: context.stringBinding(\.fireworksAccountSlug),
+                binding: context.binding(\.fireworksAccountSlug),
                 actions: [
-                    ProviderSettingsActionDescriptor(
+                    ProviderSettingsActionDescriptor.openURL(
                         id: "fireworks-open-billing",
                         title: "Open Fireworks",
-                        style: .link,
-                        isVisible: nil,
-                        perform: {
-                            NSWorkspace.shared.open(FireworksURLs.home)
-                        }),
+                        url: FireworksURLs.home),
                 ],
                 isVisible: nil),
         ]

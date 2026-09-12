@@ -19,13 +19,7 @@ extension SettingsStore {
 
     var grokCookieSource: ProviderCookieSource {
         get { self.resolvedCookieSource(provider: .grok, fallback: .auto) }
-        set {
-            self.updateProviderConfig(provider: .grok) { entry in
-                entry.cookieSource = newValue
-            }
-            self.logProviderModeChange(
-                provider: .grok, field: "cookieSource", value: newValue.rawValue)
-        }
+        set { self.setCookieSource(newValue, provider: .grok) }
     }
 }
 

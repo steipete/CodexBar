@@ -1,7 +1,6 @@
 import AppKit
 import CodexBarCore
 import Foundation
-import SwiftUI
 
 struct PerplexityProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .perplexity
@@ -21,46 +20,19 @@ struct PerplexityProviderImplementation: ProviderImplementation {
     }
 
     @MainActor
-    func observeSettings(_ settings: SettingsStore) {
-        _ = settings.perplexityCookieSource
-        _ = settings.perplexityManualCookieHeader
-    }
-
-    @MainActor
-    func settingsSnapshot(context: ProviderSettingsSnapshotContext) -> ProviderSettingsSnapshotContribution? {
-        .perplexity(context.settings.perplexitySettingsSnapshot(tokenOverride: context.tokenOverride))
-    }
-
-    @MainActor
     func settingsPickers(context: ProviderSettingsContext) -> [ProviderSettingsPickerDescriptor] {
-        let cookieBinding = Binding(
-            get: { context.settings.perplexityCookieSource.rawValue },
-            set: { raw in
-                context.settings.perplexityCookieSource = ProviderCookieSource(rawValue: raw) ?? .auto
-            })
-        let options = ProviderCookieSourceUI.options(
-            allowsOff: true,
-            keychainDisabled: context.settings.debugDisableKeychainAccess)
-
-        let subtitle: () -> String? = {
-            ProviderCookieSourceUI.subtitle(
-                source: context.settings.perplexityCookieSource,
-                keychainDisabled: context.settings.debugDisableKeychainAccess,
-                auto: "Automatically imports browser session cookie.",
-                manual: "Paste a full cookie header or the __Secure-next-auth.session-token value.",
-                off: "Perplexity cookies are disabled.")
-        }
-
-        return [
-            ProviderSettingsPickerDescriptor(
+        [
+            ProviderCookieSourceUI.picker(
                 id: "perplexity-cookie-source",
-                title: "Cookie source",
-                subtitle: "Automatically imports browser session cookie.",
-                dynamicSubtitle: subtitle,
-                binding: cookieBinding,
-                options: options,
-                isVisible: nil,
-                onChange: nil),
+                context: context,
+                source: \.perplexityCookieSource,
+                allowsOff: true,
+                subtitles: {
+                    .init(
+                        auto: "Automatically imports browser session cookie.",
+                        manual: "Paste a full cookie header or the __Secure-next-auth.session-token value.",
+                        off: "Perplexity cookies are disabled.")
+                }),
         ]
     }
 
@@ -73,18 +45,12 @@ struct PerplexityProviderImplementation: ProviderImplementation {
                 subtitle: "",
                 kind: .secure,
                 placeholder: "Cookie: \u{2026}\n\nor paste the __Secure-next-auth.session-token value",
-                binding: context.stringBinding(\.perplexityManualCookieHeader),
+                binding: context.binding(\.perplexityManualCookieHeader),
                 actions: [
-                    ProviderSettingsActionDescriptor(
+                    ProviderSettingsActionDescriptor.openURL(
                         id: "perplexity-open-usage",
                         title: "Open Usage Page",
-                        style: .link,
-                        isVisible: nil,
-                        perform: {
-                            if let url = URL(string: "https://www.perplexity.ai/account/usage") {
-                                NSWorkspace.shared.open(url)
-                            }
-                        }),
+                        url: URL(string: "https://www.perplexity.ai/account/usage")),
                 ],
                 isVisible: { context.settings.perplexityCookieSource == .manual }),
         ]

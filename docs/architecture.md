@@ -37,6 +37,19 @@ read_when:
 - macOS 14+ targeting; avoid deprecated APIs when refactoring.
 
 ## Shared policy ownership
+- `ProviderCatalog` indexes the immutable generated list of app implementations. JavaScript plugins use their own
+  runtime registry. Provider settings contexts bind directly to their store; the shared cookie picker owns mode
+  conversion, options, and live subtitle selection while providers retain labels, visibility, and cache scopes. Settings
+  link actions resolve their provider-supplied destinations when clicked, including region and account selection.
+- Descriptor-registered cookie sections preserve their concrete types after app policy resolves credentials. The app
+  keeps its automatic default, Keychain-disabled manual mode, and selected-account normalization; CLI inference stays
+  separate. Cookie-source writes share config persistence and logging, with provider-specific side effects retained.
+- Core's public descriptor registry keeps one ordered descriptor collection with an index for lookup. Its storage owns
+  synchronization, and replacing a descriptor updates metadata and CLI names without changing provider order.
+- `UsageStore.presentationSnapshot` owns subscription metadata selection. Live cards use that projection once; explicit
+  account cards use only their supplied snapshots, identity, and credits. Compact and stacked Codex account layouts share
+  the same account-card builder. Reordering visible providers preserves loaded config records for unavailable plugins;
+  config decoding retains its existing known-provider rules.
 - App credential properties read directly from the config snapshot and delegate common string writes to the typed
   `SettingsStore` config accessor, which owns normalization, persistence, and secret-update logging. Field activation
   does not trigger credential loading. Legacy provider toggles are read only by the config migrator.

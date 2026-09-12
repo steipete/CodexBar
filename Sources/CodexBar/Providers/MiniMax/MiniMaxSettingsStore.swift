@@ -26,12 +26,7 @@ extension SettingsStore {
 
     var minimaxCookieSource: ProviderCookieSource {
         get { self.resolvedCookieSource(provider: .minimax, fallback: .auto) }
-        set {
-            self.updateProviderConfig(provider: .minimax) { entry in
-                entry.cookieSource = newValue
-            }
-            self.logProviderModeChange(provider: .minimax, field: "cookieSource", value: newValue.rawValue)
-        }
+        set { self.setCookieSource(newValue, provider: .minimax) }
     }
 
     func minimaxAuthMode(

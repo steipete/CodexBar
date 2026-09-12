@@ -1,7 +1,5 @@
-import AppKit
 import CodexBarCore
 import Foundation
-import SwiftUI
 
 struct OpenRouterProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .openrouter
@@ -32,11 +30,6 @@ struct OpenRouterProviderImplementation: ProviderImplementation {
         }
         return !context.settings[providerConfig: .openrouter, field: .apiKey]
             .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
-    @MainActor
-    func settingsPickers(context _: ProviderSettingsContext) -> [ProviderSettingsPickerDescriptor] {
-        []
     }
 
     @MainActor

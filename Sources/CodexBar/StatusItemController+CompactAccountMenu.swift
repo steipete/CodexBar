@@ -86,17 +86,9 @@ extension StatusItemController {
                 cardModel: { [weak self] projectedAccount in
                     guard let self,
                           let account = accountsByID[projectedAccount.id.opaqueID] else { return nil }
-                    let accountSnapshot = snapshotsByAccountID[account.id]
-                    let health = CodexAccountHealth.status(for: account, error: accountSnapshot?.error)
-                    return self.menuCardModel(
-                        for: .codex,
-                        snapshotOverride: accountSnapshot?.snapshot,
-                        errorOverride: health.label,
-                        forceOverrideCard: accountSnapshot == nil,
-                        accountOverride: self.accountInfo(for: account),
-                        historySelectionOverride: self.store.codexPlanUtilizationHistorySelection(
-                            forVisibleAccount: account),
-                        creditsOverride: accountSnapshot?.credits)
+                    return self.codexAccountMenuCardModel(
+                        for: account,
+                        accountSnapshot: snapshotsByAccountID[account.id])
                 },
                 planAction: nil),
             to: menu,

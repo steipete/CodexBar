@@ -9,12 +9,7 @@ extension SettingsStore {
 
     var devinCookieSource: ProviderCookieSource {
         get { self.resolvedCookieSource(provider: .devin, fallback: .auto) }
-        set {
-            self.updateProviderConfig(provider: .devin) { entry in
-                entry.cookieSource = newValue
-            }
-            self.logProviderModeChange(provider: .devin, field: "cookieSource", value: newValue.rawValue)
-        }
+        set { self.setCookieSource(newValue, provider: .devin) }
     }
 
     var devinOrganization: String {

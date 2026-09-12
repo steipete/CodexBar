@@ -36,22 +36,6 @@ extension SettingsStore {
 
     var factoryCookieSource: ProviderCookieSource {
         get { self.resolvedCookieSource(provider: .factory, fallback: .auto) }
-        set {
-            self.updateProviderConfig(provider: .factory) { entry in
-                entry.cookieSource = newValue
-            }
-            self.logProviderModeChange(provider: .factory, field: "cookieSource", value: newValue.rawValue)
-        }
-    }
-}
-
-extension SettingsStore {
-    func factorySettingsSnapshot(tokenOverride: TokenAccountOverride?) -> ProviderSettingsSnapshot
-    .FactoryProviderSettings {
-        self.resolvedCookieSettings(
-            provider: .factory,
-            configuredSource: self.factoryCookieSource,
-            configuredHeader: self.factoryCookieHeader,
-            tokenOverride: tokenOverride)
+        set { self.setCookieSource(newValue, provider: .factory) }
     }
 }

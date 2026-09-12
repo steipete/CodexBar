@@ -128,7 +128,6 @@ extension StatusItemController {
                 switchError: self.store.claudeSwapTransientState.lastErrorAccountID == account.id
                     ? self.store.claudeSwapTransientState.lastError
                     : nil),
-            forceOverrideCard: account.snapshot == nil,
             accountOverride: AccountInfo(
                 email: account.displayLabel,
                 plan: nil),

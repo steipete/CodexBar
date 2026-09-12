@@ -13,9 +13,6 @@ struct DeepSeekProviderImplementation: ProviderImplementation {
     }
 
     @MainActor
-    func observeSettings(_: SettingsStore) {}
-
-    @MainActor
     func settingsPickers(context: ProviderSettingsContext) -> [ProviderSettingsPickerDescriptor] {
         let presentationSnapshot = context.store.presentationSnapshot(for: .deepseek)
             ?? context.store.lastKnownResetSnapshots[.deepseek]
@@ -62,15 +59,5 @@ struct DeepSeekProviderImplementation: ProviderImplementation {
                     }
                 }),
         ]
-    }
-
-    @MainActor
-    func isAvailable(context _: ProviderAvailabilityContext) -> Bool {
-        true
-    }
-
-    @MainActor
-    func settingsFields(context _: ProviderSettingsContext) -> [ProviderSettingsFieldDescriptor] {
-        []
     }
 }

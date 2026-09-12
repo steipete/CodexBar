@@ -1,7 +1,6 @@
 import AppKit
 import CodexBarCore
 import Foundation
-import SwiftUI
 
 struct DevinProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .devin
@@ -28,33 +27,19 @@ struct DevinProviderImplementation: ProviderImplementation {
 
     @MainActor
     func settingsPickers(context: ProviderSettingsContext) -> [ProviderSettingsPickerDescriptor] {
-        let cookieBinding = Binding(
-            get: { context.settings.devinCookieSource.rawValue },
-            set: { raw in
-                context.settings.devinCookieSource = ProviderCookieSource(rawValue: raw) ?? .auto
-            })
-        let cookieOptions = ProviderCookieSourceUI.options(
-            allowsOff: false,
-            keychainDisabled: context.settings.debugDisableKeychainAccess)
-        let subtitle: () -> String? = {
-            ProviderCookieSourceUI.subtitle(
-                source: context.settings.devinCookieSource,
-                keychainDisabled: context.settings.debugDisableKeychainAccess,
-                auto: "Automatically imports the app.devin.ai session from Chrome.",
-                manual: "Paste an Authorization Bearer token from app.devin.ai.",
-                off: "Paste an Authorization Bearer token from app.devin.ai.")
-        }
-
-        return [
-            ProviderSettingsPickerDescriptor(
+        [
+            ProviderCookieSourceUI.picker(
                 id: "devin-cookie-source",
-                title: "Auth source",
-                subtitle: "Automatically imports the app.devin.ai session from Chrome.",
-                dynamicSubtitle: subtitle,
-                binding: cookieBinding,
-                options: cookieOptions,
-                isVisible: nil,
-                onChange: nil),
+                context: context,
+                source: \.devinCookieSource,
+                allowsOff: false,
+                subtitles: {
+                    .init(
+                        auto: "Automatically imports the app.devin.ai session from Chrome.",
+                        manual: "Paste an Authorization Bearer token from app.devin.ai.",
+                        off: "Paste an Authorization Bearer token from app.devin.ai.")
+                },
+                title: "Auth source"),
         ]
     }
 
@@ -67,16 +52,12 @@ struct DevinProviderImplementation: ProviderImplementation {
                 subtitle: "Optional. Use the slug from app.devin.ai/org/<slug>, or paste the full Devin org URL.",
                 kind: .plain,
                 placeholder: "org/example-org",
-                binding: context.stringBinding(\.devinOrganization),
+                binding: context.binding(\.devinOrganization),
                 actions: [
-                    ProviderSettingsActionDescriptor(
+                    ProviderSettingsActionDescriptor.openURL(
                         id: "devin-open-usage",
                         title: "Open Devin Usage",
-                        style: .link,
-                        isVisible: nil,
-                        perform: {
-                            NSWorkspace.shared.open(Self.usageURL(organization: context.settings.devinOrganization))
-                        }),
+                        url: Self.usageURL(organization: context.settings.devinOrganization)),
                 ],
                 isVisible: nil),
             ProviderSettingsFieldDescriptor(
@@ -85,7 +66,7 @@ struct DevinProviderImplementation: ProviderImplementation {
                 subtitle: "Paste the Authorization header value from app.devin.ai.",
                 kind: .secure,
                 placeholder: "Bearer eyJ...",
-                binding: context.stringBinding(\.devinBearerToken),
+                binding: context.binding(\.devinBearerToken),
                 actions: [],
                 isVisible: { context.settings.devinCookieSource == .manual }),
         ]

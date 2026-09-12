@@ -1,7 +1,5 @@
-import AppKit
 import CodexBarCore
 import Foundation
-import SwiftUI
 
 struct FactoryProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .factory
@@ -13,11 +11,6 @@ struct FactoryProviderImplementation: ProviderImplementation {
         _ = settings.factoryAPIKey
         _ = settings.factoryCookieSource
         _ = settings.factoryCookieHeader
-    }
-
-    @MainActor
-    func settingsSnapshot(context: ProviderSettingsSnapshotContext) -> ProviderSettingsSnapshotContribution? {
-        .factory(context.settings.factorySettingsSnapshot(tokenOverride: context.tokenOverride))
     }
 
     @MainActor
@@ -50,34 +43,12 @@ struct FactoryProviderImplementation: ProviderImplementation {
 
     @MainActor
     func settingsPickers(context: ProviderSettingsContext) -> [ProviderSettingsPickerDescriptor] {
-        let usageBinding = Binding(
-            get: { context.settings.factoryUsageDataSource.rawValue },
-            set: { raw in
-                context.settings.factoryUsageDataSource = ProviderSourceMode(rawValue: raw) ?? .auto
-            })
+        let usageBinding = context.rawValueBinding(\.factoryUsageDataSource, fallback: .auto)
         let usageOptions = [
             ProviderSettingsPickerOption(id: ProviderSourceMode.auto.rawValue, title: "Auto"),
             ProviderSettingsPickerOption(id: ProviderSourceMode.api.rawValue, title: "API key"),
             ProviderSettingsPickerOption(id: ProviderSourceMode.web.rawValue, title: "Browser cookies"),
         ]
-
-        let cookieBinding = Binding(
-            get: { context.settings.factoryCookieSource.rawValue },
-            set: { raw in
-                context.settings.factoryCookieSource = ProviderCookieSource(rawValue: raw) ?? .auto
-            })
-        let cookieOptions = ProviderCookieSourceUI.options(
-            allowsOff: false,
-            keychainDisabled: context.settings.debugDisableKeychainAccess)
-
-        let cookieSubtitle: () -> String? = {
-            ProviderCookieSourceUI.subtitle(
-                source: context.settings.factoryCookieSource,
-                keychainDisabled: context.settings.debugDisableKeychainAccess,
-                auto: "Automatic imports browser cookies and WorkOS tokens.",
-                manual: "Paste a Cookie or Authorization header from app.factory.ai.",
-                off: "Factory cookies are disabled.")
-        }
 
         return [
             ProviderSettingsPickerDescriptor(
@@ -94,15 +65,17 @@ struct FactoryProviderImplementation: ProviderImplementation {
                     let label = context.store.sourceLabel(for: .factory)
                     return label == "auto" ? nil : label
                 }),
-            ProviderSettingsPickerDescriptor(
+            ProviderCookieSourceUI.picker(
                 id: "factory-cookie-source",
-                title: "Cookie source",
-                subtitle: "Automatic imports browser cookies and WorkOS tokens.",
-                dynamicSubtitle: cookieSubtitle,
-                binding: cookieBinding,
-                options: cookieOptions,
-                isVisible: nil,
-                onChange: nil,
+                context: context,
+                source: \.factoryCookieSource,
+                allowsOff: false,
+                subtitles: {
+                    .init(
+                        auto: "Automatic imports browser cookies and WorkOS tokens.",
+                        manual: "Paste a Cookie or Authorization header from app.factory.ai.",
+                        off: "Factory cookies are disabled.")
+                },
                 trailingText: {
                     ProviderCookieSourceUI.cachedTrailingText(provider: .factory)
                 }),
@@ -119,18 +92,12 @@ struct FactoryProviderImplementation: ProviderImplementation {
                     + "~/.factory/.env.",
                 kind: .secure,
                 placeholder: "fk-...",
-                binding: context.stringBinding(\.factoryAPIKey),
+                binding: context.binding(\.factoryAPIKey),
                 actions: [
-                    ProviderSettingsActionDescriptor(
+                    ProviderSettingsActionDescriptor.openURL(
                         id: "factory-open-api-keys",
                         title: "Open API keys",
-                        style: .link,
-                        isVisible: nil,
-                        perform: {
-                            if let url = URL(string: "https://app.factory.ai/settings/api-keys") {
-                                NSWorkspace.shared.open(url)
-                            }
-                        }),
+                        url: URL(string: "https://app.factory.ai/settings/api-keys")),
                 ],
                 isVisible: nil),
         ]

@@ -1,21 +1,8 @@
-import AppKit
 import CodexBarCore
 import Foundation
-import SwiftUI
 
 struct AugmentProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .augment
-
-    @MainActor
-    func observeSettings(_ settings: SettingsStore) {
-        _ = settings.augmentCookieSource
-        _ = settings.augmentCookieHeader
-    }
-
-    @MainActor
-    func settingsSnapshot(context: ProviderSettingsSnapshotContext) -> ProviderSettingsSnapshotContribution? {
-        .augment(context.settings.augmentSettingsSnapshot(tokenOverride: context.tokenOverride))
-    }
 
     @MainActor
     func tokenAccountsVisibility(context: ProviderSettingsContext, support: TokenAccountSupport) -> Bool {
@@ -37,44 +24,22 @@ struct AugmentProviderImplementation: ProviderImplementation {
 
     @MainActor
     func settingsPickers(context: ProviderSettingsContext) -> [ProviderSettingsPickerDescriptor] {
-        let cookieBinding = Binding(
-            get: { context.settings.augmentCookieSource.rawValue },
-            set: { raw in
-                context.settings.augmentCookieSource = ProviderCookieSource(rawValue: raw) ?? .auto
-            })
-        let cookieOptions = ProviderCookieSourceUI.options(
-            allowsOff: false,
-            keychainDisabled: context.settings.debugDisableKeychainAccess)
-
-        let cookieSubtitle: () -> String? = {
-            ProviderCookieSourceUI.subtitle(
-                source: context.settings.augmentCookieSource,
-                keychainDisabled: context.settings.debugDisableKeychainAccess,
-                auto: "Automatic imports browser cookies.",
-                manual: "Paste a Cookie header or cURL capture from the Augment dashboard.",
-                off: "Augment cookies are disabled.")
-        }
-
-        return [
-            ProviderSettingsPickerDescriptor(
+        [
+            ProviderCookieSourceUI.picker(
                 id: "augment-cookie-source",
-                title: "Cookie source",
-                subtitle: "Automatic imports browser cookies.",
-                dynamicSubtitle: cookieSubtitle,
-                binding: cookieBinding,
-                options: cookieOptions,
-                isVisible: nil,
-                onChange: nil,
+                context: context,
+                source: \.augmentCookieSource,
+                allowsOff: false,
+                subtitles: {
+                    .init(
+                        auto: "Automatic imports browser cookies.",
+                        manual: "Paste a Cookie header or cURL capture from the Augment dashboard.",
+                        off: "Augment cookies are disabled.")
+                },
                 trailingText: {
                     ProviderCookieSourceUI.cachedTrailingText(provider: .augment)
                 }),
         ]
-    }
-
-    @MainActor
-    func settingsFields(context: ProviderSettingsContext) -> [ProviderSettingsFieldDescriptor] {
-        _ = context
-        return []
     }
 
     @MainActor

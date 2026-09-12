@@ -1,7 +1,5 @@
-import AppKit
 import CodexBarCore
 import Foundation
-import SwiftUI
 
 struct AmpProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .amp
@@ -20,41 +18,14 @@ struct AmpProviderImplementation: ProviderImplementation {
     }
 
     @MainActor
-    func settingsSnapshot(context: ProviderSettingsSnapshotContext) -> ProviderSettingsSnapshotContribution? {
-        .amp(context.settings.ampSettingsSnapshot(tokenOverride: context.tokenOverride))
-    }
-
-    @MainActor
     func settingsPickers(context: ProviderSettingsContext) -> [ProviderSettingsPickerDescriptor] {
-        let sourceBinding = Binding(
-            get: { context.settings.ampUsageDataSource.rawValue },
-            set: { raw in
-                context.settings.ampUsageDataSource = ProviderSourceMode(rawValue: raw) ?? .auto
-            })
+        let sourceBinding = context.rawValueBinding(\.ampUsageDataSource, fallback: .auto)
         let sourceOptions: [ProviderSettingsPickerOption] = [
             ProviderSettingsPickerOption(id: ProviderSourceMode.auto.rawValue, title: "Auto"),
             ProviderSettingsPickerOption(id: ProviderSourceMode.cli.rawValue, title: "Amp CLI"),
             ProviderSettingsPickerOption(id: ProviderSourceMode.api.rawValue, title: "Access token"),
             ProviderSettingsPickerOption(id: ProviderSourceMode.web.rawValue, title: "Browser cookies"),
         ]
-        let cookieBinding = Binding(
-            get: { context.settings.ampCookieSource.rawValue },
-            set: { raw in
-                context.settings.ampCookieSource = ProviderCookieSource(rawValue: raw) ?? .auto
-            })
-        let cookieOptions = ProviderCookieSourceUI.options(
-            allowsOff: false,
-            keychainDisabled: context.settings.debugDisableKeychainAccess)
-
-        let cookieSubtitle: () -> String? = {
-            ProviderCookieSourceUI.subtitle(
-                source: context.settings.ampCookieSource,
-                keychainDisabled: context.settings.debugDisableKeychainAccess,
-                auto: "Automatic imports browser cookies.",
-                manual: "Paste a Cookie header or cURL capture from Amp settings.",
-                off: "Amp cookies are disabled.")
-        }
-
         return [
             ProviderSettingsPickerDescriptor(
                 id: "amp-usage-source",
@@ -64,13 +35,17 @@ struct AmpProviderImplementation: ProviderImplementation {
                 options: sourceOptions,
                 isVisible: nil,
                 onChange: nil),
-            ProviderSettingsPickerDescriptor(
+            ProviderCookieSourceUI.picker(
                 id: "amp-cookie-source",
-                title: "Cookie source",
-                subtitle: "Automatic imports browser cookies.",
-                dynamicSubtitle: cookieSubtitle,
-                binding: cookieBinding,
-                options: cookieOptions,
+                context: context,
+                source: \.ampCookieSource,
+                allowsOff: false,
+                subtitles: {
+                    .init(
+                        auto: "Automatic imports browser cookies.",
+                        manual: "Paste a Cookie header or cURL capture from Amp settings.",
+                        off: "Amp cookies are disabled.")
+                },
                 isVisible: {
                     context.settings.ampUsageDataSource == .auto ||
                         context.settings.ampUsageDataSource == .web
@@ -88,18 +63,12 @@ struct AmpProviderImplementation: ProviderImplementation {
                 subtitle: "Stored in ~/.codexbar/config.json. You can also set AMP_API_KEY.",
                 kind: .secure,
                 placeholder: "sgamp_...",
-                binding: context.stringBinding(\.ampAPIToken),
+                binding: context.binding(\.ampAPIToken),
                 actions: [
-                    ProviderSettingsActionDescriptor(
+                    ProviderSettingsActionDescriptor.openURL(
                         id: "amp-open-access-tokens",
                         title: "Open Amp Access Tokens",
-                        style: .link,
-                        isVisible: nil,
-                        perform: {
-                            if let url = URL(string: "https://ampcode.com/settings") {
-                                NSWorkspace.shared.open(url)
-                            }
-                        }),
+                        url: URL(string: "https://ampcode.com/settings")),
                 ],
                 isVisible: {
                     context.settings.ampUsageDataSource == .auto ||
@@ -111,18 +80,12 @@ struct AmpProviderImplementation: ProviderImplementation {
                 subtitle: "",
                 kind: .secure,
                 placeholder: "Cookie: …",
-                binding: context.stringBinding(\.ampCookieHeader),
+                binding: context.binding(\.ampCookieHeader),
                 actions: [
-                    ProviderSettingsActionDescriptor(
+                    ProviderSettingsActionDescriptor.openURL(
                         id: "amp-open-settings",
                         title: "Open Amp Settings",
-                        style: .link,
-                        isVisible: nil,
-                        perform: {
-                            if let url = URL(string: "https://ampcode.com/settings") {
-                                NSWorkspace.shared.open(url)
-                            }
-                        }),
+                        url: URL(string: "https://ampcode.com/settings")),
                 ],
                 isVisible: {
                     (context.settings.ampUsageDataSource == .auto ||

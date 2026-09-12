@@ -9,12 +9,7 @@ extension SettingsStore {
 
     var notionCookieSource: ProviderCookieSource {
         get { self.resolvedCookieSource(provider: .notion, fallback: .auto) }
-        set {
-            self.updateProviderConfig(provider: .notion) { entry in
-                entry.cookieSource = newValue
-            }
-            self.logProviderModeChange(provider: .notion, field: "cookieSource", value: newValue.rawValue)
-        }
+        set { self.setCookieSource(newValue, provider: .notion) }
     }
 
     var notionWorkspaceID: String {

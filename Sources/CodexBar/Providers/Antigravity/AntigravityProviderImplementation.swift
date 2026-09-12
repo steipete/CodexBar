@@ -1,6 +1,5 @@
 import CodexBarCore
 import Foundation
-import SwiftUI
 
 struct AntigravityProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .antigravity
@@ -35,7 +34,7 @@ struct AntigravityProviderImplementation: ProviderImplementation {
                 title: "Prioritize exhausted quotas",
                 subtitle: "Optional. In Automatic mode, let exhausted five-hour or weekly lanes outrank " +
                     "still-usable model families. Applies to the menu bar and Overview ranking.",
-                binding: context.boolBinding(\.antigravityPrioritizeExhaustedQuotas),
+                binding: context.binding(\.antigravityPrioritizeExhaustedQuotas),
                 statusText: nil,
                 actions: [],
                 isVisible: nil,
@@ -47,11 +46,7 @@ struct AntigravityProviderImplementation: ProviderImplementation {
 
     @MainActor
     func settingsPickers(context: ProviderSettingsContext) -> [ProviderSettingsPickerDescriptor] {
-        let usageBinding = Binding(
-            get: { context.settings.antigravityUsageDataSource.rawValue },
-            set: { raw in
-                context.settings.antigravityUsageDataSource = AntigravityUsageDataSource(rawValue: raw) ?? .auto
-            })
+        let usageBinding = context.rawValueBinding(\.antigravityUsageDataSource, fallback: .auto)
         let usageOptions = AntigravityUsageDataSource.allCases.map {
             ProviderSettingsPickerOption(id: $0.rawValue, title: $0.displayName)
         }
@@ -104,9 +99,6 @@ struct AntigravityProviderImplementation: ProviderImplementation {
     func detectVersion(context _: ProviderVersionContext) async -> String? {
         await AntigravityStatusProbe.detectVersion()
     }
-
-    @MainActor
-    func appendUsageMenuEntries(context _: ProviderMenuUsageContext, entries _: inout [ProviderMenuEntry]) {}
 
     @MainActor
     func loginMenuAction(context _: ProviderMenuLoginContext) -> (label: String, action: MenuDescriptor.MenuAction)? {

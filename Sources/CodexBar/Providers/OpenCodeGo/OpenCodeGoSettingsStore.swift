@@ -20,12 +20,7 @@ extension SettingsStore {
 
     var opencodegoCookieSource: ProviderCookieSource {
         get { self.resolvedCookieSource(provider: .opencodego, fallback: .auto) }
-        set {
-            self.updateProviderConfig(provider: .opencodego) { entry in
-                entry.cookieSource = newValue
-            }
-            self.logProviderModeChange(provider: .opencodego, field: "cookieSource", value: newValue.rawValue)
-        }
+        set { self.setCookieSource(newValue, provider: .opencodego) }
     }
 
     var opencodegoDashboardURL: URL {

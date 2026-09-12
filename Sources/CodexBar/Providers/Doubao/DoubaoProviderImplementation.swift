@@ -1,4 +1,3 @@
-import AppKit
 import CodexBarCore
 import Foundation
 
@@ -22,18 +21,12 @@ struct DoubaoProviderImplementation: ProviderImplementation {
                     + "Coding/Agent Plan usage. Existing API credentials remain authoritative.",
                 kind: .secure,
                 placeholder: "ark-... or AKLT...",
-                binding: context.stringBinding(\.doubaoAPIToken),
+                binding: context.binding(\.doubaoAPIToken),
                 actions: [
-                    ProviderSettingsActionDescriptor(
+                    ProviderSettingsActionDescriptor.openURL(
                         id: "doubao-open-dashboard",
                         title: "Open Volcengine Ark Console",
-                        style: .link,
-                        isVisible: nil,
-                        perform: {
-                            if let url = URL(string: "https://console.volcengine.com/ark/") {
-                                NSWorkspace.shared.open(url)
-                            }
-                        }),
+                        url: URL(string: "https://console.volcengine.com/ark/")),
                 ],
                 isVisible: nil),
             ProviderSettingsFieldDescriptor(
@@ -42,7 +35,7 @@ struct DoubaoProviderImplementation: ProviderImplementation {
                 subtitle: "Optional. Only needed if arkcli is unavailable and you use Volcengine AK/SK signing.",
                 kind: .secure,
                 placeholder: "",
-                binding: context.stringBinding(\.doubaoSecretAccessKey),
+                binding: context.binding(\.doubaoSecretAccessKey),
                 actions: [],
                 isVisible: nil),
             ProviderSettingsFieldDescriptor(
@@ -51,7 +44,7 @@ struct DoubaoProviderImplementation: ProviderImplementation {
                 subtitle: "Volcengine Ark region. Defaults to cn-beijing.",
                 kind: .plain,
                 placeholder: DoubaoSettingsReader.defaultRegion,
-                binding: context.stringBinding(\.doubaoRegion),
+                binding: context.binding(\.doubaoRegion),
                 actions: [],
                 isVisible: nil),
         ]

@@ -1,7 +1,6 @@
 import AppKit
 import CodexBarCore
 import Foundation
-import SwiftUI
 
 struct MiMoProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .mimo
@@ -13,45 +12,19 @@ struct MiMoProviderImplementation: ProviderImplementation {
     }
 
     @MainActor
-    func observeSettings(_ settings: SettingsStore) {
-        _ = settings.miMoCookieSource
-        _ = settings.miMoCookieHeader
-    }
-
-    @MainActor
-    func settingsSnapshot(context: ProviderSettingsSnapshotContext) -> ProviderSettingsSnapshotContribution? {
-        .mimo(context.settings.miMoSettingsSnapshot(tokenOverride: context.tokenOverride))
-    }
-
-    @MainActor
     func settingsPickers(context: ProviderSettingsContext) -> [ProviderSettingsPickerDescriptor] {
-        let cookieBinding = Binding(
-            get: { context.settings.miMoCookieSource.rawValue },
-            set: { raw in
-                context.settings.miMoCookieSource = ProviderCookieSource(rawValue: raw) ?? .auto
-            })
-        let cookieOptions = ProviderCookieSourceUI.options(
-            allowsOff: false,
-            keychainDisabled: context.settings.debugDisableKeychainAccess)
-        let cookieSubtitle: () -> String? = {
-            ProviderCookieSourceUI.subtitle(
-                source: context.settings.miMoCookieSource,
-                keychainDisabled: context.settings.debugDisableKeychainAccess,
-                auto: "Automatic imports browser cookies from Xiaomi MiMo.",
-                manual: "Paste a Cookie header from platform.xiaomimimo.com.",
-                off: "Xiaomi MiMo cookies are disabled.")
-        }
-
-        return [
-            ProviderSettingsPickerDescriptor(
+        [
+            ProviderCookieSourceUI.picker(
                 id: "mimo-cookie-source",
-                title: "Cookie source",
-                subtitle: "Automatic imports browser cookies from Xiaomi MiMo.",
-                dynamicSubtitle: cookieSubtitle,
-                binding: cookieBinding,
-                options: cookieOptions,
-                isVisible: nil,
-                onChange: nil,
+                context: context,
+                source: \.miMoCookieSource,
+                allowsOff: false,
+                subtitles: {
+                    .init(
+                        auto: "Automatic imports browser cookies from Xiaomi MiMo.",
+                        manual: "Paste a Cookie header from platform.xiaomimimo.com.",
+                        off: "Xiaomi MiMo cookies are disabled.")
+                },
                 trailingText: {
                     ProviderCookieSourceUI.cachedTrailingText(provider: .mimo)
                 }),
@@ -67,19 +40,12 @@ struct MiMoProviderImplementation: ProviderImplementation {
                 subtitle: "",
                 kind: .secure,
                 placeholder: "Cookie: ...",
-                binding: context.stringBinding(\.miMoCookieHeader),
+                binding: context.binding(\.miMoCookieHeader),
                 actions: [
-                    ProviderSettingsActionDescriptor(
+                    ProviderSettingsActionDescriptor.openURL(
                         id: "mimo-open-balance",
                         title: "Open MiMo Balance",
-                        style: .link,
-                        isVisible: nil,
-                        perform: {
-                            guard let url = URL(string: "https://platform.xiaomimimo.com/#/console/balance") else {
-                                return
-                            }
-                            NSWorkspace.shared.open(url)
-                        }),
+                        url: URL(string: "https://platform.xiaomimimo.com/#/console/balance")),
                 ],
                 isVisible: { context.settings.miMoCookieSource == .manual }),
         ]

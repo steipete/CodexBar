@@ -1,7 +1,5 @@
-import AppKit
 import CodexBarCore
 import Foundation
-import SwiftUI
 
 struct KiloProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .kilo
@@ -41,11 +39,7 @@ struct KiloProviderImplementation: ProviderImplementation {
 
     @MainActor
     func settingsPickers(context: ProviderSettingsContext) -> [ProviderSettingsPickerDescriptor] {
-        let usageBinding = Binding(
-            get: { context.settings.kiloUsageDataSource.rawValue },
-            set: { raw in
-                context.settings.kiloUsageDataSource = KiloUsageDataSource(rawValue: raw) ?? .auto
-            })
+        let usageBinding = context.rawValueBinding(\.kiloUsageDataSource, fallback: .auto)
         let usageOptions = KiloUsageDataSource.allCases.map {
             ProviderSettingsPickerOption(id: $0.rawValue, title: $0.displayName)
         }
@@ -76,7 +70,7 @@ struct KiloProviderImplementation: ProviderImplementation {
                     + "~/.local/share/kilo/auth.json (kilo.access).",
                 kind: .secure,
                 placeholder: "kilo_...",
-                binding: context.stringBinding(\.kiloAPIToken),
+                binding: context.binding(\.kiloAPIToken),
                 actions: [],
                 isVisible: nil),
         ]

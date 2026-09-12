@@ -84,7 +84,6 @@ extension StatusItemController {
         return self.menuCardModel(
             for: provider,
             snapshotOverride: snapshot.usage,
-            forceOverrideCard: true,
             accountOverride: AccountInfo(email: label.isEmpty ? nil : label, plan: nil),
             subtitleOverride: badge)
     }

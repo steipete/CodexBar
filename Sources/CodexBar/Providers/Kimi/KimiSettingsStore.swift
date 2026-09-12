@@ -30,21 +30,6 @@ extension SettingsStore {
 
     var kimiCookieSource: ProviderCookieSource {
         get { self.resolvedCookieSource(provider: .kimi, fallback: .auto) }
-        set {
-            self.updateProviderConfig(provider: .kimi) { entry in
-                entry.cookieSource = newValue
-            }
-            self.logProviderModeChange(provider: .kimi, field: "cookieSource", value: newValue.rawValue)
-        }
-    }
-}
-
-extension SettingsStore {
-    func kimiSettingsSnapshot(tokenOverride: TokenAccountOverride?) -> ProviderSettingsSnapshot.KimiProviderSettings {
-        self.resolvedCookieSettings(
-            provider: .kimi,
-            configuredSource: self.kimiCookieSource,
-            configuredHeader: self.kimiManualCookieHeader,
-            tokenOverride: tokenOverride)
+        set { self.setCookieSource(newValue, provider: .kimi) }
     }
 }

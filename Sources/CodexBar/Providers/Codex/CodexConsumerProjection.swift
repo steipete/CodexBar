@@ -273,6 +273,7 @@ struct CodexConsumerProjection {
     private let evaluationTime: Date
 
     static func make(surface: Surface, context: Context) -> CodexConsumerProjection {
+        // Account cards can show their credit quota; standalone balance and dashboard sections stay hidden.
         let allowsLiveAdjuncts = surface != .overrideCard
         let dashboardVisibility = self.dashboardVisibility(surface: surface, context: context)
         let dashboard = allowsLiveAdjuncts && dashboardVisibility != .hidden ? context.liveDashboard : nil

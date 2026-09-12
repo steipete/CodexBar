@@ -85,19 +85,15 @@ struct ClaudeProviderImplementation: ProviderImplementation {
                 context.settings.claudeOAuthPromptFreeCredentialsEnabled = enabled
             })
 
-        let claudeSwapBinding = Binding(
-            get: { context.settings.claudeSwapEnabled },
-            set: { context.settings.claudeSwapEnabled = $0 })
-        let claudeSwapShowSingleAccountBinding = Binding(
-            get: { context.settings.claudeSwapShowSingleAccount },
-            set: { context.settings.claudeSwapShowSingleAccount = $0 })
+        let claudeSwapBinding = context.binding(\.claudeSwapEnabled)
+        let claudeSwapShowSingleAccountBinding = context.binding(\.claudeSwapShowSingleAccount)
 
         return [
             ProviderSettingsToggleDescriptor(
                 id: "claude-model-scoped-weekly-usage-visible",
                 title: "Show model-specific weekly usage in widgets",
                 subtitle: "Shows model-specific Claude quotas, such as Fable, in desktop widgets.",
-                binding: context.boolBinding(\.claudeModelScopedWeeklyUsageVisible),
+                binding: context.binding(\.claudeModelScopedWeeklyUsageVisible),
                 statusText: nil,
                 actions: [],
                 isVisible: nil,
@@ -112,9 +108,7 @@ struct ClaudeProviderImplementation: ProviderImplementation {
                     "Reads Claude Code's Keychain item for OAuth usage; macOS may ask for permission.",
                     "Off: CodexBar never touches Claude Code's credentials and uses the Claude CLI instead.",
                 ].joined(separator: " "),
-                binding: Binding(
-                    get: { context.settings.claudeOAuthDirectKeychainReadAllowed },
-                    set: { context.settings.claudeOAuthDirectKeychainReadAllowed = $0 }),
+                binding: context.binding(\.claudeOAuthDirectKeychainReadAllowed),
                 statusText: nil,
                 actions: [],
                 isVisible: nil,
@@ -184,29 +178,14 @@ struct ClaudeProviderImplementation: ProviderImplementation {
 
     @MainActor
     func settingsPickers(context: ProviderSettingsContext) -> [ProviderSettingsPickerDescriptor] {
-        let usageBinding = Binding(
-            get: { context.settings.claudeUsageDataSource.rawValue },
-            set: { raw in
-                context.settings.claudeUsageDataSource = ClaudeUsageDataSource(rawValue: raw) ?? .auto
-            })
-        let cookieBinding = Binding(
-            get: { context.settings.claudeCookieSource.rawValue },
-            set: { raw in
-                context.settings.claudeCookieSource = ProviderCookieSource(rawValue: raw) ?? .auto
-            })
-        let keychainPromptPolicyBinding = Binding(
-            get: { context.settings.claudeOAuthKeychainPromptMode.rawValue },
-            set: { raw in
-                context.settings.claudeOAuthKeychainPromptMode = ClaudeOAuthKeychainPromptMode(rawValue: raw)
-                    ?? .onlyOnUserAction
-            })
+        let usageBinding = context.rawValueBinding(\.claudeUsageDataSource, fallback: .auto)
+        let keychainPromptPolicyBinding = context.rawValueBinding(
+            \.claudeOAuthKeychainPromptMode,
+            fallback: .onlyOnUserAction)
 
         let usageOptions = ClaudeUsageDataSource.allCases.map {
             ProviderSettingsPickerOption(id: $0.rawValue, title: $0.displayName)
         }
-        let cookieOptions = ProviderCookieSourceUI.options(
-            allowsOff: false,
-            keychainDisabled: context.settings.debugDisableKeychainAccess)
         let keychainPromptPolicyOptions: [ProviderSettingsPickerOption] = [
             ProviderSettingsPickerOption(
                 id: ClaudeOAuthKeychainPromptMode.never.rawValue,
@@ -218,14 +197,6 @@ struct ClaudeProviderImplementation: ProviderImplementation {
                 id: ClaudeOAuthKeychainPromptMode.always.rawValue,
                 title: "Always allow prompts"),
         ]
-        let cookieSubtitle: () -> String? = {
-            ProviderCookieSourceUI.subtitle(
-                source: context.settings.claudeCookieSource,
-                keychainDisabled: context.settings.debugDisableKeychainAccess,
-                auto: "Automatic imports browser cookies for the web API.",
-                manual: "Paste a Cookie header from a claude.ai request.",
-                off: "Claude cookies are disabled.")
-        }
         let keychainPromptPolicySubtitle: () -> String? = {
             if context.settings.debugDisableKeychainAccess {
                 return "Global Keychain access is disabled in Advanced, so this setting is currently inactive."
@@ -257,13 +228,18 @@ struct ClaudeProviderImplementation: ProviderImplementation {
                 isVisible: nil,
                 isEnabled: { !context.settings.debugDisableKeychainAccess },
                 onChange: nil),
-            ProviderSettingsPickerDescriptor(
+            ProviderCookieSourceUI.picker(
                 id: "claude-cookie-source",
+                context: context,
+                source: \.claudeCookieSource,
+                allowsOff: false,
+                subtitles: {
+                    .init(
+                        auto: "Automatic imports browser cookies for the web API.",
+                        manual: "Paste a Cookie header from a claude.ai request.",
+                        off: "Claude cookies are disabled.")
+                },
                 title: "Claude cookies",
-                subtitle: "Automatic imports browser cookies for the web API.",
-                dynamicSubtitle: cookieSubtitle,
-                binding: cookieBinding,
-                options: cookieOptions,
                 isVisible: nil,
                 onChange: nil,
                 trailingText: {
@@ -281,7 +257,7 @@ struct ClaudeProviderImplementation: ProviderImplementation {
                 subtitle: "Stored in ~/.codexbar/config.json. Requires an Anthropic Admin API key.",
                 kind: .secure,
                 placeholder: "sk-ant-admin...",
-                binding: context.stringBinding(\.claudeAdminAPIKey),
+                binding: context.binding(\.claudeAdminAPIKey),
                 actions: [],
                 isVisible: nil),
             ProviderSettingsFieldDescriptor(
@@ -290,7 +266,7 @@ struct ClaudeProviderImplementation: ProviderImplementation {
                 subtitle: "Path to the cswap executable (github.com/realiti4/claude-swap).",
                 kind: .plain,
                 placeholder: "~/.local/bin/cswap",
-                binding: context.stringBinding(\.claudeSwapExecutablePath),
+                binding: context.binding(\.claudeSwapExecutablePath),
                 actions: [],
                 isVisible: { context.settings.claudeSwapEnabled }),
         ]

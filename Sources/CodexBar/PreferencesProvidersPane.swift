@@ -492,16 +492,6 @@ struct ProvidersPane: View {
             provider: provider,
             settings: self.settings,
             store: self.store,
-            boolBinding: { keyPath in
-                Binding(
-                    get: { self.settings[keyPath: keyPath] },
-                    set: { self.settings[keyPath: keyPath] = $0 })
-            },
-            stringBinding: { keyPath in
-                Binding(
-                    get: { self.settings[keyPath: keyPath] },
-                    set: { self.settings[keyPath: keyPath] = $0 })
-            },
             statusText: { id in
                 self.settingsStatusTextByID[id]
             },

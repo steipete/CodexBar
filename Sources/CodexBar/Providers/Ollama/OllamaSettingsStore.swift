@@ -27,22 +27,6 @@ extension SettingsStore {
 
     var ollamaCookieSource: ProviderCookieSource {
         get { self.resolvedCookieSource(provider: .ollama, fallback: .auto) }
-        set {
-            self.updateProviderConfig(provider: .ollama) { entry in
-                entry.cookieSource = newValue
-            }
-            self.logProviderModeChange(provider: .ollama, field: "cookieSource", value: newValue.rawValue)
-        }
-    }
-}
-
-extension SettingsStore {
-    func ollamaSettingsSnapshot(tokenOverride: TokenAccountOverride?) -> ProviderSettingsSnapshot
-    .OllamaProviderSettings {
-        self.resolvedCookieSettings(
-            provider: .ollama,
-            configuredSource: self.ollamaCookieSource,
-            configuredHeader: self.ollamaCookieHeader,
-            tokenOverride: tokenOverride)
+        set { self.setCookieSource(newValue, provider: .ollama) }
     }
 }

@@ -38,7 +38,7 @@ struct AzureOpenAIProviderImplementation: ProviderImplementation {
                 subtitle: "Stored in ~/.codexbar/config.json. AZURE_OPENAI_API_KEY is also supported.",
                 kind: .secure,
                 placeholder: "Azure OpenAI key",
-                binding: context.stringBinding(\.azureOpenAIAPIKey),
+                binding: context.binding(\.azureOpenAIAPIKey),
                 actions: [],
                 isVisible: nil),
             ProviderSettingsFieldDescriptor(
@@ -47,7 +47,7 @@ struct AzureOpenAIProviderImplementation: ProviderImplementation {
                 subtitle: "Azure OpenAI resource endpoint. AZURE_OPENAI_ENDPOINT is also supported.",
                 kind: .plain,
                 placeholder: "https://resource.openai.azure.com",
-                binding: context.stringBinding(\.azureOpenAIEndpoint),
+                binding: context.binding(\.azureOpenAIEndpoint),
                 actions: [],
                 isVisible: nil),
             ProviderSettingsFieldDescriptor(
@@ -56,7 +56,7 @@ struct AzureOpenAIProviderImplementation: ProviderImplementation {
                 subtitle: "Azure OpenAI deployment name. AZURE_OPENAI_DEPLOYMENT_NAME is also supported.",
                 kind: .plain,
                 placeholder: "gpt-4o-mini",
-                binding: context.stringBinding(\.azureOpenAIDeploymentName),
+                binding: context.binding(\.azureOpenAIDeploymentName),
                 actions: [],
                 isVisible: nil),
         ]

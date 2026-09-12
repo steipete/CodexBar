@@ -1,7 +1,5 @@
-import AppKit
 import CodexBarCore
 import Foundation
-import SwiftUI
 
 struct KimiProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .kimi
@@ -22,11 +20,6 @@ struct KimiProviderImplementation: ProviderImplementation {
     }
 
     @MainActor
-    func settingsSnapshot(context: ProviderSettingsSnapshotContext) -> ProviderSettingsSnapshotContribution? {
-        .kimi(context.settings.kimiSettingsSnapshot(tokenOverride: context.tokenOverride))
-    }
-
-    @MainActor
     func defaultSourceLabel(context: ProviderSourceLabelContext) -> String? {
         context.settings.kimiUsageDataSource.rawValue
     }
@@ -42,34 +35,12 @@ struct KimiProviderImplementation: ProviderImplementation {
 
     @MainActor
     func settingsPickers(context: ProviderSettingsContext) -> [ProviderSettingsPickerDescriptor] {
-        let usageBinding = Binding(
-            get: { context.settings.kimiUsageDataSource.rawValue },
-            set: { raw in
-                context.settings.kimiUsageDataSource = ProviderSourceMode(rawValue: raw) ?? .auto
-            })
+        let usageBinding = context.rawValueBinding(\.kimiUsageDataSource, fallback: .auto)
         let usageOptions = [
             ProviderSettingsPickerOption(id: ProviderSourceMode.auto.rawValue, title: "Auto"),
             ProviderSettingsPickerOption(id: ProviderSourceMode.api.rawValue, title: "API key"),
             ProviderSettingsPickerOption(id: ProviderSourceMode.web.rawValue, title: "Browser cookies"),
         ]
-
-        let cookieBinding = Binding(
-            get: { context.settings.kimiCookieSource.rawValue },
-            set: { raw in
-                context.settings.kimiCookieSource = ProviderCookieSource(rawValue: raw) ?? .auto
-            })
-        let options = ProviderCookieSourceUI.options(
-            allowsOff: true,
-            keychainDisabled: context.settings.debugDisableKeychainAccess)
-
-        let subtitle: () -> String? = {
-            ProviderCookieSourceUI.subtitle(
-                source: context.settings.kimiCookieSource,
-                keychainDisabled: context.settings.debugDisableKeychainAccess,
-                auto: "Automatic imports browser cookies.",
-                manual: "Paste a cookie header or the kimi-auth token value.",
-                off: "Kimi cookies are disabled.")
-        }
 
         return [
             ProviderSettingsPickerDescriptor(
@@ -87,15 +58,17 @@ struct KimiProviderImplementation: ProviderImplementation {
                     let label = context.store.sourceLabel(for: .kimi)
                     return label == "auto" ? nil : label
                 }),
-            ProviderSettingsPickerDescriptor(
+            ProviderCookieSourceUI.picker(
                 id: "kimi-cookie-source",
-                title: "Cookie source",
-                subtitle: "Automatic imports browser cookies.",
-                dynamicSubtitle: subtitle,
-                binding: cookieBinding,
-                options: options,
-                isVisible: nil,
-                onChange: nil),
+                context: context,
+                source: \.kimiCookieSource,
+                allowsOff: true,
+                subtitles: {
+                    .init(
+                        auto: "Automatic imports browser cookies.",
+                        manual: "Paste a cookie header or the kimi-auth token value.",
+                        off: "Kimi cookies are disabled.")
+                }),
         ]
     }
 
@@ -109,18 +82,12 @@ struct KimiProviderImplementation: ProviderImplementation {
                     "Moonshot / Kimi Open Platform.",
                 kind: .secure,
                 placeholder: "Paste Kimi Code API key...",
-                binding: context.stringBinding(\.kimiAPIKey),
+                binding: context.binding(\.kimiAPIKey),
                 actions: [
-                    ProviderSettingsActionDescriptor(
+                    ProviderSettingsActionDescriptor.openURL(
                         id: "kimi-open-api-docs",
                         title: "Open API docs",
-                        style: .link,
-                        isVisible: nil,
-                        perform: {
-                            if let url = URL(string: "https://www.kimi.com/code/docs/en/") {
-                                NSWorkspace.shared.open(url)
-                            }
-                        }),
+                        url: URL(string: "https://www.kimi.com/code/docs/en/")),
                 ],
                 isVisible: nil),
             ProviderSettingsFieldDescriptor(
@@ -129,18 +96,12 @@ struct KimiProviderImplementation: ProviderImplementation {
                 subtitle: "",
                 kind: .secure,
                 placeholder: "Cookie: \u{2026}\n\nor paste the kimi-auth token value",
-                binding: context.stringBinding(\.kimiManualCookieHeader),
+                binding: context.binding(\.kimiManualCookieHeader),
                 actions: [
-                    ProviderSettingsActionDescriptor(
+                    ProviderSettingsActionDescriptor.openURL(
                         id: "kimi-open-console",
                         title: "Open Console",
-                        style: .link,
-                        isVisible: nil,
-                        perform: {
-                            if let url = URL(string: "https://www.kimi.com/code/console") {
-                                NSWorkspace.shared.open(url)
-                            }
-                        }),
+                        url: URL(string: "https://www.kimi.com/code/console")),
                 ],
                 isVisible: { context.settings.kimiCookieSource == .manual }),
         ]

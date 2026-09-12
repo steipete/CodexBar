@@ -290,7 +290,7 @@ struct AiAndProviderTests {
         #expect(descriptor.fetchPlan.sourceModes == [.auto, .api])
         #expect(descriptor.cli.aliases == ["ai&", "ai-and"])
 
-        let implementation = try #require(ProviderImplementationRegistry.implementation(for: .aiand))
+        let implementation = try #require(ProviderCatalog.implementation(for: .aiand))
         #expect(implementation is AiAndProviderImplementation)
     }
 

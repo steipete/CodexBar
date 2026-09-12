@@ -31,16 +31,6 @@ struct QoderDashboardActionTests {
             provider: .qoder,
             settings: settings,
             store: store,
-            boolBinding: { keyPath in
-                Binding(
-                    get: { settings[keyPath: keyPath] },
-                    set: { settings[keyPath: keyPath] = $0 })
-            },
-            stringBinding: { keyPath in
-                Binding(
-                    get: { settings[keyPath: keyPath] },
-                    set: { settings[keyPath: keyPath] = $0 })
-            },
             statusText: { _ in nil },
             setStatusText: { _, _ in },
             lastAppActiveRunAt: { _ in nil },
@@ -62,7 +52,7 @@ struct QoderDashboardActionTests {
         #expect(action != nil)
         #expect(QoderProviderImplementation.usageDashboardURL(settings: settings) == QoderWebSite.china.dashboardURL)
         #expect(QoderProviderDescriptor.dashboardURL(
-            settings: settings.qoderSettingsSnapshot(tokenOverride: nil),
+            settings: settings.resolvedCookieSettings(provider: .qoder, tokenOverride: nil),
             sourceLabel: "manual / qoder.com") == QoderWebSite.china.dashboardURL)
 
         settings.qoderCookieHeader = "curl https://qoder.com -H 'Host: qoder.com.cn' -H 'Cookie: sid=abc'"

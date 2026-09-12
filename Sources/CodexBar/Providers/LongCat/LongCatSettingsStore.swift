@@ -24,23 +24,6 @@ extension SettingsStore {
 
     var longcatCookieSource: ProviderCookieSource {
         get { self.resolvedCookieSource(provider: .longcat, fallback: .auto) }
-        set {
-            self.updateProviderConfig(provider: .longcat) { entry in
-                entry.cookieSource = newValue
-            }
-            self.logProviderModeChange(provider: .longcat, field: "cookieSource", value: newValue.rawValue)
-        }
-    }
-}
-
-extension SettingsStore {
-    func longcatSettingsSnapshot(tokenOverride: TokenAccountOverride?)
-        -> ProviderSettingsSnapshot.LongCatProviderSettings
-    {
-        self.resolvedCookieSettings(
-            provider: .longcat,
-            configuredSource: self.longcatCookieSource,
-            configuredHeader: self.longcatManualCookieHeader,
-            tokenOverride: tokenOverride)
+        set { self.setCookieSource(newValue, provider: .longcat) }
     }
 }

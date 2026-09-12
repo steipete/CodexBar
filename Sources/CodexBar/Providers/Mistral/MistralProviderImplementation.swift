@@ -1,7 +1,5 @@
-import AppKit
 import CodexBarCore
 import Foundation
-import SwiftUI
 
 struct MistralProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .mistral
@@ -9,17 +7,6 @@ struct MistralProviderImplementation: ProviderImplementation {
     @MainActor
     func presentation(context _: ProviderPresentationContext) -> ProviderPresentation {
         ProviderPresentation { _ in "web" }
-    }
-
-    @MainActor
-    func observeSettings(_ settings: SettingsStore) {
-        _ = settings.mistralCookieSource
-        _ = settings.mistralCookieHeader
-    }
-
-    @MainActor
-    func settingsSnapshot(context: ProviderSettingsSnapshotContext) -> ProviderSettingsSnapshotContribution? {
-        .mistral(context.settings.mistralSettingsSnapshot(tokenOverride: context.tokenOverride))
     }
 
     @MainActor
@@ -38,34 +25,18 @@ struct MistralProviderImplementation: ProviderImplementation {
 
     @MainActor
     func settingsPickers(context: ProviderSettingsContext) -> [ProviderSettingsPickerDescriptor] {
-        let cookieBinding = Binding(
-            get: { context.settings.mistralCookieSource.rawValue },
-            set: { raw in
-                context.settings.mistralCookieSource = ProviderCookieSource(rawValue: raw) ?? .auto
-            })
-        let cookieOptions = ProviderCookieSourceUI.options(
-            allowsOff: false,
-            keychainDisabled: context.settings.debugDisableKeychainAccess)
-
-        let cookieSubtitle: () -> String? = {
-            ProviderCookieSourceUI.subtitle(
-                source: context.settings.mistralCookieSource,
-                keychainDisabled: context.settings.debugDisableKeychainAccess,
-                auto: "Automatic imports browser cookies from admin.mistral.ai.",
-                manual: "Paste a Cookie header captured from the billing page.",
-                off: "Mistral cookies are disabled.")
-        }
-
-        return [
-            ProviderSettingsPickerDescriptor(
+        [
+            ProviderCookieSourceUI.picker(
                 id: "mistral-cookie-source",
-                title: "Cookie source",
-                subtitle: "Automatic imports browser cookies from admin.mistral.ai.",
-                dynamicSubtitle: cookieSubtitle,
-                binding: cookieBinding,
-                options: cookieOptions,
-                isVisible: nil,
-                onChange: nil,
+                context: context,
+                source: \.mistralCookieSource,
+                allowsOff: false,
+                subtitles: {
+                    .init(
+                        auto: "Automatic imports browser cookies from admin.mistral.ai.",
+                        manual: "Paste a Cookie header captured from the billing page.",
+                        off: "Mistral cookies are disabled.")
+                },
                 trailingText: {
                     ProviderCookieSourceUI.cachedTrailingText(provider: .mistral)
                 }),
@@ -82,18 +53,12 @@ struct MistralProviderImplementation: ProviderImplementation {
                     + "Must contain an ory_session_* cookie.",
                 kind: .secure,
                 placeholder: "ory_session_…=…; csrftoken=…",
-                binding: context.stringBinding(\.mistralCookieHeader),
+                binding: context.binding(\.mistralCookieHeader),
                 actions: [
-                    ProviderSettingsActionDescriptor(
+                    ProviderSettingsActionDescriptor.openURL(
                         id: "mistral-open-console",
                         title: "Open Mistral Admin",
-                        style: .link,
-                        isVisible: nil,
-                        perform: {
-                            if let url = URL(string: "https://admin.mistral.ai/organization/usage") {
-                                NSWorkspace.shared.open(url)
-                            }
-                        }),
+                        url: URL(string: "https://admin.mistral.ai/organization/usage")),
                 ],
                 isVisible: { context.settings.mistralCookieSource == .manual }),
         ]

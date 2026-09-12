@@ -82,9 +82,10 @@ extension SettingsStore {
     var kiloEnabledOrganizationIDs: [String] {
         get { self.configSnapshot.providerConfig(for: .kilo)?.kiloEnabledOrganizationIDs ?? [] }
         set {
-            let cleaned = Array(KiloOrgIDLinkedHashSet(newValue
-                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                    .filter { !$0.isEmpty }))
+            var seen: Set<String> = []
+            let cleaned = newValue
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty && seen.insert($0).inserted }
             self.updateProviderConfig(provider: .kilo) { entry in
                 entry.kiloEnabledOrganizationIDs = cleaned.isEmpty ? nil : cleaned
             }
@@ -117,21 +118,5 @@ extension SettingsStore {
             current.removeAll { $0 == orgID }
         }
         self.kiloEnabledOrganizationIDs = current
-    }
-}
-
-/// Small order-preserving set used to dedupe enabled IDs without sorting.
-private struct KiloOrgIDLinkedHashSet<Element: Hashable>: Sequence {
-    private var seen: Set<Element> = []
-    private var ordered: [Element] = []
-
-    init(_ sequence: some Sequence<Element>) {
-        for element in sequence where self.seen.insert(element).inserted {
-            self.ordered.append(element)
-        }
-    }
-
-    func makeIterator() -> IndexingIterator<[Element]> {
-        self.ordered.makeIterator()
     }
 }

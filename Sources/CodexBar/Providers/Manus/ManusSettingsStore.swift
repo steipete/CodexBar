@@ -9,21 +9,6 @@ extension SettingsStore {
 
     var manusCookieSource: ProviderCookieSource {
         get { self.resolvedCookieSource(provider: .manus, fallback: .auto) }
-        set {
-            self.updateProviderConfig(provider: .manus) { entry in
-                entry.cookieSource = newValue
-            }
-            self.logProviderModeChange(provider: .manus, field: "cookieSource", value: newValue.rawValue)
-        }
-    }
-}
-
-extension SettingsStore {
-    func manusSettingsSnapshot(tokenOverride: TokenAccountOverride?) -> ProviderSettingsSnapshot.ManusProviderSettings {
-        self.resolvedCookieSettings(
-            provider: .manus,
-            configuredSource: self.manusCookieSource,
-            configuredHeader: self.manusManualCookieHeader,
-            tokenOverride: tokenOverride)
+        set { self.setCookieSource(newValue, provider: .manus) }
     }
 }

@@ -1,21 +1,8 @@
-import AppKit
 import CodexBarCore
 import Foundation
-import SwiftUI
 
 struct AbacusProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .abacus
-
-    @MainActor
-    func observeSettings(_ settings: SettingsStore) {
-        _ = settings.abacusCookieSource
-        _ = settings.abacusCookieHeader
-    }
-
-    @MainActor
-    func settingsSnapshot(context: ProviderSettingsSnapshotContext) -> ProviderSettingsSnapshotContribution? {
-        .abacus(context.settings.abacusSettingsSnapshot(tokenOverride: context.tokenOverride))
-    }
 
     @MainActor
     func tokenAccountsVisibility(context: ProviderSettingsContext, support: TokenAccountSupport) -> Bool {
@@ -33,34 +20,18 @@ struct AbacusProviderImplementation: ProviderImplementation {
 
     @MainActor
     func settingsPickers(context: ProviderSettingsContext) -> [ProviderSettingsPickerDescriptor] {
-        let cookieBinding = Binding(
-            get: { context.settings.abacusCookieSource.rawValue },
-            set: { raw in
-                context.settings.abacusCookieSource = ProviderCookieSource(rawValue: raw) ?? .auto
-            })
-        let cookieOptions = ProviderCookieSourceUI.options(
-            allowsOff: false,
-            keychainDisabled: context.settings.debugDisableKeychainAccess)
-
-        let cookieSubtitle: () -> String? = {
-            ProviderCookieSourceUI.subtitle(
-                source: context.settings.abacusCookieSource,
-                keychainDisabled: context.settings.debugDisableKeychainAccess,
-                auto: "Automatic imports browser cookies.",
-                manual: "Paste a Cookie header or cURL capture from the Abacus AI dashboard.",
-                off: "Abacus AI cookies are disabled.")
-        }
-
-        return [
-            ProviderSettingsPickerDescriptor(
+        [
+            ProviderCookieSourceUI.picker(
                 id: "abacus-cookie-source",
-                title: "Cookie source",
-                subtitle: "Automatic imports browser cookies.",
-                dynamicSubtitle: cookieSubtitle,
-                binding: cookieBinding,
-                options: cookieOptions,
-                isVisible: nil,
-                onChange: nil,
+                context: context,
+                source: \.abacusCookieSource,
+                allowsOff: false,
+                subtitles: {
+                    .init(
+                        auto: "Automatic imports browser cookies.",
+                        manual: "Paste a Cookie header or cURL capture from the Abacus AI dashboard.",
+                        off: "Abacus AI cookies are disabled.")
+                },
                 trailingText: {
                     ProviderCookieSourceUI.cachedTrailingText(provider: .abacus)
                 }),
@@ -76,18 +47,12 @@ struct AbacusProviderImplementation: ProviderImplementation {
                 subtitle: "",
                 kind: .secure,
                 placeholder: "Cookie: \u{2026}\n\nor paste a cURL capture from the Abacus AI dashboard",
-                binding: context.stringBinding(\.abacusCookieHeader),
+                binding: context.binding(\.abacusCookieHeader),
                 actions: [
-                    ProviderSettingsActionDescriptor(
+                    ProviderSettingsActionDescriptor.openURL(
                         id: "abacus-open-dashboard",
                         title: "Open Dashboard",
-                        style: .link,
-                        isVisible: nil,
-                        perform: {
-                            if let url = URL(string: "https://apps.abacus.ai/chatllm/admin/compute-points-usage") {
-                                NSWorkspace.shared.open(url)
-                            }
-                        }),
+                        url: URL(string: "https://apps.abacus.ai/chatllm/admin/compute-points-usage")),
                 ],
                 isVisible: { context.settings.abacusCookieSource == .manual }),
         ]

@@ -1,7 +1,5 @@
-import AppKit
 import CodexBarCore
 import Foundation
-import SwiftUI
 
 struct OllamaProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .ollama
@@ -31,11 +29,6 @@ struct OllamaProviderImplementation: ProviderImplementation {
     }
 
     @MainActor
-    func settingsSnapshot(context: ProviderSettingsSnapshotContext) -> ProviderSettingsSnapshotContribution? {
-        .ollama(context.settings.ollamaSettingsSnapshot(tokenOverride: context.tokenOverride))
-    }
-
-    @MainActor
     func tokenAccountsVisibility(context: ProviderSettingsContext, support: TokenAccountSupport) -> Bool {
         guard support.requiresManualCookieSource else { return true }
         if !context.settings.tokenAccounts(for: context.provider).isEmpty { return true }
@@ -51,34 +44,12 @@ struct OllamaProviderImplementation: ProviderImplementation {
 
     @MainActor
     func settingsPickers(context: ProviderSettingsContext) -> [ProviderSettingsPickerDescriptor] {
-        let sourceBinding = Binding(
-            get: { context.settings.ollamaUsageDataSource.rawValue },
-            set: { raw in
-                context.settings.ollamaUsageDataSource = ProviderSourceMode(rawValue: raw) ?? .auto
-            })
+        let sourceBinding = context.rawValueBinding(\.ollamaUsageDataSource, fallback: .auto)
         let sourceOptions: [ProviderSettingsPickerOption] = [
             ProviderSettingsPickerOption(id: ProviderSourceMode.auto.rawValue, title: "Auto"),
             ProviderSettingsPickerOption(id: ProviderSourceMode.web.rawValue, title: "Browser cookies"),
             ProviderSettingsPickerOption(id: ProviderSourceMode.api.rawValue, title: "API key"),
         ]
-        let cookieBinding = Binding(
-            get: { context.settings.ollamaCookieSource.rawValue },
-            set: { raw in
-                context.settings.ollamaCookieSource = ProviderCookieSource(rawValue: raw) ?? .auto
-            })
-        let cookieOptions = ProviderCookieSourceUI.options(
-            allowsOff: false,
-            keychainDisabled: context.settings.debugDisableKeychainAccess)
-
-        let cookieSubtitle: () -> String? = {
-            ProviderCookieSourceUI.subtitle(
-                source: context.settings.ollamaCookieSource,
-                keychainDisabled: context.settings.debugDisableKeychainAccess,
-                auto: "Automatic imports browser cookies.",
-                manual: "Paste a Cookie header or cURL capture from Ollama settings.",
-                off: "Ollama cookies are disabled.")
-        }
-
         return [
             ProviderSettingsPickerDescriptor(
                 id: "ollama-usage-source",
@@ -88,15 +59,17 @@ struct OllamaProviderImplementation: ProviderImplementation {
                 options: sourceOptions,
                 isVisible: nil,
                 onChange: nil),
-            ProviderSettingsPickerDescriptor(
+            ProviderCookieSourceUI.picker(
                 id: "ollama-cookie-source",
-                title: "Cookie source",
-                subtitle: "Automatic imports browser cookies.",
-                dynamicSubtitle: cookieSubtitle,
-                binding: cookieBinding,
-                options: cookieOptions,
-                isVisible: nil,
-                onChange: nil,
+                context: context,
+                source: \.ollamaCookieSource,
+                allowsOff: false,
+                subtitles: {
+                    .init(
+                        auto: "Automatic imports browser cookies.",
+                        manual: "Paste a Cookie header or cURL capture from Ollama settings.",
+                        off: "Ollama cookies are disabled.")
+                },
                 trailingText: {
                     guard context.settings.ollamaUsageDataSource != .api else { return nil }
                     return ProviderCookieRefreshAction.trailingText(
@@ -123,18 +96,12 @@ struct OllamaProviderImplementation: ProviderImplementation {
                 subtitle: "Stored in ~/.codexbar/config.json. Get your key from Ollama settings.",
                 kind: .secure,
                 placeholder: "ollama-...",
-                binding: context.stringBinding(\.ollamaAPIToken),
+                binding: context.binding(\.ollamaAPIToken),
                 actions: [
-                    ProviderSettingsActionDescriptor(
+                    ProviderSettingsActionDescriptor.openURL(
                         id: "ollama-open-api-keys",
                         title: "Open Ollama API Keys",
-                        style: .link,
-                        isVisible: nil,
-                        perform: {
-                            if let url = URL(string: "https://ollama.com/settings/keys") {
-                                NSWorkspace.shared.open(url)
-                            }
-                        }),
+                        url: URL(string: "https://ollama.com/settings/keys")),
                 ],
                 isVisible: nil),
             ProviderSettingsFieldDescriptor(
@@ -143,18 +110,12 @@ struct OllamaProviderImplementation: ProviderImplementation {
                 subtitle: "",
                 kind: .secure,
                 placeholder: "Cookie: …",
-                binding: context.stringBinding(\.ollamaCookieHeader),
+                binding: context.binding(\.ollamaCookieHeader),
                 actions: [
-                    ProviderSettingsActionDescriptor(
+                    ProviderSettingsActionDescriptor.openURL(
                         id: "ollama-open-settings",
                         title: "Open Ollama Settings",
-                        style: .link,
-                        isVisible: nil,
-                        perform: {
-                            if let url = URL(string: "https://ollama.com/settings") {
-                                NSWorkspace.shared.open(url)
-                            }
-                        }),
+                        url: URL(string: "https://ollama.com/settings")),
                 ],
                 isVisible: { context.settings.ollamaCookieSource == .manual }),
         ]

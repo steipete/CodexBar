@@ -90,7 +90,6 @@ extension StatusItemController {
             for: provider,
             snapshotOverride: accountSnapshot.snapshot,
             errorOverride: accountSnapshot.error,
-            forceOverrideCard: true,
             accountOverride: AccountInfo(email: label.isEmpty ? nil : label, plan: nil),
             historySelectionOverride: self.store.planUtilizationHistorySelection(
                 for: provider,

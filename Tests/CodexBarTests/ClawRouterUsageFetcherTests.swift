@@ -128,7 +128,7 @@ struct ClawRouterPluginGoldenTests {
         #expect(descriptor.metadata.displayName == "ClawRouter")
         #expect(descriptor.cli.aliases.contains("claw-router"))
 
-        let implementation = try #require(ProviderImplementationRegistry.implementation(for: .clawrouter))
+        let implementation = try #require(ProviderCatalog.implementation(for: .clawrouter))
         #expect(implementation.id == .clawrouter)
     }
 

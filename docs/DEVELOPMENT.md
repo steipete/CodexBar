@@ -112,11 +112,10 @@ See the canonical [provider authoring guide](provider.md#adding-a-new-provider) 
 1. Add the provider identity to `Sources/CodexBarCore/Providers/Providers.swift`.
 2. Add the descriptor and the fetcher, parser, settings-reader, or status-probe pieces the provider needs under
    `Sources/CodexBarCore/Providers/YourProvider/`.
-3. Register the descriptor from `Sources/CodexBarCore/Providers/ProviderDescriptor.swift`.
+3. Follow the descriptor naming convention in the provider authoring guide.
 4. Add an app-side `ProviderImplementation` under `Sources/CodexBar/Providers/YourProvider/`; implementations can use
    protocol defaults when no custom UI or macOS integration is needed.
-5. Add the provider's exhaustive switch case to
-   `Sources/CodexBar/Providers/Shared/ProviderImplementationRegistry.swift`.
+5. Run `Scripts/regenerate-provider-manifests.sh` to update the Core descriptor manifest and the immutable app catalog.
 6. Add icon assets under `Sources/CodexBar/Resources/`.
 7. Add focused tests under `Tests/CodexBarTests/` and, for CLI/core behavior that must run on Linux, `TestsLinux/`.
 

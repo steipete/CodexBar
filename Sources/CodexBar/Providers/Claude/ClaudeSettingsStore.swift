@@ -32,12 +32,7 @@ extension SettingsStore {
 
     var claudeCookieSource: ProviderCookieSource {
         get { self.resolvedCookieSource(provider: .claude, fallback: .auto) }
-        set {
-            self.updateProviderConfig(provider: .claude) { entry in
-                entry.cookieSource = newValue
-            }
-            self.logProviderModeChange(provider: .claude, field: "cookieSource", value: newValue.rawValue)
-        }
+        set { self.setCookieSource(newValue, provider: .claude) }
     }
 
     var claudeAdminAPIKey: String {

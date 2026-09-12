@@ -1,6 +1,5 @@
 import CodexBarCore
 import Foundation
-import SwiftUI
 
 struct WindsurfProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .windsurf
@@ -29,34 +28,12 @@ struct WindsurfProviderImplementation: ProviderImplementation {
     @MainActor
     func settingsPickers(context: ProviderSettingsContext) -> [ProviderSettingsPickerDescriptor] {
         // Usage source picker
-        let usageBinding = Binding(
-            get: { context.settings.windsurfUsageDataSource.rawValue },
-            set: { raw in
-                context.settings.windsurfUsageDataSource = WindsurfUsageDataSource(rawValue: raw) ?? .auto
-            })
+        let usageBinding = context.rawValueBinding(\.windsurfUsageDataSource, fallback: .auto)
         let usageOptions = WindsurfUsageDataSource.allCases.map {
             ProviderSettingsPickerOption(id: $0.rawValue, title: $0.displayName)
         }
 
         // Cookie source picker
-        let cookieBinding = Binding(
-            get: { context.settings.windsurfCookieSource.rawValue },
-            set: { raw in
-                context.settings.windsurfCookieSource = ProviderCookieSource(rawValue: raw) ?? .auto
-            })
-        let cookieOptions = ProviderCookieSourceUI.options(
-            allowsOff: true,
-            keychainDisabled: context.settings.debugDisableKeychainAccess)
-
-        let cookieSubtitle: () -> String? = {
-            ProviderCookieSourceUI.subtitle(
-                source: context.settings.windsurfCookieSource,
-                keychainDisabled: context.settings.debugDisableKeychainAccess,
-                auto: "Automatic imports Windsurf session data from Chromium browser localStorage.",
-                manual: "Paste the Windsurf session JSON bundle from localStorage.",
-                off: "Windsurf web API access is disabled.")
-        }
-
         return [
             ProviderSettingsPickerDescriptor(
                 id: "windsurf-usage-source",
@@ -71,15 +48,17 @@ struct WindsurfProviderImplementation: ProviderImplementation {
                     let label = context.store.sourceLabel(for: .windsurf)
                     return label == "auto" ? nil : label
                 }),
-            ProviderSettingsPickerDescriptor(
+            ProviderCookieSourceUI.picker(
                 id: "windsurf-cookie-source",
-                title: "Cookie source",
-                subtitle: "Automatic imports Windsurf session data from Chromium browser localStorage.",
-                dynamicSubtitle: cookieSubtitle,
-                binding: cookieBinding,
-                options: cookieOptions,
-                isVisible: nil,
-                onChange: nil,
+                context: context,
+                source: \.windsurfCookieSource,
+                allowsOff: true,
+                subtitles: {
+                    .init(
+                        auto: "Automatic imports Windsurf session data from Chromium browser localStorage.",
+                        manual: "Paste the Windsurf session JSON bundle from localStorage.",
+                        off: "Windsurf web API access is disabled.")
+                },
                 trailingText: nil),
         ]
     }
@@ -93,7 +72,7 @@ struct WindsurfProviderImplementation: ProviderImplementation {
                 subtitle: "",
                 kind: .secure,
                 placeholder: "Windsurf session JSON bundle",
-                binding: context.stringBinding(\.windsurfCookieHeader),
+                binding: context.binding(\.windsurfCookieHeader),
                 actions: [],
                 isVisible: {
                     context.settings.windsurfCookieSource == .manual

@@ -1,7 +1,5 @@
-import AppKit
 import CodexBarCore
 import Foundation
-import SwiftUI
 
 /// Provider-specific by design: The Alibaba folder co-locates the distinct Alibaba Token Plan variant.
 struct AlibabaTokenPlanProviderImplementation: ProviderImplementation {
@@ -40,42 +38,14 @@ struct AlibabaTokenPlanProviderImplementation: ProviderImplementation {
 
     @MainActor
     func settingsPickers(context: ProviderSettingsContext) -> [ProviderSettingsPickerDescriptor] {
-        let sourceBinding = Binding(
-            get: { context.settings.alibabaTokenPlanUsageDataSource.rawValue },
-            set: { raw in
-                context.settings.alibabaTokenPlanUsageDataSource = ProviderSourceMode(rawValue: raw) ?? .auto
-            })
+        let sourceBinding = context.rawValueBinding(\.alibabaTokenPlanUsageDataSource, fallback: .auto)
         let sourceOptions = [
             ProviderSettingsPickerOption(id: ProviderSourceMode.auto.rawValue, title: "Auto"),
             ProviderSettingsPickerOption(id: ProviderSourceMode.cli.rawValue, title: "Bailian CLI"),
             ProviderSettingsPickerOption(id: ProviderSourceMode.web.rawValue, title: "Browser cookies"),
         ]
-        let cookieBinding = Binding(
-            get: { context.settings.alibabaTokenPlanCookieSource.rawValue },
-            set: { raw in
-                context.settings.alibabaTokenPlanCookieSource = ProviderCookieSource(rawValue: raw) ?? .auto
-            })
-        let cookieOptions = ProviderCookieSourceUI.options(
-            allowsOff: false,
-            keychainDisabled: context.settings.debugDisableKeychainAccess)
-        let cookieSubtitle: () -> String? = {
-            let region = context.settings.alibabaTokenPlanAPIRegion
-            let host = region.usesPersonalTokenPlanAPI
-                ? URL(string: region.quotaBaseURLString)?.host
-                : region.dashboardURL.host
-            return ProviderCookieSourceUI.subtitle(
-                source: context.settings.alibabaTokenPlanCookieSource,
-                keychainDisabled: context.settings.debugDisableKeychainAccess,
-                auto: "Automatic imports browser cookies from Model Studio/Bailian.",
-                manual: "Paste a Cookie header from \(host ?? "the selected console").",
-                off: "Alibaba Token Plan cookies are disabled.")
-        }
 
-        let regionBinding = Binding(
-            get: { context.settings.alibabaTokenPlanAPIRegion.rawValue },
-            set: { raw in
-                context.settings.alibabaTokenPlanAPIRegion = AlibabaTokenPlanAPIRegion(rawValue: raw) ?? .international
-            })
+        let regionBinding = context.rawValueBinding(\.alibabaTokenPlanAPIRegion, fallback: .international)
         let regionOptions = AlibabaTokenPlanAPIRegion.allCases.map {
             ProviderSettingsPickerOption(id: $0.rawValue, title: $0.displayName)
         }
@@ -95,13 +65,21 @@ struct AlibabaTokenPlanProviderImplementation: ProviderImplementation {
                     let label = context.store.sourceLabel(for: .alibabatokenplan)
                     return label == "auto" ? nil : label
                 }),
-            ProviderSettingsPickerDescriptor(
+            ProviderCookieSourceUI.picker(
                 id: "alibaba-token-plan-cookie-source",
-                title: "Cookie source",
-                subtitle: "Automatic imports browser cookies from Model Studio/Bailian.",
-                dynamicSubtitle: cookieSubtitle,
-                binding: cookieBinding,
-                options: cookieOptions,
+                context: context,
+                source: \.alibabaTokenPlanCookieSource,
+                allowsOff: false,
+                subtitles: {
+                    let region = context.settings.alibabaTokenPlanAPIRegion
+                    let host = region.usesPersonalTokenPlanAPI
+                        ? URL(string: region.quotaBaseURLString)?.host
+                        : region.dashboardURL.host
+                    return .init(
+                        auto: "Automatic imports browser cookies from Model Studio/Bailian.",
+                        manual: "Paste a Cookie header from \(host ?? "the selected console").",
+                        off: "Alibaba Token Plan cookies are disabled.")
+                },
                 isVisible: {
                     context.settings.alibabaTokenPlanUsageDataSource == .auto
                         || context.settings.alibabaTokenPlanUsageDataSource == .web
@@ -133,18 +111,13 @@ struct AlibabaTokenPlanProviderImplementation: ProviderImplementation {
                 subtitle: "",
                 kind: .secure,
                 placeholder: "Cookie: ...",
-                binding: context.stringBinding(\.alibabaTokenPlanCookieHeader),
+                binding: context.binding(\.alibabaTokenPlanCookieHeader),
                 actions: [
-                    ProviderSettingsActionDescriptor(
+                    ProviderSettingsActionDescriptor.openURL(
                         id: "alibaba-token-plan-open-dashboard",
                         title: "Open Token Plan",
-                        style: .link,
-                        isVisible: nil,
-                        perform: {
-                            NSWorkspace.shared.open(
-                                AlibabaTokenPlanUsageFetcher.dashboardURL(
-                                    region: context.settings.alibabaTokenPlanAPIRegion))
-                        }),
+                        url: AlibabaTokenPlanUsageFetcher.dashboardURL(
+                            region: context.settings.alibabaTokenPlanAPIRegion)),
                 ],
                 isVisible: {
                     (context.settings.alibabaTokenPlanUsageDataSource == .auto

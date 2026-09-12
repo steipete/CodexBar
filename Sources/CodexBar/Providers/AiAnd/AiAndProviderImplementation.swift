@@ -1,4 +1,3 @@
-import AppKit
 import CodexBarCore
 import Foundation
 
@@ -35,16 +34,10 @@ struct AiAndProviderImplementation: ProviderImplementation {
                 placeholder: "sk-…",
                 binding: context.providerConfigBinding(.apiKey),
                 actions: [
-                    ProviderSettingsActionDescriptor(
+                    ProviderSettingsActionDescriptor.openURL(
                         id: "aiand-open-console",
                         title: "Open ai& Console",
-                        style: .link,
-                        isVisible: nil,
-                        perform: {
-                            if let url = URL(string: "https://console.aiand.com") {
-                                NSWorkspace.shared.open(url)
-                            }
-                        }),
+                        url: URL(string: "https://console.aiand.com")),
                 ],
                 isVisible: nil),
         ]

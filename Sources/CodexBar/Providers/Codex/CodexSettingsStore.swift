@@ -217,10 +217,7 @@ extension SettingsStore {
             return self.openAIWebAccessEnabled ? resolved : .off
         }
         set {
-            self.updateProviderConfig(provider: .codex) { entry in
-                entry.cookieSource = newValue
-            }
-            self.logProviderModeChange(provider: .codex, field: "cookieSource", value: newValue.rawValue)
+            self.setCookieSource(newValue, provider: .codex)
             self.openAIWebAccessEnabled = newValue.isEnabled
         }
     }

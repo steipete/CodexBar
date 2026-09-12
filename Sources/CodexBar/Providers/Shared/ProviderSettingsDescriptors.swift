@@ -1,3 +1,4 @@
+import AppKit
 import CodexBarCore
 import Foundation
 import SwiftUI
@@ -15,9 +16,6 @@ struct ProviderSettingsContext {
     let settings: SettingsStore
     let store: UsageStore
 
-    let boolBinding: (ReferenceWritableKeyPath<SettingsStore, Bool>) -> Binding<Bool>
-    let stringBinding: (ReferenceWritableKeyPath<SettingsStore, String>) -> Binding<String>
-
     let statusText: (String) -> String?
     let setStatusText: (String, String?) -> Void
 
@@ -26,6 +24,23 @@ struct ProviderSettingsContext {
 
     let requestConfirmation: (ProviderSettingsConfirmation) -> Void
     let runLoginFlow: () async -> Void
+
+    func binding<Value>(_ keyPath: ReferenceWritableKeyPath<SettingsStore, Value>) -> Binding<Value> {
+        let settings = self.settings
+        return Binding(
+            get: { settings[keyPath: keyPath] },
+            set: { settings[keyPath: keyPath] = $0 })
+    }
+
+    func rawValueBinding<Value: RawRepresentable>(
+        _ keyPath: ReferenceWritableKeyPath<SettingsStore, Value>,
+        fallback: Value) -> Binding<Value.RawValue>
+    {
+        let settings = self.settings
+        return Binding(
+            get: { settings[keyPath: keyPath].rawValue },
+            set: { settings[keyPath: keyPath] = Value(rawValue: $0) ?? fallback })
+    }
 
     func providerConfigBinding(_ field: ProviderConfigStringField) -> Binding<String> {
         self.settings.providerConfigBinding(provider: self.provider, field: field)
@@ -39,8 +54,6 @@ struct ProviderSettingsContext {
         provider: UsageProvider,
         settings: SettingsStore,
         store: UsageStore,
-        boolBinding: @escaping (ReferenceWritableKeyPath<SettingsStore, Bool>) -> Binding<Bool>,
-        stringBinding: @escaping (ReferenceWritableKeyPath<SettingsStore, String>) -> Binding<String>,
         statusText: @escaping (String) -> String?,
         setStatusText: @escaping (String, String?) -> Void,
         lastAppActiveRunAt: @escaping (String) -> Date?,
@@ -51,8 +64,6 @@ struct ProviderSettingsContext {
         self.provider = provider
         self.settings = settings
         self.store = store
-        self.boolBinding = boolBinding
-        self.stringBinding = stringBinding
         self.statusText = statusText
         self.setStatusText = setStatusText
         self.lastAppActiveRunAt = lastAppActiveRunAt
@@ -296,6 +307,22 @@ struct ProviderSettingsPickerOption: Identifiable {
 /// Shared action descriptor rendered under a settings toggle.
 @MainActor
 struct ProviderSettingsActionDescriptor: Identifiable {
+    static func openURL(
+        id: String,
+        title: String,
+        url: @autoclosure @escaping () -> URL?) -> Self
+    {
+        Self(
+            id: id,
+            title: title,
+            style: .link,
+            isVisible: nil,
+            perform: {
+                guard let destination = url() else { return }
+                NSWorkspace.shared.open(destination)
+            })
+    }
+
     enum Style {
         case bordered
         case link

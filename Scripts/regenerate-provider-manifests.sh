@@ -96,13 +96,12 @@ render_implementations() {
 import CodexBarCore
 import Foundation
 
-/// Closed first-party bootstrap list. Runtime/plugin registrations remain owned by
-/// `ProviderImplementationRegistry.register(_:)`.
+/// Implementations shipped in the app, indexed by `ProviderCatalog`.
 enum ProviderImplementationManifest {
-    static let makeImplementations: [@Sendable () -> any ProviderImplementation] = [
+    static let implementations: [any ProviderImplementation] = [
 SWIFT
   for implementation_type in "${IMPLEMENTATION_TYPES[@]}"; do
-    printf '        { %s() },\n' "$implementation_type"
+    printf '        %s(),\n' "$implementation_type"
   done
   cat <<'SWIFT'
     ]

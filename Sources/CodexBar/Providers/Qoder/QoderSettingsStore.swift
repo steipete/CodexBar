@@ -9,23 +9,6 @@ extension SettingsStore {
 
     var qoderCookieSource: ProviderCookieSource {
         get { self.resolvedCookieSource(provider: .qoder, fallback: .auto) }
-        set {
-            self.updateProviderConfig(provider: .qoder) { entry in
-                entry.cookieSource = newValue
-            }
-            self.logProviderModeChange(provider: .qoder, field: "cookieSource", value: newValue.rawValue)
-        }
-    }
-}
-
-extension SettingsStore {
-    func qoderSettingsSnapshot(tokenOverride: TokenAccountOverride?) -> ProviderSettingsSnapshot
-        .QoderProviderSettings
-    {
-        self.resolvedCookieSettings(
-            provider: .qoder,
-            configuredSource: self.qoderCookieSource,
-            configuredHeader: self.qoderCookieHeader,
-            tokenOverride: tokenOverride)
+        set { self.setCookieSource(newValue, provider: .qoder) }
     }
 }

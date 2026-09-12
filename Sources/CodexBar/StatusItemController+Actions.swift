@@ -387,7 +387,7 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
 
         if provider == .qoder {
             return QoderProviderDescriptor.dashboardURL(
-                settings: self.settings.qoderSettingsSnapshot(tokenOverride: nil),
+                settings: self.settings.resolvedCookieSettings(provider: provider, tokenOverride: nil),
                 sourceLabel: self.store.sourceLabel(for: .qoder))
         }
 

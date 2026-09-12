@@ -1,7 +1,5 @@
-import AppKit
 import CodexBarCore
 import Foundation
-import SwiftUI
 
 struct StepFunProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .stepfun
@@ -65,34 +63,19 @@ struct StepFunProviderImplementation: ProviderImplementation {
 
     @MainActor
     func settingsPickers(context: ProviderSettingsContext) -> [ProviderSettingsPickerDescriptor] {
-        let cookieBinding = Binding(
-            get: { context.settings.stepfunCookieSource.rawValue },
-            set: { raw in
-                context.settings.stepfunCookieSource = ProviderCookieSource(rawValue: raw) ?? .auto
-            })
-        let cookieOptions = ProviderCookieSourceUI.options(
-            allowsOff: true,
-            keychainDisabled: context.settings.debugDisableKeychainAccess)
-
-        let cookieSubtitle: () -> String? = {
-            ProviderCookieSourceUI.subtitle(
-                source: context.settings.stepfunCookieSource,
-                keychainDisabled: context.settings.debugDisableKeychainAccess,
-                auto: "Uses username + password to login and obtain an Oasis-Token automatically.",
-                manual: "Manually paste an Oasis-Token from a browser session.",
-                off: "StepFun authentication is disabled.")
-        }
-
-        return [
-            ProviderSettingsPickerDescriptor(
+        [
+            ProviderCookieSourceUI.picker(
                 id: "stepfun-cookie-source",
+                context: context,
+                source: \.stepfunCookieSource,
+                allowsOff: true,
+                subtitles: {
+                    .init(
+                        auto: "Uses username + password to login and obtain an Oasis-Token automatically.",
+                        manual: "Manually paste an Oasis-Token from a browser session.",
+                        off: "StepFun authentication is disabled.")
+                },
                 title: "Auth source",
-                subtitle: "Uses username + password to login and obtain an Oasis-Token automatically.",
-                dynamicSubtitle: cookieSubtitle,
-                binding: cookieBinding,
-                options: cookieOptions,
-                isVisible: nil,
-                onChange: nil,
                 trailingText: {
                     ProviderCookieSourceUI.cachedTrailingText(provider: .stepfun)
                 }),
@@ -111,7 +94,7 @@ struct StepFunProviderImplementation: ProviderImplementation {
                 subtitle: "StepFun platform account (phone number or email).",
                 kind: .plain,
                 placeholder: "user@example.com",
-                binding: context.stringBinding(\.stepfunUsername),
+                binding: context.binding(\.stepfunUsername),
                 actions: [],
                 isVisible: { context.settings.stepfunCookieSource != .manual }),
             ProviderSettingsFieldDescriptor(
@@ -120,7 +103,7 @@ struct StepFunProviderImplementation: ProviderImplementation {
                 subtitle: "Your StepFun platform password. Used to login and obtain a session token.",
                 kind: .secure,
                 placeholder: "Password",
-                binding: context.stringBinding(\.stepfunPassword),
+                binding: context.binding(\.stepfunPassword),
                 actions: [],
                 isVisible: { context.settings.stepfunCookieSource != .manual }),
         ]
@@ -133,18 +116,12 @@ struct StepFunProviderImplementation: ProviderImplementation {
                 subtitle: "Paste the Oasis-Token from a logged-in browser session on platform.stepfun.com.",
                 kind: .secure,
                 placeholder: "Oasis-Token=…",
-                binding: context.stringBinding(\.stepfunToken),
+                binding: context.binding(\.stepfunToken),
                 actions: [
-                    ProviderSettingsActionDescriptor(
+                    ProviderSettingsActionDescriptor.openURL(
                         id: "stepfun-open-platform",
                         title: "Open StepFun Platform",
-                        style: .link,
-                        isVisible: nil,
-                        perform: {
-                            if let url = URL(string: "https://platform.stepfun.com/plan-usage") {
-                                NSWorkspace.shared.open(url)
-                            }
-                        }),
+                        url: URL(string: "https://platform.stepfun.com/plan-usage")),
                 ],
                 isVisible: { context.settings.stepfunCookieSource == .manual }),
         ]

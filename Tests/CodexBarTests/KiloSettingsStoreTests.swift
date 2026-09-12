@@ -37,7 +37,7 @@ struct KiloSettingsStoreTests {
     @Test
     func `setting enabled org ids persists them`() throws {
         let settings = try self.makeSettings()
-        settings.kiloEnabledOrganizationIDs = ["org_1", "org_2"]
+        settings.kiloEnabledOrganizationIDs = [" org_1 ", "", "org_2", "org_1", " org_2"]
         #expect(settings.kiloEnabledOrganizationIDs == ["org_1", "org_2"])
     }
 

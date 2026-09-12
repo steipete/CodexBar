@@ -9,23 +9,6 @@ extension SettingsStore {
 
     var mistralCookieSource: ProviderCookieSource {
         get { self.resolvedCookieSource(provider: .mistral, fallback: .auto) }
-        set {
-            self.updateProviderConfig(provider: .mistral) { entry in
-                entry.cookieSource = newValue
-            }
-            self.logProviderModeChange(provider: .mistral, field: "cookieSource", value: newValue.rawValue)
-        }
-    }
-}
-
-extension SettingsStore {
-    func mistralSettingsSnapshot(tokenOverride: TokenAccountOverride?) -> ProviderSettingsSnapshot
-        .MistralProviderSettings
-    {
-        self.resolvedCookieSettings(
-            provider: .mistral,
-            configuredSource: self.mistralCookieSource,
-            configuredHeader: self.mistralCookieHeader,
-            tokenOverride: tokenOverride)
+        set { self.setCookieSource(newValue, provider: .mistral) }
     }
 }

@@ -1,7 +1,5 @@
-import AppKit
 import CodexBarCore
 import Foundation
-import SwiftUI
 
 struct BedrockProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .bedrock
@@ -35,17 +33,10 @@ struct BedrockProviderImplementation: ProviderImplementation {
                     + "A refresh can make multiple requests, and CloudWatch activity can add charges. "
                     + "The displayed monthly budget does not cap AWS billing.",
                 actions: [
-                    ProviderSettingsActionDescriptor(
+                    ProviderSettingsActionDescriptor.openURL(
                         id: "bedrock-monitoring-pricing",
                         title: "AWS Cost Explorer pricing",
-                        style: .link,
-                        isVisible: nil,
-                        perform: {
-                            guard let url = URL(string:
-                                "https://aws.amazon.com/aws-cost-management/aws-cost-explorer/pricing/")
-                            else { return }
-                            NSWorkspace.shared.open(url)
-                        }),
+                        url: URL(string: "https://aws.amazon.com/aws-cost-management/aws-cost-explorer/pricing/")),
                 ],
                 isVisible: nil),
             ProviderSettingsActionsDescriptor(
@@ -62,9 +53,7 @@ struct BedrockProviderImplementation: ProviderImplementation {
 
     @MainActor
     func settingsPickers(context: ProviderSettingsContext) -> [ProviderSettingsPickerDescriptor] {
-        let binding = Binding(
-            get: { context.settings.bedrockAuthMode },
-            set: { context.settings.bedrockAuthMode = $0 })
+        let binding = context.binding(\.bedrockAuthMode)
         let options = [
             ProviderSettingsPickerOption(id: BedrockAuthMode.keys.rawValue, title: "Access keys"),
             ProviderSettingsPickerOption(id: BedrockAuthMode.profile.rawValue, title: "AWS profile"),
@@ -93,7 +82,7 @@ struct BedrockProviderImplementation: ProviderImplementation {
                 subtitle: "Named AWS profile from ~/.aws/config. Can also be set with AWS_PROFILE.",
                 kind: .plain,
                 placeholder: "default",
-                binding: context.stringBinding(\.bedrockProfile),
+                binding: context.binding(\.bedrockProfile),
                 actions: [],
                 isVisible: isProfileMode),
             ProviderSettingsFieldDescriptor(
@@ -102,7 +91,7 @@ struct BedrockProviderImplementation: ProviderImplementation {
                 subtitle: "AWS access key ID. Can also be set with AWS_ACCESS_KEY_ID.",
                 kind: .secure,
                 placeholder: "AKIA...",
-                binding: context.stringBinding(\.bedrockAccessKeyID),
+                binding: context.binding(\.bedrockAccessKeyID),
                 actions: [],
                 isVisible: isKeysMode),
             ProviderSettingsFieldDescriptor(
@@ -111,7 +100,7 @@ struct BedrockProviderImplementation: ProviderImplementation {
                 subtitle: "AWS secret access key. Can also be set with AWS_SECRET_ACCESS_KEY.",
                 kind: .secure,
                 placeholder: "",
-                binding: context.stringBinding(\.bedrockSecretAccessKey),
+                binding: context.binding(\.bedrockSecretAccessKey),
                 actions: [],
                 isVisible: isKeysMode),
             ProviderSettingsFieldDescriptor(
@@ -121,7 +110,7 @@ struct BedrockProviderImplementation: ProviderImplementation {
                     + "In profile mode, leave blank to use the profile's region.",
                 kind: .plain,
                 placeholder: "us-east-1",
-                binding: context.stringBinding(\.bedrockRegion),
+                binding: context.binding(\.bedrockRegion),
                 actions: [],
                 isVisible: nil),
         ]

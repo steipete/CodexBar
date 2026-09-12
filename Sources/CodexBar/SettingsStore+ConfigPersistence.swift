@@ -154,8 +154,12 @@ extension SettingsStore {
             }
 
             for provider in UsageProvider.allCases where !seen.contains(provider.instanceID) {
+                seen.insert(provider.instanceID)
                 ordered.append(configsByID[provider.instanceID] ?? ProviderConfig(id: provider.instanceID))
             }
+
+            // A loaded plugin can become unavailable without losing its retained configuration.
+            ordered.append(contentsOf: config.providers.filter { !seen.contains($0.id) })
 
             config.providers = ordered
         }

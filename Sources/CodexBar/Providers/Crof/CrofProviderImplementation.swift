@@ -1,4 +1,3 @@
-import AppKit
 import CodexBarCore
 import Foundation
 
@@ -35,16 +34,10 @@ struct CrofProviderImplementation: ProviderImplementation {
                 placeholder: "crof_...",
                 binding: context.providerConfigBinding(.apiKey),
                 actions: [
-                    ProviderSettingsActionDescriptor(
+                    ProviderSettingsActionDescriptor.openURL(
                         id: "crof-open-dashboard",
                         title: "Open Crof dashboard",
-                        style: .link,
-                        isVisible: nil,
-                        perform: {
-                            if let url = URL(string: "https://crof.ai/dashboard") {
-                                NSWorkspace.shared.open(url)
-                            }
-                        }),
+                        url: URL(string: "https://crof.ai/dashboard")),
                 ],
                 isVisible: nil),
         ]

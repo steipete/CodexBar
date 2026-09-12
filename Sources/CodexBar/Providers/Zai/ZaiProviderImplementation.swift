@@ -1,7 +1,5 @@
-import AppKit
 import CodexBarCore
 import Foundation
-import SwiftUI
 
 struct ZaiProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .zai
@@ -35,11 +33,7 @@ struct ZaiProviderImplementation: ProviderImplementation {
 
     @MainActor
     func settingsPickers(context: ProviderSettingsContext) -> [ProviderSettingsPickerDescriptor] {
-        let binding = Binding(
-            get: { context.settings.zaiAPIRegion.rawValue },
-            set: { raw in
-                context.settings.zaiAPIRegion = ZaiAPIRegion(rawValue: raw) ?? .global
-            })
+        let binding = context.rawValueBinding(\.zaiAPIRegion, fallback: .global)
         let options = ZaiAPIRegion.allCases.map {
             ProviderSettingsPickerOption(id: $0.rawValue, title: $0.displayName)
         }
@@ -66,21 +60,14 @@ struct ZaiProviderImplementation: ProviderImplementation {
                     "ZHIPU_API_KEY, GLM_API_KEY, or ~/.coding-relay/glm-api-key.",
                 kind: .secure,
                 placeholder: "Paste z.ai / GLM API key…",
-                binding: context.stringBinding(\.zaiAPIToken),
+                binding: context.binding(\.zaiAPIToken),
                 actions: [
-                    ProviderSettingsActionDescriptor(
+                    ProviderSettingsActionDescriptor.openURL(
                         id: "zai-open-api-keys",
                         title: "Open regional API keys",
-                        style: .link,
-                        isVisible: nil,
-                        perform: {
-                            let url = context.settings.zaiAPIRegion == .bigmodelCN
-                                ? URL(string: "https://bigmodel.cn/usercenter/proj-mgmt/apikeys")
-                                : URL(string: "https://z.ai/manage-apikey/apikey")
-                            if let url {
-                                NSWorkspace.shared.open(url)
-                            }
-                        }),
+                        url: context.settings.zaiAPIRegion == .bigmodelCN
+                            ? URL(string: "https://bigmodel.cn/usercenter/proj-mgmt/apikeys")
+                            : URL(string: "https://z.ai/manage-apikey/apikey")),
                 ],
                 isVisible: nil),
         ]

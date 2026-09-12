@@ -24,21 +24,6 @@ extension SettingsStore {
 
     var ampCookieSource: ProviderCookieSource {
         get { self.resolvedCookieSource(provider: .amp, fallback: .auto) }
-        set {
-            self.updateProviderConfig(provider: .amp) { entry in
-                entry.cookieSource = newValue
-            }
-            self.logProviderModeChange(provider: .amp, field: "cookieSource", value: newValue.rawValue)
-        }
-    }
-}
-
-extension SettingsStore {
-    func ampSettingsSnapshot(tokenOverride: TokenAccountOverride?) -> ProviderSettingsSnapshot.AmpProviderSettings {
-        self.resolvedCookieSettings(
-            provider: .amp,
-            configuredSource: self.ampCookieSource,
-            configuredHeader: self.ampCookieHeader,
-            tokenOverride: tokenOverride)
+        set { self.setCookieSource(newValue, provider: .amp) }
     }
 }

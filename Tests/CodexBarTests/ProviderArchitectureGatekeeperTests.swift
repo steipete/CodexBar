@@ -27,7 +27,7 @@ struct ProviderArchitectureGatekeeperTests {
     func `every provider has descriptor and implementation manifest entries`() {
         let expected = Set(UsageProvider.allCases)
         let descriptors = Set(ProviderDescriptorRegistry.all.map(\.id))
-        let implementations = Set(ProviderImplementationRegistry.all.map(\.id))
+        let implementations = Set(ProviderCatalog.all.map(\.id))
         let missingDescriptors = expected.subtracting(descriptors).map(\.rawValue).sorted()
         let missingImplementations = expected.subtracting(implementations).map(\.rawValue).sorted()
 
@@ -61,7 +61,7 @@ struct ProviderArchitectureGatekeeperTests {
         let context = ProviderSettingsSnapshotContext(settings: settings, tokenOverride: nil)
         var builder = ProviderSettingsSnapshotBuilder()
 
-        for implementation in ProviderImplementationRegistry.all {
+        for implementation in ProviderCatalog.all {
             let providerName = implementation.id.rawValue
             let registration = ProviderDescriptorRegistry.descriptor(for: implementation.id).settingsSection
             guard let contribution = implementation.settingsSnapshot(context: context) else {
@@ -911,31 +911,31 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact provider-owned construct passes a fixed identity to shared infrastructure."),
         SuppressedProviderReference(
             path: "Sources/CodexBar/PreferencesProvidersPane+Testing.swift",
-            line: 83,
+            line: 73,
             anchor: "self.codexAccountsSectionState(for: .codex)",
             expectedProviderIDs: ["codex"],
             reason: "This test-only app seam pins Codex fixture data and does not make production routing policy."),
         SuppressedProviderReference(
             path: "Sources/CodexBar/PreferencesProvidersPane+Testing.swift",
-            line: 160,
+            line: 150,
             anchor: "let model = pane._test_menuCardModel(for: .codex)",
             expectedProviderIDs: ["codex"],
             reason: "This test-only app seam pins Codex fixture data and does not make production routing policy."),
         SuppressedProviderReference(
             path: "Sources/CodexBar/PreferencesProvidersPane+Testing.swift",
-            line: 165,
+            line: 155,
             anchor: "provider: .codex,",
             expectedProviderIDs: ["codex"],
             reason: "This test-only app seam pins Codex fixture data and does not make production routing policy."),
         SuppressedProviderReference(
             path: "Sources/CodexBar/PreferencesProvidersPane+Testing.swift",
-            line: 170,
+            line: 160,
             anchor: "openAIWebDiagnostic: pane._test_openAIWebDiagnostic(for: .codex),",
             expectedProviderIDs: ["codex"],
             reason: "This test-only app seam pins Codex fixture data and does not make production routing policy."),
         SuppressedProviderReference(
             path: "Sources/CodexBar/PreferencesProvidersPane+Testing.swift",
-            line: 248,
+            line: 238,
             anchor: "provider: .codex,",
             expectedProviderIDs: ["codex"],
             reason: "This test-only app seam pins Codex fixture data and does not make production routing policy."),
@@ -1012,12 +1012,6 @@ struct ProviderArchitectureGatekeeperTests {
             expectedProviderIDs: ["codex"],
             reason: "This publication projection maps stable Codex account source IDs back to their provider family."),
         SuppressedProviderReference(
-            path: "Sources/CodexBar/StatusItemController+CodexStackedMenu.swift",
-            line: 27,
-            anchor: "for: .codex,",
-            expectedProviderIDs: ["codex"],
-            reason: "This provider-owned integration passes its fixed identity to a shared helper."),
-        SuppressedProviderReference(
             path: "Sources/CodexBar/StatusItemController+CompactAccountMenu.swift",
             line: 75,
             anchor: "let plan = self.compactAccountPlan(for: .codex, accounts: projected)",
@@ -1025,13 +1019,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
         SuppressedProviderReference(
             path: "Sources/CodexBar/StatusItemController+CompactAccountMenu.swift",
-            line: 92,
-            anchor: "for: .codex,",
-            expectedProviderIDs: ["codex"],
-            reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
-        SuppressedProviderReference(
-            path: "Sources/CodexBar/StatusItemController+CompactAccountMenu.swift",
-            line: 267,
+            line: 259,
             anchor: "provider: .codex,",
             expectedProviderIDs: ["codex"],
             reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
@@ -2240,7 +2228,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact shared construct dispatches a provider-owned capability at the generic integration boundary."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/PreferencesProvidersPane+Testing.swift",
-            line: 115,
+            line: 105,
             anchor: "store.versions[.codex] = \"1.0.0\"",
             expectedProviderIDs: [
                 "claude", "codex", "cursor", "gemini", "kimi", "minimax", "opencode", "opencodego",
@@ -2473,7 +2461,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact shared construct dispatches a provider-owned capability at the generic integration boundary."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/StatusItemController+AccountMenuDisplay.swift",
-            line: 122,
+            line: 121,
             anchor: "guard providers.contains(.codex) else { return }",
             expectedProviderIDs: ["codex"],
             expectedReferenceCount: 1,
@@ -2481,7 +2469,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/StatusItemController+AccountMenuDisplay.swift",
-            line: 159,
+            line: 158,
             anchor: "guard provider == .codex else { return display }",
             expectedProviderIDs: ["codex"],
             expectedReferenceCount: 1,

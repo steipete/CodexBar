@@ -23,12 +23,7 @@ extension SettingsStore {
 
     var alibabaTokenPlanCookieSource: ProviderCookieSource {
         get { self.resolvedCookieSource(provider: .alibabatokenplan, fallback: .auto) }
-        set {
-            self.updateProviderConfig(provider: .alibabatokenplan) { entry in
-                entry.cookieSource = newValue
-            }
-            self.logProviderModeChange(provider: .alibabatokenplan, field: "cookieSource", value: newValue.rawValue)
-        }
+        set { self.setCookieSource(newValue, provider: .alibabatokenplan) }
     }
 
     var alibabaTokenPlanAPIRegion: AlibabaTokenPlanAPIRegion {

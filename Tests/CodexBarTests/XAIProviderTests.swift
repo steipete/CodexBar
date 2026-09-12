@@ -173,7 +173,7 @@ struct XAIProviderTests {
         let descriptor = ProviderDescriptorRegistry.descriptor(for: .xai)
         #expect(descriptor.metadata.displayName == "xAI")
         #expect(descriptor.fetchPlan.sourceModes == [.auto, .api])
-        #expect(try #require(ProviderImplementationRegistry.implementation(for: .xai)) is XAIProviderImplementation)
+        #expect(try #require(ProviderCatalog.implementation(for: .xai)) is XAIProviderImplementation)
 
         let snapshot = try await Self.fetch()
         let model = UsageMenuCardView.Model.make(.init(
