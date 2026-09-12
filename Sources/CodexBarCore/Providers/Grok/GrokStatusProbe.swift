@@ -67,7 +67,7 @@ public struct GrokUsageSnapshot: Sendable {
             secondary: nil,
             tertiary: nil,
             costUsage: self.localSummary?.toCostUsageTokenSnapshot(
-                historyDays: GrokLocalSessionScanner.defaultLookbackDays),
+                historyDays: GrokLocalSessionScanner.maximumLookbackDays),
             updatedAt: self.updatedAt,
             identity: identity)
     }
@@ -80,7 +80,9 @@ public struct GrokStatusProbe: Sendable {
         "Grok usage is unavailable because its billing sources did not report a usage percentage."
 
     var localSummary: @Sendable ([String: String]) async throws -> GrokLocalSessionSummary? = {
-        try await GrokLocalSessionScanner.summarizeOffMainThread(env: $0)
+        await GrokLocalSessionScanner.summarizeRequestingPricingRefresh(
+            env: $0,
+            lookbackDays: GrokLocalSessionScanner.maximumLookbackDays)
     }
 
     var settingsTransport: any ProviderHTTPTransport = ProviderHTTPClient.shared

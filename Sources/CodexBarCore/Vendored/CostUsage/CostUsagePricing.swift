@@ -464,11 +464,7 @@ enum CostUsagePricing {
     ]
 
     static let codexModelsDevProviderID = "openai"
-    /// Provider IDs emitted by Codex-compatible clients that have matching entries in models.dev.
-    ///
-    /// The route prefix is part of the model identity for local usage estimates. Keep both the
-    /// client-facing aliases and their models.dev provider IDs here so pricing-cache fingerprints
-    /// invalidate when any supported route's rates change.
+    /// Provider IDs whose rates contribute to Codex pricing-cache fingerprints.
     static let codexModelsDevProviderIDs: Set<String> = [
         "deepseek",
         "kimi-coding",
@@ -478,47 +474,10 @@ enum CostUsagePricing {
         "opencode-free",
         "opencode-go",
     ]
+    /// xAI rates price native Grok session summaries, not Codex subscription history. Keep their fingerprint scope
+    /// separate so an xAI catalog update cannot invalidate the unrelated Codex session cache.
+    static let xaiModelsDevProviderIDs: Set<String> = ["xai"]
     private static let claudeModelsDevProviderID = "anthropic"
-
-    /// Returns the provider/model identities that may price a Codex model. Keep this mapping
-    /// shared by direct lookup and unknown-price refresh so a newly downloaded catalog is checked
-    /// under the same identity that was used to resolve the model.
-    static func codexModelsDevPricingTargets(for rawModel: String) -> [(providerID: String, modelID: String)] {
-        let trimmed = rawModel.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return [] }
-        if let slash = trimmed.firstIndex(of: "/") {
-            let routeID = String(trimmed[..<slash]).lowercased()
-            let modelID = String(trimmed[trimmed.index(after: slash)...])
-            guard !routeID.isEmpty, !modelID.isEmpty,
-                  self.codexModelsDevProviderIDs.contains(routeID)
-            else { return [] }
-
-            var providerIDs = [routeID]
-            switch routeID {
-            case "kimi-coding":
-                providerIDs.append("kimi-for-coding")
-            case "opencode-free":
-                providerIDs.append("opencode")
-            default:
-                break
-            }
-            var targets = providerIDs.map { ($0, modelID) }
-            if routeID == self.codexModelsDevProviderID {
-                let normalized = self.normalizeCodexModel(modelID)
-                if normalized != modelID {
-                    targets.append((self.codexModelsDevProviderID, normalized))
-                }
-            }
-            return targets
-        }
-
-        let normalized = self.normalizeCodexModel(trimmed)
-        var targets = [(self.codexModelsDevProviderID, trimmed)]
-        if normalized != trimmed {
-            targets.append((self.codexModelsDevProviderID, normalized))
-        }
-        return targets
-    }
 
     static func normalizeCodexModel(_ raw: String) -> String {
         var trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)

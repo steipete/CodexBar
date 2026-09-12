@@ -219,15 +219,8 @@ extension UsageMenuCardView.Model {
                 preferredCurrency: preferredCurrencyCode,
                 providerCurrency: snapshot.currencyCode)
         } ?? "—"
-        let fallbackTokens: Int? = {
-            var sum = 0
-            for t in snapshot.daily.compactMap(\.totalTokens) {
-                let (res, of) = sum.addingReportingOverflow(t)
-                if of { return nil }
-                sum = res
-            }
-            return sum > 0 ? sum : nil
-        }()
+        let fallbackTokens = CostUsageDailyReport.completeCountSum(snapshot.daily.map(\.totalTokens))
+            .flatMap { $0 > 0 ? $0 : nil }
         let monthTokensValue = snapshot.last30DaysTokens ?? fallbackTokens
         let monthTokens = monthTokensValue.map { UsageFormatter.tokenCountString($0) }
         let windowLabel = if let historyLabel = snapshot.historyLabel {

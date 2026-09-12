@@ -1,6 +1,57 @@
 import Foundation
 
 extension CostUsagePricing {
+    private static let codexCompatibleModelsDevProviderIDs = CostUsagePricing.codexModelsDevProviderIDs
+        .union(CostUsagePricing.xaiModelsDevProviderIDs)
+
+    /// Returns the provider/model identities that may price a Codex model. Keep this mapping
+    /// shared by direct lookup and unknown-price refresh so a newly downloaded catalog is checked
+    /// under the same identity that was used to resolve the model.
+    static func codexModelsDevPricingTargets(for rawModel: String) -> [(providerID: String, modelID: String)] {
+        let trimmed = rawModel.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+        if let slash = trimmed.firstIndex(of: "/") {
+            let routeID = String(trimmed[..<slash]).lowercased()
+            let modelID = String(trimmed[trimmed.index(after: slash)...])
+            guard !routeID.isEmpty, !modelID.isEmpty,
+                  self.codexCompatibleModelsDevProviderIDs.contains(routeID)
+            else { return [] }
+
+            var providerIDs = [routeID]
+            switch routeID {
+            case "kimi-coding":
+                providerIDs.append("kimi-for-coding")
+            case "opencode-free":
+                providerIDs.append("opencode")
+            default:
+                break
+            }
+            var targets = providerIDs.map { ($0, modelID) }
+            // `grok-build-0.1` does not end in `-build` and must remain an exact catalog identity.
+            if routeID == "xai",
+               modelID.hasPrefix("grok-"),
+               modelID.hasSuffix("-build"),
+               modelID.count > "grok-".count + "-build".count
+            {
+                targets.append((routeID, String(modelID.dropLast("-build".count))))
+            }
+            if routeID == self.codexModelsDevProviderID {
+                let normalized = self.normalizeCodexModel(modelID)
+                if normalized != modelID {
+                    targets.append((self.codexModelsDevProviderID, normalized))
+                }
+            }
+            return targets
+        }
+
+        let normalized = self.normalizeCodexModel(trimmed)
+        var targets = [(self.codexModelsDevProviderID, trimmed)]
+        if normalized != trimmed {
+            targets.append((self.codexModelsDevProviderID, normalized))
+        }
+        return targets
+    }
+
     /// One synchronous report collection owns one immutable catalog and bounded exact-input memos.
     /// Dates, token thresholds, custom overlays and priority multipliers stay in the scalar pricing path.
     final class CodexResolver {

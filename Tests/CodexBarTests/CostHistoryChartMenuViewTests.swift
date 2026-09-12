@@ -225,6 +225,9 @@ struct CostHistoryChartMenuViewTests {
         #expect(
             CostHistoryChartMenuView.estimateDisclaimer(provider: .codex)
                 == "Estimated from token usage · not a subscription bill")
+        #expect(
+            CostHistoryChartMenuView.estimateDisclaimer(provider: .grok)
+                == "Grok CLI-recorded spend, list price where unrecorded · not a bill.")
         #expect(CostHistoryChartMenuView.estimateDisclaimer(provider: .claude) == nil)
     }
 

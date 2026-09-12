@@ -1,3 +1,4 @@
+import CoreFoundation
 #if canImport(Darwin)
 import Darwin
 #elseif canImport(Glibc)
@@ -270,7 +271,30 @@ public enum OpenCodexUsageParser {
             surface: self.nonEmptyString(object["surface"]),
             conversationID: self.nonEmptyString(object["conversationId"]),
             usage: usage,
-            totalTokens: self.nonnegativeInt(object["totalTokens"]))
+            totalTokens: self.nonnegativeInt(object["totalTokens"]),
+            attempts: self.attempts(object["attempts"]))
+    }
+
+    private static func attempts(_ value: Any?) -> [OpenCodexUsageAttempt] {
+        guard let rows = value as? [[String: Any]] else { return [] }
+        return rows.compactMap { row in
+            guard let ordinal = self.nonnegativeInt(row["ordinal"], truncateFractional: false), ordinal > 0,
+                  let provider = self.nonEmptyString(row["provider"]),
+                  let model = self.nonEmptyString(row["model"]),
+                  let sendCount = self.nonnegativeInt(row["sendCount"], truncateFractional: false)
+            else { return nil }
+            return OpenCodexUsageAttempt(
+                ordinal: ordinal,
+                provider: provider,
+                model: model,
+                credentialSource: (row["credentialSource"] as? String)
+                    .flatMap(OpenCodexUsageCredentialSource.init(rawValue:)),
+                usageStatus: self.usageStatus(row["usageStatus"]),
+                sendCount: sendCount,
+                locallyAnswered: row["locallyAnswered"] as? Bool ?? false,
+                usage: self.usage(row["usage"]),
+                totalTokens: self.nonnegativeInt(row["totalTokens"]))
+        }
     }
 
     private static func usageStatus(_ value: Any?) -> OpenCodexUsageStatus {
@@ -338,13 +362,16 @@ public enum OpenCodexUsageParser {
         return nil
     }
 
-    private static func nonnegativeInt(_ value: Any?) -> Int? {
-        guard let number = value as? NSNumber else { return nil }
+    private static func nonnegativeInt(_ value: Any?, truncateFractional: Bool = true) -> Int? {
+        guard let number = value as? NSNumber,
+              CFGetTypeID(number) != CFBooleanGetTypeID()
+        else { return nil }
         // Preserve exact integer payloads without trusting NSNumber's clamping `as? Int` bridge.
         if let integer = Int(number.stringValue) {
             return integer >= 0 ? integer : nil
         }
-        guard let integer = Int(exactly: number.doubleValue.rounded(.towardZero)) else { return nil }
+        let value = truncateFractional ? number.doubleValue.rounded(.towardZero) : number.doubleValue
+        guard let integer = Int(exactly: value) else { return nil }
         return integer >= 0 ? integer : nil
     }
 

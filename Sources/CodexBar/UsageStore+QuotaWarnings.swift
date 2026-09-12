@@ -41,6 +41,23 @@ extension UsageStore {
         let displayName: String?
     }
 
+    func postQuotaWarning(_ event: QuotaWarningEvent, provider: UsageProvider) {
+        self.sessionQuotaNotifier.postQuotaWarning(
+            event: event,
+            provider: provider,
+            soundEnabled: self.settings.quotaWarningSoundEnabled,
+            onScreenAlertEnabled: self.settings.quotaWarningOnScreenAlertEnabled)
+    }
+
+    func postPredictivePaceWarning(_ event: PredictivePaceWarningEvent, provider: UsageProvider, now: Date) {
+        self.sessionQuotaNotifier.postPredictivePaceWarning(
+            event: event,
+            provider: provider,
+            soundEnabled: self.settings.quotaWarningSoundEnabled,
+            onScreenAlertEnabled: self.settings.quotaWarningOnScreenAlertEnabled,
+            now: now)
+    }
+
     func handleQuotaWarningTransitions(
         provider: UsageProvider,
         snapshot: UsageSnapshot,

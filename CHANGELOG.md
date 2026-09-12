@@ -8,6 +8,8 @@
 - **Safer account menus:** preserve privacy in Codex account labels and reauthenticate the credential source shown by the selected row.
 
 ### Changes
+- Grok: count completed-turn usage from bounded local CLI session-log scans instead of context-window occupancy, and price it from the spend the CLI recorded, falling back to clearly labeled public xAI list prices where it recorded none; standalone OpenCodex xAI history remains token-only unless the user supplies explicit custom prices (#3135, #3345). Thanks @olddonkey and @initH271!
+- Usage & Spend: include reported OpenCodex Grok OAuth attempts when log import is enabled and the log records request-time credential provenance. Keep API-key and historic traffic excluded, and label OpenCodex dollars as list-price estimates (#3135). Thanks @olddonkey!
 - Usage & Spend: preserve heatmap coverage, token totals, and daily ledger rows across midnight daylight-saving transitions, retaining real gaps and unscanned days (#3565). Thanks @gabrielrojasc!
 - Cursor on Linux: restore automatic authentication from the signed-in app, honor absolute XDG/HOME paths, and preserve manual-cookie precedence and explicit web-mode isolation (#3539). Thanks @DonnieFi!
 - Codex spend: exclude time waiting behind other scans from automatic catch-up sleep calculations while preserving scan budgets, power safeguards, and complete-history publication (#3566, related to #3508 and #3411).

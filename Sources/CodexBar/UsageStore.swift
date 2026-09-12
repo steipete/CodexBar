@@ -186,6 +186,8 @@ final class UsageStore {
     var tokenSnapshots: [ProviderInstanceID: CostUsageTokenSnapshot] = [:]
     var tokenSnapshotPublications: [ProviderInstanceID: TokenSnapshotPublication] = [:]
     var tokenSnapshotPublicationRevisions: [ProviderInstanceID: UInt64] = [:]
+    @ObservationIgnored var grokLocalTokenScanTask: Task<CostUsageTokenSnapshot?, Never>?
+    @ObservationIgnored var grokLocalTokenScanToken: UUID?
     var spendDashboardTokenPublications: [ProviderInstanceID: TokenSnapshotPublication] = [:]
     var spendDashboardTokenPublicationRevisions: [ProviderInstanceID: UInt64] = [:]
     @ObservationIgnored var spendDashboardTokenIncorporatedTriggers:
@@ -284,6 +286,8 @@ final class UsageStore {
         Date,
         String?,
         Int) async throws -> CostUsageTokenSnapshot)?
+    @ObservationIgnored var _test_grokLocalTokenScannerOverride: (@MainActor (
+        Int) async -> CostUsageTokenSnapshot?)?
     @ObservationIgnored var _test_cachedCodexTokenSnapshotLoaderOverride: (@MainActor (
         Date,
         String?,
@@ -980,6 +984,7 @@ final class UsageStore {
         self.codexPlanHistoryBackfillTask?.cancel()
         self.resetBoundaryRefreshTask?.cancel()
         self.planUtilizationHistoryLoadTask?.cancel()
+        self.grokLocalTokenScanTask?.cancel()
     }
 
     enum SessionQuotaWindowSource: String {
@@ -987,23 +992,6 @@ final class UsageStore {
         case copilotSecondaryFallback
         case antigravityQuotaSummary
         case antigravityLegacy
-    }
-
-    func postQuotaWarning(_ event: QuotaWarningEvent, provider: UsageProvider) {
-        self.sessionQuotaNotifier.postQuotaWarning(
-            event: event,
-            provider: provider,
-            soundEnabled: self.settings.quotaWarningSoundEnabled,
-            onScreenAlertEnabled: self.settings.quotaWarningOnScreenAlertEnabled)
-    }
-
-    func postPredictivePaceWarning(_ event: PredictivePaceWarningEvent, provider: UsageProvider, now: Date) {
-        self.sessionQuotaNotifier.postPredictivePaceWarning(
-            event: event,
-            provider: provider,
-            soundEnabled: self.settings.quotaWarningSoundEnabled,
-            onScreenAlertEnabled: self.settings.quotaWarningOnScreenAlertEnabled,
-            now: now)
     }
 }
 
@@ -1634,6 +1622,11 @@ extension UsageStore {
         if provider == .codex {
             self.cancelCodexCostCatchUp()
             self.cancelSpendDashboardCodexCostCatchUp()
+        }
+        if provider == .grok {
+            self.grokLocalTokenScanTask?.cancel()
+            self.grokLocalTokenScanTask = nil
+            self.grokLocalTokenScanToken = nil
         }
         self.clearTokenSnapshot(for: provider)
         self.clearSpendDashboardTokenSnapshot(for: provider)

@@ -40,7 +40,11 @@ extension StatusItemController {
             provider: target,
             surface: surface,
             override: snapshotOverride)
-        let projectedTokenSnapshot = self.store.tokenSnapshot(fromProviderSnapshot: snapshot, provider: target)
+        let projectedTokenSnapshot = if surface == .liveCard {
+            self.store.tokenSnapshotForLiveProviderConsumer(fromProviderSnapshot: snapshot, provider: target)
+        } else {
+            self.store.tokenSnapshot(fromProviderSnapshot: snapshot, provider: target)
+        }
         let storedTokenSnapshot = UsageStore.tokenCostRequiresProviderSnapshot(target)
             ? nil
             : self.store.tokenSnapshot(for: target)
