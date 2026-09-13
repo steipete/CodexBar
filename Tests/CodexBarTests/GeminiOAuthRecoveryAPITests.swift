@@ -48,13 +48,16 @@ struct GeminiOAuthRecoveryAPITests {
         }
     }
 
-    @Test
-    func `available gemini cli keeps oauth refresh behavior`() async throws {
+    @Test(arguments: ["", "+&=%2B /東京"])
+    func `available gemini cli keeps oauth refresh behavior`(suffix: String) async throws {
         let env = try GeminiTestEnvironment()
         defer { env.cleanup() }
+        let refreshToken = "refresh-token\(suffix)"
+        let clientID = "cli-client-id\(suffix)"
+        let clientSecret = "cli-client-secret\(suffix)"
         try env.writeCredentials(
             accessToken: "old-token",
-            refreshToken: "refresh-token",
+            refreshToken: refreshToken,
             expiry: Date().addingTimeInterval(-3600),
             idToken: nil)
 
@@ -64,9 +67,13 @@ struct GeminiOAuthRecoveryAPITests {
             }
             switch host {
             case "oauth2.googleapis.com":
-                let body = request.httpBody.flatMap { String(data: $0, encoding: .utf8) } ?? ""
-                guard body.contains("client_id=cli-client-id"),
-                      body.contains("client_secret=cli-client-secret")
+                let body = try #require(request.httpBody)
+                guard try FormBodyTestSupport.decode(body) == [
+                    "client_id": clientID,
+                    "client_secret": clientSecret,
+                    "refresh_token": refreshToken,
+                    "grant_type": "refresh_token",
+                ]
                 else {
                     return GeminiAPITestHelpers.response(url: url.absoluteString, status: 400, body: Data())
                 }
@@ -103,8 +110,8 @@ struct GeminiOAuthRecoveryAPITests {
             dataLoader: dataLoader,
             oauthClientResolver: {
                 GeminiOAuthConfig.ClientCredentials(
-                    clientID: "cli-client-id",
-                    clientSecret: "cli-client-secret")
+                    clientID: clientID,
+                    clientSecret: clientSecret)
             },
             antigravityAvailability: { true })
 

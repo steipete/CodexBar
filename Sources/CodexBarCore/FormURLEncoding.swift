@@ -2,6 +2,10 @@ import Foundation
 
 enum FormURLEncoding {
     static func body(_ parameters: [String: String]) -> Data {
+        self.body(parameters.map { ($0.key, $0.value) })
+    }
+
+    static func body(_ parameters: [(String, String)]) -> Data {
         let pairs = parameters
             .map { key, value in
                 "\(Self.encode(key))=\(Self.encode(value))"

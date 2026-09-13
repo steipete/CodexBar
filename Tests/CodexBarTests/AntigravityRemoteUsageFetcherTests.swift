@@ -107,8 +107,10 @@ struct AntigravityRemoteUsageFetcherTests {
         #expect(snapshot.accountEmail == "selected@example.com")
     }
 
-    @Test
-    func `remote fetch refreshes selected token account without mutating shared credentials`() async throws {
+    @Test(arguments: ["", "+&=%2B /東京"])
+    func `remote fetch refreshes selected token account without mutating shared credentials`(
+        suffix: String) async throws
+    {
         let env = try GeminiTestEnvironment()
         defer { env.cleanup() }
         try env.writeAntigravityCredentials(
@@ -119,15 +121,18 @@ struct AntigravityRemoteUsageFetcherTests {
             email: "shared@example.com",
             clientID: "shared-client-id",
             clientSecret: "shared-client-secret")
+        let refreshToken = "selected-refresh\(suffix)"
+        let clientID = "selected-client-id\(suffix)"
+        let clientSecret = "selected-client-secret\(suffix)"
         let selectedCredentials = AntigravityOAuthCredentials(
             accessToken: "selected-old-token",
-            refreshToken: "selected-refresh",
+            refreshToken: refreshToken,
             expiryDate: Date().addingTimeInterval(-3600),
             idToken: GeminiAPITestHelpers.makeIDToken(email: "selected-old@example.com"),
             email: "selected-old@example.com",
             projectID: nil,
-            clientID: "selected-client-id",
-            clientSecret: "selected-client-secret")
+            clientID: clientID,
+            clientSecret: clientSecret)
         let token = try AntigravityOAuthCredentialsStore.tokenAccountValue(for: selectedCredentials)
         let updateCapture = AntigravityCredentialUpdateCapture()
 
@@ -138,9 +143,13 @@ struct AntigravityRemoteUsageFetcherTests {
 
             switch host {
             case "oauth2.googleapis.com":
-                let body = String(data: request.httpBody ?? Data(), encoding: .utf8) ?? ""
-                #expect(body.contains("client_id=selected-client-id"))
-                #expect(body.contains("refresh_token=selected-refresh"))
+                let body = try #require(request.httpBody)
+                #expect(try FormBodyTestSupport.decode(body) == [
+                    "client_id": clientID,
+                    "client_secret": clientSecret,
+                    "refresh_token": refreshToken,
+                    "grant_type": "refresh_token",
+                ])
                 return GeminiAPITestHelpers.response(
                     url: url.absoluteString,
                     status: 200,

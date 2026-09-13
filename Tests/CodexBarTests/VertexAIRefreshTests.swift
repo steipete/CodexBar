@@ -4,9 +4,16 @@ import Testing
 
 struct VertexAIRefreshTests {
     @Test
+    func `shared form encoder preserves explicit field order`() throws {
+        let body = FormURLEncoding.body([("second", "2"), ("first", "a+b"), ("empty", "")])
+        #expect(body == Data("second=2&first=a%2Bb&empty=".utf8))
+        #expect(try FormBodyTestSupport.decode(body) == ["second": "2", "first": "a+b", "empty": ""])
+    }
+
+    @Test
     func `shared form encoder preserves keys and empty values`() throws {
         let fields = ["key+&=% /東京": "value+&=% /東京", "empty": ""]
-        #expect(try Self.decodeForm(FormURLEncoding.body(fields)) == fields)
+        #expect(try FormBodyTestSupport.decode(FormURLEncoding.body(fields)) == fields)
         #expect(FormURLEncoding.body([:]).isEmpty)
     }
 
@@ -25,7 +32,7 @@ struct VertexAIRefreshTests {
         #expect(request.timeoutInterval == 30)
         #expect(request.value(forHTTPHeaderField: "Content-Type") == "application/x-www-form-urlencoded")
         let body = try #require(request.httpBody)
-        #expect(try Self.decodeForm(body) == [
+        #expect(try FormBodyTestSupport.decode(body) == [
             "client_id": credentials.clientId,
             "client_secret": credentials.clientSecret,
             "refresh_token": credentials.refreshToken,
@@ -151,19 +158,5 @@ struct VertexAIRefreshTests {
                 url: requestURL, statusCode: statusCode, httpVersion: nil, headerFields: nil))
             return (Data(body.utf8), response)
         }
-    }
-
-    private static func decodeForm(_ data: Data) throws -> [String: String] {
-        var fields: [String: String] = [:]
-        let text = try #require(String(data: data, encoding: .utf8))
-        for pair in text.split(separator: "&") {
-            let parts = pair.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
-            #expect(parts.count == 2)
-            guard parts.count == 2 else { continue }
-            let key = try #require(String(parts[0]).replacingOccurrences(of: "+", with: " ").removingPercentEncoding)
-            let value = try #require(String(parts[1]).replacingOccurrences(of: "+", with: " ").removingPercentEncoding)
-            #expect(fields.updateValue(value, forKey: key) == nil)
-        }
-        return fields
     }
 }

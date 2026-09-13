@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- OAuth: preserve reserved characters in Gemini, Antigravity, and Claude refresh requests while retaining credential ownership.
+
 ## 0.60.1 — 2026-09-12
 
 ### Highlights
