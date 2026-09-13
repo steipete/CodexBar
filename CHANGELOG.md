@@ -5,6 +5,7 @@
 ### Fixed
 - Mistral: handle signed billing adjustments without intermediate overflow, reject unrepresentable counts without crashing, and retain valid costs when token totals or model rankings are unavailable.
 - Alibaba and Qwen Cloud: preserve reserved characters in console security tokens and gateway request parameters.
+- Overview: remove the blue tint from the Usage & Spend summary so it matches the surrounding menu (#3442). Thanks @elijahfriedman!
 
 ## 0.60.1 — 2026-09-12
 
