@@ -305,6 +305,13 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
     let kind: ProviderFetchKind = .cli
     private static let log = CodexBarLog.logger(LogCategories.provider(.antigravity))
 
+    typealias PrintUsageRunner = @Sendable (String, [String], [String: String]?, TimeInterval) async throws -> SubprocessResult
+    private let printUsageRunner: PrintUsageRunner?
+
+    init(printUsageRunner: PrintUsageRunner? = nil) {
+        self.printUsageRunner = printUsageRunner
+    }
+
     struct SnapshotWaitDependencies {
         let pollIntervalNanoseconds: UInt64
         let listeningPorts: @Sendable (Int, TimeInterval) async throws -> [Int]
@@ -534,6 +541,15 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
         } else {
             nil
         }
+
+        do {
+            return try await self.fetchPrintUsage(binary: binary, context: context)
+        } catch {
+            Self.log.debug("Antigravity CLI print-usage fetch fell back to HTTPS session", metadata: [
+                "error": error.localizedDescription,
+            ])
+        }
+
         let result = try await self.fetchUsingWarmSession(
             binary: binary,
             idleWindow: context.persistentCLISessionIdleWindow,
@@ -541,6 +557,44 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
             expectedAccountEmail: expectedAccountEmail)
         try AntigravitySelectedAccountGuard.validate(result.usage, context: context)
         return result
+    }
+
+    private func fetchPrintUsage(
+        binary: String,
+        context: ProviderFetchContext
+    ) async throws -> ProviderFetchResult {
+        let env = context.env
+        var pathEnv = env
+        pathEnv["PATH"] = PathBuilder.effectivePATH(
+            purposes: [.tty],
+            env: env,
+            loginPATH: LoginShellPathCache.shared.current)
+
+        let result: SubprocessResult
+        if let runner = self.printUsageRunner {
+            result = try await runner(
+                binary,
+                ["-p", "/usage", "--output-format", "json"],
+                pathEnv,
+                10.0)
+        } else {
+            result = try await SubprocessRunner.run(
+                binary: binary,
+                arguments: ["-p", "/usage", "--output-format", "json"],
+                environment: pathEnv,
+                timeout: 10.0,
+                label: "antigravity-cli-print-usage")
+        }
+
+        guard !result.stdout.isEmpty else {
+            throw AntigravityStatusProbeError.parseFailed("Empty output from agy -p /usage")
+        }
+
+        let snapshot = try AntigravityStatusProbe.parseQuotaSummaryResponse(Data(result.stdout.utf8))
+        let usage = try snapshot.toUsageSnapshot()
+        try AntigravitySelectedAccountGuard.validate(usage, context: context)
+        Self.log.debug("Antigravity CLI usage fetched via print report")
+        return self.makeResult(usage: usage, sourceLabel: Self.sourceLabel)
     }
 
     private func fetchUsingWarmSession(
