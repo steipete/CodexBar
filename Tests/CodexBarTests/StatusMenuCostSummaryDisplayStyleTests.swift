@@ -18,14 +18,7 @@ extension StatusMenuTests {
             settings.costUsageEnabled = true
             settings.costSummaryDisplayStyle = style
 
-            let registry = ProviderRegistry.shared
-            for provider in UsageProvider.allCases {
-                guard let metadata = registry.metadata[provider] else { continue }
-                settings.setProviderEnabled(
-                    provider: provider,
-                    metadata: metadata,
-                    enabled: provider == .codex)
-            }
+            enableTestProviders([.codex], settings: settings)
 
             let fetcher = UsageFetcher()
             let store = UsageStore(

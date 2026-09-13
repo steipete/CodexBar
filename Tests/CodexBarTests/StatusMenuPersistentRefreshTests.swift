@@ -134,13 +134,6 @@ struct StatusMenuPersistentRefreshTests {
         ]
     }
 
-    private func enableOnly(_ providers: Set<UsageProvider>, settings: SettingsStore) {
-        for provider in UsageProvider.allCases {
-            guard let metadata = ProviderRegistry.shared.metadata[provider] else { continue }
-            settings.setProviderEnabled(provider: provider, metadata: metadata, enabled: providers.contains(provider))
-        }
-    }
-
     private static func makeTokenSnapshot() -> CostUsageTokenSnapshot {
         CostUsageTokenSnapshot(
             sessionTokens: 123,
@@ -436,7 +429,7 @@ struct StatusMenuPersistentRefreshTests {
     @Test
     func `refresh monitor publishes compatible core and pins it until final reconciliation`() throws {
         let settings = self.makeSettings()
-        self.enableOnly([.codex], settings: settings)
+        enableTestProviders([.codex], settings: settings)
         let controller = self.makeController(settings: settings)
         defer { controller.releaseStatusItemsForTesting() }
         let monitor = controller.menuCardRefreshMonitor
@@ -496,7 +489,7 @@ struct StatusMenuPersistentRefreshTests {
     @Test
     func `refresh monitor keeps incompatible core frozen until reconciliation`() throws {
         let settings = self.makeSettings()
-        self.enableOnly([.codex], settings: settings)
+        enableTestProviders([.codex], settings: settings)
         let controller = self.makeController(settings: settings)
         defer { controller.releaseStatusItemsForTesting() }
         let monitor = controller.menuCardRefreshMonitor
@@ -548,7 +541,7 @@ struct StatusMenuPersistentRefreshTests {
     @Test
     func `refresh monitor publishes compatible core error honestly`() throws {
         let settings = self.makeSettings()
-        self.enableOnly([.codex], settings: settings)
+        enableTestProviders([.codex], settings: settings)
         let controller = self.makeController(settings: settings)
         defer { controller.releaseStatusItemsForTesting() }
         let monitor = controller.menuCardRefreshMonitor
@@ -1002,7 +995,7 @@ extension StatusMenuPersistentRefreshTests {
         let settings = self.makeSettings()
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
-        self.enableOnly([.claude, .codex], settings: settings)
+        enableTestProviders([.claude, .codex], settings: settings)
 
         let controller = self.makeController(settings: settings)
         let menu = try #require(controller.makeMenu(for: .claude) as? StatusItemMenu)
@@ -1048,7 +1041,7 @@ extension StatusMenuPersistentRefreshTests {
         let settings = self.makeSettings()
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
-        self.enableOnly([.claude, .codex], settings: settings)
+        enableTestProviders([.claude, .codex], settings: settings)
 
         let controller = self.makeController(settings: settings)
         let menu = try #require(controller.makeMenu(for: .claude) as? StatusItemMenu)
@@ -1076,7 +1069,7 @@ extension StatusMenuPersistentRefreshTests {
         let settings = self.makeSettings()
         settings.refreshFrequency = .manual
         settings.mergeIcons = true
-        self.enableOnly([.claude, .codex], settings: settings)
+        enableTestProviders([.claude, .codex], settings: settings)
         settings.mergedMenuLastSelectedWasOverview = true
 
         let controller = self.makeController(settings: settings)
@@ -1115,7 +1108,7 @@ extension StatusMenuPersistentRefreshTests {
         let settings = self.makeSettings()
         settings.refreshFrequency = .manual
         settings.statusChecksEnabled = true
-        self.enableOnly([.synthetic], settings: settings)
+        enableTestProviders([.synthetic], settings: settings)
 
         let controller = self.makeController(settings: settings)
         controller.store._test_providerRefreshOverride = { _ in }
@@ -1326,7 +1319,7 @@ extension StatusMenuPersistentRefreshTests {
         settings.costUsageEnabled = false
         settings.openAIWebAccessEnabled = false
         settings.codexCookieSource = .off
-        self.enableOnly([.claude, .codex], settings: settings)
+        enableTestProviders([.claude, .codex], settings: settings)
         let controller = self.makeController(settings: settings)
         let claudeStarted = ManualRefreshGate()
         let releaseClaude = ManualRefreshGate()
@@ -1363,7 +1356,7 @@ extension StatusMenuPersistentRefreshTests {
         settings.costUsageEnabled = true
         settings.openAIWebAccessEnabled = false
         settings.codexCookieSource = .off
-        self.enableOnly([.codex], settings: settings)
+        enableTestProviders([.codex], settings: settings)
         let controller = self.makeController(settings: settings)
         let tokenRefreshStarted = ManualRefreshGate()
         let releaseTokenRefresh = ManualRefreshGate()
@@ -1437,7 +1430,7 @@ extension StatusMenuPersistentRefreshTests {
             observedAt: Date(),
             identity: .emailOnly(normalizedEmail: "fixture@example.com"))
         settings.codexActiveSource = .liveSystem
-        self.enableOnly([.codex], settings: settings)
+        enableTestProviders([.codex], settings: settings)
         let account = AccountInfo(email: "fixture@example.com", plan: "pro")
         let controller = self.makeController(settings: settings, account: account)
         controller.store.accountInfoCache[.codex] = UsageStore.AccountInfoCacheEntry(
@@ -1537,7 +1530,7 @@ extension StatusMenuPersistentRefreshTests {
         settings.costUsageEnabled = true
         settings.openAIWebAccessEnabled = false
         settings.codexCookieSource = .off
-        self.enableOnly([.codex], settings: settings)
+        enableTestProviders([.codex], settings: settings)
         let controller = self.makeController(settings: settings)
         let tokenRefreshStarted = ManualRefreshGate()
         let releaseTokenRefresh = ManualRefreshGate()
@@ -1651,7 +1644,7 @@ extension StatusMenuPersistentRefreshTests {
         let settings = self.makeSettings()
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
-        self.enableOnly([.claude, .codex], settings: settings)
+        enableTestProviders([.claude, .codex], settings: settings)
 
         let controller = self.makeController(settings: settings)
         let codexMenu = try #require(controller.makeMenu(for: .codex) as? StatusItemMenu)
@@ -1685,7 +1678,7 @@ extension StatusMenuPersistentRefreshTests {
         let settings = self.makeSettings()
         settings.refreshFrequency = .manual
         settings.mergeIcons = true
-        self.enableOnly([.claude, .codex], settings: settings)
+        enableTestProviders([.claude, .codex], settings: settings)
         settings.mergedMenuLastSelectedWasOverview = true
 
         let controller = self.makeController(settings: settings)

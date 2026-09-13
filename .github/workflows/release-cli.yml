@@ -48,7 +48,7 @@ jobs:
             asset-arch: x86_64
             build-arch: ""
             static-swift-stdlib: false
-            swift-sdk: swift-6.2.1-RELEASE_static-linux-0.0.1
+            swift-sdk: swift-6.2.4-RELEASE_static-linux-0.1.0
             swift-sdk-triple: x86_64-swift-linux-musl
             swift-sdk-arch: x86_64
             file-arch-pattern: x86-64
@@ -59,7 +59,7 @@ jobs:
             asset-arch: aarch64
             build-arch: ""
             static-swift-stdlib: false
-            swift-sdk: swift-6.2.1-RELEASE_static-linux-0.0.1
+            swift-sdk: swift-6.2.4-RELEASE_static-linux-0.1.0
             swift-sdk-triple: aarch64-swift-linux-musl
             swift-sdk-arch: aarch64
             file-arch-pattern: aarch64
@@ -88,13 +88,13 @@ jobs:
     runs-on: ${{ matrix.runs-on }}
     env:
       RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
-      SWIFT_VERSION: 6.2.1
+      SWIFT_VERSION: 6.2.4
       SWIFTLY_VERSION: 1.1.3
       SWIFTLY_SIGNING_FINGERPRINT: E813C892820A6FA13755B268F167DF1ACF9CE069
-      SWIFT_STATIC_LINUX_SDK_URL: https://download.swift.org/swift-6.2.1-release/static-sdk/swift-6.2.1-RELEASE/swift-6.2.1-RELEASE_static-linux-0.0.1.artifactbundle.tar.gz
-      SWIFT_STATIC_LINUX_SDK_CHECKSUM: 08e1939a504e499ec871b36826569173103e4562769e12b9b8c2a50f098374ad
-      SQLITE_AMALGAMATION_VERSION: "3530300"
-      SQLITE_AMALGAMATION_SHA3_256: d45c688a8cb23f68611a894a756a12d7eb6ab6e9e2468ca70adbeab3808b5ab9
+      SWIFT_STATIC_LINUX_SDK_URL: https://download.swift.org/swift-6.2.4-release/static-sdk/swift-6.2.4-RELEASE/swift-6.2.4-RELEASE_static-linux-0.1.0.artifactbundle.tar.gz
+      SWIFT_STATIC_LINUX_SDK_CHECKSUM: 24bdf84495dd31a6de2eb679647c1982b747bfbfe1a2060c779d84dcecd902a4
+      SQLITE_AMALGAMATION_VERSION: "3530400"
+      SQLITE_AMALGAMATION_SHA3_256: 628a44cfe82c66aed1ccbbe85a562d2e33ebe64b3288981ed76285612227934e
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 

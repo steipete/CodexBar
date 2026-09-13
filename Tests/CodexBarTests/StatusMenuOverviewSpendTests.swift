@@ -72,10 +72,7 @@ extension StatusMenuTests {
         settings.refreshFrequency = .manual
         settings.costUsageEnabled = false
         settings.codexLocalSessionCostLedgerEnabled = true
-        for provider in UsageProvider.allCases {
-            guard let metadata = ProviderRegistry.shared.metadata[provider] else { continue }
-            settings.setProviderEnabled(provider: provider, metadata: metadata, enabled: provider == .codex)
-        }
+        enableTestProviders([.codex], settings: settings)
         let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
         let now = Date(timeIntervalSince1970: 1_787_079_600)
         let configuration = SpendDashboardSource.configuration(settings: settings, store: store)
@@ -142,10 +139,7 @@ extension StatusMenuTests {
         settings.refreshFrequency = .manual
         settings.costUsageEnabled = true
         let providers: [UsageProvider] = [.codex, .claude]
-        for provider in UsageProvider.allCases {
-            guard let metadata = ProviderRegistry.shared.metadata[provider] else { continue }
-            settings.setProviderEnabled(provider: provider, metadata: metadata, enabled: providers.contains(provider))
-        }
+        enableTestProviders(Set(providers), settings: settings)
         let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
         let now = Date(timeIntervalSince1970: 1_787_079_600)
         func input(id: String, provider: UsageProvider, cost: Double) -> SpendDashboardModel.ProviderInput {
@@ -232,10 +226,7 @@ extension StatusMenuTests {
         settings.costSummaryDisplayStyle = .both
         let selected: [UsageProvider] = [.openai, .claude, .gemini, .antigravity, .openrouter, .grok]
         settings.mergedOverviewSelectedProviders = selected
-        for provider in UsageProvider.allCases {
-            guard let metadata = ProviderRegistry.shared.metadata[provider] else { continue }
-            settings.setProviderEnabled(provider: provider, metadata: metadata, enabled: selected.contains(provider))
-        }
+        enableTestProviders(Set(selected), settings: settings)
 
         let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
         let now = Date(timeIntervalSince1970: 1_787_079_600)
@@ -305,10 +296,7 @@ extension StatusMenuTests {
             .grok,
             .codex,
         ]
-        for provider in UsageProvider.allCases {
-            guard let metadata = ProviderRegistry.shared.metadata[provider] else { continue }
-            settings.setProviderEnabled(provider: provider, metadata: metadata, enabled: connected.contains(provider))
-        }
+        enableTestProviders(Set(connected), settings: settings)
 
         let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
         let enabledRoster = store.enabledFirstPartyProvidersForDisplay()
@@ -420,12 +408,7 @@ extension StatusMenuTests {
         settings.costSummaryDisplayStyle = style
         settings.costUsageEnabled = costUsageEnabled
 
-        let registry = ProviderRegistry.shared
-        for provider in UsageProvider.allCases {
-            guard let metadata = registry.metadata[provider] else { continue }
-            let shouldEnable = provider == .codex || provider == .claude
-            settings.setProviderEnabled(provider: provider, metadata: metadata, enabled: shouldEnable)
-        }
+        enableTestProviders([.codex, .claude], settings: settings)
 
         let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
         let now = Date()

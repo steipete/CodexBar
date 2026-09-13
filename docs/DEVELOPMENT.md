@@ -137,9 +137,32 @@ cover this cleanup without creating status items or changing the user's saved pr
 not establish the cause of a position that changes again after launch; that requires runtime placement evidence.
 
 ### Run Tests Only
+
+Lint tools are installed at repository-pinned versions by `Scripts/install_lint_tools.sh`, with archive checksums
+verified before installation. TypeScript 7 installs its native package for the running Node platform and architecture
+(including Rosetta). Plugin typechecking uses only its declared libraries and source declarations, so unrelated
+ancestor `node_modules/@types` packages do not affect the result. SwiftFormat targets the package's Swift 6.2 floor.
+
 ```bash
 make test
 ```
+
+For focused iteration, use native SwiftPM filters with the same file/Keychain isolation and process containment:
+
+```bash
+make test-fast FILTER='AdaptiveRefreshPolicyTests'
+make test-skip-build FILTER='(?<suite>AdaptiveRefreshPolicyTests)'
+./Scripts/test_fast.sh --filter FirstSuite --filter SecondSuite --configuration debug
+```
+
+`FILTER` is passed literally, including Make/shell syntax and apostrophes. The script forwards all arguments to
+`swift test`; SwiftPM owns regex syntax and repeated-filter selection. Runs are serial by default and have a
+30-minute build-and-test deadline, configurable with `CODEXBAR_TEST_NATIVE_TIMEOUT`. An explicit `--skip-build` uses
+existing binaries. No framework search-path override is added.
+
+`make test` remains the complete sharded path. Measured expensive suites run in their own groups, retaining all
+selections and their deadlines while avoiding whole-batch retries. Apple-Silicon macOS CI includes the CLI entry suite;
+the former Intel-runner exclusion is retired.
 
 Claude OAuth gate tests use `ClaudeOAuthDefaultsFixtures()` so each test case owns an in-memory preferences store.
 Keep reset, expiry, and persisted-key assertions inside that scope; nested tasks inherit it, detached tasks do not.
@@ -225,6 +248,10 @@ Cost performance and fair-scheduling corpora use exclusive initial fixture creat
 reads after setup has closed each file. This avoids per-file atomic publication and durability work
 without changing corpus contents or scan budgets. The shared atomic fixture writer remains available
 for replacement and publication tests.
+
+Menu fixtures use `enableTestProviders` to arrange their initial provider selection without repeatedly persisting
+already-correct config entries. The real setter still handles changed flags and selected-provider cleanup. Keep
+provider-toggle actions under test on the production setter; the fixture helper is for setup before observing changes.
 
 ### Cost scanner CPU regressions
 

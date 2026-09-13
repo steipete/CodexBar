@@ -21,10 +21,16 @@ struct KeychainPromptSafetyAuditTests {
 
     @Test
     func `default test runner explicitly suppresses real keychain access`() throws {
-        let script = try Self.readRepoFile("Scripts/test.sh")
+        let script = try Self.readRepoFile("Scripts/test_environment.sh")
 
         #expect(script.contains("CODEXBAR_ALLOW_TEST_KEYCHAIN_ACCESS"))
         #expect(script.contains("export CODEXBAR_SUPPRESS_TEST_KEYCHAIN_ACCESS=1"))
+        for runner in ["Scripts/test.sh", "Scripts/test_fast.sh"] {
+            let source = try Self.readRepoFile(runner)
+            let environment = try #require(source.range(of: "source \"${ROOT_DIR}/Scripts/test_environment.sh\""))
+            let launch = try #require(source.range(of: "exec python3"))
+            #expect(environment.upperBound < launch.lowerBound)
+        }
     }
 
     @Test

@@ -276,6 +276,7 @@ grep -Fq "Recovered SwiftPM Sparkle test runtime; retrying discovery once." \
   "${TEMP_DIR}/sparkle-recovery.log"
 unset FAKE_SWIFT_BIN_PATH
 
+python3 "${ROOT_DIR}/Scripts/test_fast_runner.py"
 python3 "${ROOT_DIR}/Scripts/test_swift_test_process_cleanup.py"
 
 echo "Swift test sharding tests passed."

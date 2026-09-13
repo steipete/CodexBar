@@ -212,12 +212,7 @@ extension StatusMenuTests {
         settings.statusChecksEnabled = false
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
-        let registry = ProviderRegistry.shared
-        for provider in UsageProvider.allCases {
-            if let metadata = registry.metadata[provider] {
-                settings.setProviderEnabled(provider: provider, metadata: metadata, enabled: provider == .codex)
-            }
-        }
+        enableTestProviders([.codex], settings: settings)
 
         let controller = self.makeRecyclingController(settings: settings)
         defer { controller.releaseStatusItemsForTesting() }
@@ -250,16 +245,7 @@ extension StatusMenuTests {
         settings.refreshFrequency = .manual
         settings.mergeIcons = true
         settings.mergedMenuLastSelectedWasOverview = false
-        let registry = ProviderRegistry.shared
-        let enabled: Set<UsageProvider> = [.codex, .claude]
-        for provider in UsageProvider.allCases {
-            if let metadata = registry.metadata[provider] {
-                settings.setProviderEnabled(
-                    provider: provider,
-                    metadata: metadata,
-                    enabled: enabled.contains(provider))
-            }
-        }
+        enableTestProviders([.codex, .claude], settings: settings)
         let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
         let controller = StatusItemController(
             store: store,

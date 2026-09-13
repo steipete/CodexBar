@@ -260,6 +260,21 @@ func testSettingsStore(
         tokenAccountStore: tokenAccountStore)
 }
 
+/// Arrange provider selection without persisting every already-correct entry. Actions under test use the setter
+/// directly.
+@MainActor
+func enableTestProviders(_ enabledProviders: Set<UsageProvider>, settings: SettingsStore) {
+    let metadata = ProviderRegistry.shared.metadata
+    for provider in UsageProvider.allCases {
+        guard let providerMetadata = metadata[provider] else { continue }
+        let enabled = enabledProviders.contains(provider)
+        let isSelected = settings.selectedMenuProvider == provider.instanceID
+        guard settings.config.providerConfig(for: provider.instanceID)?.enabled != enabled || isSelected
+        else { continue }
+        settings.setProviderEnabled(provider: provider, metadata: providerMetadata, enabled: enabled)
+    }
+}
+
 #if os(macOS)
 @MainActor
 func testStatusBar() -> NSStatusBar {

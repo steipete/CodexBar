@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+# Inherited by test runners and their CLI children.
+export CODEXBAR_TEST_CODEX_FILE_ISOLATION=1
+unset CODEXBAR_TEST_CODEX_FILE_FIXTURES
+export CODEXBAR_TEST_SESSION_FILE_ISOLATION=1
+
+if [[ "${CODEXBAR_ALLOW_TEST_KEYCHAIN_ACCESS:-}" != "1" ]]; then
+  export CODEXBAR_SUPPRESS_TEST_KEYCHAIN_ACCESS=1
+fi
