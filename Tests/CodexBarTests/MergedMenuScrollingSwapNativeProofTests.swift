@@ -85,15 +85,28 @@ final class MergedMenuScrollingSwapNativeProofTests: XCTestCase {
         XCTAssertEqual(driver.phases.count, MergedMenuSwapDriver.script.count, "Timer must fire during tracking")
         for phase in driver.phases {
             let label = phase["phase"] as? String ?? "?"
-            // #3549: every table row must match its item's view, and the table must match the menu.
-            if let table = phase["tableHeight"] as? Double, let size = phase["menuSize"] as? String {
-                XCTAssertEqual(
-                    table,
-                    Double(NSSizeFromString(size).height),
-                    accuracy: 1.5,
-                    "\(label): stale table height")
+            let selection = try XCTUnwrap(label.split(separator: "-").dropFirst().first)
+            XCTAssertEqual(phase["overviewSelected"] as? Bool, selection == "overview", label)
+            if selection != "overview" {
+                XCTAssertEqual(phase["selectedProvider"] as? String, String(selection), label)
             }
-            for item in phase["menuItems"] as? [[String: Any]] ?? [] {
+            // #3549: every table row must match its item's view, and the table must match the menu.
+            let table = try XCTUnwrap(phase["tableHeight"] as? Double, label)
+            let size = try XCTUnwrap(phase["menuSize"] as? String, label)
+            XCTAssertGreaterThan(table, 0, label)
+            XCTAssertEqual(table, Double(NSSizeFromString(size).height), accuracy: 1.5, "\(label): stale table height")
+            let items = try XCTUnwrap(phase["menuItems"] as? [[String: Any]], label)
+            let cards = items.filter {
+                let id = $0["id"] as? String ?? ""
+                return id.hasPrefix("menuCard-") || id.hasPrefix("overviewRow-")
+            }
+            XCTAssertFalse(cards.isEmpty, "\(label): missing attached card rows")
+            for card in cards {
+                let row = try XCTUnwrap(card["row"] as? String, label)
+                XCTAssertNotEqual(row, "none", "\(label): missing table row")
+                XCTAssertGreaterThan(NSRectFromString(row).height, 0, label)
+            }
+            for item in items {
                 guard let row = item["row"] as? String, row != "none", let view = item["viewFrame"] as? String
                 else { continue }
                 XCTAssertEqual(
