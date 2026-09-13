@@ -99,8 +99,7 @@ struct HelmcodeProviderImplementation: ProviderImplementation {
                         title: "Open Dashboard",
                         url: HelmcodeDeploymentResolver.dashboardDeployment(
                             settings: context.settings.helmcodeSettingsSnapshot(tokenOverride: nil),
-                            environment: ProcessInfo.processInfo.environment
-                        ).dashboardPageURL),
+                            environment: ProcessInfo.processInfo.environment).dashboardPageURL),
                 ],
                 isVisible: nil),
         ]
