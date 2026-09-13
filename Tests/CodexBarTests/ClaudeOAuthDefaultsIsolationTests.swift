@@ -73,7 +73,9 @@ struct ClaudeOAuthDefaultsIsolationTests {
         let fingerprint = ClaudeOAuthRefreshFailureGate.AuthFingerprint(keychain: nil, credentialsFile: "fixture")
         ClaudeOAuthRefreshFailureGate.resetInMemoryStateForTesting()
         defer { ClaudeOAuthRefreshFailureGate.resetInMemoryStateForTesting() }
-        ClaudeOAuthRefreshFailureGate.withFingerprintProviderOverrideForTesting({ fingerprint }) {
+        ClaudeOAuthRefreshFailureGate.withFingerprintProviderOverrideForTesting {
+            fingerprint
+        } operation: {
             ClaudeOAuthRefreshFailureGate.recordTerminalAuthFailure(environment: environment, now: now)
             let persisted = first.dictionaryRepresentation()
             #expect(!persisted.isEmpty)
