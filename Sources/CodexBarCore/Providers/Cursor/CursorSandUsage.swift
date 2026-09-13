@@ -13,25 +13,29 @@ public struct CursorSandUsageStatus: Decodable, Sendable, Equatable {
     public let nextResetTimestampUtc: String?
     public let usagePercent: Double?
     public let hasAvailableUsage: Bool?
-    public let hasNonZeroIncludedLimit: Bool?
+    public let includedLimitZero: Bool?
+    public let sandTrialExpiresAt: String?
 
     public init(
         currentPeriodStart: String?,
         nextResetTimestampUtc: String?,
         usagePercent: Double?,
         hasAvailableUsage: Bool?,
-        hasNonZeroIncludedLimit: Bool?)
+        includedLimitZero: Bool? = nil,
+        sandTrialExpiresAt: String? = nil)
     {
         self.currentPeriodStart = currentPeriodStart
         self.nextResetTimestampUtc = nextResetTimestampUtc
         self.usagePercent = usagePercent
         self.hasAvailableUsage = hasAvailableUsage
-        self.hasNonZeroIncludedLimit = hasNonZeroIncludedLimit
+        self.includedLimitZero = includedLimitZero
+        self.sandTrialExpiresAt = sandTrialExpiresAt
     }
 
     /// Weekly Grok Bot bar, or `nil` when the account has no included Bot allowance.
     public func extraRateWindow(resetDescription: (Date) -> String) -> NamedRateWindow? {
-        guard self.hasNonZeroIncludedLimit == true, let usagePercent = self.usagePercent else {
+        let hasLimit = self.includedLimitZero == false
+        guard (hasLimit || self.sandTrialExpiresAt != nil), let usagePercent = self.usagePercent else {
             return nil
         }
         let start = ISO8601DateParser.parse(self.currentPeriodStart)

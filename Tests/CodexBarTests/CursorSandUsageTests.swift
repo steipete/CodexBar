@@ -12,7 +12,7 @@ struct CursorSandUsageTests {
             "nextResetTimestampUtc": "2026-08-24T07:57:50.647Z",
             "usagePercent": 100,
             "hasAvailableUsage": true,
-            "hasNonZeroIncludedLimit": true
+            "includedLimitZero": false
         }
         """
         let data = try #require(json.data(using: .utf8))
@@ -20,7 +20,7 @@ struct CursorSandUsageTests {
 
         #expect(status.usagePercent == 100)
         #expect(status.hasAvailableUsage == true)
-        #expect(status.hasNonZeroIncludedLimit == true)
+        #expect(status.includedLimitZero == false)
         let window = try #require(status.extraRateWindow(resetDescription: { _ in "Resets" }))
         #expect(window.id == CursorSandUsageStatus.extraWindowID)
         #expect(window.title == "Grok Bot")
@@ -36,8 +36,54 @@ struct CursorSandUsageTests {
             nextResetTimestampUtc: "2026-08-24T07:57:50.647Z",
             usagePercent: 100,
             hasAvailableUsage: false,
-            hasNonZeroIncludedLimit: false)
+            includedLimitZero: true)
         #expect(status.extraRateWindow(resetDescription: { _ in "Resets" }) == nil)
+    }
+
+    @Test
+    func `shows grok bot extra window for active trial despite no included limit`() throws {
+        let json = """
+        {
+            "currentPeriodStart": "2026-08-17T07:57:50.647Z",
+            "nextResetTimestampUtc": "2026-08-24T07:57:50.647Z",
+            "usagePercent": 13.55,
+            "hasAvailableUsage": true,
+            "includedLimitZero": true,
+            "sandTrialExpiresAt": "2026-08-24T07:57:50.647Z"
+        }
+        """
+        let data = try #require(json.data(using: .utf8))
+        let status = try JSONDecoder().decode(CursorSandUsageStatus.self, from: data)
+
+        #expect(status.usagePercent == 13.55)
+        #expect(status.includedLimitZero == true)
+        #expect(status.sandTrialExpiresAt != nil)
+
+        let window = try #require(status.extraRateWindow(resetDescription: { _ in "Resets" }))
+        #expect(window.window.usedPercent == 13.55)
+    }
+
+    @Test
+    func `shows grok bot extra window for active trial with new api schema`() throws {
+        let json = """
+        {
+            "currentPeriodStart": "2026-09-10T00:00:00Z",
+            "nextResetTimestampUtc": "2026-09-21T09:12:32.776Z",
+            "usagePercent": 12.3,
+            "includedLimitZero": true,
+            "hasAvailableUsage": true,
+            "sandTrialExpiresAt": "2026-09-21T09:12:32.776Z"
+        }
+        """
+        let data = try #require(json.data(using: .utf8))
+        let status = try JSONDecoder().decode(CursorSandUsageStatus.self, from: data)
+
+        #expect(status.usagePercent == 12.3)
+        #expect(status.includedLimitZero == true)
+        #expect(status.sandTrialExpiresAt != nil)
+
+        let window = try #require(status.extraRateWindow(resetDescription: { _ in "Resets" }))
+        #expect(window.window.usedPercent == 12.3)
     }
 
     @Test
@@ -62,7 +108,7 @@ struct CursorSandUsageTests {
                 nextResetTimestampUtc: "2026-08-24T07:57:50.647Z",
                 usagePercent: 100,
                 hasAvailableUsage: true,
-                hasNonZeroIncludedLimit: true))
+                includedLimitZero: false))
 
         let usageSnapshot = snapshot.toUsageSnapshot()
         let grokBot = usageSnapshot.extraRateWindows?.first { $0.id == CursorSandUsageStatus.extraWindowID }
@@ -113,7 +159,7 @@ struct CursorSandUsageTests {
                       "nextResetTimestampUtc": "2026-08-24T07:57:50.647Z",
                       "usagePercent": 100,
                       "hasAvailableUsage": true,
-                      "hasNonZeroIncludedLimit": true
+                      "includedLimitZero": false
                     }
                     """,
                     statusCode: 200)
@@ -129,7 +175,7 @@ struct CursorSandUsageTests {
             urlSession: testSession.urlSession).fetchWithManualCookies("auth=test")
 
         #expect(snapshot.sandUsage?.usagePercent == 100)
-        #expect(snapshot.sandUsage?.hasNonZeroIncludedLimit == true)
+        #expect(snapshot.sandUsage?.includedLimitZero == false)
         let grokBot = snapshot.toUsageSnapshot().extraRateWindows?.first {
             $0.id == CursorSandUsageStatus.extraWindowID
         }
