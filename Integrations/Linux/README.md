@@ -82,6 +82,10 @@ older releases need the source build above. The CLI resolves `VERSION` and
 `CodexBar_CodexBarCore.bundle/` relative to its own executable, so expose it through a
 wrapper that execs it by absolute path, never as a bare-name symlink on `PATH`.
 
+The recipes are POSIX shell. CachyOS defaults to fish and Omarchy auto-launches it from
+bash, so run a block in a bash subshell (`bash`, paste, `exit`) or save it to a file and run
+`bash file.sh`; on fish add the tarball CLI to `PATH` with `fish_add_path ~/.local/bin`.
+
 ### Arch Linux family (Arch, CachyOS, EndeavourOS, Omarchy)
 
 ```sh
