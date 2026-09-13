@@ -19,23 +19,55 @@ struct SettingsStoreMergeIconStackedTests {
     }
 
     @Test
-    func `selecting stacked style activates a stored layout when none exists`() {
-        let store = testSettingsStore(suiteName: "SettingsStoreMergeIconStackedTests-activates-layout")
+    func `activating stored layout for stacked rendering migrates only that provider`() {
+        let store = testSettingsStore(suiteName: "SettingsStoreMergeIconStackedTests-activate-per-provider")
 
         #expect(!store.hasStoredMenuBarLayout)
-        store.mergedIconDisplayStyle = .stacked
-        #expect(store.hasStoredMenuBarLayout)
+        #expect(store.menuBarLayoutOverrides[.claude] == nil)
+
+        store.activateStoredLayoutForStackedRenderingIfNeeded(provider: .claude)
+
+        #expect(!store.hasStoredMenuBarLayout)
+        #expect(store.menuBarLayoutOverrides[.claude] != nil)
+        #expect(!store.menuBarLayoutResolution(for: .claude).usesLegacyRendering)
+        // A different, unrelated provider is left untouched.
+        #expect(store.menuBarLayoutOverrides[.codex] == nil)
     }
 
     @Test
-    func `selecting stacked style does not overwrite an existing stored layout`() {
-        let store = testSettingsStore(suiteName: "SettingsStoreMergeIconStackedTests-preserves-layout")
+    func `activating stored layout preserves the provider's pre-activation effective layout`() {
+        let store = testSettingsStore(suiteName: "SettingsStoreMergeIconStackedTests-preserve-effective")
+        let beforeLayout = store.menuBarLayoutResolution(for: .claude).layout
+
+        store.activateStoredLayoutForStackedRenderingIfNeeded(provider: .claude)
+
+        let afterResolution = store.menuBarLayoutResolution(for: .claude)
+        #expect(afterResolution.layout == beforeLayout)
+        #expect(!afterResolution.usesLegacyRendering)
+    }
+
+    @Test
+    func `activating stored layout is a no-op once a layout is already stored`() {
+        let store = testSettingsStore(suiteName: "SettingsStoreMergeIconStackedTests-activate-noop")
         let customLayout = MenuBarLayout(lines: [[.icon, .providerName]])
         store.menuBarLayout = customLayout
 
-        store.mergedIconDisplayStyle = .stacked
+        store.activateStoredLayoutForStackedRenderingIfNeeded(provider: .claude)
 
+        #expect(store.menuBarLayoutOverrides[.claude] == nil)
         #expect(store.menuBarLayout == customLayout)
+    }
+
+    @Test
+    func `resolved merge icon stacked providers reserves an explicit bottom pick before automatic top`() {
+        let store = testSettingsStore(suiteName: "SettingsStoreMergeIconStackedTests-reserve-bottom")
+
+        // Top is left on Automatic; only the bottom row has an explicit pick.
+        store.mergeIconStackedBottomProvider = .codex
+        let resolved = store.resolvedMergeIconStackedProviders(activeProviders: [.codex, .claude])
+
+        #expect(resolved?.top == .claude)
+        #expect(resolved?.bottom == .codex)
     }
 
     @Test

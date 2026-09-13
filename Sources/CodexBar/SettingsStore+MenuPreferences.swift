@@ -163,16 +163,7 @@ extension SettingsStore {
 
     var mergedIconDisplayStyle: MergedIconDisplayStyle {
         get { self.mergeIconsStacked ? .stacked : .switcher }
-        set {
-            self.mergeIconsStacked = newValue == .stacked
-            // Stacked rendering requires a stored layout (`usesLegacyRendering == false`); without this,
-            // selecting Stacked on a fresh install silently does nothing until the user separately edits
-            // the Layout editor. Persist the current effective (migrated) layout so the choice takes
-            // effect immediately, preserving whatever the user already sees pixel-for-pixel.
-            if newValue == .stacked, !self.hasStoredMenuBarLayout {
-                self.menuBarLayout = self.menuBarLayout
-            }
-        }
+        set { self.mergeIconsStacked = newValue == .stacked }
     }
 
     var mergeIconStackedTopProvider: UsageProvider? {
@@ -187,18 +178,33 @@ extension SettingsStore {
 
     /// Resolves the two providers shown by the "Stacked" combined-icon style: the user's explicit
     /// top/bottom picks when they are still active, otherwise the first two active providers in
-    /// order. Returns nil when fewer than two providers are active, so callers can fall back to the
-    /// switcher style.
+    /// order. Explicit picks are reserved before any "Automatic" slot is filled, so leaving one row on
+    /// Automatic never bumps an explicit pick on the other row. Returns nil when fewer than two
+    /// providers are active, so callers can fall back to the switcher style.
     func resolvedMergeIconStackedProviders(activeProviders: [UsageProvider])
     -> (top: UsageProvider, bottom: UsageProvider)? {
         guard activeProviders.count >= 2 else { return nil }
-        let top = self.mergeIconStackedTopProvider.flatMap { activeProviders.contains($0) ? $0 : nil }
-            ?? activeProviders[0]
-        let bottom = self.mergeIconStackedBottomProvider
-            .flatMap { $0 != top && activeProviders.contains($0) ? $0 : nil }
-            ?? activeProviders.first { $0 != top }
-        guard let bottom else { return nil }
+
+        let explicitTop = self.mergeIconStackedTopProvider.flatMap { activeProviders.contains($0) ? $0 : nil }
+        let explicitBottom = self.mergeIconStackedBottomProvider.flatMap {
+            activeProviders.contains($0) && $0 != explicitTop ? $0 : nil
+        }
+
+        let top = explicitTop ?? activeProviders.first { $0 != explicitBottom }
+        let bottom = explicitBottom ?? activeProviders.first { $0 != top }
+
+        guard let top, let bottom else { return nil }
         return (top, bottom)
+    }
+
+    /// Activates a per-provider stored layout override — using that provider's own effective migrated
+    /// layout, preserving semantics like `menuBarMetricPreference(for:)` — so stacked rendering can use
+    /// it. Scoped to exactly this one provider; never touches the global layout or any other provider.
+    /// A no-op once the provider already has a stored layout (global or per-provider).
+    func activateStoredLayoutForStackedRenderingIfNeeded(provider: UsageProvider) {
+        let resolution = self.menuBarLayoutResolution(for: provider)
+        guard resolution.usesLegacyRendering else { return }
+        self.setMenuBarLayout(resolution.layout, for: provider)
     }
 
     var usageBarsFillOption: UsageBarsFillOption {

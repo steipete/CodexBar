@@ -123,6 +123,7 @@ extension StatusItemController {
     }
 
     private func renderStackedProviderRow(provider: UsageProvider, now: Date) -> MenuBarLayoutRenderedTitle? {
+        self.settings.activateStoredLayoutForStackedRenderingIfNeeded(provider: provider)
         let resolution = self.settings.menuBarLayoutResolution(for: provider)
         guard !resolution.usesLegacyRendering, let firstLine = resolution.layout.lines.first else { return nil }
         let warningFlash = self.quotaWarningFlashActive(provider: provider)
