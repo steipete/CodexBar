@@ -1579,3 +1579,10 @@
 
 "agent_sessions_hide_unreachable_title" = "Agochar os hosts inaccesibles";
 "agent_sessions_hide_unreachable_subtitle" = "Agocha os hosts cando falla a consulta das súas sesións.";
+"System Account" = "Conta do sistema";
+"Selected" = "Seleccionado";
+"Switching %1$@ to %2$@…" = "Cambiando %1$@ a %2$@…";
+"%@ is now the System account" = "%@ é agora a conta do sistema";
+"System account switched" = "Cambiouse a conta do sistema";
+"%1$@ now uses %2$@" = "%1$@ usa agora %2$@";
+"That account can no longer be switched to." = "Xa non se pode cambiar a esa conta.";

@@ -1580,3 +1580,10 @@
 
 "agent_sessions_hide_unreachable_title" = "接続できないホストを非表示";
 "agent_sessions_hide_unreachable_subtitle" = "セッションの取得に失敗したホストを非表示にします。";
+"System Account" = "システムアカウント";
+"Selected" = "選択中";
+"Switching %1$@ to %2$@…" = "%1$@ を %2$@ に切り替えています…";
+"%@ is now the System account" = "%@ がシステムアカウントになりました";
+"System account switched" = "システムアカウントを切り替えました";
+"%1$@ now uses %2$@" = "%1$@ は %2$@ を使用しています";
+"That account can no longer be switched to." = "そのアカウントには切り替えられなくなりました。";

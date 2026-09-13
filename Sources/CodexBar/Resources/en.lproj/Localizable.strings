@@ -1582,3 +1582,10 @@
 "Color Pace Indicator" = "Color Pace Indicator";
 "Green pace indicator when behind pace, red when ahead of pace (risk of running out early)" = "Green pace indicator when behind pace, red when ahead of pace (risk of running out early)";
 "%@ weekly" = "%@ weekly";
+"System Account" = "System Account";
+"Selected" = "Selected";
+"Switching %1$@ to %2$@…" = "Switching %1$@ to %2$@…";
+"%@ is now the System account" = "%@ is now the System account";
+"System account switched" = "System account switched";
+"%1$@ now uses %2$@" = "%1$@ now uses %2$@";
+"That account can no longer be switched to." = "That account can no longer be switched to.";

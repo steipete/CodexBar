@@ -1581,3 +1581,10 @@
 
 "agent_sessions_hide_unreachable_title" = "Ẩn máy chủ không thể truy cập";
 "agent_sessions_hide_unreachable_subtitle" = "Ẩn máy chủ khi không lấy được các phiên của máy chủ đó.";
+"System Account" = "Tài khoản hệ thống";
+"Selected" = "Đã chọn";
+"Switching %1$@ to %2$@…" = "Đang chuyển %1$@ sang %2$@…";
+"%@ is now the System account" = "%@ hiện là tài khoản hệ thống";
+"System account switched" = "Đã chuyển tài khoản hệ thống";
+"%1$@ now uses %2$@" = "%1$@ hiện dùng %2$@";
+"That account can no longer be switched to." = "Không thể chuyển sang tài khoản đó nữa.";

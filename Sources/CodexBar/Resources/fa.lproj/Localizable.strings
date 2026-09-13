@@ -1584,3 +1584,10 @@
 
 "agent_sessions_hide_unreachable_title" = "پنهان کردن میزبان‌های در دسترس نبودنی";
 "agent_sessions_hide_unreachable_subtitle" = "میزبان‌ها را در صورت ناموفق بودن دریافت نشست‌هایشان پنهان کنید.";
+"System Account" = "حساب سیستم";
+"Selected" = "انتخاب‌شده";
+"Switching %1$@ to %2$@…" = "در حال تغییر %1$@ به %2$@…";
+"%@ is now the System account" = "%@ اکنون حساب سیستم است";
+"System account switched" = "حساب سیستم تغییر کرد";
+"%1$@ now uses %2$@" = "%1$@ اکنون از %2$@ استفاده می‌کند";
+"That account can no longer be switched to." = "دیگر نمی‌توان به این حساب تغییر داد.";

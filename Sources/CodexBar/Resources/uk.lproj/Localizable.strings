@@ -1580,3 +1580,10 @@
 
 "agent_sessions_hide_unreachable_title" = "Приховувати недоступні вузли";
 "agent_sessions_hide_unreachable_subtitle" = "Приховувати вузли, якщо не вдалося отримати їхні сеанси.";
+"System Account" = "Системний обліковий запис";
+"Selected" = "Вибрано";
+"Switching %1$@ to %2$@…" = "Перемикання %1$@ на %2$@…";
+"%@ is now the System account" = "%@ тепер системний обліковий запис";
+"System account switched" = "Системний обліковий запис змінено";
+"%1$@ now uses %2$@" = "%1$@ тепер використовує %2$@";
+"That account can no longer be switched to." = "На цей обліковий запис більше не можна перемкнутися.";

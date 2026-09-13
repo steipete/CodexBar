@@ -1584,3 +1584,10 @@
 
 "agent_sessions_hide_unreachable_title" = "ซ่อนโฮสต์ที่เข้าถึงไม่ได้";
 "agent_sessions_hide_unreachable_subtitle" = "ซ่อนโฮสต์เมื่อดึงข้อมูลเซสชันไม่สำเร็จ";
+"System Account" = "บัญชีระบบ";
+"Selected" = "ที่เลือก";
+"Switching %1$@ to %2$@…" = "กำลังสลับ %1$@ เป็น %2$@…";
+"%@ is now the System account" = "%@ เป็นบัญชีระบบแล้ว";
+"System account switched" = "สลับบัญชีระบบแล้ว";
+"%1$@ now uses %2$@" = "%1$@ ใช้ %2$@ แล้ว";
+"That account can no longer be switched to." = "ไม่สามารถสลับไปยังบัญชีนั้นได้อีกต่อไป";
