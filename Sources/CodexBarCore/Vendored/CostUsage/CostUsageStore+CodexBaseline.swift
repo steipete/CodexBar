@@ -22,10 +22,15 @@ extension CostUsageStore {
         var files: [CostUsageStoreFile]
         var snapshotCounts: [String: Int]
         var rowCounts: [String: Int]
+        /// Files whose persisted usage rows were repaired during decode. Their stored row
+        /// prefix no longer matches the decoded rows, so the next save must replace the
+        /// row set instead of appending from the stale count.
+        var repairedRowPaths: Set<String>
 
         init(
             snapshot: CostUsageStoreSnapshot,
-            snapshotCounts: [String: Int]? = nil)
+            snapshotCounts: [String: Int]? = nil,
+            repairedRowPaths: Set<String> = [])
         {
             self.metadata = snapshot.metadata
             self.files = snapshot.files.map { file in
@@ -39,6 +44,7 @@ extension CostUsageStore {
             self.snapshotCounts = snapshotCounts
                 ?? snapshot.tokenSnapshots.reduce(into: [:]) { $0[$1.path, default: 0] += 1 }
             self.rowCounts = snapshot.usageRows.reduce(into: [:]) { $0[$1.path, default: 0] += 1 }
+            self.repairedRowPaths = repairedRowPaths
         }
     }
 
@@ -147,18 +153,22 @@ extension CostUsageStore {
         tokenSnapshotsLoaded: Bool) -> CodexDecodedBaseline
     {
         var unloadedTokenSnapshotPaths: Set<String> = []
+        var repairedRowPaths: Set<String> = []
+        let decoded = Self.decodeCodexCache(
+            from: snapshot,
+            recorder: self.scopedReadWorkRecorderForTesting,
+            tokenSnapshotsLoaded: tokenSnapshotsLoaded,
+            unloadedTokenSnapshotPathRecorder: { unloadedTokenSnapshotPaths.insert($0) },
+            repairedRowPathRecorder: { repairedRowPaths.insert($0) })
         return CodexDecodedBaseline(
-            decoded: Self.decodeCodexCache(
-                from: snapshot,
-                recorder: self.scopedReadWorkRecorderForTesting,
-                tokenSnapshotsLoaded: tokenSnapshotsLoaded,
-                unloadedTokenSnapshotPathRecorder: { unloadedTokenSnapshotPaths.insert($0) }),
+            decoded: decoded,
             persistence: CodexPersistenceState(
                 snapshot: snapshot,
                 snapshotCounts: tokenSnapshotsLoaded ? nil :
                     Dictionary(uniqueKeysWithValues: snapshot.accumulators.map {
                         ($0.path, $0.eventCount)
-                    })),
+                    }),
+                repairedRowPaths: repairedRowPaths),
             stamp: stamp,
             unloadedTokenSnapshotPaths: unloadedTokenSnapshotPaths,
             tokenSnapshotsLoaded: tokenSnapshotsLoaded)

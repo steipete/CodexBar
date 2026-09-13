@@ -114,11 +114,13 @@ extension CostUsageStore {
                 || snapshot.metadata.timeZoneIdentifier == calendar.timeZone.identifier
             else { return CostUsageStoreReadView(cache: CostUsageCache()) }
             // Identity/anchor reconciliation touches the filesystem; do not pin a SQLite reader during it.
+            var repairedRowPaths: Set<String> = []
             let decoded = Self.decodeCodexCache(
                 from: snapshot,
                 recorder: recorder,
-                retryPresence: retryPresence)
-            let persistence = CodexPersistenceState(snapshot: snapshot)
+                retryPresence: retryPresence,
+                repairedRowPathRecorder: { repairedRowPaths.insert($0) })
+            let persistence = CodexPersistenceState(snapshot: snapshot, repairedRowPaths: repairedRowPaths)
             // Activity is a superset of status and becomes the one bounded warm read state.
             // Detailed reports keep their larger event history transient.
             if purpose != .report {
@@ -214,6 +216,7 @@ extension CostUsageStore {
                     rowCount: previous.rowCounts[path] ?? 0,
                     tokenSnapshotsLoaded: !unloadedTokenSnapshotPaths.contains(path),
                     canReuseRows: canReuseStoredRows,
+                    rowsRepaired: previous.repairedRowPaths.contains(path),
                     parserRevision: baseline.decoded.files[path]?.codexParserRevision),
                 calendar: calendar)
             persistedFiles += 1
@@ -273,6 +276,9 @@ extension CostUsageStore {
         cache: CostUsageCache,
         calendar: Calendar) -> Bool
     {
+        // A file repaired during decode differs from its persisted row set; the repair must
+        // reach the disk instead of taking the unchanged-content shortcut.
+        guard baseline.persistence.repairedRowPaths.isEmpty else { return false }
         var restored = Self.reconciledCodexCache(baseline.decoded, persistence: baseline.persistence)
         guard restored.timeZoneIdentifier == nil
             || restored.timeZoneIdentifier == calendar.timeZone.identifier
@@ -401,6 +407,7 @@ extension CostUsageStore {
         var rowCount: Int
         var tokenSnapshotsLoaded: Bool
         var canReuseRows: Bool
+        var rowsRepaired: Bool
         var parserRevision: Int?
     }
 
@@ -420,9 +427,14 @@ extension CostUsageStore {
         recorder: CostUsageStoreReadWorkRecorder?,
         retryPresence: [String: CostUsageCodexRetryBufferPresence]? = nil) -> CostUsageCache
     {
-        self.reconciledCodexCache(
-            self.decodeCodexCache(from: snapshot, recorder: recorder, retryPresence: retryPresence),
-            persistence: CodexPersistenceState(snapshot: snapshot))
+        var repairedRowPaths: Set<String> = []
+        return self.reconciledCodexCache(
+            self.decodeCodexCache(
+                from: snapshot,
+                recorder: recorder,
+                retryPresence: retryPresence,
+                repairedRowPathRecorder: { repairedRowPaths.insert($0) }),
+            persistence: CodexPersistenceState(snapshot: snapshot, repairedRowPaths: repairedRowPaths))
     }
 
     static func decodeCodexCache(
@@ -430,7 +442,8 @@ extension CostUsageStore {
         recorder: CostUsageStoreReadWorkRecorder?,
         retryPresence: [String: CostUsageCodexRetryBufferPresence]? = nil,
         tokenSnapshotsLoaded: Bool = true,
-        unloadedTokenSnapshotPathRecorder: ((String) -> Void)? = nil) -> CostUsageCache
+        unloadedTokenSnapshotPathRecorder: ((String) -> Void)? = nil,
+        repairedRowPathRecorder: ((String) -> Void)? = nil) -> CostUsageCache
     {
         recorder?.recordCacheConversion()
         var cache = CostUsageCache()
@@ -479,7 +492,17 @@ extension CostUsageStore {
             let rows = (rowsByPath[file.path] ?? []).compactMap {
                 try? JSONDecoder().decode(CostUsageScanner.CodexUsageRow.self, from: $0.payload)
             }
-            let restoredRows = rows.isEmpty ? Self.aggregateRows(from: aggregates) : rows
+            let days = Self.days(from: aggregates)
+            // Persisted rows can accumulate re-emitted copies of one token event (the same
+            // event content under fresh per-scan event indexes). Canonical packed totals are
+            // tracked separately, so the copies survive reconciliation only by failing it;
+            // drop them on load where the file's own `days` prove they are redundant.
+            let restoredRows = rows.isEmpty
+                ? Self.aggregateRows(from: aggregates)
+                : CostUsageScanner.deduplicatedCodexUsageRows(rows, canonicalDays: days)
+            if !rows.isEmpty, restoredRows.count != rows.count {
+                repairedRowPathRecorder?(file.path)
+            }
             if details.hasTokenSnapshots, !tokenSnapshotsLoaded {
                 unloadedTokenSnapshotPathRecorder?(file.path)
             }
@@ -490,7 +513,7 @@ extension CostUsageStore {
             let usage = CostUsageFileUsage(
                 mtimeUnixMs: file.mtimeUnixMs,
                 size: file.size,
-                days: Self.days(from: aggregates),
+                days: days,
                 parsedBytes: file.parsedBytes,
                 lastModel: file.scanState.lastModel,
                 lastTotals: details.lastTotals,
@@ -978,12 +1001,17 @@ extension CostUsageStore {
             _ = self.replaceTokenSnapshots(path: path, snapshots: snapshots)
         }
 
-        let rowAction = CostUsagePersistencePlanner.action(
-            canReuse: canReuseRows,
-            stableCursor: stableCursor,
-            appendSafe: appendSafe,
-            persistedCount: baseline.rowCount,
-            sourceCount: rowCount)
+        // A file whose persisted rows were repaired on load cannot reuse the stored row
+        // prefix: the baseline row count still describes the pre-repair set, so appending
+        // from it would silently drop newly scanned rows. Force a full replacement.
+        let rowAction = baseline.rowsRepaired
+            ? .replace
+            : CostUsagePersistencePlanner.action(
+                canReuse: canReuseRows,
+                stableCursor: stableCursor,
+                appendSafe: appendSafe,
+                persistedCount: baseline.rowCount,
+                sourceCount: rowCount)
         let rows: [CostUsageStoreUsageRow] = rowAction.materialize(sourceRows) { index, row in
             guard let payload = try? JSONEncoder().encode(row) else { return nil }
             return CostUsageStoreUsageRow(path: path, rowIndex: index, payload: payload)
