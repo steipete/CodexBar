@@ -27,7 +27,7 @@ final class MergedMenuScrollingSwapNativeProofTests: XCTestCase {
         let output = URL(fileURLWithPath: path, isDirectory: true)
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
 
-        let fixture = try Self.makeFixture(tall: env["CODEXBAR_MENU_SWAP_SHORT"] != "1")
+        let fixture = try Self.makeFixture()
         defer { fixture.cleanup() }
         let app = NSApplication.shared
         guard app.delegate == nil else { return XCTFail("Use a standalone test host") }
@@ -115,7 +115,7 @@ final class MergedMenuScrollingSwapNativeProofTests: XCTestCase {
 
     // MARK: - Fixture
 
-    private static func makeFixture(tall: Bool) throws -> CodexWorkspacesNavigationFixture {
+    private static func makeFixture() throws -> CodexWorkspacesNavigationFixture {
         let fixture = try CodexWorkspacesNavigationFixture(userDefaults: InMemoryUserDefaults())
         fixture.settings.mergeIcons = true
         fixture.settings.multiAccountMenuLayout = .segmented
@@ -136,9 +136,10 @@ final class MergedMenuScrollingSwapNativeProofTests: XCTestCase {
                 tertiary: windows >= 3 ? window(10, 7 * 24 * 60) : nil,
                 updatedAt: now)
         }
-        let windowsByProvider: [(UsageProvider, Int)] = tall
-            ? [(.codex, 3), (.claude, 1), (.cursor, 3), (.gemini, 2), (.copilot, 1), (.zai, 3)]
-            : [(.codex, 3), (.claude, 1)]
+        // Every provider the swap script selects must be enabled here.
+        let windowsByProvider: [(UsageProvider, Int)] = [
+            (.codex, 3), (.claude, 1), (.cursor, 3), (.gemini, 2), (.copilot, 1), (.zai, 3),
+        ]
         for (provider, windows) in windowsByProvider {
             fixture.settings.setProviderEnabled(
                 provider: provider,
