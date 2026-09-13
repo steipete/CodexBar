@@ -520,10 +520,6 @@ struct ProvidersPane: View {
             })
     }
 
-    func menuCardModel(for provider: UsageProvider) -> UsageMenuCardView.Model {
-        self.store.menuCardModel(for: provider, context: .settings)
-    }
-
     private func unfilteredMenuCardModel(for provider: UsageProvider) -> UsageMenuCardView.Model {
         UsageMenuCardView.Model.make(self.store.menuCardInput(for: provider, context: .settings))
     }

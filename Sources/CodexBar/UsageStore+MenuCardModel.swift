@@ -92,7 +92,6 @@ extension UsageStore {
             codexProjection: codexProjection,
             credits: codexProjection?.credits?.snapshot,
             creditsError: isSettings ? codexProjection?.credits?.userFacingError : nil,
-            dashboard: nil,
             dashboardError: isSettings ? codexProjection?.userFacingErrors.dashboard : nil,
             tokenSnapshot: tokenSnapshot,
             tokenError: isLive && supportsTokenCost ? self.tokenError(for: provider) : nil,

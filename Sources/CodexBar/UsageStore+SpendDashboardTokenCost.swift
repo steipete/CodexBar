@@ -68,11 +68,6 @@ extension UsageStore {
 
     func refreshSpendDashboardTokenUsageNow(for provider: UsageProvider, force: Bool) async {
         guard Self.usesSpendDashboardIndependentTokenSnapshot(provider) else { return }
-        guard ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.supportsTokenCost else {
-            self.clearSpendDashboardTokenSnapshot(for: provider)
-            return
-        }
-
         guard self.settings.isCostUsageEffectivelyEnabled(for: provider) else {
             self.clearSpendDashboardTokenSnapshot(for: provider)
             return
@@ -161,7 +156,7 @@ extension UsageStore {
             self.spendDashboardTokenFailedTriggers.removeValue(forKey: provider.instanceID)
 
             guard hasUsage else {
-                self.publishSpendDashboardConfirmedEmptyTokenSnapshot(for: provider)
+                self.publishSpendDashboardTokenSnapshot(nil, for: provider)
                 return
             }
             self.publishSpendDashboardTokenSnapshot(snapshot, for: provider)
@@ -190,17 +185,6 @@ extension UsageStore {
         }
     }
 
-    private func publishSpendDashboardTokenSnapshot(
-        _ snapshot: CostUsageTokenSnapshot,
-        for provider: UsageProvider)
-    {
-        self.publishSpendDashboardTokenSnapshotState(snapshot, for: provider)
-    }
-
-    private func publishSpendDashboardConfirmedEmptyTokenSnapshot(for provider: UsageProvider) {
-        self.publishSpendDashboardTokenSnapshotState(nil, for: provider)
-    }
-
     #if DEBUG
     func _setSpendDashboardTokenSnapshotForTesting(
         _ snapshot: CostUsageTokenSnapshot?,
@@ -209,15 +193,11 @@ extension UsageStore {
         self.spendDashboardTokenIncorporatedTriggers[provider.instanceID] = self.spendDashboardTokenRefreshTrigger(
             for: provider)
         self.spendDashboardTokenFailedTriggers.removeValue(forKey: provider.instanceID)
-        if let snapshot {
-            self.publishSpendDashboardTokenSnapshot(snapshot, for: provider)
-        } else {
-            self.publishSpendDashboardConfirmedEmptyTokenSnapshot(for: provider)
-        }
+        self.publishSpendDashboardTokenSnapshot(snapshot, for: provider)
     }
     #endif
 
-    private func publishSpendDashboardTokenSnapshotState(
+    private func publishSpendDashboardTokenSnapshot(
         _ snapshot: CostUsageTokenSnapshot?,
         for provider: UsageProvider)
     {

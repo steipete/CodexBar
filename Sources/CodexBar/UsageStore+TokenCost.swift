@@ -161,12 +161,10 @@ extension UsageStore {
 
     func publishTokenSnapshot(_ snapshot: CostUsageTokenSnapshot, for provider: UsageProvider) {
         if self.retainsEstablishedTokenHistory(snapshot, for: provider) { return }
-        self.tokenSnapshots[provider.instanceID] = snapshot
         self.publishTokenSnapshotState(snapshot, for: provider)
     }
 
     func publishConfirmedEmptyTokenSnapshot(for provider: UsageProvider) {
-        self.tokenSnapshots.removeValue(forKey: provider.instanceID)
         self.publishTokenSnapshotState(nil, for: provider)
     }
 
@@ -181,7 +179,6 @@ extension UsageStore {
     }
 
     func installCachedTokenSnapshot(_ snapshot: CostUsageTokenSnapshot, for provider: UsageProvider) {
-        self.tokenSnapshots[provider.instanceID] = snapshot
         self.tokenSnapshotPublications[provider.instanceID] = TokenSnapshotPublication(
             snapshot: snapshot,
             publicationRevision: self.tokenSnapshotPublicationRevision(for: provider),
@@ -190,12 +187,10 @@ extension UsageStore {
     }
 
     func clearTokenSnapshot(for provider: UsageProvider) {
-        self.tokenSnapshots.removeValue(forKey: provider.instanceID)
         self.tokenSnapshotPublications.removeValue(forKey: provider.instanceID)
     }
 
     func clearTokenSnapshots() {
-        self.tokenSnapshots.removeAll()
         self.tokenSnapshotPublications.removeAll()
         self.spendDashboardTokenPublications.removeAll()
         self.spendDashboardTokenPublicationRevisions.removeAll()

@@ -9,7 +9,6 @@ extension UsageMenuCardView.Model {
         let codexProjection: CodexConsumerProjection?
         let credits: CreditsSnapshot?
         let creditsError: String?
-        let dashboard: OpenAIDashboardSnapshot?
         let dashboardError: String?
         let tokenSnapshot: CostUsageTokenSnapshot?
         let tokenError: String?
@@ -56,7 +55,6 @@ extension UsageMenuCardView.Model {
             codexProjection: CodexConsumerProjection? = nil,
             credits: CreditsSnapshot?,
             creditsError: String?,
-            dashboard: OpenAIDashboardSnapshot?,
             dashboardError: String?,
             tokenSnapshot: CostUsageTokenSnapshot?,
             tokenError: String?,
@@ -100,7 +98,6 @@ extension UsageMenuCardView.Model {
             self.codexProjection = codexProjection
             self.credits = credits
             self.creditsError = creditsError
-            self.dashboard = dashboard
             self.dashboardError = dashboardError
             self.tokenSnapshot = tokenSnapshot
             self.tokenError = tokenError

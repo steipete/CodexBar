@@ -61,7 +61,6 @@ struct InlineUsageDashboardBarColorTests {
                     updatedAt: now),
                 credits: nil,
                 creditsError: nil,
-                dashboard: nil,
                 dashboardError: nil,
                 tokenSnapshot: tokenSnapshot,
                 tokenError: nil,

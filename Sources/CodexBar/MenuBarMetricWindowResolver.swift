@@ -13,7 +13,7 @@ enum MenuBarMetricWindowResolver {
     {
         guard let snapshot else { return nil }
         let presentation = ProviderDescriptorRegistry.descriptor(for: provider).presentation
-        let metric = Self.providerMetric(preference)
+        let metric = preference.providerMetric
         switch presentation.menuBarWindow(context: ProviderMenuBarWindowContext(
             metric: metric,
             snapshot: snapshot,
@@ -31,21 +31,10 @@ enum MenuBarMetricWindowResolver {
             return nil
         case .extraUsage:
             return snapshot.providerCost?.spendLimitWindow
-        case .tertiary:
-            return Self.requestedWindow(
-                provider: provider,
-                snapshot: snapshot,
-                lanes: presentation.requestedMenuBarLaneOrder(for: .tertiary))
-        case .primary:
-            return Self.requestedWindow(
-                provider: provider,
-                snapshot: snapshot,
-                lanes: presentation.requestedMenuBarLaneOrder(for: .primary))
-        case .secondary:
-            return Self.requestedWindow(
-                provider: provider,
-                snapshot: snapshot,
-                lanes: presentation.requestedMenuBarLaneOrder(for: .secondary))
+        case .primary, .secondary, .tertiary:
+            return ProviderUsagePresentation.window(
+                in: snapshot,
+                following: presentation.requestedMenuBarLaneOrder(for: metric))
         case .primaryAndSecondary:
             // Claude accounts that only expose an enterprise/extra-usage spend limit have no real
             // session/weekly lanes; surface the spend limit (as `.automatic` does) instead of an empty
@@ -56,8 +45,7 @@ enum MenuBarMetricWindowResolver {
         case .automatic:
             return Self.automaticWindow(
                 presentation: presentation,
-                snapshot: snapshot,
-                now: now)
+                snapshot: snapshot)
         }
     }
 
@@ -84,11 +72,9 @@ enum MenuBarMetricWindowResolver {
 
     private static func automaticWindow(
         presentation: ProviderUsagePresentation,
-        snapshot: UsageSnapshot,
-        now: Date)
+        snapshot: UsageSnapshot)
         -> RateWindow?
     {
-        _ = now
         if presentation.automaticSelectionPrioritizesExhaustedWindow,
            let exhausted = exhaustedWindow(
                primary: snapshot.primary,
@@ -98,19 +84,6 @@ enum MenuBarMetricWindowResolver {
             return exhausted
         }
         return snapshot.primary ?? snapshot.secondary
-    }
-
-    private static func providerMetric(_ preference: MenuBarMetricPreference) -> ProviderMenuBarMetric {
-        switch preference {
-        case .automatic: .automatic
-        case .primary: .primary
-        case .secondary: .secondary
-        case .primaryAndSecondary: .primaryAndSecondary
-        case .tertiary: .tertiary
-        case .extraUsage: .extraUsage
-        case .average: .average
-        case .monthlyPlan: .monthlyPlan
-        }
     }
 
     private static let antigravityQuotaSummaryWindowIDPrefix = "antigravity-quota-summary-"
@@ -196,14 +169,6 @@ enum MenuBarMetricWindowResolver {
             return nil
         }
         return family
-    }
-
-    private static func requestedWindow(
-        provider _: UsageProvider,
-        snapshot: UsageSnapshot,
-        lanes: [ProviderUsageLane]) -> RateWindow?
-    {
-        ProviderUsagePresentation.window(in: snapshot, following: lanes)
     }
 
     private static func exhaustedWindow(

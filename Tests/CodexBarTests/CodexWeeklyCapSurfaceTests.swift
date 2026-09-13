@@ -44,7 +44,6 @@ struct CodexWeeklyCapSurfaceTests {
             codexProjection: projection,
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,

@@ -16,7 +16,6 @@ struct ChutesPresentationTests {
             snapshot: Self.snapshot(now: now),
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,

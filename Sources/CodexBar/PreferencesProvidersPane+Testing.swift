@@ -58,7 +58,7 @@ extension ProvidersPane {
     }
 
     func _test_menuCardModel(for provider: UsageProvider) -> UsageMenuCardView.Model {
-        self.menuCardModel(for: provider)
+        self.store.menuCardModel(for: provider, context: .settings)
     }
 
     func _test_openAIWebDiagnostic(for provider: UsageProvider) -> String? {

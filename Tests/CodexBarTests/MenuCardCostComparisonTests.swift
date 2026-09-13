@@ -99,7 +99,6 @@ struct MenuCardCostComparisonTests {
             snapshot: nil,
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: snapshot,
             tokenError: nil,

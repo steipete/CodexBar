@@ -316,7 +316,6 @@ enum InlineCostCalendarFixture {
             snapshot: UsageSnapshot(primary: nil, secondary: nil, updatedAt: snapshot.updatedAt),
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: snapshot,
             tokenError: nil,

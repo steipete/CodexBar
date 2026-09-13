@@ -55,9 +55,13 @@ read_when:
 - `UsageStore.menuCardInput` assembles cards for Settings, the live menu, and explicit account contexts. It owns common
   quota, pace, warning-marker, and display-preference projection. Settings retains diagnostics and all usage lanes;
   menus retain their cost display policy and account-scoped forecasts. An account context stays isolated even when empty.
+  Cards consume the reconciled Codex projection; the raw dashboard is not a separate model input.
 - App credential properties read directly from the config snapshot and delegate common string writes to the typed
   `SettingsStore` config accessor, which owns normalization, persistence, and secret-update logging. Field activation
   does not trigger credential loading. Legacy provider toggles are read only by the config migrator.
+- Token-cost publications own their snapshots, revisions, and source scope in one store. Raw and current-config readers
+  select from that same state while retaining confirmed-empty and unpublished distinctions. Provider settings and
+  plugin edits reuse Core's config upsert; their defaults and notification policies remain explicit.
 - The native status-item controller owns menu composition. Persistent refresh-row metrics are independent of menu
   rendering, and screenshot fixtures exercise the active card views. Legacy menu-layout resolution retains its
   rendering mode and projected layout without copying unused settings into a second state object.
