@@ -10,7 +10,11 @@ import XCTest
 /// Follows `CodexSwitcherPrivacyNativeProofTests`.
 @MainActor
 final class ClaudeSwapViewOnlyNativeProofTests: XCTestCase {
-    func test_viewOnlyAccountSelection() throws {
+    private struct ProofSetupError: Error, CustomStringConvertible {
+        let description: String
+    }
+
+    private func proofOutputDirectory() throws -> URL {
         let environment = ProcessInfo.processInfo.environment
         guard let path = environment["CODEXBAR_CLAUDE_SWAP_VIEW_PROOF_DIR"] else {
             throw XCTSkip("Set CODEXBAR_CLAUDE_SWAP_VIEW_PROOF_DIR for signed synthetic UI proof")
@@ -22,16 +26,23 @@ final class ClaudeSwapViewOnlyNativeProofTests: XCTestCase {
         // NSHomeDirectory() reads the passwd database rather than $HOME, so that check only holds
         // under a sandbox or container that rewrites the user record; it is deliberately NOT
         // claimed here. Instead the output must live outside the real home, so a run cannot write
-        // artifacts into user space. This case needs no credentials at all: every account below is
-        // constructed inline, and nothing reads config, the Keychain, or runs cswap.
+        // artifacts into user space. No case needs credentials: accounts are synthetic, and the only
+        // executable ever run is a stub script written into the output directory.
         guard environment["CODEXBAR_SUPPRESS_TEST_KEYCHAIN_ACCESS"] == "1",
               environment[CodexCredentialFileAccess.isolationEnvironmentKey] == "1",
               environment["CODEXBAR_TEST_SESSION_FILE_ISOLATION"] == "1",
               environment["CODEXBAR_ALLOW_TEST_KEYCHAIN_ACCESS"] != "1",
               !output.path.hasPrefix(NSHomeDirectory() + "/")
-        else { return XCTFail("Use credential/session isolation and an output path outside the home directory") }
+        else {
+            throw ProofSetupError(
+                description: "Use credential/session isolation and an output path outside the home directory")
+        }
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        return output
+    }
 
+    func test_viewOnlyAccountSelection() throws {
+        let output = try self.proofOutputDirectory()
         let app = NSApplication.shared
         guard app.delegate == nil else { return XCTFail("Use a standalone test host") }
         let previousApp = NSWorkspace.shared.frontmostApplication
@@ -56,7 +67,8 @@ final class ClaudeSwapViewOnlyNativeProofTests: XCTestCase {
         host.makeKeyAndOrderFront(nil)
         app.activate(ignoringOtherApps: true)
 
-        var receipt: [String: Any] = ["syntheticOnly": true, "activationsStarted": 0]
+        // Activation is measured against the production owner in test_menuSegmentClicksNeverActivate.
+        var receipt: [String: Any] = ["syntheticOnly": true]
         for appearance in [NSAppearance.Name.aqua, .darkAqua] {
             host.appearance = NSAppearance(named: appearance)
             let content = NSView(frame: NSRect(x: 0, y: 0, width: 720, height: 340))
@@ -96,6 +108,240 @@ final class ClaudeSwapViewOnlyNativeProofTests: XCTestCase {
         }
         try JSONSerialization.data(withJSONObject: receipt, options: [.sortedKeys, .prettyPrinted])
             .write(to: output.appendingPathComponent("state.json"), options: .atomic)
+    }
+
+    /// Drives the production menu: each click goes through the real switcher view's button action and
+    /// `onSelect` wiring into `handleClaudeSwapAccountSelection`. Activation is measured, not assumed:
+    /// on the store's switch owner after every click, and on a logging stub standing in for cswap.
+    func test_menuSegmentClicksNeverActivate() throws {
+        let output = try self.proofOutputDirectory()
+        let stub = try Self.writeStub(
+            named: "menu-owner",
+            listJSON: Self.listJSON(slots: [2, 7, 9], active: 2),
+            in: output)
+        let (controller, store) = self.makeController(executablePath: stub.executable.path)
+        defer { controller.releaseStatusItemsForTesting() }
+        let menu = controller.makeMenu(for: .claude)
+        controller.menuWillOpen(menu)
+
+        var clicks: [[String: Any]] = []
+        for slot in ["7", "9", "2"] {
+            let switcher = try XCTUnwrap(menu.items.lazy.compactMap { $0.view as? ClaudeSwapAccountSwitcherView }.first)
+            let button = try XCTUnwrap(switcher._test_buttons().first { $0.title.hasSuffix(slot) })
+            button.performClick(nil)
+            RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.3))
+            controller.populateMenu(menu, provider: .claude)
+
+            let viewed = try XCTUnwrap(store.claudeSwapAccountSnapshots.first {
+                $0.id == controller.claudeSwapViewedAccountID
+            })
+            XCTAssertEqual(viewed.id.opaqueID, slot)
+            clicks.append([
+                "clickedSlot": slot,
+                "viewedSlot": viewed.id.opaqueID,
+                "activeSlot": store.claudeSwapAccountSnapshots.first(where: \.isActive)?.id.opaqueID ?? NSNull(),
+                "switchTaskRunning": store.claudeSwapTransientState.task != nil,
+                "switchingSlot": store.claudeSwapTransientState.switchingAccountID?.opaqueID ?? NSNull(),
+                "cardActionLabel": controller.claudeSwapAccountActionLabel(viewed) ?? NSNull(),
+                "cardSwitchActionAvailable": controller.claudeSwapAccountSwitchAction(viewed, menu: menu) != nil,
+            ])
+        }
+        // Give any activation a segment click might have scheduled time to reach the subprocess.
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 1))
+        let invocations = Self.invocations(of: stub)
+        let switchInvocations = invocations.filter { $0.contains("--switch-to") }
+        let activationsStarted = clicks.count(where: {
+            $0["switchTaskRunning"] as? Bool == true || !($0["switchingSlot"] is NSNull)
+        }) + switchInvocations.count
+
+        XCTAssertEqual(activationsStarted, 0)
+        XCTAssertTrue(clicks.allSatisfy { $0["activeSlot"] as? String == "2" })
+        // The explicit card action is still offered exactly where activation is possible.
+        XCTAssertEqual(clicks.map { $0["cardSwitchActionAvailable"] as? Bool }, [true, false, false])
+        XCTAssertEqual(clicks.map { $0["cardActionLabel"] as? String }, ["Switch Account...", nil, "Active"])
+
+        let receipt: [String: Any] = [
+            "syntheticOnly": true,
+            "path": "production menu → ClaudeSwapAccountSwitcherView button → handleClaudeSwapAccountSelection",
+            "clicks": clicks,
+            "stubInvocations": invocations,
+            "activationsStarted": activationsStarted,
+            "cardActionInvoked": false,
+        ]
+        try JSONSerialization.data(withJSONObject: receipt, options: [.sortedKeys, .prettyPrinted])
+            .write(to: output.appendingPathComponent("menu-owner.json"), options: .atomic)
+    }
+
+    /// Executable discovery through the production config loader, shared resolver and account reader,
+    /// against synthetic stubs. Only the default install location is injected, since the real one is the
+    /// user's ~/.local/bin/cswap; explicit paths are also checked against
+    /// `ProviderConfig.resolvedClaudeSwapExecutablePath`, the property both the app and the CLI read.
+    func test_executableDiscovery() async throws {
+        let output = try self.proofOutputDirectory()
+        let installed = try Self.writeStub(
+            named: "default-install", listJSON: Self.listJSON(slots: [2, 7, 9], active: 2), in: output)
+        let explicit = try Self.writeStub(
+            named: "explicit", listJSON: Self.listJSON(slots: [4], active: 4), in: output)
+        let missing = output.appendingPathComponent("stubs/missing/cswap").path
+        let enabled = #""id":"claude","claudeSwapEnabled":true"#
+
+        let scenarios: [(name: String, claude: String, defaultPath: String, expected: String)] = [
+            ("fresh config, cswap installed at the default", enabled, installed.executable.path, "listed 3"),
+            ("fresh config, nothing at the default", enabled, missing, "idle"),
+            (
+                "upgraded config that saved an empty path, cswap installed at the default",
+                enabled + #","claudeSwapExecutablePath":"""#,
+                installed.executable.path,
+                "listed 3"),
+            (
+                "explicit path, default also installed",
+                enabled + #","claudeSwapExecutablePath":"\#(explicit.executable.path)""#,
+                installed.executable.path,
+                "listed 1"),
+            (
+                "explicit path that does not exist, default installed",
+                enabled + #","claudeSwapExecutablePath":"\#(missing)""#,
+                installed.executable.path,
+                "error"),
+        ]
+
+        let configs = output.appendingPathComponent("configs", isDirectory: true)
+        try FileManager.default.createDirectory(at: configs, withIntermediateDirectories: true)
+        var rows: [[String: Any]] = []
+        for (index, scenario) in scenarios.enumerated() {
+            let file = configs.appendingPathComponent("scenario-\(index + 1).json")
+            try #"{"version":1,"providers":[{\#(scenario.claude)}]}"#.write(to: file, atomically: true, encoding: .utf8)
+            let provider = try XCTUnwrap(CodexBarConfigStore(fileURL: file).load()?.providerConfig(for: .claude))
+            let configured = provider.sanitizedClaudeSwapExecutablePath
+            let resolved = ClaudeSwapExecutableResolver.resolve(
+                configured: configured, defaultPath: scenario.defaultPath)
+            if configured != nil {
+                XCTAssertEqual(resolved, provider.resolvedClaudeSwapExecutablePath)
+            }
+
+            let result: String
+            if resolved.isEmpty {
+                result = "idle: no executable resolved, nothing run"
+            } else {
+                do {
+                    let list = try await ClaudeSwapAccountReader.readAccountList(executablePath: resolved)
+                    result = "listed \(list.accounts.count) account(s), active slot "
+                        + (list.activeAccountNumber.map(String.init) ?? "none")
+                } catch {
+                    result = "error: " + Self.redact(error.localizedDescription, output: output)
+                }
+            }
+            XCTAssertTrue(result.hasPrefix(scenario.expected), "\(scenario.name): \(result)")
+            try rows.append([
+                "scenario": scenario.name,
+                "config": Self.redact(String(contentsOf: file, encoding: .utf8), output: output),
+                "defaultPath": Self.redact(scenario.defaultPath, output: output),
+                "resolvedPath": resolved.isEmpty ? NSNull() : Self.redact(resolved, output: output),
+                "result": result,
+            ])
+        }
+
+        // The default stub ran only for the two scenarios that resolved to it; an explicit path,
+        // even a missing one, never fell back to it.
+        XCTAssertEqual(Self.invocations(of: installed).count, 2)
+        XCTAssertEqual(Self.invocations(of: explicit).count, 1)
+
+        let receipt: [String: Any] = [
+            "syntheticOnly": true,
+            "scenarios": rows,
+            "stubInvocations": [
+                "default-install": Self.invocations(of: installed),
+                "explicit": Self.invocations(of: explicit),
+            ],
+            "thisMachine": [
+                "productionDefaultPath": ClaudeSwapExecutableResolver.defaultExecutablePathPlaceholder,
+                "installed": FileManager.default.isExecutableFile(
+                    atPath: ClaudeSwapExecutableResolver.defaultExecutablePath),
+            ],
+        ]
+        try JSONSerialization.data(withJSONObject: receipt, options: [.sortedKeys, .prettyPrinted])
+            .write(to: output.appendingPathComponent("discovery.json"), options: .atomic)
+    }
+
+    private func makeController(executablePath: String) -> (controller: StatusItemController, store: UsageStore) {
+        StatusItemController.menuCardRenderingEnabled = false
+        StatusItemController.setMenuRefreshEnabledForTesting(false)
+        let settings = testSettingsStore(
+            suiteName: "ClaudeSwapViewOnlyNativeProofTests",
+            tokenAccountStore: InMemoryTokenAccountStore())
+        settings.providerDetectionCompleted = true
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+        settings.multiAccountMenuLayout = .segmented
+        settings.hidePersonalInfo = true
+        let registry = ProviderRegistry.shared
+        for provider in UsageProvider.allCases {
+            guard let metadata = registry.metadata[provider] else { continue }
+            settings.setProviderEnabled(provider: provider, metadata: metadata, enabled: provider == .claude)
+        }
+        settings.claudeSwapEnabled = true
+        settings.claudeSwapExecutablePath = executablePath
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        store.claudeSwapAccountSnapshots = Self.accounts()
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: testStatusBar())
+        return (controller, store)
+    }
+
+    private struct Stub {
+        let executable: URL
+        let log: URL
+    }
+
+    /// A synthetic claude-swap stand-in: logs its arguments and prints a fixed schema-v1 list.
+    /// It holds no credentials and cannot switch anything.
+    private static func writeStub(named name: String, listJSON: String, in output: URL) throws -> Stub {
+        let directory = output.appendingPathComponent("stubs/\(name)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let executable = directory.appendingPathComponent("cswap")
+        let log = directory.appendingPathComponent("invocations.log")
+        try? FileManager.default.removeItem(at: log)
+        let script = """
+        #!/bin/sh
+        echo "$*" >> '\(log.path)'
+        if [ "$1" = "--list" ]; then
+        cat <<'JSON'
+        \(listJSON)
+        JSON
+        exit 0
+        fi
+        exit 64
+        """
+        try script.write(to: executable, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executable.path)
+        return Stub(executable: executable, log: log)
+    }
+
+    private static func invocations(of stub: Stub) -> [String] {
+        ((try? String(contentsOf: stub.log, encoding: .utf8)) ?? "")
+            .split(separator: "\n")
+            .map(String.init)
+    }
+
+    private static func listJSON(slots: [Int], active: Int) -> String {
+        let rows = slots.map { slot in
+            #"{"number":\#(slot),"email":"synthetic.\#(slot)@example.com","active":\#(slot == active),"#
+                + #""usageStatus":"ok","usage":{"fiveHour":{"pct":10},"sevenDay":{"pct":20}}}"#
+        }
+        return #"{"schemaVersion":1,"activeAccountNumber":\#(active),"accounts":[\#(rows.joined(separator: ","))]}"#
+    }
+
+    private static func redact(_ text: String, output: URL) -> String {
+        text.replacingOccurrences(of: output.path, with: "$PROOF_DIR")
+            .replacingOccurrences(of: NSHomeDirectory(), with: "~")
     }
 
     private func addSwitcher(viewedSlot: String, y: CGFloat, to content: NSView) -> [String: Any] {
