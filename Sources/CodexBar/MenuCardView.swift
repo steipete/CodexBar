@@ -167,8 +167,8 @@ struct UsageMenuCardView: View {
         let providerName: String
         let email: String
         var accountIdentityFingerprint: String?
-        let subtitleText: String
-        let subtitleStyle: SubtitleStyle
+        var subtitleText: String
+        var subtitleStyle: SubtitleStyle
         var lastKnownUsageText: String?
         var usesLiveSubtitle: Bool = false
         let planText: String?
