@@ -34,8 +34,8 @@ public struct CursorSandUsageStatus: Decodable, Sendable, Equatable {
         guard self.hasNonZeroIncludedLimit == true, let usagePercent = self.usagePercent else {
             return nil
         }
-        let start = Self.parseISO8601(self.currentPeriodStart)
-        let resetsAt = Self.parseISO8601(self.nextResetTimestampUtc)
+        let start = ISO8601DateParser.parse(self.currentPeriodStart)
+        let resetsAt = ISO8601DateParser.parse(self.nextResetTimestampUtc)
         return NamedRateWindow(
             id: Self.extraWindowID,
             title: Self.extraWindowTitle,
@@ -44,13 +44,6 @@ public struct CursorSandUsageStatus: Decodable, Sendable, Equatable {
                 windowMinutes: Self.windowMinutes(start: start, end: resetsAt),
                 resetsAt: resetsAt,
                 resetDescription: resetsAt.map(resetDescription)))
-    }
-
-    static func parseISO8601(_ raw: String?) -> Date? {
-        guard let raw else { return nil }
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter.date(from: raw) ?? ISO8601DateFormatter().date(from: raw)
     }
 
     static func windowMinutes(start: Date?, end: Date?) -> Int? {

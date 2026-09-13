@@ -1548,14 +1548,8 @@ public struct CursorStatusProbe: Sendable {
         sandUsage: CursorSandUsageStatus? = nil,
         identityFallback: CursorSessionIdentity? = nil) -> CursorStatusSnapshot
     {
-        func parseBillingCycleDate(_ dateString: String?) -> Date? {
-            guard let dateString else { return nil }
-            let formatter = ISO8601DateFormatter()
-            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            return formatter.date(from: dateString) ?? ISO8601DateFormatter().date(from: dateString)
-        }
-        let billingCycleStart = parseBillingCycleDate(summary.billingCycleStart)
-        let billingCycleEnd = parseBillingCycleDate(summary.billingCycleEnd)
+        let billingCycleStart = ISO8601DateParser.parse(summary.billingCycleStart)
+        let billingCycleEnd = ISO8601DateParser.parse(summary.billingCycleEnd)
 
         // Convert cents to USD (plan percent derives from raw values to avoid percent unit mismatches).
         // Use plan.limit directly - breakdown.total represents total *used* credits, not the limit.

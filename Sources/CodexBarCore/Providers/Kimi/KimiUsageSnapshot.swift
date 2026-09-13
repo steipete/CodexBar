@@ -37,18 +37,6 @@ public struct KimiUsageSnapshot: Sendable {
         self.updatedAt = updatedAt
     }
 
-    private static func parseDate(_ dateString: String?) -> Date? {
-        guard let dateString else { return nil }
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = formatter.date(from: dateString) {
-            return date
-        }
-        let fallback = ISO8601DateFormatter()
-        fallback.formatOptions = [.withInternetDateTime]
-        return fallback.date(from: dateString)
-    }
-
     private static func clampedPercent(_ value: Double) -> Double {
         min(100, max(0, value))
     }
@@ -93,7 +81,7 @@ extension KimiUsageSnapshot {
             RateWindow(
                 usedPercent: Self.clampedPercent(Double(counts.used) / Double(counts.limit) * 100),
                 windowMinutes: counts.isReliable ? KimiProviderDescriptor.weeklyWindowMinutes : nil,
-                resetsAt: Self.parseDate(self.weekly.resetTime),
+                resetsAt: ISO8601DateParser.parse(self.weekly.resetTime),
                 resetDescription: "\(counts.used)/\(counts.limit) requests")
         }
 
@@ -109,7 +97,7 @@ extension KimiUsageSnapshot {
             return RateWindow(
                 usedPercent: Self.clampedPercent(Double(counts.used) / Double(counts.limit) * 100),
                 windowMinutes: windowMinutes,
-                resetsAt: Self.parseDate(rateLimit.resetTime),
+                resetsAt: ISO8601DateParser.parse(rateLimit.resetTime),
                 resetDescription: Self.rateLimitDescription(
                     used: counts.used,
                     limit: counts.limit,
@@ -126,7 +114,7 @@ extension KimiUsageSnapshot {
             let window = RateWindow(
                 usedPercent: Self.clampedPercent(ratio * 100),
                 windowMinutes: ProviderPaceCapability.monthlyWindowSentinelMinutes,
-                resetsAt: Self.parseDate(balance.expireTime),
+                resetsAt: ISO8601DateParser.parse(balance.expireTime),
                 resetDescription: nil)
             return NamedRateWindow(id: "kimi-monthly", title: "Total usage", window: window)
         }
@@ -137,7 +125,7 @@ extension KimiUsageSnapshot {
             let window = RateWindow(
                 usedPercent: Self.clampedPercent(ratio * 100),
                 windowMinutes: KimiProviderDescriptor.weeklyWindowMinutes,
-                resetsAt: Self.parseDate(limit.resetTime),
+                resetsAt: ISO8601DateParser.parse(limit.resetTime),
                 resetDescription: nil)
             return NamedRateWindow(id: "kimi-code-7d", title: "Code 7-day", window: window)
         }

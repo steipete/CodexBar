@@ -653,7 +653,7 @@ extension ClaudeWebAPIFetcher {
         if let fiveHour {
             sessionPercent = Self.percentValue(from: fiveHour["utilization"])
             if let resetsAt = fiveHour["resets_at"] as? String {
-                sessionResets = self.parseISO8601Date(resetsAt)
+                sessionResets = ISO8601DateParser.parse(resetsAt)
             }
         }
         // Enterprise/credit-based accounts return null for five_hour; treat as 0% rather than an error.
@@ -668,7 +668,7 @@ extension ClaudeWebAPIFetcher {
         if let sevenDay = json["seven_day"] as? [String: Any] {
             weeklyPercent = Self.percentValue(from: sevenDay["utilization"])
             if let resetsAt = sevenDay["resets_at"] as? String {
-                weeklyResets = self.parseISO8601Date(resetsAt)
+                weeklyResets = ISO8601DateParser.parse(resetsAt)
             }
         }
 
@@ -737,17 +737,6 @@ extension ClaudeWebAPIFetcher {
         self.parseAccountInfo(data, orgId: orgId)
     }
     #endif
-
-    private static func parseISO8601Date(_ string: String) -> Date? {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = formatter.date(from: string) {
-            return date
-        }
-        // Try without fractional seconds
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter.date(from: string)
-    }
 
     private static func parseOrganizationResponse(
         _ data: Data,

@@ -428,7 +428,7 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
         let models = response.models ?? [:]
         return models.compactMap { modelID, model in
             guard let quotaInfo = model.quotaInfo else { return nil }
-            let resetTime = quotaInfo.resetTime.flatMap(Self.parseResetTime(_:))
+            let resetTime = ISO8601DateParser.parse(quotaInfo.resetTime)
             let label = model.displayName?.trimmedNonEmpty
                 ?? model.label?.trimmedNonEmpty
                 ?? modelID
@@ -464,7 +464,7 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
 
         return modelQuotaMap.keys.sorted().compactMap { modelID in
             guard let info = modelQuotaMap[modelID] else { return nil }
-            let resetTime = info.resetTime.flatMap(Self.parseResetTime(_:))
+            let resetTime = ISO8601DateParser.parse(info.resetTime)
             return AntigravityModelQuota(
                 label: modelID,
                 modelId: modelID,
@@ -511,16 +511,6 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
             return currentTier
         }
         return nil
-    }
-
-    private static func parseResetTime(_ value: String) -> Date? {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = formatter.date(from: value) {
-            return date
-        }
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter.date(from: value)
     }
 
     private static func credentialsStore(homeDirectory: String) -> AntigravityOAuthCredentialsStore {

@@ -146,7 +146,7 @@ public struct ZoomMateCreditsHistoryFetcher: Sendable {
                 // sorted `time desc`, so an entirely-stale page means all subsequent pages are stale
                 // too), stop here rather than trusting `total`/`maxPages` to eventually end the loop.
                 let allOlderThanWindow = pageRecords.allSatisfy { record in
-                    guard let time = record.time, let parsed = Self.parseRecordTime(time) else { return false }
+                    guard let parsed = ISO8601DateParser.parse(record.time) else { return false }
                     return parsed < startTime
                 }
                 if allOlderThanWindow {
@@ -215,19 +215,6 @@ public struct ZoomMateCreditsHistoryFetcher: Sendable {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
         return formatter.string(from: date)
-    }
-
-    /// Parses a record's `time` field for the pagination date-boundary check. Tries with and
-    /// without fractional seconds, matching the range of ISO8601 shapes the API may return.
-    private static func parseRecordTime(_ text: String) -> Date? {
-        let withFractional = ISO8601DateFormatter()
-        withFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = withFractional.date(from: text) {
-            return date
-        }
-        let plain = ISO8601DateFormatter()
-        plain.formatOptions = [.withInternetDateTime]
-        return plain.date(from: text)
     }
 
     private struct PageRequest {

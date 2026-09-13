@@ -143,7 +143,7 @@ public enum MistralUsageFetcher {
         }
         return MistralVibeUsageResult(
             usagePercentage: json.usagePercentage,
-            resetAt: json.resetAt.flatMap(Self.parseISO8601Date))
+            resetAt: ISO8601DateParser.parse(json.resetAt))
     }
 
     static func parseCredits(data: Data) throws -> MistralCreditsSnapshot {
@@ -191,14 +191,6 @@ public enum MistralUsageFetcher {
             throw MistralUsageError.invalidCredentials
         }
         return token
-    }
-
-    private static func parseISO8601Date(_ value: String) -> Date? {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = formatter.date(from: value) { return date }
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter.date(from: value)
     }
 
     static func parseResponse(data: Data, updatedAt: Date) throws -> MistralUsageSnapshot {
@@ -304,8 +296,8 @@ public enum MistralUsageFetcher {
         }
         let currencySymbol = rawCurrencySymbol.isEmpty ? defaultCurrencySymbol : rawCurrencySymbol
 
-        let startDate = billing.startDate.flatMap { Self.parseDate($0) }
-        let endDate = billing.endDate.flatMap { Self.parseDate($0) }
+        let startDate = ISO8601DateParser.parse(billing.startDate)
+        let endDate = ISO8601DateParser.parse(billing.endDate)
 
         return MistralUsageSnapshot(
             totalCost: totalCost,
@@ -457,14 +449,6 @@ public enum MistralUsageFetcher {
             return String(trimmed.prefix(10))
         }
         return nil
-    }
-
-    private static func parseDate(_ string: String) -> Date? {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = formatter.date(from: string) { return date }
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter.date(from: string)
     }
 }
 

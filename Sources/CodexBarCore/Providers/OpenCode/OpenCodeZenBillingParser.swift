@@ -150,14 +150,7 @@ enum OpenCodeZenBillingParser {
 
     private static func dateValue(from value: Any?) -> Date? {
         if let string = value as? String {
-            let formatter = ISO8601DateFormatter()
-            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            if let parsed = formatter.date(from: string) {
-                return parsed
-            }
-            let plain = ISO8601DateFormatter()
-            plain.formatOptions = [.withInternetDateTime]
-            return plain.date(from: string)
+            return ISO8601DateParser.parse(string)
         }
         if let number = self.doubleValue(from: value) {
             if number > 1_000_000_000_000 {

@@ -57,8 +57,8 @@ public enum GrokCreditsProxyFetcher {
         let subscriptionTier = GrokPlan.displayName(
             from: config.subscriptionTier ?? response.subscriptionTier)
         let resetsAt =
-            config.currentPeriod?.end.flatMap(Self.parseISO8601)
-            ?? config.billingPeriodEnd.flatMap(Self.parseISO8601)
+            ISO8601DateParser.parse(config.currentPeriod?.end)
+            ?? ISO8601DateParser.parse(config.billingPeriodEnd)
 
         if let percent = config.creditUsagePercent, percent.isFinite {
             return GrokWebBillingSnapshot(
@@ -86,16 +86,6 @@ public enum GrokCreditsProxyFetcher {
         }
 
         throw GrokWebBillingError.parseFailed
-    }
-
-    private static func parseISO8601(_ raw: String) -> Date? {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = formatter.date(from: raw) {
-            return date
-        }
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter.date(from: raw)
     }
 
     private struct CreditsResponse: Decodable {

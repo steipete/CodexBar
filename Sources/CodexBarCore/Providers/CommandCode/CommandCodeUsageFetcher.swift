@@ -375,13 +375,6 @@ public enum CommandCodeUsageFetcher {
         guard let s = value as? String else { return nil }
         let trimmed = s.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
-        let fractional = ISO8601DateFormatter()
-        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = fractional.date(from: trimmed) {
-            return date
-        }
-        let plain = ISO8601DateFormatter()
-        plain.formatOptions = [.withInternetDateTime]
-        return plain.date(from: trimmed)
+        return ISO8601DateParser.parse(trimmed)
     }
 }

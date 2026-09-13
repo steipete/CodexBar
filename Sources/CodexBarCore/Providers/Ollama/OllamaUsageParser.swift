@@ -169,14 +169,7 @@ enum OllamaUsageParser {
     private static func parseISODate(in text: String) -> Date? {
         let pattern = #"data-time=\"([^\"]+)\""#
         guard let raw = self.firstCapture(in: text, pattern: pattern, options: []) else { return nil }
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = formatter.date(from: raw) {
-            return date
-        }
-        let fallback = ISO8601DateFormatter()
-        fallback.formatOptions = [.withInternetDateTime]
-        return fallback.date(from: raw)
+        return ISO8601DateParser.parse(raw)
     }
 
     private static func firstCapture(

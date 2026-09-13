@@ -30,7 +30,7 @@ enum ClaudeWebExtraRateWindowParser {
             guard let foundWindow = Self.firstUsageWindow(in: json, keys: definition.keys) else { continue }
             let rawWindow = foundWindow.window
             guard let utilization = Self.percentValue(from: rawWindow["utilization"]) else { continue }
-            let resetsAt = (rawWindow["resets_at"] as? String).flatMap(Self.parseISO8601Date)
+            let resetsAt = ISO8601DateParser.parse(rawWindow["resets_at"] as? String)
             windows.append(Self.namedWindow(
                 id: definition.id,
                 title: definition.title,
@@ -50,7 +50,7 @@ enum ClaudeWebExtraRateWindowParser {
                 kind: entry["kind"] as? String,
                 group: entry["group"] as? String,
                 percent: Self.percentValue(from: entry["percent"]),
-                resetsAt: (entry["resets_at"] as? String).flatMap(Self.parseISO8601Date),
+                resetsAt: ISO8601DateParser.parse(entry["resets_at"] as? String),
                 modelID: model?["id"] as? String,
                 modelName: model?["display_name"] as? String)
         }
@@ -93,15 +93,5 @@ enum ClaudeWebExtraRateWindowParser {
             return doubleValue
         }
         return nil
-    }
-
-    private static func parseISO8601Date(_ string: String) -> Date? {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = formatter.date(from: string) {
-            return date
-        }
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter.date(from: string)
     }
 }

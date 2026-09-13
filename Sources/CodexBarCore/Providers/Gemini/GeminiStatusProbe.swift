@@ -992,7 +992,7 @@ public struct GeminiStatusProbe: Sendable {
         let quotas = modelQuotaMap
             .sorted { $0.key < $1.key }
             .map { modelId, info in
-                let resetDate = info.resetString.flatMap { Self.parseResetTime($0) }
+                let resetDate = ISO8601DateParser.parse(info.resetString)
                 return GeminiModelQuota(
                     modelId: modelId,
                     percentLeft: info.fraction * 100,
@@ -1009,19 +1009,8 @@ public struct GeminiStatusProbe: Sendable {
             accountPlan: nil)
     }
 
-    private static func parseResetTime(_ isoString: String) -> Date? {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-
-        if let date = formatter.date(from: isoString) {
-            return date
-        }
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter.date(from: isoString)
-    }
-
     private static func formatResetTime(_ isoString: String) -> String {
-        guard let resetDate = parseResetTime(isoString) else {
+        guard let resetDate = ISO8601DateParser.parse(isoString) else {
             return "Resets soon"
         }
 

@@ -52,7 +52,7 @@ enum PiFamilySessionFileParser {
             titleSlotWasPresent ? titleSlot : header["title"] as? String
         }
         let sessionName = rawTitle.flatMap(Self.sanitizedTitle)
-        let startedAt = (header["timestamp"] as? String).flatMap(Self.parseDate)
+        let startedAt = ISO8601DateParser.parse(header["timestamp"] as? String)
 
         return PiFamilySessionRecord(
             id: id,
@@ -126,17 +126,6 @@ enum PiFamilySessionFileParser {
               let dictionary = object as? [String: Any]
         else { return nil }
         return dictionary
-    }
-
-    private static func parseDate(_ value: String) -> Date? {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = formatter.date(from: value) {
-            return date
-        }
-
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter.date(from: value)
     }
 
     private static func sanitizedTitle(_ value: String) -> String? {

@@ -136,12 +136,8 @@ public enum MiMoLocalUsageFallback {
     }
 
     private static func updatedAt(json: [String: Any], url: URL, fallback: Date) -> Date {
-        if let raw = json["updated_at"] as? String {
-            let fractional = ISO8601DateFormatter()
-            fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            if let parsed = fractional.date(from: raw) ?? ISO8601DateFormatter().date(from: raw) {
-                return parsed
-            }
+        if let parsed = ISO8601DateParser.parse(json["updated_at"] as? String) {
+            return parsed
         }
         return (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? fallback
     }

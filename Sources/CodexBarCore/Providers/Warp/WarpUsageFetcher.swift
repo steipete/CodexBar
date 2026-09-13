@@ -271,7 +271,7 @@ public struct WarpUsageFetcher: Sendable {
 
         var nextRefreshTime: Date?
         if let nextRefreshTimeString = limitInfo["nextRefreshTime"] as? String {
-            nextRefreshTime = Self.parseDate(nextRefreshTimeString)
+            nextRefreshTime = ISO8601DateParser.parse(nextRefreshTimeString)
         }
 
         // Parse and combine bonus credits from user-level and workspace-level
@@ -358,7 +358,7 @@ public struct WarpUsageFetcher: Sendable {
     private static func parseBonusGrant(from grant: [String: Any]) -> BonusGrant {
         let granted = self.intValue(grant["requestCreditsGranted"])
         let remaining = self.intValue(grant["requestCreditsRemaining"])
-        let expiration = (grant["expiration"] as? String).flatMap(Self.parseDate)
+        let expiration = ISO8601DateParser.parse(grant["expiration"] as? String)
         return BonusGrant(granted: granted, remaining: remaining, expiration: expiration)
     }
 
@@ -450,16 +450,5 @@ public struct WarpUsageFetcher: Sendable {
         }
         let limitIndex = collapsed.index(collapsed.startIndex, offsetBy: maxLength)
         return "\(collapsed[..<limitIndex])..."
-    }
-
-    private static func parseDate(_ dateString: String) -> Date? {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = formatter.date(from: dateString) {
-            return date
-        }
-        let fallback = ISO8601DateFormatter()
-        fallback.formatOptions = [.withInternetDateTime]
-        return fallback.date(from: dateString)
     }
 }

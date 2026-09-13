@@ -162,17 +162,6 @@ enum ClaudeOAuthUsageFetcher {
         return try decoder.decode(OAuthUsageResponse.self, from: data)
     }
 
-    static func parseISO8601Date(_ string: String?) -> Date? {
-        guard let string, !string.isEmpty else { return nil }
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = formatter.date(from: string) {
-            return date
-        }
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter.date(from: string)
-    }
-
     private static func retryAfterDate(from response: HTTPURLResponse, now: Date = Date()) -> Date? {
         guard let raw = response.value(forHTTPHeaderField: "Retry-After")?
             .trimmingCharacters(in: .whitespacesAndNewlines),

@@ -441,7 +441,7 @@ public struct LiteLLMUsageFetcher: Sendable {
                 teamID: teamID,
                 keyName: decoded.info.keyName,
                 spendUSD: decoded.info.spend ?? 0,
-                expiresAt: self.parseDate(decoded.info.expires))
+                expiresAt: ISO8601DateParser.parse(decoded.info.expires))
         } catch let error as LiteLLMUsageError {
             throw error
         } catch {
@@ -476,14 +476,14 @@ public struct LiteLLMUsageFetcher: Sendable {
                 accountEmail: accountEmail,
                 personalSpendUSD: decoded.userInfo.spend ?? 0,
                 personalBudgetUSD: decoded.userInfo.maxBudget,
-                personalResetAt: self.parseDate(decoded.userInfo.budgetResetAt),
+                personalResetAt: ISO8601DateParser.parse(decoded.userInfo.budgetResetAt),
                 teamUsage: team.map {
                     LiteLLMUsageSnapshot.TeamUsage(
                         id: $0.teamID,
                         alias: $0.teamAlias,
                         spendUSD: $0.spend ?? 0,
                         budgetUSD: $0.maxBudget,
-                        resetAt: self.parseDate($0.budgetResetAt),
+                        resetAt: ISO8601DateParser.parse($0.budgetResetAt),
                         budgetDuration: $0.budgetDuration)
                 },
                 keyName: keyInfo.keyName,
@@ -524,7 +524,7 @@ public struct LiteLLMUsageFetcher: Sendable {
                     alias: team.teamAlias,
                     spendUSD: team.spend ?? 0,
                     budgetUSD: team.maxBudget,
-                    resetAt: self.parseDate(team.budgetResetAt),
+                    resetAt: ISO8601DateParser.parse(team.budgetResetAt),
                     budgetDuration: team.budgetDuration),
                 keyName: keyInfo.keyName,
                 keyExpiresAt: keyInfo.expiresAt,
@@ -542,22 +542,6 @@ public struct LiteLLMUsageFetcher: Sendable {
     {
         guard let teams, let keyTeamID else { return nil }
         return teams.first(where: { $0.teamID == keyTeamID })
-    }
-
-    private static func parseDate(_ raw: String?) -> Date? {
-        guard let raw else { return nil }
-        if let date = self.iso8601DateFormatter(fractionalSeconds: true).date(from: raw) {
-            return date
-        }
-        return self.iso8601DateFormatter(fractionalSeconds: false).date(from: raw)
-    }
-
-    private static func iso8601DateFormatter(fractionalSeconds: Bool) -> ISO8601DateFormatter {
-        let formatter = ISO8601DateFormatter()
-        if fractionalSeconds {
-            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        }
-        return formatter
     }
 
     private static func firstNonEmpty(_ values: String?...) -> String? {

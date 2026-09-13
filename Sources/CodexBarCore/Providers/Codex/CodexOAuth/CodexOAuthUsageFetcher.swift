@@ -733,11 +733,7 @@ public enum CodexOAuthUsageFetcher {
     private static func decodeISO8601Date(from decoder: Decoder) throws -> Date {
         let container = try decoder.singleValueContainer()
         let raw = try container.decode(String.self)
-        let fractional = ISO8601DateFormatter()
-        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let seconds = ISO8601DateFormatter()
-        seconds.formatOptions = [.withInternetDateTime]
-        if let date = fractional.date(from: raw) ?? seconds.date(from: raw) {
+        if let date = ISO8601DateParser.parse(raw) {
             return date
         }
         throw DecodingError.dataCorruptedError(

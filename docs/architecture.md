@@ -69,6 +69,8 @@ read_when:
   rendering mode and projected layout without copying unused settings into a second state object.
 - `SettingsValue` owns whitespace and wrapping-quote normalization for config and provider settings. Readers retain
   their credential precedence, endpoint validation, and provider-specific decoding.
+- `ISO8601DateParser` owns fractional-first internet timestamp parsing with a whole-second fallback. Provider readers
+  retain their text extraction, whitespace, numeric timestamp, and custom-format policies; each parse owns its formatter.
 - Kilo's CLI fetch strategy and organization discovery share `KiloBearerTokenResolver` for auth-file loading.
   Vertex AI credential loading and renewal share display-only ID-token decoding; diagnostic fetch labels use
   `ProviderDiagnosticFetchAttempt` across the app and CLI.

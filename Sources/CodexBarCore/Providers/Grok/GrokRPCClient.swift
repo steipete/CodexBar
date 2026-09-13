@@ -322,13 +322,11 @@ extension GrokBillingResponse {
     }
 
     public var billingPeriodEndDate: Date? {
-        guard let raw = self.billingCycle?.billingPeriodEnd else { return nil }
-        return GrokBillingResponse.parseISO8601(raw)
+        ISO8601DateParser.parse(self.billingCycle?.billingPeriodEnd)
     }
 
     public var billingPeriodStartDate: Date? {
-        guard let raw = self.billingCycle?.billingPeriodStart else { return nil }
-        return GrokBillingResponse.parseISO8601(raw)
+        ISO8601DateParser.parse(self.billingCycle?.billingPeriodStart)
     }
 
     public var billingPeriodMinutes: Int? {
@@ -337,13 +335,5 @@ extension GrokBillingResponse {
               end > start
         else { return nil }
         return Int(end.timeIntervalSince(start) / 60)
-    }
-
-    private static func parseISO8601(_ raw: String) -> Date? {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = formatter.date(from: raw) { return date }
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter.date(from: raw)
     }
 }

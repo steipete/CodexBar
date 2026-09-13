@@ -196,7 +196,7 @@ public enum ZenMuxUsageFetcher {
 
         return ZenMuxUsageSnapshot(
             planTier: response.data.plan.tier,
-            subscriptionExpiresAt: self.date(response.data.plan.expiresAt),
+            subscriptionExpiresAt: ISO8601DateParser.parse(response.data.plan.expiresAt),
             accountStatus: response.data.accountStatus,
             fiveHour: response.data.quota5Hour.snapshot(),
             weekly: response.data.quota7Day.snapshot(),
@@ -217,13 +217,6 @@ public enum ZenMuxUsageFetcher {
             throw ZenMuxUsageError.parseFailed("balance currency is not USD")
         }
         return response.data.totalCredits
-    }
-
-    fileprivate static func date(_ raw: String?) -> Date? {
-        guard let raw else { return nil }
-        let fractional = ISO8601DateFormatter()
-        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return fractional.date(from: raw) ?? ISO8601DateFormatter().date(from: raw)
     }
 }
 
@@ -257,7 +250,7 @@ private struct SubscriptionEnvelope: Decodable {
             func snapshot() -> ZenMuxUsageSnapshot.QuotaWindow {
                 ZenMuxUsageSnapshot.QuotaWindow(
                     usageFraction: self.usagePercentage,
-                    resetsAt: ZenMuxUsageFetcher.date(self.resetsAt),
+                    resetsAt: ISO8601DateParser.parse(self.resetsAt),
                     maxFlows: self.maxFlows,
                     usedFlows: self.usedFlows,
                     remainingFlows: self.remainingFlows)

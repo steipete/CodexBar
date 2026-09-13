@@ -216,7 +216,7 @@ public enum ClaudeSwapListParser {
             fiveHour: self.parseWindow(usage?["fiveHour"], slot: number, name: "fiveHour"),
             sevenDay: self.parseWindow(usage?["sevenDay"], slot: number, name: "sevenDay"),
             scoped: self.parseScopedWindows(usage?["scoped"]),
-            usageFetchedAt: (row["usageFetchedAt"] as? String).flatMap(self.parseTimestamp))
+            usageFetchedAt: ISO8601DateParser.parse(row["usageFetchedAt"] as? String))
     }
 
     private static func parseWindow(_ raw: Any?, slot: Int, name: String) throws -> ClaudeSwapUsageWindow? {
@@ -229,7 +229,7 @@ public enum ClaudeSwapListParser {
         }
         var resetsAt: Date?
         if let rawResetsAt = window["resetsAt"] {
-            guard let text = rawResetsAt as? String, let date = Self.parseTimestamp(text) else {
+            guard let text = rawResetsAt as? String, let date = ISO8601DateParser.parse(text) else {
                 throw ClaudeSwapListParserError.malformedShape("slot \(slot) \(name) resetsAt is not a timestamp")
             }
             resetsAt = date
@@ -250,7 +250,7 @@ public enum ClaudeSwapListParser {
 
             var resetsAt: Date?
             if let rawResetsAt = row["resetsAt"] {
-                guard let text = rawResetsAt as? String, let date = self.parseTimestamp(text) else { return nil }
+                guard let text = rawResetsAt as? String, let date = ISO8601DateParser.parse(text) else { return nil }
                 resetsAt = date
             }
             return ClaudeSwapScopedUsageWindow(
@@ -274,16 +274,5 @@ public enum ClaudeSwapListParser {
         guard CFGetTypeID(number) != CFBooleanGetTypeID() else { return nil }
         let value = number.doubleValue
         return value.isFinite ? value : nil
-    }
-
-    private static func parseTimestamp(_ text: String) -> Date? {
-        let withFraction = ISO8601DateFormatter()
-        withFraction.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = withFraction.date(from: text) {
-            return date
-        }
-        let plain = ISO8601DateFormatter()
-        plain.formatOptions = [.withInternetDateTime]
-        return plain.date(from: text)
     }
 }

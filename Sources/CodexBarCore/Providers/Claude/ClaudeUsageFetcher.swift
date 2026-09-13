@@ -1017,7 +1017,7 @@ extension ClaudeUsageFetcher {
             guard let window,
                   let utilization = window.utilization
             else { return nil }
-            let resetDate = ClaudeOAuthUsageFetcher.parseISO8601Date(window.resetsAt)
+            let resetDate = ISO8601DateParser.parse(window.resetsAt)
             let resetDescription = resetDate.map(Self.formatResetDate)
             return RateWindow(
                 usedPercent: utilization,
@@ -1155,7 +1155,7 @@ extension ClaudeUsageFetcher {
         }
         let routineWindows: [NamedRateWindow] = definitions.compactMap { definition in
             guard let window = definition.window, let utilization = window.utilization else { return nil }
-            let resetDate = ClaudeOAuthUsageFetcher.parseISO8601Date(window.resetsAt)
+            let resetDate = ISO8601DateParser.parse(window.resetsAt)
             let resetDescription = resetDate.map(Self.formatResetDate)
             return NamedRateWindow(
                 id: definition.id,
@@ -1177,7 +1177,7 @@ extension ClaudeUsageFetcher {
                 kind: entry.kind,
                 group: entry.group,
                 percent: entry.percent,
-                resetsAt: ClaudeOAuthUsageFetcher.parseISO8601Date(entry.resetsAt),
+                resetsAt: ISO8601DateParser.parse(entry.resetsAt),
                 modelID: entry.scope?.model?.id,
                 modelName: entry.scope?.model?.displayName)
         }

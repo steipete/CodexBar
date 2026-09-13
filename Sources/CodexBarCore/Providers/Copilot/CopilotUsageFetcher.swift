@@ -232,15 +232,7 @@ public struct CopilotUsageFetcher: Sendable {
             return nil
         }
 
-        let fractionalISO = ISO8601DateFormatter()
-        fractionalISO.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = fractionalISO.date(from: raw) {
-            return date
-        }
-
-        let internetISO = ISO8601DateFormatter()
-        internetISO.formatOptions = [.withInternetDateTime]
-        if let date = internetISO.date(from: raw) {
+        if let date = ISO8601DateParser.parse(raw) {
             return date
         }
 
