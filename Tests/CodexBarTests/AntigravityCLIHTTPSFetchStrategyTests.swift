@@ -1126,6 +1126,129 @@ extension AntigravityCLIHTTPSFetchStrategyTests {
         }
         #expect(attempts.value == 2)
     }
+
+    @Test
+    func `parseQuotaSummaryResponse parses agy print usage JSON`() throws {
+        let json = """
+        {
+          "conversation_id": "",
+          "status": "SUCCESS",
+          "response": "Gemini Models\\tWeekly Limit Remaining\\t86%\\t2026-09-17T18:40:27Z\\nGemini Models\\tFive Hour Limit Remaining\\t95%\\t2026-09-13T03:48:04Z\\nClaude and GPT models\\tWeekly Limit Remaining\\t89%\\t2026-09-17T02:38:46Z\\nClaude and GPT models\\tFive Hour Limit Remaining\\t100%\\t2026-09-13T05:29:19Z\\n",
+          "duration_seconds": 0,
+          "num_turns": 0,
+          "usage": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "thinking_tokens": 0,
+            "cache_read_tokens": 0,
+            "total_tokens": 0
+          },
+          "command": {
+            "name": "usage",
+            "data": {
+              "description": "Models share limits",
+              "groups": [
+                {
+                  "name": "Gemini Models",
+                  "description": "Gemini models",
+                  "buckets": [
+                    {
+                      "id": "gemini-weekly",
+                      "name": "Weekly Limit Remaining",
+                      "description": "Weekly limit",
+                      "window": "weekly",
+                      "remaining_fraction": 0.86,
+                      "reset_time": "2026-09-17T18:40:27Z"
+                    },
+                    {
+                      "id": "gemini-5h",
+                      "name": "Five Hour Limit Remaining",
+                      "description": "5-hour limit",
+                      "window": "5h",
+                      "remaining_fraction": 0.95,
+                      "reset_time": "2026-09-13T03:48:04Z"
+                    }
+                  ]
+                },
+                {
+                  "name": "Claude and GPT models",
+                  "description": "3p models",
+                  "buckets": [
+                    {
+                      "id": "3p-weekly",
+                      "name": "Weekly Limit Remaining",
+                      "description": "Weekly limit",
+                      "window": "weekly",
+                      "remaining_fraction": 0.89,
+                      "reset_time": "2026-09-17T02:38:46Z"
+                    },
+                    {
+                      "id": "3p-5h",
+                      "name": "Five Hour Limit Remaining",
+                      "window": "5h",
+                      "remaining_fraction": 1.0,
+                      "reset_time": "2026-09-13T05:29:19Z"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+        """
+
+        let snapshot = try AntigravityStatusProbe.parseQuotaSummaryResponse(Data(json.utf8))
+        let usage = try snapshot.toUsageSnapshot()
+
+        #expect(usage.primary != nil)
+        #expect(usage.secondary != nil)
+        #expect(usage.extraRateWindows?.count == 4)
+    }
+
+    @Test
+    func `cli fetch strategy succeeds using printUsageRunner`() async throws {
+        let json = """
+        {
+          "status": "SUCCESS",
+          "command": {
+            "name": "usage",
+            "data": {
+              "groups": [
+                {
+                  "name": "Gemini Models",
+                  "buckets": [
+                    {
+                      "id": "gemini-5h",
+                      "name": "Five Hour Limit Remaining",
+                      "window": "5h",
+                      "remaining_fraction": 0.95
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+        """
+
+        let strategy = AntigravityCLIHTTPSFetchStrategy(printUsageRunner: { _, _, _, _ in
+            SubprocessResult(stdout: json, stderr: "")
+        })
+
+        var tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        let fakeBinary = tempDir.appendingPathComponent("agy")
+        FileManager.default.createFile(atPath: fakeBinary.path, contents: Data())
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        var env: [String: String] = [:]
+        env["PATH"] = tempDir.path
+
+        let context = self.makeFetchContext(sourceMode: .cli, env: env)
+        let result = try await strategy.fetch(context)
+        #expect(result.sourceLabel == "cli")
+        #expect(result.usage.primary != nil)
+    }
 }
 
 private struct AntigravityFallbackFixtureStrategy: ProviderFetchStrategy {

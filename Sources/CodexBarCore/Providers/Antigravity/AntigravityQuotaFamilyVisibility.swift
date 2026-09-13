@@ -5,14 +5,14 @@ import Foundation
 /// known zero usage. Menu bar and icon selection rank by highest used, so an untouched family
 /// never wins there and this stays a display-only filter.
 public enum AntigravityQuotaFamilyVisibility {
-    package enum KnownFamily: String {
+    public enum KnownFamily: String {
         case gemini
         case claudeGPT = "claude-gpt"
     }
 
     /// Stable bucket IDs take precedence over display titles on every surface.
     /// Provider-specific by design: these tokens classify Antigravity quota families, not provider routing.
-    package static func knownFamily(windowID: String, title: String) -> KnownFamily? {
+    public static func knownFamily(windowID: String, title: String) -> KnownFamily? {
         guard AntigravityStatusSnapshot.isQuotaSummaryWindowID(windowID) else { return nil }
         let id = windowID.lowercased()
         if id.contains("gemini") { return .gemini }
