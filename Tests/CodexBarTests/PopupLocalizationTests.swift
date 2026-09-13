@@ -301,12 +301,12 @@ struct PopupLocalizationTests {
             settings: settings,
             startupBehavior: .testing)
         let pane = ProvidersPane(provider: .t3chat, settings: settings, store: store)
-        let picker = try #require(pane.extraSettingsPickers(for: .t3chat).first)
-        let windsurf = try #require(pane.extraSettingsPickers(for: .windsurf)
+        let picker = try #require(pane._test_settingsPickers(for: .t3chat).first)
+        let windsurf = try #require(pane._test_settingsPickers(for: .windsurf)
             .first { $0.id == "windsurf-cookie-source" })
         settings.alibabaTokenPlanCookieSource = .manual
         settings.alibabaTokenPlanAPIRegion = .international
-        let alibaba = try #require(pane.extraSettingsPickers(for: .alibabatokenplan)
+        let alibaba = try #require(pane._test_settingsPickers(for: .alibabatokenplan)
             .first { $0.id == "alibaba-token-plan-cookie-source" })
 
         CodexBarLocalizationOverride.$appLanguage.withValue("zh-Hant") {
