@@ -56,18 +56,7 @@ extension StatusItemController {
             snapshot: snapshot,
             warningFlash: warningFlash,
             now: now)
-        let appearanceName = button.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua])?.rawValue ?? "default"
-        let options = MenuBarLayoutRenderOptions(
-            size: self.settings.menuBarLayoutSize,
-            highContrast: self.shouldUseHighContrastStatusItemContent,
-            showUsed: self.settings.usageBarsShowUsed,
-            conditionals: self.settings.menuBarLayoutConditionals,
-            appearanceName: appearanceName,
-            isDebugApp: Self.isDebugApp(bundleIdentifier: Bundle.main.bundleIdentifier),
-            isStale: self.store.isStale(provider: provider),
-            now: now,
-            verticalAdjustment: self.settings.menuBarLayoutVerticalAdjustment,
-            colorPace: self.settings.menuBarColorPace)
+        let options = self.menuBarLayoutRenderOptions(for: provider, button: button, now: now)
         let rendered = self.menuBarLayoutRenderer.render(
             layout: resolution.layout,
             data: data,
@@ -86,6 +75,16 @@ extension StatusItemController {
             && button.attributedTitle.isEqual(to: expectedTitle)
         self.setButtonLayoutContent(rendered, for: button, statusItem: statusItem)
         return wasCached
+    }
+
+    /// The resolved (top, bottom) stacked providers when the merged icon is actively using the
+    /// Stacked style, or nil when icons aren't merged, the style is Switcher, or fewer than two
+    /// providers are active. Shared by rendering, icon-change observation, and refresh scheduling so
+    /// all three always agree on which providers the stacked icon is showing.
+    func stackedMergeIconProvidersIfActive() -> (top: UsageProvider, bottom: UsageProvider)? {
+        guard self.shouldMergeIcons, self.settings.mergedIconDisplayStyle == .stacked else { return nil }
+        return self.settings.resolvedMergeIconStackedProviders(
+            activeProviders: self.store.enabledFirstPartyProvidersForDisplay())
     }
 
     /// Renders exactly two providers' own first configured line stacked on top of each other in the
@@ -132,9 +131,29 @@ extension StatusItemController {
             snapshot: snapshot,
             warningFlash: warningFlash,
             now: now)
-        let appearanceName = self.statusItem.button?.effectiveAppearance
-            .bestMatch(from: [.darkAqua, .aqua])?.rawValue ?? "default"
-        let options = MenuBarLayoutRenderOptions(
+        let options = self.menuBarLayoutRenderOptions(
+            for: provider,
+            button: self.statusItem.button,
+            now: now,
+            forceStackedStyle: true)
+        return self.menuBarLayoutRenderer.render(
+            layout: MenuBarLayout(lines: [firstLine]),
+            data: data,
+            icon: icon,
+            options: options)
+    }
+
+    /// Shared option-building for both single-provider and stacked-row layout rendering; only the
+    /// appearance-source button and `forceStackedStyle` differ between callers.
+    private func menuBarLayoutRenderOptions(
+        for provider: UsageProvider,
+        button: NSButton?,
+        now: Date,
+        forceStackedStyle: Bool = false)
+        -> MenuBarLayoutRenderOptions
+    {
+        let appearanceName = button?.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua])?.rawValue ?? "default"
+        return MenuBarLayoutRenderOptions(
             size: self.settings.menuBarLayoutSize,
             highContrast: self.shouldUseHighContrastStatusItemContent,
             showUsed: self.settings.usageBarsShowUsed,
@@ -145,12 +164,7 @@ extension StatusItemController {
             now: now,
             verticalAdjustment: self.settings.menuBarLayoutVerticalAdjustment,
             colorPace: self.settings.menuBarColorPace,
-            forceStackedStyle: true)
-        return self.menuBarLayoutRenderer.render(
-            layout: MenuBarLayout(lines: [firstLine]),
-            data: data,
-            icon: icon,
-            options: options)
+            forceStackedStyle: forceStackedStyle)
     }
 
     func menuBarLayoutRenderData(

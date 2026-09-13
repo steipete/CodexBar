@@ -11,6 +11,10 @@ extension StatusItemController {
         2.7 / StatusItemController.loadingAnimationFPS
     private nonisolated static let loadingAnimationMaxContinuousDuration: TimeInterval = 30.0
     func needsMenuBarIconAnimation() -> Bool {
+        if let stackedProviders = self.stackedMergeIconProvidersIfActive() {
+            return self.shouldAnimate(provider: stackedProviders.top)
+                || self.shouldAnimate(provider: stackedProviders.bottom)
+        }
         if self.shouldMergeIcons {
             let primaryProvider = self.primaryProviderForUnifiedIcon()
             return self.shouldAnimate(provider: primaryProvider)
@@ -270,9 +274,7 @@ extension StatusItemController {
         let snapshot = self.store.menuBarSnapshot(for: primaryProvider.instanceID)
         let warningFlash = self.quotaWarningFlashActive(provider: primaryProvider)
 
-        if self.shouldMergeIcons, self.settings.mergedIconDisplayStyle == .stacked,
-           let rows = self.settings.resolvedMergeIconStackedProviders(
-               activeProviders: self.store.enabledFirstPartyProvidersForDisplay()),
+        if let rows = self.stackedMergeIconProvidersIfActive(),
            let stackedResult = self.applyStoredStackedMenuBarLayoutIfNeeded(top: rows.top, bottom: rows.bottom)
         {
             return stackedResult
