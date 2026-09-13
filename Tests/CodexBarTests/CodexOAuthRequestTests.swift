@@ -124,6 +124,92 @@ struct CodexOAuthRequestTests {
     #endif
 
     @Test
+    func `subscription request includes account query and maps renewal into usage`() async throws {
+        let expectedRenewal = try #require(ISO8601DateFormatter().date(from: "2026-09-08T09:34:05Z"))
+        let payload = Data(#"{"active_until":"2026-09-08T09:34:05Z","will_renew":true}"#.utf8)
+        let transport = ProviderHTTPTransportStub { request in
+            let url = try #require(request.url)
+            let components = try #require(URLComponents(url: url, resolvingAgainstBaseURL: false))
+            #expect(components.path == "/backend-api/subscriptions")
+            #expect(components.queryItems == [URLQueryItem(name: "account_id", value: "account-a")])
+            #expect(request.httpMethod == "GET")
+            #expect(request.timeoutInterval == 3)
+            #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer token-a")
+            #expect(request.value(forHTTPHeaderField: "ChatGPT-Account-Id") == "account-a")
+            #expect(request.value(forHTTPHeaderField: "Accept") == "application/json")
+            let response = try #require(HTTPURLResponse(
+                url: url,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]))
+            return (payload, response)
+        }
+
+        let subscription = await CodexOAuthUsageFetcher.fetchSubscription(
+            accessToken: "token-a",
+            accountId: "account-a",
+            env: ["CODEX_HOME": "/tmp/codexbar-subscription-request-test"],
+            timeout: 3,
+            session: transport)
+
+        #expect(subscription?.renewsAt == expectedRenewal)
+        #expect(subscription?.expiresAt == nil)
+        #expect(await transport.requests().count == 1)
+
+        let usageResponse = try CodexOAuthUsageFetcher._decodeUsageResponseForTesting(Data(#"""
+        {
+          "rate_limit": {
+            "secondary_window": {
+              "used_percent": 47,
+              "reset_at": 1788272120,
+              "limit_window_seconds": 604800
+            }
+          }
+        }
+        """#.utf8))
+        let credentials = CodexOAuthCredentials(
+            accessToken: "token-a",
+            refreshToken: "refresh-a",
+            idToken: nil,
+            accountId: "account-a",
+            lastRefresh: nil)
+        let state = try #require(CodexReconciledState.fromOAuth(
+            response: usageResponse,
+            credentials: credentials,
+            subscription: subscription,
+            updatedAt: Date(timeIntervalSince1970: 1)))
+        #expect(state.toUsageSnapshot().subscriptionRenewsAt == expectedRenewal)
+    }
+
+    @Test
+    func `nonrenewing subscription maps its period end as expiry`() throws {
+        let expectedExpiry = try #require(ISO8601DateFormatter().date(from: "2026-09-08T09:34:05Z"))
+        let payload = Data(#"{"active_until":"2026-09-08T09:34:05Z","will_renew":false}"#.utf8)
+
+        let subscription = try #require(OpenAISubscriptionDates.parse(data: payload))
+
+        #expect(subscription.expiresAt == expectedExpiry)
+        #expect(subscription.renewsAt == nil)
+    }
+
+    @Test
+    func `subscription request without account id is skipped`() async {
+        let transport = ProviderHTTPTransportStub { _ in
+            Issue.record("Subscription transport should not run without an account ID")
+            throw URLError(.badURL)
+        }
+
+        let subscription = await CodexOAuthUsageFetcher.fetchSubscription(
+            accessToken: "token-a",
+            accountId: "  ",
+            env: ["CODEX_HOME": "/tmp/codexbar-subscription-request-test"],
+            session: transport)
+
+        #expect(subscription == nil)
+        #expect(await transport.requests().isEmpty)
+    }
+
+    @Test
     func `token refresh request uses isolated cache policy`() async throws {
         let transport = ProviderHTTPTransportStub { request in
             #expect(request.url?.absoluteString == "https://auth.openai.com/oauth/token")
