@@ -169,6 +169,10 @@ extension StatusItemController {
     }
 
     func menuDidClose(_ menu: NSMenu) {
+        // Only a top-level close acknowledges a shown success; submenus (System Account) close while it is visible.
+        if menu.supermenu == nil {
+            self.systemAccountSwitchFeedback.menuDidClose()
+        }
         let wasHostedSubviewMenu = self.isHostedSubviewMenu(menu)
         self.forgetClosedMenu(menu)
         if wasHostedSubviewMenu {
@@ -743,7 +747,9 @@ extension StatusItemController {
             return false
         }
 
-        guard let model = self.menuCardModel(for: context.selectedProvider) else { return false }
+        guard let builtModel = self.menuCardModel(for: context.selectedProvider) else { return false }
+        let model = self.systemAccountSwitchFeedback.subtitle(for: builtModel.provider, accountID: nil)
+            .map { builtModel.applyingSubtitle(text: $0.text, style: $0.style) } ?? builtModel
         let renderedModel = self.menuCardRefreshMonitor.model(for: model.provider, fallback: model)
         if context.openAIContext.hasOpenAIWebMenuItems ||
             self.requiresSectionedMenuForProviderDerivedCost(provider: context.currentProvider)

@@ -262,32 +262,6 @@ struct CodexProviderImplementation: ProviderImplementation {
         if context.codexWorkspacesMenuEnabled {
             entries.append(.action(L("Workspaces"), .openCodexWorkspaces))
         }
-
-        let projection = context.settings.codexVisibleAccountProjection
-        guard !projection.visibleAccounts.isEmpty else { return }
-
-        let isInteractionBlocked = context.codexAccountPromotionCoordinator?.isInteractionBlocked() ?? false
-
-        let submenuItems = projection.visibleAccounts.map { account in
-            let isChecked = account.id == projection.liveVisibleAccountID
-            let isEnabled = !isInteractionBlocked &&
-                !isChecked &&
-                account.storedAccountID != nil
-            let action = account.storedAccountID.map(MenuDescriptor.MenuAction.requestCodexSystemPromotion)
-            return MenuDescriptor.SubmenuItem(
-                title: account.displayName,
-                action: action,
-                isEnabled: isEnabled,
-                isChecked: isChecked)
-        }
-        guard submenuItems.count > 1 || submenuItems.contains(where: { $0.isEnabled && $0.action != nil }) else {
-            return
-        }
-
-        entries.append(.submenu(
-            "System Account",
-            MenuDescriptor.MenuActionSystemImage.systemAccount.rawValue,
-            submenuItems))
     }
 
     @MainActor

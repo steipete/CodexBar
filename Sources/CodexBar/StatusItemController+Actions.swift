@@ -524,22 +524,6 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         }
     }
 
-    @objc func requestCodexSystemPromotionFromMenu(_ sender: NSMenuItem) {
-        guard let rawManagedAccountID = sender.representedObject as? String,
-              let managedAccountID = UUID(uuidString: rawManagedAccountID)
-        else {
-            return
-        }
-
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            let result = await self.codexAccountPromotionCoordinator.promote(managedAccountID: managedAccountID)
-            if case let .failure(error) = result {
-                self.presentLoginAlert(title: error.title, message: error.message)
-            }
-        }
-    }
-
     @objc func runSwitchAccount(_ sender: NSMenuItem) {
         if self.loginTask != nil {
             self.loginLogger.info("Switch Account tap ignored: login already in-flight")

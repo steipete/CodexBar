@@ -87,6 +87,15 @@ protocol ProviderImplementation: Sendable {
     func appendActionMenuEntries(
         context: ProviderMenuActionContext, entries: inout [ProviderMenuEntry])
 
+    /// Accounts offered in the shared "System Account" submenu, or nil when the provider has none.
+    @MainActor
+    func systemAccountMenuEntries(context: SystemAccountSwitchContext) -> SystemAccountMenuEntries?
+
+    /// Makes `accountID` the account the provider CLI uses.
+    @MainActor
+    func switchSystemAccount(accountID: String, context: SystemAccountSwitchContext) async
+        -> SystemAccountSwitchOutcome
+
     /// Optional override for the login/switch account menu action.
     @MainActor
     func loginMenuAction(context: ProviderMenuLoginContext) -> (
@@ -210,6 +219,18 @@ extension ProviderImplementation {
     @MainActor
     func appendActionMenuEntries(
         context _: ProviderMenuActionContext, entries _: inout [ProviderMenuEntry]) {}
+
+    @MainActor
+    func systemAccountMenuEntries(context _: SystemAccountSwitchContext) -> SystemAccountMenuEntries? {
+        nil
+    }
+
+    @MainActor
+    func switchSystemAccount(accountID _: String, context _: SystemAccountSwitchContext) async
+        -> SystemAccountSwitchOutcome
+    {
+        .discarded
+    }
 
     @MainActor
     func loginMenuAction(context _: ProviderMenuLoginContext)

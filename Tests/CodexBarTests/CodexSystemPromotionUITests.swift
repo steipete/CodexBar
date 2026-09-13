@@ -128,7 +128,65 @@ struct CodexSystemPromotionUITests {
         #expect(submenu.2[0].action == nil)
         #expect(submenu.2[1].isChecked == false)
         #expect(submenu.2[1].isEnabled)
-        #expect(submenu.2[1].action == .requestCodexSystemPromotion(managedAccountID))
+        let managedVisibleAccountID = try #require(container.settings.codexVisibleAccountProjection.visibleAccounts
+            .first(where: { $0.storedAccountID == managedAccountID })?
+            .id)
+        #expect(submenu.2[1].action == .requestSystemAccountSwitch(
+            provider: .codex,
+            accountID: managedVisibleAccountID))
+
+        container.settings.hidePersonalInfo = true
+        let hiddenDescriptor = MenuDescriptor.build(
+            provider: .codex,
+            store: container.usageStore,
+            settings: container.settings,
+            account: UsageFetcher().loadAccountInfo(),
+            managedCodexAccountCoordinator: ManagedCodexAccountCoordinator(),
+            codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator(
+                service: container.makeService()),
+            updateReady: false)
+        let hiddenTitles = hiddenDescriptor.sections
+            .flatMap(\.entries)
+            .compactMap { entry -> [String]? in
+                guard case let .submenu("System Account", _, items) = entry else { return nil }
+                return items.map(\.title)
+            }
+            .flatMap(\.self)
+        #expect(hiddenTitles.count == 2)
+        #expect(!hiddenTitles.contains { $0.contains("@") })
+    }
+
+    @Test
+    func `codex system account adapter promotes and rejects unknown accounts`() async throws {
+        let container = try CodexAccountPromotionTestContainer(
+            suiteName: "CodexSystemPromotionUITests-adapter")
+        defer { container.tearDown() }
+
+        let target = try container.createManagedAccount(
+            persistedEmail: "managed@example.com",
+            authAccountID: "acct-managed")
+        try container.persistAccounts([target])
+        _ = try container.writeLiveOAuthAuthFile(email: "live@example.com", accountID: "acct-live")
+
+        let implementation = CodexProviderImplementation()
+        let context = SystemAccountSwitchContext(
+            store: container.usageStore,
+            settings: container.settings,
+            codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator(service: container.makeService()))
+        let entries = try #require(implementation.systemAccountMenuEntries(context: context))
+        #expect(entries.cliName == "Codex")
+        let managed = try #require(entries.entries.first { $0.title == "managed@example.com" })
+        #expect(managed.isSwitchable)
+        #expect(!managed.isSystem)
+
+        let outcome = await implementation.switchSystemAccount(accountID: managed.accountID, context: context)
+        #expect(outcome == .succeeded)
+        #expect(container.settings.codexVisibleAccountProjection.liveVisibleAccountID == managed.accountID)
+
+        let missing = await implementation.switchSystemAccount(accountID: "no-such-account", context: context)
+        #expect(missing == .failed(
+            title: "Could not switch system account",
+            message: "That account can no longer be switched to."))
     }
 
     @Test

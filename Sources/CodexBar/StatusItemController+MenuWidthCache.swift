@@ -145,8 +145,8 @@ extension StatusItemController {
             "changelog"
         case .addCodexAccount:
             "addCodexAccount:\(self.codexAddAccountSubtitle() ?? "")"
-        case let .requestCodexSystemPromotion(id):
-            "requestCodexSystemPromotion:\(id)"
+        case let .requestSystemAccountSwitch(provider, accountID):
+            "requestSystemAccountSwitch:\(provider.rawValue):\(accountID)"
         case let .addProviderAccount(provider):
             "addProviderAccount:\(provider.rawValue)"
         case let .switchAccount(provider):
