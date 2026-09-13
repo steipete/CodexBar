@@ -737,9 +737,7 @@ extension StatusItemController {
             let cards = self.store.kiloScopeSnapshots.compactMap { scope in
                 self.menuCardModel(
                     for: .kilo,
-                    snapshotOverride: scope.snapshot,
-                    errorOverride: scope.errorMessage,
-                    forceOverrideCard: scope.snapshot == nil)
+                    context: .account(.init(snapshot: scope.snapshot, error: scope.errorMessage)))
             }
             self.addStackedMenuCards(cards, to: menu, context: context)
             self.addFleetAccountMenuCards(fleetProjection.additionalAccounts, to: menu, context: context)

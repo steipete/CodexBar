@@ -51,10 +51,13 @@ struct OpenAISubscriptionEnrichmentTests {
                 try png.write(to: URL(fileURLWithPath: path))
             }
             #expect(live.subscriptionNotes == expectedNotes)
-            let accountCard = try #require(controller.menuCardModel(for: .codex, snapshotOverride: usage))
+            let accountCard = try #require(controller.menuCardModel(
+                for: .codex, context: .account(.init(snapshot: usage))))
             #expect(accountCard.subscriptionNotes.isEmpty)
-            let emptyAccountCard = try #require(controller.menuCardModel(for: .codex, forceOverrideCard: true))
+            let emptyAccountCard = try #require(controller.menuCardModel(for: .codex, context: .account(.init())))
             #expect(emptyAccountCard.subscriptionNotes.isEmpty)
+            #expect(emptyAccountCard.email.isEmpty)
+            #expect(emptyAccountCard.planText == nil)
         }
     }
 
@@ -100,9 +103,10 @@ struct OpenAISubscriptionEnrichmentTests {
             let models = try [
                 #require(controller.menuCardModel(
                     for: .codex,
-                    snapshotOverride: ownSnapshot,
-                    accountOverride: AccountInfo(email: account.email, plan: nil),
-                    creditsOverride: ownCredits)),
+                    context: .account(.init(
+                        snapshot: ownSnapshot,
+                        info: AccountInfo(email: account.email, plan: nil),
+                        credits: ownCredits)))),
                 #require(controller.codexAccountMenuCardModel(for: account, accountSnapshot: record)),
             ]
             for model in models {

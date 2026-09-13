@@ -63,9 +63,9 @@ struct GrokProviderImplementation: ProviderImplementation {
                 allowsOff: true,
                 subtitles: {
                     .init(
-                        auto: "Automatic imports grok.com cookies from Chrome.",
-                        manual: "Paste a Cookie header from a grok.com request.",
-                        off: "Grok cookies are disabled.")
+                        auto: L("Automatic imports grok.com cookies from Chrome."),
+                        manual: L("Paste a Cookie header from %@.", "a grok.com request"),
+                        off: L("%@ cookies are disabled.", "Grok"))
                 },
                 isVisible: {
                     context.settings.grokUsageDataSource == .auto

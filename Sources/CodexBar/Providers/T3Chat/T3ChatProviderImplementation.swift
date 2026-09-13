@@ -14,9 +14,9 @@ struct T3ChatProviderImplementation: ProviderImplementation {
                 allowsOff: false,
                 subtitles: {
                     .init(
-                        auto: "Automatically imports browser cookies.",
-                        manual: "Paste a Cookie header or cURL capture from T3 Chat settings.",
-                        off: "Paste a Cookie header or cURL capture from T3 Chat settings.")
+                        auto: L("Automatically imports browser cookies."),
+                        manual: L("Paste a Cookie header or cURL capture from %@.", "T3 Chat settings"),
+                        off: L("Paste a Cookie header or cURL capture from %@.", "T3 Chat settings"))
                 }),
         ]
     }

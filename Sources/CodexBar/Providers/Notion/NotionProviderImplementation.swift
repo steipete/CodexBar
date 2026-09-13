@@ -41,9 +41,9 @@ struct NotionProviderImplementation: ProviderImplementation {
                 allowsOff: true,
                 subtitles: {
                     .init(
-                        auto: "Automatically imports the browser session cookie.",
-                        manual: "Paste a full cookie header or the token_v2 value.",
-                        off: "Notion cookies are disabled.")
+                        auto: L("Automatically imports the browser session cookie."),
+                        manual: L("Paste a full cookie header or the %@ value.", "token_v2"),
+                        off: L("%@ cookies are disabled.", "Notion"))
                 }),
         ]
     }

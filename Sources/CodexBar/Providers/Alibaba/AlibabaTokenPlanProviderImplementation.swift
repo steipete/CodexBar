@@ -76,9 +76,9 @@ struct AlibabaTokenPlanProviderImplementation: ProviderImplementation {
                         ? URL(string: region.quotaBaseURLString)?.host
                         : region.dashboardURL.host
                     return .init(
-                        auto: "Automatic imports browser cookies from Model Studio/Bailian.",
-                        manual: "Paste a Cookie header from \(host ?? "the selected console").",
-                        off: "Alibaba Token Plan cookies are disabled.")
+                        auto: L("Automatic imports browser cookies from Model Studio/Bailian."),
+                        manual: L("Paste a Cookie header from %@.", host ?? "the selected console"),
+                        off: L("%@ cookies are disabled.", "Alibaba Token Plan"))
                 },
                 isVisible: {
                     context.settings.alibabaTokenPlanUsageDataSource == .auto

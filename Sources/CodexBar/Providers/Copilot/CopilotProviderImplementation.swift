@@ -122,9 +122,9 @@ struct CopilotProviderImplementation: ProviderImplementation {
                 allowsOff: false,
                 subtitles: {
                     .init(
-                        auto: "Automatically imports browser cookies for github.com budget extras.",
-                        manual: "Paste a Cookie header from github.com.",
-                        off: "GitHub cookies are disabled.")
+                        auto: L("Automatically imports browser cookies for github.com budget extras."),
+                        manual: L("Paste a Cookie header from %@.", "github.com"),
+                        off: L("%@ cookies are disabled.", "GitHub"))
                 },
                 title: "GitHub cookies",
                 subtitle: "Automatically imports browser cookies for budget extras.",

@@ -72,9 +72,9 @@ struct FactoryProviderImplementation: ProviderImplementation {
                 allowsOff: false,
                 subtitles: {
                     .init(
-                        auto: "Automatic imports browser cookies and WorkOS tokens.",
-                        manual: "Paste a Cookie or Authorization header from app.factory.ai.",
-                        off: "Factory cookies are disabled.")
+                        auto: L("Automatic imports browser cookies and WorkOS tokens."),
+                        manual: L("Paste a Cookie or Authorization header from %@.", "app.factory.ai"),
+                        off: L("%@ cookies are disabled.", "Factory"))
                 },
                 trailingText: {
                     ProviderCookieSourceUI.cachedTrailingText(provider: .factory)

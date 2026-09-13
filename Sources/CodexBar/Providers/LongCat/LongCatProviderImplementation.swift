@@ -41,9 +41,9 @@ struct LongCatProviderImplementation: ProviderImplementation {
                 allowsOff: true,
                 subtitles: {
                     .init(
-                        auto: "Automatic imports longcat.chat cookies from your browser.",
-                        manual: "Paste a Cookie header copied from longcat.chat.",
-                        off: "LongCat cookies are disabled.")
+                        auto: L("Automatic imports longcat.chat cookies from your browser."),
+                        manual: L("Paste a Cookie header copied from longcat.chat."),
+                        off: L("%@ cookies are disabled.", "LongCat"))
                 }),
         ]
     }

@@ -907,8 +907,7 @@ extension StatusMenuPersistentRefreshTests {
         let liveModel = try #require(controller.menuCardModel(for: .codex))
         let overrideModel = try #require(controller.menuCardModel(
             for: .codex,
-            errorOverride: "Account unavailable",
-            forceOverrideCard: true))
+            context: .account(.init(error: "Account unavailable"))))
 
         #expect(liveModel.usesLiveSubtitle)
         #expect(!overrideModel.usesLiveSubtitle)

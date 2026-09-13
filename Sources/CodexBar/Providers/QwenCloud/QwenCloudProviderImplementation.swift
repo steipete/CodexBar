@@ -21,9 +21,9 @@ struct QwenCloudProviderImplementation: ProviderImplementation {
                 allowsOff: false,
                 subtitles: {
                     .init(
-                        auto: "Automatic imports browser cookies from Qwen Cloud.",
-                        manual: "Paste a Cookie header from home.qwencloud.com.",
-                        off: "Qwen Cloud cookies are disabled.")
+                        auto: L("Automatic imports browser cookies from Qwen Cloud."),
+                        manual: L("Paste a Cookie header from %@.", "home.qwencloud.com"),
+                        off: L("%@ cookies are disabled.", "Qwen Cloud"))
                 },
                 trailingText: {
                     ProviderCookieSourceUI.cachedTrailingText(provider: .qwencloud)

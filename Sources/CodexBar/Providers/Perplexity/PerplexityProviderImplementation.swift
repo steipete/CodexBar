@@ -29,9 +29,9 @@ struct PerplexityProviderImplementation: ProviderImplementation {
                 allowsOff: true,
                 subtitles: {
                     .init(
-                        auto: "Automatically imports browser session cookie.",
-                        manual: "Paste a full cookie header or the __Secure-next-auth.session-token value.",
-                        off: "Perplexity cookies are disabled.")
+                        auto: L("Automatically imports browser session cookie."),
+                        manual: L("Paste a full cookie header or the %@ value.", "__Secure-next-auth.session-token"),
+                        off: L("%@ cookies are disabled.", "Perplexity"))
                 }),
         ]
     }

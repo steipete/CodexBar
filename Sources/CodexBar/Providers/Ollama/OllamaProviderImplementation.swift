@@ -66,9 +66,9 @@ struct OllamaProviderImplementation: ProviderImplementation {
                 allowsOff: false,
                 subtitles: {
                     .init(
-                        auto: "Automatic imports browser cookies.",
-                        manual: "Paste a Cookie header or cURL capture from Ollama settings.",
-                        off: "Ollama cookies are disabled.")
+                        auto: L("Automatic imports browser cookies."),
+                        manual: L("Paste a Cookie header or cURL capture from %@.", "Ollama settings"),
+                        off: L("%@ cookies are disabled.", "Ollama"))
                 },
                 trailingText: {
                     guard context.settings.ollamaUsageDataSource != .api else { return nil }

@@ -34,9 +34,9 @@ struct CursorProviderImplementation: ProviderImplementation {
                 allowsOff: false,
                 subtitles: {
                     .init(
-                        auto: "Automatic imports browser cookies or stored sessions.",
-                        manual: "Paste a Cookie header from a cursor.com request.",
-                        off: "Cursor cookies are disabled.")
+                        auto: L("Automatic imports browser cookies or stored sessions."),
+                        manual: L("Paste a Cookie header from %@.", "a cursor.com request"),
+                        off: L("%@ cookies are disabled.", "Cursor"))
                 },
                 trailingText: {
                     ProviderCookieSourceUI.cachedTrailingText(provider: .cursor)

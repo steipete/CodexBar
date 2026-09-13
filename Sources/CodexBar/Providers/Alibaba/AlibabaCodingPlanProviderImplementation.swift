@@ -40,9 +40,9 @@ struct AlibabaCodingPlanProviderImplementation: ProviderImplementation {
                 allowsOff: false,
                 subtitles: {
                     .init(
-                        auto: "Automatic imports browser cookies from Model Studio/Bailian.",
-                        manual: "Paste a Cookie header from modelstudio.console.alibabacloud.com.",
-                        off: "Alibaba cookies are disabled.")
+                        auto: L("Automatic imports browser cookies from Model Studio/Bailian."),
+                        manual: L("Paste a Cookie header from %@.", "modelstudio.console.alibabacloud.com"),
+                        off: L("%@ cookies are disabled.", "Alibaba"))
                 },
                 trailingText: {
                     ProviderCookieSourceUI.cachedTrailingText(provider: .alibaba)

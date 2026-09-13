@@ -521,107 +521,11 @@ struct ProvidersPane: View {
     }
 
     func menuCardModel(for provider: UsageProvider) -> UsageMenuCardView.Model {
-        self.unfilteredMenuCardModel(for: provider).applyingUsageItemVisibility(
-            hiddenItemIDs: self.settings.hiddenUsageItemIDs(for: provider))
+        self.store.menuCardModel(for: provider, context: .settings)
     }
 
     private func unfilteredMenuCardModel(for provider: UsageProvider) -> UsageMenuCardView.Model {
-        let metadata = self.store.metadata(for: provider)
-        let snapshot = self.store.presentationSnapshot(for: provider)
-        let now = Date()
-        let codexProjection = self.store.codexConsumerProjectionIfNeeded(
-            for: provider,
-            surface: .liveCard,
-            now: now)
-        let credits: CreditsSnapshot?
-        let creditsError: String?
-        let dashboard: OpenAIDashboardSnapshot?
-        let dashboardError: String?
-        let tokenSnapshot: CostUsageTokenSnapshot?
-        let tokenError: String?
-        if let codexProjection {
-            credits = codexProjection.credits?.snapshot
-            creditsError = codexProjection.credits?.userFacingError
-            dashboard = nil
-            dashboardError = codexProjection.userFacingErrors.dashboard
-            tokenSnapshot = self.store.tokenSnapshot(for: provider)
-            tokenError = self.store.tokenError(for: provider)
-        } else if ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.supportsTokenCost {
-            credits = nil
-            creditsError = nil
-            dashboard = nil
-            dashboardError = nil
-            tokenSnapshot = self.store.tokenSnapshot(for: provider)
-            tokenError = self.store.tokenError(for: provider)
-        } else {
-            credits = nil
-            creditsError = nil
-            dashboard = nil
-            dashboardError = nil
-            tokenSnapshot = nil
-            tokenError = nil
-        }
-
-        let paceWindow = snapshot.flatMap {
-            ProviderDescriptorRegistry.descriptor(for: provider).presentation.semanticWindows(snapshot: $0).weekly
-        }
-        let weeklyPace = if let codexProjection,
-                            let weekly = codexProjection.rateWindow(for: .weekly)
-        {
-            self.store.weeklyPace(
-                provider: provider,
-                window: weekly,
-                dataConfidence: snapshot?.dataConfidence ?? .unknown,
-                now: now)
-        } else {
-            paceWindow.flatMap { window in
-                self.store.weeklyPace(
-                    provider: provider,
-                    window: window,
-                    dataConfidence: snapshot?.dataConfidence ?? .unknown,
-                    now: now)
-            }
-        }
-        let input = UsageMenuCardView.Model.Input(
-            provider: provider,
-            metadata: metadata,
-            snapshot: snapshot,
-            codexProjection: codexProjection,
-            credits: credits,
-            creditsError: creditsError,
-            dashboard: dashboard,
-            dashboardError: dashboardError,
-            tokenSnapshot: tokenSnapshot,
-            tokenError: tokenError,
-            account: self.store.accountInfo(for: provider),
-            isRefreshing: self.store.refreshingProviders.contains(provider.instanceID),
-            lastError: codexProjection?.userFacingErrors.usage ?? self.store.userFacingError(for: provider),
-            limitsAvailability: self.store.knownLimitsAvailability(for: provider),
-            usageBarsShowUsed: self.settings.usageBarsShowUsed,
-            resetTimeDisplayStyle: self.settings.resetTimeDisplayStyle,
-            tokenCostUsageEnabled: self.settings.isCostUsageEffectivelyEnabled(for: provider),
-            codexLocalSessionCostLedgerEnabled: self.settings.codexLocalSessionCostLedgerEnabled,
-            // Display style only controls the main menu. Provider details always expose
-            // available cost data in their Usage section.
-            costSummaryInlineEnabled: true,
-            tokenCostMenuSectionEnabled: self.settings.isCostUsageEffectivelyEnabled(for: provider),
-            showOptionalCreditsAndExtraUsage: self.settings.showOptionalCreditsAndExtraUsage,
-            claudeDailyRoutinesUsageVisible: true,
-            codexSparkUsageVisible: true,
-            copilotBudgetExtrasEnabled: self.settings.copilotBudgetExtrasEnabled,
-            showsAllUsageLanes: true,
-            hidePersonalInfo: self.settings.hidePersonalInfo,
-            weeklyPace: weeklyPace,
-            quotaWarningThresholds: [
-                .session: self.quotaWarningMarkerThresholds(provider: provider, window: .session),
-                .weekly: self.quotaWarningMarkerThresholds(provider: provider, window: .weekly),
-            ],
-            workDaysPerWeek: self.settings.weeklyProgressWorkDays,
-            workdayTickAppearance: self.settings.workdayTickAppearance,
-            paceVisible: self.settings.paceVisible,
-            costUsageBucketCalendar: self.settings.costUsageBucketCalendar,
-            now: now)
-        return UsageMenuCardView.Model.make(input)
+        UsageMenuCardView.Model.make(self.store.menuCardInput(for: provider, context: .settings))
     }
 
     func openAIWebDiagnostic(for provider: UsageProvider) -> String? {
@@ -631,12 +535,6 @@ struct ProvidersPane: View {
             for: provider,
             surface: .liveCard)?.userFacingErrors.dashboard
         return PersonalInfoRedactor.redactEmails(in: diagnostic, isEnabled: self.settings.hidePersonalInfo)
-    }
-
-    private func quotaWarningMarkerThresholds(provider: UsageProvider, window: QuotaWarningWindow) -> [Int] {
-        guard self.settings.quotaWarningMarkersVisible else { return [] }
-        guard self.settings.quotaWarningEnabled(provider: provider, window: window) else { return [] }
-        return self.settings.resolvedQuotaWarningThresholds(provider: provider, window: window)
     }
 
     private func refreshCodexProvider() async {

@@ -21,9 +21,9 @@ struct MiMoProviderImplementation: ProviderImplementation {
                 allowsOff: false,
                 subtitles: {
                     .init(
-                        auto: "Automatic imports browser cookies from Xiaomi MiMo.",
-                        manual: "Paste a Cookie header from platform.xiaomimimo.com.",
-                        off: "Xiaomi MiMo cookies are disabled.")
+                        auto: L("Automatic imports browser cookies from Xiaomi MiMo."),
+                        manual: L("Paste a Cookie header from %@.", "platform.xiaomimimo.com"),
+                        off: L("%@ cookies are disabled.", "Xiaomi MiMo"))
                 },
                 trailingText: {
                     ProviderCookieSourceUI.cachedTrailingText(provider: .mimo)
