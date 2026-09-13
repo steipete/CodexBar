@@ -440,7 +440,7 @@ public struct CursorStatusSnapshot: Sendable {
     }
 
     /// Convert to UsageSnapshot for the common provider interface
-    public func toUsageSnapshot() -> UsageSnapshot {
+    public func toUsageSnapshot(now: Date = .init()) -> UsageSnapshot {
         let cursorRequests: CursorRequestUsage? = if let used = self.requestsUsed,
                                                      let limit = self.requestsLimit,
                                                      limit > 0
@@ -484,14 +484,14 @@ public struct CursorStatusSnapshot: Sendable {
                 resetDescription: self.billingCycleEnd.map { Self.formatResetDate($0) })
         }
 
-        // Grok Bot is a weekly included allowance on the same Cursor account, not the monthly
+        // Grok Bot is an included or trial allowance on the same Cursor account, not the monthly
         // Total/Cursor/Third Party bars. Hide it on legacy request plans so it cannot sit next
         // to a request quota that does not share that token-based breakdown.
         let extraRateWindows: [NamedRateWindow]? = if cursorRequests != nil {
             nil
         } else {
             self.sandUsage.flatMap { status in
-                status.extraRateWindow(resetDescription: Self.formatResetDate)
+                status.extraRateWindow(now: now, resetDescription: Self.formatResetDate)
             }.map { [$0] }
         }
 
@@ -529,7 +529,7 @@ public struct CursorStatusSnapshot: Sendable {
                 period: "Monthly",
                 resetsAt: self.billingCycleEnd,
                 personalUsed: personalOnDemandUsed,
-                updatedAt: Date())
+                updatedAt: now)
         } else {
             nil
         }
@@ -551,7 +551,7 @@ public struct CursorStatusSnapshot: Sendable {
                     .makeRow(label: "Request quota", value: "\(requests.used) / \(requests.limit)"),
                 ])]
             } ?? [],
-            updatedAt: Date(),
+            updatedAt: now,
             identity: identity)
     }
 
