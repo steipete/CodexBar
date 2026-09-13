@@ -92,6 +92,52 @@ struct ClaudeWebBackgroundRecoveryTests {
     }
 
     @Test
+    func `background refresh reports an unverified session instead of a sign-out when recovery is skipped`() async {
+        await self.withIsolatedCookieCache {
+            CookieHeaderCache.store(
+                provider: .claude,
+                cookieHeader: "sessionKey=sk-ant-stale-token",
+                sourceLabel: "Chrome")
+            defer { CookieHeaderCache.clear(provider: .claude) }
+
+            do {
+                try await BrowserCookieAccessGate.withShouldAttemptOverrideForTesting(false) {
+                    try await ProviderInteractionContext.$current.withValue(.background) {
+                        try await self.withClaudeWebStub { request in
+                            let isStale = request.value(forHTTPHeaderField: "Cookie") ==
+                                "sessionKey=sk-ant-stale-token"
+                            if request.url?.path == "/api/organizations", isStale {
+                                let url = try #require(request.url)
+                                return Self.jsonResponse(url: url, body: "{}", statusCode: 401, setCookie: nil)
+                            }
+                            return try Self.response(for: request, setCookie: nil)
+                        } operation: {
+                            // The gate is forced to skip every browser (as a real inconclusive Keychain
+                            // preflight would), rather than a genuine attempt finding no session — the
+                            // distinction this fix exists to preserve.
+                            _ = try await ClaudeWebAPIFetcher.fetchUsage(
+                                browserDetection: BrowserDetection(cacheTTL: 0))
+                        }
+                    }
+                }
+                Issue.record("Expected cachedSessionUnverifiedInBackground")
+            } catch let error as ClaudeWebAPIFetcher.FetchError {
+                guard case .cachedSessionUnverifiedInBackground = error else {
+                    Issue.record("Expected cachedSessionUnverifiedInBackground, got \(error)")
+                    return
+                }
+            } catch {
+                Issue.record("Expected cachedSessionUnverifiedInBackground, got \(error)")
+            }
+
+            // The cache is cleared as soon as the cached cookie itself fails (same as a genuine empty
+            // recovery attempt) — this test only guards the *message* surfaced for the skipped-recovery
+            // case, not cache retention.
+            #expect(CookieHeaderCache.load(provider: .claude) == nil)
+        }
+    }
+
+    @Test
     func `background refresh still recovers when browser cookie read succeeds without a prompt`() async throws {
         try await self.withIsolatedCookieCache {
             CookieHeaderCache.store(

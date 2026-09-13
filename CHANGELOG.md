@@ -5,6 +5,7 @@
 ### Fixed
 
 - Kimi: retain nonzero weekly and five-hour counts when a mixed legacy response includes conflicting zero ratios for the same quota windows (#3755, fixes #3754). Thanks @mudrii!
+- Claude: retry an inconclusive Keychain preflight a few times before giving up on background browser-cookie recovery, and report an unverified session rather than a sign-out when every recovery candidate was skipped without ever being attempted.
 
 ## 0.62.0 — 2026-09-19
 
