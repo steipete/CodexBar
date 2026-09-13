@@ -676,7 +676,7 @@ extension UsageStore {
             return
         }
         let accountScoped = if let tokenAccount = currentTokenAccount {
-            self.applyAccountLabel(scoped, provider: provider, account: tokenAccount)
+            scoped.withAccountLabel(tokenAccount.label, for: provider)
         } else {
             scoped
         }

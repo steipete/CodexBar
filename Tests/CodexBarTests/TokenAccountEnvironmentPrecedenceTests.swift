@@ -884,43 +884,14 @@ struct TokenAccountEnvironmentPrecedenceTests {
     }
 
     @Test
-    func `apply account label in app preserves snapshot fields`() throws {
-        let settings = Self.makeSettingsStore(suite: "TokenAccountEnvironmentPrecedenceTests-apply-app")
-        let store = Self.makeUsageStore(settings: settings)
+    func `account label projection preserves snapshot fields`() throws {
         let snapshot = try Self.makeSnapshotWithAllFields(provider: .zai)
-        let account = ProviderTokenAccount(
-            id: UUID(),
-            label: "Team Account",
-            token: "account-token",
-            addedAt: 0,
-            lastUsed: nil)
 
-        let labeled = store.applyAccountLabel(snapshot, provider: .zai, account: account)
+        let labeled = snapshot.withAccountLabel("Team Account", for: .zai)
 
         Self.expectSnapshotFieldsPreserved(before: snapshot, after: labeled)
         #expect(labeled.identity?.providerID == .zai)
         #expect(labeled.identity?.accountEmail == "Team Account")
-    }
-
-    @Test
-    func `apply account label in CLI preserves snapshot fields`() throws {
-        let context = try TokenAccountCLIContext(
-            selection: TokenAccountCLISelection(label: nil, index: nil, allAccounts: false),
-            config: CodexBarConfig(providers: []),
-            verbose: false)
-        let snapshot = try Self.makeSnapshotWithAllFields(provider: .zai)
-        let account = ProviderTokenAccount(
-            id: UUID(),
-            label: "CLI Account",
-            token: "account-token",
-            addedAt: 0,
-            lastUsed: nil)
-
-        let labeled = context.applyAccountLabel(snapshot, provider: .zai, account: account)
-
-        Self.expectSnapshotFieldsPreserved(before: snapshot, after: labeled)
-        #expect(labeled.identity?.providerID == .zai)
-        #expect(labeled.identity?.accountEmail == "CLI Account")
     }
 
     @Test

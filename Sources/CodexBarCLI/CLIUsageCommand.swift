@@ -526,7 +526,7 @@ extension CodexBarCLI {
 
             var usage = result.usage.scoped(to: provider)
             if let account {
-                usage = tokenContext.applyAccountLabel(usage, provider: provider, account: account)
+                usage = usage.withAccountLabel(account.label, for: provider)
             } else if let codexVisibleAccount {
                 usage = tokenContext.applyCodexVisibleAccountLabel(usage, account: codexVisibleAccount)
             }

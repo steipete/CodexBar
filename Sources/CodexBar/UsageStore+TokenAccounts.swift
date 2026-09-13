@@ -1272,7 +1272,7 @@ extension UsageStore {
         case let .success(result):
             let scoped = result.usage.scoped(to: provider)
             let current = self.resolvingCurrentCopilotAllowance(in: scoped, provider: provider, account: account)
-            let labeled = self.applyAccountLabel(current, provider: provider, account: account)
+            let labeled = current.withAccountLabel(account.label, for: provider)
             let snapshot = TokenAccountUsageSnapshot(
                 account: account,
                 snapshot: labeled,
@@ -1523,7 +1523,7 @@ extension UsageStore {
             let current = self.resolvingCurrentCopilotAllowance(in: scoped, provider: provider, account: account)
             let labeled: UsageSnapshot =
                 if let account {
-                    self.applyAccountLabel(current, provider: provider, account: account)
+                    current.withAccountLabel(account.label, for: provider)
                 } else {
                     current
                 }

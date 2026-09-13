@@ -65,20 +65,8 @@ actor CodexCLISession {
 
         let script = "/status"
         let cursorQuery = Data([0x1B, 0x5B, 0x36, 0x6E])
-        let statusMarkers = [
-            "Credits:",
-            "5h limit",
-            "5-hour limit",
-            "Weekly limit",
-        ].map { Data($0.utf8) }
-        let updateNeedles = ["Update available!", "Run bun install -g @openai/codex", "0.60.1 ->"]
-        let updateNeedlesLower = updateNeedles.map { Data($0.lowercased().utf8) }
-        let statusNeedleLengths = statusMarkers.map(\.count)
-        let updateNeedleLengths = updateNeedlesLower.map(\.count)
-        let statusMaxNeedle = ([cursorQuery.count] + statusNeedleLengths).max() ?? cursorQuery.count
-        let updateMaxNeedle = updateNeedleLengths.max() ?? 0
-        var statusScanBuffer = StreamScanBuffer(maxNeedle: statusMaxNeedle)
-        var updateScanBuffer = StreamScanBuffer(maxNeedle: updateMaxNeedle)
+        var statusScanBuffer = StreamScanBuffer(maxNeedle: max(cursorQuery.count, CodexStatusMarkers.longestStatus))
+        var updateScanBuffer = StreamScanBuffer(maxNeedle: CodexStatusMarkers.longestUpdatePrompt)
 
         var buffer = BoundedOutputBuffer()
         func appendOutput(_ data: Data) throws {
@@ -114,7 +102,7 @@ actor CodexCLISession {
                 nextCursorCheckAt = Date().addingTimeInterval(1.0)
             }
             if !scanData.isEmpty, !sawCodexStatus {
-                if statusMarkers.contains(where: { scanData.range(of: $0) != nil }) {
+                if CodexStatusMarkers.status.contains(where: { scanData.range(of: $0) != nil }) {
                     sawCodexStatus = true
                 }
             }
@@ -122,7 +110,7 @@ actor CodexCLISession {
             if !skippedCodexUpdate, !sawCodexUpdatePrompt, !newData.isEmpty {
                 let lowerData = StreamScanBuffer.lowercasedASCII(newData)
                 let lowerScan = updateScanBuffer.append(lowerData)
-                if updateNeedlesLower.contains(where: { lowerScan.range(of: $0) != nil }) {
+                if CodexStatusMarkers.updatePrompt.contains(where: { lowerScan.range(of: $0) != nil }) {
                     sawCodexUpdatePrompt = true
                 }
             }

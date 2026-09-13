@@ -147,45 +147,24 @@ final class GrokRPCClient: @unchecked Sendable {
         try self.sendRequest(id: id, method: method, params: params)
 
         let resolvedTimeout = timeout ?? self.requestTimeoutSeconds
-        let wrapped = try await self.withTimeout(seconds: resolvedTimeout, method: method) {
-            while true {
-                let message = try await self.readNextMessage()
-                // Skip notifications (no id) or unrelated responses.
-                if message["id"] == nil { continue }
-                guard let messageID = self.jsonID(message["id"]), messageID == id else { continue }
-                if let error = message["error"] as? [String: Any] {
-                    let messageText = (error["message"] as? String) ?? "unknown JSON-RPC error"
-                    throw GrokRPCError.requestFailed(messageText)
+        let wrapped = try await RPCRequestTimeout.run(
+            seconds: resolvedTimeout,
+            timeoutError: GrokRPCError.timeout(method: method),
+            onTimeout: { [weak self] in self?.terminateProcessForTimeout(method: method) },
+            operation: {
+                while true {
+                    let message = try await self.readNextMessage()
+                    // Skip notifications (no id) or unrelated responses.
+                    if message["id"] == nil { continue }
+                    guard let messageID = self.jsonID(message["id"]), messageID == id else { continue }
+                    if let error = message["error"] as? [String: Any] {
+                        let messageText = (error["message"] as? String) ?? "unknown JSON-RPC error"
+                        throw GrokRPCError.requestFailed(messageText)
+                    }
+                    return SendableJSONMessage(value: message)
                 }
-                return SendableJSONMessage(value: message)
-            }
-        }
+            })
         return wrapped.value
-    }
-
-    private func withTimeout<T: Sendable>(
-        seconds: TimeInterval,
-        method: String,
-        body: @escaping @Sendable () async throws -> T) async throws -> T
-    {
-        try await withThrowingTaskGroup(of: T.self) { group in
-            group.addTask { try await body() }
-            group.addTask { [weak self] in
-                try await Task.sleep(for: .seconds(seconds))
-                self?.terminateProcessForTimeout(method: method)
-                throw GrokRPCError.timeout(method: method)
-            }
-            do {
-                guard let result = try await group.next() else {
-                    throw GrokRPCError.timeout(method: method)
-                }
-                group.cancelAll()
-                return result
-            } catch {
-                group.cancelAll()
-                throw error
-            }
-        }
     }
 
     private func terminateProcessForTimeout(method: String) {

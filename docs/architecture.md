@@ -31,6 +31,8 @@ read_when:
 - The login runner and `SubprocessRunner` share `ProcessTermination` and process-tree termination. Cancelling a login
   stops its child process, joins its progress callback task, and produces no failure alert. Timeouts retain captured
   diagnostic output, and inherited pipes cannot keep the caller waiting indefinitely.
+- Codex and Grok RPC clients share deadline selection through `RPCRequestTimeout`. The deadline wins before teardown
+  can report stdout EOF; each client keeps its protocol initialization, encoding, diagnostics, and error types.
 
 ## Concurrency & platform
 - Swift 6 strict concurrency enabled; prefer Sendable state and explicit MainActor hops.
@@ -91,6 +93,10 @@ read_when:
   `OneConsoleTokenPlanSnapshot` projection while retaining distinct public snapshot types and provider identities.
 - `StreamScanBuffer` supplies bounded overlap for Codex and Claude terminal-marker matching; command handling and
   session lifecycle remain provider-specific.
+- Codex's persistent and one-shot PTY readers share `CodexStatusMarkers`, including the marker lengths used for
+  bounded overlap. Cursor-query handling remains part of each terminal loop.
+- `UsageSnapshot.withAccountLabel` applies token-account fallback labels for the app and CLI while preserving the
+  provider's account ID and other identity fields. Codex visible-account labels keep their surface-specific policy.
 - Raw Chromium local-storage consumers share `ChromiumLocalStorageDiscovery`, retaining their own browser lists and
   origin decoders. Both plugin engines use the manifest's management-auth eligibility policy after adapting their
   engine-specific option values.

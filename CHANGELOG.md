@@ -7,6 +7,8 @@
 
 ### Fixed
 - Vertex AI: preserve reserved characters in OAuth refresh credentials and reject successful responses that omit a usable access token.
+- Token accounts: preserve provider account IDs when applying configured fallback labels in the app and CLI.
+- Grok: report an RPC deadline as a timeout even when process teardown closes stdout immediately.
 - Account cards: keep Grok's cached local costs out of an account card that has no usage snapshot.
 - Codex: prefer fresh authorized subscription dates over stale cache metadata, and keep empty account cards from inheriting another account's identity, usage, or credits.
 - Provider settings: preserve saved configuration for unavailable plugins when reordering providers, and localize Qoder and Qwen Cloud cookie-cache labels consistently.
@@ -17,6 +19,7 @@
 - Web dashboard: preserve account aliases and organization labels so Claude accounts sharing an email remain distinguishable, including in redacted mode (follow-up to #3082).
 
 ### Development
+- Share token-account label projection, RPC request deadlines, and Codex terminal status markers across their consumers.
 - Keep one token-cost publication store, reuse provider-config updates, share menu metric conversion and lane selection, and remove obsolete card-model inputs.
 - Share Settings and menu card construction with explicit account contexts, and replace English cookie-subtitle parsing with provider-owned localization keys.
 - Keep runtime descriptor replacements consistent across lookup, ordered metadata, and CLI aliases, with synchronization owned by the descriptor store.
