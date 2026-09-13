@@ -6,6 +6,7 @@
 - Dependencies: update KeyboardShortcuts to 3.1.0 while preserving localized recorder prompts, the Linux release/static SDK toolchain to Swift 6.3.3, and Linux desktop CI to Node.js 26.
 
 ### Added
+- Menu bar: add a Stacked combined-icon style that shows two chosen providers' own layouts on top of each other in one status item, instead of switching between them one at a time (#3596).
 - Codex: add the debug-only Workspaces project/session inspector with source, history and privacy updates, plus cancellation when its window closes (#3291). Thanks @AmrMohamad!
 
 ### Fixed
