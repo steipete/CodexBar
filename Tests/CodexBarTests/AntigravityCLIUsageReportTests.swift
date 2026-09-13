@@ -189,6 +189,7 @@ extension AntigravityCLIHTTPSFetchStrategyTests {
         let fixture = try Self.printExecutable("""
         [ "$*" = '-p /usage --output-format json --print-timeout 90s' ] || exit 9
         [ "$PWD" != "$HOME" ] || exit 10
+        [ -z "${ANTIGRAVITY_OAUTH_CREDENTIALS_JSON+x}" ] || exit 11
         /bin/cat <<'REPORT'
         \(report)
         REPORT
@@ -196,8 +197,12 @@ extension AntigravityCLIHTTPSFetchStrategyTests {
         defer { try? FileManager.default.removeItem(at: fixture.directory) }
         let binary = try #require(BinaryLocator.resolveAntigravityBinary(env: fixture.environment))
         #expect(binary == fixture.binary.path)
+        var environment = fixture.environment
+        environment[AntigravityOAuthCredentialsStore.environmentCredentialsKey] = "synthetic-app-owned-credential"
         let result = try await AntigravityCLIHTTPSFetchStrategy().fetchPrintUsage(
-            binary: binary, environment: fixture.environment)
+            binary: binary, environment: environment)
+        #expect(environment[AntigravityOAuthCredentialsStore.environmentCredentialsKey] ==
+            "synthetic-app-owned-credential")
         #expect(abs((result.usage.primary?.usedPercent ?? -1) - 40) < 0.001)
         #expect(result.usage.identity?.accountEmail == nil)
         #expect(result.usage.identity?.loginMethod == nil)

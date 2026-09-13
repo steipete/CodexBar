@@ -530,6 +530,7 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
         timeout: TimeInterval = 90) async throws -> ProviderFetchResult
     {
         var environment = environment
+        environment.removeValue(forKey: AntigravityOAuthCredentialsStore.environmentCredentialsKey)
         environment["PATH"] = PathBuilder.effectivePATH(
             purposes: [.tty], env: environment, loginPATH: LoginShellPathCache.shared.current)
         let directory = FileManager.default.temporaryDirectory
