@@ -534,6 +534,18 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
         } else {
             nil
         }
+        // Explicit CLI mode uses the local agy account. Auto with a selected account
+        // must retain the existing identity guard, since /usage has no email field.
+        if expectedAccountEmail == nil {
+            do {
+                let usage = try await AntigravityNativeUsage.fetch(binary: binary, environment: context.env)
+                return self.makeResult(usage: usage, sourceLabel: Self.sourceLabel)
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                Self.log.debug("Native agy usage unavailable; trying legacy HTTPS")
+            }
+        }
         let result = try await self.fetchUsingWarmSession(
             binary: binary,
             idleWindow: context.persistentCLISessionIdleWindow,
