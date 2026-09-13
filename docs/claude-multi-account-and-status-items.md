@@ -110,9 +110,9 @@ last refresh, adapter errors, and a link to the upstream project; CodexBar shoul
 
 ## Phase 2 explicit activation contract
 
-- Only an explicit click on an actionable account card's action can start a switch. Normal activation targets
-  inactive slots through "Switch Account…". An active slot reporting `foreign_credential` offers **Re-authenticate**,
-  using the same slot command so claude-swap can reconcile its proven credential mismatch; no force flag is used.
+- Only an explicit choice of an inactive, actionable account in the menu's **System Account** submenu can start a
+  switch. An active slot reporting `foreign_credential` offers **Re-authenticate** on its card, using the same slot
+  command so claude-swap can reconcile its proven credential mismatch; no force flag is used.
   Selecting an account in the segmented switcher — or a row in the compact stacked layout — is view-only: it
   changes which account's details are displayed and never invokes the adapter. Viewing therefore stays available
   for unavailable slots and while a switch is in flight.
@@ -133,6 +133,10 @@ last refresh, adapter errors, and a link to the upstream project; CodexBar shoul
   changes, falls back to the source-reported active account when its slot disappears, and never invents an active
   account or changes which account drives the menu bar quota. An explicit view selection takes precedence over
   pending or failed activation state, while an activation error stays attached to the account that produced it.
+- The filled segment in the switcher is the **Selected** account; a leading `●` marks the **System** account (the one
+  claude-swap reports active). A running switch shows "Switching Claude Code to …" on that account's card, success
+  shows "… is now the System account" until the menu next closes, and when no menu is open at completion CodexBar
+  posts a notification for the success or the failure. Codex uses the same switcher, submenu and feedback.
 
 ## Provider-neutral account model
 
@@ -188,7 +192,8 @@ Icons semantics must be decided before implementation.
 The mock above shows the recommended mode and its Merge Icons conflict. It is intentionally a decision artifact, not
 an implementation screenshot. The following packaged synthetic-account proof verifies the bounded current behavior:
 the separate ambient OAuth action is named “Sign in with Claude Code…”, while inactive claude-swap cards retain their
-explicit “Switch Account…” action. No real credential, browser session, or provider call was used.
+explicit “Switch Account…” action at the time of capture; activation has since moved to the shared System Account
+submenu. No real credential, browser session, or provider call was used.
 
 ![Packaged synthetic Claude sign-in proof](screenshots/claude-sign-in-synthetic-proof.png)
 

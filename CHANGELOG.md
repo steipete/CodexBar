@@ -4,6 +4,10 @@
 
 ### Added
 - Codex: add the debug-only Workspaces project/session inspector with source, history and privacy updates, plus cancellation when its window closes (#3291). Thanks @AmrMohamad!
+- Claude: default the claude-swap executable to `~/.local/bin/cswap` when it is installed there, so enabling the adapter no longer requires typing a path; an explicit path still wins and users without claude-swap see no change.
+- Claude: group the claude-swap toggle, executable, adapter status and discovered accounts into one settings section, replacing the split toggle/field layout whose guidance pointed the wrong way.
+- Claude: select claude-swap accounts in the segmented menu to view their details without switching, keep the viewed account visually distinct from the System account claude-swap reports as active, and retain the viewed account across refreshes, reordering, and menu closes.
+- Menu: Codex and Claude (claude-swap) share one account switcher that marks the System account with `●`, and both switch the System account from a shared "System Account" submenu with in-menu progress, success and error feedback plus a notification when the menu is closed. The Codex submenu now honors Hide Personal Info.
 
 ### Fixed
 - Mistral: handle signed billing adjustments without intermediate overflow, reject unrepresentable counts without crashing, and retain valid costs when token totals or model rankings are unavailable.
@@ -82,9 +86,6 @@
 - **More reliable menus:** refresh cached menus when macOS appearance changes and surface exhausted Kimi monthly limits even after shorter quota windows reset (#3526, #3543).
 
 ### Added
-- Claude: default the claude-swap executable to `~/.local/bin/cswap` when it is installed there, so enabling the adapter no longer requires typing a path; an explicit path still wins and users without claude-swap see no change.
-- Claude: group the claude-swap toggle, executable, adapter status and discovered accounts into one settings section, replacing the split toggle/field layout whose guidance pointed the wrong way.
-- Claude: select claude-swap accounts in the segmented menu to view their details without switching, keep the viewed account visually distinct from the account claude-swap reports as active, and retain the viewed account across refreshes, reordering, and menu closes; activation stays on the explicit “Switch Account…” card action.
 - Plugins: opt into first-class provider switcher tabs with selected-plugin refresh, plugin-only menus, and continued access to appended plugin cards (#3516, fixes #2988). Thanks @harjothkhara!
 - Menu bar: optionally color Session, Weekly, and Auto pace indicators green when behind pace and red when ahead, preserving signed values, neutral unavailable values, and existing layouts (#3429, fixes #3428). Thanks @jb510!
 

@@ -77,6 +77,9 @@ Usage source picker:
   refresh is running discards the old workspace's result.
 - System Account promotion fails closed when a managed selection differs from the auth file's default workspace.
   CodexBar keeps that selection managed rather than silently promoting the default or rewriting Codex-owned auth.
+- The menu's segmented account switcher marks the System account with `●`. The **System Account** submenu honors Hide
+  Personal Info, shows promotion progress and success as the Codex card's subtitle, and reports the result through a
+  notification (instead of an alert) when no menu is open. Claude's claude-swap accounts use the same submenu.
 - Reusing OpenCode OAuth enables remote account quota, not OpenCode session token/cost ingestion. See
   [OpenCode with Codex or OpenAI](opencode.md#using-opencode-with-codex-or-openai) for the current history boundary.
 

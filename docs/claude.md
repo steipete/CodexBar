@@ -179,8 +179,9 @@ The accepted multi-account design in
 - Display: when claude-swap reports more than one account, its accounts replace ambient/token-account Claude cards.
   The app honors **Menu → Multi-account layout**: Segmented shows account buttons and one account card. Clicking a
   segment is **view-only**: it changes which account's details the card shows and never runs a switch, so any
-  account — including expired or otherwise unavailable slots — can be inspected. The filled segment marks the
-  account being viewed; a `●` glyph on a segment marks the account claude-swap itself reports as active, so the
+  account — including expired or otherwise unavailable slots — can be inspected. The filled (Selected) segment marks the
+  account being viewed; a `●` glyph marks the **System**
+  account — the one claude-swap reports active, so the
   two states stay independently readable. An explicit view selection also outranks a pending or failed switch, so clicking another segment during a
   switch is never overridden; without one, pending or failed switches show the requested account's details. The view
   selection is keyed by stable slot identity (`claude-swap:<slot>`), so it survives refreshes, list reordering, and
@@ -224,19 +225,22 @@ The accepted multi-account design in
   Fable) plus its reset time — not "Usage fetch failed." A first refresh that is already `unavailable` with no
   retained windows says usage is unavailable, without assuming why the source could not fetch it. Active rows are marked `[active]`; no claude-swap row infers
   a plan badge.
-- Switching: an inactive account with usable source credentials shows “Switch Account…” on its card. That card
-  action is the only way to activate an account — selecting a segment or a compact row never activates one. Clicking
-  it runs exactly
-  `cswap --switch-to <slot> --json`, validates the versioned result and requested slot, then refreshes both ambient
-  Claude usage and every claude-swap account card. Switches are serialized; no automatic switching occurs. While
-  claude-swap owns account presentation, the separate ambient OAuth action reads “Sign in with Claude Code…” and does
-  not add or switch a claude-swap account.
+- Switching: the menu's **System Account** submenu lists every claude-swap account, checks the System account, and
+  enables inactive accounts with usable source credentials. Choosing one is the only way to activate an account —
+  selecting a segment or a compact row never activates one. It runs exactly `cswap --switch-to <slot> --json`,
+  validates the versioned result and requested slot, then refreshes both ambient Claude usage and every claude-swap
+  account card. Switches are serialized; no automatic switching occurs. Progress and success appear as the account
+  card's subtitle, errors stay on the account that produced them, and a notification reports the result when no
+  menu is open. The active account's card keeps its "Active" badge. The Codex menu uses the same submenu and
+  feedback.
+  While claude-swap owns account presentation, the separate ambient OAuth action reads “Sign in with Claude Code…”
+  and does not add or switch a claude-swap account.
 - Expired, missing, unknown, or Keychain-inaccessible credentials stay non-actionable, but remain viewable. A failed
   switch remains visible on the account it belongs to, without discarding its last successful usage; viewing another
   account does not move or clear that error. A running Claude Code process can take up to the
   claude-swap Keychain cache interval to observe the new account.
-- A `foreign_credential` row explains that the live credential belongs to another account. An inactive row can use
-  the existing explicit slot switch. An active row offers **Re-authenticate**, which runs the same
+- A `foreign_credential` row explains that the live credential belongs to another account. An inactive row can be
+  chosen in the System Account submenu. An active row offers **Re-authenticate**, which runs the same
   `cswap --switch-to <slot> --json` command to let claude-swap reconcile its own credential state, without `--force`. Clicking the active segment
   still only inspects it; repair requires its explicit button.
 - Multiple claude-swap accounts—and a single account when explicitly enabled—take precedence over Claude
