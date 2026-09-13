@@ -46,8 +46,8 @@ On Arch/Omarchy, install the runtime dependencies with:
 sudo pacman -S --needed python qt6-base qt6-declarative qt6-svg qt6-wayland
 ```
 
-Desktop archives will be attached automatically to published releases that include
-this integration. From [GitHub Releases](https://github.com/steipete/CodexBar/releases), download
+Desktop archives are attached automatically to published releases. From
+[GitHub Releases](https://github.com/steipete/CodexBar/releases), download
 `CodexBarDesktop-v<version>-linux-x86_64.tar.gz` (or `aarch64`) and its `.sha256` file.
 Install the matching **CodexBarCLI separately** using the options below; when using
 its archive, keep the resource bundle beside the CLI executable.
@@ -68,10 +68,9 @@ starts the app at login; add `--no-autostart` to disable that. Open Settings to
 choose providers, then sign in through the provider’s CLI or configure its API key.
 GNOME may need a tray extension; the app’s windows work without a tray.
 
-See the [Linux guide](Integrations/Linux/README.md) for source builds, upgrades,
-and desktop compatibility, and the [macOS feature comparison](Integrations/Linux/MAC_COMPARISON.md)
-for supported features and remaining gaps. Until desktop release assets are
-available, use the source build instructions.
+See the [Linux guide](Integrations/Linux/README.md) for distro install recipes, source
+builds, upgrades, and desktop compatibility, and the [macOS feature comparison](Integrations/Linux/MAC_COMPARISON.md)
+for supported features and remaining gaps.
 
 ### CLI Tarballs (macOS/Linux)
 Homebrew formula (Linux today):
