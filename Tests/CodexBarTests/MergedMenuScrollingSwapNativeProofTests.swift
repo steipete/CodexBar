@@ -97,14 +97,19 @@ final class MergedMenuScrollingSwapNativeProofTests: XCTestCase {
             XCTAssertEqual(table, Double(NSSizeFromString(size).height), accuracy: 1.5, "\(label): stale table height")
             let items = try XCTUnwrap(phase["menuItems"] as? [[String: Any]], label)
             let cards = items.filter {
-                let id = $0["id"] as? String ?? ""
-                return id.hasPrefix("menuCard-") || id.hasPrefix("overviewRow-")
+                guard let row = $0["row"] as? String, row != "none" else { return false }
+                return $0["isCard"] as? Bool == true
             }
             XCTAssertFalse(cards.isEmpty, "\(label): missing attached card rows")
             for card in cards {
                 let row = try XCTUnwrap(card["row"] as? String, label)
-                XCTAssertNotEqual(row, "none", "\(label): missing table row")
+                let intrinsic = try XCTUnwrap(card["intrinsic"] as? String, label)
                 XCTAssertGreaterThan(NSRectFromString(row).height, 0, label)
+                XCTAssertEqual(
+                    NSRectFromString(row).height,
+                    NSSizeFromString(intrinsic).height,
+                    accuracy: 1.5,
+                    "\(label): card row differs from its measured content")
             }
             for item in items {
                 guard let row = item["row"] as? String, row != "none", let view = item["viewFrame"] as? String
@@ -251,7 +256,9 @@ final class MergedMenuScrollingSwapNativeProofTests: XCTestCase {
                 "viewObject": String(UInt(bitPattern: ObjectIdentifier(view).hashValue), radix: 16),
                 "id": (item.representedObject as? String) ?? item.title,
                 "view": String(describing: type(of: view)),
+                "isCard": view is ErasedMenuCardHostingView,
                 "viewFrame": NSStringFromRect(view.frame),
+                "intrinsic": NSStringFromSize(view.intrinsicContentSize),
                 "fitting": NSStringFromSize(view.fittingSize),
                 "row": rowFrame,
             ]
