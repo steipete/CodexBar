@@ -92,22 +92,17 @@ struct HelmcodeProviderImplementation: ProviderImplementation {
                 subtitle: "",
                 kind: .secure,
                 placeholder: "Cookie: …",
-                binding: context.stringBinding(\.helmcodeCookieHeader),
+                binding: context.binding(\.helmcodeCookieHeader),
                 actions: [
-                    ProviderSettingsActionDescriptor(
+                    ProviderSettingsActionDescriptor.openURL(
                         id: "helmcode-open-dashboard",
                         title: "Open Dashboard",
-                        style: .link,
-                        isVisible: nil,
-                        perform: {
-                            let tenant = HelmcodeDeploymentResolver.dashboardDeployment(
-                                settings: context.settings.helmcodeSettingsSnapshot(tokenOverride: nil),
-                                environment: ProcessInfo.processInfo.environment)
-                            NSWorkspace.shared.open(tenant.dashboardPageURL)
-                        }),
+                        url: HelmcodeDeploymentResolver.dashboardDeployment(
+                            settings: context.settings.helmcodeSettingsSnapshot(tokenOverride: nil),
+                            environment: ProcessInfo.processInfo.environment
+                        ).dashboardPageURL),
                 ],
-                isVisible: { context.settings.helmcodeCookieSource == .manual },
-                onActivate: { context.settings.ensureHelmcodeCookieLoaded() }),
+                isVisible: nil),
         ]
     }
 }

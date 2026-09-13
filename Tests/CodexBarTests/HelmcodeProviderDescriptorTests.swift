@@ -12,8 +12,7 @@ struct HelmcodeProviderDescriptorTests {
         #expect(descriptor.metadata.browserCookieOrder == [.chrome])
         #expect(descriptor.fetchPlan.sourceModes == [.auto, .web])
         #expect(descriptor.branding.color == ProviderColor(hex: 0x4934E1))
-        #expect(try #require(ProviderImplementationRegistry.implementation(for: .helmcode))
-            is HelmcodeProviderImplementation)
+        #expect(try #require(ProviderCatalog.implementation(for: .helmcode)) is HelmcodeProviderImplementation)
 
         let quotaURL = try #require(Bundle.module.url(
             forResource: "quota",
