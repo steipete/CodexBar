@@ -132,6 +132,11 @@ public enum ClaudeWebAPIFetcher {
         case networkError(Error)
         case invalidResponse
         case unauthorized
+        /// The cached cookie looked invalid, but no browser cookie recovery was actually attempted this
+        /// cycle (every candidate was skipped by the no-UI Keychain preflight, not found to genuinely
+        /// lack a session). Distinct from `.unauthorized` so the UI doesn't tell the user to sign in when
+        /// their session was never actually checked.
+        case cachedSessionUnverifiedInBackground
         case cloudflareChallenge
         case serverError(statusCode: Int)
         case noOrganization
@@ -151,6 +156,10 @@ public enum ClaudeWebAPIFetcher {
                 "Invalid response from Claude API."
             case .unauthorized:
                 "Sign in to claude.ai (or refresh Claude cookies) to load usage data."
+            case .cachedSessionUnverifiedInBackground:
+                "Couldn't verify your Claude session in the background just now (a local security check " +
+                    "was inconclusive, not a sign-out). Showing last-known usage; it will retry " +
+                    "automatically, or click Refresh to check now."
             case .cloudflareChallenge:
                 "claude.ai is behind a Cloudflare challenge, often caused by VPN or datacenter networks. " +
                     "Re-authenticating will not help. Switch Claude Usage source to OAuth in Settings " +
@@ -498,11 +507,26 @@ extension ClaudeWebAPIFetcher {
 
     // MARK: - Session Key Extraction
 
+    /// Convenience for callers that don't care whether browser recovery was actually attempted (probes,
+    /// plain session-key existence checks) — see the `recoveryAttempted` overload below.
     private static func extractSessionKeyInfo(
         browserDetection: BrowserDetection,
         logger: ((String) -> Void)? = nil) throws -> SessionKeyInfo
     {
+        var recoveryAttempted = false
+        return try self.extractSessionKeyInfo(
+            browserDetection: browserDetection,
+            recoveryAttempted: &recoveryAttempted,
+            logger: logger)
+    }
+
+    private static func extractSessionKeyInfo(
+        browserDetection: BrowserDetection,
+        recoveryAttempted: inout Bool,
+        logger: ((String) -> Void)? = nil) throws -> SessionKeyInfo
+    {
         if let override = ClaudeWebSessionKeyImport.currentOverride {
+            recoveryAttempted = true
             return override
         }
         let log: (String) -> Void = { msg in logger?(msg) }
@@ -515,12 +539,17 @@ extension ClaudeWebAPIFetcher {
             for browserSource in installedBrowsers {
                 do {
                     if let override = ClaudeWebSessionKeyImport.currentBrowserOverride {
+                        recoveryAttempted = true
                         if let sessionInfo = try override(browserSource) {
                             log("Found sessionKey in \(sessionInfo.sourceLabel)")
                             return sessionInfo
                         }
                         continue
                     }
+                    // codexBarRecords silently returns [] when the gate skips this browser, so re-check
+                    // here to tell "genuinely no session cookie" apart from "never actually looked".
+                    guard BrowserCookieAccessGate.shouldAttempt(browserSource) else { continue }
+                    recoveryAttempted = true
                     let query = BrowserCookieQuery(domains: cookieDomains)
                     let sources = try Self.cookieClient.codexBarRecords(
                         matching: query,
@@ -538,6 +567,7 @@ extension ClaudeWebAPIFetcher {
                         }
                     }
                 } catch {
+                    recoveryAttempted = true
                     BrowserCookieAccessGate.recordIfNeeded(error)
                     log("\(browserSource.displayName) cookie load failed: \(error.localizedDescription)")
                 }
@@ -1407,8 +1437,12 @@ extension ClaudeWebAPIFetcher {
         // unconditionally denied. Only if that attempt itself comes back empty do we surface the original,
         // more informative cached-auth error instead of a misleading "no session key found" — mirroring the
         // equivalent Ollama recovery in `OllamaStatusFetchStrategy.fetchAutomatic`.
+        var recoveryAttempted = false
         do {
-            let sessionInfo = try extractSessionKeyInfo(browserDetection: browserDetection, logger: log)
+            let sessionInfo = try extractSessionKeyInfo(
+                browserDetection: browserDetection,
+                recoveryAttempted: &recoveryAttempted,
+                logger: log)
             log("Found session key (\(sessionInfo.cookieCount) cookies)")
 
             return try await self.fetchUsage(
@@ -1421,6 +1455,11 @@ extension ClaudeWebAPIFetcher {
                     persistInitialSessionKey: true))
         } catch {
             if let invalidatedCacheError {
+                guard recoveryAttempted else {
+                    log("Every browser recovery candidate was skipped by the Keychain preflight; " +
+                        "preserving the cached auth state instead of reporting a sign-out")
+                    throw FetchError.cachedSessionUnverifiedInBackground
+                }
                 throw invalidatedCacheError
             }
             throw error

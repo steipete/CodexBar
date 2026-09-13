@@ -184,6 +184,16 @@ public enum BrowserCookieAccessGate {
             try operation()
         }
     }
+
+    static func withShouldAttemptOverrideForTesting<T>(
+        _ result: Bool?,
+        isolation: isolated (any Actor)? = #isolation,
+        operation: () async throws -> T) async rethrows -> T
+    {
+        try await self.$shouldAttemptOverrideForTesting.withValue(result) {
+            try await operation()
+        }
+    }
     #endif
 
     static func operationPreservingAccessContext<T: Sendable>(

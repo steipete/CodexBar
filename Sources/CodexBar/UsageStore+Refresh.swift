@@ -1587,9 +1587,13 @@ extension UsageStore {
         if case ClaudeWebAPIFetcher.FetchError.cloudflareChallenge = error {
             return true
         }
+        if case ClaudeWebAPIFetcher.FetchError.cachedSessionUnverifiedInBackground = error {
+            return true
+        }
         return [
             ClaudeWebAPIFetcher.FetchError.unauthorized.localizedDescription,
             ClaudeWebAPIFetcher.FetchError.cloudflareChallenge.localizedDescription,
+            ClaudeWebAPIFetcher.FetchError.cachedSessionUnverifiedInBackground.localizedDescription,
         ].contains(error.localizedDescription)
     }
 
