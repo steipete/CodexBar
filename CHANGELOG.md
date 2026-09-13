@@ -15,6 +15,7 @@
 - Web dashboard: preserve account aliases and organization labels so Claude accounts sharing an email remain distinguishable, including in redacted mode (follow-up to #3082).
 
 ### Development
+- Tests: isolate Claude OAuth cooldown and refresh-gate preferences per fixture so reset and expiry checks cannot erase another test run’s state.
 - Keep runtime descriptor replacements consistent across lookup, ordered metadata, and CLI aliases, with synchronization owned by the descriptor store.
 - Share provider settings bindings, cookie pickers, deferred link actions, cookie-source persistence, and typed cookie snapshots; replace the app's mutable provider registry with its immutable generated catalog.
 - Remove retired menu views, unused provider helpers, and no-op credential-loading hooks; reuse shared config accessors and simplify redundant menu and account state.

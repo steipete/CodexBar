@@ -17,9 +17,9 @@ enum ClaudeOAuthUsageRateLimitGate {
 
     static func currentBlockedUntil(accessToken: String, now: Date = Date()) -> Date? {
         self.lock.withLock {
-            self.purgeLegacyAndExpiredEntries(now: now)
+            let defaults = self.purgedDefaults(now: now)
             let key = self.blockedUntilKey(accessToken: accessToken)
-            guard let raw = UserDefaults.standard.object(forKey: key) as? Double else {
+            guard let raw = defaults.object(forKey: key) as? Double else {
                 return nil
             }
             return Date(timeIntervalSince1970: raw)
@@ -28,24 +28,24 @@ enum ClaudeOAuthUsageRateLimitGate {
 
     static func recordRateLimit(accessToken: String, retryAfter: Date?, now: Date = Date()) {
         self.lock.withLock {
-            self.purgeLegacyAndExpiredEntries(now: now)
+            let defaults = self.purgedDefaults(now: now)
             let key = self.blockedUntilKey(accessToken: accessToken)
             let candidate = if let retryAfter, retryAfter > now {
                 retryAfter
             } else {
                 now.addingTimeInterval(self.defaultCooldown)
             }
-            let existing = (UserDefaults.standard.object(forKey: key) as? Double)
+            let existing = (defaults.object(forKey: key) as? Double)
                 .map(Date.init(timeIntervalSince1970:))
             let blockedUntil = max(existing ?? candidate, candidate)
-            UserDefaults.standard.set(blockedUntil.timeIntervalSince1970, forKey: key)
+            defaults.set(blockedUntil.timeIntervalSince1970, forKey: key)
         }
     }
 
     static func recordSuccess(accessToken: String, now: Date = Date()) {
         self.lock.withLock {
-            self.purgeLegacyAndExpiredEntries(now: now)
-            UserDefaults.standard.removeObject(forKey: self.blockedUntilKey(accessToken: accessToken))
+            let defaults = self.purgedDefaults(now: now)
+            defaults.removeObject(forKey: self.blockedUntilKey(accessToken: accessToken))
         }
     }
 
@@ -53,8 +53,8 @@ enum ClaudeOAuthUsageRateLimitGate {
         self.blockedUntilKeyPrefix + ClaudeOAuthCredentialsStore.sha256Hex(Data(accessToken.utf8))
     }
 
-    private static func purgeLegacyAndExpiredEntries(now: Date) {
-        let defaults = UserDefaults.standard
+    private static func purgedDefaults(now: Date) -> UserDefaults {
+        let defaults = ClaudeOAuthKeychainPromptPreference.userDefaults(or: .standard)
         defaults.removeObject(forKey: self.legacyBlockedUntilKey)
         for (key, value) in defaults.dictionaryRepresentation()
             where key.hasPrefix(self.blockedUntilKeyPrefix)
@@ -66,6 +66,7 @@ enum ClaudeOAuthUsageRateLimitGate {
                 continue
             }
         }
+        return defaults
     }
 
     #if DEBUG
@@ -75,7 +76,7 @@ enum ClaudeOAuthUsageRateLimitGate {
 
     static func resetForTesting() {
         self.lock.withLock {
-            let defaults = UserDefaults.standard
+            let defaults = ClaudeOAuthKeychainPromptPreference.userDefaults(or: .standard)
             defaults.removeObject(forKey: self.legacyBlockedUntilKey)
             for key in defaults.dictionaryRepresentation().keys
                 where key.hasPrefix(self.blockedUntilKeyPrefix)

@@ -141,6 +141,11 @@ not establish the cause of a position that changes again after launch; that requ
 make test
 ```
 
+Claude OAuth gate tests use `ClaudeOAuthDefaultsFixtures()` so each test case owns an in-memory preferences store.
+Keep reset, expiry, and persisted-key assertions inside that scope; nested tasks inherit it, detached tasks do not.
+The gates retain their normal production defaults domain. Continue serializing shared gate state and same-host
+full-suite runs: isolating these preferences does not isolate every test dependency.
+
 `make test` and `make check` require a `python3` that provides `os.waitid` with `WNOWAIT`. Some macOS Python
 builds, including Apple's `/usr/bin/python3`, do not provide it. The test runner then stops before its initial
 Swift discovery/build and names the interpreter path, its version, and the missing attributes. Earlier

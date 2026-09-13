@@ -3,7 +3,7 @@ import Testing
 @testable import CodexBarCore
 
 #if os(macOS)
-@Suite(.serialized)
+@Suite(.serialized, ClaudeOAuthDefaultsFixtures())
 struct ClaudeOAuthRefreshFailureGateTests {
     private let legacyBlockedUntilKey = "claudeOAuthRefreshBackoffBlockedUntilV1"
     private let legacyFailureCountKey = "claudeOAuthRefreshBackoffFailureCountV1"
@@ -86,12 +86,14 @@ struct ClaudeOAuthRefreshFailureGateTests {
         defer { ClaudeOAuthRefreshFailureGate.resetForTesting() }
 
         let now = Date(timeIntervalSince1970: 10000)
-        UserDefaults.standard.set(now.addingTimeInterval(-60).timeIntervalSince1970, forKey: self.legacyBlockedUntilKey)
-        UserDefaults.standard.set(0, forKey: self.legacyFailureCountKey)
-        UserDefaults.standard.removeObject(forKey: self.terminalBlockedKey)
+        ClaudeOAuthDefaultsFixtures.defaults.set(
+            now.addingTimeInterval(-60).timeIntervalSince1970,
+            forKey: self.legacyBlockedUntilKey)
+        ClaudeOAuthDefaultsFixtures.defaults.set(0, forKey: self.legacyFailureCountKey)
+        ClaudeOAuthDefaultsFixtures.defaults.removeObject(forKey: self.terminalBlockedKey)
 
         #expect(ClaudeOAuthRefreshFailureGate.shouldAttempt(now: now) == true)
-        #expect(UserDefaults.standard.object(forKey: self.legacyBlockedUntilKey) == nil)
+        #expect(ClaudeOAuthDefaultsFixtures.defaults.object(forKey: self.legacyBlockedUntilKey) == nil)
     }
 
     @Test
@@ -111,17 +113,21 @@ struct ClaudeOAuthRefreshFailureGateTests {
             fingerprint
         } operation: {
             let legacyBlockedUntil = now.addingTimeInterval(60 * 10)
-            UserDefaults.standard.set(2, forKey: self.legacyFailureCountKey)
-            UserDefaults.standard.removeObject(forKey: self.terminalBlockedKey)
-            UserDefaults.standard.set(legacyBlockedUntil.timeIntervalSince1970, forKey: self.legacyBlockedUntilKey)
+            ClaudeOAuthDefaultsFixtures.defaults.set(2, forKey: self.legacyFailureCountKey)
+            ClaudeOAuthDefaultsFixtures.defaults.removeObject(forKey: self.terminalBlockedKey)
+            ClaudeOAuthDefaultsFixtures.defaults.set(
+                legacyBlockedUntil.timeIntervalSince1970,
+                forKey: self.legacyBlockedUntilKey)
             let data = try JSONEncoder().encode(fingerprint)
-            UserDefaults.standard.set(data, forKey: self.legacyFingerprintKey)
+            ClaudeOAuthDefaultsFixtures.defaults.set(data, forKey: self.legacyFingerprintKey)
 
             #expect(ClaudeOAuthRefreshFailureGate.shouldAttempt(now: now) == false)
-            #expect(UserDefaults.standard.bool(forKey: self.terminalBlockedKey) == false)
-            #expect(UserDefaults.standard.object(forKey: self.legacyBlockedUntilKey) == nil)
-            #expect(UserDefaults.standard.object(forKey: self.profileKey(self.transientBlockedUntilKey)) != nil)
-            #expect(UserDefaults.standard.integer(forKey: self.profileKey(self.transientFailureCountKey)) == 2)
+            #expect(ClaudeOAuthDefaultsFixtures.defaults.bool(forKey: self.terminalBlockedKey) == false)
+            #expect(ClaudeOAuthDefaultsFixtures.defaults.object(forKey: self.legacyBlockedUntilKey) == nil)
+            #expect(ClaudeOAuthDefaultsFixtures.defaults
+                .object(forKey: self.profileKey(self.transientBlockedUntilKey)) != nil)
+            #expect(ClaudeOAuthDefaultsFixtures.defaults
+                .integer(forKey: self.profileKey(self.transientFailureCountKey)) == 2)
         }
     }
 
@@ -232,8 +238,9 @@ struct ClaudeOAuthRefreshFailureGateTests {
             ClaudeOAuthRefreshFailureGate.recordTransientFailure(now: start.addingTimeInterval(1))
 
             #expect(ClaudeOAuthRefreshFailureGate.shouldAttempt(now: start.addingTimeInterval(20)) == false)
-            #expect(UserDefaults.standard.bool(forKey: self.profileKey(self.terminalBlockedKey)) == true)
-            #expect(UserDefaults.standard.object(forKey: self.profileKey(self.transientBlockedUntilKey)) == nil)
+            #expect(ClaudeOAuthDefaultsFixtures.defaults.bool(forKey: self.profileKey(self.terminalBlockedKey)) == true)
+            #expect(ClaudeOAuthDefaultsFixtures.defaults
+                .object(forKey: self.profileKey(self.transientBlockedUntilKey)) == nil)
         }
     }
 
@@ -344,9 +351,9 @@ struct ClaudeOAuthRefreshFailureGateTests {
         ClaudeOAuthRefreshFailureGate.resetForTesting()
         defer { ClaudeOAuthRefreshFailureGate.resetForTesting() }
 
-        UserDefaults.standard.set(true, forKey: self.profileKey(self.terminalBlockedKey))
-        UserDefaults.standard.set(1, forKey: self.profileKey(self.legacyFailureCountKey))
-        UserDefaults.standard.removeObject(forKey: self.profileKey(self.terminalTokenHashKey))
+        ClaudeOAuthDefaultsFixtures.defaults.set(true, forKey: self.profileKey(self.terminalBlockedKey))
+        ClaudeOAuthDefaultsFixtures.defaults.set(1, forKey: self.profileKey(self.legacyFailureCountKey))
+        ClaudeOAuthDefaultsFixtures.defaults.removeObject(forKey: self.profileKey(self.terminalTokenHashKey))
         ClaudeOAuthRefreshFailureGate.resetInMemoryStateForTesting()
 
         let start = Date(timeIntervalSince1970: 56000)

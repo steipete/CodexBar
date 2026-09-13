@@ -137,29 +137,24 @@ struct ClaudeOAuthRateLimitResilienceTests {
     }
 
     @MainActor
+    @Test
+    func `equally named fixtures keep preferences and config independent`() throws {
+        let first = try self.makeStore(suite: "ClaudeOAuthRateLimit-shared", layout: .stacked)
+        let second = try self.makeStore(suite: "ClaudeOAuthRateLimit-shared", layout: .segmented)
+        #expect(first.settings.multiAccountMenuLayout == .stacked)
+        #expect(second.settings.multiAccountMenuLayout == .segmented)
+        #expect(first.settings.configStore.fileURL != second.settings.configStore.fileURL)
+        first.settings.userDefaults.set("first", forKey: "fixture-owner")
+        second.settings.userDefaults.set("second", forKey: "fixture-owner")
+        #expect(first.settings.userDefaults.string(forKey: "fixture-owner") == "first")
+    }
+
+    @MainActor
     private func makeStore(
         suite: String,
         layout: MultiAccountMenuLayout = .segmented) throws -> UsageStore
     {
-        let defaults = UserDefaults(suiteName: suite)!
-        defaults.removePersistentDomain(forName: suite)
-        let settings = SettingsStore(
-            userDefaults: defaults,
-            configStore: testConfigStore(suiteName: suite),
-            zaiTokenStore: NoopZaiTokenStore(),
-            syntheticTokenStore: NoopSyntheticTokenStore(),
-            codexCookieStore: InMemoryCookieHeaderStore(),
-            claudeCookieStore: InMemoryCookieHeaderStore(),
-            cursorCookieStore: InMemoryCookieHeaderStore(),
-            opencodeCookieStore: InMemoryCookieHeaderStore(),
-            factoryCookieStore: InMemoryCookieHeaderStore(),
-            minimaxCookieStore: InMemoryMiniMaxCookieStore(),
-            minimaxAPITokenStore: InMemoryMiniMaxAPITokenStore(),
-            kimiTokenStore: InMemoryKimiTokenStore(),
-            augmentCookieStore: InMemoryCookieHeaderStore(),
-            ampCookieStore: InMemoryCookieHeaderStore(),
-            copilotTokenStore: InMemoryCopilotTokenStore(),
-            tokenAccountStore: InMemoryTokenAccountStore())
+        let settings = testSettingsStore(suiteName: suite, userDefaults: InMemoryUserDefaults())
         settings.providerDetectionCompleted = true
         settings.refreshFrequency = .manual
         settings.statusChecksEnabled = false
