@@ -74,7 +74,7 @@ final class ClaudeSwapViewOnlyNativeProofTests: XCTestCase {
             let content = NSView(frame: NSRect(x: 0, y: 0, width: 720, height: 340))
             host.contentView = content
             Self.addLabel(
-                "Production claude-swap switcher · synthetic accounts · ● marks the active account",
+                "Shared account switcher · synthetic claude-swap accounts · ● marks the System account",
                 y: 296,
                 to: content)
 
@@ -113,7 +113,7 @@ final class ClaudeSwapViewOnlyNativeProofTests: XCTestCase {
     /// Drives the production menu: each click goes through the real switcher view's button action and
     /// `onSelect` wiring into `handleClaudeSwapAccountSelection`. Activation is measured, not assumed:
     /// on the store's switch owner after every click, and on a logging stub standing in for cswap.
-    func test_menuSegmentClicksNeverActivate() throws {
+    func test_menuSegmentClicksNeverActivate() async throws {
         let output = try self.proofOutputDirectory()
         let stub = try Self.writeStub(
             named: "menu-owner",
@@ -129,7 +129,7 @@ final class ClaudeSwapViewOnlyNativeProofTests: XCTestCase {
             let switcher = try XCTUnwrap(menu.items.lazy.compactMap { $0.view as? AccountSegmentedSwitcherView }.first)
             let button = try XCTUnwrap(switcher._test_buttons().first { $0.title.hasSuffix(slot) })
             button.performClick(nil)
-            RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.3))
+            try await Task.sleep(for: .milliseconds(300))
             controller.populateMenu(menu, provider: .claude)
 
             let viewed = try XCTUnwrap(store.claudeSwapAccountSnapshots.first {
@@ -150,7 +150,7 @@ final class ClaudeSwapViewOnlyNativeProofTests: XCTestCase {
             ])
         }
         // Give any activation a segment click might have scheduled time to reach the subprocess.
-        RunLoop.main.run(until: Date(timeIntervalSinceNow: 1))
+        try await Task.sleep(for: .seconds(1))
         let invocations = Self.invocations(of: stub)
         let switchInvocations = invocations.filter { $0.contains("--switch-to") }
         let activationsStarted = clicks.count(where: {
@@ -163,12 +163,41 @@ final class ClaudeSwapViewOnlyNativeProofTests: XCTestCase {
         XCTAssertEqual(clicks.map { $0["systemSubmenuSwitchable"] as? Bool }, [true, false, false])
         XCTAssertEqual(clicks.map { $0["cardActionLabel"] as? String }, [nil, nil, "Active"])
 
+        // Contrast: choosing an account in the System Account submenu is what activates it. The follow-up Claude
+        // refresh is replaced so nothing but the stub runs.
+        store._test_providerRefreshOverride = { _ in }
+        defer { store._test_providerRefreshOverride = nil }
+        let descriptor = MenuDescriptor.build(
+            provider: .claude,
+            store: store,
+            settings: controller.settings,
+            account: AccountInfo(email: nil, plan: nil),
+            updateReady: false)
+        let systemItems = try XCTUnwrap(descriptor.sections.flatMap(\.entries).compactMap { entry
+                -> [MenuDescriptor.SubmenuItem]? in
+            guard case let .submenu("System Account", _, items) = entry else { return nil }
+            return items
+        }.first)
+        var notices: [SystemAccountSwitchFeedback.Notice] = []
+        controller._test_systemAccountNoticeObserver = { _, notice in notices.append(notice) }
+        controller.menuDidClose(menu)
+        let switchTask = try XCTUnwrap(controller.startSystemAccountSwitch(provider: .claude, accountID: "7"))
+        await switchTask.value
+        let submenuSwitchInvocations = Self.invocations(of: stub).filter { $0.contains("--switch-to") }
+        XCTAssertEqual(submenuSwitchInvocations, ["--switch-to 7 --json"])
+        XCTAssertEqual(notices, [.init(title: "System account switched", body: "Claude Code now uses Account 7")])
+
         let receipt: [String: Any] = [
             "syntheticOnly": true,
             "path": "production menu → AccountSegmentedSwitcherView button → handleClaudeSwapAccountSelection",
             "clicks": clicks,
             "stubInvocations": invocations,
             "activationsStarted": activationsStarted,
+            "systemSubmenu": systemItems.map {
+                ["title": $0.title, "checked": $0.isChecked, "enabled": $0.isEnabled] as [String: Any]
+            },
+            "switchInvocationsAfterSubmenu": submenuSwitchInvocations,
+            "notices": notices.map { ["title": $0.title, "body": $0.body] },
         ]
         try JSONSerialization.data(withJSONObject: receipt, options: [.sortedKeys, .prettyPrinted])
             .write(to: output.appendingPathComponent("menu-owner.json"), options: .atomic)
@@ -303,8 +332,8 @@ final class ClaudeSwapViewOnlyNativeProofTests: XCTestCase {
         let log: URL
     }
 
-    /// A synthetic claude-swap stand-in: logs its arguments and prints a fixed schema-v1 list.
-    /// It holds no credentials and cannot switch anything.
+    /// A synthetic claude-swap stand-in: logs its arguments, prints a fixed schema-v1 list, and answers
+    /// `--switch-to <slot>` with a schema-v1 result for that slot. It holds no credentials and changes nothing.
     private static func writeStub(named name: String, listJSON: String, in output: URL) throws -> Stub {
         let directory = output.appendingPathComponent("stubs/\(name)", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -318,6 +347,10 @@ final class ClaudeSwapViewOnlyNativeProofTests: XCTestCase {
         cat <<'JSON'
         \(listJSON)
         JSON
+        exit 0
+        fi
+        if [ "$1" = "--switch-to" ]; then
+        printf '{"schemaVersion":1,"switched":true,"from":{"number":2},"to":{"number":%s},"reason":"x"}\\n' "$2"
         exit 0
         fi
         exit 64
