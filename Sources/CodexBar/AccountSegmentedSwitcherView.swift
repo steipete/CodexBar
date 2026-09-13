@@ -15,7 +15,8 @@ struct AccountSwitcherSegment {
 
 /// Segmented account switcher shared by providers. The filled segment is the Selected account; a leading `●`
 /// marks the System account (the one the provider CLI uses). The two states are independent.
-final class AccountSegmentedSwitcherView: NSView {
+/// Not final: a provider may subclass it without overrides when menu reuse logic must recognize its row by type.
+class AccountSegmentedSwitcherView: NSView {
     static let systemMarker = "●"
 
     private static let rowSpacing: CGFloat = 4

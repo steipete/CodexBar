@@ -122,7 +122,7 @@ struct CodexAccountSwitcherRedactionTests {
             self.account(id: "a", email: "person@example.com", workspace: "Acme"),
             self.account(id: "b", email: "other@example.com"),
         ]
-        let view = CodexAccountSwitcherView(
+        let view = CodexAccountSwitcherLabeling.switcherView(
             accounts: accounts,
             selectedAccountID: "a",
             width: 320,
@@ -146,7 +146,7 @@ struct CodexAccountSwitcherRedactionTests {
         let labels = CodexAccountSwitcherLabeling.labels(for: accounts, hidePersonalInfo: true)
         #expect(Set(labels.values).count == accounts.count)
         #expect(labels.values.allSatisfy { !$0.contains("@") })
-        let view = CodexAccountSwitcherView(
+        let view = CodexAccountSwitcherLabeling.switcherView(
             accounts: accounts, selectedAccountID: "a", width: 150, hidePersonalInfo: true, onSelect: { _ in })
         view.layoutSubtreeIfNeeded()
         #expect(Set(view._test_buttonTitles()).count == accounts.count)

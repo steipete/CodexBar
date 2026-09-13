@@ -1081,7 +1081,7 @@ extension StatusItemController {
         menu: NSMenu,
         width: CGFloat) -> NSMenuItem
     {
-        let view = CodexAccountSwitcherView(
+        let view = CodexAccountSwitcherLabeling.switcherView(
             accounts: display.accounts,
             selectedAccountID: display.activeVisibleAccountID,
             width: width,

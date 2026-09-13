@@ -85,7 +85,7 @@ final class CodexSwitcherPrivacyNativeProofTests: XCTestCase {
     {
         let accounts = Self.accounts()
         var selectedIDs: [String] = []
-        let view = CodexAccountSwitcherView(
+        let view = CodexAccountSwitcherLabeling.switcherView(
             accounts: accounts,
             selectedAccountID: accounts[0].id,
             width: width,

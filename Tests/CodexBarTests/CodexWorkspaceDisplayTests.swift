@@ -102,7 +102,7 @@ struct CodexWorkspaceDisplayTests {
     @Test
     func `compact switcher keeps the workspace discriminator visible`() throws {
         let accounts = Self.project(Self.accounts(label: "Same long Business workspace name")).visibleAccounts
-        let view = CodexAccountSwitcherView(
+        let view = CodexAccountSwitcherLabeling.switcherView(
             accounts: accounts,
             selectedAccountID: accounts[0].id,
             width: 220,
@@ -112,7 +112,12 @@ struct CodexWorkspaceDisplayTests {
         for (account, title) in zip(accounts, titles) {
             #expect(try title.hasSuffix(#require(account.displayDiscriminator)))
         }
-        #expect(view._test_buttonToolTips() == accounts.map(\.menuDisplayName))
+        #expect(view._test_buttonToolTips() == accounts.map {
+            AccountSegmentedSwitcherView.accessibilityDescription(
+                fullLabel: $0.menuDisplayName,
+                isSystem: $0.isLive,
+                isSelected: $0.id == accounts[0].id)
+        })
     }
 
     @Test
@@ -154,7 +159,7 @@ struct CodexWorkspaceDisplayTests {
     @Test(arguments: [8, 12])
     func `crowded switcher fits complete workspace discriminators`(count: Int) throws {
         let accounts = Self.project(Self.accounts(label: nil, count: count)).visibleAccounts
-        let view = CodexAccountSwitcherView(
+        let view = CodexAccountSwitcherLabeling.switcherView(
             accounts: accounts, selectedAccountID: accounts[0].id, width: 310, onSelect: { _ in })
         view.layoutSubtreeIfNeeded()
         let buttons = Self.buttons(in: view)
