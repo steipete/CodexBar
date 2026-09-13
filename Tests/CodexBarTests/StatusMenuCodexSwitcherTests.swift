@@ -1004,6 +1004,59 @@ extension StatusMenuCodexSwitcherTests {
     }
 
     @Test
+    func `codex account cards show system account switch feedback for their account`() throws {
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+        let managedID = try #require(UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-111111111111"))
+        let managed = CodexVisibleAccount(
+            id: "managed@example.com",
+            email: "managed@example.com",
+            authFingerprint: "fixture-auth",
+            storedAccountID: managedID,
+            selectionSource: .managedAccount(id: managedID),
+            isActive: false,
+            isLive: false,
+            canReauthenticate: true,
+            canRemove: true)
+        let live = CodexVisibleAccount(
+            id: "live@example.com",
+            email: "live@example.com",
+            storedAccountID: nil,
+            selectionSource: .liveSystem,
+            isActive: true,
+            isLive: true,
+            canReauthenticate: true,
+            canRemove: false)
+
+        // Stacked and compact Codex menus build one card per account through this model.
+        controller.systemAccountSwitchFeedback.begin(
+            provider: .codex, accountID: managed.id, label: "managed@example.com", cliName: "Codex")
+        let target = try #require(controller.codexAccountMenuCardModel(for: managed, accountSnapshot: nil))
+        #expect(target.subtitleText == "Switching Codex to managed@example.com…")
+        #expect(target.subtitleStyle == .loading)
+        let other = try #require(controller.codexAccountMenuCardModel(for: live, accountSnapshot: nil))
+        #expect(other.subtitleStyle != .loading)
+
+        controller.systemAccountSwitchFeedback.finish(
+            provider: .codex, outcome: .failed(title: "Could not switch system account", message: "Boom"))
+        let failed = try #require(controller.codexAccountMenuCardModel(for: managed, accountSnapshot: nil))
+        #expect(failed.subtitleText == "Boom")
+        #expect(failed.subtitleStyle == .error)
+    }
+
+    @Test
     func `codex switcher marks the live account as system`() throws {
         let managedID = try #require(UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-111111111111"))
         let live = CodexVisibleAccount(

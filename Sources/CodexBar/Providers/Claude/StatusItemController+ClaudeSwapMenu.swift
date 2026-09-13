@@ -134,14 +134,11 @@ extension StatusItemController {
                     ? self.store.claudeSwapTransientState.lastError
                     : nil))
         // The switch error stays in the store and renders through the card error above, so System account feedback
-        // only adds progress and success to the card it targets.
-        guard let model,
-              let switchSubtitle = self.systemAccountSwitchFeedback.subtitle(
-                  for: .claude,
-                  accountID: account.id.opaqueID),
-              switchSubtitle.style != .error
-        else { return model }
-        return model.applyingSubtitle(text: switchSubtitle.text, style: switchSubtitle.style)
+        // only adds progress and success, and never hides an error the card already shows.
+        let switchFeedback = self.systemAccountSwitchFeedback
+            .subtitle(for: .claude, accountID: account.id.opaqueID)
+            .flatMap { $0.style == .error ? nil : $0 }
+        return model?.applyingSwitchFeedback(switchFeedback)
     }
 
     /// Card badge and repair label: "Active", "Re-authenticate" or "Loading…". Switching lives in the System Account

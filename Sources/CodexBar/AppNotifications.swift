@@ -24,7 +24,8 @@ final class AppNotifications {
         title: String,
         body: String,
         badge: NSNumber? = nil,
-        soundEnabled: Bool = true)
+        soundEnabled: Bool = true,
+        onDeliveryResult: (@MainActor (Bool) -> Void)? = nil)
     {
         guard !Self.isRunningUnderTests else { return }
         let center = self.centerProvider()
@@ -34,6 +35,7 @@ final class AppNotifications {
             let granted = await self.ensureAuthorized()
             guard granted else {
                 logger.debug("not authorized; skipping post", metadata: ["prefix": idPrefix])
+                onDeliveryResult?(false)
                 return
             }
 
@@ -51,9 +53,11 @@ final class AppNotifications {
             logger.info("posting", metadata: ["prefix": idPrefix])
             do {
                 try await center.add(request)
+                onDeliveryResult?(true)
             } catch {
                 let errorText = String(describing: error)
                 logger.error("failed to post", metadata: ["prefix": idPrefix, "error": errorText])
+                onDeliveryResult?(false)
             }
         }
     }

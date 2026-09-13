@@ -6,6 +6,10 @@ struct SystemAccountSwitchState {
     var feedback = SystemAccountSwitchFeedback()
     #if DEBUG
     var noticeObserver: ((UsageProvider, SystemAccountSwitchFeedback.Notice) -> Void)?
+    /// Replaces notification delivery; returns whether the notice was delivered.
+    var noticeDelivery: ((SystemAccountSwitchFeedback.Notice) -> Bool)?
+    /// Replaces the fallback alert.
+    var alertObserver: ((String, String) -> Void)?
     #endif
 }
 
@@ -19,6 +23,16 @@ extension StatusItemController {
     var _test_systemAccountNoticeObserver: ((UsageProvider, SystemAccountSwitchFeedback.Notice) -> Void)? {
         get { self.systemAccountSwitchState.noticeObserver }
         set { self.systemAccountSwitchState.noticeObserver = newValue }
+    }
+
+    var _test_systemAccountNoticeDelivery: ((SystemAccountSwitchFeedback.Notice) -> Bool)? {
+        get { self.systemAccountSwitchState.noticeDelivery }
+        set { self.systemAccountSwitchState.noticeDelivery = newValue }
+    }
+
+    var _test_systemAccountAlertObserver: ((String, String) -> Void)? {
+        get { self.systemAccountSwitchState.alertObserver }
+        set { self.systemAccountSwitchState.alertObserver = newValue }
     }
     #endif
 
@@ -69,12 +83,37 @@ extension StatusItemController {
         guard self.openMenus.isEmpty,
               let notice = self.systemAccountSwitchFeedback.notification(for: provider)
         else { return }
+        let isFailure = if case .failed = self.systemAccountSwitchFeedback.phase(for: provider) {
+            true
+        } else {
+            false
+        }
+        // A failure must stay visible even when notifications are not allowed: fall back to the alert Codex used.
+        let handleDelivery: @MainActor (Bool) -> Void = { [weak self] delivered in
+            guard !delivered, isFailure else { return }
+            self?.presentSystemAccountSwitchAlert(title: notice.title, message: notice.body)
+        }
         #if DEBUG
         self._test_systemAccountNoticeObserver?(provider, notice)
+        if let delivery = self._test_systemAccountNoticeDelivery {
+            handleDelivery(delivery(notice))
+            return
+        }
         #endif
         AppNotifications.shared.post(
             idPrefix: "system-account-\(provider.rawValue)",
             title: notice.title,
-            body: notice.body)
+            body: notice.body,
+            onDeliveryResult: handleDelivery)
+    }
+
+    private func presentSystemAccountSwitchAlert(title: String, message: String) {
+        #if DEBUG
+        if let observer = self._test_systemAccountAlertObserver {
+            observer(title, message)
+            return
+        }
+        #endif
+        self.presentLoginAlert(title: title, message: message)
     }
 }

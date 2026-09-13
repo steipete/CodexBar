@@ -123,7 +123,81 @@ struct ClaudeSystemAccountSwitchingTests {
             == .init(text: "Account 2 is now the System account", style: .info))
     }
 
+    @Test
+    func `a published switch error outranks switching progress on the card`() throws {
+        let (settings, store) = self.makeStore()
+        try self.configure(settings, executable: "/path/to/cswap")
+        store.claudeSwapAccountSnapshots = [self.account("1", active: true), self.account("2")]
+        let controller = self.makeController(settings: settings, store: store)
+        defer { controller.releaseStatusItemsForTesting() }
+        let target = store.claudeSwapAccountSnapshots[1]
+
+        controller.systemAccountSwitchFeedback.begin(
+            provider: .claude, accountID: "2", label: "Account 2", cliName: "Claude Code")
+        #expect(try #require(controller.claudeSwapCardModel(for: target)).subtitleStyle == .loading)
+
+        // claude-swap publishes its error before the follow-up Claude refresh finishes.
+        store.claudeSwapTransientState.lastError = "credentials missing"
+        store.claudeSwapTransientState.lastErrorAccountID = target.id
+        let failed = try #require(controller.claudeSwapCardModel(for: target))
+        #expect(failed.subtitleStyle == .error)
+        #expect(failed.subtitleText.contains("credentials missing"))
+    }
+
+    @Test
+    func `an undelivered failure notice falls back to an alert`() async throws {
+        let (settings, store) = self.makeStore()
+        try self.configure(settings, executable: self.makeFailedSwitchExecutable())
+        store.claudeSwapAccountSnapshots = [self.account("1", active: true), self.account("2")]
+        store._test_providerRefreshOverride = { _ in }
+        defer { store._test_providerRefreshOverride = nil }
+        let controller = self.makeController(settings: settings, store: store)
+        defer { controller.releaseStatusItemsForTesting() }
+        var alerts: [(String, String)] = []
+        controller._test_systemAccountNoticeDelivery = { _ in false }
+        controller._test_systemAccountAlertObserver = { alerts.append(($0, $1)) }
+
+        let task = try #require(controller.startSystemAccountSwitch(provider: .claude, accountID: "2"))
+        await task.value
+
+        #expect(alerts.count == 1)
+        #expect(alerts.first?.0 == "Could not switch system account")
+        #expect(alerts.first?.1.contains("credentials missing") == true)
+    }
+
+    @Test
+    func `an undelivered success notice does not raise an alert`() async throws {
+        let (settings, store) = self.makeStore()
+        let marker = FileManager.default.temporaryDirectory.appendingPathComponent("cswap-\(UUID().uuidString)")
+        try self.configure(settings, executable: self.makeSwitchExecutable(marker: marker))
+        store.claudeSwapAccountSnapshots = [self.account("1", active: true), self.account("2")]
+        store._test_providerRefreshOverride = { _ in }
+        defer { store._test_providerRefreshOverride = nil }
+        let controller = self.makeController(settings: settings, store: store)
+        defer { controller.releaseStatusItemsForTesting() }
+        var alerts = 0
+        controller._test_systemAccountNoticeDelivery = { _ in false }
+        controller._test_systemAccountAlertObserver = { _, _ in alerts += 1 }
+
+        let task = try #require(controller.startSystemAccountSwitch(provider: .claude, accountID: "2"))
+        await task.value
+
+        #expect(alerts == 0)
+    }
+
     // MARK: - Fixtures
+
+    private func makeController(settings: SettingsStore, store: UsageStore) -> StatusItemController {
+        StatusItemController.menuCardRenderingEnabled = false
+        StatusItemController.setMenuRefreshEnabledForTesting(false)
+        return StatusItemController(
+            store: store,
+            settings: settings,
+            account: AccountInfo(email: nil, plan: nil),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: testStatusBar())
+    }
 
     private func context(_ settings: SettingsStore, _ store: UsageStore) -> SystemAccountSwitchContext {
         SystemAccountSwitchContext(store: store, settings: settings, codexAccountPromotionCoordinator: nil)

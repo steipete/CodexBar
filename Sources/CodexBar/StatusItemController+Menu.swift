@@ -748,9 +748,12 @@ extension StatusItemController {
         }
 
         guard let builtModel = self.menuCardModel(for: context.selectedProvider) else { return false }
-        let model = self.systemAccountSwitchFeedback.subtitle(for: builtModel.provider, accountID: nil)
-            .map { builtModel.applyingSubtitle(text: $0.text, style: $0.style) } ?? builtModel
-        let renderedModel = self.menuCardRefreshMonitor.model(for: model.provider, fallback: model)
+        let model = builtModel.applyingSwitchFeedback(
+            self.systemAccountSwitchFeedback.subtitle(for: builtModel.provider, accountID: nil))
+        // A card showing switch feedback no longer follows the live monitor, so lay out what it renders.
+        let renderedModel = model.usesLiveSubtitle
+            ? self.menuCardRefreshMonitor.model(for: model.provider, fallback: model)
+            : model
         if context.openAIContext.hasOpenAIWebMenuItems ||
             self.requiresSectionedMenuForProviderDerivedCost(provider: context.currentProvider)
         {
