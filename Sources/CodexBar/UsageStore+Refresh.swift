@@ -341,7 +341,7 @@ extension UsageStore {
             await self.refreshCodexVisibleAccountsForMenu(generation: generation)
             return nil
         } else if provider == .codex {
-            self.codexAccountSnapshots = []
+            self.reconcileCodexWidgetAccountSnapshots()
         }
 
         if provider == .kilo, self.shouldFanOutKiloScopes() {
@@ -838,6 +838,9 @@ extension UsageStore {
         self.bindCodexFailurePublicationOwner(
             provider: provider,
             expectedGuard: context.codexExpectedGuard)
+        if provider == .codex {
+            self.reconcileCodexWidgetAccountSnapshots(after: error)
+        }
         self.lastFetchAttempts[provider.instanceID] = attempts
         self.recordStartupConnectivityRetryableFailure(error)
         await self.handleProviderFetchFailure(

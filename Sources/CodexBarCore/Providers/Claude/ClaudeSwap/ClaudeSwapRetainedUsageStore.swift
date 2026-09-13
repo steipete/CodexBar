@@ -46,6 +46,13 @@ public enum ClaudeSwapRetainedUsageStore {
         accounts.compactMap(Record.init(account:)).map(\.account)
     }
 
+    /// Opaque ownership guard for persisted references to a reusable source-issued slot.
+    /// Uses the same fingerprint as retained quota data; never persists the display identity.
+    public static func ownershipFingerprint(for account: ProviderAccountUsageSnapshot) -> String? {
+        guard account.id.source == ClaudeSwapAccountProjection.sourceName else { return nil }
+        return self.fingerprint(from: account)
+    }
+
     static func fingerprint(email: String, slot: String) -> String? {
         let trimmed = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard trimmed.contains("@") else { return nil }

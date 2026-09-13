@@ -428,7 +428,10 @@ private struct SmallUsageView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HeaderView(provider: self.entry.provider, updatedAt: self.entry.updatedAt)
+            HeaderView(
+                provider: self.entry.provider,
+                updatedAt: self.entry.updatedAt,
+                accountLabel: self.entry.accountLabel)
             ForEach(WidgetUsageRow.rows(
                 for: self.entry,
                 limit: WidgetUsageRow.smallWidgetRowLimit(for: self.entry)))
@@ -467,7 +470,10 @@ private struct MediumUsageView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HeaderView(provider: self.entry.provider, updatedAt: self.entry.updatedAt)
+            HeaderView(
+                provider: self.entry.provider,
+                updatedAt: self.entry.updatedAt,
+                accountLabel: self.entry.accountLabel)
             ForEach(WidgetUsageRow.rows(
                 for: self.entry,
                 limit: WidgetUsageRow.mediumWidgetRowLimit(for: self.entry)))
@@ -503,7 +509,10 @@ private struct LargeUsageView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HeaderView(provider: self.entry.provider, updatedAt: self.entry.updatedAt)
+            HeaderView(
+                provider: self.entry.provider,
+                updatedAt: self.entry.updatedAt,
+                accountLabel: self.entry.accountLabel)
             ForEach(WidgetUsageRow.rows(for: self.entry)) { row in
                 UsageBarRow(
                     title: row.title,
@@ -774,13 +783,17 @@ private struct HistoryView: View {
 private struct HeaderView: View {
     let provider: ProviderInstanceID
     let updatedAt: Date
+    var accountLabel: String?
 
     var body: some View {
+        let providerName = self.provider.firstPartyProvider.flatMap { ProviderDefaults.metadata[$0]?.displayName }
+            ?? self.provider.rawValue.capitalized
         HStack(alignment: .firstTextBaseline) {
-            Text(self.provider.firstPartyProvider.flatMap { ProviderDefaults.metadata[$0]?.displayName }
-                ?? self.provider.rawValue.capitalized)
+            Text(self.accountLabel.map { "\(providerName) · \($0)" } ?? providerName)
                 .font(.body)
                 .fontWeight(.semibold)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
             Spacer()
             Text(self.updatedAt, style: .relative)
                 .font(.caption2)
