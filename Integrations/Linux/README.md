@@ -5,34 +5,119 @@ system tray icon, and a launcher entry. The Swift `codexbar` CLI owns provider
 fetching and authentication. The desktop owns polling, settings, notifications,
 and a private local socket for desktop adapters. No HTTP server is needed.
 
-## Release downloads
+## Install release archives
 
-Starting with releases that include this integration, GitHub Releases provides
-`CodexBarDesktop-v<version>-linux-x86_64.tar.gz` and
-`CodexBarDesktop-v<version>-linux-aarch64.tar.gz`, each with a `.sha256` file.
-These contain the desktop and optional Omarchy adapter. Download the matching
-`CodexBarCLI` archive separately and keep its resource bundle beside the CLI.
+Desktop archives are published for x86_64 and ARM64 alongside the separate
+CodexBarCLI archives, each with a `.sha256` file. The desktop uses system Qt;
+release binaries require glibc 2.39+ and Qt 6.4+. Ubuntu 24.04 and Debian 13 meet
+these floors. Older systems need a source build. The musl CLI archives are for
+CLI-only use on distributions such as Alpine; they do not make the glibc desktop
+archive compatible with musl.
 
-The release binaries build on Ubuntu 24.04 (glibc 2.39, Qt 6.4). Install the Qt
-runtime and QML modules from your distro. On older systems, build from source.
-Arch/Omarchy dependencies are listed below; Ubuntu packages are listed in
-`.github/actions/build-linux-desktop/action.yml` (the `-dev` packages are only
-needed for building).
+### Runtime packages
+
+Install the packages for your distribution before downloading the archives.
+These include the download tools and Python installer; development packages are
+only needed for a source build.
+
+Arch family, including Omarchy:
 
 ```sh
-# Download the archive and its checksum into the same directory.
-# Replace <version> below with the downloaded version (use aarch64 for ARM64):
-archive='CodexBarDesktop-v<version>-linux-x86_64.tar.gz'
-sha256sum -c "$archive.sha256"
-tar -xzf "$archive"
-cd "${archive%.tar.gz}"
-python3 Integrations/Linux/install.py --cli /absolute/path/to/codexbar --omarchy
+sudo pacman -S --needed curl python qt6-base qt6-declarative qt6-svg qt6-wayland
+```
+
+Fedora:
+
+```sh
+sudo dnf install curl python3 qt6-qtbase qt6-qtdeclarative qt6-qtsvg qt6-qtwayland
+```
+
+Qt Quick Controls and the Fusion style ship in `qt6-declarative` on Arch and
+`qt6-qtdeclarative` on Fedora. Debian and Ubuntu split QML modules into separate
+packages, including WorkerScript.
+
+Ubuntu 24.04 (Noble):
+
+```sh
+sudo apt update
+sudo apt install curl python3 qml6-module-qtquick qml6-module-qtquick-controls \
+  qml6-module-qtquick-layouts qml6-module-qtquick-templates qml6-module-qtquick-window \
+  qml6-module-qtqml-workerscript libqt6widgets6t64 libqt6svg6 qt6-wayland
+```
+
+Debian 13 (Trixie):
+
+```sh
+sudo apt update
+sudo apt install curl python3 qml6-module-qtquick qml6-module-qtquick-controls \
+  qml6-module-qtquick-layouts qml6-module-qtquick-templates qml6-module-qtquick-window \
+  qml6-module-qtqml-workerscript libqt6widgets6 libqt6svg6 qt6-wayland
+```
+
+### Download, verify, and install
+
+Run this block in `sh` or `bash` (from fish, enter `bash` first). It selects the
+latest stable GitHub release, downloads both matching archives, and stops on any
+download or checksum failure. The subshell leaves your current directory and
+shell options unchanged. It uses a fresh temporary directory on each run; the
+CLI and its resource bundle are kept together under `~/.local/lib/codexbar-cli`.
+
+```sh
+(
+set -eu
+arch=$(uname -m)
+case "$arch" in x86_64|aarch64) ;; *) echo "Unsupported architecture: $arch" >&2; exit 1 ;; esac
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+cd "$work"
+api=https://api.github.com/repos/steipete/CodexBar/releases/latest
+curl -fsSL "$api" -o release.json
+version=$(python3 -c 'import json; print(json.load(open("release.json"))["tag_name"])')
+base="https://github.com/steipete/CodexBar/releases/download/$version"
+cli="CodexBarCLI-$version-linux-$arch.tar.gz"
+desktop="CodexBarDesktop-$version-linux-$arch.tar.gz"
+for archive in "$cli" "$desktop"; do
+  curl -fSL "$base/$archive" -o "$archive"
+  curl -fSL "$base/$archive.sha256" -o "$archive.sha256"
+  sha256sum -c "$archive.sha256"
+done
+# Neither archive is extracted until both checksums have passed.
+cli_dir="$HOME/.local/lib/codexbar-cli"
+mkdir -p "$cli_dir" "$HOME/.local/bin"
+tar -xzf "$cli" -C "$cli_dir"
+ln -sfn "$cli_dir/codexbar" "$HOME/.local/bin/codexbar"
+"$HOME/.local/bin/codexbar" --version
+tar -xzf "$desktop"
+cd "${desktop%.tar.gz}"
+python3 Integrations/Linux/install.py --cli "$HOME/.local/bin/codexbar"
+)
+```
+
+Add `--omarchy` to the installer command only on Omarchy, or `--no-autostart` to
+disable starting at login. Then open the installed app:
+
+```sh
 ~/.local/bin/codexbar-linux --settings
 ```
 
-Omit `--omarchy` on other desktops. To upgrade, quit CodexBar, install the new
-archive, and reopen it. Preferences are preserved. There is no desktop auto-updater
-or distro repository package yet. Ordinary CI artifacts are previews, not releases.
+Put `~/.local/bin` on your PATH to use `codexbar` without its full path. The
+symlink resolves to the CLI installation directory; keep `VERSION` and
+`CodexBar_CodexBarCore.bundle` there when upgrading. Homebrew and the AUR
+`codexbar-cli` package are alternative CLI installation methods; with an existing
+CLI, pass its absolute path to the desktop installer instead.
+
+If the unauthenticated GitHub API is rate-limited, download the four matching
+files from [GitHub Releases](https://github.com/steipete/CodexBar/releases/latest),
+or use `gh release download --repo steipete/CodexBar --pattern 'CodexBar*-linux-x86_64.tar.gz*'`
+(substitute `aarch64` for ARM64). In a fresh directory, verify both `.sha256`
+files successfully before extracting either archive, then use the installation
+commands above with the downloaded filenames.
+
+To upgrade, quit CodexBar, rerun the installation block, and reopen it.
+Preferences and disabled autostart are preserved. There is no desktop
+auto-updater or distro repository package yet. Ordinary CI artifacts are
+previews, not releases. See [validation and removal](#validation-and-removal)
+for uninstall paths.
 
 ## Build and install
 
@@ -69,131 +154,6 @@ To create an archive from a local build, run
 the app, installer, icon, adapter, license, and instructions. It needs compatible
 system Qt/glibc libraries and a separately installed CodexBar CLI; it is not an
 AppImage or a distro-native package. Build on the oldest distro you intend to support.
-## Distro install recipes
-
-No distribution packages the desktop app, so the sections below install the Qt 6 runtime
-for your distro and then the CLI and desktop artifacts from the release archives. The
-download commands resolve the newest release that actually ships the asset, so they keep
-working after an upgrade and do not hardcode a version.
-
-Verified runtime floors: glibc 2.39 and Qt 6.4. Debian 13 (Qt 6.8), Ubuntu 24.04 (Qt 6.4),
-Ubuntu 26.04 (Qt 6.10), Fedora 43-45 (Qt 6.11), and current Arch (Qt 6.11) all clear them;
-older releases need the source build above. The CLI resolves `VERSION` and
-`CodexBar_CodexBarCore.bundle/` relative to its own executable, so expose it through a
-wrapper that execs it by absolute path, never as a bare-name symlink on `PATH`.
-
-The recipes are POSIX shell. CachyOS defaults to fish and Omarchy auto-launches it from
-bash, so run a block in a bash subshell (`bash`, paste, `exit`) or save it to a file and run
-`bash file.sh`; on fish add the tarball CLI to `PATH` with `fish_add_path ~/.local/bin`.
-
-### Arch Linux family (Arch, CachyOS, EndeavourOS, Omarchy)
-
-```sh
-sudo pacman -S --needed python qt6-base qt6-declarative qt6-svg qt6-wayland
-
-# Qt Quick Controls and the Fusion style live in qt6-declarative on Arch.
-paru -S codexbar-cli            # or yay -S codexbar-cli; installs the `codexbar` wrapper
-```
-
-Then run the desktop app recipe below, which finds `codexbar` on `PATH`. The AUR package follows
-upstream with a short lag. Arch has no AUR helper by default and CachyOS only ships one on some
-installs, so with neither `paru` nor `yay` available use the tarball CLI recipe below instead.
-
-### Fedora
-
-```sh
-sudo dnf install python3 qt6-qtbase qt6-qtdeclarative qt6-qtsvg qt6-qtwayland
-```
-
-Qt Quick Controls ship inside `qt6-qtdeclarative`, which also provides the retired
-`qt6-qtquickcontrols2` name. Install the CLI with the tarball recipe below, then run the
-desktop app recipe.
-
-### Debian and Ubuntu
-
-```sh
-# Debian 13 "trixie", Ubuntu 26.04 and later
-sudo apt install python3 qml6-module-qtquick qml6-module-qtquick-controls \
-  qml6-module-qtquick-layouts qml6-module-qtquick-templates qml6-module-qtquick-window \
-  libqt6core6t64 libqt6gui6 libqt6widgets6 libqt6network6 libqt6dbus6 \
-  libqt6qml6 libqt6quick6 libqt6quickcontrols2-6 libqt6svg6 qt6-wayland
-```
-
-Ubuntu 24.04 "noble" carries the time64 names for four of those libraries, and sits exactly
-on the glibc 2.39 / Qt 6.4 floor:
-
-```sh
-sudo apt install python3 qml6-module-qtquick qml6-module-qtquick-controls \
-  qml6-module-qtquick-layouts qml6-module-qtquick-templates qml6-module-qtquick-window \
-  libqt6core6t64 libqt6gui6t64 libqt6widgets6t64 libqt6network6t64 libqt6dbus6t64 \
-  libqt6qml6 libqt6quick6 libqt6quickcontrols2-6 libqt6svg6 qt6-wayland
-```
-
-Install the CLI with the tarball recipe below, then run the desktop app recipe.
-
-### Install the desktop app from a release archive (any distro, no root)
-
-Run this in an empty directory, with the CLI already on `PATH`:
-
-```sh
-arch=$(uname -m)                                # x86_64 or aarch64
-api=https://api.github.com/repos/steipete/CodexBar/releases
-desktop=$(curl -fsSL "$api?per_page=30" |
-  grep -Po '"browser_download_url": *"\K[^"]*CodexBarDesktop-v[0-9][0-9.]*-linux-'"$arch"'\.tar\.gz' | head -n1)
-test -n "$desktop" || { echo "no desktop archive for $arch yet" >&2; exit 1; }
-curl -fsSLO "$desktop"
-curl -fsSLO "$desktop.sha256"
-sha256sum -c "$(basename "$desktop").sha256"
-tar -xzf "$(basename "$desktop")"
-cd "$(basename "$desktop" .tar.gz)"
-python3 Integrations/Linux/install.py --cli "$(command -v codexbar)"
-~/.local/bin/codexbar-linux --settings
-```
-
-Add `--omarchy` only on Omarchy, and `--no-autostart` to skip the login autostart.
-
-### Install the CLI from a release tarball (any distro, no root)
-
-```sh
-arch=$(uname -m)
-api=https://api.github.com/repos/steipete/CodexBar/releases
-cli=$(curl -fsSL "$api?per_page=30" |
-  grep -Po '"browser_download_url": *"\K[^"]*CodexBarCLI-v[0-9][0-9.]*-linux-'"$arch"'\.tar\.gz' | head -n1)
-test -n "$cli" || { echo "no CLI archive for $arch" >&2; exit 1; }
-cli_dir="$HOME/.local/lib/codexbar-cli"
-mkdir -p "$cli_dir"
-curl -fsSLO "$cli"
-curl -fsSLO "$cli.sha256"
-sha256sum -c "$(basename "$cli").sha256"
-tar -xzf "$(basename "$cli")" -C "$cli_dir"
-mkdir -p "$HOME/.local/bin"
-printf '#!/bin/sh\nexec %s/codexbar "$@"\n' "$cli_dir" > "$HOME/.local/bin/codexbar"
-chmod +x "$HOME/.local/bin/codexbar"
-
-export PATH="$HOME/.local/bin:$PATH"
-codexbar config providers
-```
-
-On musl systems (Alpine, musl Void) use the `CodexBarCLI-v<version>-linux-musl-$arch` asset
-instead. Make sure `~/.local/bin` is on `PATH`. Upgrading is rerunning the same commands:
-the installer preserves preferences, and preserves a disabled autostart.
-
-### Tray, terminal sign-in, and removal
-
-- GNOME needs an extension for the status icon: `gnome-shell-extension-appindicator` on
-  Fedora, Debian, and Ubuntu. KDE and the other desktops need nothing extra.
-- Settings' Sign in / Sign out buttons open your terminal through `xdg-terminal-exec`,
-  which is optional and packaged in the AUR, Fedora, Debian, and Ubuntu. Without it the
-  buttons do nothing; you can still authenticate with the provider's own CLI.
-- Remove the desktop app after quitting it: `~/.local/bin/codexbar-linux`,
-  `$XDG_DATA_HOME/applications/com.steipete.CodexBar.desktop`,
-  `$XDG_DATA_HOME/icons/hicolor/scalable/apps/codexbar.svg`, and
-  `$XDG_CONFIG_HOME/autostart/com.steipete.CodexBar.desktop`.
-- Remove the CLI with `paru -Rns codexbar-cli` on the Arch family, or by deleting
-  `~/.local/bin/codexbar` and `~/.local/lib/codexbar-cli`. Preferences in
-  `$XDG_CONFIG_HOME/codexbar/linux.json` can stay for a later reinstall.
-- If the GitHub API rate limit blocks the asset lookup, `gh release download steipete/CodexBar`
-  resolves the same archives.
 
 Qt supports Wayland and X11. The tray uses Qt's desktop integration (StatusNotifier
 or X11 tray host). GNOME may require a tray extension; the launcher and windows
