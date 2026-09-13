@@ -6,6 +6,7 @@
 - Codex activity: reuse validated SQLite and decoded aggregate state across unchanged refreshes, preserving replacement, writer, and compatibility invalidation (#3593, related to #3247). Thanks @brzvsk!
 
 ### Fixed
+- Vertex AI: preserve reserved characters in OAuth refresh credentials and reject successful responses that omit a usable access token.
 - Account cards: keep Grok's cached local costs out of an account card that has no usage snapshot.
 - Codex: prefer fresh authorized subscription dates over stale cache metadata, and keep empty account cards from inheriting another account's identity, usage, or credits.
 - Provider settings: preserve saved configuration for unavailable plugins when reordering providers, and localize Qoder and Qwen Cloud cookie-cache labels consistently.

@@ -96,7 +96,7 @@ public struct CopilotDeviceFlow: Sendable {
             "client_id": self.clientID,
             "scope": self.scopes,
         ]
-        postRequest.httpBody = Self.formURLEncodedBody(body)
+        postRequest.httpBody = FormURLEncoding.body(body)
 
         let response = try await ProviderHTTPClient.shared.response(for: postRequest)
 
@@ -121,7 +121,7 @@ public struct CopilotDeviceFlow: Sendable {
             "device_code": deviceCode,
             "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
         ]
-        request.httpBody = Self.formURLEncodedBody(body)
+        request.httpBody = FormURLEncoding.body(body)
 
         while true {
             try await Task.sleep(nanoseconds: UInt64(interval) * 1_000_000_000)
@@ -152,22 +152,7 @@ public struct CopilotDeviceFlow: Sendable {
         }
     }
 
-    private static func formURLEncodedBody(_ parameters: [String: String]) -> Data {
-        let pairs = parameters
-            .map { key, value in
-                "\(Self.formEncode(key))=\(Self.formEncode(value))"
-            }
-            .joined(separator: "&")
-        return Data(pairs.utf8)
-    }
-
     static func makeRequestURL(host: String, path: String) -> URL? {
         URL(string: "https://\(host)\(path)")
-    }
-
-    private static func formEncode(_ value: String) -> String {
-        var allowed = CharacterSet.urlQueryAllowed
-        allowed.remove(charactersIn: "+&=")
-        return value.addingPercentEncoding(withAllowedCharacters: allowed) ?? value
     }
 }

@@ -27,6 +27,13 @@ public enum VertexAITokenRefresher {
     }
 
     public static func refresh(_ credentials: VertexAIOAuthCredentials) async throws -> VertexAIOAuthCredentials {
+        try await self.refresh(credentials, session: ProviderHTTPClient.shared)
+    }
+
+    static func refresh(
+        _ credentials: VertexAIOAuthCredentials,
+        session transport: any ProviderHTTPTransport) async throws -> VertexAIOAuthCredentials
+    {
         guard !credentials.refreshToken.isEmpty else {
             throw RefreshError.invalidResponse("No refresh token available")
         }
@@ -43,13 +50,10 @@ public enum VertexAITokenRefresher {
             "grant_type": "refresh_token",
         ]
 
-        let bodyString = bodyParams
-            .map { "\($0.key)=\($0.value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? $0.value)" }
-            .joined(separator: "&")
-        request.httpBody = bodyString.data(using: .utf8)
+        request.httpBody = FormURLEncoding.body(bodyParams)
 
         do {
-            let response = try await ProviderHTTPClient.shared.response(for: request)
+            let response = try await transport.response(for: request)
             let data = response.data
 
             if response.statusCode == 400 || response.statusCode == 401 {
@@ -74,7 +78,11 @@ public enum VertexAITokenRefresher {
                 throw RefreshError.invalidResponse("Invalid JSON")
             }
 
-            let newAccessToken = json["access_token"] as? String ?? credentials.accessToken
+            guard let newAccessToken = json["access_token"] as? String,
+                  !newAccessToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            else {
+                throw RefreshError.invalidResponse("Missing access token")
+            }
             let expiresIn = json["expires_in"] as? Double ?? 3600
             let newExpiryDate = Date().addingTimeInterval(expiresIn)
 
