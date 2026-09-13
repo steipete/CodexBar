@@ -731,8 +731,9 @@ extension StatusMenuTests {
 
         store.isRefreshing = false
         controller.handleObservedStoreMenuChange()
-        for _ in 0..<20 where rebuildCount == 0 {
-            await Task.yield()
+        let rebuildDeadline = ContinuousClock.now + .seconds(2)
+        while rebuildCount == 0, ContinuousClock.now < rebuildDeadline {
+            try? await Task.sleep(for: .milliseconds(1))
         }
 
         #expect(rebuildCount == 1)
