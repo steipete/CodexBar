@@ -163,7 +163,16 @@ extension SettingsStore {
 
     var mergedIconDisplayStyle: MergedIconDisplayStyle {
         get { self.mergeIconsStacked ? .stacked : .switcher }
-        set { self.mergeIconsStacked = newValue == .stacked }
+        set {
+            self.mergeIconsStacked = newValue == .stacked
+            // Stacked rendering requires a stored layout (`usesLegacyRendering == false`); without this,
+            // selecting Stacked on a fresh install silently does nothing until the user separately edits
+            // the Layout editor. Persist the current effective (migrated) layout so the choice takes
+            // effect immediately, preserving whatever the user already sees pixel-for-pixel.
+            if newValue == .stacked, !self.hasStoredMenuBarLayout {
+                self.menuBarLayout = self.menuBarLayout
+            }
+        }
     }
 
     var mergeIconStackedTopProvider: UsageProvider? {

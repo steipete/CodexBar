@@ -19,6 +19,26 @@ struct SettingsStoreMergeIconStackedTests {
     }
 
     @Test
+    func `selecting stacked style activates a stored layout when none exists`() {
+        let store = testSettingsStore(suiteName: "SettingsStoreMergeIconStackedTests-activates-layout")
+
+        #expect(!store.hasStoredMenuBarLayout)
+        store.mergedIconDisplayStyle = .stacked
+        #expect(store.hasStoredMenuBarLayout)
+    }
+
+    @Test
+    func `selecting stacked style does not overwrite an existing stored layout`() {
+        let store = testSettingsStore(suiteName: "SettingsStoreMergeIconStackedTests-preserves-layout")
+        let customLayout = MenuBarLayout(lines: [[.icon, .providerName]])
+        store.menuBarLayout = customLayout
+
+        store.mergedIconDisplayStyle = .stacked
+
+        #expect(store.menuBarLayout == customLayout)
+    }
+
+    @Test
     func `resolved merge icon stacked providers defaults to first two active providers`() {
         let store = testSettingsStore(suiteName: "SettingsStoreMergeIconStackedTests-default")
 

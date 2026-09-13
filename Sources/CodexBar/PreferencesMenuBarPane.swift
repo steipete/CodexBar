@@ -81,19 +81,21 @@ struct MenuBarPane: View {
                     optionLabel: { style in
                         Text(style.label)
                     })
-                    .disabled(!self.settings.mergeIcons)
+                    .disabled(!self.settings.mergeIcons || self.settings.menuBarIconStyle != .iconAndPercent)
 
                 if self.isStackedStyleActive {
                     self.stackedRowProviderPicker(
                         title: L("merge_icon_stacked_top_provider_title"),
                         selection: Binding(
                             get: { self.settings.mergeIconStackedTopProvider },
-                            set: { self.settings.mergeIconStackedTopProvider = $0 }))
+                            set: { self.settings.mergeIconStackedTopProvider = $0 }),
+                        excluding: self.settings.mergeIconStackedBottomProvider)
                     self.stackedRowProviderPicker(
                         title: L("merge_icon_stacked_bottom_provider_title"),
                         selection: Binding(
                             get: { self.settings.mergeIconStackedBottomProvider },
-                            set: { self.settings.mergeIconStackedBottomProvider = $0 }))
+                            set: { self.settings.mergeIconStackedBottomProvider = $0 }),
+                        excluding: self.settings.mergeIconStackedTopProvider)
                 }
 
                 SettingsMenuPicker(
@@ -211,12 +213,20 @@ struct MenuBarPane: View {
 
     private var isStackedStyleActive: Bool {
         self.settings.mergeIcons && self.settings.mergedIconDisplayStyle == .stacked
+            && self.settings.menuBarIconStyle == .iconAndPercent
     }
 
-    private func stackedRowProviderPicker(title: String, selection: Binding<UsageProvider?>) -> some View {
+    /// Excludes `excluding` from the offered options so the two row pickers can never both point at the
+    /// same explicit provider (an "Automatic" pick on the other row imposes no exclusion, since it
+    /// resolves dynamically around whatever this row ends up as).
+    private func stackedRowProviderPicker(
+        title: String,
+        selection: Binding<UsageProvider?>,
+        excluding: UsageProvider?) -> some View
+    {
         SettingsMenuPicker(
             selection: selection,
-            options: [nil] + self.store.enabledFirstPartyProvidersForDisplay(),
+            options: [nil] + self.store.enabledFirstPartyProvidersForDisplay().filter { $0 != excluding },
             label: { Text(title) },
             optionLabel: { provider in
                 Text(provider.map(self.providerDisplayName) ?? L("Automatic"))

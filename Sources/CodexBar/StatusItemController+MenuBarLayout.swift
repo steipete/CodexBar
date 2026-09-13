@@ -82,7 +82,10 @@ extension StatusItemController {
     /// providers are active. Shared by rendering, icon-change observation, and refresh scheduling so
     /// all three always agree on which providers the stacked icon is showing.
     func stackedMergeIconProvidersIfActive() -> (top: UsageProvider, bottom: UsageProvider)? {
-        guard self.shouldMergeIcons, self.settings.mergedIconDisplayStyle == .stacked else { return nil }
+        guard self.shouldMergeIcons,
+              self.settings.mergedIconDisplayStyle == .stacked,
+              self.settings.menuBarIconStyle == .iconAndPercent
+        else { return nil }
         return self.settings.resolvedMergeIconStackedProviders(
             activeProviders: self.store.enabledFirstPartyProvidersForDisplay())
     }

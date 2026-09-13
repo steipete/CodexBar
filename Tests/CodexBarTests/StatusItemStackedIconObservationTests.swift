@@ -11,6 +11,7 @@ struct StatusItemStackedIconObservationTests {
         settings.statusChecksEnabled = true
         settings.refreshFrequency = .manual
         settings.mergeIcons = true
+        settings.menuBarShowsBrandIconWithPercent = true
         settings.mergedIconDisplayStyle = .stacked
         settings.mergeIconStackedTopProvider = .codex
         settings.mergeIconStackedBottomProvider = .claude
@@ -88,5 +89,15 @@ struct StatusItemStackedIconObservationTests {
             provider: .claude)
 
         #expect(controller.storeIconObservationSignature() != baseline)
+    }
+
+    @Test
+    func `stacked merge icon providers is nil when the icon style cannot render it`() {
+        let (_, controller) = self.makeStackedController(
+            suiteName: "StatusItemStackedIconObservationTests-non-percent-style")
+        controller.settings.menuBarShowsBrandIconWithPercent = false
+        defer { controller.releaseStatusItemsForTesting() }
+
+        #expect(controller.stackedMergeIconProvidersIfActive() == nil)
     }
 }
