@@ -95,8 +95,9 @@ sudo pacman -S --needed python qt6-base qt6-declarative qt6-svg qt6-wayland
 paru -S codexbar-cli            # or yay -S codexbar-cli; installs the `codexbar` wrapper
 ```
 
-Then run the desktop app recipe below, which finds `codexbar` on `PATH`. The AUR package
-follows upstream with a short lag.
+Then run the desktop app recipe below, which finds `codexbar` on `PATH`. The AUR package follows
+upstream with a short lag. Arch has no AUR helper by default and CachyOS only ships one on some
+installs, so with neither `paru` nor `yay` available use the tarball CLI recipe below instead.
 
 ### Fedora
 
