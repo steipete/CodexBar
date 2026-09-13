@@ -5,7 +5,7 @@ import XCTest
 
 /// Signed synthetic proof that claude-swap account segments select details without activating.
 ///
-/// Renders the production `ClaudeSwapAccountSwitcherView` with fictional accounts and captures it,
+/// Renders the production `AccountSegmentedSwitcherView` with fictional accounts and captures it,
 /// so the reviewed behavior is observable without any real account, credential, or `cswap` run.
 /// Follows `CodexSwitcherPrivacyNativeProofTests`.
 @MainActor
@@ -126,7 +126,7 @@ final class ClaudeSwapViewOnlyNativeProofTests: XCTestCase {
 
         var clicks: [[String: Any]] = []
         for slot in ["7", "9", "2"] {
-            let switcher = try XCTUnwrap(menu.items.lazy.compactMap { $0.view as? ClaudeSwapAccountSwitcherView }.first)
+            let switcher = try XCTUnwrap(menu.items.lazy.compactMap { $0.view as? AccountSegmentedSwitcherView }.first)
             let button = try XCTUnwrap(switcher._test_buttons().first { $0.title.hasSuffix(slot) })
             button.performClick(nil)
             RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.3))
@@ -162,7 +162,7 @@ final class ClaudeSwapViewOnlyNativeProofTests: XCTestCase {
 
         let receipt: [String: Any] = [
             "syntheticOnly": true,
-            "path": "production menu → ClaudeSwapAccountSwitcherView button → handleClaudeSwapAccountSelection",
+            "path": "production menu → AccountSegmentedSwitcherView button → handleClaudeSwapAccountSelection",
             "clicks": clicks,
             "stubInvocations": invocations,
             "activationsStarted": activationsStarted,
@@ -353,7 +353,7 @@ final class ClaudeSwapViewOnlyNativeProofTests: XCTestCase {
             errorAccountID: nil,
             viewedAccountID: ProviderAccountIdentity(source: "claude-swap", opaqueID: viewedSlot))
         var selected: [String] = []
-        let view = ClaudeSwapAccountSwitcherView(
+        let view = ClaudeSwapAccountMenuDisplay.switcherView(
             display: display,
             hidePersonalInfo: true,
             width: 320,
@@ -362,8 +362,8 @@ final class ClaudeSwapViewOnlyNativeProofTests: XCTestCase {
         content.addSubview(view)
         view.layoutSubtreeIfNeeded()
 
-        let titles = view._test_titles
-        let tips = view._test_toolTips
+        let titles = view._test_buttonTitles()
+        let tips = view._test_buttonToolTips().compactMap(\.self)
         XCTAssertEqual(titles.count, accounts.count)
         XCTAssertEqual(tips.count, accounts.count)
 
@@ -372,7 +372,7 @@ final class ClaudeSwapViewOnlyNativeProofTests: XCTestCase {
         XCTAssertTrue(titles.allSatisfy { !$0.isEmpty })
 
         // The ● marker tracks claude-swap's active slot, independent of what is being viewed.
-        let marker = ClaudeSwapAccountSwitcherView.activeMarker
+        let marker = AccountSegmentedSwitcherView.systemMarker
         XCTAssertEqual(titles.count(where: { $0.hasPrefix(marker) }), 1)
         XCTAssertTrue(titles.first { $0.hasPrefix(marker) }?.contains("2") == true)
 
@@ -388,7 +388,7 @@ final class ClaudeSwapViewOnlyNativeProofTests: XCTestCase {
         // Every segment reports a selection and starts no activation: the view has no path to
         // `switchClaudeSwapAccount`, and `onSelect` is the only thing it can call.
         var clicked: [String] = []
-        let clickProbe = ClaudeSwapAccountSwitcherView(
+        let clickProbe = ClaudeSwapAccountMenuDisplay.switcherView(
             display: display,
             hidePersonalInfo: true,
             width: 320,

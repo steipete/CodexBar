@@ -1,5 +1,5 @@
+import AppKit
 import CodexBarCore
-import Foundation
 
 /// A menu-only record of which claude-swap account the user asked to look at, scoped to the
 /// adapter configuration it was made under. Viewing never activates a slot, so this state is
@@ -37,7 +37,7 @@ struct ClaudeSwapAccountMenuDisplay {
         return self.accounts.first(where: \.isActive)
     }
 
-    /// The segment to highlight as "showing details", independent of the active-account marker.
+    /// The segment to highlight as Selected, independent of the System marker.
     var displayedAccountID: ProviderAccountIdentity? {
         self.displayedAccount?.id
     }
@@ -76,5 +76,43 @@ struct ClaudeSwapAccountMenuDisplay {
         if switchingAccountID == account.id { return L("Loading…") }
         guard !switchInFlight, account.canActivate else { return nil }
         return account.isActive ? L("Re-authenticate") : L("Switch Account...")
+    }
+
+    /// Switcher segments keyed by claude-swap slot. The System marker follows the account claude-swap reports
+    /// active; the fitted title keeps the slot readable when labels are long.
+    static func segments(
+        for accounts: [ProviderAccountUsageSnapshot],
+        hidePersonalInfo: Bool) -> [AccountSwitcherSegment]
+    {
+        accounts.map { account in
+            let label = self.label(for: account, hidePersonalInfo: hidePersonalInfo)
+            return AccountSwitcherSegment(
+                id: account.id.opaqueID,
+                fullLabel: label,
+                isSystem: account.isActive,
+                title: { width, measure in
+                    label.contains("@")
+                        ? SwitcherTitleFitting.truncateMiddle(label, toFit: width, measure: measure)
+                        : SwitcherTitleFitting.truncateTail(label, toFit: width, measure: measure)
+                })
+        }
+    }
+
+    @MainActor
+    static func switcherView(
+        display: ClaudeSwapAccountMenuDisplay,
+        hidePersonalInfo: Bool,
+        width: CGFloat,
+        onSelect: @escaping (ProviderAccountIdentity) -> Void) -> AccountSegmentedSwitcherView
+    {
+        AccountSegmentedSwitcherView(
+            segments: self.segments(for: display.accounts, hidePersonalInfo: hidePersonalInfo),
+            // Never invent a selection: with no viewed, pending or active account nothing is highlighted.
+            selectedID: display.displayedAccountID?.opaqueID,
+            width: width,
+            onSelect: { slot in
+                guard let account = display.accounts.first(where: { $0.id.opaqueID == slot }) else { return }
+                onSelect(account.id)
+            })
     }
 }

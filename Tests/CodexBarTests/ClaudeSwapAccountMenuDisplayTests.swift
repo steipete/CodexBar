@@ -90,12 +90,24 @@ struct ClaudeSwapAccountMenuDisplayTests {
     }
 
     @Test
-    func `segment descriptions separate the source-owned active marker from the viewed segment`() {
-        let describe = ClaudeSwapAccountSwitcherView.accessibilityDescription
+    func `segment descriptions separate the system marker from the selected segment`() {
+        let describe = AccountSegmentedSwitcherView.accessibilityDescription
         #expect(describe("Account 7", false, false) == "Account 7")
-        #expect(describe("Account 2", true, false) == "Account 2 — Active")
-        #expect(describe("Account 7", false, true) == "Account 7 — Showing details")
-        #expect(describe("Account 2", true, true) == "Account 2 — Active — Showing details")
+        #expect(describe("Account 2", true, false) == "Account 2 — System")
+        #expect(describe("Account 7", false, true) == "Account 7 — Selected")
+        #expect(describe("Account 2", true, true) == "Account 2 — System — Selected")
+    }
+
+    @Test
+    func `segments use slot labels and mark the claude swap active account as system`() {
+        let accounts = [self.account("2", active: true), self.account("7")]
+        let view = ClaudeSwapAccountMenuDisplay.switcherView(
+            display: self.display(accounts, viewed: accounts[1].id),
+            hidePersonalInfo: true,
+            width: 320,
+            onSelect: { _ in })
+        #expect(view._test_buttonTitles() == ["● Account 2", "Account 7"])
+        #expect(view._test_buttonToolTips() == ["Account 2 — System", "Account 7 — Selected"])
     }
 
     @Test
@@ -104,22 +116,22 @@ struct ClaudeSwapAccountMenuDisplayTests {
         let unavailable = self.account("3", canActivate: false)
         let target = self.account("7")
         var selected: [ProviderAccountIdentity] = []
-        let view = ClaudeSwapAccountSwitcherView(
+        let view = ClaudeSwapAccountMenuDisplay.switcherView(
             display: self.display([target, unavailable, active], switching: target.id),
             hidePersonalInfo: true,
             width: 320,
             onSelect: { selected.append($0) })
-        view._test_select(unavailable.id)
-        view._test_select(active.id)
-        view._test_select(target.id)
-        view._test_select(target.id)
+        view._test_selectAccount(id: unavailable.id.opaqueID)
+        view._test_selectAccount(id: active.id.opaqueID)
+        view._test_selectAccount(id: target.id.opaqueID)
+        view._test_selectAccount(id: target.id.opaqueID)
         #expect(selected == [unavailable.id, active.id, target.id, target.id])
         // A pending switch with no view selection keeps the highlight on the requested slot,
         // while the active marker stays on the account claude-swap reports as active.
         #expect(view._test_selectedTitles == ["Account 7"])
-        #expect(view._test_titles.contains("\(ClaudeSwapAccountSwitcherView.activeMarker) Account 2"))
+        #expect(view._test_buttonTitles().contains("\(AccountSegmentedSwitcherView.systemMarker) Account 2"))
         #expect(view.fittingSize.height == 26)
-        let wrapped = ClaudeSwapAccountSwitcherView(
+        let wrapped = ClaudeSwapAccountMenuDisplay.switcherView(
             display: self.display([active, target, unavailable, self.account("8")]),
             hidePersonalInfo: true,
             width: 320,
@@ -131,14 +143,14 @@ struct ClaudeSwapAccountMenuDisplayTests {
     func `the highlighted segment tracks the viewed account, not the active one`() {
         let active = self.account("2", active: true)
         let target = self.account("7")
-        let viewingInactive = ClaudeSwapAccountSwitcherView(
+        let viewingInactive = ClaudeSwapAccountMenuDisplay.switcherView(
             display: self.display([active, target], viewed: target.id),
             hidePersonalInfo: true,
             width: 320,
             onSelect: { _ in })
         #expect(viewingInactive._test_selectedTitles == ["Account 7"])
-        #expect(viewingInactive._test_titles == [
-            "\(ClaudeSwapAccountSwitcherView.activeMarker) Account 2",
+        #expect(viewingInactive._test_buttonTitles() == [
+            "\(AccountSegmentedSwitcherView.systemMarker) Account 2",
             "Account 7",
         ])
     }
@@ -158,7 +170,7 @@ struct ClaudeSwapAccountSwitcherRenderProofTests {
             Self.account("2"),
             Self.account("3", canActivate: false),
         ]
-        let view = ClaudeSwapAccountSwitcherView(
+        let view = ClaudeSwapAccountMenuDisplay.switcherView(
             display: ClaudeSwapAccountMenuDisplay(
                 accounts: accounts,
                 layout: .segmented,
@@ -203,7 +215,7 @@ struct ClaudeSwapAccountSwitcherRenderProofTests {
         container.displayIgnoringOpacity(container.bounds, in: context)
         let png = try #require(bitmap.representation(using: .png, properties: [:]))
         try png.write(to: URL(fileURLWithPath: output), options: .atomic)
-        print("[claude-swap-switcher-proof] titles=\(view._test_titles) selected=\(view._test_selectedTitles)")
+        print("[claude-swap-switcher-proof] titles=\(view._test_buttonTitles()) selected=\(view._test_selectedTitles)")
     }
 
     private static func account(_ slot: String, active: Bool = false, canActivate: Bool = true)

@@ -99,7 +99,7 @@ final class StatusMenuClaudeSwapCompactTests: XCTestCase {
         let menu = controller.makeMenu(for: .claude)
         controller.menuWillOpen(menu)
         for _ in 0..<2 {
-            XCTAssertEqual(menu.items.count(where: { $0.view is ClaudeSwapAccountSwitcherView }), 1)
+            XCTAssertEqual(menu.items.count(where: { $0.view is AccountSegmentedSwitcherView }), 1)
             XCTAssertEqual(self.representedIDs(in: menu).filter { $0.hasPrefix("menuCard") }, ["menuCard-0"])
             store.claudeSwapAccountSnapshots.reverse()
             controller.populateMenu(menu, provider: .claude)

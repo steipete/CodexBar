@@ -17,7 +17,7 @@ extension StatusItemController {
             viewedAccountID: self.claudeSwapViewedAccountID)
         if display.showsSwitcher {
             let item = NSMenuItem()
-            item.view = ClaudeSwapAccountSwitcherView(
+            item.view = ClaudeSwapAccountMenuDisplay.switcherView(
                 display: display,
                 hidePersonalInfo: self.settings.hidePersonalInfo,
                 width: context.menuWidth,
