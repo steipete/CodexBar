@@ -135,7 +135,7 @@ extension StatusItemController {
                     : nil))
         // The switch error stays in the store and renders through the card error above, so System account feedback
         // only adds progress and success, and never hides an error the card already shows.
-        let switchFeedback = self.systemAccountSwitchFeedback
+        let switchFeedback = self.systemAccountSwitchDisplayFeedback(for: .claude)
             .subtitle(for: .claude, accountID: account.id.opaqueID)
             .flatMap { $0.style == .error ? nil : $0 }
         return model?.applyingSwitchFeedback(switchFeedback)

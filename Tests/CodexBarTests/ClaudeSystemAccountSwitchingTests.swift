@@ -185,6 +185,84 @@ struct ClaudeSystemAccountSwitchingTests {
         #expect(alerts == 0)
     }
 
+    @Test
+    func `pending switch cards honor privacy enabled after switching starts`() throws {
+        let (settings, store) = self.makeStore()
+        try self.configure(settings, executable: "/path/to/cswap")
+        settings.hidePersonalInfo = false
+        store.claudeSwapAccountSnapshots = [self.account("1", active: true), self.account("2")]
+        let controller = self.makeController(settings: settings, store: store)
+        defer { controller.releaseStatusItemsForTesting() }
+        let target = store.claudeSwapAccountSnapshots[1]
+        controller.systemAccountSwitchFeedback.begin(
+            provider: .claude, accountID: "2", label: "person.2@example.com", cliName: "Claude Code")
+
+        settings.hidePersonalInfo = true
+
+        let card = try #require(controller.claudeSwapCardModel(for: target))
+        #expect(card.subtitleText == "Switching Claude Code to Account 2…")
+    }
+
+    @Test
+    func `completion notices honor privacy enabled during a switch`() async throws {
+        let (settings, store) = self.makeStore()
+        let marker = FileManager.default.temporaryDirectory.appendingPathComponent("cswap-\(UUID().uuidString)")
+        try self.configure(settings, executable: self.makeSwitchExecutable(marker: marker))
+        settings.hidePersonalInfo = false
+        store.claudeSwapAccountSnapshots = [self.account("1", active: true), self.account("2")]
+        store._test_providerRefreshOverride = { _ in }
+        defer { store._test_providerRefreshOverride = nil }
+        let controller = self.makeController(settings: settings, store: store)
+        defer { controller.releaseStatusItemsForTesting() }
+        var notices: [SystemAccountSwitchFeedback.Notice] = []
+        controller._test_systemAccountNoticeObserver = { _, notice in notices.append(notice) }
+
+        let task = try #require(controller.startSystemAccountSwitch(provider: .claude, accountID: "2"))
+        settings.hidePersonalInfo = true
+        await task.value
+
+        #expect(notices == [.init(title: "System account switched", body: "Claude Code now uses Account 2")])
+    }
+
+    @Test
+    func `retained success uses a generic private label after the account disappears`() throws {
+        let (settings, store) = self.makeStore()
+        try self.configure(settings, executable: "/path/to/cswap")
+        let controller = self.makeController(settings: settings, store: store)
+        defer { controller.releaseStatusItemsForTesting() }
+        controller.systemAccountSwitchFeedback.begin(
+            provider: .claude, accountID: "2", label: "person.2@example.com", cliName: "Claude Code")
+        controller.systemAccountSwitchFeedback.finish(provider: .claude, outcome: .succeeded)
+
+        settings.hidePersonalInfo = true
+        store.claudeSwapAccountSnapshots = []
+
+        let feedback = controller.systemAccountSwitchDisplayFeedback(for: .claude)
+        #expect(feedback.subtitle(for: .claude, accountID: "2")?.text == "Account is now the System account")
+        #expect(feedback.notification(for: .claude)?.body == "Claude Code now uses Account")
+    }
+
+    @Test
+    func `deferred notice retains its transaction while using current privacy`() throws {
+        let (settings, store) = self.makeStore()
+        try self.configure(settings, executable: "/path/to/cswap")
+        settings.hidePersonalInfo = false
+        store.claudeSwapAccountSnapshots = [self.account("1", active: true), self.account("2")]
+        let controller = self.makeController(settings: settings, store: store)
+        defer { controller.releaseStatusItemsForTesting() }
+        controller.systemAccountSwitchFeedback.begin(
+            provider: .claude, accountID: "2", label: "person.2@example.com", cliName: "Claude Code")
+        controller.systemAccountSwitchFeedback.finish(provider: .claude, outcome: .succeeded)
+        let pendingNoticeFeedback = controller.systemAccountSwitchFeedback
+
+        controller.systemAccountSwitchFeedback.menuDidClose()
+        settings.hidePersonalInfo = true
+
+        let notice = controller.systemAccountSwitchDisplayFeedback(for: .claude, feedback: pendingNoticeFeedback)
+            .notification(for: .claude)
+        #expect(notice?.body == "Claude Code now uses Account 2")
+    }
+
     // MARK: - Fixtures
 
     private func makeController(settings: SettingsStore, store: UsageStore) -> StatusItemController {
@@ -226,8 +304,9 @@ struct ClaudeSystemAccountSwitchingTests {
 
     private func makeStore() -> (SettingsStore, UsageStore) {
         let suite = "ClaudeSystemAccountSwitchingTests-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suite)!
-        defaults.removePersistentDomain(forName: suite)
+        let defaults = InMemoryUserDefaults()
+        defaults.set(AppGroupSupport.migrationVersion, forKey: AppGroupSupport.migrationVersionKey)
+        defaults.set(true, forKey: "codexbar.legacySecretsMigrationCompleted")
         let settings = SettingsStore(
             userDefaults: defaults,
             configStore: testConfigStore(suiteName: suite),
@@ -236,7 +315,8 @@ struct ClaudeSystemAccountSwitchingTests {
         let store = UsageStore(
             fetcher: UsageFetcher(),
             browserDetection: BrowserDetection(cacheTTL: 0),
-            settings: settings)
+            settings: settings,
+            startupBehavior: .testing)
         return (settings, store)
     }
 

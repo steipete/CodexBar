@@ -15,6 +15,6 @@ extension StatusItemController {
                 credits: accountSnapshot?.credits)))
         // Stacked and compact layouts render one card per account; switch feedback belongs on its target's card.
         return model?.applyingSwitchFeedback(
-            self.systemAccountSwitchFeedback.subtitle(for: .codex, accountID: account.id))
+            self.systemAccountSwitchDisplayFeedback(for: .codex).subtitle(for: .codex, accountID: account.id))
     }
 }

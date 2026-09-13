@@ -749,7 +749,8 @@ extension StatusItemController {
 
         guard let builtModel = self.menuCardModel(for: context.selectedProvider) else { return false }
         let model = builtModel.applyingSwitchFeedback(
-            self.systemAccountSwitchFeedback.subtitle(for: builtModel.provider, accountID: nil))
+            self.systemAccountSwitchDisplayFeedback(for: builtModel.provider)
+                .subtitle(for: builtModel.provider, accountID: nil))
         // A card showing switch feedback no longer follows the live monitor, so lay out what it renders.
         let renderedModel = model.usesLiveSubtitle
             ? self.menuCardRefreshMonitor.model(for: model.provider, fallback: model)

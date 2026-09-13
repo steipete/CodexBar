@@ -79,10 +79,31 @@ extension StatusItemController {
         }
     }
 
+    func systemAccountSwitchDisplayFeedback(
+        for provider: UsageProvider,
+        feedback: SystemAccountSwitchFeedback? = nil) -> SystemAccountSwitchFeedback
+    {
+        let feedback = feedback ?? self.systemAccountSwitchFeedback
+        guard self.settings.hidePersonalInfo, let phase = feedback.phase(for: provider) else { return feedback }
+        let entries = ProviderCatalog.implementation(for: provider)?
+            .systemAccountMenuEntries(context: self.systemAccountSwitchContext())
+        // A removed account must not make the retained, unredacted label visible again.
+        let label = entries?.entries.first(where: { $0.accountID == phase.accountID })?.title ?? L("Account")
+        return feedback.replacingLabel(label, for: provider)
+    }
+
     private func announceSystemAccountSwitchIfMenusClosed(provider: UsageProvider) {
         guard self.openMenus.isEmpty,
-              let notice = self.systemAccountSwitchFeedback.notification(for: provider)
+              let notice = self.systemAccountSwitchDisplayFeedback(for: provider).notification(for: provider)
         else { return }
+        let feedback = self.systemAccountSwitchFeedback
+        guard let privateNotice = feedback.replacingLabel(L("Account"), for: provider).notification(for: provider)
+        else { return }
+        // Authorization can suspend delivery. Reapply privacy afterwards, keeping this transaction's result.
+        let currentNotice: @MainActor () -> SystemAccountSwitchFeedback.Notice = { [weak self] in
+            self?.systemAccountSwitchDisplayFeedback(for: provider, feedback: feedback).notification(for: provider)
+                ?? privateNotice
+        }
         let isFailure = if case .failed = self.systemAccountSwitchFeedback.phase(for: provider) {
             true
         } else {
@@ -91,6 +112,7 @@ extension StatusItemController {
         // A failure must stay visible even when notifications are not allowed: fall back to the alert Codex used.
         let handleDelivery: @MainActor (Bool) -> Void = { [weak self] delivered in
             guard !delivered, isFailure else { return }
+            let notice = currentNotice()
             self?.presentSystemAccountSwitchAlert(title: notice.title, message: notice.body)
         }
         #if DEBUG
@@ -104,6 +126,10 @@ extension StatusItemController {
             idPrefix: "system-account-\(provider.rawValue)",
             title: notice.title,
             body: notice.body,
+            contentProvider: {
+                let notice = currentNotice()
+                return (notice.title, notice.body)
+            },
             onDeliveryResult: handleDelivery)
     }
 

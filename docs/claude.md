@@ -232,7 +232,8 @@ The accepted multi-account design in
   account card. Switches are serialized; no automatic switching occurs. Progress and success appear as the account
   card's subtitle, errors stay on the account that produced them, and a notification reports the result when no
   menu is open. The active account's card keeps its "Active" badge. The Codex menu uses the same submenu and
-  feedback.
+  feedback. Retained progress and success labels honor the current Hide Personal Info setting, including when it
+  changes during a switch or while notification authorization is pending.
   While claude-swap owns account presentation, the separate ambient OAuth action reads “Sign in with Claude Code…”
   and does not add or switch a claude-swap account.
 - Expired, missing, unknown, or Keychain-inaccessible credentials stay non-actionable, but remain viewable. A failed

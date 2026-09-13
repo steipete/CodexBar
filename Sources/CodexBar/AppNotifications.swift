@@ -25,6 +25,7 @@ final class AppNotifications {
         body: String,
         badge: NSNumber? = nil,
         soundEnabled: Bool = true,
+        contentProvider: (@MainActor () -> (title: String, body: String))? = nil,
         onDeliveryResult: (@MainActor (Bool) -> Void)? = nil)
     {
         guard !Self.isRunningUnderTests else { return }
@@ -40,8 +41,9 @@ final class AppNotifications {
             }
 
             let content = UNMutableNotificationContent()
-            content.title = title
-            content.body = body
+            let copy = contentProvider?() ?? (title: title, body: body)
+            content.title = copy.title
+            content.body = copy.body
             content.sound = soundEnabled ? .default : nil
             content.badge = badge
 

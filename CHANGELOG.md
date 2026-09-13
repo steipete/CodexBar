@@ -10,6 +10,7 @@
 - Menu: Codex and Claude (claude-swap) share one account switcher that marks the System account with `●`, and both switch the System account from a shared "System Account" submenu with in-menu progress, success and error feedback plus a notification when the menu is closed. The Codex submenu now honors Hide Personal Info.
 
 ### Fixed
+- Menu: reapply Hide Personal Info to retained System Account switch feedback and completion notifications, including when privacy is enabled during a switch.
 - Mistral: handle signed billing adjustments without intermediate overflow, reject unrepresentable counts without crashing, and retain valid costs when token totals or model rankings are unavailable.
 - Claude: show dated last-known claude-swap usage beside diagnostics, reported spend, disabled slots, and the active account; keep historical quotas out of the menu icon and ready-account suggestions (#3452). Thanks @QuantIntellect!
 - Claude: let an explicitly requested claude-swap re-authentication repair an active slot's foreign credential through the existing source-owned switch command (#3452). Thanks @QuantIntellect!

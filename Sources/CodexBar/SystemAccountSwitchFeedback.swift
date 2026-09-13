@@ -2,7 +2,7 @@ import CodexBarCore
 import Foundation
 
 /// Menu-local progress of System account switches, one phase per provider. Pure: callers decide when to rebuild
-/// menus or post notifications. Labels arrive already redacted for Hide Personal Info.
+/// menus or post notifications. The controller reapplies current privacy settings before displaying retained labels.
 struct SystemAccountSwitchFeedback: Equatable {
     enum Phase: Equatable {
         case switching(accountID: String, label: String, cliName: String)
@@ -36,6 +36,21 @@ struct SystemAccountSwitchFeedback: Equatable {
     func isSwitching(_ provider: UsageProvider) -> Bool {
         if case .switching = self.phases[provider] { return true }
         return false
+    }
+
+    func replacingLabel(_ label: String, for provider: UsageProvider) -> Self {
+        var feedback = self
+        switch self.phases[provider] {
+        case let .switching(accountID, _, cliName):
+            feedback.phases[provider] = .switching(accountID: accountID, label: label, cliName: cliName)
+        case let .succeeded(accountID, _, cliName):
+            feedback.phases[provider] = .succeeded(accountID: accountID, label: label, cliName: cliName)
+        case let .failed(accountID, _, title, message):
+            feedback.phases[provider] = .failed(accountID: accountID, label: label, title: title, message: message)
+        case nil:
+            break
+        }
+        return feedback
     }
 
     mutating func begin(provider: UsageProvider, accountID: String, label: String, cliName: String) {
