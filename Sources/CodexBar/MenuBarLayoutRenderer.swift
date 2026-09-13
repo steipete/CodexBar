@@ -105,6 +105,10 @@ struct MenuBarLayoutRenderOptions: Hashable {
     /// User-tunable vertical nudge for the whole title, applied on top of the optical baseline
     /// offset. Positive moves content up, negative moves it down.
     let verticalAdjustment: Int
+    /// Forces stacked typography (tight line height, inline icon) even when this render call only
+    /// produces a single line. Used to render one row of a multi-provider stacked status item, where
+    /// each provider is rendered independently and the results are joined afterward.
+    let forceStackedStyle: Bool
 
     init(
         size: MenuBarLayoutSize,
@@ -116,7 +120,8 @@ struct MenuBarLayoutRenderOptions: Hashable {
         isStale: Bool = false,
         now: Date,
         verticalAdjustment: Int = 0,
-        colorPace: Bool = false)
+        colorPace: Bool = false,
+        forceStackedStyle: Bool = false)
     {
         self.size = size
         self.colorPace = colorPace
@@ -128,6 +133,7 @@ struct MenuBarLayoutRenderOptions: Hashable {
         self.isStale = isStale
         self.now = now
         self.verticalAdjustment = verticalAdjustment
+        self.forceStackedStyle = forceStackedStyle
     }
 }
 
@@ -143,6 +149,7 @@ struct MenuBarLayoutRenderKey: Hashable {
     let isDebugApp: Bool
     let isStale: Bool
     let verticalAdjustment: Int
+    let forceStackedStyle: Bool
     let resetText: [MenuBarLayoutResetText]
     /// Truth value per conditional id. Predicates can read the clock (time to reset), so two renders
     /// with identical data and reset text can still need different branches; keying on the outcomes
@@ -276,6 +283,7 @@ final class MenuBarLayoutRenderer {
             isDebugApp: options.isDebugApp,
             isStale: options.isStale,
             verticalAdjustment: options.verticalAdjustment,
+            forceStackedStyle: options.forceStackedStyle,
             resetText: resetText,
             conditionalOutcomes: outcomes)
         return self.cache.value(for: key) {
@@ -290,6 +298,30 @@ final class MenuBarLayoutRenderer {
 
     func removeAll() {
         self.cache.removeAll()
+    }
+
+    /// Joins two rows independently rendered for different providers (each with
+    /// `forceStackedStyle: true`) into a single stacked status item title. Used by the "Stacked"
+    /// combined-icon style, which shows exactly two providers' own single-line content on top of
+    /// each other instead of switching between them.
+    static func composeStackedProviderRows(
+        top: MenuBarLayoutRenderedTitle,
+        bottom: MenuBarLayoutRenderedTitle)
+        -> MenuBarLayoutRenderedTitle
+    {
+        let result = NSMutableAttributedString(attributedString: top.attributedTitle)
+        let breakAttributes: [NSAttributedString.Key: Any] = top.attributedTitle.length > 0
+            ? top.attributedTitle.attributes(at: top.attributedTitle.length - 1, effectiveRange: nil)
+            : [:]
+        result.append(NSAttributedString(string: "\n", attributes: breakAttributes))
+        result.append(bottom.attributedTitle)
+        let secondLineLabel = L("menu_bar_layout_line", 2)
+        let accessibilityLabel = "\(top.accessibilityLabel), \(secondLineLabel), \(bottom.accessibilityLabel)"
+        return MenuBarLayoutRenderedTitle(
+            attributedTitle: result,
+            accessibilityLabel: accessibilityLabel,
+            leadingIcon: nil,
+            statusImage: nil)
     }
 
     private static func renderUncached(
@@ -322,7 +354,7 @@ final class MenuBarLayoutRenderer {
 
         Self.removeDuplicateBalanceResets(from: &renderedLines, data: data)
 
-        let isStacked = renderedLines.count == 2
+        let isStacked = options.forceStackedStyle || renderedLines.count == 2
         let font = NSFont.systemFont(ofSize: Self.fontSize(size: options.size, isStacked: isStacked))
         let foregroundColor = if options.highContrast {
             NSColor.labelColor

@@ -456,6 +456,58 @@ struct MenuBarLayoutRendererTests {
     }
 
     @Test
+    func `forceStackedStyle applies stacked typography to a single line render`() {
+        let renderer = MenuBarLayoutRenderer()
+        let icon = NSImage(size: NSSize(width: 16, height: 16))
+        icon.isTemplate = true
+        let stacked = renderer.render(
+            layout: MenuBarLayout(lines: [[.icon, .percent(window: .automatic)]]),
+            data: self.data(),
+            icon: icon,
+            options: self.options(forceStackedStyle: true))
+        let unstacked = renderer.render(
+            layout: MenuBarLayout(lines: [[.icon, .percent(window: .automatic)]]),
+            data: self.data(),
+            icon: icon,
+            options: self.options())
+
+        // Stacked rows render the icon inline in the title (so two rows can carry two different
+        // provider icons); the ordinary single-line path surfaces it as the separate leading icon.
+        #expect(stacked.leadingIcon == nil)
+        #expect(unstacked.leadingIcon != nil)
+        #expect(stacked.attributedTitle.string.hasSuffix("50%"))
+        #expect(stacked.attributedTitle.string != unstacked.attributedTitle.string)
+        #expect(stacked.statusImage == nil)
+    }
+
+    @Test
+    func `composeStackedProviderRows joins two independently rendered providers into one title`() {
+        let renderer = MenuBarLayoutRenderer()
+        let topOptions = self.options(forceStackedStyle: true)
+        let top = renderer.render(
+            layout: MenuBarLayout(lines: [[.percent(window: .automatic)]]),
+            data: self.data(automaticUsedPercent: 69, provider: .codex),
+            icon: nil,
+            options: topOptions)
+        let bottom = renderer.render(
+            layout: MenuBarLayout(lines: [[.percent(window: .automatic)]]),
+            data: self.data(automaticUsedPercent: 45, provider: .claude),
+            icon: nil,
+            options: topOptions)
+
+        let composed = MenuBarLayoutRenderer.composeStackedProviderRows(top: top, bottom: bottom)
+        let bounds = composed.attributedTitle.boundingRect(
+            with: NSSize(width: 200, height: CGFloat.greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading])
+
+        #expect(composed.attributedTitle.string == "69%\n45%")
+        #expect(composed.accessibilityLabel.contains(L("menu_bar_layout_line", 2)))
+        #expect(composed.leadingIcon == nil)
+        #expect(composed.statusImage == nil)
+        #expect(bounds.height <= 22)
+    }
+
+    @Test
     func `icon above automatic percentages stays in the attributed two line layout`() {
         let renderer = MenuBarLayoutRenderer()
         let icon = NSImage(size: NSSize(width: 16, height: 16))
@@ -1698,7 +1750,8 @@ struct MenuBarLayoutRendererTests {
         isDebugApp: Bool = false,
         colorPace: Bool = false,
         highContrast: Bool = false,
-        appearanceName: String = "aqua") -> MenuBarLayoutRenderOptions
+        appearanceName: String = "aqua",
+        forceStackedStyle: Bool = false) -> MenuBarLayoutRenderOptions
     {
         MenuBarLayoutRenderOptions(
             size: .regular,
@@ -1710,7 +1763,8 @@ struct MenuBarLayoutRendererTests {
             isStale: isStale,
             now: now ?? self.now,
             verticalAdjustment: verticalAdjustment,
-            colorPace: colorPace)
+            colorPace: colorPace,
+            forceStackedStyle: forceStackedStyle)
     }
 
     private func averageBrightness(

@@ -88,6 +88,71 @@ extension StatusItemController {
         return wasCached
     }
 
+    /// Renders exactly two providers' own first configured line stacked on top of each other in the
+    /// single merged status item, for the "Stacked" combined-icon style. Falls back to `nil` (so the
+    /// caller can use the ordinary switcher rendering) when either provider has not migrated to the
+    /// layout editor yet.
+    func applyStoredStackedMenuBarLayoutIfNeeded(
+        top: UsageProvider,
+        bottom: UsageProvider,
+        now: Date = .init())
+        -> Bool?
+    {
+        guard self.settings.menuBarShowsBrandIconWithPercent,
+              self.settings.menuBarIconStyle == .iconAndPercent,
+              let button = self.statusItem.button
+        else {
+            self.statusItem.length = NSStatusItem.variableLength
+            return nil
+        }
+        guard let topRow = self.renderStackedProviderRow(provider: top, now: now),
+              let bottomRow = self.renderStackedProviderRow(provider: bottom, now: now)
+        else {
+            self.statusItem.length = NSStatusItem.variableLength
+            return nil
+        }
+        let rendered = MenuBarLayoutRenderer.composeStackedProviderRows(top: topRow, bottom: bottomRow)
+        let wasCached = button.image == nil && button.attributedTitle.isEqual(to: rendered.attributedTitle)
+        self.statusItem.length = Self.applyMenuBarLayoutContent(
+            rendered,
+            for: button,
+            gap: self.settings.menuBarLayoutGap)
+        return wasCached
+    }
+
+    private func renderStackedProviderRow(provider: UsageProvider, now: Date) -> MenuBarLayoutRenderedTitle? {
+        let resolution = self.settings.menuBarLayoutResolution(for: provider)
+        guard !resolution.usesLegacyRendering, let firstLine = resolution.layout.lines.first else { return nil }
+        let warningFlash = self.quotaWarningFlashActive(provider: provider)
+        let snapshot = self.store.menuBarSnapshot(for: provider.instanceID)
+        let icon = ProviderBrandIcon.image(for: provider)
+            .map { warningFlash ? Self.quotaWarningFlashImage(base: $0) : $0 }
+        let data = self.menuBarLayoutRenderData(
+            provider: provider,
+            snapshot: snapshot,
+            warningFlash: warningFlash,
+            now: now)
+        let appearanceName = self.statusItem.button?.effectiveAppearance
+            .bestMatch(from: [.darkAqua, .aqua])?.rawValue ?? "default"
+        let options = MenuBarLayoutRenderOptions(
+            size: self.settings.menuBarLayoutSize,
+            highContrast: self.shouldUseHighContrastStatusItemContent,
+            showUsed: self.settings.usageBarsShowUsed,
+            conditionals: self.settings.menuBarLayoutConditionals,
+            appearanceName: appearanceName,
+            isDebugApp: Self.isDebugApp(bundleIdentifier: Bundle.main.bundleIdentifier),
+            isStale: self.store.isStale(provider: provider),
+            now: now,
+            verticalAdjustment: self.settings.menuBarLayoutVerticalAdjustment,
+            colorPace: self.settings.menuBarColorPace,
+            forceStackedStyle: true)
+        return self.menuBarLayoutRenderer.render(
+            layout: MenuBarLayout(lines: [firstLine]),
+            data: data,
+            icon: icon,
+            options: options)
+    }
+
     func menuBarLayoutRenderData(
         provider: UsageProvider,
         snapshot: UsageSnapshot?,

@@ -270,6 +270,14 @@ extension StatusItemController {
         let snapshot = self.store.menuBarSnapshot(for: primaryProvider.instanceID)
         let warningFlash = self.quotaWarningFlashActive(provider: primaryProvider)
 
+        if self.shouldMergeIcons, self.settings.mergedIconDisplayStyle == .stacked,
+           let rows = self.settings.resolvedMergeIconStackedProviders(
+               activeProviders: self.store.enabledFirstPartyProvidersForDisplay()),
+           let stackedResult = self.applyStoredStackedMenuBarLayoutIfNeeded(top: rows.top, bottom: rows.bottom)
+        {
+            return stackedResult
+        }
+
         if let layoutResult = self.applyStoredUnifiedMenuBarLayoutIfNeeded(
             provider: primaryProvider,
             snapshot: snapshot,

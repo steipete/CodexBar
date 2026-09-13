@@ -618,6 +618,12 @@
 "cost_summary_off" = "إيقاف";
 "merge_icons_title" = "أيقونات الدمج";
 "merge_icons_subtitle" = "استخدم أيقونة شريط قائمة واحدة مع محول المزود.";
+"merged_icon_style_title" = "نمط الأيقونة المدمجة";
+"merged_icon_style_subtitle" = "يتنقل المبدّل بين المزوّدين واحدًا تلو الآخر؛ يعرض المكدّس مزوّدين في آن واحد، كل منهما في صف.";
+"merged_icon_style_switcher" = "المبدّل";
+"merged_icon_style_stacked" = "مكدّس";
+"merge_icon_stacked_top_provider_title" = "الصف العلوي";
+"merge_icon_stacked_bottom_provider_title" = "الصف السفلي";
 "show_most_used_provider_title" = "عرض المزود الأكثر استخداما";
 "show_most_used_provider_subtitle" = "شريط القوائم يعرض تلقائيا مزود الخدمة الأقرب إلى حد السعر.";
 "display_mode_title" = "وضع العرض";

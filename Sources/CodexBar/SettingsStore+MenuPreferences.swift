@@ -27,6 +27,18 @@ enum SwitcherRowsOption: String, CaseIterable {
     }
 }
 
+enum MergedIconDisplayStyle: String, CaseIterable {
+    case switcher
+    case stacked
+
+    var label: String {
+        switch self {
+        case .switcher: L("merged_icon_style_switcher")
+        case .stacked: L("merged_icon_style_stacked")
+        }
+    }
+}
+
 enum UsageBarsFillOption: String, CaseIterable {
     case remaining
     case used
@@ -147,6 +159,37 @@ extension SettingsStore {
     var switcherRowsOption: SwitcherRowsOption {
         get { self.switcherShowsIcons ? .icons : .progress }
         set { self.switcherShowsIcons = newValue == .icons }
+    }
+
+    var mergedIconDisplayStyle: MergedIconDisplayStyle {
+        get { self.mergeIconsStacked ? .stacked : .switcher }
+        set { self.mergeIconsStacked = newValue == .stacked }
+    }
+
+    var mergeIconStackedTopProvider: UsageProvider? {
+        get { self.mergeIconStackedTopProviderRaw.flatMap(UsageProvider.init(rawValue:)) }
+        set { self.mergeIconStackedTopProviderRaw = newValue?.rawValue }
+    }
+
+    var mergeIconStackedBottomProvider: UsageProvider? {
+        get { self.mergeIconStackedBottomProviderRaw.flatMap(UsageProvider.init(rawValue:)) }
+        set { self.mergeIconStackedBottomProviderRaw = newValue?.rawValue }
+    }
+
+    /// Resolves the two providers shown by the "Stacked" combined-icon style: the user's explicit
+    /// top/bottom picks when they are still active, otherwise the first two active providers in
+    /// order. Returns nil when fewer than two providers are active, so callers can fall back to the
+    /// switcher style.
+    func resolvedMergeIconStackedProviders(activeProviders: [UsageProvider])
+    -> (top: UsageProvider, bottom: UsageProvider)? {
+        guard activeProviders.count >= 2 else { return nil }
+        let top = self.mergeIconStackedTopProvider.flatMap { activeProviders.contains($0) ? $0 : nil }
+            ?? activeProviders[0]
+        let bottom = self.mergeIconStackedBottomProvider
+            .flatMap { $0 != top && activeProviders.contains($0) ? $0 : nil }
+            ?? activeProviders.first { $0 != top }
+        guard let bottom else { return nil }
+        return (top, bottom)
     }
 
     var usageBarsFillOption: UsageBarsFillOption {
