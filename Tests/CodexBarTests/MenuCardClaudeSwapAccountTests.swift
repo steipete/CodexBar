@@ -9,7 +9,7 @@ import Testing
 struct MenuCardClaudeSwapAccountTests {
     private func makeModel(
         hidePersonalInfo: Bool,
-        planOverride: String? = nil,
+        planOverride: UsageMenuCardView.Model.PlanOverride = .automatic,
         additionalRateWindows: [NamedRateWindow] = []) throws -> UsageMenuCardView.Model
     {
         let now = Date(timeIntervalSince1970: 1_782_000_000)
@@ -61,9 +61,16 @@ struct MenuCardClaudeSwapAccountTests {
 
     @Test
     func `claude swap action overrides adapter login method`() throws {
-        let model = try self.makeModel(hidePersonalInfo: false, planOverride: "Switch Account...")
+        let model = try self.makeModel(hidePersonalInfo: false, planOverride: .label("Switch Account..."))
 
         #expect(model.planText == "Switch Account...")
+    }
+
+    @Test
+    func `an explicit absent plan cannot fall back to the adapter login method`() throws {
+        let model = try self.makeModel(hidePersonalInfo: false, planOverride: .label(nil))
+
+        #expect(model.planText == nil)
     }
 
     @Test

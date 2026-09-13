@@ -26,6 +26,11 @@ extension UsageStore {
     /// cards while the bar rendered the ambient snapshot, which can have no usable
     /// windows). Returns nil — keep the ambient snapshot — when the adapter is below
     /// its presentation threshold or the active account reports no usable usage.
+    ///
+    /// A last-known measurement is deliberately not eligible here. Account cards
+    /// state a snapshot's age, but the bar icon has no such affordance and
+    /// `isStale` tracks provider errors rather than measurement age, so serving
+    /// last-known numbers on the bar would present them as current.
     func claudeSwapMenuBarSnapshotOverride(for instanceID: ProviderInstanceID) -> UsageSnapshot? {
         guard instanceID == UsageProvider.claude.instanceID else { return nil }
         guard ClaudeSwapMenuPrecedence.prefersClaudeSwap(
@@ -33,7 +38,10 @@ extension UsageStore {
             accountCount: self.claudeSwapAccountSnapshots.count,
             showSingleAccount: self.settings.claudeSwapShowSingleAccount)
         else { return nil }
-        return self.claudeSwapAccountSnapshots.first(where: \.isActive)?.snapshot
+        guard let active = self.claudeSwapAccountSnapshots.first(where: \.isActive),
+              !active.usesLastKnownUsage
+        else { return nil }
+        return active.snapshot
     }
 
     func clearClaudeSwapAccountState() {

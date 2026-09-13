@@ -11,7 +11,9 @@ enum UsageMenuCardContext {
         var error: String?
         var info: AccountInfo?
         var historySelection: PlanUtilizationHistorySelection?
-        var plan: String?
+        var plan: UsageMenuCardView.Model.PlanOverride = .automatic
+        var planEmphasis: UsageMenuCardView.Model.PlanEmphasis = .none
+        var lastKnownUsageCapturedAt: Date?
         var subtitle: String?
         var sourceLabel: String?
         var credits: CreditsSnapshot?
@@ -99,7 +101,9 @@ extension UsageStore {
                 ? self.accountInfo(for: provider)
                 : AccountInfo(email: nil, plan: nil)),
             accountIsAuthoritative: account?.info != nil,
-            planOverride: account?.plan,
+            planOverride: account?.plan ?? .automatic,
+            planEmphasis: account?.planEmphasis ?? .none,
+            lastKnownUsageCapturedAt: account?.lastKnownUsageCapturedAt,
             isRefreshing: isSettings ? self.refreshingProviders.contains(provider.instanceID)
                 : self.shouldShowRefreshingMenuCardIndicator(for: provider),
             lastError: account?.error ?? codexProjection?.userFacingErrors.usage

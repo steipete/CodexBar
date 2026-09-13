@@ -710,7 +710,7 @@ final class MenuLayoutScreenshotRenderTests: XCTestCase {
             tokenSnapshot: nil,
             tokenError: nil,
             account: AccountInfo(email: account.displayLabel, plan: nil),
-            planOverride: account.isActive ? L("Active") : L("Switch Account..."),
+            planOverride: .label(account.isActive ? L("Active") : L("Switch Account...")),
             isRefreshing: false,
             lastError: account.error,
             usageBarsShowUsed: false,
