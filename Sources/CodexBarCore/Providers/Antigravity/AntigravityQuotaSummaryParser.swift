@@ -41,30 +41,46 @@ struct AntigravityQuotaSummaryBucket: Sendable, Equatable {
 
 extension AntigravityStatusProbe {
     static func parseQuotaSummaryResponse(_ data: Data) throws -> AntigravityStatusSnapshot {
-        let decoder = JSONDecoder()
-        let response = try decoder.decode(QuotaSummaryResponse.self, from: data)
+        let response = try JSONDecoder().decode(QuotaSummaryResponse.self, from: data)
         if let invalid = Self.invalidCode(response.code) {
             throw AntigravityStatusProbeError.apiError(invalid)
         }
-        let payload = response.response ?? response.summary ?? response.rootPayload
-        guard let payload else {
+        guard let payload = response.response ?? response.summary ?? response.rootPayload else {
             throw AntigravityStatusProbeError.parseFailed("Missing quota summary")
         }
-        let groups = payload.groups.compactMap(self.quotaSummaryGroup(from:))
+        return try Self.quotaSummarySnapshot(payload)
+    }
+
+    static func parseCLIUsageReport(_ data: Data) throws -> AntigravityStatusSnapshot {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let report = try decoder.decode(QuotaSummaryCLIReport.self, from: data)
+        guard report.status == "SUCCESS", report.command.name == "usage" else {
+            throw AntigravityStatusProbeError.parseFailed("Unsuccessful CLI usage report")
+        }
+        let snapshot = try Self.quotaSummarySnapshot(report.command.data)
+        guard snapshot.quotaSummary?.groups.contains(where: { group in
+            group.buckets.contains { !$0.disabled && $0.remainingFraction != nil }
+        }) == true else {
+            throw AntigravityStatusProbeError.parseFailed("CLI usage report has no known quota")
+        }
+        return snapshot
+    }
+
+    private static func quotaSummarySnapshot(_ payload: QuotaSummaryPayload) throws -> AntigravityStatusSnapshot {
+        let groups = (payload.groups ?? []).compactMap(self.quotaSummaryGroup(from:))
         guard !groups.isEmpty else {
             throw AntigravityStatusProbeError.parseFailed("Missing quota groups")
         }
         return AntigravityStatusSnapshot(
-            quotaSummary: AntigravityQuotaSummary(
-                description: payload.description,
-                groups: groups),
+            quotaSummary: AntigravityQuotaSummary(description: payload.description, groups: groups),
             accountEmail: nil,
             accountPlan: nil,
             source: .local)
     }
 
     private static func quotaSummaryGroup(from payload: QuotaSummaryGroupPayload) -> AntigravityQuotaSummaryGroup? {
-        let displayName = payload.displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let displayName = (payload.displayName ?? payload.name)?.trimmingCharacters(in: .whitespacesAndNewlines)
         let buckets = (payload.buckets ?? []).compactMap(self.quotaSummaryBucket(from:))
         guard !buckets.isEmpty else { return nil }
         return AntigravityQuotaSummaryGroup(
@@ -74,14 +90,14 @@ extension AntigravityStatusProbe {
     }
 
     private static func quotaSummaryBucket(from payload: QuotaSummaryBucketPayload) -> AntigravityQuotaSummaryBucket? {
-        let bucketId = payload.bucketId?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let displayName = payload.displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let bucketId = (payload.bucketId ?? payload.id)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let displayName = (payload.displayName ?? payload.name)?.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let resolvedBucketId = bucketId, !resolvedBucketId.isEmpty else { return nil }
         let resetTime = payload.resetTime.flatMap { Self.parseDate($0) }
         return AntigravityQuotaSummaryBucket(
             bucketId: resolvedBucketId,
             displayName: self.nonEmpty(displayName) ?? resolvedBucketId,
-            remainingFraction: payload.resolvedRemainingFraction,
+            remainingFraction: payload.remainingFraction ?? payload.remaining?.remainingFraction,
             resetTime: resetTime,
             resetDescription: payload.description,
             disabled: payload.disabled ?? false)
@@ -93,59 +109,50 @@ extension AntigravityStatusProbe {
     }
 }
 
+private struct QuotaSummaryCLIReport: Decodable {
+    let status: String
+    let command: Command
+
+    struct Command: Decodable {
+        let name: String
+        let data: QuotaSummaryPayload
+    }
+}
+
 private struct QuotaSummaryResponse: Decodable {
     let code: CodeValue?
-    let message: String?
     let response: QuotaSummaryPayload?
     let summary: QuotaSummaryPayload?
     let description: String?
     let groups: [QuotaSummaryGroupPayload]?
 
     var rootPayload: QuotaSummaryPayload? {
-        guard let groups else { return nil }
-        return QuotaSummaryPayload(description: self.description, groups: groups)
+        self.groups.map { QuotaSummaryPayload(description: self.description, groups: $0) }
     }
 }
 
 private struct QuotaSummaryPayload: Decodable {
     let description: String?
-    let groups: [QuotaSummaryGroupPayload]
-
-    init(description: String?, groups: [QuotaSummaryGroupPayload]) {
-        self.description = description
-        self.groups = groups
-    }
-
-    private enum CodingKeys: String, CodingKey {
-        case description
-        case groups
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.description = try container.decodeIfPresent(String.self, forKey: .description)
-        self.groups = try container.decodeIfPresent([QuotaSummaryGroupPayload].self, forKey: .groups) ?? []
-    }
+    let groups: [QuotaSummaryGroupPayload]?
 }
 
 private struct QuotaSummaryGroupPayload: Decodable {
     let displayName: String?
+    let name: String?
     let description: String?
     let buckets: [QuotaSummaryBucketPayload]?
 }
 
 private struct QuotaSummaryBucketPayload: Decodable {
     let bucketId: String?
+    let id: String?
     let displayName: String?
+    let name: String?
     let description: String?
     let disabled: Bool?
     let remainingFraction: Double?
     let remaining: QuotaSummaryRemainingPayload?
     let resetTime: String?
-
-    var resolvedRemainingFraction: Double? {
-        self.remainingFraction ?? self.remaining?.remainingFraction
-    }
 }
 
 private struct QuotaSummaryRemainingPayload: Decodable {
@@ -164,10 +171,7 @@ private struct QuotaSummaryRemainingPayload: Decodable {
             return
         }
         let oneofCase = try container.decodeIfPresent(String.self, forKey: .oneofCase)
-        if oneofCase == "remainingFraction" {
-            self.remainingFraction = try container.decodeIfPresent(Double.self, forKey: .value)
-        } else {
-            self.remainingFraction = nil
-        }
+        self.remainingFraction = oneofCase == "remainingFraction"
+            ? try container.decodeIfPresent(Double.self, forKey: .value) : nil
     }
 }

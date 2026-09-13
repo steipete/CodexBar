@@ -10,6 +10,7 @@
 
 ### Fixed
 - CI: install checksum-verified Swift static SDK archives locally to avoid SwiftPM's Linux downloader teardown crash, and synchronize the late-PTY-fork cleanup fixture.
+- Antigravity: recover CLI quotas through the supported structured usage report when legacy HTTPS fetching fails, while preserving verified account identity and selected-account boundaries (#3607, related to #3586). Thanks @sobczi!
 - Codex: restore missing cost estimates after changed-session rescans, preserve pricing across partial scans and restarts, and retain saved history when upgrading from 0.60.1 (#3620, related to #3617).
 - Menu: remove empty space and clipped cards after switching merged-menu tabs with different card heights (#3616, fixes #3549). Thanks @zenibako!
 - Mistral: handle signed billing adjustments without intermediate overflow, reject unrepresentable counts without crashing, and retain valid costs when token totals or model rankings are unavailable.
