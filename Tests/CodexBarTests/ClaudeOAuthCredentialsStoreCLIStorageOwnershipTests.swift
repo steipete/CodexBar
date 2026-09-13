@@ -217,8 +217,9 @@ struct ClaudeOAuthCredentialsStoreCLIStorageOwnershipTests {
         }
     }
 
-    @Test
-    func `rotated refresh token preserves history owner through cache restart`() async throws {
+    @Test(arguments: ["", "+&=%2B /東京"])
+    func `rotated refresh token preserves history owner through cache restart`(suffix: String) async throws {
+        let refreshToken = "refresh-before-rotation\(suffix)"
         let service = "com.steipete.codexbar.cache.tests.\(UUID().uuidString)"
         try await self.withDeterministicCacheService(service) {
             KeychainCacheStore.setTestStoreForTesting(true)
@@ -252,7 +253,7 @@ struct ClaudeOAuthCredentialsStoreCLIStorageOwnershipTests {
                         let expiredData = self.makeCredentialsData(
                             accessToken: "access-before-rotation",
                             expiresAt: Date(timeIntervalSinceNow: -3600),
-                            refreshToken: "refresh-before-rotation")
+                            refreshToken: refreshToken)
                         let originalCredentials = try ClaudeOAuthCredentials.parse(data: expiredData)
                         let originalHistoryOwner = try #require(originalCredentials.historyOwnerIdentifier)
                         KeychainCacheStore.store(
@@ -265,6 +266,12 @@ struct ClaudeOAuthCredentialsStoreCLIStorageOwnershipTests {
                         let refreshedRecord = try await ClaudeOAuthCredentialsStore
                             .withIsolatedMemoryCacheForTesting {
                                 try await self.withClaudeOAuthTokenRefreshStub(handler: { request in
+                                    let body = Data(self.requestBodyString(request).utf8)
+                                    let fields = try FormBodyTestSupport.decode(body)
+                                    #expect(Set(fields.keys) == ["grant_type", "refresh_token", "client_id"])
+                                    #expect(fields["grant_type"] == "refresh_token")
+                                    #expect(fields["refresh_token"] == refreshToken)
+                                    #expect(fields["client_id"]?.isEmpty == false)
                                     let response = try HTTPURLResponse(
                                         url: #require(request.url),
                                         statusCode: 200,

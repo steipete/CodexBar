@@ -836,13 +836,12 @@ public struct GeminiStatusProbe: Sendable {
             throw GeminiStatusProbeError.apiError(GeminiConsumerTierMigration.oauthRecoveryError)
         }
 
-        let body = [
-            "client_id=\(oauthCreds.clientID)",
-            "client_secret=\(oauthCreds.clientSecret)",
-            "refresh_token=\(refreshToken)",
-            "grant_type=refresh_token",
-        ].joined(separator: "&")
-        request.httpBody = body.data(using: .utf8)
+        request.httpBody = FormURLEncoding.body([
+            ("client_id", oauthCreds.clientID),
+            ("client_secret", oauthCreds.clientSecret),
+            ("refresh_token", refreshToken),
+            ("grant_type", "refresh_token"),
+        ])
 
         let (data, response) = try await dataLoader(request)
 

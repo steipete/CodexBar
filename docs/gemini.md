@@ -61,6 +61,7 @@ Gemini uses the Gemini CLI OAuth credentials and private quota APIs. No browser 
 - Token refresh:
   - `POST https://oauth2.googleapis.com/token`
   - Form body: `client_id`, `client_secret`, `refresh_token`, `grant_type=refresh_token`.
+  - Values are form-encoded so literal plus signs, separators, and percent escapes remain intact.
 
 ## Parsing + mapping
 - Quota buckets:

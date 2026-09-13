@@ -61,6 +61,7 @@ Admin API key setup:
 - Web extras are internal-only (not exposed in the Providers pane).
 
 ## OAuth API (preferred)
+- OAuth refresh form-encodes credential values, preserving literal plus signs and other reserved characters.
 - Credentials:
   - CodexBar OAuth cache when available.
   - File fallback: `~/.claude/.credentials.json`.
