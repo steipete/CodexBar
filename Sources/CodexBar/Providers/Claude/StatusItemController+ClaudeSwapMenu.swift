@@ -60,7 +60,7 @@ extension StatusItemController {
                     self?.claudeSwapCardModel(for: account)
                 },
                 planAction: { [weak self] account in
-                    self?.claudeSwapAccountSwitchAction(account, menu: captureMenu)
+                    self?.claudeSwapAccountRepairAction(account, menu: captureMenu)
                 }),
             to: menu,
             captureMenu: captureMenu,
@@ -84,8 +84,8 @@ extension StatusItemController {
     }
 
     /// View-only account selection. Clicking a segment changes which account's details the menu
-    /// renders and never asks claude-swap to activate that slot; activation stays behind the card's
-    /// explicit "Switch Account…" action. Unavailable accounts stay selectable for inspection, and a
+    /// renders and never asks claude-swap to activate that slot; activation stays behind the shared
+    /// "System Account" submenu. Unavailable accounts stay selectable for inspection, and a
     /// selection made during a pending or failed switch takes precedence over that activation state.
     func handleClaudeSwapAccountSelection(_ id: ProviderAccountIdentity, menu: NSMenu?) {
         guard self.store.claudeSwapAccountSnapshots.contains(where: { $0.id == id }) else { return }
@@ -119,12 +119,12 @@ extension StatusItemController {
             context: context,
             planAction: { [weak self] index in
                 guard cardRows.indices.contains(index) else { return nil }
-                return self?.claudeSwapAccountSwitchAction(cardRows[index].account, menu: captureMenu)
+                return self?.claudeSwapAccountRepairAction(cardRows[index].account, menu: captureMenu)
             })
     }
 
     func claudeSwapCardModel(for account: ProviderAccountUsageSnapshot) -> UsageMenuCardView.Model? {
-        self.menuCardModel(
+        let model = self.menuCardModel(
             for: .claude,
             context: ClaudeSwapAccountMenuDisplay.cardContext(
                 for: account,
@@ -133,8 +133,19 @@ extension StatusItemController {
                 switchError: self.store.claudeSwapTransientState.lastErrorAccountID == account.id
                     ? self.store.claudeSwapTransientState.lastError
                     : nil))
+        // The switch error stays in the store and renders through the card error above, so System account feedback
+        // only adds progress and success to the card it targets.
+        guard let model,
+              let switchSubtitle = self.systemAccountSwitchFeedback.subtitle(
+                  for: .claude,
+                  accountID: account.id.opaqueID),
+              switchSubtitle.style != .error
+        else { return model }
+        return model.applyingSubtitle(text: switchSubtitle.text, style: switchSubtitle.style)
     }
 
+    /// Card badge and repair label: "Active", "Re-authenticate" or "Loading…". Switching lives in the System Account
+    /// submenu.
     func claudeSwapAccountActionLabel(_ account: ProviderAccountUsageSnapshot) -> String? {
         ClaudeSwapAccountMenuDisplay.actionLabel(
             for: account,
@@ -142,12 +153,14 @@ extension StatusItemController {
             switchInFlight: self.store.claudeSwapTransientState.task != nil)
     }
 
-    func claudeSwapAccountSwitchAction(
+    /// The card's only activation action: explicit repair of the active slot. Switching to another account lives in
+    /// the System Account submenu.
+    func claudeSwapAccountRepairAction(
         _ account: ProviderAccountUsageSnapshot,
         menu: NSMenu)
         -> (() -> Void)?
     {
-        guard self.store.claudeSwapTransientState.task == nil, account.canActivate else { return nil }
+        guard self.store.claudeSwapTransientState.task == nil, account.isActive, account.canActivate else { return nil }
         let accountID = account.id
         return { [weak self, weak menu] in
             guard let self else { return }

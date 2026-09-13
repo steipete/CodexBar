@@ -74,8 +74,9 @@ struct ClaudeSwapAccountMenuDisplay {
     {
         if account.isActive, !account.canActivate { return L("Active") }
         if switchingAccountID == account.id { return L("Loading…") }
-        guard !switchInFlight, account.canActivate else { return nil }
-        return account.isActive ? L("Re-authenticate") : L("Switch Account...")
+        // Inactive accounts are switched from the System Account submenu; the card only offers repair.
+        guard !switchInFlight, account.isActive, account.canActivate else { return nil }
+        return L("Re-authenticate")
     }
 
     /// Switcher segments keyed by claude-swap slot. The System marker follows the account claude-swap reports

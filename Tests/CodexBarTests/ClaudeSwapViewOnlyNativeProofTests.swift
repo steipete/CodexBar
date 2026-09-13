@@ -143,7 +143,10 @@ final class ClaudeSwapViewOnlyNativeProofTests: XCTestCase {
                 "switchTaskRunning": store.claudeSwapTransientState.task != nil,
                 "switchingSlot": store.claudeSwapTransientState.switchingAccountID?.opaqueID ?? NSNull(),
                 "cardActionLabel": controller.claudeSwapAccountActionLabel(viewed) ?? NSNull(),
-                "cardSwitchActionAvailable": controller.claudeSwapAccountSwitchAction(viewed, menu: menu) != nil,
+                "systemSubmenuSwitchable": ClaudeProviderImplementation()
+                    .systemAccountMenuEntries(context: controller.systemAccountSwitchContext())?
+                    .entries.first { $0.accountID == slot }
+                    .map { $0.isSwitchable && !$0.isSystem } ?? false,
             ])
         }
         // Give any activation a segment click might have scheduled time to reach the subprocess.
@@ -156,9 +159,9 @@ final class ClaudeSwapViewOnlyNativeProofTests: XCTestCase {
 
         XCTAssertEqual(activationsStarted, 0)
         XCTAssertTrue(clicks.allSatisfy { $0["activeSlot"] as? String == "2" })
-        // The explicit card action is still offered exactly where activation is possible.
-        XCTAssertEqual(clicks.map { $0["cardSwitchActionAvailable"] as? Bool }, [true, false, false])
-        XCTAssertEqual(clicks.map { $0["cardActionLabel"] as? String }, ["Switch Account...", nil, "Active"])
+        // The System Account submenu still offers activation exactly where it is possible.
+        XCTAssertEqual(clicks.map { $0["systemSubmenuSwitchable"] as? Bool }, [true, false, false])
+        XCTAssertEqual(clicks.map { $0["cardActionLabel"] as? String }, [nil, nil, "Active"])
 
         let receipt: [String: Any] = [
             "syntheticOnly": true,
@@ -166,7 +169,6 @@ final class ClaudeSwapViewOnlyNativeProofTests: XCTestCase {
             "clicks": clicks,
             "stubInvocations": invocations,
             "activationsStarted": activationsStarted,
-            "cardActionInvoked": false,
         ]
         try JSONSerialization.data(withJSONObject: receipt, options: [.sortedKeys, .prettyPrinted])
             .write(to: output.appendingPathComponent("menu-owner.json"), options: .atomic)

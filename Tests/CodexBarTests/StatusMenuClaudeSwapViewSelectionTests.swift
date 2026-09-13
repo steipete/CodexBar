@@ -123,30 +123,64 @@ final class StatusMenuClaudeSwapViewSelectionTests: XCTestCase {
         XCTAssertEqual(self.cardIDs(in: menu), ["menuCard-0"])
     }
 
-    /// Requirement 2: the card keeps its explicit activation action, still gated by validation
-    /// and by the single-transaction serialization guard.
-    func test_explicitSwitchActionStaysAvailableAndGated() {
+    /// Requirement 2: activation stays explicit through the shared System Account submenu, still gated by
+    /// validation and by the single-transaction serialization guard. The card only badges the active account.
+    func test_systemAccountSubmenuStaysAvailableAndGated() {
         let unavailable = self.account(slot: 3, email: "expired@example.com", canActivate: false)
         let accounts = self.activeAndInactive() + [unavailable]
         let (controller, store) = self.makeController(accounts: accounts)
         defer { controller.releaseStatusItemsForTesting() }
-        let menu = controller.makeMenu(for: .claude)
 
         XCTAssertEqual(controller.claudeSwapAccountActionLabel(accounts[0]), "Active")
-        XCTAssertEqual(controller.claudeSwapAccountActionLabel(accounts[1]), "Switch Account...")
+        XCTAssertNil(controller.claudeSwapAccountActionLabel(accounts[1]))
         XCTAssertNil(controller.claudeSwapAccountActionLabel(unavailable))
-        XCTAssertNotNil(controller.claudeSwapAccountSwitchAction(accounts[1], menu: menu))
-        XCTAssertNil(controller.claudeSwapAccountSwitchAction(unavailable, menu: menu))
-        XCTAssertNil(controller.claudeSwapAccountSwitchAction(accounts[0], menu: menu))
+
+        // The card keeps only the explicit repair action for an active slot claude-swap marks re-activatable.
+        let menu = controller.makeMenu(for: .claude)
+        XCTAssertNil(controller.claudeSwapAccountRepairAction(accounts[0], menu: menu))
+        XCTAssertNil(controller.claudeSwapAccountRepairAction(accounts[1], menu: menu))
+        let needsRepair = ProviderAccountUsageSnapshot(
+            id: accounts[0].id,
+            provider: .claude,
+            displayLabel: accounts[0].displayLabel,
+            isActive: true,
+            canActivate: true,
+            snapshot: nil,
+            error: nil,
+            sourceLabel: "claude-swap")
+        XCTAssertEqual(controller.claudeSwapAccountActionLabel(needsRepair), "Re-authenticate")
+        XCTAssertNotNil(controller.claudeSwapAccountRepairAction(needsRepair, menu: menu))
+
+        let items = self.systemAccountItems(controller: controller, store: store)
+        XCTAssertEqual(items.map(\.isChecked), [true, false, false])
+        XCTAssertEqual(items.map(\.isEnabled), [false, true, false])
+        XCTAssertEqual(items[1].action, .requestSystemAccountSwitch(provider: .claude, accountID: "7"))
+        XCTAssertNil(items[0].action)
+        XCTAssertNil(items[2].action)
 
         // A pending transaction serializes activation without blocking inspection.
         store.claudeSwapTransientState.switchingAccountID = accounts[1].id
         store.claudeSwapTransientState.task = Task {}
         defer { store.claudeSwapTransientState.task = nil }
-        XCTAssertEqual(controller.claudeSwapAccountActionLabel(accounts[1]), "Loading…")
-        XCTAssertNil(controller.claudeSwapAccountSwitchAction(accounts[1], menu: menu))
+        XCTAssertTrue(self.systemAccountItems(controller: controller, store: store).allSatisfy { !$0.isEnabled })
         controller.handleClaudeSwapAccountSelection(unavailable.id, menu: nil)
         XCTAssertEqual(controller.claudeSwapViewedAccountID, unavailable.id)
+    }
+
+    private func systemAccountItems(
+        controller: StatusItemController,
+        store: UsageStore) -> [MenuDescriptor.SubmenuItem]
+    {
+        let descriptor = MenuDescriptor.build(
+            provider: .claude,
+            store: store,
+            settings: controller.settings,
+            account: AccountInfo(email: nil, plan: nil),
+            updateReady: false)
+        return descriptor.sections.flatMap(\.entries).compactMap { entry -> [MenuDescriptor.SubmenuItem]? in
+            guard case let .submenu("System Account", _, items) = entry else { return nil }
+            return items
+        }.first ?? []
     }
 
     /// Requirement 2: the store rejects activation of a slot the adapter did not mark actionable,

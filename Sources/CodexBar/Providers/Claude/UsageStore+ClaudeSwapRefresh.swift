@@ -132,7 +132,8 @@ extension UsageStore {
     /// Activates one account through the configured claude-swap executable.
     /// The numeric slot comes from the already validated list payload; requests
     /// are serialized so two credential transactions can never overlap.
-    func switchClaudeSwapAccount(_ accountID: ProviderAccountIdentity) {
+    @discardableResult
+    func switchClaudeSwapAccount(_ accountID: ProviderAccountIdentity) -> Task<Void, Never>? {
         guard self.claudeSwapTransientState.task == nil,
               self.shouldFetchClaudeSwapAccounts(),
               accountID.source == ClaudeSwapAccountProjection.sourceName,
@@ -141,7 +142,7 @@ extension UsageStore {
               let accountNumber = Int(accountID.opaqueID),
               accountNumber > 0
         else {
-            return
+            return nil
         }
 
         let executablePath = self.settings.resolvedClaudeSwapExecutablePath
@@ -177,6 +178,7 @@ extension UsageStore {
             self.claudeSwapTransientState.lastErrorAccountID = currentError == nil ? nil : accountID
             self.claudeSwapRevision &+= 1
         }
+        return self.claudeSwapTransientState.task
     }
 
     private func probeClaudeSwapVersionIfNeeded(executablePath: String) async {
