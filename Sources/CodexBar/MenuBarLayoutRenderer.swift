@@ -309,10 +309,19 @@ final class MenuBarLayoutRenderer {
         bottom: MenuBarLayoutRenderedTitle)
         -> MenuBarLayoutRenderedTitle
     {
+        // A row whose only configured content is a conditional that currently hides renders an empty
+        // title (mirroring the single-provider renderer's own collapse of an emptied line). Joining it
+        // in anyway would insert a stray blank row and vertically offset the other provider's row, so
+        // fall back to whichever row actually has content instead of always stacking both.
+        if top.attributedTitle.length == 0 {
+            return bottom
+        }
+        if bottom.attributedTitle.length == 0 {
+            return top
+        }
+
         let result = NSMutableAttributedString(attributedString: top.attributedTitle)
-        let breakAttributes: [NSAttributedString.Key: Any] = top.attributedTitle.length > 0
-            ? top.attributedTitle.attributes(at: top.attributedTitle.length - 1, effectiveRange: nil)
-            : [:]
+        let breakAttributes = top.attributedTitle.attributes(at: top.attributedTitle.length - 1, effectiveRange: nil)
         result.append(NSAttributedString(string: "\n", attributes: breakAttributes))
         result.append(bottom.attributedTitle)
         let secondLineLabel = L("menu_bar_layout_line", 2)

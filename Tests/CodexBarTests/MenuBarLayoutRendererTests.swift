@@ -508,6 +508,36 @@ struct MenuBarLayoutRendererTests {
     }
 
     @Test
+    func `composeStackedProviderRows drops the separator when one row is emptied by a hidden conditional`() {
+        let renderer = MenuBarLayoutRenderer()
+        // Session is 25%, so > 50 fails and the else branch (.hidden) wins, emptying the bottom row.
+        let conditional = MenuBarLayoutConditional(
+            clauses: [self.clause(metric: .session, comparison: .greaterThan, threshold: 50)],
+            thenToken: .percent(window: .session),
+            elseToken: .hidden)
+        let options = self.options(conditionals: [conditional], forceStackedStyle: true)
+
+        let top = renderer.render(
+            layout: MenuBarLayout(lines: [[.percent(window: .automatic)]]),
+            data: self.data(automaticUsedPercent: 69, provider: .codex),
+            icon: nil,
+            options: options)
+        let bottom = renderer.render(
+            layout: MenuBarLayout(lines: [[.conditional(id: conditional.id)]]),
+            data: self.data(provider: .claude),
+            icon: nil,
+            options: options)
+        #expect(bottom.attributedTitle.string.isEmpty)
+
+        let composed = MenuBarLayoutRenderer.composeStackedProviderRows(top: top, bottom: bottom)
+
+        // No stray blank row or vertical offset — the emptied row is dropped, not stacked as a blank line.
+        #expect(composed.attributedTitle.string == "69%")
+        #expect(!composed.attributedTitle.string.contains("\n"))
+        #expect(composed.accessibilityLabel == top.accessibilityLabel)
+    }
+
+    @Test
     func `icon above automatic percentages stays in the attributed two line layout`() {
         let renderer = MenuBarLayoutRenderer()
         let icon = NSImage(size: NSSize(width: 16, height: 16))

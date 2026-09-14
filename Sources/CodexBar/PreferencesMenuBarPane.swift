@@ -133,6 +133,7 @@ struct MenuBarPane: View {
         .scrollContentBackground(.hidden)
         .onAppear {
             self.reconcileOverviewSelection()
+            self.reconcileStackedProviderSelections()
         }
         .onChange(of: self.settings.mergeIcons) { _, isEnabled in
             guard isEnabled else {
@@ -140,12 +141,14 @@ struct MenuBarPane: View {
                 return
             }
             self.reconcileOverviewSelection()
+            self.reconcileStackedProviderSelections()
         }
         .onChange(of: self.activeProvidersInOrder) { _, _ in
             if self.activeProvidersInOrder.isEmpty {
                 self.isOverviewProviderPopoverPresented = false
             }
             self.reconcileOverviewSelection()
+            self.reconcileStackedProviderSelections()
         }
     }
 
@@ -214,6 +217,19 @@ struct MenuBarPane: View {
     private var isStackedStyleActive: Bool {
         self.settings.mergeIcons && self.settings.mergedIconDisplayStyle == .stacked
             && self.settings.menuBarIconStyle == .iconAndPercent
+            && self.store.enabledFirstPartyProvidersForDisplay().count >= 2
+    }
+
+    /// Clears an explicit row pick once it's no longer active, so the picker's label can never disagree
+    /// with what `resolvedMergeIconStackedProviders` actually resolves and renders.
+    private func reconcileStackedProviderSelections() {
+        let active = Set(self.store.enabledFirstPartyProvidersForDisplay())
+        if let top = self.settings.mergeIconStackedTopProvider, !active.contains(top) {
+            self.settings.mergeIconStackedTopProvider = nil
+        }
+        if let bottom = self.settings.mergeIconStackedBottomProvider, !active.contains(bottom) {
+            self.settings.mergeIconStackedBottomProvider = nil
+        }
     }
 
     /// Excludes `excluding` from the offered options so the two row pickers can never both point at the
