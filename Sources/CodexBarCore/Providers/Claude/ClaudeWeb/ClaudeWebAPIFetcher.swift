@@ -1529,7 +1529,8 @@ extension ClaudeWebAPIFetcher {
         }
     }
 
-    /// Cookie header values confirmed dead even when actually deleting them from the Keychain-backed cache
+    /// Non-reversible fingerprints (`CookieHeaderCache.credentialFingerprint`, never the raw cookie header
+    /// itself) of entries confirmed dead even when actually deleting them from the Keychain-backed cache
     /// failed (e.g. a temporarily unavailable Keychain) and they can therefore still be loaded again on a
     /// later cycle. `clearIfCurrent` retries transient Keychain unavailability a few times internally, but
     /// a genuinely prolonged one (a locked screen lasting well past that) can outlast even that.
@@ -1538,31 +1539,44 @@ extension ClaudeWebAPIFetcher {
     /// already uses for its own cross-restart cooldown state: plain defaults writes have no ACL/lock-screen
     /// failure mode at all, so persisting the confirmation doesn't reintroduce the very availability problem
     /// it exists to route around, and it survives the app restarting while the Keychain is still locked —
-    /// an in-process-only marker would otherwise be lost exactly when it's still needed. The in-memory
-    /// `Set` is seeded from defaults once per process and kept in sync on every write, so normal checks stay
-    /// a simple lock instead of round-tripping through defaults each time.
-    private static let confirmedDeadCookieHeadersDefaultsKey = "claudeWebConfirmedDeadCookieHeaders"
+    /// an in-process-only marker would otherwise be lost exactly when it's still needed. Fingerprinting
+    /// (rather than storing the header itself) keeps actual session credential material out of the
+    /// unencrypted preferences plist even while confirmed dead — the Keychain's protection during a locked
+    /// or unavailable moment shouldn't be undone by copying the secret it was protecting somewhere weaker.
+    /// The in-memory `Set` is seeded from defaults once per process and kept in sync on every write, so
+    /// normal checks stay a simple lock instead of round-tripping through defaults each time.
+    private static let confirmedDeadCookieHeadersDefaultsKey = "claudeWebConfirmedDeadCookieFingerprints"
     private static let confirmedDeadCookieHeaders = OSAllocatedUnfairLock<Set<String>>(
-        initialState: Set(
-            UserDefaults.standard.stringArray(forKey: Self.confirmedDeadCookieHeadersDefaultsKey) ?? []))
+        initialState: Self.loadConfirmedDeadCookieFingerprintsFromDefaults())
+
+    private static func loadConfirmedDeadCookieFingerprintsFromDefaults() -> Set<String> {
+        // Defense in depth: an earlier version of this marker stored the raw cookie header — a real
+        // session credential — under this same-purpose key name before it was fixed to store only a
+        // non-reversible fingerprint. Remove any leftover raw value so it can't linger in the unencrypted
+        // preferences plist even if this code ever ran against a real account before the fix landed.
+        UserDefaults.standard.removeObject(forKey: "claudeWebConfirmedDeadCookieHeaders")
+        return Set(UserDefaults.standard.stringArray(forKey: self.confirmedDeadCookieHeadersDefaultsKey) ?? [])
+    }
 
     private static func isConfirmedDead(_ entry: CookieHeaderCache.Entry?) -> Bool {
         guard let entry else { return false }
-        return Self.confirmedDeadCookieHeaders.withLock { $0.contains(entry.cookieHeader) }
+        let fingerprint = CookieHeaderCache.credentialFingerprint(entry.cookieHeader)
+        return Self.confirmedDeadCookieHeaders.withLock { $0.contains(fingerprint) }
     }
 
     private static func clearInvalidatedCacheEntryIfNeeded(_ entry: CookieHeaderCache.Entry?) {
         guard let entry else { return }
         let cleared = CookieHeaderCache.clearIfCurrent(provider: .claude, expected: entry)
-        let updatedHeaders = Self.confirmedDeadCookieHeaders.withLock { headers -> Set<String> in
+        let fingerprint = CookieHeaderCache.credentialFingerprint(entry.cookieHeader)
+        let updatedFingerprints = Self.confirmedDeadCookieHeaders.withLock { fingerprints -> Set<String> in
             if cleared {
-                headers.remove(entry.cookieHeader)
+                fingerprints.remove(fingerprint)
             } else {
-                headers.insert(entry.cookieHeader)
+                fingerprints.insert(fingerprint)
             }
-            return headers
+            return fingerprints
         }
-        UserDefaults.standard.set(Array(updatedHeaders), forKey: Self.confirmedDeadCookieHeadersDefaultsKey)
+        UserDefaults.standard.set(Array(updatedFingerprints), forKey: Self.confirmedDeadCookieHeadersDefaultsKey)
     }
 
     #if DEBUG
