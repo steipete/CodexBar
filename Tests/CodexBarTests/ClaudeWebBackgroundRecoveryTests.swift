@@ -108,40 +108,59 @@ struct ClaudeWebBackgroundRecoveryTests {
             let isolatedHome = FileManager.default.temporaryDirectory
                 .appendingPathComponent("claude-background-recovery-\(UUID().uuidString)").path
 
-            do {
-                try await BrowserCookieAccessGate.withShouldAttemptOverrideForTesting(false) {
-                    try await ProviderInteractionContext.$current.withValue(.background) {
-                        try await self.withClaudeWebStub { request in
-                            let isStale = request.value(forHTTPHeaderField: "Cookie") ==
-                                "sessionKey=sk-ant-stale-token"
-                            if request.url?.path == "/api/organizations", isStale {
-                                let url = try #require(request.url)
-                                return Self.jsonResponse(url: url, body: "{}", statusCode: 401, setCookie: nil)
+            func attemptOnce() async {
+                do {
+                    try await BrowserCookieAccessGate.withShouldAttemptOverrideForTesting(false) {
+                        try await ProviderInteractionContext.$current.withValue(.background) {
+                            try await self.withClaudeWebStub { request in
+                                let isStale = request.value(forHTTPHeaderField: "Cookie") ==
+                                    "sessionKey=sk-ant-stale-token"
+                                if request.url?.path == "/api/organizations", isStale {
+                                    let url = try #require(request.url)
+                                    return Self.jsonResponse(url: url, body: "{}", statusCode: 401, setCookie: nil)
+                                }
+                                return try Self.response(for: request, setCookie: nil)
+                            } operation: {
+                                // The gate is forced to skip every browser (as a real inconclusive Keychain
+                                // preflight would), rather than a genuine attempt finding no session — the
+                                // distinction this fix exists to preserve.
+                                _ = try await ClaudeWebAPIFetcher.fetchUsage(
+                                    browserDetection: BrowserDetection(homeDirectory: isolatedHome, cacheTTL: 0))
                             }
-                            return try Self.response(for: request, setCookie: nil)
-                        } operation: {
-                            // The gate is forced to skip every browser (as a real inconclusive Keychain
-                            // preflight would), rather than a genuine attempt finding no session — the
-                            // distinction this fix exists to preserve.
-                            _ = try await ClaudeWebAPIFetcher.fetchUsage(
-                                browserDetection: BrowserDetection(homeDirectory: isolatedHome, cacheTTL: 0))
                         }
                     }
-                }
-                Issue.record("Expected cachedSessionUnverifiedInBackground")
-            } catch let error as ClaudeWebAPIFetcher.FetchError {
-                guard case .cachedSessionUnverifiedInBackground = error else {
+                    Issue.record("Expected cachedSessionUnverifiedInBackground")
+                } catch let error as ClaudeWebAPIFetcher.FetchError {
+                    guard case .cachedSessionUnverifiedInBackground = error else {
+                        Issue.record("Expected cachedSessionUnverifiedInBackground, got \(error)")
+                        return
+                    }
+                } catch {
                     Issue.record("Expected cachedSessionUnverifiedInBackground, got \(error)")
-                    return
                 }
-            } catch {
-                Issue.record("Expected cachedSessionUnverifiedInBackground, got \(error)")
             }
 
-            // The cache is cleared as soon as the cached cookie itself fails (same as a genuine empty
-            // recovery attempt) — this test only guards the *message* surfaced for the skipped-recovery
-            // case, not cache retention.
-            #expect(CookieHeaderCache.load(provider: .claude) == nil)
+            await attemptOnce()
+
+            // Unlike a confirmed failure, the stale cache is deliberately left in place rather than
+            // cleared: this is what lets a *second* consecutive cycle under the same still-inconclusive
+            // gate see the same cached entry again below, instead of losing all evidence that a session
+            // was ever working and silently regressing to the plain sign-in message.
+            #expect(CookieHeaderCache.load(provider: .claude)?.cookieHeader == "sessionKey=sk-ant-stale-token")
+
+            await attemptOnce()
+            #expect(CookieHeaderCache.load(provider: .claude)?.cookieHeader == "sessionKey=sk-ant-stale-token")
+
+            // This is what actually carries the unverified state through the app's Auto source mode:
+            // ClaudeWebFetchStrategy.isAvailable short-circuits to `hasSessionKey`'s cache fast path before
+            // ever calling `fetch`. Under the old behavior (clearing the cache immediately on invalidation),
+            // that fast path would find nothing and fall through to a *second*, unaware extraction attempt
+            // that also gets gate-skipped — reporting unavailable and letting the Auto pipeline surface a
+            // different (e.g. OAuth) failure instead, so the unverified classification above was never even
+            // reached on the next cycle. Leaving the stale-but-structurally-valid cookie in place keeps this
+            // fast path (and therefore availability) true, so the real fetch — and this classification —
+            // keeps running every cycle.
+            #expect(ClaudeWebAPIFetcher.hasSessionKey(browserDetection: BrowserDetection(cacheTTL: 0)))
         }
     }
 
@@ -324,14 +343,14 @@ struct ClaudeWebBackgroundRecoveryTests {
     }
 
     @Test
-    func `background refresh reports unverified session on a repeat cycle with no cache left to invalidate`() async throws {
+    func `background refresh with no cached session ever reports no session key found, not unverified`() async throws {
         try await self.withIsolatedCookieCache {
-            // No cached cookie at all this cycle — mirroring a *second* consecutive background refresh
-            // after a first cycle's invalidation already cleared it (`clearIfCurrent`), while the
-            // underlying Keychain preflight is still just as inconclusive as it was the first time.
-            // `invalidatedCacheError` is therefore nil throughout this attempt; the gate skip must still be
-            // classified as unverified rather than falling through to the plain, misleading
-            // `noSessionKeyFound` sign-in message.
+            // No cached cookie at all, and nothing stored beforehand: a first-ever refresh, or a
+            // genuinely signed-out account — not a repeat cycle after an earlier invalidation (that case
+            // is covered above, where the stale entry is deliberately left in the cache instead of
+            // cleared). With no evidence any session was ever working, a gate skip must not be reported as
+            // "unverified... showing last-known usage" when no last-known usage exists, and must not
+            // suppress the sign-in affordance the way `cachedSessionUnverifiedInBackground` does.
 
             let temp = FileManager.default.temporaryDirectory
                 .appendingPathComponent("claude-background-recovery-no-cache-\(UUID().uuidString)", isDirectory: true)
@@ -365,14 +384,82 @@ struct ClaudeWebBackgroundRecoveryTests {
                         }
                     }
                 }
-                Issue.record("Expected cachedSessionUnverifiedInBackground")
+                Issue.record("Expected noSessionKeyFound")
             } catch let error as ClaudeWebAPIFetcher.FetchError {
-                guard case .cachedSessionUnverifiedInBackground = error else {
-                    Issue.record("Expected cachedSessionUnverifiedInBackground, got \(error)")
+                guard case .noSessionKeyFound = error else {
+                    Issue.record("Expected noSessionKeyFound, got \(error)")
                     return
                 }
             } catch {
-                Issue.record("Expected cachedSessionUnverifiedInBackground, got \(error)")
+                Issue.record("Expected noSessionKeyFound, got \(error)")
+            }
+        }
+    }
+
+    @Test
+    func `user initiated refresh does not mask a skipped candidate when another browser was genuinely read`() async throws {
+        try await self.withIsolatedCookieCache {
+            CookieHeaderCache.store(
+                provider: .claude,
+                cookieHeader: "sessionKey=sk-ant-stale-token",
+                sourceLabel: "Chrome")
+            defer { CookieHeaderCache.clear(provider: .claude) }
+
+            // Mirrors the existing "mixed" scenario (Chrome skipped by an inconclusive Keychain preflight,
+            // Safari genuinely tried and empty) but under `.userInitiated` instead of `.background`: the
+            // explicit-retry scope a user-initiated refresh runs through can permit one browser through its
+            // cooldown while a *different* installed Chromium browser is still separately skipped, so
+            // `anySkippedByGate` can be true even though the user already completed a real, informative
+            // retry. That must never be masked as "unverified... click Refresh to check now" — the user
+            // just did, and deserves the confirmed cached-auth error instead.
+            let temp = FileManager.default.temporaryDirectory
+                .appendingPathComponent(
+                    "claude-background-recovery-user-initiated-\(UUID().uuidString)",
+                    isDirectory: true)
+            let chromeCookies = temp
+                .appendingPathComponent("Library/Application Support/Google/Chrome/Default/Network/Cookies")
+            try FileManager.default.createDirectory(
+                at: chromeCookies.deletingLastPathComponent(),
+                withIntermediateDirectories: true)
+            FileManager.default.createFile(atPath: chromeCookies.path, contents: Data())
+            defer { try? FileManager.default.removeItem(at: temp) }
+            let detection = BrowserDetection(
+                homeDirectory: temp.path,
+                cacheTTL: 0,
+                fileExists: { path in
+                    if path == "/Applications/Google Chrome.app" { return true }
+                    return FileManager.default.fileExists(atPath: path)
+                },
+                directoryContents: { path in try? FileManager.default.contentsOfDirectory(atPath: path) })
+
+            do {
+                try await KeychainAccessGate.withTaskOverrideForTesting(false) {
+                    try await KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { _, _ in
+                        .temporarilyUnavailable
+                    } operation: {
+                        try await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                            try await self.withClaudeWebStub { request in
+                                let isStale = request.value(forHTTPHeaderField: "Cookie") ==
+                                    "sessionKey=sk-ant-stale-token"
+                                if request.url?.path == "/api/organizations", isStale {
+                                    let url = try #require(request.url)
+                                    return Self.jsonResponse(url: url, body: "{}", statusCode: 401, setCookie: nil)
+                                }
+                                return try Self.response(for: request, setCookie: nil)
+                            } operation: {
+                                _ = try await ClaudeWebAPIFetcher.fetchUsage(browserDetection: detection)
+                            }
+                        }
+                    }
+                }
+                Issue.record("Expected the confirmed cached-auth error to propagate")
+            } catch let error as ClaudeWebAPIFetcher.FetchError {
+                guard case .unauthorized = error else {
+                    Issue.record("Expected .unauthorized, got \(error)")
+                    return
+                }
+            } catch {
+                Issue.record("Expected .unauthorized, got \(error)")
             }
         }
     }
