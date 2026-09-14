@@ -50,18 +50,11 @@ func spendDashboardMetricText(
     tokens: Int?,
     currencyCode: String) -> String
 {
-    let costText = cost.map { UsageFormatter.currencyString($0, currencyCode: currencyCode) }
-    let tokenText = tokens.map(UsageFormatter.tokenCountString)
-    switch (costText, tokenText) {
-    case let (cost?, tokens?):
-        return "\(cost) · \(L("%@ tokens", tokens))"
-    case let (cost?, nil):
-        return cost
-    case let (nil, tokens?):
-        return L("%@ tokens", tokens)
-    case (nil, nil):
-        return "—"
-    }
+    let parts = [
+        cost.map { UsageFormatter.currencyString($0, currencyCode: currencyCode) },
+        tokens.map { L("%@ tokens", UsageFormatter.tokenCountString($0)) },
+    ].compactMap(\.self)
+    return parts.isEmpty ? "—" : parts.joined(separator: " · ")
 }
 
 func spendDashboardCoverageChipText(_ coverage: CostUsageCoverageCounts) -> String {
@@ -1199,9 +1192,7 @@ private struct SpendDailyLedgerRow: View {
                 .frame(width: SpendDailyLedgerLayout.trackedTokensWidth, alignment: .trailing)
             Text(self.summary.requestCount.map(codexBarLocalizedInteger) ?? "—")
                 .frame(width: SpendDailyLedgerLayout.requestsWidth, alignment: .trailing)
-            Text(self.summary.totalCost.map {
-                UsageFormatter.currencyString($0, currencyCode: self.currencyCode)
-            } ?? "—")
+            Text(spendDashboardLedgerCostText(self.summary, currencyCode: self.currencyCode))
                 .fontWeight(.medium)
                 .frame(width: SpendDailyLedgerLayout.estimatedSpendWidth, alignment: .trailing)
         }
@@ -1244,9 +1235,7 @@ private struct SpendDailyLedgerRow: View {
             : self.activeProviders.map(\.displayName).joined(separator: ", ")
         let tokens = self.summary.totalTokens.map(UsageFormatter.tokenCountString) ?? "—"
         let requests = self.summary.requestCount.map(codexBarLocalizedInteger) ?? "—"
-        let spend = self.summary.totalCost.map {
-            UsageFormatter.currencyString($0, currencyCode: self.currencyCode)
-        } ?? "—"
+        let spend = spendDashboardLedgerCostText(self.summary, currencyCode: self.currencyCode)
         return "\(day), \(L("Providers")): \(providers), \(L("Tracked tokens")): \(tokens), "
             + "\(L("Requests")): \(requests), \(L("Estimated spend")): \(spend)"
     }
@@ -1503,6 +1492,12 @@ func spendDashboardGroupCostText(_ group: SpendDashboardModel.CurrencyGroup) -> 
     guard let cost = group.totalCost else { return L("Spend unavailable") }
     let formatted = UsageFormatter.currencyString(cost, currencyCode: group.currencyCode)
     return group.hasPartialCost ? "~\(formatted)" : formatted
+}
+
+func spendDashboardLedgerCostText(_ summary: SpendDashboardModel.DailySummary, currencyCode: String) -> String {
+    guard let cost = summary.totalCost else { return "—" }
+    let formatted = UsageFormatter.currencyString(cost, currencyCode: currencyCode)
+    return summary.hasPartialCost ? "~\(formatted)" : formatted
 }
 
 func spendDashboardGroupTokenText(_ group: SpendDashboardModel.CurrencyGroup) -> String {

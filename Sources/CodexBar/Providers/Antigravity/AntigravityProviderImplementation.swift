@@ -46,18 +46,16 @@ struct AntigravityProviderImplementation: ProviderImplementation {
 
     @MainActor
     func settingsPickers(context: ProviderSettingsContext) -> [ProviderSettingsPickerDescriptor] {
-        let usageBinding = context.rawValueBinding(\.antigravityUsageDataSource, fallback: .auto)
-        let usageOptions = AntigravityUsageDataSource.allCases.map {
-            ProviderSettingsPickerOption(id: $0.rawValue, title: $0.displayName)
-        }
-        return [
+        [
             ProviderSettingsPickerDescriptor(
                 id: "antigravity-usage-source",
                 title: "Usage source",
-                subtitle: "Auto tries Antigravity app, agy CLI, then IDE; " +
-                    "OAuth follows for selected or signed-in accounts.",
-                binding: usageBinding,
-                options: usageOptions,
+                subtitle: "Auto skips agy reports without account identity for selected or injected Google accounts. " +
+                    "Try Local API / agy CLI to use the local app or agy's signed-in account, which may differ.",
+                binding: context.rawValueBinding(\.antigravityUsageDataSource, fallback: .auto),
+                options: AntigravityUsageDataSource.allCases.map {
+                    ProviderSettingsPickerOption(id: $0.rawValue, title: $0.displayName)
+                },
                 isVisible: nil,
                 onChange: nil,
                 trailingText: {

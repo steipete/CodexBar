@@ -65,7 +65,10 @@ when CodexBar has a selected/injected Google account or an existing shared crede
 `fetchAvailableModels` payload is only accepted after `retrieveUserQuota` echoes bucket fractions; this can be an
 availability-style fallback rather than the full Antigravity quota summary.
 When OAuth identifies the account but quota endpoints deny access, CodexBar shows `Limits not available` instead of an
-empty quota card.
+empty quota card. Auto also skips `agy` reports without account identity when a Google account is selected or injected,
+because it cannot verify that those quotas belong to that account. Settings explains this beside **Usage source**.
+To try the local app or `agy` account instead, select **Local API / agy CLI** (CLI: `--source cli`).
+That source may use a different signed-in account from the Google account selected in CodexBar; it does not verify a match.
 
 ## OAuth account switching
 

@@ -237,6 +237,7 @@ Model-scoped weekly-window proof (synthetic data, no real accounts or credential
 ## CLI PTY (fallback)
 - Runs `claude` in a PTY session (`ClaudeCLISession`).
 - Default behavior: exit after each probe; Debug → "Keep CLI sessions alive" keeps it running between probes.
+- Probe launches pass `--settings '{"remoteControlAtStartup":false}'` to avoid registering empty Remote Control sessions in claude.ai/code and the mobile app. This process-local override leaves the user's saved settings unchanged; Claude's managed-settings policy still applies.
 - Probe working directory: `~/Library/Application Support/CodexBar/ClaudeProbe` with local Claude settings that disable
   deep-link URL handler registration during headless probes.
 - After transient probes exit, CodexBar removes Claude Code `.jsonl` session artifacts for that dedicated

@@ -440,7 +440,7 @@ public struct CursorStatusSnapshot: Sendable {
     }
 
     /// Convert to UsageSnapshot for the common provider interface
-    public func toUsageSnapshot() -> UsageSnapshot {
+    public func toUsageSnapshot(now: Date = Date()) -> UsageSnapshot {
         let cursorRequests: CursorRequestUsage? = if let used = self.requestsUsed,
                                                      let limit = self.requestsLimit,
                                                      limit > 0
@@ -453,7 +453,7 @@ public struct CursorStatusSnapshot: Sendable {
         // Primary: For usable legacy request quotas, use request usage; otherwise preserve plan percentage.
         let primaryUsedPercent = cursorRequests?.usedPercent ?? self.planPercentUsed
 
-        let billingCycleWindowMinutes = Self.billingCycleWindowMinutes(
+        let billingCycleWindowMinutes = CursorSandUsageStatus.windowMinutes(
             start: self.billingCycleStart,
             end: self.billingCycleEnd)
 
@@ -490,9 +490,7 @@ public struct CursorStatusSnapshot: Sendable {
         let extraRateWindows: [NamedRateWindow]? = if cursorRequests != nil {
             nil
         } else {
-            self.sandUsage.flatMap { status in
-                status.extraRateWindow(resetDescription: Self.formatResetDate)
-            }.map { [$0] }
+            self.sandUsage?.extraRateWindow(now: now, resetDescription: Self.formatResetDate).map { [$0] }
         }
 
         // Prefer a personal cap. Team accounts with no user cap expose only the shared on-demand budget.
@@ -529,7 +527,7 @@ public struct CursorStatusSnapshot: Sendable {
                 period: "Monthly",
                 resetsAt: self.billingCycleEnd,
                 personalUsed: personalOnDemandUsed,
-                updatedAt: Date())
+                updatedAt: now)
         } else {
             nil
         }
@@ -551,7 +549,7 @@ public struct CursorStatusSnapshot: Sendable {
                     .makeRow(label: "Request quota", value: "\(requests.used) / \(requests.limit)"),
                 ])]
             } ?? [],
-            updatedAt: Date(),
+            updatedAt: now,
             identity: identity)
     }
 
@@ -560,14 +558,6 @@ public struct CursorStatusSnapshot: Sendable {
         formatter.dateFormat = "MMM d 'at' h:mma"
         formatter.locale = Locale(identifier: "en_US_POSIX")
         return "Resets " + formatter.string(from: date)
-    }
-
-    private static func billingCycleWindowMinutes(start: Date?, end: Date?) -> Int? {
-        guard let start,
-              let end
-        else { return nil }
-        let minutes = Int((end.timeIntervalSince(start) / 60).rounded())
-        return minutes > 0 ? minutes : nil
     }
 
     private static func formatMembershipType(_ type: String) -> String {

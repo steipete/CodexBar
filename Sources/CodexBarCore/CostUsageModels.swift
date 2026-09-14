@@ -480,18 +480,16 @@ public struct CostUsageDailyReport: Sendable, Codable {
                     estimated: estimated)
             }
             if detail != .rows, let requests = self.requestCount, requests > 0 {
-                let priced = if self.costUSD != nil {
-                    max(0, requests - unpriced - unmetered - estimated)
-                } else {
-                    0
-                }
+                // Clamp each subtraction so oversized explicit categories leave no inferred remainder.
+                let remainder = [unpriced, unmetered, estimated].reduce(requests) { max(0, $0 - $1) }
+                let hasCost = self.costUSD != nil
                 return CostUsageCoverageCounts(
-                    priced: priced,
-                    unpriced: unpriced,
+                    priced: hasCost ? remainder : 0,
+                    unpriced: hasCost ? unpriced : unpriced + remainder,
                     unmetered: unmetered,
                     estimated: estimated)
             }
-            if unpriced + unmetered + estimated > 0 {
+            if unpriced > 0 || unmetered > 0 || estimated > 0 {
                 return CostUsageCoverageCounts(
                     priced: 0,
                     unpriced: unpriced,

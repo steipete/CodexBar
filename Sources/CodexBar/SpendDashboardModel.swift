@@ -161,6 +161,11 @@ struct SpendDashboardModel: Equatable, Sendable {
         let requestCount: Int?
         let totalCost: Double?
 
+        var hasPartialCost: Bool {
+            let values = self.providers.map(\.totalCost)
+            return values.contains { $0 != nil } && values.contains { $0 == nil }
+        }
+
         var id: Date {
             self.day
         }
@@ -923,7 +928,7 @@ struct SpendDashboardModel: Equatable, Sendable {
             let providerRows = indexed.map {
                 Self.dailyProviderRow(summary: $0.summary, entries: $0.entries[day] ?? [])
             }
-            let totalCost = Self.completeCostSum(providerRows.map(\.totalCost))
+            let totalCost = Self.knownCostSum(providerRows.map(\.totalCost))
 
             let sortedRows = providerRows.enumerated().sorted { lhs, rhs in
                 switch (lhs.element.totalCost, rhs.element.totalCost) {
@@ -950,7 +955,8 @@ struct SpendDashboardModel: Equatable, Sendable {
         let costs = entries.map {
             Self.validCost($0.entry.costUSD).map { $0 * summary.costMultiplier }
         }
-        let emptyCost: Double? = summary.entries.isEmpty && summary.totalCost == nil ? nil : 0
+        let emptyCost: Double? = summary.entries.isEmpty && summary.totalCost == nil && summary
+            .totalTokens != 0 ? nil : 0
         let totalCost = summary.hasInvalidCostHistory ? nil : entries.isEmpty ? emptyCost : Self.completeCostSum(costs)
 
         return DailyProviderRow(

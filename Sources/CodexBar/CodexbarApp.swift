@@ -205,6 +205,7 @@ final class SparkleUpdaterController: NSObject, UpdaterProviding, SPUUpdaterDele
         userDriverDelegate: nil)
     let updateStatus = UpdateStatus()
     let unavailableReason: String? = nil
+    let isAvailable = true
     private var immediateInstallHandler: ImmediateInstallHandler?
     private var dockPresentationAttemptID: DockIconPresentationAttemptID?
 
@@ -226,10 +227,6 @@ final class SparkleUpdaterController: NSObject, UpdaterProviding, SPUUpdaterDele
         set { self.controller.updater.automaticallyDownloadsUpdates = newValue }
     }
 
-    var isAvailable: Bool {
-        true
-    }
-
     func checkForUpdates(_ sender: Any?) {
         self.dockPresentationAttemptID = DockIconController.shared.promote(
             presentationTimeout: Self.presentationTimeout)
@@ -245,27 +242,12 @@ final class SparkleUpdaterController: NSObject, UpdaterProviding, SPUUpdaterDele
         immediateInstallHandler.install()
     }
 
-    nonisolated func updater(_ updater: SPUUpdater, didDownloadUpdate item: SUAppcastItem) {
-        _ = updater
-        _ = item
-    }
-
     nonisolated func updater(_ updater: SPUUpdater, failedToDownloadUpdate item: SUAppcastItem, error: Error) {
-        _ = updater
-        _ = item
-        _ = error
-        Task { @MainActor in
-            self.immediateInstallHandler = nil
-            self.updateStatus.isUpdateReady = false
-        }
+        self.clearPendingInstall()
     }
 
     nonisolated func userDidCancelDownload(_ updater: SPUUpdater) {
-        _ = updater
-        Task { @MainActor in
-            self.immediateInstallHandler = nil
-            self.updateStatus.isUpdateReady = false
-        }
+        self.clearPendingInstall()
     }
 
     nonisolated func updater(
@@ -274,8 +256,6 @@ final class SparkleUpdaterController: NSObject, UpdaterProviding, SPUUpdaterDele
         immediateInstallationBlock immediateInstallHandler: @escaping () -> Void)
         -> Bool
     {
-        _ = updater
-        _ = item
         let installHandler = ImmediateInstallHandler(immediateInstallHandler)
         Task { @MainActor in
             self.immediateInstallHandler = installHandler
@@ -285,8 +265,10 @@ final class SparkleUpdaterController: NSObject, UpdaterProviding, SPUUpdaterDele
     }
 
     nonisolated func updater(_ updater: SPUUpdater, didAbortWithError error: Error) {
-        _ = updater
-        _ = error
+        self.clearPendingInstall()
+    }
+
+    private nonisolated func clearPendingInstall() {
         Task { @MainActor in
             self.immediateInstallHandler = nil
             self.updateStatus.isUpdateReady = false
@@ -298,7 +280,6 @@ final class SparkleUpdaterController: NSObject, UpdaterProviding, SPUUpdaterDele
         didFinishUpdateCycleFor updateCheck: SPUUpdateCheck,
         error: Error?)
     {
-        _ = updater
         CodexBarLog.logger(LogCategories.app).debug(
             "Sparkle update cycle finished",
             metadata: [
@@ -320,13 +301,9 @@ final class SparkleUpdaterController: NSObject, UpdaterProviding, SPUUpdaterDele
     {
         let downloaded = state.stage == .downloaded
         Task { @MainActor in
-            switch choice {
-            case .install, .skip:
-                self.immediateInstallHandler = nil
-                self.updateStatus.isUpdateReady = false
-            case .dismiss:
+            if choice == .dismiss {
                 self.updateStatus.isUpdateReady = downloaded
-            @unknown default:
+            } else {
                 self.immediateInstallHandler = nil
                 self.updateStatus.isUpdateReady = false
             }
@@ -349,17 +326,13 @@ private func isDeveloperIDSigned(bundleURL: URL) -> Bool {
           let certs = info[kSecCodeInfoCertificates as String] as? [SecCertificate],
           let leaf = certs.first else { return false }
 
-    if let summary = SecCertificateCopySubjectSummary(leaf) as String? {
-        return summary.hasPrefix("Developer ID Application:")
-    }
-    return false
+    return (SecCertificateCopySubjectSummary(leaf) as String?)?.hasPrefix("Developer ID Application:") == true
 }
 
 @MainActor
 private func makeUpdaterController() -> UpdaterProviding {
     let bundleURL = Bundle.main.bundleURL
-    let isBundledApp = bundleURL.pathExtension == "app"
-    guard isBundledApp else {
+    guard bundleURL.pathExtension == "app" else {
         return DisabledUpdaterController(unavailableReason: "Updates unavailable in this build.")
     }
 
@@ -372,11 +345,9 @@ private func makeUpdaterController() -> UpdaterProviding {
         return DisabledUpdaterController(unavailableReason: "Updates unavailable in this build.")
     }
 
-    let defaults = UserDefaults.standard
-    let autoUpdateKey = "autoUpdateEnabled"
     // Default to true for first launch; fall back to saved preference thereafter.
-    let savedAutoUpdate = (defaults.object(forKey: autoUpdateKey) as? Bool) ?? true
-    return SparkleUpdaterController(savedAutoUpdate: savedAutoUpdate)
+    return SparkleUpdaterController(
+        savedAutoUpdate: (UserDefaults.standard.object(forKey: "autoUpdateEnabled") as? Bool) ?? true)
 }
 #else
 private func makeUpdaterController() -> UpdaterProviding {
