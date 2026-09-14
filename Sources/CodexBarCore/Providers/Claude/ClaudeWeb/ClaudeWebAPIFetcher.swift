@@ -1455,12 +1455,20 @@ extension ClaudeWebAPIFetcher {
                 anySkippedByGate: &anySkippedByGate,
                 logger: log)
         } catch {
+            // Checked ahead of `invalidatedCacheError`, and regardless of whether one exists at all: the
+            // reason recovery is unverified — a browser genuinely skipped by the gate — does not depend on
+            // whether this cycle happened to have a cached cookie to invalidate. A prior cycle's
+            // invalidation already cleared the cache (see `clearIfCurrent` above), so without this check
+            // first, a second consecutive cycle under the same still-inconclusive Keychain preflight would
+            // have no `invalidatedCacheError` to prefer and would fall through to the plain, misleading
+            // `noSessionKeyFound` sign-in message — reintroducing the exact symptom this fix exists to
+            // prevent, on every refresh after the first.
+            if anySkippedByGate {
+                log("A browser recovery candidate was skipped by the Keychain preflight; " +
+                    "preserving the cached auth state instead of reporting a sign-out")
+                throw FetchError.cachedSessionUnverifiedInBackground
+            }
             if let invalidatedCacheError {
-                if anySkippedByGate {
-                    log("A browser recovery candidate was skipped by the Keychain preflight; " +
-                        "preserving the cached auth state instead of reporting a sign-out")
-                    throw FetchError.cachedSessionUnverifiedInBackground
-                }
                 throw invalidatedCacheError
             }
             throw error

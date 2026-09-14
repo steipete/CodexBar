@@ -7,6 +7,7 @@
 - Kimi: retain nonzero weekly and five-hour counts when a mixed legacy response includes conflicting zero ratios for the same quota windows (#3755, fixes #3754). Thanks @mudrii!
 - Claude: retry an inconclusive Keychain preflight a few times before giving up on background browser-cookie recovery, and report an unverified session rather than a sign-out when every recovery candidate was skipped without ever being attempted.
 - Claude: preserve a confirmed auth failure (e.g. a revoked session cookie) when it happens right after browser recovery finds a real session, instead of misreporting it as an unverified session just because a different browser was separately skipped by the Keychain preflight.
+- Claude: keep reporting an unverified session (instead of reverting to the misleading sign-in message) on a repeat background refresh once the earlier cycle's cache invalidation already cleared the cookie it would otherwise have compared against.
 
 ## 0.62.0 — 2026-09-19
 
