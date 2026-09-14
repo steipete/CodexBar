@@ -45,6 +45,7 @@ struct CombinedBurnDownWidgetView: View {
 private struct CombinedBurnDownLayout: View {
     @Environment(\.widgetRenderingMode) private var renderingMode
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.widgetFamily) private var family
 
     let state: BurnDownState
     let provider: UsageProvider
@@ -52,6 +53,7 @@ private struct CombinedBurnDownLayout: View {
     var body: some View {
         let dark = self.colorScheme == .dark
         let isMonochrome = self.renderingMode != .fullColor
+        let sizing = CombinedBurnSizing(family: self.family)
 
         let sessionWindow = self.state.primaryWindow
         let weeklyWindow = self.state.secondaryWindow
@@ -81,7 +83,7 @@ private struct CombinedBurnDownLayout: View {
                         .frame(width: 7, height: 7)
                         .shadow(color: baseTheme.brandDot.opacity(0.7), radius: 3.5)
                     Text(burnProviderName(self.provider))
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.system(size: sizing.headerSize, weight: .semibold))
                         .foregroundStyle(baseTheme.text)
                         .lineLimit(1)
                 }
@@ -108,6 +110,7 @@ private struct CombinedBurnDownLayout: View {
                         periods: 5,
                         metric: .remaining,
                         dark: dark,
+                        sizing: sizing,
                         blankChart: self.state.blankPrimaryChart,
                         resetsAtOverride: self.state.selectedResetOverride)
                 } else {
@@ -131,7 +134,8 @@ private struct CombinedBurnDownLayout: View {
                         tag: burnCompactWindowLabel(win.windowMinutes, fallback: "W"),
                         periods: 7,
                         metric: .pace,
-                        dark: dark)
+                        dark: dark,
+                        sizing: sizing)
                 } else {
                     CombinedEmptyRow(tag: "W", theme: baseTheme)
                 }
@@ -142,6 +146,25 @@ private struct CombinedBurnDownLayout: View {
         .padding(.horizontal, 15)
         .padding(.top, 12)
         .padding(.bottom, 11)
+    }
+}
+
+// MARK: - Sizing
+
+/// Family-dependent metrics so the large tile grows its chart and hero number
+/// instead of stretching a medium-sized row over twice the height.
+private struct CombinedBurnSizing {
+    let labelWidth: CGFloat
+    let chartHeight: CGFloat
+    let heroSize: CGFloat
+    let headerSize: CGFloat
+
+    init(family: WidgetFamily) {
+        let isLarge = family == .systemLarge
+        self.labelWidth = isLarge ? 150 : 112
+        self.chartHeight = isLarge ? 120 : 50
+        self.heroSize = isLarge ? 40 : 27
+        self.headerSize = isLarge ? 17 : 14
     }
 }
 
@@ -163,6 +186,7 @@ private struct CombinedBurnRow: View {
     let periods: Int
     let metric: CombinedMetric
     let dark: Bool
+    let sizing: CombinedBurnSizing
     var blankChart = false
     var resetsAtOverride: Date?
 
@@ -226,7 +250,7 @@ private struct CombinedBurnRow: View {
                             .foregroundStyle(heroColor)
                     }
                     Text("\(heroNum)")
-                        .font(.system(size: 27, weight: .semibold))
+                        .font(.system(size: self.sizing.heroSize, weight: .semibold))
                         .foregroundStyle(heroColor)
                         .monospacedDigit()
                         .lineLimit(1)
@@ -264,18 +288,18 @@ private struct CombinedBurnRow: View {
                 .padding(.top, 2)
                 .lineLimit(1)
             }
-            .frame(width: 112, alignment: .leading)
+            .frame(width: self.sizing.labelWidth, alignment: .leading)
 
             // Chart column — blanked when the session window is blocked by an exhausted
             // weekly cap; there is no session burn to chart until the weekly resets.
             if self.blankChart {
                 Color.clear
                     .frame(maxWidth: .infinity)
-                    .frame(height: 50)
+                    .frame(height: self.sizing.chartHeight)
             } else {
                 CombinedBurnChartCanvas(geom: self.geom, theme: self.theme, periods: self.periods, dark: self.dark)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 50)
+                    .frame(height: self.sizing.chartHeight)
             }
         }
         .frame(maxHeight: .infinity)
