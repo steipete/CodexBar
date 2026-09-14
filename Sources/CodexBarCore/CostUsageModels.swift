@@ -480,13 +480,8 @@ public struct CostUsageDailyReport: Sendable, Codable {
                     estimated: estimated)
             }
             if detail != .rows, let requests = self.requestCount, requests > 0 {
-                // Requests outside the explicit categories are priced when the row has a cost.
-                // Without a cost they are unpriced, so a token-only row still counts as coverage.
-                // Malformed explicit counts can exceed Int.max together; they leave no remainder
-                // here and the coverage accumulator rejects them afterwards.
-                let (partialSum, partialOverflow) = unpriced.addingReportingOverflow(unmetered)
-                let (categorized, categorizedOverflow) = partialSum.addingReportingOverflow(estimated)
-                let remainder = partialOverflow || categorizedOverflow ? 0 : max(0, requests - categorized)
+                // Clamp each subtraction so oversized explicit categories leave no inferred remainder.
+                let remainder = [unpriced, unmetered, estimated].reduce(requests) { max(0, $0 - $1) }
                 let hasCost = self.costUSD != nil
                 return CostUsageCoverageCounts(
                     priced: hasCost ? remainder : 0,
@@ -494,7 +489,7 @@ public struct CostUsageDailyReport: Sendable, Codable {
                     unmetered: unmetered,
                     estimated: estimated)
             }
-            if unpriced + unmetered + estimated > 0 {
+            if unpriced > 0 || unmetered > 0 || estimated > 0 {
                 return CostUsageCoverageCounts(
                     priced: 0,
                     unpriced: unpriced,

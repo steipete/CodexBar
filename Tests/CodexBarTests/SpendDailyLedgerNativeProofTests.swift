@@ -103,22 +103,33 @@ final class SpendDailyLedgerNativeProofTests: XCTestCase {
             historyDays: 3,
             daily: entries,
             updatedAt: now)
-        // A token-only source active on the priced day: the day keeps the known $2 with a tilde.
+        // Unknown activity on both active days distinguishes partial spend from an all-unpriced day.
         let unpricedSnapshot = CostUsageTokenSnapshot(
-            sessionTokens: 30,
+            sessionTokens: 40,
             sessionCostUSD: nil,
-            last30DaysTokens: 30,
+            last30DaysTokens: 70,
             last30DaysCostUSD: nil,
             historyDays: 3,
-            daily: [.init(
-                date: "2026-07-14",
-                inputTokens: 20,
-                outputTokens: 10,
-                totalTokens: 30,
-                requestCount: 3,
-                costUSD: nil,
-                modelsUsed: ["fixture-token-only"],
-                modelBreakdowns: [.init(modelName: "fixture-token-only", costUSD: nil, totalTokens: 30)])],
+            daily: [
+                .init(
+                    date: "2026-07-14",
+                    inputTokens: 20,
+                    outputTokens: 10,
+                    totalTokens: 30,
+                    requestCount: 3,
+                    costUSD: nil,
+                    modelsUsed: ["fixture-token-only"],
+                    modelBreakdowns: [.init(modelName: "fixture-token-only", costUSD: nil, totalTokens: 30)]),
+                .init(
+                    date: "2026-07-16",
+                    inputTokens: 20,
+                    outputTokens: 20,
+                    totalTokens: 40,
+                    requestCount: 4,
+                    costUSD: nil,
+                    modelsUsed: ["fixture-token-only"],
+                    modelBreakdowns: [.init(modelName: "fixture-token-only", costUSD: nil, totalTokens: 40)]),
+            ],
             updatedAt: now)
         let model = SpendDashboardModel.build(
             inputs: [

@@ -107,14 +107,17 @@ struct CostProvenanceTests {
         #expect(priced.coverageCounts == CostUsageCoverageCounts(priced: 3, unmetered: 2))
     }
 
-    @Test(arguments: [nil, 1.25] as [Double?])
-    func `malformed explicit categories beyond Int.max leave no remainder instead of trapping`(cost: Double?) {
+    @Test(arguments: [nil, 1.25] as [Double?], [nil, 0, 1] as [Int?])
+    func `malformed explicit categories beyond Int.max leave no remainder instead of trapping`(
+        cost: Double?,
+        requestCount: Int?)
+    {
         let malformed = CostUsageDailyReport.Entry(
             date: "2026-07-16",
             inputTokens: 10,
             outputTokens: 2,
             totalTokens: 12,
-            requestCount: 1,
+            requestCount: requestCount,
             costUSD: cost,
             modelsUsed: nil,
             modelBreakdowns: nil,

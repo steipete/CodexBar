@@ -161,6 +161,11 @@ struct SpendDashboardModel: Equatable, Sendable {
         let requestCount: Int?
         let totalCost: Double?
 
+        var hasPartialCost: Bool {
+            let values = self.providers.map(\.totalCost)
+            return values.contains { $0 != nil } && values.contains { $0 == nil }
+        }
+
         var id: Date {
             self.day
         }
@@ -923,8 +928,7 @@ struct SpendDashboardModel: Equatable, Sendable {
             let providerRows = indexed.map {
                 Self.dailyProviderRow(summary: $0.summary, entries: $0.entries[day] ?? [])
             }
-            // A source without a price must not hide the known spend of the other sources.
-            // The day keeps the known sum and reports itself partial instead.
+            // Keep the known subtotal when another source cannot price its activity.
             let totalCost = Self.knownCostSum(providerRows.map(\.totalCost))
 
             let sortedRows = providerRows.enumerated().sorted { lhs, rhs in
@@ -1409,13 +1413,6 @@ struct SpendDashboardModel: Equatable, Sendable {
               let end = calendar.date(byAdding: .hour, value: 1, to: last)
         else { return nil }
         return first...end
-    }
-}
-
-extension SpendDashboardModel.DailySummary {
-    var hasPartialCost: Bool {
-        let values = self.providers.map(\.totalCost)
-        return values.contains { $0 != nil } && values.contains { $0 == nil }
     }
 }
 
