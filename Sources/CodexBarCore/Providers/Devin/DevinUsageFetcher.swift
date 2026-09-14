@@ -98,10 +98,8 @@ public struct DevinUsageFetcher: Sendable {
                 lastError = error
                 logger?("[devin] /api/\(path) failed: \(error.localizedDescription)")
                 switch error {
-                case DevinUsageError.invalidCredentials, DevinUsageError.missingOrganizationContext:
-                    throw error
-                default:
-                    continue
+                case DevinUsageError.invalidCredentials, DevinUsageError.missingOrganization: throw error
+                default: continue
                 }
             }
             logger?("[devin] Fetched quota usage from /api/\(path)")
@@ -116,7 +114,7 @@ public struct DevinUsageFetcher: Sendable {
             return nil
         }
         if token.lowercased().hasPrefix("authorization:") {
-            token = token.dropHeaderName().trimmingCharacters(in: .whitespacesAndNewlines)
+            token = String(token.dropFirst("authorization:".count)).trimmingCharacters(in: .whitespacesAndNewlines)
         }
         if token.lowercased().hasPrefix("bearer ") {
             token = String(token.dropFirst(7)).trimmingCharacters(in: .whitespacesAndNewlines)
@@ -163,10 +161,7 @@ public struct DevinUsageFetcher: Sendable {
 
     static func shouldTryNextSession(after error: Error) -> Bool {
         switch error {
-        case DevinUsageError.invalidCredentials,
-             DevinUsageError.apiError,
-             DevinUsageError.missingOrganization,
-             DevinUsageError.missingOrganizationContext:
+        case DevinUsageError.invalidCredentials, DevinUsageError.apiError, DevinUsageError.missingOrganization:
             true
         default:
             false
@@ -194,29 +189,14 @@ public struct DevinUsageFetcher: Sendable {
         guard response.statusCode == 200 else {
             let body = String(data: response.data.prefix(200), encoding: .utf8) ?? "<binary>"
             if response.statusCode == 401 || response.statusCode == 403 {
-                if auth.internalOrganizationID == nil,
-                   self.isMissingOrganizationContextResponse(response.data)
-                {
-                    throw DevinUsageError.missingOrganizationContext
-                }
-                throw DevinUsageError.invalidCredentials
+                let payload = try? JSONSerialization.jsonObject(with: response.data) as? [String: Any]
+                throw payload?["detail"] as? String == "No organizations found for auth1 user"
+                    ? DevinUsageError.missingOrganization : DevinUsageError.invalidCredentials
             }
             Self.log.error("Devin API returned \(response.statusCode): \(body)")
             throw DevinUsageError.apiError("HTTP \(response.statusCode)")
         }
         return response.data
-    }
-
-    private static func isMissingOrganizationContextResponse(_ data: Data) -> Bool {
-        struct ErrorResponse: Decodable {
-            let detail: String?
-        }
-
-        guard let detail = try? JSONDecoder().decode(ErrorResponse.self, from: data).detail else {
-            return false
-        }
-        return detail.trimmingCharacters(in: .whitespacesAndNewlines)
-            .caseInsensitiveCompare("No organizations found for auth1 user") == .orderedSame
     }
 
     private static func candidatePaths(organization: String, internalOrganizationID: String?) -> [String] {
@@ -236,7 +216,8 @@ public struct DevinUsageFetcher: Sendable {
         if let internalOrganizationID {
             paths.append("organizations/\(internalOrganizationID)/billing/quota/usage")
         }
-        return paths.removingDuplicates()
+        var seen = Set<String>()
+        return paths.filter { seen.insert($0).inserted }
     }
 
     public static func normalizedOrganization(_ raw: String?) -> String? {
@@ -275,19 +256,5 @@ public struct DevinUsageFetcher: Sendable {
 
     static func isInternalOrganizationID(_ value: String) -> Bool {
         value.hasPrefix("org-") || value.hasPrefix("org_")
-    }
-}
-
-extension String {
-    fileprivate func dropHeaderName() -> String {
-        guard let index = self.firstIndex(of: ":") else { return self }
-        return String(self[self.index(after: index)...])
-    }
-}
-
-extension [String] {
-    fileprivate func removingDuplicates() -> [String] {
-        var seen = Set<String>()
-        return self.filter { seen.insert($0).inserted }
     }
 }

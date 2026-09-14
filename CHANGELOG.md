@@ -14,6 +14,7 @@
 - LiteLLM: preserve personal and team budget amounts in CLI text/cards and native menus, keeping amounts separate from actual reset dates.
 - Perplexity: restore explicit credit-pool percentages, retain CLI credit amounts, and keep credit descriptions out of layout reset-time tokens while preserving Automatic pool selection.
 - Warp: show available add-on credits in Automatic and the provider switcher after monthly credits run out, restore explicit pool percentages, and name quota pools in the percent picker (fixes #3632).
+- Devin: distinguish missing Auth1 organization context from expired tokens and explain the existing internal organization ID setting (fixes #3639). Thanks @codertesla!
 - LongCat: show token balances as details, keep fuel-pack balances beside their expiry, and parse expiry timestamps with fractional seconds.
 - Usage & Spend: align the Token/Cost picker with the chart and detail text at different menu widths (#3626). Thanks @elijahfriedman!
 - Linux: document complete distro runtime dependencies and one verified CLI/desktop installation flow that stops before extraction on download or checksum failure (#3615, fixes #3614). Thanks @darkrei08!
