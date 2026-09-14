@@ -40,7 +40,14 @@ Two API endpoints are fetched concurrently using browser session cookies:
 
 Cookie domains: `abacus.ai`, `apps.abacus.ai`. Session cookies are validated before use (anonymous/marketing-only cookie sets are skipped). Valid cookies are cached in Keychain and reused until the session expires.
 
-The billing cycle window is set to 30 days for pace calculation.
+When a billing reset is available, the window spans the preceding calendar month. Without a reset date, the window
+retains its 30-day fallback; pace estimates require a real reset date.
+
+## Menu-bar percentage
+
+Explicit Credits selection uses the monthly allowance and announces Credits, rather than leaving a blank session
+lane or describing the billing month as hundreds of hours. Billing/reset timing and pacing retain the full month;
+Automatic selection is unchanged. Editor tokens, conditional metrics and pace accessibility use the same Credits label.
 
 ## CLI
 

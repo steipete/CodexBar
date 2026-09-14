@@ -567,7 +567,7 @@ final class MenuBarLayoutRenderer {
         case let .percent(window):
             return self.renderPercent(window, data: data, style: style, options: options)
         case let .pace(window):
-            let accessibilityPrefix = Self.paceAccessibilityPrefix(window, data: data)
+            let accessibilityPrefix = item.editorLabel(provider: data.provider)
             var attributes = style.attributes
             if options.colorPace, let delta = Self.paceDelta(window, data: data), delta.isFinite, delta != 0 {
                 // Use the same rounded numeric delta as the displayed text, never its localized sign.
@@ -912,33 +912,16 @@ final class MenuBarLayoutRenderer {
         }
     }
 
-    private static func paceAccessibilityPrefix(
-        _ percentWindow: PercentWindow,
-        data: MenuBarLayoutRenderData)
-        -> String
-    {
-        switch percentWindow {
-        case .session: L("menu_bar_layout_token_session_pace")
-        case .weekly:
-            if let secondaryLabel = secondaryLabel(data: data) {
-                L("%@ %@", secondaryLabel, L("display_mode_pace").lowercased())
-            } else {
-                L("menu_bar_layout_token_weekly_pace")
-            }
-        case .scopedWeekly: L("menu_bar_layout_token_weekly_pace")
-        case .automatic: L("menu_bar_layout_token_auto_pace")
-        }
-    }
-
     private static func primaryLabel(data: MenuBarLayoutRenderData) -> String? {
         let descriptor = ProviderDescriptorRegistry.descriptor(for: data.provider)
+        if let label = descriptor.presentation.menuBarLayoutPrimaryLabel { return L(label) }
         guard descriptor.metadata.usesDetailBackedWindow, data.session?.windowMinutes == nil else { return nil }
         return descriptor.presentation.primarySemanticWindow == .session
             ? data.laneLabels.primary : data.laneLabels.secondary
     }
 
     private static func secondaryLabel(data: MenuBarLayoutRenderData) -> String? {
-        ProviderDescriptorRegistry.descriptor(for: data.provider).presentation.menuBarLayoutSecondaryLabel.map(L)
+        PercentWindow.weekly.providerLabel(provider: data.provider)
     }
 
     private static func sessionPrefix(_ window: MenuBarLayoutRenderWindow?) -> String {

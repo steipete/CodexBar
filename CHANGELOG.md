@@ -12,6 +12,7 @@
 - Claude: retry an inconclusive Keychain preflight a few times before giving up on background browser-cookie recovery, and report an unverified session rather than a sign-out when every recovery candidate was skipped without ever being attempted.
 - Claude: preserve a confirmed auth failure (e.g. a revoked session cookie) when it happens right after browser recovery finds a real session, instead of misreporting it as an unverified session just because a different browser was separately skipped by the Keychain preflight.
 - Claude: keep reporting an unverified session (instead of reverting to the misleading sign-in message) on a repeat background refresh once the earlier cycle's cache invalidation already cleared the cookie it would otherwise have compared against.
+- Abacus AI: show the monthly allowance when Credits is explicitly selected for the menu-bar percentage, keep Credits labels consistent in the editor, conditions and accessibility, and preserve billing resets and pacing.
 - Abacus AI: retain used/total compute credits in CLI text/cards beside billing resets, and stop labelling undated amounts as reset clocks.
 - Manus, MiMo, and Neuralwatt: retain quota counts in CLI text/cards, keep amounts separate from actual reset dates, and preserve Manus monthly/daily details in native menus.
 - LiteLLM: preserve personal and team budget amounts in CLI text/cards and native menus, keeping amounts separate from actual reset dates.
