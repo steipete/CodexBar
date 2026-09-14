@@ -3,6 +3,9 @@ import SweetCookieKit
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
+#if os(macOS)
+import os.lock
+#endif
 
 enum ClaudeWebHTTPTransport {
     #if DEBUG
@@ -1470,7 +1473,13 @@ extension ClaudeWebAPIFetcher {
             //    browser is still separately skipped, setting `anySkippedByGate` even though the user
             //    already completed a real retry. "...click Refresh to check now" is nonsensical when they
             //    just did, and would hide both the real result and the sign-in affordance.
-            if anySkippedByGate, invalidatedCacheError != nil, ProviderInteractionContext.current == .background {
+            //  - A cookie already confirmed dead by an earlier attempt (its Keychain clear having failed,
+            //    e.g. a temporarily unavailable Keychain) must not be un-confirmed just because it could
+            //    still be loaded again — that would let a real sign-out flip back to merely "unverified"
+            //    indefinitely, for as long as the Keychain clear keeps failing.
+            if anySkippedByGate, invalidatedCacheError != nil, !Self.isConfirmedDead(invalidatedCacheEntry),
+               ProviderInteractionContext.current == .background
+            {
                 // The stale entry is deliberately left in the cache (not cleared) so a persistently
                 // inconclusive Keychain preflight keeps reporting "unverified" on every subsequent cycle,
                 // not only this one: the next call's `cacheObservation.entry` will still see it, re-enter
@@ -1520,9 +1529,30 @@ extension ClaudeWebAPIFetcher {
         }
     }
 
+    /// Cookie header values confirmed dead this process, even when actually deleting them from the
+    /// Keychain-backed cache failed (e.g. a temporarily unavailable Keychain) and they can therefore still
+    /// be loaded again on a later cycle. `clearIfCurrent` retries transient Keychain unavailability a few
+    /// times internally, but a genuinely prolonged one (a locked screen lasting well past that) can outlast
+    /// even that — tracking the confirmation itself in process memory, rather than depending on a Keychain
+    /// write succeeding, means a later cycle can never mistake a confirmed sign-out for merely unverified
+    /// just because deleting the evidence of it happened to fail.
+    private static let confirmedDeadCookieHeaders = OSAllocatedUnfairLock<Set<String>>(initialState: [])
+
+    private static func isConfirmedDead(_ entry: CookieHeaderCache.Entry?) -> Bool {
+        guard let entry else { return false }
+        return Self.confirmedDeadCookieHeaders.withLock { $0.contains(entry.cookieHeader) }
+    }
+
     private static func clearInvalidatedCacheEntryIfNeeded(_ entry: CookieHeaderCache.Entry?) {
         guard let entry else { return }
-        _ = CookieHeaderCache.clearIfCurrent(provider: .claude, expected: entry)
+        let cleared = CookieHeaderCache.clearIfCurrent(provider: .claude, expected: entry)
+        Self.confirmedDeadCookieHeaders.withLock { headers in
+            if cleared {
+                headers.remove(entry.cookieHeader)
+            } else {
+                headers.insert(entry.cookieHeader)
+            }
+        }
     }
 }
 #endif
