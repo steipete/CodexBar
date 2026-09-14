@@ -100,6 +100,14 @@ struct ClaudeWebBackgroundRecoveryTests {
                 sourceLabel: "Chrome")
             defer { CookieHeaderCache.clear(provider: .claude) }
 
+            // A default-home `BrowserDetection` is deliberately safety-suppressed under tests
+            // (`BrowserCookieAccessGate.cookieStoreAccessDecision`), which alone would make every
+            // browser "unavailable" regardless of the gate — masking what this test means to exercise.
+            // A non-default home (it need not exist on disk; the decision only compares paths) lifts
+            // that suppression so Safari genuinely reaches the gate check below.
+            let isolatedHome = FileManager.default.temporaryDirectory
+                .appendingPathComponent("claude-background-recovery-\(UUID().uuidString)").path
+
             do {
                 try await BrowserCookieAccessGate.withShouldAttemptOverrideForTesting(false) {
                     try await ProviderInteractionContext.$current.withValue(.background) {
@@ -116,7 +124,7 @@ struct ClaudeWebBackgroundRecoveryTests {
                             // preflight would), rather than a genuine attempt finding no session — the
                             // distinction this fix exists to preserve.
                             _ = try await ClaudeWebAPIFetcher.fetchUsage(
-                                browserDetection: BrowserDetection(cacheTTL: 0))
+                                browserDetection: BrowserDetection(homeDirectory: isolatedHome, cacheTTL: 0))
                         }
                     }
                 }
@@ -134,6 +142,76 @@ struct ClaudeWebBackgroundRecoveryTests {
             // recovery attempt) — this test only guards the *message* surfaced for the skipped-recovery
             // case, not cache retention.
             #expect(CookieHeaderCache.load(provider: .claude) == nil)
+        }
+    }
+
+    @Test
+    func `background refresh reports unverified session despite an unrelated empty safari read`() async throws {
+        try await self.withIsolatedCookieCache {
+            CookieHeaderCache.store(
+                provider: .claude,
+                cookieHeader: "sessionKey=sk-ant-stale-token",
+                sourceLabel: "Chrome")
+            defer { CookieHeaderCache.clear(provider: .claude) }
+
+            // A non-default home lifts the test-safety suppression that would otherwise make every
+            // browser "unavailable" (masking the gate check this test means to exercise), and a fake
+            // Chrome cookie store makes Chrome itself look genuinely installed so it reaches — and is
+            // rejected by — the Keychain preflight below, instead of being filtered out earlier as "not
+            // installed" the way an unfaked Chrome would be in this isolated home.
+            let temp = FileManager.default.temporaryDirectory
+                .appendingPathComponent("claude-background-recovery-mixed-\(UUID().uuidString)", isDirectory: true)
+            let chromeCookies = temp
+                .appendingPathComponent("Library/Application Support/Google/Chrome/Default/Network/Cookies")
+            try FileManager.default.createDirectory(
+                at: chromeCookies.deletingLastPathComponent(),
+                withIntermediateDirectories: true)
+            FileManager.default.createFile(atPath: chromeCookies.path, contents: Data())
+            defer { try? FileManager.default.removeItem(at: temp) }
+            let detection = BrowserDetection(
+                homeDirectory: temp.path,
+                cacheTTL: 0,
+                fileExists: { path in
+                    if path == "/Applications/Google Chrome.app" { return true }
+                    return FileManager.default.fileExists(atPath: path)
+                },
+                directoryContents: { path in try? FileManager.default.contentsOfDirectory(atPath: path) })
+
+            do {
+                try await KeychainAccessGate.withTaskOverrideForTesting(false) {
+                    try await KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { _, _ in
+                        // Every Chromium-family candidate is gated on this and stays inconclusive even
+                        // after the bounded retry, so it is skipped. Safari needs no Keychain decryption
+                        // at all and bypasses this check entirely (see BrowserCookieAccessGate.shouldAttempt),
+                        // so it is still genuinely attempted — and, with no session-key override installed,
+                        // comes up empty for real. This is the mixed outcome the fix must not collapse into
+                        // "recovery was attempted".
+                        .temporarilyUnavailable
+                    } operation: {
+                        try await ProviderInteractionContext.$current.withValue(.background) {
+                            try await self.withClaudeWebStub { request in
+                                let isStale = request.value(forHTTPHeaderField: "Cookie") ==
+                                    "sessionKey=sk-ant-stale-token"
+                                if request.url?.path == "/api/organizations", isStale {
+                                    let url = try #require(request.url)
+                                    return Self.jsonResponse(url: url, body: "{}", statusCode: 401, setCookie: nil)
+                                }
+                                return try Self.response(for: request, setCookie: nil)
+                            } operation: {
+                                _ = try await ClaudeWebAPIFetcher.fetchUsage(browserDetection: detection)
+                            }
+                        }
+                    }
+                }
+                Issue.record("Expected cachedSessionUnverifiedInBackground")
+            } catch let error as ClaudeWebAPIFetcher.FetchError {
+                guard case .cachedSessionUnverifiedInBackground = error else {
+                    Issue.record("Expected cachedSessionUnverifiedInBackground, got \(error)")
+                    return
+                }
+            } catch {
+                Issue.record("Expected cachedSessionUnverifiedInBackground, got \(error)")
+            }
         }
     }
 
