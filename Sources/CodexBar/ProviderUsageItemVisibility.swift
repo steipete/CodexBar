@@ -3,6 +3,7 @@ import Foundation
 
 struct ProviderUsageItemID: Hashable, Sendable {
     private static let metricPrefix = "metric:"
+    private static let detailSectionPrefix = "detailSection:"
 
     let rawValue: String
 
@@ -10,11 +11,23 @@ struct ProviderUsageItemID: Hashable, Sendable {
         self.rawValue.hasPrefix(Self.metricPrefix) ? String(self.rawValue.dropFirst(Self.metricPrefix.count)) : nil
     }
 
+    /// Raw, pre-localization title of the detail section this ID addresses, when it is one.
+    var detailSectionTitle: String? {
+        self.rawValue.hasPrefix(Self.detailSectionPrefix)
+            ? String(self.rawValue.dropFirst(Self.detailSectionPrefix.count)) : nil
+    }
+
     static let credits = Self(rawValue: "section:credits")
     static let codexResetCredits = Self(rawValue: "section:codex-reset-credits")
 
     static func metric(_ metricID: String) -> Self {
         Self(rawValue: "\(self.metricPrefix)\(metricID)")
+    }
+
+    /// Detail sections are keyed by the provider-owned English title they are reported with, so the
+    /// stored choice survives app-language changes and syncs between devices running other locales.
+    static func detailSection(_ rawTitle: String) -> Self {
+        Self(rawValue: "\(self.detailSectionPrefix)\(rawTitle)")
     }
 }
 
@@ -31,6 +44,9 @@ extension ProviderUsageItemID {
         case .credits: return L("Credits")
         case .codexResetCredits: return L("Limit Reset Credits")
         default:
+            if let detailSectionTitle {
+                return detailSectionTitle
+            }
             guard let metricID = self.metricID else { return self.rawValue }
             if metricID == "claude-routines" {
                 return L("Daily Routines")
@@ -67,9 +83,27 @@ extension UsageMenuCardView.Model {
         if self.creditsText != nil {
             descriptors.append(ProviderUsageItemDescriptor(id: .credits, title: L("Credits")))
         }
+        descriptors.append(contentsOf: self.detailSectionDescriptors())
 
         var seen = Set<ProviderUsageItemID>()
         return descriptors.filter { seen.insert($0.id).inserted }
+    }
+
+    /// Provider detail sections (e.g. z.ai's "Quota details") as visibility items.
+    ///
+    /// Titles shown in Settings are the localized ones already present on the model; the stored ID
+    /// uses the raw pre-localization title carried beside them. Cost-summary sections stay owned by
+    /// the cost summary style picker, and untitled sections have no stable key, so both are skipped.
+    private func detailSectionDescriptors() -> [ProviderUsageItemDescriptor] {
+        let costSummaryTitles = ProviderDescriptorRegistry
+            .descriptor(for: self.provider).presentation.optionalDetails.costSummaryTitles
+        return zip(self.providerDetails, self.providerDetailRawTitles).compactMap { section, rawTitle in
+            guard let rawTitle,
+                  let localizedTitle = section.title,
+                  !costSummaryTitles.contains(rawTitle)
+            else { return nil }
+            return ProviderUsageItemDescriptor(id: .detailSection(rawTitle), title: localizedTitle)
+        }
     }
 
     /// `usageItemDescriptors` plus a row for every hidden item the provider stopped reporting.
@@ -107,6 +141,18 @@ extension UsageMenuCardView.Model {
         }
         if hiddenItemIDs.contains(.codexResetCredits) {
             projected.codexResetCredits = nil
+        }
+        let hiddenDetailTitles = Set(hiddenItemIDs.compactMap(\.detailSectionTitle))
+        if !hiddenDetailTitles.isEmpty {
+            var keptSections: [ProviderDetailSection] = []
+            var keptTitles: [String?] = []
+            for (section, rawTitle) in zip(self.providerDetails, self.providerDetailRawTitles) {
+                if let rawTitle, hiddenDetailTitles.contains(rawTitle) { continue }
+                keptSections.append(section)
+                keptTitles.append(rawTitle)
+            }
+            projected.providerDetails = keptSections
+            projected.providerDetailRawTitles = keptTitles
         }
         return projected
     }

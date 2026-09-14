@@ -6,6 +6,7 @@
 - Dependencies: update KeyboardShortcuts to 3.1.0 while preserving localized recorder prompts, the Linux release/static SDK toolchain to Swift 6.3.3, and Linux desktop CI to Node.js 26.
 
 ### Added
+- Usage items: per-provider visibility checkboxes for provider detail sections (e.g. z.ai's Quota details), keyed by raw section titles and reusing the existing hidden-usage-items storage so Restore Defaults, sync, and unreported-item placeholders keep working.
 - Codex: add the debug-only Workspaces project/session inspector with source, history and privacy updates, plus cancellation when its window closes (#3291). Thanks @AmrMohamad!
 
 ### Fixed

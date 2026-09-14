@@ -177,6 +177,9 @@ struct UsageMenuCardView: View {
         let usageNotes: [String]
         var subscriptionNotes: [String] = []
         var providerDetails: [ProviderDetailSection] = []
+        /// Raw, pre-localization section titles aligned by index with `providerDetails`, so usage-item
+        /// visibility can key on provider-owned copy instead of the localized display title.
+        var providerDetailRawTitles: [String?] = []
         let openAIAPIUsage: OpenAIAPIUsageSnapshot?
         let inlineUsageDashboard: InlineUsageDashboardModel?
         var creditsText: String?
@@ -993,6 +996,8 @@ extension UsageMenuCardView.Model {
         let redacted = Self.redactedText(input: input, subtitle: subtitle)
         let placeholder = Self.placeholder(input: input)
 
+        let visibleProviderDetails = Self.visibleProviderDetails(input: input)
+
         return UsageMenuCardView.Model(
             provider: input.provider,
             providerName: input.metadata.displayName,
@@ -1009,7 +1014,8 @@ extension UsageMenuCardView.Model {
             metrics: metrics,
             usageNotes: usageNotes,
             subscriptionNotes: Self.subscriptionMetadataNotes(snapshot: input.snapshot, provider: input.provider),
-            providerDetails: Self.visibleProviderDetails(input: input),
+            providerDetails: visibleProviderDetails.sections,
+            providerDetailRawTitles: visibleProviderDetails.rawTitles,
             openAIAPIUsage: openAIAPIUsage,
             inlineUsageDashboard: inlineUsageDashboard,
             creditsText: creditsText,
@@ -1039,57 +1045,67 @@ extension UsageMenuCardView.Model {
         return input.snapshot?.providerCost
     }
 
-    private static func visibleProviderDetails(input: Input) -> [ProviderDetailSection] {
-        var details = input.snapshot?.details ?? []
+    private static func visibleProviderDetails(input: Input)
+    -> (sections: [ProviderDetailSection], rawTitles: [String?]) {
+        // Raw titles travel beside their sections so later filtering (localization, redaction) cannot
+        // decouple a visibility choice from the section it addresses.
+        var pairs = (input.snapshot?.details ?? []).map { section in (section: section, rawTitle: section.title) }
         let policy = ProviderDescriptorRegistry.descriptor(for: input.provider).presentation.optionalDetails
         if !input.costSummaryInlineEnabled, !policy.costSummaryTitles.isEmpty {
-            details.removeAll { section in
-                section.title.map(policy.costSummaryTitles.contains) == true
+            pairs.removeAll { pair in
+                pair.rawTitle.map(policy.costSummaryTitles.contains) == true
             }
         }
         if !input.showOptionalCreditsAndExtraUsage {
             if policy.hidesAllWithoutOptionalUsage {
-                details = []
+                pairs = []
             } else if !policy.hiddenTitlesWithoutOptionalUsage.isEmpty {
-                details.removeAll { section in
-                    section.title.map(policy.hiddenTitlesWithoutOptionalUsage.contains) == true
+                pairs.removeAll { pair in
+                    pair.rawTitle.map(policy.hiddenTitlesWithoutOptionalUsage.contains) == true
                 }
             }
         }
+        var sections = pairs.map(\.section)
         if input.provider == .sub2api {
-            details = Self.sub2APILocalizedDetails(details)
+            sections = Self.sub2APILocalizedDetails(sections)
         }
-        details = Self.localizedProviderDetails(details, provider: input.provider)
-        guard input.hidePersonalInfo else { return details }
-        return details.compactMap { section in
-            let rows = section.rows.compactMap { row in
-                try? ProviderDetailSection.Row(
-                    id: row.id,
-                    label: PersonalInfoRedactor.redactEmails(in: row.label, isEnabled: true) ?? row.label,
-                    value: PersonalInfoRedactor.redactEmails(in: row.value, isEnabled: true) ?? row.value,
-                    secondaryValue: PersonalInfoRedactor.redactEmails(
-                        in: row.secondaryValue,
-                        isEnabled: true),
-                    progress: row.progress,
-                    usageValue: row.usageValue)
-            }
-            let chart = section.chart.flatMap { chart in
-                let points = chart.points.compactMap { point in
-                    try? ProviderDetailSection.Chart.Point(
-                        label: PersonalInfoRedactor.redactEmails(in: point.label, isEnabled: true) ?? point.label,
-                        value: point.value)
+        sections = Self.localizedProviderDetails(sections, provider: input.provider)
+        if input.hidePersonalInfo {
+            sections = sections.compactMap { section in
+                let rows = section.rows.compactMap { row in
+                    try? ProviderDetailSection.Row(
+                        id: row.id,
+                        label: PersonalInfoRedactor.redactEmails(in: row.label, isEnabled: true) ?? row.label,
+                        value: PersonalInfoRedactor.redactEmails(in: row.value, isEnabled: true) ?? row.value,
+                        secondaryValue: PersonalInfoRedactor.redactEmails(
+                            in: row.secondaryValue,
+                            isEnabled: true),
+                        progress: row.progress,
+                        usageValue: row.usageValue)
                 }
-                return try? ProviderDetailSection.Chart(
-                    kind: chart.kind,
-                    title: PersonalInfoRedactor.redactEmails(in: chart.title, isEnabled: true),
-                    unit: chart.unit,
-                    points: points)
+                let chart = section.chart.flatMap { chart in
+                    let points = chart.points.compactMap { point in
+                        try? ProviderDetailSection.Chart.Point(
+                            label: PersonalInfoRedactor.redactEmails(in: point.label, isEnabled: true) ?? point.label,
+                            value: point.value)
+                    }
+                    return try? ProviderDetailSection.Chart(
+                        kind: chart.kind,
+                        title: PersonalInfoRedactor.redactEmails(in: chart.title, isEnabled: true),
+                        unit: chart.unit,
+                        points: points)
+                }
+                return try? ProviderDetailSection(
+                    title: PersonalInfoRedactor.redactEmails(in: section.title, isEnabled: true),
+                    rows: rows,
+                    chart: chart)
             }
-            return try? ProviderDetailSection(
-                title: PersonalInfoRedactor.redactEmails(in: section.title, isEnabled: true),
-                rows: rows,
-                chart: chart)
         }
+        // Localization and redaction rebuild sections; the pairing survives only when nothing was dropped.
+        guard sections.count == pairs.count else {
+            return (sections, Array(repeating: nil, count: sections.count))
+        }
+        return (sections, pairs.map(\.rawTitle))
     }
 
     private static func email(from input: Input) -> String {
