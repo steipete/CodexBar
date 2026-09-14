@@ -1529,14 +1529,22 @@ extension ClaudeWebAPIFetcher {
         }
     }
 
-    /// Cookie header values confirmed dead this process, even when actually deleting them from the
-    /// Keychain-backed cache failed (e.g. a temporarily unavailable Keychain) and they can therefore still
-    /// be loaded again on a later cycle. `clearIfCurrent` retries transient Keychain unavailability a few
-    /// times internally, but a genuinely prolonged one (a locked screen lasting well past that) can outlast
-    /// even that — tracking the confirmation itself in process memory, rather than depending on a Keychain
-    /// write succeeding, means a later cycle can never mistake a confirmed sign-out for merely unverified
-    /// just because deleting the evidence of it happened to fail.
-    private static let confirmedDeadCookieHeaders = OSAllocatedUnfairLock<Set<String>>(initialState: [])
+    /// Cookie header values confirmed dead even when actually deleting them from the Keychain-backed cache
+    /// failed (e.g. a temporarily unavailable Keychain) and they can therefore still be loaded again on a
+    /// later cycle. `clearIfCurrent` retries transient Keychain unavailability a few times internally, but
+    /// a genuinely prolonged one (a locked screen lasting well past that) can outlast even that.
+    ///
+    /// Backed by `UserDefaults` rather than the Keychain, matching the pattern `BrowserCookieAccessGate`
+    /// already uses for its own cross-restart cooldown state: plain defaults writes have no ACL/lock-screen
+    /// failure mode at all, so persisting the confirmation doesn't reintroduce the very availability problem
+    /// it exists to route around, and it survives the app restarting while the Keychain is still locked —
+    /// an in-process-only marker would otherwise be lost exactly when it's still needed. The in-memory
+    /// `Set` is seeded from defaults once per process and kept in sync on every write, so normal checks stay
+    /// a simple lock instead of round-tripping through defaults each time.
+    private static let confirmedDeadCookieHeadersDefaultsKey = "claudeWebConfirmedDeadCookieHeaders"
+    private static let confirmedDeadCookieHeaders = OSAllocatedUnfairLock<Set<String>>(
+        initialState: Set(
+            UserDefaults.standard.stringArray(forKey: Self.confirmedDeadCookieHeadersDefaultsKey) ?? []))
 
     private static func isConfirmedDead(_ entry: CookieHeaderCache.Entry?) -> Bool {
         guard let entry else { return false }
@@ -1546,14 +1554,23 @@ extension ClaudeWebAPIFetcher {
     private static func clearInvalidatedCacheEntryIfNeeded(_ entry: CookieHeaderCache.Entry?) {
         guard let entry else { return }
         let cleared = CookieHeaderCache.clearIfCurrent(provider: .claude, expected: entry)
-        Self.confirmedDeadCookieHeaders.withLock { headers in
+        let updatedHeaders = Self.confirmedDeadCookieHeaders.withLock { headers -> Set<String> in
             if cleared {
                 headers.remove(entry.cookieHeader)
             } else {
                 headers.insert(entry.cookieHeader)
             }
+            return headers
         }
+        UserDefaults.standard.set(Array(updatedHeaders), forKey: Self.confirmedDeadCookieHeadersDefaultsKey)
     }
+
+    #if DEBUG
+    static func resetConfirmedDeadCookieHeadersForTesting() {
+        self.confirmedDeadCookieHeaders.withLock { $0.removeAll() }
+        UserDefaults.standard.removeObject(forKey: self.confirmedDeadCookieHeadersDefaultsKey)
+    }
+    #endif
 }
 #endif
 
