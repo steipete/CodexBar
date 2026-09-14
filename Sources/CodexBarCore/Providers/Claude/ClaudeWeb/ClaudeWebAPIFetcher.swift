@@ -542,13 +542,6 @@ extension ClaudeWebAPIFetcher {
                 if KeychainAccessGate.isDisabled, browserSource.usesKeychainForCookieDecryption { continue }
                 guard browserDetection.isCookieSourceAvailable(browserSource) else { continue }
                 do {
-                    if let override = ClaudeWebSessionKeyImport.currentBrowserOverride {
-                        if let sessionInfo = try override(browserSource) {
-                            log("Found sessionKey in \(sessionInfo.sourceLabel)")
-                            return sessionInfo
-                        }
-                        continue
-                    }
                     // codexBarRecords silently returns [] when the gate skips this browser. Track that
                     // skip itself — a *different* browser (e.g. Safari, which needs no Keychain
                     // decryption and is in the default import order) coming up empty must not paper over
@@ -556,6 +549,16 @@ extension ClaudeWebAPIFetcher {
                     // result says nothing about whether the skipped one would have.
                     guard BrowserCookieAccessGate.shouldAttempt(browserSource) else {
                         anySkippedByGate = true
+                        continue
+                    }
+                    // Checked after the gate (rather than short-circuiting it) so tests can combine a
+                    // browser genuinely skipped by the gate with another browser's read satisfied by an
+                    // override, in the same scenario.
+                    if let override = ClaudeWebSessionKeyImport.currentBrowserOverride {
+                        if let sessionInfo = try override(browserSource) {
+                            log("Found sessionKey in \(sessionInfo.sourceLabel)")
+                            return sessionInfo
+                        }
                         continue
                     }
                     let query = BrowserCookieQuery(domains: cookieDomains)
@@ -1464,7 +1467,9 @@ extension ClaudeWebAPIFetcher {
         }
         log("Found session key (\(sessionInfo.cookieCount) cookies)")
 
-        // Recovery found a new session: report that request's failure, not the invalidated cookie's error.
+        // Once a session key is actually recovered, any error from the API call itself is a real,
+        // confirmed result (e.g. the server rejecting the cookie) — not a gate side effect — so it must
+        // propagate unmodified rather than being reclassified via `anySkippedByGate` above.
         return try await self.fetchUsage(
             using: sessionInfo,
             options: options,
