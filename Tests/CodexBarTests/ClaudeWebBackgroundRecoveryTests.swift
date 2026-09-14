@@ -553,6 +553,70 @@ struct ClaudeWebBackgroundRecoveryTests {
     }
 
     @Test
+    func `a confirmed dead cookie is not reclassified as unverified when its Keychain clear fails`() async throws {
+        try await self.withIsolatedCookieCache {
+            CookieHeaderCache.store(
+                provider: .claude,
+                cookieHeader: "sessionKey=sk-ant-stale-token",
+                sourceLabel: "Chrome")
+            defer { CookieHeaderCache.clear(provider: .claude) }
+
+            let stub: @Sendable (URLRequest) throws -> (HTTPURLResponse, Data) = { request in
+                let isStale = request.value(forHTTPHeaderField: "Cookie") == "sessionKey=sk-ant-stale-token"
+                if request.url?.path == "/api/organizations", isStale {
+                    let url = try #require(request.url)
+                    return Self.jsonResponse(url: url, body: "{}", statusCode: 401, setCookie: nil)
+                }
+                return try Self.response(for: request, setCookie: nil)
+            }
+
+            // First cycle: a genuine, complete recovery attempt finds nothing (the default-home
+            // BrowserDetection is safety-suppressed under tests, making every browser "unavailable" rather
+            // than gate-skipped) — a confirmed outcome, not a gate side effect. Simulate the Keychain clear
+            // itself failing (e.g. a temporarily locked screen), so the stale entry survives in the cache
+            // despite being confirmed dead.
+            try await KeychainCacheStore.withClearFailureStatusOverrideForTesting(errSecInteractionNotAllowed) {
+                await #expect(throws: ClaudeWebAPIFetcher.FetchError.self) {
+                    try await ProviderInteractionContext.$current.withValue(.background) {
+                        try await self.withClaudeWebStub(handler: stub) {
+                            _ = try await ClaudeWebAPIFetcher
+                                .fetchUsage(browserDetection: BrowserDetection(cacheTTL: 0))
+                        }
+                    }
+                }
+            }
+
+            // The clear failed, so the stale entry is still cached — despite being confirmed dead.
+            #expect(CookieHeaderCache.load(provider: .claude)?.cookieHeader == "sessionKey=sk-ant-stale-token")
+
+            // Second cycle: the same stale cookie is tried again (still cached) and rejected again, but
+            // this time recovery is genuinely gate-skipped rather than merely unavailable. Without the
+            // in-memory confirmed-dead marker, this would incorrectly downgrade the already-confirmed
+            // sign-out from the first cycle back to "unverified."
+            let isolatedHome = FileManager.default.temporaryDirectory
+                .appendingPathComponent("claude-background-recovery-confirmed-dead-\(UUID().uuidString)").path
+            do {
+                try await BrowserCookieAccessGate.withShouldAttemptOverrideForTesting(false) {
+                    try await ProviderInteractionContext.$current.withValue(.background) {
+                        try await self.withClaudeWebStub(handler: stub) {
+                            _ = try await ClaudeWebAPIFetcher.fetchUsage(
+                                browserDetection: BrowserDetection(homeDirectory: isolatedHome, cacheTTL: 0))
+                        }
+                    }
+                }
+                Issue.record("Expected the confirmed .unauthorized error to propagate, not unverified")
+            } catch let error as ClaudeWebAPIFetcher.FetchError {
+                guard case .unauthorized = error else {
+                    Issue.record("Expected .unauthorized, got \(error)")
+                    return
+                }
+            } catch {
+                Issue.record("Expected .unauthorized, got \(error)")
+            }
+        }
+    }
+
+    @Test
     func `user initiated refresh surfaces original auth error when browser recovery finds nothing`() async {
         await self.withIsolatedCookieCache {
             CookieHeaderCache.store(

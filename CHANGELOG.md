@@ -8,6 +8,7 @@
 - Claude: retry an inconclusive Keychain preflight a few times before giving up on background browser-cookie recovery, and report an unverified session — consistently across repeat refreshes, only in the background, and only with real evidence a session was previously working — rather than a misleading sign-out when a recovery candidate was skipped without ever being attempted (#3630).
 - Claude: preserve a confirmed auth failure (e.g. a revoked session cookie) when it happens right after browser recovery finds a real session, instead of misreporting it as an unverified session just because a different browser was separately skipped by the Keychain preflight (#3630).
 - Claude: offer the sign-in action instead of a misleading "showing last-known usage" message when a background refresh right after launch has no prior usage to actually show (#3630).
+- Claude: keep a confirmed dead session cookie confirmed even when deleting it from the Keychain-backed cache fails, instead of letting a later refresh reclassify it as merely unverified again (#3630).
 
 ## 0.62.0 — 2026-09-19
 
