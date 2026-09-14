@@ -29,12 +29,11 @@ enum MenuBarPercentWindowPreference: String, CaseIterable, Identifiable, Sendabl
         }
     }
 
-    var label: String {
-        switch self {
-        case .automatic: L("menu_bar_layout_token_auto")
-        case .session: L("menu_bar_layout_token_session")
-        case .weekly: L("menu_bar_layout_token_weekly")
-        }
+    func label(for provider: UsageProvider) -> String {
+        guard self != .automatic else { return L("menu_bar_layout_token_auto") }
+        let descriptor = ProviderDescriptorRegistry.descriptor(for: provider)
+        let primary = Self.percentWindow(descriptor.presentation.primarySemanticWindow)
+        return L(self.percentWindow == primary ? descriptor.metadata.sessionLabel : descriptor.metadata.weeklyLabel)
     }
 
     /// Windows this provider can actually render as a menu-bar percent, in picker order.

@@ -80,6 +80,7 @@ actor CostUsageStore {
         parserHash: CodexParserHash.value)
     static let cacheGeneration = "sqlite:\(CostUsageStore.schemaVersion)"
     static let compatiblePredecessorParserHashes: Set<String> = [
+        "aef0df6c73f8052c", // 0.60.1 rows and checkpoints survive routine rescan repairs.
         "4969a789db679c93", // 0.58.0 native rows, checkpoints, and reports survive queue reordering.
         "c4fa7db2cf54bc41", // Parser revisions reparse older native files while preserving stored rows and checkpoints.
         "ca4bc3875600536f", // Reserve pricing stores retain compatible rows and checkpoints.
@@ -220,7 +221,7 @@ extension CostUsageStore {
 
     nonisolated func syncLoadCodexTokenSnapshotsIfAvailable(
         paths: Set<String>,
-        receipt: CodexBaselineReceipt) -> [String: [CostUsageStoreTokenSnapshot]]?
+        receipt: CodexBaselineReceipt) -> [String: [CostUsageCodexTokenSnapshot]]?
     {
         self.syncWithStoreIsolation { store in
             guard let stamp = store.codexBaselineStamp(for: receipt),
@@ -229,7 +230,7 @@ extension CostUsageStore {
             else { return nil }
             do {
                 // Reuse the loaded connection: reopening could rebuild a concurrent replacement.
-                let snapshots = try Self.inReadTransaction(database) {
+                let persisted = try Self.inReadTransaction(database) {
                     var snapshots: [String: [CostUsageStoreTokenSnapshot]] = [:]
                     for path in paths.sorted() {
                         if Self.codexTokenSnapshotReadFailureForTesting?(store.databaseURL, path) == true {
@@ -247,8 +248,12 @@ extension CostUsageStore {
                     }
                     return snapshots
                 }
+                let snapshots = persisted.mapValues { $0.map(Self.tokenSnapshot) }
                 // A read transaction pins data_version; validate again only after COMMIT.
                 guard store.currentDatabaseStamp() == stamp else { return nil }
+                for (path, rows) in snapshots {
+                    store.retainedCodexBaseline?.baseline.hydratedTokenSnapshots[path] = rows
+                }
                 return snapshots
             } catch {
                 store.recoverConnectionAfterFailure()

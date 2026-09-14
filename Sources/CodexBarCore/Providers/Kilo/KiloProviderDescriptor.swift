@@ -83,6 +83,7 @@ public enum KiloProviderDescriptor {
                 },
                 menuCard: ProviderMenuCardPresentation(
                     showsPrimaryBalanceDescription: true,
+                    showsSecondaryBalanceDescription: true,
                     hidesPrimaryResetWithoutDate: true),
                 menu: ProviderMenuDescriptorPresentation(
                     primaryDescriptionIsDetail: { _ in true },

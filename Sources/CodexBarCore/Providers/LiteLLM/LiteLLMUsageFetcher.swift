@@ -73,15 +73,14 @@ public struct LiteLLMUsageSnapshot: Codable, Sendable, Equatable {
         let primary = Self.rateWindow(
             spend: self.personalSpendUSD,
             budget: self.personalBudgetUSD,
-            resetAt: self.personalResetAt,
-            description: Self.budgetDescription(spend: self.personalSpendUSD, budget: self.personalBudgetUSD))
+            resetAt: self.personalResetAt)
 
         let secondary = self.teamUsage.flatMap { team in
             Self.rateWindow(
                 spend: team.spendUSD,
                 budget: team.budgetUSD,
                 resetAt: team.resetAt,
-                description: Self.teamDescription(team))
+                label: team.alias.map { "Team \($0)" } ?? "Team")
         }
 
         let providerCost = self.providerCostSnapshot()
@@ -104,27 +103,15 @@ public struct LiteLLMUsageSnapshot: Codable, Sendable, Equatable {
         spend: Double,
         budget: Double?,
         resetAt: Date?,
-        description: String?) -> RateWindow?
+        label: String? = nil) -> RateWindow?
     {
         guard let budget, budget > 0 else { return nil }
+        let amount = "\(UsageFormatter.usdString(spend)) / \(UsageFormatter.usdString(budget))"
         return RateWindow(
             usedPercent: min(100, max(0, (spend / budget) * 100)),
             windowMinutes: nil,
             resetsAt: resetAt,
-            resetDescription: description)
-    }
-
-    private static func budgetDescription(spend: Double, budget: Double?) -> String? {
-        guard let budget, budget > 0 else { return UsageFormatter.usdString(spend) }
-        return "\(UsageFormatter.usdString(spend)) / \(UsageFormatter.usdString(budget))"
-    }
-
-    private static func teamDescription(_ team: TeamUsage) -> String? {
-        let label = team.alias.map { "Team \($0)" } ?? "Team"
-        guard let budget = team.budgetUSD, budget > 0 else {
-            return "\(label): \(UsageFormatter.usdString(team.spendUSD))"
-        }
-        return "\(label): \(UsageFormatter.usdString(team.spendUSD)) / \(UsageFormatter.usdString(budget))"
+            resetDescription: label.map { "\($0): \(amount)" } ?? amount)
     }
 
     private func providerCostSnapshot() -> ProviderCostSnapshot? {

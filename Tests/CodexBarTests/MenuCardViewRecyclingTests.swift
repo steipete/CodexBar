@@ -388,6 +388,65 @@ extension StatusMenuTests {
     }
 
     @Test
+    func `cached card swap keeps the live row in place when heights match`() {
+        let previousRendering = StatusItemController.menuCardRenderingEnabled
+        StatusItemController.menuCardRenderingEnabled = true
+        defer { StatusItemController.menuCardRenderingEnabled = previousRendering }
+
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        let controller = self.makeRecyclingController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let liveItem = controller.makeMenuCardItem(
+            Text("Overview").frame(height: 120), id: "overviewRow-codex", width: 300)
+        let incoming = controller.makeMenuCardItem(
+            Text("Claude").frame(height: 120), id: "menuCard-0", width: 300)
+        let liveView = liveItem.view
+        let menu = NSMenu()
+        menu.addItem(liveItem)
+
+        let displaced = controller.replaceMenuContentKeepingRowsVisible(menu, fromIndex: 0, with: [incoming])
+
+        // Flash-free path: same-height payloads swap inside the attached row.
+        #expect(menu.items.first === liveItem)
+        #expect(liveItem.view === liveView)
+        #expect(liveItem.representedObject as? String == "menuCard-0")
+        #expect(displaced.first === incoming)
+    }
+
+    @Test
+    func `cached card swap replaces the live row when heights differ`() {
+        let previousRendering = StatusItemController.menuCardRenderingEnabled
+        StatusItemController.menuCardRenderingEnabled = true
+        defer { StatusItemController.menuCardRenderingEnabled = previousRendering }
+
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        let controller = self.makeRecyclingController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let liveItem = controller.makeMenuCardItem(
+            Text("Overview").frame(height: 340), id: "overviewRow-codex", width: 300)
+        let incoming = controller.makeMenuCardItem(
+            Text("Claude").frame(height: 120), id: "menuCard-0", width: 300)
+        let menu = NSMenu()
+        menu.addItem(liveItem)
+
+        let displaced = controller.replaceMenuContentKeepingRowsVisible(menu, fromIndex: 0, with: [incoming])
+
+        // AppKit's table-backed menu keeps a reused row's old height (#3549), so a height change
+        // must present a fresh item that the menu measures.
+        #expect(menu.items.first === incoming)
+        #expect(displaced.first === liveItem)
+        #expect(liveItem.menu == nil)
+
+        let displacedBack = controller.replaceMenuContentKeepingRowsVisible(menu, fromIndex: 0, with: displaced)
+        #expect(menu.items.first === liveItem)
+        #expect(displacedBack.first === incoming)
+    }
+
+    @Test
     func `cached provider content swap preserves both item sets for switch back`() {
         let settings = self.makeSettings()
         settings.statusChecksEnabled = false

@@ -5,34 +5,119 @@ system tray icon, and a launcher entry. The Swift `codexbar` CLI owns provider
 fetching and authentication. The desktop owns polling, settings, notifications,
 and a private local socket for desktop adapters. No HTTP server is needed.
 
-## Release downloads
+## Install release archives
 
-Starting with releases that include this integration, GitHub Releases provides
-`CodexBarDesktop-v<version>-linux-x86_64.tar.gz` and
-`CodexBarDesktop-v<version>-linux-aarch64.tar.gz`, each with a `.sha256` file.
-These contain the desktop and optional Omarchy adapter. Download the matching
-`CodexBarCLI` archive separately and keep its resource bundle beside the CLI.
+Desktop archives are published for x86_64 and ARM64 alongside the separate
+CodexBarCLI archives, each with a `.sha256` file. The desktop uses system Qt;
+release binaries require glibc 2.39+ and Qt 6.4+. Ubuntu 24.04 and Debian 13 meet
+these floors. Older systems need a source build. The musl CLI archives are for
+CLI-only use on distributions such as Alpine; they do not make the glibc desktop
+archive compatible with musl.
 
-The release binaries build on Ubuntu 24.04 (glibc 2.39, Qt 6.4). Install the Qt
-runtime and QML modules from your distro. On older systems, build from source.
-Arch/Omarchy dependencies are listed below; Ubuntu packages are listed in
-`.github/actions/build-linux-desktop/action.yml` (the `-dev` packages are only
-needed for building).
+### Runtime packages
+
+Install the packages for your distribution before downloading the archives.
+These include the download tools and Python installer; development packages are
+only needed for a source build.
+
+Arch family, including Omarchy:
 
 ```sh
-# Download the archive and its checksum into the same directory.
-# Replace <version> below with the downloaded version (use aarch64 for ARM64):
-archive='CodexBarDesktop-v<version>-linux-x86_64.tar.gz'
-sha256sum -c "$archive.sha256"
-tar -xzf "$archive"
-cd "${archive%.tar.gz}"
-python3 Integrations/Linux/install.py --cli /absolute/path/to/codexbar --omarchy
+sudo pacman -S --needed curl python qt6-base qt6-declarative qt6-svg qt6-wayland
+```
+
+Fedora:
+
+```sh
+sudo dnf install curl python3 qt6-qtbase qt6-qtdeclarative qt6-qtsvg qt6-qtwayland
+```
+
+Qt Quick Controls and the Fusion style ship in `qt6-declarative` on Arch and
+`qt6-qtdeclarative` on Fedora. Debian and Ubuntu split QML modules into separate
+packages, including WorkerScript.
+
+Ubuntu 24.04 (Noble):
+
+```sh
+sudo apt update
+sudo apt install curl python3 qml6-module-qtquick qml6-module-qtquick-controls \
+  qml6-module-qtquick-layouts qml6-module-qtquick-templates qml6-module-qtquick-window \
+  qml6-module-qtqml-workerscript libqt6widgets6t64 libqt6svg6 qt6-wayland
+```
+
+Debian 13 (Trixie):
+
+```sh
+sudo apt update
+sudo apt install curl python3 qml6-module-qtquick qml6-module-qtquick-controls \
+  qml6-module-qtquick-layouts qml6-module-qtquick-templates qml6-module-qtquick-window \
+  qml6-module-qtqml-workerscript libqt6widgets6 libqt6svg6 qt6-wayland
+```
+
+### Download, verify, and install
+
+Run this block in `sh` or `bash` (from fish, enter `bash` first). It selects the
+latest stable GitHub release, downloads both matching archives, and stops on any
+download or checksum failure. The subshell leaves your current directory and
+shell options unchanged. It uses a fresh temporary directory on each run; the
+CLI and its resource bundle are kept together under `~/.local/lib/codexbar-cli`.
+
+```sh
+(
+set -eu
+arch=$(uname -m)
+case "$arch" in x86_64|aarch64) ;; *) echo "Unsupported architecture: $arch" >&2; exit 1 ;; esac
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+cd "$work"
+api=https://api.github.com/repos/steipete/CodexBar/releases/latest
+curl -fsSL "$api" -o release.json
+version=$(python3 -c 'import json; print(json.load(open("release.json"))["tag_name"])')
+base="https://github.com/steipete/CodexBar/releases/download/$version"
+cli="CodexBarCLI-$version-linux-$arch.tar.gz"
+desktop="CodexBarDesktop-$version-linux-$arch.tar.gz"
+for archive in "$cli" "$desktop"; do
+  curl -fSL "$base/$archive" -o "$archive"
+  curl -fSL "$base/$archive.sha256" -o "$archive.sha256"
+  sha256sum -c "$archive.sha256"
+done
+# Neither archive is extracted until both checksums have passed.
+cli_dir="$HOME/.local/lib/codexbar-cli"
+mkdir -p "$cli_dir" "$HOME/.local/bin"
+tar -xzf "$cli" -C "$cli_dir"
+ln -sfn "$cli_dir/codexbar" "$HOME/.local/bin/codexbar"
+"$HOME/.local/bin/codexbar" --version
+tar -xzf "$desktop"
+cd "${desktop%.tar.gz}"
+python3 Integrations/Linux/install.py --cli "$HOME/.local/bin/codexbar"
+)
+```
+
+Add `--omarchy` to the installer command only on Omarchy, or `--no-autostart` to
+disable starting at login. Then open the installed app:
+
+```sh
 ~/.local/bin/codexbar-linux --settings
 ```
 
-Omit `--omarchy` on other desktops. To upgrade, quit CodexBar, install the new
-archive, and reopen it. Preferences are preserved. There is no desktop auto-updater
-or distro repository package yet. Ordinary CI artifacts are previews, not releases.
+Put `~/.local/bin` on your PATH to use `codexbar` without its full path. The
+symlink resolves to the CLI installation directory; keep `VERSION` and
+`CodexBar_CodexBarCore.bundle` there when upgrading. Homebrew and the AUR
+`codexbar-cli` package are alternative CLI installation methods; with an existing
+CLI, pass its absolute path to the desktop installer instead.
+
+If the unauthenticated GitHub API is rate-limited, download the four matching
+files from [GitHub Releases](https://github.com/steipete/CodexBar/releases/latest),
+or use `gh release download --repo steipete/CodexBar --pattern 'CodexBar*-linux-x86_64.tar.gz*'`
+(substitute `aarch64` for ARM64). In a fresh directory, verify both `.sha256`
+files successfully before extracting either archive, then use the installation
+commands above with the downloaded filenames.
+
+To upgrade, quit CodexBar, rerun the installation block, and reopen it.
+Preferences and disabled autostart are preserved. There is no desktop
+auto-updater or distro repository package yet. Ordinary CI artifacts are
+previews, not releases. See [validation and removal](#validation-and-removal)
+for uninstall paths.
 
 ## Build and install
 

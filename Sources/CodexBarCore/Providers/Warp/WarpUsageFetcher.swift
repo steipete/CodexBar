@@ -303,27 +303,12 @@ public struct WarpUsageFetcher: Sendable {
     }
 
     private static func parseBonusCredits(from userObj: [String: Any]) -> BonusSummary {
-        var grants: [BonusGrant] = []
-
-        // User-level bonus grants
-        if let bonusGrants = userObj["bonusGrants"] as? [[String: Any]] {
-            for grant in bonusGrants {
-                grants.append(Self.parseBonusGrant(from: grant))
-            }
+        let userGrants = userObj["bonusGrants"] as? [[String: Any]] ?? []
+        let workspaceGrants = (userObj["workspaces"] as? [[String: Any]] ?? []).flatMap { workspace in
+            let info = workspace["bonusGrantsInfo"] as? [String: Any]
+            return info?["grants"] as? [[String: Any]] ?? []
         }
-
-        // Workspace-level bonus grants
-        if let workspaces = userObj["workspaces"] as? [[String: Any]] {
-            for workspace in workspaces {
-                if let bonusGrantsInfo = workspace["bonusGrantsInfo"] as? [String: Any],
-                   let workspaceGrants = bonusGrantsInfo["grants"] as? [[String: Any]]
-                {
-                    for grant in workspaceGrants {
-                        grants.append(Self.parseBonusGrant(from: grant))
-                    }
-                }
-            }
-        }
+        let grants = (userGrants + workspaceGrants).map(Self.parseBonusGrant)
 
         let totalRemaining = grants.reduce(0) { $0 + $1.remaining }
         let totalGranted = grants.reduce(0) { $0 + $1.granted }

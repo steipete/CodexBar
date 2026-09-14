@@ -237,7 +237,7 @@ struct CostUsageStoreReadWorkTests {
             calendar: fixture.calendar)
         var partiallyHydrated = reloaded.cache
         var selectedUsage = try #require(partiallyHydrated.files[selectedPath])
-        let selectedSnapshots = (selected[selectedPath] ?? []).map(CostUsageStore.tokenSnapshot(from:))
+        let selectedSnapshots = selected[selectedPath] ?? []
         selectedUsage.codexTokenSnapshots = selectedSnapshots
         selectedUsage.codexTokenCheckpoints = CostUsageScanner.codexTokenCheckpoints(for: selectedSnapshots)
         partiallyHydrated.files[selectedPath] = selectedUsage

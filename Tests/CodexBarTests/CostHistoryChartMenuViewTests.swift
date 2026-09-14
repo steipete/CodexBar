@@ -1,3 +1,4 @@
+import AppKit
 import CodexBarCore
 import SwiftUI
 import Testing
@@ -1180,6 +1181,55 @@ extension CostHistoryChartMenuViewTests {
         #expect(first == "019f...00000001")
         #expect(second == "019f...00000002")
         #expect(first != second)
+    }
+
+    @Test(arguments: [CGFloat(296), CGFloat(360)])
+    @MainActor
+    func `metric picker trailing edge aligns with the chart's content edge`(width: CGFloat) throws {
+        let daily = [
+            Self.dailyEntry(date: "2026-08-12", totalTokens: 1_250_000, costUSD: 1.25),
+            Self.dailyEntry(date: "2026-08-13", totalTokens: 2_500_000, costUSD: 2.5),
+        ]
+        let chart = CostHistoryChartMenuView(
+            provider: .claude,
+            daily: daily,
+            totalCostUSD: 3.75,
+            hidePersonalInfo: false,
+            width: width)
+        let hosting = NSHostingView(rootView: AnyView(chart
+                .environment(\.colorScheme, .light)
+                .background(Color.white)))
+        hosting.appearance = NSAppearance(named: .aqua)
+        hosting.frame = NSRect(x: 0, y: 0, width: width, height: 1)
+        hosting.layoutSubtreeIfNeeded()
+        hosting.frame = NSRect(origin: .zero, size: hosting.fittingSize)
+        hosting.layoutSubtreeIfNeeded()
+
+        let control = try #require(Self.descendant(of: hosting, as: NSSegmentedControl.self))
+        let controlFrameInHosting = control.convert(control.bounds, to: hosting)
+
+        // The chart content uses a 16pt horizontal inset; the picker's trailing edge should
+        // land on that same content edge rather than floating inside its wider reserved frame.
+        #expect(abs(controlFrameInHosting.maxX - (width - 16)) <= 1)
+        if let directory = ProcessInfo.processInfo.environment["CODEXBAR_CHART_PICKER_SCREENSHOT_DIR"] {
+            let png = try #require(MenuLayoutScreenshotRenderTests.pngDataWithWindow(hosting: hosting))
+            let url = URL(fileURLWithPath: directory, isDirectory: true)
+            try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+            try png.write(to: url.appendingPathComponent("picker-\(Int(width)).png"))
+        }
+    }
+
+    @MainActor
+    private static func descendant<T: NSView>(of view: NSView, as _: T.Type) -> T? {
+        if let match = view as? T {
+            return match
+        }
+        for subview in view.subviews {
+            if let match = self.descendant(of: subview, as: T.self) {
+                return match
+            }
+        }
+        return nil
     }
 
     @Test

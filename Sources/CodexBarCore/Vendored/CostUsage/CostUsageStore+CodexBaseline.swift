@@ -48,6 +48,7 @@ extension CostUsageStore {
         var stamp: DatabaseStamp
         var unloadedTokenSnapshotPaths: Set<String>
         var tokenSnapshotsLoaded: Bool
+        var hydratedTokenSnapshots: [String: [CostUsageCodexTokenSnapshot]] = [:]
     }
 
     struct RetainedCodexBaseline {

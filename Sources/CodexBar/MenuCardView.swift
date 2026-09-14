@@ -1463,6 +1463,7 @@ extension UsageMenuCardView.Model {
                 pace: input.weeklyPace,
                 showUsed: input.usageBarsShowUsed)
         }
+        let presentation = ProviderDescriptorRegistry.descriptor(for: input.provider).presentation
         var weeklyResetText = Self.resetText(for: weekly, style: input.resetTimeDisplayStyle, now: input.now)
         var weeklyDetailText: String?
         if input.provider == .warp,
@@ -1472,7 +1473,7 @@ extension UsageMenuCardView.Model {
             weeklyResetText = nil
             weeklyDetailText = detail
         }
-        if [.kilo, .litellm, .chutes].contains(input.provider),
+        if presentation.menuCard.showsSecondaryBalanceDescription,
            let detail = weekly.resetDescription,
            !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         {
@@ -1499,12 +1500,6 @@ extension UsageMenuCardView.Model {
                 paceOnTop: true)
         }
         if input.provider == .alibaba || input.provider == .alibabatokenplan,
-           let detail = weekly.resetDescription,
-           !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        {
-            weeklyDetailText = detail
-        }
-        if input.provider == .manus,
            let detail = weekly.resetDescription,
            !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         {

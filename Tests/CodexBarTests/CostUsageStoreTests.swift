@@ -235,40 +235,40 @@ extension CostUsageStoreTests {
 
         let initialAction = CostUsagePersistencePlanner.action(
             canReuse: false,
-            stableCursor: false,
             appendSafe: false,
             persistedCount: 0,
-            sourceCount: 2)
+            baseline: [],
+            source: [10, 20])
         #expect(initialAction == .replace)
         #expect(materialize(initialAction, source: [10, 20]) == [10, 20])
         #expect(transformedIndexes == [0, 1])
 
         let stableAction = CostUsagePersistencePlanner.action(
             canReuse: true,
-            stableCursor: true,
             appendSafe: false,
             persistedCount: 2,
-            sourceCount: 2)
+            baseline: [10, 20],
+            source: [10, 20])
         #expect(stableAction == .reuse)
         #expect(materialize(stableAction, source: [10, 20]).isEmpty)
         #expect(transformedIndexes.isEmpty)
 
         let appendAction = CostUsagePersistencePlanner.action(
             canReuse: true,
-            stableCursor: false,
             appendSafe: true,
             persistedCount: 2,
-            sourceCount: 3)
+            baseline: [10, 20],
+            source: [10, 20, 30])
         #expect(appendAction == .append(startingAt: 2))
         #expect(materialize(appendAction, source: [10, 20, 30]) == [30])
         #expect(transformedIndexes == [2])
 
         let replacementAction = CostUsagePersistencePlanner.action(
             canReuse: true,
-            stableCursor: false,
             appendSafe: false,
             persistedCount: 3,
-            sourceCount: 2)
+            baseline: [10, 20, 30],
+            source: [40, 50])
         #expect(replacementAction == .replace)
         #expect(materialize(replacementAction, source: [40, 50]) == [40, 50])
         #expect(transformedIndexes == [0, 1])
@@ -340,6 +340,23 @@ extension CostUsageStoreTests {
         #expect(try appendedRows.map {
             try JSONDecoder().decode(CostUsageScanner.CodexUsageRow.self, from: $0.payload)
         } == usage.codexRows)
+
+        // Stable or growing offsets do not prove that the retained prefix is unchanged.
+        for indexes in [[0, 3, 4], [0, 5, 6, 7]] {
+            usage.parsedBytes = Int64(indexes.count * 100)
+            usage.size = Int64(indexes.count * 100)
+            usage.codexTokenSnapshots = indexes.map(token)
+            usage.codexRows = indexes.map(row)
+            cache.files[path] = usage
+            save()
+
+            #expect(await store.fetchTokenSnapshots(path: path).map(\.timestamp)
+                == usage.codexTokenSnapshots?.map(\.timestamp))
+            let rewrittenRows = await store.fetchUsageRows(path: path)
+            #expect(try rewrittenRows.map {
+                try JSONDecoder().decode(CostUsageScanner.CodexUsageRow.self, from: $0.payload)
+            } == usage.codexRows)
+        }
 
         usage.parsedBytes = 400
         usage.size = 400
@@ -1006,6 +1023,7 @@ extension CostUsageStoreTests {
 
 extension CostUsageStoreTests {
     @Test(arguments: [
+        "aef0df6c73f8052c",
         "4969a789db679c93", // Released in 0.58.0.
         "c4fa7db2cf54bc41",
         "ca4bc3875600536f",
@@ -1035,6 +1053,7 @@ extension CostUsageStoreTests {
         let fixture = try StoreFixture()
         defer { fixture.remove() }
         #expect(CostUsageStore.compatiblePredecessorParserHashes == [
+            "aef0df6c73f8052c",
             "4969a789db679c93",
             "c4fa7db2cf54bc41",
             "ca4bc3875600536f",
@@ -1122,6 +1141,8 @@ extension CostUsageStoreTests {
         #expect(await predecessor.setMetadata(metadata))
         let before = await predecessor.readSnapshot()
 
+        try FileManager.default.removeItem(at: input)
+        #expect(!FileManager.default.fileExists(atPath: input.path))
         let current = CostUsageStore(cacheRoot: fixture.root)
         let after = await current.readSnapshot()
         #expect(after == before)

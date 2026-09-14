@@ -9,33 +9,32 @@ enum CostUsagePersistenceAction: Equatable {
         _ source: [Source],
         transform: (Int, Source) -> Persisted?) -> [Persisted]
     {
+        let start: Int
         switch self {
         case .reuse:
-            []
+            return []
         case let .append(startingAt):
-            source.enumerated().dropFirst(startingAt).compactMap { index, value in
-                transform(index, value)
-            }
+            start = startingAt
         case .replace:
-            source.enumerated().compactMap { index, value in
-                transform(index, value)
-            }
+            start = 0
         }
+        return source.enumerated().dropFirst(start).compactMap { transform($0.offset, $0.element) }
     }
 }
 
 enum CostUsagePersistencePlanner {
-    static func action(
+    static func action<Element: Equatable>(
         canReuse: Bool,
-        stableCursor: Bool,
         appendSafe: Bool,
         persistedCount: Int,
-        sourceCount: Int) -> CostUsagePersistenceAction
+        baseline: [Element],
+        source: [Element]) -> CostUsagePersistenceAction
     {
-        if canReuse, stableCursor, persistedCount == sourceCount {
+        guard canReuse, baseline.count == persistedCount else { return .replace }
+        if baseline == source {
             return .reuse
         }
-        if appendSafe, persistedCount <= sourceCount {
+        if appendSafe, source.starts(with: baseline) {
             return .append(startingAt: persistedCount)
         }
         return .replace
@@ -213,8 +212,10 @@ extension CostUsageStore {
                     snapshotCount: previous.snapshotCounts[path] ?? 0,
                     rowCount: previous.rowCounts[path] ?? 0,
                     tokenSnapshotsLoaded: !unloadedTokenSnapshotPaths.contains(path),
+                    snapshots: baseline.hydratedTokenSnapshots[path]
+                        ?? baseline.decoded.files[path]?.codexTokenSnapshots ?? [],
                     canReuseRows: canReuseStoredRows,
-                    parserRevision: baseline.decoded.files[path]?.codexParserRevision),
+                    usage: baseline.decoded.files[path]),
                 calendar: calendar)
             persistedFiles += 1
             Self.saveCycleCheckpointForTesting?(persistedFiles)
@@ -347,6 +348,7 @@ extension CostUsageStore {
         var divergentTotals: Bool?
         var interleavedTotals: Bool?
         var parserRevision: Int?
+        var hasExactUsageRowIndex: Bool?
     }
 
     private struct StoredPriorityState: Codable {
@@ -400,8 +402,9 @@ extension CostUsageStore {
         var snapshotCount: Int
         var rowCount: Int
         var tokenSnapshotsLoaded: Bool
+        var snapshots: [CostUsageCodexTokenSnapshot]
         var canReuseRows: Bool
-        var parserRevision: Int?
+        var usage: CostUsageFileUsage?
     }
 
     private struct CurrentCodexRootDevice {
@@ -519,6 +522,10 @@ extension CostUsageStore {
                 codexTurnIDs: details.hasTurnIDs ? CostUsageScanner.codexTurnIDs(rows: rows) ?? [] : nil,
                 codexWorkspaceContentFingerprint: details.workspaceFingerprint,
                 codexRows: details.hasRows ? restoredRows : nil,
+                codexNextUsageRowIndex: details.hasExactUsageRowIndex == true ? file.scanState.nextUsageRowIndex : nil,
+                codexPendingPricing: buffers.first { $0.kind == .pricingEvidence }.flatMap {
+                    try? JSONDecoder().decode([String: CostUsageScanner.CodexPricingEvidence].self, from: $0.payload)
+                },
                 codexTokenSnapshots: details.hasTokenSnapshots && tokenSnapshotsLoaded ? tokenSnapshots : nil,
                 codexTokenCheckpoints: details.hasTokenSnapshots && tokenSnapshotsLoaded
                     ? CostUsageScanner.codexTokenCheckpoints(for: tokenSnapshots) : nil,
@@ -901,13 +908,12 @@ extension CostUsageStore {
         calendar: Calendar)
     {
         // Persistence strips detailed payloads; the decoded baseline retains the trusted parser marker.
-        let parserStateChanged = baseline.parserRevision != usage.codexParserRevision
+        let parserStateChanged = baseline.usage?.codexParserRevision != usage.codexParserRevision
         let canReuseRows = baseline.canReuseRows && !parserStateChanged
         let tokenSnapshotsLoaded = baseline.tokenSnapshotsLoaded || parserStateChanged
         let sourceSnapshots = usage.codexTokenSnapshots ?? []
         let sourceRows = usage.codexRows ?? []
         let snapshotCount = sourceSnapshots.count
-        let rowCount = sourceRows.count
         let details = StoredFileDetails(
             lastTotals: usage.lastTotals,
             projectPath: usage.projectPath,
@@ -921,7 +927,8 @@ extension CostUsageStore {
             hasSeenRawTotals: usage.seenRawTotals != nil,
             divergentTotals: usage.hasDivergentTotals,
             interleavedTotals: usage.hasInterleavedTotals,
-            parserRevision: usage.codexParserRevision)
+            parserRevision: usage.codexParserRevision,
+            hasExactUsageRowIndex: usage.codexNextUsageRowIndex != nil)
         let file = CostUsageStoreFile(
             path: path,
             inode: Self.inode(from: usage.codexScanFileId),
@@ -939,7 +946,8 @@ extension CostUsageStore {
                 isComplete: usage.codexScanComplete != false,
                 resumePayload: usage.codexJSONLResumeState.flatMap { try? JSONEncoder().encode($0) },
                 tokenTimestampsMonotonic: usage.codexTokenTimestampsMonotonic,
-                nextUsageRowIndex: CostUsageScanner.nextCodexUsageRowIndex(usage.codexRows),
+                nextUsageRowIndex: usage.codexNextUsageRowIndex ?? CostUsageScanner
+                    .nextCodexUsageRowIndex(usage.codexRows),
                 lastModel: usage.lastModel,
                 lastTurnID: usage.lastCodexTurnID,
                 fileIdentity: usage.codexScanFileId,
@@ -955,14 +963,13 @@ extension CostUsageStore {
         let appendSafe = canReuseRows
             && baseline.file?.scanState.fileIdentity == file.scanState.fileIdentity
             && oldParsedBytes < newParsedBytes
-        let stableCursor = oldParsedBytes == newParsedBytes
         let snapshotAction: CostUsagePersistenceAction = if tokenSnapshotsLoaded {
             CostUsagePersistencePlanner.action(
                 canReuse: canReuseRows,
-                stableCursor: stableCursor,
                 appendSafe: appendSafe,
                 persistedCount: baseline.snapshotCount,
-                sourceCount: snapshotCount)
+                baseline: baseline.snapshots,
+                source: sourceSnapshots)
         } else {
             .reuse
         }
@@ -980,10 +987,10 @@ extension CostUsageStore {
 
         let rowAction = CostUsagePersistencePlanner.action(
             canReuse: canReuseRows,
-            stableCursor: stableCursor,
             appendSafe: appendSafe,
             persistedCount: baseline.rowCount,
-            sourceCount: rowCount)
+            baseline: baseline.usage?.codexRows ?? [],
+            source: sourceRows)
         let rows: [CostUsageStoreUsageRow] = rowAction.materialize(sourceRows) { index, row in
             guard let payload = try? JSONEncoder().encode(row) else { return nil }
             return CostUsageStoreUsageRow(path: path, rowIndex: index, payload: payload)
@@ -1010,7 +1017,7 @@ extension CostUsageStore {
         _ = self.upsertAccumulator(CostUsageStoreAccumulator(
             path: path,
             eventCount: tokenSnapshotsLoaded ? snapshotCount : baseline.snapshotCount,
-            nextUsageRowIndex: CostUsageScanner.nextCodexUsageRowIndex(usage.codexRows),
+            nextUsageRowIndex: usage.codexNextUsageRowIndex ?? CostUsageScanner.nextCodexUsageRowIndex(usage.codexRows),
             countedTotals: Self.totals(usage.lastCountedTotals),
             rawTotalsBaseline: Self.totals(usage.lastRawTotalsBaseline),
             rawTotalsWatermark: Self.totals(usage.lastRawTotalsWatermark),
@@ -1333,6 +1340,10 @@ extension CostUsageStore {
     }
 
     private func persistBuffers(path: String, usage: CostUsageFileUsage) {
+        let pricing = usage.codexPendingPricing.flatMap { try? JSONEncoder().encode($0) }
+        _ = self.replaceBufferedLines(path: path, kind: .pricingEvidence, lines: pricing.map {
+            [CostUsageStoreBufferedLine(path: path, kind: .pricingEvidence, lineIndex: 0, payload: $0)]
+        } ?? [])
         let pairs: [(CostUsageStoreBufferedLineKind, [CostUsageScanner.CodexBufferedFastLine]?)] = [
             (.subagent, usage.codexBufferedSubagentLines),
             (.unresolvedFork, usage.codexBufferedUnresolvedForkLines),

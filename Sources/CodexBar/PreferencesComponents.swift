@@ -109,7 +109,8 @@ struct OpenMenuShortcutRecorder: NSViewRepresentable {
     @MainActor
     final class Coordinator: NSObject {
         private weak var recorder: KeyboardShortcuts.RecorderCocoa?
-        private var placeholderUpdateTask: Task<Void, Never>?
+        private var placeholderObservation: NSKeyValueObservation?
+        private var localizedPlaceholder = ""
 
         override init() {
             super.init()
@@ -131,7 +132,16 @@ struct OpenMenuShortcutRecorder: NSViewRepresentable {
         }
 
         func attach(to recorder: KeyboardShortcuts.RecorderCocoa) {
-            self.recorder = recorder
+            if self.recorder !== recorder {
+                self.placeholderObservation = nil
+                self.recorder = recorder
+                self.placeholderObservation = recorder.observe(\.placeholderString) { [weak self] _, _ in
+                    // AppKit properties change on the main actor, including deferred recorder cleanup.
+                    MainActor.assumeIsolated {
+                        self?.restorePlaceholder()
+                    }
+                }
+            }
             self.updatePlaceholder(isRecording: recorder.currentEditor() != nil)
         }
 
@@ -146,14 +156,14 @@ struct OpenMenuShortcutRecorder: NSViewRepresentable {
         }
 
         private func updatePlaceholder(isRecording: Bool) {
-            guard let recorder = self.recorder else { return }
-            let placeholder = L(isRecording ? "press_shortcut" : "record_shortcut")
-            recorder.placeholderString = placeholder
-            self.placeholderUpdateTask?.cancel()
-            self.placeholderUpdateTask = Task { @MainActor [weak self, weak recorder] in
-                guard !Task.isCancelled, let self, let recorder, self.recorder === recorder else { return }
-                recorder.placeholderString = placeholder
-            }
+            self.localizedPlaceholder = L(isRecording ? "press_shortcut" : "record_shortcut")
+            self.restorePlaceholder()
+        }
+
+        private func restorePlaceholder() {
+            guard let recorder = self.recorder,
+                  recorder.placeholderString != self.localizedPlaceholder else { return }
+            recorder.placeholderString = self.localizedPlaceholder
         }
     }
 }

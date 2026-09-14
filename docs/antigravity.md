@@ -21,6 +21,16 @@ run `agy` once and sign in. CodexBar keeps the signed-in `agy` local HTTPS serve
 after each refresh and stops it when idle, or reuses a signed-in `agy` you already have running
 without taking ownership of that process.
 
+For `agy` 1.2.2 and later, a failed legacy HTTPS fetch can fall back to
+`agy -p /usage --output-format json`. CodexBar checks that the same executable reports version 1.1.11
+or later before using print mode; [Google introduced non-interactive usage reports in 1.1.11](https://antigravity.google/changelog).
+It requires a successful `usage` command report with known,
+enabled quota buckets, bounds the command to 90 seconds and its output to 1 MiB, and terminates the command
+on cancellation. It runs in a private empty directory and does not send a model prompt or parse TUI output.
+The report contains no account or plan identity: explicit CLI mode remains authoritative, while Auto uses
+this fallback only without a selected token account or explicitly injected OAuth credentials. Successful
+HTTPS results retain their verified identity. Failed command diagnostics do not include raw stderr.
+
 Antigravity supports four usage data sources:
 
 1. The Antigravity 2.0 app's local `language_server` (preferred when the app is open).

@@ -479,7 +479,16 @@ verifier argument. `CodexBarLinuxTests` includes the portable `AntigravityLocalh
 both macOS and Linux. It checks session reuse and concurrent synthetic loopback failures without credentials;
 this coverage does not establish or fix the cause of Linux dispatch crashes.
 
+### Static Linux SDK
+
+CI and release builds install the static Linux SDK through `Scripts/install_swift_static_sdk.sh`. It downloads with
+`curl`, verifies the pinned SHA-256, and passes a local archive to `swift sdk install`, avoiding SwiftPM's Linux
+FoundationNetworking/TLS teardown crash. Portable lint checks cover checksum rejection, download failures, and installer
+failure propagation without downloading an SDK.
+Changes to the installer require a musl CI build.
+
 ### Format Code
+
 ```bash
 swiftformat Sources Tests
 swiftlint --strict
