@@ -253,6 +253,87 @@ struct ClaudeWebBackgroundRecoveryTests {
     }
 
     @Test
+    func `background refresh preserves a confirmed auth failure after a real session is recovered`() async throws {
+        try await self.withIsolatedCookieCache {
+            CookieHeaderCache.store(
+                provider: .claude,
+                cookieHeader: "sessionKey=sk-ant-stale-token",
+                sourceLabel: "Chrome")
+            defer { CookieHeaderCache.clear(provider: .claude) }
+
+            // Same isolated-home + faked-Chrome-install setup as the "mixed" test above, so Chrome
+            // genuinely reaches — and is skipped by — the inconclusive Keychain preflight below.
+            let temp = FileManager.default.temporaryDirectory
+                .appendingPathComponent("claude-background-recovery-confirmed-\(UUID().uuidString)", isDirectory: true)
+            let chromeCookies = temp
+                .appendingPathComponent("Library/Application Support/Google/Chrome/Default/Network/Cookies")
+            try FileManager.default.createDirectory(
+                at: chromeCookies.deletingLastPathComponent(),
+                withIntermediateDirectories: true)
+            FileManager.default.createFile(atPath: chromeCookies.path, contents: Data())
+            defer { try? FileManager.default.removeItem(at: temp) }
+            let detection = BrowserDetection(
+                homeDirectory: temp.path,
+                cacheTTL: 0,
+                fileExists: { path in
+                    if path == "/Applications/Google Chrome.app" { return true }
+                    return FileManager.default.fileExists(atPath: path)
+                },
+                directoryContents: { path in try? FileManager.default.contentsOfDirectory(atPath: path) })
+
+            // Unlike the "mixed" test, Safari does not come up empty here: a session-key override lets it
+            // genuinely recover a session (mirroring a real user who is, in fact, signed in to claude.ai in
+            // Safari) — but the API then rejects that recovered cookie with a real 401. That confirmed
+            // rejection must propagate as-is, not be swallowed into "unverified" just because Chrome was
+            // separately skipped by the gate.
+            let recovered = ClaudeWebAPIFetcher.SessionKeyInfo(
+                key: "sk-ant-recovered-but-revoked",
+                sourceLabel: "Safari",
+                cookieCount: 1)
+
+            do {
+                try await KeychainAccessGate.withTaskOverrideForTesting(false) {
+                    try await KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { _, _ in
+                        .temporarilyUnavailable
+                    } operation: {
+                        try await ClaudeWebSessionKeyImport.$browserOverrideForTesting.withValue({ browser in
+                            guard browser == .safari else { return nil }
+                            return recovered
+                        }) {
+                            try await ProviderInteractionContext.$current.withValue(.background) {
+                                try await self.withClaudeWebStub { request in
+                                    // The stale cached cookie must itself be rejected first (mirroring every
+                                    // other test in this file) so the code proceeds into invalidation +
+                                    // recovery at all; the recovered cookie is then rejected too, simulating
+                                    // the confirmed post-recovery auth failure this test guards.
+                                    let cookie = request.value(forHTTPHeaderField: "Cookie")
+                                    let isStale = cookie == "sessionKey=sk-ant-stale-token"
+                                    let isRecoveredCookie = cookie == "sessionKey=sk-ant-recovered-but-revoked"
+                                    if request.url?.path == "/api/organizations", isStale || isRecoveredCookie {
+                                        let url = try #require(request.url)
+                                        return Self.jsonResponse(url: url, body: "{}", statusCode: 401, setCookie: nil)
+                                    }
+                                    return try Self.response(for: request, setCookie: nil)
+                                } operation: {
+                                    _ = try await ClaudeWebAPIFetcher.fetchUsage(browserDetection: detection)
+                                }
+                            }
+                        }
+                    }
+                }
+                Issue.record("Expected the confirmed .unauthorized error to propagate")
+            } catch let error as ClaudeWebAPIFetcher.FetchError {
+                guard case .unauthorized = error else {
+                    Issue.record("Expected .unauthorized, got \(error)")
+                    return
+                }
+            } catch {
+                Issue.record("Expected .unauthorized, got \(error)")
+            }
+        }
+    }
+
+    @Test
     func `user initiated refresh surfaces original auth error when browser recovery finds nothing`() async {
         await self.withIsolatedCookieCache {
             CookieHeaderCache.store(
