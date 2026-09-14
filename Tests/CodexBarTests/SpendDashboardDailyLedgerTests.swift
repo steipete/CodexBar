@@ -4,6 +4,51 @@ import Testing
 @testable import CodexBarCore
 
 struct SpendDashboardDailyLedgerTests {
+    @Test(arguments: [true, false])
+    func `unpriced history outside the window is idle only with complete activity`(complete: Bool) throws {
+        let claude = Self.input(
+            id: "claude",
+            provider: .claude,
+            displayName: "Claude",
+            entries: [Self.entry(day: "2026-07-14", cost: 2, tokens: 20, requests: 2)],
+            totalTokens: 20)
+        let antigravity = SpendDashboardModel.ProviderInput(
+            provider: .antigravity,
+            displayName: "Antigravity",
+            snapshot: CostUsageTokenSnapshot(
+                sessionTokens: nil,
+                sessionCostUSD: nil,
+                last30DaysTokens: complete ? 40 : 41,
+                last30DaysCostUSD: nil,
+                historyDays: 30,
+                daily: [Self.unpricedEntry(day: "2026-07-05", tokens: 40, requests: 4)],
+                updatedAt: Self.now))
+        let group = try #require(SpendDashboardModel.build(
+            inputs: [claude, antigravity], requestedDays: 3, now: Self.now, calendar: Self.calendar).groups.first)
+        #expect(group.dailySummaries.map(\.totalCost) == [2, 0, 0])
+        #expect(group.dailySummaries.allSatisfy { $0.hasPartialCost == !complete })
+        let rows = group.dailySummaries.flatMap(\.providers).filter { $0.provider == .antigravity }
+        #expect(rows.count == 3)
+        #expect(rows.allSatisfy { ($0.totalCost == 0) == complete })
+        #expect(rows.allSatisfy { $0.isKnownIdle == complete })
+    }
+
+    @Test
+    func `unpriced requests with zero tokens remain unknown spend`() throws {
+        let input = Self.input(
+            id: "antigravity",
+            provider: .antigravity,
+            displayName: "Antigravity",
+            entries: [Self.unpricedEntry(day: "2026-07-16", tokens: 0, requests: 2)],
+            totalTokens: 0,
+            unpriced: true)
+        let day = try #require(Self.group(inputs: [input])?.dailySummaries.last)
+        #expect(day.totalTokens == 0)
+        #expect(day.requestCount == 2)
+        #expect(day.totalCost == nil)
+        #expect(day.providers.first?.isKnownIdle == false)
+    }
+
     @Test(arguments: [7, 60])
     func `OpenCodex aggregates and ledger counts cover the full declared history`(days: Int) throws {
         let entries = [0, 45].map { age in

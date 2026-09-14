@@ -928,7 +928,6 @@ struct SpendDashboardModel: Equatable, Sendable {
             let providerRows = indexed.map {
                 Self.dailyProviderRow(summary: $0.summary, entries: $0.entries[day] ?? [])
             }
-            // Keep the known subtotal when another source cannot price its activity.
             let totalCost = Self.knownCostSum(providerRows.map(\.totalCost))
 
             let sortedRows = providerRows.enumerated().sorted { lhs, rhs in
@@ -956,7 +955,8 @@ struct SpendDashboardModel: Equatable, Sendable {
         let costs = entries.map {
             Self.validCost($0.entry.costUSD).map { $0 * summary.costMultiplier }
         }
-        let emptyCost: Double? = summary.entries.isEmpty && summary.totalCost == nil ? nil : 0
+        let emptyCost: Double? = summary.entries.isEmpty && summary.totalCost == nil && summary
+            .totalTokens != 0 ? nil : 0
         let totalCost = summary.hasInvalidCostHistory ? nil : entries.isEmpty ? emptyCost : Self.completeCostSum(costs)
 
         return DailyProviderRow(
