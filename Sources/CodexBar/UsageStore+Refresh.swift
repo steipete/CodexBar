@@ -1466,7 +1466,9 @@ extension UsageStore {
                 return
             }
             if shouldSurface {
-                self.errors[provider.instanceID] = error.localizedDescription
+                self.errors[provider.instanceID] = Self.claudeWebEffectiveErrorDescription(
+                    error,
+                    hadPriorData: hadPriorData)
                 if !preservesPriorData, !preservesClaudeWebSessionFailure {
                     self.snapshots.removeValue(forKey: provider.instanceID)
                     // Provider-specific by design: local ~/.grok/sessions tokens remain readable
@@ -1586,6 +1588,21 @@ extension UsageStore {
             return true
         }
         return error.localizedDescription == ClaudeStatusProbeError.timedOut.localizedDescription
+    }
+
+    /// `cachedSessionUnverifiedInBackground`'s fixed wording ("...showing last-known usage...") and the
+    /// suppressed sign-in affordance it implies both assume there is real prior usage to protect. That's
+    /// true once `hadPriorData` holds, but `UsageStore.snapshots` starts empty on every launch (there is
+    /// no persisted-snapshot restoration), so a background refresh that hits this classification before
+    /// the first successful fetch of the process has nothing to show and nothing to lose by asking the
+    /// user to sign in — remap it to the plain no-session message so the login menu action reappears.
+    private static func claudeWebEffectiveErrorDescription(_ error: Error, hadPriorData: Bool) -> String {
+        if !hadPriorData,
+           case ClaudeWebAPIFetcher.FetchError.cachedSessionUnverifiedInBackground = error
+        {
+            return ClaudeWebAPIFetcher.FetchError.noSessionKeyFound.localizedDescription
+        }
+        return error.localizedDescription
     }
 
     private static func isClaudeWebSessionRefreshFailure(_ error: Error) -> Bool {
