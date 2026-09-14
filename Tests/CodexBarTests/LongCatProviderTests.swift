@@ -170,6 +170,29 @@ struct LongCatProviderTests {
         #expect(snapshot.toUsageSnapshot().primary == nil)
     }
 
+    @Test(arguments: [
+        "2025-06-15T15:06:40.250Z",
+        "2025-06-15T17:06:40.250+02:00",
+    ])
+    func `fractional fuel expiry survives snapshot conversion`(expiry: String) throws {
+        let fuel: [String: Any] = [
+            "totalQuota": 1000,
+            "list": [
+                ["availableToken": 600, "expireTime": 1_760_000_000_000] as [String: Any],
+                ["availableToken": 150, "expireTime": expiry],
+            ],
+        ]
+        let snapshot = LongCatUsageFetcher.buildSnapshot(
+            account: nil,
+            tokenPackSummary: nil,
+            tokenUsage: nil,
+            pendingFuel: fuel)
+        let expected = Date(timeIntervalSince1970: 1_750_000_000.250)
+        let actual = try #require(snapshot.toUsageSnapshot().secondary?.resetsAt)
+        #expect(abs(actual.timeIntervalSince(expected)) < 0.001)
+        #expect(snapshot.fuelPackRemaining == 750)
+    }
+
     // MARK: - Envelope
 
     @Test

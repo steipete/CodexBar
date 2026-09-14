@@ -74,6 +74,11 @@ does not provide a token's data, that token renders an en dash while its sibling
 derive their first layout from the prior style, display mode, metric, and reset settings; those legacy keys remain
 untouched for downgrade safety, while a saved token layout takes precedence.
 
+For Abacus, explicitly selecting Credits keeps the monthly allowance visible. With 250 of 1,000 credits used, it
+shows `C 75%` remaining (or `C 25%` with Show usage as used). Its billing window and reset date still drive pacing;
+Automatic keeps its existing percentage. Credits labels also apply to editor tokens, conditional metrics and pace
+accessibility.
+
 Scoped weekly % selects the most constrained active model-specific weekly carve-out. The editor keeps a stable,
 model-generic token label while the rendered menu-bar prefix and accessibility label follow the active model title.
 

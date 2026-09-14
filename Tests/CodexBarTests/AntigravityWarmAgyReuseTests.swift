@@ -12,7 +12,7 @@ struct AntigravityWarmAgyReuseTests {
 
         let result = try await AntigravityCLIHTTPSFetchStrategy.tryWarmAgyFetch(
             timeout: 2.0,
-            dependencies: AntigravityCLIHTTPSFetchStrategy.WarmAgyDependencies(
+            dependencies: makeAntigravityWarmDependencies(
                 processInfos: { _ in [Self.cliProcessInfo(pid: 9901)] },
                 listeningPorts: { pid, _ in
                     listeningPortsCallCount.increment()
@@ -35,7 +35,7 @@ struct AntigravityWarmAgyReuseTests {
     func `no warm agy returns nil`() async throws {
         let result = try await AntigravityCLIHTTPSFetchStrategy.tryWarmAgyFetch(
             timeout: 2.0,
-            dependencies: AntigravityCLIHTTPSFetchStrategy.WarmAgyDependencies(
+            dependencies: makeAntigravityWarmDependencies(
                 processInfos: { _ in [] },
                 listeningPorts: { _, _ in
                     Issue.record("listeningPorts must not be called when no warm agy found")
@@ -55,7 +55,7 @@ struct AntigravityWarmAgyReuseTests {
         // fast path must swallow it and let the caller fall back to spawning.
         let result = try await AntigravityCLIHTTPSFetchStrategy.tryWarmAgyFetch(
             timeout: 2.0,
-            dependencies: AntigravityCLIHTTPSFetchStrategy.WarmAgyDependencies(
+            dependencies: makeAntigravityWarmDependencies(
                 processInfos: { _ in throw AntigravityStatusProbeError.missingCSRFToken },
                 listeningPorts: { _, _ in
                     Issue.record("listeningPorts must not be called when discovery throws")
@@ -75,7 +75,7 @@ struct AntigravityWarmAgyReuseTests {
 
         let result = try await AntigravityCLIHTTPSFetchStrategy.tryWarmAgyFetch(
             timeout: 2.0,
-            dependencies: AntigravityCLIHTTPSFetchStrategy.WarmAgyDependencies(
+            dependencies: makeAntigravityWarmDependencies(
                 processInfos: { _ in [Self.cliProcessInfo(pid: 7701)] },
                 listeningPorts: { _, _ in [55555] },
                 fetchSnapshot: { _, _ in
@@ -104,7 +104,7 @@ struct AntigravityWarmAgyReuseTests {
 
         let result = try await AntigravityCLIHTTPSFetchStrategy.tryWarmAgyFetch(
             timeout: 2.0,
-            dependencies: AntigravityCLIHTTPSFetchStrategy.WarmAgyDependencies(
+            dependencies: makeAntigravityWarmDependencies(
                 processInfos: { _ in [ideProcessInfo] },
                 listeningPorts: { _, _ in [44444] },
                 fetchSnapshot: { _, _ in
@@ -125,7 +125,7 @@ struct AntigravityWarmAgyReuseTests {
 
         let result = try await AntigravityCLIHTTPSFetchStrategy.tryWarmAgyFetch(
             timeout: 2.0,
-            dependencies: AntigravityCLIHTTPSFetchStrategy.WarmAgyDependencies(
+            dependencies: makeAntigravityWarmDependencies(
                 processInfos: { _ in [Self.cliProcessInfo(pid: 4242)] },
                 listeningPorts: { _, _ in
                     Issue.record("listeningPorts must not be called for a CodexBar-owned agy")
@@ -149,7 +149,7 @@ struct AntigravityWarmAgyReuseTests {
 
         let result = try await AntigravityCLIHTTPSFetchStrategy.tryWarmAgyFetch(
             timeout: 2.0,
-            dependencies: AntigravityCLIHTTPSFetchStrategy.WarmAgyDependencies(
+            dependencies: makeAntigravityWarmDependencies(
                 processInfos: { _ in [Self.cliProcessInfo(pid: 4242), Self.cliProcessInfo(pid: 7000)] },
                 listeningPorts: { pid, _ in
                     listeningPortsCallCount.increment()
@@ -169,7 +169,7 @@ struct AntigravityWarmAgyReuseTests {
 
         let result = try await AntigravityCLIHTTPSFetchStrategy.tryWarmAgyFetch(
             timeout: 2.0,
-            dependencies: AntigravityCLIHTTPSFetchStrategy.WarmAgyDependencies(
+            dependencies: makeAntigravityWarmDependencies(
                 processInfos: { _ in [Self.cliProcessInfo(pid: 6001), Self.cliProcessInfo(pid: 6002)] },
                 listeningPorts: { pid, _ in
                     listeningPIDs.append(pid)
@@ -190,7 +190,7 @@ struct AntigravityWarmAgyReuseTests {
         let result = try await AntigravityCLIHTTPSFetchStrategy.tryWarmAgyFetch(
             timeout: 2.0,
             expectedAccountEmail: "selected@example.com",
-            dependencies: AntigravityCLIHTTPSFetchStrategy.WarmAgyDependencies(
+            dependencies: makeAntigravityWarmDependencies(
                 processInfos: { _ in [Self.cliProcessInfo(pid: 6101), Self.cliProcessInfo(pid: 6102)] },
                 listeningPorts: { pid, _ in
                     listeningPIDs.append(pid)
@@ -212,7 +212,7 @@ struct AntigravityWarmAgyReuseTests {
         let result = try await AntigravityCLIHTTPSFetchStrategy.tryWarmAgyFetch(
             timeout: 2.0,
             expectedBinaryPath: "/selected/agy",
-            dependencies: AntigravityCLIHTTPSFetchStrategy.WarmAgyDependencies(
+            dependencies: makeAntigravityWarmDependencies(
                 processInfos: { _ in
                     [
                         Self.cliProcessInfo(pid: 6151, binaryPath: "/other/agy"),
@@ -245,7 +245,7 @@ struct AntigravityWarmAgyReuseTests {
             let result = try await AntigravityCLIHTTPSFetchStrategy.tryWarmAgyFetch(
                 timeout: 2,
                 expectedBinaryPath: "/selected/agy",
-                dependencies: .init(
+                dependencies: makeAntigravityWarmDependencies(
                     processInfos: { _ in
                         try AntigravityStatusProbe.processInfos(fromEntries: [.init(
                             pid: 6150, command: fixture.command, executablePath: fixture.executable)])
@@ -294,7 +294,7 @@ struct AntigravityWarmAgyReuseTests {
         let result = try await AntigravityCLIHTTPSFetchStrategy.tryWarmAgyFetch(
             timeout: 2,
             expectedBinaryPath: selected.path,
-            dependencies: .init(
+            dependencies: makeAntigravityWarmDependencies(
                 processInfos: { _ in processes },
                 listeningPorts: { _, _ in [56789] },
                 fetchSnapshot: { _, _ in Self.usableSnapshot(email: "selected@example.com") }))
@@ -310,7 +310,7 @@ struct AntigravityWarmAgyReuseTests {
 
         let result = try await AntigravityCLIHTTPSFetchStrategy.tryWarmAgyFetch(
             timeout: 2.0,
-            dependencies: AntigravityCLIHTTPSFetchStrategy.WarmAgyDependencies(
+            dependencies: makeAntigravityWarmDependencies(
                 processInfos: { timeout in
                     #expect(timeout == 2.0)
                     clock.advance(by: 1.5)
@@ -344,7 +344,7 @@ struct AntigravityWarmAgyReuseTests {
             binary: "/usr/local/bin/agy",
             idleWindow: nil,
             resetAfterFetch: true,
-            warmDependencies: AntigravityCLIHTTPSFetchStrategy.WarmAgyDependencies(
+            warmDependencies: makeAntigravityWarmDependencies(
                 processInfos: { _ in [Self.cliProcessInfo(pid: 1234)] },
                 listeningPorts: { _, _ in [40000] },
                 fetchSnapshot: { _, _ in Self.usableSnapshot(email: "warm@example.com") }),
@@ -370,7 +370,7 @@ struct AntigravityWarmAgyReuseTests {
             binary: "/usr/local/bin/agy",
             idleWindow: nil,
             resetAfterFetch: true,
-            warmDependencies: AntigravityCLIHTTPSFetchStrategy.WarmAgyDependencies(
+            warmDependencies: makeAntigravityWarmDependencies(
                 processInfos: { _ in [] },
                 listeningPorts: { _, _ in [] },
                 fetchSnapshot: { _, _ in throw AntigravityStatusProbeError.notRunning }),
@@ -397,7 +397,7 @@ struct AntigravityWarmAgyReuseTests {
                 binary: "/usr/local/bin/agy",
                 idleWindow: nil,
                 resetAfterFetch: true,
-                warmDependencies: AntigravityCLIHTTPSFetchStrategy.WarmAgyDependencies(
+                warmDependencies: makeAntigravityWarmDependencies(
                     processInfos: { _ in throw CancellationError() },
                     listeningPorts: { _, _ in [] },
                     fetchSnapshot: { _, _ in throw AntigravityStatusProbeError.notRunning }),
@@ -426,7 +426,7 @@ struct AntigravityWarmAgyReuseTests {
             binary: "/usr/local/bin/agy",
             idleWindow: 60,
             resetAfterFetch: false,
-            warmDependencies: AntigravityCLIHTTPSFetchStrategy.WarmAgyDependencies(
+            warmDependencies: makeAntigravityWarmDependencies(
                 processInfos: { _ in [Self.cliProcessInfo(pid: 6301)] },
                 listeningPorts: { _, _ in [50080] },
                 fetchSnapshot: { _, _ in Self.usableSnapshot(email: "terminal@example.com") }),
@@ -450,7 +450,7 @@ struct AntigravityWarmAgyReuseTests {
             idleWindow: 60,
             resetAfterFetch: false,
             expectedAccountEmail: "selected@example.com",
-            warmDependencies: AntigravityCLIHTTPSFetchStrategy.WarmAgyDependencies(
+            warmDependencies: makeAntigravityWarmDependencies(
                 processInfos: { _ in [Self.cliProcessInfo(pid: 6301)] },
                 listeningPorts: { _, _ in [50080] },
                 fetchSnapshot: { _, _ in Self.usableSnapshot(email: "other@example.com") }),

@@ -54,6 +54,9 @@ budget is shown as the secondary window and becomes the automatic menu bar metri
 the key. Team-only keys show that team budget as their sole usage window. Spend remains visible as an API-spend row
 when LiteLLM does not configure a budget.
 
+CLI text/cards and native menus show budget amounts as details, with actual reset dates separately; an absent reset
+never turns the amount into a reset clock.
+
 The virtual key must be allowed to read its own `/key/info` data and the corresponding user or team information
 endpoint. CodexBar validates returned user and team IDs against `/key/info` before displaying usage.
 

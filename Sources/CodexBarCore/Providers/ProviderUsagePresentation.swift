@@ -287,6 +287,7 @@ public struct ProviderMenuCardPresentation: Sendable {
     public let supportsInlineTokenCostDashboard: Bool
     public let primaryDescriptionPlacement: ProviderPrimaryDescriptionPlacement
     public let showsPrimaryBalanceDescription: Bool
+    public let showsSecondaryBalanceDescription: Bool
     public let hidesPrimaryResetWithoutDate: Bool
     public let hidesPrimaryResetWithoutSecondary: Bool
     public let clearsPrimaryReset: Bool
@@ -307,6 +308,7 @@ public struct ProviderMenuCardPresentation: Sendable {
         supportsInlineTokenCostDashboard: Bool = false,
         primaryDescriptionPlacement: ProviderPrimaryDescriptionPlacement = .standard,
         showsPrimaryBalanceDescription: Bool = false,
+        showsSecondaryBalanceDescription: Bool = false,
         hidesPrimaryResetWithoutDate: Bool = false,
         hidesPrimaryResetWithoutSecondary: Bool = false,
         clearsPrimaryReset: Bool = false,
@@ -327,6 +329,7 @@ public struct ProviderMenuCardPresentation: Sendable {
         self.supportsInlineTokenCostDashboard = supportsInlineTokenCostDashboard
         self.primaryDescriptionPlacement = primaryDescriptionPlacement
         self.showsPrimaryBalanceDescription = showsPrimaryBalanceDescription
+        self.showsSecondaryBalanceDescription = showsSecondaryBalanceDescription
         self.hidesPrimaryResetWithoutDate = hidesPrimaryResetWithoutDate
         self.hidesPrimaryResetWithoutSecondary = hidesPrimaryResetWithoutSecondary
         self.clearsPrimaryReset = clearsPrimaryReset
@@ -432,9 +435,11 @@ public struct ProviderUsagePresentation: Sendable {
     public let reservesMissingSecondaryIconLane: Bool
     public let primarySemanticWindow: ProviderSemanticWindow
     public let secondarySemanticWindow: ProviderSemanticWindow
+    public let menuBarLayoutPrimaryLabel: String?
     public let menuBarLayoutSecondaryLabel: String?
     public let requestedMenuBarLaneOrders: [ProviderMenuBarMetric: [ProviderUsageLane]]
     public let automaticSelectionPrioritizesExhaustedWindow: Bool
+    public let switcherUsesAutomaticMenuBarWindow: Bool
     public let secondaryGloballyCapsPrimary: Bool
     /// Longer quota lanes that must have room before the primary session lane is usable.
     /// Kept separate from widget policy until those surfaces adopt the same multi-lane projection.
@@ -459,9 +464,11 @@ public struct ProviderUsagePresentation: Sendable {
         semanticWindowResolver: @escaping SemanticWindowResolver = Self.standardSemanticWindows,
         primarySemanticWindow: ProviderSemanticWindow = .session,
         secondarySemanticWindow: ProviderSemanticWindow = .weekly,
+        menuBarLayoutPrimaryLabel: String? = nil,
         menuBarLayoutSecondaryLabel: String? = nil,
         requestedMenuBarLaneOrders: [ProviderMenuBarMetric: [ProviderUsageLane]] = [:],
         automaticSelectionPrioritizesExhaustedWindow: Bool = true,
+        switcherUsesAutomaticMenuBarWindow: Bool = false,
         menuBarWindowResolver: @escaping MenuBarWindowResolver = { _ in .unhandled },
         planUtilizationSeriesResolver: @escaping PlanUtilizationSeriesResolver = Self.standardPlanUtilizationSeries,
         planUtilizationSeriesNormalizer: @escaping PlanUtilizationSeriesNormalizer = { series, _ in series },
@@ -485,9 +492,11 @@ public struct ProviderUsagePresentation: Sendable {
         self.semanticWindowResolver = semanticWindowResolver
         self.primarySemanticWindow = primarySemanticWindow
         self.secondarySemanticWindow = secondarySemanticWindow
+        self.menuBarLayoutPrimaryLabel = menuBarLayoutPrimaryLabel
         self.menuBarLayoutSecondaryLabel = menuBarLayoutSecondaryLabel
         self.requestedMenuBarLaneOrders = requestedMenuBarLaneOrders
         self.automaticSelectionPrioritizesExhaustedWindow = automaticSelectionPrioritizesExhaustedWindow
+        self.switcherUsesAutomaticMenuBarWindow = switcherUsesAutomaticMenuBarWindow
         self.menuBarWindowResolver = menuBarWindowResolver
         self.planUtilizationSeriesResolver = planUtilizationSeriesResolver
         self.planUtilizationSeriesNormalizer = planUtilizationSeriesNormalizer
