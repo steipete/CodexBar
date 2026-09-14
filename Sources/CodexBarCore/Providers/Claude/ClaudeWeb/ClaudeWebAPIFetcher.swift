@@ -1413,7 +1413,8 @@ extension ClaudeWebAPIFetcher {
         logger: ((String) -> Void)?) async throws -> WebUsageData
     {
         let log: (String) -> Void = { msg in logger?("[claude-web] \(msg)") }
-        var cacheObservation = CookieHeaderCache.observeForConditionalMutation(provider: .claude)
+        let cacheObservation = CookieHeaderCache.observeForConditionalMutation(provider: .claude)
+        var invalidatedCacheEntry: CookieHeaderCache.Entry?
         var invalidatedCacheError: FetchError?
 
         if let cached = cacheObservation.entry,
@@ -1428,8 +1429,10 @@ extension ClaudeWebAPIFetcher {
             } catch let error as FetchError {
                 switch error {
                 case .unauthorized, .noSessionKeyFound, .invalidSessionKey:
-                    let cleared = CookieHeaderCache.clearIfCurrent(provider: .claude, expected: cached)
-                    cacheObservation = .authoritative(cleared ? nil : cached)
+                    // Not cleared yet: whether this stale entry should actually be deleted depends on how
+                    // the recovery attempt below turns out, so `cacheObservation` (captured above, still
+                    // accurate since nothing has mutated the store) stays valid for either outcome.
+                    invalidatedCacheEntry = cached
                     invalidatedCacheError = error
                 default:
                     throw error
@@ -1455,20 +1458,34 @@ extension ClaudeWebAPIFetcher {
                 anySkippedByGate: &anySkippedByGate,
                 logger: log)
         } catch {
-            // Checked ahead of `invalidatedCacheError`, and regardless of whether one exists at all: the
-            // reason recovery is unverified — a browser genuinely skipped by the gate — does not depend on
-            // whether this cycle happened to have a cached cookie to invalidate. A prior cycle's
-            // invalidation already cleared the cache (see `clearIfCurrent` above), so without this check
-            // first, a second consecutive cycle under the same still-inconclusive Keychain preflight would
-            // have no `invalidatedCacheError` to prefer and would fall through to the plain, misleading
-            // `noSessionKeyFound` sign-in message — reintroducing the exact symptom this fix exists to
-            // prevent, on every refresh after the first.
-            if anySkippedByGate {
+            // Only reclassify a gate skip as "unverified" when there is real evidence a session was
+            // actually working before (a cached cookie existed and was rejected this attempt) and during a
+            // background refresh specifically:
+            //  - Without `invalidatedCacheError`, nothing was ever cached this attempt — a first-ever or
+            //    genuinely signed-out user would otherwise be told "showing last-known usage" when none
+            //    exists, and lose the sign-in affordance (`cachedSessionUnverifiedInBackground` isn't
+            //    treated as a session error by the login menu).
+            //  - A user-initiated refresh runs through `BrowserCookieAccessGate`'s explicit-retry scope,
+            //    which can permit one browser through its cooldown while a *different* installed Chromium
+            //    browser is still separately skipped, setting `anySkippedByGate` even though the user
+            //    already completed a real retry. "...click Refresh to check now" is nonsensical when they
+            //    just did, and would hide both the real result and the sign-in affordance.
+            if anySkippedByGate, invalidatedCacheError != nil, ProviderInteractionContext.current == .background {
+                // The stale entry is deliberately left in the cache (not cleared) so a persistently
+                // inconclusive Keychain preflight keeps reporting "unverified" on every subsequent cycle,
+                // not only this one: the next call's `cacheObservation.entry` will still see it, re-enter
+                // this same block, and set `invalidatedCacheError` again.
                 log("A browser recovery candidate was skipped by the Keychain preflight; " +
                     "preserving the cached auth state instead of reporting a sign-out")
                 throw FetchError.cachedSessionUnverifiedInBackground
             }
             if let invalidatedCacheError {
+                // A confirmed outcome (not gate-skipped, or not eligible for the masking above): the cached
+                // cookie really is dead, so clear it now — the next cycle should go straight to recovery
+                // instead of re-trying a known-dead cookie against the API.
+                if let invalidatedCacheEntry {
+                    _ = CookieHeaderCache.clearIfCurrent(provider: .claude, expected: invalidatedCacheEntry)
+                }
                 throw invalidatedCacheError
             }
             throw error
