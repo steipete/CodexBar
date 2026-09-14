@@ -160,9 +160,13 @@ public enum ClaudeWebAPIFetcher {
             case .unauthorized:
                 "Sign in to claude.ai (or refresh Claude cookies) to load usage data."
             case .cachedSessionUnverifiedInBackground:
-                "Couldn't verify your Claude session in the background just now (a local security check " +
-                    "was inconclusive, not a sign-out). Showing last-known usage; it will retry " +
-                    "automatically, or click Refresh to check now."
+                // Deliberately neutral: this fetcher has callers with no UsageStore snapshot to preserve,
+                // no automatic retry loop, and no Refresh control (the CLI's one-shot `codexbar usage`
+                // prints this description as-is). The app-specific framing ("showing last-known usage...
+                // click Refresh") is added on top only where those are actually true, by the app's own
+                // presentation layer — see claudeWebEffectiveErrorDescription in UsageStore+Refresh.swift.
+                "Couldn't verify your Claude session just now (a local security check was inconclusive, " +
+                    "not a sign-out)."
             case .cloudflareChallenge:
                 "claude.ai is behind a Cloudflare challenge, often caused by VPN or datacenter networks. " +
                     "Re-authenticating will not help. Switch Claude Usage source to OAuth in Settings " +

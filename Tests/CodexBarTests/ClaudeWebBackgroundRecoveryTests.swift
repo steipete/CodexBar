@@ -15,6 +15,17 @@ struct ClaudeWebBackgroundRecoveryTests {
         "(Usage credits balance will be unavailable), or try a different network."
 
     @Test
+    func `unverified session description stays neutral for callers with no snapshot to preserve`() {
+        // ClaudeWebAPIFetcher also serves the CLI's one-shot `codexbar usage`, which has no UsageStore
+        // snapshot to preserve, no automatic retry loop, and no Refresh control — it prints this
+        // description as-is. The app-specific framing belongs only in the app's own presentation layer
+        // (UsageStore+Refresh.swift's claudeWebEffectiveErrorDescription), not the fetcher itself.
+        let message = ClaudeWebAPIFetcher.FetchError.cachedSessionUnverifiedInBackground.localizedDescription
+        #expect(!message.contains("last-known"))
+        #expect(!message.contains("Refresh"))
+    }
+
+    @Test
     func `Cloudflare challenge preserves cached cookie without browser recovery`() async {
         await self.withIsolatedCookieCache {
             CookieHeaderCache.store(
