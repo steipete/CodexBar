@@ -23,8 +23,12 @@ browsers. CodexBar sends the session token only to `https://app.devin.ai`.
 ## Manual Auth
 
 Set **Auth source** to **Manual**, then paste either the bare token or the full `Authorization: Bearer ...` header value
-from an app.devin.ai API request. The optional organization field accepts a slug, an internal `org_...` ID, or the full
-organization URL.
+from an app.devin.ai API request. The optional organization field accepts a slug, an internal `org-...` or `org_...` ID,
+or the full organization URL.
+
+Auth1 tokens may require the internal organization ID rather than the public organization slug. In the browser developer
+tools, inspect a successful request to `app.devin.ai`, copy its `x-cog-org-id` request header value, and paste that value
+into **Organization**. Keep both the token and organization ID private.
 
 Environment overrides:
 

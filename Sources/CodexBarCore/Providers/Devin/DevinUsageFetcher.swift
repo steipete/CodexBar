@@ -97,10 +97,12 @@ public struct DevinUsageFetcher: Sendable {
             } catch {
                 lastError = error
                 logger?("[devin] /api/\(path) failed: \(error.localizedDescription)")
-                if case DevinUsageError.invalidCredentials = error {
+                switch error {
+                case DevinUsageError.invalidCredentials, DevinUsageError.missingOrganizationContext:
                     throw error
+                default:
+                    continue
                 }
-                continue
             }
             logger?("[devin] Fetched quota usage from /api/\(path)")
             return try DevinUsageParser.parse(data, organization: organization, now: now)
@@ -161,7 +163,10 @@ public struct DevinUsageFetcher: Sendable {
 
     static func shouldTryNextSession(after error: Error) -> Bool {
         switch error {
-        case DevinUsageError.invalidCredentials, DevinUsageError.apiError, DevinUsageError.missingOrganization:
+        case DevinUsageError.invalidCredentials,
+             DevinUsageError.apiError,
+             DevinUsageError.missingOrganization,
+             DevinUsageError.missingOrganizationContext:
             true
         default:
             false
@@ -189,12 +194,29 @@ public struct DevinUsageFetcher: Sendable {
         guard response.statusCode == 200 else {
             let body = String(data: response.data.prefix(200), encoding: .utf8) ?? "<binary>"
             if response.statusCode == 401 || response.statusCode == 403 {
+                if auth.internalOrganizationID == nil,
+                   self.isMissingOrganizationContextResponse(response.data)
+                {
+                    throw DevinUsageError.missingOrganizationContext
+                }
                 throw DevinUsageError.invalidCredentials
             }
             Self.log.error("Devin API returned \(response.statusCode): \(body)")
             throw DevinUsageError.apiError("HTTP \(response.statusCode)")
         }
         return response.data
+    }
+
+    private static func isMissingOrganizationContextResponse(_ data: Data) -> Bool {
+        struct ErrorResponse: Decodable {
+            let detail: String?
+        }
+
+        guard let detail = try? JSONDecoder().decode(ErrorResponse.self, from: data).detail else {
+            return false
+        }
+        return detail.trimmingCharacters(in: .whitespacesAndNewlines)
+            .caseInsensitiveCompare("No organizations found for auth1 user") == .orderedSame
     }
 
     private static func candidatePaths(organization: String, internalOrganizationID: String?) -> [String] {

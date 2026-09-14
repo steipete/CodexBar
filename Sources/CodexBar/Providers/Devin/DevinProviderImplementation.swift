@@ -49,9 +49,9 @@ struct DevinProviderImplementation: ProviderImplementation {
             ProviderSettingsFieldDescriptor(
                 id: "devin-organization",
                 title: "Organization",
-                subtitle: "Optional. Use the slug from app.devin.ai/org/<slug>, or paste the full Devin org URL.",
+                subtitle: "Optional. For manual Auth1 tokens, use the internal x-cog-org-id from app.devin.ai.",
                 kind: .plain,
-                placeholder: "org/example-org",
+                placeholder: "org-... or org_...",
                 binding: context.binding(\.devinOrganization),
                 actions: [
                     ProviderSettingsActionDescriptor.openURL(

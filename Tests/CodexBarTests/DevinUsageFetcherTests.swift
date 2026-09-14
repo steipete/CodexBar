@@ -300,6 +300,105 @@ struct DevinUsageFetcherTests {
     }
 
     @Test
+    func `auth1 organization response requests internal organization id`() async {
+        let auth = DevinUsageFetcher.RequestAuth(
+            bearerToken: "secret-token",
+            organization: "org/example-org",
+            internalOrganizationID: nil,
+            sourceLabel: "manual")
+        let stub = ProviderHTTPTransportStub { request in
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 401,
+                httpVersion: nil,
+                headerFields: nil)!
+            return (Data(#"{"detail":"No organizations found for auth1 user"}"#.utf8), response)
+        }
+
+        do {
+            _ = try await DevinUsageFetcher.fetchQuotaUsage(
+                auth: auth,
+                now: Self.now,
+                transport: stub)
+            Issue.record("Expected missing organization context")
+        } catch let error as DevinUsageError {
+            guard case .missingOrganizationContext = error else {
+                Issue.record("Expected missingOrganizationContext, got \(error)")
+                return
+            }
+            #expect(error.localizedDescription.contains("x-cog-org-id"))
+        } catch {
+            Issue.record("Expected DevinUsageError, got \(error)")
+        }
+
+        #expect(await stub.requests().count == 1)
+    }
+
+    @Test(arguments: [401, 403])
+    func `generic unauthorized responses remain invalid credentials`(_ statusCode: Int) async {
+        let auth = DevinUsageFetcher.RequestAuth(
+            bearerToken: "secret-token",
+            organization: "org/example-org",
+            internalOrganizationID: nil,
+            sourceLabel: "manual")
+        let stub = ProviderHTTPTransportStub { request in
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: statusCode,
+                httpVersion: nil,
+                headerFields: nil)!
+            return (Data(#"{"detail":"Unauthorized"}"#.utf8), response)
+        }
+
+        do {
+            _ = try await DevinUsageFetcher.fetchQuotaUsage(
+                auth: auth,
+                now: Self.now,
+                transport: stub)
+            Issue.record("Expected invalid credentials")
+        } catch let error as DevinUsageError {
+            guard case .invalidCredentials = error else {
+                Issue.record("Expected invalidCredentials, got \(error)")
+                return
+            }
+        } catch {
+            Issue.record("Expected DevinUsageError, got \(error)")
+        }
+    }
+
+    @Test
+    func `auth1 organization response with internal id remains invalid credentials`() async {
+        let auth = DevinUsageFetcher.RequestAuth(
+            bearerToken: "secret-token",
+            organization: "organizations/org-example",
+            internalOrganizationID: "org-example",
+            sourceLabel: "manual")
+        let stub = ProviderHTTPTransportStub { request in
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 401,
+                httpVersion: nil,
+                headerFields: nil)!
+            return (Data(#"{"detail":"No organizations found for auth1 user"}"#.utf8), response)
+        }
+
+        do {
+            _ = try await DevinUsageFetcher.fetchQuotaUsage(
+                auth: auth,
+                now: Self.now,
+                transport: stub)
+            Issue.record("Expected invalid credentials")
+        } catch let error as DevinUsageError {
+            guard case .invalidCredentials = error else {
+                Issue.record("Expected invalidCredentials, got \(error)")
+                return
+            }
+        } catch {
+            Issue.record("Expected DevinUsageError, got \(error)")
+        }
+    }
+
+    @Test
     func `fetch does not mask parser failure with fallback endpoint errors`() async {
         let auth = DevinUsageFetcher.RequestAuth(
             bearerToken: "secret-token",
@@ -354,6 +453,16 @@ struct DevinUsageFetcherTests {
         #expect(auth.bearerToken == "secret-token")
         #expect(auth.organization == "org/example-org")
         #expect(auth.sourceLabel == "manual")
+    }
+
+    @Test
+    func `manual auth extracts internal organization id`() throws {
+        let auth = try #require(DevinUsageFetcher.manualAuth(
+            from: "Bearer secret-token",
+            organization: "org-b31f951cd01d4c6da84991cf5b970cfb"))
+
+        #expect(auth.organization == "organizations/org-b31f951cd01d4c6da84991cf5b970cfb")
+        #expect(auth.internalOrganizationID == "org-b31f951cd01d4c6da84991cf5b970cfb")
     }
 
     #if os(macOS)
