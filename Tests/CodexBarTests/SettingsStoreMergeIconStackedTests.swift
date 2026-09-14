@@ -19,46 +19,6 @@ struct SettingsStoreMergeIconStackedTests {
     }
 
     @Test
-    func `activating stored layout for stacked rendering migrates only that provider`() {
-        let store = testSettingsStore(suiteName: "SettingsStoreMergeIconStackedTests-activate-per-provider")
-
-        #expect(!store.hasStoredMenuBarLayout)
-        #expect(store.menuBarLayoutOverrides[.claude] == nil)
-
-        store.activateStoredLayoutForStackedRenderingIfNeeded(provider: .claude)
-
-        #expect(!store.hasStoredMenuBarLayout)
-        #expect(store.menuBarLayoutOverrides[.claude] != nil)
-        #expect(!store.menuBarLayoutResolution(for: .claude).usesLegacyRendering)
-        // A different, unrelated provider is left untouched.
-        #expect(store.menuBarLayoutOverrides[.codex] == nil)
-    }
-
-    @Test
-    func `activating stored layout preserves the provider's pre-activation effective layout`() {
-        let store = testSettingsStore(suiteName: "SettingsStoreMergeIconStackedTests-preserve-effective")
-        let beforeLayout = store.menuBarLayoutResolution(for: .claude).layout
-
-        store.activateStoredLayoutForStackedRenderingIfNeeded(provider: .claude)
-
-        let afterResolution = store.menuBarLayoutResolution(for: .claude)
-        #expect(afterResolution.layout == beforeLayout)
-        #expect(!afterResolution.usesLegacyRendering)
-    }
-
-    @Test
-    func `activating stored layout is a no-op once a layout is already stored`() {
-        let store = testSettingsStore(suiteName: "SettingsStoreMergeIconStackedTests-activate-noop")
-        let customLayout = MenuBarLayout(lines: [[.icon, .providerName]])
-        store.menuBarLayout = customLayout
-
-        store.activateStoredLayoutForStackedRenderingIfNeeded(provider: .claude)
-
-        #expect(store.menuBarLayoutOverrides[.claude] == nil)
-        #expect(store.menuBarLayout == customLayout)
-    }
-
-    @Test
     func `resolved merge icon stacked providers reserves an explicit bottom pick before automatic top`() {
         let store = testSettingsStore(suiteName: "SettingsStoreMergeIconStackedTests-reserve-bottom")
 

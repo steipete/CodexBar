@@ -105,7 +105,9 @@ struct MenuBarPane: View {
                     optionLabel: { option in
                         Text(option.label)
                     })
-                    .disabled(!self.settings.mergeIcons || self.isStackedStyleActive)
+                    // Governs the dropdown menu opened by clicking the status item, not the status item
+                    // text itself — that stays fully configurable in Stacked mode too.
+                    .disabled(!self.settings.mergeIcons)
 
                 Toggle(isOn: self.$settings.menuBarShowsHighestUsage) {
                     SettingsRowLabel(
@@ -114,8 +116,9 @@ struct MenuBarPane: View {
                 }
                 .disabled(!self.settings.mergeIcons || self.isStackedStyleActive)
 
+                // Also governs the dropdown menu, not the status item text.
                 self.overviewProviderRow
-                    .disabled(!self.settings.mergeIcons || self.isStackedStyleActive)
+                    .disabled(!self.settings.mergeIcons)
             } header: {
                 Text(L("section_combined_icon"))
             }

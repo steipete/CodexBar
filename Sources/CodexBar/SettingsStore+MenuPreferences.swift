@@ -197,16 +197,6 @@ extension SettingsStore {
         return (top, bottom)
     }
 
-    /// Activates a per-provider stored layout override — using that provider's own effective migrated
-    /// layout, preserving semantics like `menuBarMetricPreference(for:)` — so stacked rendering can use
-    /// it. Scoped to exactly this one provider; never touches the global layout or any other provider.
-    /// A no-op once the provider already has a stored layout (global or per-provider).
-    func activateStoredLayoutForStackedRenderingIfNeeded(provider: UsageProvider) {
-        let resolution = self.menuBarLayoutResolution(for: provider)
-        guard resolution.usesLegacyRendering else { return }
-        self.setMenuBarLayout(resolution.layout, for: provider)
-    }
-
     var usageBarsFillOption: UsageBarsFillOption {
         get { self.usageBarsShowUsed ? .used : .remaining }
         set { self.usageBarsShowUsed = newValue == .used }

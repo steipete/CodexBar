@@ -122,10 +122,15 @@ extension StatusItemController {
         return wasCached
     }
 
+    /// Renders directly from `resolution.layout`, which is always a valid, effective layout whether or
+    /// not the provider has been migrated to the layout editor: `usesLegacyRendering` only tells the
+    /// single-provider renderer to prefer the old pixel-parity `IconRenderer` path, a distinction Stacked
+    /// mode — an entirely new feature with no legacy equivalent — has no reason to preserve. Rendering
+    /// from the resolution directly (rather than persisting it first) also means a Stacked row never
+    /// silently overrides a provider's global layout for the Switcher style.
     private func renderStackedProviderRow(provider: UsageProvider, now: Date) -> MenuBarLayoutRenderedTitle? {
-        self.settings.activateStoredLayoutForStackedRenderingIfNeeded(provider: provider)
         let resolution = self.settings.menuBarLayoutResolution(for: provider)
-        guard !resolution.usesLegacyRendering, let firstLine = resolution.layout.lines.first else { return nil }
+        guard let firstLine = resolution.layout.lines.first else { return nil }
         let warningFlash = self.quotaWarningFlashActive(provider: provider)
         let snapshot = self.store.menuBarSnapshot(for: provider.instanceID)
         let icon = ProviderBrandIcon.image(for: provider)
