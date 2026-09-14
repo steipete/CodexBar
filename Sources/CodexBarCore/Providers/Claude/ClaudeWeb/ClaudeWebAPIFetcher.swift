@@ -507,26 +507,25 @@ extension ClaudeWebAPIFetcher {
 
     // MARK: - Session Key Extraction
 
-    /// Convenience for callers that don't care whether browser recovery was actually attempted (probes,
-    /// plain session-key existence checks) — see the `recoveryAttempted` overload below.
+    /// Convenience for callers that don't care whether the Keychain preflight skipped any browser
+    /// (probes, plain session-key existence checks) — see the `anySkippedByGate` overload below.
     private static func extractSessionKeyInfo(
         browserDetection: BrowserDetection,
         logger: ((String) -> Void)? = nil) throws -> SessionKeyInfo
     {
-        var recoveryAttempted = false
+        var anySkippedByGate = false
         return try self.extractSessionKeyInfo(
             browserDetection: browserDetection,
-            recoveryAttempted: &recoveryAttempted,
+            anySkippedByGate: &anySkippedByGate,
             logger: logger)
     }
 
     private static func extractSessionKeyInfo(
         browserDetection: BrowserDetection,
-        recoveryAttempted: inout Bool,
+        anySkippedByGate: inout Bool,
         logger: ((String) -> Void)? = nil) throws -> SessionKeyInfo
     {
         if let override = ClaudeWebSessionKeyImport.currentOverride {
-            recoveryAttempted = true
             return override
         }
         let log: (String) -> Void = { msg in logger?(msg) }
@@ -534,22 +533,31 @@ extension ClaudeWebAPIFetcher {
         let cookieDomains = ["claude.ai"]
 
         return try KeychainAccessPreflight.withMemoizedGenericPasswordChecks {
-            // Evaluate sources on demand so a successful preferred browser avoids later Keychain preflights.
-            let installedBrowsers = Self.cookieImportOrder.lazyCookieImportCandidates(using: browserDetection)
-            for browserSource in installedBrowsers {
+            // Walk the full, unfiltered browser order ourselves rather than through
+            // `lazyCookieImportCandidates`: that helper's own filter already excludes anything
+            // `BrowserCookieAccessGate.shouldAttempt` rejects, which would make a re-check here dead
+            // code. Doing it inline lets a browser skipped by the gate be told apart from one that's
+            // simply not installed — only the former means recovery was left unverified.
+            for browserSource in Self.cookieImportOrder {
+                if KeychainAccessGate.isDisabled, browserSource.usesKeychainForCookieDecryption { continue }
+                guard browserDetection.isCookieSourceAvailable(browserSource) else { continue }
                 do {
                     if let override = ClaudeWebSessionKeyImport.currentBrowserOverride {
-                        recoveryAttempted = true
                         if let sessionInfo = try override(browserSource) {
                             log("Found sessionKey in \(sessionInfo.sourceLabel)")
                             return sessionInfo
                         }
                         continue
                     }
-                    // codexBarRecords silently returns [] when the gate skips this browser, so re-check
-                    // here to tell "genuinely no session cookie" apart from "never actually looked".
-                    guard BrowserCookieAccessGate.shouldAttempt(browserSource) else { continue }
-                    recoveryAttempted = true
+                    // codexBarRecords silently returns [] when the gate skips this browser. Track that
+                    // skip itself — a *different* browser (e.g. Safari, which needs no Keychain
+                    // decryption and is in the default import order) coming up empty must not paper over
+                    // it: that browser never had the user's session cookie to begin with, so its empty
+                    // result says nothing about whether the skipped one would have.
+                    guard BrowserCookieAccessGate.shouldAttempt(browserSource) else {
+                        anySkippedByGate = true
+                        continue
+                    }
                     let query = BrowserCookieQuery(domains: cookieDomains)
                     let sources = try Self.cookieClient.codexBarRecords(
                         matching: query,
@@ -567,7 +575,6 @@ extension ClaudeWebAPIFetcher {
                         }
                     }
                 } catch {
-                    recoveryAttempted = true
                     BrowserCookieAccessGate.recordIfNeeded(error)
                     log("\(browserSource.displayName) cookie load failed: \(error.localizedDescription)")
                 }
@@ -1437,11 +1444,11 @@ extension ClaudeWebAPIFetcher {
         // unconditionally denied. Only if that attempt itself comes back empty do we surface the original,
         // more informative cached-auth error instead of a misleading "no session key found" — mirroring the
         // equivalent Ollama recovery in `OllamaStatusFetchStrategy.fetchAutomatic`.
-        var recoveryAttempted = false
+        var anySkippedByGate = false
         do {
             let sessionInfo = try extractSessionKeyInfo(
                 browserDetection: browserDetection,
-                recoveryAttempted: &recoveryAttempted,
+                anySkippedByGate: &anySkippedByGate,
                 logger: log)
             log("Found session key (\(sessionInfo.cookieCount) cookies)")
 
@@ -1455,8 +1462,8 @@ extension ClaudeWebAPIFetcher {
                     persistInitialSessionKey: true))
         } catch {
             if let invalidatedCacheError {
-                guard recoveryAttempted else {
-                    log("Every browser recovery candidate was skipped by the Keychain preflight; " +
+                if anySkippedByGate {
+                    log("A browser recovery candidate was skipped by the Keychain preflight; " +
                         "preserving the cached auth state instead of reporting a sign-out")
                     throw FetchError.cachedSessionUnverifiedInBackground
                 }
