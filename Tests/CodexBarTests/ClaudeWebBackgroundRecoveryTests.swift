@@ -526,9 +526,14 @@ struct ClaudeWebBackgroundRecoveryTests {
 
             // The confirmation itself was written through to UserDefaults, not just kept in memory — this
             // is what lets it survive an app restart while the Keychain is still locked, rather than being
-            // lost at the exact moment it's still needed (the finding this test guards).
-            let persisted = UserDefaults.standard.stringArray(forKey: "claudeWebConfirmedDeadCookieHeaders") ?? []
-            #expect(persisted.contains("sessionKey=sk-ant-stale-token"))
+            // lost at the exact moment it's still needed (the finding this test guards). It must be a
+            // non-reversible fingerprint, never the raw cookie header itself — persisting a real session
+            // credential in the unencrypted preferences plist would defeat the Keychain's own protection
+            // during the exact locked/unavailable moment this marker exists to cover for.
+            let persisted = UserDefaults.standard.stringArray(
+                forKey: "claudeWebConfirmedDeadCookieFingerprints") ?? []
+            #expect(persisted.contains(CookieHeaderCache.credentialFingerprint("sessionKey=sk-ant-stale-token")))
+            #expect(!persisted.contains("sessionKey=sk-ant-stale-token"))
 
             // Second cycle: the same stale cookie is tried again (still cached) and rejected again, but
             // this time recovery is genuinely gate-skipped rather than merely unavailable. Without the
