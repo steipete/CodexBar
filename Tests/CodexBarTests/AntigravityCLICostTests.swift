@@ -4,6 +4,55 @@ import Testing
 @testable import CodexBarCLI
 
 struct AntigravityCLICostTests {
+    @Test(arguments: [false, true])
+    func `database to snapshot and CLI preserve partial and fully unpriced coverage`(includePriced: Bool) async throws {
+        let fixture = try AntigravityLocalFixture()
+        var blobs = [AntigravityLocalFixture.blob(model: "fixture-unpriced-model")]
+        if includePriced {
+            blobs.append(AntigravityLocalFixture.blob(model: "claude-opus-4-6-thinking"))
+        }
+        // This priced event is outside the selected history and must not affect provenance or totals.
+        blobs.append(AntigravityLocalFixture.blob(model: "claude-opus-4-6-thinking", seconds: 1_700_000_000))
+        try fixture.database(blobs: blobs)
+        let snapshot = try await fixture.snapshot()
+        #expect(snapshot.historyCoverageIsEstablished)
+        #expect(snapshot.last30DaysTokens == (includePriced ? 396 : 198))
+        #expect(snapshot.sessionTokens == snapshot.last30DaysTokens)
+        #expect(snapshot.costProvenance == (includePriced ? .listPriceEstimate : .unknown))
+        if includePriced {
+            #expect(try abs(#require(snapshot.last30DaysCostUSD) - 0.001505) < 1e-12)
+            #expect(snapshot.sessionCostUSD == snapshot.last30DaysCostUSD)
+        } else {
+            #expect(snapshot.last30DaysCostUSD == nil)
+        }
+        #expect(snapshot.daily.count == 1)
+        #expect(snapshot.daily.first?.unpricedRequestCount == 1)
+        #expect(snapshot.daily.first?.estimatedRequestCount == (includePriced ? 1 : 0))
+        let text = CodexBarCLI.renderCostText(provider: .antigravity, snapshot: snapshot, useColor: false)
+        #expect(text.contains("1 requests have no supported price."))
+        #expect(text.contains("Partial API-rate estimate:") == includePriced)
+        #expect(text.contains("Unpriced usage:") == !includePriced)
+        #expect(text.contains("not Antigravity charges") == includePriced)
+        print("Synthetic Antigravity CLI coverage (includePriced=\(includePriced)):\n\(text)")
+    }
+
+    @Test
+    func `priced one day history retains a single today line and estimate disclaimer`() {
+        let snapshot = CostUsageTokenSnapshot(
+            sessionTokens: 198,
+            sessionCostUSD: 0.10,
+            last30DaysTokens: 198,
+            last30DaysCostUSD: 0.10,
+            historyDays: 1,
+            costProvenance: .listPriceEstimate,
+            daily: [],
+            updatedAt: Date(timeIntervalSince1970: 1_789_300_000))
+        let text = CodexBarCLI.renderCostText(provider: .antigravity, snapshot: snapshot, useColor: false)
+        #expect(text.split(separator: "\n").filter { $0.hasPrefix("Today:") }.count == 1)
+        #expect(text.contains("$0.10"))
+        #expect(text.contains("not Antigravity charges"))
+    }
+
     @Test(arguments: [1, 30])
     func `local token history shows each selected window once`(historyDays: Int) {
         let snapshot = CostUsageTokenSnapshot(

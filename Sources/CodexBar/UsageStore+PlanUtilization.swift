@@ -227,6 +227,7 @@ extension UsageStore {
                 snapshot: snapshot,
                 capturedAt: now,
                 forSessionEquivalents: true)
+            + Self.antigravityQuotaObservationSamples(snapshot: snapshot, capturedAt: now)
             : detectorSamples
         var effectiveOwner = claudeOAuthHistoryOwnerIdentifier
         if provider == .claude, isClaudeOAuthSample, let owner = claudeOAuthHistoryOwnerIdentifier {

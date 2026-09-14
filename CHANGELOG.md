@@ -6,9 +6,11 @@
 - Dependencies: update KeyboardShortcuts to 3.1.0 while preserving localized recorder prompts, the Linux release/static SDK toolchain to Swift 6.3.3, and Linux desktop CI to Node.js 26.
 
 ### Added
+- Antigravity: estimate supported local token usage at dated API rates, with separate unpriced-request coverage and an explicit non-billing disclaimer.
 - Codex: add the debug-only Workspaces project/session inspector with source, history and privacy updates, plus cancellation when its window closes (#3291). Thanks @AmrMohamad!
 
 ### Fixed
+- Antigravity: retain account-scoped quota observations when the API omits a reset duration, and suppress pace forecasts that would otherwise assume a five-hour cycle.
 - Abacus AI: retain used/total compute credits in CLI text/cards beside billing resets, and stop labelling undated amounts as reset clocks.
 - Manus, MiMo, and Neuralwatt: retain quota counts in CLI text/cards, keep amounts separate from actual reset dates, and preserve Manus monthly/daily details in native menus.
 - LiteLLM: preserve personal and team budget amounts in CLI text/cards and native menus, keeping amounts separate from actual reset dates.

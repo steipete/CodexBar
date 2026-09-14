@@ -1,8 +1,8 @@
 import AppKit
-import CodexBarCore
 import SwiftUI
 import Testing
 @testable import CodexBar
+@testable import CodexBarCore
 
 @MainActor
 // swiftlint:disable:next type_body_length
@@ -227,6 +227,21 @@ struct CostHistoryChartMenuViewTests {
             CostHistoryChartMenuView.estimateDisclaimer(provider: .codex)
                 == "Estimated from token usage · not a subscription bill")
         #expect(CostHistoryChartMenuView.estimateDisclaimer(provider: .claude) == nil)
+    }
+
+    @Test(arguments: [false, true])
+    func `Antigravity chart discloses unpriced requests even without a dollar total`(includePriced: Bool) throws {
+        let fixture = try AntigravityLocalFixture()
+        var blobs = [AntigravityLocalFixture.blob()]
+        if includePriced { blobs.append(AntigravityLocalFixture.blob(model: "gemini-3.8-flash")) }
+        try fixture.database(blobs: blobs)
+        let report = try fixture.report().report
+        let disclaimer = try #require(CostHistoryChartMenuView.coverageDisclaimer(
+            provider: .antigravity, daily: report.data, totalCostUSD: report.summary?.totalCostUSD))
+        #expect(disclaimer.contains("1 unpriced requests"))
+        #expect(disclaimer.contains("not billed"))
+        #expect(CostHistoryChartMenuView.coverageDisclaimer(
+            provider: .antigravity, daily: [], totalCostUSD: nil) == nil)
     }
 
     @Test

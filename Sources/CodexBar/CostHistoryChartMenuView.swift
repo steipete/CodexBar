@@ -323,14 +323,16 @@ struct CostHistoryChartMenuView: View {
                         .lineLimit(1)
                         .truncationMode(.head)
                         .frame(height: Self.detailPrimaryLineHeight, alignment: .leading)
-                    if let disclaimer = Self.estimateDisclaimer(provider: self.provider) {
-                        Text(disclaimer)
-                            .font(.caption2)
-                            .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                    }
                 }
+            }
+
+            if let disclaimer = Self.coverageDisclaimer(
+                provider: self.provider, daily: self.daily, totalCostUSD: self.totalCostUSD)
+            {
+                Text(disclaimer)
+                    .font(.caption2)
+                    .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             if !self.projects.isEmpty {
@@ -392,6 +394,13 @@ struct CostHistoryChartMenuView: View {
         case .estimate: UsageFormatter.costEstimateHint(provider: provider)
         case let .literal(text): L(text)
         }
+    }
+
+    static func coverageDisclaimer(provider: UsageProvider, daily: [DailyEntry], totalCostUSD: Double?) -> String? {
+        guard let disclaimer = estimateDisclaimer(provider: provider) else { return nil }
+        let unpriced = daily.reduce(0) { $0 + ($1.unpricedRequestCount ?? 0) }
+        if unpriced > 0 { return "\(disclaimer) · \(unpriced) unpriced requests" }
+        return totalCostUSD == nil ? nil : disclaimer
     }
 
     private struct Model {

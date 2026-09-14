@@ -189,7 +189,14 @@ struct PlanUtilizationHistoryChartMenuView: View {
         var historiesBySelection: [SeriesSelection: PlanUtilizationSeriesHistory] = [:]
         for history in histories {
             guard !history.entries.isEmpty else { continue }
-            guard history.windowMinutes > 0 else { continue }
+            guard history.hasSupportedCadence else { continue }
+            // Provider-specific by design: pool observations belong only to Antigravity, not session/weekly lanes.
+            guard !history.name.isQuotaObservation || provider == .antigravity else { continue }
+            if provider == .antigravity {
+                let usesObservations = UsageStore.antigravityHistoryUsesObservations(
+                    snapshot: snapshot, histories: histories)
+                guard history.name.isQuotaObservation == usesObservations else { continue }
+            }
             let effectiveName = Self.effectiveSeriesName(provider: provider, history: history)
             guard allowedNames?.contains(effectiveName) ?? true else { continue }
 
@@ -238,6 +245,7 @@ struct PlanUtilizationHistoryChartMenuView: View {
         provider: UsageProvider,
         history: PlanUtilizationSeriesHistory) -> PlanUtilizationSeriesName
     {
+        if history.name.isQuotaObservation { return history.name }
         let presentation = ProviderDescriptorRegistry.descriptor(for: provider).presentation
         let normalized = presentation.normalizePlanUtilizationSeries(
             self.providerSeries(history.name),
@@ -345,6 +353,14 @@ struct PlanUtilizationHistoryChartMenuView: View {
         history: PlanUtilizationSeriesHistory,
         referenceDate: Date) -> [Point]
     {
+        if history.windowMinutes == 0, history.name.isQuotaObservation {
+            // These are actual capture times, not inferred reset cycles. Never manufacture gaps.
+            let entries = Dictionary(grouping: history.entries, by: \.capturedAt)
+            return entries.keys.sorted().compactMap { date in
+                guard let entry = entries[date]?.last else { return nil }
+                return Point(id: date, index: 0, date: date, usedPercent: entry.usedPercent, isObserved: true)
+            }
+        }
         guard history.windowMinutes > 0 else { return [] }
         let windowInterval = Double(history.windowMinutes) * 60
         let resetBoundaryLattice = self.resetBoundaryLattice(
@@ -626,6 +642,10 @@ struct PlanUtilizationHistoryChartMenuView: View {
         windowMinutes: Int) -> String
     {
         switch name {
+        case .antigravityGemini:
+            L("Gemini Models")
+        case .antigravityClaudeGPT:
+            L("Claude and GPT")
         case .session:
             localizedSessionQuotaLabel(metadata?.sessionLabel ?? "Session", windowMinutes: windowMinutes)
         case .weekly:
@@ -648,9 +668,9 @@ struct PlanUtilizationHistoryChartMenuView: View {
 
     private nonisolated static func seriesSortOrder(_ name: PlanUtilizationSeriesName) -> Int {
         switch name {
-        case .session:
+        case .session, .antigravityGemini:
             0
-        case .weekly:
+        case .weekly, .antigravityClaudeGPT:
             1
         case .monthly:
             2

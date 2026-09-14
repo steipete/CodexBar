@@ -448,7 +448,7 @@ public struct CostUsageFetcher: Sendable {
                 calendar: fallbackCalendar,
                 historyCoverageIsEstablished: false)
         }
-        // Provider-specific by design: Antigravity uses recognized local stores without generic pricing or cache scans.
+        // Provider-specific by design: Antigravity reads local stores and estimates supported models per generation.
         if provider == .antigravity {
             if let local = try await self.loadAntigravityLocalSnapshot(
                 context: AntigravityLocalReader.Context(environment: environment),
@@ -1258,7 +1258,7 @@ public struct CostUsageFetcher: Sendable {
             useCurrentLocalDayForSession: true,
             calendar: cal,
             historyCoverageIsEstablished: reportResult.isComplete,
-            costProvenance: .unknown)
+            costProvenance: filtered.contains { $0.costUSD != nil } ? .listPriceEstimate : .unknown)
     }
 
     static func tokenSnapshot(

@@ -271,11 +271,27 @@ Local history reads only the existing recognized roots: `~/.gemini/antigravity-c
 `~/.config/tokscale/antigravity-cache/sessions/*.jsonl`; `TOKSCALE_CONFIG_DIR` replaces `~/.config/tokscale`.
 Both overrides and `HOME` come from the same refresh environment. Declared roots and session files may be symlinks;
 discovery still visits only the immediate entries of the recognized directories. This is machine-local token history,
-not account attribution or dollar pricing. No language server, provider CLI, browser, credentials, or network is used.
+not account attribution. No language server, provider CLI, browser, credentials, or network is used.
 
 Use `codexbar cost --provider antigravity --format json` to read this same local history from the CLI.
-The cost endpoint and dashboard also include it when Antigravity is selected. Token counts do not imply known dollar
-costs, and these entry points do not expand the supported timestamp layouts described below.
+The cost endpoint and dashboard also include it when Antigravity is selected. Supported model IDs have
+API-equivalent token estimates, explicitly not subscription charges or Antigravity credit deductions. Gemini
+3.6/3.7/3.8 Flash use the published standard text API input/output/cache-read rates, including the 2027-01-01
+introductory-price cutoff ([Google pricing](https://ai.google.dev/gemini-api/docs/pricing), checked 2026-09-13).
+Claude models reuse the existing dated API pricing resolver; the explicit `-thinking` variant bills its separately
+recorded thinking tokens as output. Cache-write events without a recorded duration remain unpriced, including
+Claude writes whose five-minute versus one-hour TTL is unknown. Unknown models also retain their token counts. Estimated and
+unpriced request counts accompany priced subtotals, so missing prices never become free usage. Cache storage,
+subscription fees, and service-specific charges are excluded. These entry points do not expand the supported
+timestamp layouts described below.
+
+Legacy Gemini/Claude-GPT pool responses often omit the reset duration. Their plan history therefore stores
+separate, account-scoped quota observations at actual capture times, with zero reserved as an unknown cadence.
+It does not infer a five-hour duration from reset proximity, reuse the older session/weekly histories as family
+history, or synthesize blank reset periods. Structured session/weekly quota summaries retain their existing
+history and session-equivalent forecast path.
+Unknown-duration pool windows also suppress pace forecasts: a reset timestamp alone does not establish a
+five-hour cycle or its start time.
 
 SQLite is authoritative when present. An unreadable root, malformed database, unsupported event layout, or exhausted
 budget never authorizes replacement by a smaller/stale JSONL cache. Some SQLite builds, including the macOS system
