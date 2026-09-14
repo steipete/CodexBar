@@ -306,18 +306,21 @@ final class MenuBarLayoutRenderer {
     /// each other instead of switching between them.
     static func composeStackedProviderRows(
         top: MenuBarLayoutRenderedTitle,
-        bottom: MenuBarLayoutRenderedTitle)
+        bottom: MenuBarLayoutRenderedTitle,
+        topProviderName: String,
+        bottomProviderName: String)
         -> MenuBarLayoutRenderedTitle
     {
-        // A row whose only configured content is a conditional that currently hides renders an empty
-        // title (mirroring the single-provider renderer's own collapse of an emptied line). Joining it
-        // in anyway would insert a stray blank row and vertically offset the other provider's row, so
-        // fall back to whichever row actually has content instead of always stacking both.
+        // A row's own accessibility label only names its provider when the row's configured tokens
+        // happen to include the icon or provider-name token; a preset like Compact Stacked can omit
+        // both, leaving VoiceOver unable to tell which value belongs to which provider. Naming the
+        // provider here, independent of the visible tokens, keeps that identification correct for
+        // every layout, not just the ones that happen to render it.
         if top.attributedTitle.length == 0 {
-            return bottom
+            return self.namingProvider(bottomProviderName, in: bottom)
         }
         if bottom.attributedTitle.length == 0 {
-            return top
+            return self.namingProvider(topProviderName, in: top)
         }
 
         let result = NSMutableAttributedString(attributedString: top.attributedTitle)
@@ -325,12 +328,25 @@ final class MenuBarLayoutRenderer {
         result.append(NSAttributedString(string: "\n", attributes: breakAttributes))
         result.append(bottom.attributedTitle)
         let secondLineLabel = L("menu_bar_layout_line", 2)
-        let accessibilityLabel = "\(top.accessibilityLabel), \(secondLineLabel), \(bottom.accessibilityLabel)"
+        let accessibilityLabel = "\(topProviderName), \(top.accessibilityLabel), " +
+            "\(secondLineLabel), \(bottomProviderName), \(bottom.accessibilityLabel)"
         return MenuBarLayoutRenderedTitle(
             attributedTitle: result,
             accessibilityLabel: accessibilityLabel,
             leadingIcon: nil,
             statusImage: nil)
+    }
+
+    private static func namingProvider(
+        _ providerName: String,
+        in row: MenuBarLayoutRenderedTitle)
+        -> MenuBarLayoutRenderedTitle
+    {
+        MenuBarLayoutRenderedTitle(
+            attributedTitle: row.attributedTitle,
+            accessibilityLabel: "\(providerName), \(row.accessibilityLabel)",
+            leadingIcon: row.leadingIcon,
+            statusImage: row.statusImage)
     }
 
     private static func renderUncached(

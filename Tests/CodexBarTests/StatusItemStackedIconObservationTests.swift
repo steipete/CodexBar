@@ -100,4 +100,22 @@ struct StatusItemStackedIconObservationTests {
 
         #expect(controller.stackedMergeIconProvidersIfActive() == nil)
     }
+
+    @Test
+    func `needs menu bar icon animation is false in stacked mode even while a row is still loading`() {
+        let (store, controller) = self.makeStackedController(
+            suiteName: "StatusItemStackedIconObservationTests-no-animation")
+        defer { controller.releaseStatusItemsForTesting() }
+
+        // Claude (the bottom row) has no snapshot and no error yet, which ordinarily drives
+        // shouldAnimate(provider:) to true for a loading provider.
+        store._setSnapshotForTesting(nil, provider: .claude)
+        store._setErrorForTesting(nil, provider: .claude)
+        #expect(controller.shouldAnimate(provider: .claude))
+
+        // Stacked rows always render through the layout-token path (guarded by
+        // menuBarShowsBrandIconWithPercent), which has no phase-driven blink/wiggle/tilt/morph rendering —
+        // the 30 FPS driver must not be scheduled for a frame that never actually changes.
+        #expect(controller.needsMenuBarIconAnimation() == false)
+    }
 }

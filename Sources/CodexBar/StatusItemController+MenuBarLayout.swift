@@ -113,7 +113,11 @@ extension StatusItemController {
             self.statusItem.length = NSStatusItem.variableLength
             return nil
         }
-        let rendered = MenuBarLayoutRenderer.composeStackedProviderRows(top: topRow, bottom: bottomRow)
+        let rendered = MenuBarLayoutRenderer.composeStackedProviderRows(
+            top: topRow,
+            bottom: bottomRow,
+            topProviderName: L(self.store.metadata(for: top).displayName),
+            bottomProviderName: L(self.store.metadata(for: bottom).displayName))
         let wasCached = button.image == nil && button.attributedTitle.isEqual(to: rendered.attributedTitle)
         self.statusItem.length = Self.applyMenuBarLayoutContent(
             rendered,

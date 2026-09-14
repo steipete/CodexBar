@@ -495,13 +495,21 @@ struct MenuBarLayoutRendererTests {
             icon: nil,
             options: topOptions)
 
-        let composed = MenuBarLayoutRenderer.composeStackedProviderRows(top: top, bottom: bottom)
+        let composed = MenuBarLayoutRenderer.composeStackedProviderRows(
+            top: top,
+            bottom: bottom,
+            topProviderName: "Codex",
+            bottomProviderName: "Claude")
         let bounds = composed.attributedTitle.boundingRect(
             with: NSSize(width: 200, height: CGFloat.greatestFiniteMagnitude),
             options: [.usesLineFragmentOrigin, .usesFontLeading])
 
         #expect(composed.attributedTitle.string == "69%\n45%")
         #expect(composed.accessibilityLabel.contains(L("menu_bar_layout_line", 2)))
+        // Neither row's layout includes the icon or provider-name token, so the composed label is the
+        // only place a provider is ever named — VoiceOver would otherwise hear two anonymous percentages.
+        #expect(composed.accessibilityLabel.contains("Codex"))
+        #expect(composed.accessibilityLabel.contains("Claude"))
         #expect(composed.leadingIcon == nil)
         #expect(composed.statusImage == nil)
         #expect(bounds.height <= 22)
@@ -529,12 +537,17 @@ struct MenuBarLayoutRendererTests {
             options: options)
         #expect(bottom.attributedTitle.string.isEmpty)
 
-        let composed = MenuBarLayoutRenderer.composeStackedProviderRows(top: top, bottom: bottom)
+        let composed = MenuBarLayoutRenderer.composeStackedProviderRows(
+            top: top,
+            bottom: bottom,
+            topProviderName: "Codex",
+            bottomProviderName: "Claude")
 
         // No stray blank row or vertical offset — the emptied row is dropped, not stacked as a blank line.
         #expect(composed.attributedTitle.string == "69%")
         #expect(!composed.attributedTitle.string.contains("\n"))
-        #expect(composed.accessibilityLabel == top.accessibilityLabel)
+        // The surviving row still gets its provider named, even though only one row made it through.
+        #expect(composed.accessibilityLabel == "Codex, \(top.accessibilityLabel)")
     }
 
     @Test

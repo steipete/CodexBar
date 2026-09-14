@@ -11,9 +11,11 @@ extension StatusItemController {
         2.7 / StatusItemController.loadingAnimationFPS
     private nonisolated static let loadingAnimationMaxContinuousDuration: TimeInterval = 30.0
     func needsMenuBarIconAnimation() -> Bool {
-        if let stackedProviders = self.stackedMergeIconProvidersIfActive() {
-            return self.shouldAnimate(provider: stackedProviders.top)
-                || self.shouldAnimate(provider: stackedProviders.bottom)
+        // Stacked rows always render through the layout-token path (`applyStoredStackedMenuBarLayoutIfNeeded`
+        // requires `menuBarShowsBrandIconWithPercent`), which has no phase-driven blink/wiggle/tilt/morph
+        // rendering — scheduling the 30 FPS driver here would only burn CPU for frames that never change.
+        if self.stackedMergeIconProvidersIfActive() != nil {
+            return false
         }
         if self.shouldMergeIcons {
             let primaryProvider = self.primaryProviderForUnifiedIcon()
