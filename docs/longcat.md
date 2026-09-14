@@ -31,3 +31,9 @@ The legacy `tokenUsage` response can report stale zeros for token-pack accounts,
 An active `currentLot` maps `totalToken` to the primary total and `consumedToken` to primary used tokens. When no
 usable lot exists, the legacy token-usage aggregate supplies total, used, and remaining quota. Pending fuel packages
 are summed into the secondary window, with their nearest expiry used as its reset time.
+
+Fuel-pack expiry accepts Unix seconds or milliseconds, ISO 8601 timestamps with or without fractional seconds,
+and the console's legacy date-and-time format.
+
+Token counts are displayed as quota details, not reset clocks. Fuel-pack counts remain visible alongside their expiry
+when one is reported.

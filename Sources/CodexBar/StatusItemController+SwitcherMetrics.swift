@@ -7,24 +7,24 @@ extension StatusItemController {
         showUsed: Bool,
         preference: MenuBarMetricPreference = .automatic) -> Double?
     {
-        let window: RateWindow? = if preference == .monthlyPlan {
-            MenuBarMetricWindowResolver.rateWindow(
+        let metric = preference == .automatic || preference == .monthlyPlan
+            ? MenuBarMetricWindowResolver.rateWindow(
                 preference: preference,
                 provider: provider,
                 snapshot: snapshot,
                 supportsAverage: false)
+            : nil
+        let presentation = ProviderDescriptorRegistry.descriptor(for: provider).presentation
+        let window: RateWindow? = if preference == .monthlyPlan {
+            metric
         } else if provider == .mistral {
             nil
         } else if preference == .automatic,
-                  MenuBarMetricWindowResolver.automaticSelectionPrioritizesExhaustedWindow(for: provider),
-                  let automatic = MenuBarMetricWindowResolver.rateWindow(
-                      preference: .automatic,
-                      provider: provider,
-                      snapshot: snapshot,
-                      supportsAverage: false),
-                  automatic.usedPercent >= 100
+                  let metric,
+                  presentation.switcherUsesAutomaticMenuBarWindow
+                  || (presentation.automaticSelectionPrioritizesExhaustedWindow && metric.usedPercent >= 100)
         {
-            automatic
+            metric
         } else {
             snapshot?.switcherWeeklyWindow(for: provider, showUsed: showUsed)
         }

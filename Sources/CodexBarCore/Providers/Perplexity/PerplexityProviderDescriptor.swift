@@ -40,6 +40,7 @@ public enum PerplexityProviderDescriptor {
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
                 sharePlanLabels: ["pro": "Pro", "max": "Max"],
+                usesDetailBackedWindow: true,
                 browserCookieOrder: nil,
                 dashboardURL: "https://www.perplexity.ai/account/usage",
                 statusPageURL: nil,
@@ -61,6 +62,10 @@ public enum PerplexityProviderDescriptor {
                     let windows = context.snapshot.orderedPerplexityDisplayWindows()
                     return ProviderUsageWindowPair(primary: windows.first, secondary: windows.dropFirst().first)
                 },
+                semanticWindowResolver: { snapshot in
+                    ProviderSemanticWindows(session: snapshot.primary, weekly: snapshot.secondary)
+                },
+                menuBarLayoutSecondaryLabel: "Bonus credits",
                 requestedMenuBarLaneOrders: [
                     .primary: [.primary, .secondary, .tertiary],
                     .secondary: [.secondary, .tertiary, .primary],

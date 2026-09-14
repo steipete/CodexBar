@@ -12,8 +12,16 @@
 - Claude: retry an inconclusive Keychain preflight a few times before giving up on background browser-cookie recovery, and report an unverified session rather than a sign-out when every recovery candidate was skipped without ever being attempted.
 - Claude: preserve a confirmed auth failure (e.g. a revoked session cookie) when it happens right after browser recovery finds a real session, instead of misreporting it as an unverified session just because a different browser was separately skipped by the Keychain preflight.
 - Claude: keep reporting an unverified session (instead of reverting to the misleading sign-in message) on a repeat background refresh once the earlier cycle's cache invalidation already cleared the cookie it would otherwise have compared against.
+- Abacus AI: retain used/total compute credits in CLI text/cards beside billing resets, and stop labelling undated amounts as reset clocks.
+- Manus, MiMo, and Neuralwatt: retain quota counts in CLI text/cards, keep amounts separate from actual reset dates, and preserve Manus monthly/daily details in native menus.
+- LiteLLM: preserve personal and team budget amounts in CLI text/cards and native menus, keeping amounts separate from actual reset dates.
+- Perplexity: restore explicit credit-pool percentages, retain CLI credit amounts, and keep credit descriptions out of layout reset-time tokens while preserving Automatic pool selection.
+- Warp: show available add-on credits in Automatic and the provider switcher after monthly credits run out, restore explicit pool percentages, and name quota pools in the percent picker (fixes #3632).
+- LongCat: show token balances as details, keep fuel-pack balances beside their expiry, and parse expiry timestamps with fractional seconds.
+- Usage & Spend: align the Token/Cost picker with the chart and detail text at different menu widths (#3626). Thanks @elijahfriedman!
 - Linux: document complete distro runtime dependencies and one verified CLI/desktop installation flow that stops before extraction on download or checksum failure (#3615, fixes #3614). Thanks @darkrei08!
 - CI: install checksum-verified Swift static SDK archives locally to avoid SwiftPM's Linux downloader teardown crash, and synchronize the late-PTY-fork cleanup fixture.
+- Antigravity: recover CLI quotas through the supported structured usage report when legacy HTTPS fetching fails, while preserving verified account identity and selected-account boundaries (#3607, related to #3586). Thanks @sobczi!
 - Codex: restore missing cost estimates after changed-session rescans, preserve pricing across partial scans and restarts, and retain saved history when upgrading from 0.60.1 (#3620, related to #3617).
 - Menu: remove empty space and clipped cards after switching merged-menu tabs with different card heights (#3616, fixes #3549). Thanks @zenibako!
 - Mistral: handle signed billing adjustments without intermediate overflow, reject unrepresentable counts without crashing, and retain valid costs when token totals or model rankings are unavailable.

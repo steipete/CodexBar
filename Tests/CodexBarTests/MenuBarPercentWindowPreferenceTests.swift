@@ -5,6 +5,15 @@ import Testing
 
 struct MenuBarPercentWindowPreferenceTests {
     @Test
+    func `picker labels name credit pools and respect reversed semantic windows`() {
+        #expect(MenuBarPercentWindowPreference.session.label(for: .warp) == L("Credits"))
+        #expect(MenuBarPercentWindowPreference.weekly.label(for: .warp) == L("Add-on credits"))
+        #expect(MenuBarPercentWindowPreference.session.label(for: .kimi) == L("5-hour usage"))
+        #expect(MenuBarPercentWindowPreference.weekly.label(for: .kimi) == L("7-day usage"))
+        #expect(MenuBarPercentWindowPreference.automatic.label(for: .warp) == L("menu_bar_layout_token_auto"))
+    }
+
+    @Test
     @MainActor
     func `percent choice preserves explicit reset windows and conditional library through V3 reload`() {
         let rule = MenuBarLayoutConditional(

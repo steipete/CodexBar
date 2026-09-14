@@ -55,7 +55,8 @@ struct AntigravityPortDiscoveryTests {
                             label: "Gemini Pro", modelId: "gemini-pro", remainingFraction: 0.5,
                             resetTime: nil, resetDescription: nil)],
                         accountEmail: "fixture@example.com", accountPlan: "Pro", source: .local)
-                }))
+                },
+                now: Date.init))
         #expect(snapshot.accountEmail == "fixture@example.com")
         #expect(await attempts.count == 2)
     }

@@ -319,8 +319,7 @@ public struct LongCatUsageFetcher: Sendable {
             }
         }
         if let string = LongCatJSON.string(value) {
-            let iso = ISO8601DateFormatter()
-            if let date = iso.date(from: string) {
+            if let date = ISO8601DateParser.parse(string) {
                 return date
             }
             let formatter = DateFormatter()

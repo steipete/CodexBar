@@ -44,6 +44,9 @@ The billing cycle window is set to 30 days for pace calculation.
 
 ## CLI
 
+CLI text and cards retain used/total compute credits beside the real billing reset. When a reset date is unavailable,
+credit amounts remain details without a reset label; native quota details and pacing are unchanged.
+
 ```bash
 codexbar usage --provider abacusai --verbose
 ```

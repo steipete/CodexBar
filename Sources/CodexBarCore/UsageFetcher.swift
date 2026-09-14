@@ -357,14 +357,7 @@ public struct UsageSnapshot: Codable, Sendable {
     }
 
     public func automaticPerplexityWindow() -> RateWindow? {
-        let fallbackWindows = self.orderedPerplexityFallbackWindows()
-        guard let primary = self.primary else {
-            return fallbackWindows.first
-        }
-        if primary.remainingPercent > 0 || fallbackWindows.isEmpty {
-            return primary
-        }
-        return fallbackWindows.first
+        self.orderedPerplexityDisplayWindows().first
     }
 
     public func orderedPerplexityDisplayWindows() -> [RateWindow] {
