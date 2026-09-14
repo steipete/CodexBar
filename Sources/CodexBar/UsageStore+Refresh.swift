@@ -1582,19 +1582,25 @@ extension UsageStore {
         return error.localizedDescription == ClaudeStatusProbeError.timedOut.localizedDescription
     }
 
-    /// `cachedSessionUnverifiedInBackground`'s fixed wording ("...showing last-known usage...") and the
-    /// suppressed sign-in affordance it implies both assume there is real prior usage to protect. That's
-    /// true once `hadPriorData` holds, but `UsageStore.snapshots` starts empty on every launch (there is
-    /// no persisted-snapshot restoration), so a background refresh that hits this classification before
-    /// the first successful fetch of the process has nothing to show and nothing to lose by asking the
-    /// user to sign in — remap it to the plain no-session message so the login menu action reappears.
+    /// `cachedSessionUnverifiedInBackground`'s fetcher-level wording is deliberately neutral — the same
+    /// fetcher also serves the CLI's one-shot `codexbar usage`, which has no `UsageStore` snapshot to
+    /// preserve, no automatic retry loop, and no Refresh control to point at. The "showing last-known
+    /// usage... click Refresh" framing is added here instead, purely for the app's own presentation, and
+    /// only where it's actually true:
+    ///  - With no prior data (`UsageStore.snapshots` starts empty on every launch — there is no
+    ///    persisted-snapshot restoration — so a background refresh hitting this classification before the
+    ///    first successful fetch of the process has nothing to show), remap to the plain no-session
+    ///    message instead so the login menu action reappears.
+    ///  - With prior data, append the app-specific framing back onto the neutral base description.
     private static func claudeWebEffectiveErrorDescription(_ error: Error, hadPriorData: Bool) -> String {
-        if !hadPriorData,
-           case ClaudeWebAPIFetcher.FetchError.cachedSessionUnverifiedInBackground = error
-        {
+        guard case ClaudeWebAPIFetcher.FetchError.cachedSessionUnverifiedInBackground = error else {
+            return error.localizedDescription
+        }
+        guard hadPriorData else {
             return ClaudeWebAPIFetcher.FetchError.noSessionKeyFound.localizedDescription
         }
-        return error.localizedDescription
+        return error.localizedDescription +
+            " Showing last-known usage; it will retry automatically, or click Refresh to check now."
     }
 
     private static func isClaudeWebSessionRefreshFailure(_ error: Error) -> Bool {
