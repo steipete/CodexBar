@@ -253,6 +253,60 @@ struct ClaudeWebBackgroundRecoveryTests {
     }
 
     @Test
+    func `background refresh reports unverified session on a repeat cycle with no cache left to invalidate`() async throws {
+        try await self.withIsolatedCookieCache {
+            // No cached cookie at all this cycle — mirroring a *second* consecutive background refresh
+            // after a first cycle's invalidation already cleared it (`clearIfCurrent`), while the
+            // underlying Keychain preflight is still just as inconclusive as it was the first time.
+            // `invalidatedCacheError` is therefore nil throughout this attempt; the gate skip must still be
+            // classified as unverified rather than falling through to the plain, misleading
+            // `noSessionKeyFound` sign-in message.
+
+            let temp = FileManager.default.temporaryDirectory
+                .appendingPathComponent("claude-background-recovery-no-cache-\(UUID().uuidString)", isDirectory: true)
+            let chromeCookies = temp
+                .appendingPathComponent("Library/Application Support/Google/Chrome/Default/Network/Cookies")
+            try FileManager.default.createDirectory(
+                at: chromeCookies.deletingLastPathComponent(),
+                withIntermediateDirectories: true)
+            FileManager.default.createFile(atPath: chromeCookies.path, contents: Data())
+            defer { try? FileManager.default.removeItem(at: temp) }
+            let detection = BrowserDetection(
+                homeDirectory: temp.path,
+                cacheTTL: 0,
+                fileExists: { path in
+                    if path == "/Applications/Google Chrome.app" { return true }
+                    return FileManager.default.fileExists(atPath: path)
+                },
+                directoryContents: { path in try? FileManager.default.contentsOfDirectory(atPath: path) })
+
+            do {
+                try await KeychainAccessGate.withTaskOverrideForTesting(false) {
+                    try await KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { _, _ in
+                        .temporarilyUnavailable
+                    } operation: {
+                        try await ProviderInteractionContext.$current.withValue(.background) {
+                            try await self.withClaudeWebStub { request in
+                                try Self.response(for: request, setCookie: nil)
+                            } operation: {
+                                _ = try await ClaudeWebAPIFetcher.fetchUsage(browserDetection: detection)
+                            }
+                        }
+                    }
+                }
+                Issue.record("Expected cachedSessionUnverifiedInBackground")
+            } catch let error as ClaudeWebAPIFetcher.FetchError {
+                guard case .cachedSessionUnverifiedInBackground = error else {
+                    Issue.record("Expected cachedSessionUnverifiedInBackground, got \(error)")
+                    return
+                }
+            } catch {
+                Issue.record("Expected cachedSessionUnverifiedInBackground, got \(error)")
+            }
+        }
+    }
+
+    @Test
     func `background refresh preserves a confirmed auth failure after a real session is recovered`() async throws {
         try await self.withIsolatedCookieCache {
             CookieHeaderCache.store(
