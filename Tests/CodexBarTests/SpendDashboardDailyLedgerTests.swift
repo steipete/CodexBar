@@ -107,6 +107,65 @@ struct SpendDashboardDailyLedgerTests {
     }
 
     @Test
+    func `unpriced source keeps the known spend of priced sources on the same day`() throws {
+        let claude = Self.input(
+            id: "claude",
+            provider: .claude,
+            displayName: "Claude",
+            entries: [
+                Self.entry(day: "2026-07-14", cost: 2, tokens: 20, requests: 2),
+                Self.entry(day: "2026-07-16", cost: 3, tokens: 30, requests: 3),
+            ],
+            totalTokens: 50)
+        let antigravity = Self.input(
+            id: "antigravity",
+            provider: .antigravity,
+            displayName: "Antigravity",
+            entries: [Self.unpricedEntry(day: "2026-07-16", tokens: 40, requests: 4)],
+            totalTokens: 40,
+            unpriced: true)
+        let group = try #require(Self.group(inputs: [claude, antigravity]))
+
+        #expect(group.dailySummaries.map(\.totalCost) == [2, 0, 3])
+        #expect(group.dailySummaries.map(\.hasPartialCost) == [false, false, true])
+        #expect(group.dailySummaries.map(\.totalTokens) == [20, 0, 70])
+        let first = try #require(group.dailySummaries.first)
+        let last = try #require(group.dailySummaries.last)
+        #expect(spendDashboardLedgerCostText(first, currencyCode: "USD") == "$2.00")
+        #expect(spendDashboardLedgerCostText(last, currencyCode: "USD") == "~$3.00")
+        #expect(last.providers.map(\.totalCost) == [3, nil])
+        #expect(group.dailyPoints.map(\.sourceID) == ["claude", "claude"])
+    }
+
+    @Test
+    func `unpriced activity on an idle priced day shows a partial zero`() throws {
+        let claude = Self.input(
+            id: "claude",
+            provider: .claude,
+            displayName: "Claude",
+            entries: [Self.entry(day: "2026-07-14", cost: 2, tokens: 20, requests: 2)],
+            totalTokens: 20)
+        let antigravity = Self.input(
+            id: "antigravity",
+            provider: .antigravity,
+            displayName: "Antigravity",
+            entries: [Self.unpricedEntry(day: "2026-07-16", tokens: 40, requests: 4)],
+            totalTokens: 40,
+            unpriced: true)
+        let group = try #require(Self.group(inputs: [claude, antigravity]))
+
+        let last = try #require(group.dailySummaries.last)
+        #expect(last.totalCost == 0)
+        #expect(last.hasPartialCost)
+        #expect(spendDashboardLedgerCostText(last, currencyCode: "USD") == "~$0.00")
+        let unpricedOnly = try #require(Self.group(inputs: [antigravity]))
+        let unpricedLast = try #require(unpricedOnly.dailySummaries.last)
+        #expect(unpricedLast.totalCost == nil)
+        #expect(!unpricedLast.hasPartialCost)
+        #expect(spendDashboardLedgerCostText(unpricedLast, currencyCode: "USD") == "—")
+    }
+
+    @Test
     func `daily ledger aggregates providers and fills covered zero days`() throws {
         let claude = Self.input(
             id: "claude",
@@ -268,7 +327,8 @@ struct SpendDashboardDailyLedgerTests {
         entries: [CostUsageDailyReport.Entry],
         totalTokens: Int,
         totalRequests: Int? = nil,
-        updatedAt: Date = now) -> SpendDashboardModel.ProviderInput
+        updatedAt: Date = now,
+        unpriced: Bool = false) -> SpendDashboardModel.ProviderInput
     {
         SpendDashboardModel.ProviderInput(
             id: id,
@@ -278,7 +338,7 @@ struct SpendDashboardDailyLedgerTests {
                 sessionTokens: nil,
                 sessionCostUSD: nil,
                 last30DaysTokens: totalTokens,
-                last30DaysCostUSD: entries.compactMap(\.costUSD).reduce(0, +),
+                last30DaysCostUSD: unpriced ? nil : entries.compactMap(\.costUSD).reduce(0, +),
                 last30DaysRequests: totalRequests,
                 currencyCode: "USD",
                 historyDays: 3,
@@ -304,6 +364,24 @@ struct SpendDashboardDailyLedgerTests {
                 .init(
                     modelName: "test-model",
                     costUSD: cost,
+                    totalTokens: tokens,
+                    requestCount: requests),
+            ])
+    }
+
+    private static func unpricedEntry(day: String, tokens: Int, requests: Int?) -> CostUsageDailyReport.Entry {
+        CostUsageDailyReport.Entry(
+            date: day,
+            inputTokens: nil,
+            outputTokens: nil,
+            totalTokens: tokens,
+            requestCount: requests,
+            costUSD: nil,
+            modelsUsed: nil,
+            modelBreakdowns: [
+                .init(
+                    modelName: "unpriced-model",
+                    costUSD: nil,
                     totalTokens: tokens,
                     requestCount: requests),
             ])

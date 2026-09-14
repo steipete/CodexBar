@@ -58,6 +58,7 @@ final class SpendDailyLedgerNativeProofTests: XCTestCase {
                 "contentSize": NSStringFromSize(window.contentView?.bounds.size ?? .zero),
                 "ledgerDays": String(group.dailySummaries.count),
                 "unknownDay": String(group.dailySummaries.last?.totalCost == nil),
+                "partialDay": String(group.dailySummaries.first?.hasPartialCost == true),
             ]
             try JSONEncoder().encode(receipt).write(to: output.appendingPathComponent("state.json"), options: .atomic)
             if let event = app.nextEvent(
@@ -102,15 +103,37 @@ final class SpendDailyLedgerNativeProofTests: XCTestCase {
             historyDays: 3,
             daily: entries,
             updatedAt: now)
+        // A token-only source active on the priced day: the day keeps the known $2 with a tilde.
+        let unpricedSnapshot = CostUsageTokenSnapshot(
+            sessionTokens: 30,
+            sessionCostUSD: nil,
+            last30DaysTokens: 30,
+            last30DaysCostUSD: nil,
+            historyDays: 3,
+            daily: [.init(
+                date: "2026-07-14",
+                inputTokens: 20,
+                outputTokens: 10,
+                totalTokens: 30,
+                requestCount: 3,
+                costUSD: nil,
+                modelsUsed: ["fixture-token-only"],
+                modelBreakdowns: [.init(modelName: "fixture-token-only", costUSD: nil, totalTokens: 30)])],
+            updatedAt: now)
         let model = SpendDashboardModel.build(
-            inputs: [.init(provider: .codex, displayName: "Synthetic Codex", snapshot: snapshot)],
+            inputs: [
+                .init(provider: .codex, displayName: "Synthetic Codex", snapshot: snapshot),
+                .init(provider: .antigravity, displayName: "Synthetic Antigravity", snapshot: unpricedSnapshot),
+            ],
             requestedDays: 3,
             now: now,
             calendar: calendar)
         let group = try XCTUnwrap(model.groups.first)
         XCTAssertEqual(group.dailySummaries.count, 3)
         XCTAssertEqual(group.dailySummaries.first?.totalCost, 2)
+        XCTAssertEqual(group.dailySummaries.first?.hasPartialCost, true)
         XCTAssertEqual(group.dailySummaries[1].totalCost, 0)
+        XCTAssertEqual(group.dailySummaries[1].hasPartialCost, false)
         XCTAssertNil(group.dailySummaries.last?.totalCost)
         return group
     }
