@@ -1483,26 +1483,46 @@ extension ClaudeWebAPIFetcher {
                 // A confirmed outcome (not gate-skipped, or not eligible for the masking above): the cached
                 // cookie really is dead, so clear it now — the next cycle should go straight to recovery
                 // instead of re-trying a known-dead cookie against the API.
-                if let invalidatedCacheEntry {
-                    _ = CookieHeaderCache.clearIfCurrent(provider: .claude, expected: invalidatedCacheEntry)
-                }
+                Self.clearInvalidatedCacheEntryIfNeeded(invalidatedCacheEntry)
                 throw invalidatedCacheError
             }
             throw error
         }
         log("Found session key (\(sessionInfo.cookieCount) cookies)")
 
-        // Once a session key is actually recovered, any error from the API call itself is a real,
-        // confirmed result (e.g. the server rejecting the cookie) — not a gate side effect — so it must
-        // propagate unmodified rather than being reclassified via `anySkippedByGate` above.
-        return try await self.fetchUsage(
-            using: sessionInfo,
-            options: options,
-            logger: log,
-            cachePersistence: CachePersistence(
-                sourceLabel: sessionInfo.sourceLabel,
-                expectedObservation: cacheObservation,
-                persistInitialSessionKey: true))
+        do {
+            // Once a session key is actually recovered, any error from the API call itself is a real,
+            // confirmed result (e.g. the server rejecting the cookie) — not a gate side effect — so it must
+            // propagate unmodified rather than being reclassified via `anySkippedByGate` above.
+            return try await self.fetchUsage(
+                using: sessionInfo,
+                options: options,
+                logger: log,
+                cachePersistence: CachePersistence(
+                    sourceLabel: sessionInfo.sourceLabel,
+                    expectedObservation: cacheObservation,
+                    persistInitialSessionKey: true))
+        } catch let error as FetchError {
+            switch error {
+            case .unauthorized, .noSessionKeyFound, .invalidSessionKey:
+                // The recovered key also failed auth: the account is genuinely having a session problem,
+                // not just an access hiccup with one browser. This is now the *second* piece of confirmed
+                // evidence, on top of the original cached cookie's own rejection earlier this attempt — so
+                // that original stale entry (which fetchUsage never touches on a failure path, since it
+                // only persists after a successful fetch) needs clearing too. Left uncleared, a later
+                // cycle's gate skip could still reclassify it as merely "unverified" despite this attempt's
+                // own confirmed double rejection.
+                Self.clearInvalidatedCacheEntryIfNeeded(invalidatedCacheEntry)
+            default:
+                break
+            }
+            throw error
+        }
+    }
+
+    private static func clearInvalidatedCacheEntryIfNeeded(_ entry: CookieHeaderCache.Entry?) {
+        guard let entry else { return }
+        _ = CookieHeaderCache.clearIfCurrent(provider: .claude, expected: entry)
     }
 }
 #endif

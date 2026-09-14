@@ -471,6 +471,13 @@ struct ClaudeWebBackgroundRecoveryTests {
             } catch {
                 Issue.record("Expected .unauthorized, got \(error)")
             }
+
+            // The original cached cookie (rejected at the top of this same attempt) is now doubly
+            // confirmed dead: a completely different, freshly recovered key also failed auth, so this
+            // isn't a gate side effect. That original entry must be cleared too — left in place, a later
+            // cycle's gate skip could still reclassify it as merely "unverified" despite this attempt's
+            // own confirmed rejection of both keys.
+            #expect(CookieHeaderCache.load(provider: .claude) == nil)
         }
     }
 
