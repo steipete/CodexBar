@@ -118,4 +118,18 @@ struct StatusItemStackedIconObservationTests {
         // the 30 FPS driver must not be scheduled for a frame that never actually changes.
         #expect(controller.needsMenuBarIconAnimation() == false)
     }
+
+    @Test
+    func `updateBlinkingState does not start the surprise-me blink task in stacked mode`() {
+        let (_, controller) = self.makeStackedController(
+            suiteName: "StatusItemStackedIconObservationTests-no-blink")
+        defer { controller.releaseStatusItemsForTesting() }
+
+        // "Surprise me" would ordinarily start blinkTask for any enabled provider; stacked rendering never
+        // consumes blinkAmounts/wiggleAmounts/tiltAmounts, so the task must never start regardless.
+        controller.settings.randomBlinkEnabled = true
+        controller.updateBlinkingState()
+
+        #expect(controller.blinkTask == nil)
+    }
 }

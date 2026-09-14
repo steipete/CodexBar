@@ -151,6 +151,12 @@ struct MenuBarPane: View {
                 self.isOverviewProviderPopoverPresented = false
             }
             self.reconcileOverviewSelection()
+        }
+        // Stacked rows are picked from the unfiltered display list (`enabledFirstPartyProvidersForDisplay`,
+        // also what the row pickers and resolver use), not `activeProvidersInOrder`'s availability-filtered
+        // list above — a provider that stays enabled but turns momentarily unavailable, or vice versa, can
+        // change one list without changing the other, silently leaving a stale row selection unreconciled.
+        .onChange(of: self.stackedProvidersInOrder) { _, _ in
             self.reconcileStackedProviderSelections()
         }
     }
@@ -217,16 +223,22 @@ struct MenuBarPane: View {
         self.store.enabledFirstPartyProviders()
     }
 
+    /// The unfiltered enabled-provider list Stacked's row pickers and resolver are drawn from — unlike
+    /// `activeProvidersInOrder`, this does not drop a provider that is enabled but momentarily unavailable.
+    private var stackedProvidersInOrder: [UsageProvider] {
+        self.store.enabledFirstPartyProvidersForDisplay()
+    }
+
     private var isStackedStyleActive: Bool {
         self.settings.mergeIcons && self.settings.mergedIconDisplayStyle == .stacked
             && self.settings.menuBarIconStyle == .iconAndPercent
-            && self.store.enabledFirstPartyProvidersForDisplay().count >= 2
+            && self.stackedProvidersInOrder.count >= 2
     }
 
     /// Clears an explicit row pick once it's no longer active, so the picker's label can never disagree
     /// with what `resolvedMergeIconStackedProviders` actually resolves and renders.
     private func reconcileStackedProviderSelections() {
-        let active = Set(self.store.enabledFirstPartyProvidersForDisplay())
+        let active = Set(self.stackedProvidersInOrder)
         if let top = self.settings.mergeIconStackedTopProvider, !active.contains(top) {
             self.settings.mergeIconStackedTopProvider = nil
         }
@@ -245,7 +257,7 @@ struct MenuBarPane: View {
     {
         SettingsMenuPicker(
             selection: selection,
-            options: [nil] + self.store.enabledFirstPartyProvidersForDisplay().filter { $0 != excluding },
+            options: [nil] + self.stackedProvidersInOrder.filter { $0 != excluding },
             label: { Text(title) },
             optionLabel: { provider in
                 Text(provider.map(self.providerDisplayName) ?? L("Automatic"))

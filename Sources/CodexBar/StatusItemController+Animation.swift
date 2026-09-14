@@ -39,6 +39,14 @@ extension StatusItemController {
         #if DEBUG
         guard !self.isReleasedForTesting else { return }
         #endif
+        // Stacked rows render exclusively through the layout-token path, which — like the loading
+        // animation `needsMenuBarIconAnimation()` already excludes stacked mode from — never consumes
+        // blinkAmounts/wiggleAmounts/tiltAmounts. Starting the blink task here would just wake and redraw
+        // on a timer for a frame that can never show it.
+        if self.stackedMergeIconProvidersIfActive() != nil {
+            self.stopBlinking()
+            return
+        }
         // During the loading animation, blink ticks can overwrite the animated menu bar icon and cause flicker.
         if self.needsMenuBarIconAnimation() {
             self.stopBlinking()
