@@ -49,7 +49,8 @@ struct DevinProviderImplementation: ProviderImplementation {
             ProviderSettingsFieldDescriptor(
                 id: "devin-organization",
                 title: "Organization",
-                subtitle: "Optional. Use the slug from app.devin.ai/org/<slug>, or paste the full Devin org URL.",
+                subtitle: "Optional for automatic auth. Use a slug, URL, or internal org-... / org_... ID. " +
+                    "Manual auth may need the x-cog-org-id header from a successful Devin quota request.",
                 kind: .plain,
                 placeholder: "org/example-org",
                 binding: context.binding(\.devinOrganization),
