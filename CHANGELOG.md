@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.60.3 — Unreleased
+
+### Fixed
+- Updates: recognize Homebrew-managed apps in `/Applications` and show the existing Homebrew update instruction, while preserving Sparkle updates for separate app copies (#3647). Thanks @fanwenlin!
+
 ## 0.60.2 — 2026-09-14
 
 ### Highlights

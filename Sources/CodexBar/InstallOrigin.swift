@@ -28,10 +28,8 @@ enum InstallOrigin {
 
             return versions.contains { version in
                 let artifact = version.appendingPathComponent("CodexBar.app")
-                guard (try? fileManager.destinationOfSymbolicLink(atPath: artifact.path)) != nil else {
-                    return false
-                }
-                return artifact.resolvingSymlinksInPath().standardizedFileURL == resolved
+                return (try? fileManager.destinationOfSymbolicLink(atPath: artifact.path)) != nil &&
+                    artifact.resolvingSymlinksInPath().standardizedFileURL == resolved
             }
         }
     }
