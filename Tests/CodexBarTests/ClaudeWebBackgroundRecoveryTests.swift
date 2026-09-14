@@ -553,8 +553,14 @@ struct ClaudeWebBackgroundRecoveryTests {
     }
 
     @Test
-    func `a confirmed dead cookie is not reclassified as unverified when its Keychain clear fails`() async throws {
-        try await self.withIsolatedCookieCache {
+    func `a confirmed dead cookie is not reclassified as unverified when its Keychain clear fails`() async {
+        // This marker is intentionally backed by UserDefaults (not in-memory-only), specifically so it
+        // survives an app restart while the Keychain is still locked; reset it on both sides so a prior
+        // or later test run can't leave residue that masks what this test itself proves.
+        ClaudeWebAPIFetcher.resetConfirmedDeadCookieHeadersForTesting()
+        defer { ClaudeWebAPIFetcher.resetConfirmedDeadCookieHeadersForTesting() }
+
+        await self.withIsolatedCookieCache {
             CookieHeaderCache.store(
                 provider: .claude,
                 cookieHeader: "sessionKey=sk-ant-stale-token",
@@ -575,7 +581,7 @@ struct ClaudeWebBackgroundRecoveryTests {
             // than gate-skipped) — a confirmed outcome, not a gate side effect. Simulate the Keychain clear
             // itself failing (e.g. a temporarily locked screen), so the stale entry survives in the cache
             // despite being confirmed dead.
-            try await KeychainCacheStore.withClearFailureStatusOverrideForTesting(errSecInteractionNotAllowed) {
+            _ = await KeychainCacheStore.withClearFailureStatusOverrideForTesting(errSecInteractionNotAllowed) {
                 await #expect(throws: ClaudeWebAPIFetcher.FetchError.self) {
                     try await ProviderInteractionContext.$current.withValue(.background) {
                         try await self.withClaudeWebStub(handler: stub) {
@@ -589,10 +595,16 @@ struct ClaudeWebBackgroundRecoveryTests {
             // The clear failed, so the stale entry is still cached — despite being confirmed dead.
             #expect(CookieHeaderCache.load(provider: .claude)?.cookieHeader == "sessionKey=sk-ant-stale-token")
 
+            // The confirmation itself was written through to UserDefaults, not just kept in memory — this
+            // is what lets it survive an app restart while the Keychain is still locked, rather than being
+            // lost at the exact moment it's still needed (the finding this test guards).
+            let persisted = UserDefaults.standard.stringArray(forKey: "claudeWebConfirmedDeadCookieHeaders") ?? []
+            #expect(persisted.contains("sessionKey=sk-ant-stale-token"))
+
             // Second cycle: the same stale cookie is tried again (still cached) and rejected again, but
             // this time recovery is genuinely gate-skipped rather than merely unavailable. Without the
-            // in-memory confirmed-dead marker, this would incorrectly downgrade the already-confirmed
-            // sign-out from the first cycle back to "unverified."
+            // confirmed-dead marker, this would incorrectly downgrade the already-confirmed sign-out from
+            // the first cycle back to "unverified."
             let isolatedHome = FileManager.default.temporaryDirectory
                 .appendingPathComponent("claude-background-recovery-confirmed-dead-\(UUID().uuidString)").path
             do {
