@@ -46,6 +46,7 @@ struct ClaudeSwapListParserTests {
         let list = try self.parse(json)
         #expect(list.activeAccountNumber == 2)
         #expect(list.accounts.count == 2)
+        #expect(list.supportsAccountSwitching == true)
 
         let first = try #require(list.accounts.first)
         #expect(first.number == 1)
@@ -72,6 +73,42 @@ struct ClaudeSwapListParserTests {
         #expect(second.fiveHour?.resetsAt == nil)
         #expect(second.sevenDay == nil)
         #expect(second.scoped.isEmpty)
+    }
+
+    @Test
+    func `parses read only adapter capability`() throws {
+        let json = """
+        {
+          "schemaVersion": 1,
+          "activeAccountNumber": 1,
+          "supportsAccountSwitching": false,
+          "accounts": [
+            {"number": 1, "email": "work@example.com", "active": true, "usageStatus": "ok"},
+            {"number": 2, "email": "personal@example.com", "active": false, "usageStatus": "ok"}
+          ]
+        }
+        """
+
+        let list = try self.parse(json)
+        #expect(list.supportsAccountSwitching == false)
+    }
+
+    @Test
+    func `rejects malformed read only adapter capability`() {
+        let json = """
+        {
+          "schemaVersion": 1,
+          "activeAccountNumber": null,
+          "supportsAccountSwitching": "no",
+          "accounts": []
+        }
+        """
+
+        #expect(throws: ClaudeSwapListParserError.malformedShape(
+            "supportsAccountSwitching is not a boolean"))
+        {
+            try self.parse(json)
+        }
     }
 
     @Test

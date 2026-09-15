@@ -44,7 +44,9 @@ public enum ClaudeSwapAccountProjection {
                 displayLabel: self.decoratedLabel(label, row: row),
                 accountEmail: row.email.isEmpty ? nil : row.email,
                 isActive: row.isActive,
-                canActivate: self.canActivate(row),
+                canActivate: self.canActivate(
+                    row,
+                    supportsAccountSwitching: list.supportsAccountSwitching),
                 usesLastKnownUsage: projected.usesLastKnownUsage,
                 snapshot: snapshot,
                 error: self.errorText(for: row, usage: projected, now: now),
@@ -376,7 +378,11 @@ public enum ClaudeSwapAccountProjection {
         return String(title.dropLast(suffix.count))
     }
 
-    private static func canActivate(_ row: ClaudeSwapAccountRow) -> Bool {
+    private static func canActivate(
+        _ row: ClaudeSwapAccountRow,
+        supportsAccountSwitching: Bool) -> Bool
+    {
+        guard supportsAccountSwitching else { return false }
         if row.isActive { return row.usageStatus == .foreignCredential }
         return switch row.usageStatus {
         case .ok, .apiKey, .unavailable, .foreignCredential:
