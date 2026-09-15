@@ -50,7 +50,8 @@ struct ClaudeWebBackgroundRecoveryTests {
                 #expect(error.localizedDescription == Self.challengeMessage)
             }
 
-            let cached = try? #require(CookieHeaderCache.load(provider: .claude))
+            let cached = CookieHeaderCache.load(provider: .claude)
+            #expect(cached != nil)
             #expect(cached?.cookieHeader == "sessionKey=sk-ant-current-token")
             #expect(cached?.sourceLabel == "Chrome")
         }

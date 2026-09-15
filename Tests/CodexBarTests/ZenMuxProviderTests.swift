@@ -234,7 +234,7 @@ struct ZenMuxProviderTests {
         #expect(!descriptor.metadata.supportsCredits)
         #expect(descriptor.fetchPlan.sourceModes == [.auto, .api])
 
-        let implementation = try #require(ProviderImplementationRegistry.implementation(for: .zenmux))
+        let implementation = try #require(ProviderCatalog.implementation(for: .zenmux))
         #expect(implementation is ZenMuxProviderImplementation)
     }
 
@@ -264,7 +264,6 @@ struct ZenMuxProviderTests {
             snapshot: snapshot,
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,

@@ -107,16 +107,6 @@ struct CodexLocalSessionCostSettingsTests {
                 provider: provider,
                 settings: settings,
                 store: store,
-                boolBinding: { keyPath in
-                    Binding(
-                        get: { settings[keyPath: keyPath] },
-                        set: { settings[keyPath: keyPath] = $0 })
-                },
-                stringBinding: { keyPath in
-                    Binding(
-                        get: { settings[keyPath: keyPath] },
-                        set: { settings[keyPath: keyPath] = $0 })
-                },
                 statusText: { id in state.statusByID[id] },
                 setStatusText: { id, text in
                     if let text {

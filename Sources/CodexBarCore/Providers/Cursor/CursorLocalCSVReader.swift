@@ -170,11 +170,7 @@ enum CursorLocalCSVReader {
 
     static func parseDate(_ s: String, calendar: Calendar) -> Date? {
         let t = s.trimmingCharacters(in: .whitespacesAndNewlines)
-        let iso = ISO8601DateFormatter()
-        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let d = iso.date(from: t) { return d }
-        iso.formatOptions = [.withInternetDateTime]
-        if let d = iso.date(from: t) { return d }
+        if let d = ISO8601DateParser.parse(t) { return d }
         let df = DateFormatter()
         df.locale = Locale(identifier: "en_US_POSIX")
         df.timeZone = TimeZone(secondsFromGMT: 0)

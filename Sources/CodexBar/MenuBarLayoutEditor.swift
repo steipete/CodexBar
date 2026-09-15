@@ -1015,6 +1015,11 @@ struct MenuBarLayoutPreview: View {
         let balanceAmounts = MenuBarLayoutBalanceResolver.balanceAmountsUSD(
             provider: provider,
             snapshot: snapshot)
+        let codexCredits = self.store.codexConsumerProjectionIfNeeded(
+            for: provider,
+            surface: .menuBar,
+            snapshotOverride: snapshot,
+            now: now)?.credits?.snapshot
         // Thresholds are USD, and `convertedCost` returns the source amount unchanged when no rate
         // exists, so keep the datum only when the conversion actually landed in USD.
         let toUSD = { (value: Double) -> Double? in
@@ -1060,7 +1065,10 @@ struct MenuBarLayoutPreview: View {
                 dataConfidence: snapshot.dataConfidence,
                 now: now),
             runsOut: runsOut,
-            balance: MenuBarLayoutBalanceResolver.balance(provider: provider, snapshot: snapshot),
+            balance: MenuBarLayoutBalanceResolver.balance(
+                provider: provider,
+                snapshot: snapshot,
+                codexCredits: codexCredits),
             costToday: costToday.map {
                 UsageFormatter.currencyString($0, currencyCode: cost?.currencyCode ?? "USD")
             },
@@ -1235,17 +1243,18 @@ extension MenuBarLayoutToken {
     }
 
     private func providerEditorLabel(provider: UsageProvider?) -> String? {
-        guard let provider,
-              let secondaryLabel = ProviderDescriptorRegistry.descriptor(for: provider).presentation
-                  .menuBarLayoutSecondaryLabel
-        else { return nil }
-        let localizedLabel = L(secondaryLabel)
+        let window: PercentWindow? = switch self {
+        case let .percent(window), let .pace(window),
+             let .windowResetCountdown(window), let .windowResetAbsolute(window): window
+        default: nil
+        }
+        guard let localizedLabel = window?.providerLabel(provider: provider) else { return nil }
         return switch self {
-        case .percent(window: .weekly): L("%@ %@", localizedLabel, "%")
-        case .pace(window: .weekly): L("%@ %@", localizedLabel, L("display_mode_pace").lowercased())
-        case .windowResetCountdown(window: .weekly):
+        case .percent: L("%@ %@", localizedLabel, "%")
+        case .pace: L("%@ %@", localizedLabel, L("display_mode_pace").lowercased())
+        case .windowResetCountdown:
             L("%@: %@", localizedLabel, L("menu_bar_layout_token_resets_in"))
-        case .windowResetAbsolute(window: .weekly):
+        case .windowResetAbsolute:
             L("%@: %@", localizedLabel, L("menu_bar_layout_token_reset_at"))
         default: nil
         }

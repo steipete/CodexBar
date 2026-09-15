@@ -7,13 +7,8 @@ enum CopilotIconSecondaryWindowSelection {
 
 extension SettingsStore {
     var copilotAPIToken: String {
-        get { self.configSnapshot.providerConfig(for: .copilot)?.sanitizedAPIKey ?? "" }
-        set {
-            self.updateProviderConfig(provider: .copilot) { entry in
-                entry.apiKey = self.normalizedConfigValue(newValue)
-            }
-            self.logSecretUpdate(provider: .copilot, field: "apiKey", value: newValue)
-        }
+        get { self[providerConfig: .copilot, field: .apiKey] }
+        set { self[providerConfig: .copilot, field: .apiKey] = newValue }
     }
 
     var copilotEnterpriseHost: String {
@@ -26,26 +21,14 @@ extension SettingsStore {
     }
 
     var copilotBudgetCookieHeader: String {
-        get { self.configSnapshot.providerConfig(for: .copilot)?.sanitizedCookieHeader ?? "" }
-        set {
-            self.updateProviderConfig(provider: .copilot) { entry in
-                entry.cookieHeader = self.normalizedConfigValue(newValue)
-            }
-            self.logSecretUpdate(provider: .copilot, field: "cookieHeader", value: newValue)
-        }
+        get { self[providerConfig: .copilot, field: .cookieHeader] }
+        set { self[providerConfig: .copilot, field: .cookieHeader] = newValue }
     }
 
     var copilotBudgetCookieSource: ProviderCookieSource {
         get { self.resolvedCookieSource(provider: .copilot, fallback: .auto) }
-        set {
-            self.updateProviderConfig(provider: .copilot) { entry in
-                entry.cookieSource = newValue
-            }
-            self.logProviderModeChange(provider: .copilot, field: "cookieSource", value: newValue.rawValue)
-        }
+        set { self.setCookieSource(newValue, provider: .copilot) }
     }
-
-    func ensureCopilotAPITokenLoaded() {}
 
     var copilotIconSecondaryWindowID: String {
         get {
@@ -70,6 +53,26 @@ extension SettingsStore {
 }
 
 extension SettingsStore {
+    /// Effective per-seat AI credit allowance raw value: the selected account's override when set,
+    /// otherwise the global fallback. Writes go to the selected account when one is configured,
+    /// else to the global fallback so users without saved accounts are unaffected.
+    var copilotEffectiveSeatCreditEntitlementRaw: String {
+        get {
+            self.effectiveSelectedTokenAccount(for: .copilot)?.sanitizedSeatCreditEntitlement
+                ?? self.copilotSeatCreditEntitlementRaw
+        }
+        set {
+            if let account = self.effectiveSelectedTokenAccount(for: .copilot) {
+                self.updateTokenAccount(
+                    provider: .copilot,
+                    accountID: account.id,
+                    seatCreditEntitlement: newValue)
+            } else {
+                self.copilotSeatCreditEntitlementRaw = newValue
+            }
+        }
+    }
+
     func copilotSettingsSnapshot(
         tokenOverride: TokenAccountOverride?) -> ProviderSettingsSnapshot.CopilotProviderSettings
     {
@@ -79,12 +82,16 @@ extension SettingsStore {
             override: tokenOverride)
         let token = account?.token ?? self.copilotAPIToken
         let host = CopilotDeviceFlow.normalizedHost(self.copilotEnterpriseHost)
+        // Per-account allowances win; the global UserDefaults values remain the fallback for
+        // legacy installs and accounts that never set one (migration path, keys kept on purpose).
+        let seatEntitlementRaw = account?.sanitizedSeatCreditEntitlement ?? self.copilotSeatCreditEntitlementRaw
         return ProviderSettingsSnapshot.CopilotProviderSettings(
             apiToken: self.normalizedConfigValue(token),
             enterpriseHost: host == CopilotDeviceFlow.defaultHost ? nil : host,
             selectedAccountExternalIdentifier: account?.externalIdentifier.flatMap(self.normalizedConfigValue),
             budgetExtrasEnabled: self.copilotBudgetExtrasEnabled,
             budgetCookieSource: self.copilotBudgetCookieSource,
-            manualBudgetCookieHeader: self.normalizedConfigValue(self.copilotBudgetCookieHeader))
+            manualBudgetCookieHeader: self.normalizedConfigValue(self.copilotBudgetCookieHeader),
+            seatCreditEntitlement: CopilotCreditEntitlementParser.parse(seatEntitlementRaw))
     }
 }

@@ -79,6 +79,7 @@ extension SettingsStore {
         _ = self.remoteCostHosts
         _ = self.remoteCostCombinedHosts
         _ = self.remoteCostChartColor
+        _ = self.agentSessionsHideUnreachableHosts
         _ = self.iCloudSyncEnabled
         _ = self.iCloudSyncSnapshotsEnabled
         _ = self.iCloudSyncShowFleetAccounts

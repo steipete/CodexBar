@@ -16,6 +16,8 @@ read_when:
 - Authenticate: `gcloud auth application-default login`.
 - Project: `gcloud config set project PROJECT_ID`.
 - Fallback project env vars: `GOOGLE_CLOUD_PROJECT`, `GCLOUD_PROJECT`, `CLOUDSDK_CORE_PROJECT`.
+- Refresh responses must contain a usable access token; malformed responses fail without extending the previous token's expiry.
+- gcloud retains ownership of credential-file updates; refreshed tokens are used in memory.
 
 ## API endpoints
 - Cloud Monitoring timeSeries:

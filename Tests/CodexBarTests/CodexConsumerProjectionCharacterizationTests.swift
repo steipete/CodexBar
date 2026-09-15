@@ -111,8 +111,7 @@ struct CodexConsumerProjectionCharacterizationTests {
 
         let model = try #require(controller.menuCardModel(
             for: .codex,
-            snapshotOverride: overrideSnapshot,
-            errorOverride: "Override error"))
+            context: .account(.init(snapshot: overrideSnapshot, error: "Override error"))))
 
         #expect(model.creditsText == nil)
         #expect(model.tokenUsage == nil)

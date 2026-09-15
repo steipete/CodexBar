@@ -370,7 +370,13 @@ struct StepFunUsageFetcherParsingTests {
         {"status":1,"five_hour_usage_left_rate":0,"five_hour_usage_reset_time":"0",\
         "weekly_usage_left_rate":0,"weekly_usage_reset_time":"0","plan_family":1}
         """
-        #expect(try StepFunUsageFetcher._parseSnapshotForTesting(Data(creditFamily.utf8)).isCreditPlan == true)
+        let creditSnapshot = try StepFunUsageFetcher._parseSnapshotForTesting(Data(creditFamily.utf8))
+        #expect(creditSnapshot.isCreditPlan == true)
+        let usage = creditSnapshot.toUsageSnapshot()
+        #expect(usage.primary == nil)
+        #expect(usage.secondary == nil)
+        #expect(usage.identity?.providerID == .stepfun)
+        #expect(usage.updatedAt == creditSnapshot.updatedAt)
         #expect(try StepFunUsageFetcher._parseSnapshotForTesting(Data(windowFamily.utf8)).isCreditPlan == false)
     }
 

@@ -203,7 +203,7 @@ extension CostUsageScannerForkSplitTests {
         let inputPerRow = 150_000
         let outputPerRow = 10
         let tokensPerRow = inputPerRow + outputPerRow
-        let rows = (0..<2).map { index in
+        let rows = (0..<2).map { (index: Int) in
             CostUsageScanner.CodexUsageRow(
                 day: dayKey,
                 model: model,

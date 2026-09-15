@@ -12,10 +12,10 @@ extension ProviderConfig {
     }
 
     public var sanitizedAWSProfile: String? {
-        Self.clean(self.awsProfile)
+        SettingsValue.cleaned(self.awsProfile)
     }
 
     public var sanitizedAWSAuthMode: String? {
-        Self.clean(self.awsAuthMode)
+        SettingsValue.cleaned(self.awsAuthMode)
     }
 }

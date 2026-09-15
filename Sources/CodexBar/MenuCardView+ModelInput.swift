@@ -9,7 +9,6 @@ extension UsageMenuCardView.Model {
         let codexProjection: CodexConsumerProjection?
         let credits: CreditsSnapshot?
         let creditsError: String?
-        let dashboard: OpenAIDashboardSnapshot?
         let dashboardError: String?
         let tokenSnapshot: CostUsageTokenSnapshot?
         let remoteCostDaily: [RemoteCostDailySummary]
@@ -17,7 +16,9 @@ extension UsageMenuCardView.Model {
         let tokenError: String?
         let account: AccountInfo
         let accountIsAuthoritative: Bool
-        let planOverride: String?
+        let planOverride: PlanOverride
+        let planEmphasis: PlanEmphasis
+        let lastKnownUsageCapturedAt: Date?
         let isRefreshing: Bool
         let lastError: String?
         let limitsAvailability: UsageLimitsAvailability?
@@ -58,7 +59,6 @@ extension UsageMenuCardView.Model {
             codexProjection: CodexConsumerProjection? = nil,
             credits: CreditsSnapshot?,
             creditsError: String?,
-            dashboard: OpenAIDashboardSnapshot?,
             dashboardError: String?,
             tokenSnapshot: CostUsageTokenSnapshot?,
             remoteCostDaily: [RemoteCostDailySummary] = [],
@@ -66,7 +66,9 @@ extension UsageMenuCardView.Model {
             tokenError: String?,
             account: AccountInfo,
             accountIsAuthoritative: Bool = false,
-            planOverride: String? = nil,
+            planOverride: PlanOverride = .automatic,
+            planEmphasis: PlanEmphasis = .none,
+            lastKnownUsageCapturedAt: Date? = nil,
             isRefreshing: Bool,
             lastError: String?,
             limitsAvailability: UsageLimitsAvailability? = nil,
@@ -104,7 +106,6 @@ extension UsageMenuCardView.Model {
             self.codexProjection = codexProjection
             self.credits = credits
             self.creditsError = creditsError
-            self.dashboard = dashboard
             self.dashboardError = dashboardError
             self.tokenSnapshot = tokenSnapshot
             self.remoteCostDaily = remoteCostDaily
@@ -113,6 +114,8 @@ extension UsageMenuCardView.Model {
             self.account = account
             self.accountIsAuthoritative = accountIsAuthoritative
             self.planOverride = planOverride
+            self.planEmphasis = planEmphasis
+            self.lastKnownUsageCapturedAt = lastKnownUsageCapturedAt
             self.isRefreshing = isRefreshing
             self.lastError = lastError
             self.limitsAvailability = limitsAvailability

@@ -37,6 +37,7 @@ struct CLICardModel: Sendable, Equatable {
     let planBadge: String?
     let accountLine: String?
     let isActive: Bool
+    let usesLastKnownUsage: Bool
     let accountProblem: String?
     let infoLines: [String]
     let metrics: [CLICardMetric]
@@ -50,6 +51,7 @@ struct CLICardModel: Sendable, Equatable {
         planBadge: String?,
         accountLine: String?,
         isActive: Bool = false,
+        usesLastKnownUsage: Bool = false,
         accountProblem: String? = nil,
         infoLines: [String],
         metrics: [CLICardMetric],
@@ -62,6 +64,7 @@ struct CLICardModel: Sendable, Equatable {
         self.planBadge = planBadge
         self.accountLine = accountLine
         self.isActive = isActive
+        self.usesLastKnownUsage = usesLastKnownUsage
         self.accountProblem = accountProblem
         self.infoLines = infoLines
         self.metrics = metrics
@@ -157,7 +160,7 @@ enum CLICardsRenderer {
             now: input.now)
         let statusLine: String?
         if let status = input.status {
-            let line = "Status: \(status.indicator.label)\(status.descriptionSuffix)"
+            let line = "Status: \(status.indicator.cliLabel)\(status.descriptionSuffix)"
             statusLine = CLIRenderer.colorizeStatusLine(line, indicator: status.indicator, useColor: input.useColor)
         } else {
             statusLine = nil
@@ -184,6 +187,11 @@ enum CLICardsRenderer {
             : sanitizedLabel
         let problem = account.error.map(CLIClaudeSwapText.sanitizeDiagnostic)
         if let snapshot = account.snapshot {
+            var notes: [String] = []
+            if account.usesLastKnownUsage {
+                let updated = UsageFormatter.updatedString(from: snapshot.updatedAt, now: renderOptions.now)
+                notes.append("Last known usage captured \(snapshot.updatedAt.ISO8601Format()). \(updated)")
+            }
             // Provider-specific by design: claude-swap subprocess records render as Claude account cards.
             let base = Self.makeCard(CLICardBuildInput(
                 provider: .claude,
@@ -191,7 +199,7 @@ enum CLICardsRenderer {
                 credits: nil,
                 source: ClaudeSwapAccountProjection.sourceLabel,
                 status: renderOptions.status,
-                notes: [],
+                notes: notes,
                 useColor: renderOptions.useColor,
                 resetStyle: renderOptions.resetStyle,
                 weeklyWorkDays: renderOptions.weeklyWorkDays,
@@ -203,6 +211,7 @@ enum CLICardsRenderer {
                 planBadge: nil,
                 accountLine: label,
                 isActive: account.isActive,
+                usesLastKnownUsage: account.usesLastKnownUsage,
                 accountProblem: problem,
                 infoLines: base.infoLines,
                 metrics: base.metrics,
@@ -211,7 +220,7 @@ enum CLICardsRenderer {
         }
 
         let statusLine: String? = renderOptions.status.map { status in
-            let line = "Status: \(status.indicator.label)\(status.descriptionSuffix)"
+            let line = "Status: \(status.indicator.cliLabel)\(status.descriptionSuffix)"
             return CLIRenderer.colorizeStatusLine(
                 line,
                 indicator: status.indicator,

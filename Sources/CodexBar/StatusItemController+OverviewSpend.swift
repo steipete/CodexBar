@@ -132,11 +132,6 @@ struct OverviewSpendSummaryCardView: View {
         .padding(.horizontal, UsageMenuCardLayout.horizontalPadding)
         .padding(.vertical, 10)
         .frame(width: self.width, alignment: .leading)
-        .background {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color.accentColor.opacity(0.08))
-                .padding(.horizontal, 6)
-        }
     }
 }
 
@@ -244,7 +239,9 @@ extension StatusItemController {
         return inputs.map { input in
             guard input.sourceKind == .native,
                   nativeCountByProvider[input.provider] == 1,
-                  let combined = self.combinedRemoteCostSnapshot(for: input.provider, local: input.snapshot)
+                  let combined = self.store.combinedRemoteCostSnapshot(
+                      for: input.provider,
+                      local: input.snapshot)
             else { return input }
             return SpendDashboardModel.ProviderInput(
                 id: input.id,

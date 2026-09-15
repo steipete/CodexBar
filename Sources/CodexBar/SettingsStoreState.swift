@@ -48,6 +48,7 @@ struct SettingsDefaultsState {
     var menuBarLayoutVerticalAdjustment: Int
     var copilotBudgetExtrasEnabled: Bool
     var copilotIconSecondaryWindowIDRaw: String
+    var copilotSeatCreditEntitlementRaw: String
     var costUsageEnabled: Bool
     var codexLocalSessionCostLedgerEnabled: Bool
     var costUsageHistoryDays: Int
@@ -92,6 +93,7 @@ struct SettingsDefaultsState {
     var remoteCostHosts: String = ""
     var remoteCostCombinedHosts: String = ""
     var remoteCostChartColor: ProviderColor = .init(hex: 0x64D2FF)
+    var agentSessionsHideUnreachableHosts: Bool
     var preferredCurrencyCode: String
     var iCloudSyncEnabled: Bool
     var iCloudSyncIncludeSecrets: Bool

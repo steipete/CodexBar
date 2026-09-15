@@ -199,26 +199,8 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
         }
         let coversFullHistory = days >= self.historyDays
         let windowMetered = coversFullHistory ? self.meteredCostUSD : nil
-        let totalTokens: Int? = {
-            guard !tokens.isEmpty else { return nil }
-            var sum = 0
-            for t in tokens {
-                let (res, of) = sum.addingReportingOverflow(t)
-                if of { return nil }
-                sum = res
-            }
-            return sum
-        }()
-        let totalRequests: Int? = {
-            guard !requests.isEmpty else { return nil }
-            var sum = 0
-            for r in requests {
-                let (res, of) = sum.addingReportingOverflow(r)
-                if of { return nil }
-                sum = res
-            }
-            return sum
-        }()
+        let totalTokens = tokens.isEmpty ? nil : CheckedSum.integers(tokens)
+        let totalRequests = requests.isEmpty ? nil : CheckedSum.integers(requests)
         return CostUsageWindowSummary(
             days: days,
             totalTokens: totalTokens,
@@ -498,18 +480,16 @@ public struct CostUsageDailyReport: Sendable, Codable {
                     estimated: estimated)
             }
             if detail != .rows, let requests = self.requestCount, requests > 0 {
-                let priced = if self.costUSD != nil {
-                    max(0, requests - unpriced - unmetered - estimated)
-                } else {
-                    0
-                }
+                // Clamp each subtraction so oversized explicit categories leave no inferred remainder.
+                let remainder = [unpriced, unmetered, estimated].reduce(requests) { max(0, $0 - $1) }
+                let hasCost = self.costUSD != nil
                 return CostUsageCoverageCounts(
-                    priced: priced,
-                    unpriced: unpriced,
+                    priced: hasCost ? remainder : 0,
+                    unpriced: hasCost ? unpriced : unpriced + remainder,
                     unmetered: unmetered,
                     estimated: estimated)
             }
-            if unpriced + unmetered + estimated > 0 {
+            if unpriced > 0 || unmetered > 0 || estimated > 0 {
                 return CostUsageCoverageCounts(
                     priced: 0,
                     unpriced: unpriced,
@@ -1202,9 +1182,6 @@ enum CostUsageDateParser {
     private static let isoInternetDateTimeKey = "CostUsageDateParser.isoInternetDateTime"
     private static let dayFormatterKey = "CostUsageDateParser.dayFormatter"
     private static let monthDayYearFormatterKey = "CostUsageDateParser.monthDayYearFormatter"
-    private static let monthYearFormatterKey = "CostUsageDateParser.monthYearFormatter"
-    private static let fullMonthYearFormatterKey = "CostUsageDateParser.fullMonthYearFormatter"
-    private static let yearMonthFormatterKey = "CostUsageDateParser.yearMonthFormatter"
 
     static func parse(_ text: String?) -> Date? {
         guard let text, !text.isEmpty else { return nil }
@@ -1228,23 +1205,6 @@ enum CostUsageDateParser {
         if let d = self.dateFormatter(key: self.monthDayYearFormatterKey, format: "MMM d, yyyy")
             .date(from: trimmed)
         {
-            return d
-        }
-
-        return nil
-    }
-
-    static func parseMonth(_ text: String?) -> Date? {
-        guard let text, !text.isEmpty else { return nil }
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        if let d = self.dateFormatter(key: self.monthYearFormatterKey, format: "MMM yyyy").date(from: trimmed) {
-            return d
-        }
-        if let d = self.dateFormatter(key: self.fullMonthYearFormatterKey, format: "MMMM yyyy").date(from: trimmed) {
-            return d
-        }
-        if let d = self.dateFormatter(key: self.yearMonthFormatterKey, format: "yyyy-MM").date(from: trimmed) {
             return d
         }
 

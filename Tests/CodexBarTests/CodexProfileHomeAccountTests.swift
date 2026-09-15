@@ -114,7 +114,7 @@ struct CodexProfileHomeAccountTests {
         let switchedModel = ProvidersPane(settings: fixture.settings, store: fixture.store)
             ._test_menuCardModel(for: .codex)
 
-        #expect(fixture.store.tokenSnapshots[.codex] == profileASnapshot)
+        #expect(fixture.store.tokenSnapshotPublications[.codex]?.snapshot == profileASnapshot)
         #expect(fixture.store.tokenSnapshotPublicationForCurrentProviderConfig(for: .codex) == nil)
         #expect(fixture.store.tokenSnapshot(for: .codex) == nil)
         #expect(switchedModel.email == "profile-b@example.com")
@@ -142,7 +142,7 @@ struct CodexProfileHomeAccountTests {
         let didInvalidate = fixture.store.prepareCodexAccountScopedRefreshIfNeeded()
 
         #expect(didInvalidate)
-        #expect(fixture.store.tokenSnapshots[.codex] == nil)
+        #expect(fixture.store.tokenSnapshotPublications[.codex]?.snapshot == nil)
         #expect(fixture.store.tokenSnapshotPublications[.codex] == nil)
         #expect(fixture.store.tokenError(for: .codex) == nil)
         #expect(fixture.store.tokenLastAttemptAt(for: .codex) == nil)

@@ -80,7 +80,6 @@ final class PaceVisibilityScreenshotRenderTests: XCTestCase {
             snapshot: snapshot,
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,

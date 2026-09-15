@@ -40,7 +40,8 @@ struct VertexAIOAuthCredentialsTests {
         {
           "client_id": "client-id",
           "client_secret": "client-secret",
-          "refresh_token": "refresh-token"
+          "refresh_token": "refresh-token",
+          "id_token": "e30.eyJlbWFpbCI6ImZpeHR1cmVAZXhhbXBsZS50ZXN0In0.signature"
         }
         """
         try credentialsJSON.write(to: credentialsURL, atomically: true, encoding: .utf8)
@@ -58,6 +59,7 @@ struct VertexAIOAuthCredentialsTests {
 
         #expect(credentials.refreshToken == "refresh-token")
         #expect(credentials.projectId == "configured-project")
+        #expect(credentials.email == "fixture@example.test")
     }
 
     private static func writeServiceAccountCredentials() throws -> URL {

@@ -109,7 +109,11 @@ extension ProviderImplementation {
 
     @MainActor
     func observeSettings(_ settings: SettingsStore) {
-        _ = settings
+        guard ProviderDescriptorRegistry.descriptor(for: self.id).settingsSection.cookieContribution != nil else {
+            return
+        }
+        _ = settings.resolvedCookieSource(provider: self.id, fallback: .auto)
+        _ = settings[providerConfig: self.id, field: .cookieHeader]
     }
 
     @MainActor
@@ -177,10 +181,15 @@ extension ProviderImplementation {
     }
 
     @MainActor
-    func settingsSnapshot(context _: ProviderSettingsSnapshotContext)
+    func settingsSnapshot(context: ProviderSettingsSnapshotContext)
         -> ProviderSettingsSnapshotContribution?
     {
-        ProviderDescriptorRegistry.descriptor(for: self.id).settingsSection.defaultContribution
+        let section = ProviderDescriptorRegistry.descriptor(for: self.id).settingsSection
+        guard let contribution = section.cookieContribution else { return section.defaultContribution }
+        let settings: CookieProviderSettings = context.settings.resolvedCookieSettings(
+            provider: self.id,
+            tokenOverride: context.tokenOverride)
+        return contribution(settings)
     }
 
     @MainActor

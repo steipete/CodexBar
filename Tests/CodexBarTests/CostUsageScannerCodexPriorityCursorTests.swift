@@ -1450,7 +1450,7 @@ extension CostUsageScannerCodexPriorityCursorTests {
             options: options)
     }
 
-    private static func priorityRequestBody(
+    static func priorityRequestBody(
         threadID: String,
         turnID: String,
         model: String = "gpt-5.5") -> String
@@ -1609,7 +1609,7 @@ extension CostUsageScannerCodexPriorityCursorTests {
         guard sqlite3_step(statement) == SQLITE_DONE else { throw SQLiteTestError.step }
     }
 
-    private static func deleteTestLog(dbURL: URL, rowID: Int64) throws {
+    static func deleteTestLog(dbURL: URL, rowID: Int64) throws {
         var db: OpaquePointer?
         guard sqlite3_open(dbURL.path, &db) == SQLITE_OK else { throw SQLiteTestError.open }
         defer { sqlite3_close(db) }

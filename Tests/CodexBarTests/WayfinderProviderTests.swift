@@ -14,7 +14,7 @@ struct WayfinderProviderTests {
         #expect(!descriptor.metadata.defaultEnabled)
         #expect(descriptor.branding.iconResourceName == "ProviderIcon-wayfinder")
 
-        let implementation = try #require(ProviderImplementationRegistry.implementation(for: .wayfinder))
+        let implementation = try #require(ProviderCatalog.implementation(for: .wayfinder))
         #expect(implementation.id == .wayfinder)
     }
 

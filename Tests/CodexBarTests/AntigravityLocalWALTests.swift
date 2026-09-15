@@ -183,10 +183,19 @@ struct AntigravityLocalWALTests {
         #expect(!FileManager.default.fileExists(atPath: url.path + "-wal"))
         #expect(!FileManager.default.fileExists(atPath: url.path + "-shm"))
         let report = try fixture.report()
-        #expect(report.coverage == (control == SQLITE_ROW ? .complete : .partial))
+        // Some SQLite builds decline read-only WAL access without sidecars. A cleanly closed conversation
+        // is exactly that file, so the reader falls back to an immutable read of the main file instead of
+        // withholding the whole history. The control shows which path this platform's SQLite took.
+        #expect(report.coverage == .complete)
+        #expect(report.report.data.map(\.date) == ["2026-08-27"])
+        #expect(report.statistics.immutableFallbacks == (control == SQLITE_ROW ? 0 : 1))
         #expect(report.statistics.sqliteHandlesOpened == report.statistics.sqliteHandlesClosed)
         #expect(try Data(contentsOf: url) == before)
-        // Some SQLite builds decline read-only WAL access without sidecars; that must stay unavailable.
+        if control == SQLITE_CANTOPEN {
+            // The fallback never creates sidecars either. An ordinary read-only open on other SQLite builds may.
+            #expect(!FileManager.default.fileExists(atPath: url.path + "-wal"))
+            #expect(!FileManager.default.fileExists(atPath: url.path + "-shm"))
+        }
         // This control uses the platform SQLite contract independently of the production reader.
         let reopened = try Fixture.open(url)
         var reopenedClosed = false
@@ -208,6 +217,126 @@ struct AntigravityLocalWALTests {
             #expect(budget.statistics.sqliteHandlesOpened == budget.statistics.sqliteHandlesClosed)
         }
         #expect(!FileManager.default.fileExists(atPath: missing.path))
+    }
+
+    @Test
+    func `immutable fallback reads a sidecar-less WAL database through an escaped URI path`() throws {
+        let fixture = try Fixture()
+        defer { withExtendedLifetime(fixture) {} }
+        // Every character here would change the meaning of an unescaped SQLite URI.
+        let session = "odd %25 ?q #f"
+        let url = try fixture.database(session, blobs: [Fixture.blob()])
+        try Self.prepareWAL(url)
+        #expect(!FileManager.default.fileExists(atPath: url.path + "-wal"))
+        // The raw SQLite control never opens the production target or prepares its sidecars.
+        let controlFixture = try Fixture()
+        defer { withExtendedLifetime(controlFixture) {} }
+        let controlURL = try controlFixture.database(session, blobs: [Fixture.blob()])
+        try Self.prepareWAL(controlURL)
+        let control = Self.readOnlyQueryStatus(controlURL)
+        let report = try fixture.report()
+        #expect(report.coverage == .complete)
+        #expect(report.report.data.map(\.date) == ["2026-08-27"])
+        #expect(report.statistics.immutableFallbacks == (control == SQLITE_ROW ? 0 : 1))
+        #expect(report.statistics.sqliteHandlesOpened == report.statistics.sqliteHandlesClosed)
+        if control == SQLITE_CANTOPEN {
+            #expect(!FileManager.default.fileExists(atPath: url.path + "-wal"))
+            #expect(!FileManager.default.fileExists(atPath: url.path + "-shm"))
+        }
+    }
+
+    @Test
+    func `a present WAL sidecar keeps a declined read-only open unavailable`() throws {
+        let fixture = try Fixture()
+        defer { withExtendedLifetime(fixture) {} }
+        let url = try fixture.database(blobs: [Fixture.blob()])
+        try Self.prepareWAL(url)
+        // A -wal sidecar means a WAL connection may hold the database. The reader must not read around
+        // it with an immutable open. An unreadable -wal makes the ordinary open decline on most builds;
+        // a root CI user still reads it, and the control reports which outcome this platform produced.
+        try Self.addUnreadableWAL(url)
+        let before = try Data(contentsOf: url)
+        // The raw SQLite control never opens the production target or prepares its sidecars.
+        let controlFixture = try Fixture()
+        defer { withExtendedLifetime(controlFixture) {} }
+        let controlURL = try controlFixture.database(blobs: [Fixture.blob()])
+        try Self.prepareWAL(controlURL)
+        try Self.addUnreadableWAL(controlURL)
+        let control = Self.readOnlyQueryStatus(controlURL)
+        let report = try fixture.report()
+        #expect(report.statistics.immutableFallbacks == 0)
+        #expect(report.coverage == (control == SQLITE_ROW ? .complete : .partial))
+        #expect(report.statistics.sqliteHandlesOpened == report.statistics.sqliteHandlesClosed)
+        #expect(try Data(contentsOf: url) == before)
+    }
+
+    @Test
+    func `a writer that checkpoints during the immutable fallback keeps the result incomplete`() throws {
+        let fixture = try Fixture()
+        defer { withExtendedLifetime(fixture) {} }
+        let url = try fixture.database(blobs: [Fixture.blob()])
+        try Self.prepareWAL(url)
+        #expect(!FileManager.default.fileExists(atPath: url.path + "-wal"))
+        // The raw SQLite control never opens the production target or prepares its sidecars.
+        let controlFixture = try Fixture()
+        defer { withExtendedLifetime(controlFixture) {} }
+        let controlURL = try controlFixture.database(blobs: [Fixture.blob()])
+        try Self.prepareWAL(controlURL)
+        let control = Self.readOnlyQueryStatus(controlURL)
+        // While the reader is inside the database, a writer reopens it, commits a row, checkpoints into the
+        // main file, and closes cleanly so the sidecars vanish again before the reader looks a second time.
+        var written = false
+        var budget: AntigravityLocalReader.Budget?
+        budget = AntigravityLocalReader.Budget(limits: .init(), cancellation: {
+            guard !written, budget?.statistics.rows == 1 else { return }
+            written = true
+            let writer = try Fixture.open(url)
+            defer { sqlite3_close(writer) }
+            try Fixture.insert(writer, row: 1, blob: Fixture.blob(response: "later"))
+            _ = try Self.checkpoint(writer)
+        })
+        let source = try AntigravityLocalReader.readDatabases([url], budget: #require(budget))
+        let statistics = try #require(budget).statistics
+        budget = nil
+        #expect(written)
+        #expect(statistics.sqliteHandlesOpened == statistics.sqliteHandlesClosed)
+        if control == SQLITE_CANTOPEN {
+            // The immutable read cannot prove one snapshot once the file changed underneath it.
+            #expect(statistics.immutableFallbacks == 1)
+            #expect(!source.isComplete)
+            // The writer has closed, so the next scan sees one stable file with both rows.
+            let next = try fixture.report()
+            #expect(next.coverage == .complete)
+            #expect(next.report.summary?.totalTokens == 396)
+        } else {
+            // The ordinary read-only snapshot excludes the coordinated later write, as on any WAL database.
+            #expect(statistics.immutableFallbacks == 0)
+            #expect(source.isComplete)
+            #expect(source.events.count == 1)
+        }
+    }
+
+    @Test
+    func `an unchanged database keeps the immutable fallback result complete`() throws {
+        let fixture = try Fixture()
+        defer { withExtendedLifetime(fixture) {} }
+        let url = try fixture.database(blobs: [Fixture.blob(), Fixture.blob(response: "second")])
+        try Self.prepareWAL(url)
+        let before = try Data(contentsOf: url)
+        let budget = AntigravityLocalReader.Budget(limits: .init(), cancellation: {})
+        let source = try AntigravityLocalReader.readDatabases([url], budget: budget)
+        #expect(source.isComplete)
+        #expect(source.events.count == 2)
+        #expect(budget.statistics.sqliteHandlesOpened == budget.statistics.sqliteHandlesClosed)
+        #expect(try Data(contentsOf: url) == before)
+    }
+
+    private static func addUnreadableWAL(_ url: URL) throws {
+        let wal = url.path + "-wal"
+        guard FileManager.default.createFile(atPath: wal, contents: Data()) else {
+            throw AntigravityLocalReader.ScanFailure.invalid
+        }
+        try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: wal)
     }
 
     private static func prepareWAL(_ url: URL) throws {

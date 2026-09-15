@@ -6,6 +6,30 @@ import Testing
 @MainActor
 @Suite(.serialized)
 struct UsageStoreCodexCostCatchUpTests {
+    @Test
+    func `automatic sleep uses active scan duration instead of awaited latency`() async throws {
+        let store = try Self.makeStore(suite: "active-duration")
+        store.settings.backgroundWorkLowPowerModePreference = .off
+        var sleeps: [TimeInterval] = []
+        store._test_codexCostCatchUpResourceStateOverride = { (.ac, false, .nominal) }
+        store._test_codexCostCatchUpStatusOverride = { _ in
+            .init(pending: true, progressKey: "pending")
+        }
+        store._test_codexCostCatchUpActiveDuration = 2
+        store._test_codexCostCatchUpAdvanceOverride = { _, _, _ in
+            try await Task.sleep(for: .milliseconds(20))
+            return .init(pending: true, progressKey: "progressed")
+        }
+        store._test_codexCostCatchUpSleepOverride = { delay in
+            sleeps.append(delay)
+            if sleeps.count == 2 { throw CancellationError() }
+        }
+        store.startCodexCostCatchUpIfNeeded()
+        let task = try #require(store.codexCostCatchUpTask)
+        await task.value
+        #expect(sleeps == [1998, 1998])
+    }
+
     @Test(arguments: [CodexCostCatchUpPowerSource.ac, .battery, .unknown])
     func `app low power mode floors automatic catch-up decisions`(source: CodexCostCatchUpPowerSource) throws {
         let store = try Self.makeStore(suite: "app-low-power-policy")
@@ -452,7 +476,8 @@ struct UsageStoreCodexCostCatchUpTests {
     }
 
     private static func makeStore(suite: String) throws -> UsageStore {
-        let settings = testSettingsStore(suiteName: "UsageStoreCodexCostCatchUpTests-\(suite)")
+        let settings = testSettingsStore(
+            suiteName: "UsageStoreCodexCostCatchUpTests-\(suite)", userDefaults: InMemoryUserDefaults())
         settings.costUsageEnabled = true
         settings.costUsageHistoryDays = 30
         let metadata = try #require(ProviderRegistry.shared.metadata[.codex])

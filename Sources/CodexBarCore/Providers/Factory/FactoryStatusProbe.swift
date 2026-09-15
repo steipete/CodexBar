@@ -301,9 +301,7 @@ public struct FlexibleFactoryDate: Codable, Sendable {
             return
         }
 
-        let fractional = ISO8601DateFormatter()
-        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let parsed = fractional.date(from: string) ?? ISO8601DateFormatter().date(from: string) {
+        if let parsed = ISO8601DateParser.parse(string) {
             self.date = parsed
             return
         }

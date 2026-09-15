@@ -27,4 +27,34 @@ struct ClaudeSwapAccountMenuDisplay {
             ? String(format: L("Account %@"), account.id.opaqueID)
             : account.displayLabel
     }
+
+    static func cardContext(
+        for account: ProviderAccountUsageSnapshot,
+        planLabel: String?,
+        adapterError: String?,
+        switchError: String?) -> UsageMenuCardContext
+    {
+        .account(.init(
+            snapshot: account.snapshot,
+            error: ClaudeSwapAccountProjection.displayError(
+                accountError: account.error,
+                adapterError: adapterError,
+                switchError: switchError),
+            info: AccountInfo(email: account.displayLabel, plan: nil),
+            plan: .label(planLabel),
+            planEmphasis: account.isActive ? .active : .none,
+            lastKnownUsageCapturedAt: account.usesLastKnownUsage ? account.snapshot?.updatedAt : nil,
+            sourceLabel: ClaudeSwapAccountProjection.sourceLabel))
+    }
+
+    static func actionLabel(
+        for account: ProviderAccountUsageSnapshot,
+        switchingAccountID: ProviderAccountIdentity?,
+        switchInFlight: Bool) -> String?
+    {
+        if account.isActive, !account.canActivate { return L("Active") }
+        if switchingAccountID == account.id { return L("Loading…") }
+        guard !switchInFlight, account.canActivate else { return nil }
+        return account.isActive ? L("Re-authenticate") : L("Switch Account...")
+    }
 }

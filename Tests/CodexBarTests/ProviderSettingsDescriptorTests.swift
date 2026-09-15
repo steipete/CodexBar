@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import SwiftUI
 import Testing
@@ -328,7 +329,48 @@ struct ProviderSettingsDescriptorTests {
 
         #expect(usagePicker.options.map(\.title) == ["Auto", "Google OAuth", "Local API / agy CLI"])
         #expect(usagePicker.subtitle ==
-            "Auto tries Antigravity app, agy CLI, then IDE; OAuth follows for selected or signed-in accounts.")
+            "Auto skips agy reports without account identity for selected or injected Google accounts. " +
+            "Try Local API / agy CLI to use the local app or agy's signed-in account, which may differ.")
+        if let directory = ProcessInfo.processInfo.environment["CODEXBAR_ANTIGRAVITY_GUIDANCE_PROOF_DIR"] {
+            let previous = ProviderSettingsPickerDescriptor(
+                id: usagePicker.id,
+                title: usagePicker.title,
+                subtitle: "Auto tries Antigravity app, agy CLI, then IDE; " +
+                    "OAuth follows for selected or signed-in accounts.",
+                binding: usagePicker.binding,
+                options: usagePicker.options,
+                isVisible: nil,
+                onChange: nil)
+            try self.captureAntigravitySourcePicker(previous, directory: directory + "/before")
+            try self.captureAntigravitySourcePicker(usagePicker, directory: directory + "/after")
+        }
+    }
+
+    private func captureAntigravitySourcePicker(
+        _ picker: ProviderSettingsPickerDescriptor,
+        directory: String) throws
+    {
+        let environment = ProcessInfo.processInfo.environment
+        precondition(environment["CODEXBAR_SUPPRESS_TEST_KEYCHAIN_ACCESS"] == "1")
+        precondition(environment[CodexCredentialFileAccess.isolationEnvironmentKey] == "1")
+        precondition(environment["CODEXBAR_TEST_SESSION_FILE_ISOLATION"] == "1")
+        precondition(environment["CODEXBAR_ALLOW_TEST_KEYCHAIN_ACCESS"] != "1")
+        let output = URL(fileURLWithPath: directory, isDirectory: true)
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        let view = NSHostingView(rootView:
+            Form {
+                Section("Antigravity · synthetic settings") {
+                    ProviderSettingsPickerRowView(picker: picker)
+                }
+            }.formStyle(.grouped).frame(width: 740, height: 210))
+        view.frame = NSRect(x: 0, y: 0, width: 740, height: 210)
+        view.layoutSubtreeIfNeeded()
+        let bitmap = try #require(view.bitmapImageRepForCachingDisplay(in: view.bounds))
+        view.cacheDisplay(in: view.bounds, to: bitmap)
+        try #require(bitmap.representation(using: .png, properties: [:]))
+            .write(to: output.appendingPathComponent("source-picker.png"))
+        try picker.subtitle.write(
+            to: output.appendingPathComponent("source-picker.txt"), atomically: true, encoding: .utf8)
     }
 
     @Test
@@ -573,6 +615,39 @@ struct ProviderSettingsDescriptorTests {
         #expect(field.title == "Manual GitHub Cookie header")
         #expect(field.subtitle.contains("Treat this value like a password"))
         #expect(field.actions.map(\.id) == ["refresh-copilot-budget-cookie"])
+    }
+
+    @Test
+    func `copilot seat credit entitlement field writes through to the settings snapshot`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-copilot-seat-entitlement")
+        let context = fixture.settingsContext(provider: .copilot)
+
+        let fields = CopilotProviderImplementation().settingsFields(context: context)
+        let field = try #require(fields.first { $0.id == "copilot-seat-credit-entitlement" })
+        field.binding.wrappedValue = "3000"
+
+        #expect(fixture.settings.copilotSeatCreditEntitlementRaw == "3000")
+        #expect(fixture.settings.copilotSettingsSnapshot(tokenOverride: nil).seatCreditEntitlement == 3000)
+    }
+
+    @Test
+    func `copilot seat credit entitlement field writes to the selected account`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-copilot-seat-account")
+        fixture.settings.copilotSeatCreditEntitlementRaw = "3000"
+        fixture.settings.addTokenAccount(provider: .copilot, label: "Work", token: "token-1")
+        let context = fixture.settingsContext(provider: .copilot)
+
+        let fields = CopilotProviderImplementation().settingsFields(context: context)
+        let field = try #require(fields.first { $0.id == "copilot-seat-credit-entitlement" })
+        // The field surfaces the global fallback until the account sets its own value.
+        #expect(field.binding.wrappedValue == "3000")
+
+        field.binding.wrappedValue = "1500"
+
+        let account = try #require(fixture.settings.selectedTokenAccount(for: .copilot))
+        #expect(account.seatCreditEntitlement == "1500")
+        #expect(fixture.settings.copilotSeatCreditEntitlementRaw == "3000")
+        #expect(fixture.settings.copilotSettingsSnapshot(tokenOverride: nil).seatCreditEntitlement == 1500)
     }
 
     @Test
@@ -1265,16 +1340,6 @@ extension ProviderSettingsDescriptorTests {
                 provider: provider,
                 settings: settings,
                 store: store,
-                boolBinding: { keyPath in
-                    Binding(
-                        get: { settings[keyPath: keyPath] },
-                        set: { settings[keyPath: keyPath] = $0 })
-                },
-                stringBinding: { keyPath in
-                    Binding(
-                        get: { settings[keyPath: keyPath] },
-                        set: { settings[keyPath: keyPath] = $0 })
-                },
                 statusText: { id in state.statusByID[id] },
                 setStatusText: { id, text in
                     if let text {

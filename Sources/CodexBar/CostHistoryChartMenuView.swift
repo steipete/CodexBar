@@ -221,9 +221,7 @@ struct CostHistoryChartMenuView: View {
                 .frame(height: Self.chartHeight)
                 .accessibilityLabel(activeMetric == .tokens ? L("Token activity") : L("Cost history chart"))
                 .accessibilityValue(
-                    model.points.isEmpty
-                        ? L("No data")
-                        : activeMetric == .tokens
+                    activeMetric == .tokens
                         ? String(
                             format: L("%@ tokens"),
                             UsageFormatter.tokenCountString(Int(model.points.reduce(0) { $0 + $1.value })))
@@ -283,7 +281,7 @@ struct CostHistoryChartMenuView: View {
                             .pickerStyle(.segmented)
                             .controlSize(.small)
                             .labelsHidden()
-                            .frame(width: Self.metricPickerWidth, height: Self.metricPickerHeight)
+                            .frame(width: Self.metricPickerWidth, height: Self.metricPickerHeight, alignment: .trailing)
                             .accessibilityLabel(L("Display mode"))
                         }
                     }

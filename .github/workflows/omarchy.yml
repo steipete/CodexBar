@@ -1,0 +1,48 @@
+name: Linux desktop and Omarchy
+on:
+  pull_request:
+    paths:
+      - 'Integrations/Omarchy/**'
+      - 'Integrations/Linux/**'
+      - '.github/workflows/omarchy.yml'
+      - '.github/workflows/release-linux-desktop.yml'
+      - '.github/actions/build-linux-desktop/**'
+      - 'Scripts/generate_release_checksum.sh'
+      - 'Scripts/test_release_checksum.sh'
+  push:
+    branches: [main]
+    paths:
+      - 'Integrations/Omarchy/**'
+      - 'Integrations/Linux/**'
+      - '.github/workflows/omarchy.yml'
+      - '.github/workflows/release-linux-desktop.yml'
+      - '.github/actions/build-linux-desktop/**'
+      - 'Scripts/generate_release_checksum.sh'
+      - 'Scripts/test_release_checksum.sh'
+permissions:
+  contents: read
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/build-linux-desktop
+        id: desktop
+        with:
+          version: '0.0.0-ci'
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: desktop-linux-${{ matrix.arch }}
+          if-no-files-found: error
+          path: |
+            ${{ steps.desktop.outputs.archive }}
+            ${{ steps.desktop.outputs.archive }}.sha256

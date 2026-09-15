@@ -294,46 +294,14 @@ public struct CodexUsageResponse: Decodable, Sendable {
 
         public init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
-            self.limit = Self.decodeFlexibleDouble(container, forKey: .limit)
-            self.used = Self.decodeFlexibleDouble(container, forKey: .used)
-            self.remainingPercent = Self.decodeFlexibleDouble(container, forKey: .remainingPercent)
-                ?? Self.decodeFlexibleDouble(container, forKey: .remainingPercentSnake)
+            self.limit = CodexSpendControlNumber.double(container, forKey: .limit)
+            self.used = CodexSpendControlNumber.double(container, forKey: .used)
+            self.remainingPercent = CodexSpendControlNumber.double(container, forKey: .remainingPercent)
+                ?? CodexSpendControlNumber.double(container, forKey: .remainingPercentSnake)
             // `wham/usage` spells this `reset_at` (matching `WindowSnapshot`), other shapes use `resets_at`.
-            self.resetsAt = Self.decodeFlexibleInt(container, forKey: .resetsAt)
-                ?? Self.decodeFlexibleInt(container, forKey: .resetsAtSnake)
-                ?? Self.decodeFlexibleInt(container, forKey: .resetAtSnake)
-        }
-
-        private static func decodeFlexibleDouble(
-            _ container: KeyedDecodingContainer<CodingKeys>,
-            forKey key: CodingKeys) -> Double?
-        {
-            if let value = try? container.decodeIfPresent(Double.self, forKey: key) {
-                return value
-            }
-            if let value = try? container.decodeIfPresent(Int.self, forKey: key) {
-                return Double(value)
-            }
-            if let value = try? container.decodeIfPresent(String.self, forKey: key) {
-                return Double(value.trimmingCharacters(in: .whitespacesAndNewlines))
-            }
-            return nil
-        }
-
-        private static func decodeFlexibleInt(
-            _ container: KeyedDecodingContainer<CodingKeys>,
-            forKey key: CodingKeys) -> Int?
-        {
-            if let value = try? container.decodeIfPresent(Int.self, forKey: key) {
-                return value
-            }
-            if let value = try? container.decodeIfPresent(Double.self, forKey: key) {
-                return Int(value)
-            }
-            if let value = try? container.decodeIfPresent(String.self, forKey: key) {
-                return Int(value.trimmingCharacters(in: .whitespacesAndNewlines))
-            }
-            return nil
+            self.resetsAt = CodexSpendControlNumber.integer(container, forKey: .resetsAt)
+                ?? CodexSpendControlNumber.integer(container, forKey: .resetsAtSnake)
+                ?? CodexSpendControlNumber.integer(container, forKey: .resetAtSnake)
         }
     }
 
@@ -388,12 +356,33 @@ public enum CodexOAuthFetchError: LocalizedError, Sendable {
     }
 }
 
+struct CodexWorkspaceRemainingBalanceResponse: Decodable, Sendable {
+    let balance: Double?
+
+    private enum CodingKeys: String, CodingKey {
+        case balance
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let decoded: Double? = if let value = try? container.decodeIfPresent(Double.self, forKey: .balance) {
+            value
+        } else if let value = try? container.decodeIfPresent(String.self, forKey: .balance) {
+            Double(value.trimmingCharacters(in: .whitespacesAndNewlines))
+        } else {
+            nil
+        }
+        self.balance = decoded.flatMap { $0.isFinite ? max(0, $0) : nil }
+    }
+}
+
 public enum CodexOAuthUsageFetcher {
     private static let defaultChatGPTBaseURL = "https://chatgpt.com/backend-api/"
     private static let chatGPTUsagePath = "/wham/usage"
     private static let codexUsagePath = "/api/codex/usage"
     private static let rateLimitResetCreditsPath = "/wham/rate-limit-reset-credits"
     private static let spendControlsMonthlyUsagePathSuffix = "/spend-controls/current-user/monthly-usage"
+    private static let workspaceRemainingBalancePathSuffix = "/remaining_balance"
 
     public static func fetchUsage(
         accessToken: String,
@@ -460,6 +449,48 @@ public enum CodexOAuthUsageFetcher {
             env: env,
             timeout: timeout,
             session: CodexAuthenticatedHTTPTransport.current)
+    }
+
+    static func fetchWorkspaceRemainingBalance(
+        accessToken: String,
+        accountId: String,
+        env: [String: String] = ProcessInfo.processInfo.environment,
+        timeout: TimeInterval = 4) async throws -> CodexWorkspaceRemainingBalanceResponse
+    {
+        try await self.fetchWorkspaceRemainingBalance(
+            accessToken: accessToken,
+            accountId: accountId,
+            env: env,
+            timeout: timeout,
+            session: CodexAuthenticatedHTTPTransport.current)
+    }
+
+    static func fetchWorkspaceRemainingBalance(
+        accessToken: String,
+        accountId: String,
+        env: [String: String] = ProcessInfo.processInfo.environment,
+        timeout: TimeInterval = 4,
+        session transport: any ProviderHTTPTransport) async throws -> CodexWorkspaceRemainingBalanceResponse
+    {
+        guard let url = self.resolveWorkspaceRemainingBalanceURL(env: env, accountId: accountId) else {
+            throw CodexOAuthFetchError.invalidResponse
+        }
+        var request = URLRequest(
+            url: url,
+            cachePolicy: .reloadIgnoringLocalCacheData,
+            timeoutInterval: timeout)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("CodexBar", forHTTPHeaderField: "User-Agent")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue(accountId, forHTTPHeaderField: "ChatGPT-Account-Id")
+
+        let data = try await CodexAuthenticatedHTTPTransport.perform(request: request, transport: transport)
+        do {
+            return try JSONDecoder().decode(CodexWorkspaceRemainingBalanceResponse.self, from: data)
+        } catch {
+            throw CodexOAuthFetchError.invalidResponse
+        }
     }
 
     public static func fetchSpendControlsMonthlyUsage(
@@ -559,6 +590,25 @@ public enum CodexOAuthUsageFetcher {
 
     private static func resolveSpendControlsMonthlyUsageURL(env: [String: String], accountId: String) -> URL? {
         self.resolveSpendControlsMonthlyUsageURL(env: env, configContents: nil, accountId: accountId)
+    }
+
+    private static func resolveWorkspaceRemainingBalanceURL(env: [String: String], accountId: String) -> URL? {
+        self.resolveWorkspaceRemainingBalanceURL(env: env, configContents: nil, accountId: accountId)
+    }
+
+    private static func resolveWorkspaceRemainingBalanceURL(
+        env: [String: String],
+        configContents: String?,
+        accountId: String) -> URL?
+    {
+        let baseURL = self.resolveChatGPTBaseURL(env: env, configContents: configContents)
+        let normalized = self.normalizeChatGPTBaseURL(baseURL)
+        guard normalized.contains("/backend-api") else { return nil }
+        var allowedCharacters = CharacterSet.urlPathAllowed
+        allowedCharacters.subtract(CharacterSet(charactersIn: "/?#%"))
+        let encodedAccountId = accountId.addingPercentEncoding(withAllowedCharacters: allowedCharacters)
+        guard let encodedAccountId, !encodedAccountId.isEmpty else { return nil }
+        return URL(string: normalized + "/accounts/\(encodedAccountId)" + Self.workspaceRemainingBalancePathSuffix)
     }
 
     private static func resolveSpendControlsMonthlyUsageURL(
@@ -683,11 +733,7 @@ public enum CodexOAuthUsageFetcher {
     private static func decodeISO8601Date(from decoder: Decoder) throws -> Date {
         let container = try decoder.singleValueContainer()
         let raw = try container.decode(String.self)
-        let fractional = ISO8601DateFormatter()
-        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let seconds = ISO8601DateFormatter()
-        seconds.formatOptions = [.withInternetDateTime]
-        if let date = fractional.date(from: raw) ?? seconds.date(from: raw) {
+        if let date = ISO8601DateParser.parse(raw) {
             return date
         }
         throw DecodingError.dataCorruptedError(
@@ -712,6 +758,17 @@ extension CodexOAuthUsageFetcher {
         accountId: String) -> URL?
     {
         self.resolveSpendControlsMonthlyUsageURL(
+            env: env,
+            configContents: configContents,
+            accountId: accountId)
+    }
+
+    static func _resolveWorkspaceRemainingBalanceURLForTesting(
+        env: [String: String] = [:],
+        configContents: String? = nil,
+        accountId: String) -> URL?
+    {
+        self.resolveWorkspaceRemainingBalanceURL(
             env: env,
             configContents: configContents,
             accountId: accountId)

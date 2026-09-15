@@ -589,7 +589,7 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
             {
                 throw ProviderPluginError.http("compressed responses are not allowed")
             }
-            let payload = try Self.responsePayload(response, wantsJSON: wantsJSON)
+            let payload = try ProviderPluginHTTPResponse.payload(response, wantsJSON: wantsJSON)
             let value = try self.parseJSON(payload)
             defer { cqjs_free_value(self.context, value) }
             try self.invoke(arguments[4], argument: value)
@@ -706,7 +706,7 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
         guard let url = URL(string: rawURL) else {
             throw ProviderPluginError.networkPolicy("request URL is invalid")
         }
-        guard try self.allowedOrigin(for: url, settings: settings) else {
+        guard try self.manifest.allowedOrigin(for: url, settings: settings) else {
             let rejectedOrigin = (try? ProviderPluginOrigin.normalizedOrigin(
                 of: url,
                 policy: url.scheme?.lowercased() == "http" ? .httpsOrLoopbackHTTP : .https)) ?? "invalid"
@@ -747,24 +747,11 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
             // Provider-specific by design: first-party OpenRouter Activity uses a separately scoped management key,
             // and the broker pins that exceptional credential to the official read-only endpoint.
             if let managementAuth = options["openRouterManagementAuth"] {
-                let managementSecret = "OPENROUTER_MANAGEMENT_API_KEY"
-                guard let managementAuth = managementAuth as? Bool,
-                      managementAuth,
-                      self.manifest.id.firstPartyProvider == .openrouter,
-                      self.manifest.settings.first(where: { $0.key == managementSecret })?.kind == .secure,
-                      method == "GET",
-                      url.scheme?.lowercased() == "https",
-                      url.host?.lowercased() == "openrouter.ai",
-                      url.port == nil,
-                      url.user == nil,
-                      url.password == nil,
-                      url.path == "/api/v1/activity",
-                      url.fragment == nil
-                else {
+                guard let managementAuth = managementAuth as? Bool, managementAuth else {
                     throw ProviderPluginError.secretAccess(
                         "OpenRouter management auth is unavailable for this plugin")
                 }
-                secretName = managementSecret
+                secretName = try self.manifest.openRouterManagementAuthSecret(method: method, url: url)
             }
             guard let credential = secrets[secretName], !credential.isEmpty else {
                 throw ProviderPluginError.secretAccess("required auth secret is unavailable")
@@ -779,28 +766,6 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
         return request
     }
 
-    private func allowedOrigin(for url: URL, settings: [String: String]) throws -> Bool {
-        for endpoint in self.manifest.endpoints {
-            switch endpoint {
-            case let .fixed(declared):
-                if (try? ProviderPluginOrigin.normalizedOrigin(of: url)) == declared {
-                    return true
-                }
-            case let .setting(key, policy):
-                guard let rawValue = settings[key], !rawValue.isEmpty,
-                      let configuredURL = URL(string: rawValue), configuredURL.fragment == nil
-                else { continue }
-                let configuredOrigin = try ProviderPluginOrigin.normalizedOrigin(of: configuredURL, policy: policy)
-                if try ProviderPluginOrigin
-                    .normalizedOrigin(of: url, policy: policy) == configuredOrigin
-                {
-                    return true
-                }
-            }
-        }
-        return false
-    }
-
     private static func timeoutSeconds(_ options: [String: Any]) throws -> TimeInterval {
         guard let value = options["timeoutSeconds"] else { return 15 }
         guard let number = value as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID() else {
@@ -811,27 +776,6 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
             throw ProviderPluginError.http("timeoutSeconds must be a number from 1 through 30")
         }
         return seconds
-    }
-
-    private static func responsePayload(_ response: ProviderHTTPResponse, wantsJSON: Bool) throws -> [String: Any] {
-        var headers: [String: String] = [:]
-        for (key, value) in response.response.allHeaderFields {
-            headers[String(describing: key).lowercased()] = String(describing: value)
-        }
-        var payload: [String: Any] = ["status": response.statusCode, "headers": headers]
-        if wantsJSON {
-            do {
-                payload["json"] = try JSONSerialization.jsonObject(with: response.data)
-            } catch {
-                throw ProviderPluginError.http("response was not valid JSON")
-            }
-        } else {
-            guard let text = String(data: response.data, encoding: .utf8) else {
-                throw ProviderPluginError.http("response body was not valid UTF-8")
-            }
-            payload["bodyText"] = text
-        }
-        return payload
     }
 
     private func blockingValue<Value: Sendable>(

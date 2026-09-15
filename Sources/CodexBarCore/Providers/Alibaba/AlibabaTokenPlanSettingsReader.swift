@@ -14,14 +14,14 @@ public struct AlibabaTokenPlanSettingsReader: Sendable {
     public static func cookieHeader(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
     {
-        self.cleaned(environment[self.cookieHeaderKey])
+        SettingsValue.cleaned(environment[self.cookieHeaderKey])
     }
 
     public static func hostOverride(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
     {
         self.endpointValidator.validatedHost(
-            self.cleaned(environment[self.hostKey]),
+            SettingsValue.cleaned(environment[self.hostKey]),
             policy: .allowAnyHTTPSHost)
     }
 
@@ -29,21 +29,8 @@ public struct AlibabaTokenPlanSettingsReader: Sendable {
         environment: [String: String] = ProcessInfo.processInfo.environment) -> URL?
     {
         self.endpointValidator.validatedURL(
-            self.cleaned(environment[self.quotaURLKey]),
+            SettingsValue.cleaned(environment[self.quotaURLKey]),
             policy: .allowAnyHTTPSHost)
-    }
-
-    static func cleaned(_ raw: String?) -> String? {
-        guard var value = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
-            return nil
-        }
-        if (value.hasPrefix("\"") && value.hasSuffix("\"")) ||
-            (value.hasPrefix("'") && value.hasSuffix("'"))
-        {
-            value = String(value.dropFirst().dropLast())
-        }
-        value = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return value.isEmpty ? nil : value
     }
 }
 

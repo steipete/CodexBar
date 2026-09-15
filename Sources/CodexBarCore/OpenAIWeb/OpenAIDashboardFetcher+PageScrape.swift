@@ -35,11 +35,7 @@ extension OpenAIDashboardFetcher {
         let webView = context.webView
         let apiData = context.apiData
         let verifiedSignedInEmail = context.verifiedSignedInEmail
-        let subscriptionResult = context.subscriptionResult
-        let previousSnapshot = context.previousSnapshot
         let deadline = context.deadline
-        let startedAt = context.startedAt
-        let debugDumpHTML = context.debugDumpHTML
         let log = context.log
         var lastBody: String?
         var lastHref: String?
@@ -75,7 +71,7 @@ extension OpenAIDashboardFetcher {
             try await self.handleBlockingReadinessState(
                 probe,
                 webView: webView,
-                debugDumpHTML: debugDumpHTML,
+                debugDumpHTML: context.debugDumpHTML,
                 logger: log)
 
             if Self.shouldReloadUsageRoute(
@@ -133,8 +129,26 @@ extension OpenAIDashboardFetcher {
                 continue
             }
 
-            log("dashboard phase=extract elapsed=\(Self.phaseElapsed(since: startedAt))")
+            log("dashboard phase=extract elapsed=\(Self.phaseElapsed(since: context.startedAt))")
             let scrape = try await self.scrape(webView: webView)
+            try Task.checkCancellation()
+            if Self.shouldWaitForPageIdentity(
+                verifiedSignedInEmail: verifiedSignedInEmail,
+                pageSignedInEmail: scrape.signedInEmail)
+            {
+                try await Self.sleepForDashboardPoll(.milliseconds(400))
+                continue
+            }
+            if let snapshot = try Self.snapshotForUnpairedPage(
+                apiData: apiData,
+                verifiedSignedInEmail: verifiedSignedInEmail,
+                pageSignedInEmail: scrape.signedInEmail,
+                subscriptionResult: context.subscriptionResult,
+                previous: context.previousSnapshot)
+            {
+                log("usage api snapshot returned without unverified page data")
+                return snapshot
+            }
             lastBody = scrape.bodyText ?? lastBody
             let dashboardData = Self.parseDashboardScrape(
                 scrape,
@@ -173,26 +187,36 @@ extension OpenAIDashboardFetcher {
                 return Self.makePageSnapshot(
                     scrape: scrape,
                     dashboardData: dashboardData,
-                    subscriptionResult: subscriptionResult,
-                    previousSnapshot: previousSnapshot)
+                    subscriptionResult: context.subscriptionResult,
+                    previousSnapshot: context.previousSnapshot)
             }
 
             try await Self.sleepForDashboardPoll(.milliseconds(500))
         }
 
+        return try await self.finishPageSnapshot(context, lastBody: lastBody, lastError: lastUsageBreakdownError)
+    }
+
+    private func finishPageSnapshot(
+        _ context: PageScrapeContext, lastBody: String?, lastError: String?) async throws -> OpenAIDashboardSnapshot
+    {
+        let apiData = context.apiData
+        let verifiedSignedInEmail = context.verifiedSignedInEmail
+        let webView = context.webView
+        let log = context.log
         if let apiData, apiData.hasUsageData, let verifiedSignedInEmail {
             log("usage api snapshot returned after WebView deadline")
             return Self.snapshotByMergingAPI(
                 apiData: apiData,
                 verifiedEmail: verifiedSignedInEmail,
-                subscriptionResult: subscriptionResult,
-                previous: previousSnapshot)
+                subscriptionResult: context.subscriptionResult,
+                previous: context.previousSnapshot)
         }
 
-        if debugDumpHTML, let html = try? await self.fetchDebugHTML(webView: webView) {
+        if context.debugDumpHTML, let html = try? await self.fetchDebugHTML(webView: webView) {
             Self.writeDebugArtifacts(html: html, bodyText: lastBody, logger: log)
         }
-        throw FetchError.noDashboardData(body: lastUsageBreakdownError ?? lastBody ?? "")
+        throw FetchError.noDashboardData(body: lastError ?? lastBody ?? "")
     }
 
     nonisolated static func makePageSnapshot(
@@ -203,6 +227,7 @@ extension OpenAIDashboardFetcher {
     {
         self.fillingMissingPageFields(
             self.makeDashboardSnapshot(.init(
+                accountID: dashboardData.accountID,
                 signedInEmail: dashboardData.signedInEmail,
                 scrape: scrape,
                 codeReview: dashboardData.codeReview,
@@ -213,6 +238,8 @@ extension OpenAIDashboardFetcher {
                 rateLimits: dashboardData.rateLimits,
                 extraRateWindows: dashboardData.extraRateWindows,
                 creditsRemaining: dashboardData.creditsRemaining,
+                creditsAvailable: dashboardData.creditsAvailable,
+                balanceIsWorkspace: dashboardData.balanceIsWorkspace,
                 codexCreditLimit: dashboardData.codexCreditLimit,
                 accountPlan: dashboardData.accountPlan,
                 subscription: subscriptionResult.metadata)),

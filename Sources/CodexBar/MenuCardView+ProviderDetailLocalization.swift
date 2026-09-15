@@ -12,9 +12,12 @@ extension UsageMenuCardView.Model {
             return details.compactMap { section in
                 let rows = section.rows.compactMap { row in
                     try? ProviderDetailSection.Row(
+                        id: row.id,
                         label: L(row.label),
                         value: row.value,
-                        secondaryValue: self.localizedProviderDetailSecondaryValue(row, provider: provider))
+                        secondaryValue: self.localizedProviderDetailSecondaryValue(row, provider: provider),
+                        progress: row.progress,
+                        usageValue: row.usageValue)
                 }
                 return try? ProviderDetailSection(
                     title: section.title.map(L),
@@ -25,11 +28,14 @@ extension UsageMenuCardView.Model {
         return details.compactMap { section in
             let rows = section.rows.compactMap { row in
                 try? ProviderDetailSection.Row(
+                    id: row.id,
                     label: L(row.label),
                     value: self.localizedProviderDetailValue(row.value, provider: provider),
                     secondaryValue: row.secondaryValue.map {
                         self.localizedProviderDetailValue($0, provider: provider)
-                    })
+                    },
+                    progress: row.progress,
+                    usageValue: row.usageValue)
             }
             let chart = section.chart.flatMap { chart in
                 try? ProviderDetailSection.Chart(

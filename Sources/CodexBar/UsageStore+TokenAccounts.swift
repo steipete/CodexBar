@@ -1271,7 +1271,8 @@ extension UsageStore {
         switch outcome.result {
         case let .success(result):
             let scoped = result.usage.scoped(to: provider)
-            let labeled = self.applyAccountLabel(scoped, provider: provider, account: account)
+            let current = self.resolvingCurrentCopilotAllowance(in: scoped, provider: provider, account: account)
+            let labeled = current.withAccountLabel(account.label, for: provider)
             let snapshot = TokenAccountUsageSnapshot(
                 account: account,
                 snapshot: labeled,
@@ -1306,7 +1307,7 @@ extension UsageStore {
               let current = self.uniqueTokenAccount(provider: provider, accountID: account.id),
               snapshot.cacheKey == self.tokenAccountSnapshotCacheKey(provider: provider, account: current)
         else { return nil }
-        return snapshot
+        return self.resolvingCurrentCopilotAllowance(in: snapshot, provider: provider, account: current)
     }
 
     private static func preservesClaudeOAuthSnapshot(
@@ -1512,16 +1513,19 @@ extension UsageStore {
         guard self.isCurrentProviderRefreshGeneration(provider, generation: generation) else { return }
         if case .failure = outcome.result, let account,
            self.settings.effectiveSelectedTokenAccount(for: provider)?.id != account.id
-        { return }
+        {
+            return
+        }
         self.lastFetchAttempts[provider.instanceID] = outcome.attempts
         switch outcome.result {
         case let .success(result):
             let scoped = result.usage.scoped(to: provider)
+            let current = self.resolvingCurrentCopilotAllowance(in: scoped, provider: provider, account: account)
             let labeled: UsageSnapshot =
                 if let account {
-                    self.applyAccountLabel(scoped, provider: provider, account: account)
+                    current.withAccountLabel(account.label, for: provider)
                 } else {
-                    scoped
+                    current
                 }
             let profileStable =
                 provider == .deepseek

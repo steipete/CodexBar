@@ -36,6 +36,7 @@ public enum AbacusProviderDescriptor {
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
                 sharePlanLabels: ["basic": "Basic", "pro": "Pro", "team": "Team", "enterprise": "Enterprise"],
+                usesDetailBackedWindow: true,
                 browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,
                 dashboardURL: "https://apps.abacus.ai/chatllm/admin/compute-points-usage",
                 statusPageURL: nil,
@@ -53,6 +54,8 @@ public enum AbacusProviderDescriptor {
                 supportsTokenCost: false,
                 noDataMessage: { "Abacus AI cost summary is not supported." }),
             presentation: ProviderUsagePresentation(
+                semanticWindowResolver: { .init(session: $0.primary, weekly: nil) },
+                menuBarLayoutPrimaryLabel: "Credits",
                 menuCard: ProviderMenuCardPresentation(usesAbacusPace: true),
                 menu: ProviderMenuDescriptorPresentation(
                     primaryDescriptionIsDetail: { _ in true },

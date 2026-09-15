@@ -68,6 +68,7 @@ Usage source picker:
   Automatic mode also suppresses unscoped CLI fallback whenever a managed workspace is selected. Explicit
   managed-account workspace selection is stored in CodexBar's private managed-account metadata; it never edits the
   source `auth.json` or publishes an `account_id` change back to another application's credential file.
+- **Reauthenticate** follows the credential source shown by the account row: System rows use the existing system Codex login flow even when the same account is also saved; managed rows renew their private managed home. Credentials are not copied between those homes. A queued action is discarded if the row's source or workspace changes.
 - If native credentials need renewal, use **Reauthenticate** for the affected account in Settings → Providers → Codex.
   For CLI recovery, run `codex login` with that account's existing `CODEX_HOME` and select the intended workspace.
   The refresh error describes this manual recovery without promising automatic CLI fallback for managed workspaces.
@@ -191,7 +192,11 @@ is limited, using additional rows when needed.
 4) Last imported browser cookie email (cached).
 
 ## Credits
-- Web dashboard fills credits only when OAuth/CLI do not provide them. Account-matched extra usage reconciles monthly caps and purchased balances separately: a newer confirmed zero clears an old balance, while an unread balance preserves the last successful reading. Extra usage shows monthly spend/limit and a distinct purchased balance when available; the optional credits setting controls visibility.
+- Web dashboard fills credits only when OAuth/CLI do not provide them. Account-matched extra usage reconciles monthly caps and purchased balances separately; the optional credits setting controls visibility.
+- When usage reports limited workspace credits without an amount, an optional read of the account's `remaining_balance` endpoint uses the same OAuth or browser session. Access depends on workspace permissions. Failure preserves ordinary usage and monthly-limit data.
+- Workspace balances attach and persist only when the dashboard response account ID matches the selected account. Same-email workspace mismatches and old workspace caches without an account ID are rejected by both the app and CLI.
+- A newer explicitly unavailable workspace balance suppresses an older cached amount, including after restart. A later successful positive or zero balance restores visibility. Usage-only refreshes that skip the balance read preserve the account's prior observation; account changes never inherit it.
+- The custom **Balance** menu-bar token supports Codex credits, rounded and grouped as whole credits. Workspace pools remain distinct from a member's monthly cap and do not imply a total pool capacity.
 - CLI RPC: `account/rateLimits/read` → credits balance.
 - CLI PTY diagnostics can still parse `Credits:` from saved/manual `/status` output.
 
@@ -246,11 +251,17 @@ is limited, using additional rows when needed.
     coverage, and incomplete-scan checks. Cached reports
     retain row-level pricing evidence and project/session details, but omit raw token snapshots, accumulator state,
     and replay bodies. File cursor metadata, including JSONL resume state, remains available for progress tracking.
+    Fresh and cached fetches use progress metadata to recognize retained reports during catch-up, skipping
+    detail-row decoding that would be discarded. Reports without a matching retained result still load exact details.
     A native scan loads exact usage rows once, deferring raw token history and checkpoints until a file changes
     or a fork needs its ancestors. A single-use receipt binds those deferred reads and saves to the original
     connection, database identity and SQLite change observations,
     checking again under the writer lock. Filesystem/anchor and catch-up reconciliation still run at comparison
     time; a concurrent database change requests a rescan. Fresh database opens retain integrity validation.
+  - Up to four recently used cache roots retain validated reader connections and decoded status/activity data.
+    External writes invalidate cached data; database replacement or incompatible metadata reopens the reader through
+    existing validation on its next access. Every read still reconciles file identities, and detailed report history
+    remains transient. Scanner and writer connections keep separate ownership.
   - Saved day/model aggregates group each file's usage rows in one pass per aggregate build. Packed token totals,
     authoritative costs (including zero), and standard/priority estimation buckets retain their existing meanings.
   - Fully read empty session fragments retain completion records even when another file contributes the same session.
@@ -264,6 +275,7 @@ is limited, using additional rows when needed.
     results with no priority turns; validated pricing outside that window remains intact.
 - Window: configurable 1-365 day rolling history.
 - Pending cost scans retain their discovery range when the same cache receives narrower or wider history requests ending on the same day. Reports still use the requested dates, and compatible existing caches retain stored usage and partial-scan progress on upgrade. A new ending day, changed roots/timezone, or a forced rescan keeps the usual discovery reset behavior.
+- Routine rescans of changed sessions replace request-pricing rows within the scan window alongside token totals. Cached rows outside that window remain available; obsolete rows cannot make an otherwise priceable day lose its cost estimate. Budget-limited scans retain matching request-pricing evidence and the parser position across restarts, without counting unparsed requests in active totals. Upgrades from 0.60.1 retain saved history, including sessions whose source files are no longer available.
 - App cadence: regular timer-driven local-history refreshes have a 15-minute minimum (30 minutes in Low Power Mode).
   Manual disables the recurring refresh timer, not all scan activity: startup refreshes and pending Codex catch-up can
   still scan local history. Faster provider refreshes still update quota/status. The scanner's default 60-second
@@ -337,3 +349,7 @@ dashboard labels its values as local estimates and keeps currencies separate.
   `Sources/CodexBarCore/PiSessionCostScanner.swift`,
   `Sources/CodexBarCore/PiSessionCostCache.swift`,
   `Sources/CodexBarCore/Vendored/CostUsage/*`
+
+Automatic local-history catch-up bases its duty-cycle delay on time spent executing its own scan, including cache
+publication. Time waiting behind another account or provider on the shared scan queue does not increase that delay.
+The existing power, thermal, scan-budget, and complete-history publication rules still apply.

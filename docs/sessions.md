@@ -4,7 +4,9 @@ CodexBar can list live Codex, Claude Code, pi, and OMP sessions on this Mac and 
 
 Enable **Settings → Menu → Agent sessions**. Local sessions refresh every 30 seconds. Remote sessions refresh every 60 seconds and whenever the menu opens. Tailscale discovery includes online macOS and Linux peers; add extra SSH destinations as a comma-separated list, such as `user@host`.
 
-The setting is off by default. While it is off, CodexBar clears published local and remote session rows and does not fetch remote sessions. Adaptive agent-aware refresh may still collect a local activity timestamp after explicit consent, but it does not retain or publish session identities or paths.
+**Hide unreachable hosts** is opt-in and off by default. When enabled, it hides remote hosts after any failed session fetch, including connection, authentication, incompatible CLI, or decoding errors. Fetching and retries continue. Turn it off to restore the `— unreachable` rows and their diagnostic tooltips.
+
+**Agent sessions** itself is off by default. While it is off, CodexBar clears published local and remote session rows and does not fetch remote sessions. Adaptive agent-aware refresh may still collect a local activity timestamp after explicit consent, but it does not retain or publish session identities or paths.
 
 Pi-family discovery is process-backed. Plain pi is recognized by its `pi` process title (upstream also sets `PI_CODING_AGENT=true`); OMP is recognized from an `omp` process or a Bun launcher whose command line contains an `omp` executable. Both feed one scanner and use normalized provider `pi`, with a `dialect` value of `pi` or `omp` on each row.
 

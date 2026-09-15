@@ -1443,13 +1443,11 @@ public enum ClaudeOAuthCredentialsStore {
             request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
             request.setValue("application/json", forHTTPHeaderField: "Accept")
 
-            var components = URLComponents()
-            components.queryItems = [
-                URLQueryItem(name: "grant_type", value: "refresh_token"),
-                URLQueryItem(name: "refresh_token", value: refreshToken),
-                URLQueryItem(name: "client_id", value: ClaudeOAuthCredentialsStore.oauthClientID),
-            ]
-            request.httpBody = (components.percentEncodedQuery ?? "").data(using: .utf8)
+            request.httpBody = FormURLEncoding.body([
+                ("grant_type", "refresh_token"),
+                ("refresh_token", refreshToken),
+                ("client_id", ClaudeOAuthCredentialsStore.oauthClientID),
+            ])
 
             let response = try await ProviderHTTPClient.shared.response(for: request)
             let data = response.data
@@ -2478,18 +2476,6 @@ public enum ClaudeOAuthCredentialsStore {
             account: row[kSecAttrAccount as String] as? String,
             modifiedAt: row[kSecAttrModificationDate as String] as? Date,
             createdAt: row[kSecAttrCreationDate as String] as? Date))
-    }
-
-    private static func claudeKeychainLegacyCandidateWithoutPrompt(
-        promptMode: ClaudeOAuthKeychainPromptMode = ClaudeOAuthKeychainPromptPreference
-            .current()) -> ClaudeKeychainCandidate?
-    {
-        switch self.claudeKeychainLegacyCandidateProbeWithoutPrompt(promptMode: promptMode) {
-        case .unavailable:
-            nil
-        case let .value(candidate):
-            candidate
-        }
     }
 
     private static func loadClaudeKeychainData(

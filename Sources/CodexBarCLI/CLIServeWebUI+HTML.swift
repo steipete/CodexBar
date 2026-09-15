@@ -335,6 +335,7 @@ extension CLIServeWebUI {
         }
 
         .provider-name {
+          margin: 0;
           overflow: hidden;
           font-size: 16px;
           font-weight: 700;
@@ -773,12 +774,8 @@ extension CLIServeWebUI {
         function renderWindow(window) {
           const item = node("div", "window");
           const head = node("div", "window-head");
-          const label = node(
-            "span",
-            "window-label",
-            `${window.label || "Usage"} · ${percent(window.usedPercent)} used`
-          );
-          head.append(label);
+          head.append(node("span", "window-label",
+            `${window.label || "Usage"} · ${percent(window.usedPercent)} used`));
           const reset = resetTime(window.resetAt);
           if (reset) head.append(node("span", "window-time", reset));
 
@@ -841,15 +838,10 @@ extension CLIServeWebUI {
 
         function providerGlyph(provider) {
           const url = providerIconURLs[provider.id];
-          if (url) {
-            const icon = node("span", "provider-icon");
-            icon.style.setProperty("--icon", `url("${url}")`);
-            icon.setAttribute("aria-hidden", "true");
-            return icon;
-          }
-          const dot = node("span", "provider-dot");
-          dot.setAttribute("aria-hidden", "true");
-          return dot;
+          const icon = node("span", url ? "provider-icon" : "provider-dot");
+          if (url) icon.style.setProperty("--icon", `url("${url}")`);
+          icon.setAttribute("aria-hidden", "true");
+          return icon;
         }
 
         function visibleWindows(windows) {
@@ -868,13 +860,10 @@ extension CLIServeWebUI {
         }
 
         function pill(level, label) {
-          const el = node("span", `pill ${level}`, label);
-          return el;
+          return node("span", `pill ${level}`, label);
         }
 
         function renderAccountCard(provider, account) {
-          // Each claude-swap account gets a full card in the group grid — the
-          // vertical structure reads better than rows nested inside one card.
           const card = node("article", "card");
           card.style.setProperty("--accent", accentColor(provider.display?.accentColor));
           if (account.active) card.classList.add("active-account");
@@ -882,8 +871,7 @@ extension CLIServeWebUI {
           const head = node("div", "card-head");
           const title = node("div", "provider-title");
           title.append(providerGlyph(provider));
-          const name = account.identity?.accountEmail || account.label || "Account";
-          title.append(node("span", "provider-name", name));
+          title.append(node("span", "provider-name", account.label || account.identity?.accountEmail || "Account"));
           head.append(title);
           if (account.active) {
             head.append(pill("active", "active"));
@@ -971,11 +959,14 @@ extension CLIServeWebUI {
             const unit = provider.credits.unit ? ` ${provider.credits.unit}` : "";
             metrics.append(metric("Remaining", `${amount(provider.credits.remaining)}${unit}`));
           }
-          if (provider.cost?.todayUSD !== null && provider.cost?.todayUSD !== undefined) {
-            metrics.append(metric("Today", dollars(provider.cost.todayUSD)));
-          }
-          if (provider.cost?.last30DaysUSD !== null && provider.cost?.last30DaysUSD !== undefined) {
-            metrics.append(metric("Last 30 days", dollars(provider.cost.last30DaysUSD)));
+          appendCostSummary(card, provider, metrics);
+          return card;
+        }
+
+        function appendCostSummary(card, provider, metrics = node("div", "metrics")) {
+          for (const [label, key] of [["Today", "todayUSD"], ["Last 30 days", "last30DaysUSD"]]) {
+            const value = provider.cost?.[key];
+            if (value !== null && value !== undefined) metrics.append(metric(label, dollars(value)));
           }
           if (metrics.childElementCount) card.append(metrics);
 
@@ -984,7 +975,6 @@ extension CLIServeWebUI {
             const chart = renderCostChart(history);
             if (chart) card.append(chart);
           }
-          return card;
         }
 
         function updateFreshness() {
@@ -997,6 +987,15 @@ extension CLIServeWebUI {
           const stale = state.forceStale
             || (generatedAt !== null && (Date.now() - generatedAt) / 1000 > staleAfter);
           elements.stale.classList.toggle("visible", stale);
+        }
+
+        function renderGroup(title, cards) {
+          const group = node("section", "group");
+          if (title) group.append(node("h2", "group-title", title));
+          const grid = node("div", "grid");
+          grid.append(...cards);
+          group.append(grid);
+          return group;
         }
 
         function renderSnapshot(snapshot, forceStale = false) {
@@ -1023,24 +1022,23 @@ extension CLIServeWebUI {
           for (const provider of providers) {
             const accounts = Array.isArray(provider.accounts) ? provider.accounts : [];
             if (accounts.length) {
-              const group = node("section", "group");
-              group.append(node("h2", "group-title", `${provider.name || provider.id} accounts`));
-              const grid = node("div", "grid");
-              for (const account of accounts) grid.append(renderAccountCard(provider, account));
-              if (provider.accountsError) grid.append(node("p", "error-message", provider.accountsError));
-              group.append(grid);
+              const cards = accounts.map(account => renderAccountCard(provider, account));
+              const summary = node("article", "card");
+              summary.style.setProperty("--accent", accentColor(provider.display?.accentColor));
+              summary.append(node("h3", "provider-name", `${provider.name || provider.id} local spend`));
+              appendCostSummary(summary, provider);
+              if (summary.childElementCount > 1) cards.push(summary);
+              const group = renderGroup(`${provider.name || provider.id} accounts`, cards);
+              if (provider.error) group.append(node("p", "error-message",
+                `Provider data: ${provider.error.message || "Provider data is unavailable."}`));
+              if (provider.accountsError) group.append(node("p", "error-message", provider.accountsError));
               sections.push(group);
             } else {
               rest.push(provider);
             }
           }
           if (rest.length) {
-            const group = node("section", "group");
-            if (sections.length) group.append(node("h2", "group-title", "Other providers"));
-            const grid = node("div", "grid");
-            for (const provider of rest) grid.append(renderProvider(provider));
-            group.append(grid);
-            sections.push(group);
+            sections.push(renderGroup(sections.length ? "Other providers" : null, rest.map(renderProvider)));
           }
           if (!sections.length) sections.push(node("div", "empty", "No providers are configured."));
           elements.providers.replaceChildren(...sections);

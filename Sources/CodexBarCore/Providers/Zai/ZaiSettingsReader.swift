@@ -32,12 +32,12 @@ public struct ZaiSettingsReader: Sendable {
         environment: [String: String] = ProcessInfo.processInfo.environment,
         homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser) -> String?
     {
-        if let token = self.cleaned(environment[self.apiTokenKey]) {
+        if let token = SettingsValue.cleaned(environment[self.apiTokenKey]) {
             return token
         }
         guard region == .bigmodelCN else { return nil }
         for key in self.bigModelAPITokenKeys {
-            if let token = self.cleaned(environment[key]) {
+            if let token = SettingsValue.cleaned(environment[key]) {
                 return token
             }
         }
@@ -45,7 +45,7 @@ public struct ZaiSettingsReader: Sendable {
             let url = homeDirectory.appendingPathComponent(relativePath, isDirectory: false)
             guard FileManager.default.isReadableFile(atPath: url.path),
                   let raw = try? String(contentsOf: url, encoding: .utf8),
-                  let token = self.cleaned(raw.split(whereSeparator: \.isNewline).first.map(String.init))
+                  let token = SettingsValue.cleaned(raw.split(whereSeparator: \.isNewline).first.map(String.init))
             else { continue }
             return token
         }
@@ -55,20 +55,20 @@ public struct ZaiSettingsReader: Sendable {
     public static func apiHost(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
     {
-        self.cleaned(environment[self.apiHostKey])
+        SettingsValue.cleaned(environment[self.apiHostKey])
     }
 
     public static func quotaURL(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> URL?
     {
-        guard let raw = self.cleaned(environment[quotaURLKey]) else { return nil }
+        guard let raw = SettingsValue.cleaned(environment[quotaURLKey]) else { return nil }
         return ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: raw)
     }
 
     public static func balanceURL(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> URL?
     {
-        guard let raw = self.cleaned(environment[balanceURLKey]) else { return nil }
+        guard let raw = SettingsValue.cleaned(environment[balanceURLKey]) else { return nil }
         return ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: raw)
     }
 
@@ -96,7 +96,7 @@ public struct ZaiSettingsReader: Sendable {
     static func validateBalanceEndpointOverride(
         environment: [String: String] = ProcessInfo.processInfo.environment) throws
     {
-        guard self.cleaned(environment[self.balanceURLKey]) != nil else { return }
+        guard SettingsValue.cleaned(environment[self.balanceURLKey]) != nil else { return }
         guard self.balanceURL(environment: environment) != nil else {
             throw ZaiSettingsError.invalidEndpointOverride(self.balanceURLKey)
         }
@@ -105,7 +105,7 @@ public struct ZaiSettingsReader: Sendable {
     public static func validateQuotaEndpointOverride(
         environment: [String: String] = ProcessInfo.processInfo.environment) throws
     {
-        if let raw = self.cleaned(environment[self.quotaURLKey]) {
+        if let raw = SettingsValue.cleaned(environment[self.quotaURLKey]) {
             guard ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: raw) != nil else {
                 throw ZaiSettingsError.invalidEndpointOverride(self.quotaURLKey)
             }
@@ -134,7 +134,7 @@ public struct ZaiSettingsReader: Sendable {
     public static func validateAPIHostEndpointOverride(
         environment: [String: String] = ProcessInfo.processInfo.environment) throws
     {
-        guard let raw = self.cleaned(environment[self.apiHostKey]) else { return }
+        guard let raw = SettingsValue.cleaned(environment[self.apiHostKey]) else { return }
         guard ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: raw) != nil else {
             throw ZaiSettingsError.invalidEndpointOverride(self.apiHostKey)
         }
@@ -166,21 +166,6 @@ public struct ZaiSettingsReader: Sendable {
         guard host == region.quotaLimitURL.host?.lowercased() else {
             throw ZaiSettingsError.endpointRegionMismatch(key, region)
         }
-    }
-
-    static func cleaned(_ raw: String?) -> String? {
-        guard var value = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
-            return nil
-        }
-
-        if (value.hasPrefix("\"") && value.hasSuffix("\"")) ||
-            (value.hasPrefix("'") && value.hasSuffix("'"))
-        {
-            value = String(value.dropFirst().dropLast())
-        }
-
-        value = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return value.isEmpty ? nil : value
     }
 }
 

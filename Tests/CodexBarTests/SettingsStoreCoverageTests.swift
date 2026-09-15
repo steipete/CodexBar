@@ -519,24 +519,8 @@ struct SettingsStoreCoverageTests {
     }
 
     @Test
-    func `ensure token loaders execute`() {
+    func `unconfigured credentials are immediately empty`() {
         let settings = Self.makeSettingsStore()
-
-        settings.ensureZaiAPITokenLoaded()
-        settings.ensureSyntheticAPITokenLoaded()
-        settings.ensureCodexCookieLoaded()
-        settings.ensureClaudeCookieLoaded()
-        settings.ensureCursorCookieLoaded()
-        settings.ensureOpenCodeCookieLoaded()
-        settings.ensureFactoryCookieLoaded()
-        settings.ensureMiniMaxCookieLoaded()
-        settings.ensureMiniMaxAPITokenLoaded()
-        settings.ensureKimiAuthTokenLoaded()
-        settings.ensureAugmentCookieLoaded()
-        settings.ensureAmpCookieLoaded()
-        settings.ensureOllamaCookieLoaded()
-        settings.ensureCopilotAPITokenLoaded()
-        settings.ensureTokenAccountsLoaded()
 
         #expect(settings.zaiAPIToken.isEmpty)
         #expect(settings[providerConfig: .synthetic, field: .apiKey].isEmpty)

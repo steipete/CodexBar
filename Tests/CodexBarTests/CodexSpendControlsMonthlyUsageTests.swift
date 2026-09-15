@@ -89,6 +89,10 @@ struct CodexSpendControlsMonthlyUsageTests {
         try CodexOAuthUsageFetcher._decodeSpendControlsMonthlyUsageResponseForTesting(Data(json.utf8))
     }
 
+    private func decodeWorkspaceBalance(_ json: String) throws -> CodexWorkspaceRemainingBalanceResponse {
+        try JSONDecoder().decode(CodexWorkspaceRemainingBalanceResponse.self, from: Data(json.utf8))
+    }
+
     private func makeCredentials(accountId: String? = nil) -> CodexOAuthCredentials {
         CodexOAuthCredentials(
             accessToken: "access",
@@ -326,7 +330,7 @@ struct CodexSpendControlsMonthlyUsageTests {
     }
 
     @Test
-    func `O auth helper creates credits when monthly limit is the only credit data`() async throws {
+    func `O auth helper adds monthly limit to credits with a hidden balance`() async throws {
         let usageJSON = self.educationUsageJSON().replacingOccurrences(
             of: #""credits": {"has_credits": true, "unlimited": false, "balance": "14"}"#,
             with: #""credits": {"has_credits": true, "unlimited": false, "balance": null}"#)
@@ -346,10 +350,39 @@ struct CodexSpendControlsMonthlyUsageTests {
                 return payload
             })
 
-        #expect(original.credits == nil)
+        #expect(original.credits?.balanceReadSucceeded == false)
+        #expect(original.credits?.creditsAvailable == true)
         #expect(enriched.credits?.remaining == 0)
         #expect(enriched.credits?.events.isEmpty == true)
         #expect(enriched.credits?.codexCreditLimit?.limit == 7000)
+        #expect(enriched.credits?.creditsAvailable == true)
+    }
+
+    @Test
+    func `O auth helper replaces a hidden workspace balance with the owner visible balance`() async throws {
+        let usageJSON = self.educationUsageJSON(planType: "business", accountId: "credential-account")
+            .replacingOccurrences(
+                of: #""credits": {"has_credits": true, "unlimited": false, "balance": "14"}"#,
+                with: #""credits": {"has_credits": true, "unlimited": false, "balance": null}"#)
+        let usage = try self.decodeUsage(usageJSON)
+        let original = try CodexOAuthFetchStrategy._mapResultForTesting(
+            Data(usageJSON.utf8),
+            credentials: self.makeCredentials())
+        let payload = try self.decodeWorkspaceBalance(#"{"balance":"1234"}"#)
+
+        let enriched = try await CodexOAuthFetchStrategy._applyWorkspaceRemainingBalanceForTesting(
+            original,
+            usage: usage,
+            credentials: self.makeCredentials(accountId: "credential-account"),
+            context: self.makeContext(),
+            fetcher: { accountId in
+                #expect(accountId == "credential-account")
+                return payload
+            })
+
+        #expect(enriched.credits?.remaining == 1234)
+        #expect(enriched.credits?.balanceReadSucceeded == true)
+        #expect(enriched.credits?.creditsAvailable == true)
     }
 
     @Test
@@ -600,6 +633,46 @@ struct CodexSpendControlsMonthlyUsageTests {
         #expect(await transport.requests().count == 1)
     }
 
+    @Test
+    func `workspace balance endpoint decodes numeric strings and clamps negative values`() throws {
+        #expect(try self.decodeWorkspaceBalance(#"{"balance":"1234"}"#).balance == 1234)
+        #expect(try self.decodeWorkspaceBalance(#"{"balance":-4}"#).balance == 0)
+        #expect(try self.decodeWorkspaceBalance(#"{"balance":"NaN"}"#).balance == nil)
+        #expect(try self.decodeWorkspaceBalance(#"{"balance":null}"#).balance == nil)
+    }
+
+    @Test
+    func `O auth workspace balance endpoint uses bearer account and bounded timeout`() async throws {
+        let payload = Data(#"{"balance":1234}"#.utf8)
+        let transport = ProviderHTTPTransportStub { request in
+            #expect(request.url?.absoluteString ==
+                "https://chatgpt.com/backend-api/accounts/acct-123/remaining_balance")
+            #expect(request.httpMethod == "GET")
+            #expect(request.timeoutInterval == 3)
+            #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer access")
+            #expect(request.value(forHTTPHeaderField: "ChatGPT-Account-Id") == "acct-123")
+            #expect(request.value(forHTTPHeaderField: "User-Agent") == "CodexBar")
+            #expect(request.value(forHTTPHeaderField: "Accept") == "application/json")
+            let url = try #require(request.url)
+            let response = try #require(HTTPURLResponse(
+                url: url,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: nil))
+            return (payload, response)
+        }
+
+        let response = try await CodexOAuthUsageFetcher.fetchWorkspaceRemainingBalance(
+            accessToken: "access",
+            accountId: "acct-123",
+            env: ["CODEX_HOME": "/tmp/codexbar-workspace-balance-fixture-home"],
+            timeout: 3,
+            session: transport)
+
+        #expect(response.balance == 1234)
+        #expect(await transport.requests().count == 1)
+    }
+
     #if os(macOS)
     @MainActor
     @Test
@@ -622,6 +695,17 @@ struct CodexSpendControlsMonthlyUsageTests {
 
     @MainActor
     @Test
+    func `dashboard business owner path fetches the shared workspace balance`() async {
+        let result = await self.fetchDashboardScenario(.businessHiddenBalance)
+
+        #expect(result?.creditsRemaining == 1234)
+        #expect(DashboardSpendControlsURLProtocol.recordedRequests.count == 2)
+        #expect(DashboardSpendControlsURLProtocol.recordedRequests.last?.url?.path
+            .hasSuffix("/remaining_balance") == true)
+    }
+
+    @MainActor
+    @Test
     func `dashboard monthly endpoint failure keeps original data`() async {
         let result = await self.fetchDashboardScenario(.educationNotFound)
 
@@ -640,6 +724,18 @@ struct CodexSpendControlsMonthlyUsageTests {
     }
 
     @MainActor
+    @Test
+    func `dashboard workspace balance endpoint percent encodes account path component`() {
+        let request = OpenAIDashboardFetcher.dashboardWorkspaceRemainingBalanceAPIRequest(
+            accountId: "acct/a b",
+            cookieHeader: "session=test")
+
+        #expect(request?.url?.absoluteString ==
+            "https://chatgpt.com/backend-api/accounts/acct%2Fa%20b/remaining_balance")
+        #expect(request?.value(forHTTPHeaderField: "ChatGPT-Account-Id") == "acct/a b")
+    }
+
+    @MainActor
     private func fetchDashboardScenario(_ scenario: DashboardSpendControlsURLProtocol.Scenario) async
         -> OpenAIDashboardFetcher.DashboardAPIData?
     {
@@ -648,10 +744,10 @@ struct CodexSpendControlsMonthlyUsageTests {
         configuration.protocolClasses = [DashboardSpendControlsURLProtocol.self]
         let transport = CodexAuthenticatedHTTPTransport.makeClient(configuration: configuration)
         return await CodexAuthenticatedHTTPTransport.$overrideForTesting.withValue(transport) {
-            await OpenAIDashboardFetcher.fetchDashboardUsageAPI(
+            try? await OpenAIDashboardFetcher.fetchDashboardAPIResponse(
                 cookieHeader: "session=test",
                 deadline: nil,
-                logger: { _ in })
+                logger: { _ in })?.apiData
         }
     }
     #endif
@@ -663,6 +759,7 @@ private final class DashboardSpendControlsURLProtocol: URLProtocol {
         case educationSuccess
         case educationNotFound
         case consumer
+        case businessHiddenBalance
     }
 
     private(set) nonisolated(unsafe) static var recordedRequests: [URLRequest] = []
@@ -689,9 +786,19 @@ private final class DashboardSpendControlsURLProtocol: URLProtocol {
         }
 
         let isMonthlyUsage = url.path.hasSuffix("/spend-controls/current-user/monthly-usage")
+        let isWorkspaceBalance = url.path.hasSuffix("/remaining_balance")
         let status: Int
         let payload: String
-        if isMonthlyUsage {
+        if isWorkspaceBalance {
+            switch Self.scenario {
+            case .businessHiddenBalance:
+                status = 200
+                payload = #"{"balance":"1234"}"#
+            case .educationSuccess, .educationNotFound, .consumer:
+                status = 500
+                payload = #"{"error":"unexpected balance request"}"#
+            }
+        } else if isMonthlyUsage {
             switch Self.scenario {
             case .educationSuccess:
                 status = 200
@@ -705,15 +812,27 @@ private final class DashboardSpendControlsURLProtocol: URLProtocol {
             case .consumer:
                 status = 500
                 payload = #"{"error":"unexpected monthly request"}"#
+            case .businessHiddenBalance:
+                status = 500
+                payload = #"{"error":"unexpected monthly request"}"#
             }
         } else {
             status = 200
-            let plan = Self.scenario == .consumer ? "plus" : "education"
-            payload = """
-            {"account_id":"acct-123","plan_type":"\(plan)","spend_control":{"individual_limit":null},
-             "rate_limit":{"primary_window":{"used_percent":10,"reset_at":1786161204,
-             "limit_window_seconds":18000},"secondary_window":null}}
-            """
+            if Self.scenario == .businessHiddenBalance {
+                payload = """
+                {"account_id":"acct-123","plan_type":"business",
+                 "credits":{"has_credits":true,"unlimited":false,"balance":null},
+                 "rate_limit":{"primary_window":{"used_percent":10,"reset_at":1786161204,
+                 "limit_window_seconds":18000},"secondary_window":null}}
+                """
+            } else {
+                let plan = Self.scenario == .consumer ? "plus" : "education"
+                payload = """
+                {"account_id":"acct-123","plan_type":"\(plan)","spend_control":{"individual_limit":null},
+                 "rate_limit":{"primary_window":{"used_percent":10,"reset_at":1786161204,
+                 "limit_window_seconds":18000},"secondary_window":null}}
+                """
+            }
         }
 
         guard let response = HTTPURLResponse(

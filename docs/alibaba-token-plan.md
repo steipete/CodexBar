@@ -47,6 +47,7 @@ The Alibaba Token Plan provider tracks Team credits and Personal/Solo rolling-wi
 - Browser cookies are rebuilt independently for the dashboard and quota hosts. Personal/Solo requests use the
   quota-host cookie header. The dashboard `sec_token` is resolved best-effort and appended when available
   (some accounts get `BailianGateway.Workspace.NotAuthorised` without it); requests still proceed without it.
+- Gateway forms preserve reserved characters in security tokens and JSON parameters. Missing or empty optional security tokens remain omitted.
 - Config region values are `intl` and `cn` for Team, or `intl-personal` and `cn-personal` for Personal/Solo.
 - Supports `ALIBABA_TOKEN_PLAN_HOST` and `ALIBABA_TOKEN_PLAN_QUOTA_URL` for testing endpoint overrides
 

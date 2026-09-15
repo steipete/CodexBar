@@ -11,6 +11,40 @@ public enum CostUsageScanExecutor {
 
     private static let queue = DispatchQueue(label: queueLabel, qos: .utility)
 
+    package struct TimedResult<Value: Sendable>: Sendable {
+        package let value: Value
+        package let activeDuration: TimeInterval
+
+        package init(value: Value, activeDuration: TimeInterval) {
+            self.value = value
+            self.activeDuration = activeDuration
+        }
+    }
+
+    package static func runTimed<T: Sendable>(
+        _ work: @escaping @Sendable (_ checkCancellation: @escaping @Sendable () throws -> Void) throws -> T)
+        async throws -> TimedResult<T>
+    {
+        try await self.runTimed(on: self.queue, work)
+    }
+
+    static func runTimed<T: Sendable>(
+        on queue: DispatchQueue,
+        _ work: @escaping @Sendable (_ checkCancellation: @escaping @Sendable () throws -> Void) throws -> T)
+        async throws -> TimedResult<T>
+    {
+        try await self.run(on: queue) { checkCancellation in
+            // Queue contention must not become active-work debt in the caller's duty-cycle policy.
+            let start = ContinuousClock.now
+            let value = try work(checkCancellation)
+            let duration = (ContinuousClock.now - start).components
+            return TimedResult(
+                value: value,
+                activeDuration: Double(duration.seconds)
+                    + Double(duration.attoseconds) / 1_000_000_000_000_000_000)
+        }
+    }
+
     private final class RunState<Value: Sendable>: @unchecked Sendable {
         private enum Phase {
             case initial

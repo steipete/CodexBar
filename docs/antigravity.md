@@ -21,6 +21,16 @@ run `agy` once and sign in. CodexBar keeps the signed-in `agy` local HTTPS serve
 after each refresh and stops it when idle, or reuses a signed-in `agy` you already have running
 without taking ownership of that process.
 
+For `agy` 1.2.2 and later, a failed legacy HTTPS fetch can fall back to
+`agy -p /usage --output-format json`. CodexBar checks that the same executable reports version 1.1.11
+or later before using print mode; [Google introduced non-interactive usage reports in 1.1.11](https://antigravity.google/changelog).
+It requires a successful `usage` command report with known,
+enabled quota buckets, bounds the command to 90 seconds and its output to 1 MiB, and terminates the command
+on cancellation. It runs in a private empty directory and does not send a model prompt or parse TUI output.
+The report contains no account or plan identity: explicit CLI mode remains authoritative, while Auto uses
+this fallback only without a selected token account or explicitly injected OAuth credentials. Successful
+HTTPS results retain their verified identity. Failed command diagnostics do not include raw stderr.
+
 Antigravity supports four usage data sources:
 
 1. The Antigravity 2.0 app's local `language_server` (preferred when the app is open).
@@ -55,10 +65,14 @@ when CodexBar has a selected/injected Google account or an existing shared crede
 `fetchAvailableModels` payload is only accepted after `retrieveUserQuota` echoes bucket fractions; this can be an
 availability-style fallback rather than the full Antigravity quota summary.
 When OAuth identifies the account but quota endpoints deny access, CodexBar shows `Limits not available` instead of an
-empty quota card.
+empty quota card. Auto also skips `agy` reports without account identity when a Google account is selected or injected,
+because it cannot verify that those quotas belong to that account. Settings explains this beside **Usage source**.
+To try the local app or `agy` account instead, select **Local API / agy CLI** (CLI: `--source cli`).
+That source may use a different signed-in account from the Google account selected in CodexBar; it does not verify a match.
 
 ## OAuth account switching
 
+- OAuth refresh form-encodes credential values, preserving literal plus signs, separators, and percent escapes.
 - Login still uses Antigravity's Google OAuth client, discovered from `Antigravity.app` or overridden with `ANTIGRAVITY_OAUTH_CLIENT_ID` and `ANTIGRAVITY_OAUTH_CLIENT_SECRET`.
 - A successful login writes the latest shared credentials to `~/.codexbar/antigravity/oauth_creds.json` and upserts a token-account entry for the Google account.
 - Each token-account entry stores serialized `AntigravityOAuthCredentials` and is injected into remote fetches through `ANTIGRAVITY_OAUTH_CREDENTIALS_JSON`.
@@ -175,8 +189,7 @@ Differences from the desktop local probe:
 - On macOS, external reuse matches the selected binary against the kernel executable path, not the spelling of
   `argv[0]`; a bare `agy` command can match, but a conflicting executable cannot. Platforms without that identity
   retain the absolute command-path check. User/account and managed-process exclusions are unchanged.
-- If `agy` is signed out, an unavailable or tokenless IDE fallback keeps the actionable Terminal sign-in guidance.
-  A successful fallback still supplies usage, and more specific later errors retain their normal precedence.
+- An unavailable or tokenless fallback preserves an earlier attempted-source failure, including CLI sign-in guidance, API errors, timeouts, and transport errors. A newly detected tokenless source can still replace an earlier not-running result. Successful fallbacks supply usage, and more specific later errors retain their normal precedence.
 - Readiness is endpoint-based: CodexBar retries until one of the quota endpoints parses, because fresh `agy`
   processes can bind a port before the quota service is initialized.
 - App runtime uses a bounded warm session: `agy` is kept alive briefly after a refresh, then stopped on idle. CLI runtime
@@ -243,6 +256,7 @@ shared OAuth file can still be used as a fallback credential source.
 - Antigravity exposes many model rows, but current local payloads show them collapsing into two real usage pools:
   Gemini and Claude/GPT. Detailed usage should not list every raw Gemini tier unless a future source exposes a genuinely
   distinct unknown or consumed quota window.
+- Remote non-selectable variants are omitted only when their known remaining fraction and concrete reset timestamp exactly match the selected pool representative. Local rows, unknown usage, differing fractions, and missing or different reset timestamps remain distinct. Extra rows retain canonical model IDs; equal display titles do not establish a shared quota identity. When one canonical model has both known and reset-only observations, known usage wins.
 - Some Antigravity local/CLI model config entries include reset metadata but omit `remainingFraction`. Those windows stay
   in `extraRateWindows` for reset context and are marked with `usageKnown: false`; clients should not render their
   `usedPercent` as a real exhausted quota.
@@ -277,7 +291,12 @@ The cost endpoint and dashboard also include it when Antigravity is selected. To
 costs, and these entry points do not expand the supported timestamp layouts described below.
 
 SQLite is authoritative when present. An unreadable root, malformed database, unsupported event layout, or exhausted
-budget never authorizes replacement by a smaller/stale JSONL cache. Complete empty databases and complete histories
+budget never authorizes replacement by a smaller/stale JSONL cache. Some SQLite builds, including the macOS system
+library, decline a read-only open of a WAL database whose `-wal` and `-shm` sidecars are absent, which is what a
+cleanly closed conversation leaves behind. When that happens and no `-wal` sidecar exists, the reader retries that
+one database with an `immutable=1` open of the main file; it never creates sidecars. The retry counts only when
+the file and its sidecar state are unchanged afterwards. A database with a `-wal` sidecar present stays
+unavailable, because a WAL connection may still hold it. Complete empty databases and complete histories
 outside the selected window establish empty history; absent sources and partial scans do not. Partial reports remain
 diagnostic only: the fetcher withholds their rows. Regular refresh applies its existing failure/retention policy,
 and neither regular refresh nor the dashboard publishes unavailable results as confirmed zero. Failed dashboard
@@ -345,12 +364,16 @@ payload lengths still count as attempted work. Before copying, the selected BLOB
 length. There is no view or sorting step that can buffer payloads ahead of accounting;
 the reader buffers only validated typed events.
 
-Database access uses ordinary `SQLITE_OPEN_READONLY`, never `immutable=1` or an unsafe file copy. This does not mutate
+Database access uses ordinary `SQLITE_OPEN_READONLY` and never an unsafe file copy. This does not mutate
 database records, but SQLite's normal WAL access may create sidecars and coordinate through SHM read marks.
-It is not a guarantee of literal SHM-byte preservation. A platform SQLite build that cannot open a WAL database
-without sidecars reports unavailable rather than bypassing normal coordination. Temporary fixture tests compare DB/WAL contents without
-writer activity, coordinate subsequent writer activity against one read snapshot, and verify reader cleanup after
-cancellation. The fixtures are synthetic and source-linked, not private captures or proof of live installation/UI behavior.
+It is not a guarantee of literal SHM-byte preservation. The one exception is the `immutable=1` retry described
+above for a sidecar-less WAL database that the platform SQLite declines. That connection neither locks nor detects
+changes, so the reader records the file's size, modification time, file system number, and header before the
+retry and accepts the result only when they and the sidecar state are unchanged afterwards. A writer that appears
+and checkpoints during the retry leaves the database incomplete. Temporary fixture tests compare DB/WAL contents
+without writer activity, coordinate subsequent writer activity against one read snapshot, cover a writer that
+checkpoints during the immutable retry, and verify reader cleanup after cancellation. The fixtures are synthetic
+and source-linked, not private captures or proof of live installation/UI behavior.
 
 ## Constraints
 - Internal protocol; fields may change.

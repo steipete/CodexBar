@@ -50,18 +50,11 @@ func spendDashboardMetricText(
     tokens: Int?,
     currencyCode: String) -> String
 {
-    let costText = cost.map { UsageFormatter.currencyString($0, currencyCode: currencyCode) }
-    let tokenText = tokens.map(UsageFormatter.tokenCountString)
-    switch (costText, tokenText) {
-    case let (cost?, tokens?):
-        return "\(cost) · \(L("%@ tokens", tokens))"
-    case let (cost?, nil):
-        return cost
-    case let (nil, tokens?):
-        return L("%@ tokens", tokens)
-    case (nil, nil):
-        return "—"
-    }
+    let parts = [
+        cost.map { UsageFormatter.currencyString($0, currencyCode: currencyCode) },
+        tokens.map { L("%@ tokens", UsageFormatter.tokenCountString($0)) },
+    ].compactMap(\.self)
+    return parts.isEmpty ? "—" : parts.joined(separator: " · ")
 }
 
 func spendDashboardCoverageChipText(_ coverage: CostUsageCoverageCounts) -> String {
@@ -646,7 +639,7 @@ struct SpendDashboardCurrencySection: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     if let selectedDay = self.group.selectedDay {
-                        Text(SpendActivityDateFormatting.mediumDateString(selectedDay))
+                        Text(SpendActivityDateFormatting.mediumDateString(selectedDay, calendar: self.group.calendar))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -665,6 +658,8 @@ struct SpendDashboardCurrencySection: View {
                 SpendHourlyChart(group: self.group)
             }
         }
+        .environment(\.timeZone, self.group.timeZone)
+        .environment(\.calendar, self.group.calendar)
     }
 }
 
@@ -912,7 +907,7 @@ private struct SpendDailyChart: View {
                         stackEnd: \.stackEnd)
                     Chart(self.group.dailyPoints) { point in
                         BarMark(
-                            x: .value(L("Day"), point.day, unit: .day),
+                            x: .value(L("Day"), point.day, unit: .day, calendar: self.group.calendar),
                             yStart: .value(L("Estimated spend"), point.stackStart),
                             yEnd: .value(L("Estimated spend"), point.stackEnd),
                             width: .ratio(0.72))
@@ -926,6 +921,7 @@ private struct SpendDailyChart: View {
                                 currencyCode: self.group.currencyCode)))
                     }
                     .chartXScale(domain: self.group.chartDomain)
+                    .chartXAxis { AxisMarks(format: self.dayFormat) }
                     .chartForegroundStyleScale(
                         domain: presentation.series.map(\.name),
                         range: presentation.series.map { self.providerColor($0.provider) })
@@ -950,9 +946,16 @@ private struct SpendDailyChart: View {
         }
     }
 
+    private var dayFormat: Date.FormatStyle {
+        Date.FormatStyle(
+            locale: codexBarLocalizedLocale(),
+            calendar: self.group.calendar,
+            timeZone: self.group.timeZone)
+            .month(.abbreviated).day()
+    }
+
     private func pointAccessibilityLabel(_ point: SpendDashboardModel.DailyPoint) -> String {
-        let day = point.day.formatted(
-            .dateTime.month(.abbreviated).day().locale(codexBarLocalizedLocale()))
+        let day = point.day.formatted(self.dayFormat)
         return "\(point.providerName), \(day)"
     }
 
@@ -1031,7 +1034,7 @@ private struct SpendHourlyChart: View {
     let group: SpendDashboardModel.CurrencyGroup
 
     var body: some View {
-        let calendar = Self.chartCalendar(timeZone: self.group.timeZone)
+        let calendar = self.group.calendar
         let presentation = SpendHourlyChartPresentation(
             hourlyPoints: self.group.hourlyPoints,
             calendar: calendar)
@@ -1049,7 +1052,7 @@ private struct SpendHourlyChart: View {
                         stackEnd: \.stackEnd)
                     Chart(self.group.hourlyPoints) { point in
                         BarMark(
-                            x: .value(L("Hour"), point.hour, unit: .hour),
+                            x: .value(L("Hour"), point.hour, unit: .hour, calendar: calendar),
                             yStart: .value(L("Estimated spend"), point.stackStart),
                             yEnd: .value(L("Estimated spend"), point.stackEnd),
                             width: .ratio(0.72))
@@ -1063,8 +1066,6 @@ private struct SpendHourlyChart: View {
                                 point.cost,
                                 currencyCode: self.group.currencyCode)))
                     }
-                    .environment(\.timeZone, self.group.timeZone)
-                    .environment(\.calendar, calendar)
                     .chartXScale(domain: self.group.hourlyChartDomain ?? self.group.chartDomain)
                     .chartForegroundStyleScale(
                         domain: presentation.series.map(\.name),
@@ -1104,12 +1105,6 @@ private struct SpendHourlyChart: View {
     private func providerColor(_ provider: UsageProvider) -> Color {
         let color = ProviderAccentPalette.color(for: provider)
         return Color(red: color.red, green: color.green, blue: color.blue)
-    }
-
-    private static func chartCalendar(timeZone: TimeZone) -> Calendar {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = timeZone
-        return calendar
     }
 }
 
@@ -1212,9 +1207,7 @@ private struct SpendDailyLedgerRow: View {
                 .frame(width: SpendDailyLedgerLayout.trackedTokensWidth, alignment: .trailing)
             Text(self.summary.requestCount.map(codexBarLocalizedInteger) ?? "—")
                 .frame(width: SpendDailyLedgerLayout.requestsWidth, alignment: .trailing)
-            Text(self.summary.totalCost.map {
-                UsageFormatter.currencyString($0, currencyCode: self.currencyCode)
-            } ?? "—")
+            Text(spendDashboardLedgerCostText(self.summary, currencyCode: self.currencyCode))
                 .fontWeight(.medium)
                 .frame(width: SpendDailyLedgerLayout.estimatedSpendWidth, alignment: .trailing)
         }
@@ -1257,9 +1250,7 @@ private struct SpendDailyLedgerRow: View {
             : self.activeProviders.map(\.displayName).joined(separator: ", ")
         let tokens = self.summary.totalTokens.map(UsageFormatter.tokenCountString) ?? "—"
         let requests = self.summary.requestCount.map(codexBarLocalizedInteger) ?? "—"
-        let spend = self.summary.totalCost.map {
-            UsageFormatter.currencyString($0, currencyCode: self.currencyCode)
-        } ?? "—"
+        let spend = spendDashboardLedgerCostText(self.summary, currencyCode: self.currencyCode)
         return "\(day), \(L("Providers")): \(providers), \(L("Tracked tokens")): \(tokens), "
             + "\(L("Requests")): \(requests), \(L("Estimated spend")): \(spend)"
     }
@@ -1516,6 +1507,12 @@ func spendDashboardGroupCostText(_ group: SpendDashboardModel.CurrencyGroup) -> 
     guard let cost = group.totalCost else { return L("Spend unavailable") }
     let formatted = UsageFormatter.currencyString(cost, currencyCode: group.currencyCode)
     return group.hasPartialCost ? "~\(formatted)" : formatted
+}
+
+func spendDashboardLedgerCostText(_ summary: SpendDashboardModel.DailySummary, currencyCode: String) -> String {
+    guard let cost = summary.totalCost else { return "—" }
+    let formatted = UsageFormatter.currencyString(cost, currencyCode: currencyCode)
+    return summary.hasPartialCost ? "~\(formatted)" : formatted
 }
 
 func spendDashboardGroupTokenText(_ group: SpendDashboardModel.CurrencyGroup) -> String {

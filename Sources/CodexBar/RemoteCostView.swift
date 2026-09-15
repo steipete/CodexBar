@@ -168,6 +168,34 @@ enum RemoteCostSnapshotCombiner {
     }
 }
 
+extension UsageStore {
+    private func selectedRemoteCostHosts(for provider: UsageProvider) -> Set<String> {
+        let savedHosts = Set((try? RemoteCostFetcher.hosts(from: self.settings.remoteCostCombinedHosts)) ?? [])
+        return RemoteCostChartSeries.effectiveCombinedHosts(
+            savedHosts,
+            enabled: self.settings.remoteCostsEnabled,
+            provider: provider)
+    }
+
+    func combinedRemoteCostSnapshot(
+        for provider: UsageProvider,
+        local: CostUsageTokenSnapshot?) -> CostUsageTokenSnapshot?
+    {
+        RemoteCostSnapshotCombiner.combine(
+            local: local,
+            reports: self.remoteCosts.reports,
+            provider: provider,
+            combinedHosts: self.selectedRemoteCostHosts(for: provider))
+    }
+
+    func combinedRemoteCostDaily(for provider: UsageProvider) -> [RemoteCostDailySummary] {
+        RemoteCostChartSeries.daily(
+            reports: self.remoteCosts.reports,
+            provider: provider,
+            combinedHosts: self.selectedRemoteCostHosts(for: provider))
+    }
+}
+
 struct RemoteCostPresentation {
     let title: String
     let lines: [String]

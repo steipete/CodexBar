@@ -34,8 +34,7 @@ struct ClinePassProviderImplementation: ProviderImplementation {
                 placeholder: "ClinePass API key...",
                 binding: context.providerConfigBinding(.apiKey),
                 actions: [],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
         ]
     }
 }

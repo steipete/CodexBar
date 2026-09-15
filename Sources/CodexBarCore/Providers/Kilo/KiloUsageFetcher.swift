@@ -1158,15 +1158,7 @@ public struct KiloUsageFetcher: Sendable {
                 return self.dateFromEpoch(numeric)
             }
 
-            let withFractional = ISO8601DateFormatter()
-            withFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            if let parsed = withFractional.date(from: trimmed) {
-                return parsed
-            }
-
-            let plain = ISO8601DateFormatter()
-            plain.formatOptions = [.withInternetDateTime]
-            return plain.date(from: trimmed)
+            return ISO8601DateParser.parse(trimmed)
         default:
             return nil
         }

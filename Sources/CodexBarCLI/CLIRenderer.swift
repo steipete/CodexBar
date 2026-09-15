@@ -26,7 +26,7 @@ enum CLIRenderer {
                 now: now)
 
         if let status = context.status {
-            let statusLine = "Status: \(status.indicator.label)\(status.descriptionSuffix)"
+            let statusLine = "Status: \(status.indicator.cliLabel)\(status.descriptionSuffix)"
             lines.append(self.colorize(statusLine, indicator: status.indicator, useColor: context.useColor))
         }
 
@@ -202,30 +202,6 @@ enum CLIRenderer {
         }
     }
 
-    static func gradientRemainingBar(remainingPercent: Double, width: Int) -> String {
-        let clamped = max(0, min(100, remainingPercent))
-        let barWidth = max(4, width)
-        let rawFilled = Int((clamped / 100) * Double(barWidth))
-        let filled = max(0, min(barWidth, rawFilled))
-        let empty = max(0, barWidth - filled)
-        let colors = self.remainingGradientRGB(remainingPercent: clamped)
-        var bar = ""
-        if filled > 0 {
-            for index in 0..<filled {
-                let t = filled == 1 ? 1.0 : Double(index) / Double(filled - 1)
-                let red = Int(Double(colors.dark.0) * (1 - t) + Double(colors.light.0) * t)
-                let green = Int(Double(colors.dark.1) * (1 - t) + Double(colors.light.1) * t)
-                let blue = Int(Double(colors.dark.2) * (1 - t) + Double(colors.light.2) * t)
-                bar += self.ansiTrueColor(red: red, green: green, blue: blue, "█")
-            }
-        }
-        if empty > 0 {
-            let emptyCell = self.ansiTrueColor(red: 48, green: 50, blue: 62, "░")
-            bar += String(repeating: emptyCell, count: empty)
-        }
-        return bar
-    }
-
     static func gradientRemainingTrackBar(remainingPercent: Double, width: Int) -> String {
         let clamped = max(0, min(100, remainingPercent))
         let barWidth = max(4, width)
@@ -278,10 +254,6 @@ enum CLIRenderer {
         self.ansiTrueColor(red: 198, green: 146, blue: 255, text)
     }
 
-    static func colorizeEnhancedAccent(_ text: String) -> String {
-        self.ansiTrueColor(red: 176, green: 132, blue: 232, text)
-    }
-
     static func colorizeEnhancedSubtle(_ text: String) -> String {
         self.ansiTrueColor(red: 130, green: 135, blue: 150, text)
     }
@@ -291,14 +263,7 @@ enum CLIRenderer {
     }
 
     static func colorizeEnhancedBadge(_ source: String) -> String {
-        let r = max(0, min(255, 66))
-        let g = max(0, min(255, 133))
-        let b = max(0, min(255, 244))
-        return "\u{001B}[38;2;245;248;255;48;2;\(r);\(g);\(b)m \(source) \u{001B}[0m"
-    }
-
-    static func colorizeEnhancedPlanBox(_ text: String) -> String {
-        self.ansiTrueColor(red: 220, green: 222, blue: 230, text)
+        "\u{001B}[38;2;245;248;255;48;2;66;133;244m \(source) \u{001B}[0m"
     }
 
     static func colorizeEnhancedPlanLabel(_ text: String) -> String {
@@ -460,7 +425,7 @@ enum CLIRenderer {
         now: Date) -> CLICardMetric
     {
         let rateWindow = window.window
-        let detailBacked = self.usesDetailBackedWindow(provider: provider)
+        let detailBacked = ProviderDescriptorRegistry.descriptor(for: provider).metadata.usesDetailBackedWindow
         let reset = detailBacked
             ? self.resetLineForDetailBackedWindow(window: rateWindow, style: resetStyle, now: now)
             : self.resetLine(for: rateWindow, style: resetStyle, now: now)
@@ -479,7 +444,7 @@ enum CLIRenderer {
 
     static func colorizeStatusLine(
         _ text: String,
-        indicator: ProviderStatusPayload.ProviderStatusIndicator,
+        indicator: ProviderStatusIndicator,
         useColor: Bool) -> String
     {
         self.colorize(text, indicator: indicator, useColor: useColor)
@@ -630,22 +595,15 @@ enum CLIRenderer {
         lines: inout [String])
     {
         guard labels.showsTertiary, let tertiary = snapshot.tertiary else { return }
-        lines.append(self.rateLine(title: labels.tertiary, window: tertiary, useColor: context.useColor))
-        if ProviderDescriptorRegistry.descriptor(for: provider).pace
-            .allowsPace(dataConfidence: snapshot.dataConfidence),
-            let pace = self.paceLine(
-                provider: provider,
-                window: tertiary,
-                slot: .tertiary,
-                weeklyWorkDays: context.weeklyWorkDays,
-                useColor: context.useColor,
-                now: now)
-        {
-            lines.append(pace)
-        }
-        if let reset = self.resetLine(for: tertiary, style: context.resetStyle, now: now) {
-            lines.append(self.subtleLine(reset, useColor: context.useColor))
-        }
+        self.appendRateWindowLines(
+            provider: provider,
+            title: labels.tertiary,
+            window: tertiary,
+            paceSlot: .tertiary,
+            dataConfidence: snapshot.dataConfidence,
+            context: context,
+            now: now,
+            lines: &lines)
     }
 
     private static func appendExtraRateWindows(
@@ -810,7 +768,7 @@ enum CLIRenderer {
         now: Date,
         lines: inout [String])
     {
-        if self.usesDetailBackedWindow(provider: provider) {
+        if ProviderDescriptorRegistry.descriptor(for: provider).metadata.usesDetailBackedWindow {
             if let reset = self.resetLineForDetailBackedWindow(window: window, style: context.resetStyle, now: now) {
                 lines.append(self.subtleLine(reset, useColor: context.useColor))
             }
@@ -829,10 +787,6 @@ enum CLIRenderer {
         UsageFormatter.resetLine(for: window, style: style, now: now)
     }
 
-    private static func usesDetailBackedWindow(provider: UsageProvider) -> Bool {
-        ProviderDescriptorRegistry.descriptor(for: provider).metadata.usesDetailBackedWindow
-    }
-
     private static func resetLineForDetailBackedWindow(
         window: RateWindow,
         style: ResetTimeDisplayStyle,
@@ -841,12 +795,7 @@ enum CLIRenderer {
         // Some provider snapshots use resetDescription for non-reset detail.
         // Only render "Resets ..." when a concrete reset date exists.
         guard window.resetsAt != nil else { return nil }
-        let resetOnlyWindow = RateWindow(
-            usedPercent: window.usedPercent,
-            windowMinutes: window.windowMinutes,
-            resetsAt: window.resetsAt,
-            resetDescription: nil)
-        return UsageFormatter.resetLine(for: resetOnlyWindow, style: style, now: now)
+        return UsageFormatter.resetLine(for: window, style: style, now: now)
     }
 
     private static func detailLineForDetailBackedWindow(window: RateWindow) -> String? {
@@ -1077,7 +1026,7 @@ enum CLIRenderer {
 
     private static func colorize(
         _ text: String,
-        indicator: ProviderStatusPayload.ProviderStatusIndicator,
+        indicator: ProviderStatusIndicator,
         useColor: Bool)
         -> String
     {

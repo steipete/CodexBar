@@ -60,8 +60,6 @@ struct CopilotAPIKeyFallbackTests {
         let settings = Self.makeSettingsStore(suite: "copilot-api-key-loader")
         settings.copilotAPIToken = "gh_token_123"
 
-        settings.ensureCopilotAPITokenLoaded()
-
         #expect(settings.copilotAPIToken == "gh_token_123")
         #expect(settings.tokenAccounts(for: .copilot).isEmpty)
     }
@@ -71,8 +69,6 @@ struct CopilotAPIKeyFallbackTests {
         let settings = Self.makeSettingsStore(suite: "copilot-api-key-with-accounts")
         settings.copilotAPIToken = "gh_token_old"
         settings.addTokenAccount(provider: .copilot, label: "existing", token: "gh_token_existing")
-
-        settings.ensureCopilotAPITokenLoaded()
 
         #expect(settings.tokenAccounts(for: .copilot).count == 1)
         #expect(settings.copilotAPIToken.isEmpty)

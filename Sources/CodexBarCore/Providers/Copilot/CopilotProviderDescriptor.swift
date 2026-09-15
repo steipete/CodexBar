@@ -5,7 +5,7 @@ public enum CopilotProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
     private static let credentials = ProviderCredentialAdapter.apiKey(
         environmentKey: "COPILOT_API_TOKEN",
-        resolve: { ProviderConfig.clean($0["COPILOT_API_TOKEN"]) },
+        resolve: { SettingsValue.cleaned($0["COPILOT_API_TOKEN"]) },
         tokenAccountSupport: TokenAccountSupport(
             title: "GitHub accounts",
             subtitle: "Sign in with multiple GitHub accounts via OAuth.",
@@ -115,7 +115,8 @@ struct CopilotAPIFetchStrategy: ProviderFetchStrategy {
         }
         let fetcher = CopilotUsageFetcher(
             token: token,
-            enterpriseHost: context.settings?.copilot?.enterpriseHost)
+            enterpriseHost: context.settings?.copilot?.enterpriseHost,
+            seatEntitlement: context.settings?.copilot?.seatCreditEntitlement)
         let usage = try await fetcher.fetch()
         let snap = await self.addBudgetWindowsIfNeeded(to: usage, token: token, context: context)
         return self.makeResult(

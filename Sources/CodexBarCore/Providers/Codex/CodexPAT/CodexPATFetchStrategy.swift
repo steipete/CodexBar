@@ -135,14 +135,16 @@ struct CodexPATFetchStrategy: ProviderFetchStrategy {
     {
         let balance = response.credits?.balance
         let creditLimit = response.resolvedIndividualLimit?.codexCreditLimitSnapshot(updatedAt: updatedAt)
-        guard balance != nil || creditLimit != nil else { return nil }
+        let creditsAvailable = response.credits.map { $0.hasCredits && !$0.unlimited }
+        guard balance != nil || creditLimit != nil || creditsAvailable == true else { return nil }
         return CreditsSnapshot(
             remaining: balance ?? 0,
             events: [],
             updatedAt: updatedAt,
             codexCreditLimit: creditLimit,
             // A cap-only response omits the balance entirely; that placeholder zero is unread, not spent.
-            balanceReadSucceeded: balance != nil)
+            balanceReadSucceeded: balance != nil,
+            creditsAvailable: creditsAvailable)
     }
 
     private static func patResult(usage: UsageSnapshot, credits: CreditsSnapshot?)

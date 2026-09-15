@@ -68,6 +68,7 @@ Admin API key setup:
 - Web extras are internal-only (not exposed in the Providers pane).
 
 ## OAuth API (preferred)
+- OAuth refresh form-encodes credential values, preserving literal plus signs and other reserved characters.
 - Credentials:
   - CodexBar OAuth cache when available.
   - File fallback: `~/.claude/.credentials.json`.
@@ -116,6 +117,7 @@ Admin API key setup:
   (`default_claude_max_5x` / `default_claude_max_20x`), it is surfaced in the label as "Max 5x" / "Max 20x".
 
 ## Web API (cookies)
+- Session quota warnings ignore a weekly quota promoted into the primary field when the five-hour payload is missing. Existing session warning history stays tied to its account, and weekly warnings continue independently.
 - Preferences → Providers → Claude → Cookie source (Automatic or Manual).
 - Manual mode accepts a `Cookie:` header from a claude.ai request.
 - Multi-account manual tokens: add entries to `~/.codexbar/config.json` (`tokenAccounts`) and set Claude cookies to
@@ -163,9 +165,21 @@ The accepted multi-account design in
   shell, fixed arguments, bounded runtime and output), requires `schemaVersion == 1`, and parses only slot number,
   active state, usage status, email (display only), display-only `organizationName` (always present, may be empty),
   optional display-only `alias` when non-empty, the 5-hour/7-day windows, and optional display-only model-scoped
-  weekly windows from `usage.scoped`. Identity stays `claude-swap:<slot>`; organization name and alias are never
+  weekly windows from `usage.scoped`, optional `usage.spend`, and source measurement times. Identity stays
+  `claude-swap:<slot>`; organization name and alias are never
   used as identity. When two or more slots share an email, cards append ` · organizationName` or ` · Account N`;
   a user-chosen cswap alias replaces that label. Unique emails stay email-only.
+- Menu and terminal cards can show the source's `lastGoodUsage` when live usage is unavailable. Its required
+  `lastGoodFetchedAt` remains the measurement time, and the card shows a last-known marker and capture age alongside
+  the diagnostic. Terminal cards also show the capture timestamp. Malformed additive spend or last-good fields do not
+  discard valid live quota windows. The free-form row `message` is not parsed.
+  Brief terminal output keeps the diagnostic and excludes historical metrics from its warnings and next-reset summary.
+- Last-known usage keeps its provenance through quota retention and cache reload. It never drives the menu-bar icon,
+  whose compact display cannot show its age. Compact account rows show the capture age and do not recommend or fold
+  last-known rows into the ready-account group. Explicit source measurements take precedence over locally retained
+  quota windows.
+- Slots excluded from claude-swap's automatic rotation are marked `(disabled)` but remain valid explicit switch
+  targets. The active account label is emphasized.
 - Display: when claude-swap reports more than one account, its accounts replace ambient/token-account Claude cards.
   The app honors **Menu → Multi-account layout**: Segmented shows account buttons and one active account card;
   pending or failed switches show the requested account's details while the active marker stays source-owned.
@@ -195,12 +209,13 @@ The accepted multi-account design in
   stale data, surface the error in provider settings, and never affect the ambient Claude usage card. In terminal
   cards, a list failure retains the current ambient output, adds a distinct `Claude (claude-swap)` footer entry, and
   exits non-zero.
-- Sentinel statuses (`token_expired`, `api_key`, `keychain_unavailable`, `no_credentials`,
-  and unknown future values) render as per-account notes instead of usage bars in both full and brief cards. When
-  `unavailable` means claude-swap deferred polling because a window is at 100%, CodexBar keeps that slot's last
+- Sentinel statuses (`token_expired`, `relogin_required`, `api_key`, `keychain_unavailable`, `no_credentials`,
+  `foreign_credential`, and unknown future values) retain per-account diagnostics. Full cards can show explicitly
+  reported last-known usage alongside its age; without it they remain notes-only. Brief terminal cards keep the
+  diagnostic. When no explicit last-good measurement is supplied and a window is still at 100%, CodexBar keeps that slot's last
   projected usage bars and names the exhausted window (5-hour session, 7-day weekly, and/or a scoped model such as
   Fable) plus its reset time — not "Usage fetch failed." A first refresh that is already `unavailable` with no
-  retained windows still notes that polling is deferred. Active rows are marked `[active]`; no claude-swap row infers
+  retained windows says usage is unavailable, without assuming why the source could not fetch it. Active rows are marked `[active]`; no claude-swap row infers
   a plan badge.
 - Switching: an inactive account with usable source credentials shows “Switch Account…”. Clicking it runs exactly
   `cswap --switch-to <slot> --json`, validates the versioned result and requested slot, then refreshes both ambient
@@ -210,6 +225,10 @@ The accepted multi-account design in
 - Expired, missing, unknown, or Keychain-inaccessible credentials stay non-actionable. A failed switch remains visible
   on that account without discarding its last successful usage. A running Claude Code process can take up to the
   claude-swap Keychain cache interval to observe the new account.
+- A `foreign_credential` row explains that the live credential belongs to another account. An inactive row can use
+  the existing explicit slot switch. An active row offers **Re-authenticate**, which runs the same
+  `cswap --switch-to <slot> --json` command to let claude-swap reconcile its own credential state, without `--force`. Clicking the active segment
+  still only inspects it; repair requires its explicit button.
 - Multiple claude-swap accounts—and a single account when explicitly enabled—take precedence over Claude
   token-account presentation (stacked cards and the segmented switcher).
 
@@ -226,6 +245,7 @@ Model-scoped weekly-window proof (synthetic data, no real accounts or credential
 ## CLI PTY (fallback)
 - Runs `claude` in a PTY session (`ClaudeCLISession`).
 - Default behavior: exit after each probe; Debug → "Keep CLI sessions alive" keeps it running between probes.
+- Probe launches pass `--settings '{"remoteControlAtStartup":false}'` to avoid registering empty Remote Control sessions in claude.ai/code and the mobile app. This process-local override leaves the user's saved settings unchanged; Claude's managed-settings policy still applies.
 - Probe working directory: `~/Library/Application Support/CodexBar/ClaudeProbe` with local Claude settings that disable
   deep-link URL handler registration during headless probes.
 - After transient probes exit, CodexBar removes Claude Code `.jsonl` session artifacts for that dedicated

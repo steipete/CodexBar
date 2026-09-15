@@ -68,3 +68,5 @@ GROQ_SESSION_TOKEN=<stytch_session> codexbar usage --provider groq --json
 - Snapshot / cost-history projection: `Sources/CodexBarCore/Providers/Groq/GroqConsoleUsageSnapshot.swift`
 - Prometheus fallback: `Sources/CodexBarCore/Providers/Groq/GroqUsageFetcher.swift`
 - Provider wiring: `Sources/CodexBarCore/Providers/Groq/GroqProviderDescriptor.swift`
+
+Prometheus mode treats malformed, negative, nonfinite, or overflowing rates as unavailable. An explicitly empty result vector still means zero usage; API errors retain the server message.

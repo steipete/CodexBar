@@ -1,7 +1,5 @@
-import AppKit
 import CodexBarCore
 import Foundation
-import SwiftUI
 
 struct MoonshotProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .moonshot
@@ -30,17 +28,12 @@ struct MoonshotProviderImplementation: ProviderImplementation {
         if MoonshotSettingsReader.apiKey(for: region, environment: context.environment) != nil {
             return true
         }
-        context.settings.ensureMoonshotAPITokenLoaded()
         return context.settings.hasMoonshotAPIToken(for: region)
     }
 
     @MainActor
     func settingsPickers(context: ProviderSettingsContext) -> [ProviderSettingsPickerDescriptor] {
-        let binding = Binding(
-            get: { context.settings.moonshotRegion.rawValue },
-            set: { raw in
-                context.settings.moonshotRegion = MoonshotRegion(rawValue: raw) ?? .international
-            })
+        let binding = context.rawValueBinding(\.moonshotRegion, fallback: .international)
         let options = MoonshotRegion.allCases.map {
             ProviderSettingsPickerOption(id: $0.rawValue, title: $0.displayName)
         }
@@ -68,19 +61,14 @@ struct MoonshotProviderImplementation: ProviderImplementation {
                     "unavailable until you switch back or replace it.",
                 kind: .secure,
                 placeholder: "sk-...",
-                binding: context.stringBinding(\.moonshotAPIToken),
+                binding: context.binding(\.moonshotAPIToken),
                 actions: [
-                    ProviderSettingsActionDescriptor(
+                    ProviderSettingsActionDescriptor.openURL(
                         id: "moonshot-open-dashboard",
                         title: "Open regional console",
-                        style: .link,
-                        isVisible: nil,
-                        perform: {
-                            NSWorkspace.shared.open(context.settings.moonshotRegion.consoleURL)
-                        }),
+                        url: context.settings.moonshotRegion.consoleURL),
                 ],
-                isVisible: nil,
-                onActivate: { context.settings.ensureMoonshotAPITokenLoaded() }),
+                isVisible: nil),
         ]
     }
 }

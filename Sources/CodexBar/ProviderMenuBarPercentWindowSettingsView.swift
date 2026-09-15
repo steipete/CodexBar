@@ -29,7 +29,7 @@ struct ProviderMenuBarPercentWindowSettingsView: View {
                             .tag(MenuBarPercentWindowPreference?.none)
                     }
                     ForEach(available) { preference in
-                        Text(preference.label).tag(MenuBarPercentWindowPreference?.some(preference))
+                        Text(preference.label(for: self.provider)).tag(MenuBarPercentWindowPreference?.some(preference))
                     }
                 }
                 .pickerStyle(.menu)

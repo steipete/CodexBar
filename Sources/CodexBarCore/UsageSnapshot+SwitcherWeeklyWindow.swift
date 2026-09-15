@@ -23,12 +23,7 @@ extension UsageSnapshot {
                let providerCost = self.providerCost,
                providerCost.limit > 0
             {
-                let usedPercent = max(0, min(100, (providerCost.used / providerCost.limit) * 100))
-                return RateWindow(
-                    usedPercent: usedPercent,
-                    windowMinutes: nil,
-                    resetsAt: providerCost.resetsAt,
-                    resetDescription: nil)
+                return providerCost.spendLimitWindow
             }
             return self.primary ?? self.secondary
         default:

@@ -53,15 +53,12 @@ struct RPCChildProcessTeardownTests {
             .appendingPathComponent("codex-closed-stdin-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: scriptURL) }
 
+        // Keep interpreter startup outside the behavior exercised by the RPC deadline.
         let script = """
-        #!/usr/bin/python3 -S
-        import os
-        import sys
-
-        sys.stdin.readline()
-        os.close(0)
-        print('{"id":1,"result":{}}', flush=True)
-        os._exit(0)
+        #!/bin/sh
+        IFS= read -r line
+        exec 0<&-
+        printf '%s\\n' '{"id":1,"result":{}}'
         """
         try script.write(to: scriptURL, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: scriptURL.path)

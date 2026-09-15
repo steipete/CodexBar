@@ -1,5 +1,6 @@
 import Commander
 import Foundation
+import JavaScriptCore
 import Testing
 @testable import CodexBarCLI
 
@@ -8,15 +9,101 @@ struct CLIServeWebUITests {
         String(bytes: CLIServeWebUI.response().body, encoding: .utf8) ?? ""
     }
 
+    @Test(arguments: [true, false])
+    func `shared costs and diagnostics survive account grouping without sharing credits`(grouped: Bool) throws {
+        let context = try self.recordingContext()
+        context.evaluateScript("fixture.providers[0].accounts = \(grouped) ? fixture.providers[0].accounts : [];")
+        context.evaluateScript("renderSnapshot(fixture);")
+        #expect(context.exception == nil)
+        let text = try #require(context.evaluateScript("recordedText(elements.providers)")?.toArray() as? [String])
+        for value in ["$2.00", "$5.00", "Synthetic adapter note"] {
+            #expect(text.filter { $0 == value }.count == 1)
+        }
+        #expect(text.filter { $0.contains("Synthetic provider diagnostic") }.count == 1)
+        #expect(text.contains("Provider data: Synthetic provider diagnostic") == grouped)
+        #expect(text.contains("Remaining") == !grouped)
+        #expect(text.contains("ambient@example.test") == !grouped)
+        for value in ["Synthetic account A note", "Synthetic account B note", "Claude local spend"] {
+            #expect(text.filter { $0 == value }.count == (grouped ? 1 : 0))
+        }
+        #expect(context.evaluateScript(
+            "recordedNodes(elements.providers).filter(x => x.tagName === 'svg').length")?.toInt32() == 1)
+    }
+
+    @Test
+    func `account group omits an empty shared cost card`() throws {
+        let context = try self.recordingContext()
+        context.evaluateScript("fixture.providers[0].cost = null; state.costHistories = {}; renderSnapshot(fixture);")
+        #expect(context.exception == nil)
+        let text = try #require(context.evaluateScript("recordedText(elements.providers)")?.toArray() as? [String])
+        #expect(!text.contains("Claude local spend"))
+        #expect(text.contains("Provider data: Synthetic provider diagnostic"))
+        #expect(context.evaluateScript(
+            "recordedNodes(elements.providers).filter(x => x.tagName === 'article').length")?.toInt32() == 2)
+    }
+
+    private func recordingContext() throws -> JSContext {
+        let context = try #require(JSContext())
+        let root = try #require(Bundle.module.url(forResource: "Fixtures", withExtension: nil))
+            .appendingPathComponent("WebUI")
+        try context.evaluateScript(String(contentsOf: root.appendingPathComponent("recording-dom.js"), encoding: .utf8))
+        let start = try #require(self.html.range(of: "<script>"))
+        let end = try #require(self.html.range(of: "</script>"))
+        context.evaluateScript(String(self.html[start.upperBound..<end.lowerBound]))
+        let fixture = try String(
+            contentsOf: root.appendingPathComponent("account-group-snapshot.json"),
+            encoding: .utf8)
+        context.evaluateScript("const fixture = \(fixture);")
+        context.evaluateScript("""
+        state.costHistories.claude = [{date:'2026-09-13',cost:3},{date:'2026-09-14',cost:2}];
+        """)
+        #expect(context.exception == nil)
+        return context
+    }
+
     @Test
     func `web ui renders account cards in titled groups for multi account providers`() {
         let html = self.html
         // Multi-account providers render one card per account inside a titled
-        // vertical group; identity falls back to the slot label when redacted.
+        // vertical group; account labels retain the producer's disambiguation.
         #expect(html.contains("function renderAccountCard(provider, account)"))
-        #expect(html.contains("account.identity?.accountEmail || account.label"))
         #expect(html.contains("provider.accountsError"))
         #expect(html.contains("group-title"))
+    }
+
+    @Test
+    func `account cards preserve projected labels before falling back to email`() throws {
+        let start = try #require(self.html.range(of: "function renderAccountCard(provider, account)"))
+        let end = try #require(self.html.range(of: "function renderProvider(provider)"))
+        let renderer = String(self.html[start.lowerBound..<end.lowerBound])
+        let context = try #require(JSContext())
+        context.evaluateScript(#"""
+        const titles = [];
+        function node(tag, className, text) {
+          if (className === "provider-name") titles.push(text);
+          return {style: {setProperty() {}}, classList: {add() {}}, append() {}};
+        }
+        function providerGlyph() { return node("span"); }
+        function accentColor(value) { return value; }
+        function visibleWindows(windows) { return windows || []; }
+        function worstWindowLevel() { return null; }
+        """#)
+        context.evaluateScript(renderer)
+        context.evaluateScript(#"""
+        for (const account of [
+          {label: "Work", identity: {accountEmail: "shared@example.com"}},
+          {label: "shared@example.com · Acme", identity: {accountEmail: "shared@example.com"}},
+          {label: "Account 1", identity: {accountEmail: "s***@example.com"}},
+          {label: "s***@example.com · Acme", identity: {accountEmail: "s***@example.com"}},
+          {label: "", identity: {accountEmail: "fallback@example.com"}},
+          {}
+        ]) renderAccountCard({}, account);
+        """#)
+        #expect(context.exception == nil)
+        #expect(context.evaluateScript("titles")?.toArray() as? [String] == [
+            "Work", "shared@example.com · Acme", "Account 1", "s***@example.com · Acme",
+            "fallback@example.com", "Account",
+        ])
     }
 
     @Test

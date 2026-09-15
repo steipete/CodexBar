@@ -3,6 +3,25 @@ import Foundation
 
 @MainActor
 extension UsageStore {
+    nonisolated static func codexSessionQuotaOwnerKey(
+        for refreshGuard: CodexAccountScopedRefreshGuard?) -> CodexSessionQuotaOwnerKey?
+    {
+        guard let refreshGuard else { return nil }
+        return CodexSessionQuotaOwnerKey(refreshGuard: refreshGuard)
+    }
+
+    nonisolated static func codexSessionQuotaOwnersMatch(
+        _ lhs: CodexAccountScopedRefreshGuard?,
+        _ rhs: CodexAccountScopedRefreshGuard?) -> Bool
+    {
+        guard let lhsKey = self.codexSessionQuotaOwnerKey(for: lhs),
+              let rhsKey = self.codexSessionQuotaOwnerKey(for: rhs)
+        else {
+            return false
+        }
+        return lhsKey == rhsKey
+    }
+
     nonisolated static let codexSnapshotWaitTimeoutSeconds: TimeInterval = 6
     nonisolated static let codexRefreshStartGraceSeconds: TimeInterval = 0.25
     nonisolated static let codexSnapshotPollIntervalNanoseconds: UInt64 = 100_000_000
@@ -11,6 +30,27 @@ extension UsageStore {
         // Credits are remote Codex account state, so they need the same managed-home routing as the
         // primary Codex usage fetch. Token-cost scanning owns its selected managed or ambient scope separately.
         self.makeFetchContext(provider: .codex, override: nil).fetcher
+    }
+
+    func preservingCodexCost(
+        in snapshot: UsageSnapshot,
+        for provider: UsageProvider,
+        owner expectedGuard: CodexAccountScopedRefreshGuard?,
+        includesCredits: Bool = false) -> UsageSnapshot
+    {
+        guard !includesCredits,
+              provider == .codex,
+              let expectedGuard,
+              expectedGuard.identity != .unresolved,
+              let previousGuard = self.lastCodexUsagePublicationGuard,
+              Self.codexScopedRefreshGuardsMatchAccount(previousGuard, expectedGuard),
+              let previousCost = self.snapshots[.codex]?.providerCost,
+              previousCost.currencyCode == CodexExtraUsageCost.currencyCode
+        else { return snapshot }
+        // A usage-only refresh may skip credits after a dashboard attached a newer balance observation.
+        return snapshot.with(providerCost: CodexExtraUsageCost.resolving(
+            liveCost: snapshot.providerCost,
+            attached: previousCost))
     }
 
     func scheduleCreditsRefreshIfNeeded(minimumSnapshotUpdatedAt: Date? = nil) {

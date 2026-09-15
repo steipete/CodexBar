@@ -913,24 +913,10 @@ public struct OllamaAPISettingsReader: Sendable {
         environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
     {
         for key in self.apiKeyEnvironmentKeys {
-            guard let value = self.cleaned(environment[key]), !value.isEmpty else { continue }
+            guard let value = SettingsValue.cleaned(environment[key]) else { continue }
             return value
         }
         return nil
-    }
-
-    private static func cleaned(_ raw: String?) -> String? {
-        guard var value = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !value.isEmpty
-        else {
-            return nil
-        }
-        if (value.hasPrefix("\"") && value.hasSuffix("\"")) ||
-            (value.hasPrefix("'") && value.hasSuffix("'"))
-        {
-            value = String(value.dropFirst().dropLast())
-        }
-        return value.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 

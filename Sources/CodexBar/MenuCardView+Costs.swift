@@ -119,12 +119,6 @@ extension UsageMenuCardView.Model {
         }
     }
 
-    static func isRequiredOpenCodeZenBalance(_ snapshot: UsageSnapshot?) -> Bool {
-        snapshot?.primary == nil &&
-            snapshot?.secondary == nil &&
-            snapshot?.providerCost?.period == "Zen balance"
-    }
-
     static func tokenUsageSnapshot(input: Input) -> CostUsageTokenSnapshot? {
         if usesProviderCostHistoryAsPrimaryDashboard(input.provider), input.snapshot != nil {
             return primaryCostHistorySnapshot(input: input)
@@ -148,10 +142,10 @@ extension UsageMenuCardView.Model {
             return nil
         }
         if let credits {
-            if let creditLimit = credits.codexCreditLimit {
-                return UsageFormatter.creditsString(from: creditLimit.remaining)
+            if let remaining = credits.displayRemaining {
+                return UsageFormatter.creditsString(from: remaining)
             }
-            return UsageFormatter.creditsString(from: credits.remaining)
+            return "\(L("Credits")) · \(L("Balance")): \(L("Unavailable"))"
         }
         if let error, !error.isEmpty {
             return error.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -160,15 +154,18 @@ extension UsageMenuCardView.Model {
     }
 
     static func creditsProgressPercent(credits: CreditsSnapshot?) -> Double? {
-        credits?.codexCreditLimit?.remainingPercent
+        guard credits?.hasWorkspaceBalance != true else { return nil }
+        return credits?.codexCreditLimit?.remainingPercent
     }
 
     static func creditsScaleText(credits: CreditsSnapshot?) -> String? {
+        guard credits?.hasWorkspaceBalance != true else { return nil }
         guard let limit = credits?.codexCreditLimit else { return nil }
         return L("of %@", UsageFormatter.creditsNumberString(from: limit.limit))
     }
 
     static func codexCreditLimitDetail(credits: CreditsSnapshot?, now: Date) -> String? {
+        guard credits?.hasWorkspaceBalance != true else { return nil }
         guard let limit = credits?.codexCreditLimit else { return nil }
         var parts = [
             L("%@ used", UsageFormatter.creditsNumberString(from: limit.used)),

@@ -56,10 +56,12 @@ extension CursorStatusProbe {
             coordinator: self.conditionalMutationCoordinator)
         let cachedEntry = allowCachedSessions ? CookieHeaderCache.load(provider: .cursor) : nil
         var storedCookies = allowCachedSessions ? await CursorSessionStore.shared.getCookies() : []
-        #if os(macOS)
+        #if os(macOS) || os(Linux)
         if !allowAppAuthFallback {
             storedCookies.removeAll(where: CursorAppAuthSession.isPersistedCookie)
         }
+        #endif
+        #if os(macOS)
 
         let hasExplicitBrowserSelection = cachedEntry?.sourceLabel != Self.appAuthSourceLabel &&
             cachedEntry?.authenticationFailurePolicy == .stopFallback
@@ -174,6 +176,11 @@ extension CursorStatusProbe {
         {
             return value
         }
+        #if os(Linux)
+        if allowAppAuthFallback {
+            return try await self.fetchLinuxAppSession(log: log, perform: perform)
+        }
+        #endif
         throw CursorStatusProbeError.noSessionCookie
     }
 

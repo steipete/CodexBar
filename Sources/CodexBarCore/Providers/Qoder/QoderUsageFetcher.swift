@@ -239,25 +239,13 @@ private struct QoderUsageResponse: Decodable {
         forKey key: CodingKeys) -> Date?
     {
         if let value = try? container.decode(String.self, forKey: key) {
-            return self.parseISO8601Date(value)
+            return ISO8601DateParser.parse(value)
         }
         if let value = try? container.decode(Double.self, forKey: key) {
             let seconds = value > 10_000_000_000 ? value / 1000 : value
             return Date(timeIntervalSince1970: seconds)
         }
         return nil
-    }
-
-    private static func parseISO8601Date(_ value: String) -> Date? {
-        let fractional = ISO8601DateFormatter()
-        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = fractional.date(from: value) {
-            return date
-        }
-
-        let plain = ISO8601DateFormatter()
-        plain.formatOptions = [.withInternetDateTime]
-        return plain.date(from: value)
     }
 }
 

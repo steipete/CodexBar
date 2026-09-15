@@ -20,19 +20,19 @@ struct ProviderRegistryTests {
     }
 
     @Test
-    func `implementation registry is complete and deterministic`() {
-        let implementations = ProviderImplementationRegistry.all
+    func `implementation catalog is complete and deterministic`() {
+        let implementations = ProviderCatalog.all
         let ids = implementations.map(\.id)
 
-        #expect(!implementations.isEmpty, "ProviderImplementationRegistry must not be empty.")
-        #expect(Set(ids).count == ids.count, "ProviderImplementationRegistry contains duplicate IDs.")
+        #expect(!implementations.isEmpty, "ProviderCatalog must not be empty.")
+        #expect(Set(ids).count == ids.count, "ProviderCatalog contains duplicate IDs.")
 
         let missing = Set(UsageProvider.allCases).subtracting(ids)
         #expect(missing.isEmpty, "Missing implementations for providers: \(missing).")
         #expect(ids == UsageProvider.allCases, "Implementation manifest order must match UsageProvider.")
 
-        let secondPass = ProviderImplementationRegistry.all.map(\.id)
-        #expect(ids == secondPass, "ProviderImplementationRegistry order changed between reads.")
+        let secondPass = ProviderCatalog.all.map(\.id)
+        #expect(ids == secondPass, "ProviderCatalog order changed between reads.")
     }
 
     @Test

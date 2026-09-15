@@ -25,6 +25,12 @@ enum MenuHighlightStyle {
         highlighted ? self.selectionText : Color(nsColor: .systemRed)
     }
 
+    /// Emphasis for a card's status label (for example the active account).
+    /// A highlighted row still uses the selection color so contrast is kept.
+    static func accent(_ highlighted: Bool) -> Color {
+        highlighted ? self.selectionText : Color(nsColor: .controlAccentColor)
+    }
+
     static func progressTrack(_ highlighted: Bool) -> Color {
         highlighted ? self.selectionText.opacity(0.22) : Color(nsColor: .tertiaryLabelColor).opacity(0.22)
     }

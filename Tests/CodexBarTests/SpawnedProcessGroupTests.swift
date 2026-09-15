@@ -689,8 +689,10 @@ struct SpawnedProcessGroupTests {
         #expect(heartbeatAfterSettle == heartbeatAfterCleanup)
     }
 
-    @Test
-    func `normal exit cleanup catches helper spawned during SIGTERM`() async throws {
+    @Test(arguments: [0, 1000])
+    func `normal exit cleanup catches helper spawned during SIGTERM`(
+        firstHeartbeatDelayMilliseconds: Int) async throws
+    {
         let readyFile = FileManager.default.temporaryDirectory
             .appendingPathComponent("codexbar-process-group-post-exit-\(UUID().uuidString).ready")
         let childPIDFile = readyFile.appendingPathExtension("pid")
@@ -700,6 +702,7 @@ struct SpawnedProcessGroupTests {
             try? FileManager.default.removeItem(at: childPIDFile)
             try? FileManager.default.removeItem(at: heartbeatFile)
         }
+        try "0".write(to: heartbeatFile, atomically: true, encoding: .utf8)
 
         let script = """
         import os
@@ -717,8 +720,9 @@ struct SpawnedProcessGroupTests {
                 if child == 0:
                     os.close(reader)
                     signal.signal(signal.SIGTERM, signal.SIG_IGN)
-                    with open(sys.argv[2], "w") as handle:
-                        handle.write(str(os.getpid()))
+                    delay = float(sys.argv[4]) / 1000
+                    if delay > 0:
+                        time.sleep(delay)
                     with open(sys.argv[3], "w") as heartbeat:
                         heartbeat.write("1")
                         heartbeat.flush()
@@ -732,6 +736,8 @@ struct SpawnedProcessGroupTests {
                             heartbeat.truncate()
                             heartbeat.flush()
                             time.sleep(0.02)
+                with open(sys.argv[2], "w") as handle:
+                    handle.write(str(child))
                 os.close(writer)
                 os.read(reader, 1)
                 os.close(reader)
@@ -752,7 +758,10 @@ struct SpawnedProcessGroupTests {
         let stderrPipe = Pipe()
         let process = try SpawnedProcessGroup.launch(
             binary: "/usr/bin/python3",
-            arguments: ["-c", script, readyFile.path, childPIDFile.path, heartbeatFile.path],
+            arguments: [
+                "-c", script, readyFile.path, childPIDFile.path, heartbeatFile.path,
+                String(firstHeartbeatDelayMilliseconds),
+            ],
             environment: ProcessInfo.processInfo.environment,
             stdoutPipe: stdoutPipe,
             stderrPipe: stderrPipe)
@@ -763,7 +772,6 @@ struct SpawnedProcessGroupTests {
         #expect(FileManager.default.fileExists(atPath: readyFile.path))
 
         await process.terminateResidualProcesses(grace: 0.2)
-        await process.finish()
 
         var childPID: pid_t?
         for _ in 0..<100 {
@@ -775,10 +783,23 @@ struct SpawnedProcessGroupTests {
             }
             try await Task.sleep(for: .milliseconds(20))
         }
-        let resolvedChildPID = try #require(childPID)
-        defer { _ = kill(resolvedChildPID, SIGKILL) }
+        // Capture a surviving child before reaping the root releases its process-group identity.
+        let childIdentity = childPID.flatMap { pid -> TTYProcessTreeTerminator.ProcessIdentity? in
+            guard let identity = TTYProcessTreeTerminator.processIdentity(for: pid),
+                  getpgid(pid) == process.processGroup,
+                  TTYProcessTreeTerminator.isCurrent(identity)
+            else { return nil }
+            return identity
+        }
+        await process.finish()
+        _ = try #require(childPID)
+        defer {
+            if let childIdentity, TTYProcessTreeTerminator.isCurrent(childIdentity) {
+                _ = kill(childIdentity.pid, SIGKILL)
+            }
+        }
         let heartbeatAfterCleanup = try String(contentsOf: heartbeatFile, encoding: .utf8)
-        try await Task.sleep(for: .milliseconds(200))
+        try await Task.sleep(for: .milliseconds(firstHeartbeatDelayMilliseconds + 200))
         let heartbeatAfterSettle = try String(contentsOf: heartbeatFile, encoding: .utf8)
         #expect(heartbeatAfterSettle == heartbeatAfterCleanup)
     }

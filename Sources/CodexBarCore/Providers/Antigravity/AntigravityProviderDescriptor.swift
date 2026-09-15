@@ -223,13 +223,12 @@ public enum AntigravityProviderDescriptor {
     }
 
     static func resolveFallbackError(_ previous: Error?, _ current: Error) -> Error {
-        if (previous as? AntigravityStatusProbeError) == .authenticationRequired,
-           let currentProbeError = current as? AntigravityStatusProbeError,
-           currentProbeError == .notRunning || currentProbeError == .missingCSRFToken
-        {
-            return previous ?? current
+        guard let previous else { return current }
+        return switch current as? AntigravityStatusProbeError {
+        case .notRunning, .missingCSRFToken:
+            (previous as? AntigravityStatusProbeError) == .notRunning ? current : previous
+        default: current
         }
-        return current
     }
 }
 
@@ -295,11 +294,7 @@ struct AntigravityStatusFetchStrategy: ProviderFetchStrategy {
     }
 }
 
-/// When the Antigravity 2.0 app is closed or unavailable, this strategy spawns
-/// or reuses ``agy`` and talks to the localhost server embedded in that CLI
-/// process. ``agy`` is an interactive REPL, not a query command, so CodexBar
-/// never scrapes TUI output here; it only keeps the process alive long enough
-/// for the server to answer quota endpoints.
+/// Fetch structured CLI quotas through legacy HTTPS or a supported print report.
 struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
     static let sourceLabel = "cli"
     let id: String = "antigravity.cli-https"
@@ -312,20 +307,6 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
         let drainOutput: @Sendable () async -> Data
         let fetchSnapshot: @Sendable ([Int]) async throws -> AntigravityStatusSnapshot
         let now: @Sendable () -> Date
-
-        init(
-            pollIntervalNanoseconds: UInt64,
-            listeningPorts: @escaping @Sendable (Int, TimeInterval) async throws -> [Int],
-            drainOutput: @escaping @Sendable () async -> Data,
-            fetchSnapshot: @escaping @Sendable ([Int]) async throws -> AntigravityStatusSnapshot,
-            now: @escaping @Sendable () -> Date = Date.init)
-        {
-            self.pollIntervalNanoseconds = pollIntervalNanoseconds
-            self.listeningPorts = listeningPorts
-            self.drainOutput = drainOutput
-            self.fetchSnapshot = fetchSnapshot
-            self.now = now
-        }
     }
 
     /// Seams for discovering and reusing an already-running ``agy`` CLI language
@@ -345,40 +326,10 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
         /// long-lived `agy`, or another CodexBar host) has no such accounting.
         let ownedPID: @Sendable () async -> Int?
         let now: @Sendable () -> Date
-
-        init(
-            processInfos: @escaping @Sendable (TimeInterval) async throws
-                -> [AntigravityStatusProbe.ProcessInfoResult],
-            listeningPorts: @escaping @Sendable (Int, TimeInterval) async throws -> [Int],
-            fetchSnapshot: @escaping @Sendable ([Int], TimeInterval) async throws -> AntigravityStatusSnapshot,
-            processOwnerUserID: @escaping @Sendable (Int) -> UInt32? = { _ in 0 },
-            currentUserID: @escaping @Sendable () -> UInt32 = { 0 },
-            ownedPID: @escaping @Sendable () async -> Int? = { nil },
-            now: @escaping @Sendable () -> Date = Date.init)
-        {
-            self.processInfos = processInfos
-            self.listeningPorts = listeningPorts
-            self.fetchSnapshot = fetchSnapshot
-            self.processOwnerUserID = processOwnerUserID
-            self.currentUserID = currentUserID
-            self.ownedPID = ownedPID
-            self.now = now
-        }
     }
 
-    /// Discover an already-running, authenticated ``agy`` CLI language server and
-    /// reuse its listening ports instead of spawning a fresh process.
-    ///
-    /// One-shot CLI invocations otherwise spawn a brand-new ``agy`` on every
-    /// call; a fresh server binds its port quickly but ``GetUserStatus`` returns
-    /// transient initialization failures for a few seconds, so the readiness
-    /// deadline is occasionally missed. When a warm CLI server is already up, we
-    /// can talk to it immediately — it needs no CSRF token (``cliHTTPS``).
-    ///
-    /// Returns the snapshot from the first warm server that answers with
-    /// parseable usage for the requested account, or `nil` when none is found or
-    /// none answers — in which case the caller falls back to the existing spawn
-    /// path unchanged.
+    /// Reuse an external CLI server only when it returns usable quota for the requested account.
+    /// Servers that require an unavailable authentication mechanism cannot satisfy this path.
     static func tryWarmAgyFetch(
         timeout: TimeInterval,
         expectedBinaryPath: String? = nil,
@@ -488,13 +439,10 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
         }
     }
 
-    /// Production wiring for ``tryWarmAgyFetch``: list processes via `ps`, find
-    /// listening ports via `lsof`, and probe the token-less CLI HTTPS endpoint.
+    /// Discover legacy CLI endpoints while preserving executable and process ownership checks.
     static func liveWarmAgyDependencies() -> WarmAgyDependencies {
         WarmAgyDependencies(
             processInfos: { timeout in
-                // A missing-CSRF/notRunning throw means no reusable server; the
-                // caller maps any throw to "no warm agy" and spawns instead.
                 try await AntigravityStatusProbe.detectProcessInfos(
                     timeout: timeout,
                     scope: .ideAndCLI)
@@ -517,7 +465,8 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
                 // The pid of the `agy` CodexBar manages through the shared
                 // session, so the warm scan never reuses our own process.
                 await AntigravityCLISession.shared.pid.map(Int.init)
-            })
+            },
+            now: Date.init)
     }
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
@@ -535,34 +484,90 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
         } else {
             nil
         }
-        let result = try await self.fetchUsingWarmSession(
-            binary: binary,
-            idleWindow: context.persistentCLISessionIdleWindow,
-            resetAfterFetch: Self.shouldResetSessionAfterFetch(context),
-            expectedAccountEmail: expectedAccountEmail)
-        try AntigravitySelectedAccountGuard.validate(result.usage, context: context)
-        return result
+        return try await Self.fetchWithReportFallback(
+            context: context,
+            legacyFetch: {
+                try await self.fetchUsingWarmSession(
+                    binary: binary,
+                    idleWindow: context.persistentCLISessionIdleWindow,
+                    resetAfterFetch: Self.shouldResetSessionAfterFetch(context),
+                    expectedAccountEmail: expectedAccountEmail,
+                    warmDependencies: Self.liveWarmAgyDependencies(),
+                    spawnFetch: { binary, idleWindow, resetAfterFetch in
+                        try await self.fetchBySpawning(
+                            binary: binary,
+                            idleWindow: idleWindow,
+                            resetAfterFetch: resetAfterFetch,
+                            expectedAccountEmail: expectedAccountEmail)
+                    })
+            },
+            reportFetch: { try await self.fetchPrintUsage(binary: binary, environment: context.env) })
     }
 
-    private func fetchUsingWarmSession(
-        binary: String,
-        idleWindow: TimeInterval?,
-        resetAfterFetch: Bool,
-        expectedAccountEmail: String?) async throws -> ProviderFetchResult
+    static func fetchWithReportFallback(
+        context: ProviderFetchContext,
+        legacyFetch: @Sendable () async throws -> ProviderFetchResult,
+        reportFetch: @Sendable () async throws -> ProviderFetchResult) async throws -> ProviderFetchResult
     {
-        try await self.fetchUsingWarmSession(
-            binary: binary,
-            idleWindow: idleWindow,
-            resetAfterFetch: resetAfterFetch,
-            expectedAccountEmail: expectedAccountEmail,
-            warmDependencies: Self.liveWarmAgyDependencies(),
-            spawnFetch: { binary, idleWindow, resetAfterFetch in
-                try await self.fetchBySpawning(
-                    binary: binary,
-                    idleWindow: idleWindow,
-                    resetAfterFetch: resetAfterFetch,
-                    expectedAccountEmail: expectedAccountEmail)
-            })
+        do {
+            let result = try await legacyFetch()
+            try AntigravitySelectedAccountGuard.validate(result.usage, context: context)
+            return result
+        } catch {
+            try Task.checkCancellation()
+            if error is CancellationError { throw error }
+            // Identity-free reports must not replace a selected or injected OAuth account's fallback.
+            guard context.sourceMode != .auto || (context.selectedTokenAccountID == nil &&
+                context.env[AntigravityOAuthCredentialsStore.environmentCredentialsKey] == nil)
+            else { throw error }
+        }
+        return try await reportFetch()
+    }
+
+    func fetchPrintUsage(
+        binary: String,
+        environment: [String: String],
+        timeout: TimeInterval = 90) async throws -> ProviderFetchResult
+    {
+        var environment = environment
+        environment.removeValue(forKey: AntigravityOAuthCredentialsStore.environmentCredentialsKey)
+        environment["PATH"] = PathBuilder.effectivePATH(
+            purposes: [.tty], env: environment, loginPATH: LoginShellPathCache.shared.current)
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-agy-usage-" + UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: directory, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
+        defer { try? FileManager.default.removeItem(at: directory) }
+        func run(_ arguments: [String], timeout: TimeInterval) async throws -> SubprocessResult {
+            try await SubprocessRunner.run(
+                binary: binary,
+                arguments: arguments,
+                environment: environment,
+                timeout: timeout,
+                maxOutputBytes: 1_048_576,
+                standardInput: FileHandle.nullDevice,
+                currentDirectoryURL: directory,
+                label: "antigravity-cli-usage")
+        }
+        let result: SubprocessResult
+        do {
+            let version = try await run(["--version"], timeout: min(timeout, 3))
+                .stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+            let parts = version.split(separator: ".", omittingEmptySubsequences: false).compactMap { UInt($0) }
+            // Earlier print implementations could turn unsupported slash commands into model prompts.
+            guard version.range(of: #"^[0-9]+\.[0-9]+\.[0-9]+$"#, options: .regularExpression) != nil,
+                  parts.count == 3, (parts[0], parts[1], parts[2]) >= (1, 1, 11)
+            else { throw AntigravityStatusProbeError.parseFailed("CLI usage reports require agy 1.1.11 or later") }
+            result = try await run(
+                ["-p", "/usage", "--output-format", "json", "--print-timeout", "90s"], timeout: timeout)
+        } catch let error as SubprocessRunnerError {
+            try Task.checkCancellation()
+            if case .timedOut = error { throw AntigravityStatusProbeError.timedOut }
+            // Subprocess errors may contain raw stderr; never surface it as a provider diagnostic.
+            throw AntigravityStatusProbeError.parseFailed("CLI usage report failed")
+        }
+        let snapshot = try AntigravityStatusProbe.parseCLIUsageReport(Data(result.stdout.utf8))
+        return try self.makeResult(usage: snapshot.toUsageSnapshot(), sourceLabel: Self.sourceLabel)
     }
 
     /// Testable core of the CLI fetch: try the warm-reuse fast path first, then
@@ -577,19 +582,8 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
         spawnFetch: @Sendable (String, TimeInterval?, Bool) async throws -> ProviderFetchResult)
         async throws -> ProviderFetchResult
     {
-        // Fast path: reuse an already-running, authenticated `agy` CLI server if
-        // one is present, avoiding a fresh spawn and its multi-second warm-up.
-        // When none is found (or none answers), fall through to the spawn path.
-        //
-        // The warm path deliberately does NOT touch `AntigravityCLISession`
-        // (`beginProbe`/`finishProbe`): a discovered `agy` is owned by another
-        // process (an IDE, a long-lived `agy`, or another CodexBar host), so
-        // CodexBar must not manage its lifecycle, idle timeout, or
-        // `resetAfterFetch` teardown. Those apply only to processes CodexBar
-        // itself spawns on the fallback path below.
-        // Persistent hosts also need the external path: a user-owned, signed-in
-        // `agy` may have credentials a newly spawned managed session cannot read.
-        // Owned pids remain excluded, so their lifecycle accounting is unchanged.
+        // External sessions keep their owner's lifecycle. Managed sessions go through spawnFetch
+        // so beginProbe/finishProbe protect in-flight work and maintain the idle timer.
         if let warmSnapshot = try await Self.tryWarmAgyFetch(
             timeout: 2.0,
             expectedBinaryPath: binary,
@@ -618,10 +612,7 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
     {
         let session = AntigravityCLISession.shared
         let pid = try await session.beginProbe(binary: binary, idleWindow: idleWindow)
-        // Fresh `agy` processes take a few seconds to complete macOS keyring
-        // authentication, then more time before quota endpoints answer. A 5s
-        // window reliably missed that cold-start window in live tests, so keep
-        // the readiness deadline long enough for a cold spawn.
+        // Allow cold legacy sessions time to authenticate before their quota endpoints become ready.
         let deadline = Date().addingTimeInterval(15.0)
         let snap: AntigravityStatusSnapshot
         let usage: UsageSnapshot
@@ -642,7 +633,8 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
                         let timeout = min(2.0, max(0.2, deadline.timeIntervalSinceNow))
                         return try await AntigravityStatusProbe(timeout: timeout)
                             .fetchFromPorts(ports, deadline: deadline)
-                    }))
+                    },
+                    now: Date.init))
             usage = try snap.toUsageSnapshot()
             await session.finishProbe(success: true, resetAfterFetch: resetAfterFetch)
         } catch {

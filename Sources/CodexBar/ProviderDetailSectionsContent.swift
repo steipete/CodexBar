@@ -28,23 +28,33 @@ struct ProviderDetailSectionsContent: View {
                     .lineLimit(1)
             }
             ForEach(Array(section.rows.enumerated()), id: \.offset) { _, row in
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(row.label)
-                        .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
-                    Spacer(minLength: 8)
-                    VStack(alignment: .trailing, spacing: 1) {
-                        Text(row.value)
-                            .foregroundStyle(MenuHighlightStyle.primary(self.isHighlighted))
-                            .fontWeight(.medium)
-                        if let secondaryValue = row.secondaryValue {
-                            Text(secondaryValue)
-                                .font(.caption2)
-                                .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(row.label)
+                            .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                        Spacer(minLength: 8)
+                        VStack(alignment: .trailing, spacing: 1) {
+                            Text(row.value)
+                                .foregroundStyle(MenuHighlightStyle.primary(self.isHighlighted))
+                                .fontWeight(.medium)
+                            if let secondaryValue = row.secondaryValue {
+                                Text(secondaryValue)
+                                    .font(.caption2)
+                                    .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                            }
                         }
                     }
+                    .font(.caption)
+                    .lineLimit(1)
+                    if let progress = row.progress {
+                        // The ratio is provider data left unclamped by contract; only the bar's fill
+                        // is clamped here, the "used / total" caption keeps the raw numbers.
+                        UsageProgressBar(
+                            percent: min(100, max(0, progress.usedPercent)),
+                            tint: self.chartColor,
+                            accessibilityLabel: row.label)
+                    }
                 }
-                .font(.caption)
-                .lineLimit(1)
             }
             if let chart = section.chart {
                 ProviderDetailChartContent(chart: chart, color: self.chartColor)

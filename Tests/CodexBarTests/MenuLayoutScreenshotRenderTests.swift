@@ -334,7 +334,6 @@ final class MenuLayoutScreenshotRenderTests: XCTestCase {
                 snapshot: snapshot,
                 credits: nil,
                 creditsError: nil,
-                dashboard: nil,
                 dashboardError: nil,
                 tokenSnapshot: nil,
                 tokenError: nil,
@@ -472,10 +471,8 @@ final class MenuLayoutScreenshotRenderTests: XCTestCase {
                 hintLine: "Costs are estimated from local usage.",
                 errorLine: nil,
                 errorCopyText: nil)
-            let view = AnyView(UsageMenuCardCostSectionView(
+            let view = AnyView(UsageMenuCardView(
                 model: Self.costModel(tokenUsage: tokenUsage),
-                topPadding: 12,
-                bottomPadding: 12,
                 width: Self.width))
             let suffix = isRefreshing ? "refreshing" : "idle"
             let data = try XCTUnwrap(Self.pngData(for: view), "render failed for cached cost \(suffix)")
@@ -709,12 +706,11 @@ final class MenuLayoutScreenshotRenderTests: XCTestCase {
             snapshot: account.snapshot,
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,
             account: AccountInfo(email: account.displayLabel, plan: nil),
-            planOverride: account.isActive ? L("Active") : L("Switch Account..."),
+            planOverride: .label(account.isActive ? L("Active") : L("Switch Account...")),
             isRefreshing: false,
             lastError: account.error,
             usageBarsShowUsed: false,
@@ -921,7 +917,6 @@ extension MenuLayoutScreenshotRenderTests {
             snapshot: snapshot,
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,
@@ -1007,7 +1002,6 @@ extension MenuLayoutScreenshotRenderTests {
                 snapshot: snapshot,
                 credits: nil,
                 creditsError: nil,
-                dashboard: nil,
                 dashboardError: nil,
                 tokenSnapshot: nil,
                 tokenError: nil,
@@ -1050,7 +1044,7 @@ extension MenuLayoutScreenshotRenderTests {
         }
     }
 
-    fileprivate static func pngDataWithWindow(hosting: NSHostingView<AnyView>) -> Data? {
+    static func pngDataWithWindow(hosting: NSView) -> Data? {
         // Native List rows need a window to materialize, but it never needs to be ordered onscreen.
         let size = hosting.fittingSize
         hosting.frame = CGRect(origin: .zero, size: size)

@@ -35,7 +35,8 @@ collide in caches, status items, history, widgets, and settings.
 
 - `ProviderConfig.id` decodes directly as `UsageProvider`.
 - `ProviderDescriptorRegistry` bootstraps exactly one descriptor for every `UsageProvider.allCases` value.
-- `ProviderImplementationRegistry` constructs implementations with an exhaustive `UsageProvider` switch.
+- `ProviderCatalog` indexes the first-party implementations from the generated manifest. JavaScript plugins use the
+  separate `UserProviderPluginRegistry`.
 - Usage, errors, status, history, icons, settings, and menu state are keyed by `UsageProvider` across the app.
 - The settings sidebar now persists provider-pane selection as `provider:<UsageProvider.rawValue>` and still assumes one
   pane per compile-time provider, reinforcing that dynamic identities need the shared seam rather than a parallel UI path.

@@ -325,21 +325,6 @@ extension UsageMenuCardView.Model {
         ]
     }
 
-    private static func topMistralModel(from entries: [MistralDailyUsageBucket]) -> String? {
-        var tokens: [String: Int] = [:]
-        for entry in entries {
-            for model in entry.models {
-                tokens[model.name, default: 0] += model.totalTokens
-            }
-        }
-        return tokens.max {
-            if $0.value == $1.value {
-                return $0.key > $1.key
-            }
-            return $0.value < $1.value
-        }?.key
-    }
-
     private static func costString(_ value: Double, currencyCode: String) -> String {
         UsageFormatter.currencyString(value, currencyCode: currencyCode)
     }
@@ -460,7 +445,9 @@ extension UsageMenuCardView.Model {
             for model in entry.modelBreakdowns ?? [] {
                 var score = scores[model.modelName] ?? (0, 0)
                 score.cost += model.costUSD ?? 0
-                score.tokens += model.totalTokens ?? 0
+                let addition = score.tokens.addingReportingOverflow(model.totalTokens ?? 0)
+                guard !addition.overflow else { return nil }
+                score.tokens = addition.partialValue
                 scores[model.modelName] = score
             }
         }

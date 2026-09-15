@@ -417,7 +417,6 @@ extension SettingsStore {
     var menuBarLayout: MenuBarLayout {
         get {
             self.defaultsState.storedMenuBarLayout ?? MenuBarLayout.migrated(
-                iconStyle: self.menuBarIconStyle,
                 displayMode: self.menuBarDisplayMode,
                 metricPreference: .automatic,
                 resetTimeDisplayStyle: self.resetTimeDisplayStyle)
@@ -480,7 +479,6 @@ extension SettingsStore {
             return .stored(stored)
         }
         return .legacy(
-            iconStyle: self.menuBarIconStyle,
             displayMode: self.menuBarDisplayMode,
             metricPreference: self.menuBarMetricPreference(for: provider),
             resetTimeDisplayStyle: self.resetTimeDisplayStyle,
@@ -796,6 +794,15 @@ extension SettingsStore {
             CodexBarLog.logger(LogCategories.settings).info(
                 "Copilot budget extras updated",
                 metadata: ["enabled": newValue ? "1" : "0"])
+            self.noteBackgroundWorkSettingsChanged()
+        }
+    }
+
+    var copilotSeatCreditEntitlementRaw: String {
+        get { self.defaultsState.copilotSeatCreditEntitlementRaw }
+        set {
+            self.defaultsState.copilotSeatCreditEntitlementRaw = newValue
+            self.userDefaults.set(newValue, forKey: "copilotSeatCreditEntitlement")
             self.noteBackgroundWorkSettingsChanged()
         }
     }
@@ -1226,6 +1233,14 @@ extension SettingsStore {
         set {
             self.defaultsState.remoteCostChartColor = newValue
             self.userDefaults.set(newValue.hexString, forKey: "remoteCostChartColor")
+        }
+    }
+
+    var agentSessionsHideUnreachableHosts: Bool {
+        get { self.defaultsState.agentSessionsHideUnreachableHosts }
+        set {
+            self.defaultsState.agentSessionsHideUnreachableHosts = newValue
+            self.userDefaults.set(newValue, forKey: "agentSessionsHideUnreachableHosts")
         }
     }
 

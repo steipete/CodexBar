@@ -21,7 +21,7 @@ extension UsageStore {
         _ = self.claudeSwapAccountSnapshots
         _ = self.claudeSwapLastError
         _ = self.claudeSwapRevision
-        _ = self.tokenSnapshots
+        _ = self.tokenSnapshotPublications
         _ = self.tokenErrors
         _ = self.tokenRefreshInFlight
         _ = self.codexCostCatchUpActivity
@@ -96,14 +96,6 @@ extension UsageStore {
     var attachedOpenAIDashboardSnapshot: OpenAIDashboardSnapshot? {
         guard self.openAIDashboardAttachmentAuthorized else { return nil }
         return self.openAIDashboard
-    }
-
-    private static func isRunningTestsProcess() -> Bool {
-        let environment = ProcessInfo.processInfo.environment
-        let testKeys = ["XCTestConfigurationFilePath", "XCTestSessionIdentifier", "SWIFT_TESTING_ENABLED"]
-        return testKeys.contains(where: { environment[$0] != nil }) || CommandLine.arguments.contains { argument in
-            argument.contains("xctest") || argument.contains("swift-testing")
-        }
     }
 
     /// Returns the login method (plan type) for the specified provider, if available.
@@ -184,7 +176,6 @@ final class UsageStore {
     var claudeSwapRevision: UInt64 = 0
     @ObservationIgnored var claudeSwapRefreshTask: Task<Void, Never>?
     @ObservationIgnored var claudeSwapTransientState = ClaudeSwapTransientState()
-    var tokenSnapshots: [ProviderInstanceID: CostUsageTokenSnapshot] = [:]
     var tokenSnapshotPublications: [ProviderInstanceID: TokenSnapshotPublication] = [:]
     var tokenSnapshotPublicationRevisions: [ProviderInstanceID: UInt64] = [:]
     var spendDashboardTokenPublications: [ProviderInstanceID: TokenSnapshotPublication] = [:]
@@ -300,6 +291,7 @@ final class UsageStore {
         Int) async throws -> CostUsageFetcher.CodexScanCatchUpStatus)?
     @ObservationIgnored var _test_codexCostCatchUpSleepOverride: (@MainActor (
         TimeInterval) async throws -> Void)?
+    @ObservationIgnored var _test_codexCostCatchUpActiveDuration: TimeInterval = 0
     @ObservationIgnored var _test_codexCostCatchUpResourceStateOverride: (@MainActor () -> (
         powerSource: CodexCostCatchUpPowerSource,
         lowPowerModeEnabled: Bool,
@@ -312,6 +304,7 @@ final class UsageStore {
         Int) async throws -> CostUsageFetcher.CodexScanCatchUpStatus)?
     @ObservationIgnored var _test_spendDashboardCodexCostCatchUpSleepOverride: (@MainActor (
         TimeInterval) async throws -> Void)?
+    @ObservationIgnored var _test_spendDashboardCodexCostCatchUpActiveDuration: TimeInterval = 0
     @ObservationIgnored var _test_spendDashboardCodexCostCatchUpResourceStateOverride: (@MainActor () -> (
         powerSource: CodexCostCatchUpPowerSource,
         lowPowerModeEnabled: Bool,
@@ -514,7 +507,7 @@ final class UsageStore {
         self.widgetSnapshotURL = widgetSnapshotURL
         self.widgetTimelineReloader = widgetTimelineReloader
         self.historicalUsageHistoryStore = historicalUsageHistoryStore
-        self.startupBehavior = startupBehavior.resolved(isRunningTests: Self.isRunningTestsProcess())
+        self.startupBehavior = startupBehavior.resolved(isRunningTests: TestProcessSafety.isRunning)
         let planHistoryStore = Self.resolvedPlanHistoryStore(planUtilizationHistoryStore, startup: self.startupBehavior)
         self.planUtilizationHistoryStore = planHistoryStore
         self.sessionQuotaNotifier = sessionQuotaNotifier
@@ -1009,22 +1002,6 @@ final class UsageStore {
 }
 
 extension UsageStore {
-    func debugDumpClaude() async {
-        // Provider-specific by design: Claude's debug command owns a raw CLI/web probe artifact and error lane.
-        let fetcher = ClaudeUsageFetcher(
-            browserDetection: self.browserDetection,
-            keepCLISessionsAlive: self.settings.debugKeepCLISessionsAlive)
-        let output = await fetcher.debugRawProbe(model: "sonnet")
-        let url = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("codexbar-claude-probe.txt")
-        try? output.write(to: url, atomically: true, encoding: .utf8)
-        await MainActor.run {
-            let snippet = String(output.prefix(180)).replacingOccurrences(of: "\n", with: " ")
-            self.knownLimitsAvailabilityByProvider.removeValue(forKey: .claude)
-            self.errors[.claude] = "[Claude] \(snippet) (saved: \(url.path))"
-            NSWorkspace.shared.open(url)
-        }
-    }
-
     func dumpLog(toFileFor provider: UsageProvider) async -> URL? {
         let text = await self.debugLog(for: provider)
         let filename = "codexbar-\(provider.rawValue)-probe.txt"
@@ -1040,10 +1017,6 @@ extension UsageStore {
             }
             return nil
         }
-    }
-
-    func debugAugmentDump() async -> String {
-        await AugmentStatusProbe.latestDumps()
     }
 
     func debugLog(for provider: UsageProvider) async -> String {
@@ -1618,7 +1591,7 @@ extension UsageStore {
                     attemptedAt: now,
                     costScopeSignature: costScopeSignature)
             }
-            let hadPriorData = self.tokenSnapshots[provider.instanceID] != nil
+            let hadPriorData = self.tokenSnapshotPublications[provider.instanceID]?.snapshot != nil
             let shouldSurface = self.tokenFailureGates[provider.instanceID]?
                 .shouldSurfaceError(onFailureWithPriorData: hadPriorData) ?? true
             if shouldSurface {

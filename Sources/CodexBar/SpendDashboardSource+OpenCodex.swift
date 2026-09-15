@@ -2,13 +2,6 @@ import CodexBarCore
 import Foundation
 
 extension SpendDashboardSource {
-    static func mergingOpenCodexInputs(
-        _ inputs: [SpendDashboardModel.ProviderInput],
-        request: SpendDashboardLoadRequest) -> [SpendDashboardModel.ProviderInput]
-    {
-        self.mergingOpenCodexInputsWithObservation(inputs, request: request).inputs
-    }
-
     static func mergingOpenCodexInputsWithObservation(
         _ inputs: [SpendDashboardModel.ProviderInput],
         request: SpendDashboardLoadRequest,

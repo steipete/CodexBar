@@ -74,20 +74,6 @@ public enum CursorCookieImporter {
             && BrowserCookieAccessGate.shouldAttempt(browser)
     }
 
-    /// Reads Cursor session cookies from one browser if present (no fallback to other browsers).
-    static func importSessionIfPresent(
-        browser: Browser,
-        applicationURL: URL? = nil,
-        browserDetection: BrowserDetection,
-        logger: ((String) -> Void)? = nil) -> SessionInfo?
-    {
-        self.importSessionsIfPresent(
-            browser: browser,
-            applicationURL: applicationURL,
-            browserDetection: browserDetection,
-            logger: logger).first
-    }
-
     /// Reads all Cursor session-cookie candidates from one browser source order.
     static func importSessionsIfPresent(
         browser: Browser,
@@ -101,21 +87,6 @@ public enum CursorCookieImporter {
             browserDetection: browserDetection,
             requireKnownSessionName: true,
             logger: logger)
-    }
-
-    /// Like ``importSessionIfPresent`` but accepts any non-empty cookie set for Cursor domains so the API can validate
-    /// (used after the strict name pass fails — e.g. new cookie names or host-only cookies).
-    static func importDomainCookiesIfPresent(
-        browser: Browser,
-        applicationURL: URL? = nil,
-        browserDetection: BrowserDetection,
-        logger: ((String) -> Void)? = nil) -> SessionInfo?
-    {
-        self.importDomainCookieSessionsIfPresent(
-            browser: browser,
-            applicationURL: applicationURL,
-            browserDetection: browserDetection,
-            logger: logger).first
     }
 
     /// Reads fallback cookie candidates whose names are not already covered by the strict session-cookie pass.
@@ -469,7 +440,7 @@ public struct CursorStatusSnapshot: Sendable {
     }
 
     /// Convert to UsageSnapshot for the common provider interface
-    public func toUsageSnapshot() -> UsageSnapshot {
+    public func toUsageSnapshot(now: Date = Date()) -> UsageSnapshot {
         let cursorRequests: CursorRequestUsage? = if let used = self.requestsUsed,
                                                      let limit = self.requestsLimit,
                                                      limit > 0
@@ -482,7 +453,7 @@ public struct CursorStatusSnapshot: Sendable {
         // Primary: For usable legacy request quotas, use request usage; otherwise preserve plan percentage.
         let primaryUsedPercent = cursorRequests?.usedPercent ?? self.planPercentUsed
 
-        let billingCycleWindowMinutes = Self.billingCycleWindowMinutes(
+        let billingCycleWindowMinutes = CursorSandUsageStatus.windowMinutes(
             start: self.billingCycleStart,
             end: self.billingCycleEnd)
 
@@ -519,9 +490,7 @@ public struct CursorStatusSnapshot: Sendable {
         let extraRateWindows: [NamedRateWindow]? = if cursorRequests != nil {
             nil
         } else {
-            self.sandUsage.flatMap { status in
-                status.extraRateWindow(resetDescription: Self.formatResetDate)
-            }.map { [$0] }
+            self.sandUsage?.extraRateWindow(now: now, resetDescription: Self.formatResetDate).map { [$0] }
         }
 
         // Prefer a personal cap. Team accounts with no user cap expose only the shared on-demand budget.
@@ -558,7 +527,7 @@ public struct CursorStatusSnapshot: Sendable {
                 period: "Monthly",
                 resetsAt: self.billingCycleEnd,
                 personalUsed: personalOnDemandUsed,
-                updatedAt: Date())
+                updatedAt: now)
         } else {
             nil
         }
@@ -580,7 +549,7 @@ public struct CursorStatusSnapshot: Sendable {
                     .makeRow(label: "Request quota", value: "\(requests.used) / \(requests.limit)"),
                 ])]
             } ?? [],
-            updatedAt: Date(),
+            updatedAt: now,
             identity: identity)
     }
 
@@ -589,14 +558,6 @@ public struct CursorStatusSnapshot: Sendable {
         formatter.dateFormat = "MMM d 'at' h:mma"
         formatter.locale = Locale(identifier: "en_US_POSIX")
         return "Resets " + formatter.string(from: date)
-    }
-
-    private static func billingCycleWindowMinutes(start: Date?, end: Date?) -> Int? {
-        guard let start,
-              let end
-        else { return nil }
-        let minutes = Int((end.timeIntervalSince(start) / 60).rounded())
-        return minutes > 0 ? minutes : nil
     }
 
     private static func formatMembershipType(_ type: String) -> String {
@@ -724,28 +685,7 @@ public actor CursorSessionStore {
     private func saveToDisk() {
         // Convert cookie properties to JSON-serializable format
         // Date values must be converted to TimeInterval (Double)
-        let cookieData = self.sessionCookies.compactMap { cookie -> [String: Any]? in
-            guard let props = cookie.properties else { return nil }
-            var serializable: [String: Any] = [:]
-            for (key, value) in props {
-                let keyString = key.rawValue
-                if let date = value as? Date {
-                    // Convert Date to TimeInterval for JSON compatibility
-                    serializable[keyString] = date.timeIntervalSince1970
-                    serializable[keyString + "_isDate"] = true
-                } else if let url = value as? URL {
-                    serializable[keyString] = url.absoluteString
-                    serializable[keyString + "_isURL"] = true
-                } else if JSONSerialization.isValidJSONObject([value]) ||
-                    value is String ||
-                    value is Bool ||
-                    value is NSNumber
-                {
-                    serializable[keyString] = value
-                }
-            }
-            return serializable
-        }
+        let cookieData = CookiePropertyJSON.encode(self.sessionCookies)
         guard !cookieData.isEmpty else {
             try? FileManager.default.removeItem(at: self.fileURL)
             return
@@ -764,30 +704,7 @@ public actor CursorSessionStore {
               let cookieArray = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]
         else { return }
 
-        self.sessionCookies = cookieArray.compactMap { props in
-            // Convert back to HTTPCookiePropertyKey dictionary
-            var cookieProps: [HTTPCookiePropertyKey: Any] = [:]
-            for (key, value) in props {
-                // Skip marker keys
-                if key.hasSuffix("_isDate") || key.hasSuffix("_isURL") {
-                    continue
-                }
-
-                let propKey = HTTPCookiePropertyKey(key)
-
-                // Check if this was a Date
-                if props[key + "_isDate"] as? Bool == true, let interval = value as? TimeInterval {
-                    cookieProps[propKey] = Date(timeIntervalSince1970: interval)
-                }
-                // Check if this was a URL
-                else if props[key + "_isURL"] as? Bool == true, let urlString = value as? String {
-                    cookieProps[propKey] = URL(string: urlString)
-                } else {
-                    cookieProps[propKey] = value
-                }
-            }
-            return HTTPCookie(properties: cookieProps)
-        }
+        self.sessionCookies = CookiePropertyJSON.decode(cookieArray)
     }
 
     private func pruneExpiredCookies(now: Date = Date()) {
@@ -831,9 +748,11 @@ public struct CursorStatusProbe: Sendable {
     public var timeout: TimeInterval = 15.0
     let browserDetection: BrowserDetection
     let browserCookieImportOrder: BrowserCookieImportOrder
-    private let urlSession: any ProviderHTTPTransport
-    #if os(macOS)
+    let urlSession: any ProviderHTTPTransport
+    #if os(macOS) || os(Linux)
     let appAuthStore: any CursorAppAuthSessionProviding
+    #endif
+    #if os(macOS)
     let persistAppAuthSession: @Sendable (CursorAppAuthSession) async -> Void
     #endif
     let conditionalMutationCoordinator: CookieHeaderCache.ConditionalMutationCoordinator
@@ -855,6 +774,15 @@ public struct CursorStatusProbe: Sendable {
             persistAppAuthSession: { session in
                 await CursorSessionStore.shared.persistAppSession(session)
             },
+            conditionalMutationCoordinator: .shared)
+        #elseif os(Linux)
+        self.init(
+            baseURL: baseURL,
+            timeout: timeout,
+            browserDetection: browserDetection,
+            browserCookieImportOrder: Self.defaultBrowserCookieImportOrder,
+            urlSession: urlSession,
+            appAuthStore: CursorAppAuthStore(),
             conditionalMutationCoordinator: .shared)
         #else
         self.init(
@@ -885,6 +813,15 @@ public struct CursorStatusProbe: Sendable {
             persistAppAuthSession: { session in
                 await CursorSessionStore.shared.persistAppSession(session)
             },
+            conditionalMutationCoordinator: conditionalMutationCoordinator)
+        #elseif os(Linux)
+        self.init(
+            baseURL: baseURL,
+            timeout: timeout,
+            browserDetection: browserDetection,
+            browserCookieImportOrder: Self.defaultBrowserCookieImportOrder,
+            urlSession: urlSession,
+            appAuthStore: CursorAppAuthStore(),
             conditionalMutationCoordinator: conditionalMutationCoordinator)
         #else
         self.init(
@@ -918,13 +855,7 @@ public struct CursorStatusProbe: Sendable {
         self.conditionalMutationCoordinator = conditionalMutationCoordinator
     }
 
-    /// Fetch Cursor usage using a first-party web session derived from Cursor.app's access token.
-    func fetchWithAppAuthSession(_ session: CursorAppAuthSession) async throws -> CursorStatusSnapshot {
-        try await self.fetchWithCookieHeader(
-            session.cookieHeader(),
-            identityFallback: session.identity)
-    }
-    #else
+    #elseif !os(Linux)
     init(
         baseURL: URL = URL(string: "https://cursor.com")!,
         timeout: TimeInterval = 15.0,
@@ -1340,7 +1271,7 @@ public struct CursorStatusProbe: Sendable {
     }
     #endif
 
-    private func fetchWithCookieHeader(
+    func fetchWithCookieHeader(
         _ cookieHeader: String,
         identityFallback: CursorSessionIdentity? = nil,
         deadline: Date? = nil) async throws -> CursorStatusSnapshot
@@ -1607,14 +1538,8 @@ public struct CursorStatusProbe: Sendable {
         sandUsage: CursorSandUsageStatus? = nil,
         identityFallback: CursorSessionIdentity? = nil) -> CursorStatusSnapshot
     {
-        func parseBillingCycleDate(_ dateString: String?) -> Date? {
-            guard let dateString else { return nil }
-            let formatter = ISO8601DateFormatter()
-            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            return formatter.date(from: dateString) ?? ISO8601DateFormatter().date(from: dateString)
-        }
-        let billingCycleStart = parseBillingCycleDate(summary.billingCycleStart)
-        let billingCycleEnd = parseBillingCycleDate(summary.billingCycleEnd)
+        let billingCycleStart = ISO8601DateParser.parse(summary.billingCycleStart)
+        let billingCycleEnd = ISO8601DateParser.parse(summary.billingCycleEnd)
 
         // Convert cents to USD (plan percent derives from raw values to avoid percent unit mismatches).
         // Use plan.limit directly - breakdown.total represents total *used* credits, not the limit.

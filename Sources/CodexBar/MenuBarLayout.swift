@@ -6,6 +6,16 @@ enum PercentWindow: String, CaseIterable, Codable, Hashable, Sendable {
     case weekly
     case scopedWeekly
     case automatic
+
+    func providerLabel(provider: UsageProvider?) -> String? {
+        guard let provider else { return nil }
+        let presentation = ProviderDescriptorRegistry.descriptor(for: provider).presentation
+        return switch self {
+        case .session: presentation.menuBarLayoutPrimaryLabel.map(L)
+        case .weekly: presentation.menuBarLayoutSecondaryLabel.map(L)
+        case .scopedWeekly, .automatic: nil
+        }
+    }
 }
 
 /// Comparison unit of a conditional metric: drives the threshold range, the stepper increment, and the
@@ -531,12 +541,11 @@ enum MenuBarLayoutSemanticWindowResolver {
     static func windows(
         provider: UsageProvider,
         snapshot: UsageSnapshot?)
-        -> (session: RateWindow?, weekly: RateWindow?)
+        -> ProviderSemanticWindows
     {
-        guard let snapshot else { return (nil, nil) }
-        let windows = ProviderDescriptorRegistry.descriptor(for: provider).presentation
+        guard let snapshot else { return ProviderSemanticWindows(session: nil, weekly: nil) }
+        return ProviderDescriptorRegistry.descriptor(for: provider).presentation
             .semanticWindows(snapshot: snapshot)
-        return (windows.session, windows.weekly)
     }
 
     /// The active model-scoped weekly carve-out (e.g. Claude's `claude-weekly-scoped-fable`
@@ -559,12 +568,22 @@ enum MenuBarLayoutSemanticWindowResolver {
 enum MenuBarLayoutBalanceResolver {
     static func balance(
         provider: UsageProvider,
-        snapshot: UsageSnapshot?)
+        snapshot: UsageSnapshot?,
+        codexCredits: CreditsSnapshot? = nil)
         -> String?
     {
-        // Provider-specific by design: only OpenRouter exposes its credit balance as the "Remaining" detail row.
-        guard provider == .openrouter else { return nil }
-        return snapshot?.detailRow(label: "Remaining")?.value
+        // Provider-specific by design: Codex credits live outside UsageSnapshot, while OpenRouter exposes
+        // its credit balance as the "Remaining" detail row.
+        switch provider {
+        case .codex:
+            guard let codexCredits, codexCredits.balanceReadSucceeded else { return nil }
+            return codexCredits.remaining.rounded().formatted(
+                .number.precision(.fractionLength(0)).locale(Locale(identifier: "en_US")))
+        case .openrouter:
+            return snapshot?.detailRow(label: "Remaining")?.value
+        default:
+            return nil
+        }
     }
 
     /// Numeric USD amounts behind OpenRouter's "Credits" detail rows. The plugin formats both rows as
@@ -736,26 +755,14 @@ enum MenuBarLayoutGap: String, CaseIterable, Identifiable, Sendable {
 }
 
 struct MenuBarLayoutResolution: Equatable {
-    struct LegacySettings: Equatable {
-        let iconStyle: MenuBarIconStyle
-        let displayMode: MenuBarDisplayMode
-        let metricPreference: MenuBarMetricPreference
-        let resetTimeDisplayStyle: ResetTimeDisplayStyle
-    }
-
     let layout: MenuBarLayout
-    let legacySettings: LegacySettings?
-
-    var usesLegacyRendering: Bool {
-        self.legacySettings != nil
-    }
+    let usesLegacyRendering: Bool
 
     static func stored(_ layout: MenuBarLayout) -> Self {
-        Self(layout: layout, legacySettings: nil)
+        Self(layout: layout, usesLegacyRendering: false)
     }
 
     static func legacy(
-        iconStyle: MenuBarIconStyle,
         displayMode: MenuBarDisplayMode,
         metricPreference: MenuBarMetricPreference,
         resetTimeDisplayStyle: ResetTimeDisplayStyle,
@@ -764,29 +771,22 @@ struct MenuBarLayoutResolution: Equatable {
     {
         Self(
             layout: MenuBarLayout.migrated(
-                iconStyle: iconStyle,
                 displayMode: displayMode,
                 metricPreference: metricPreference,
                 resetTimeDisplayStyle: resetTimeDisplayStyle,
                 provider: provider),
-            legacySettings: LegacySettings(
-                iconStyle: iconStyle,
-                displayMode: displayMode,
-                metricPreference: metricPreference,
-                resetTimeDisplayStyle: resetTimeDisplayStyle))
+            usesLegacyRendering: true)
     }
 }
 
 extension MenuBarLayout {
     static func migrated(
-        iconStyle: MenuBarIconStyle,
         displayMode: MenuBarDisplayMode,
         metricPreference: MenuBarMetricPreference,
         resetTimeDisplayStyle: ResetTimeDisplayStyle,
         provider: UsageProvider? = nil)
         -> MenuBarLayout
     {
-        _ = iconStyle // Critters and bars keep rendering through their unchanged legacy path.
         let icon: MenuBarLayoutToken = .icon
         // Provider-specific by design: OpenRouter Automatic historically renders remaining credit balance.
         if provider == .openrouter, metricPreference == .automatic {

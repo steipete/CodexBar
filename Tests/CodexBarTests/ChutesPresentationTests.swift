@@ -16,7 +16,6 @@ struct ChutesPresentationTests {
             snapshot: Self.snapshot(now: now),
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,
@@ -82,17 +81,10 @@ struct ChutesPresentationTests {
     }
 
     @Test
-    func `native menu keeps quota detail separate from reset text`() throws {
-        let suite = "ChutesPresentationTests-native-menu"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defaults.removePersistentDomain(forName: suite)
-        defer { defaults.removePersistentDomain(forName: suite) }
-
-        let settings = SettingsStore(
-            userDefaults: defaults,
-            configStore: testConfigStore(suiteName: suite),
-            zaiTokenStore: NoopZaiTokenStore(),
-            syntheticTokenStore: NoopSyntheticTokenStore())
+    func `native menu keeps quota detail separate from reset text`() {
+        let settings = testSettingsStore(
+            suiteName: "ChutesPresentationTests-native-menu",
+            userDefaults: InMemoryUserDefaults())
         settings.statusChecksEnabled = false
 
         let store = UsageStore(

@@ -270,12 +270,39 @@ struct ManusProviderTests {
         #expect(snapshot.secondary?.resetDescription == "Daily: 0 / 300")
     }
 
-    @Test
-    func `parse response rejects payload without credits fields`() {
-        let data = Data(#"{"error":"unauthorized","message":"session expired"}"#.utf8)
+    @Test(arguments: ["", "data", "result", "response", "availableCredits"], [
+        "{}",
+        #"{"error":"unauthorized","message":"session expired"}"#,
+        #"{"nextRefreshTime":"2026-04-13T00:00:00Z","refreshInterval":"daily"}"#,
+    ])
+    func `parse response rejects payload without credits fields`(envelope: String, payload: String) {
+        let json = envelope.isEmpty ? payload : "{\"\(envelope)\":\(payload)}"
+        let data = Data(json.utf8)
 
-        #expect(throws: ManusAPIError.self) {
+        #expect(throws: ManusAPIError.parseFailed("response missing expected credits fields")) {
             try ManusUsageFetcher.parseResponse(data)
+        }
+    }
+
+    @Test(arguments: ["", "data", "result", "response", "availableCredits"], [
+        "totalCredits", "freeCredits", "periodicCredits", "addonCredits",
+        "refreshCredits", "maxRefreshCredits", "proMonthlyCredits", "eventCredits",
+    ])
+    func `parse response preserves sparse zero credit payloads`(envelope: String, creditKey: String) throws {
+        let payload = "{\"\(creditKey)\":0}"
+        let json = envelope.isEmpty ? payload : "{\"\(envelope)\":\(payload)}"
+        let response = try ManusUsageFetcher.parseResponse(Data(json.utf8))
+        #expect(response.totalCredits == 0)
+        #expect(response.toUsageSnapshot(now: Self.now).identity?.loginMethod == "Balance: 0 credits")
+    }
+
+    @Test(arguments: [
+        #"{"data":{},"result":{"totalCredits":5}}"#,
+        #"{"data":{},"totalCredits":5}"#,
+    ])
+    func `parse response rejects the selected invalid envelope`(body: String) {
+        #expect(throws: ManusAPIError.parseFailed("response missing expected credits fields")) {
+            try ManusUsageFetcher.parseResponse(Data(body.utf8))
         }
     }
 

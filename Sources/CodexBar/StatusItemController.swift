@@ -389,6 +389,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         account: AccountInfo,
         updater: UpdaterProviding,
         preferencesSelection: PreferencesSelection,
+        agentSessions: AgentSessionsStore? = nil,
         managedCodexAccountCoordinator: ManagedCodexAccountCoordinator =
             ManagedCodexAccountCoordinator(),
         codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator? = nil,
@@ -404,7 +405,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.store = store
         self.settings = settings
         self.cloudSyncState = cloudSyncState
-        self.agentSessions = AgentSessionsStore(settings: settings)
+        self.agentSessions = agentSessions ?? AgentSessionsStore(settings: settings)
         self.account = account
         self.updater = updater
         self.preferencesSelection = preferencesSelection

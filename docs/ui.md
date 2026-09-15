@@ -74,6 +74,11 @@ does not provide a token's data, that token renders an en dash while its sibling
 derive their first layout from the prior style, display mode, metric, and reset settings; those legacy keys remain
 untouched for downgrade safety, while a saved token layout takes precedence.
 
+For Abacus, explicitly selecting Credits keeps the monthly allowance visible. With 250 of 1,000 credits used, it
+shows `C 75%` remaining (or `C 25%` with Show usage as used). Its billing window and reset date still drive pacing;
+Automatic keeps its existing percentage. Credits labels also apply to editor tokens, conditional metrics and pace
+accessibility.
+
 Scoped weekly % selects the most constrained active model-specific weekly carve-out. The editor keeps a stable,
 model-generic token label while the rendered menu-bar prefix and accessibility label follow the active model title.
 
@@ -120,7 +125,7 @@ model-generic token label while the rendered menu-bar prefix and accessibility l
 
 Pace compares your actual usage against the expected consumption rate for the current window. Most providers use an even-consumption budget; Codex can use historical pace data when historical tracking is available.
 
-The **Work days** setting selects the weekly pace model. **Automatic** uses Codex historical pace when enough data is available. Selecting 4, 5, or 7 days uses that explicit schedule for pace and ETA instead; CodexBar continues collecting history in the background, but does not use historical predictions until the setting returns to Automatic.
+The **Work days** setting selects the weekly pace model. **Automatic** uses Codex historical pace when enough data is available. Historical daily credits follow local calendar-day boundaries, including midnight daylight-saving transitions. Selecting 4, 5, or 7 days uses that explicit schedule for pace and ETA instead; CodexBar continues collecting history in the background, but does not use historical predictions until the setting returns to Automatic.
 
 - **On pace** – usage matches the expected rate.
 - **X% in deficit** – you're consuming faster than the even rate; at this pace you'll run out before the window resets.
@@ -160,7 +165,7 @@ Hover over a daily bar in a provider menu’s cost chart to inspect its date, co
 
 ### Daily spend ledger
 
-Usage & Spend includes a daily ledger for each currency group. Rows use the selected bucket time zone and app language, retain priced days when another day is unpriced, and mark unavailable amounts with a dash. Zero-usage rows require established common coverage; unknown activity is not described as idle. Narrow settings windows allow horizontal ledger scrolling. Source filtering and dashboard accounting remain authoritative.
+Usage & Spend includes a daily ledger for each currency group. Rows use the selected bucket time zone and app language, retain priced days when another day is unpriced, and mark unavailable amounts with a dash. When one source on a day has no price, the row shows the known spend of the other sources with a tilde, the same partial marker as the group total. A day with no known spend keeps the dash. Zero-usage rows require established common coverage; unknown activity is not described as idle. Narrow settings windows allow horizontal ledger scrolling. Source filtering and dashboard accounting remain authoritative.
 
 OpenCodex cost and request aggregates cover the selected history window, including All; older activity remains included alongside its token counts.
 

@@ -598,21 +598,21 @@ actor HistoricalUsageHistoryStore {
     private static func parseDayUsages(
         from breakdown: [OpenAIDashboardDailyBreakdown],
         asOf: Date,
-        fillingFrom expectedCoverageStart: Date? = nil) -> [DayUsage]
+        fillingFrom expectedCoverageStart: Date? = nil,
+        calendar: Calendar = gregorianCalendar()) -> [DayUsage]
     {
         var creditsByStart: [Date: Double] = [:]
         creditsByStart.reserveCapacity(breakdown.count)
 
         for day in breakdown {
-            guard let dayStart = Self.dayStart(for: day.day) else { continue }
+            guard let dayStart = Self.dayStart(for: day.day, calendar: calendar) else { continue }
             creditsByStart[dayStart, default: 0] += max(0, day.totalCreditsUsed)
         }
 
-        let calendar = Self.gregorianCalendar()
         var dayUsages: [DayUsage] = []
         dayUsages.reserveCapacity(creditsByStart.count)
         for (dayStart, credits) in creditsByStart {
-            guard let nominalEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) else { continue }
+            guard let nominalEnd = calendar.dateInterval(of: .day, for: dayStart)?.end else { continue }
             let effectiveEnd: Date = if dayStart <= asOf, asOf < nominalEnd {
                 asOf
             } else {
@@ -626,17 +626,18 @@ actor HistoricalUsageHistoryStore {
         return Self.fillMissingZeroUsageDays(
             in: dayUsages,
             through: asOf,
-            fillingFrom: expectedCoverageStart)
+            fillingFrom: expectedCoverageStart,
+            calendar: calendar)
     }
 
     private static func fillMissingZeroUsageDays(
         in dayUsages: [DayUsage],
         through asOf: Date,
-        fillingFrom expectedCoverageStart: Date? = nil) -> [DayUsage]
+        fillingFrom expectedCoverageStart: Date? = nil,
+        calendar: Calendar) -> [DayUsage]
     {
         guard let firstStart = dayUsages.first?.start else { return [] }
 
-        let calendar = Self.gregorianCalendar()
         let fillStart: Date = if let expectedCoverageStart {
             min(firstStart, calendar.startOfDay(for: expectedCoverageStart))
         } else {
@@ -652,7 +653,7 @@ actor HistoricalUsageHistoryStore {
 
         var cursor = fillStart
         while cursor <= finalDayStart {
-            guard let nominalEnd = calendar.date(byAdding: .day, value: 1, to: cursor) else { break }
+            guard let nominalEnd = calendar.dateInterval(of: .day, for: cursor)?.end else { break }
             let effectiveEnd: Date = if cursor <= asOf, asOf < nominalEnd {
                 asOf
             } else {
@@ -663,14 +664,13 @@ actor HistoricalUsageHistoryStore {
                 start: cursor,
                 end: effectiveEnd,
                 creditsUsed: creditsByStart[cursor] ?? 0))
-            guard let next = calendar.date(byAdding: .day, value: 1, to: cursor) else { break }
-            cursor = next
+            cursor = nominalEnd
         }
 
         return filled
     }
 
-    private static func dayStart(for key: String) -> Date? {
+    private static func dayStart(for key: String, calendar: Calendar) -> Date? {
         let components = key.split(separator: "-", omittingEmptySubsequences: true)
         guard components.count == 3,
               let year = Int(components[0]),
@@ -680,17 +680,7 @@ actor HistoricalUsageHistoryStore {
             return nil
         }
 
-        let calendar = Self.gregorianCalendar()
-        var dateComponents = DateComponents()
-        dateComponents.calendar = calendar
-        dateComponents.timeZone = calendar.timeZone
-        dateComponents.year = year
-        dateComponents.month = month
-        dateComponents.day = day
-        dateComponents.hour = 0
-        dateComponents.minute = 0
-        dateComponents.second = 0
-        return dateComponents.date
+        return calendar.date(from: DateComponents(year: year, month: month, day: day))
     }
 
     private static func creditsUsed(from dayUsages: [DayUsage], between start: Date, and end: Date) -> Double {
@@ -742,16 +732,17 @@ actor HistoricalUsageHistoryStore {
 
     #if DEBUG
     nonisolated static func _dayStartForTesting(_ key: String) -> Date? {
-        self.dayStart(for: key)
+        self.dayStart(for: key, calendar: self.gregorianCalendar())
     }
 
     nonisolated static func _creditsUsedForTesting(
         breakdown: [OpenAIDashboardDailyBreakdown],
         asOf: Date,
         start: Date,
-        end: Date) -> Double
+        end: Date,
+        calendar: Calendar = gregorianCalendar()) -> Double
     {
-        let dayUsages = Self.parseDayUsages(from: breakdown, asOf: asOf)
+        let dayUsages = Self.parseDayUsages(from: breakdown, asOf: asOf, calendar: calendar)
         return Self.creditsUsed(from: dayUsages, between: start, and: end)
     }
     #endif

@@ -10,18 +10,10 @@ struct VeniceProviderImplementation: ProviderImplementation {
     }
 
     @MainActor
-    func observeSettings(_: SettingsStore) {}
-
-    @MainActor
     func isAvailable(context: ProviderAvailabilityContext) -> Bool {
         if VeniceSettingsReader.apiKey(environment: context.environment) != nil {
             return true
         }
         return !context.settings.tokenAccounts(for: .venice).isEmpty
-    }
-
-    @MainActor
-    func settingsFields(context _: ProviderSettingsContext) -> [ProviderSettingsFieldDescriptor] {
-        []
     }
 }

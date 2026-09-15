@@ -124,7 +124,8 @@ extension StatusItemController {
                 ObjectIdentifier(type(of: liveItem)) == ObjectIdentifier(type(of: newItem))
             if liveItem.isSeparatorItem == newItem.isSeparatorItem,
                hasCompatibleItemClass,
-               !requiresNativeImageReplacement
+               !requiresNativeImageReplacement,
+               self.hasMatchingCardRowHeight(liveItem, newItem)
             {
                 if !liveItem.isSeparatorItem {
                     self.swapMenuItemContents(liveItem, newItem)
@@ -136,17 +137,24 @@ extension StatusItemController {
                 displacedItems.append(liveItem)
             }
         }
-        if newItems.count > liveCount {
-            for offset in liveCount..<newItems.count {
-                menu.insertItem(newItems[offset], at: fromIndex + offset)
-            }
-        } else if liveCount > newItems.count {
-            for offset in newItems.count..<liveCount {
-                menu.removeItem(liveItems[offset])
-                displacedItems.append(liveItems[offset])
-            }
+        for (offset, item) in newItems.enumerated().dropFirst(sharedCount) {
+            menu.insertItem(item, at: fromIndex + offset)
+        }
+        for item in liveItems.dropFirst(sharedCount) {
+            menu.removeItem(item)
+            displacedItems.append(item)
         }
         return displacedItems
+    }
+
+    /// Card payloads swap inside an attached row only when the row keeps its height. AppKit's table-backed
+    /// menu keeps a reused row's measured height, so a taller or shorter card in the same slot would
+    /// leave empty space or clip (#3549); presenting the incoming item instead makes AppKit measure it.
+    private func hasMatchingCardRowHeight(_ liveItem: NSMenuItem, _ newItem: NSMenuItem) -> Bool {
+        guard let liveHosting = liveItem.view as? ErasedMenuCardHostingView,
+              let newHosting = newItem.view as? ErasedMenuCardHostingView
+        else { return true }
+        return abs(liveHosting.intrinsicContentSize.height - newHosting.intrinsicContentSize.height) <= 0.5
     }
 
     /// Forces hosted rows to lay out and draw inside the caller's disabled-actions
@@ -173,12 +181,8 @@ extension StatusItemController {
     private func finishReconciledHighlightTracking(in menu: NSMenu) {
         let menuKey = ObjectIdentifier(menu)
         guard let highlightedItem = self.highlightedMenuItems[menuKey] else { return }
-        guard highlightedItem.menu === menu else {
-            self.highlightedMenuItems.removeValue(forKey: menuKey)
-            (highlightedItem.view as? MenuCardHighlighting)?.setHighlighted(false)
-            return
-        }
-        guard highlightedItem.isEnabled,
+        guard highlightedItem.menu === menu,
+              highlightedItem.isEnabled,
               (highlightedItem.view as? MenuCardHighlighting)?.allowsMenuHighlight != false
         else {
             self.highlightedMenuItems.removeValue(forKey: menuKey)
@@ -283,9 +287,7 @@ extension StatusItemController {
             self.highlightedMenuItems[ObjectIdentifier($0)] === liveItem
         } ?? false
         swap(&liveItem.title, &cachedItem.title)
-        let liveAttributedTitle = liveItem.attributedTitle
-        liveItem.attributedTitle = cachedItem.attributedTitle
-        cachedItem.attributedTitle = liveAttributedTitle
+        swap(&liveItem.attributedTitle, &cachedItem.attributedTitle)
         let liveSubmenu = liveItem.submenu
         let cachedSubmenu = cachedItem.submenu
         liveItem.submenu = nil
@@ -297,13 +299,9 @@ extension StatusItemController {
         liveItem.target = cachedItem.target
         cachedItem.action = liveAction.0
         cachedItem.target = liveAction.1
-        let liveRepresented = liveItem.representedObject
-        liveItem.representedObject = cachedItem.representedObject
-        cachedItem.representedObject = liveRepresented
+        swap(&liveItem.representedObject, &cachedItem.representedObject)
         swap(&liveItem.state, &cachedItem.state)
-        let liveEnabled = liveItem.isEnabled
-        liveItem.isEnabled = cachedItem.isEnabled
-        cachedItem.isEnabled = liveEnabled
+        swap(&liveItem.isEnabled, &cachedItem.isEnabled)
         let liveHosting = liveItem.view as? MenuCardHighlighting
         let allowsHighlight = liveHosting?.allowsMenuHighlight != false
         liveHosting?.setHighlighted(liveItem.isEnabled && allowsHighlight && liveRemainsHighlighted)

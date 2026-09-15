@@ -1,21 +1,7 @@
 import CodexBarCore
 import Foundation
 
-enum ProviderStatusIndicator: String {
-    case none
-    case minor
-    case major
-    case critical
-    case maintenance
-    case unknown
-
-    var hasIssue: Bool {
-        switch self {
-        case .none: false
-        default: true
-        }
-    }
-
+extension ProviderStatusIndicator {
     var label: String {
         switch self {
         case .none: L("status_operational")
@@ -28,12 +14,6 @@ enum ProviderStatusIndicator: String {
     }
 }
 
-struct ProviderStatus {
-    let indicator: ProviderStatusIndicator
-    let description: String?
-    let updatedAt: Date?
-}
-
 struct ProviderRefreshPublicationContext {
     let generation: UInt64
     let enablementRevision: UInt64
@@ -42,37 +22,9 @@ struct ProviderRefreshPublicationContext {
     let allowDisabled: Bool
 }
 
-/// A single component/service row on a statuspage.io-style status page
-/// (e.g. "Codex API", "CLI", "FedRAMP") with its current state. A row with non-empty
-/// `children` is a component group and renders as an expandable dropdown.
-struct ProviderStatusComponent: Identifiable, Equatable {
-    let id: String
-    let name: String
-    let indicator: ProviderStatusIndicator
-    /// Raw provider status. The display label is localized when the row renders so changing
-    /// the app language does not require another network refresh.
-    let status: String
-    /// Child rows for a component group; empty for leaf components.
-    var children: [ProviderStatusComponent] = []
-
-    var isGroup: Bool {
-        !self.children.isEmpty
-    }
-
+extension ProviderStatusComponent {
     var statusLabel: String {
         Self.label(forStatuspageStatus: self.status)
-    }
-
-    /// Maps a statuspage.io component `status` string to our indicator + display label.
-    static func indicator(forStatuspageStatus status: String) -> ProviderStatusIndicator {
-        switch status {
-        case "operational": .none
-        case "degraded_performance": .minor
-        case "partial_outage": .major
-        case "major_outage", "full_outage": .critical
-        case "under_maintenance": .maintenance
-        default: .unknown
-        }
     }
 
     static func label(forStatuspageStatus status: String) -> String {

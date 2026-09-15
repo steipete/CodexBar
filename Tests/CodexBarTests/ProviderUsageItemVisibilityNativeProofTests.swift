@@ -111,7 +111,7 @@ private final class UsageVisibilityNativeState {
     }
 
     func model(for provider: UsageProvider) -> UsageMenuCardView.Model {
-        ProvidersPane(provider: provider, settings: self.settings, store: self.store).menuCardModel(for: provider)
+        ProvidersPane(provider: provider, settings: self.settings, store: self.store)._test_menuCardModel(for: provider)
     }
 
     func receipt(window: NSWindow) -> [String: Any] {

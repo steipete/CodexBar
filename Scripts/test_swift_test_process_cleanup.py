@@ -249,10 +249,8 @@ class ProcessCleanupTests(unittest.TestCase):
             )
             timer = None
             try:
-                wait_until(lambda: (sentinel_root / "pid").exists())
-                if interrupt:
-                    timer = threading.Timer(2, lambda: os.kill(os.getpid(), signal.SIGINT))
-                    timer.start()
+                # Interpreter/file startup is setup; the cleanup deadlines below start afterward.
+                wait_until(lambda: (sentinel_root / "pid").exists(), timeout=10)
                 started = time.monotonic()
                 command = [sys.executable, __file__, "--fixture", mode, str(child_root), str(ready_delay)]
                 original_refresh = runner.TestProcessOwnership.refresh
@@ -260,11 +258,15 @@ class ProcessCleanupTests(unittest.TestCase):
                 acknowledged = False
                 draining = False
                 def refresh(ownership, **kwargs):
-                    nonlocal acknowledged
+                    nonlocal acknowledged, timer
                     owned = original_refresh(ownership, **kwargs)
                     if not acknowledged and not draining:
                         acknowledged = release_observed_fixture(
                             child_root, owned, include_grandchild=mode == "success-session-tree")
+                        if acknowledged and interrupt:
+                            # Interrupt owned work, not interpreter startup before identities are visible.
+                            timer = threading.Timer(0.05, lambda: os.kill(os.getpid(), signal.SIGINT))
+                            timer.start()
                     return owned
                 def drain(ownership, process):
                     nonlocal draining
@@ -349,7 +351,7 @@ class ProcessCleanupTests(unittest.TestCase):
         self.exercise("failure", 23)
 
     def test_keyboard_interrupt_drains_children_and_propagates(self):
-        self.exercise("timeout", None, interrupt=True)
+        self.exercise("timeout", None, interrupt=True, ready_delay=3)
 
 
 class FixtureReadinessTests(unittest.TestCase):
@@ -871,7 +873,7 @@ class ReviewRegressionTests(unittest.TestCase):
                     with self.assertRaises(OSError):
                         runner.test_process(123)
 
-    def exercise_initialization_failure(self, failure):
+    def exercise_initialization_failure(self, failure, deferred_kills=0):
         with tempfile.TemporaryDirectory(prefix="codexbar-init-cleanup-") as directory:
             root = Path(directory)
             spawned = []
@@ -895,16 +897,26 @@ class ReviewRegressionTests(unittest.TestCase):
                     return None
                 return original_lookup(pid, *args, **kwargs)
             started = time.monotonic()
+            drain_started = []
+            original_drain = runner.TestProcessOwnership._drain
+            def drain(ownership, process):
+                drain_started.append(time.monotonic() - started)
+                return original_drain(ownership, process)
             sent = []
             original_kill = os.kill
             def kill(pid, sig):
+                nonlocal deferred_kills
                 if spawned and pid == spawned[0].pid:
                     sent.append((sig, time.monotonic() - started))
+                    if sig == signal.SIGKILL and deferred_kills:
+                        deferred_kills -= 1
+                        return
                 return original_kill(pid, sig)
             try:
                 with patch.object(runner.subprocess, "Popen", side_effect=spawn), \
                         patch.object(runner, "test_process", side_effect=lookup), \
-                        patch.object(runner.os, "kill", side_effect=kill):
+                        patch.object(runner.os, "kill", side_effect=kill), \
+                        patch.object(runner.TestProcessOwnership, "_drain", autospec=True, side_effect=drain):
                     if failure is None:
                         self.assertEqual(runner.run_command(
                             [sys.executable, __file__, "--fixture", "stubborn", str(root)], timeout=2), 124)
@@ -915,8 +927,11 @@ class ReviewRegressionTests(unittest.TestCase):
                 self.assertEqual(len(spawned), 1)
                 self.assertIsNotNone(spawned[0].poll(), "initialization failure leaked direct child")
                 if failure is None:
-                    self.assertEqual([sig for sig, _ in sent], [signal.SIGTERM, signal.SIGKILL])
+                    self.assertEqual([sig for sig, _ in sent[:2]], [signal.SIGTERM, signal.SIGKILL])
+                    self.assertTrue(all(sig == signal.SIGKILL for sig, _ in sent[2:]))
                     self.assertGreaterEqual(sent[0][1], 2, "missing metadata shortened the command deadline")
+                    # Cleanup starts its grace before process inspection and the first signal.
+                    self.assertGreaterEqual(sent[1][1] - drain_started[0], 3, "cleanup shortened the termination grace")
                     self.assertEqual(spawned[0].returncode, -signal.SIGKILL)
                 self.assertLess(time.monotonic() - started, 9)
             finally:
@@ -935,7 +950,9 @@ class ReviewRegressionTests(unittest.TestCase):
         self.exercise_initialization_failure(KeyboardInterrupt())
 
     def test_initial_missing_metadata_times_out_and_reaps_term_ignoring_child(self):
-        self.exercise_initialization_failure(None)
+        for deferred_kills in (0, 2):
+            with self.subTest(deferred_kills=deferred_kills):
+                self.exercise_initialization_failure(None, deferred_kills=deferred_kills)
 
 
 class ExitTransitionTests(unittest.TestCase):

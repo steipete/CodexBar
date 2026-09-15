@@ -42,11 +42,7 @@ extension StatusMenuTests {
         settings.statusChecksEnabled = false
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
-        let registry = ProviderRegistry.shared
-        for provider in UsageProvider.allCases {
-            guard let metadata = registry.metadata[provider] else { continue }
-            settings.setProviderEnabled(provider: provider, metadata: metadata, enabled: provider == .codex)
-        }
+        enableTestProviders([.codex], settings: settings)
 
         let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
         let controller = StatusItemController(
@@ -292,14 +288,7 @@ extension StatusMenuTests {
         settings.statusChecksEnabled = false
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
-        let registry = ProviderRegistry.shared
-        for provider in UsageProvider.allCases {
-            guard let metadata = registry.metadata[provider] else { continue }
-            settings.setProviderEnabled(
-                provider: provider,
-                metadata: metadata,
-                enabled: provider == .codex || provider == .claude)
-        }
+        enableTestProviders([.codex, .claude], settings: settings)
 
         let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
         store._setSnapshotForTesting(

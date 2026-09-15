@@ -35,6 +35,7 @@ public enum ManusProviderDescriptor {
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
                 debugLogUnavailableMessage: "Manus debug log not yet implemented",
+                usesDetailBackedWindow: true,
                 browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,
                 dashboardURL: "https://manus.im",
                 statusPageURL: nil),
@@ -55,7 +56,11 @@ public enum ManusProviderDescriptor {
                 costPresenter: { _ in ProviderCostPresentation(menuCardStyle: .hidden) },
                 menuCard: ProviderMenuCardPresentation(
                     showsPrimaryBalanceDescription: true,
-                    clearsPrimaryReset: true)),
+                    showsSecondaryBalanceDescription: true,
+                    clearsPrimaryReset: true),
+                menu: ProviderMenuDescriptorPresentation(
+                    primaryDescriptionIsDetail: { _ in true },
+                    secondaryDescriptionMode: .detailWhenResetDatePresent)),
             fetchPlan: self.fetchPlan(),
             cli: ProviderCLIConfig(
                 name: "manus",

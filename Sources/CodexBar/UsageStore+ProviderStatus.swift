@@ -13,11 +13,11 @@ extension UsageStore {
             if let override = self._test_providerStatusFetchOverride {
                 status = try await override(provider)
             } else if let urlString = meta.statusPageURL, let baseURL = URL(string: urlString) {
-                let summary = try await Self.fetchStatusSummary(from: baseURL)
+                let summary = try await ProviderStatusFetcher.fetchStatusSummary(from: baseURL)
                 status = summary.status
                 components = summary.components
             } else if let productID = meta.statusWorkspaceProductID {
-                status = try await Self.fetchWorkspaceStatus(productID: productID)
+                status = try await ProviderStatusFetcher.fetchWorkspaceStatus(productID: productID)
             } else {
                 return
             }
