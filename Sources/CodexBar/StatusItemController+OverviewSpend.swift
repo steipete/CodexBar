@@ -199,14 +199,22 @@ extension StatusItemController {
                     calendar: self.settings.costUsageBucketCalendar,
                     preferredCurrencyCode: self.settings.preferredCurrencyCode)
             }
-            return publication.model(
+            let providerScope = Set(providers)
+            let staleSourceIDs = Set(publication.sources.compactMap { source in
+                source.state == .staleLastKnown ? source.id : nil
+            })
+            let scopedInputs = publication.inputs.filter { input in
+                providerScope.contains(input.provider) && !staleSourceIDs.contains(input.id)
+            }
+            let inputs = self.combiningRemoteCostsForOverview(scopedInputs)
+            return SpendDashboardModel.build(
+                inputs: inputs,
                 requestedDays: self.settings.costUsageHistoryDays,
                 now: now,
                 calendar: self.settings.costUsageBucketCalendar,
                 preferredCurrencyCode: self.settings.preferredCurrencyCode,
                 hiddenSourceIDs: Set(self.settings.spendDashboardHiddenSourceIDs),
-                hideNativeCodexWhenOpenCodexPresent: self.settings.hideNativeCodexCostWhenOpenCodexPresent,
-                providerScope: Set(providers))
+                hideNativeCodexWhenOpenCodexPresent: self.settings.hideNativeCodexCostWhenOpenCodexPresent)
         }
         let inputs = providers.compactMap { provider -> SpendDashboardModel.ProviderInput? in
             guard let snapshot = self.store.tokenSnapshotForCurrentProviderConfig(for: provider)?.snapshot else {
@@ -218,10 +226,34 @@ extension StatusItemController {
                 snapshot: snapshot)
         }
         return SpendDashboardModel.build(
-            inputs: inputs,
+            inputs: self.combiningRemoteCostsForOverview(inputs),
             requestedDays: self.settings.costUsageHistoryDays,
             now: now,
             calendar: self.settings.costUsageBucketCalendar,
             preferredCurrencyCode: self.settings.preferredCurrencyCode)
+    }
+
+    /// An SSH report has provider identity but intentionally no account identity. Only merge it
+    /// when the overview has one unambiguous native source for that provider.
+    private func combiningRemoteCostsForOverview(
+        _ inputs: [SpendDashboardModel.ProviderInput]) -> [SpendDashboardModel.ProviderInput]
+    {
+        let nativeCountByProvider = Dictionary(grouping: inputs.filter { $0.sourceKind == .native }) {
+            $0.provider
+        }.mapValues(\.count)
+        return inputs.map { input in
+            guard input.sourceKind == .native,
+                  nativeCountByProvider[input.provider] == 1,
+                  let combined = self.combinedRemoteCostSnapshot(for: input.provider, local: input.snapshot)
+            else { return input }
+            return SpendDashboardModel.ProviderInput(
+                id: input.id,
+                provider: input.provider,
+                displayName: input.displayName,
+                modelProviderName: input.modelProviderName,
+                snapshot: combined,
+                tokenActivityCache: nil,
+                sourceKind: input.sourceKind)
+        }
     }
 }

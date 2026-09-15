@@ -335,6 +335,27 @@ extension StatusItemController {
                 (summaries.count == combinedHosts.count && summaries.allSatisfy(\.historyCoverageIsEstablished)))
     }
 
+    func combinedRemoteCostSnapshot(
+        for provider: UsageProvider,
+        local: CostUsageTokenSnapshot?) -> CostUsageTokenSnapshot?
+    {
+        let savedCombinedHosts = Set(
+            (try? RemoteCostFetcher.hosts(from: self.settings.remoteCostCombinedHosts)) ?? [])
+        let combinedHosts = RemoteCostChartSeries.effectiveCombinedHosts(
+            savedCombinedHosts,
+            enabled: self.settings.remoteCostsEnabled,
+            provider: provider)
+        return RemoteCostSnapshotCombiner.combine(
+            local: local,
+            reports: self.store.remoteCosts.reports,
+            provider: provider,
+            combinedHosts: combinedHosts)
+    }
+
+    func combinedRemoteCostDaily(for provider: UsageProvider) -> [RemoteCostDailySummary] {
+        self.remoteCostChartSelection(for: provider).daily
+    }
+
     private func costHistoryChartSnapshot(
         provider: UsageProvider,
         remote: RemoteCostChartSelection) -> CostUsageTokenSnapshot?
@@ -350,6 +371,7 @@ extension StatusItemController {
             last30DaysTokens: nil,
             last30DaysCostUSD: nil,
             historyDays: self.settings.costUsageHistoryDays,
+            historyCoverageIsEstablished: false,
             daily: [],
             updatedAt: .distantPast)
     }

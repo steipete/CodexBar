@@ -67,6 +67,107 @@ enum RemoteCostChartSeries {
     }
 }
 
+/// Builds the opt-in device total used by the provider card and overview. The SSH payload is
+/// deliberately identity-free, so model/project/session breakdowns are omitted instead of
+/// presenting the Mac-only breakdown as if it described every selected device.
+enum RemoteCostSnapshotCombiner {
+    static func combine(
+        local: CostUsageTokenSnapshot?,
+        reports: [RemoteHostCostReport],
+        provider: UsageProvider,
+        combinedHosts: Set<String>) -> CostUsageTokenSnapshot?
+    {
+        guard !combinedHosts.isEmpty else { return local }
+        let summaries = RemoteCostChartSeries.summaries(
+            reports: reports,
+            provider: provider,
+            combinedHosts: combinedHosts)
+        guard local != nil || !summaries.isEmpty else { return nil }
+
+        let currencyCode = local?.currencyCode ?? summaries.first?.currencyCode ?? "USD"
+        guard summaries.allSatisfy({ $0.currencyCode == currencyCode }) else { return local }
+
+        let remoteDaily = RemoteCostChartSeries.daily(
+            reports: reports,
+            provider: provider,
+            combinedHosts: combinedHosts)
+        let daily = self.combinedDaily(local: local?.daily ?? [], remote: remoteDaily)
+        let provenances = [local?.costProvenance].compactMap(\.self) + summaries.map(\.provenance)
+        let updatedDates = [local?.updatedAt].compactMap(\.self) + summaries.map(\.updatedAt)
+
+        return CostUsageTokenSnapshot(
+            sessionTokens: self.sum(([local?.sessionTokens] + summaries.map(\.sessionTokens)).compactMap(\.self)),
+            sessionCostUSD: self.sum(([local?.sessionCostUSD] + summaries.map(\.sessionCostUSD)).compactMap(\.self)),
+            sessionRequests: nil,
+            last30DaysTokens: self.sum(
+                ([local?.last30DaysTokens] + summaries.map(\.last30DaysTokens)).compactMap(\.self)),
+            last30DaysCostUSD: self.sum(
+                ([local?.last30DaysCostUSD] + summaries.map(\.last30DaysCostUSD)).compactMap(\.self)),
+            last30DaysRequests: nil,
+            currencyCode: currencyCode,
+            historyDays: local?.historyDays ?? summaries.first?.historyDays ?? 30,
+            historyCoverageIsEstablished: local?.historyCoverageIsEstablished == true &&
+                summaries.count == combinedHosts.count &&
+                summaries.allSatisfy(\.historyCoverageIsEstablished),
+            historyLabel: local?.historyLabel,
+            meteredCostUSD: nil,
+            costProvenance: self.combinedProvenance(provenances),
+            credentialScopeFingerprint: nil,
+            daily: daily,
+            projects: [],
+            sessions: [],
+            hourly: [],
+            updatedAt: updatedDates.max() ?? .distantPast)
+    }
+
+    private static func combinedDaily(
+        local: [CostUsageDailyReport.Entry],
+        remote: [RemoteCostDailySummary]) -> [CostUsageDailyReport.Entry]
+    {
+        let localByDate = Dictionary(local.map { ($0.date, $0) }, uniquingKeysWith: { _, newer in newer })
+        let remoteByDate = Dictionary(remote.map { ($0.date, $0) }, uniquingKeysWith: { _, newer in newer })
+        return Set(localByDate.keys).union(remoteByDate.keys).sorted().map { date in
+            let localDay = localByDate[date]
+            let remoteDay = remoteByDate[date]
+            return CostUsageDailyReport.Entry(
+                date: date,
+                inputTokens: localDay?.inputTokens,
+                outputTokens: localDay?.outputTokens,
+                cacheReadTokens: localDay?.cacheReadTokens,
+                cacheCreationTokens: localDay?.cacheCreationTokens,
+                reasoningTokens: localDay?.reasoningTokens,
+                totalTokens: self.sum([localDay?.totalTokens, remoteDay?.totalTokens].compactMap(\.self)),
+                requestCount: nil,
+                costUSD: self.sum([localDay?.costUSD, remoteDay?.costUSD].compactMap(\.self)),
+                modelsUsed: nil,
+                modelBreakdowns: nil)
+        }
+    }
+
+    private static func sum(_ values: [Int]) -> Int? {
+        guard !values.isEmpty else { return nil }
+        var total = 0
+        for value in values {
+            let result = total.addingReportingOverflow(value)
+            guard !result.overflow else { return nil }
+            total = result.partialValue
+        }
+        return total
+    }
+
+    private static func sum(_ values: [Double]) -> Double? {
+        guard !values.isEmpty else { return nil }
+        let total = values.reduce(0, +)
+        return total.isFinite ? total : nil
+    }
+
+    private static func combinedProvenance(_ provenances: [CostProvenance]) -> CostProvenance {
+        guard let first = provenances.first else { return .unknown }
+        guard !provenances.contains(.unknown) else { return .unknown }
+        return provenances.allSatisfy { $0 == first } ? first : .mixed
+    }
+}
+
 struct RemoteCostPresentation {
     let title: String
     let lines: [String]

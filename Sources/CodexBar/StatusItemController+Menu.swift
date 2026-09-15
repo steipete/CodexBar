@@ -505,7 +505,7 @@ extension StatusItemController {
         let hasCreditsHistory = codexProjection?.hasCreditsHistory == true
         let hasUsageBreakdown = codexProjection?.hasUsageBreakdown == true
         let hasCostHistory = self.settings.costSummaryShowsSubmenu(for: currentProvider) &&
-            (self.store.tokenSnapshot(for: currentProvider)?.daily.isEmpty == false)
+            self.hasCostHistoryChartData(for: currentProvider)
         let canShowBuyCredits = self.settings.showOptionalCreditsAndExtraUsage &&
             codexProjection?.canShowBuyCredits == true
         let hasOpenAIWebMenuItems = !showAllAccounts &&

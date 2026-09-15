@@ -89,6 +89,10 @@ extension StatusItemController {
             tokenSnapshot = projectedTokenSnapshot
             tokenError = nil
         }
+        let displayedTokenSnapshot = surface == .liveCard
+            ? self.combinedRemoteCostSnapshot(for: target, local: tokenSnapshot)
+            : tokenSnapshot
+        let remoteCostDaily = surface == .liveCard ? self.combinedRemoteCostDaily(for: target) : []
 
         let sourceLabel = sourceLabelOverride ?? (surface == .liveCard ? self.store.sourceLabel(for: target) : nil)
         // Provider-specific by design: Kilo's automatic source mode is surfaced as card fallback context.
@@ -113,7 +117,9 @@ extension StatusItemController {
             creditsError: creditsError,
             dashboard: dashboard,
             dashboardError: dashboardError,
-            tokenSnapshot: tokenSnapshot,
+            tokenSnapshot: displayedTokenSnapshot,
+            remoteCostDaily: remoteCostDaily,
+            remoteCostBarColor: remoteCostDaily.isEmpty ? nil : self.settings.remoteCostChartColor,
             tokenError: tokenError,
             account: fallbackAccount,
             accountIsAuthoritative: accountOverride != nil,

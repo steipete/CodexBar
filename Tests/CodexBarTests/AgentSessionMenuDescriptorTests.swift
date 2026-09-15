@@ -148,6 +148,69 @@ struct AgentSessionMenuDescriptorTests {
     }
 
     @Test
+    func `selected SSH costs merge into the provider card snapshot`() throws {
+        func day(_ date: String, tokens: Int, cost: Double) -> CostUsageDailyReport.Entry {
+            CostUsageDailyReport.Entry(
+                date: date,
+                inputTokens: tokens,
+                outputTokens: nil,
+                totalTokens: tokens,
+                costUSD: cost,
+                modelsUsed: ["local-model"],
+                modelBreakdowns: [])
+        }
+        let local = CostUsageTokenSnapshot(
+            sessionTokens: 100,
+            sessionCostUSD: 2,
+            last30DaysTokens: 200,
+            last30DaysCostUSD: 4,
+            historyDays: 30,
+            historyCoverageIsEstablished: true,
+            costProvenance: .listPriceEstimate,
+            daily: [day("2026-09-10", tokens: 100, cost: 2)],
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000))
+        let report = RemoteHostCostReport(
+            host: "sandbox",
+            provider: .codex,
+            summary: RemoteCostFetcherTests.summary(
+                daily: [day("2026-09-10", tokens: 25, cost: 1)]))
+
+        let combined = try #require(RemoteCostSnapshotCombiner.combine(
+            local: local,
+            reports: [report],
+            provider: .codex,
+            combinedHosts: ["sandbox"]))
+
+        #expect(combined.sessionTokens == 223)
+        #expect(combined.sessionCostUSD == 3.25)
+        #expect(combined.last30DaysTokens == 656)
+        #expect(combined.last30DaysCostUSD == 7.5)
+        #expect(combined.daily.first?.totalTokens == 125)
+        #expect(combined.daily.first?.costUSD == 3)
+        #expect(combined.daily.first?.modelsUsed == nil)
+        #expect(combined.daily.first?.modelBreakdowns == nil)
+        #expect(!combined.historyCoverageIsEstablished)
+    }
+
+    @Test
+    func `remote-only card history stays explicitly partial`() throws {
+        let report = RemoteHostCostReport(
+            host: "sandbox",
+            provider: .claude,
+            summary: RemoteCostFetcherTests.summary(provider: .claude))
+
+        let combined = try #require(RemoteCostSnapshotCombiner.combine(
+            local: nil,
+            reports: [report],
+            provider: .claude,
+            combinedHosts: ["sandbox"]))
+
+        #expect(combined.sessionCostUSD == 1.25)
+        #expect(combined.last30DaysCostUSD == 3.5)
+        #expect(!combined.historyCoverageIsEstablished)
+    }
+
+    @Test
     func `SSH chart selection is inert while disabled or unsupported`() {
         let selected = Set(["sandbox"])
         #expect(RemoteCostChartSeries.effectiveCombinedHosts(
