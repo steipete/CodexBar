@@ -329,8 +329,10 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             autosaveName: identity.autosaveName,
             legacyDefaultItemIndex: legacyDefaultItemIndex)
         let item = statusBar.statusItem(withLength: NSStatusItem.variableLength)
-        onCreated?(item)
+        // Assign before onCreated/setup: provider vending registers through that callback (#2162), and
+        // a late autosaveName leaves AppKit on the transient Item-N identity during setup.
         item.autosaveName = identity.autosaveName
+        onCreated?(item)
         if let button = item.button {
             let title = self.statusItemAccessibilityTitle(
                 isDebugApp: self.isDebugApp(bundleIdentifier: Bundle.main.bundleIdentifier))
