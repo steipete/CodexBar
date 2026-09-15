@@ -15,7 +15,7 @@ public final class CurrencyExchange: @unchecked Sendable {
 
     /// All currency codes supported by the converter.
     public static let supportedCurrencies: [String] = [
-        "USD", "GBP", "EUR", "CZK", "CNY", "JPY", "KRW", "CAD", "AUD", "HKD", "TWD", "SGD", "INR", "CHF", "AED",
+        "USD", "GBP", "EUR", "CZK", "CNY", "JPY", "KRW", "CAD", "AUD", "HKD", "TWD", "SGD", "INR", "CHF", "AED", "TRY",
     ]
 
     private let lock = NSLock()
@@ -37,6 +37,7 @@ public final class CurrencyExchange: @unchecked Sendable {
         "INR": 84.50,
         "CHF": 0.80,
         "AED": 3.6725,
+        "TRY": 48.5, // Due to high inflation, rate from 2026-09-13.
     ]
     private var lastFetchTime: Date?
 

@@ -92,6 +92,7 @@ enum PreferredCurrencyOption: String, CaseIterable, Identifiable {
     case inr = "INR"
     case chf = "CHF"
     case aed = "AED"
+    case `try` = "TRY"
 
     var id: String {
         self.rawValue
@@ -115,6 +116,7 @@ enum PreferredCurrencyOption: String, CaseIterable, Identifiable {
         case .inr: "INR (₹)"
         case .chf: "CHF (Fr.)"
         case .aed: "AED (د.إ)"
+        case .try: "TRY (₺)"
         }
     }
 }
