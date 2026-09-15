@@ -40,6 +40,7 @@ public struct CodexReconciledState: Sendable {
     public static func fromOAuth(
         response: CodexUsageResponse,
         credentials: CodexOAuthCredentials,
+        subscription: OpenAISubscriptionDates? = nil,
         updatedAt: Date = Date()) -> CodexReconciledState?
     {
         self.make(
@@ -48,6 +49,8 @@ public struct CodexReconciledState: Sendable {
             extraRateWindows: CodexAdditionalRateLimitMapper.extraRateWindows(
                 from: response.additionalRateLimits,
                 now: updatedAt),
+            subscriptionExpiresAt: subscription?.expiresAt,
+            subscriptionRenewsAt: subscription?.renewsAt,
             identity: self.oauthIdentity(response: response, credentials: credentials),
             updatedAt: updatedAt)
     }
