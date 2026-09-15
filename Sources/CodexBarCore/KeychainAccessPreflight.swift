@@ -84,7 +84,7 @@ public enum KeychainPromptHandler {
 }
 
 public enum KeychainAccessPreflight {
-    public enum Outcome: Sendable {
+    public enum Outcome: Sendable, Equatable {
         case allowed
         /// The item is readable, but its decrypt ACL does not trust the current executable.
         case interactionRequired
@@ -190,8 +190,31 @@ public enum KeychainAccessPreflight {
         return self.checkGenericPasswordUncached(service: service, account: account)
     }
 
+    /// `.temporarilyUnavailable` is documented as possibly differing on retry (a locked keychain, a busy
+    /// keychain daemon, or a momentary ACL-inspection failure racing another process), unlike the stable
+    /// `.interactionRequired`/`.rejected` outcome. A background refresh that treats the two identically
+    /// gives up on cookie recovery for the rest of its refresh interval even when the underlying state
+    /// would have cleared within milliseconds — retry a few times, cheaply, before accepting it as final.
+    private static let temporarilyUnavailableRetryCount = 3
+    private static let temporarilyUnavailableRetryDelayMicroseconds: UInt32 = 30000
+
     private static func checkGenericPasswordUncached(service: String, account: String?) -> Outcome {
         #if os(macOS)
+        var outcome = self.performGenericPasswordPreflightAttempt(service: service, account: account)
+        var attempt = 1
+        while case .temporarilyUnavailable = outcome, attempt < self.temporarilyUnavailableRetryCount {
+            usleep(self.temporarilyUnavailableRetryDelayMicroseconds)
+            outcome = self.performGenericPasswordPreflightAttempt(service: service, account: account)
+            attempt += 1
+        }
+        return outcome
+        #else
+        return .notFound
+        #endif
+    }
+
+    #if os(macOS)
+    private static func performGenericPasswordPreflightAttempt(service: String, account: String?) -> Outcome {
         #if DEBUG
         if let override = self.taskCheckGenericPasswordOverrideStore {
             return override.check(service, account)
@@ -199,7 +222,10 @@ public enum KeychainAccessPreflight {
         #endif
         guard !KeychainAccessGate.isDisabled else { return .notFound }
         let query = self.makeGenericPasswordPreflightQuery(service: service, account: account)
+        return self.performGenericPasswordPreflight(query: query, service: service)
+    }
 
+    private static func performGenericPasswordPreflight(query: [String: Any], service: String) -> Outcome {
         var result: AnyObject?
         let status = KeychainSecurity.copyMatching(query as CFDictionary, &result)
         switch status {
@@ -241,10 +267,8 @@ public enum KeychainAccessPreflight {
                 metadata: ["service": service, "status": "\(status)"])
             return .failure(Int(status))
         }
-        #else
-        return .notFound
-        #endif
     }
+    #endif
 
     #if os(macOS)
     static func makeGenericPasswordPreflightQuery(service: String, account: String?) -> [String: Any] {

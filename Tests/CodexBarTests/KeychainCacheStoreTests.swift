@@ -295,7 +295,11 @@ struct KeychainCacheStoreTests {
             }
         }
 
-        #expect(preflightCount.value == 2)
+        // `KeychainAccessPreflight` now retries a persistently `.temporarilyUnavailable` outcome up to
+        // 3 times internally before giving up (see `KeychainAccessPreflightRetryTests`), since — unlike
+        // `.interactionRequired` — that outcome documents itself as possibly differing on retry. Each of
+        // the 2 `load()` calls below triggers its own bounded retry, so 2 loads × 3 attempts = 6.
+        #expect(preflightCount.value == 6)
         for result in results {
             switch result {
             case .temporarilyUnavailable:

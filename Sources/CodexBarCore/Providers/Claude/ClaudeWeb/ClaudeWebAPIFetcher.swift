@@ -3,6 +3,9 @@ import SweetCookieKit
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
+#if os(macOS)
+import os.lock
+#endif
 
 enum ClaudeWebHTTPTransport {
     #if DEBUG
@@ -132,6 +135,11 @@ public enum ClaudeWebAPIFetcher {
         case networkError(Error)
         case invalidResponse
         case unauthorized
+        /// The cached cookie looked invalid, but no browser cookie recovery was actually attempted this
+        /// cycle (every candidate was skipped by the no-UI Keychain preflight, not found to genuinely
+        /// lack a session). Distinct from `.unauthorized` so the UI doesn't tell the user to sign in when
+        /// their session was never actually checked.
+        case cachedSessionUnverifiedInBackground
         case cloudflareChallenge
         case serverError(statusCode: Int)
         case noOrganization
@@ -151,6 +159,14 @@ public enum ClaudeWebAPIFetcher {
                 "Invalid response from Claude API."
             case .unauthorized:
                 "Sign in to claude.ai (or refresh Claude cookies) to load usage data."
+            case .cachedSessionUnverifiedInBackground:
+                // Deliberately neutral: this fetcher has callers with no UsageStore snapshot to preserve,
+                // no automatic retry loop, and no Refresh control (the CLI's one-shot `codexbar usage`
+                // prints this description as-is). The app-specific framing ("showing last-known usage...
+                // click Refresh") is added on top only where those are actually true, by the app's own
+                // presentation layer — see claudeWebEffectiveErrorDescription in UsageStore+Refresh.swift.
+                "Couldn't verify your Claude session just now (a local security check was inconclusive, " +
+                    "not a sign-out)."
             case .cloudflareChallenge:
                 "claude.ai is behind a Cloudflare challenge, often caused by VPN or datacenter networks. " +
                     "Re-authenticating will not help. Switch Claude Usage source to OAuth in Settings " +
@@ -498,8 +514,22 @@ extension ClaudeWebAPIFetcher {
 
     // MARK: - Session Key Extraction
 
+    /// Convenience for callers that don't care whether the Keychain preflight skipped any browser
+    /// (probes, plain session-key existence checks) — see the `anySkippedByGate` overload below.
     private static func extractSessionKeyInfo(
         browserDetection: BrowserDetection,
+        logger: ((String) -> Void)? = nil) throws -> SessionKeyInfo
+    {
+        var anySkippedByGate = false
+        return try self.extractSessionKeyInfo(
+            browserDetection: browserDetection,
+            anySkippedByGate: &anySkippedByGate,
+            logger: logger)
+    }
+
+    private static func extractSessionKeyInfo(
+        browserDetection: BrowserDetection,
+        anySkippedByGate: inout Bool,
         logger: ((String) -> Void)? = nil) throws -> SessionKeyInfo
     {
         if let override = ClaudeWebSessionKeyImport.currentOverride {
@@ -510,10 +540,27 @@ extension ClaudeWebAPIFetcher {
         let cookieDomains = ["claude.ai"]
 
         return try KeychainAccessPreflight.withMemoizedGenericPasswordChecks {
-            // Evaluate sources on demand so a successful preferred browser avoids later Keychain preflights.
-            let installedBrowsers = Self.cookieImportOrder.lazyCookieImportCandidates(using: browserDetection)
-            for browserSource in installedBrowsers {
+            // Walk the full, unfiltered browser order ourselves rather than through
+            // `lazyCookieImportCandidates`: that helper's own filter already excludes anything
+            // `BrowserCookieAccessGate.shouldAttempt` rejects, which would make a re-check here dead
+            // code. Doing it inline lets a browser skipped by the gate be told apart from one that's
+            // simply not installed — only the former means recovery was left unverified.
+            for browserSource in Self.cookieImportOrder {
+                if KeychainAccessGate.isDisabled, browserSource.usesKeychainForCookieDecryption { continue }
+                guard browserDetection.isCookieSourceAvailable(browserSource) else { continue }
                 do {
+                    // codexBarRecords silently returns [] when the gate skips this browser. Track that
+                    // skip itself — a *different* browser (e.g. Safari, which needs no Keychain
+                    // decryption and is in the default import order) coming up empty must not paper over
+                    // it: that browser never had the user's session cookie to begin with, so its empty
+                    // result says nothing about whether the skipped one would have.
+                    guard BrowserCookieAccessGate.shouldAttempt(browserSource) else {
+                        anySkippedByGate = true
+                        continue
+                    }
+                    // Checked after the gate (rather than short-circuiting it) so tests can combine a
+                    // browser genuinely skipped by the gate with another browser's read satisfied by an
+                    // override, in the same scenario.
                     if let override = ClaudeWebSessionKeyImport.currentBrowserOverride {
                         if let sessionInfo = try override(browserSource) {
                             log("Found sessionKey in \(sessionInfo.sourceLabel)")
@@ -1373,7 +1420,8 @@ extension ClaudeWebAPIFetcher {
         logger: ((String) -> Void)?) async throws -> WebUsageData
     {
         let log: (String) -> Void = { msg in logger?("[claude-web] \(msg)") }
-        var cacheObservation = CookieHeaderCache.observeForConditionalMutation(provider: .claude)
+        let cacheObservation = CookieHeaderCache.observeForConditionalMutation(provider: .claude)
+        var invalidatedCacheEntry: CookieHeaderCache.Entry?
         var invalidatedCacheError: FetchError?
 
         if let cached = cacheObservation.entry,
@@ -1388,8 +1436,10 @@ extension ClaudeWebAPIFetcher {
             } catch let error as FetchError {
                 switch error {
                 case .unauthorized, .noSessionKeyFound, .invalidSessionKey:
-                    let cleared = CookieHeaderCache.clearIfCurrent(provider: .claude, expected: cached)
-                    cacheObservation = .authoritative(cleared ? nil : cached)
+                    // Not cleared yet: whether this stale entry should actually be deleted depends on how
+                    // the recovery attempt below turns out, so `cacheObservation` (captured above, still
+                    // accurate since nothing has mutated the store) stays valid for either outcome.
+                    invalidatedCacheEntry = cached
                     invalidatedCacheError = error
                 default:
                     throw error
@@ -1407,10 +1457,56 @@ extension ClaudeWebAPIFetcher {
         // unconditionally denied. Only if that attempt itself comes back empty do we surface the original,
         // more informative cached-auth error instead of a misleading "no session key found" — mirroring the
         // equivalent Ollama recovery in `OllamaStatusFetchStrategy.fetchAutomatic`.
+        var anySkippedByGate = false
+        let sessionInfo: SessionKeyInfo
         do {
-            let sessionInfo = try extractSessionKeyInfo(browserDetection: browserDetection, logger: log)
-            log("Found session key (\(sessionInfo.cookieCount) cookies)")
+            sessionInfo = try self.extractSessionKeyInfo(
+                browserDetection: browserDetection,
+                anySkippedByGate: &anySkippedByGate,
+                logger: log)
+        } catch {
+            // Only reclassify a gate skip as "unverified" when there is real evidence a session was
+            // actually working before (a cached cookie existed and was rejected this attempt) and during a
+            // background refresh specifically:
+            //  - Without `invalidatedCacheError`, nothing was ever cached this attempt — a first-ever or
+            //    genuinely signed-out user would otherwise be told "showing last-known usage" when none
+            //    exists, and lose the sign-in affordance (`cachedSessionUnverifiedInBackground` isn't
+            //    treated as a session error by the login menu).
+            //  - A user-initiated refresh runs through `BrowserCookieAccessGate`'s explicit-retry scope,
+            //    which can permit one browser through its cooldown while a *different* installed Chromium
+            //    browser is still separately skipped, setting `anySkippedByGate` even though the user
+            //    already completed a real retry. "...click Refresh to check now" is nonsensical when they
+            //    just did, and would hide both the real result and the sign-in affordance.
+            //  - A cookie already confirmed dead by an earlier attempt (its Keychain clear having failed,
+            //    e.g. a temporarily unavailable Keychain) must not be un-confirmed just because it could
+            //    still be loaded again — that would let a real sign-out flip back to merely "unverified"
+            //    indefinitely, for as long as the Keychain clear keeps failing.
+            if anySkippedByGate, invalidatedCacheError != nil, !Self.isConfirmedDead(invalidatedCacheEntry),
+               ProviderInteractionContext.current == .background
+            {
+                // The stale entry is deliberately left in the cache (not cleared) so a persistently
+                // inconclusive Keychain preflight keeps reporting "unverified" on every subsequent cycle,
+                // not only this one: the next call's `cacheObservation.entry` will still see it, re-enter
+                // this same block, and set `invalidatedCacheError` again.
+                log("A browser recovery candidate was skipped by the Keychain preflight; " +
+                    "preserving the cached auth state instead of reporting a sign-out")
+                throw FetchError.cachedSessionUnverifiedInBackground
+            }
+            if let invalidatedCacheError {
+                // A confirmed outcome (not gate-skipped, or not eligible for the masking above): the cached
+                // cookie really is dead, so clear it now — the next cycle should go straight to recovery
+                // instead of re-trying a known-dead cookie against the API.
+                Self.clearInvalidatedCacheEntryIfNeeded(invalidatedCacheEntry)
+                throw invalidatedCacheError
+            }
+            throw error
+        }
+        log("Found session key (\(sessionInfo.cookieCount) cookies)")
 
+        do {
+            // Once a session key is actually recovered, any error from the API call itself is a real,
+            // confirmed result (e.g. the server rejecting the cookie) — not a gate side effect — so it must
+            // propagate unmodified rather than being reclassified via `anySkippedByGate` above.
             return try await self.fetchUsage(
                 using: sessionInfo,
                 options: options,
@@ -1419,13 +1515,80 @@ extension ClaudeWebAPIFetcher {
                     sourceLabel: sessionInfo.sourceLabel,
                     expectedObservation: cacheObservation,
                     persistInitialSessionKey: true))
-        } catch {
-            if let invalidatedCacheError {
-                throw invalidatedCacheError
+        } catch let error as FetchError {
+            switch error {
+            case .unauthorized, .noSessionKeyFound, .invalidSessionKey:
+                // The recovered key also failed auth: the account is genuinely having a session problem,
+                // not just an access hiccup with one browser. This is now the *second* piece of confirmed
+                // evidence, on top of the original cached cookie's own rejection earlier this attempt — so
+                // that original stale entry (which fetchUsage never touches on a failure path, since it
+                // only persists after a successful fetch) needs clearing too. Left uncleared, a later
+                // cycle's gate skip could still reclassify it as merely "unverified" despite this attempt's
+                // own confirmed double rejection.
+                Self.clearInvalidatedCacheEntryIfNeeded(invalidatedCacheEntry)
+            default:
+                break
             }
             throw error
         }
     }
+
+    /// Non-reversible fingerprints (`CookieHeaderCache.credentialFingerprint`, never the raw cookie header
+    /// itself) of entries confirmed dead even when actually deleting them from the Keychain-backed cache
+    /// failed (e.g. a temporarily unavailable Keychain) and they can therefore still be loaded again on a
+    /// later cycle. `clearIfCurrent` retries transient Keychain unavailability a few times internally, but
+    /// a genuinely prolonged one (a locked screen lasting well past that) can outlast even that.
+    ///
+    /// Backed by `UserDefaults` rather than the Keychain, matching the pattern `BrowserCookieAccessGate`
+    /// already uses for its own cross-restart cooldown state: plain defaults writes have no ACL/lock-screen
+    /// failure mode at all, so persisting the confirmation doesn't reintroduce the very availability problem
+    /// it exists to route around, and it survives the app restarting while the Keychain is still locked —
+    /// an in-process-only marker would otherwise be lost exactly when it's still needed. Fingerprinting
+    /// (rather than storing the header itself) keeps actual session credential material out of the
+    /// unencrypted preferences plist even while confirmed dead — the Keychain's protection during a locked
+    /// or unavailable moment shouldn't be undone by copying the secret it was protecting somewhere weaker.
+    /// The in-memory `Set` is seeded from defaults once per process and kept in sync on every write, so
+    /// normal checks stay a simple lock instead of round-tripping through defaults each time.
+    private static let confirmedDeadCookieHeadersDefaultsKey = "claudeWebConfirmedDeadCookieFingerprints"
+    private static let confirmedDeadCookieHeaders = OSAllocatedUnfairLock<Set<String>>(
+        initialState: Self.loadConfirmedDeadCookieFingerprintsFromDefaults())
+
+    private static func loadConfirmedDeadCookieFingerprintsFromDefaults() -> Set<String> {
+        // Defense in depth: an earlier version of this marker stored the raw cookie header — a real
+        // session credential — under this same-purpose key name before it was fixed to store only a
+        // non-reversible fingerprint. Remove any leftover raw value so it can't linger in the unencrypted
+        // preferences plist even if this code ever ran against a real account before the fix landed.
+        UserDefaults.standard.removeObject(forKey: "claudeWebConfirmedDeadCookieHeaders")
+        return Set(UserDefaults.standard.stringArray(forKey: self.confirmedDeadCookieHeadersDefaultsKey) ?? [])
+    }
+
+    private static func isConfirmedDead(_ entry: CookieHeaderCache.Entry?) -> Bool {
+        guard let entry else { return false }
+        let fingerprint = CookieHeaderCache.credentialFingerprint(entry.cookieHeader)
+        return Self.confirmedDeadCookieHeaders.withLock { $0.contains(fingerprint) }
+    }
+
+    private static func clearInvalidatedCacheEntryIfNeeded(_ entry: CookieHeaderCache.Entry?) {
+        guard let entry else { return }
+        let cleared = CookieHeaderCache.clearIfCurrent(provider: .claude, expected: entry)
+        let fingerprint = CookieHeaderCache.credentialFingerprint(entry.cookieHeader)
+        let updatedFingerprints = Self.confirmedDeadCookieHeaders.withLock { fingerprints -> Set<String> in
+            if cleared {
+                fingerprints.remove(fingerprint)
+            } else {
+                fingerprints.insert(fingerprint)
+            }
+            return fingerprints
+        }
+        UserDefaults.standard.set(Array(updatedFingerprints), forKey: Self.confirmedDeadCookieHeadersDefaultsKey)
+    }
+
+    #if DEBUG
+    static func resetConfirmedDeadCookieHeadersForTesting() {
+        self.confirmedDeadCookieHeaders.withLock { $0.removeAll() }
+        UserDefaults.standard.removeObject(forKey: self.confirmedDeadCookieHeadersDefaultsKey)
+    }
+    #endif
 }
 #endif
 
