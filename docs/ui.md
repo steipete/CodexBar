@@ -157,7 +157,7 @@ Cost-history submenus keep tall histories in a scrollable viewport. Switching To
 
 ### Provider percent window
 
-In Icon and Percent mode, provider settings expose an Auto, Session, or Weekly picker when the provider supports multiple quota windows. The choice updates top-level percent tokens in that provider’s layout. Conditional tokens and other providers’ layouts remain independent; use the layout editor for mixed percent windows.
+In Icon and Percent mode, provider settings expose an Auto, Session, Weekly, or Monthly picker when the provider supports multiple quota windows. The choice updates top-level percent tokens in that provider's layout; pace tokens that followed the previous choice follow the new one, while independently customized pace and lane tokens are left alone. Conditional tokens and other providers' layouts remain independent; use the layout editor for mixed percent windows.
 
 ### Inline cost chart inspection
 

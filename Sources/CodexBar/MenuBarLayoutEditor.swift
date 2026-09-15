@@ -333,7 +333,13 @@ struct MenuBarLayoutEditor: View {
 
     private var providerLaneTokens: [MenuBarLayoutToken] {
         MenuBarLayoutLane.available(for: self.persistenceProvider, snapshot: self.persistenceSnapshot)
-            .map { .lanePercent(lane: $0) }
+            // Only the tertiary lane pace resolves in the renderer; primary/secondary lane pace
+            // would render as unavailable next to the working Session/Weekly pace tokens.
+            .flatMap { lane in
+                lane == .tertiary
+                    ? [.lanePercent(lane: lane), .lanePace(lane: lane)]
+                    : [.lanePercent(lane: lane)]
+            }
     }
 
     var body: some View {
@@ -1064,6 +1070,11 @@ struct MenuBarLayoutPreview: View {
                 window: automatic,
                 dataConfidence: snapshot.dataConfidence,
                 now: now),
+            tertiaryPace: self.store.menuBarLayoutPaceText(
+                provider: provider,
+                window: tertiary,
+                dataConfidence: snapshot.dataConfidence,
+                now: now),
             runsOut: runsOut,
             balance: MenuBarLayoutBalanceResolver.balance(
                 provider: provider,
@@ -1092,6 +1103,11 @@ struct MenuBarLayoutPreview: View {
                     window: automatic,
                     dataConfidence: snapshot.dataConfidence,
                     now: now),
+                tertiaryPaceDelta: self.store.menuBarLayoutPaceDelta(
+                    provider: provider,
+                    window: tertiary,
+                    dataConfidence: snapshot.dataConfidence,
+                    now: now),
                 runsOutMinutes: pace?.etaSeconds.map { Int(($0 / 60).rounded()) },
                 balanceRemainingUSD: balanceAmounts.remaining,
                 balanceUsedUSD: balanceAmounts.used,
@@ -1115,6 +1131,11 @@ struct MenuBarLayoutPreview: View {
             usedPercent: 45,
             windowMinutes: 10080,
             resetsAt: now.addingTimeInterval(4 * 24 * 60 * 60),
+            resetDescription: nil)
+        let monthly = RateWindow(
+            usedPercent: 71,
+            windowMinutes: 43200,
+            resetsAt: now.addingTimeInterval(20 * 24 * 60 * 60),
             resetDescription: nil)
         // Sample pace comes straight from the pure calculation rather than the store, so the palette
         // preview stays deterministic before any snapshot has been fetched.
@@ -1142,6 +1163,7 @@ struct MenuBarLayoutPreview: View {
             sessionPace: samplePace(session),
             weeklyPace: samplePace(weekly),
             automaticPace: samplePace(session),
+            tertiaryPace: samplePace(monthly),
             runsOut: L("Runs out in %@", "1d 16h"),
             // Provider-specific by design: only OpenRouter previews the Balance palette token.
             balance: provider == .openrouter ? "$12.34" : nil,
@@ -1151,6 +1173,7 @@ struct MenuBarLayoutPreview: View {
                 sessionPaceDelta: samplePaceDelta(session),
                 weeklyPaceDelta: samplePaceDelta(weekly),
                 automaticPaceDelta: samplePaceDelta(session),
+                tertiaryPaceDelta: samplePaceDelta(monthly),
                 // 1d 16h == 40h, matching the sample `runsOut` text above.
                 runsOutMinutes: 2400,
                 balanceRemainingUSD: provider == .openrouter ? 12.34 : nil,
@@ -1236,6 +1259,9 @@ extension MenuBarLayoutToken {
         if case let .lanePercent(lane) = self {
             return self.laneEditorLabel(lane: lane, provider: provider, snapshot: snapshot)
         }
+        if case let .lanePace(lane) = self {
+            return self.lanePaceEditorLabel(lane: lane, provider: provider, snapshot: snapshot)
+        }
         if let providerLabel = self.providerEditorLabel(provider: provider) {
             return providerLabel
         }
@@ -1270,6 +1296,7 @@ extension MenuBarLayoutToken {
         case .percent(window: .scopedWeekly): L("menu_bar_layout_token_scoped_weekly")
         case .percent(window: .automatic): L("menu_bar_layout_token_auto")
         case let .lanePercent(lane): L("%@ %@", lane.rawValue.capitalized, "%")
+        case let .lanePace(lane): L("%@ %@", lane.rawValue.capitalized, L("display_mode_pace").lowercased())
         case .pace(window: .session): L("menu_bar_layout_token_session_pace")
         case .pace(window: .weekly): L("menu_bar_layout_token_weekly_pace")
         case .pace(window: .scopedWeekly): L("menu_bar_layout_token_weekly_pace")
@@ -1313,6 +1340,19 @@ extension MenuBarLayoutToken {
         return L("%@ %@", label, "%")
     }
 
+    private func lanePaceEditorLabel(
+        lane: MenuBarLayoutLane,
+        provider: UsageProvider?,
+        snapshot: UsageSnapshot?)
+        -> String
+    {
+        guard let provider else {
+            return L("%@ %@", lane.rawValue.capitalized, L("display_mode_pace").lowercased())
+        }
+        let label = MenuBarLayoutLaneLabels(provider: provider, snapshot: snapshot).label(for: lane)
+        return L("%@ %@", label, L("display_mode_pace").lowercased())
+    }
+
     func editorAccessibilityLabel(provider: UsageProvider?, snapshot: UsageSnapshot? = nil) -> String {
         switch self {
         case .separatorDot: L("menu_bar_layout_token_separator_accessibility")
@@ -1326,7 +1366,7 @@ extension MenuBarLayoutToken {
         case .providerName: "textformat"
         case .accountLabel: "person.crop.circle"
         case .percent, .lanePercent: "percent"
-        case .pace: "speedometer"
+        case .pace, .lanePace: "speedometer"
         case .usageBar: "chart.bar.fill"
         case .resetCountdown, .windowResetCountdown: "timer"
         case .resetAbsolute, .windowResetAbsolute: "clock"

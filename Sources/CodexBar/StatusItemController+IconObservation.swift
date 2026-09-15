@@ -189,12 +189,17 @@ extension StatusItemController {
         guard !resolution.usesLegacyRendering else { return nil }
 
         let metrics = self.referencedConditionalMetrics(resolution: resolution)
-        var paceWindows = Set(resolution.layout
+        let tokens = resolution.layout
             .flattenedTokens(conditionals: self.settings.menuBarLayoutConditionals)
+        var paceWindows = Set(tokens
             .compactMap { token -> PercentWindow? in
                 guard case let .pace(window) = token else { return nil }
                 return window
             })
+        let needsTertiaryPace = tokens.contains {
+            guard case let .lanePace(lane) = $0 else { return false }
+            return lane == .tertiary
+        }
         if metrics.contains(.sessionPace) {
             paceWindows.insert(.session)
         }
@@ -205,7 +210,7 @@ extension StatusItemController {
             paceWindows.insert(.automatic)
         }
         let needsRunsOut = metrics.contains(.runsOutIn)
-        guard !paceWindows.isEmpty || needsRunsOut else { return nil }
+        guard !paceWindows.isEmpty || needsRunsOut || needsTertiaryPace else { return nil }
 
         let now = Date()
         let windows = self.menuBarLayoutWindows(provider: provider, snapshot: snapshot, now: now)
@@ -226,6 +231,14 @@ extension StatusItemController {
                     minimumElapsedPercent: percentWindow == .weekly ? 1 : nil)
                 return "\(percentWindow.rawValue)=\(pace ?? "nil")"
             }
+        if needsTertiaryPace {
+            let tertiaryPace = self.store.menuBarLayoutPaceText(
+                provider: provider,
+                window: windows.tertiary,
+                dataConfidence: snapshot?.dataConfidence ?? .unknown,
+                now: now)
+            components.append("tertiary=\(tertiaryPace ?? "nil")")
+        }
         if needsRunsOut {
             let runsOutMinutes = (windows.weekly ?? windows.automatic)
                 .flatMap { self.store.weeklyPace(

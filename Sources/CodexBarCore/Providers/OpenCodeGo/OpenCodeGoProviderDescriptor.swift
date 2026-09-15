@@ -28,7 +28,7 @@ public enum OpenCodeGoProviderDescriptor {
             id: .opencodego,
             menuBarMetrics: ProviderMenuBarMetricCapabilities(
                 supported: [.automatic, .primary, .secondary, .tertiary],
-                tertiaryRequiresWindow: true),
+                tertiaryRequiresWindow: false),
             settingsSection: .init(
                 OpenCodeGoProviderSettingsKey.self,
                 cookieSettings: { settings in

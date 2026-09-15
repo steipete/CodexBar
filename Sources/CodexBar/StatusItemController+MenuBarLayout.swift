@@ -155,6 +155,11 @@ extension StatusItemController {
                 window: windows.automatic,
                 dataConfidence: snapshot?.dataConfidence ?? .unknown,
                 now: now),
+            tertiaryPace: self.store.menuBarLayoutPaceText(
+                provider: provider,
+                window: windows.tertiary,
+                dataConfidence: snapshot?.dataConfidence ?? .unknown,
+                now: now),
             runsOut: runsOut,
             balance: MenuBarLayoutBalanceResolver.balance(
                 provider: provider,
@@ -177,6 +182,11 @@ extension StatusItemController {
                 automaticPaceDelta: self.store.menuBarLayoutPaceDelta(
                     provider: provider,
                     window: windows.automatic,
+                    dataConfidence: snapshot?.dataConfidence ?? .unknown,
+                    now: now),
+                tertiaryPaceDelta: self.store.menuBarLayoutPaceDelta(
+                    provider: provider,
+                    window: windows.tertiary,
                     dataConfidence: snapshot?.dataConfidence ?? .unknown,
                     now: now),
                 runsOutMinutes: pace?.etaSeconds.map { Int(($0 / 60).rounded()) },
