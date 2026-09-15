@@ -152,3 +152,19 @@ Caching: the app holds the snapshot for an in-memory hourly TTL, keyed by the hi
 - `Sources/CodexBar/CursorLoginRunner.swift` (login flow)
 - `Sources/CodexBar/Providers/Cursor/CursorLoginFlow.swift` (menu integration)
 - `Sources/CodexBar/CursorLoginBrowserRouter.swift` (browser routing and selection)
+
+### Enterprise and Business member budgets
+
+For team plans, the usage probe also checks `/api/dashboard/teams` and
+`/api/dashboard/get-team-spend`. It prefers `portal-selected-team-id` over `team_id`,
+verifies the selection against the authenticated account's teams, and uses a sole
+team when no selection cookie is present (including Cursor.app authentication).
+Multiple teams without a selection remain on the usage-summary fallback.
+
+The authenticated member's `overallSpendCents` and `effectivePerUserLimitDollars`
+(or `monthlyLimitDollars` when the effective limit is absent) drive the primary
+percentage and plan dollars. Missing spend or non-positive limits are not treated
+as a zero-usage budget. Other members' data is not included in debug output.
+The optional lookup is bounded to ten seconds and twenty pages; unavailable,
+ambiguous, or malformed responses preserve usage-summary behavior. This does not
+recalculate extra/on-demand charges from team spend or usage events.

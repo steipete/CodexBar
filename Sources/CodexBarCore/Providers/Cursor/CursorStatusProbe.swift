@@ -1339,6 +1339,11 @@ public struct CursorStatusProbe: Sendable {
 
         let (usageSummary, rawJSON) = usageSummaryResult
 
+        var teamBudget: CursorTeamSpend.Budget?
+        if usageSummary.isTeamPlan, let email = userInfo?.email, !email.isEmpty {
+            teamBudget = try? await self.fetchTeamSpend(cookieHeader: cookieHeader, email: email, deadline: deadline)
+        }
+
         // Fetch legacy request usage only if user has a sub ID.
         // Uses try? to avoid breaking the flow for users where this endpoint fails or returns unexpected data.
         var requestUsage: CursorUsageResponse?
@@ -1372,7 +1377,8 @@ public struct CursorStatusProbe: Sendable {
             rawJSON: combinedRawJSON,
             requestUsage: requestUsage,
             sandUsage: sandUsage,
-            identityFallback: identityFallback)
+            identityFallback: identityFallback,
+            teamBudget: teamBudget)
     }
 
     private func fetchUsageSummary(
@@ -1536,10 +1542,12 @@ public struct CursorStatusProbe: Sendable {
         rawJSON: String?,
         requestUsage: CursorUsageResponse? = nil,
         sandUsage: CursorSandUsageStatus? = nil,
-        identityFallback: CursorSessionIdentity? = nil) -> CursorStatusSnapshot
+        identityFallback: CursorSessionIdentity? = nil,
+        teamBudget: CursorTeamSpend.Budget? = nil) -> CursorStatusSnapshot
     {
-        let billingCycleStart = ISO8601DateParser.parse(summary.billingCycleStart)
-        let billingCycleEnd = ISO8601DateParser.parse(summary.billingCycleEnd)
+        let teamBudget = summary.isTeamPlan ? teamBudget : nil
+        let billingCycleStart = teamBudget?.cycleStart ?? ISO8601DateParser.parse(summary.billingCycleStart)
+        let billingCycleEnd = teamBudget?.cycleEnd ?? ISO8601DateParser.parse(summary.billingCycleEnd)
 
         // Convert cents to USD (plan percent derives from raw values to avoid percent unit mismatches).
         // Use plan.limit directly - breakdown.total represents total *used* credits, not the limit.
@@ -1552,8 +1560,8 @@ public struct CursorStatusProbe: Sendable {
 
         // Cursor's usage-summary percent fields are already in percentage units, even when they are fractional
         // values below 1.0 (for example 0.36 means 0.36%, which the dashboard rounds to 0%).
-        let autoPercent = normPct(summary.individualUsage?.plan?.autoPercentUsed)
-        let apiPercent = normPct(summary.individualUsage?.plan?.apiPercentUsed)
+        let autoPercent = teamBudget == nil ? normPct(summary.individualUsage?.plan?.autoPercentUsed) : nil
+        let apiPercent = teamBudget == nil ? normPct(summary.individualUsage?.plan?.apiPercentUsed) : nil
 
         // Enterprise / team-member personal cap (cents). Reported under `individualUsage.overall` for accounts
         // that don't get a `plan` block. Falls through to existing logic when absent so non-enterprise paths
@@ -1572,7 +1580,9 @@ public struct CursorStatusProbe: Sendable {
         //   4. `individualUsage.plan` ratio (existing behavior)
         //   5. NEW: `individualUsage.overall` ratio (Enterprise/Team personal cap)
         //   6. NEW: `teamUsage.pooled` ratio (last resort when no individual data is reported)
-        let planPercentUsed: Double = if let totalPercentUsed = summary.individualUsage?.plan?.totalPercentUsed {
+        let planPercentUsed: Double = if let teamBudget {
+            UsagePercent(used: teamBudget.usedUSD, limit: teamBudget.limitUSD).displayClamped
+        } else if let totalPercentUsed = summary.individualUsage?.plan?.totalPercentUsed {
             UsagePercent(raw: totalPercentUsed).displayClamped
         } else if let autoUsed = autoPercent, let apiUsed = apiPercent {
             UsagePercent(raw: (autoUsed + apiUsed) / 2).displayClamped
@@ -1595,7 +1605,10 @@ public struct CursorStatusProbe: Sendable {
         // consumers see real dollar amounts instead of zeros.
         let planUsed: Double
         let planLimit: Double
-        if planLimitRaw > 0 || planUsedRaw > 0 {
+        if let teamBudget {
+            planUsed = teamBudget.usedUSD
+            planLimit = teamBudget.limitUSD
+        } else if planLimitRaw > 0 || planUsedRaw > 0 {
             planUsed = planUsedRaw / 100.0
             planLimit = planLimitRaw / 100.0
         } else if let usedCents = overallUsedRaw, let limitCents = overallLimitRaw {
@@ -1616,8 +1629,9 @@ public struct CursorStatusProbe: Sendable {
         let teamOnDemandLimit: Double? = summary.teamUsage?.onDemand?.limit.map { Double($0) / 100.0 }
 
         // Legacy request-based plan: maxRequestUsage being non-nil indicates a request-based plan
-        let requestsUsed: Int? = requestUsage?.gpt4?.numRequestsTotal ?? requestUsage?.gpt4?.numRequests
-        let requestsLimit: Int? = requestUsage?.gpt4?.maxRequestUsage
+        let requestsUsed: Int? = teamBudget == nil
+            ? requestUsage?.gpt4?.numRequestsTotal ?? requestUsage?.gpt4?.numRequests : nil
+        let requestsLimit: Int? = teamBudget == nil ? requestUsage?.gpt4?.maxRequestUsage : nil
 
         return CursorStatusSnapshot(
             planPercentUsed: planPercentUsed,
