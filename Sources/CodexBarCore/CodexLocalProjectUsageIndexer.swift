@@ -69,7 +69,7 @@ enum CodexLocalProjectUsageIndexer {
             checkCancellation: checkCancellation)
         try checkCancellation?()
 
-        var cache = CostUsageStoreAccess.read(
+        var cache = CostUsageStoreAccess.readWithoutTokenSnapshots(
             cacheRoot: scannerOptions.cacheRoot,
             calendar: scannerOptions.calendar)
         let modelsDevLoad = ModelsDevCache.load(now: now, cacheRoot: scannerOptions.cacheRoot)
@@ -162,7 +162,7 @@ enum CodexLocalProjectUsageIndexer {
             since: since,
             until: until,
             calendar: options.calendar)
-        let cache = cacheOverride ?? CostUsageStoreAccess.read(
+        let cache = cacheOverride ?? CostUsageStoreAccess.readWithoutTokenSnapshots(
             cacheRoot: options.cacheRoot,
             calendar: options.calendar)
         let catalog = catalogOverride ?? CodexThreadCatalogReader.load(options: options)

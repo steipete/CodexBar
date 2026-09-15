@@ -213,9 +213,12 @@ extension CostUsageStore {
         self.syncWithStoreIsolation { $0.releaseCodexBaseline(receipt) }
     }
 
-    nonisolated func syncLoadCodexCache(calendar: Calendar) -> CostUsageCache {
+    nonisolated func syncLoadCodexCache(
+        calendar: Calendar,
+        loadTokenSnapshots: Bool = true) -> CostUsageCache
+    {
         self.syncWithStoreIsolation { store in
-            store.loadCodexCache(calendar: calendar)
+            store.loadCodexCache(calendar: calendar, loadTokenSnapshots: loadTokenSnapshots)
         }
     }
 
