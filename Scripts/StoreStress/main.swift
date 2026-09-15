@@ -432,6 +432,7 @@ func runHolder(dbPath: String, seconds: Double) {
 
 // MARK: - memory probe (local verification only)
 
+#if canImport(Darwin)
 func physFootprint() -> UInt64 {
     var info = task_vm_info_data_t()
     var count = mach_msg_type_number_t(MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<natural_t>.size)
@@ -513,6 +514,11 @@ func runMemory(cacheRoot: URL, mode: String) {
         + "files=\(files) rows=\(rows) snapshots=\(snapshots)")
     withExtendedLifetime(cache) {}
 }
+#else
+func runMemory(cacheRoot: URL, mode: String) {
+    fail("memory footprint sampling requires macOS")
+}
+#endif
 
 // MARK: - main
 

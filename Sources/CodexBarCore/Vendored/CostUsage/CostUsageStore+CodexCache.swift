@@ -50,18 +50,14 @@ extension CostUsageStore {
     func loadCodexCache(calendar: Calendar, loadTokenSnapshots: Bool = true) -> CostUsageCache {
         self.retainedCodexBaseline = nil
         _ = self.removeLegacyCodexArtifactIfPresent()
-        guard loadTokenSnapshots else {
-            guard let baseline = self.readCodexBaseline(loadTokenSnapshots: false) else { return CostUsageCache() }
-            let compatible = baseline.decoded.timeZoneIdentifier == nil
-                || baseline.decoded.timeZoneIdentifier == calendar.timeZone.identifier
-            guard compatible else { return CostUsageCache() }
-            return Self.reconciledCodexCache(baseline.decoded, persistence: baseline.persistence)
-        }
-        let snapshot = self.readSnapshot()
+        let snapshot = self.readSnapshot(loadTokenSnapshots: loadTokenSnapshots)
         guard snapshot.metadata.timeZoneIdentifier == nil
             || snapshot.metadata.timeZoneIdentifier == calendar.timeZone.identifier
         else { return CostUsageCache() }
-        return Self.cache(from: snapshot, recorder: self.scopedReadWorkRecorderForTesting)
+        return Self.cache(
+            from: snapshot,
+            recorder: self.scopedReadWorkRecorderForTesting,
+            tokenSnapshotsLoaded: loadTokenSnapshots)
     }
 
     func loadCodexReadView(calendar: Calendar, purpose: CostUsageStoreReadPurpose) -> CostUsageStoreReadView {
@@ -430,10 +426,15 @@ extension CostUsageStore {
     private static func cache(
         from snapshot: CostUsageStoreSnapshot,
         recorder: CostUsageStoreReadWorkRecorder?,
-        retryPresence: [String: CostUsageCodexRetryBufferPresence]? = nil) -> CostUsageCache
+        retryPresence: [String: CostUsageCodexRetryBufferPresence]? = nil,
+        tokenSnapshotsLoaded: Bool = true) -> CostUsageCache
     {
         self.reconciledCodexCache(
-            self.decodeCodexCache(from: snapshot, recorder: recorder, retryPresence: retryPresence),
+            self.decodeCodexCache(
+                from: snapshot,
+                recorder: recorder,
+                retryPresence: retryPresence,
+                tokenSnapshotsLoaded: tokenSnapshotsLoaded),
             persistence: CodexPersistenceState(snapshot: snapshot))
     }
 

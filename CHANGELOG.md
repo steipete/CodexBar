@@ -2,6 +2,9 @@
 
 ## 0.60.4 — Unreleased
 
+### Fixed
+- Codex Workspaces: reduce cache-read memory in the experimental debug inspector by skipping raw token snapshots while preserving exact pricing rows and consistent project totals during concurrent scans (#3661). Thanks @apple-ouyang!
+
 ## 0.60.3 — 2026-09-15
 
 ### Highlights

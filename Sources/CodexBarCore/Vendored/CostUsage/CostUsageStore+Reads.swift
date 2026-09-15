@@ -99,13 +99,30 @@ extension CostUsageStore {
         }
     }
 
-    func readSnapshot() -> CostUsageStoreSnapshot {
+    func readSnapshot(loadTokenSnapshots: Bool = true) -> CostUsageStoreSnapshot {
         self.withDatabase(default: Self.emptySnapshot) { database in
             try Self.inReadTransaction(database) {
-                try Self.readSnapshot(database, recorder: self.scopedReadWorkRecorderForTesting)
+                let snapshot = try Self.readSnapshot(
+                    database,
+                    loadTokenSnapshots: loadTokenSnapshots,
+                    recorder: self.scopedReadWorkRecorderForTesting)
+                #if DEBUG
+                if let checkpoint = Self.codexCacheReadCheckpointForTesting,
+                   checkpoint.databaseURL == self.databaseURL
+                {
+                    try checkpoint.checkpoint()
+                }
+                #endif
+                return snapshot
             }
         }
     }
+
+    #if DEBUG
+    nonisolated(unsafe) static var codexCacheReadCheckpointForTesting: (
+        databaseURL: URL,
+        checkpoint: () throws -> Void)?
+    #endif
 
     func configuration() -> CostUsageStoreConfiguration? {
         self.withDatabase(default: nil) { database in
