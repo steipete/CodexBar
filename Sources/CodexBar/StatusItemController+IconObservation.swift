@@ -8,7 +8,12 @@ extension StatusItemController {
         let visibleProviders = self.store.enabledProvidersForDisplay().map(\.rawValue).sorted().joined(separator: ",")
         let providerSignatures: String
         let primaryProvider: UsageProvider?
-        if mergeIcons {
+        if let stackedProviders = self.stackedMergeIconProvidersIfActive() {
+            primaryProvider = stackedProviders.top
+            providerSignatures = [stackedProviders.top, stackedProviders.bottom]
+                .map { self.providerStoreIconObservationSignature(for: $0, showBrandPercent: showBrandPercent) }
+                .joined(separator: "||")
+        } else if mergeIcons {
             let primary = self.primaryProviderForUnifiedIcon()
             primaryProvider = primary
             providerSignatures = self.providerStoreIconObservationSignature(

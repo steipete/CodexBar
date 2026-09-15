@@ -618,6 +618,12 @@
 "cost_summary_off" = "ปิด";
 "merge_icons_title" = "ผสานไอคอน";
 "merge_icons_subtitle" = "ใช้ไอคอนแถบเมนูเดียวกับตัวสลับผู้ให้บริการ";
+"merged_icon_style_title" = "รูปแบบไอคอนรวม";
+"merged_icon_style_subtitle" = "ตัวสลับจะวนแสดงผู้ให้บริการทีละราย ส่วนแบบซ้อนจะแสดงผู้ให้บริการสองรายพร้อมกัน รายละแถว";
+"merged_icon_style_switcher" = "ตัวสลับ";
+"merged_icon_style_stacked" = "แบบซ้อน";
+"merge_icon_stacked_top_provider_title" = "แถวบน";
+"merge_icon_stacked_bottom_provider_title" = "แถวล่าง";
 "show_most_used_provider_title" = "แสดงผู้ให้บริการที่ใช้บ่อยที่สุด";
 "show_most_used_provider_subtitle" = "แถบเมนูจะแสดงผู้ให้บริการที่ใกล้เคียงกับขีดจํากัดอัตรามากที่สุดโดยอัตโนมัติ";
 "display_mode_title" = "โหมดการแสดงผล";

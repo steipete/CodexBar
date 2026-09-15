@@ -609,6 +609,12 @@
 "cost_summary_off" = "Desativado";
 "merge_icons_title" = "Mesclar Ícones";
 "merge_icons_subtitle" = "Usa um único ícone na barra de menus com alternador de provedores.";
+"merged_icon_style_title" = "Estilo de ícone combinado";
+"merged_icon_style_subtitle" = "O alternador percorre os provedores um de cada vez; Empilhado mostra dois provedores ao mesmo tempo, cada um em uma linha.";
+"merged_icon_style_switcher" = "Alternador";
+"merged_icon_style_stacked" = "Empilhado";
+"merge_icon_stacked_top_provider_title" = "Linha superior";
+"merge_icon_stacked_bottom_provider_title" = "Linha inferior";
 "show_most_used_provider_title" = "Mostrar provedor mais usado";
 "show_most_used_provider_subtitle" = "A barra de menus mostra automaticamente o provedor mais próximo do limite de taxa.";
 "display_mode_title" = "Modo de exibição";
