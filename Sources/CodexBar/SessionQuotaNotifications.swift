@@ -409,10 +409,9 @@ extension UsageStore {
         provider: UsageProvider,
         snapshot: UsageSnapshot) -> (window: RateWindow, source: SessionQuotaWindowSource)?
     {
-        // Provider-specific by design: MiMo/Qoder balances, Crof PAYG, Antigravity families, and Copilot chat
+        // Provider-specific by design: MiMo/Qoder balances, Antigravity families, and Copilot chat
         // fallback encode distinct session-quota payload semantics.
-        // MiMo/Qoder balances are never session quotas. Crof is handled below so quota-backed
-        // Crof snapshots can still participate when a real request-quota window is present.
+        // MiMo/Qoder balances are never session quotas.
         guard provider != .mimo, provider != .qoder else { return nil }
         if provider == .antigravity {
             guard let window = Self.antigravityWindow(snapshot: snapshot, windowMinutes: 5 * 60) else {
@@ -424,12 +423,6 @@ extension UsageStore {
             return (window, source)
         }
         if let primary = snapshot.primary, Self.isSessionWindow(primary) {
-            // Crof credits-only balances publish a duration-less primary with no secondary quota
-            // window. Keep that PAYG shape out of session-quota transitions so a $0 balance cannot
-            // fire session-limit alerts/hooks. Quota-backed Crof (secondary credits) still qualifies.
-            if provider == .crof, snapshot.secondary == nil {
-                return nil
-            }
             return (primary, .primary)
         }
         if provider == .copilot, let secondary = snapshot.secondary {

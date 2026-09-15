@@ -1169,7 +1169,6 @@
 "Open Augment (Log Out & Back In)" = "Buka Augment (Keluar & Masuk Kembali)";
 "Open Codebuff Dashboard" = "Buka Dasbor Codebuff";
 "Open Command Code Settings" = "Buka Pengaturan Command Code";
-"Open Crof dashboard" = "Buka dasbor Crof";
 "Open Manus" = "Buka Manus";
 "Open MiMo Balance" = "Buka Saldo MiMo";
 "Open Moonshot Console" = "Buka Konsol Moonshot";
@@ -1237,7 +1236,6 @@
 "Stored in ~/.codexbar/config.json. Requires an Anthropic Admin API key." = "Disimpan di ~/.codexbar/config.json. Memerlukan kunci API Admin Anthropic.";
 "Stored in ~/.codexbar/config.json. Used for /v1/quota-stats." = "Disimpan di ~/.codexbar/config.json. Digunakan untuk /v1/quota-stats.";
 "Stored in ~/.codexbar/config.json. You can also provide CODEBUFF_API_KEY or let CodexBar read ~/.config/manicode/credentials.json (created by `codebuff login`)." = "Disimpan di ~/.codexbar/config.json. Anda juga dapat menyediakan CODEBUFF_API_KEY atau biarkan CodexBar membaca ~/.config/manicode/credentials.json (dibuat oleh `codebuff login`).";
-"Stored in ~/.codexbar/config.json. You can also provide CROF_API_KEY." = "Disimpan di ~/.codexbar/config.json. Anda juga dapat menyediakan CROF_API_KEY.";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or ~/.local/share/kilo/auth.json (kilo.access)." = "Disimpan di ~/.codexbar/config.json. Anda juga dapat menyediakan KILO_API_KEY atau ~/.local/share/kilo/auth.json (kilo.access).";
 "T3 Chat cookie" = "Cookie T3 Chat";
 "Team mode" = "Mode tim";

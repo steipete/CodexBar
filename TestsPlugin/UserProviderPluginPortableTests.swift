@@ -7,7 +7,7 @@ struct UserProviderPluginPortableTests {
     func `bundled plugins are free of raw Intl references`() throws {
         let bundle = try #require(CodexBarCoreResources.bundle)
         for name in [
-            "crof", "venice", "openrouter", "clawrouter", "deepgram", "sub2api", "synthetic", "openai", "zai",
+            "venice", "openrouter", "clawrouter", "deepgram", "sub2api", "synthetic", "openai", "zai",
             "poe", "xai", "manus", "perplexity", "t3chat", "qoder",
         ] {
             let url = try #require(bundle.url(forResource: name, withExtension: "js"))

@@ -2,6 +2,9 @@
 
 ## 0.60.4 — Unreleased
 
+### Changes
+- Crof: remove the provider after the service shut down.
+
 ## 0.60.3 — 2026-09-15
 
 ### Highlights

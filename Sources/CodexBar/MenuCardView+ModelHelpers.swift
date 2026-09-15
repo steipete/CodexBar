@@ -546,8 +546,6 @@ extension UsageMenuCardView.Model {
         // Legacy request-based Cursor plans track a request quota, not the token-based "Total" pool.
         let primaryLabel = if input.provider == .cursor, snapshot.detailRow(label: "Request quota") != nil {
             "Requests"
-        } else if input.provider == .crof {
-            CrofProviderDescriptor.primaryLabel(snapshot: snapshot)
         } else if input.provider == .grok {
             GrokProviderDescriptor.displayLabel(window: snapshot.primary, now: input.now) ?? input.metadata.sessionLabel
         } else if input.provider == .doubao {

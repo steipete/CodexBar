@@ -116,15 +116,6 @@ struct MenuCardCompactAccountRowTests {
         #expect(!model.detailLines[0].contains("$5.00"))
     }
 
-    @Test
-    func `reset visibility follows the provider secondary window requirement`() throws {
-        let primary = Fixture.window(80, after: 3600)
-        let withoutSecondary = try Fixture.row(provider: .crof, primary: primary)
-        let withSecondary = try Fixture.row(provider: .crof, primary: primary, weekly: Fixture.window(0))
-        #expect(withoutSecondary.windowDetails.first?.resetPresentation == .hidden)
-        #expect(withSecondary.windowDetails.first?.resetPresentation == .standard)
-    }
-
     @Test(arguments: [UsageProvider.openrouter, .sub2api])
     func `provider owned description is displayed without adding a reset prefix`(provider: UsageProvider) throws {
         let row = try Fixture.row(provider: provider, primary: Fixture.window(80, description: "  Quota detail  "))

@@ -719,8 +719,6 @@ struct MenuDescriptor {
                 weeklyLabel: metadata.weeklyLabel)
         } else if provider == .grok {
             GrokProviderDescriptor.displayLabel(window: snapshot.primary) ?? metadata.sessionLabel
-        } else if provider == .crof {
-            CrofProviderDescriptor.primaryLabel(snapshot: snapshot)
         } else if provider == .doubao {
             DoubaoProviderDescriptor.primaryLabel(window: snapshot.primary) ?? metadata.sessionLabel
         } else if provider == .sub2api {

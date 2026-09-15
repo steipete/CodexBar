@@ -1147,7 +1147,6 @@
 "Open Augment (Log Out & Back In)" = "Augment を開く(ログアウトして再ログイン)";
 "Open Codebuff Dashboard" = "Codebuff ダッシュボードを開く";
 "Open Command Code Settings" = "Command Code 設定を開く";
-"Open Crof dashboard" = "Crof ダッシュボードを開く";
 "Open Manus" = "Manus を開く";
 "Open MiMo Balance" = "MiMo 残高を開く";
 "Open Moonshot Console" = "Moonshot コンソールを開く";
@@ -1215,7 +1214,6 @@
 "Stored in ~/.codexbar/config.json. Requires an Anthropic Admin API key." = "~/.codexbar/config.json に保存されます。Anthropic の Admin API キーが必要です。";
 "Stored in ~/.codexbar/config.json. Used for /v1/quota-stats." = "~/.codexbar/config.json に保存されます。/v1/quota-stats に使用されます。";
 "Stored in ~/.codexbar/config.json. You can also provide CODEBUFF_API_KEY or let CodexBar read ~/.config/manicode/credentials.json (created by `codebuff login`)." = "~/.codexbar/config.json に保存されます。CODEBUFF_API_KEY を指定するか、CodexBar に ~/.config/manicode/credentials.json(`codebuff login` で作成)を読み込ませることもできます。";
-"Stored in ~/.codexbar/config.json. You can also provide CROF_API_KEY." = "~/.codexbar/config.json に保存されます。CROF_API_KEY を指定することもできます。";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or ~/.local/share/kilo/auth.json (kilo.access)." = "~/.codexbar/config.json に保存されます。KILO_API_KEY または ~/.local/share/kilo/auth.json(kilo.access)を指定することもできます。";
 "T3 Chat cookie" = "T3 Chat Cookie";
 "Team mode" = "チームモード";
