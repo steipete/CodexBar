@@ -26,7 +26,7 @@ struct InlineUsageDashboardModel: Equatable {
         let label: String
         let value: Double?
         /// Portion of `value` contributed by selected SSH devices.
-        var secondaryValue: Double? = nil
+        var secondaryValue: Double?
         let accessibilityValue: String
         var hoverDetail: HoverDetail?
     }
@@ -576,18 +576,18 @@ struct InlineUsageDashboardContent: View {
                                             .frame(height: secondaryHeight)
                                     }
                                 }
-                                    .frame(width: layout.barWidth)
-                                    .frame(height: barHeight)
-                                    .clipShape(RoundedRectangle(cornerRadius: 1.5, style: .continuous))
-                                    .overlay {
-                                        if point.id == self.selectedPointID {
-                                            RoundedRectangle(cornerRadius: 1.5, style: .continuous)
-                                                .strokeBorder(
-                                                    MenuHighlightStyle.primary(self.isHighlighted),
-                                                    lineWidth: layout.selectionStrokeWidth(barHeight: barHeight))
-                                        }
+                                .frame(width: layout.barWidth)
+                                .frame(height: barHeight)
+                                .clipShape(RoundedRectangle(cornerRadius: 1.5, style: .continuous))
+                                .overlay {
+                                    if point.id == self.selectedPointID {
+                                        RoundedRectangle(cornerRadius: 1.5, style: .continuous)
+                                            .strokeBorder(
+                                                MenuHighlightStyle.primary(self.isHighlighted),
+                                                lineWidth: layout.selectionStrokeWidth(barHeight: barHeight))
                                     }
-                                    .accessibilityLabel(point.accessibilityValue)
+                                }
+                                .accessibilityLabel(point.accessibilityValue)
                             }
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
