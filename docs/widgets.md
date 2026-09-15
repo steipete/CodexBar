@@ -42,12 +42,67 @@ also lets persistence integration tests count reload attempts without calling Wi
 ## Widget types
 - **CodexBar Switcher** (`CodexBarSwitcherWidget`): static provider switcher widget, small/medium/large.
 - **CodexBar Usage** (`CodexBarUsageWidget`): configurable provider usage widget, small/medium/large.
+- **CodexBar Account Usage** (`CodexBarAccountUsageWidget`): pins one saved account’s quota windows, small/medium/large.
 - **CodexBar History** (`CodexBarHistoryWidget`): configurable usage-history chart, medium/large.
 - **CodexBar Metric** (`CodexBarCompactWidget`): compact credits/today-cost/30-day-cost widget, small only.
 - **CodexBar Burn Down** (`CodexBarBurnDownWidget`): configurable session or weekly burn-down chart, medium only.
 - **CodexBar Burn Down (Combined)** (`CodexBarCombinedBurnDownWidget`): session and weekly burn-down charts, medium only.
 
 Switcher widgets share one remembered provider selection, so switching one updates all Switcher widgets. To keep Claude and Codex visible side by side, add two **CodexBar Usage** widgets and configure each widget's **Provider** separately. Usage widgets read their own configured provider instead of the shared Switcher selection.
+
+## Account selection
+
+Enable **Settings → Menu → Widgets → Keep accounts updated for widgets**, then add a **CodexBar Account Usage**
+widget and choose its **Provider** and **Account**. For example, two Account Usage widgets can pin different Claude
+accounts while a third widget displays Codex. The existing Usage widget sizes, bars and reset countdowns are reused.
+An Account Usage widget without an account shows setup instructions; it never follows the current account implicitly.
+Regular **CodexBar Usage** widgets continue following their configured provider as before.
+
+The opt-in keeps saved token accounts and visible Codex accounts refreshing independently of the menu's segmented
+or stacked layout, using the existing six-account refresh bound. Claude-swap continues to own its own polling;
+its widget choices remain available when only one slot remains. Slot labels and an opaque ownership fingerprint
+keep a replacement account from inheriting an old pin without persisting the adapter's personal identity fields.
+**Hide personal info** replaces other account labels with ordinals without changing widget account identities.
+
+Codex pins use managed account UUIDs or normalized source/owner identities, not the menu's email-disambiguated
+row IDs. Adding or removing a same-email sibling does not change an existing pin. Profile homes remain distinct,
+and rotating credentials does not change a pin's identity.
+
+An explicitly selected account never falls back to another account if it is removed, unavailable, or belongs to a
+different provider. Transient refresh failures retain the matching account's last-good quota and its original
+measurement timestamp; authentication failures and owner changes do not borrow prior account data. Disabling the
+setting removes account choices and data from the shared snapshot; provider-only widgets keep working.
+
+Pinned account snapshots currently include quota windows only. Provider-level local cost scans, credits, and history
+are not copied into account widgets because their ownership is not necessarily the selected account.
+Usage, History, Metric, Switcher, and Burn Down widgets retain their existing provider-only configuration.
+
+### Upgrade and rollback compatibility
+
+The existing widget kinds, `ProviderSelectionIntent`, and provider timeline behavior are unchanged. Account selection
+uses a new `CodexBarAccountUsageWidget` kind and a separate `AccountUsageSelectionIntent`; no parameters are added to
+persisted configurations of existing widgets. The new intent has no default account. Enabling background account
+refresh is a separate opt-in, off by default.
+
+The shared JSON format is additive: older snapshots omit `accounts` and `accountLabel`, and the new reader accepts
+them. Older readers ignore those fields in new snapshots. A rollback can rewrite the provider snapshot without
+account data; a feature widget reading that rewritten snapshot shows unavailable rather than another account’s quota.
+The old app does not provide the new Account Usage widget kind; rollback support applies to the existing provider widgets.
+`WidgetSnapshotCompatibilityTests` covers fixed legacy wire data and an older reader/writer, while
+`WidgetAccountCompatibilityTests` covers account removal, replacement, identity changes, and refresh failures.
+
+Installed WidgetKit behavior still needs native verification; JSON tests and unchanged intent definitions alone
+do not prove the operating system’s upgrade and rollback behavior. In an isolated macOS environment, use baseline and feature bundles with the same bundle
+identifiers, signing team, and app group:
+
+1. Install the baseline and add provider-only Usage and History widgets with a non-default provider.
+2. Upgrade in place without removing the widgets. Confirm the provider selection, quota, and history remain intact.
+3. Opt into account refresh and add two Account Usage widgets with different accounts. Switch the app's selected account,
+   refresh, and relaunch; each widget must keep its own pin and measurement.
+4. Remove a sibling, then remove or replace a pinned account. Surviving pins must remain stable; removed/replaced
+   pins must show unavailable. Opt out and confirm provider-only widgets still work.
+5. Roll back the bundle and confirm provider-only widgets still render. Record app/widget versions and screenshots
+   separately from synthetic rendering fixtures, with personal information hidden.
 
 ## Provider picker support
 The configurable provider widgets currently expose:
