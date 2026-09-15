@@ -78,10 +78,10 @@ final class CodexWorkspaceDisplayScreenshotTests: XCTestCase {
 private struct WorkspaceProofSwitcher: NSViewRepresentable {
     let accounts: [CodexVisibleAccount]
 
-    func makeNSView(context: Context) -> CodexAccountSwitcherView {
-        CodexAccountSwitcherView(
+    func makeNSView(context: Context) -> AccountSegmentedSwitcherView {
+        CodexAccountSwitcherLabeling.switcherView(
             accounts: self.accounts, selectedAccountID: self.accounts[0].id, width: 310, onSelect: { _ in })
     }
 
-    func updateNSView(_ nsView: CodexAccountSwitcherView, context: Context) {}
+    func updateNSView(_ nsView: AccountSegmentedSwitcherView, context: Context) {}
 }

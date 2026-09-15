@@ -131,7 +131,8 @@ struct DashboardSnapshotProducer: Sendable {
             collectClaudeSwapAccounts: { config in
                 // Provider-specific by design: the dashboard opts into Claude's local multi-account adapter.
                 guard CodexBarCLI.dashboardClaudeSwapIsEligible(config: config) else { return nil }
-                let path = config.providerConfig(for: .claude)?.sanitizedClaudeSwapExecutablePath ?? ""
+                let path = config.providerConfig(for: .claude)?.resolvedClaudeSwapExecutablePath
+                    ?? ClaudeSwapExecutableResolver.resolve(configured: nil)
                 let timeout = min(
                     ClaudeSwapAccountReader.defaultTimeout,
                     context.usage.providerTimeout ?? ClaudeSwapAccountReader.defaultTimeout)

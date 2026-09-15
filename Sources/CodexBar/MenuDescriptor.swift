@@ -68,7 +68,7 @@ struct MenuDescriptor {
         case statusPage
         case changelog
         case addCodexAccount
-        case requestCodexSystemPromotion(UUID)
+        case requestSystemAccountSwitch(provider: UsageProvider, accountID: String)
         case addProviderAccount(UsageProvider)
         case switchAccount(UsageProvider)
         case openTerminal(command: String)
@@ -607,8 +607,15 @@ struct MenuDescriptor {
                 managedCodexAccountCoordinator: codexActionContext.managedAccountCoordinator,
                 codexAccountPromotionCoordinator: codexActionContext.accountPromotionCoordinator,
                 codexWorkspacesMenuEnabled: codexActionContext.workspacesMenuEnabled)
-            ProviderCatalog.implementation(for: targetProvider)?
-                .appendActionMenuEntries(context: actionContext, entries: &entries)
+            let implementation = ProviderCatalog.implementation(for: targetProvider)
+            implementation?.appendActionMenuEntries(context: actionContext, entries: &entries)
+            let switchContext = SystemAccountSwitchContext(
+                store: store,
+                settings: store.settings,
+                codexAccountPromotionCoordinator: codexActionContext.accountPromotionCoordinator)
+            if let systemAccounts = implementation?.systemAccountMenuEntries(context: switchContext) {
+                SystemAccountMenu.append(systemAccounts, provider: targetProvider, to: &entries)
+            }
         }
 
         if metadata?.dashboardURL != nil {
@@ -809,7 +816,7 @@ extension MenuDescriptor.MenuAction {
         case .statusPage: MenuDescriptor.MenuActionSystemImage.statusPage.rawValue
         case .changelog: MenuDescriptor.MenuActionSystemImage.changelog.rawValue
         case .addCodexAccount, .addProviderAccount: MenuDescriptor.MenuActionSystemImage.addAccount.rawValue
-        case .requestCodexSystemPromotion:
+        case .requestSystemAccountSwitch:
             nil
         case .switchAccount: MenuDescriptor.MenuActionSystemImage.switchAccount.rawValue
         case .openTerminal: MenuDescriptor.MenuActionSystemImage.openTerminal.rawValue

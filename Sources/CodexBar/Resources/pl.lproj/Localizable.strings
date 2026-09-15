@@ -1583,3 +1583,10 @@
 
 "agent_sessions_hide_unreachable_title" = "Ukryj nieosiągalne hosty";
 "agent_sessions_hide_unreachable_subtitle" = "Ukryj hosty, gdy pobieranie ich sesji się nie powiedzie.";
+"System Account" = "Konto systemowe";
+"Selected" = "Wybrane";
+"Switching %1$@ to %2$@…" = "Przełączanie %1$@ na %2$@…";
+"%@ is now the System account" = "%@ jest teraz kontem systemowym";
+"System account switched" = "Przełączono konto systemowe";
+"%1$@ now uses %2$@" = "%1$@ używa teraz %2$@";
+"That account can no longer be switched to." = "Nie można już przełączyć się na to konto.";

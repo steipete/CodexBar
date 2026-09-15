@@ -1581,3 +1581,10 @@
 
 "agent_sessions_hide_unreachable_title" = "Скрывать недоступные узлы";
 "agent_sessions_hide_unreachable_subtitle" = "Скрывать узлы, если не удалось получить их сеансы.";
+"System Account" = "Системный аккаунт";
+"Selected" = "Выбрано";
+"Switching %1$@ to %2$@…" = "Переключение %1$@ на %2$@…";
+"%@ is now the System account" = "%@ теперь системный аккаунт";
+"System account switched" = "Системный аккаунт переключён";
+"%1$@ now uses %2$@" = "%1$@ теперь использует %2$@";
+"That account can no longer be switched to." = "На этот аккаунт больше нельзя переключиться.";

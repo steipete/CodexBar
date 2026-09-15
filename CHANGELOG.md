@@ -17,6 +17,15 @@
 - Updates: recognize Homebrew-managed apps in `/Applications` and show the existing Homebrew update instruction, while preserving Sparkle updates for separate app copies (#3647). Thanks @fanwenlin!
 - Antigravity: explain why Auto skips agy reports without account identity for selected Google accounts and identify the local source alternative without changing account isolation (#3650, fixes #3649). Thanks @Borisserz!
 
+### Added
+- Claude: default the claude-swap executable to `~/.local/bin/cswap` when it is installed there, so enabling the adapter no longer requires typing a path; an explicit path still wins and users without claude-swap see no change.
+- Claude: group the claude-swap toggle, executable, adapter status and discovered accounts into one settings section, replacing the split toggle/field layout whose guidance pointed the wrong way.
+- Claude: select claude-swap accounts in the segmented menu to view their details without switching, keep the viewed account visually distinct from the System account claude-swap reports as active, and retain the viewed account across refreshes, reordering, and menu closes.
+- Menu: Codex and Claude (claude-swap) share one account switcher that marks the System account with `●`, and both switch the System account from a shared "System Account" submenu with in-menu progress, success and error feedback plus a notification when the menu is closed. The Codex submenu now honors Hide Personal Info.
+
+### Fixed
+- Menu: reapply Hide Personal Info to retained System Account switch feedback and completion notifications, including when privacy is enabled during a switch.
+
 ## 0.60.2 — 2026-09-14
 
 ### Highlights

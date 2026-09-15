@@ -1583,3 +1583,10 @@
 
 "agent_sessions_hide_unreachable_title" = "Sembunyikan host yang tidak terjangkau";
 "agent_sessions_hide_unreachable_subtitle" = "Sembunyikan host saat pengambilan sesinya gagal.";
+"System Account" = "Akun sistem";
+"Selected" = "Dipilih";
+"Switching %1$@ to %2$@…" = "Mengalihkan %1$@ ke %2$@…";
+"%@ is now the System account" = "%@ sekarang menjadi akun sistem";
+"System account switched" = "Akun sistem dialihkan";
+"%1$@ now uses %2$@" = "%1$@ sekarang menggunakan %2$@";
+"That account can no longer be switched to." = "Akun tersebut tidak dapat dipilih lagi.";

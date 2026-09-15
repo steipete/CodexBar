@@ -1578,3 +1578,10 @@
 
 "agent_sessions_hide_unreachable_title" = "Ocultar hosts inaccesibles";
 "agent_sessions_hide_unreachable_subtitle" = "Oculta los hosts cuando falla la consulta de sus sesiones.";
+"System Account" = "Cuenta del sistema";
+"Selected" = "Seleccionado";
+"Switching %1$@ to %2$@…" = "Cambiando %1$@ a %2$@…";
+"%@ is now the System account" = "%@ es ahora la cuenta del sistema";
+"System account switched" = "Cuenta del sistema cambiada";
+"%1$@ now uses %2$@" = "%1$@ ahora usa %2$@";
+"That account can no longer be switched to." = "Ya no se puede cambiar a esa cuenta.";

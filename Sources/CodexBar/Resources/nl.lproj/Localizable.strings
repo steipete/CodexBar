@@ -1579,3 +1579,10 @@
 
 "agent_sessions_hide_unreachable_title" = "Onbereikbare hosts verbergen";
 "agent_sessions_hide_unreachable_subtitle" = "Verberg hosts wanneer het ophalen van hun sessies mislukt.";
+"System Account" = "Systeemaccount";
+"Selected" = "Geselecteerd";
+"Switching %1$@ to %2$@…" = "%1$@ wordt overgezet naar %2$@…";
+"%@ is now the System account" = "%@ is nu het systeemaccount";
+"System account switched" = "Systeemaccount gewisseld";
+"%1$@ now uses %2$@" = "%1$@ gebruikt nu %2$@";
+"That account can no longer be switched to." = "Naar dat account kan niet meer worden gewisseld.";

@@ -169,6 +169,10 @@ extension StatusItemController {
     }
 
     func menuDidClose(_ menu: NSMenu) {
+        // Only a top-level close acknowledges a shown success; submenus (System Account) close while it is visible.
+        if menu.supermenu == nil {
+            self.systemAccountSwitchFeedback.menuDidClose()
+        }
         let wasHostedSubviewMenu = self.isHostedSubviewMenu(menu)
         self.forgetClosedMenu(menu)
         if wasHostedSubviewMenu {
@@ -176,7 +180,6 @@ extension StatusItemController {
         }
         if self.openMenus.isEmpty {
             self.cancelMergedSwitcherSiblingWarmup()
-            self.resetClaudeSwapAccountInspection()
         }
         self.resetCompactAccountMenuExpansionStateIfIdle()
     }
@@ -744,8 +747,14 @@ extension StatusItemController {
             return false
         }
 
-        guard let model = self.menuCardModel(for: context.selectedProvider) else { return false }
-        let renderedModel = self.menuCardRefreshMonitor.model(for: model.provider, fallback: model)
+        guard let builtModel = self.menuCardModel(for: context.selectedProvider) else { return false }
+        let model = builtModel.applyingSwitchFeedback(
+            self.systemAccountSwitchDisplayFeedback(for: builtModel.provider)
+                .subtitle(for: builtModel.provider, accountID: nil))
+        // A card showing switch feedback no longer follows the live monitor, so lay out what it renders.
+        let renderedModel = model.usesLiveSubtitle
+            ? self.menuCardRefreshMonitor.model(for: model.provider, fallback: model)
+            : model
         if context.openAIContext.hasOpenAIWebMenuItems ||
             self.requiresSectionedMenuForProviderDerivedCost(provider: context.currentProvider)
         {
@@ -1082,7 +1091,7 @@ extension StatusItemController {
         menu: NSMenu,
         width: CGFloat) -> NSMenuItem
     {
-        let view = CodexAccountSwitcherView(
+        let view = CodexAccountSwitcherLabeling.switcherView(
             accounts: display.accounts,
             selectedAccountID: display.activeVisibleAccountID,
             width: width,

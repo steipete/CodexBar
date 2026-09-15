@@ -239,7 +239,7 @@ struct StatusMenuCodexSwitcherTests {
         let menu = controller.makeMenu(for: .codex)
         controller.menuWillOpen(menu)
 
-        #expect(menu.items.compactMap { $0.view as? CodexAccountSwitcherView }.first != nil)
+        #expect(menu.items.compactMap { $0.view as? AccountSegmentedSwitcherView }.first != nil)
         #expect(self.representedIDs(in: menu).filter { $0.hasPrefix("menuCard") } == ["menuCard"])
     }
 
@@ -302,24 +302,24 @@ struct StatusMenuCodexSwitcherTests {
         let menu = controller.makeMenu()
         controller.menuWillOpen(menu)
 
-        #expect(menu.items.count(where: { $0.view is CodexAccountSwitcherView }) == 1)
+        #expect(menu.items.count(where: { $0.view is AccountSegmentedSwitcherView }) == 1)
 
         controller.menuContentVersion &+= 1
         controller.refreshOpenMenusIfNeeded()
 
-        #expect(menu.items.count(where: { $0.view is CodexAccountSwitcherView }) == 1)
+        #expect(menu.items.count(where: { $0.view is AccountSegmentedSwitcherView }) == 1)
 
         settings._test_liveSystemCodexAccount = nil
         controller.menuContentVersion &+= 1
         controller.refreshOpenMenusIfNeeded()
 
-        #expect(menu.items.count(where: { $0.view is CodexAccountSwitcherView }) == 1)
+        #expect(menu.items.count(where: { $0.view is AccountSegmentedSwitcherView }) == 1)
 
         controller.menuDidClose(menu)
         controller.menuContentVersion &+= 1
         controller.menuWillOpen(menu)
 
-        #expect(menu.items.count(where: { $0.view is CodexAccountSwitcherView }) == 0)
+        #expect(menu.items.count(where: { $0.view is AccountSegmentedSwitcherView }) == 0)
     }
 
     @Test
@@ -416,7 +416,7 @@ struct StatusMenuCodexSwitcherTests {
         let menu = controller.makeMenu(for: .codex)
         controller.menuWillOpen(menu)
 
-        #expect(menu.items.compactMap { $0.view as? CodexAccountSwitcherView }.first == nil)
+        #expect(menu.items.compactMap { $0.view as? AccountSegmentedSwitcherView }.first == nil)
         #expect(self.representedIDs(in: menu).filter { $0.hasPrefix("menuCard") } == ["menuCard-0", "menuCard-1"])
     }
 
@@ -468,7 +468,7 @@ struct StatusMenuCodexSwitcherTests {
         let menu = controller.makeMenu(for: .codex)
         controller.menuWillOpen(menu)
 
-        #expect(menu.items.compactMap { $0.view as? CodexAccountSwitcherView }.first == nil)
+        #expect(menu.items.compactMap { $0.view as? AccountSegmentedSwitcherView }.first == nil)
         #expect(self.representedIDs(in: menu).filter { $0.hasPrefix("menuCard") } == ["menuCard-0", "menuCard-1"])
     }
 
@@ -499,7 +499,7 @@ struct StatusMenuCodexSwitcherTests {
                 canRemove: true),
         ]
 
-        let view = CodexAccountSwitcherView(
+        let view = CodexAccountSwitcherLabeling.switcherView(
             accounts: accounts,
             selectedAccountID: accounts.first?.id,
             width: 220,
@@ -514,7 +514,12 @@ struct StatusMenuCodexSwitcherTests {
         #expect(titles[0].contains("|") == false)
         #expect(titles[0].lowercased().contains("pers") == false)
         #expect(titles[1].lowercased().contains("id"))
-        #expect(toolTips == accounts.map(\.menuDisplayName))
+        #expect(toolTips == accounts.map {
+            AccountSegmentedSwitcherView.accessibilityDescription(
+                fullLabel: $0.menuDisplayName,
+                isSystem: $0.isLive,
+                isSelected: $0.id == accounts.first?.id)
+        })
         #expect(accounts[0].displayName == "pl.fr@yandex.com — Personal")
         #expect(accounts[0].menuDisplayName == "pl.fr@yandex.com")
     }
@@ -546,7 +551,7 @@ struct StatusMenuCodexSwitcherTests {
                 canRemove: true),
         ]
 
-        let view = CodexAccountSwitcherView(
+        let view = CodexAccountSwitcherLabeling.switcherView(
             accounts: accounts,
             selectedAccountID: accounts.first?.id,
             width: 310,
@@ -584,7 +589,7 @@ struct StatusMenuCodexSwitcherTests {
                 canRemove: true),
         ]
 
-        let view = CodexAccountSwitcherView(
+        let view = CodexAccountSwitcherLabeling.switcherView(
             accounts: accounts,
             selectedAccountID: accounts.first?.id,
             width: 220,
@@ -592,7 +597,8 @@ struct StatusMenuCodexSwitcherTests {
         let titles = view._test_buttonTitles()
 
         #expect(titles.count == 2)
-        #expect(titles[0].hasPrefix("local"))
+        // The live account carries the System marker before its fitted title.
+        #expect(titles[0].hasPrefix("● local"))
         #expect(titles[0].contains("…"))
         #expect(titles[0].hasSuffix(".com"))
         #expect(titles[1].hasPrefix("second"))
@@ -624,7 +630,7 @@ struct StatusMenuCodexSwitcherTests {
                 canRemove: true),
         ]
         var selectedAccount: CodexVisibleAccount?
-        let view = CodexAccountSwitcherView(
+        let view = CodexAccountSwitcherLabeling.switcherView(
             accounts: accounts,
             selectedAccountID: accounts.first?.id,
             width: 220,
@@ -899,7 +905,7 @@ extension StatusMenuCodexSwitcherTests {
                 canReauthenticate: true,
                 canRemove: true),
         ]
-        let view = CodexAccountSwitcherView(
+        let view = CodexAccountSwitcherLabeling.switcherView(
             accounts: accounts,
             selectedAccountID: accounts.first?.id,
             width: 220,
@@ -934,7 +940,7 @@ extension StatusMenuCodexSwitcherTests {
                 canRemove: true),
         ]
         var selectedAccount: CodexVisibleAccount?
-        let view = CodexAccountSwitcherView(
+        let view = CodexAccountSwitcherLabeling.switcherView(
             accounts: accounts,
             selectedAccountID: accounts.first?.id,
             width: 220,
@@ -987,7 +993,7 @@ extension StatusMenuCodexSwitcherTests {
                 canRemove: false),
         ]
         var selectedAccount: CodexVisibleAccount?
-        let view = CodexAccountSwitcherView(
+        let view = CodexAccountSwitcherLabeling.switcherView(
             accounts: accounts,
             selectedAccountID: accounts.first?.id,
             width: 220,
@@ -995,6 +1001,94 @@ extension StatusMenuCodexSwitcherTests {
 
         #expect(view._test_simulateRuntimeClick(id: "second-row@example.com") == true)
         #expect(selectedAccount == accounts[3])
+    }
+
+    @Test
+    func `codex account cards show system account switch feedback for their account`() throws {
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+        let managedID = try #require(UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-111111111111"))
+        let managed = CodexVisibleAccount(
+            id: "managed@example.com",
+            email: "managed@example.com",
+            authFingerprint: "fixture-auth",
+            storedAccountID: managedID,
+            selectionSource: .managedAccount(id: managedID),
+            isActive: false,
+            isLive: false,
+            canReauthenticate: true,
+            canRemove: true)
+        let live = CodexVisibleAccount(
+            id: "live@example.com",
+            email: "live@example.com",
+            storedAccountID: nil,
+            selectionSource: .liveSystem,
+            isActive: true,
+            isLive: true,
+            canReauthenticate: true,
+            canRemove: false)
+
+        // Stacked and compact Codex menus build one card per account through this model.
+        controller.systemAccountSwitchFeedback.begin(
+            provider: .codex, accountID: managed.id, label: "managed@example.com", cliName: "Codex")
+        let target = try #require(controller.codexAccountMenuCardModel(for: managed, accountSnapshot: nil))
+        #expect(target.subtitleText == "Switching Codex to managed@example.com…")
+        #expect(target.subtitleStyle == .loading)
+        let other = try #require(controller.codexAccountMenuCardModel(for: live, accountSnapshot: nil))
+        #expect(other.subtitleStyle != .loading)
+
+        controller.systemAccountSwitchFeedback.finish(
+            provider: .codex, outcome: .failed(title: "Could not switch system account", message: "Boom"))
+        let failed = try #require(controller.codexAccountMenuCardModel(for: managed, accountSnapshot: nil))
+        #expect(failed.subtitleText == "Boom")
+        #expect(failed.subtitleStyle == .error)
+    }
+
+    @Test
+    func `codex switcher marks the live account as system`() throws {
+        let managedID = try #require(UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-111111111111"))
+        let live = CodexVisibleAccount(
+            id: "live@example.com",
+            email: "live@example.com",
+            storedAccountID: nil,
+            selectionSource: .liveSystem,
+            isActive: false,
+            isLive: true,
+            canReauthenticate: true,
+            canRemove: false)
+        let managed = CodexVisibleAccount(
+            id: "managed@example.com",
+            email: "managed@example.com",
+            storedAccountID: managedID,
+            selectionSource: .managedAccount(id: managedID),
+            isActive: true,
+            isLive: false,
+            canReauthenticate: true,
+            canRemove: true)
+        let view = CodexAccountSwitcherLabeling.switcherView(
+            accounts: [live, managed],
+            selectedAccountID: managed.id,
+            width: 320,
+            hidePersonalInfo: false,
+            onSelect: { _ in })
+
+        #expect(view._test_buttonTitles() == ["● live@example.com", "managed@example.com"])
+        #expect(view._test_buttonToolTips() == [
+            "live@example.com — System",
+            "managed@example.com — Selected",
+        ])
     }
 }
 
@@ -1062,7 +1156,7 @@ extension StatusMenuCodexSwitcherTests {
 
         let menu = controller.makeMenu()
         controller.menuWillOpen(menu)
-        let switcher = try #require(menu.items.compactMap { $0.view as? CodexAccountSwitcherView }.first)
+        let switcher = try #require(menu.items.compactMap { $0.view as? AccountSegmentedSwitcherView }.first)
         let managedVisibleAccount = try #require(settings.codexVisibleAccountProjection.visibleAccounts
             .first { $0.storedAccountID == managedAccountID })
 
@@ -1149,7 +1243,7 @@ extension StatusMenuCodexSwitcherTests {
             let activeController = try #require(controller)
             let menu = activeController.makeMenu()
             activeController.menuWillOpen(menu)
-            let switcher = try #require(menu.items.compactMap { $0.view as? CodexAccountSwitcherView }.first)
+            let switcher = try #require(menu.items.compactMap { $0.view as? AccountSegmentedSwitcherView }.first)
             let managedVisibleAccount = try #require(settings.codexVisibleAccountProjection.visibleAccounts
                 .first { $0.storedAccountID == managedAccountID })
 

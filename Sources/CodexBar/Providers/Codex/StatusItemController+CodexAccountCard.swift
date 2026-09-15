@@ -5,7 +5,7 @@ extension StatusItemController {
         for account: CodexVisibleAccount,
         accountSnapshot: CodexAccountUsageSnapshot?) -> UsageMenuCardView.Model?
     {
-        self.menuCardModel(
+        let model = self.menuCardModel(
             for: .codex,
             context: .account(.init(
                 snapshot: accountSnapshot?.snapshot,
@@ -13,5 +13,8 @@ extension StatusItemController {
                 info: self.accountInfo(for: account),
                 historySelection: self.store.codexPlanUtilizationHistorySelection(forVisibleAccount: account),
                 credits: accountSnapshot?.credits)))
+        // Stacked and compact layouts render one card per account; switch feedback belongs on its target's card.
+        return model?.applyingSwitchFeedback(
+            self.systemAccountSwitchDisplayFeedback(for: .codex).subtitle(for: .codex, accountID: account.id))
     }
 }

@@ -1,0 +1,42 @@
+[
+  {
+    "image" : "codex-loading-light.png",
+    "subtitle" : "Switching Codex to person@example.com…",
+    "visibleText" : "Codex person@example.com Switching Codex to person@example.com... No usage yet"
+  },
+  {
+    "image" : "codex-private-loading-light.png",
+    "subtitle" : "Switching Codex to Account…",
+    "visibleText" : "Codex Switching Codex to Account... No usage yet"
+  },
+  {
+    "image" : "codex-success-light.png",
+    "subtitle" : "Account is now the System account",
+    "visibleText" : "Codex Account is now the System account No usage yet"
+  },
+  {
+    "image" : "codex-failure-light.png",
+    "subtitle" : "Synthetic switch failure",
+    "visibleText" : "Codex Synthetic switch failure No usage yet"
+  },
+  {
+    "image" : "codex-loading-dark.png",
+    "subtitle" : "Switching Codex to person@example.com…",
+    "visibleText" : "Codex Switching Codex to person@example.com... person@example.com No usage yet"
+  },
+  {
+    "image" : "codex-private-loading-dark.png",
+    "subtitle" : "Switching Codex to Account…",
+    "visibleText" : "Codex Switching Codex to Account... No usage yet"
+  },
+  {
+    "image" : "codex-success-dark.png",
+    "subtitle" : "Account is now the System account",
+    "visibleText" : "Codex Account is now the System account No usage yet"
+  },
+  {
+    "image" : "codex-failure-dark.png",
+    "subtitle" : "Synthetic switch failure",
+    "visibleText" : "Codex Synthetic switch failure No usage yet"
+  }
+]

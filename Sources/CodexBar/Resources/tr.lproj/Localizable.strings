@@ -1582,3 +1582,10 @@
 
 "agent_sessions_hide_unreachable_title" = "Erişilemeyen ana bilgisayarları gizle";
 "agent_sessions_hide_unreachable_subtitle" = "Oturumları alınamadığında ana bilgisayarları gizle.";
+"System Account" = "Sistem hesabı";
+"Selected" = "Seçili";
+"Switching %1$@ to %2$@…" = "%1$@, %2$@ hesabına geçiriliyor…";
+"%@ is now the System account" = "%@ artık sistem hesabı";
+"System account switched" = "Sistem hesabı değiştirildi";
+"%1$@ now uses %2$@" = "%1$@ artık %2$@ kullanıyor";
+"That account can no longer be switched to." = "Artık bu hesaba geçilemez.";

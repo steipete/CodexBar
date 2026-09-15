@@ -8,7 +8,8 @@ read_when:
 
 # Claude multi-account and status item decision
 
-Status: **Phase 1 account display implemented; Phase 2 explicit account activation accepted.**
+Status: **Phase 1 account display implemented; Phase 2 explicit account activation accepted and implemented, with
+account selection separated from activation.**
 
 Related: [#1756](https://github.com/steipete/CodexBar/issues/1756),
 [#1268](https://github.com/steipete/CodexBar/issues/1268), and the bounded Claude sign-in repair in
@@ -69,7 +70,11 @@ envelope. CodexBar does not need
 
 ## Phase 1 adapter contract
 
-- Disabled by default. User chooses an executable path and enables “Read accounts from claude-swap.”
+- Disabled by default. The user enables “Read accounts from claude-swap” in the provider's grouped claude-swap
+  settings section. The executable defaults to the standard install location `~/.local/bin/cswap` and is only
+  applied when a file is actually executable there, so enabling the adapter works without typing a path while
+  users without claude-swap installed keep seeing no behavior change. An explicitly configured path always wins,
+  including when it is missing, so a wrong path reports an error instead of silently running a different binary.
 - Execute exactly the argument array `cswap --list --json`. Never invoke a shell or accept config-defined passthrough
   arguments.
 - Require `schemaVersion == 1`; reject unknown versions and partial top-level shapes.
@@ -105,9 +110,12 @@ last refresh, adapter errors, and a link to the upstream project; CodexBar shoul
 
 ## Phase 2 explicit activation contract
 
-- Only an explicit click on an actionable account card can start a switch. Normal activation targets inactive slots.
-  An active slot reporting `foreign_credential` offers **Re-authenticate**, using the same slot command so claude-swap
-  can reconcile its proven credential mismatch. No force flag is used; selecting the active segment remains inspection-only.
+- Only an explicit choice of an inactive, actionable account in the menu's **System Account** submenu can start a
+  switch. An active slot reporting `foreign_credential` offers **Re-authenticate** on its card, using the same slot
+  command so claude-swap can reconcile its proven credential mismatch; no force flag is used.
+  Selecting an account in the segmented switcher — or a row in the compact stacked layout — is view-only: it
+  changes which account's details are displayed and never invokes the adapter. Viewing therefore stays available
+  for unavailable slots and while a switch is in flight.
 - Derive the numeric slot from the already validated account snapshot and execute exactly
   `cswap --switch-to <slot> --json`; never accept free-form arguments or invoke a shell.
 - Serialize switches, validate `schemaVersion == 1` and the returned target slot, and bound captured output.
@@ -119,6 +127,16 @@ last refresh, adapter errors, and a link to the upstream project; CodexBar shoul
   Keep the transaction guard until reconciliation finishes; discard the error if its configuration changes.
 - Keep expired, missing, unknown, and Keychain-inaccessible credential slots non-actionable. Never auto-switch, launch
   sessions, add/import/export/purge accounts, or mutate credentials directly.
+- Keep the viewed account and the source-owned active account visually distinct, and never let one imply the other.
+  The viewed account is menu-local state keyed by `ProviderAccountIdentity`, held for the app session only. It
+  survives refreshes, reordering, and menu closes; it is dropped when the adapter is disabled or its executable
+  changes, falls back to the source-reported active account when its slot disappears, and never invents an active
+  account or changes which account drives the menu bar quota. An explicit view selection takes precedence over
+  pending or failed activation state, while an activation error stays attached to the account that produced it.
+- The filled segment in the switcher is the **Selected** account; a leading `●` marks the **System** account (the one
+  claude-swap reports active). A running switch shows "Switching Claude Code to …" on that account's card, success
+  shows "… is now the System account" until the menu next closes, and when no menu is open at completion CodexBar
+  posts a notification for the success or the failure. Codex uses the same switcher, submenu and feedback.
 
 ## Provider-neutral account model
 
@@ -174,7 +192,8 @@ Icons semantics must be decided before implementation.
 The mock above shows the recommended mode and its Merge Icons conflict. It is intentionally a decision artifact, not
 an implementation screenshot. The following packaged synthetic-account proof verifies the bounded current behavior:
 the separate ambient OAuth action is named “Sign in with Claude Code…”, while inactive claude-swap cards retain their
-explicit “Switch Account…” action. No real credential, browser session, or provider call was used.
+explicit “Switch Account…” action at the time of capture; activation has since moved to the shared System Account
+submenu. No real credential, browser session, or provider call was used.
 
 ![Packaged synthetic Claude sign-in proof](screenshots/claude-sign-in-synthetic-proof.png)
 

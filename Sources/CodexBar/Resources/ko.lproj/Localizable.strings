@@ -1549,3 +1549,10 @@
 
 "agent_sessions_hide_unreachable_title" = "연결할 수 없는 호스트 숨기기";
 "agent_sessions_hide_unreachable_subtitle" = "세션을 가져오지 못한 호스트를 숨깁니다.";
+"System Account" = "시스템 계정";
+"Selected" = "선택됨";
+"Switching %1$@ to %2$@…" = "%1$@을(를) %2$@(으)로 전환하는 중…";
+"%@ is now the System account" = "%@이(가) 이제 시스템 계정입니다";
+"System account switched" = "시스템 계정이 전환됨";
+"%1$@ now uses %2$@" = "%1$@에서 이제 %2$@을(를) 사용합니다";
+"That account can no longer be switched to." = "더 이상 해당 계정으로 전환할 수 없습니다.";

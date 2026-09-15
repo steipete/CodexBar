@@ -4,6 +4,17 @@ import Observation
 struct MenuCardLiveSubtitle {
     let text: String
     let style: UsageMenuCardView.Model.SubtitleStyle
+
+    /// The subtitle a card header renders: live cards follow the refresh monitor, others show their own model.
+    @MainActor
+    static func resolve(
+        model: UsageMenuCardView.Model,
+        refreshMonitor: MenuCardRefreshMonitor?) -> MenuCardLiveSubtitle
+    {
+        let fallback = MenuCardLiveSubtitle(text: model.subtitleText, style: model.subtitleStyle)
+        guard model.usesLiveSubtitle else { return fallback }
+        return refreshMonitor?.subtitle(for: model.provider, fallback: fallback) ?? fallback
+    }
 }
 
 /// Updates values in an already-hosted card without rebuilding its tracked NSMenu.

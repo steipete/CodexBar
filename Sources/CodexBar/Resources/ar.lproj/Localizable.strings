@@ -1584,3 +1584,10 @@
 
 "agent_sessions_hide_unreachable_title" = "إخفاء المضيفين غير المتاحين";
 "agent_sessions_hide_unreachable_subtitle" = "إخفاء المضيفين عند تعذّر جلب جلساتهم.";
+"System Account" = "حساب النظام";
+"Selected" = "محدد";
+"Switching %1$@ to %2$@…" = "جارٍ تبديل %1$@ إلى %2$@…";
+"%@ is now the System account" = "%@ هو الآن حساب النظام";
+"System account switched" = "تم تبديل حساب النظام";
+"%1$@ now uses %2$@" = "يستخدم %1$@ الآن %2$@";
+"That account can no longer be switched to." = "لم يعد بالإمكان التبديل إلى هذا الحساب.";

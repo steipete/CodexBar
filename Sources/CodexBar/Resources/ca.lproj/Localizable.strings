@@ -1582,3 +1582,10 @@
 
 "agent_sessions_hide_unreachable_title" = "Amaga els amfitrions inaccessibles";
 "agent_sessions_hide_unreachable_subtitle" = "Amaga els amfitrions quan falla la consulta de les seves sessions.";
+"System Account" = "Compte del sistema";
+"Selected" = "Seleccionat";
+"Switching %1$@ to %2$@…" = "S'està canviant %1$@ a %2$@…";
+"%@ is now the System account" = "%@ és ara el compte del sistema";
+"System account switched" = "S'ha canviat el compte del sistema";
+"%1$@ now uses %2$@" = "%1$@ ara utilitza %2$@";
+"That account can no longer be switched to." = "Ja no es pot canviar a aquest compte.";

@@ -161,6 +161,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var fallbackMenu: NSMenu?
     var menuAppearanceObserver: StatusMenuAppearanceObserver?
     var openMenus: [ObjectIdentifier: NSMenu] = [:]
+    var systemAccountSwitchState = SystemAccountSwitchState()
     var menuRefreshTasks: [ObjectIdentifier: Task<Void, Never>] = [:]
     /// Manual refreshes tracked per scope so refreshing one provider neither greys out nor blocks
     /// a manual refresh of another. `.global` covers the all-providers refresh (⌘R / merged overview).
@@ -290,7 +291,10 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var mergedSwitcherWarmupTimer: Timer?
     /// Compact multi-account layout: accounts the user expanded to full cards this menu session.
     var compactAccountExpandedIDs: Set<ProviderAccountIdentity> = []
-    var claudeSwapInspectedAccountID: ProviderAccountIdentity?
+    /// Segmented claude-swap menu: which account's details the user asked to view. View-only, kept
+    /// for the app session across menu closes, and scoped to the adapter configuration it was made
+    /// under so disabling the adapter or changing its executable drops it.
+    var claudeSwapViewSelection: ClaudeSwapViewSelection?
     /// Compact multi-account layout: providers whose collapsed healthy tail is revealed this menu session.
     var compactAccountExpandedHealthyTailProviders: Set<ProviderInstanceID> = []
     /// Keeps detached merged-menu tab content reusable while the same menu remains open.

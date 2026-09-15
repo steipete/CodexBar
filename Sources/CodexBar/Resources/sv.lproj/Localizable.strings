@@ -1579,3 +1579,10 @@
 
 "agent_sessions_hide_unreachable_title" = "Dölj värdar som inte kan nås";
 "agent_sessions_hide_unreachable_subtitle" = "Dölj värdar när deras sessioner inte kan hämtas.";
+"System Account" = "Systemkonto";
+"Selected" = "Vald";
+"Switching %1$@ to %2$@…" = "Byter %1$@ till %2$@…";
+"%@ is now the System account" = "%@ är nu systemkontot";
+"System account switched" = "Systemkontot har bytts";
+"%1$@ now uses %2$@" = "%1$@ använder nu %2$@";
+"That account can no longer be switched to." = "Det går inte längre att byta till det kontot.";
