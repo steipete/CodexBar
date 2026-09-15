@@ -635,6 +635,10 @@ extension SettingsStore {
         let agentSessionLabelStyleRaw = userDefaults.string(forKey: "agentSessionLabelStyle")
             ?? AgentSessionLabelStyle.project.rawValue
         let agentSessionsManualHosts = userDefaults.string(forKey: "agentSessionsManualHosts") ?? ""
+        let remoteCostsEnabled = userDefaults.object(forKey: "remoteCostsEnabled") as? Bool ?? false
+        let remoteCostCombinedHosts = userDefaults.string(forKey: "remoteCostCombinedHosts") ?? ""
+        let remoteCostChartColor = userDefaults.string(forKey: "remoteCostChartColor")
+            .flatMap(ProviderColor.init(hexString:)) ?? ProviderColor(hex: 0x64D2FF)
         let agentSessionsHideUnreachableHosts = userDefaults.object(
             forKey: "agentSessionsHideUnreachableHosts") as? Bool ?? false
         let preferredCurrencyCode = userDefaults.string(forKey: "preferredCurrencyCode") ?? "USD"
@@ -734,6 +738,12 @@ extension SettingsStore {
             agentSessionsEnabled: agentSessionsEnabled,
             agentSessionLabelStyleRaw: agentSessionLabelStyleRaw,
             agentSessionsManualHosts: agentSessionsManualHosts,
+            remoteCostsEnabled: remoteCostsEnabled,
+            remoteCostHosts: userDefaults.string(forKey: "remoteCostHosts")
+                ?? userDefaults.string(forKey: "codexRemoteCostHosts")
+                ?? "",
+            remoteCostCombinedHosts: remoteCostCombinedHosts,
+            remoteCostChartColor: remoteCostChartColor,
             agentSessionsHideUnreachableHosts: agentSessionsHideUnreachableHosts,
             preferredCurrencyCode: preferredCurrencyCode,
             iCloudSyncEnabled: iCloudSyncEnabled,

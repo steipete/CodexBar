@@ -158,6 +158,19 @@ struct SpendDashboardPane: View {
                 self.header
                 self.codexCostCatchUpPanel
                 self.content
+                if self.settings.costUsageEnabled,
+                   RemoteCostFetcher.supportedProviders.contains(where: { self.store.isEnabled($0) })
+                {
+                    RemoteCostView(
+                        costs: self.store.remoteCosts,
+                        hidePersonalInfo: self.settings.hidePersonalInfo,
+                        localSnapshots: Dictionary(uniqueKeysWithValues: RemoteCostFetcher.supportedProviders
+                            .compactMap { provider in
+                                self.store.tokenSnapshot(for: provider).map { (provider, $0) }
+                            }),
+                        combinedHosts: Set(
+                            (try? RemoteCostFetcher.hosts(from: self.settings.remoteCostCombinedHosts)) ?? []))
+                }
                 self.provenance
                 self.shareAction
             }
@@ -165,6 +178,7 @@ struct SpendDashboardPane: View {
         }
         .background(FocusResigningBackground())
         .onAppear {
+            self.store.refreshRemoteCosts()
             self.isVisible = true
             self.controller.update(configuration: self.configuration)
             self.controller.refreshIfStale()
@@ -236,6 +250,7 @@ struct SpendDashboardPane: View {
 
             Button {
                 self.store.refreshSpendDashboard(accounts: self.codexSpendScanRequests)
+                self.store.refreshRemoteCosts(force: true)
             } label: {
                 if self.controller.isRefreshing {
                     ProgressView().controlSize(.small)
