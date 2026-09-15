@@ -570,6 +570,9 @@ extension SettingsStore {
             userDefaults: userDefaults,
             costUsageEnabled: costUsageEnabled)
         let hidePersonalInfo = userDefaults.object(forKey: "hidePersonalInfo") as? Bool ?? false
+        // Opt-in only: pings Codex after a 5h window reset so the next window starts immediately.
+        let codexWindowKeepAliveEnabled = userDefaults.object(
+            forKey: "codexWindowKeepAliveEnabled") as? Bool ?? false
         let randomBlinkEnabled = userDefaults.object(forKey: "randomBlinkEnabled") as? Bool ?? false
         let confettiOnReset = Self.loadConfettiOnResetDefaults(userDefaults: userDefaults)
         let menuBarShowsHighestUsage = userDefaults.object(forKey: "menuBarShowsHighestUsage") as? Bool ?? false
@@ -704,6 +707,7 @@ extension SettingsStore {
             costComparisonPeriodsEnabled: costComparisonPeriodsEnabled,
             costSummaryDisplayStyleRaw: costSummaryDisplayStyleRaw,
             hidePersonalInfo: hidePersonalInfo,
+            codexWindowKeepAliveEnabled: codexWindowKeepAliveEnabled,
             randomBlinkEnabled: randomBlinkEnabled,
             confettiOnSessionLimitResetsEnabled: confettiOnReset.session,
             confettiOnWeeklyLimitResetsEnabled: confettiOnReset.weekly,

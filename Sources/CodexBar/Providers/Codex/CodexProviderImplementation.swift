@@ -95,6 +95,34 @@ struct CodexProviderImplementation: ProviderImplementation {
                 onAppDidBecomeActive: nil,
                 onAppearWhenEnabled: nil),
             ProviderSettingsToggleDescriptor(
+                id: "codex-window-keepalive",
+                title: "Auto-start next 5h window",
+                subtitle: [
+                    "Off by default.",
+                    "When the 5-hour window resets, runs one tiny `codex exec` prompt (\"ping\") so the next window",
+                    "starts immediately, even while you are not using Codex.",
+                    "Spends one small request of your ChatGPT subscription window per reset and creates a short",
+                    "Codex session on this Mac. Never runs for API key logins, which have no 5-hour window and",
+                    "would be billed per request.",
+                    "Needs an automatic refresh cadence (not Manual) and the system ChatGPT sign-in; it stays off",
+                    "for added workspace accounts and is dropped if the sign-in changes before it runs.",
+                ].joined(separator: " "),
+                binding: context.binding(\.codexWindowKeepAliveEnabled),
+                statusText: {
+                    Self.windowKeepAliveStatusText(
+                        settings: context.settings,
+                        loginAuthority: { context.store.currentCodexWindowKeepAliveAuthority() })
+                },
+                actions: [],
+                isVisible: nil,
+                isEnabled: { context.settings.refreshFrequency != .manual },
+                onChange: { enabled in
+                    guard !enabled else { return }
+                    context.store.cancelCodexWindowKeepAlive()
+                },
+                onAppDidBecomeActive: nil,
+                onAppearWhenEnabled: nil),
+            ProviderSettingsToggleDescriptor(
                 id: "codex-historical-tracking",
                 title: "Historical tracking",
                 subtitle: historicalTrackingSubtitle,
@@ -294,5 +322,29 @@ struct CodexProviderImplementation: ProviderImplementation {
     func runLoginFlow(context: ProviderLoginContext) async -> Bool {
         await context.controller.runCodexLoginFlow()
         return true
+    }
+
+    /// Explains why an enabled keep-alive toggle is currently inert; nil when the ping can actually run.
+    @MainActor
+    static func windowKeepAliveStatusText(
+        settings: SettingsStore,
+        loginAuthority: () -> UsageStore.CodexWindowKeepAliveAuthority?) -> String?
+    {
+        if settings.refreshFrequency == .manual {
+            return "Inactive while Refresh is set to Manual: the window reset is only detected by automatic refreshes."
+        }
+        if let workspaceID = settings.codexSettingsSnapshot(tokenOverride: nil).managedWorkspaceAccountID,
+           !workspaceID.isEmpty
+        {
+            return "Inactive for the selected added workspace account: `codex exec` can only use the system login."
+        }
+        guard let authority = loginAuthority() else {
+            return "Inactive until Codex is signed in: no readable ChatGPT login in the selected Codex home."
+        }
+        if authority.isAPIKeyLogin {
+            return "Inactive for API key logins: only ChatGPT subscription sign-ins have a 5-hour window, "
+                + "and an API key would be billed per request."
+        }
+        return nil
     }
 }

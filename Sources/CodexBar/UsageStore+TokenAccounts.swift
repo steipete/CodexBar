@@ -1471,6 +1471,9 @@ extension UsageStore {
             self.lastCodexUsagePublicationGuard = publicationGuard
             self.lastCodexAccountScopedRefreshGuard = publicationGuard
             self.snapshots[.codex] = snapshot
+            // Stacked layouts publish the selected account here instead of through refreshProvider's success path,
+            // so the fresh-publication stamp the Codex window keep-alive relies on must be set here too.
+            self.lastSnapshotPublicationAt[.codex] = Date()
             if let sourceLabel {
                 self.lastSourceLabels[.codex] = sourceLabel
             }

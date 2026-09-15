@@ -5,6 +5,15 @@ extension UsageStore {
     private struct ResetBoundaryRefreshCandidate {
         var refreshAt: Date
         var boundaryRefreshAt: Date
+        var window: ResetBoundaryWindow
+    }
+
+    /// The rate window whose reset produced a boundary refresh. Lets provider-specific follow-ups (the
+    /// opt-in Codex window keep-alive) know which window just expired without re-deriving it.
+    struct ResetBoundaryWindow: Equatable, Sendable {
+        var instanceID: ProviderInstanceID
+        var windowMinutes: Int?
+        var resetsAt: Date
     }
 
     func scheduleResetBoundaryRefreshIfNeeded(
@@ -38,19 +47,25 @@ extension UsageStore {
             let delay = max(0, refreshAt.timeIntervalSince(Date()))
             try? await Task.sleep(for: .seconds(delay))
             guard !Task.isCancelled else { return }
-            await self?.runResetBoundaryRefresh(boundaryRefreshAt: candidate.boundaryRefreshAt)
+            await self?.runResetBoundaryRefresh(
+                boundaryRefreshAt: candidate.boundaryRefreshAt,
+                window: candidate.window)
         }
     }
 
-    func runResetBoundaryRefresh(boundaryRefreshAt: Date) async {
+    func runResetBoundaryRefresh(boundaryRefreshAt: Date, window: ResetBoundaryWindow? = nil) async {
         self.resetBoundaryRefreshTask = nil
         self.scheduledResetBoundaryRefreshAt = nil
         guard Self.shouldRecordResetBoundaryAttempt(isRefreshing: self.isRefreshing) else { return }
         // Mark the boundary before the pass so runRefresh cannot schedule the same stale boundary again.
         self.recordAttemptedResetBoundaryRefresh(boundaryRefreshAt)
+        let refreshStartedAt = Date()
         await self.runRefresh(
             startupConnectivityRetryAttempt: nil,
             waitForRefreshAvailability: true)
+        if let window {
+            self.scheduleCodexWindowKeepAliveIfNeeded(after: window, refreshStartedAt: refreshStartedAt)
+        }
     }
 
     private func recordAttemptedResetBoundaryRefresh(_ refreshAt: Date) {
@@ -100,10 +115,10 @@ extension UsageStore {
         guard let normalRefreshInterval else { return nil }
         let normalRefreshDate = now.addingTimeInterval(normalRefreshInterval)
         let earliestAutomaticRefreshDate = minimumAutomaticRefreshInterval.map(now.addingTimeInterval)
-        return snapshots.values
-            .flatMap { snapshot in
+        return snapshots
+            .flatMap { entry in
                 Self.resetBoundaryRefreshCandidates(
-                    snapshot: snapshot,
+                    entry: entry,
                     now: now,
                     normalRefreshDate: normalRefreshDate,
                     earliestAutomaticRefreshDate: earliestAutomaticRefreshDate,
@@ -113,15 +128,20 @@ extension UsageStore {
     }
 
     private nonisolated static func resetBoundaryRefreshCandidates(
-        snapshot: UsageSnapshot,
+        entry: (key: ProviderInstanceID, value: UsageSnapshot),
         now: Date,
         normalRefreshDate: Date,
         earliestAutomaticRefreshDate: Date?,
         attemptedBoundaryRefreshes: Set<Date>)
         -> [ResetBoundaryRefreshCandidate]
     {
-        snapshot.allRateWindows().compactMap { window in
+        let snapshot = entry.value
+        return snapshot.allRateWindows().compactMap { window in
             guard let resetsAt = window.resetsAt else { return nil }
+            let boundaryWindow = ResetBoundaryWindow(
+                instanceID: entry.key,
+                windowMinutes: window.windowMinutes,
+                resetsAt: resetsAt)
             let boundaryRefreshAt = resetsAt.addingTimeInterval(Self.resetBoundaryRefreshGraceSeconds)
             guard !attemptedBoundaryRefreshes.contains(boundaryRefreshAt) else { return nil }
             guard boundaryRefreshAt <= normalRefreshDate else { return nil }
@@ -134,7 +154,8 @@ extension UsageStore {
             guard refreshAt <= normalRefreshDate else { return nil }
             return ResetBoundaryRefreshCandidate(
                 refreshAt: refreshAt,
-                boundaryRefreshAt: boundaryRefreshAt)
+                boundaryRefreshAt: boundaryRefreshAt,
+                window: boundaryWindow)
         }
     }
 }

@@ -176,6 +176,17 @@ is limited, using additional rows when needed.
   `codex --version` works in Terminal, check `which -a codex` for stale duplicate installs, then run
   `npm install -g --include=optional @openai/codex@latest` before retrying Add Account.
 
+### Window keep-alive (optional, off by default)
+- **Auto-start next 5h window** in the Codex provider settings runs
+  `codex exec --skip-git-repo-check --sandbox read-only --json "ping"` once after the 5-hour window resets, so
+  the next window starts immediately instead of waiting for the next real prompt. See `docs/refresh-loop.md`.
+- Uses the RPC executable resolution and the selected account's `CODEX_HOME`; one request per reset, spent only
+  from a ChatGPT subscription login. The login (auth-file fingerprint and account ID) is captured when the ping is
+  admitted and re-verified right before launch, so a changed sign-in never inherits the earlier admission.
+- Inert (and says so under the toggle) when Refresh is Manual, an added workspace account is selected (since
+  `codex exec` cannot carry a selected workspace and would bill the `auth.json` default instead), the home has no
+  readable login, or the login is an `OPENAI_API_KEY` (no 5-hour window; would be billed per request).
+
 ### Codex CLI PTY diagnostics (`/status`)
 - Manual/debug parser only; automatic background refresh and `CodexBarCLI usage --source cli` do not launch bare Codex TUI.
 - Kept for explicit diagnostics/parser coverage because bare `codex` TUI can start interactive auth and open browser tabs.

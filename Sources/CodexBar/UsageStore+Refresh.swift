@@ -727,6 +727,7 @@ extension UsageStore {
             }
             self.lastKnownResetSnapshots[provider.instanceID] = backfilled
             self.snapshots[provider.instanceID] = backfilled
+            self.lastSnapshotPublicationAt[provider.instanceID] = Date()
             self.widgetUsagePreservationBlockedProviders.remove(provider.instanceID)
             if provider == .deepseek {
                 self.clearDeepSeekProfileTransition()

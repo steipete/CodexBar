@@ -686,6 +686,16 @@ extension SettingsStore {
         }
     }
 
+    /// Provider-specific by design: sends one `codex exec` ping after each 5h reset. Off by default.
+    var codexWindowKeepAliveEnabled: Bool {
+        get { self.defaultsState.codexWindowKeepAliveEnabled }
+        set {
+            self.defaultsState.codexWindowKeepAliveEnabled = newValue
+            self.userDefaults.set(newValue, forKey: "codexWindowKeepAliveEnabled")
+            self.noteBackgroundWorkSettingsChanged()
+        }
+    }
+
     var randomBlinkEnabled: Bool {
         get { self.defaultsState.randomBlinkEnabled }
         set {

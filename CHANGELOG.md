@@ -2,6 +2,9 @@
 
 ## 0.60.4 — Unreleased
 
+### Added
+- Codex: optional **Auto-start next 5h window** provider setting (off by default) that sends one tiny `codex exec` ping after the 5-hour window resets, so the next window starts immediately even while idle. The ping only spends a ChatGPT subscription login (never an API key), is bound to the exact sign-in that admitted it and re-verified before launch, only runs after a fresh successful Codex refresh for the system login, honors the Background Work Low Power Mode preference, and is disabled under Manual refresh or for added workspace accounts.
+
 ### Fixed
 - Codex Workspaces: reduce cache-read memory in the experimental debug inspector by skipping raw token snapshots while preserving exact pricing rows and consistent project totals during concurrent scans (#3661). Thanks @apple-ouyang!
 
