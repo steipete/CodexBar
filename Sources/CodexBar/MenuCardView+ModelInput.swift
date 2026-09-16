@@ -11,6 +11,8 @@ extension UsageMenuCardView.Model {
         let creditsError: String?
         let dashboardError: String?
         let tokenSnapshot: CostUsageTokenSnapshot?
+        let remoteCostDaily: [RemoteCostDailySummary]
+        let remoteCostBarColor: ProviderColor?
         let tokenError: String?
         let account: AccountInfo
         let accountIsAuthoritative: Bool
@@ -60,6 +62,8 @@ extension UsageMenuCardView.Model {
             creditsError: String?,
             dashboardError: String?,
             tokenSnapshot: CostUsageTokenSnapshot?,
+            remoteCostDaily: [RemoteCostDailySummary] = [],
+            remoteCostBarColor: ProviderColor? = nil,
             tokenError: String?,
             account: AccountInfo,
             accountIsAuthoritative: Bool = false,
@@ -106,6 +110,8 @@ extension UsageMenuCardView.Model {
             self.creditsError = creditsError
             self.dashboardError = dashboardError
             self.tokenSnapshot = tokenSnapshot
+            self.remoteCostDaily = remoteCostDaily
+            self.remoteCostBarColor = remoteCostBarColor
             self.tokenError = tokenError
             self.account = account
             self.accountIsAuthoritative = accountIsAuthoritative

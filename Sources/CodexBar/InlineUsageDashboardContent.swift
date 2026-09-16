@@ -25,6 +25,8 @@ struct InlineUsageDashboardModel: Equatable {
         let id: String
         let label: String
         let value: Double?
+        /// Portion of `value` contributed by selected SSH devices.
+        var secondaryValue: Double?
         let accessibilityValue: String
         var hoverDetail: HoverDetail?
     }
@@ -44,6 +46,8 @@ struct InlineUsageDashboardModel: Equatable {
     /// Provider branding color used to fill the mini usage bars. When nil the bars fall back to a
     /// neutral palette derived from `valueStyle`.
     var barColor: Color?
+    /// Configurable SSH-device color used to stack the remote portion above the local bar.
+    var secondaryBarColor: Color?
     /// ISO 4217 currency code for cost dashboards. When non-nil, `MiniUsageBars` shows a max-cost scale label.
     /// Nil for token/points dashboards.
     var currencyCode: String?
@@ -95,6 +99,9 @@ extension UsageMenuCardView.Model {
     static func inlineUsageDashboard(input: Input) -> InlineUsageDashboardModel? {
         guard var model = self.resolveInlineUsageDashboard(input: input) else { return nil }
         model.barColor = Self.inlineDashboardBarColor(for: input.provider)
+        if let color = input.remoteCostBarColor {
+            model.secondaryBarColor = Color(red: color.red, green: color.green, blue: color.blue)
+        }
         return model
     }
 
@@ -113,11 +120,8 @@ extension UsageMenuCardView.Model {
            !tokenSnapshot.daily.isEmpty
         {
             return self.costHistoryInlineDashboard(
-                provider: input.provider,
-                snapshot: tokenSnapshot,
-                comparisonPeriodsEnabled: input.costComparisonPeriodsEnabled,
-                preferredCurrencyCode: input.preferredCurrencyCode,
-                calendar: input.costUsageBucketCalendar)
+                input: input,
+                snapshot: tokenSnapshot)
         }
         if menuCard.supportsInlineTokenCostDashboard,
            input.costSummaryInlineEnabled,
@@ -125,11 +129,8 @@ extension UsageMenuCardView.Model {
            !tokenSnapshot.daily.isEmpty || tokenSnapshot.meteredCostUSD != nil
         {
             return Self.costHistoryInlineDashboard(
-                provider: input.provider,
-                snapshot: tokenSnapshot,
-                comparisonPeriodsEnabled: input.costComparisonPeriodsEnabled,
-                preferredCurrencyCode: input.preferredCurrencyCode,
-                calendar: input.costUsageBucketCalendar)
+                input: input,
+                snapshot: tokenSnapshot)
         }
         return nil
     }
@@ -146,26 +147,23 @@ extension UsageMenuCardView.Model {
     }
 
     private static func costHistoryInlineDashboard(
-        provider: UsageProvider,
-        snapshot: CostUsageTokenSnapshot,
-        comparisonPeriodsEnabled: Bool,
-        preferredCurrencyCode: String,
-        calendar: Calendar) -> InlineUsageDashboardModel
+        input: Input,
+        snapshot: CostUsageTokenSnapshot) -> InlineUsageDashboardModel
     {
         let displayCurrencyCode = UsageFormatter.convertedCost(
             0,
-            preferredCurrency: preferredCurrencyCode,
+            preferredCurrency: input.preferredCurrencyCode,
             providerCurrency: snapshot.currencyCode).currencyCode
         func convertedValue(_ value: Double) -> Double {
             UsageFormatter.convertedCost(
                 value,
-                preferredCurrency: preferredCurrencyCode,
+                preferredCurrency: input.preferredCurrencyCode,
                 providerCurrency: snapshot.currencyCode).value
         }
         func convertedString(_ value: Double) -> String {
             UsageFormatter.convertedCostString(
                 value,
-                preferredCurrency: preferredCurrencyCode,
+                preferredCurrency: input.preferredCurrencyCode,
                 providerCurrency: snapshot.currencyCode)
         }
 
@@ -182,7 +180,7 @@ extension UsageMenuCardView.Model {
                 : historyDays == 30
                 ? "30d"
                 : String(format: L("Last %d days"), historyDays))
-        let tokenCost = ProviderDescriptorRegistry.descriptor(for: provider).tokenCost
+        let tokenCost = ProviderDescriptorRegistry.descriptor(for: input.provider).tokenCost
         let historyTitle = tokenCost.historyTitleStyle == .compact ? codexHistoryPeriod : defaultHistoryTitle
         let tokenHistoryTitle = snapshot.historyLabel.map { "\($0) \(L("tokens"))" }
             ?? (historyDays == 1
@@ -208,14 +206,15 @@ extension UsageMenuCardView.Model {
                 snapshot: snapshot,
                 historyDays: historyDays,
                 preservesCalendarDays: tokenCost.preservesCalendarDaysInCharts,
-                calendar: calendar),
+                calendar: input.costUsageBucketCalendar),
             displayCurrencyCode: displayCurrencyCode,
-            convertedValue: convertedValue)
+            convertedValue: convertedValue,
+            remoteDaily: input.remoteCostDaily)
         let latest = CostUsageTokenSnapshot.latestEntry(in: snapshot.daily)
         let usesLatestPrimary = tokenCost.primaryValue == .latestDaily
         let primaryCostUSD = usesLatestPrimary ? latest?.costUSD : snapshot.sessionCostUSD
         var details: [String] = []
-        if comparisonPeriodsEnabled {
+        if input.costComparisonPeriodsEnabled {
             details.append(contentsOf: snapshot.comparisonSummaries().map {
                 let label = Self.costHistoryWindowLabel(days: $0.days)
                 let cost = $0.totalCostUSD.map(convertedString) ?? "—"
@@ -230,7 +229,7 @@ extension UsageMenuCardView.Model {
         if let topModel = Self.topCostModel(from: snapshot.daily) {
             details.append("\(L("Top model")): \(Self.shortModelName(topModel))")
         }
-        let hintLines = Self.tokenUsageHintLines(provider: provider)
+        let hintLines = Self.tokenUsageHintLines(provider: input.provider)
         if tokenCost.hintPlacement == .beforeRequestHistory {
             details.append(contentsOf: hintLines)
         }
@@ -247,7 +246,7 @@ extension UsageMenuCardView.Model {
                 }
             }
         }
-        let providerName = ProviderDefaults.metadata[provider]?.displayName ?? provider.rawValue
+        let providerName = ProviderDefaults.metadata[input.provider]?.displayName ?? input.provider.rawValue
         let accessibilityLabel = L(
             "%@: %@",
             providerName,
@@ -275,7 +274,7 @@ extension UsageMenuCardView.Model {
             kpis.append(tokenHistoryKPI)
             kpis.append(contentsOf: trailingKPIs)
         }
-        if provider == .cursor, let meteredCostUSD = snapshot.meteredCostUSD {
+        if input.provider == .cursor, let meteredCostUSD = snapshot.meteredCostUSD {
             kpis.insert(
                 .init(
                     title: "Cursor-metered",
@@ -375,7 +374,8 @@ extension UsageMenuCardView.Model {
     private static func inlineCostHistoryPoints(
         days: [(date: String, costUSD: Double?, totalTokens: Int?)],
         displayCurrencyCode: String,
-        convertedValue: (Double) -> Double) -> [InlineUsageDashboardModel.Point]
+        convertedValue: (Double) -> Double,
+        remoteDaily: [RemoteCostDailySummary]) -> [InlineUsageDashboardModel.Point]
     {
         let parser = DateFormatter()
         parser.locale = Locale(identifier: "en_US_POSIX")
@@ -385,6 +385,9 @@ extension UsageMenuCardView.Model {
         formatter.locale = codexBarLocalizedLocale()
         formatter.timeZone = parser.timeZone
         formatter.setLocalizedDateFormatFromTemplate("yMMMd")
+        let remoteCostByDate = Dictionary(
+            remoteDaily.compactMap { day in day.costUSD.map { (day.date, $0) } },
+            uniquingKeysWith: +)
         return days.map { day in
             let dateLabel = parser.date(from: day.date).map(formatter.string(from:)) ?? day.date
             let costUSD = day.costUSD.flatMap { $0 >= 0 ? $0 : nil }
@@ -403,6 +406,7 @@ extension UsageMenuCardView.Model {
                 id: day.date,
                 label: Self.shortDayLabel(day.date),
                 value: convertedCost,
+                secondaryValue: remoteCostByDate[day.date].map(convertedValue),
                 accessibilityValue: hoverDetail?.summary ?? "\(dateLabel): \(L("Unknown"))",
                 hoverDetail: hoverDetail)
         }
@@ -551,19 +555,27 @@ struct InlineUsageDashboardContent: View {
                                     for: point,
                                     scale: scale,
                                     available: geometry.size.height)
-                                RoundedRectangle(cornerRadius: 1.5, style: .continuous)
-                                    .fill(self.fill(for: point, scale: scale))
-                                    .frame(width: layout.barWidth)
-                                    .frame(height: barHeight)
-                                    .overlay {
-                                        if point.id == self.selectedPointID {
-                                            RoundedRectangle(cornerRadius: 1.5, style: .continuous)
-                                                .strokeBorder(
-                                                    MenuHighlightStyle.primary(self.isHighlighted),
-                                                    lineWidth: layout.selectionStrokeWidth(barHeight: barHeight))
-                                        }
+                                let secondaryHeight = self.secondaryHeight(for: point, totalHeight: barHeight)
+                                ZStack(alignment: .top) {
+                                    Rectangle().fill(self.fill(for: point, scale: scale))
+                                    if secondaryHeight > 0 {
+                                        Rectangle()
+                                            .fill(self.secondaryFill(for: point, scale: scale))
+                                            .frame(height: secondaryHeight)
                                     }
-                                    .accessibilityLabel(point.accessibilityValue)
+                                }
+                                .frame(width: layout.barWidth)
+                                .frame(height: barHeight)
+                                .clipShape(RoundedRectangle(cornerRadius: 1.5, style: .continuous))
+                                .overlay {
+                                    if point.id == self.selectedPointID {
+                                        RoundedRectangle(cornerRadius: 1.5, style: .continuous)
+                                            .strokeBorder(
+                                                MenuHighlightStyle.primary(self.isHighlighted),
+                                                lineWidth: layout.selectionStrokeWidth(barHeight: barHeight))
+                                    }
+                                }
+                                .accessibilityLabel(point.accessibilityValue)
                             }
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
@@ -633,6 +645,25 @@ struct InlineUsageDashboardContent: View {
                 return Color.white.opacity(0.55 + ratio * 0.35)
             }
             return self.baseColor.opacity(0.42 + ratio * 0.58)
+        }
+
+        private func secondaryHeight(
+            for point: InlineUsageDashboardModel.Point,
+            totalHeight: CGFloat) -> CGFloat
+        {
+            guard let total = point.value, total > 0, let secondary = point.secondaryValue, secondary > 0 else {
+                return 0
+            }
+            return min(totalHeight, totalHeight * CGFloat(secondary / total))
+        }
+
+        private func secondaryFill(for point: InlineUsageDashboardModel.Point, scale: UsageChartScale) -> Color {
+            guard let value = point.value else { return .clear }
+            let ratio = max(0.18, scale.fraction(for: value))
+            if self.isHighlighted {
+                return Color.white.opacity(0.82 + ratio * 0.16)
+            }
+            return (self.model.secondaryBarColor ?? self.baseColor).opacity(0.55 + ratio * 0.45)
         }
 
         private var baseColor: Color {

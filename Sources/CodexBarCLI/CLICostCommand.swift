@@ -35,6 +35,12 @@ extension CodexBarCLI {
         let includePiSessions = Self.decodeCostIncludePiSessions(from: values)
         let useColor = Self.shouldUseColor(noColor: values.flags.contains("noColor"), format: format)
         let historyDays = Self.decodeCostHistoryDays(from: values)
+        let remoteHost = values.options["remote"]?.last
+        let summaryOnly = values.flags.contains("summaryOnly")
+        if remoteHost != nil || summaryOnly {
+            await Self.runRemoteHostCosts(values, providers: providers, unsupported: unsupported, output: output)
+            return
+        }
         // Cursor cost reuses the same cookie-source policy as usage fetches: reject the fetch when the
         // user set Cursor cookies to Off, and forward the Manual header so the dashboard request uses
         // the configured session instead of auto-resolving a different one.
@@ -143,6 +149,143 @@ extension CodexBarCLI {
         }
 
         Self.exit(code: exitCode, output: output, kind: exitCode == .success ? .runtime : .provider)
+    }
+
+    private static func runRemoteHostCosts(
+        _ values: ParsedValues,
+        providers: [UsageProvider],
+        unsupported: [UsageProvider],
+        output: CLIOutputPreferences) async
+    {
+        let remoteHost = values.options["remote"]?.last
+        let summaryOnly = values.flags.contains("summaryOnly")
+        let historyDays = Self.decodeCostHistoryDays(from: values)
+        let force = values.flags.contains("refresh")
+        guard !providers.isEmpty,
+              providers.allSatisfy({ RemoteCostFetcher.supportedProviders.contains($0) }),
+              unsupported.isEmpty,
+              values.options["groupBy"] == nil, !values.flags.contains("breakdown"),
+              !(remoteHost != nil && summaryOnly), !summaryOnly || output.format == .json
+        else {
+            Self.exit(
+                code: .failure,
+                message: "Use --provider codex, claude, or both; --summary-only requires JSON and cannot be " +
+                    "combined with --remote, --group-by or --breakdown.",
+                output: output,
+                kind: .args)
+        }
+        if let remoteHost {
+            do {
+                guard try RemoteCostFetcher.hosts(from: remoteHost) == [remoteHost] else {
+                    throw RemoteCostError.invalidHost
+                }
+            } catch {
+                exit(code: .failure, message: error.localizedDescription, output: output, kind: .args)
+            }
+        }
+        let calendar = CostUsageBucketTimeZone.calendar(
+            identifier: Self.stringFromAppDefaults("tokenCostUsageBucketTimeZone"))
+        var reports: [RemoteHostCostReport] = []
+        for provider in providers {
+            do {
+                // Host summaries use each provider's native local history, excluding pi/OMP mirrors.
+                let snapshot = try await CostUsageFetcher(calendar: calendar).loadTokenSnapshot(
+                    provider: provider,
+                    forceRefresh: force,
+                    historyDays: historyDays,
+                    refreshPricingInBackground: false,
+                    includePiSessions: false)
+                reports.append(RemoteHostCostReport(
+                    host: "local",
+                    provider: provider,
+                    source: "local",
+                    summary: RemoteCostSummary(snapshot: snapshot, provider: provider, calendar: calendar)))
+            } catch {
+                let name = ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
+                reports.append(RemoteHostCostReport(
+                    host: "local",
+                    provider: provider,
+                    source: "local",
+                    summary: nil,
+                    error: "Local \(name) cost history is unavailable."))
+            }
+        }
+        if let remoteHost {
+            do {
+                let summaries = try await RemoteCostFetcher().fetch(
+                    host: remoteHost,
+                    providers: providers,
+                    historyDays: historyDays,
+                    force: force)
+                reports.append(contentsOf: Self.remoteHostCostReports(
+                    host: remoteHost,
+                    providers: providers,
+                    summaries: summaries))
+            } catch {
+                reports.append(contentsOf: providers.map {
+                    RemoteHostCostReport(
+                        host: remoteHost,
+                        provider: $0,
+                        summary: nil,
+                        error: error.localizedDescription)
+                })
+            }
+        }
+        if output.format == .json {
+            if summaryOnly {
+                Self.printJSON(reports.compactMap(\.summary), pretty: output.pretty)
+            } else {
+                Self.printJSON(reports, pretty: output.pretty)
+            }
+        } else {
+            print(reports.map(Self.renderHostCostText).joined(separator: "\n\n"))
+            print("\nHost reports are separate; overlapping histories are not added together.")
+        }
+        let failed = reports.contains { $0.error != nil }
+        Self.exit(code: failed ? .failure : .success, output: output, kind: failed ? .provider : .runtime)
+    }
+
+    static func remoteHostCostReports(
+        host: String,
+        providers: [UsageProvider],
+        summaries: [RemoteCostSummary]) -> [RemoteHostCostReport]
+    {
+        let summariesByProvider = Dictionary(uniqueKeysWithValues: summaries.map { ($0.provider, $0) })
+        return providers.map { provider in
+            guard let summary = summariesByProvider[provider.rawValue] else {
+                return RemoteHostCostReport(
+                    host: host,
+                    provider: provider,
+                    summary: nil,
+                    error: RemoteCostError.unavailable.localizedDescription)
+            }
+            return RemoteHostCostReport(host: host, provider: provider, summary: summary)
+        }
+    }
+
+    static func renderHostCostText(_ report: RemoteHostCostReport) -> String {
+        let host = report.source == "local" ? "This machine" : report.host
+        let providerName = UsageProvider(rawValue: report.provider).map {
+            ProviderDescriptorRegistry.descriptor(for: $0).metadata.displayName
+        } ?? report.provider.capitalized
+        let title = "\(host) — \(providerName)"
+        guard let summary = report.summary else {
+            return "\(title): \(report.error ?? "Cost history unavailable")"
+        }
+        let todayCost = summary.sessionCostUSD.map { UsageFormatter.usdString($0) } ?? "—"
+        let todayTokens = summary.sessionTokens.map(UsageFormatter.tokenCountString) ?? "—"
+        let totalCost = summary.last30DaysCostUSD.map { UsageFormatter.usdString($0) } ?? "—"
+        let totalTokens = summary.last30DaysTokens.map(UsageFormatter.tokenCountString) ?? "—"
+        let coverage = (summary.historyCoverageIsEstablished ? "" : "\nPartial history; scan is incomplete.") +
+            (summary.coverage.unpriced > 0 ? "\nSome usage has no known price." : "")
+        // Provider-specific by design: Claude subscription estimates require different billing semantics.
+        let estimate = report.provider == UsageProvider.claude.rawValue
+            ? "Notional API-rate estimate; subscription charges are not measured"
+            : "API-equivalent estimate; not a subscription bill"
+        return "\(title) — \(estimate)\n" +
+            "Today: \(todayCost) · \(todayTokens) tokens\n" +
+            "Last \(summary.historyDays) days: \(totalCost) · \(totalTokens) tokens\n" +
+            "Day boundaries: \(summary.bucketTimeZone)\(coverage)"
     }
 
     enum CostGroupBy: String {
@@ -907,6 +1050,12 @@ struct CostOptions: CommanderParsable {
 
     @Option(name: .long("group-by"), help: "Group text output by: project | session")
     var groupBy: String?
+
+    @Option(name: .long("remote"), help: "Also report Claude/Codex costs from one SSH host; keep totals separate")
+    var remote: String?
+
+    @Flag(name: .long("summary-only"), help: "Claude/Codex JSON totals only; omit paths and session details")
+    var summaryOnly: Bool = false
 }
 
 struct CostPayload: Encodable, Sendable {

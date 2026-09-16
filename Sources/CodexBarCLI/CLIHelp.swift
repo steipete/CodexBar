@@ -120,12 +120,15 @@ extension CodexBarCLI {
                        [--provider \(ProviderHelp.list)]
                        [--no-color] [--pretty] [--refresh] [--breakdown] [--provider-native-only]
                        [--days <days>] [--group-by project|session]
+                       [--remote <ssh-host>] [--summary-only]
 
         Description:
           Print local token cost usage from Claude/Codex native logs plus supported pi and OMP sessions.
           Antigravity token history is also read locally, with dollar costs left unknown.
           Local readers need no web or provider CLI access; Cursor uses its authenticated dashboard API.
           Use --refresh to bypass cached scan results.
+          With --provider codex, --remote reports local and SSH-host estimates separately.
+          --summary-only emits native Codex JSON totals without identity, project, or session details.
           Use --breakdown with Claude text output to show daily and model details.
           Experimental: use --provider-native-only to exclude pi and OMP session mirrors.
 
@@ -467,6 +470,7 @@ extension CodexBarCLI {
                        [--provider \(ProviderHelp.list)] [--no-color] [--pretty] [--refresh] [--breakdown]
                        [--provider-native-only]
                        [--days <days>] [--group-by project|session]
+                       [--remote <ssh-host>] [--summary-only]
           codexbar sessions [--json|--json-v2] [--pretty]
           codexbar sessions focus <id>
           codexbar dashboard [--pretty] [--timeout <seconds>] [--output <path>]

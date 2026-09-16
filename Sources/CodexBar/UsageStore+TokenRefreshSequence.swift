@@ -23,21 +23,22 @@ extension UsageStore {
         if self.startPendingTokenRefreshRetryIfPossible() {
             return
         }
-        self.startTokenRefreshSequence(force: false, scope: .all)
+        self.startTokenRefreshSequence(force: false, scope: .all, forceRemoteCosts: false)
     }
 
     /// Minimum spacing between forced all-provider cost scans. Menu open may bypass the fetch TTL,
     /// but rapid open/close cycles must not hammer the scanner more than once a minute.
     static let forcedTokenRefreshMinInterval: TimeInterval = 60
 
-    /// Menu-open parity with the manual Refresh action: cost must rescan past the fetch TTL, but
+    /// Menu-open parity with the manual Refresh action: local cost must rescan past its fetch TTL, but
     /// without awaiting (AppKit menu tracking is modal) and without preempting an in-flight
     /// sequence or forced-refresh enrichment tail. The enrichment tail and a forced all-provider
     /// pass already end in fresh cost data, so re-requests coalesce into them. Any other active
     /// sequence may skip TTL-fresh providers, so the request stays pending and one forced pass
     /// runs once that sequence completes. The TTL bypass is floored: a forced pass that started
     /// less than `forcedTokenRefreshMinInterval` ago already delivered fresh cost data, so the
-    /// request is dropped instead of queued.
+    /// request is dropped instead of queued. SSH costs retain their separate 15-minute throttle;
+    /// only explicit user refresh actions force remote scans.
     func scheduleForcedTokenRefresh(now: Date = Date()) {
         if let last = self.lastForcedTokenRefreshStartedAt,
            now.timeIntervalSince(last) >= 0,
@@ -52,7 +53,7 @@ extension UsageStore {
             }
             return
         }
-        self.startTokenRefreshSequence(force: true, scope: .all)
+        self.startTokenRefreshSequence(force: true, scope: .all, forceRemoteCosts: false)
     }
 
     func refreshTokenUsageSequenceNow(force: Bool) async {
@@ -68,6 +69,7 @@ extension UsageStore {
         {
             // A scoped user refresh can run beside unrelated scheduled work. The scheduled
             // sequence still owns the shared slot, so provider refreshes cannot introduce a third pass.
+            if RemoteCostFetcher.supportedProviders.contains(provider) { self.refreshRemoteCosts(force: true) }
             await self.refreshTokenUsage(provider, force: true)
             self.scheduleMemoryPressureRelief()
             return
@@ -92,13 +94,14 @@ extension UsageStore {
         } else if let existing = self.tokenRefreshSequenceTask {
             return existing
         }
-        return self.startTokenRefreshSequence(force: force, scope: scope)
+        return self.startTokenRefreshSequence(force: force, scope: scope, forceRemoteCosts: force)
     }
 
     @discardableResult
     private func startTokenRefreshSequence(
         force: Bool,
-        scope: TokenRefreshSequenceScope) -> Task<Void, Never>
+        scope: TokenRefreshSequenceScope,
+        forceRemoteCosts: Bool) -> Task<Void, Never>
     {
         let providers: [ProviderInstanceID] = switch scope {
         case .all:
@@ -122,7 +125,10 @@ extension UsageStore {
         }
         let task = Task(priority: .utility) { @MainActor [weak self] in
             guard let self else { return }
-            await self.refreshTokenUsageSequence(providers: providers, force: force)
+            await self.refreshTokenUsageSequence(
+                providers: providers,
+                force: force,
+                forceRemoteCosts: forceRemoteCosts)
             self.completeTokenRefreshSequence(token: token)
         }
         self.tokenRefreshSequenceTask = task
@@ -159,7 +165,7 @@ extension UsageStore {
         guard !self.hasForcedRefreshEnrichmentInFlight else { return false }
         // The forced all-provider pass rescans every enabled lane, so stale-retry lanes fold into it.
         self.tokenRefreshRetryProviders.subtract(self.enabledProvidersForBackgroundWork())
-        self.startTokenRefreshSequence(force: true, scope: .all)
+        self.startTokenRefreshSequence(force: true, scope: .all, forceRemoteCosts: false)
         return true
     }
 
@@ -184,12 +190,17 @@ extension UsageStore {
         self.tokenRefreshRetryProviders.subtract(providers)
         // Retry only lanes whose prior completion was rejected. Disabled lanes remain pending
         // until re-enabled, while unrelated providers keep their valid TTL and avoid a second scan.
-        self.startTokenRefreshSequence(force: true, scope: .providers(providers))
+        self.startTokenRefreshSequence(force: true, scope: .providers(providers), forceRemoteCosts: false)
         return true
     }
 
-    private func refreshTokenUsageSequence(providers: [ProviderInstanceID], force: Bool) async {
+    private func refreshTokenUsageSequence(
+        providers: [ProviderInstanceID],
+        force: Bool,
+        forceRemoteCosts: Bool) async
+    {
         defer { self.tokenRefreshSequenceProvider = nil }
+        self.refreshRemoteCosts(force: forceRemoteCosts)
         for instanceID in providers {
             if Task.isCancelled {
                 break

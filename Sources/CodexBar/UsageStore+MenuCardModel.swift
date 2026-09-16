@@ -73,6 +73,10 @@ extension UsageStore {
                 : nil
             tokenSnapshot = projected ?? stored
         }
+        let displayedTokenSnapshot = !isSettings && isLive
+            ? self.combinedRemoteCostSnapshot(for: provider, local: tokenSnapshot)
+            : tokenSnapshot
+        let remoteCostDaily = !isSettings && isLive ? self.combinedRemoteCostDaily(for: provider) : []
         let weeklyWindow = codexProjection?.rateWindow(for: .weekly)
             ?? snapshot.flatMap { descriptor.presentation.semanticWindows(snapshot: $0).weekly }
         let weeklyPace = weeklyWindow.flatMap {
@@ -96,7 +100,9 @@ extension UsageStore {
             credits: codexProjection?.credits?.snapshot,
             creditsError: isSettings ? codexProjection?.credits?.userFacingError : nil,
             dashboardError: isSettings ? codexProjection?.userFacingErrors.dashboard : nil,
-            tokenSnapshot: tokenSnapshot,
+            tokenSnapshot: displayedTokenSnapshot,
+            remoteCostDaily: remoteCostDaily,
+            remoteCostBarColor: remoteCostDaily.isEmpty ? nil : self.settings.remoteCostChartColor,
             tokenError: isLive && supportsTokenCost ? self.tokenError(for: provider) : nil,
             account: account?.info ?? (isLive && metadata.usesAccountFallback
                 ? self.accountInfo(for: provider)
