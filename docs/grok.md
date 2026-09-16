@@ -58,6 +58,13 @@ The grok.com billing gRPC-web endpoint remains a best-effort fallback.
      `onDemandUsed.val / onDemandCap.val * 100`. A parseable current period
      without either value represents unknown usage. The reset timestamp comes from
      `config.currentPeriod.end`, then `config.billingPeriodEnd`.
+     A complete `currentPeriod.start/end` also supplies the full window duration;
+     when the current-period end is unavailable, `billingPeriodStart/End` supplies
+     the matching fallback bounds. Missing, invalid, reversed, or future starts
+     leave the duration unknown. Measured weekly windows retain pace projections
+     near reset; time remaining alone is never used to populate the duration.
+     Measured monthly windows keep their Monthly label near reset and do not use
+     weekly pace projections.
    - Unknown usage yields no rate window at all, and a successful strategy ends the
      fetch pipeline, so a period-only credits answer would otherwise hide the usage
      bar for plans whose payload never publishes `creditUsagePercent`. Before that
