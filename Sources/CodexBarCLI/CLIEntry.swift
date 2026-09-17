@@ -18,6 +18,22 @@ import FoundationNetworking
 @main
 enum CodexBarCLI {
     static func main() async {
+        if CommandLine.arguments.dropFirst().first == CodexRemoteLogGuardian.argument {
+            let control = CodexRemoteLogGuardianControl()
+            let monitor = CLITerminationSignalMonitor { _ in control.cancel() }
+            let status = await CodexRemoteLogGuardian.run(
+                arguments: Array(CommandLine.arguments.dropFirst()),
+                environment: ProcessInfo.processInfo.environment,
+                control: control)
+            monitor.cancel()
+            #if canImport(Darwin)
+            Darwin.exit(status)
+            #elseif canImport(Glibc)
+            Glibc.exit(status)
+            #elseif canImport(Musl)
+            Musl.exit(status)
+            #endif
+        }
         if CodexBarCoreResourceSmoke.isRequested() {
             #if canImport(Darwin)
             Darwin.exit(CodexBarCoreResourceSmoke.run())

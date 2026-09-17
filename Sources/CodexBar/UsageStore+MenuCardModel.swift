@@ -61,7 +61,7 @@ extension UsageStore {
             creditsOverride: account?.credits,
             now: now)
         let supportsTokenCost = codexProjection != nil || descriptor.tokenCost.supportsTokenCost
-        let tokenSnapshot: CostUsageTokenSnapshot?
+        var tokenSnapshot: CostUsageTokenSnapshot?
         if isSettings {
             tokenSnapshot = supportsTokenCost ? self.tokenSnapshot(for: provider) : nil
         } else {
@@ -72,6 +72,11 @@ extension UsageStore {
                 ? self.tokenSnapshot(for: provider)
                 : nil
             tokenSnapshot = projected ?? stored
+        }
+        let remoteCostPresentation = isLive && provider == .codex
+            ? self.codexRemoteCostPresentation(now: now) : nil
+        if remoteCostPresentation != nil {
+            tokenSnapshot = self.codexCostPresentationSnapshot(now: now)
         }
         let weeklyWindow = codexProjection?.rateWindow(for: .weekly)
             ?? snapshot.flatMap { descriptor.presentation.semanticWindows(snapshot: $0).weekly }
@@ -97,7 +102,9 @@ extension UsageStore {
             creditsError: isSettings ? codexProjection?.credits?.userFacingError : nil,
             dashboardError: isSettings ? codexProjection?.userFacingErrors.dashboard : nil,
             tokenSnapshot: tokenSnapshot,
-            tokenError: isLive && supportsTokenCost ? self.tokenError(for: provider) : nil,
+            remoteCostPresentation: remoteCostPresentation,
+            tokenError: isLive && supportsTokenCost && remoteCostPresentation?.isCombined != true
+                ? self.tokenError(for: provider) : nil,
             account: account?.info ?? (isLive && metadata.usesAccountFallback
                 ? self.accountInfo(for: provider)
                 : AccountInfo(email: nil, plan: nil)),
@@ -113,14 +120,16 @@ extension UsageStore {
             limitsAvailability: self.knownLimitsAvailability(for: provider),
             usageBarsShowUsed: self.settings.usageBarsShowUsed,
             resetTimeDisplayStyle: self.settings.resetTimeDisplayStyle,
-            tokenCostUsageEnabled: self.settings.isCostUsageEffectivelyEnabled(for: provider),
-            tokenCostIsRefreshing: !isSettings && self.tokenCostRefreshIsActive(for: provider),
+            tokenCostUsageEnabled: self.settings
+                .isCostUsageEffectivelyEnabled(for: provider) || remoteCostPresentation != nil,
+            tokenCostIsRefreshing: remoteCostPresentation != nil
+                ? self.codexRemoteCosts.isRunning : !isSettings && self.tokenCostRefreshIsActive(for: provider),
             codexLocalSessionCostLedgerEnabled: self.settings.codexLocalSessionCostLedgerEnabled,
             // Settings exposes available costs regardless of the menu's display style.
-            costSummaryInlineEnabled: isSettings || self.settings.costSummaryShowsInline(for: provider),
+            costSummaryInlineEnabled: isSettings || self.costPresentationShowsInline(for: provider),
             tokenCostMenuSectionEnabled: isSettings
-                ? self.settings.isCostUsageEffectivelyEnabled(for: provider)
-                : descriptor.tokenCost.showsCostMenuSection && self.settings.costSummaryShowsSubmenu(for: provider),
+                ? self.settings.isCostUsageEffectivelyEnabled(for: provider) || remoteCostPresentation != nil
+                : descriptor.tokenCost.showsCostMenuSection && self.costPresentationShowsSubmenu(for: provider),
             costComparisonPeriodsEnabled: !isSettings && self.settings.costComparisonPeriodsEnabled,
             showOptionalCreditsAndExtraUsage: self.settings.showOptionalCreditsAndExtraUsage,
             copilotBudgetExtrasEnabled: self.settings.copilotBudgetExtrasEnabled,

@@ -63,6 +63,7 @@ struct CostUsageScannerCodexPriorityTests {
 
         #expect(parsed?.turnID == "turn")
         #expect(parsed?.model == "completed-model")
+        #expect(parsed?.threadID == "thread")
     }
 
     @Test

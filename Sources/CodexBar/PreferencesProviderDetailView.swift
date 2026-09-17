@@ -205,6 +205,10 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
                 self.supplementarySettingsContent
             }
 
+            if self.provider == .codex {
+                CodexRemoteCostSettingsView(store: self.store)
+            }
+
             ProviderAccentColorSettingsView(provider: self.provider, settings: self.store.settings)
 
             ProviderQuotaWarningSettingsView(provider: self.provider, settings: self.store.settings)

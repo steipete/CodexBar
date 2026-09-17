@@ -170,6 +170,7 @@ extension InlineUsageDashboardModel {
     fileprivate var heightFingerprint: String {
         MenuCardHeightFingerprint.join([
             MenuCardHeightFingerprint.field("accessibility", self.accessibilityLabel),
+            "detailLineLimit=\(self.detailLineLimit.map(String.init) ?? "all")",
             self.valueStyle.heightFingerprint,
             MenuCardHeightFingerprint.join(self.kpis.map(\.heightFingerprint)),
             MenuCardHeightFingerprint.join(self.points.map(\.heightFingerprint)),

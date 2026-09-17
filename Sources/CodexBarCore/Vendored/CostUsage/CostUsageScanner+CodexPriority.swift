@@ -1079,7 +1079,7 @@ extension CostUsageScanner {
             timestamp: timestamp)
     }
 
-    static func parseCodexCompletedTraceRow(body: String) -> (turnID: String, model: String)? {
+    static func parseCodexCompletedTraceRow(body: String) -> (turnID: String, model: String, threadID: String?)? {
         let marker = "websocket event:"
         guard let markerRange = body.range(of: marker) else { return nil }
         let prefix = String(body[..<markerRange.lowerBound])
@@ -1096,7 +1096,7 @@ extension CostUsageScanner {
             ?? self.value(named: "turn_id", in: prefix)
         guard let turnID, !turnID.isEmpty else { return nil }
 
-        return (turnID: turnID, model: model)
+        return (turnID: turnID, model: model, threadID: self.value(named: "thread_id", in: prefix))
     }
 
     private static func value(named name: String, in text: String) -> String? {

@@ -180,6 +180,7 @@ extension UsageMenuCardView.Model {
         provider: UsageProvider,
         enabled: Bool,
         isRefreshing: Bool = false,
+        scopePresentation: CodexRemoteCostPresentation? = nil,
         comparisonPeriodsEnabled: Bool,
         snapshot: CostUsageTokenSnapshot?,
         error: String?,
@@ -190,7 +191,16 @@ extension UsageMenuCardView.Model {
             return nil
         }
         guard enabled else { return nil }
-        guard let snapshot else { return nil }
+        guard let snapshot else {
+            guard let scopePresentation else { return nil }
+            return TokenUsageSection(
+                isRefreshing: isRefreshing,
+                sessionLine: "This Mac’s local history is unavailable.",
+                monthLine: "No local amount is assumed.",
+                hintLine: scopePresentation.lines.joined(separator: "\n"),
+                errorLine: nil,
+                errorCopyText: nil)
+        }
 
         let sessionCost = snapshot.sessionCostUSD.map {
             UsageFormatter.convertedCostString(
@@ -256,7 +266,10 @@ extension UsageMenuCardView.Model {
         let incompleteCount = CostUsageIncompleteRequests.sum(snapshot.daily.map(\.incompleteRequestCount))
         let todayIncompleteCount = snapshot.summary(forLastDays: 1, calendar: calendar).incompleteRequestCount
         let err = (error?.isEmpty ?? true) ? nil : error
-        let hints = [Self.tokenUsageHint(provider: provider), UsageFormatter.incompleteUsageNote(incompleteCount)]
+        let hints = [
+            scopePresentation?.lines.joined(separator: "\n") ?? Self.tokenUsageHint(provider: provider),
+            UsageFormatter.incompleteUsageNote(incompleteCount),
+        ]
             .compactMap(\.self)
         return TokenUsageSection(
             isRefreshing: isRefreshing,

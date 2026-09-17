@@ -1,5 +1,27 @@
 import CodexBarCore
 import Foundation
+#if canImport(WidgetKit)
+import WidgetKit
+#endif
+
+/// Injected publication dependencies let isolated UI hosts prove they never discover the App Group.
+@MainActor
+struct ProviderAccentPublication {
+    let isRunningTests: Bool
+    let mirror: ([ProviderInstanceID: ProviderColor]) -> Bool
+    let reloadWidgetTimelines: () -> Void
+
+    static var live: Self {
+        Self(
+            isRunningTests: SettingsStore.isRunningTests,
+            mirror: { ProviderAccentColors.mirrorToSharedDefaults($0) },
+            reloadWidgetTimelines: {
+                #if canImport(WidgetKit)
+                WidgetCenter.shared.reloadAllTimelines()
+                #endif
+            })
+    }
+}
 
 /// Resolved provider accent colors for the running app.
 ///
@@ -21,15 +43,19 @@ enum ProviderAccentPalette {
     /// edits the config file while the app is closed.
     @MainActor
     @discardableResult
-    static func apply(config: CodexBarConfig) -> Bool {
+    static func apply(
+        config: CodexBarConfig,
+        allowsSharedDefaults: Bool = true,
+        publication: ProviderAccentPublication = .live) -> Bool
+    {
         let resolved = ProviderAccentColors.overrides(in: config)
         self.lock.lock()
         self.overrides = resolved
         self.lock.unlock()
         // A test process can open the real App Group suite on a developer's Mac, so a test config
         // would otherwise overwrite the colors that developer actually uses.
-        guard !SettingsStore.isRunningTests else { return false }
-        return ProviderAccentColors.mirrorToSharedDefaults(resolved)
+        guard allowsSharedDefaults, !publication.isRunningTests else { return false }
+        return publication.mirror(resolved)
     }
 
     /// The user override for a provider, or nil when the provider keeps its shipped color.

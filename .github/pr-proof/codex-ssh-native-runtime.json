@@ -1,0 +1,580 @@
+{
+  "schemaVersion": 1,
+  "testedSourceCommit": "8f1df3474591fd4f4838a6b618b80c00e3cace1d",
+  "bundleCommit": "8f1df347",
+  "buildTimestamp": "2026-09-16T14:49:53Z",
+  "appBinarySHA256": "6c58adeff1cfcbc82602d04e975e7176d3afd0f128997d44b7585fa79908c33c",
+  "guardianBinarySHA256": "db8a4e8719ec887943e4d4e66e3031e0c86fccd45d3c46178e441db0a192c6ee",
+  "environment": {
+    "client": "macOS 27.0 arm64, Swift 6.3.2",
+    "server": "Debian 12 x86_64 container on a remote Intel Mac, reached through an SSH jump host",
+    "linuxCompiler": "Swift 6.3.3",
+    "clientCalendar": "Asia/Shanghai",
+    "syntheticOnly": true
+  },
+  "fixture": {
+    "model": "custom-codex-model",
+    "fixtureTimestamp": "2026-09-16T13:44:01Z",
+    "local": {
+      "todayTokens": 220000,
+      "todayUSD": 0.732,
+      "historyTokens": 330000,
+      "historyUSD": 1.098
+    },
+    "combined": {
+      "todayTokens": 550000,
+      "todayUSD": 1.83,
+      "historyTokens": 715000,
+      "historyUSD": 2.379
+    },
+    "remoteOnlyDay": "2026-09-13",
+    "duplicatePrefixCountedOnce": true
+  },
+  "requestCounterMeaning": "Explicit refresh transactions, not individual SSH connections",
+  "steps": [
+    {
+      "step": "01-off",
+      "recordedAt": "2026-09-16T14:52:52.251214+00:00",
+      "gitCommit": "8f1df347",
+      "requests": 0,
+      "enabled": false,
+      "consent": false,
+      "running": false,
+      "combined": false,
+      "cleanupRequired": false,
+      "error": "",
+      "todayTokens": 220000,
+      "todayCost": 0.7320000000000001,
+      "windowTokens": 330000,
+      "windowCost": 1.098,
+      "days": [
+        {
+          "cost": 0.36600000000000005,
+          "date": "2026-09-15",
+          "tokens": 110000
+        },
+        {
+          "cost": 0.7320000000000001,
+          "date": "2026-09-16",
+          "tokens": 220000
+        }
+      ],
+      "projects": 1,
+      "sessions": 1,
+      "temporaryEntryCount": 0
+    },
+    {
+      "step": "02-configured-no-request",
+      "recordedAt": "2026-09-16T14:53:10.277370+00:00",
+      "gitCommit": "8f1df347",
+      "requests": 0,
+      "enabled": true,
+      "consent": false,
+      "running": false,
+      "combined": false,
+      "cleanupRequired": false,
+      "error": "",
+      "todayTokens": 220000,
+      "todayCost": 0.7320000000000001,
+      "windowTokens": 330000,
+      "windowCost": 1.098,
+      "days": [
+        {
+          "cost": 0.36600000000000005,
+          "date": "2026-09-15",
+          "tokens": 110000
+        },
+        {
+          "cost": 0.7320000000000001,
+          "date": "2026-09-16",
+          "tokens": 220000
+        }
+      ],
+      "projects": 1,
+      "sessions": 1,
+      "temporaryEntryCount": 0
+    },
+    {
+      "step": "03-consent-cancelled",
+      "recordedAt": "2026-09-16T14:53:37.763342+00:00",
+      "gitCommit": "8f1df347",
+      "requests": 0,
+      "enabled": true,
+      "consent": false,
+      "running": false,
+      "combined": false,
+      "cleanupRequired": false,
+      "error": "",
+      "todayTokens": 220000,
+      "todayCost": 0.7320000000000001,
+      "windowTokens": 330000,
+      "windowCost": 1.098,
+      "days": [
+        {
+          "cost": 0.36600000000000005,
+          "date": "2026-09-15",
+          "tokens": 110000
+        },
+        {
+          "cost": 0.7320000000000001,
+          "date": "2026-09-16",
+          "tokens": 220000
+        }
+      ],
+      "projects": 1,
+      "sessions": 1,
+      "temporaryEntryCount": 0
+    },
+    {
+      "step": "04-combined",
+      "recordedAt": "2026-09-16T14:54:13.052017+00:00",
+      "gitCommit": "8f1df347",
+      "requests": 1,
+      "enabled": true,
+      "consent": true,
+      "running": false,
+      "combined": true,
+      "cleanupRequired": false,
+      "error": "",
+      "todayTokens": 550000,
+      "todayCost": 1.83,
+      "windowTokens": 715000,
+      "windowCost": 2.379,
+      "days": [
+        {
+          "cost": 0.18300000000000002,
+          "date": "2026-09-13",
+          "tokens": 55000
+        },
+        {
+          "cost": 0.36600000000000005,
+          "date": "2026-09-15",
+          "tokens": 110000
+        },
+        {
+          "cost": 1.83,
+          "date": "2026-09-16",
+          "tokens": 550000
+        }
+      ],
+      "projects": 0,
+      "sessions": 0,
+      "temporaryEntryCount": 0
+    },
+    {
+      "step": "05-hidden",
+      "recordedAt": "2026-09-16T14:54:49.107726+00:00",
+      "gitCommit": "8f1df347",
+      "requests": 1,
+      "enabled": true,
+      "consent": true,
+      "running": false,
+      "combined": true,
+      "cleanupRequired": false,
+      "error": "",
+      "todayTokens": 550000,
+      "todayCost": 1.83,
+      "windowTokens": 715000,
+      "windowCost": 2.379,
+      "days": [
+        {
+          "cost": 0.18300000000000002,
+          "date": "2026-09-13",
+          "tokens": 55000
+        },
+        {
+          "cost": 0.36600000000000005,
+          "date": "2026-09-15",
+          "tokens": 110000
+        },
+        {
+          "cost": 1.83,
+          "date": "2026-09-16",
+          "tokens": 550000
+        }
+      ],
+      "projects": 0,
+      "sessions": 0,
+      "temporaryEntryCount": 0
+    },
+    {
+      "step": "06-config-invalidated",
+      "recordedAt": "2026-09-16T14:54:58.440345+00:00",
+      "gitCommit": "8f1df347",
+      "requests": 1,
+      "enabled": true,
+      "consent": true,
+      "running": false,
+      "combined": false,
+      "cleanupRequired": false,
+      "error": "",
+      "todayTokens": 220000,
+      "todayCost": 0.7320000000000001,
+      "windowTokens": 330000,
+      "windowCost": 1.098,
+      "days": [
+        {
+          "cost": 0.36600000000000005,
+          "date": "2026-09-15",
+          "tokens": 110000
+        },
+        {
+          "cost": 0.7320000000000001,
+          "date": "2026-09-16",
+          "tokens": 220000
+        }
+      ],
+      "projects": 1,
+      "sessions": 1,
+      "temporaryEntryCount": 0
+    },
+    {
+      "step": "07-unreachable-fallback",
+      "recordedAt": "2026-09-16T14:55:45.507073+00:00",
+      "gitCommit": "8f1df347",
+      "requests": 2,
+      "enabled": true,
+      "consent": true,
+      "running": false,
+      "combined": false,
+      "cleanupRequired": false,
+      "error": "The SSH log source could not be read. Check connectivity and noninteractive access.",
+      "todayTokens": 220000,
+      "todayCost": 0.7320000000000001,
+      "windowTokens": 330000,
+      "windowCost": 1.098,
+      "days": [
+        {
+          "cost": 0.36600000000000005,
+          "date": "2026-09-15",
+          "tokens": 110000
+        },
+        {
+          "cost": 0.7320000000000001,
+          "date": "2026-09-16",
+          "tokens": 220000
+        }
+      ],
+      "projects": 1,
+      "sessions": 1,
+      "temporaryEntryCount": 0
+    },
+    {
+      "step": "08-recovered",
+      "recordedAt": "2026-09-16T14:56:11.441387+00:00",
+      "gitCommit": "8f1df347",
+      "requests": 3,
+      "enabled": true,
+      "consent": true,
+      "running": false,
+      "combined": true,
+      "cleanupRequired": false,
+      "error": "",
+      "todayTokens": 550000,
+      "todayCost": 1.83,
+      "windowTokens": 715000,
+      "windowCost": 2.379,
+      "days": [
+        {
+          "cost": 0.18300000000000002,
+          "date": "2026-09-13",
+          "tokens": 55000
+        },
+        {
+          "cost": 0.36600000000000005,
+          "date": "2026-09-15",
+          "tokens": 110000
+        },
+        {
+          "cost": 1.83,
+          "date": "2026-09-16",
+          "tokens": 550000
+        }
+      ],
+      "projects": 0,
+      "sessions": 0,
+      "temporaryEntryCount": 0,
+      "temporaryBytes": 0,
+      "temporaryFileModes": [],
+      "temporaryDirectoryModes": []
+    },
+    {
+      "step": "09-transfer-active",
+      "recordedAt": "2026-09-16T14:56:32.090537+00:00",
+      "gitCommit": "8f1df347",
+      "requests": 4,
+      "enabled": true,
+      "consent": true,
+      "running": true,
+      "combined": true,
+      "cleanupRequired": false,
+      "error": "",
+      "todayTokens": 550000,
+      "todayCost": 1.83,
+      "windowTokens": 715000,
+      "windowCost": 2.379,
+      "days": [
+        {
+          "cost": 0.18300000000000002,
+          "date": "2026-09-13",
+          "tokens": 55000
+        },
+        {
+          "cost": 0.36600000000000005,
+          "date": "2026-09-15",
+          "tokens": 110000
+        },
+        {
+          "cost": 1.83,
+          "date": "2026-09-16",
+          "tokens": 550000
+        }
+      ],
+      "projects": 0,
+      "sessions": 0,
+      "temporaryEntryCount": 1,
+      "temporaryBytes": 37847782,
+      "temporaryFileModes": [
+        "0o600"
+      ],
+      "temporaryDirectoryModes": [
+        "0o700"
+      ]
+    },
+    {
+      "step": "10-cancelled-clean",
+      "recordedAt": "2026-09-16T14:57:10.681081+00:00",
+      "gitCommit": "8f1df347",
+      "requests": 4,
+      "enabled": true,
+      "consent": true,
+      "running": false,
+      "combined": false,
+      "cleanupRequired": false,
+      "error": "Server refresh cancelled. Only this Mac is shown.",
+      "todayTokens": 220000,
+      "todayCost": 0.7320000000000001,
+      "windowTokens": 330000,
+      "windowCost": 1.098,
+      "days": [
+        {
+          "cost": 0.36600000000000005,
+          "date": "2026-09-15",
+          "tokens": 110000
+        },
+        {
+          "cost": 0.7320000000000001,
+          "date": "2026-09-16",
+          "tokens": 220000
+        }
+      ],
+      "projects": 1,
+      "sessions": 1,
+      "temporaryEntryCount": 0,
+      "temporaryBytes": 0,
+      "temporaryFileModes": [],
+      "temporaryDirectoryModes": []
+    },
+    {
+      "step": "11-disabled",
+      "recordedAt": "2026-09-16T14:57:26.203323+00:00",
+      "gitCommit": "8f1df347",
+      "requests": 4,
+      "enabled": false,
+      "consent": true,
+      "running": false,
+      "combined": false,
+      "cleanupRequired": false,
+      "error": "",
+      "todayTokens": 220000,
+      "todayCost": 0.7320000000000001,
+      "windowTokens": 330000,
+      "windowCost": 1.098,
+      "days": [
+        {
+          "cost": 0.36600000000000005,
+          "date": "2026-09-15",
+          "tokens": 110000
+        },
+        {
+          "cost": 0.7320000000000001,
+          "date": "2026-09-16",
+          "tokens": 220000
+        }
+      ],
+      "projects": 1,
+      "sessions": 1,
+      "temporaryEntryCount": 0,
+      "temporaryBytes": 0,
+      "temporaryFileModes": [],
+      "temporaryDirectoryModes": []
+    },
+    {
+      "step": "12-quit-transfer-active",
+      "recordedAt": "2026-09-16T14:57:48.268035+00:00",
+      "gitCommit": "8f1df347",
+      "requests": 5,
+      "enabled": true,
+      "consent": true,
+      "running": true,
+      "combined": false,
+      "cleanupRequired": false,
+      "error": "",
+      "todayTokens": 220000,
+      "todayCost": 0.7320000000000001,
+      "windowTokens": 330000,
+      "windowCost": 1.098,
+      "days": [
+        {
+          "cost": 0.36600000000000005,
+          "date": "2026-09-15",
+          "tokens": 110000
+        },
+        {
+          "cost": 0.7320000000000001,
+          "date": "2026-09-16",
+          "tokens": 220000
+        }
+      ],
+      "projects": 1,
+      "sessions": 1,
+      "temporaryEntryCount": 1,
+      "temporaryBytes": 36766438,
+      "temporaryFileModes": [
+        "0o600"
+      ],
+      "temporaryDirectoryModes": [
+        "0o700"
+      ]
+    },
+    {
+      "step": "13-quit-clean",
+      "recordedAt": "2026-09-16T14:58:28.749545+00:00",
+      "gitCommit": "8f1df347",
+      "requests": 5,
+      "enabled": true,
+      "consent": true,
+      "running": false,
+      "combined": false,
+      "cleanupRequired": false,
+      "error": "",
+      "todayTokens": 220000,
+      "todayCost": 0.7320000000000001,
+      "windowTokens": 330000,
+      "windowCost": 1.098,
+      "days": [
+        {
+          "cost": 0.36600000000000005,
+          "date": "2026-09-15",
+          "tokens": 110000
+        },
+        {
+          "cost": 0.7320000000000001,
+          "date": "2026-09-16",
+          "tokens": 220000
+        }
+      ],
+      "projects": 1,
+      "sessions": 1,
+      "temporaryEntryCount": 0,
+      "temporaryBytes": 0,
+      "temporaryFileModes": [],
+      "temporaryDirectoryModes": []
+    }
+  ],
+  "integrity": {
+    "syntheticLocalJSONLSHA256": "c49627022f1efc4821ead2a8ff7ad91076273449d2ead7f94f750e35ce3dba44",
+    "syntheticLocalDatabaseSHA256": "0a2d8305d3ada4b8361a57dcbd215000c19e8a571c534f9b97b7924ac930878f",
+    "allLocalCacheFilesUnchangedDuringRemoteTransactions": true,
+    "localDatabaseAndJSONLUnchangedAfterQuit": true,
+    "allCompletedTransactionsRemovedTemporaryEntries": true
+  },
+  "sameAliasConfigMutation": {
+    "sameInode": true,
+    "sameSize": true,
+    "sameMtimeNS": true,
+    "syntheticEndpointUnreachable": true
+  },
+  "proofBundleProtection": {
+    "noArgumentsNoIsolatedEnvironmentExitCode": 0,
+    "safeRejection": "Proof requires an absolute fixture root and CFFIXED_USER_HOME=<root>/home.",
+    "proofOnlyMarker": true,
+    "uniqueTestBundleIdentifier": "com.codexbar.synthetic-ssh-proof",
+    "embeddedWidgetRemoved": true
+  },
+  "shutdown": {
+    "proofProcessExited": true,
+    "temporaryEntryCount": 0,
+    "activeTaskAppProcesses": 0,
+    "noArgumentRelaunchProtected": true
+  },
+  "screenshots": {
+    "01-off.png": "18770be5b09c8230993ed05b81a4199725626b082612341c576a7060d6a33a84",
+    "03-consent.png": "c214d61f9e8c4112e5c268c25cfec396e034a5e1fb5a727bb47ae2fa92cc2da6",
+    "04-combined.png": "b9458a5f933d300b67092c1520ce4a7cb4b8a0aeca24a38b0f1759d59fe54b09",
+    "05-hidden.png": "658a4089ce7e6467910f3e47be95a08124dc9b13da82e9b7d8d3d3d14c684183",
+    "07-fallback.png": "aa5ce72deeea5e05bfe40d7681252ab4bc559a6e643257979b02b5a5d273910f",
+    "10-cancelled.png": "db0f49320b6a2be6dcb9e341899dfc09990f1358764dddc4185d34279f49e462"
+  },
+  "automatedVerification": {
+    "makeCheck": {
+      "exitCode": 0,
+      "swiftLintFiles": 2332,
+      "violations": 0
+    },
+    "focusedMac": {
+      "exitCode": 0,
+      "tests": 178,
+      "suites": 13
+    },
+    "makeTestMac": {
+      "exitCode": 0,
+      "groups": 107,
+      "firstPassSuccessfulGroups": 107,
+      "testSummaryTotal": 11147,
+      "failedGroups": 0,
+      "retries": 0,
+      "timeouts": 0,
+      "durationSeconds": 814.3
+    },
+    "linux": {
+      "commit": "8f1df3474591fd4f4838a6b618b80c00e3cace1d",
+      "sourceFileCount": 2617,
+      "archiveSHA256": "452767085098f89672251c48412485cbf64c7ac57f4d6a5ed1426629b22a8fcf",
+      "commands": [
+        "swift build --product CodexBarCLI --jobs 1",
+        "swift test --jobs 1 --no-parallel",
+        "CodexBarCLI --help",
+        "CodexBarCLI --version"
+      ],
+      "exitCode": 0
+    },
+    "linuxTests": {
+      "tests": 555,
+      "suites": 76,
+      "durationSeconds": 33.715,
+      "exitCode": 0
+    },
+    "linuxSourceVerification": {
+      "commit": "8f1df3474591fd4f4838a6b618b80c00e3cace1d",
+      "regularSourceFilesVerified": 2617,
+      "allFileSHA256MatchGitArchive": true
+    },
+    "independentFinalUI": {
+      "exitCode": 0,
+      "tests": 43,
+      "suites": 6,
+      "durationSeconds": 0.483
+    }
+  },
+  "testbedCleanup": {
+    "at": "2026-09-16T15:04:15.883286+00:00",
+    "taskContainerRemoved": true,
+    "taskImageRemoved": true,
+    "remoteTaskScratchRemoved": true,
+    "localTaskSSHDirectoryRemoved": true,
+    "originalSSHConfigurationEdited": false,
+    "otherRunningContainersUnchanged": true,
+    "otherRunningContainerCount": 2
+  }
+}

@@ -267,6 +267,9 @@ extension StatusItemController {
     }
 
     func handleMenuBarTimeEnvironmentChange() {
+        if self.store.codexRemoteCosts.enabled {
+            self.store.prepareCodexRemoteCostContext()
+        }
         self.updateIcons()
     }
 

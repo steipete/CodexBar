@@ -42,7 +42,8 @@ extension StatusItemController {
         submenu: NSMenu?,
         width: CGFloat) -> NSMenuItem
     {
-        let title = Self.costMenuTitleForProvider(model.provider)
+        let remotePresentation = model.provider == .codex ? self.store.codexRemoteCostPresentation() : nil
+        let title = remotePresentation?.title ?? Self.costMenuTitleForProvider(model.provider)
         let tooltipLines = Self.costMenuTooltipLines(provider: model.provider, tokenUsage: model.tokenUsage)
         let visibleDetailLines = Self.costMenuVisibleDetailLines(
             provider: model.provider,

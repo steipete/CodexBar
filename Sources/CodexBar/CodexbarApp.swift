@@ -27,6 +27,9 @@ enum CodexBarEntryPoint {
             exit(CodexBarCoreResourceSmoke.run())
         }
         #if DEBUG
+        if CodexRemoteCostNativeProof.runIfRequested() {
+            return
+        }
         if MenuBarLayoutNativeProof.runIfRequested() {
             return
         }
@@ -498,6 +501,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 window.close()
             }
         }
+    }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard let remote = self.store?.codexRemoteCosts, remote.isRunning || remote.cleanupRequired
+        else { return .terminateNow }
+        Task { @MainActor in
+            await remote.shutdown()
+            if remote.cleanupRequired { self.openSettings(pane: .provider(.codex)) }
+            sender.reply(toApplicationShouldTerminate: !remote.cleanupRequired)
+        }
+        return .terminateLater
     }
 
     func applicationWillTerminate(_ notification: Notification) {

@@ -38,11 +38,12 @@ struct InlineUsageDashboardModel: Equatable {
         case points
     }
 
-    let accessibilityLabel: String
+    var accessibilityLabel: String
     let valueStyle: ValueStyle
-    let kpis: [KPI]
+    var kpis: [KPI]
     let points: [Point]
-    let detailLines: [String]
+    var detailLines: [String]
+    var detailLineLimit: Int? = 1
     /// Provider branding color used to fill the mini usage bars. When nil the bars fall back to a
     /// neutral palette derived from `valueStyle`.
     var barColor: Color?
@@ -97,6 +98,17 @@ extension UsageMenuCardView.Model {
     static func inlineUsageDashboard(input: Input) -> InlineUsageDashboardModel? {
         guard var model = self.resolveInlineUsageDashboard(input: input) else { return nil }
         model.barColor = Self.inlineDashboardBarColor(for: input.provider)
+        if let presentation = input.remoteCostPresentation {
+            model.detailLines = presentation.lines
+            model.detailLineLimit = nil
+            if presentation.isCombined, let tokens = input.tokenSnapshot?.sessionTokens {
+                model.kpis.removeAll { $0.title == L("Latest tokens") }
+                model.kpis.insert(
+                    .init(title: L("Today tokens"), value: UsageFormatter.tokenCountString(tokens), emphasis: false),
+                    at: 2)
+            }
+            model.accessibilityLabel += ". " + presentation.lines.joined(separator: ". ")
+        }
         return model
     }
 
@@ -502,7 +514,8 @@ struct InlineUsageDashboardContent: View {
                 Text(line)
                     .font(.caption)
                     .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
-                    .lineLimit(1)
+                    .lineLimit(self.model.detailLineLimit)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }

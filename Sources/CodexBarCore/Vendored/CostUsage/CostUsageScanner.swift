@@ -161,6 +161,10 @@ enum CostUsageScanner {
 
     struct Options {
         var codexSessionsRoot: URL?
+        /// Explicit complete roots for a request-owned unified native scan.
+        var codexExplicitSessionRoots: [URL]?
+        var codexFrozenPricing: CodexCombinedPricingContext?
+        var codexPrivateStore = false
         var claudeProjectsRoots: [URL]?
         var cacheRoot: URL?
         var codexTraceDatabaseURL: URL?
@@ -2087,6 +2091,7 @@ enum CostUsageScanner {
     }
 
     static func codexSessionsRoots(options: Options) -> [URL] {
+        if let roots = options.codexExplicitSessionRoots { return roots }
         let root = self.defaultCodexSessionsRoot(options: options)
         if let archived = self.codexArchivedSessionsRoot(sessionsRoot: root) {
             return [root, archived]
@@ -3601,8 +3606,9 @@ enum CostUsageScanner {
         return .interAgentCommunication(triggerTurn: triggerTurn)
     }
 
+    // Shared with the combined preflight so identity precedence and aliases cannot diverge from scanning.
     // swiftlint:disable:next function_body_length
-    private static func parseCodexFastLine(_ bytes: Data) -> CodexFastLine? {
+    static func parseCodexFastLine(_ bytes: Data) -> CodexFastLine? {
         bytes.withUnsafeBytes { rawBytes in
             let rawBuffer = rawBytes.bindMemory(to: UInt8.self)
             guard !rawBuffer.isEmpty else { return nil }
@@ -3811,7 +3817,7 @@ enum CostUsageScanner {
     /// Extracts usage from non-event rollout lines (one-shot codex exec / headless output).
     /// Only the four canonical response envelopes are inspected so arbitrary prompt text cannot
     /// be misread as token data.
-    private static func codexBareUsage(
+    static func codexBareUsage(
         from obj: [String: Any]) -> (totals: CostUsageCodexTotals, model: String?)?
     {
         let containers = [
@@ -4652,7 +4658,7 @@ enum CostUsageScanner {
             }
         }
 
-        let maxLineBytes = 256 * 1024
+        let maxLineBytes = Self.codexSessionMetadataMaxLineBytes
         let prefixBytes = maxLineBytes
 
         var pendingSubagentLines = initialBufferedSubagentLines
@@ -5412,9 +5418,15 @@ enum CostUsageScanner {
             usage.hasCurrentCodexParser ? nil : Self.codexPathKey(URL(fileURLWithPath: path))
         })
         let needsProjectMetadataMigration = cache.codexProjectMetadataVersion != Self.codexProjectMetadataVersion
-        let modelsDevLoad = ModelsDevCache.load(now: now, cacheRoot: options.cacheRoot)
-        let modelsDevCatalog = modelsDevLoad.artifact?.catalog
-        let codexPricingKey = Self.codexPricingKey(modelsDevArtifact: modelsDevLoad.artifact)
+        let artifact = options.codexFrozenPricing.map(\.artifact)
+            ?? ModelsDevCache.load(now: now, cacheRoot: options.cacheRoot).artifact
+        let modelsDevCatalog = options.codexFrozenPricing?.catalog ?? artifact?.catalog
+        let codexPricingKey = options.codexFrozenPricing.map {
+            CostUsagePricingKey.codex(
+                modelsDevArtifact: $0.artifact,
+                formulaVersion: Self.codexCostFormulaVersion,
+                customPricingFingerprint: $0.custom.fingerprint)
+        } ?? Self.codexPricingKey(modelsDevArtifact: artifact)
         let pricingKeyChanged = cache.codexPricingKey != codexPricingKey
         let codexPriorityMetadataKey = Self.codexPriorityMetadataKey(databaseURL: options.codexTraceDatabaseURL)
         let hasPriorityMetadata = codexPriorityMetadataKey.hasPrefix("sqlite:")
@@ -5538,7 +5550,8 @@ enum CostUsageScanner {
         options: Options,
         range: CostUsageDayRange) -> CostUsageStoreLoad
     {
-        CostUsageStoreAccess.load(cacheRoot: options.cacheRoot, calendar: range.calendar)
+        CostUsageStoreAccess.load(
+            cacheRoot: options.cacheRoot, calendar: range.calendar, privateFiles: options.codexPrivateStore)
     }
 
     final class CodexScanHistoryHydrator {
@@ -5685,7 +5698,8 @@ enum CostUsageScanner {
             range: range,
             modelsDevCatalog: plan.modelsDevCatalog,
             modelsDevCacheRoot: options.cacheRoot,
-            priorityTurns: priorityTurns)
+            priorityTurns: priorityTurns,
+            customPricing: options.codexFrozenPricing?.custom)
         return CostUsageCodexPreviousReport(
             report: report,
             cache: sourceCache,
@@ -5798,7 +5812,8 @@ enum CostUsageScanner {
                 range: range,
                 modelsDevCatalog: plan.modelsDevCatalog,
                 modelsDevCacheRoot: options.cacheRoot,
-                priorityTurns: Self.validatedPriorityTurns(cache: cache, calendar: range.calendar))
+                priorityTurns: Self.validatedPriorityTurns(cache: cache, calendar: range.calendar),
+                customPricing: options.codexFrozenPricing?.custom)
         }
 
         if plan.shouldRefresh {
@@ -6282,7 +6297,8 @@ enum CostUsageScanner {
             range: range,
             modelsDevCatalog: plan.modelsDevCatalog,
             modelsDevCacheRoot: options.cacheRoot,
-            priorityTurns: plan.priorityTurns)
+            priorityTurns: plan.priorityTurns,
+            customPricing: options.codexFrozenPricing?.custom)
     }
 
     private struct CodexScanProgressSummary {

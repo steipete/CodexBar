@@ -80,6 +80,9 @@ actor CostUsageStore {
         parserHash: CodexParserHash.value)
     static let cacheGeneration = "sqlite:\(CostUsageStore.schemaVersion)"
     static let compatiblePredecessorParserHashes: Set<String> = [
+        "ee5aeff04c030053", // SSH evidence ownership adds trace metadata without changing native rows.
+        "6d48baf0ed980828", // Joint-scan seams preserve current upstream native rows and checkpoints.
+        "5a2a4042b3daf17d", // Pre-merge SSH candidate: upstream changes affect Claude, not native stored rows.
         "c2ac37e84074d2b2", // Native rows are unchanged by Claude completion metadata.
         "710f475c3d1cfb61", // 0.60.4 native rows and checkpoints are unchanged by Claude pricing corrections.
         "aa57b010b3c0bee4", // Provider-aware pricing preserves native rows and scan checkpoints.
@@ -151,6 +154,7 @@ actor CostUsageStore {
     private let expectedSchemaVersion: Int32
     private let expectedParserHash: String
     private let busyTimeoutMilliseconds: Int32
+    private let privateFiles: Bool
     private var connection: SQLiteConnection?
     var requiresReadReopen = false
     private var failureGeneration = UUID()
@@ -170,7 +174,8 @@ actor CostUsageStore {
         cacheRoot: URL? = nil,
         schemaVersion: Int32 = CostUsageStore.schemaVersion,
         parserHash: String = CodexParserHash.value,
-        busyTimeoutMilliseconds: Int32 = 5000)
+        busyTimeoutMilliseconds: Int32 = 5000,
+        privateFiles: Bool = false)
     {
         let root = cacheRoot ?? FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
             .appendingPathComponent("CodexBar", isDirectory: true)
@@ -180,6 +185,7 @@ actor CostUsageStore {
         self.expectedSchemaVersion = schemaVersion
         self.expectedParserHash = parserHash
         self.busyTimeoutMilliseconds = busyTimeoutMilliseconds
+        self.privateFiles = privateFiles
     }
 
     static func combinedSchemaVersion(base: Int, parserHash: String) -> Int32 {
@@ -553,8 +559,16 @@ extension CostUsageStore {
 
     private func openDatabase() throws -> OpaquePointer {
         let directory = self.databaseURL.deletingLastPathComponent()
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            at: directory,
+            withIntermediateDirectories: true,
+            attributes: self.privateFiles ? [.posixPermissions: 0o700] : nil)
         let existed = FileManager.default.fileExists(atPath: self.databaseURL.path)
+        if self.privateFiles, !existed {
+            guard FileManager.default.createFile(
+                atPath: self.databaseURL.path, contents: nil, attributes: [.posixPermissions: 0o600])
+            else { throw StoreError.sqlite(SQLITE_CANTOPEN) }
+        }
         var opened: OpaquePointer?
         let flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX
         let result = sqlite3_open_v2(self.databaseURL.path, &opened, flags, nil)
@@ -566,6 +580,7 @@ extension CostUsageStore {
         }
         do {
             try Self.configure(opened, busyTimeoutMilliseconds: self.busyTimeoutMilliseconds)
+            if self.privateFiles { try Self.execute(opened, "PRAGMA temp_store=MEMORY") }
             if existed {
                 try self.validateExistingDatabase(opened)
             } else {

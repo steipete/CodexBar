@@ -1,0 +1,27 @@
+{
+  "cleanup_complete": true,
+  "cost_usd": 0.00125,
+  "priority_tokens": 220,
+  "standard_tokens": 110,
+  "synthetic_only": true,
+  "tokens": 330,
+  "transport": "Mac -> xiemac-hosted Linux container",
+  "local_logs_and_trace_unchanged": true,
+  "ordinary_cache_not_created": true,
+  "remote_fixture_removed": true,
+  "implementation_commit": "81da9ad7f5fb4be2e1d647a208d00b8fd7666b02",
+  "swift_version": "6.3.2",
+  "make_check": "passed",
+  "full_mac_tests": {
+    "groups": 108,
+    "test_summaries": 108,
+    "tests": 11247,
+    "failures": 0,
+    "retries": 0,
+    "timeouts": 0,
+    "total_seconds": 805.1
+  },
+  "independent_source_review": "passed",
+  "linux_swift_build_rerun": false,
+  "native_ui_rerun": false
+}

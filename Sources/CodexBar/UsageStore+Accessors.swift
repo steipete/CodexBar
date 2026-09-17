@@ -205,6 +205,7 @@ extension UsageStore {
     }
 
     func accountInfo(for provider: UsageProvider) -> AccountInfo {
+        if let accountInfoOverride { return accountInfoOverride }
         let now = Date()
         let configRevision = self.settings.configRevision
         if let cached = self.accountInfoCache[provider.instanceID],

@@ -242,6 +242,23 @@ enum TTYProcessTreeTerminator {
         self.processIdentity(for: identity.pid) == identity
     }
 
+    /// Zombies retain an identity but cannot write or launch descendants.
+    static func isLive(_ identity: ProcessIdentity) -> Bool {
+        guard self.isCurrent(identity) else { return false }
+        #if canImport(Darwin)
+        var info = proc_bsdinfo()
+        let size = proc_pidinfo(identity.pid, PROC_PIDTBSDINFO, 0, &info, Int32(MemoryLayout<proc_bsdinfo>.stride))
+        guard size == Int32(MemoryLayout<proc_bsdinfo>.stride) else { return self.isCurrent(identity) }
+        return info.pbi_status != UInt32(SZOMB) && self.isCurrent(identity)
+        #else
+        guard let text = try? String(contentsOfFile: "/proc/\(identity.pid)/stat", encoding: .utf8),
+              let end = text.lastIndex(of: ")"),
+              let state = text[text.index(after: end)...].split(whereSeparator: \.isWhitespace).first
+        else { return self.isCurrent(identity) }
+        return state != "Z" && state != "X" && self.isCurrent(identity)
+        #endif
+    }
+
     static func terminateProcessTree(
         rootPID: pid_t,
         processGroup: pid_t?,

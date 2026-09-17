@@ -37,6 +37,7 @@ package final class SpawnedProcessGroup: @unchecked Sendable {
         private var exitObserved = false
         private var exitObservedAt: Date?
         private var reapRequested = false
+        private var explicitReapOnly = false
         private var status: Int32?
 
         var hasObservedExit: Bool {
@@ -69,8 +70,18 @@ package final class SpawnedProcessGroup: @unchecked Sendable {
         func waitForReapRequest(timeout: TimeInterval) {
             let deadline = Date().addingTimeInterval(timeout)
             self.condition.lock()
-            while !self.reapRequested, self.condition.wait(until: deadline) {}
+            while !self.reapRequested {
+                if self.explicitReapOnly {
+                    self.condition.wait()
+                } else if !self.condition.wait(until: deadline) {
+                    break
+                }
+            }
             self.condition.unlock()
+        }
+
+        func retainUntilExplicitReap() {
+            self.condition.withLock { self.explicitReapOnly = true }
         }
 
         func resolve(_ status: Int32) {
@@ -330,7 +341,8 @@ package final class SpawnedProcessGroup: @unchecked Sendable {
         pid: pid_t,
         outputPipes: Set<OutputPipeIdentity>,
         outputTTYs: Set<OutputTTYIdentity> = [],
-        reservedPTYPrimaryDescriptor: OwnedFileDescriptorState? = nil)
+        reservedPTYPrimaryDescriptor: OwnedFileDescriptorState? = nil,
+        retainExitedRoot: Bool = false)
     {
         self.pid = pid
         self.processGroup = pid
@@ -338,6 +350,7 @@ package final class SpawnedProcessGroup: @unchecked Sendable {
         self.outputTTYs = outputTTYs
         self.reservedPTYPrimaryDescriptor = reservedPTYPrimaryDescriptor
         self.rootIdentity = TTYProcessTreeTerminator.processIdentity(for: pid)
+        if retainExitedRoot { self.termination.retainUntilExplicitReap() }
         self.startWaiter()
     }
 
@@ -354,7 +367,9 @@ package final class SpawnedProcessGroup: @unchecked Sendable {
         arguments: [String],
         environment: [String: String],
         stdoutPipe: Pipe,
-        stderrPipe: Pipe) throws -> SpawnedProcessGroup
+        stderrPipe: Pipe,
+        standardInputDescriptor: Int32? = nil,
+        retainExitedRoot: Bool = false) throws -> SpawnedProcessGroup
     {
         #if canImport(Darwin)
         var fileActions: posix_spawn_file_actions_t?
@@ -372,8 +387,13 @@ package final class SpawnedProcessGroup: @unchecked Sendable {
         let stderrWrite = stderrPipe.fileHandleForWriting.fileDescriptor
         let outputPipes = Set(
             [stdoutRead, stderrRead].compactMap(OutputPipeIdentity.resolve(fileDescriptor:)))
+        let inputAction = if let standardInputDescriptor {
+            posix_spawn_file_actions_adddup2(&fileActions, standardInputDescriptor, STDIN_FILENO)
+        } else {
+            posix_spawn_file_actions_addopen(&fileActions, STDIN_FILENO, "/dev/null", O_RDONLY, 0)
+        }
         var fileActionResults = [
-            posix_spawn_file_actions_addopen(&fileActions, STDIN_FILENO, "/dev/null", O_RDONLY, 0),
+            inputAction,
             posix_spawn_file_actions_adddup2(&fileActions, stdoutWrite, STDOUT_FILENO),
             posix_spawn_file_actions_adddup2(&fileActions, stderrWrite, STDERR_FILENO),
         ]
@@ -447,7 +467,7 @@ package final class SpawnedProcessGroup: @unchecked Sendable {
         guard spawnResult == 0 else {
             throw LaunchError.spawnFailed(String(cString: strerror(spawnResult)))
         }
-        return SpawnedProcessGroup(pid: pid, outputPipes: outputPipes)
+        return SpawnedProcessGroup(pid: pid, outputPipes: outputPipes, retainExitedRoot: retainExitedRoot)
     }
 
     package static func launchPTY(
@@ -560,22 +580,6 @@ package final class SpawnedProcessGroup: @unchecked Sendable {
             reservedPTYPrimaryDescriptor: reservedPTYPrimaryDescriptor)
     }
 
-    package var isRunning: Bool {
-        !self.termination.hasObservedExit
-    }
-
-    package var terminationStatus: Int32? {
-        self.termination.value
-    }
-
-    package var exitObservationDate: Date? {
-        self.termination.observationDate
-    }
-
-    package var hasResidualProcessGroup: Bool {
-        Self.processGroupExists(self.processGroup)
-    }
-
     @discardableResult
     package func terminateSynchronously(grace: TimeInterval = 0.4) -> Int32? {
         let deadline = Date().addingTimeInterval(max(0, grace))
@@ -637,16 +641,6 @@ package final class SpawnedProcessGroup: @unchecked Sendable {
             usleep(20000)
         }
         return self.finishSynchronously()
-    }
-
-    @discardableResult
-    package func finishSynchronously(timeout: TimeInterval = 1) -> Int32? {
-        self.termination.requestReap()
-        let deadline = Date().addingTimeInterval(max(0, timeout))
-        while self.terminationStatus == nil, Date() < deadline {
-            usleep(10000)
-        }
-        return self.terminationStatus
     }
 
     @discardableResult
@@ -912,6 +906,63 @@ package final class SpawnedProcessGroup: @unchecked Sendable {
 }
 
 extension SpawnedProcessGroup {
+    package var isRunning: Bool {
+        !self.termination.hasObservedExit
+    }
+
+    package var terminationStatus: Int32? {
+        self.termination.value
+    }
+
+    @discardableResult
+    package func finishSynchronously(timeout: TimeInterval = 1) -> Int32? {
+        self.termination.requestReap()
+        let deadline = Date().addingTimeInterval(max(0, timeout))
+        while self.terminationStatus == nil, Date() < deadline {
+            usleep(10000)
+        }
+        return self.terminationStatus
+    }
+
+    package var exitObservationDate: Date? {
+        self.termination.observationDate
+    }
+
+    package var hasResidualProcessGroup: Bool {
+        Self.processGroupExists(self.processGroup)
+    }
+
+    /// Signal only the identity-checked root, allowing a guardian to drain its separately owned group.
+    package func signalRootIfCurrent(_ signal: Int32) {
+        guard let rootIdentity = self.rootIdentity, TTYProcessTreeTerminator.isCurrent(rootIdentity) else { return }
+        _ = kill(self.pid, signal)
+    }
+
+    /// Privacy-sensitive callers must not release ownership while a descendant can still write.
+    /// Keep the root unreaped while discovering the group; unlike bounded best-effort termination,
+    /// an uninterruptible live process keeps this await pending instead of authorizing deletion.
+    package func terminateAndDrain() async {
+        var identities = self.currentAbortProcessIdentities()
+        identities.formUnion(self.currentResidualProcessIdentities(includeDescendants: true))
+        self.signalOwnedProcessGroup(SIGTERM)
+        Self.signal(processIdentities: identities, signal: SIGTERM)
+        let deadline = ProcessInfo.processInfo.systemUptime + 0.4
+        while identities.contains(where: TTYProcessTreeTerminator.isLive(_:)),
+              ProcessInfo.processInfo.systemUptime < deadline
+        {
+            try? await Task.sleep(for: .milliseconds(20))
+        }
+        while true {
+            identities.formUnion(self.currentAbortProcessIdentities())
+            identities.formUnion(self.currentResidualProcessIdentities(includeDescendants: self.isRunning))
+            guard identities.contains(where: TTYProcessTreeTerminator.isLive(_:)) else { break }
+            self.signalOwnedProcessGroup(SIGKILL)
+            Self.signal(processIdentities: identities, signal: SIGKILL)
+            try? await Task.sleep(for: .milliseconds(20))
+        }
+        await self.finish()
+    }
+
     private func currentOutputHolderIdentities() -> Set<TTYProcessTreeTerminator.ProcessIdentity> {
         let excludedPIDs: Set<pid_t> = [getpid(), self.pid]
         return Self.outputHolderIdentities(

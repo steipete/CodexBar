@@ -299,7 +299,8 @@ extension StatusItemController {
             provider: provider,
             hidePersonalInfo: self.settings.hidePersonalInfo,
             displayCurrencyCode: displayConversion.currencyCode,
-            displayCostMultiplier: displayConversion.multiplier))
+            displayCostMultiplier: displayConversion.multiplier,
+            scopePresentation: provider == .codex ? self.store.codexRemoteCostPresentation() : nil))
     }
 
     /// Resolves the user's preferred display currency for cost-history values, falling back to
@@ -447,6 +448,7 @@ extension StatusItemController {
             historyDays: tokenSnapshot.historyDays,
             historyCoverageIsEstablished: tokenSnapshot.historyCoverageIsEstablished,
             windowLabel: tokenSnapshot.historyLabel,
+            scopePresentation: provider == .codex ? self.store.codexRemoteCostPresentation() : nil,
             projects: provider == .codex ? tokenSnapshot.projects : [],
             sessions: provider == .codex ? tokenSnapshot.sessions : [],
             hidePersonalInfo: self.settings.hidePersonalInfo,

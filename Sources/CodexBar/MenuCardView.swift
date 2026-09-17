@@ -979,6 +979,7 @@ extension UsageMenuCardView.Model {
             provider: input.provider,
             enabled: input.tokenCostMenuSectionEnabled,
             isRefreshing: input.tokenCostIsRefreshing,
+            scopePresentation: input.remoteCostPresentation,
             comparisonPeriodsEnabled: input.costComparisonPeriodsEnabled,
             snapshot: tokenUsageSnapshot,
             error: input.tokenError,

@@ -481,6 +481,8 @@ extension UsageMenuCardView.Model {
                 current.kpis.count == candidate.kpis.count &&
                 current.points.count == candidate.points.count &&
                 current.detailLines.count == candidate.detailLines.count &&
+                current.detailLineLimit == candidate.detailLineLimit &&
+                (current.detailLineLimit != nil || current.detailLines == candidate.detailLines) &&
                 zip(current.kpis, candidate.kpis).allSatisfy {
                     $0.title == $1.title && $0.emphasis == $1.emphasis
                 } &&

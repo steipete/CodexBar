@@ -9,6 +9,9 @@
 - **Clearer usage meters:** recover Cursor Enterprise member budgets, Kimi Code API quotas, Copilot seat-credit bars, and OpenCode Go Monthly selection.
 - **Smoother everyday use:** improve update access, privacy, shared-card dates, and recovery from temporary provider failures.
 
+### Added
+- Codex: manually refresh one SSH server into the native cost card and history chart, using temporary log copies, a unified native scan, verified copy/prefix deduplication, retained local Priority/Fast pricing, and explicit local fallback when histories cannot be safely combined.
+
 ### Fixed
 
 - Codex costs: publish validated reporting windows during historical catch-up while retaining prior data for incomplete sources and preserving automatic power limits (#3669, related to #3508). Thanks @kernnel!

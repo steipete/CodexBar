@@ -11,6 +11,7 @@ extension UsageMenuCardView.Model {
         let creditsError: String?
         let dashboardError: String?
         let tokenSnapshot: CostUsageTokenSnapshot?
+        let remoteCostPresentation: CodexRemoteCostPresentation?
         let tokenError: String?
         let account: AccountInfo
         let accountIsAuthoritative: Bool
@@ -60,6 +61,7 @@ extension UsageMenuCardView.Model {
             creditsError: String?,
             dashboardError: String?,
             tokenSnapshot: CostUsageTokenSnapshot?,
+            remoteCostPresentation: CodexRemoteCostPresentation? = nil,
             tokenError: String?,
             account: AccountInfo,
             accountIsAuthoritative: Bool = false,
@@ -106,6 +108,7 @@ extension UsageMenuCardView.Model {
             self.creditsError = creditsError
             self.dashboardError = dashboardError
             self.tokenSnapshot = tokenSnapshot
+            self.remoteCostPresentation = remoteCostPresentation
             self.tokenError = tokenError
             self.account = account
             self.accountIsAuthoritative = accountIsAuthoritative

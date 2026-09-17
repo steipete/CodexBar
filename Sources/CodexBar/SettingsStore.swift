@@ -2,9 +2,6 @@ import AppKit
 import CodexBarCore
 import Observation
 import ServiceManagement
-#if canImport(WidgetKit)
-import WidgetKit
-#endif
 
 enum RefreshFrequency: String, CaseIterable, Identifiable {
     case manual
@@ -247,6 +244,8 @@ final class SettingsStore {
     static var codexAccountReconciliationSnapshotCacheIntervalOverrideForTesting: TimeInterval?
     #endif
 
+    @ObservationIgnored let isolatedStartup: Bool
+    @ObservationIgnored let accentPublication: ProviderAccentPublication
     @ObservationIgnored let userDefaults: UserDefaults
     @ObservationIgnored let configStore: CodexBarConfigStore
     @ObservationIgnored let antigravityOAuthCredentialsStore: AntigravityOAuthCredentialsStore
@@ -321,18 +320,21 @@ final class SettingsStore {
         tokenAccountStore: any ProviderTokenAccountStoring = FileTokenAccountStore(),
         antigravityOAuthCredentialsStore: AntigravityOAuthCredentialsStore = AntigravityOAuthCredentialsStore(),
         keychainAccessPolicy: SettingsStoreKeychainAccessPolicy = .live,
-        performInitialProviderDetection: Bool = !SettingsStore.isRunningTests)
+        performInitialProviderDetection: Bool = !SettingsStore.isRunningTests,
+        isolatedStartup: Bool = false,
+        accentPublication: ProviderAccentPublication = .live)
     {
         // Legacy credential migration must see the saved policy, including shared-defaults fallback.
-        keychainAccessPolicy.setDisabled(Self.loadDebugDisableKeychainAccess(userDefaults: userDefaults))
-        if !Self.isRunningTests {
+        keychainAccessPolicy.setDisabled(isolatedStartup ? true :
+            Self.loadDebugDisableKeychainAccess(userDefaults: userDefaults))
+        if !Self.isRunningTests, !isolatedStartup {
             _ = UserProviderPluginRegistry.refresh()
         }
         // Capture this before app-group/config migrations can create prior-installation state.
         let hadExistingConfig = (try? configStore.load()) != nil
         let hadPreviousInstallationState = hadExistingConfig || Self.hadPreviousAppLaunch(userDefaults: userDefaults)
         // Migration tests inject every dependency directly; ordinary settings tests must not discover user state.
-        if !Self.isRunningTests {
+        if !Self.isRunningTests, !isolatedStartup {
             let appGroupID = AppGroupSupport.currentGroupID()
             Self.scheduleAppGroupMigration()
             let appGroupMigration = AppGroupSupport.MigrationResult(status: .targetUnavailable)
@@ -369,11 +371,14 @@ final class SettingsStore {
             ampCookieStore: ampCookieStore,
             copilotTokenStore: copilotTokenStore,
             tokenAccountStore: tokenAccountStore)
-        let config = CodexBarConfigMigrator.loadOrMigrate(
-            configStore: configStore,
-            userDefaults: userDefaults,
-            keychainAccessDisabled: keychainAccessPolicy.isExplicitlyDisabled(),
-            stores: legacyStores)
+        let config = isolatedStartup ? (try? configStore.load()) ?? CodexBarConfig(providers: []) :
+            CodexBarConfigMigrator.loadOrMigrate(
+                configStore: configStore,
+                userDefaults: userDefaults,
+                keychainAccessDisabled: keychainAccessPolicy.isExplicitlyDisabled(),
+                stores: legacyStores)
+        self.isolatedStartup = isolatedStartup
+        self.accentPublication = accentPublication
         self.userDefaults = userDefaults
         self.configStore = configStore
         self.antigravityOAuthCredentialsStore = antigravityOAuthCredentialsStore
@@ -382,21 +387,24 @@ final class SettingsStore {
         self.configLoading = true
         let defaultsState = Self.loadDefaultsState(
             userDefaults: userDefaults,
-            hadPreviousInstallationState: hadPreviousInstallationState)
+            hadPreviousInstallationState: hadPreviousInstallationState,
+            isolatedStartup: isolatedStartup)
         self.defaultsState = defaultsState
         self.mergedMenuLastSelectedWasOverviewStorage = defaultsState.mergedMenuLastSelectedWasOverview
         self.selectedMenuProviderRawStorage = defaultsState.selectedMenuProviderRaw
         self.updateProviderState(config: config)
         self.configLoading = false
-        CodexBarLog.setFileLoggingEnabled(self.debugFileLoggingEnabled)
+        if !isolatedStartup { CodexBarLog.setFileLoggingEnabled(self.debugFileLoggingEnabled) }
         userDefaults.removeObject(forKey: "showCodexUsage")
         userDefaults.removeObject(forKey: "showClaudeUsage")
-        LaunchAtLoginManager.setEnabled(self.launchAtLogin)
-        if performInitialProviderDetection {
+        if !isolatedStartup { LaunchAtLoginManager.setEnabled(self.launchAtLogin) }
+        if performInitialProviderDetection, !isolatedStartup {
             self.runInitialProviderDetectionIfNeeded()
         }
-        self.ensureAlibabaProviderAutoEnabledIfNeeded()
-        self.applyTokenCostDefaultIfNeeded()
+        if !isolatedStartup {
+            self.ensureAlibabaProviderAutoEnabledIfNeeded()
+            self.applyTokenCostDefaultIfNeeded()
+        }
         if self.claudeUsageDataSource != .cli {
             if Self.isRunningTests {
                 self.claudeWebExtrasEnabled = false
@@ -417,8 +425,10 @@ final class SettingsStore {
             self.defaultsState.openAIWebAccessEnabled = resolvedOpenAIWebAccessEnabled
         }
         self.keychainAccessPolicy.setDisabled(self.debugDisableKeychainAccess)
-        self.startConfigFileWatcher()
-        self.observeSystemPowerStateChanges()
+        if !isolatedStartup {
+            self.startConfigFileWatcher()
+            self.observeSystemPowerStateChanges()
+        }
     }
 
     deinit {
@@ -484,7 +494,8 @@ extension SettingsStore {
     // swiftlint:disable:next function_body_length
     private static func loadDefaultsState(
         userDefaults: UserDefaults,
-        hadPreviousInstallationState: Bool) -> SettingsDefaultsState
+        hadPreviousInstallationState: Bool,
+        isolatedStartup: Bool = false) -> SettingsDefaultsState
     {
         let refreshFrequency = Self.loadRefreshFrequency(
             userDefaults: userDefaults,
@@ -494,7 +505,8 @@ extension SettingsStore {
             forKey: "refreshAllProvidersOnMenuOpen") as? Bool ?? false
         let launchAtLogin = userDefaults.object(forKey: "launchAtLogin") as? Bool ?? false
         let debugMenuEnabled = userDefaults.object(forKey: "debugMenuEnabled") as? Bool ?? false
-        let debugDisableKeychainAccess = Self.loadDebugDisableKeychainAccess(userDefaults: userDefaults)
+        let debugDisableKeychainAccess = isolatedStartup ? true :
+            Self.loadDebugDisableKeychainAccess(userDefaults: userDefaults)
         let debugFileLoggingEnabled = userDefaults.object(forKey: "debugFileLoggingEnabled") as? Bool ?? false
         let debugLogLevelRaw = userDefaults.string(forKey: "debugLogLevel") ?? CodexBarLog.Level.verbose.rawValue
         if Self.isRunningTests, userDefaults.string(forKey: "debugLogLevel") == nil {
@@ -1062,10 +1074,12 @@ extension SettingsStore {
         self.providerEnablement = enablement
         // Every config path crosses this method, so the accent palette refreshes from a settings edit,
         // an external edit to the config file, and an inbound iCloud sync alike.
-        if ProviderAccentPalette.apply(config: config) {
-            #if canImport(WidgetKit)
-            WidgetCenter.shared.reloadAllTimelines()
-            #endif
+        if ProviderAccentPalette.apply(
+            config: config,
+            allowsSharedDefaults: !self.isolatedStartup,
+            publication: self.accentPublication)
+        {
+            self.accentPublication.reloadWidgetTimelines()
         }
     }
 

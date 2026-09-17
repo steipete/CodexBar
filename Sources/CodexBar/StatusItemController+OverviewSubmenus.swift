@@ -8,7 +8,7 @@ extension StatusItemController {
         width: CGFloat) -> NSMenu?
     {
         if provider == .openai,
-           self.settings.costSummaryShowsSubmenu(for: provider),
+           self.store.costPresentationShowsSubmenu(for: provider),
            let submenu = self.makeOpenAIAPIUsageSubmenu(provider: provider, width: width)
         {
             return submenu
@@ -17,12 +17,12 @@ extension StatusItemController {
         // cost history when the display style permits it. Other `tokenCostRequiresProviderSnapshot`
         // providers (e.g. opencodego) show real rate-limit bars and fall through to the generic check.
         if provider == .mistral,
-           self.settings.costSummaryShowsSubmenu(for: provider),
+           self.store.costPresentationShowsSubmenu(for: provider),
            let submenu = self.makeCostHistorySubmenu(provider: provider, width: width)
         {
             return submenu
         }
-        if self.settings.costSummaryShowsSubmenu(for: provider),
+        if self.store.costPresentationShowsSubmenu(for: provider),
            model.tokenUsage != nil,
            let submenu = self.makeCostHistorySubmenu(provider: provider, width: width)
         {

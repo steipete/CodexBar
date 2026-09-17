@@ -1,0 +1,361 @@
+{
+  "testedSourceCommit": "76a3ee2dcff972cc79ae56d608ca0debcfdbc3f5",
+  "mergedUpstream": "7e3c7be1",
+  "provenance": {
+    "sourceCommit": "76a3ee2dcff972cc79ae56d608ca0debcfdbc3f5",
+    "bundleCommit": "76a3ee2d",
+    "buildTimestamp": "2026-09-17T04:51:05Z",
+    "appBinarySHA256": "377b22cc5574cf35d801d55d273a88911fe0515eb5dcb0d80b5d596a65054a49",
+    "guardianBinarySHA256": "d383c555e8bca85e6fec565dd0fb9d48285cb42be7f09c8ed14a36a515ee76fa",
+    "syntheticOnly": true
+  },
+  "steps": [
+    {
+      "step": "01-local",
+      "recordedAt": "2026-09-17T04:55:28.173363+00:00",
+      "gitCommit": "76a3ee2d",
+      "requests": 0,
+      "enabled": false,
+      "consent": false,
+      "running": false,
+      "combined": false,
+      "cleanupRequired": false,
+      "error": "",
+      "todayTokens": 220000,
+      "todayCost": 0.7320000000000001,
+      "windowTokens": 330000,
+      "windowCost": 1.098,
+      "days": [
+        {
+          "cost": 0.36600000000000005,
+          "date": "2026-09-16",
+          "tokens": 110000
+        },
+        {
+          "cost": 0.7320000000000001,
+          "date": "2026-09-17",
+          "tokens": 220000
+        }
+      ],
+      "temporaryEntryCount": 0
+    },
+    {
+      "step": "02-enabled",
+      "recordedAt": "2026-09-17T04:56:12.596623+00:00",
+      "gitCommit": "76a3ee2d",
+      "requests": 0,
+      "enabled": true,
+      "consent": false,
+      "running": false,
+      "combined": false,
+      "cleanupRequired": false,
+      "error": "",
+      "todayTokens": 220000,
+      "todayCost": 0.7320000000000001,
+      "windowTokens": 330000,
+      "windowCost": 1.098,
+      "days": [
+        {
+          "cost": 0.36600000000000005,
+          "date": "2026-09-16",
+          "tokens": 110000
+        },
+        {
+          "cost": 0.7320000000000001,
+          "date": "2026-09-17",
+          "tokens": 220000
+        }
+      ],
+      "temporaryEntryCount": 0
+    },
+    {
+      "step": "03-combined",
+      "recordedAt": "2026-09-17T04:57:59.584126+00:00",
+      "gitCommit": "76a3ee2d",
+      "requests": 1,
+      "enabled": true,
+      "consent": true,
+      "running": false,
+      "combined": true,
+      "cleanupRequired": false,
+      "error": "",
+      "todayTokens": 550000,
+      "todayCost": 1.83,
+      "windowTokens": 715000,
+      "windowCost": 2.379,
+      "days": [
+        {
+          "cost": 0.18300000000000002,
+          "date": "2026-09-14",
+          "tokens": 55000
+        },
+        {
+          "cost": 0.36600000000000005,
+          "date": "2026-09-16",
+          "tokens": 110000
+        },
+        {
+          "cost": 1.83,
+          "date": "2026-09-17",
+          "tokens": 550000
+        }
+      ],
+      "temporaryEntryCount": 0
+    },
+    {
+      "step": "04-invalidated",
+      "recordedAt": "2026-09-17T04:58:02.360438+00:00",
+      "gitCommit": "76a3ee2d",
+      "requests": 1,
+      "enabled": true,
+      "consent": true,
+      "running": false,
+      "combined": false,
+      "cleanupRequired": false,
+      "error": "",
+      "todayTokens": 220000,
+      "todayCost": 0.7320000000000001,
+      "windowTokens": 330000,
+      "windowCost": 1.098,
+      "days": [
+        {
+          "cost": 0.36600000000000005,
+          "date": "2026-09-16",
+          "tokens": 110000
+        },
+        {
+          "cost": 0.7320000000000001,
+          "date": "2026-09-17",
+          "tokens": 220000
+        }
+      ],
+      "temporaryEntryCount": 0
+    },
+    {
+      "step": "05-nested-permission-error",
+      "recordedAt": "2026-09-17T05:00:15.392302+00:00",
+      "gitCommit": "76a3ee2d",
+      "requests": 2,
+      "enabled": true,
+      "consent": true,
+      "running": false,
+      "combined": false,
+      "cleanupRequired": false,
+      "error": "A server log directory exists but cannot be read.",
+      "todayTokens": 220000,
+      "todayCost": 0.7320000000000001,
+      "windowTokens": 330000,
+      "windowCost": 1.098,
+      "days": [
+        {
+          "cost": 0.36600000000000005,
+          "date": "2026-09-16",
+          "tokens": 110000
+        },
+        {
+          "cost": 0.7320000000000001,
+          "date": "2026-09-17",
+          "tokens": 220000
+        }
+      ],
+      "temporaryEntryCount": 0
+    },
+    {
+      "step": "06-recovered",
+      "recordedAt": "2026-09-17T05:00:47.869075+00:00",
+      "gitCommit": "76a3ee2d",
+      "requests": 3,
+      "enabled": true,
+      "consent": true,
+      "running": false,
+      "combined": true,
+      "cleanupRequired": false,
+      "error": "",
+      "todayTokens": 550000,
+      "todayCost": 1.83,
+      "windowTokens": 715000,
+      "windowCost": 2.379,
+      "days": [
+        {
+          "cost": 0.18300000000000002,
+          "date": "2026-09-14",
+          "tokens": 55000
+        },
+        {
+          "cost": 0.36600000000000005,
+          "date": "2026-09-16",
+          "tokens": 110000
+        },
+        {
+          "cost": 1.83,
+          "date": "2026-09-17",
+          "tokens": 550000
+        }
+      ],
+      "temporaryEntryCount": 0
+    },
+    {
+      "step": "07-closed",
+      "recordedAt": "2026-09-17T05:01:49.242437+00:00",
+      "gitCommit": "76a3ee2d",
+      "requests": 3,
+      "enabled": true,
+      "consent": true,
+      "running": false,
+      "combined": false,
+      "cleanupRequired": false,
+      "error": "",
+      "todayTokens": 220000,
+      "todayCost": 0.7320000000000001,
+      "windowTokens": 330000,
+      "windowCost": 1.098,
+      "days": [
+        {
+          "cost": 0.36600000000000005,
+          "date": "2026-09-16",
+          "tokens": 110000
+        },
+        {
+          "cost": 0.7320000000000001,
+          "date": "2026-09-17",
+          "tokens": 220000
+        }
+      ],
+      "temporaryEntryCount": 0
+    }
+  ],
+  "localSyntheticDatabaseUnchanged": true,
+  "localSyntheticLogsUnchanged": true,
+  "configEdit": {
+    "sameInodeSizeAndMtime": true,
+    "observedLocalFallbackSeconds": 2.698039875,
+    "refreshTransactions": 1
+  },
+  "linuxSourceVerification": {
+    "commit": "76a3ee2dcff972cc79ae56d608ca0debcfdbc3f5",
+    "regularFilesVerified": 2635,
+    "allHashesMatch": true
+  },
+  "linux": {
+    "commit": "76a3ee2dcff972cc79ae56d608ca0debcfdbc3f5",
+    "sourceFileCount": 2635,
+    "archiveSHA256": "611fa4747bde2c6843b6b0b929a6b7a3f85785d1e6dd94d26d7cbe8eafa0e3c3",
+    "commands": [
+      "swift build --product CodexBarCLI --jobs 1",
+      "swift test --jobs 1 --no-parallel",
+      "CodexBarCLI --help",
+      "CodexBarCLI --version"
+    ],
+    "exitCode": 0
+  },
+  "shellRegression": {
+    "passed": 9,
+    "platform": "Linux",
+    "scenarios": [
+      {
+        "baseline_complete": false,
+        "baseline_status": 46,
+        "expected": 43,
+        "fixed_complete": false,
+        "fixed_status": 43,
+        "scenario": "unreadable_directory"
+      },
+      {
+        "baseline_complete": false,
+        "baseline_status": 46,
+        "expected": 43,
+        "fixed_complete": false,
+        "fixed_status": 43,
+        "scenario": "unreadable_file"
+      },
+      {
+        "baseline_complete": false,
+        "baseline_status": 46,
+        "expected": 44,
+        "fixed_complete": false,
+        "fixed_status": 44,
+        "scenario": "unsafe"
+      },
+      {
+        "baseline_complete": false,
+        "baseline_status": 46,
+        "expected": 44,
+        "fixed_complete": false,
+        "fixed_status": 44,
+        "scenario": "symlink"
+      },
+      {
+        "baseline_complete": false,
+        "baseline_status": 46,
+        "expected": 45,
+        "fixed_complete": false,
+        "fixed_status": 45,
+        "scenario": "oversized"
+      },
+      {
+        "baseline_complete": false,
+        "baseline_file_grew": true,
+        "baseline_status": 46,
+        "expected": 46,
+        "fixed_complete": false,
+        "fixed_file_grew": true,
+        "fixed_status": 46,
+        "scenario": "changing"
+      },
+      {
+        "baseline_complete": false,
+        "baseline_status": 46,
+        "expected": 46,
+        "fixed_complete": false,
+        "fixed_status": 46,
+        "scenario": "traversal"
+      },
+      {
+        "baseline_complete": false,
+        "baseline_status": 46,
+        "expected": 45,
+        "fixed_complete": false,
+        "fixed_status": 45,
+        "scenario": "multiple_batches"
+      },
+      {
+        "baseline_complete": true,
+        "baseline_status": 0,
+        "expected": 0,
+        "fixed_complete": true,
+        "fixed_status": 0,
+        "scenario": "stable"
+      }
+    ],
+    "uid": 1001
+  },
+  "screenshots": {
+    "combined.png": "d241becc0e80431b80ce75dfc3628de4d73c6500bcabb2dea79ccbcd403aa2f9",
+    "permission-error.png": "ea5f8f1c4c9ad542fe4c35dd02081d8f1c7b3379cac87e7a8da08a62545e7d84"
+  },
+  "verification": {
+    "macGroups": 108,
+    "macTests": 11236,
+    "macExitCode": 0,
+    "macRetries": 0,
+    "macTimeouts": 0,
+    "macSeconds": 847.7,
+    "linuxTests": 559,
+    "linuxSuites": 78,
+    "linuxExitCode": 0,
+    "focusedTests": 198,
+    "focusedSuites": 12,
+    "makeCheckExitCode": 0,
+    "swiftLintFiles": 2348
+  },
+  "testbedCleanup": {
+    "at": "2026-09-17T05:09:10.128801+00:00",
+    "taskContainerRemoved": true,
+    "taskImageRemoved": true,
+    "remoteTaskScratchRemoved": true,
+    "localTaskSSHDirectoryRemoved": true,
+    "originalSSHConfigurationEdited": false,
+    "otherRunningContainersUnchanged": true,
+    "otherRunningContainerCount": 3
+  }
+}

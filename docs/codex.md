@@ -203,6 +203,12 @@ and stable account numbers distinguish rows while usable workspace labels remain
 - CLI PTY diagnostics can still parse `Credits:` from saved/manual `/status` output.
 
 ## Cost usage (local log scan)
+
+The native app can explicitly refresh one SSH server's native Codex history into the existing cost card and daily
+history chart. This opt-in view uses a single scan and verified overlap handling, rather than summing two cost
+reports. See [Manual SSH cost statistics](codex-ssh-costs.md) for setup, temporary-log privacy, supported log shapes,
+resource limits, and local fallback. It does not alter account quota bars or managed-account cost rows.
+
 - Menu source selection:
   - By default, a selected managed account keeps its own `CODEX_HOME` session history.
   - **Local session cost estimates** is a Codex-only opt-in that instead scans this Mac's ambient `$CODEX_HOME`

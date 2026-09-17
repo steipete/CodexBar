@@ -1481,8 +1481,8 @@ enum CostUsageStoreAccess {
             .syncLoadCodexReadView(calendar: calendar, purpose: purpose)
     }
 
-    static func load(cacheRoot: URL?, calendar: Calendar) -> CostUsageStoreLoad {
-        let store = CostUsageStore(cacheRoot: cacheRoot)
+    static func load(cacheRoot: URL?, calendar: Calendar, privateFiles: Bool = false) -> CostUsageStoreLoad {
+        let store = CostUsageStore(cacheRoot: cacheRoot, privateFiles: privateFiles)
         return store.syncLoadCodexScan(calendar: calendar)
     }
 

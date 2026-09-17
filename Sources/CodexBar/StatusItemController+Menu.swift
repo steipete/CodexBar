@@ -503,8 +503,8 @@ extension StatusItemController {
             surface: .liveCard)
         let hasCreditsHistory = codexProjection?.hasCreditsHistory == true
         let hasUsageBreakdown = codexProjection?.hasUsageBreakdown == true
-        let hasCostHistory = self.settings.costSummaryShowsSubmenu(for: currentProvider) &&
-            (self.store.tokenSnapshot(for: currentProvider)?.daily.isEmpty == false)
+        let hasCostHistory = self.store.costPresentationShowsSubmenu(for: currentProvider) &&
+            (self.tokenSnapshotForCostHistorySubmenu(provider: currentProvider)?.daily.isEmpty == false)
         let canShowBuyCredits = self.settings.showOptionalCreditsAndExtraUsage &&
             codexProjection?.canShowBuyCredits == true
         let hasOpenAIWebMenuItems = !showAllAccounts &&
@@ -664,7 +664,7 @@ extension StatusItemController {
         var seenSpendProviders = Set<UsageProvider>()
         let spend = enabledProviders.filter { provider in
             seenSpendProviders.insert(provider).inserted &&
-                self.settings.costSummaryShowsInline(for: provider)
+                self.store.costPresentationShowsInline(for: provider)
         }
         return (
             visible: visible,
@@ -1503,16 +1503,16 @@ extension StatusItemController {
             return self.makeUsageBreakdownSubmenu(width: width)
         }
         // Provider-specific by design: OpenAI and Mistral attach cost history to their provider usage row.
-        if provider == .openai, self.settings.costSummaryShowsSubmenu(for: provider) {
+        if provider == .openai, self.store.costPresentationShowsSubmenu(for: provider) {
             return self.makeOpenAIAPIUsageSubmenu(provider: provider, width: width)
         }
         // Mistral's top usage pane has no rate-limit bars of its own, so its cost history hangs off this row
         // when the Cost Summary style permits it. Other inline cost dashboards follow the same submenu policy;
         // Both still keeps the dedicated Cost row.
-        if provider == .mistral, self.settings.costSummaryShowsSubmenu(for: provider) {
+        if provider == .mistral, self.store.costPresentationShowsSubmenu(for: provider) {
             return self.makeCostHistorySubmenu(provider: provider, width: width)
         }
-        if hasInlineCostDashboard, self.settings.costSummaryShowsSubmenu(for: provider) {
+        if hasInlineCostDashboard, self.store.costPresentationShowsSubmenu(for: provider) {
             return self.makeCostHistorySubmenu(provider: provider, width: width)
         }
         return nil
@@ -1549,6 +1549,9 @@ extension StatusItemController {
     }
 
     func tokenSnapshotForCostHistorySubmenu(provider: UsageProvider) -> CostUsageTokenSnapshot? {
+        if provider == .codex, self.store.codexRemoteCostPresentation() != nil {
+            return self.store.codexCostPresentationSnapshot()
+        }
         let projected = self.store.tokenSnapshot(
             fromProviderSnapshot: self.store.snapshot(for: provider.instanceID),
             provider: provider)

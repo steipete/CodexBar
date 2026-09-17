@@ -3,6 +3,25 @@ import Foundation
 
 enum CodexBarLocalizationOverride {
     @TaskLocal static var appLanguage: String?
+
+    #if DEBUG
+    private static let proofLock = NSLock()
+    private nonisolated(unsafe) static var proofLanguage: String?
+
+    /// A proof window outlives its initiating task; AppKit and SwiftUI callbacks need process-lifetime isolation.
+    static var persistentProofLanguage: String? {
+        self.proofLock.withLock { self.proofLanguage }
+    }
+
+    @discardableResult
+    static func setPersistentProofLanguage(_ language: String?) -> String? {
+        self.proofLock.withLock {
+            let previous = self.proofLanguage
+            self.proofLanguage = language
+            return previous
+        }
+    }
+    #endif
 }
 
 enum AppLanguagePreferenceMigration {
@@ -34,18 +53,24 @@ private func appLanguageDefaults() -> UserDefaults {
 
 private let isRunningTestsProcessAtStartup = TestProcessSafety.isRunning
 
-private func resolvedAppLanguage() -> String {
+func codexBarResolvedAppLanguage(
+    isRunningTests: Bool = isRunningTestsProcessAtStartup,
+    readPreference: () -> String? = { appLanguageDefaults().string(forKey: "appLanguage") }) -> String
+{
     if let override = CodexBarLocalizationOverride.appLanguage {
         return override
     }
-    if isRunningTestsProcessAtStartup {
-        return "en"
+    #if DEBUG
+    if let language = CodexBarLocalizationOverride.persistentProofLanguage {
+        return language
     }
-    return appLanguageDefaults().string(forKey: "appLanguage") ?? ""
+    #endif
+    if isRunningTests { return "en" }
+    return readPreference() ?? ""
 }
 
 func codexBarLocalizationSignature() -> String {
-    resolvedAppLanguage()
+    codexBarResolvedAppLanguage()
 }
 
 /// Resolving the `.lproj`/resource bundles repeats `Bundle(url:)`/`Bundle(path:)` filesystem lookups,
@@ -133,7 +158,7 @@ private func resolveLocalizationResourceBundle(mainBundle: Bundle, bundleName: S
 private func localizedBundle() -> Bundle {
     // Keyed on the resolved language so a language switch (settings change or test override) transparently
     // re-resolves; otherwise the cached bundle is returned without touching the filesystem.
-    let language = resolvedAppLanguage()
+    let language = codexBarResolvedAppLanguage()
     return localizedBundle(forLanguage: language)
 }
 
@@ -216,7 +241,7 @@ func localizedSessionQuotaLabel(_ label: String, windowMinutes: Int?) -> String 
 }
 
 func codexBarLocalizedLocale() -> Locale {
-    codexBarLocale(forLanguage: resolvedAppLanguage())
+    codexBarLocale(forLanguage: codexBarResolvedAppLanguage())
 }
 
 /// Returns the locale of the resource bundle currently selected by `L`.

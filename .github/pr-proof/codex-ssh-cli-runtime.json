@@ -1,0 +1,417 @@
+{
+  "testedSourceCommit": "761afe3b9fa21f5abe2c7bb01a90faf8f1779656",
+  "captureDateUTC": "2026-09-16",
+  "captureKind": "Previously recorded real CLI output and harness diagnostics; no new SSH run was performed when publishing this evidence.",
+  "formatting": "JSON stdout was parsed by the original harness and is reserialized here. The text stdout and signal diagnostic objects are copied as recorded. This is not a byte-for-byte shell transcript.",
+  "provenance": {
+    "sourceIdentity": "The local receipt obtained HEAD through git rev-parse and recorded a clean worktree. The remote source archive was pinned to remote/source-commit.txt; its installed binary hash was captured in cli-readiness.log. The SSH harness sourceCommit is a configured assertion, not a remote git observation.",
+    "local": {
+      "os": "macOS 27.0",
+      "architecture": "arm64",
+      "swift": "6.3.2",
+      "binarySHA256": "80e48fa5d929f1ca22e1085035e99f42cf88e216252180d549f40702b6ca46fd",
+      "workingTreeDirtyAtCapture": false,
+      "retainedCompilerMetadata": {
+        "version": "Swift 6.3.2",
+        "target": "arm64-apple-macosx28.0",
+        "sha256": "7ede0fc8211c644002a894b47810b24b6aa38c8a01620c2e706aa92df59c41a1"
+      },
+      "runtimeEnvironmentRecheck": {
+        "checkedAtUTC": "2026-09-16T12:43:00Z",
+        "macOS": "27.0",
+        "architecture": "arm64",
+        "note": "Read-only host/toolchain recheck during evidence publication, not another CLI/SSH scenario run."
+      }
+    },
+    "remote": {
+      "os": "Debian GNU/Linux 12",
+      "architecture": "x86_64",
+      "swift": "6.3.3",
+      "hostEnvironment": "Isolated Linux container hosted on a separate Intel Mac and reached over SSH",
+      "binarySHA256": "173c1f4b9a1c7d4b86a1b3d2c77595e853f0aa630c7ad3c452d4074a7afe976d",
+      "sourceArchiveCommit": "761afe3b9fa21f5abe2c7bb01a90faf8f1779656",
+      "retainedArchiveCommitID": "761afe3b9fa21f5abe2c7bb01a90faf8f1779656"
+    },
+    "originalReceiptSHA256": {
+      "local-smoke.json": "50c6a617889daa07dfd457218e2d096262c1da0e039a15389e231cfc34708cde",
+      "remote-smoke-basic.json": "1e1a890f9a466e1b0e17d27d72ef3f4b5207b1e9caa1f817d118cec66aaa24b6",
+      "remote-smoke-reconnect.json": "b42d40d2d826d1ad8def720273e6f16bb0020ec5fc1c83946f922b5e55030124",
+      "remote/source-commit.txt": "dd6f13be711920a6ad2a018ee5f639938657c755cfb13652d8db8031d3a8c8b6",
+      "remote/cli-readiness.log": "239f2d95203dfd176e3f81311d1c898840b570e3842cd6c62c816057bd2fdebc"
+    },
+    "redaction": "No production hostname, address, username, private path, key, provider credential, or real session content is included. codexbar-linux-test is the disposable test alias retained from captured CLI output."
+  },
+  "fixture": {
+    "kind": "Synthetic native Codex JSONL history and synthetic cached model pricing",
+    "local": {
+      "inputTokens": 100,
+      "cachedInputTokens": 20,
+      "outputTokens": 10,
+      "inputUSDPerMillion": 3,
+      "cachedInputUSDPerMillion": 0.3,
+      "outputUSDPerMillion": 12
+    },
+    "remote": {
+      "inputTokens": 200,
+      "cachedInputTokens": 40,
+      "outputTokens": 20,
+      "inputUSDPerMillion": 6,
+      "cachedInputUSDPerMillion": 0.6,
+      "outputUSDPerMillion": 24
+    },
+    "windowDays": 7,
+    "note": "Cached input is a subset of input. These rates and amounts are test inputs, not published provider prices or billed usage."
+  },
+  "commandDisplay": "$CLI denotes the built local CodexBarCLI executable; its private absolute path is omitted. Flags and the disposable target alias match the recorded harness.",
+  "command": "\"$CLI\" cost --provider codex --remote codexbar-linux-test --days 7 --refresh --format json",
+  "exitStatusEvidence": "The original invoke helper compared subprocess.returncode against its expected argument before returning a report. Those assertions passed; non-signal exit codes were not separately saved in the original receipt.",
+  "successfulQuery": {
+    "assertedExitCode": 0,
+    "capturedJSONStdout": [
+      {
+        "summary": {
+          "sessionTokens": 110,
+          "last30DaysTokens": 110,
+          "coverage": {
+            "estimated": 0,
+            "priced": 1,
+            "unmetered": 0,
+            "unpriced": 0
+          },
+          "sessionCostUSD": 0.000366,
+          "last30DaysCostUSD": 0.000366,
+          "historyCoverageIsEstablished": true,
+          "bucketTimeZone": "Asia/Shanghai",
+          "historyDays": 7,
+          "provider": "codex",
+          "updatedAt": "2026-09-16T12:19:09Z",
+          "provenance": "listPriceEstimate",
+          "currencyCode": "USD"
+        },
+        "host": "local",
+        "source": "local"
+      },
+      {
+        "summary": {
+          "sessionTokens": 220,
+          "last30DaysTokens": 220,
+          "coverage": {
+            "estimated": 0,
+            "priced": 1,
+            "unmetered": 0,
+            "unpriced": 0
+          },
+          "sessionCostUSD": 0.001464,
+          "last30DaysCostUSD": 0.001464,
+          "historyCoverageIsEstablished": true,
+          "bucketTimeZone": "Etc/UTC",
+          "historyDays": 7,
+          "provider": "codex",
+          "updatedAt": "2026-09-16T12:19:10Z",
+          "provenance": "listPriceEstimate",
+          "currencyCode": "USD"
+        },
+        "host": "codexbar-linux-test",
+        "source": "ssh"
+      }
+    ]
+  },
+  "successfulTextQuery": {
+    "command": "\"$CLI\" cost --provider codex --remote codexbar-linux-test --days 7 --refresh",
+    "assertedExitCode": 0,
+    "capturedTextStdout": "Codex API-equivalent estimates (not billed)\n\nThis machine\nToday: $0.00 · 110 tokens\nLast 7 days: $0.00 · 110 tokens\nDay boundaries: Asia/Shanghai\nUpdated: 2026-09-16T12:19:10Z\n\ncodexbar-linux-test (SSH)\nToday: $0.00 · 220 tokens\nLast 7 days: $0.00 · 220 tokens\nDay boundaries: Etc/UTC\nUpdated: 2026-09-16T12:19:10Z\n\nReports are separate. Overlapping histories are not added together.\nNative Codex history only; pi/OMP mirrors are excluded.\n"
+  },
+  "remoteUnavailable": {
+    "condition": "Task container stopped before the call; this was a real failed SSH connection, not a fake summary response",
+    "assertedExitCode": 1,
+    "capturedJSONStdout": [
+      {
+        "source": "local",
+        "host": "local",
+        "summary": {
+          "sessionTokens": 110,
+          "last30DaysTokens": 110,
+          "updatedAt": "2026-09-16T12:20:19Z",
+          "currencyCode": "USD",
+          "provider": "codex",
+          "last30DaysCostUSD": 0.000366,
+          "historyCoverageIsEstablished": true,
+          "provenance": "listPriceEstimate",
+          "sessionCostUSD": 0.000366,
+          "coverage": {
+            "estimated": 0,
+            "priced": 1,
+            "unmetered": 0,
+            "unpriced": 0
+          },
+          "historyDays": 7,
+          "bucketTimeZone": "Asia/Shanghai"
+        }
+      },
+      {
+        "source": "ssh",
+        "host": "codexbar-linux-test",
+        "error": "Could not read remote Codex costs. Check SSH and that the remote CLI supports --summary-only."
+      }
+    ]
+  },
+  "reconnectedQuery": {
+    "condition": "The same task container was restarted and became reachable again",
+    "assertedExitCode": 0,
+    "capturedJSONStdout": [
+      {
+        "summary": {
+          "last30DaysTokens": 110,
+          "sessionCostUSD": 0.000366,
+          "currencyCode": "USD",
+          "last30DaysCostUSD": 0.000366,
+          "sessionTokens": 110,
+          "coverage": {
+            "unpriced": 0,
+            "estimated": 0,
+            "unmetered": 0,
+            "priced": 1
+          },
+          "historyDays": 7,
+          "provider": "codex",
+          "updatedAt": "2026-09-16T12:20:21Z",
+          "historyCoverageIsEstablished": true,
+          "provenance": "listPriceEstimate",
+          "bucketTimeZone": "Asia/Shanghai"
+        },
+        "host": "local",
+        "source": "local"
+      },
+      {
+        "summary": {
+          "last30DaysTokens": 220,
+          "sessionCostUSD": 0.001464,
+          "currencyCode": "USD",
+          "last30DaysCostUSD": 0.001464,
+          "sessionTokens": 220,
+          "coverage": {
+            "unpriced": 0,
+            "estimated": 0,
+            "unmetered": 0,
+            "priced": 1
+          },
+          "historyDays": 7,
+          "provider": "codex",
+          "updatedAt": "2026-09-16T12:20:21Z",
+          "historyCoverageIsEstablished": true,
+          "provenance": "listPriceEstimate",
+          "bucketTimeZone": "Etc/UTC"
+        },
+        "host": "codexbar-linux-test",
+        "source": "ssh"
+      }
+    ]
+  },
+  "controlledFailureCases": {
+    "banner": {
+      "assertedExitCode": 1,
+      "capturedJSONStdout": [
+        {
+          "host": "local",
+          "source": "local",
+          "summary": {
+            "last30DaysTokens": 110,
+            "provider": "codex",
+            "historyCoverageIsEstablished": true,
+            "currencyCode": "USD",
+            "sessionCostUSD": 0.000366,
+            "provenance": "listPriceEstimate",
+            "coverage": {
+              "unmetered": 0,
+              "estimated": 0,
+              "priced": 1,
+              "unpriced": 0
+            },
+            "updatedAt": "2026-09-16T12:19:11Z",
+            "sessionTokens": 110,
+            "last30DaysCostUSD": 0.000366,
+            "historyDays": 7,
+            "bucketTimeZone": "Asia/Shanghai"
+          }
+        },
+        {
+          "error": "Remote CLI returned an invalid or incompatible Codex cost summary.",
+          "host": "codexbar-linux-test",
+          "source": "ssh"
+        }
+      ]
+    },
+    "old": {
+      "assertedExitCode": 1,
+      "capturedJSONStdout": [
+        {
+          "source": "local",
+          "summary": {
+            "historyDays": 7,
+            "provenance": "listPriceEstimate",
+            "sessionCostUSD": 0.000366,
+            "last30DaysTokens": 110,
+            "historyCoverageIsEstablished": true,
+            "updatedAt": "2026-09-16T12:19:12Z",
+            "sessionTokens": 110,
+            "provider": "codex",
+            "bucketTimeZone": "Asia/Shanghai",
+            "last30DaysCostUSD": 0.000366,
+            "currencyCode": "USD",
+            "coverage": {
+              "unpriced": 0,
+              "estimated": 0,
+              "unmetered": 0,
+              "priced": 1
+            }
+          },
+          "host": "local"
+        },
+        {
+          "source": "ssh",
+          "error": "Could not read remote Codex costs. Check SSH and that the remote CLI supports --summary-only.",
+          "host": "codexbar-linux-test"
+        }
+      ]
+    },
+    "large-out": {
+      "assertedExitCode": 1,
+      "capturedJSONStdout": [
+        {
+          "source": "local",
+          "summary": {
+            "currencyCode": "USD",
+            "historyDays": 7,
+            "bucketTimeZone": "Asia/Shanghai",
+            "updatedAt": "2026-09-16T12:19:13Z",
+            "provider": "codex",
+            "historyCoverageIsEstablished": true,
+            "provenance": "listPriceEstimate",
+            "coverage": {
+              "estimated": 0,
+              "unpriced": 0,
+              "priced": 1,
+              "unmetered": 0
+            },
+            "sessionTokens": 110,
+            "sessionCostUSD": 0.000366,
+            "last30DaysTokens": 110,
+            "last30DaysCostUSD": 0.000366
+          },
+          "host": "local"
+        },
+        {
+          "source": "ssh",
+          "error": "Remote Codex cost response exceeded the size limit.",
+          "host": "codexbar-linux-test"
+        }
+      ]
+    },
+    "large-err": {
+      "assertedExitCode": 1,
+      "capturedJSONStdout": [
+        {
+          "summary": {
+            "updatedAt": "2026-09-16T12:19:14Z",
+            "bucketTimeZone": "Asia/Shanghai",
+            "provider": "codex",
+            "coverage": {
+              "priced": 1,
+              "unpriced": 0,
+              "unmetered": 0,
+              "estimated": 0
+            },
+            "sessionCostUSD": 0.000366,
+            "last30DaysTokens": 110,
+            "historyDays": 7,
+            "last30DaysCostUSD": 0.000366,
+            "currencyCode": "USD",
+            "provenance": "listPriceEstimate",
+            "sessionTokens": 110,
+            "historyCoverageIsEstablished": true
+          },
+          "source": "local",
+          "host": "local"
+        },
+        {
+          "error": "Remote Codex cost response exceeded the size limit.",
+          "source": "ssh",
+          "host": "codexbar-linux-test"
+        }
+      ]
+    }
+  },
+  "additionalFieldRemoval": {
+    "condition": "A test wrapper returned a valid summary plus a synthetic private field; the client did not forward that field",
+    "assertedExitCode": 0,
+    "capturedJSONStdout": [
+      {
+        "source": "local",
+        "summary": {
+          "provenance": "listPriceEstimate",
+          "sessionTokens": 110,
+          "provider": "codex",
+          "currencyCode": "USD",
+          "sessionCostUSD": 0.000366,
+          "bucketTimeZone": "Asia/Shanghai",
+          "historyDays": 7,
+          "coverage": {
+            "unmetered": 0,
+            "priced": 1,
+            "estimated": 0,
+            "unpriced": 0
+          },
+          "last30DaysTokens": 110,
+          "last30DaysCostUSD": 0.000366,
+          "historyCoverageIsEstablished": true,
+          "updatedAt": "2026-09-16T12:19:15Z"
+        },
+        "host": "local"
+      },
+      {
+        "source": "ssh",
+        "summary": {
+          "provenance": "listPriceEstimate",
+          "sessionTokens": 220,
+          "provider": "codex",
+          "currencyCode": "USD",
+          "sessionCostUSD": 0.001464,
+          "bucketTimeZone": "Etc/UTC",
+          "historyDays": 7,
+          "coverage": {
+            "unmetered": 0,
+            "priced": 1,
+            "estimated": 0,
+            "unpriced": 0
+          },
+          "last30DaysTokens": 220,
+          "last30DaysCostUSD": 0.001464,
+          "historyCoverageIsEstablished": true,
+          "updatedAt": "2026-09-16T12:19:09Z"
+        },
+        "host": "codexbar-linux-test"
+      }
+    ]
+  },
+  "signalCancellation": {
+    "method": "Run the actual local CLI against the SSH endpoint with a delayed remote test command. Identify direct local ssh child PIDs with ps; send the signal to the CLI; await its exit; assert os.kill(pid, 0) reports each previously observed local child absent. Only result objects were retained, not the PID list or a ps transcript.",
+    "capturedHarnessDiagnostics": [
+      {
+        "signal": "SIGINT",
+        "exitCode": 1,
+        "localSSHReaped": true
+      },
+      {
+        "signal": "SIGTERM",
+        "exitCode": 1,
+        "localSSHReaped": true
+      },
+      {
+        "signal": "SIGHUP",
+        "exitCode": 1,
+        "localSSHReaped": true
+      }
+    ],
+    "boundary": "These observations cover local SSH children only. They do not prove every remote descendant terminated."
+  }
+}

@@ -76,6 +76,7 @@ struct CostHistoryChartMenuView: View {
     private let historyDays: Int
     private let historyCoverageIsEstablished: Bool
     private let windowLabel: String?
+    private let scopePresentation: CodexRemoteCostPresentation?
     private let projects: [CostUsageProjectBreakdown]
     private let sessions: [CostUsageSessionBreakdown]
     private let hidePersonalInfo: Bool
@@ -93,6 +94,7 @@ struct CostHistoryChartMenuView: View {
         historyDays: Int = 30,
         historyCoverageIsEstablished: Bool = true,
         windowLabel: String? = nil,
+        scopePresentation: CodexRemoteCostPresentation? = nil,
         projects: [CostUsageProjectBreakdown] = [],
         sessions: [CostUsageSessionBreakdown] = [],
         hidePersonalInfo: Bool,
@@ -107,6 +109,7 @@ struct CostHistoryChartMenuView: View {
         self.historyDays = max(1, min(365, historyDays))
         self.historyCoverageIsEstablished = historyCoverageIsEstablished
         self.windowLabel = windowLabel
+        self.scopePresentation = scopePresentation
         self.projects = projects
         self.sessions = sessions
         self.hidePersonalInfo = hidePersonalInfo
@@ -131,6 +134,14 @@ struct CostHistoryChartMenuView: View {
         let tokenValues = model.points.compactMap(\.totalTokens)
         let accessibilityTokens = tokenValues.isEmpty ? nil : CheckedSum.integers(tokenValues)
         VStack(alignment: .leading, spacing: Self.outerSpacing) {
+            if let scopePresentation {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(scopePresentation.title).font(.headline)
+                    Text(scopePresentation.detail).font(.caption)
+                    Text(scopePresentation.status).font(.caption).foregroundStyle(.secondary)
+                }
+                .accessibilityElement(children: .combine)
+            }
             if model.points.isEmpty {
                 Text(L("No data available"))
                     .font(.footnote)
@@ -1093,6 +1104,7 @@ extension CostHistoryChartMenuView {
     }
 
     struct RenderFingerprint: Equatable {
+        let scopePresentation: CodexRemoteCostPresentation?
         let hidePersonalInfo: Bool
         let currencyCode: String
         let costMultiplierBitPattern: UInt64
@@ -1157,11 +1169,13 @@ extension CostHistoryChartMenuView {
         provider: UsageProvider,
         hidePersonalInfo: Bool = false,
         displayCurrencyCode: String? = nil,
-        displayCostMultiplier: Double = 1.0) -> RenderFingerprint
+        displayCostMultiplier: Double = 1.0,
+        scopePresentation: CodexRemoteCostPresentation? = nil) -> RenderFingerprint
     {
         let projects = provider == .codex ? snapshot.projects : []
         let sessions = provider == .codex ? snapshot.sessions : []
         return RenderFingerprint(
+            scopePresentation: scopePresentation,
             hidePersonalInfo: hidePersonalInfo,
             currencyCode: displayCurrencyCode ?? snapshot.currencyCode,
             costMultiplierBitPattern: displayCostMultiplier.bitPattern,
