@@ -183,7 +183,8 @@ extension UsageMenuCardView.Model {
         comparisonPeriodsEnabled: Bool,
         snapshot: CostUsageTokenSnapshot?,
         error: String?,
-        preferredCurrencyCode: String = "auto") -> TokenUsageSection?
+        preferredCurrencyCode: String = "auto",
+        calendar: Calendar = .current) -> TokenUsageSection?
     {
         guard ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.supportsTokenCost else {
             return nil
@@ -252,14 +253,18 @@ extension UsageMenuCardView.Model {
                 providerCurrency: snapshot.currencyCode)
             return String(format: L("Cursor-metered: %@ (%@)"), amount, windowLabel.lowercased())
         }
+        let incompleteCount = CostUsageIncompleteRequests.sum(snapshot.daily.map(\.incompleteRequestCount))
+        let todayIncompleteCount = snapshot.summary(forLastDays: 1, calendar: calendar).incompleteRequestCount
         let err = (error?.isEmpty ?? true) ? nil : error
+        let hints = [Self.tokenUsageHint(provider: provider), UsageFormatter.incompleteUsageNote(incompleteCount)]
+            .compactMap(\.self)
         return TokenUsageSection(
             isRefreshing: isRefreshing,
-            sessionLine: sessionLine,
-            monthLine: monthLine,
+            sessionLine: sessionLine + UsageFormatter.incompleteUsageSuffix(todayIncompleteCount),
+            monthLine: monthLine + UsageFormatter.incompleteUsageSuffix(incompleteCount),
             meteredLine: meteredLine,
             comparisonLines: comparisonPeriodsEnabled
-                ? snapshot.comparisonSummaries().map {
+                ? snapshot.comparisonSummaries(calendar: calendar).map {
                     Self.costWindowLine(
                         summary: $0,
                         currencyCode: UsageFormatter.effectiveCurrencyCode(
@@ -268,7 +273,7 @@ extension UsageMenuCardView.Model {
                         sourceCurrencyCode: snapshot.currencyCode)
                 }
                 : [],
-            hintLine: Self.tokenUsageHint(provider: provider),
+            hintLine: hints.isEmpty ? nil : hints.joined(separator: "\n"),
             errorLine: err,
             errorCopyText: (error?.isEmpty ?? true) ? nil : error)
     }
@@ -285,12 +290,13 @@ extension UsageMenuCardView.Model {
                 preferredCurrency: currencyCode,
                 providerCurrency: sourceCurrencyCode ?? currencyCode)
         } ?? "—"
-        guard let totalTokens = summary.totalTokens else { return "\(label): \(cost)" }
+        let suffix = UsageFormatter.incompleteUsageSuffix(summary.incompleteRequestCount)
+        guard let totalTokens = summary.totalTokens else { return "\(label): \(cost)\(suffix)" }
         return String(
             format: L("%@: %@ · %@ tokens"),
             label,
             cost,
-            UsageFormatter.tokenCountString(totalTokens))
+            UsageFormatter.tokenCountString(totalTokens)) + suffix
     }
 
     static func tokenUsageHint(provider: UsageProvider) -> String? {
@@ -635,5 +641,15 @@ extension UsageMenuCardView.Model {
 
     static func clamped(_ value: Double) -> Double {
         min(100, max(0, value))
+    }
+}
+
+extension UsageFormatter {
+    static func incompleteUsageSuffix(_ count: Int) -> String {
+        count > 0 ? " · \(L("Incomplete"))" : ""
+    }
+
+    static func incompleteUsageNote(_ count: Int) -> String? {
+        count > 0 ? L("Excluded requests with missing final usage: %d", count) : nil
     }
 }

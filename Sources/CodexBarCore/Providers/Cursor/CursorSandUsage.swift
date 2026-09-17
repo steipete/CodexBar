@@ -1,6 +1,6 @@
 import Foundation
 
-/// Grok Bot (internally "Sand") weekly included usage from Cursor's dashboard.
+/// Grok Bot (internally "Sand") included or trial usage from Cursor's dashboard.
 ///
 /// `POST /api/dashboard/get-sand-usage-status` with the same session cookie as
 /// `/api/usage-summary`. Missing or failed responses must not fail Cursor usage.
@@ -14,28 +14,36 @@ public struct CursorSandUsageStatus: Decodable, Sendable, Equatable {
     public let usagePercent: Double?
     public let hasAvailableUsage: Bool?
     public let hasNonZeroIncludedLimit: Bool?
+    public let includedLimitZero: Bool?
+    public let sandTrialExpiresAt: String?
 
     public init(
         currentPeriodStart: String?,
         nextResetTimestampUtc: String?,
         usagePercent: Double?,
         hasAvailableUsage: Bool?,
-        hasNonZeroIncludedLimit: Bool?)
+        hasNonZeroIncludedLimit: Bool? = nil,
+        includedLimitZero: Bool? = nil,
+        sandTrialExpiresAt: String? = nil)
     {
         self.currentPeriodStart = currentPeriodStart
         self.nextResetTimestampUtc = nextResetTimestampUtc
         self.usagePercent = usagePercent
         self.hasAvailableUsage = hasAvailableUsage
         self.hasNonZeroIncludedLimit = hasNonZeroIncludedLimit
+        self.includedLimitZero = includedLimitZero
+        self.sandTrialExpiresAt = sandTrialExpiresAt
     }
 
-    /// Weekly Grok Bot bar, or `nil` when the account has no included Bot allowance.
-    public func extraRateWindow(resetDescription: (Date) -> String) -> NamedRateWindow? {
-        guard self.hasNonZeroIncludedLimit == true, let usagePercent = self.usagePercent else {
+    /// Included or unexpired trial allowance; trial expiry is not a recurring quota reset.
+    public func extraRateWindow(now: Date = Date(), resetDescription: (Date) -> String) -> NamedRateWindow? {
+        let hasLimit = self.includedLimitZero.map { !$0 } ?? self.hasNonZeroIncludedLimit
+        let hasTrial = hasLimit != true && ISO8601DateParser.parse(self.sandTrialExpiresAt).map { $0 > now } == true
+        guard hasLimit == true || hasTrial, let usagePercent = self.usagePercent else {
             return nil
         }
         let start = ISO8601DateParser.parse(self.currentPeriodStart)
-        let resetsAt = ISO8601DateParser.parse(self.nextResetTimestampUtc)
+        let resetsAt = hasTrial ? nil : ISO8601DateParser.parse(self.nextResetTimestampUtc)
         return NamedRateWindow(
             id: Self.extraWindowID,
             title: Self.extraWindowTitle,

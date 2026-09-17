@@ -107,6 +107,7 @@ struct ShareStatsCurrencyPayload: Sendable, Equatable, Identifiable {
 struct ShareStatsPayload: Sendable, Equatable {
     let days: Int
     let periodEnd: Date
+    let periodEndTimeZone: TimeZone
     let providers: [ShareStatsProviderPayload]
     let topModels: [ShareStatsModelPayload]
     let currencies: [ShareStatsCurrencyPayload]
@@ -120,10 +121,12 @@ struct ShareStatsPayload: Sendable, Equatable {
         topModels: [ShareStatsModelPayload],
         currencies: [ShareStatsCurrencyPayload],
         totalTokens: Int?,
-        hasPartialTokens: Bool = false)
+        hasPartialTokens: Bool = false,
+        periodEndTimeZone: TimeZone = .current)
     {
         self.days = days
         self.periodEnd = periodEnd
+        self.periodEndTimeZone = periodEndTimeZone
         self.providers = providers
         self.topModels = topModels
         self.currencies = currencies
@@ -268,7 +271,7 @@ enum ShareStatsBuilder {
             }
         }
         let sanitizedModels = model.groups.filter {
-            $0.modelHistoryCompleteness == .complete
+            $0.modelHistoryCompleteness == .complete && $0.incompleteRequestCount == 0
         }.flatMap { group in
             group.models.compactMap { row -> ShareStatsModelPayload? in
                 let estimatedCost = self.finiteCost(row.totalCost)
@@ -319,7 +322,14 @@ enum ShareStatsBuilder {
         }
         let totalTokens = self.combinedTotalTokens(model.groups.map(\.totalTokens))
         let hasPartialTokens = model.groups.contains(where: \.hasPartialTokens)
-        let periodEnd = model.groups.map(\.chartDomain.upperBound).max() ?? Date()
+        guard let periodGroup = model.groups.max(by: { $0.chartDomain.upperBound < $1.chartDomain.upperBound }) else {
+            return nil
+        }
+        // The chart extends through the next day's start; sharing names the last included civil day.
+        let lastIncludedInstant = max(
+            periodGroup.chartDomain.lowerBound,
+            periodGroup.chartDomain.upperBound.addingTimeInterval(-1))
+        let periodEnd = periodGroup.calendar.startOfDay(for: lastIncludedInstant)
         let payload = ShareStatsPayload(
             days: model.requestedDays,
             periodEnd: periodEnd,
@@ -327,7 +337,8 @@ enum ShareStatsBuilder {
             topModels: topModels,
             currencies: currencies,
             totalTokens: totalTokens,
-            hasPartialTokens: hasPartialTokens)
+            hasPartialTokens: hasPartialTokens,
+            periodEndTimeZone: periodGroup.timeZone)
         return payload.hasShareableData ? payload : nil
     }
 
@@ -360,6 +371,12 @@ enum ShareStatsFormatting {
 
     static func currency(_ value: Double, code: String) -> String {
         UsageFormatter.currencyString(value, currencyCode: code)
+    }
+
+    static func dataThrough(_ payload: ShareStatsPayload) -> String {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = payload.periodEndTimeZone
+        return self.dataThrough(payload.periodEnd, calendar: calendar)
     }
 
     static func dataThrough(_ date: Date, calendar: Calendar = .current) -> String {
@@ -433,7 +450,7 @@ enum ShareStatsFormatting {
                 return "\(model.modelName) (\(model.providerName)): \(metrics.joined(separator: " · "))"
             })
         }
-        lines.append("Generated locally by CodexBar · Data through \(self.dataThrough(payload.periodEnd))")
+        lines.append("Generated locally by CodexBar · Data through \(self.dataThrough(payload))")
         return lines.joined(separator: "\n")
     }
 }

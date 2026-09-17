@@ -1581,3 +1581,7 @@
 
 "agent_sessions_hide_unreachable_title" = "Скрывать недоступные узлы";
 "agent_sessions_hide_unreachable_subtitle" = "Скрывать узлы, если не удалось получить их сеансы.";
+
+"Incomplete" = "Неполные данные";
+"Est. subtotal (%@): %@" = "Оценка подытога (%@): %@";
+"Excluded requests with missing final usage: %d" = "Исключённые запросы без итоговых данных об использовании: %d";

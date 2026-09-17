@@ -222,7 +222,7 @@ struct ShareStatsCardView: View {
         HStack(spacing: 12) {
             Label("LOCAL · AGGREGATE ONLY", systemImage: "lock.shield")
             Spacer()
-            Text("DATA THROUGH \(ShareStatsFormatting.dataThrough(self.payload.periodEnd).uppercased())")
+            Text("DATA THROUGH \(ShareStatsFormatting.dataThrough(self.payload).uppercased())")
         }
         .font(.system(size: 14, weight: .medium, design: .rounded))
         .tracking(0.7)

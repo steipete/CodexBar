@@ -110,6 +110,8 @@ that workspace and never exposes the full provider identifier. This is display-o
 credential selection are unchanged. Separate profile homes for the same workspace also include a hashed source identity,
 so their labels stay distinct without exposing paths. Compact switcher buttons keep the discriminator visible when space
 is limited, using additional rows when needed.
+Hide Personal Info applies to the System Account submenu as well as the switcher: email addresses are removed,
+and stable account numbers distinguish rows while usable workspace labels remain visible.
 
 ### OpenAI web dashboard (optional, off by default)
 - Subscription renewal or expiration dates load after the app publishes dashboard usage. CodexBar first tries the subscription API, then captures only the date and renewal flag from ChatGPT's own billing request in the same account-scoped web session, within an eight-second budget.

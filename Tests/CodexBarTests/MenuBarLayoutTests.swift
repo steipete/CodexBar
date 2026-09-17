@@ -847,8 +847,8 @@ struct MenuBarLayoutTests {
     }
 
     @Test
-    func `opencode go exposes the monthly tertiary lane once a window exists`() {
-        #expect(MenuBarLayoutLane.available(for: .opencodego) == [.primary, .secondary])
+    func `opencode go exposes the monthly tertiary lane before data arrives`() {
+        #expect(MenuBarLayoutLane.available(for: .opencodego) == [.primary, .secondary, .tertiary])
 
         let usageSnapshot = UsageSnapshot(
             primary: nil,

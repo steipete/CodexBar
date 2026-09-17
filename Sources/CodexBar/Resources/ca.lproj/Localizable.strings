@@ -1582,3 +1582,7 @@
 
 "agent_sessions_hide_unreachable_title" = "Amaga els amfitrions inaccessibles";
 "agent_sessions_hide_unreachable_subtitle" = "Amaga els amfitrions quan falla la consulta de les seves sessions.";
+
+"Incomplete" = "Incomplet";
+"Est. subtotal (%@): %@" = "Subtotal estimat (%@): %@";
+"Excluded requests with missing final usage: %d" = "Sol·licituds excloses sense dades d’ús finals: %d";

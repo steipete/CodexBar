@@ -1066,10 +1066,13 @@ extension UsageMenuCardView.Model {
         window: RateWindow,
         input: Input) -> PaceDetail?
     {
-        if provider == .claude, window.windowMinutes != 10080 {
+        // Provider-specific by design: extra-window pacing covers Codex, Claude, Antigravity, and Cursor 7-day extras.
+        if provider == .claude || provider == .cursor, window.windowMinutes != 10080 {
             return nil
         }
-        guard provider == .codex || provider == .claude || provider == .antigravity else { return nil }
+        guard provider == .codex || provider == .claude || provider == .antigravity || provider == .cursor else {
+            return nil
+        }
         switch window.windowMinutes {
         case 300:
             return self.sessionPaceDetail(

@@ -111,6 +111,153 @@ struct AntigravityLocalIntegrityTests {
         #expect(report.statistics.rows == 1)
     }
 
+    /// Copied from the file Antigravity 1.2.3 writes into `~/.gemini/antigravity`.
+    private static let conversationSummariesSchema = """
+    CREATE TABLE `conversation_summaries` (`conversation_id` text,`title` text NOT NULL DEFAULT "",
+    `preview` text NOT NULL DEFAULT "",`step_count` integer NOT NULL DEFAULT 0,
+    `last_modified_time` datetime NOT NULL,`workspace_uris` text NOT NULL,
+    `status` text NOT NULL DEFAULT "",`source` text NOT NULL DEFAULT "",
+    `project_id` text NOT NULL DEFAULT "",`agent_name` text NOT NULL DEFAULT "",
+    `parent_conversation_id` text NOT NULL DEFAULT "",`nesting_depth` integer NOT NULL DEFAULT 0,
+    `battle_id` text NOT NULL DEFAULT "",`winning_conversation_id` text NOT NULL DEFAULT "",
+    `not_fully_idle` numeric NOT NULL DEFAULT false,`killed` numeric NOT NULL DEFAULT false,
+    `last_user_input_time` datetime NOT NULL,`last_user_input_step_index` integer NOT NULL DEFAULT -1,
+    `app_data_dir` text NOT NULL DEFAULT "",`raw_summary` blob,PRIMARY KEY (`conversation_id`));
+    CREATE INDEX `idx_conversation_summaries_last_user_input_time`
+        ON `conversation_summaries`(`last_user_input_time`);
+    CREATE INDEX `idx_conversation_summaries_last_modified_time`
+        ON `conversation_summaries`(`last_modified_time`);
+    """
+
+    /// Creates a second database beside the history database, with the given schema and no `gen_metadata` table.
+    @discardableResult
+    private static func foreignDatabase(_ fixture: Fixture, named name: String, schema: String?) throws -> URL {
+        let root = fixture.context.databaseRoots[0]
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let url = root.appendingPathComponent("\(name).db")
+        let database = try Fixture.open(url)
+        defer { sqlite3_close(database) }
+        if let schema {
+            try Fixture.execute(database, schema)
+        }
+        return url
+    }
+
+    @Test
+    func `a foreign database beside the history is skipped without withholding any day`() throws {
+        let fixture = try Fixture()
+        try fixture.database(blobs: [Fixture.blob()])
+        try Self.foreignDatabase(fixture, named: "conversation_summaries", schema: Self.conversationSummariesSchema)
+
+        let report = try fixture.report()
+
+        #expect(report.coverage == .complete)
+        #expect(report.report.summary?.totalTokens == 198)
+        #expect(report.statistics.foreignDatabases == 1)
+        #expect(report.statistics.sqliteHandlesOpened == report.statistics.sqliteHandlesClosed)
+    }
+
+    @Test
+    func `foreign databases alone do not establish empty history or select the JSONL cache`() async throws {
+        let fixture = try Fixture()
+        try Self.foreignDatabase(fixture, named: "conversation_summaries", schema: Self.conversationSummariesSchema)
+        try fixture.jsonl([Fixture.cacheUsage])
+
+        let report = try fixture.report()
+        let snapshot = try await fixture.snapshot()
+
+        #expect(report.coverage == .unavailable)
+        #expect(!report.isAvailable)
+        #expect(report.statistics.foreignDatabases == 1)
+        #expect(report.statistics.rows == 0)
+        #expect(report.statistics.sqliteHandlesOpened == report.statistics.sqliteHandlesClosed)
+        #expect(!snapshot.historyCoverageIsEstablished)
+        #expect(snapshot.daily.isEmpty)
+        #expect(snapshot.last30DaysTokens == nil)
+    }
+
+    @Test(arguments: ["a-summaries", "z-summaries"])
+    func `supported empty history stays complete beside foreign databases`(_ name: String) async throws {
+        let fixture = try Fixture()
+        try fixture.database(blobs: [])
+        try Self.foreignDatabase(fixture, named: name, schema: Self.conversationSummariesSchema)
+
+        let report = try fixture.report()
+        let snapshot = try await fixture.snapshot()
+
+        #expect(report.coverage == .complete)
+        #expect(report.isAvailable)
+        #expect(report.statistics.foreignDatabases == 1)
+        #expect(report.statistics.sqliteHandlesOpened == report.statistics.sqliteHandlesClosed)
+        #expect(snapshot.historyCoverageIsEstablished)
+        #expect(snapshot.daily.isEmpty)
+    }
+
+    @Test
+    func `undecodable SQLite schema names do not prove a database is foreign`() throws {
+        let fixture = try Fixture()
+        try fixture.database(blobs: [Fixture.blob()])
+        let url = try Self.foreignDatabase(fixture, named: "undecodable", schema: nil)
+        let database = try Fixture.open(url)
+        defer { sqlite3_close(database) }
+        // SQLite accepts raw identifier bytes that are not valid UTF-8.
+        let bytes = Array("CREATE TABLE \"".utf8) + [0xFF] + Array("\" (value INTEGER)".utf8) + [0]
+        let sql = bytes.map { CChar(bitPattern: $0) }
+        let result = sql.withUnsafeBufferPointer { sqlite3_exec(database, $0.baseAddress, nil, nil, nil) }
+        try #require(result == SQLITE_OK)
+
+        let report = try fixture.report()
+
+        #expect(report.coverage == .partial)
+        #expect(report.statistics.foreignDatabases == 0)
+        #expect(report.statistics.sqliteHandlesOpened == report.statistics.sqliteHandlesClosed)
+    }
+
+    @Test
+    func `a gen_metadata table with unknown columns stays incomplete instead of foreign`() throws {
+        let fixture = try Fixture()
+        try fixture.database(blobs: [Fixture.blob()])
+        try Self.foreignDatabase(
+            fixture,
+            named: "drifted",
+            schema: "CREATE TABLE gen_metadata (idx INTEGER, wrong TEXT)")
+
+        let report = try fixture.report()
+
+        #expect(report.coverage != .complete)
+        #expect(report.statistics.foreignDatabases == 0)
+    }
+
+    @Test
+    func `a database that describes no schema at all remains unsupported rather than foreign`() throws {
+        let fixture = try Fixture()
+        try fixture.database(blobs: [Fixture.blob()])
+        let empty = try Self.foreignDatabase(fixture, named: "empty", schema: nil)
+        #expect(FileManager.default.fileExists(atPath: empty.path))
+
+        let report = try fixture.report()
+
+        #expect(report.coverage != .complete)
+        #expect(report.statistics.foreignDatabases == 0)
+    }
+
+    @Test
+    func `a schema walk that the entry limit truncated never counts as foreign`() throws {
+        let fixture = try Fixture()
+        try fixture.database(blobs: [Fixture.blob()])
+        // The schema query caps its own LIMIT at 128 entries, so a larger entry budget lets the walk end
+        // without proving gen_metadata absent. That truncated walk must stay unsupported.
+        let tables = (0..<130).map { "CREATE TABLE unrelated_\($0) (value INTEGER);" }.joined()
+        try Self.foreignDatabase(fixture, named: "wide", schema: tables)
+        var limits = AntigravityLocalReader.Limits()
+        limits.schemaEntries = 200
+
+        let report = try fixture.report(limits: limits)
+
+        #expect(report.coverage != .complete)
+        #expect(report.statistics.foreignDatabases == 0)
+    }
+
     @Test
     func `embedded timestamps do not spend schema budget discovering optional steps`() throws {
         let fixture = try Fixture()

@@ -1580,3 +1580,7 @@
 
 "agent_sessions_hide_unreachable_title" = "Приховувати недоступні вузли";
 "agent_sessions_hide_unreachable_subtitle" = "Приховувати вузли, якщо не вдалося отримати їхні сеанси.";
+
+"Incomplete" = "Неповні дані";
+"Est. subtotal (%@): %@" = "Орієнтовний підсумок (%@): %@";
+"Excluded requests with missing final usage: %d" = "Виключені запити без остаточних даних про використання: %d";

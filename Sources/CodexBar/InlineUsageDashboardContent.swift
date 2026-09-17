@@ -7,11 +7,13 @@ struct InlineUsageDashboardModel: Equatable {
         let cost: Double?
         let tokenCount: Int?
         let currencyCode: String
+        var incompleteRequestCount: Int = 0
 
         var summary: String {
             let cost = self.cost.map { UsageFormatter.currencyString($0, currencyCode: self.currencyCode) } ?? "—"
             let tokens = self.tokenCount.map(UsageFormatter.tokenCountString) ?? "—"
             return L("%@: %@ · %@ tokens", self.dateLabel, cost, tokens)
+                + UsageFormatter.incompleteUsageSuffix(self.incompleteRequestCount)
         }
     }
 
@@ -214,19 +216,21 @@ extension UsageMenuCardView.Model {
         let latest = CostUsageTokenSnapshot.latestEntry(in: snapshot.daily)
         let usesLatestPrimary = tokenCost.primaryValue == .latestDaily
         let primaryCostUSD = usesLatestPrimary ? latest?.costUSD : snapshot.sessionCostUSD
+        let incompleteCount = CostUsageIncompleteRequests.sum(snapshot.daily.map(\.incompleteRequestCount))
+        let primaryIncompleteCount = usesLatestPrimary ? latest?.incompleteRequestCount ?? 0
+            : snapshot.summary(forLastDays: 1, calendar: calendar).incompleteRequestCount
+        let primarySuffix = UsageFormatter.incompleteUsageSuffix(primaryIncompleteCount)
+        let historySuffix = UsageFormatter.incompleteUsageSuffix(incompleteCount)
         var details: [String] = []
         if comparisonPeriodsEnabled {
-            details.append(contentsOf: snapshot.comparisonSummaries().map {
-                let label = Self.costHistoryWindowLabel(days: $0.days)
-                let cost = $0.totalCostUSD.map(convertedString) ?? "—"
-                guard let totalTokens = $0.totalTokens else { return "\(label): \(cost)" }
-                return String(
-                    format: L("%@: %@ · %@ tokens"),
-                    label,
-                    cost,
-                    UsageFormatter.tokenCountString(totalTokens))
+            details.append(contentsOf: snapshot.comparisonSummaries(calendar: calendar).map {
+                Self.costWindowLine(
+                    summary: $0,
+                    currencyCode: displayCurrencyCode,
+                    sourceCurrencyCode: snapshot.currencyCode)
             })
         }
+        if let note = UsageFormatter.incompleteUsageNote(incompleteCount) { details.append(note) }
         if let topModel = Self.topCostModel(from: snapshot.daily) {
             details.append("\(L("Top model")): \(Self.shortModelName(topModel))")
         }
@@ -255,17 +259,17 @@ extension UsageMenuCardView.Model {
         var kpis = [
             InlineUsageDashboardModel.KPI(
                 title: usesLatestPrimary ? L("Latest") : L("Today"),
-                value: primaryCostUSD.map(convertedString) ?? "—",
+                value: (primaryCostUSD.map(convertedString) ?? "—") + primarySuffix,
                 emphasis: true),
             .init(
                 title: historyTitle,
-                value: snapshot.last30DaysCostUSD
-                    .map(convertedString) ?? "—",
+                value: (snapshot.last30DaysCostUSD
+                    .map(convertedString) ?? "—") + historySuffix,
                 emphasis: false),
         ]
         let tokenHistoryKPI = InlineUsageDashboardModel.KPI(
             title: tokenHistoryTitle,
-            value: snapshot.last30DaysTokens.map(UsageFormatter.tokenCountString) ?? "—",
+            value: (snapshot.last30DaysTokens.map(UsageFormatter.tokenCountString) ?? "—") + historySuffix,
             emphasis: false)
         let trailingKPIs = Self.costHistoryTrailingKPIs(snapshot: snapshot, latest: latest)
         if snapshot.last30DaysRequests == nil {
@@ -309,7 +313,8 @@ extension UsageMenuCardView.Model {
         return [
             .init(
                 title: L("Latest tokens"),
-                value: latest?.totalTokens.map(UsageFormatter.tokenCountString) ?? "—",
+                value: (latest?.totalTokens.map(UsageFormatter.tokenCountString) ?? "—")
+                    + UsageFormatter.incompleteUsageSuffix(latest?.incompleteRequestCount ?? 0),
                 emphasis: false),
         ]
     }
@@ -341,12 +346,13 @@ extension UsageMenuCardView.Model {
         historyDays: Int,
         preservesCalendarDays: Bool,
         calendar sourceCalendar: Calendar)
-        -> [(date: String, costUSD: Double?, totalTokens: Int?)]
+        -> [(date: String, costUSD: Double?, totalTokens: Int?, incompleteRequestCount: Int)]
     {
         let existingDays = snapshot.daily.suffix(historyDays)
-            .compactMap { entry -> (date: String, costUSD: Double?, totalTokens: Int?)? in
-                guard entry.costUSD != nil || entry.totalTokens != nil else { return nil }
-                return (entry.date, entry.costUSD, entry.totalTokens)
+            .compactMap { entry -> (date: String, costUSD: Double?, totalTokens: Int?, incompleteRequestCount: Int)? in
+                guard entry.costUSD != nil || entry.totalTokens != nil || entry.incompleteRequestCount > 0
+                else { return nil }
+                return (entry.date, entry.costUSD, entry.totalTokens, entry.incompleteRequestCount)
             }
         guard preservesCalendarDays else { return existingDays }
 
@@ -362,18 +368,23 @@ extension UsageMenuCardView.Model {
             guard let date = calendar.date(byAdding: .day, value: offset, to: startDate) else { return nil }
             let dayKey = Self.inlineCostHistoryDayKey(date, calendar: calendar)
             if let entry = entriesByDay[dayKey] {
-                return (date: dayKey, costUSD: entry.costUSD, totalTokens: entry.totalTokens)
+                return (
+                    date: dayKey,
+                    costUSD: entry.costUSD,
+                    totalTokens: entry.totalTokens,
+                    incompleteRequestCount: entry.incompleteRequestCount)
             }
             // A missing date is zero only after the scan has covered the requested history.
             return (
                 date: dayKey,
                 costUSD: snapshot.historyCoverageIsEstablished ? 0 : nil,
-                totalTokens: snapshot.historyCoverageIsEstablished ? 0 : nil)
+                totalTokens: snapshot.historyCoverageIsEstablished ? 0 : nil,
+                incompleteRequestCount: 0)
         }
     }
 
     private static func inlineCostHistoryPoints(
-        days: [(date: String, costUSD: Double?, totalTokens: Int?)],
+        days: [(date: String, costUSD: Double?, totalTokens: Int?, incompleteRequestCount: Int)],
         displayCurrencyCode: String,
         convertedValue: (Double) -> Double) -> [InlineUsageDashboardModel.Point]
     {
@@ -390,12 +401,15 @@ extension UsageMenuCardView.Model {
             let costUSD = day.costUSD.flatMap { $0 >= 0 ? $0 : nil }
             let tokenCount = day.totalTokens.flatMap { $0 >= 0 ? $0 : nil }
             let convertedCost = costUSD.map(convertedValue)
-            let hoverDetail: InlineUsageDashboardModel.HoverDetail? = if costUSD != nil || tokenCount != nil {
+            let hoverDetail: InlineUsageDashboardModel.HoverDetail? = if costUSD != nil || tokenCount != nil || day
+                .incompleteRequestCount > 0
+            {
                 .init(
                     dateLabel: dateLabel,
                     cost: convertedCost,
                     tokenCount: tokenCount,
-                    currencyCode: displayCurrencyCode)
+                    currencyCode: displayCurrencyCode,
+                    incompleteRequestCount: day.incompleteRequestCount)
             } else {
                 nil
             }
@@ -424,6 +438,7 @@ extension UsageMenuCardView.Model {
     }
 
     private static func topCostModel(from entries: [CostUsageDailyReport.Entry]) -> String? {
+        guard entries.allSatisfy({ $0.incompleteRequestCount == 0 }) else { return nil }
         var scores: [String: (cost: Double, tokens: Int)] = [:]
         for entry in entries {
             for model in entry.modelBreakdowns ?? [] {

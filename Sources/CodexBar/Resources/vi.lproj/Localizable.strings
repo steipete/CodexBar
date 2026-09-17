@@ -1581,3 +1581,7 @@
 
 "agent_sessions_hide_unreachable_title" = "Ẩn máy chủ không thể truy cập";
 "agent_sessions_hide_unreachable_subtitle" = "Ẩn máy chủ khi không lấy được các phiên của máy chủ đó.";
+
+"Incomplete" = "Chưa đầy đủ";
+"Est. subtotal (%@): %@" = "Tổng phụ ước tính (%@): %@";
+"Excluded requests with missing final usage: %d" = "Yêu cầu bị loại trừ do thiếu dữ liệu sử dụng cuối cùng: %d";

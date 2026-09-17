@@ -16,6 +16,11 @@ Use it when you need usage numbers in scripts, CI, or dashboards without UI.
 - From the repo, after installing `CodexBar.app` in `/Applications`: `./bin/install-codexbar-cli.sh` (same symlink targets; requires macOS administrator approval).
 - Manual: `ln -sf "/Applications/CodexBar.app/Contents/Helpers/CodexBarCLI" /usr/local/bin/codexbar`.
 
+The bundled macOS CLI identifies its running executable and containing app through the operating system, even
+when launched through these symlinks. Mutable external aliases are not added to new credential-cache trust lists.
+Existing signature validation, disabled-access settings, and no-prompt rules still apply; standalone development
+binaries do not gain access to the app's persistent cache.
+
 The repo installer requires an executable `/Applications/CodexBar.app/Contents/Helpers/CodexBarCLI`; a missing
 helper is an error. It starts the system POSIX shell with `-p` to ignore inherited functions and startup hooks
 before helper validation or failure handling. This shell mode does not elevate privileges; macOS administrator
@@ -70,6 +75,8 @@ See `docs/configuration.md` for the schema.
   - Cursor is fetched from the cookie-authenticated cursor.com dashboard API (macOS only; see `docs/cursor.md`) and honors the configured cookie source: a non-empty Manual header is required and forwarded, while Off fails explicitly instead of silently omitting Cursor.
   - `--format text|json` (default: text). `--json` includes the same cost concepts as Settings → Usage & Spend (token mix, `provenance`, coverage), but it is not the dashboard Export JSON schema. CLI places mix fields under each provider's `totals` and emits `provenance`/`coverage` on that provider object; Export JSON nests `tokenMix`, `provenance`, and `coverage` under `groups[]`.
   - OpenCodex appears as a separate `opencodex` payload only when **Include OpenCodex usage logs** is on in Settings. That payload does not invent `projects` (OpenCodex logs have no workspace path).
+    It refreshes cached models.dev prices before estimating recorded provider/model usage. OpenRouter model namespaces
+    remain scoped to OpenRouter, and missing usage or price fields remain unknown rather than zero. See [model pricing](model-pricing.md).
   - `--refresh` ignores cached scans.
   - `--breakdown` adds Claude-only daily and top-model details to text output. Both sections use the same last seven calendar days (or the shorter requested interval); when that interval has no rows, both explicitly label the latest recorded days. Incomplete attribution is marked partial. Ordinary text, other providers, and JSON output are unchanged.
   - `--provider-native-only` is experimental and excludes pi and OMP session mirrors from Claude and Codex history.
@@ -103,6 +110,9 @@ See `docs/configuration.md` for the schema.
   - `--output <path>` atomically writes the snapshot to a file (`0644`) instead of stdout — staged in the destination directory, fsync'd, then renamed over the target so readers never observe a partial document. The parent directory must already exist (it is not created), and stdout stays silent on success.
   - Starts no HTTP server and requires no dashboard bearer token. See `docs/dashboard-api.md` for the shared payload contract.
 - `codexbar serve` starts a foreground HTTP server for usage and cost JSON, a token-gated dashboard snapshot, and a built-in web UI at `/`.
+  - Web usage bars follow the app's **Usage bars fill** setting, read per request on macOS. Dashboard snapshots from
+    both `serve` and `codexbar dashboard` expose it as `host.usageBarsShowUsed`. An absent setting defaults to remaining
+    percentages, including on Linux; earlier web dashboards always showed used percentages. Quota values are unchanged.
   - Dashboard snapshot identity follows the app's "Hide personal information" setting when `--identity` is absent: the toggle on redacts email local parts, off keeps full emails. The setting is read per request, so a change applies without a serve restart. Pass `--identity redacted` or `--identity full` to pin the mode and ignore the app setting, especially when responses cross a network.
   - `--host <host>` accepts `localhost` or an IPv4 address and defaults to `127.0.0.1`; `localhost` is normalized to `127.0.0.1`. Binding a non-loopback host requires a dashboard token **and** `--allow-plain-http` (see `docs/dashboard-api.md` for the threat model).
   - `--port <port>` defaults to `8080`.
@@ -219,6 +229,7 @@ payloads include the visible account label in `account`.
 - `daily[]`: `date`, `inputTokens`, `outputTokens`, `cacheReadTokens`, `cacheCreationTokens`, `totalTokens`, `totalCost`, `modelsUsed`, `modelBreakdowns[]` (`modelName`, `cost`)
 - Codex only: `projects[]`: `name`, `path`, `totalTokens`, `totalCost`, `daily[]`, `modelBreakdowns[]`, `sources[]`
 - `totals`: `inputTokens`, `outputTokens`, `cacheReadTokens`, `cacheCreationTokens`, `totalTokens`, `totalCost`
+- Claude/Vertex preliminary proxy records without final usage are excluded from totals. A positive optional `incompleteRequestCount` appears on the provider, `totals`, affected `daily[]`, and affected `modelBreakdowns[]`; complete-only payloads keep their previous shape. Known amounts remain partial subtotals, while incomplete-only amounts stay unavailable. Text output and the web dashboard mark these subtotals **Incomplete**. Usage & Spend exports include the same optional count on affected currency groups, providers, and model rows.
 - `error`: structured provider error when a fetch fails (for example Cursor requested while its cookie source is Off).
 
 ## Example usage

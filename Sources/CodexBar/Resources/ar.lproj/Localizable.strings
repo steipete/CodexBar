@@ -1584,3 +1584,7 @@
 
 "agent_sessions_hide_unreachable_title" = "إخفاء المضيفين غير المتاحين";
 "agent_sessions_hide_unreachable_subtitle" = "إخفاء المضيفين عند تعذّر جلب جلساتهم.";
+
+"Incomplete" = "غير مكتمل";
+"Est. subtotal (%@): %@" = "الإجمالي الفرعي التقديري (%@): %@";
+"Excluded requests with missing final usage: %d" = "الطلبات المستبعدة لعدم توفر بيانات الاستخدام النهائية: %d";

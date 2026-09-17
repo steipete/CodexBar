@@ -67,7 +67,8 @@ extension StatusItemController {
                 },
                 planAction: { [weak self] account in
                     self?.claudeSwapAccountSwitchAction(account, menu: captureMenu)
-                }),
+                },
+                privacyOrdinal: ClaudeSwapAccountMenuDisplay.privacyOrdinal),
             to: menu,
             captureMenu: captureMenu,
             context: context)

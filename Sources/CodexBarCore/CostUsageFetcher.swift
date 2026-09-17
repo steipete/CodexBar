@@ -707,11 +707,6 @@ public struct CostUsageFetcher: Sendable {
         }
     }
 
-    private struct ModelsDevPricingTarget: Hashable, Sendable {
-        let providerID: String
-        let modelID: String
-    }
-
     private struct UnknownPricingRefreshRequest: Sendable {
         let targets: Set<ModelsDevPricingTarget>
         let now: Date

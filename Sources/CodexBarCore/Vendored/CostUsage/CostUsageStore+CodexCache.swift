@@ -45,14 +45,19 @@ extension CostUsageStore {
     static let defaultRowBudget = 25000
     static let defaultFileBudgetBytes: Int64 = 256 * 1024 * 1024
 
-    func loadCodexCache(calendar: Calendar) -> CostUsageCache {
+    /// Loads the persisted Codex cache. `token_snapshots` is the largest table in the store,
+    /// so callers that only price rows and read daily aggregates opt out of materializing it.
+    func loadCodexCache(calendar: Calendar, loadTokenSnapshots: Bool = true) -> CostUsageCache {
         self.retainedCodexBaseline = nil
         _ = self.removeLegacyCodexArtifactIfPresent()
-        let snapshot = self.readSnapshot()
+        let snapshot = self.readSnapshot(loadTokenSnapshots: loadTokenSnapshots)
         guard snapshot.metadata.timeZoneIdentifier == nil
             || snapshot.metadata.timeZoneIdentifier == calendar.timeZone.identifier
         else { return CostUsageCache() }
-        return Self.cache(from: snapshot, recorder: self.scopedReadWorkRecorderForTesting)
+        return Self.cache(
+            from: snapshot,
+            recorder: self.scopedReadWorkRecorderForTesting,
+            tokenSnapshotsLoaded: loadTokenSnapshots)
     }
 
     func loadCodexReadView(calendar: Calendar, purpose: CostUsageStoreReadPurpose) -> CostUsageStoreReadView {
@@ -421,10 +426,15 @@ extension CostUsageStore {
     private static func cache(
         from snapshot: CostUsageStoreSnapshot,
         recorder: CostUsageStoreReadWorkRecorder?,
-        retryPresence: [String: CostUsageCodexRetryBufferPresence]? = nil) -> CostUsageCache
+        retryPresence: [String: CostUsageCodexRetryBufferPresence]? = nil,
+        tokenSnapshotsLoaded: Bool = true) -> CostUsageCache
     {
         self.reconciledCodexCache(
-            self.decodeCodexCache(from: snapshot, recorder: recorder, retryPresence: retryPresence),
+            self.decodeCodexCache(
+                from: snapshot,
+                recorder: recorder,
+                retryPresence: retryPresence,
+                tokenSnapshotsLoaded: tokenSnapshotsLoaded),
             persistence: CodexPersistenceState(snapshot: snapshot))
     }
 
@@ -1474,6 +1484,12 @@ enum CostUsageStoreAccess {
 
     static func read(cacheRoot: URL?, calendar: Calendar = .current) -> CostUsageCache {
         CostUsageStore(cacheRoot: cacheRoot).syncLoadCodexCache(calendar: calendar)
+    }
+
+    /// Cache read for callers whose work is row pricing and daily aggregates. Skipping the token
+    /// snapshot table keeps large local histories from being materialized in full.
+    static func readWithoutTokenSnapshots(cacheRoot: URL?, calendar: Calendar = .current) -> CostUsageCache {
+        CostUsageStore(cacheRoot: cacheRoot).syncLoadCodexCache(calendar: calendar, loadTokenSnapshots: false)
     }
 
     /// Test and maintenance mutation seam for metadata-only edits. Scanner writes should keep

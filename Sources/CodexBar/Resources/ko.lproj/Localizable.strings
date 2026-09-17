@@ -1549,3 +1549,7 @@
 
 "agent_sessions_hide_unreachable_title" = "연결할 수 없는 호스트 숨기기";
 "agent_sessions_hide_unreachable_subtitle" = "세션을 가져오지 못한 호스트를 숨깁니다.";
+
+"Incomplete" = "불완전";
+"Est. subtotal (%@): %@" = "예상 소계 (%@): %@";
+"Excluded requests with missing final usage: %d" = "최종 사용량이 없어 제외된 요청: %d";

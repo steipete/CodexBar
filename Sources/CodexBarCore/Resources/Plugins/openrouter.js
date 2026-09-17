@@ -34,40 +34,56 @@ defineProvider({
     const headers = { "X-Title": ctx.settings.get("OPENROUTER_X_TITLE") || "CodexBar" };
     const referer = ctx.settings.get("OPENROUTER_HTTP_REFERER");
     if (referer) headers["HTTP-Referer"] = referer;
-    const creditsResponse = await ctx.http.get(`${base}/credits`, { headers });
-    if (creditsResponse.status !== 200) {
-      throw ctx.fail.apiFailure(`OpenRouter API error: HTTP ${creditsResponse.status}`);
-    }
-    let creditsPayload;
-    try {
-      creditsPayload = JSON.parse(creditsResponse.bodyText);
-    } catch {
-      throw ctx.fail.parseFailure("Failed to parse OpenRouter response: response was not valid JSON");
-    }
-    const credits = creditsPayload && creditsPayload.data;
-    if (!credits || typeof credits !== "object" || Array.isArray(credits)) {
-      throw ctx.fail.parseFailure("Failed to parse OpenRouter credits: data must be an object");
-    }
-
-    const totalCredits = finite(credits.total_credits, "total_credits", false);
-    const totalUsage = finite(credits.total_usage, "total_usage", false);
-    const balance = Math.max(0, totalCredits - totalUsage);
     let keyData = null;
     let keyDegradation = null;
     let costUsage = null;
     let activityDegradation = null;
+    let creditsData = null;
+    let creditsDegradation = null;
     const managementKeyConfigured = Boolean(ctx.settings.getSecret("OPENROUTER_MANAGEMENT_API_KEY"));
     const injectedOptionalTimeout = ctx.__codexbarOptionalRequestTimeoutSeconds;
     const optionalRequestTimeoutSeconds =
       typeof injectedOptionalTimeout === "number" && Number.isFinite(injectedOptionalTimeout)
         ? injectedOptionalTimeout
-        : 1;
+        : 4;
     function degradationReason(error) {
       const message = error && typeof error.message === "string" ? error.message : String(error);
       if (/timed out|-1001/i.test(message)) return "Request timed out";
       if (/json|parse|invalid|must be|conflict|duplicate/i.test(message)) return "Response was invalid";
       return "Request failed";
     }
+    try {
+      // Credits belong to the selected API-key account. The optional management key is provider-wide
+      // and may belong to a different account, so it must never replace this request's credential.
+      const creditsResponse = await ctx.http.get(`${base}/credits`, {
+        headers,
+        timeoutSeconds: optionalRequestTimeoutSeconds,
+      });
+      if (creditsResponse.status !== 200) {
+        creditsDegradation = `Request returned HTTP ${creditsResponse.status}`;
+      } else {
+        let creditsPayload;
+        try {
+          creditsPayload = JSON.parse(creditsResponse.bodyText);
+        } catch {
+          throw new TypeError("credits response is invalid JSON");
+        }
+        const credits = creditsPayload && creditsPayload.data;
+        if (!credits || typeof credits !== "object" || Array.isArray(credits)) {
+          throw new TypeError("credits.data must be an object");
+        }
+        const totalCredits = finite(credits.total_credits, "credits.total_credits", false);
+        const totalUsage = finite(credits.total_usage, "credits.total_usage", false);
+        creditsData = {
+          totalCredits,
+          totalUsage,
+          balance: Math.max(0, totalCredits - totalUsage),
+        };
+      }
+    } catch (error) {
+      creditsDegradation = degradationReason(error);
+    }
+    if (!creditsData && !creditsDegradation) creditsDegradation = "Response was unavailable";
     try {
       const keyResponse = await ctx.http.get(`${base}/key`, {
         timeoutSeconds: optionalRequestTimeoutSeconds,
@@ -300,16 +316,28 @@ defineProvider({
     }
 
     const currency = (value) => `$${Math.max(0, value).toFixed(2)}`;
-    const details = [
-      {
+    const details = [];
+    if (creditsData) {
+      details.push({
         title: "Credits",
         rows: [
-          { label: "Remaining", value: currency(balance) },
-          { label: "Used", value: currency(totalUsage) },
-          { label: "Total added", value: currency(totalCredits) },
+          { label: "Remaining", value: currency(creditsData.balance) },
+          { label: "Used", value: currency(creditsData.totalUsage) },
+          { label: "Total added", value: currency(creditsData.totalCredits) },
         ],
-      },
-    ];
+      });
+    } else {
+      details.push({
+        title: "Credits",
+        rows: [
+          {
+            label: "Balance",
+            value: "Unavailable right now",
+            secondaryValue: creditsDegradation,
+          },
+        ],
+      });
+    }
 
     if (keyData) {
       const rows = [];
@@ -377,8 +405,12 @@ defineProvider({
       });
     }
 
+    if (!creditsData && !keyData && !costUsage) {
+      throw ctx.fail.apiFailure(`OpenRouter API error: ${keyDegradation || creditsDegradation || activityDegradation}`);
+    }
+
     const result = {
-      identity: { loginMethod: `Balance: ${currency(balance)}` },
+      identity: creditsData ? { loginMethod: `Balance: ${currency(creditsData.balance)}` } : null,
       details,
     };
     if (costUsage) result.costUsage = costUsage;

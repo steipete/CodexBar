@@ -1578,3 +1578,7 @@
 
 "agent_sessions_hide_unreachable_title" = "Ocultar hosts inaccesibles";
 "agent_sessions_hide_unreachable_subtitle" = "Oculta los hosts cuando falla la consulta de sus sesiones.";
+
+"Incomplete" = "Incompleto";
+"Est. subtotal (%@): %@" = "Subtotal estimado (%@): %@";
+"Excluded requests with missing final usage: %d" = "Solicitudes excluidas sin datos de uso finales: %d";

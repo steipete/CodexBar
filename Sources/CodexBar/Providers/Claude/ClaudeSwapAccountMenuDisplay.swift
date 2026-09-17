@@ -23,9 +23,18 @@ struct ClaudeSwapAccountMenuDisplay {
     }
 
     static func label(for account: ProviderAccountUsageSnapshot, hidePersonalInfo: Bool) -> String {
-        hidePersonalInfo
-            ? String(format: L("Account %@"), account.id.opaqueID)
-            : account.displayLabel
+        PersonalInfoRedactor.redactAccountLabel(
+            account.displayLabel,
+            isEnabled: hidePersonalInfo,
+            ordinal: self.privacyOrdinal(for: account))
+    }
+
+    static func privacyOrdinal(for account: ProviderAccountUsageSnapshot) -> PersonalInfoRedactor.AccountOrdinal? {
+        guard account.provider == .claude,
+              account.id.source == ClaudeSwapAccountProjection.sourceName,
+              let number = Int(account.id.opaqueID)
+        else { return nil }
+        return PersonalInfoRedactor.AccountOrdinal(number)
     }
 
     static func cardContext(
@@ -41,6 +50,7 @@ struct ClaudeSwapAccountMenuDisplay {
                 adapterError: adapterError,
                 switchError: switchError),
             info: AccountInfo(email: account.displayLabel, plan: nil),
+            privacyOrdinal: self.privacyOrdinal(for: account),
             plan: .label(planLabel),
             planEmphasis: account.isActive ? .active : .none,
             lastKnownUsageCapturedAt: account.usesLastKnownUsage ? account.snapshot?.updatedAt : nil,

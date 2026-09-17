@@ -225,6 +225,7 @@ func testSettingsStore(
     userDefaults: UserDefaults? = nil,
     tokenAccountStore: any ProviderTokenAccountStoring = InMemoryTokenAccountStore(),
     config: CodexBarConfig? = nil,
+    keychainAccessPolicy: SettingsStoreKeychainAccessPolicy = .live,
     prepareDefaults: ((UserDefaults) -> Void)? = nil) -> SettingsStore
 {
     let isolatedSuiteName = "\(suiteName)-\(UUID().uuidString)"
@@ -257,7 +258,8 @@ func testSettingsStore(
         augmentCookieStore: InMemoryCookieHeaderStore(),
         ampCookieStore: InMemoryCookieHeaderStore(),
         copilotTokenStore: InMemoryCopilotTokenStore(),
-        tokenAccountStore: tokenAccountStore)
+        tokenAccountStore: tokenAccountStore,
+        keychainAccessPolicy: keychainAccessPolicy)
 }
 
 /// Arrange provider selection without persisting every already-correct entry. Actions under test use the setter

@@ -982,7 +982,8 @@ extension UsageMenuCardView.Model {
             comparisonPeriodsEnabled: input.costComparisonPeriodsEnabled,
             snapshot: tokenUsageSnapshot,
             error: input.tokenError,
-            preferredCurrencyCode: input.preferredCurrencyCode)
+            preferredCurrencyCode: input.preferredCurrencyCode,
+            calendar: input.costUsageBucketCalendar)
         let subtitle = input.subtitleOverride.map { (text: $0, style: SubtitleStyle.info) }
             ?? Self.subtitle(
                 snapshot: input.snapshot,
@@ -1249,9 +1250,10 @@ extension UsageMenuCardView.Model {
         input: Input,
         subtitle: (text: String, style: SubtitleStyle)) -> RedactedText
     {
-        let email = PersonalInfoRedactor.redactEmail(
+        let email = PersonalInfoRedactor.redactAccountLabel(
             Self.email(from: input),
-            isEnabled: input.hidePersonalInfo)
+            isEnabled: input.hidePersonalInfo,
+            ordinal: input.accountPrivacyOrdinal)
         let subtitleText = PersonalInfoRedactor.redactEmails(in: subtitle.text, isEnabled: input.hidePersonalInfo)
             ?? subtitle.text
         let creditsHintText = PersonalInfoRedactor.redactEmails(

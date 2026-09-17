@@ -28,7 +28,10 @@ read_when:
 ## Mapping
 - Matches usage + limit series by quota metric + limit name + location.
 - Reports the highest usage percent across matched series.
-- Displayed as "Quota usage" with period "Current quota".
+- The current provider snapshot publishes gcloud identity without quota windows; local token costs are fetched
+  separately. Recognized temporary network failures during token refresh or monitoring requests retain the last
+  successful identity snapshot and timestamp, including localized errors. Authentication and IAM failures keep their
+  existing behavior.
 
 ## Token Cost Tracking
 

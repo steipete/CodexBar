@@ -1582,3 +1582,9 @@
 "Color Pace Indicator" = "Color Pace Indicator";
 "Green pace indicator when behind pace, red when ahead of pace (risk of running out early)" = "Green pace indicator when behind pace, red when ahead of pace (risk of running out early)";
 "%@ weekly" = "%@ weekly";
+
+"Incomplete" = "Incomplete";
+
+"Est. subtotal (%@): %@" = "Est. subtotal (%@): %@";
+
+"Excluded requests with missing final usage: %d" = "Excluded requests with missing final usage: %d";

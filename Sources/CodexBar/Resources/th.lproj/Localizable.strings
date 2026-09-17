@@ -1584,3 +1584,7 @@
 
 "agent_sessions_hide_unreachable_title" = "ซ่อนโฮสต์ที่เข้าถึงไม่ได้";
 "agent_sessions_hide_unreachable_subtitle" = "ซ่อนโฮสต์เมื่อดึงข้อมูลเซสชันไม่สำเร็จ";
+
+"Incomplete" = "ไม่ครบถ้วน";
+"Est. subtotal (%@): %@" = "ยอดรวมย่อยโดยประมาณ (%@): %@";
+"Excluded requests with missing final usage: %d" = "คำขอที่ไม่นับรวมเนื่องจากไม่มีข้อมูลการใช้งานขั้นสุดท้าย: %d";

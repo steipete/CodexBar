@@ -47,6 +47,7 @@ enum AntigravityLocalReader {
     struct SourceResult {
         var events: [Event] = []
         var isComplete = true
+        var containsHistorySource = false
     }
 
     private struct RowIdentity: Hashable {
@@ -112,6 +113,10 @@ enum AntigravityLocalReader {
     {
         var isComplete = discoveryComplete && source.isComplete
             && budget.statistics.sqliteHandlesOpened == budget.statistics.sqliteHandlesClosed
+        if isComplete, !source.containsHistorySource {
+            return DailyReportResult(
+                report: .init(data: [], summary: nil), coverage: .unavailable, statistics: budget.statistics)
+        }
         var models: [LabelIdentity: String] = [:]
         var conflicts = Set<LabelIdentity>()
         for event in source.events {

@@ -10,6 +10,7 @@ enum UsageMenuCardContext {
         var snapshot: UsageSnapshot?
         var error: String?
         var info: AccountInfo?
+        var privacyOrdinal: PersonalInfoRedactor.AccountOrdinal?
         var historySelection: PlanUtilizationHistorySelection?
         var plan: UsageMenuCardView.Model.PlanOverride = .automatic
         var planEmphasis: UsageMenuCardView.Model.PlanEmphasis = .none
@@ -101,6 +102,7 @@ extension UsageStore {
                 ? self.accountInfo(for: provider)
                 : AccountInfo(email: nil, plan: nil)),
             accountIsAuthoritative: account?.info != nil,
+            accountPrivacyOrdinal: account?.privacyOrdinal,
             planOverride: account?.plan ?? .automatic,
             planEmphasis: account?.planEmphasis ?? .none,
             lastKnownUsageCapturedAt: account?.lastKnownUsageCapturedAt,

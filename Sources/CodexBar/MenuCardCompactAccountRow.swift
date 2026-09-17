@@ -17,9 +17,13 @@ struct MenuCardCompactAccountRowView: View {
             row: AccountMenuLayoutPlanner.CompactRow,
             resetTimeDisplayStyle: ResetTimeDisplayStyle,
             hidePersonalInfo: Bool = false,
+            privacyOrdinal: PersonalInfoRedactor.AccountOrdinal? = nil,
             now: Date = .init())
         {
-            self.label = PersonalInfoRedactor.redactEmail(row.label, isEnabled: hidePersonalInfo)
+            self.label = PersonalInfoRedactor.redactAccountLabel(
+                row.label,
+                isEnabled: hidePersonalInfo,
+                ordinal: privacyOrdinal)
             self.headroomPercent = row.headroomPercent
             self.severity = row.severity
             var details = row.windowDetails.map { detail in

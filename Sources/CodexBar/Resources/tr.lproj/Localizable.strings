@@ -1582,3 +1582,7 @@
 
 "agent_sessions_hide_unreachable_title" = "Erişilemeyen ana bilgisayarları gizle";
 "agent_sessions_hide_unreachable_subtitle" = "Oturumları alınamadığında ana bilgisayarları gizle.";
+
+"Incomplete" = "Eksik";
+"Est. subtotal (%@): %@" = "Tahmini ara toplam (%@): %@";
+"Excluded requests with missing final usage: %d" = "Nihai kullanım verileri eksik olduğu için hariç tutulan istekler: %d";

@@ -154,6 +154,37 @@ struct CostHistoryChartMenuViewTests {
     }
 
     @Test
+    func `incomplete-only Claude usage remains selectable and labeled`() throws {
+        let day = try #require(Calendar.current.date(from: DateComponents(year: 2026, month: 8, day: 12, hour: 12)))
+        let entry = CostUsageDailyReport.Entry(
+            date: "2026-08-12",
+            inputTokens: nil,
+            outputTokens: nil,
+            totalTokens: nil,
+            costUSD: nil,
+            modelsUsed: ["gpt-5.4"],
+            modelBreakdowns: [.init(modelName: "gpt-5.4", costUSD: nil, incompleteRequestCount: 1)])
+        let snapshot = CostUsageTokenSnapshot(
+            sessionTokens: nil,
+            sessionCostUSD: nil,
+            last30DaysTokens: nil,
+            last30DaysCostUSD: nil,
+            daily: [entry],
+            updatedAt: day)
+        let section = try #require(UsageMenuCardView.Model.tokenUsageSection(
+            provider: .claude, enabled: true, comparisonPeriodsEnabled: true, snapshot: snapshot, error: nil))
+        #expect(section.sessionLine == "Today: — · Incomplete")
+        #expect(section.monthLine.contains("— · Incomplete"))
+        #expect(section.hintLine?.contains("Excluded requests with missing final usage: 1") == true)
+        #expect(section.hintLine?.contains("Estimated from local Claude logs") == true)
+        #expect(section.comparisonLines.allSatisfy { $0.contains("Incomplete") })
+        #expect(CostHistoryChartMenuView._chartValuesForTesting(
+            provider: .claude, daily: [entry], metric: .cost) == [0])
+        #expect(CostHistoryChartMenuView._defaultSelectedDateKeyForTesting(
+            provider: .claude, daily: [entry]) == entry.date)
+    }
+
+    @Test
     func `Codex daily chart defaults to tokens while other providers preserve cost`() {
         let daily = [
             Self.dailyEntry(date: "2026-08-12", totalTokens: 1_250_000, costUSD: 1.25),

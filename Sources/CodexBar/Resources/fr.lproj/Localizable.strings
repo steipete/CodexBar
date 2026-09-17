@@ -1579,3 +1579,7 @@
 
 "agent_sessions_hide_unreachable_title" = "Masquer les hôtes inaccessibles";
 "agent_sessions_hide_unreachable_subtitle" = "Masquer les hôtes lorsque la récupération de leurs sessions échoue.";
+
+"Incomplete" = "Incomplet";
+"Est. subtotal (%@): %@" = "Sous-total estimé (%@) : %@";
+"Excluded requests with missing final usage: %d" = "Requêtes exclues sans données d’utilisation finales : %d";

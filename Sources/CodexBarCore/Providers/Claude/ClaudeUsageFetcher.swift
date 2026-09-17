@@ -316,6 +316,9 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
 
     private struct OAuthExecutor {
         let fetcher: ClaudeUsageFetcher
+        private static let scopeRecoveryMessage =
+            "Use a Claude Code sign-in token that includes 'user:profile'. "
+                + "To use Web/CLI instead, remove any configured OAuth token override and switch Claude Source."
 
         func load(allowDelegatedRetry: Bool) async throws -> ClaudeUsageSnapshot {
             do {
@@ -382,10 +385,13 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
                 {
                     throw ClaudeUsageError.oauthFailed(
                         "Claude OAuth token does not meet scope requirement 'user:profile'. "
-                            + "Run `claude setup-token` to re-generate credentials, or switch Claude Source to "
-                            + "Web/CLI.")
+                            + Self.scopeRecoveryMessage)
                 }
-                throw ClaudeUsageError.oauthFailed(error.localizedDescription)
+                let failure = ClaudeUsageError.oauthFailed(error.localizedDescription)
+                if case let .networkError(underlyingError) = error {
+                    throw ProviderTransportError.preservingIdentity(of: underlyingError, describedBy: failure)
+                }
+                throw failure
             } catch {
                 throw ClaudeUsageError.oauthFailed(error.localizedDescription)
             }
@@ -530,8 +536,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
                     ? "Claude OAuth token missing 'user:profile' scope."
                     : "Claude OAuth token missing 'user:profile' scope (has: \(scopes))."
                 throw ClaudeUsageError.oauthFailed(
-                    detail + " Run `claude setup-token` to re-generate credentials, or switch Claude Source to "
-                        + "Web/CLI.")
+                    detail + " " + Self.scopeRecoveryMessage)
             }
         }
 

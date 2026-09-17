@@ -33,7 +33,8 @@ struct AbacusMonthlyPercentTests {
             suiteName: "AbacusMonthlyPercentTests-\(showUsed)",
             userDefaults: InMemoryUserDefaults())
         let initial = MenuBarLayout(lines: [[.percent(window: .automatic)]])
-        MenuBarPercentWindowPreference.persist(.session, appliedTo: initial, for: .abacus, settings: settings)
+        let picker = ProviderMenuBarPercentWindowSettingsView(provider: .abacus, settings: settings)
+        picker.layoutBinding.wrappedValue = MenuBarPercentWindowPreference.session.applied(to: initial)
         let selected = settings.menuBarLayout(for: .abacus)
         #expect(MenuBarPercentWindowPreference.current(in: selected) == .session)
         let value = showUsed ? "25%" : "75%"

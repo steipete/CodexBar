@@ -55,6 +55,13 @@ extension UsageMenuCardView.Model {
         _ row: ProviderDetailSection.Row,
         provider: UsageProvider) -> String?
     {
+        if provider == .amp {
+            switch row.secondaryValue {
+            case "For agent and orb usage": return L("For agent and orb usage")
+            case "a1.small-equivalent hours": return L("a1.small-equivalent hours")
+            default: return row.secondaryValue
+            }
+        }
         // Only this plugin-owned disclosure is copy; arbitrary provider values stay canonical.
         guard provider == .openrouter,
               row.label == "API key limit",

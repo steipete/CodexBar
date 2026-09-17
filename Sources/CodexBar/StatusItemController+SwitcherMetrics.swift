@@ -28,7 +28,13 @@ extension StatusItemController {
         } else {
             snapshot?.switcherWeeklyWindow(for: provider, showUsed: showUsed)
         }
-        guard let window else { return nil }
-        return showUsed ? window.usedPercent : window.remainingPercent
+        if let window {
+            return showUsed ? window.usedPercent : window.remainingPercent
+        }
+        guard preference == .automatic,
+              let snapshot,
+              let usedPercent = presentation.fallbackSwitcherUsedPercent(snapshot: snapshot),
+              usedPercent.isFinite else { return nil }
+        return showUsed ? usedPercent : max(0, 100 - usedPercent)
     }
 }

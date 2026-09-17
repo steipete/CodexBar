@@ -146,13 +146,14 @@ struct TailscaleSessionTests {
         let hosts = RemoteSessionFetcher.sanitizedHosts([
             "user@clawmac",
             "USER@CLAWMAC",
+            "user@CLAWMAC",
             "-oProxyCommand=touch /tmp/unsafe",
             "host with-space",
             "host\nother",
             "linuxbox",
         ])
 
-        #expect(hosts == ["user@clawmac", "linuxbox"])
+        #expect(hosts == ["user@clawmac", "USER@CLAWMAC", "linuxbox"])
     }
 
     @Test

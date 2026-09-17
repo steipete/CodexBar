@@ -275,6 +275,149 @@ extension AntigravityCLIHTTPSFetchStrategyTests {
         try Self.expectPrintProcessExited(in: fixture.directory)
     }
 
+    @Test(arguments: [
+        ("1.1.28", true),
+        ("1.2.0", true),
+        ("1.2.1", true),
+        ("1.2.2", false),
+        ("1.2.4", false),
+        ("1.10.0", false),
+        ("2.0.0", false),
+        ("1.2.2-preview", true),
+        ("", true),
+    ])
+    func `only CSRF gated agy versions skip the managed spawn`(version: String, spawns: Bool) {
+        let parsed = AntigravityCLIHTTPSFetchStrategy.parseVersion(version)
+        #expect(AntigravityCLIHTTPSFetchStrategy.spawnCanReachLocalServer(version: parsed) == spawns)
+    }
+
+    @Test
+    func `CSRF gated agy never starts a managed spawn`() async {
+        await #expect(throws: AntigravityStatusProbeError
+            .apiError("agy 1.2.2 or later requires a local CSRF token"))
+        {
+            try await AntigravityCLIHTTPSFetchStrategy.fetchBySpawningIfReachable(version: (1, 2, 2)) {
+                Issue.record("A tokenless spawn cannot become ready on agy 1.2.2 or later")
+                throw AntigravityStatusProbeError.notRunning
+            }
+        }
+    }
+
+    @Test(arguments: ["", "1.2.1"])
+    func `older or unknown agy keeps the managed spawn`(version: String) async throws {
+        let expected = AntigravityCLIHTTPSFetchStrategy().makeResult(
+            usage: self.makeUsage(accountEmail: "owner@example.com"), sourceLabel: "cli")
+        let result = try await AntigravityCLIHTTPSFetchStrategy.fetchBySpawningIfReachable(
+            version: AntigravityCLIHTTPSFetchStrategy.parseVersion(version))
+        {
+            expected
+        }
+        #expect(result.usage.identity?.accountEmail == "owner@example.com")
+    }
+
+    @Test
+    func `CSRF gated CLI fetch reaches the print report without spawning`() async throws {
+        let report = try Self.reportJSON()
+        let fixture = try Self.printExecutable("""
+        if [ "${1:-}" != -p ]; then exit 9; fi
+        /bin/cat <<'REPORT'
+        \(report)
+        REPORT
+        """, version: "1.2.2")
+        defer { try? FileManager.default.removeItem(at: fixture.directory) }
+        let result = try await AntigravityCLIHTTPSFetchStrategy().fetch(
+            self.makeFetchContext(sourceMode: .cli, env: fixture.environment),
+            warmDependencies: Self.noWarmSession(),
+            spawnFetch: { _, _, _, _ in
+                Issue.record("A CSRF-gated CLI must not touch the managed session")
+                throw AntigravityStatusProbeError.timedOut
+            })
+        #expect(abs((result.usage.primary?.usedPercent ?? -1) - 40) < 0.001)
+    }
+
+    @Test(arguments: ["", "1.2.1"])
+    func `full fetch retains managed spawning for older and unknown versions`(version: String) async throws {
+        let fixture = try Self.printExecutable("exit 19", version: version)
+        defer { try? FileManager.default.removeItem(at: fixture.directory) }
+        let strategy = AntigravityCLIHTTPSFetchStrategy()
+        let expected = strategy.makeResult(
+            usage: self.makeUsage(accountEmail: "fixture@example.com"),
+            sourceLabel: "fixture-spawn")
+        let result = try await strategy.fetch(
+            self.makeFetchContext(sourceMode: .cli, env: fixture.environment),
+            warmDependencies: Self.noWarmSession(),
+            spawnFetch: { binary, _, _, expectedEmail in
+                #expect(binary == fixture.binary.path)
+                #expect(expectedEmail == nil)
+                return expected
+            })
+        #expect(result.sourceLabel == "fixture-spawn")
+    }
+
+    @Test(arguments: [false, true])
+    func `CSRF skip cannot enable identity free reports for scoped Auto accounts`(selected: Bool) async throws {
+        let fixture = try Self.printExecutable("echo invoked > \"$HOME/printed\"; exit 19")
+        defer { try? FileManager.default.removeItem(at: fixture.directory) }
+        var environment = fixture.environment
+        if !selected {
+            environment.merge(self.accountEnv(email: "fixture@example.com")) { _, new in new }
+        }
+        let context = self.makeFetchContext(
+            sourceMode: .auto,
+            selectedTokenAccountID: selected ? UUID() : nil,
+            env: environment)
+        await #expect(throws: AntigravityStatusProbeError
+            .apiError("agy 1.2.2 or later requires a local CSRF token"))
+        {
+            try await AntigravityCLIHTTPSFetchStrategy().fetch(
+                context,
+                warmDependencies: Self.noWarmSession(),
+                spawnFetch: { _, _, _, _ in
+                    Issue.record("A CSRF-gated CLI must not touch the managed session")
+                    throw AntigravityStatusProbeError.timedOut
+                })
+        }
+        #expect(!FileManager.default.fileExists(atPath: fixture.directory.appendingPathComponent("printed").path))
+    }
+
+    @Test
+    func `warm usage bypasses version probing and print subprocesses`() async throws {
+        let fixture = try Self.printExecutable("echo invoked > \"$HOME/invoked\"; exit 19", version: nil)
+        defer { try? FileManager.default.removeItem(at: fixture.directory) }
+        let snapshot = try AntigravityStatusProbe.parseCLIUsageReport(Data(Self.reportJSON().utf8))
+        let process = AntigravityStatusProbe.ProcessInfoResult(
+            pid: 9901,
+            extensionPort: nil,
+            extensionServerCSRFToken: nil,
+            csrfToken: "",
+            commandLine: fixture.binary.path)
+        let result = try await AntigravityCLIHTTPSFetchStrategy().fetch(
+            self.makeFetchContext(sourceMode: .cli, env: fixture.environment),
+            warmDependencies: makeAntigravityWarmDependencies(
+                processInfos: { _ in [process] },
+                listeningPorts: { _, _ in [56789] },
+                fetchSnapshot: { _, _ in snapshot }),
+            spawnFetch: { _, _, _, _ in
+                Issue.record("Reusable external usage must not start a managed session")
+                throw AntigravityStatusProbeError.timedOut
+            })
+        #expect(abs((result.usage.primary?.usedPercent ?? -1) - 40) < 0.001)
+        #expect(!FileManager.default.fileExists(atPath: fixture.directory.appendingPathComponent("invoked").path))
+    }
+
+    private static func noWarmSession() -> AntigravityCLIHTTPSFetchStrategy.WarmAgyDependencies {
+        makeAntigravityWarmDependencies(
+            processInfos: { _ in [] },
+            listeningPorts: { _, _ in
+                Issue.record("Empty discovery must not inspect ports")
+                return []
+            },
+            fetchSnapshot: { _, _ in
+                Issue.record("Empty discovery must not fetch a server")
+                throw AntigravityStatusProbeError.notRunning
+            })
+    }
+
     private static func expectPrintProcessExited(in directory: URL) throws {
         let text = try String(contentsOf: directory.appendingPathComponent("pid"), encoding: .utf8)
         let pid = try #require(Int32(text.trimmingCharacters(in: .whitespacesAndNewlines)))

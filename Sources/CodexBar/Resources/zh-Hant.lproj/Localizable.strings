@@ -1611,3 +1611,7 @@
 
 "agent_sessions_hide_unreachable_title" = "隱藏無法連線的主機";
 "agent_sessions_hide_unreachable_subtitle" = "擷取工作階段失敗時隱藏該主機。";
+
+"Incomplete" = "不完整";
+"Est. subtotal (%@): %@" = "估算小計（%@）：%@";
+"Excluded requests with missing final usage: %d" = "因缺少最終用量而排除的請求：%d";

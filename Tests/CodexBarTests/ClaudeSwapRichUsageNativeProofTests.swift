@@ -51,6 +51,9 @@ final class ClaudeSwapRichUsageNativeProofTests: XCTestCase {
             ] {
                 let models = try fixture.accounts
                     .map { try fixture.model(for: $0.id.opaqueID, hidePersonalInfo: privacy) }
+                if privacy {
+                    XCTAssertEqual(models.map(\.email), ["Account 1", "Account 2", "Account 3", "Account 4"])
+                }
                 let background = highlighted
                     ? NSColor.selectedContentBackgroundColor
                     : NSColor(calibratedWhite: dark ? 0.12 : 1, alpha: 1)
@@ -76,11 +79,16 @@ final class ClaudeSwapRichUsageNativeProofTests: XCTestCase {
                 let compact = AccountMenuLayoutPlanner.plan(accounts: fixture.accounts).rows.compactMap { item ->
                     MenuCardCompactAccountRowView.Model? in
                     guard case let .compact(row) = item else { return nil }
+                    let account = fixture.accounts.first { $0.id == row.accountID }
                     return MenuCardCompactAccountRowView.Model(
                         row: row,
                         resetTimeDisplayStyle: .countdown,
                         hidePersonalInfo: privacy,
+                        privacyOrdinal: account.flatMap { ClaudeSwapAccountMenuDisplay.privacyOrdinal(for: $0) },
                         now: ClaudeSwapRichUsageFixture.now)
+                }
+                if privacy {
+                    XCTAssertEqual(Set(compact.map(\.label)), ["Account 2", "Account 3", "Account 4"])
                 }
                 let compactView = VStack(spacing: 0) {
                     ForEach(Array(compact.enumerated()), id: \.offset) { _, model in

@@ -38,13 +38,19 @@ deltas, fork and subagent accounting, pricing, and incremental cursors. The
 Workspaces index combines that scan cache with the read-only Codex thread
 catalog:
 
-1. Scan local rollout JSONL into the Codex v11 cost cache.
+1. Scan local rollout JSONL into the SQLite cost cache.
 2. Read catalog metadata without modifying the Codex catalog.
 3. Canonicalize workspace attribution and scope it to the selected Codex home.
 4. Publish the complete source state and derived snapshot in one SQLite
    transaction.
 5. Expose project, session, model, daily, source-status, progress, and CSV
    library models to presentation consumers.
+
+Project indexing reads exact usage rows and daily aggregates without loading
+raw token snapshots. The read stays within one SQLite transaction, so a
+concurrent scanner commit cannot turn a consistent project report into empty
+history. This optimization applies to Workspaces indexing; the menu-bar scanner
+already loads token snapshots lazily.
 
 The supported internal presentation boundary is:
 
@@ -59,7 +65,7 @@ The supported internal presentation boundary is:
 The Codex cost cache is:
 
 ```text
-~/Library/Caches/CodexBar/cost-usage/codex-v11.json
+~/Library/Caches/CodexBar/cost-usage/cost-usage.sqlite
 ```
 
 The Workspaces sidecar is:
@@ -72,19 +78,22 @@ The sidecar currently uses SQLite schema version 5 and snapshot payload format
 3. This is the first released Workspaces schema. A database with any other
 `PRAGMA user_version` is rejected as incompatible and is never modified.
 
-### v10 to v11
+### Legacy JSON cache cutover
 
-`codex-v10.json` is not migrated in place and is not accepted as a v11
-incremental cursor. Parser and attribution semantics changed, so the first scan
-after upgrading performs a one-time rebuild and writes a separate v11 artifact.
-The v10 file remains untouched and recoverable. The v11 file is replaced
-atomically only after a successful scan; later v11 refreshes can use the normal
-incremental cursor.
+The SQLite store rebuilds derived usage from session files instead of importing
+the old monolithic `codex-v11.json` cache. When that legacy artifact is found,
+the store removes it and its temporary copies and rebuilds the SQLite cache.
+Source session files remain unchanged; subsequent scans reuse SQLite cursors.
 
 ### Sidecar rollback
 
 Publication is transactional: a failed synchronization or snapshot write rolls
 back and leaves the previous complete snapshot available.
+
+Before importing source rows, the indexer validates the raw cost cache against
+the selected Codex home. A failed read or retained cache from another home fails
+the refresh before changing saved project history. A successfully scanned,
+same-scope empty history remains valid and can replace earlier usage.
 
 ## Catalog completeness and last-good data
 

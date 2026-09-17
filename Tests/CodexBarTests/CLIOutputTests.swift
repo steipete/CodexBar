@@ -223,7 +223,8 @@ struct CLIOutputTests {
                 useColor: false,
                 resetStyle: .countdown))
 
-        #expect(text.contains("Individual credits: $25.64"))
+        #expect(text.contains("Individual: $25.64"))
+        #expect(text.contains("For agent and orb usage"))
         #expect(text.contains("Workspace Alpha Team: $1,234.56"))
         #expect(text.contains("Account: paid@example.com"))
         #expect(!text.contains("Amp Free:"))

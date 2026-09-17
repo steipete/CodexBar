@@ -85,6 +85,10 @@ actually know. Either way the row also carries the numeric credits used (`usageV
 the entitlement rewrites the cached row (text ↔ bar) immediately, even when the follow-up refresh never lands
 (offline, token lost, 401).
 
+In Automatic mode, the provider tab uses this configured seat-credit ratio when no metered quota window is
+available. It follows the used/remaining preference. Existing quota windows retain priority, explicit metric
+selections retain their meaning, and a missing allowance leaves the tab's progress bar absent.
+
 ## Manual seat credit allowance
 
 For token-billed seats, **Seat AI credit allowance** optionally turns the menu card's Credits used text into a progress

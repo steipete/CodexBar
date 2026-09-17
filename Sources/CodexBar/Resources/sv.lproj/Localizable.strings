@@ -1579,3 +1579,7 @@
 
 "agent_sessions_hide_unreachable_title" = "Dölj värdar som inte kan nås";
 "agent_sessions_hide_unreachable_subtitle" = "Dölj värdar när deras sessioner inte kan hämtas.";
+
+"Incomplete" = "Ofullständigt";
+"Est. subtotal (%@): %@" = "Uppskattad delsumma (%@): %@";
+"Excluded requests with missing final usage: %d" = "Uteslutna förfrågningar utan slutliga användningsdata: %d";

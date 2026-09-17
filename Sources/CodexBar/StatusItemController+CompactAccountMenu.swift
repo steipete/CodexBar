@@ -23,6 +23,7 @@ extension StatusItemController {
         let idPrefix: String
         let cardModel: (ProviderAccountUsageSnapshot) -> UsageMenuCardView.Model?
         var planAction: ((ProviderAccountUsageSnapshot) -> (() -> Void)?)?
+        var privacyOrdinal: ((ProviderAccountUsageSnapshot) -> PersonalInfoRedactor.AccountOrdinal?)?
     }
 
     /// Renders the token-account list with the compact plan when it applies.
@@ -141,7 +142,8 @@ extension StatusItemController {
                 let rowModel = MenuCardCompactAccountRowView.Model(
                     row: compactRow,
                     resetTimeDisplayStyle: self.settings.resetTimeDisplayStyle,
-                    hidePersonalInfo: self.settings.hidePersonalInfo)
+                    hidePersonalInfo: self.settings.hidePersonalInfo,
+                    privacyOrdinal: accountsByID[compactRow.accountID].flatMap { rendering.privacyOrdinal?($0) })
                 let accountID = compactRow.accountID
                 menu.addItem(self.makeMenuCardItem(
                     MenuCardCompactAccountRowView(

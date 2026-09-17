@@ -997,30 +997,35 @@ extension AntigravityCLIHTTPSFetchStrategyTests {
         ideError: AntigravityStatusProbeError,
         cliError: AntigravityStatusProbeError) async
     {
-        let pipeline = ProviderFetchPipeline(
-            resolveStrategies: { _ in
-                [
-                    AntigravityFallbackFixtureStrategy(id: "antigravity.app-local", error: .notRunning),
-                    AntigravityFallbackFixtureStrategy(
-                        id: "antigravity.cli-https",
-                        error: cliError),
-                    AntigravityFallbackFixtureStrategy(
-                        id: "antigravity.ide-local",
-                        error: ideError),
-                ]
-            },
-            resolveFallbackError: AntigravityProviderDescriptor.resolveFallbackError)
+        for allowsFallback in [true, false] {
+            let pipeline = ProviderFetchPipeline(
+                resolveStrategies: { _ in
+                    [
+                        AntigravityFallbackFixtureStrategy(id: "antigravity.app-local", error: .notRunning),
+                        AntigravityFallbackFixtureStrategy(
+                            id: "antigravity.cli-https",
+                            error: cliError),
+                        AntigravityFallbackFixtureStrategy(
+                            id: "antigravity.ide-local",
+                            error: ideError,
+                            allowsFallback: allowsFallback),
+                    ]
+                },
+                resolveFallbackError: AntigravityProviderDescriptor.resolveFallbackError)
 
-        let outcome = await pipeline.fetch(context: self.makeFetchContext(), provider: .antigravity)
+            let outcome = await pipeline.fetch(context: self.makeFetchContext(), provider: .antigravity)
 
-        #expect(outcome.attempts.map(\.strategyID) == [
-            "antigravity.app-local", "antigravity.cli-https", "antigravity.ide-local",
-        ])
-        do {
-            _ = try outcome.result.get()
-            Issue.record("Expected the attempted CLI failure")
-        } catch {
-            #expect((error as? AntigravityStatusProbeError) == cliError)
+            #expect(outcome.attempts.map(\.strategyID) == [
+                "antigravity.app-local",
+                "antigravity.cli-https",
+                "antigravity.ide-local",
+            ])
+            do {
+                _ = try outcome.result.get()
+                Issue.record("Expected the attempted CLI failure")
+            } catch {
+                #expect((error as? AntigravityStatusProbeError) == cliError)
+            }
         }
     }
 
@@ -1035,7 +1040,8 @@ extension AntigravityCLIHTTPSFetchStrategyTests {
     func `first error and newly detected fallback remain authoritative`(current: AntigravityStatusProbeError) {
         let first = AntigravityProviderDescriptor.resolveFallbackError(nil, current)
         let detected = AntigravityProviderDescriptor.resolveFallbackError(
-            AntigravityStatusProbeError.notRunning, current)
+            AntigravityStatusProbeError.notRunning,
+            current)
         #expect((first as? AntigravityStatusProbeError) == current)
         #expect((detected as? AntigravityStatusProbeError) == current)
     }
@@ -1131,6 +1137,7 @@ extension AntigravityCLIHTTPSFetchStrategyTests {
 private struct AntigravityFallbackFixtureStrategy: ProviderFetchStrategy {
     let id: String
     let error: AntigravityStatusProbeError?
+    var allowsFallback = true
     let kind: ProviderFetchKind = .localProbe
 
     func isAvailable(_: ProviderFetchContext) async -> Bool {
@@ -1147,6 +1154,6 @@ private struct AntigravityFallbackFixtureStrategy: ProviderFetchStrategy {
     }
 
     func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
-        true
+        self.allowsFallback
     }
 }

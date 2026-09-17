@@ -689,7 +689,7 @@ private enum OpenCodexUsageSnapshotReference {
             .summary(forLastDays: days, calendar: calendar)
         return CostUsageTokenSnapshot(
             sessionTokens: todayEntry?.totalTokens ?? (daily.isEmpty ? nil : 0),
-            sessionCostUSD: todayEntry?.costUSD ?? (daily.isEmpty ? nil : 0),
+            sessionCostUSD: todayEntry == nil && !daily.isEmpty ? 0 : todayEntry?.costUSD,
             sessionRequests: todayEntry?.requestCount ?? (daily.isEmpty ? nil : 0),
             last30DaysTokens: windowSummary.totalTokens,
             last30DaysCostUSD: windowSummary.totalCostUSD,

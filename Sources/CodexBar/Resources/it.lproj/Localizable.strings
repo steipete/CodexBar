@@ -1583,3 +1583,7 @@
 
 "agent_sessions_hide_unreachable_title" = "Nascondi gli host irraggiungibili";
 "agent_sessions_hide_unreachable_subtitle" = "Nascondi gli host quando il recupero delle loro sessioni non riesce.";
+
+"Incomplete" = "Incompleto";
+"Est. subtotal (%@): %@" = "Subtotale stimato (%@): %@";
+"Excluded requests with missing final usage: %d" = "Richieste escluse senza dati di utilizzo finali: %d";

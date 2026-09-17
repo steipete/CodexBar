@@ -1407,24 +1407,26 @@ extension ClaudeWebAPIFetcher {
         // unconditionally denied. Only if that attempt itself comes back empty do we surface the original,
         // more informative cached-auth error instead of a misleading "no session key found" — mirroring the
         // equivalent Ollama recovery in `OllamaStatusFetchStrategy.fetchAutomatic`.
+        let sessionInfo: SessionKeyInfo
         do {
-            let sessionInfo = try extractSessionKeyInfo(browserDetection: browserDetection, logger: log)
-            log("Found session key (\(sessionInfo.cookieCount) cookies)")
-
-            return try await self.fetchUsage(
-                using: sessionInfo,
-                options: options,
-                logger: log,
-                cachePersistence: CachePersistence(
-                    sourceLabel: sessionInfo.sourceLabel,
-                    expectedObservation: cacheObservation,
-                    persistInitialSessionKey: true))
+            sessionInfo = try self.extractSessionKeyInfo(browserDetection: browserDetection, logger: log)
         } catch {
             if let invalidatedCacheError {
                 throw invalidatedCacheError
             }
             throw error
         }
+        log("Found session key (\(sessionInfo.cookieCount) cookies)")
+
+        // Recovery found a new session: report that request's failure, not the invalidated cookie's error.
+        return try await self.fetchUsage(
+            using: sessionInfo,
+            options: options,
+            logger: log,
+            cachePersistence: CachePersistence(
+                sourceLabel: sessionInfo.sourceLabel,
+                expectedObservation: cacheObservation,
+                persistInitialSessionKey: true))
     }
 }
 #endif

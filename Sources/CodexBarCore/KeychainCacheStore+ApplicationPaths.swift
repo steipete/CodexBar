@@ -4,6 +4,16 @@ import Security
 #endif
 
 extension KeychainCacheStore {
+    /// A launch alias can be retargeted while this process runs. Trust the kernel's loaded image path instead.
+    static let runningExecutableURLForCacheAccess: URL? = {
+        #if os(macOS)
+        DarwinProcessEnumerator.executablePath(pid: ProcessInfo.processInfo.processIdentifier)
+            .map { URL(fileURLWithPath: $0) }
+        #else
+        nil
+        #endif
+    }()
+
     #if DEBUG
     @TaskLocal static var bundledAdHocProcessOverrideForTesting: Bool?
     #endif
@@ -22,8 +32,7 @@ extension KeychainCacheStore {
 
     private static let detectedBundledAdHocProcess: Bool = {
         #if os(macOS)
-        guard let appBundle = Self.appBundleURL(containing: Bundle.main.bundleURL)
-            ?? Bundle.main.executableURL.flatMap(Self.appBundleURL(containing:))
+        guard let appBundle = Self.runningExecutableURLForCacheAccess.flatMap(Self.appBundleURL(containing:))
         else { return false }
         return !Self.hasCodeSigningCertificate(at: appBundle)
         #else
@@ -43,8 +52,7 @@ extension KeychainCacheStore {
     #endif
 
     static func trustedApplicationPathsForCacheAccess(
-        bundleURL: URL = Bundle.main.bundleURL,
-        executableURL: URL? = Bundle.main.executableURL,
+        executableURL: URL? = KeychainCacheStore.runningExecutableURLForCacheAccess,
         fileExists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }) -> [String]
     {
         var paths: [String] = []
@@ -58,8 +66,7 @@ extension KeychainCacheStore {
         // then prompt on every read). Refuse the ACL entirely in that case —
         // unbundled processes use the in-memory store and never reach this path
         // in practice.
-        guard let appBundle = self.appBundleURL(containing: bundleURL)
-            ?? executableURL.flatMap(self.appBundleURL(containing:))
+        guard let appBundle = executableURL.flatMap(self.appBundleURL(containing:))
         else { return [] }
         append(appBundle.path)
         append(appBundle.appendingPathComponent("Contents/Helpers/CodexBarCLI").path)
@@ -72,7 +79,7 @@ extension KeychainCacheStore {
     /// The caller that will perform the secret-data operation after preflight. The cache ACL may trust
     /// multiple first-party executables, but one executable cannot authorize access on another's behalf.
     static func invokingApplicationPathsForCacheAccess(
-        executableURL: URL? = Bundle.main.executableURL,
+        executableURL: URL? = KeychainCacheStore.runningExecutableURLForCacheAccess,
         fileExists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }) -> [String]
     {
         guard let path = executableURL?.path, !path.isEmpty, fileExists(path) else { return [] }

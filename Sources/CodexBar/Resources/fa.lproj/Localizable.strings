@@ -1584,3 +1584,7 @@
 
 "agent_sessions_hide_unreachable_title" = "پنهان کردن میزبان‌های در دسترس نبودنی";
 "agent_sessions_hide_unreachable_subtitle" = "میزبان‌ها را در صورت ناموفق بودن دریافت نشست‌هایشان پنهان کنید.";
+
+"Incomplete" = "ناقص";
+"Est. subtotal (%@): %@" = "جمع جزئی تخمینی (%@): %@";
+"Excluded requests with missing final usage: %d" = "درخواست‌های حذف‌شده به دلیل نبود داده‌های مصرف نهایی: %d";

@@ -268,6 +268,9 @@ final class UsageStore {
     @ObservationIgnored var _test_providerRefreshOverride: (@MainActor (UsageProvider) async -> Void)?
     @ObservationIgnored var _test_providerFetchOutcomeOverride: (@MainActor (
         UsageProvider) async -> ProviderFetchOutcome)?
+    #if DEBUG
+    @ObservationIgnored var _test_cursorCostCredentialFingerprintOverride: (() -> String?)?
+    #endif
     @ObservationIgnored var _test_tokenUsageRefreshOverride: (@MainActor (UsageProvider, Bool) async -> Void)?
     @ObservationIgnored var _test_tokenUsageSnapshotLoaderOverride: (@MainActor (
         UsageProvider,
@@ -1479,8 +1482,8 @@ extension UsageStore {
         }
         let costScope = self.tokenCostScope(for: provider)
         let costScopeSignature = self.tokenSnapshotScopeSignature(for: provider)
-        let publicationRevision = self.providerPublicationRevision(for: provider)
-        let providerConfigRevision = self.settings.providerConfigRevision(for: provider)
+        let publicationScope = self.tokenRefreshPublicationScope(
+            for: provider, historyDays: historyDays, costScopeSignature: costScopeSignature)
         if !force, self.tokenRefreshCanReuseCurrentSnapshot(
             provider: provider,
             now: now,
@@ -1522,19 +1525,18 @@ extension UsageStore {
                 historyDays: historyDays,
                 initialSignature: costScopeSignature,
                 snapshot: snapshot)
-            guard self.tokenRefreshPublicationIsCurrent(
+            let publicationDisposition = self.tokenRefreshPublicationDisposition(
                 provider: provider,
-                publicationRevision: publicationRevision,
-                providerConfigRevision: providerConfigRevision,
-                historyDays: historyDays,
-                costScopeSignature: costScopeSignature,
+                scope: publicationScope,
                 fetchedCredentialScopeFingerprint: snapshot.credentialScopeFingerprint)
-            else {
+            guard publicationDisposition == .current else {
                 self.clearTokenFetchMetadataIfMatching(
                     provider: provider,
                     attemptedAt: now,
                     costScopeSignature: costScopeSignature)
-                self.requestTokenRefreshAfterStaleCompletion(for: provider)
+                if publicationDisposition == .scopeChanged {
+                    self.requestTokenRefreshAfterStaleCompletion(for: provider)
+                }
                 return
             }
             self.lastTokenFetchScope[provider.instanceID] = completedCostScopeSignature
@@ -1556,12 +1558,9 @@ extension UsageStore {
             self.tokenFailureGates[provider.instanceID]?.recordSuccess()
             self.persistWidgetSnapshot(reason: "token-usage")
         } catch {
-            guard self.tokenRefreshPublicationIsCurrent(
+            guard self.tokenRefreshPublicationDisposition(
                 provider: provider,
-                publicationRevision: publicationRevision,
-                providerConfigRevision: providerConfigRevision,
-                historyDays: historyDays,
-                costScopeSignature: costScopeSignature)
+                scope: publicationScope) == .current
             else {
                 self.clearTokenFetchMetadataIfMatching(
                     provider: provider,

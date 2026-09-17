@@ -12,17 +12,20 @@ enum DeepSeekPlatformTokenImporter {
         let selectedSummary: DeepSeekUsageSummary?
         let selectedBalance: DeepSeekUsageSnapshot?
         let detailedUsageState: DeepSeekDetailedUsageState
+        let selectedTransportError: DeepSeekPlatformTransportError?
 
         init(
             profiles: [DeepSeekPlatformProfile],
             selectedSummary: DeepSeekUsageSummary?,
             selectedBalance: DeepSeekUsageSnapshot? = nil,
-            detailedUsageState: DeepSeekDetailedUsageState)
+            detailedUsageState: DeepSeekDetailedUsageState,
+            selectedTransportError: DeepSeekPlatformTransportError? = nil)
         {
             self.profiles = profiles
             self.selectedSummary = selectedSummary
             self.selectedBalance = selectedBalance
             self.detailedUsageState = detailedUsageState
+            self.selectedTransportError = selectedTransportError
         }
     }
 
@@ -35,7 +38,7 @@ enum DeepSeekPlatformTokenImporter {
     private enum ValidationOutcome: Sendable {
         case valid(PlatformSessionData)
         case invalid
-        case unavailable
+        case unavailable(Error?)
     }
 
     private struct ValidationResult: Sendable {
@@ -215,6 +218,11 @@ enum DeepSeekPlatformTokenImporter {
         }
 
         let profiles = validCandidates.map { DeepSeekPlatformProfile(id: $0.id, name: $0.sourceLabel) }
+        let unresolvedCandidate = self.selectedCandidate(candidates: candidates, selection: selection)
+        let unresolvedTransport = self.selectedTransportError(
+            candidate: unresolvedCandidate,
+            outcomes: outcomes,
+            statusByID: statusByID)
         guard !validCandidates.isEmpty else {
             let validationWasUnavailable = outcomes.contains { result in
                 if case .unavailable = result.outcome {
@@ -225,31 +233,63 @@ enum DeepSeekPlatformTokenImporter {
             return Resolution(
                 profiles: [],
                 selectedSummary: nil,
-                detailedUsageState: validationWasUnavailable ? .unavailable : .webSessionRequired)
+                detailedUsageState: validationWasUnavailable ? .unavailable : .webSessionRequired,
+                selectedTransportError: unresolvedTransport)
         }
 
-        let selected: TokenInfo? = if selection.requiresExplicitSelection {
-            nil
-        } else if let selectedProfileID = selection.profileID {
-            validCandidates.first(where: { $0.id == selectedProfileID })
-        } else {
-            validCandidates.count == 1 ? validCandidates[0] : nil
-        }
+        let selected = self.selectedCandidate(candidates: validCandidates, selection: selection)
         guard let selected else {
+            let rejectedSelection = unresolvedCandidate.map { statusByID[$0.id] == false } ?? false
+            let transport = rejectedSelection ? nil : unresolvedTransport
             return Resolution(
                 profiles: profiles,
                 selectedSummary: nil,
-                detailedUsageState: .profileSelectionRequired)
+                detailedUsageState: transport == nil ? .profileSelectionRequired : .unavailable,
+                selectedTransportError: transport)
         }
 
         if let sessionData = sessionDataByID[selected.id] {
             return Resolution(
                 profiles: profiles,
                 selectedSummary: sessionData.summary,
-                selectedBalance: sessionData.balance,
+                selectedBalance: sessionData.balance?.withPlatformBalanceOwner(
+                    DeepSeekPlatformBalanceOwner(profileID: selected.id, token: selected.token)),
                 detailedUsageState: sessionData.detailedUsageState)
         }
-        return Resolution(profiles: profiles, selectedSummary: nil, detailedUsageState: .unavailable)
+        return Resolution(
+            profiles: profiles,
+            selectedSummary: nil,
+            detailedUsageState: .unavailable,
+            selectedTransportError: self.selectedTransportError(
+                candidate: selected, outcomes: outcomes, statusByID: statusByID))
+    }
+
+    private static func selectedCandidate(
+        candidates: [TokenInfo],
+        selection: DeepSeekSettingsReader.ProfileSelection) -> TokenInfo?
+    {
+        guard !selection.requiresExplicitSelection else { return nil }
+        if let selectedProfileID = selection.profileID {
+            return candidates.first(where: { $0.id == selectedProfileID })
+        }
+        return candidates.count == 1 ? candidates[0] : nil
+    }
+
+    private static func selectedTransportError(
+        candidate: TokenInfo?,
+        outcomes: [ValidationResult],
+        statusByID: [String: Bool]) -> DeepSeekPlatformTransportError?
+    {
+        guard let candidate,
+              let latest = outcomes.last(where: { $0.candidate == candidate }),
+              case let .unavailable(error?) = latest.outcome
+        else { return nil }
+        // A later outage must not turn a rejected session's old balance into valid cached data again.
+        let owner = statusByID[candidate.id] == false
+            ? nil : DeepSeekPlatformBalanceOwner(profileID: candidate.id, token: candidate.token)
+        return DeepSeekPlatformTransportError(
+            owner: owner,
+            underlyingError: error)
     }
 
     private static func validate(
@@ -261,7 +301,7 @@ enum DeepSeekPlatformTokenImporter {
             for candidate in candidates {
                 group.addTask {
                     guard !Task.isCancelled else {
-                        return ValidationResult(candidate: candidate, outcome: .unavailable)
+                        return ValidationResult(candidate: candidate, outcome: .unavailable(nil))
                     }
                     do {
                         let summary = try await validate(candidate.token)
@@ -269,7 +309,7 @@ enum DeepSeekPlatformTokenImporter {
                     } catch DeepSeekUsageError.invalidPlatformToken {
                         return ValidationResult(candidate: candidate, outcome: .invalid)
                     } catch {
-                        return ValidationResult(candidate: candidate, outcome: .unavailable)
+                        return ValidationResult(candidate: candidate, outcome: .unavailable(error))
                     }
                 }
             }
@@ -416,6 +456,29 @@ enum DeepSeekPlatformTokenImporter {
                     summary: validate(token),
                     balance: nil,
                     detailedUsageState: detailedUsageState)
+            })
+    }
+
+    static func _resolvePlatformBalanceForTesting(
+        candidates: [TokenInfo],
+        selectedProfileID: String? = nil,
+        requiresExplicitSelection: Bool = false,
+        cache: DeepSeekPlatformValidationCache,
+        validate: @escaping @Sendable (String) async throws -> DeepSeekUsageSnapshot) async -> Resolution
+    {
+        await self.resolve(
+            candidates: candidates,
+            selection: DeepSeekSettingsReader.ProfileSelection(
+                profileID: selectedProfileID,
+                requiresExplicitSelection: requiresExplicitSelection),
+            logger: nil,
+            cache: cache,
+            validate: { token in
+                let balance = try await validate(token)
+                return PlatformSessionData(
+                    summary: balance.usageSummary,
+                    balance: balance,
+                    detailedUsageState: balance.detailedUsageState)
             })
     }
 }

@@ -23,6 +23,7 @@ extension CursorStatusProbe {
         browserCookieImportOrder: BrowserCookieImportOrder = [],
         urlSession: any ProviderHTTPTransport = ProviderHTTPClient.shared,
         appAuthStore: any CursorAppAuthSessionProviding,
+        sessionStore: CursorSessionStore = .shared,
         conditionalMutationCoordinator: CookieHeaderCache.ConditionalMutationCoordinator = .shared)
     {
         self.baseURL = baseURL
@@ -30,6 +31,7 @@ extension CursorStatusProbe {
         self.browserDetection = browserDetection
         self.browserCookieImportOrder = browserCookieImportOrder
         self.urlSession = urlSession
+        self.sessionStore = sessionStore
         self.appAuthStore = appAuthStore
         self.conditionalMutationCoordinator = conditionalMutationCoordinator
     }
@@ -57,7 +59,9 @@ extension CursorStatusProbe {
             log("Cursor.app local auth was rejected")
             throw CursorStatusProbeError.noSessionCookie
         } catch {
-            throw CursorStatusProbeError.networkError(error.localizedDescription)
+            throw ProviderTransportError.preservingIdentity(
+                of: error,
+                describedBy: CursorStatusProbeError.networkError(error.localizedDescription))
         }
     }
 }

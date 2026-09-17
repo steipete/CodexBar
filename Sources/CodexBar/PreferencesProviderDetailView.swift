@@ -417,6 +417,36 @@ struct ProviderMetricsInlineView: View {
         let value: String
     }
 
+    struct ContentState: Equatable {
+        let hasMetrics: Bool
+        let hasUsageNotes: Bool
+        let hasProviderCost: Bool
+        let hasInfoRows: Bool
+        let hasTokenUsage: Bool
+        let hasResetCredits: Bool
+        let hasProviderDetails: Bool
+
+        init(model: UsageMenuCardView.Model, infoRows: [InfoRow]) {
+            self.hasMetrics = !model.metrics.isEmpty
+            self.hasUsageNotes = !model.usageNotes.isEmpty
+            self.hasProviderCost = model.providerCost?.showsInProviderDetails == true
+            self.hasInfoRows = !infoRows.isEmpty
+            self.hasTokenUsage = model.tokenUsage != nil
+            self.hasResetCredits = model.codexResetCredits != nil
+            self.hasProviderDetails = !model.providerDetails.isEmpty
+        }
+
+        var showsPlaceholder: Bool {
+            !self.hasMetrics &&
+                !self.hasUsageNotes &&
+                !self.hasProviderCost &&
+                !self.hasInfoRows &&
+                !self.hasTokenUsage &&
+                !self.hasResetCredits &&
+                !self.hasProviderDetails
+        }
+    }
+
     static func infoRows(
         for model: UsageMenuCardView.Model,
         openAIWebDiagnostic: String?) -> [InfoRow]
@@ -432,14 +462,10 @@ struct ProviderMetricsInlineView: View {
     }
 
     var body: some View {
-        let hasMetrics = !self.model.metrics.isEmpty
-        let hasUsageNotes = !self.model.usageNotes.isEmpty
         let infoRows = Self.infoRows(for: self.model, openAIWebDiagnostic: self.openAIWebDiagnostic)
-        let hasProviderCost = self.model.providerCost?.showsInProviderDetails == true
-        let hasTokenUsage = self.model.tokenUsage != nil
-        let hasResetCredits = self.model.codexResetCredits != nil
+        let contentState = ContentState(model: self.model, infoRows: infoRows)
 
-        if !hasMetrics, !hasUsageNotes, !hasProviderCost, infoRows.isEmpty, !hasTokenUsage, !hasResetCredits {
+        if contentState.showsPlaceholder {
             Text(self.placeholderText)
                 .font(.footnote)
                 .foregroundStyle(.secondary)
@@ -451,7 +477,7 @@ struct ProviderMetricsInlineView: View {
                     progressColor: self.model.progressColor)
             }
 
-            if hasUsageNotes {
+            if contentState.hasUsageNotes {
                 VStack(alignment: .leading, spacing: 4) {
                     ForEach(Array(self.model.usageNotes.enumerated()), id: \.offset) { _, note in
                         Text(note)
@@ -488,6 +514,12 @@ struct ProviderMetricsInlineView: View {
                 {
                     ProviderMetricInlineTextRow(title: "", value: hint)
                 }
+            }
+
+            if contentState.hasProviderDetails {
+                ProviderDetailSectionsContent(
+                    sections: self.model.providerDetails,
+                    chartColor: self.model.progressColor)
             }
         }
     }

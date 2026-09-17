@@ -1580,3 +1580,7 @@
 
 "agent_sessions_hide_unreachable_title" = "Nicht erreichbare Hosts ausblenden";
 "agent_sessions_hide_unreachable_subtitle" = "Hosts ausblenden, wenn ihre Sitzungen nicht abgerufen werden können.";
+
+"Incomplete" = "Unvollständig";
+"Est. subtotal (%@): %@" = "Geschätzte Zwischensumme (%@): %@";
+"Excluded requests with missing final usage: %d" = "Ausgeschlossene Anfragen ohne abschließende Nutzungsdaten: %d";

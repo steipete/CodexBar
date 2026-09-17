@@ -96,7 +96,10 @@ public struct KimiUsageFetcher: Sendable {
         let sessionInfo = self.decodeSessionInfo(from: authToken)
 
         let enrichment = SubscriptionEnrichment(
-            authToken: authToken, sessionInfo: sessionInfo, transport: transport, grace: subscriptionGrace)
+            authToken: authToken,
+            sessionInfo: sessionInfo,
+            transport: transport,
+            grace: subscriptionGrace)
 
         let codingUsage: KimiUsage
         do {
@@ -182,6 +185,7 @@ public struct KimiUsageFetcher: Sendable {
             rateLimitWindow: snapshot.rateLimitWindow,
             subscriptionBalance: subscription.stats?.subscriptionBalance,
             subscriptionCodeWeeklyLimit: subscription.stats?.ratelimitCode7d,
+            codeUsagePools: snapshot.codeUsagePools,
             planName: snapshot.planName ?? subscription.planName,
             updatedAt: now)
     }
@@ -189,13 +193,21 @@ public struct KimiUsageFetcher: Sendable {
     private static func parseCodeAPIUsage(from data: Data, now: Date) throws -> KimiUsageSnapshot {
         let response = try JSONDecoder().decode(KimiCodeAPIUsageResponse.self, from: data)
         let rateLimit = response.limits?.first
-        return KimiUsageSnapshot(
+        let snapshot = KimiUsageSnapshot(
             weekly: response.usage,
             rateLimit: rateLimit?.detail,
             rateLimitWindow: rateLimit?.window,
             subscriptionBalance: nil,
+            codeUsagePools: response.usages,
             planName: response.planName,
             updatedAt: now)
+        let usage = snapshot.toUsageSnapshot()
+        guard usage.primary != nil || usage.secondary != nil || usage.extraRateWindows?.isEmpty == false else {
+            throw DecodingError.dataCorrupted(.init(
+                codingPath: [],
+                debugDescription: "No supported quota windows in Code usage response"))
+        }
+        return snapshot
     }
 
     private static func codeAPIUsageEndpoint(baseURL: URL) -> URL {
@@ -245,13 +257,17 @@ public struct KimiUsageFetcher: Sendable {
             let statsTask = Task {
                 try Task.checkCancellation()
                 return try await KimiUsageFetcher.fetchUsageStats(
-                    authToken: authToken, sessionInfo: sessionInfo, transport: transport)
+                    authToken: authToken,
+                    sessionInfo: sessionInfo,
+                    transport: transport)
             }
             let planTask = Task<String?, Error> {
                 try Task.checkCancellation()
                 guard includePlan else { return nil }
                 return try await KimiUsageFetcher.fetchPlan(
-                    authToken: authToken, sessionInfo: sessionInfo, transport: transport)
+                    authToken: authToken,
+                    sessionInfo: sessionInfo,
+                    transport: transport)
             }
             self.stats = Task {
                 await BoundedTaskJoin(sourceTask: statsTask)

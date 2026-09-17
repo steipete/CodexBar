@@ -167,7 +167,10 @@ struct ProviderPluginDetailsParityTests {
             return (Data(body.utf8), response)
         }
 
-        let script = try await ProviderPluginRuntime(bundledPlugin: "openrouter", transport: transport)
+        let script = try await ProviderPluginRuntime(
+            bundledPlugin: "openrouter",
+            transport: transport,
+            contextOptions: ProviderPluginContextOptions(optionalRequestTimeoutSeconds: 1))
             .fetchUsage(secrets: ["OPENROUTER_API_KEY": "fixture-key"])
 
         #expect(script.primary == nil)

@@ -23,7 +23,7 @@ struct KimiSubscriptionEnrichmentTests {
         await plan.release()
 
         #expect(planWasRequested)
-        #expect(snapshot.weekly.used == "25")
+        #expect(snapshot.weekly?.used == "25")
         #expect(snapshot.subscriptionBalance?.amountUsedRatio == 0.42)
         #expect(snapshot.subscriptionCodeWeeklyLimit?.ratio == 0.17)
         #expect(snapshot.planName == nil)
@@ -40,14 +40,16 @@ struct KimiSubscriptionEnrichmentTests {
         let snapshot: KimiUsageSnapshot
         do {
             snapshot = try await KimiUsageFetcher.fetchCodeAPIUsage(
-                apiKey: "fixture-api-key", webAuthToken: "fixture-web-token", transport: Self.transport(plan: plan))
+                apiKey: "fixture-api-key",
+                webAuthToken: "fixture-web-token",
+                transport: Self.transport(plan: plan))
         } catch {
             await plan.release()
             throw error
         }
         let elapsed = started.duration(to: .now)
         await plan.release()
-        #expect(snapshot.weekly.used == "25")
+        #expect(snapshot.weekly?.used == "25")
         #expect(snapshot.subscriptionBalance?.amountUsedRatio == 0.42)
         #expect(snapshot.subscriptionCodeWeeklyLimit?.ratio == 0.17)
         #expect(snapshot.planName == nil)
@@ -62,7 +64,7 @@ struct KimiSubscriptionEnrichmentTests {
             transport: Self.transport(plan: stats, stalledPath: "/GetSubscriptionStats"),
             subscriptionGrace: .milliseconds(100))
         await stats.release()
-        #expect(snapshot.weekly.used == "25")
+        #expect(snapshot.weekly?.used == "25")
         #expect(snapshot.subscriptionBalance == nil)
         #expect(snapshot.planName == "Allegro")
     }
@@ -72,7 +74,9 @@ struct KimiSubscriptionEnrichmentTests {
         let plan = KimiEnrichmentLatch()
         let task = Task {
             try await KimiUsageFetcher._fetchUsageForTesting(
-                authToken: "fixture-web-token", transport: Self.transport(plan: plan), subscriptionGrace: .seconds(30))
+                authToken: "fixture-web-token",
+                transport: Self.transport(plan: plan),
+                subscriptionGrace: .seconds(30))
         }
         await plan.waitUntilStarted()
         let started = ContinuousClock.now

@@ -1579,3 +1579,7 @@
 
 "agent_sessions_hide_unreachable_title" = "Onbereikbare hosts verbergen";
 "agent_sessions_hide_unreachable_subtitle" = "Verberg hosts wanneer het ophalen van hun sessies mislukt.";
+
+"Incomplete" = "Onvolledig";
+"Est. subtotal (%@): %@" = "Geschat subtotaal (%@): %@";
+"Excluded requests with missing final usage: %d" = "Uitgesloten verzoeken zonder definitieve gebruiksgegevens: %d";

@@ -151,6 +151,8 @@ public struct UsageSnapshot: Codable, Sendable {
     public let details: [ProviderDetailSection]
     public let deepseekDetailedUsageState: DeepSeekDetailedUsageState
     public let deepseekPlatformProfiles: [DeepSeekPlatformProfile]
+    /// Live-only ownership proof; decoded usage cannot authorize browser balance retention.
+    public let deepseekPlatformBalanceOwner: DeepSeekPlatformBalanceOwner?
     public let opencodegoUsage: OpenCodeGoUsageSnapshot?
     public let openAIAPIUsage: OpenAIAPIUsageSnapshot?
     public let codexResetCredits: CodexRateLimitResetCreditsSnapshot?
@@ -200,6 +202,7 @@ public struct UsageSnapshot: Codable, Sendable {
         details: [ProviderDetailSection] = [],
         deepseekDetailedUsageState: DeepSeekDetailedUsageState = .notRequested,
         deepseekPlatformProfiles: [DeepSeekPlatformProfile] = [],
+        deepseekPlatformBalanceOwner: DeepSeekPlatformBalanceOwner? = nil,
         opencodegoUsage: OpenCodeGoUsageSnapshot? = nil,
         openAIAPIUsage: OpenAIAPIUsageSnapshot? = nil,
         codexResetCredits: CodexRateLimitResetCreditsSnapshot? = nil,
@@ -226,6 +229,7 @@ public struct UsageSnapshot: Codable, Sendable {
         self.details = details
         self.deepseekDetailedUsageState = deepseekDetailedUsageState
         self.deepseekPlatformProfiles = deepseekPlatformProfiles
+        self.deepseekPlatformBalanceOwner = deepseekPlatformBalanceOwner
         self.opencodegoUsage = opencodegoUsage
         self.openAIAPIUsage = openAIAPIUsage
         self.codexResetCredits = codexResetCredits
@@ -285,6 +289,7 @@ public struct UsageSnapshot: Codable, Sendable {
         try ProviderDetailSection.validateSections(self.details)
         self.deepseekDetailedUsageState = .notRequested // Live-only fetch state
         self.deepseekPlatformProfiles = [] // Live-only browser profile catalog
+        self.deepseekPlatformBalanceOwner = nil // Live-only balance ownership
         self.opencodegoUsage = nil // Not persisted, fetched fresh each time
         self.openAIAPIUsage = try container.decodeIfPresent(OpenAIAPIUsageSnapshot.self, forKey: .openAIAPIUsage)
         self.codexResetCredits = try container.decodeIfPresent(
@@ -520,6 +525,7 @@ public struct UsageSnapshot: Codable, Sendable {
             details: details.resolving(self.details),
             deepseekDetailedUsageState: deepseekDetailedUsageState.resolving(self.deepseekDetailedUsageState),
             deepseekPlatformProfiles: deepseekPlatformProfiles.resolving(self.deepseekPlatformProfiles),
+            deepseekPlatformBalanceOwner: self.deepseekPlatformBalanceOwner,
             opencodegoUsage: self.opencodegoUsage,
             openAIAPIUsage: self.openAIAPIUsage,
             codexResetCredits: codexResetCredits.resolving(self.codexResetCredits),

@@ -11,6 +11,9 @@ import Glibc
 import Musl
 #endif
 import Foundation
+#if os(macOS)
+import CoreFoundation
+#endif
 
 extension CodexBarCLI {
     static func decodeProvider(from values: ParsedValues, config: CodexBarConfig) -> ProviderSelection {
@@ -168,17 +171,7 @@ extension CodexBarCLI {
     }
 
     static func resetTimeDisplayStyleFromDefaults() -> ResetTimeDisplayStyle {
-        let domains = [
-            "com.steipete.codexbar",
-            "com.steipete.codexbar.debug",
-        ]
-        for domain in domains {
-            if let value = UserDefaults(suiteName: domain)?.object(forKey: "resetTimesShowAbsolute") as? Bool {
-                return value ? .absolute : .countdown
-            }
-        }
-        let fallback = UserDefaults.standard.object(forKey: "resetTimesShowAbsolute") as? Bool ?? false
-        return fallback ? .absolute : .countdown
+        (self.boolFromAppDefaults("resetTimesShowAbsolute") ?? false) ? .absolute : .countdown
     }
 
     static func weeklyProgressWorkDaysFromDefaults() -> Int? {
@@ -187,6 +180,18 @@ extension CodexBarCLI {
             "com.steipete.codexbar.debug",
         ]
         for domain in domains {
+            #if os(macOS)
+            let cfDomain = domain as CFString
+            CFPreferencesSynchronize(cfDomain, kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
+            if let cfValue = CFPreferencesCopyValue(
+                "weeklyProgressWorkDays" as CFString,
+                cfDomain,
+                kCFPreferencesCurrentUser,
+                kCFPreferencesAnyHost) as? Int
+            {
+                return cfValue
+            }
+            #endif
             if let value = UserDefaults(suiteName: domain)?.object(forKey: "weeklyProgressWorkDays") as? Int {
                 return value
             }
@@ -201,12 +206,30 @@ extension CodexBarCLI {
         self.boolFromAppDefaults("hidePersonalInfo") ?? false
     }
 
+    /// The app's "Usage bars fill" preference (true = as used, false = as remaining). Read
+    /// per request so the serve dashboard follows the setting without a restart.
+    static func usageBarsShowUsedFromDefaults() -> Bool {
+        self.boolFromAppDefaults("usageBarsShowUsed") ?? false
+    }
+
     static func boolFromAppDefaults(_ key: String) -> Bool? {
         let domains = [
             "com.steipete.codexbar",
             "com.steipete.codexbar.debug",
         ]
         for domain in domains {
+            #if os(macOS)
+            let cfDomain = domain as CFString
+            CFPreferencesSynchronize(cfDomain, kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
+            if let cfValue = CFPreferencesCopyValue(
+                key as CFString,
+                cfDomain,
+                kCFPreferencesCurrentUser,
+                kCFPreferencesAnyHost) as? Bool
+            {
+                return cfValue
+            }
+            #endif
             if let value = UserDefaults(suiteName: domain)?.object(forKey: key) as? Bool {
                 return value
             }
@@ -220,6 +243,19 @@ extension CodexBarCLI {
             "com.steipete.codexbar.debug",
         ]
         for domain in domains {
+            #if os(macOS)
+            let cfDomain = domain as CFString
+            CFPreferencesSynchronize(cfDomain, kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
+            if let cfValue = CFPreferencesCopyValue(
+                key as CFString,
+                cfDomain,
+                kCFPreferencesCurrentUser,
+                kCFPreferencesAnyHost) as? String,
+                !cfValue.isEmpty
+            {
+                return cfValue
+            }
+            #endif
             if let value = UserDefaults(suiteName: domain)?.string(forKey: key), !value.isEmpty {
                 return value
             }
