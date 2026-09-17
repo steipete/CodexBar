@@ -463,6 +463,8 @@ enum MenuBarLayoutToken: Codable, Hashable, Sendable {
     case accountLabel
     case percent(window: PercentWindow)
     case lanePercent(lane: MenuBarLayoutLane)
+    /// Provider-specific named quota windows that do not fit the fixed monthly lane model.
+    case extraPercent(id: String)
     /// Signed pace delta for a window, e.g. `+11%` when usage runs ahead of the sustainable rate.
     /// `runsOut` answers "when does this end"; this token answers "how far off the even rate am I".
     case pace(window: PercentWindow)
@@ -512,14 +514,14 @@ enum MenuBarLayoutToken: Codable, Hashable, Sendable {
     /// failing the whole blob and losing the user's arrangement.
     var hasReleasedRepresentation: Bool {
         switch self {
-        case .windowResetCountdown, .windowResetAbsolute: false
+        case .extraPercent, .windowResetCountdown, .windowResetAbsolute: false
         default: true
         }
     }
 
     var hasLegacyRepresentation: Bool {
         switch self {
-        case .conditional, .hidden, .windowResetCountdown, .windowResetAbsolute: false
+        case .conditional, .extraPercent, .hidden, .windowResetCountdown, .windowResetAbsolute: false
         default: true
         }
     }
@@ -534,6 +536,31 @@ enum MenuBarLayoutToken: Codable, Hashable, Sendable {
         default:
             self
         }
+    }
+}
+
+enum MenuBarLayoutNamedExtra {
+    struct Definition: Hashable, Sendable {
+        let id: String
+        let provider: UsageProvider
+        let title: String
+    }
+
+    static let grokBot = Definition(id: "cursor-grok-bot", provider: .cursor, title: "Grok Bot")
+    private static let definitions = [Self.grokBot]
+
+    static func definition(id: String) -> Definition? {
+        self.definitions.first { $0.id == id }
+    }
+
+    static func availableTokens(provider: UsageProvider?, snapshot: UsageSnapshot?) -> [MenuBarLayoutToken] {
+        guard let provider, let snapshot else { return [] }
+        let activeIDs = Set((snapshot.extraRateWindows ?? [])
+            .filter { !$0.window.isSyntheticPlaceholder }
+            .map(\.id))
+        return self.definitions
+            .filter { $0.provider == provider && activeIDs.contains($0.id) }
+            .map { .extraPercent(id: $0.id) }
     }
 }
 

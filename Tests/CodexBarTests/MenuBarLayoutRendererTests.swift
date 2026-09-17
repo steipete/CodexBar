@@ -96,6 +96,42 @@ struct MenuBarLayoutRendererTests {
     }
 
     @Test
+    func `Cursor Grok Bot extra percentage renders independently`() {
+        let renderer = MenuBarLayoutRenderer()
+        let output = renderer.render(
+            layout: MenuBarLayout(lines: [[
+                .lanePercent(lane: .primary),
+                .lanePercent(lane: .secondary),
+                .lanePercent(lane: .tertiary),
+                .extraPercent(id: "cursor-grok-bot"),
+            ]]),
+            data: self.data(
+                provider: .cursor,
+                extraRateWindows: [MenuBarLayoutRenderExtra(NamedRateWindow(
+                    id: "cursor-grok-bot",
+                    title: "Grok Bot",
+                    window: RateWindow(usedPercent: 42, windowMinutes: nil, resetsAt: nil, resetDescription: nil)))]),
+            icon: nil,
+            options: self.options())
+
+        #expect(output.attributedTitle.string == "10%\u{2009}9%\u{2009}17%\u{2009}42%")
+        #expect(output.accessibilityLabel == "Total 10%, Cursor 9%, Third Party 17%, Grok Bot 42%")
+    }
+
+    @Test
+    func `missing Grok Bot extra percentage keeps sibling tokens visible`() {
+        let renderer = MenuBarLayoutRenderer()
+        let output = renderer.render(
+            layout: MenuBarLayout(lines: [[.lanePercent(lane: .primary), .extraPercent(id: "cursor-grok-bot")]]),
+            data: self.data(provider: .cursor),
+            icon: nil,
+            options: self.options())
+
+        #expect(output.attributedTitle.string == "10%\u{2009}–")
+        #expect(output.accessibilityLabel == "Total 10%, Grok Bot unavailable")
+    }
+
+    @Test
     func `automatic balance text replaces the automatic percent window`() {
         let renderer = MenuBarLayoutRenderer()
         // DeepSeek's funded balance window arrives with usedPercent 0; the balance text must win
@@ -1624,6 +1660,7 @@ struct MenuBarLayoutRendererTests {
         automaticText: String? = nil,
         automaticBalanceFallback: String? = nil,
         accountLabel: String? = "user@example.com",
+        extraRateWindows: [MenuBarLayoutRenderExtra] = [],
         metrics: MenuBarLayoutRenderMetrics? = nil)
         -> MenuBarLayoutRenderData
     {
@@ -1648,6 +1685,7 @@ struct MenuBarLayoutRendererTests {
                 windowMinutes: 30 * 24 * 60,
                 resetsAt: nil,
                 resetDescription: nil)),
+            extraRateWindows: extraRateWindows,
             session: MenuBarLayoutRenderWindow(RateWindow(
                 usedPercent: 25,
                 windowMinutes: 300,
