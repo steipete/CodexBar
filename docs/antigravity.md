@@ -297,17 +297,20 @@ The cost endpoint and dashboard also include it when Antigravity is selected. To
 costs, and these entry points do not expand the supported timestamp layouts described below.
 
 SQLite is authoritative when present. An unreadable root, malformed database, unsupported event layout, or exhausted
-budget never authorizes replacement by a smaller/stale JSONL cache. Some SQLite builds, including the macOS system
-library, decline a read-only open of a WAL database whose `-wal` and `-shm` sidecars are absent, which is what a
-cleanly closed conversation leaves behind. When that happens and no `-wal` sidecar exists, the reader retries that
-one database with an `immutable=1` open of the main file; it never creates sidecars. The retry counts only when
-the file and its sidecar state are unchanged afterwards. A database with a `-wal` sidecar present stays
-unavailable, because a WAL connection may still hold it. Complete empty databases and complete histories
-outside the selected window establish empty history; absent sources and partial scans do not. Partial reports remain
-diagnostic only: the fetcher withholds their rows. Regular refresh applies its existing failure/retention policy,
-and neither regular refresh nor the dashboard publishes unavailable results as confirmed zero. Failed dashboard
-attempts do not acknowledge successful incorporation of a refresh trigger.
-Overflowed aggregate totals remain unknown rather than becoming saturated or wrapping.
+budget never authorizes replacement by a smaller/stale JSONL cache. A database that describes its own tables and no
+`gen_metadata` table is not Antigravity history: the reader skips it, counts it, and leaves coverage intact.
+Antigravity 1.2.3 writes exactly such a file, `~/.gemini/antigravity/conversation_summaries.db`, into a declared root.
+A `gen_metadata` table with unknown columns is schema drift rather than a foreign file, and still leaves the report
+incomplete. Some SQLite builds, including the macOS system library, decline a read-only open of a WAL database whose
+`-wal` and `-shm` sidecars are absent, which is what a cleanly closed conversation leaves behind. When that happens
+and no `-wal` sidecar exists, the reader retries that one database with an `immutable=1` open of the main file; it
+never creates sidecars. The retry counts only when the file and its sidecar state are unchanged afterwards. A database
+with a `-wal` sidecar present stays unavailable, because a WAL connection may still hold it. Complete empty databases
+and complete histories outside the selected window establish empty history; absent sources and partial scans do not.
+Partial reports remain diagnostic only: the fetcher withholds their rows. Regular refresh applies its existing
+failure/retention policy, and neither regular refresh nor the dashboard publishes unavailable results as confirmed
+zero. Failed dashboard attempts do not acknowledge successful incorporation of a refresh trigger. Overflowed aggregate
+totals remain unknown rather than becoming saturated or wrapping.
 
 The schema evidence is [Tokscale's pinned SQLite parser](https://github.com/junhoyeo/tokscale/blob/62ca1eb1677556972ba963fdfa3a41ab23c1eb4b/crates/tokscale-core/src/sessions/antigravity_cli.rs),
 whose header records six databases and 140 turns. SQLite usage fields 1 + 2 are input, 5 is cache read,

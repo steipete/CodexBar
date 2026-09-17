@@ -207,9 +207,18 @@ extension AntigravityLocalReader {
         if let failure = progress.failure {
             throw failure
         }
-        // The deferred transaction first touches the file at the schema read, so a declined WAL open
-        // surfaces here as a failed prepare and leaves SQLITE_CANTOPEN as the connection's last error.
-        guard supported else {
+        switch supported {
+        case .supported:
+            break
+        case .foreign:
+            // A database in a declared root that describes its own tables and no gen_metadata table is not
+            // Antigravity history. Skipping it costs no coverage. A gen_metadata table with unknown columns
+            // is schema drift, not a foreign file, and stays incomplete on purpose.
+            budget.statistics.foreignDatabases += 1
+            return DatabaseAttempt(SourceResult())
+        case .unsupported:
+            // The deferred transaction first touches the file at the schema read, so a declined WAL open
+            // surfaces here as a failed prepare and leaves SQLITE_CANTOPEN as the connection's last error.
             return DatabaseAttempt(
                 SourceResult(isComplete: false),
                 cannotOpen: sqlite3_errcode(database) == SQLITE_CANTOPEN)
