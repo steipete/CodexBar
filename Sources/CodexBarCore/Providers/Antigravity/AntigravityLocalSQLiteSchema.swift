@@ -18,7 +18,7 @@ extension AntigravityLocalReader {
         case unsupported
     }
 
-    static func hasSupportedSQLiteTable(_ database: OpaquePointer, budget: Budget) throws -> SQLiteTableSupport {
+    static func inspectSQLiteTableSupport(_ database: OpaquePointer, budget: Budget) throws -> SQLiteTableSupport {
         var statement: OpaquePointer?
         defer { sqlite3_finalize(statement) }
         // sqlite_master works on older SQLite versions too. Virtual tables and views have no root b-tree page.
@@ -39,9 +39,10 @@ extension AntigravityLocalReader {
             entries += 1
             budget.statistics.schemaEntries += 1
             guard entries <= budget.limits.schemaEntries else { throw ScanFailure.exhausted }
-            let name = try self.schemaText(statement, column: 0, budget: budget)
-            let type = try self.schemaText(statement, column: 1, budget: budget)
-            guard name?.lowercased() == "gen_metadata" else { continue }
+            guard let name = try self.schemaText(statement, column: 0, budget: budget),
+                  let type = try self.schemaText(statement, column: 1, budget: budget)
+            else { return .unsupported }
+            guard name.lowercased() == "gen_metadata" else { continue }
             guard type == "table", sqlite3_column_type(statement, 2) == SQLITE_INTEGER,
                   sqlite3_column_int64(statement, 2) > 0 else { return .unsupported }
             return try self.hasStoredSQLiteColumns(database, budget: budget) ? .supported : .unsupported

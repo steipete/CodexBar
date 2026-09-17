@@ -300,6 +300,8 @@ SQLite is authoritative when present. An unreadable root, malformed database, un
 budget never authorizes replacement by a smaller/stale JSONL cache. A database that describes its own tables and no
 `gen_metadata` table is not Antigravity history: the reader skips it, counts it, and leaves coverage intact.
 Antigravity 1.2.3 writes exactly such a file, `~/.gemini/antigravity/conversation_summaries.db`, into a declared root.
+Unrelated databases alone leave history unavailable; a recognized empty history database still establishes complete
+empty history alongside them. Undecodable schema names or types remain incomplete rather than proving a file foreign.
 A `gen_metadata` table with unknown columns is schema drift rather than a foreign file, and still leaves the report
 incomplete. Some SQLite builds, including the macOS system library, decline a read-only open of a WAL database whose
 `-wal` and `-shm` sidecars are absent, which is what a cleanly closed conversation leaves behind. When that happens

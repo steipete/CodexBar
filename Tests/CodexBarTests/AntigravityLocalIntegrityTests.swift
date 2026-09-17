@@ -158,6 +158,62 @@ struct AntigravityLocalIntegrityTests {
     }
 
     @Test
+    func `foreign databases alone do not establish empty history or select the JSONL cache`() async throws {
+        let fixture = try Fixture()
+        try Self.foreignDatabase(fixture, named: "conversation_summaries", schema: Self.conversationSummariesSchema)
+        try fixture.jsonl([Fixture.cacheUsage])
+
+        let report = try fixture.report()
+        let snapshot = try await fixture.snapshot()
+
+        #expect(report.coverage == .unavailable)
+        #expect(!report.isAvailable)
+        #expect(report.statistics.foreignDatabases == 1)
+        #expect(report.statistics.rows == 0)
+        #expect(report.statistics.sqliteHandlesOpened == report.statistics.sqliteHandlesClosed)
+        #expect(!snapshot.historyCoverageIsEstablished)
+        #expect(snapshot.daily.isEmpty)
+        #expect(snapshot.last30DaysTokens == nil)
+    }
+
+    @Test(arguments: ["a-summaries", "z-summaries"])
+    func `supported empty history stays complete beside foreign databases`(_ name: String) async throws {
+        let fixture = try Fixture()
+        try fixture.database(blobs: [])
+        try Self.foreignDatabase(fixture, named: name, schema: Self.conversationSummariesSchema)
+
+        let report = try fixture.report()
+        let snapshot = try await fixture.snapshot()
+
+        #expect(report.coverage == .complete)
+        #expect(report.isAvailable)
+        #expect(report.statistics.foreignDatabases == 1)
+        #expect(report.statistics.sqliteHandlesOpened == report.statistics.sqliteHandlesClosed)
+        #expect(snapshot.historyCoverageIsEstablished)
+        #expect(snapshot.daily.isEmpty)
+    }
+
+    @Test
+    func `undecodable SQLite schema names do not prove a database is foreign`() throws {
+        let fixture = try Fixture()
+        try fixture.database(blobs: [Fixture.blob()])
+        let url = try Self.foreignDatabase(fixture, named: "undecodable", schema: nil)
+        let database = try Fixture.open(url)
+        defer { sqlite3_close(database) }
+        // SQLite accepts raw identifier bytes that are not valid UTF-8.
+        let bytes = Array("CREATE TABLE \"".utf8) + [0xFF] + Array("\" (value INTEGER)".utf8) + [0]
+        let sql = bytes.map { CChar(bitPattern: $0) }
+        let result = sql.withUnsafeBufferPointer { sqlite3_exec(database, $0.baseAddress, nil, nil, nil) }
+        try #require(result == SQLITE_OK)
+
+        let report = try fixture.report()
+
+        #expect(report.coverage == .partial)
+        #expect(report.statistics.foreignDatabases == 0)
+        #expect(report.statistics.sqliteHandlesOpened == report.statistics.sqliteHandlesClosed)
+    }
+
+    @Test
     func `a gen_metadata table with unknown columns stays incomplete instead of foreign`() throws {
         let fixture = try Fixture()
         try fixture.database(blobs: [Fixture.blob()])

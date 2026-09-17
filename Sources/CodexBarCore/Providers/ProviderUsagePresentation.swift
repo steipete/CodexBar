@@ -410,6 +410,7 @@ public struct ProviderUsagePresentation: Sendable {
     public typealias SemanticWindowResolver = @Sendable (_ snapshot: UsageSnapshot) -> ProviderSemanticWindows
     public typealias MenuBarWindowResolver = @Sendable (
         ProviderMenuBarWindowContext) -> ProviderMenuBarWindowResolution
+    public typealias SwitcherUsedPercentFallback = @Sendable (_ snapshot: UsageSnapshot) -> Double?
     public typealias PlanUtilizationSeriesResolver = @Sendable (
         _ snapshot: UsageSnapshot) -> Set<ProviderPlanUtilizationSeries>?
     public typealias PlanUtilizationSeriesNormalizer = @Sendable (
@@ -427,6 +428,7 @@ public struct ProviderUsagePresentation: Sendable {
     private let iconWindowResolver: IconWindowResolver
     private let semanticWindowResolver: SemanticWindowResolver
     private let menuBarWindowResolver: MenuBarWindowResolver
+    private let switcherUsedPercentFallback: SwitcherUsedPercentFallback?
     private let planUtilizationSeriesResolver: PlanUtilizationSeriesResolver
     private let planUtilizationSeriesNormalizer: PlanUtilizationSeriesNormalizer
     private let widgetRowLimitResolver: WidgetRowLimitResolver
@@ -470,6 +472,7 @@ public struct ProviderUsagePresentation: Sendable {
         automaticSelectionPrioritizesExhaustedWindow: Bool = true,
         switcherUsesAutomaticMenuBarWindow: Bool = false,
         menuBarWindowResolver: @escaping MenuBarWindowResolver = { _ in .unhandled },
+        switcherUsedPercentFallback: SwitcherUsedPercentFallback? = nil,
         planUtilizationSeriesResolver: @escaping PlanUtilizationSeriesResolver = Self.standardPlanUtilizationSeries,
         planUtilizationSeriesNormalizer: @escaping PlanUtilizationSeriesNormalizer = { series, _ in series },
         widgetRowLimitResolver: @escaping WidgetRowLimitResolver = { _, _ in nil },
@@ -498,6 +501,7 @@ public struct ProviderUsagePresentation: Sendable {
         self.automaticSelectionPrioritizesExhaustedWindow = automaticSelectionPrioritizesExhaustedWindow
         self.switcherUsesAutomaticMenuBarWindow = switcherUsesAutomaticMenuBarWindow
         self.menuBarWindowResolver = menuBarWindowResolver
+        self.switcherUsedPercentFallback = switcherUsedPercentFallback
         self.planUtilizationSeriesResolver = planUtilizationSeriesResolver
         self.planUtilizationSeriesNormalizer = planUtilizationSeriesNormalizer
         self.widgetRowLimitResolver = widgetRowLimitResolver
@@ -566,6 +570,11 @@ public struct ProviderUsagePresentation: Sendable {
 
     public func menuBarWindow(context: ProviderMenuBarWindowContext) -> ProviderMenuBarWindowResolution {
         self.menuBarWindowResolver(context)
+    }
+
+    /// Automatic switcher progress without a rate window; this does not establish a quota cadence.
+    public func fallbackSwitcherUsedPercent(snapshot: UsageSnapshot) -> Double? {
+        self.switcherUsedPercentFallback?(snapshot)
     }
 
     public func planUtilizationSeries(snapshot: UsageSnapshot) -> Set<ProviderPlanUtilizationSeries>? {

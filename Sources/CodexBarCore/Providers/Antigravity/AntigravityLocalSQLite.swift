@@ -15,6 +15,7 @@ extension AntigravityLocalReader {
             let source = try self.readDatabase(url, budget: budget)
             result.events.append(contentsOf: source.events)
             result.isComplete = result.isComplete && source.isComplete
+            result.containsHistorySource = result.containsHistorySource || source.containsHistorySource
         }
         return result
     }
@@ -203,11 +204,11 @@ extension AntigravityLocalReader {
             }
             return DatabaseAttempt(SourceResult(isComplete: false), cannotOpen: began == SQLITE_CANTOPEN)
         }
-        let supported = try self.hasSupportedSQLiteTable(database, budget: budget)
+        let support = try self.inspectSQLiteTableSupport(database, budget: budget)
         if let failure = progress.failure {
             throw failure
         }
-        switch supported {
+        switch support {
         case .supported:
             break
         case .foreign:
@@ -558,7 +559,7 @@ extension AntigravityLocalReader {
         progress: SQLProgress) throws -> ParsedRows
     {
         let budget = progress.budget
-        var result = SourceResult()
+        var result = SourceResult(containsHistorySource: true)
         var pendingTimestampRows: [PendingTimestampRow] = []
         var stepOccurrences: [String: [StepOccurrence]] = [:]
         var botIDUses: [String: Int] = [:]
