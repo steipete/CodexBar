@@ -38,6 +38,7 @@ struct MenuDescriptor {
 
     enum MenuActionSystemImage: String {
         case installUpdate = "arrow.down.circle"
+        case checkForUpdates = "arrow.triangle.2.circlepath.circle"
         case refresh = "arrow.clockwise"
         case dashboard = "chart.xyaxis.line"
         case statusPage = "waveform.path.ecg"
@@ -62,6 +63,7 @@ struct MenuDescriptor {
 
     enum MenuAction: Equatable {
         case installUpdate
+        case checkForUpdates
         case refresh
         case refreshAugmentSession
         case dashboard
@@ -92,6 +94,8 @@ struct MenuDescriptor {
         managedCodexAccountCoordinator: ManagedCodexAccountCoordinator? = nil,
         codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator? = nil,
         updateReady: Bool,
+        canCheckForUpdates: Bool = false,
+        versionText: String? = nil,
         includeContextualActions: Bool = true,
         codexWorkspacesMenuEnabled: Bool = false,
         agentSessionsEnabled: Bool = false,
@@ -159,7 +163,10 @@ struct MenuDescriptor {
                 hideUnreachableHosts: agentSessionsHideUnreachableHosts,
                 now: now))
         }
-        sections.append(Self.metaSection(updateReady: updateReady))
+        sections.append(Self.metaSection(
+            updateReady: updateReady,
+            canCheckForUpdates: canCheckForUpdates,
+            versionText: versionText))
 
         return MenuDescriptor(sections: sections)
     }
@@ -628,15 +635,26 @@ struct MenuDescriptor {
         return Section(entries: entries)
     }
 
-    private static func metaSection(updateReady: Bool) -> Section {
+    private static func metaSection(
+        updateReady: Bool,
+        canCheckForUpdates: Bool = false,
+        versionText: String? = nil) -> Section
+    {
         var entries: [Entry] = []
         if updateReady {
             entries.append(.action(L("Update ready, restart now?"), .installUpdate))
+        } else if canCheckForUpdates {
+            entries.append(.action(L("Check for Updates…"), .checkForUpdates))
+        }
+        let aboutLabel: String = if let versionText, !versionText.isEmpty {
+            "\(L("About CodexBar")) (\(versionText))"
+        } else {
+            L("About CodexBar")
         }
         entries.append(contentsOf: [
             .action(L("Refresh"), .refresh),
             .action(L("Settings..."), .settings),
-            .action(L("About CodexBar"), .about),
+            .action(aboutLabel, .about),
             .action(L("Quit"), .quit),
         ])
         return Section(entries: entries)
@@ -800,6 +818,7 @@ extension MenuDescriptor.MenuAction {
     var systemImageName: String? {
         switch self {
         case .installUpdate: MenuDescriptor.MenuActionSystemImage.installUpdate.rawValue
+        case .checkForUpdates: MenuDescriptor.MenuActionSystemImage.checkForUpdates.rawValue
         case .settings, .providerSettings: MenuDescriptor.MenuActionSystemImage.settings.rawValue
         case .about: MenuDescriptor.MenuActionSystemImage.about.rawValue
         case .quit: MenuDescriptor.MenuActionSystemImage.quit.rawValue

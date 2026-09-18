@@ -162,6 +162,12 @@ private struct SettingsSidebarAboutRow: View {
                 SettingsIconChip(systemImage: "info.circle.fill", color: .green)
             }
             Text(SettingsPane.about.title)
+            Spacer()
+            if !AppVersion.shortVersion.isEmpty {
+                Text("v\(AppVersion.shortVersion)")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
         }
         .tag(SettingsPane.about)
     }

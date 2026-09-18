@@ -341,6 +341,10 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         self.updater.installUpdate()
     }
 
+    @objc func checkForUpdates() {
+        self.updater.checkForUpdates(nil)
+    }
+
     @objc func openDashboard() {
         // Provider-specific by design: Codex remains the historical action fallback when no provider is selected.
         let preferred = self.lastMenuProvider?.firstPartyProvider

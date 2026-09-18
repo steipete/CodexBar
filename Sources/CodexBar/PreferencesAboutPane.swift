@@ -11,9 +11,7 @@ struct AboutPane: View {
     @State private var didLoadUpdaterState = false
 
     private var versionString: String {
-        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "–"
-        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
-        return build.map { "\(version) (\($0))" } ?? version
+        AppVersion.displayString
     }
 
     private var buildTimestamp: String? {
@@ -57,9 +55,14 @@ struct AboutPane: View {
                 }
             } else {
                 Section {
+                    LabeledContent(String(format: L("version_format"), self.versionString)) {
+                        EmptyView()
+                    }
                     AboutUpdatesUnavailableView(
                         reason: self.updater.unavailableReason ?? L("updates_unavailable"),
                         command: self.updater.manualUpdateCommand)
+                } header: {
+                    Text(L("section_updates"))
                 }
             }
 
