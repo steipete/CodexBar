@@ -241,9 +241,45 @@ struct MistralVibeUsageTests {
         #expect(snapshot.mistralUsage?.credits == nil)
         #expect(requestLog.paths == [
             "admin.mistral.ai/api/billing/v2/usage",
+            "admin.mistral.ai/subscription",
             "console.mistral.ai/api-ui/trpc/billing.vibeUsage",
             "admin.mistral.ai/api/billing/credits",
         ])
+    }
+
+    @Test(arguments: [true, false])
+    func `combined fetch preserves billing and credits with partial allowances`(validAPI: Bool) async throws {
+        let data = try JSONSerialization.data(withJSONObject: ["budget": [
+            "api_budget": ["usage_percentage": 20, "initial_budget": 50, "currency": "EUR"],
+            "vibe_budget": ["usage_percentage": "invalid", "initial_budget": 100, "currency": "EUR"],
+        ]])
+        let json = try #require(String(bytes: data, encoding: .utf8))
+        let record = "7:\(json)\n"
+        let push = try JSONSerialization.data(withJSONObject: [1, record])
+        let encoded = try #require(String(bytes: push, encoding: .utf8))
+        let page = validAPI ? "<script>self.__next_f.push(\(encoded))</script>" : "unavailable"
+        let log = MistralRequestPathLog()
+        let transport = ProviderHTTPTransportHandler { request in
+            log.record(request)
+            let url = try #require(request.url)
+            let body: String
+            switch url.path {
+            case "/api/billing/v2/usage": body = Self.billingUsageResponseJSON
+            case "/subscription": body = page
+            case "/api-ui/trpc/billing.vibeUsage": body = Self.responseJSON(usagePercentage: 37)
+            case "/api/billing/credits":
+                body = #"{"wallet_amount":40,"credit_notes_amount":0,"ongoing_usage_balance":5,"currency":"EUR"}"#
+            default: throw URLError(.unsupportedURL)
+            }
+            return try (Data(body.utf8), Self.response(url: url, statusCode: 200))
+        }
+        let snapshot = try await MistralWebFetchStrategy.fetchUsageWithVibe(
+            cookieHeader: "ory_session_test=abc; csrftoken=csrf", csrfToken: "csrf", timeout: 1, transport: transport)
+        #expect(snapshot.primary?.usedPercent == (validAPI ? 20 : nil))
+        #expect(snapshot.extraRateWindows?.first { $0.id == "mistral-monthly-plan" }?.window.usedPercent == 37)
+        #expect(snapshot.mistralUsage?.credits?.availableAmount == 35)
+        #expect(snapshot.mistralUsage?.totalCost != nil)
+        #expect(log.paths.count == 4)
     }
 
     @Test

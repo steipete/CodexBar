@@ -431,7 +431,9 @@ extension UsageStore {
         {
             return dyn
         }
-        return metadata?.sessionLabel ?? "Session"
+        guard let metadata else { return "Session" }
+        return ProviderDescriptorRegistry.descriptor(for: provider).presentation
+            .rateWindowLabels(metadata: metadata, snapshot: snapshot).primary
     }
 
     private func widgetUsageRows(

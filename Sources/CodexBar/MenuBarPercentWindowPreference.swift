@@ -38,7 +38,10 @@ enum MenuBarPercentWindowPreference: String, CaseIterable, Identifiable, Sendabl
         }
         let descriptor = ProviderDescriptorRegistry.descriptor(for: provider)
         let primary = Self.percentWindow(descriptor.presentation.primarySemanticWindow)
-        return L(self.percentWindow == primary ? descriptor.metadata.sessionLabel : descriptor.metadata.weeklyLabel)
+        let presentation = descriptor.presentation
+        return L(self.percentWindow == primary
+            ? presentation.menuBarLayoutPrimaryLabel ?? descriptor.metadata.sessionLabel
+            : presentation.menuBarLayoutSecondaryLabel ?? descriptor.metadata.weeklyLabel)
     }
 
     /// Semantic windows keep their existing mapping; an independently selectable tertiary pool

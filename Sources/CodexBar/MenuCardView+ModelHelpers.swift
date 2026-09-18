@@ -541,6 +541,7 @@ extension UsageMenuCardView.Model {
         input: Input,
         snapshot: UsageSnapshot) -> (primary: String, secondary: String, tertiary: String, showsTertiary: Bool)
     {
+        let presentation = ProviderDescriptorRegistry.descriptor(for: input.provider).presentation
         if input.provider == .factory, snapshot.tertiary != nil {
             return (L("5-hour"), L("Weekly"), L("Monthly"), true)
         }
@@ -562,7 +563,7 @@ extension UsageMenuCardView.Model {
         } else if input.provider == .ollama {
             OllamaProviderDescriptor.primaryLabel(window: snapshot.primary) ?? input.metadata.sessionLabel
         } else {
-            input.metadata.sessionLabel
+            presentation.rateWindowLabels(metadata: input.metadata, snapshot: snapshot, now: input.now).primary
         }
         let secondaryLabel = if input.provider == .amp {
             AmpProviderDescriptor.secondaryLabel(snapshot: snapshot) ?? input.metadata.weeklyLabel
@@ -907,6 +908,7 @@ extension UsageMenuCardView.Model {
         percentStyle: PercentStyle) -> [Metric]
     {
         guard let extraRateWindows = snapshot.extraRateWindows else { return [] }
+        let menuCard = ProviderDescriptorRegistry.descriptor(for: input.provider).presentation.menuCard
         // Codex additional limits (e.g. Codex Spark) are optional extra usage and follow the
         // "optional credits and extra usage" setting. Other providers' extra windows (Antigravity
         // per-model quotas, Factory core windows, etc.) are core data and must always render.
@@ -935,10 +937,11 @@ extension UsageMenuCardView.Model {
             let resolvedResetText = Self.extraRateWindowResetText(
                 namedWindow: namedWindow,
                 input: input)
-            let resetText = input.provider == .sub2api && namedWindow.window.resetsAt == nil
+            let usesResetDetail = menuCard.extraRateWindowShowsResetDescriptionAsDetail(namedWindow)
+            let resetText = usesResetDetail && namedWindow.window.resetsAt == nil
                 ? nil
                 : resolvedResetText
-            let detailText: String? = if input.provider == .sub2api {
+            let detailText: String? = if usesResetDetail {
                 namedWindow.window.resetDescription
             } else {
                 nil

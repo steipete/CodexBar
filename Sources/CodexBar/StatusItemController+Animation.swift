@@ -878,9 +878,7 @@ extension StatusItemController {
         // Provider-specific by design: legacy preferences select balance text before quota and display modes.
         let usesBalance = switch provider {
         case .openrouter: preference == .automatic
-        case .mistral:
-            preference != .monthlyPlan
-                || snapshot?.extraRateWindows?.contains { $0.id == "mistral-monthly-plan" } != true
+        case .mistral: self.menuBarMetricWindow(for: provider, snapshot: snapshot, now: now) == nil
         default: true
         }
         if usesBalance, let balance = Self.menuBarBalanceDisplayText(provider: provider, snapshot: snapshot) {

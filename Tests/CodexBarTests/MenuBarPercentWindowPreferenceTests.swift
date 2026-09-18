@@ -298,13 +298,13 @@ struct MenuBarPercentWindowPreferenceTests {
 
         #expect(MenuBarPercentWindowPreference.available(
             metrics: .standard) == [.automatic, .session, .weekly])
-        #expect(MenuBarPercentWindowPreference.available(for: .mistral) == [.automatic])
+        #expect(MenuBarPercentWindowPreference.available(for: .mistral) == [.automatic, .session])
         #expect(MenuBarPercentWindowPreference.available(for: .openrouter) == [.automatic, .session])
         #expect(MenuBarPercentWindowPreference.available(for: .codex) == [.automatic, .session, .weekly])
         #expect(MenuBarPercentWindowPreference.isVisible(
             iconStyle: .iconAndPercent,
             layout: MenuBarLayout(lines: [[.icon, .percent(window: .automatic)]]),
-            provider: .mistral) == false)
+            provider: .mistral) == true)
     }
 
     @Test

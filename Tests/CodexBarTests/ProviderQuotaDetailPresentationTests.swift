@@ -13,6 +13,15 @@ struct ProviderQuotaDetailPresentationTests {
     private func snapshot(provider: UsageProvider, hasReset: Bool) throws -> UsageSnapshot {
         let reset = hasReset ? Self.now.addingTimeInterval(7200) : nil
         switch provider {
+        case .mistral:
+            return UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 20,
+                    windowMinutes: nil,
+                    resetsAt: reset,
+                    resetDescription: "€10.00 / €50.00 · €40.00 left"),
+                secondary: nil,
+                updatedAt: Self.now)
         case .manus:
             return ManusCreditsResponse(
                 totalCredits: 2869,
@@ -50,6 +59,7 @@ struct ProviderQuotaDetailPresentationTests {
 
     private func expectedDetails(_ provider: UsageProvider) -> [String] {
         switch provider {
+        case .mistral: ["€10.00 / €50.00 · €40.00 left"]
         case .manus: ["Total 2,869 • Free 1,500", "Daily: 0 / 300"]
         case .mimo: ["10,100,158 / 200,000,000 Credits"]
         case .neuralwatt: ["13.90 / 20 kWh"]
@@ -79,7 +89,7 @@ struct ProviderQuotaDetailPresentationTests {
             now: Self.now))
     }
 
-    @Test(arguments: [UsageProvider.manus, .mimo, .neuralwatt], [false, true])
+    @Test(arguments: [UsageProvider.manus, .mimo, .neuralwatt, .mistral], [false, true])
     func `CLI keeps quota details visible without inventing reset clocks`(
         provider: UsageProvider, hasReset: Bool) throws
     {
@@ -128,7 +138,7 @@ struct ProviderQuotaDetailPresentationTests {
         }
     }
 
-    @Test(arguments: [UsageProvider.manus, .mimo, .neuralwatt], [false, true])
+    @Test(arguments: [UsageProvider.manus, .mimo, .neuralwatt, .mistral], [false, true])
     func `native menus and cards retain quota details alongside real resets`(
         provider: UsageProvider, hasReset: Bool) throws
     {

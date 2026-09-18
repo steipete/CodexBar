@@ -276,6 +276,7 @@ public struct ProviderMenuCardPresentation: Sendable {
     public typealias UsageNotesResolver = @Sendable (ProviderUsageNotesContext) -> ProviderUsageNotesResolution
     public typealias CostVisibilityResolver = @Sendable (ProviderCostVisibilityContext) -> Bool
     public typealias SnapshotPredicate = @Sendable (_ snapshot: UsageSnapshot?) -> Bool
+    public typealias ExtraRateWindowPredicate = @Sendable (_ namedWindow: NamedRateWindow) -> Bool
     public typealias PrimaryCostHistoryResolver = @Sendable (
         _ snapshot: UsageSnapshot?,
         _ tokenSnapshot: CostUsageTokenSnapshot?) -> CostUsageTokenSnapshot?
@@ -283,6 +284,7 @@ public struct ProviderMenuCardPresentation: Sendable {
     private let usageNotesResolver: UsageNotesResolver
     private let costVisibilityResolver: CostVisibilityResolver
     private let movePrimaryDetailToStatus: SnapshotPredicate
+    private let extraRateWindowUsesResetDescriptionAsDetail: ExtraRateWindowPredicate
     private let primaryCostHistoryResolver: PrimaryCostHistoryResolver
     public let creditsVisibility: ProviderCreditsVisibility
     public let showsCreditsSection: Bool
@@ -317,6 +319,7 @@ public struct ProviderMenuCardPresentation: Sendable {
         hidesPrimaryResetWithoutSecondary: Bool = false,
         clearsPrimaryReset: Bool = false,
         movePrimaryDetailToStatus: @escaping SnapshotPredicate = { _ in false },
+        extraRateWindowUsesResetDescriptionAsDetail: @escaping ExtraRateWindowPredicate = { _ in false },
         primaryDetailKind: ProviderPrimaryDetailKind = .none,
         usesAbacusPace: Bool = false,
         usesSyntheticRollingRegen: Bool = false,
@@ -338,6 +341,7 @@ public struct ProviderMenuCardPresentation: Sendable {
         self.hidesPrimaryResetWithoutSecondary = hidesPrimaryResetWithoutSecondary
         self.clearsPrimaryReset = clearsPrimaryReset
         self.movePrimaryDetailToStatus = movePrimaryDetailToStatus
+        self.extraRateWindowUsesResetDescriptionAsDetail = extraRateWindowUsesResetDescriptionAsDetail
         self.primaryDetailKind = primaryDetailKind
         self.usesAbacusPace = usesAbacusPace
         self.usesSyntheticRollingRegen = usesSyntheticRollingRegen
@@ -355,6 +359,11 @@ public struct ProviderMenuCardPresentation: Sendable {
 
     public func movesPrimaryDetailToStatus(snapshot: UsageSnapshot?) -> Bool {
         self.movePrimaryDetailToStatus(snapshot)
+    }
+
+    /// Whether an extra rate window renders its `resetDescription` as the menu-card detail line.
+    public func extraRateWindowShowsResetDescriptionAsDetail(_ namedWindow: NamedRateWindow) -> Bool {
+        self.extraRateWindowUsesResetDescriptionAsDetail(namedWindow)
     }
 
     public func primaryCostHistory(
