@@ -206,6 +206,8 @@ struct ClaudeCLISessionTests {
             "--allowed-tools",
             "",
             "--strict-mcp-config",
+            "--settings",
+            #"{"remoteControlAtStartup":false}"#,
             "--session-id",
             first.uuidString.lowercased(),
         ])
@@ -218,6 +220,8 @@ struct ClaudeCLISessionTests {
         let permissions = try #require(attributes[.posixPermissions] as? NSNumber)
         #expect(permissions.intValue == 0o600)
         #endif
+        try "\n \(first.uuidString) \n".write(to: file, atomically: true, encoding: .utf8)
+        #expect(ClaudeCLISession.loadOrCreateProbeSessionID(in: directory) == first)
     }
 
     @Test

@@ -47,7 +47,8 @@ extension CostUsageStoreReadWorkTests {
         #expect(result.snapshot.daily == expected.daily)
         #expect(result.snapshot.projects == expected.projects)
         #expect(result.snapshot.sessions == expected.sessions)
-        #expect(reportWork.retryPresenceRows == 1)
+        // The metadata precheck and detail fallback both inspect presence without loading replay bodies.
+        #expect(reportWork.retryPresenceRows == 3)
         #expect(reportWork.usageRows == 8)
         #expect(reportWork.usageRowDecodeAttempts == 8)
         #expect(reportWork.usagePayloadBytes > 0)
@@ -55,7 +56,8 @@ extension CostUsageStoreReadWorkTests {
         #expect(reportWork.bufferedPayloadBytes == 0)
         #expect(reportWork.tokenSnapshotRows == 0)
         #expect(reportWork.accumulatorRows == 0)
-        #expect(reportWork.readViewConversions == 1)
+        #expect(reportWork.readViewConversions == 3)
+        #expect(reportWork.integrityChecks == 1)
         #expect(reportWork.readViewConversionsInTransaction == 0)
         print("[cost-store-read-proof] malformed-replay pending=\(status.pending) " +
             "coverage=\(result.snapshot.historyCoverageIsEstablished) " +
@@ -169,6 +171,75 @@ extension CostUsageStoreReadWorkTests {
         #expect(baseline.codexPreviousReport == nil)
         try fixture.expectProjectionParity(baseline)
         #expect(await fixture.cachedSnapshot(details: true)?.snapshot.updatedAt == fixture.now)
+    }
+
+    @Test(arguments: [
+        (false, false, true, false),
+        (false, true, true, false),
+        (true, false, true, false),
+        (false, false, false, false),
+        (true, false, true, true),
+    ])
+    func `completed current window publishes while historical catch up continues`(
+        scenario: (Bool, Bool, Bool, Bool)) async throws
+    {
+        let (pendingCurrentWindow, staleParser, activeLookbackComplete, metadataOnlyPending) = scenario
+        let fixture = try ReadWorkFixture(fileCount: 2, rowsPerFile: 4)
+        defer { fixture.remove() }
+        var cache = fixture.canonical
+        let paths = cache.files.keys.sorted()
+        let currentPath = try #require(paths.first)
+        let historicalPath = try #require(paths.last)
+        let historicalDay = "2026-06-01"
+        cache.files[historicalPath]?.days = [historicalDay: [ReadWorkFixture.model: [40, 8, 12]]]
+        cache.files[historicalPath]?.codexRows = nil
+        cache.files[historicalPath]?.codexStandardTokens = [historicalDay: [ReadWorkFixture.model: 52]]
+        cache.files[historicalPath]?.codexCostNanos = [historicalDay: [ReadWorkFixture.model: 4_000_000]]
+        cache.days = [:]
+        for usage in cache.files.values {
+            CostUsageScanner.applyFileDays(cache: &cache, fileDays: usage.days, sign: 1)
+        }
+
+        let roots = CostUsageScanner.codexSessionsRoots(options: fixture.options)
+            .map { $0.resolvingSymlinksInPath().standardizedFileURL.path }.sorted()
+        let previousReport = CostUsageDailyReport(data: [.init(
+            date: ReadWorkFixture.day,
+            inputTokens: 10,
+            outputTokens: 3,
+            totalTokens: 13,
+            costUSD: nil,
+            modelsUsed: [ReadWorkFixture.model],
+            modelBreakdowns: nil)], summary: nil)
+        cache.codexScanCatchUpPending = true
+        cache.codexPreviousReport = CostUsageCodexPreviousReport(
+            report: previousReport,
+            cache: fixture.canonical,
+            reportSinceKey: fixture.range.sinceKey,
+            reportUntilKey: fixture.range.untilKey)
+        let pendingPath = pendingCurrentWindow ? currentPath : historicalPath
+        if staleParser {
+            cache.files[pendingPath]?.codexParserRevision = nil
+        }
+        cache.codexActiveLookbackState = CostUsageCodexActiveLookbackState(
+            scanSinceKey: fixture.range.scanSinceKey,
+            rootPaths: roots,
+            completedRootPaths: activeLookbackComplete ? roots : [],
+            pendingFilePaths: [pendingPath],
+            legacyRecursivePendingRootPaths: activeLookbackComplete ? [] : roots,
+            completedCurrentWindowRootPaths: roots,
+            completedCurrentWindowFlatRootPaths: roots,
+            cacheWideMigrationQueueActive: metadataOnlyPending ? nil : true)
+        CostUsageStoreAccess.replace(cacheRoot: fixture.env.cacheRoot, cache: cache, calendar: fixture.calendar)
+
+        let status = await CostUsageFetcher(scannerOptions: fixture.options).codexScanCatchUpStatus()
+        let cached = try #require(await fixture.cachedSnapshot())
+        let shouldPreservePrevious = (pendingCurrentWindow && !metadataOnlyPending)
+            || staleParser || !activeLookbackComplete
+
+        #expect(status.pending)
+        #expect(cached.snapshot.historyCoverageIsEstablished)
+        #expect(cached.snapshot.last30DaysTokens == (shouldPreservePrevious ? 13 : 52))
+        #expect((cached.staleSnapshotUpdatedAt != nil) == shouldPreservePrevious)
     }
 
     @Test
@@ -323,7 +394,7 @@ extension ReadWorkFixture {
             completedFiles: baseline.codexScanCompletedFiles ?? 0,
             totalFiles: baseline.codexScanTotalFiles ?? 0,
             staleSnapshotUpdatedAt: pending ? baseline.codexPreviousReport?.updatedAt : nil)
-        for purpose in [CostUsageStoreReadPurpose.status, .report] {
+        for purpose in [CostUsageStoreReadPurpose.status, .activity, .report] {
             let view = self.store.syncLoadCodexReadView(calendar: self.calendar, purpose: purpose)
             #expect(view.catchUpStatus(roots: roots, rootsFingerprint: fingerprint) == expectedStatus)
             #expect(view.previousReport(range: self.range, rootsFingerprint: fingerprint)
@@ -331,6 +402,9 @@ extension ReadWorkFixture {
                     cache: baseline,
                     range: self.range,
                     rootsFingerprint: fingerprint))
+            if purpose == .activity {
+                #expect(view.scoped(to: roots).days == scoped.days)
+            }
             if purpose == .report {
                 let report = view.scoped(to: roots).dailyReport(range: self.range, cacheRoot: self.env.cacheRoot)
                 let full = self.fullReport(scoped)

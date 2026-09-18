@@ -388,7 +388,7 @@ public struct ProviderFetchPipeline: Sendable {
                 if strategy.shouldFallback(on: error, context: context) {
                     continue
                 }
-                return ProviderFetchOutcome(result: .failure(error), attempts: attempts)
+                return ProviderFetchOutcome(result: .failure(lastAvailableError ?? error), attempts: attempts)
             }
         }
 

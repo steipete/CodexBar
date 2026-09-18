@@ -170,25 +170,18 @@ struct UserFacingLocalizationCoverageTests {
 
     @Test
     func `grok reset coupon count and expiry localize at presentation`() throws {
-        let details = try [
-            ProviderDetailSection(
-                rows: [
-                    .init(
-                        label: "Limit Reset Credits",
-                        value: "2 available",
-                        secondaryValue: "Expires 12 Sep"),
-                ]),
-        ]
-
-        let localizedPresentation = CodexBarLocalizationOverride.$appLanguage.withValue("ru") {
-            LimitResetCreditsPresentation.make(details: details)
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let snapshot = GrokRateLimitResetCreditsSnapshot(
+            expirations: [now.addingTimeInterval(172_800), now.addingTimeInterval(432_000)],
+            updatedAt: now)
+        try CodexBarLocalizationOverride.$appLanguage.withValue("ru") {
+            let presentation = try #require(LimitResetCreditsPresentation.make(
+                snapshot: snapshot, resetStyle: .countdown, now: now))
+            #expect(presentation.accessibilityLabel.contains("Кредиты сброса лимита"))
+            #expect(presentation.text == "2 доступен")
+            #expect(presentation.items.count == 2)
+            #expect(presentation.helpText.contains("Истекает"))
         }
-
-        let presentation = try #require(localizedPresentation)
-        #expect(presentation.accessibilityLabel.contains("Кредиты сброса лимита"))
-        #expect(presentation.text == "2 доступен")
-        #expect(presentation.expirySummaryText == "12 Sep")
-        #expect(presentation.helpText == "1. Истекает 12 Sep")
     }
 
     @Test

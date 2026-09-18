@@ -112,11 +112,10 @@ See the canonical [provider authoring guide](provider.md#adding-a-new-provider) 
 1. Add the provider identity to `Sources/CodexBarCore/Providers/Providers.swift`.
 2. Add the descriptor and the fetcher, parser, settings-reader, or status-probe pieces the provider needs under
    `Sources/CodexBarCore/Providers/YourProvider/`.
-3. Register the descriptor from `Sources/CodexBarCore/Providers/ProviderDescriptor.swift`.
+3. Follow the descriptor naming convention in the provider authoring guide.
 4. Add an app-side `ProviderImplementation` under `Sources/CodexBar/Providers/YourProvider/`; implementations can use
    protocol defaults when no custom UI or macOS integration is needed.
-5. Add the provider's exhaustive switch case to
-   `Sources/CodexBar/Providers/Shared/ProviderImplementationRegistry.swift`.
+5. Run `Scripts/regenerate-provider-manifests.sh` to update the Core descriptor manifest and the immutable app catalog.
 6. Add icon assets under `Sources/CodexBar/Resources/`.
 7. Add focused tests under `Tests/CodexBarTests/` and, for CLI/core behavior that must run on Linux, `TestsLinux/`.
 
@@ -137,10 +136,59 @@ covering wide displays left of the primary screen. When no display bound is avai
 cover this cleanup without creating status items or changing the user's saved preferences. Passing these tests does
 not establish the cause of a position that changes again after launch; that requires runtime placement evidence.
 
+Runtime removal and visibility changes preserve the current saved position if AppKit clears it. This also covers
+status-menu Quit, which removes items before AppKit termination begins. The deterministic tests use in-memory
+defaults; native proof must use a signed, isolated app with a visibly hosted item and exercise removal/recreation,
+hide/show, and removal before termination. This does not diagnose older out-of-range placement reports.
+
 ### Run Tests Only
+
+Lint tools are installed at repository-pinned versions by `Scripts/install_lint_tools.sh`, with archive checksums
+verified before installation. TypeScript 7 installs its native package for the running Node platform and architecture
+(including Rosetta). Plugin typechecking uses only its declared libraries and source declarations, so unrelated
+ancestor `node_modules/@types` packages do not affect the result. SwiftFormat targets the package's Swift 6.2 floor.
+
 ```bash
 make test
 ```
+
+For focused iteration, use native SwiftPM filters with the same file/Keychain isolation and process containment:
+
+```bash
+make test-fast FILTER='AdaptiveRefreshPolicyTests'
+make test-skip-build FILTER='(?<suite>AdaptiveRefreshPolicyTests)'
+./Scripts/test_fast.sh --filter FirstSuite --filter SecondSuite --configuration debug
+```
+
+`FILTER` is passed literally, including Make/shell syntax and apostrophes. The script forwards all arguments to
+`swift test`; SwiftPM owns regex syntax and repeated-filter selection. Runs are serial by default and have a
+30-minute build-and-test deadline, configurable with `CODEXBAR_TEST_NATIVE_TIMEOUT`. An explicit `--skip-build` uses
+existing binaries. No framework search-path override is added.
+
+`make test` remains the complete sharded path. Measured expensive suites run in their own groups, retaining all
+selections and their deadlines while avoiding whole-batch retries. Apple-Silicon macOS CI includes the CLI entry suite;
+the former Intel-runner exclusion is retired.
+
+Claude OAuth gate tests use `ClaudeOAuthDefaultsFixtures()` so each test case owns an in-memory preferences store.
+Keep reset, expiry, and persisted-key assertions inside that scope; nested tasks inherit it, detached tasks do not.
+The gates retain their normal production defaults domain. Continue serializing shared gate state and same-host
+full-suite runs: isolating these preferences does not isolate every test dependency.
+
+`make test` and `make check` require a `python3` that provides `os.waitid` with `WNOWAIT`. Some macOS Python
+builds, including Apple's `/usr/bin/python3`, do not provide it. The test runner then stops before its initial
+Swift discovery/build and names the interpreter path, its version, and the missing attributes. Earlier
+`make check` checks may already have run. For an installed Homebrew Python, select its generic commands with:
+
+```bash
+PATH="$(brew --prefix python@3.14)/libexec/bin:$PATH" make check
+PATH="$(brew --prefix python@3.14)/libexec/bin:$PATH" make test
+```
+
+`Scripts/test.sh --list-only` does not need process containment, but still invokes `swift test list`, which may build.
+
+The macOS test target explicitly links the existing Sparkle product and locates frameworks in the products directory
+beside its XCTest bundle. This supports native focused tests on fresh SwiftPM builds. The sharded runner retains its
+guarded runtime recovery for differing toolchain layouts, and `make test` remains the full validation path.
 
 Suite commands retain the default 180-second deadline, including SwiftPM startup and discovery.
 The runner reports elapsed time and owned PIDs every 30 seconds even when test output is buffered.
@@ -205,6 +253,10 @@ Cost performance and fair-scheduling corpora use exclusive initial fixture creat
 reads after setup has closed each file. This avoids per-file atomic publication and durability work
 without changing corpus contents or scan budgets. The shared atomic fixture writer remains available
 for replacement and publication tests.
+
+Menu fixtures use `enableTestProviders` to arrange their initial provider selection without repeatedly persisting
+already-correct config entries. The real setter still handles changed flags and selected-provider cleanup. Keep
+provider-toggle actions under test on the production setter; the fixture helper is for setup before observing changes.
 
 ### Cost scanner CPU regressions
 
@@ -432,7 +484,16 @@ verifier argument. `CodexBarLinuxTests` includes the portable `AntigravityLocalh
 both macOS and Linux. It checks session reuse and concurrent synthetic loopback failures without credentials;
 this coverage does not establish or fix the cause of Linux dispatch crashes.
 
+### Static Linux SDK
+
+CI and release builds install the static Linux SDK through `Scripts/install_swift_static_sdk.sh`. It downloads with
+`curl`, verifies the pinned SHA-256, and passes a local archive to `swift sdk install`, avoiding SwiftPM's Linux
+FoundationNetworking/TLS teardown crash. Portable lint checks cover checksum rejection, download failures, and installer
+failure propagation without downloading an SDK.
+Changes to the installer require a musl CI build.
+
 ### Format Code
+
 ```bash
 swiftformat Sources Tests
 swiftlint --strict
@@ -502,7 +563,8 @@ defaults delete com.steipete.codexbar debugMainThreadHangWatchdog
 ### Cookie Management
 - Automatic browser import via SweetCookieKit
 - Keychain cache for some imported browser cookies and OAuth/device-flow credentials
-- `~/.codexbar/config.json` for provider settings, manual cookies, and stored API keys
+- The resolved config file for provider settings, manual cookies, and stored API keys: new installs use
+  `~/.config/codexbar/config.json`, while existing `~/.codexbar/config.json` installs retain their legacy path
 - Manual override for debugging
 - Browser-cookie import when cached sessions need refresh
 

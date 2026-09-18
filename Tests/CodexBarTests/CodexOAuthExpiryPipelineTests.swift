@@ -109,6 +109,9 @@ struct CodexOAuthExpiryPipelineTests {
                     Issue.record("Managed scope must retain nativeRefreshRequired without CLI recovery")
                     continue
                 }
+                #expect(!error.localizedDescription.contains("will retry"))
+                #expect(error.localizedDescription.contains("Codex home"))
+                #expect(outcome.attempts.filter { $0.kind == .cli && $0.wasAvailable }.isEmpty)
             } else {
                 guard case let .failure(error) = outcome.result, error is CLISelected else {
                     Issue.record("Native refresh must be handed to the CLI")

@@ -125,7 +125,7 @@ struct GrokRemainingResetsFetcherTests {
     }
 
     @Test
-    func `constructs the remaining-resets request and keeps weekly usage on timeout`() async throws {
+    func `constructs the remaining-resets request`() async throws {
         let session = Self.makeSession()
         let endpoint = try #require(URL(string: "https://grok.test/prod_mc_billing.ConsumerUiSvc/GetRemainingResets"))
         defer { GrokRemainingResetsStubURLProtocol.reset() }
@@ -133,6 +133,7 @@ struct GrokRemainingResetsFetcherTests {
         GrokRemainingResetsStubURLProtocol.handler = { request in
             #expect(request.url == endpoint)
             #expect(request.httpMethod == "POST")
+            #expect(!request.httpShouldHandleCookies)
             #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer token-123")
             #expect(request.value(forHTTPHeaderField: "Content-Type") == "application/grpc-web+proto")
             #expect(request.value(forHTTPHeaderField: "x-grpc-web") == "1")
@@ -151,6 +152,27 @@ struct GrokRemainingResetsFetcherTests {
         #expect(GrokRemainingResetsStubURLProtocol.requests.count == 1)
         #expect(tokens.count == 1)
         #expect(tokens[0].tokenID == "restok_sample")
+    }
+
+    @Test(arguments: [false, true])
+    func `coupon requests use only the winning authentication context`(cookie: Bool) async throws {
+        let endpoint = try #require(URL(string: "https://grok.test/remaining-resets"))
+        let called = LockIsolated(false)
+        let tokens = await GrokRemainingResetsFetcher.fetch(
+            credentials: cookie ? nil : Self.credentials,
+            cookieHeader: cookie ? "sso=synthetic-winner" : nil,
+            now: Date(timeIntervalSince1970: 1_787_647_576),
+            session: ProviderHTTPTransportHandler { request in
+                called.setValue(true)
+                #expect(!request.httpShouldHandleCookies)
+                #expect(request.value(forHTTPHeaderField: "Authorization") == (cookie ? nil : "Bearer token-123"))
+                #expect(request.value(forHTTPHeaderField: "Cookie") == (cookie ? "sso=synthetic-winner" : nil))
+                return try (Self.liveFrame, #require(HTTPURLResponse(
+                    url: endpoint, statusCode: 200, httpVersion: nil, headerFields: nil)))
+            },
+            endpoint: endpoint)
+        #expect(called.value)
+        #expect(tokens.count == 1)
     }
 
     @Test
@@ -203,7 +225,7 @@ struct GrokRemainingResetsFetcherTests {
     }
 
     @Test
-    func `cached lookup returns weekly usage without waiting for refresh`() async throws {
+    func `cached lookup returns weekly usage without waiting for refresh`() async {
         GrokRemainingResetsFetcher.resetCacheForTesting()
         defer { GrokRemainingResetsFetcher.resetCacheForTesting() }
         let now = Date(timeIntervalSince1970: 1_787_647_576)
@@ -212,27 +234,22 @@ struct GrokRemainingResetsFetcherTests {
             grantedAt: nil,
             expiresAt: now.addingTimeInterval(86400))
 
-        let startedAt = ContinuousClock.now
-        let first = GrokRemainingResetsFetcher.cachedTokensAndRefresh(
+        let first = GrokRemainingResetsFetcher.cachedLookupAndRefresh(
             credentials: Self.credentials,
             cookieHeader: nil,
             now: now,
             refresh: { _, _, _ in
-                try? await Task.sleep(for: .milliseconds(200))
-                return [token]
+                [token]
             })
-        let elapsed = ContinuousClock.now - startedAt
 
-        #expect(first.isEmpty)
-        #expect(elapsed < .milliseconds(100))
-
-        try await Task.sleep(for: .milliseconds(250))
-        let second = GrokRemainingResetsFetcher.cachedTokensAndRefresh(
+        #expect(first.tokens.isEmpty)
+        _ = await first.snapshotTask?.value
+        let second = GrokRemainingResetsFetcher.cachedLookupAndRefresh(
             credentials: Self.credentials,
             cookieHeader: nil,
             now: now.addingTimeInterval(1),
             refresh: { _, _, _ in nil })
-        #expect(second == [token])
+        #expect(second.tokens == [token])
     }
 
     @Test
@@ -409,7 +426,7 @@ struct GrokRemainingResetsFetcherTests {
             updatedAt: now)
         let capturedToken = LockIsolated<String?>(nil)
 
-        _ = GrokCLIFetchStrategy.remainingResetTokens(
+        _ = GrokCLIFetchStrategy.remainingResetLookup(
             snapshot: snapshot,
             includeOptionalUsage: true,
             lookup: { credentials, _, _ in
@@ -431,7 +448,7 @@ struct GrokRemainingResetsFetcherTests {
             updatedAt: Date(timeIntervalSince1970: 1_787_647_576))
         let lookupCalled = LockIsolated(false)
 
-        let tokens = GrokCLIFetchStrategy.remainingResetTokens(
+        let tokens = GrokCLIFetchStrategy.remainingResetLookup(
             snapshot: snapshot,
             includeOptionalUsage: false,
             lookup: { _, _, _ in
@@ -439,7 +456,8 @@ struct GrokRemainingResetsFetcherTests {
                 return .empty
             })
 
-        #expect(tokens.isEmpty)
+        #expect(tokens.tokens.isEmpty)
+        #expect(tokens.snapshotTask == nil)
         #expect(!lookupCalled.value)
     }
 

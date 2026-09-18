@@ -156,7 +156,7 @@ enum BedrockCloudWatchUsageFetcher {
 
     private static func endpoint(region: String, override: String?) throws -> URL {
         if override != nil {
-            guard let override = BedrockSettingsReader.cleaned(override),
+            guard let override = SettingsValue.cleaned(override),
                   let url = ProviderEndpointOverrideValidator()
                       .validatedURLAllowingLoopbackHTTP(override)
             else {
@@ -226,6 +226,6 @@ enum BedrockCloudWatchUsageFetcher {
             }
         }
 
-        return (totals, BedrockSettingsReader.cleaned(json["NextToken"] as? String))
+        return (totals, SettingsValue.cleaned(json["NextToken"] as? String))
     }
 }

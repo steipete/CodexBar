@@ -5,17 +5,19 @@ struct KimiUsageResponse: Codable {
 }
 
 struct KimiCodeAPIUsageResponse: Codable {
-    let usage: KimiUsageDetail
+    let usage: KimiUsageDetail?
+    let usages: KimiCodeUsagePools?
     let limits: [KimiRateLimit]?
     let user: User?
     let version: String?
     private let versionIsMalformed: Bool
 
-    private enum CodingKeys: String, CodingKey { case usage, limits, user, version }
+    private enum CodingKeys: String, CodingKey { case usage, usages, limits, user, version }
 
     init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.usage = try container.decode(KimiUsageDetail.self, forKey: .usage)
+        self.usage = try container.decodeIfPresent(KimiUsageDetail.self, forKey: .usage)
+        self.usages = try container.decodeIfPresent(KimiCodeUsagePools.self, forKey: .usages)
         self.limits = try container.decodeIfPresent([KimiRateLimit].self, forKey: .limits)
         // Optional membership schema drift must not reject otherwise valid Code usage.
         self.user = try? container.decode(User.self, forKey: .user)
@@ -50,6 +52,37 @@ struct KimiCodeAPIUsageResponse: Codable {
         case "LEVEL_ADVANCED": return "Allegro"
         default: return level
         }
+    }
+}
+
+struct KimiCodeUsagePools: Codable, Sendable {
+    let session: KimiRatioPool?
+    let weekly: KimiRatioPool?
+    let monthly: KimiRatioPool?
+
+    private enum CodingKeys: String, CodingKey {
+        case session = "limit_5h"
+        case weekly = "limit_7d"
+        case monthly = "limit_month_total"
+    }
+}
+
+struct KimiRatioPool: Codable, Sendable {
+    let usedRatio: Double?
+    let resetTime: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case usedRatio = "used_ratio"
+        case resetTime = "reset_time"
+    }
+
+    func window(minutes: Int) -> RateWindow? {
+        guard let usedRatio, usedRatio.isFinite, usedRatio >= 0 else { return nil }
+        return RateWindow(
+            usedPercent: min(1, usedRatio) * 100,
+            windowMinutes: minutes,
+            resetsAt: ISO8601DateParser.parse(self.resetTime),
+            resetDescription: nil)
     }
 }
 

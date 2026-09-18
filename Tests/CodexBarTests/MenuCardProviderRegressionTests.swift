@@ -54,7 +54,6 @@ struct MenuCardProviderRegressionTests {
             keyUsage: 0.5,
             keyUsageDaily: 0.12,
             keyUsageWeekly: 0.74,
-            rateLimit: nil,
             updatedAt: now).toUsageSnapshot()
 
         let model = UsageMenuCardView.Model.make(.init(
@@ -63,7 +62,6 @@ struct MenuCardProviderRegressionTests {
             snapshot: snapshot,
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,
@@ -104,7 +102,6 @@ struct MenuCardProviderRegressionTests {
             snapshot: snapshot,
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,
@@ -157,7 +154,6 @@ struct MenuCardProviderRegressionTests {
             snapshot: usage.toUsageSnapshot(),
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,
@@ -198,7 +194,6 @@ struct MenuCardProviderRegressionTests {
             snapshot: snapshot,
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,

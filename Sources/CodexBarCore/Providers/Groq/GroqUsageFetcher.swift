@@ -85,13 +85,8 @@ public struct GroqUsageSnapshot: Codable, Sendable, Equatable {
     }
 
     static func formatDecimal(_ value: Double) -> String {
-        if value >= 100 {
-            return String(format: "%.0f", value)
-        }
-        if value >= 10 {
-            return String(format: "%.1f", value)
-        }
-        return String(format: "%.2f", value)
+        let digits = value >= 100 ? 0 : (value >= 10 ? 1 : 2)
+        return String(format: "%.*f", digits, value)
     }
 }
 
@@ -104,32 +99,29 @@ private struct GroqPrometheusResponse: Decodable {
         let value: [PrometheusValue]?
     }
 
-    enum PrometheusValue: Decodable {
-        case number(Double)
-        case string(String)
+    struct PrometheusValue: Decodable {
+        let doubleValue: Double?
 
         init(from decoder: Decoder) throws {
             let container = try decoder.singleValueContainer()
-            if let number = try? container.decode(Double.self) {
-                self = .number(number)
-                return
-            }
-            self = try .string(container.decode(String.self))
-        }
-
-        var doubleValue: Double? {
-            switch self {
-            case let .number(number):
-                number
-            case let .string(text):
-                Double(text)
-            }
+            self.doubleValue = (try? container.decode(Double.self)) ??
+                (try? container.decode(String.self)).flatMap(Double.init)
         }
     }
 
-    let status: String
-    let data: Payload?
-    let error: String?
+    let data: Payload
+
+    private enum CodingKeys: String, CodingKey {
+        case status, data, error
+    }
+
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        guard try container.decode(String.self, forKey: .status) == "success" else {
+            throw GroqUsageError.apiError((try? container.decode(String.self, forKey: .error)) ?? "query failed")
+        }
+        self.data = try container.decode(Payload.self, forKey: .data)
+    }
 }
 
 public struct GroqUsageFetcher: Sendable {
@@ -170,12 +162,15 @@ public struct GroqUsageFetcher: Sendable {
             baseURL: baseURL,
             transport: transport)
 
-        return try await GroqUsageSnapshot(
+        let snapshot = try await GroqUsageSnapshot(
             requestRatePerSecond: requests,
             inputTokenRatePerSecond: inputTokens,
             outputTokenRatePerSecond: outputTokens,
             promptCacheHitRatePerSecond: cacheHits,
             updatedAt: updatedAt)
+        guard [snapshot.requestsPerMinute, snapshot.tokensPerMinute, snapshot.cacheHitsPerMinute].allSatisfy(\.isFinite)
+        else { throw GroqUsageError.parseFailed("non-finite per-minute rates") }
+        return snapshot
     }
 
     public static func _parseScalarForTesting(_ data: Data) throws -> Double {
@@ -213,13 +208,14 @@ public struct GroqUsageFetcher: Sendable {
 
     private static func parseScalar(data: Data) throws -> Double {
         do {
-            let decoded = try JSONDecoder().decode(GroqPrometheusResponse.self, from: data)
-            guard decoded.status == "success" else {
-                throw GroqUsageError.apiError(decoded.error ?? "query failed")
+            let payload = try JSONDecoder().decode(GroqPrometheusResponse.self, from: data).data
+            return try payload.result.reduce(0) { total, series in
+                guard let values = series.value, values.count == 2,
+                      values[0].doubleValue?.isFinite == true,
+                      let value = values[1].doubleValue, value >= 0, (total + value).isFinite
+                else { throw GroqUsageError.parseFailed("invalid metric sample") }
+                return total + value
             }
-            return decoded.data?.result.compactMap { series in
-                series.value?.last?.doubleValue
-            }.reduce(0, +) ?? 0
         } catch let error as GroqUsageError {
             throw error
         } catch {

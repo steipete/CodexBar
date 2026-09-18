@@ -1,4 +1,3 @@
-import AppKit
 import CodexBarCore
 import SwiftUI
 
@@ -18,6 +17,7 @@ struct CopilotProviderImplementation: ProviderImplementation {
         _ = settings.copilotBudgetExtrasEnabled
         _ = settings.copilotBudgetCookieSource
         _ = settings.copilotBudgetCookieHeader
+        _ = settings.copilotSeatCreditEntitlementRaw
     }
 
     @MainActor
@@ -34,11 +34,7 @@ struct CopilotProviderImplementation: ProviderImplementation {
 
     @MainActor
     func settingsToggles(context: ProviderSettingsContext) -> [ProviderSettingsToggleDescriptor] {
-        let budgetExtrasBinding = Binding(
-            get: { context.settings.copilotBudgetExtrasEnabled },
-            set: { enabled in
-                context.settings.copilotBudgetExtrasEnabled = enabled
-            })
+        let budgetExtrasBinding = context.binding(\.copilotBudgetExtrasEnabled)
         let budgetExtrasStatus: () -> String? = {
             if context.store.snapshot(for: .copilot)?.extraRateWindows?.isEmpty == false {
                 return nil
@@ -84,22 +80,6 @@ struct CopilotProviderImplementation: ProviderImplementation {
     @MainActor
     func settingsPickers(context: ProviderSettingsContext) -> [ProviderSettingsPickerDescriptor] {
         let extraWindows = context.store.snapshot(for: .copilot)?.extraRateWindows ?? []
-        let cookieBinding = Binding(
-            get: { context.settings.copilotBudgetCookieSource.rawValue },
-            set: { raw in
-                context.settings.copilotBudgetCookieSource = ProviderCookieSource(rawValue: raw) ?? .auto
-            })
-        let cookieOptions = ProviderCookieSourceUI.options(
-            allowsOff: false,
-            keychainDisabled: context.settings.debugDisableKeychainAccess)
-        let cookieSubtitle: () -> String? = {
-            ProviderCookieSourceUI.subtitle(
-                source: context.settings.copilotBudgetCookieSource,
-                keychainDisabled: context.settings.debugDisableKeychainAccess,
-                auto: "Automatically imports browser cookies for github.com budget extras.",
-                manual: "Paste a Cookie header from github.com.",
-                off: "GitHub cookies are disabled.")
-        }
         let options = [
             ProviderSettingsPickerOption(
                 id: CopilotIconSecondaryWindowSelection.chat,
@@ -135,13 +115,19 @@ struct CopilotProviderImplementation: ProviderImplementation {
                 options: options,
                 isVisible: { context.settings.copilotBudgetExtrasEnabled },
                 onChange: nil),
-            ProviderSettingsPickerDescriptor(
+            ProviderCookieSourceUI.picker(
                 id: "copilot-budget-cookie-source",
+                context: context,
+                source: \.copilotBudgetCookieSource,
+                allowsOff: false,
+                subtitles: {
+                    .init(
+                        auto: L("Automatically imports browser cookies for github.com budget extras."),
+                        manual: L("Paste a Cookie header from %@.", "github.com"),
+                        off: L("%@ cookies are disabled.", "GitHub"))
+                },
                 title: "GitHub cookies",
                 subtitle: "Automatically imports browser cookies for budget extras.",
-                dynamicSubtitle: cookieSubtitle,
-                binding: cookieBinding,
-                options: cookieOptions,
                 isVisible: { context.settings.copilotBudgetExtrasEnabled },
                 onChange: { _ in
                     await context.store.refreshProvider(.copilot, allowDisabled: true)
@@ -155,14 +141,19 @@ struct CopilotProviderImplementation: ProviderImplementation {
 
     @MainActor
     func settingsFields(context: ProviderSettingsContext) -> [ProviderSettingsFieldDescriptor] {
-        [
+        let seatEntitlementBinding = Binding(
+            get: { context.settings.copilotEffectiveSeatCreditEntitlementRaw },
+            set: { newValue in
+                context.store.setCopilotSeatCreditEntitlement(newValue)
+            })
+        return [
             ProviderSettingsFieldDescriptor(
                 id: "copilot-budget-cookie-header",
                 title: "Manual GitHub Cookie header",
                 subtitle: "Paste a github.com Cookie header. Treat this value like a password.",
                 kind: .secure,
                 placeholder: "Cookie: ...",
-                binding: context.stringBinding(\.copilotBudgetCookieHeader),
+                binding: context.binding(\.copilotBudgetCookieHeader),
                 actions: [
                     ProviderSettingsActionDescriptor(
                         id: "refresh-copilot-budget-cookie",
@@ -176,8 +167,7 @@ struct CopilotProviderImplementation: ProviderImplementation {
                 isVisible: {
                     context.settings.copilotBudgetExtrasEnabled &&
                         context.settings.copilotBudgetCookieSource == .manual
-                },
-                onActivate: nil),
+                }),
             ProviderSettingsFieldDescriptor(
                 id: "copilot-enterprise-host",
                 title: "Enterprise host",
@@ -185,10 +175,29 @@ struct CopilotProviderImplementation: ProviderImplementation {
                     "Leave blank for github.com.",
                 kind: .plain,
                 placeholder: "github.com",
-                binding: context.stringBinding(\.copilotEnterpriseHost),
+                binding: context.binding(\.copilotEnterpriseHost),
                 actions: [],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
+            ProviderSettingsFieldDescriptor(
+                id: "copilot-seat-credit-entitlement",
+                title: "Included AI credits (per seat)",
+                subtitle: "GitHub does not publish this value. Enter it to show a usage bar. " +
+                    "Applies to the selected GitHub account.",
+                kind: .plain,
+                placeholder: "e.g. 3000",
+                binding: seatEntitlementBinding,
+                actions: [
+                    ProviderSettingsActionDescriptor(
+                        id: "copilot-clear-default-allowance",
+                        title: "Clear default allowance",
+                        style: .bordered,
+                        isVisible: {
+                            !context.settings.tokenAccounts(for: .copilot).isEmpty &&
+                                !context.settings.copilotSeatCreditEntitlementRaw.isEmpty
+                        },
+                        perform: { context.store.clearCopilotDefaultSeatCreditEntitlement() }),
+                ],
+                isVisible: nil),
             ProviderSettingsFieldDescriptor(
                 id: "copilot-add-account",
                 title: "GitHub Login",
@@ -206,8 +215,7 @@ struct CopilotProviderImplementation: ProviderImplementation {
                             await CopilotLoginFlow.run(settings: context.settings)
                         }),
                 ],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
         ]
     }
 

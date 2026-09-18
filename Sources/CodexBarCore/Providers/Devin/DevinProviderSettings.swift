@@ -10,6 +10,12 @@ public struct DevinProviderSettings: Sendable {
         self.manualBearerToken = manualBearerToken
         self.organization = organization
     }
+
+    public func bearerToken(environment: [String: String]) -> String? {
+        environment["DEVIN_BEARER_TOKEN"]
+            ?? environment["DEVIN_AUTHORIZATION"]
+            ?? self.manualBearerToken
+    }
 }
 
 public enum DevinProviderSettingsKey: ProviderSettingsSectionKey {

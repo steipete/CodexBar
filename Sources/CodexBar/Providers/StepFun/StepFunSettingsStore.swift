@@ -40,12 +40,7 @@ extension SettingsStore {
 
     var stepfunCookieSource: ProviderCookieSource {
         get { self.resolvedCookieSource(provider: .stepfun, fallback: .auto) }
-        set {
-            self.updateProviderConfig(provider: .stepfun) { entry in
-                entry.cookieSource = newValue
-            }
-            self.logProviderModeChange(provider: .stepfun, field: "cookieSource", value: newValue.rawValue)
-        }
+        set { self.setCookieSource(newValue, provider: .stepfun) }
     }
 
     func stepfunSettingsSnapshot(tokenOverride: TokenAccountOverride?) -> ProviderSettingsSnapshot

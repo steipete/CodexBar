@@ -9,6 +9,16 @@ struct MenuBarLayoutWindows {
     let session: RateWindow?
     let weekly: RateWindow?
     let automatic: RateWindow?
+
+    func resetWindow(_ selection: PercentWindow, snapshot: UsageSnapshot?) -> RateWindow? {
+        let window: RateWindow? = switch selection {
+        case .session: self.session
+        case .weekly: self.weekly
+        case .automatic: self.automatic
+        case .scopedWeekly: MenuBarLayoutSemanticWindowResolver.scopedWeeklyNamedWindow(snapshot: snapshot)?.window
+        }
+        return window?.isSyntheticPlaceholder == true ? nil : window
+    }
 }
 
 /// Menu-bar cost values resolved in one pass: the display strings in the user's preferred currency plus
@@ -56,7 +66,8 @@ extension StatusItemController {
             isDebugApp: Self.isDebugApp(bundleIdentifier: Bundle.main.bundleIdentifier),
             isStale: self.store.isStale(provider: provider),
             now: now,
-            verticalAdjustment: self.settings.menuBarLayoutVerticalAdjustment)
+            verticalAdjustment: self.settings.menuBarLayoutVerticalAdjustment,
+            colorPace: self.settings.menuBarColorPace)
         let rendered = self.menuBarLayoutRenderer.render(
             layout: resolution.layout,
             data: data,
@@ -102,6 +113,10 @@ extension StatusItemController {
         let balanceAmounts = MenuBarLayoutBalanceResolver.balanceAmountsUSD(
             provider: provider,
             snapshot: snapshot)
+        let codexCredits = self.menuBarLayoutCodexCredits(
+            provider: provider,
+            snapshot: snapshot,
+            now: now)
         let providerName = L(self.store.metadata(for: provider).displayName)
         let accountLabel = self.menuBarLayoutAccountLabel(provider: provider, snapshot: snapshot)
         let automatic = MenuBarLayoutRenderWindow(windows.automatic)
@@ -141,7 +156,10 @@ extension StatusItemController {
                 dataConfidence: snapshot?.dataConfidence ?? .unknown,
                 now: now),
             runsOut: runsOut,
-            balance: MenuBarLayoutBalanceResolver.balance(provider: provider, snapshot: snapshot),
+            balance: MenuBarLayoutBalanceResolver.balance(
+                provider: provider,
+                snapshot: snapshot,
+                codexCredits: codexCredits),
             costToday: costs.today,
             cost30d: costs.last30Days,
             metrics: MenuBarLayoutRenderMetrics(
@@ -166,6 +184,18 @@ extension StatusItemController {
                 balanceUsedUSD: balanceAmounts.used,
                 costTodayUSD: costs.todayUSD,
                 cost30dUSD: costs.last30DaysUSD))
+    }
+
+    func menuBarLayoutCodexCredits(
+        provider: UsageProvider,
+        snapshot: UsageSnapshot?,
+        now: Date = .init()) -> CreditsSnapshot?
+    {
+        self.store.codexConsumerProjectionIfNeeded(
+            for: provider,
+            surface: .menuBar,
+            snapshotOverride: snapshot,
+            now: now)?.credits?.snapshot
     }
 
     func menuBarLayoutAccountLabel(provider: UsageProvider, snapshot: UsageSnapshot?) -> String? {
@@ -259,6 +289,24 @@ extension StatusItemController {
                 provider: provider,
                 snapshot: snapshot,
                 window: automatic))
+    }
+
+    /// Select dates from the same semantic windows as reset display tokens. Keep styles separate:
+    /// an absolute weekly clock must not cause minute-by-minute countdown wakeups.
+    func menuBarLayoutResetDates(
+        for provider: UsageProvider,
+        now: Date,
+        absolute: Bool? = nil) -> [Date]
+    {
+        let snapshot = self.store.menuBarSnapshot(for: provider.instanceID)
+        let windows = self.menuBarLayoutWindows(provider: provider, snapshot: snapshot, now: now)
+        let tokens = self.settings.menuBarLayoutResolution(for: provider).layout
+            .flattenedTokens(conditionals: self.settings.menuBarLayoutConditionals)
+        let selections = Set(tokens.filter { absolute == nil || $0.resetIsAbsolute == absolute }
+            .compactMap(\.resetWindow))
+        return PercentWindow.allCases.filter(selections.contains).compactMap {
+            windows.resetWindow($0, snapshot: snapshot)?.resetsAt
+        }
     }
 
     private func setButtonLayoutContent(

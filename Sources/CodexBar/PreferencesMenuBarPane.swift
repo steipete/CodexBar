@@ -18,6 +18,14 @@ struct MenuBarPane: View {
     }
 
     var body: some View {
+        let paceColorSubtitle = L(
+            "Green pace indicator when behind pace, red when ahead of pace (risk of running out early)")
+            + "\n" + L("menu_bar_layout_title") + ": " + [
+                L("menu_bar_layout_token_session_pace"),
+                L("menu_bar_layout_token_weekly_pace"),
+                L("menu_bar_layout_token_auto_pace"),
+            ].joined(separator: ", ")
+
         Form {
             Section {
                 SettingsMenuPicker(
@@ -39,6 +47,13 @@ struct MenuBarPane: View {
                             + L("menu_bar_inactive_display_contrast_subtitle"))
                 }
                 .disabled(!Self.inactiveDisplayContrastAvailable(for: self.settings.menuBarIconStyle))
+
+                Toggle(isOn: self.$settings.menuBarColorPace) {
+                    SettingsRowLabel(
+                        L("Color Pace Indicator"),
+                        subtitle: paceColorSubtitle)
+                }
+                .disabled(self.settings.menuBarIconStyle != .iconAndPercent)
             } header: {
                 Text(L("section_icon"))
             }

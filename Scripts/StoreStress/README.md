@@ -13,3 +13,11 @@ Run `swift run -c release -Xswiftc -enable-testing StoreStress --` without argum
 subcommands. Every store/cache argument should point at a disposable temporary directory. `rebuild` and
 `incremental` accept an optional sessions root, which makes it possible to measure a read-only corpus snapshot
 without writing to the real Codex session or CodexBar cache directories.
+
+On macOS, compare separate `memory <cacheRoot> full` and `memory <cacheRoot> lean`
+processes against the same disposable cache copy. The output includes physical
+footprint in MiB, a sampled peak, and loaded file, usage-row, and token-snapshot
+counts. The lean mode exercises the Workspaces indexer's cache read; both modes
+should retain the same usage rows while lean omits token snapshots. `memory
+<cacheRoot> none` measures process overhead without opening the cache. These
+measurements do not represent steady-state menu-bar memory.

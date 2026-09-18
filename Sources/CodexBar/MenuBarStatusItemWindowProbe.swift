@@ -15,13 +15,15 @@ struct MenuBarStatusItemWindowSnapshot: Equatable, CustomStringConvertible {
     }
 
     var isTahoeBlockedProxy: Bool {
-        self.ownerName == "Control Center"
+        // A primary-origin proxy can overlap an upper display below that display's menu bar.
+        let isPrimaryOriginProxy = self.bounds.maxY == 0 && self.displayBounds?.minY != self.bounds.minY
+        return self.ownerName == "Control Center"
             && self.isOnscreen
             && abs(self.bounds.minX) <= 1
             && self.bounds.maxY <= 0
             && self.bounds.width > 0
             && self.bounds.height > 0
-            && !self.isWithinDisplayBounds
+            && (!self.isWithinDisplayBounds || isPrimaryOriginProxy)
     }
 
     var description: String {
@@ -39,16 +41,21 @@ enum MenuBarStatusItemWindowProbe {
         self.snapshots(
             matching: names,
             windowInfo: self.windowInfo(),
-            displayBounds: NSScreen.screens.map(\.frame))
+            screenFrames: NSScreen.screens.map(\.frame))
     }
 
     static func snapshots(
         matching names: Set<String>,
         windowInfo: [[String: Any]],
-        displayBounds: [CGRect])
+        screenFrames: [CGRect])
         -> [MenuBarStatusItemWindowSnapshot]
     {
         guard !names.isEmpty else { return [] }
+        // Cocoa screen frames and Quartz window bounds have opposite vertical origins.
+        let primaryHeight = screenFrames.first?.height ?? 0
+        let displayBounds = screenFrames.map {
+            CGRect(x: $0.minX, y: primaryHeight - $0.maxY, width: $0.width, height: $0.height)
+        }
         return windowInfo.compactMap { record in
             self.snapshot(record: record, matching: names, displayBounds: displayBounds)
         }
@@ -85,26 +92,8 @@ enum MenuBarStatusItemWindowProbe {
 
     private static func bounds(_ value: Any?) -> CGRect? {
         guard let dictionary = value as? [String: Any],
-              let x = self.double(dictionary["X"]),
-              let y = self.double(dictionary["Y"]),
-              let width = self.double(dictionary["Width"]),
-              let height = self.double(dictionary["Height"])
+              ["X", "Y", "Width", "Height"].allSatisfy({ dictionary[$0] is NSNumber })
         else { return nil }
-        return CGRect(x: x, y: y, width: width, height: height)
-    }
-
-    private static func double(_ value: Any?) -> Double? {
-        switch value {
-        case let number as NSNumber:
-            number.doubleValue
-        case let double as Double:
-            double
-        case let int as Int:
-            Double(int)
-        case let cgFloat as CGFloat:
-            Double(cgFloat)
-        default:
-            nil
-        }
+        return CGRect(dictionaryRepresentation: dictionary as CFDictionary)
     }
 }

@@ -836,13 +836,12 @@ public struct GeminiStatusProbe: Sendable {
             throw GeminiStatusProbeError.apiError(GeminiConsumerTierMigration.oauthRecoveryError)
         }
 
-        let body = [
-            "client_id=\(oauthCreds.clientID)",
-            "client_secret=\(oauthCreds.clientSecret)",
-            "refresh_token=\(refreshToken)",
-            "grant_type=refresh_token",
-        ].joined(separator: "&")
-        request.httpBody = body.data(using: .utf8)
+        request.httpBody = FormURLEncoding.body([
+            ("client_id", oauthCreds.clientID),
+            ("client_secret", oauthCreds.clientSecret),
+            ("refresh_token", refreshToken),
+            ("grant_type", "refresh_token"),
+        ])
 
         let (data, response) = try await dataLoader(request)
 
@@ -954,10 +953,6 @@ public struct GeminiStatusProbe: Sendable {
             hostedDomain: json["hd"] as? String)
     }
 
-    private static func extractEmailFromToken(_ idToken: String?) -> String? {
-        self.extractClaimsFromToken(idToken).email
-    }
-
     private struct QuotaBucket: Decodable {
         let remainingFraction: Double?
         let resetTime: String?
@@ -996,7 +991,7 @@ public struct GeminiStatusProbe: Sendable {
         let quotas = modelQuotaMap
             .sorted { $0.key < $1.key }
             .map { modelId, info in
-                let resetDate = info.resetString.flatMap { Self.parseResetTime($0) }
+                let resetDate = ISO8601DateParser.parse(info.resetString)
                 return GeminiModelQuota(
                     modelId: modelId,
                     percentLeft: info.fraction * 100,
@@ -1013,19 +1008,8 @@ public struct GeminiStatusProbe: Sendable {
             accountPlan: nil)
     }
 
-    private static func parseResetTime(_ isoString: String) -> Date? {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-
-        if let date = formatter.date(from: isoString) {
-            return date
-        }
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter.date(from: isoString)
-    }
-
     private static func formatResetTime(_ isoString: String) -> String {
-        guard let resetDate = parseResetTime(isoString) else {
+        guard let resetDate = ISO8601DateParser.parse(isoString) else {
             return "Resets soon"
         }
 

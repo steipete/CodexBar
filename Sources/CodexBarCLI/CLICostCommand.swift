@@ -124,7 +124,7 @@ extension CodexBarCLI {
         }
 
         if format == .json,
-           let openCodex = Self.loadOpenCodexCostPayload(
+           let openCodex = await Self.loadOpenCodexCostPayload(
                historyDays: historyDays,
                calendar: bucketCalendar)
         {
@@ -184,6 +184,8 @@ extension CodexBarCLI {
             return Self.renderSessionCostText(header: header, snapshot: snapshot)
         }
 
+        let todayIncomplete = snapshot.summary(forLastDays: 1, calendar: calendar).incompleteRequestCount
+        let incomplete = CostUsageIncompleteRequests.sum(snapshot.daily.map(\.incompleteRequestCount))
         let todayCost = snapshot.sessionCostUSD
             .map { UsageFormatter.currencyString($0, currencyCode: snapshot.currencyCode) } ?? "—"
         let todayTokens = snapshot.sessionTokens.map { UsageFormatter.tokenCountString($0) }
@@ -206,7 +208,16 @@ extension CodexBarCLI {
         }
 
         let hintLine = Self.costEstimateHint(provider: provider)
-        var lines: [String?] = [header, todayLine, monthLine, meteredLine]
+        var lines: [String?] = [
+            header,
+            todayLine + (todayIncomplete > 0 ? " · Incomplete" : ""),
+            monthLine + (incomplete > 0 ? " · Incomplete" : ""),
+            meteredLine,
+        ]
+        if incomplete > 0 {
+            lines
+                .append("Incomplete: \(incomplete) requests lacked final usage and were excluded from tokens and cost.")
+        }
         // Provider-specific by design: only Claude local history currently guarantees model attribution.
         if includeBreakdown, provider == .claude, !snapshot.daily.isEmpty {
             lines.append(contentsOf: Self.claudeTokenDetailLines(
@@ -303,7 +314,8 @@ extension CodexBarCLI {
                 ? " \u{00B7} " + entry.modelsUsed!.prefix(2).joined(separator: ", ")
                 + (entry.modelsUsed!.count > 2 ? " +\(entry.modelsUsed!.count - 2)" : "")
                 : ""
-            out.append("\(entry.date): \(cost) \u{00B7} \(total) tokens\(mix)\(models)")
+            let incomplete = entry.incompleteRequestCount > 0 ? " · Incomplete" : ""
+            out.append("\(entry.date): \(cost) \u{00B7} \(total) tokens\(mix)\(models)\(incomplete)")
         }
         return out
     }
@@ -315,16 +327,37 @@ extension CodexBarCLI {
         useColor: Bool) -> [String]
     {
         var hasUnattributedDay = false
-        var modelAgg: [String: (cost: Double?, tokens: Int?, days: Set<String>)] = [:]
+        struct ModelAggregate {
+            var cost: Double? = 0
+            var tokens: Int? = 0
+            var days: Set<String> = []
+            var incomplete = 0
+            var hasUsage = false
+        }
+        var modelAgg: [String: ModelAggregate] = [:]
         for entry in entries {
-            if (entry.unpricedRequestCount ?? 0) > 0 { hasUnattributedDay = true }
+            if (entry.unpricedRequestCount ?? 0) > 0 || entry.incompleteRequestCount > 0 {
+                hasUnattributedDay = true
+            }
             guard let breakdowns = entry.modelBreakdowns, !breakdowns.isEmpty else {
                 let hasUsage = (entry.costUSD ?? 0) != 0 || (entry.totalTokens ?? 0) > 0
                 if hasUsage { hasUnattributedDay = true }
                 continue
             }
             for breakdown in breakdowns {
-                var cur = modelAgg[breakdown.modelName] ?? (cost: 0, tokens: 0, days: Set<String>())
+                var cur = modelAgg[breakdown.modelName] ?? ModelAggregate()
+                cur.incomplete = CostUsageIncompleteRequests.sum([
+                    cur.incomplete,
+                    breakdown.incompleteRequestCount ?? 0,
+                ])
+                cur.days.insert(entry.date)
+                let excludedOnly = (breakdown.incompleteRequestCount ?? 0) > 0
+                    && breakdown.costUSD == nil && breakdown.totalTokens == nil
+                if excludedOnly {
+                    modelAgg[breakdown.modelName] = cur
+                    continue
+                }
+                cur.hasUsage = true
                 // Once unknown (nil), later additions must not resurrect a partial sum.
                 if cur.cost != nil {
                     if let c = breakdown.costUSD {
@@ -347,13 +380,13 @@ extension CodexBarCLI {
         }
         guard !modelAgg.isEmpty else { return [] }
         let isPartial = !snapshot.historyCoverageIsEstablished || hasUnattributedDay
-            || modelAgg.values.contains { $0.cost == nil || $0.tokens == nil }
+            || modelAgg.values.contains { !$0.hasUsage || $0.cost == nil || $0.tokens == nil }
         let sorted = modelAgg.sorted { lhs, rhs in
-            let lCost = lhs.value.cost ?? -1
-            let rCost = rhs.value.cost ?? -1
+            let lCost = lhs.value.hasUsage ? lhs.value.cost ?? -1 : -1
+            let rCost = rhs.value.hasUsage ? rhs.value.cost ?? -1 : -1
             if lCost != rCost { return lCost > rCost }
-            let lTokens = lhs.value.tokens ?? -1
-            let rTokens = rhs.value.tokens ?? -1
+            let lTokens = lhs.value.hasUsage ? lhs.value.tokens ?? -1 : -1
+            let rTokens = rhs.value.hasUsage ? rhs.value.tokens ?? -1 : -1
             if lTokens != rTokens { return lTokens > rTokens }
             return lhs.key < rhs.key
         }
@@ -363,15 +396,17 @@ extension CodexBarCLI {
             : "Top models (\(periodLabel)):"
         out.append(useColor ? "\u{001B}[1m\(title)\u{001B}[0m" : title)
         for (idx, item) in sorted.prefix(5).enumerated() {
-            let costStr = item.value.cost
+            let costStr = (item.value.hasUsage ? item.value.cost : nil)
                 .map { UsageFormatter.currencyString($0, currencyCode: snapshot.currencyCode) }
                 ?? "\u{2014}"
-            let tokensStr = item.value.tokens
+            let tokensStr = (item.value.hasUsage ? item.value.tokens : nil)
                 .map { UsageFormatter.tokenCountString($0) } ?? "\u{2014}"
             let days = item.value.days.count
             let display = UsageFormatter.modelDisplayName(item.key)
             let dayLabel = days == 1 ? "day" : "days"
-            out.append("\(idx + 1). \(display) \u{2014} \(costStr) \u{00B7} \(tokensStr) tokens (\(days) \(dayLabel))")
+            let incomplete = item.value.incomplete > 0 ? " · Incomplete" : ""
+            let usage = "\(costStr) · \(tokensStr) tokens (\(days) \(dayLabel))\(incomplete)"
+            out.append("\(idx + 1). \(display) — \(usage)")
         }
         if isPartial {
             out.append("Note: Ranking is partial (incomplete history or unattributed cost/tokens).")
@@ -622,7 +657,9 @@ extension CodexBarCLI {
             totals: snapshot.flatMap(Self.costTotals(from:)),
             provenance: summary?.provenance.rawValue,
             coverage: summary?.coverage,
-            error: error.map { Self.makeErrorPayload($0) })
+            error: error.map { Self.makeErrorPayload($0) },
+            incompleteRequestCount: snapshot
+                .map { CostUsageIncompleteRequests.sum($0.daily.map(\.incompleteRequestCount)) })
     }
 
     static func makeOpenCodexCostPayload(
@@ -653,12 +690,14 @@ extension CodexBarCLI {
     private static func loadOpenCodexCostPayload(
         historyDays: Int,
         calendar: Calendar,
-        now: Date = Date()) -> CostPayload?
+        now: Date = Date()) async -> CostPayload?
     {
         guard boolFromAppDefaults("openCodexUsageLogsEnabled") == true else { return nil }
         let environment = ProcessInfo.processInfo.environment
         guard let logURL = OpenCodexUsageLog.usageLogURL(environment: environment) else { return nil }
         let store = OpenCodexUsageStore(cacheRoot: OpenCodexUsageLog.cacheRoot())
+        guard let entries = try? store.loadEntries(logURL: logURL), !entries.isEmpty else { return nil }
+        await OpenCodexUsageStore.refreshPricingIfNeeded(entries: entries, now: now)
         guard let snapshot = try? store.loadSnapshot(
             logURL: logURL,
             now: now,
@@ -679,7 +718,8 @@ extension CodexBarCLI {
             totalTokens: entry.totalTokens,
             costUSD: entry.costUSD,
             modelsUsed: entry.modelsUsed,
-            modelBreakdowns: entry.modelBreakdowns?.map(self.costModelBreakdownPayload(from:)))
+            modelBreakdowns: entry.modelBreakdowns?.map(self.costModelBreakdownPayload(from:)),
+            incompleteRequestCount: entry.incompleteRequestCount)
     }
 
     private static func costModelBreakdownPayload(
@@ -688,7 +728,8 @@ extension CodexBarCLI {
         CostModelBreakdownPayload(
             modelName: breakdown.modelName,
             costUSD: breakdown.costUSD,
-            totalTokens: breakdown.totalTokens)
+            totalTokens: breakdown.totalTokens,
+            incompleteRequestCount: breakdown.incompleteRequestCount)
     }
 
     private static func costTotals(from snapshot: CostUsageTokenSnapshot) -> CostTotalsPayload? {
@@ -772,7 +813,8 @@ extension CodexBarCLI {
             totalTokens: (sawTokens && !overflowTokens) ? totalTokens : snapshot.last30DaysTokens,
             totalCostUSD: sawCost ? totalCost : snapshot.last30DaysCostUSD,
             provenance: summary.provenance.rawValue,
-            coverage: summary.coverage)
+            coverage: summary.coverage,
+            incompleteRequestCount: CostUsageIncompleteRequests.sum(entries.map(\.incompleteRequestCount)))
     }
 
     private static func decodeCostHistoryDays(from values: ParsedValues) -> Int {
@@ -928,6 +970,8 @@ struct CostPayload: Encodable, Sendable {
     let coverage: CostUsageCoverageCounts?
     let error: ProviderErrorPayload?
 
+    let incompleteRequestCount: Int?
+
     init(
         provider: String,
         source: String,
@@ -945,8 +989,10 @@ struct CostPayload: Encodable, Sendable {
         totals: CostTotalsPayload?,
         provenance: String? = nil,
         coverage: CostUsageCoverageCounts? = nil,
-        error: ProviderErrorPayload?)
+        error: ProviderErrorPayload?,
+        incompleteRequestCount: Int? = nil)
     {
+        self.incompleteRequestCount = incompleteRequestCount.flatMap { $0 > 0 ? $0 : nil }
         self.provider = provider
         self.source = source
         self.updatedAt = updatedAt
@@ -989,8 +1035,11 @@ struct CostDailyEntryPayload: Encodable, Sendable {
         case totalTokens
         case costUSD = "totalCost"
         case modelsUsed
+        case incompleteRequestCount
         case modelBreakdowns
     }
+
+    let incompleteRequestCount: Int?
 
     init(
         date: String,
@@ -1002,8 +1051,10 @@ struct CostDailyEntryPayload: Encodable, Sendable {
         totalTokens: Int?,
         costUSD: Double?,
         modelsUsed: [String]?,
-        modelBreakdowns: [CostModelBreakdownPayload]?)
+        modelBreakdowns: [CostModelBreakdownPayload]?,
+        incompleteRequestCount: Int? = nil)
     {
+        self.incompleteRequestCount = incompleteRequestCount.flatMap { $0 > 0 ? $0 : nil }
         self.date = date
         self.inputTokens = inputTokens
         self.outputTokens = outputTokens
@@ -1022,10 +1073,20 @@ struct CostModelBreakdownPayload: Encodable, Sendable {
     let costUSD: Double?
     let totalTokens: Int?
 
+    let incompleteRequestCount: Int?
+
     private enum CodingKeys: String, CodingKey {
         case modelName
         case costUSD = "cost"
         case totalTokens
+        case incompleteRequestCount
+    }
+
+    init(modelName: String, costUSD: Double?, totalTokens: Int?, incompleteRequestCount: Int? = nil) {
+        self.modelName = modelName
+        self.costUSD = costUSD
+        self.totalTokens = totalTokens
+        self.incompleteRequestCount = incompleteRequestCount.flatMap { $0 > 0 ? $0 : nil }
     }
 }
 
@@ -1105,8 +1166,11 @@ struct CostTotalsPayload: Encodable, Sendable {
         case totalTokens
         case totalCostUSD = "totalCost"
         case provenance
+        case incompleteRequestCount
         case coverage
     }
+
+    let incompleteRequestCount: Int?
 
     init(
         totalInputTokens: Int?,
@@ -1117,8 +1181,10 @@ struct CostTotalsPayload: Encodable, Sendable {
         totalTokens: Int?,
         totalCostUSD: Double?,
         provenance: String? = nil,
-        coverage: CostUsageCoverageCounts? = nil)
+        coverage: CostUsageCoverageCounts? = nil,
+        incompleteRequestCount: Int? = nil)
     {
+        self.incompleteRequestCount = incompleteRequestCount.flatMap { $0 > 0 ? $0 : nil }
         self.totalInputTokens = totalInputTokens
         self.totalOutputTokens = totalOutputTokens
         self.cacheReadTokens = cacheReadTokens

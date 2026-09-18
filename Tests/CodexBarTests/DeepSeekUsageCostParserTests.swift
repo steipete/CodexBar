@@ -854,6 +854,123 @@ struct DeepSeekUsageCostParserTests {
     }
 }
 
+extension DeepSeekUsageCostParserTests {
+    @Test(arguments: [true, false])
+    func `by-api-key series fold into daily totals`(stringKey: Bool) throws {
+        let day = Int(self.fixtureNow.timeIntervalSince1970)
+        let amountJSON = """
+        {
+          "code": 0,
+          "data": {
+            "biz_data": {
+              "series": [{
+                "api_key": \(stringKey ? "\"key-1\"" : "{\"name\":\"main\",\"tracking_id\":\"key-1\"}"),
+                "model": "deepseek-chat",
+                "buckets": [{
+                  "time": \(day),
+                  "usage": {
+                    "PROMPT_CACHE_HIT_TOKEN": "100",
+                    "PROMPT_CACHE_MISS_TOKEN": 50,
+                    "RESPONSE_TOKEN": 25,
+                    "REQUEST": 2
+                  }
+                }]
+              }]
+            }
+          }
+        }
+        """
+        let costJSON = """
+        {
+          "code": 0,
+          "data": {
+            "biz_data": {
+              "data": [{
+                "currency": "CNY",
+                "series": [{
+                  "api_key": \(stringKey ? "\"key-1\"" : "{\"name\":\"main\",\"tracking_id\":\"key-1\"}"),
+                  "model": "deepseek-chat",
+                  "buckets": [{"time": \(day), "cost": "0.12"}]
+                }]
+              }]
+            }
+          }
+        }
+        """
+        let summary = try DeepSeekUsageCostParser.parseByAPIKey(
+            amountData: Data(amountJSON.utf8),
+            costData: Data(costJSON.utf8),
+            now: self.fixtureNow,
+            calendar: self.fixtureCalendar)
+        #expect(summary.todayTokens == 175)
+        #expect(summary.todayCost == 0.12)
+        #expect(summary.currentMonthRequestCount == 2)
+        #expect(summary.apiKeyCount == 1)
+        #expect(summary.topModel == "deepseek-chat")
+        #expect(summary.daily.count == 1)
+        #expect(summary.daily[0].totalTokens == 175)
+        #expect(summary.daily[0].cost == 0.12)
+        #expect(summary.period == .last30Days)
+    }
+
+    @Test
+    func `by-api-key nested error code is rejected`() {
+        let json = """
+        {"code": 0, "data": {"biz_code": 40002, "biz_data": null}}
+        """
+        #expect(throws: DeepSeekUsageError.self) {
+            try DeepSeekUsageCostParser.parseByAPIKey(
+                amountData: Data(json.utf8),
+                costData: Data(json.utf8),
+                now: self.fixtureNow,
+                calendar: self.fixtureCalendar)
+        }
+    }
+
+    @Test
+    func `by-api-key missing biz_data is rejected`() {
+        let json = """
+        {"code": 0, "data": {"biz_code": 0}}
+        """
+        #expect(throws: DeepSeekUsageError.self) {
+            try DeepSeekUsageCostParser.parseByAPIKey(
+                amountData: Data(json.utf8),
+                costData: Data(json.utf8),
+                now: self.fixtureNow,
+                calendar: self.fixtureCalendar)
+        }
+    }
+
+    @Test
+    func `by-api-key cost keeps a single currency`() throws {
+        let day = Int(self.fixtureNow.timeIntervalSince1970)
+        let amountJSON = """
+        {"code": 0, "data": {"biz_code": 0, "biz_data": {"series": []}}}
+        """
+        let costJSON = """
+        {
+          "code": 0,
+          "data": {
+            "biz_code": 0,
+            "biz_data": {
+              "data": [
+                {"currency": "CNY", "series": [{"buckets": [{"time": \(day), "cost": "7"}]}]},
+                {"currency": "USD", "series": [{"buckets": [{"time": \(day), "cost": "1"}]}]}
+              ]
+            }
+          }
+        }
+        """
+        let summary = try DeepSeekUsageCostParser.parseByAPIKey(
+            amountData: Data(amountJSON.utf8),
+            costData: Data(costJSON.utf8),
+            now: self.fixtureNow,
+            calendar: self.fixtureCalendar)
+        #expect(summary.currency == "USD")
+        #expect(summary.todayCost == 1)
+    }
+}
+
 struct DeepSeekUsageCostParserAuthorizationTests {
     private static let emptyCostJSON = """
     {

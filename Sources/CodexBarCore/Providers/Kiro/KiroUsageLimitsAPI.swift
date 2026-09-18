@@ -320,7 +320,7 @@ public enum KiroUsageLimitsAPI: Sendable {
     /// and call the live service with their token, so tests must name their own database instead.
     private static func readIdentity(databaseURL: URL) throws -> KiroCLIIdentity {
         #if canImport(SQLite3) || canImport(CSQLite3)
-        if ProviderHTTPClient.isRunningTests, databaseURL == self.stateDatabaseURL() {
+        if TestProcessSafety.isRunning, databaseURL == self.stateDatabaseURL() {
             throw KiroUsageLimitsError.credentialsUnavailable(
                 "usage API needs an explicit state database under tests")
         }

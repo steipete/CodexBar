@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Synthetic process ownership tests; never launch Swift or inspect provider data."""
 
+import contextlib
 import ctypes
 import errno
+import io
 import json
 import os
 from pathlib import Path
@@ -12,6 +14,7 @@ import sys
 import tempfile
 import threading
 import time
+import types
 import unittest
 from unittest.mock import Mock, patch
 
@@ -246,10 +249,8 @@ class ProcessCleanupTests(unittest.TestCase):
             )
             timer = None
             try:
-                wait_until(lambda: (sentinel_root / "pid").exists())
-                if interrupt:
-                    timer = threading.Timer(2, lambda: os.kill(os.getpid(), signal.SIGINT))
-                    timer.start()
+                # Interpreter/file startup is setup; the cleanup deadlines below start afterward.
+                wait_until(lambda: (sentinel_root / "pid").exists(), timeout=10)
                 started = time.monotonic()
                 command = [sys.executable, __file__, "--fixture", mode, str(child_root), str(ready_delay)]
                 original_refresh = runner.TestProcessOwnership.refresh
@@ -257,11 +258,15 @@ class ProcessCleanupTests(unittest.TestCase):
                 acknowledged = False
                 draining = False
                 def refresh(ownership, **kwargs):
-                    nonlocal acknowledged
+                    nonlocal acknowledged, timer
                     owned = original_refresh(ownership, **kwargs)
                     if not acknowledged and not draining:
                         acknowledged = release_observed_fixture(
                             child_root, owned, include_grandchild=mode == "success-session-tree")
+                        if acknowledged and interrupt:
+                            # Interrupt owned work, not interpreter startup before identities are visible.
+                            timer = threading.Timer(0.05, lambda: os.kill(os.getpid(), signal.SIGINT))
+                            timer.start()
                     return owned
                 def drain(ownership, process):
                     nonlocal draining
@@ -346,7 +351,7 @@ class ProcessCleanupTests(unittest.TestCase):
         self.exercise("failure", 23)
 
     def test_keyboard_interrupt_drains_children_and_propagates(self):
-        self.exercise("timeout", None, interrupt=True)
+        self.exercise("timeout", None, interrupt=True, ready_delay=3)
 
 
 class FixtureReadinessTests(unittest.TestCase):
@@ -868,7 +873,7 @@ class ReviewRegressionTests(unittest.TestCase):
                     with self.assertRaises(OSError):
                         runner.test_process(123)
 
-    def exercise_initialization_failure(self, failure):
+    def exercise_initialization_failure(self, failure, deferred_kills=0):
         with tempfile.TemporaryDirectory(prefix="codexbar-init-cleanup-") as directory:
             root = Path(directory)
             spawned = []
@@ -892,16 +897,26 @@ class ReviewRegressionTests(unittest.TestCase):
                     return None
                 return original_lookup(pid, *args, **kwargs)
             started = time.monotonic()
+            drain_started = []
+            original_drain = runner.TestProcessOwnership._drain
+            def drain(ownership, process):
+                drain_started.append(time.monotonic() - started)
+                return original_drain(ownership, process)
             sent = []
             original_kill = os.kill
             def kill(pid, sig):
+                nonlocal deferred_kills
                 if spawned and pid == spawned[0].pid:
                     sent.append((sig, time.monotonic() - started))
+                    if sig == signal.SIGKILL and deferred_kills:
+                        deferred_kills -= 1
+                        return
                 return original_kill(pid, sig)
             try:
                 with patch.object(runner.subprocess, "Popen", side_effect=spawn), \
                         patch.object(runner, "test_process", side_effect=lookup), \
-                        patch.object(runner.os, "kill", side_effect=kill):
+                        patch.object(runner.os, "kill", side_effect=kill), \
+                        patch.object(runner.TestProcessOwnership, "_drain", autospec=True, side_effect=drain):
                     if failure is None:
                         self.assertEqual(runner.run_command(
                             [sys.executable, __file__, "--fixture", "stubborn", str(root)], timeout=2), 124)
@@ -912,8 +927,11 @@ class ReviewRegressionTests(unittest.TestCase):
                 self.assertEqual(len(spawned), 1)
                 self.assertIsNotNone(spawned[0].poll(), "initialization failure leaked direct child")
                 if failure is None:
-                    self.assertEqual([sig for sig, _ in sent], [signal.SIGTERM, signal.SIGKILL])
+                    self.assertEqual([sig for sig, _ in sent[:2]], [signal.SIGTERM, signal.SIGKILL])
+                    self.assertTrue(all(sig == signal.SIGKILL for sig, _ in sent[2:]))
                     self.assertGreaterEqual(sent[0][1], 2, "missing metadata shortened the command deadline")
+                    # Cleanup starts its grace before process inspection and the first signal.
+                    self.assertGreaterEqual(sent[1][1] - drain_started[0], 3, "cleanup shortened the termination grace")
                     self.assertEqual(spawned[0].returncode, -signal.SIGKILL)
                 self.assertLess(time.monotonic() - started, 9)
             finally:
@@ -932,7 +950,9 @@ class ReviewRegressionTests(unittest.TestCase):
         self.exercise_initialization_failure(KeyboardInterrupt())
 
     def test_initial_missing_metadata_times_out_and_reaps_term_ignoring_child(self):
-        self.exercise_initialization_failure(None)
+        for deferred_kills in (0, 2):
+            with self.subTest(deferred_kills=deferred_kills):
+                self.exercise_initialization_failure(None, deferred_kills=deferred_kills)
 
 
 class ExitTransitionTests(unittest.TestCase):
@@ -1499,6 +1519,82 @@ int main(int argc, char **argv) {
                     except subprocess.TimeoutExpired:
                         process.kill()
                         process.wait(timeout=2)
+
+
+@patch.object(runner.sys, "platform", "darwin")
+class ContainmentSupportTests(unittest.TestCase):
+    def test_partial_capabilities_name_only_the_missing_ones(self):
+        partial = types.SimpleNamespace(waitid=None, P_PID=0, WEXITED=0)
+        error = runner.containment_support_error(partial)
+        self.assertIsNotNone(error)
+        self.assertIn("WNOHANG", error)
+        self.assertIn("WNOWAIT", error)
+        self.assertNotIn("P_PID", error)
+        self.assertIn(sys.executable, error)
+
+    def test_complete_capabilities_report_no_error(self):
+        complete = types.SimpleNamespace(**{name: 0 for name in runner.CONTAINMENT_CAPABILITIES})
+        self.assertIsNone(runner.containment_support_error(complete))
+
+    def test_run_command_rejects_an_interpreter_without_waitid(self):
+        with (
+            patch.object(runner, "containment_support_error", return_value="no waitid here"),
+            patch.object(runner.subprocess, "Popen") as launch,
+        ):
+            with self.assertRaises(RuntimeError) as raised:
+                runner.run_command(["/bin/echo", "unreachable"])
+            launch.assert_not_called()
+        self.assertEqual(str(raised.exception), "no waitid here")
+
+    def test_unsupported_platform_is_reported(self):
+        with patch.object(runner.sys, "platform", "win32"):
+            self.assertEqual(
+                runner.containment_support_error(),
+                "Swift test process containment requires macOS or Linux, not win32.",
+            )
+
+    def test_main_rejects_missing_containment_before_discovery(self):
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with (
+            patch.object(sys, "argv", ["runner"]),
+            patch.object(runner, "containment_support_error", return_value="no waitid here"),
+            patch.object(runner, "swift_test_list") as discovery,
+            patch.object(runner, "run_group") as execute,
+            patch.object(runner, "print_timing_summary") as timing,
+            patch.object(runner, "append_github_summary") as summary,
+            contextlib.redirect_stdout(stdout),
+            contextlib.redirect_stderr(stderr),
+        ):
+            self.assertEqual(runner.main(), 2)
+        self.assertEqual(stdout.getvalue(), "")
+        self.assertEqual(stderr.getvalue(), "no waitid here\n")
+        discovery.assert_not_called()
+        execute.assert_not_called()
+        timing.assert_not_called()
+        summary.assert_not_called()
+
+    def test_list_only_keeps_discovery_without_containment(self):
+        stdout, stderr = io.StringIO(), io.StringIO()
+        selection = runner.TestSelection("SyntheticTests", "^SyntheticTests/")
+        with (
+            patch.object(sys, "argv", ["runner", "--list-only"]),
+            patch.object(runner, "containment_support_error", return_value="no waitid here") as guard,
+            patch.object(runner, "swift_test_list", return_value=[selection]) as discovery,
+            patch.object(runner, "run_group") as execute,
+            patch.object(runner, "append_github_summary") as summary,
+            contextlib.redirect_stdout(stdout),
+            contextlib.redirect_stderr(stderr),
+        ):
+            self.assertEqual(runner.main(), 0)
+        self.assertEqual(
+            stdout.getvalue(),
+            "Discovered 1 test selections; running 1 selections in 1 groups\nSyntheticTests\n",
+        )
+        self.assertEqual(stderr.getvalue(), "")
+        guard.assert_not_called()
+        discovery.assert_called_once_with(["swift"])
+        execute.assert_not_called()
+        summary.assert_not_called()
 
 
 if __name__ == "__main__":

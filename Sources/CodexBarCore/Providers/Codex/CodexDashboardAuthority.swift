@@ -65,6 +65,8 @@ public struct CodexDashboardOwnershipProofContext: Equatable, Sendable {
     public let expectedScopedEmail: String?
     public let trustedCurrentUsageEmail: String?
     public let dashboardSignedInEmail: String?
+    public let dashboardAccountID: String?
+    public let requiresWorkspaceBalanceScope: Bool
     public let knownOwners: [CodexDashboardKnownOwnerCandidate]
 
     public init(
@@ -72,12 +74,16 @@ public struct CodexDashboardOwnershipProofContext: Equatable, Sendable {
         expectedScopedEmail: String?,
         trustedCurrentUsageEmail: String?,
         dashboardSignedInEmail: String?,
+        dashboardAccountID: String? = nil,
+        requiresWorkspaceBalanceScope: Bool = false,
         knownOwners: [CodexDashboardKnownOwnerCandidate])
     {
         self.currentIdentity = currentIdentity
         self.expectedScopedEmail = expectedScopedEmail
         self.trustedCurrentUsageEmail = trustedCurrentUsageEmail
         self.dashboardSignedInEmail = dashboardSignedInEmail
+        self.dashboardAccountID = dashboardAccountID
+        self.requiresWorkspaceBalanceScope = requiresWorkspaceBalanceScope
         self.knownOwners = knownOwners
     }
 }
@@ -184,6 +190,19 @@ public enum CodexDashboardAuthority {
                 disposition: .failClosed,
                 reason: .wrongEmail(expected: expectedScopedEmail, actual: dashboardSignedInEmail),
                 sourceKind: input.sourceKind)
+        }
+
+        // Workspace balances require response identity at the final publication/cache boundary.
+        // Personal-credit dashboards retain their existing email-based authority contract.
+        if proof.requiresWorkspaceBalanceScope {
+            guard case let .providerAccount(id) = currentIdentity,
+                  ManagedCodexAccount.normalizeWorkspaceAccountID(proof.dashboardAccountID) == id
+            else {
+                return Self.makeDecision(
+                    disposition: .failClosed,
+                    reason: .providerAccountLacksExactOwnershipProof,
+                    sourceKind: input.sourceKind)
+            }
         }
 
         switch currentIdentity {

@@ -324,8 +324,11 @@ struct QwenCloudCookieHeaderTests {
 
 @Suite(.serialized)
 struct QwenCloudFetchTests {
-    @Test
-    func `fetches usage with dashboard sec token preflight`() async throws {
+    @Test(arguments: ["", "+&=%2B /東京"])
+    func `fetches usage with dashboard sec token preflight`(suffix: String) async throws {
+        let secToken = "qwen-html-token" + suffix
+        let anonymousID = "fixture-anon" + (suffix.isEmpty ? "" : "+%2B")
+        let apiCookieHeader = "login_aliyunid_ticket=ticket; cna=\(anonymousID)"
         let usageAPI = "zeldaHttp.apikeyMgr./tokenplan/personal/api/v2/usage"
         let subscriptionAPI = "zeldaHttp.apikeyMgr./tokenplan/personal/api/v2/subscription"
         let quotaConfigAPI = "zeldaHttp.apikeyMgr./tokenplan/personal/api/v2/quota-config"
@@ -339,17 +342,16 @@ struct QwenCloudFetchTests {
             {
                 return Self.makeResponse(
                     url: url,
-                    body: "<html><script>sec_token = \"qwen-html-token\";</script></html>",
+                    body: "<html><script>sec_token = \"\(secToken)\";</script></html>",
                     statusCode: 200)
             }
 
             if url.host == "qwen-cloud.test", request.httpMethod == "POST" {
                 let body = Self.requestBodyString(from: request)
-                let form = try #require(URLComponents(string: "?\(body)"))
-                let formValues = Dictionary(uniqueKeysWithValues: form.queryItems?.compactMap { item in
-                    item.value.map { (item.name, $0) }
-                } ?? [])
-                #expect(formValues["sec_token"] == "qwen-html-token")
+                let formValues = try FormBodyTestSupport.decode(Data(body.utf8))
+                #expect(Set(formValues.keys) == ["product", "action", "sec_token", "region", "language", "params"])
+                #expect(formValues["sec_token"] == secToken)
+                #expect(request.value(forHTTPHeaderField: "Cookie") == apiCookieHeader)
                 #expect(formValues["product"] == "sfm_bailian")
                 let paramsData = try #require(formValues["params"]?.data(using: .utf8))
                 let params = try #require(JSONSerialization.jsonObject(with: paramsData) as? [String: Any])
@@ -357,6 +359,7 @@ struct QwenCloudFetchTests {
                 let data = try #require(params["Data"] as? [String: Any])
                 let cornerstone = try #require(data["cornerstoneParam"] as? [String: Any])
                 #expect(cornerstone["consoleSite"] as? String == "QWENCLOUD")
+                #expect(cornerstone["X-Anonymous-Id"] as? String == anonymousID)
                 requestedAPIs.append(api)
 
                 let json: String
@@ -402,7 +405,7 @@ struct QwenCloudFetchTests {
         let session = URLSession(configuration: configuration)
         let transport = ProviderHTTPClient(session: session)
         let snapshot = try await QwenCloudUsageFetcher.fetchUsage(
-            apiCookieHeader: "login_aliyunid_ticket=ticket",
+            apiCookieHeader: apiCookieHeader,
             dashboardCookieHeader: "login_aliyunid_ticket=ticket",
             environment: [QwenCloudSettingsReader.hostKey: "https://qwen-cloud.test"],
             transport: transport)

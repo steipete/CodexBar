@@ -10,10 +10,20 @@ struct CodexWorkspacesNavigationFixture {
     let settings: SettingsStore
     let store: UsageStore
 
-    init() throws {
+    var inspectorConfiguration: CodexWorkspacesInspectorModel.Configuration {
+        let scope = self.store.tokenCostScope(for: .codex)
+        return .init(
+            codexHomePath: scope.codexHomePath,
+            scopeSignature: scope.signature,
+            historyDays: self.settings.costUsageHistoryDays,
+            hidePersonalInfo: self.settings.hidePersonalInfo)
+    }
+
+    init(userDefaults: UserDefaults? = nil) throws {
         self.files = try CostUsageTestEnvironment()
         self.settings = testSettingsStore(
             suiteName: "CodexWorkspacesNavigationTests",
+            userDefaults: userDefaults,
             config: CodexBarConfig(providers: UsageProvider.allCases.map {
                 ProviderConfig(id: $0.instanceID, enabled: $0 == .codex)
             }),
@@ -29,6 +39,12 @@ struct CodexWorkspacesNavigationFixture {
         self.settings.openAIWebAccessEnabled = false
         self.settings.costUsageEnabled = false
         self.settings.refreshFrequency = .manual
+        self.settings.codexLocalSessionCostLedgerEnabled = false
+        let codexHomePath = self.files.codexHomeRoot.path
+        self.settings.updateProviderConfig(provider: .codex) {
+            $0.codexProfileHomePaths = [codexHomePath]
+            $0.codexActiveSource = .profileHome(path: codexHomePath)
+        }
         let environment = [
             "HOME": self.files.root.path,
             "CODEX_HOME": self.files.codexHomeRoot.path,
@@ -38,6 +54,7 @@ struct CodexWorkspacesNavigationFixture {
         self.store = UsageStore(
             fetcher: UsageFetcher(environment: environment),
             browserDetection: BrowserDetection(homeDirectory: self.files.root.path, cacheTTL: 0),
+            costUsageFetcher: CostUsageFetcher(cacheRoot: self.files.cacheRoot),
             settings: self.settings,
             startupBehavior: .testing,
             environmentBase: environment)

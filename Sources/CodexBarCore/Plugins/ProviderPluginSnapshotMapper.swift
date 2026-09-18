@@ -370,9 +370,6 @@ enum ProviderPluginSnapshotMapper {
                 entry,
                 property: "reasoningTokens",
                 path: path)
-            if let reasoningTokens, reasoningTokens > outputTokens {
-                throw ProviderPluginError.invalidSnapshot("\(path).reasoningTokens must not exceed outputTokens")
-            }
             let requests = try self.requiredNonnegativeInteger(entry, property: "requests", path: path)
             let cost = try self.requiredFiniteNumber(entry, property: "cost", path: path)
             guard cost >= 0 else {
@@ -658,11 +655,7 @@ enum ProviderPluginSnapshotMapper {
             throw ProviderPluginError.invalidSnapshot("\(path).\(property) must be a Date or ISO-8601 string")
         }
         let text = propertyValue.stringValue()
-        let fractional = ISO8601DateFormatter()
-        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let plain = ISO8601DateFormatter()
-        plain.formatOptions = [.withInternetDateTime]
-        guard let date = fractional.date(from: text) ?? plain.date(from: text) else {
+        guard let date = ISO8601DateParser.parse(text) else {
             throw ProviderPluginError.invalidSnapshot("\(path).\(property) is not a valid ISO-8601 date")
         }
         return date

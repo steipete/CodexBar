@@ -324,7 +324,9 @@ enum MenuSwitchFlickerProbe {
             let selection = self.controller.resolvedSwitcherSelection(
                 enabledProviders: enabledProviders,
                 includesOverview: includesOverview)
-            var segments: [ProviderSwitcherSelection] = enabledProviders.map { .provider($0.instanceID) }
+            var segments: [ProviderSwitcherSelection] = self.controller
+                .switcherProviderIDs(enabledFirstPartyProviders: enabledProviders)
+                .map { .provider($0) }
             if includesOverview {
                 segments.insert(.overview, at: 0)
             }

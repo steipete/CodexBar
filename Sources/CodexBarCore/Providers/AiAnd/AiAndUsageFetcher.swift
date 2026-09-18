@@ -87,7 +87,7 @@ public enum AiAndUsageFetcher {
         transport: any ProviderHTTPTransport = ProviderHTTPClient.shared,
         now: Date = Date()) async throws -> AiAndUsageSnapshot
     {
-        guard let credential = AiAndSettingsReader.cleaned(rawCredential) else {
+        guard let credential = SettingsValue.cleaned(rawCredential) else {
             throw AiAndUsageError.notConfigured
         }
 

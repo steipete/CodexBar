@@ -5,7 +5,7 @@ public enum CopilotProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
     private static let credentials = ProviderCredentialAdapter.apiKey(
         environmentKey: "COPILOT_API_TOKEN",
-        resolve: { ProviderConfig.clean($0["COPILOT_API_TOKEN"]) },
+        resolve: { SettingsValue.cleaned($0["COPILOT_API_TOKEN"]) },
         tokenAccountSupport: TokenAccountSupport(
             title: "GitHub accounts",
             subtitle: "Sign in with multiple GitHub accounts via OAuth.",
@@ -50,8 +50,11 @@ public enum CopilotProviderDescriptor {
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
                 sharePlanLabels: [
-                    "free": "Free", "individual": "Individual", "pro": "Individual",
-                    "business": "Business", "enterprise": "Enterprise",
+                    "free": "Free",
+                    "individual": "Individual",
+                    "pro": "Individual",
+                    "business": "Business",
+                    "enterprise": "Enterprise",
                 ],
                 debugLogUnavailableMessage: "Copilot debug log not yet implemented",
                 browserCookieOrder: self.browserCookieOrder,
@@ -91,6 +94,9 @@ public enum CopilotProviderDescriptor {
                     else { return .unhandled }
                     return .resolved(primary.usedPercent >= secondary.usedPercent ? primary : secondary)
                 },
+                switcherUsedPercentFallback: { snapshot in
+                    snapshot.detailRow(id: CopilotCreditDetailRows.seatRowID)?.progress?.usedPercent
+                },
                 menuCard: ProviderMenuCardPresentation(primaryDescriptionPlacement: .detailLeft)),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .api],
@@ -115,7 +121,8 @@ struct CopilotAPIFetchStrategy: ProviderFetchStrategy {
         }
         let fetcher = CopilotUsageFetcher(
             token: token,
-            enterpriseHost: context.settings?.copilot?.enterpriseHost)
+            enterpriseHost: context.settings?.copilot?.enterpriseHost,
+            seatEntitlement: context.settings?.copilot?.seatCreditEntitlement)
         let usage = try await fetcher.fetch()
         let snap = await self.addBudgetWindowsIfNeeded(to: usage, token: token, context: context)
         return self.makeResult(

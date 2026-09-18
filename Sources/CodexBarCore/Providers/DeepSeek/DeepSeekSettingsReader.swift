@@ -101,26 +101,10 @@ public struct DeepSeekSettingsReader: Sendable {
 
     private static func value(for keys: [String], environment: [String: String]) -> String? {
         for key in keys {
-            guard let raw = environment[key]?.trimmingCharacters(in: .whitespacesAndNewlines),
-                  !raw.isEmpty
-            else {
-                continue
-            }
-            let cleaned = Self.cleaned(raw)
-            if !cleaned.isEmpty {
-                return cleaned
+            if let value = SettingsValue.cleaned(environment[key]) {
+                return value
             }
         }
         return nil
-    }
-
-    private static func cleaned(_ raw: String) -> String {
-        var value = raw
-        if (value.hasPrefix("\"") && value.hasSuffix("\"")) ||
-            (value.hasPrefix("'") && value.hasSuffix("'"))
-        {
-            value = String(value.dropFirst().dropLast())
-        }
-        return value.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

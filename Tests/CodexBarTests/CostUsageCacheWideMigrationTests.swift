@@ -51,7 +51,7 @@ struct CostUsageCacheWideMigrationTests {
     }
 
     @Test
-    func `cache wide migration reorders a partially drained queue newest first`() throws {
+    func `cache wide migration preserves discovered waiters before reseeded files`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
         let day = try env.makeLocalNoon(year: 2026, month: 5, day: 10)
@@ -90,10 +90,10 @@ struct CostUsageCacheWideMigrationTests {
         let migratedCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         #expect(recorder.snapshot().codexFileScanAttempts == CostUsageScanner.codexCatchUpScanCandidateLimit)
         #expect(recorder.attemptedCodexFilePaths().contains(newestURL.path))
-        #expect(!recorder.attemptedCodexFilePaths().contains(oldestURL.path))
+        #expect(recorder.attemptedCodexFilePaths().contains(oldestURL.path))
         #expect(migratedCache.codexActiveLookbackState?.pendingFilePaths.count
             == corpusSize - CostUsageScanner.codexCatchUpScanCandidateLimit)
-        #expect(migratedCache.codexActiveLookbackState?.pendingFilePaths.contains(oldestURL.path) == true)
+        #expect(migratedCache.codexActiveLookbackState?.pendingFilePaths.contains(oldestURL.path) == false)
     }
 
     @Test(arguments: CacheWideMigrationCase.allCases)

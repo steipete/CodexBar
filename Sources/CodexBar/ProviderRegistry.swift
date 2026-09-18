@@ -134,7 +134,6 @@ struct ProviderRegistry {
         tokenOverride: TokenAccountOverride?,
         codexActiveSourceOverride: CodexActiveSource? = nil) -> ProviderSettingsSnapshot
     {
-        settings.ensureTokenAccountsLoaded()
         var builder = ProviderSettingsSnapshotBuilder(
             debugMenuEnabled: settings.debugMenuEnabled,
             debugKeepCLISessionsAlive: settings.debugKeepCLISessionsAlive)

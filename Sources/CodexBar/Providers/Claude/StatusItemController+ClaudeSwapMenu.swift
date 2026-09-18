@@ -67,7 +67,8 @@ extension StatusItemController {
                 },
                 planAction: { [weak self] account in
                     self?.claudeSwapAccountSwitchAction(account, menu: captureMenu)
-                }),
+                },
+                privacyOrdinal: ClaudeSwapAccountMenuDisplay.privacyOrdinal),
             to: menu,
             captureMenu: captureMenu,
             context: context)
@@ -121,30 +122,20 @@ extension StatusItemController {
     private func claudeSwapCardModel(for account: ProviderAccountUsageSnapshot) -> UsageMenuCardView.Model? {
         self.menuCardModel(
             for: .claude,
-            snapshotOverride: account.snapshot,
-            errorOverride: ClaudeSwapAccountProjection.displayError(
-                accountError: account.error,
+            context: ClaudeSwapAccountMenuDisplay.cardContext(
+                for: account,
+                planLabel: self.claudeSwapAccountActionLabel(account),
                 adapterError: self.store.claudeSwapLastError,
                 switchError: self.store.claudeSwapTransientState.lastErrorAccountID == account.id
                     ? self.store.claudeSwapTransientState.lastError
-                    : nil),
-            forceOverrideCard: account.snapshot == nil,
-            accountOverride: AccountInfo(
-                email: account.displayLabel,
-                plan: nil),
-            planOverride: self.claudeSwapAccountActionLabel(account),
-            sourceLabelOverride: ClaudeSwapAccountProjection.sourceLabel)
+                    : nil))
     }
 
     private func claudeSwapAccountActionLabel(_ account: ProviderAccountUsageSnapshot) -> String? {
-        if account.isActive {
-            return L("Active")
-        }
-        if self.store.claudeSwapTransientState.switchingAccountID == account.id {
-            return L("Loading…")
-        }
-        guard self.store.claudeSwapTransientState.task == nil, account.canActivate else { return nil }
-        return L("Switch Account...")
+        ClaudeSwapAccountMenuDisplay.actionLabel(
+            for: account,
+            switchingAccountID: self.store.claudeSwapTransientState.switchingAccountID,
+            switchInFlight: self.store.claudeSwapTransientState.task != nil)
     }
 
     private func claudeSwapAccountSwitchAction(

@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import SwiftUI
 import Testing
@@ -328,7 +329,48 @@ struct ProviderSettingsDescriptorTests {
 
         #expect(usagePicker.options.map(\.title) == ["Auto", "Google OAuth", "Local API / agy CLI"])
         #expect(usagePicker.subtitle ==
-            "Auto tries Antigravity app, agy CLI, then IDE; OAuth follows for selected or signed-in accounts.")
+            "Auto skips agy reports without account identity for selected or injected Google accounts. " +
+            "Try Local API / agy CLI to use the local app or agy's signed-in account, which may differ.")
+        if let directory = ProcessInfo.processInfo.environment["CODEXBAR_ANTIGRAVITY_GUIDANCE_PROOF_DIR"] {
+            let previous = ProviderSettingsPickerDescriptor(
+                id: usagePicker.id,
+                title: usagePicker.title,
+                subtitle: "Auto tries Antigravity app, agy CLI, then IDE; " +
+                    "OAuth follows for selected or signed-in accounts.",
+                binding: usagePicker.binding,
+                options: usagePicker.options,
+                isVisible: nil,
+                onChange: nil)
+            try self.captureAntigravitySourcePicker(previous, directory: directory + "/before")
+            try self.captureAntigravitySourcePicker(usagePicker, directory: directory + "/after")
+        }
+    }
+
+    private func captureAntigravitySourcePicker(
+        _ picker: ProviderSettingsPickerDescriptor,
+        directory: String) throws
+    {
+        let environment = ProcessInfo.processInfo.environment
+        precondition(environment["CODEXBAR_SUPPRESS_TEST_KEYCHAIN_ACCESS"] == "1")
+        precondition(environment[CodexCredentialFileAccess.isolationEnvironmentKey] == "1")
+        precondition(environment["CODEXBAR_TEST_SESSION_FILE_ISOLATION"] == "1")
+        precondition(environment["CODEXBAR_ALLOW_TEST_KEYCHAIN_ACCESS"] != "1")
+        let output = URL(fileURLWithPath: directory, isDirectory: true)
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        let view = NSHostingView(rootView:
+            Form {
+                Section("Antigravity · synthetic settings") {
+                    ProviderSettingsPickerRowView(picker: picker)
+                }
+            }.formStyle(.grouped).frame(width: 740, height: 210))
+        view.frame = NSRect(x: 0, y: 0, width: 740, height: 210)
+        view.layoutSubtreeIfNeeded()
+        let bitmap = try #require(view.bitmapImageRepForCachingDisplay(in: view.bounds))
+        view.cacheDisplay(in: view.bounds, to: bitmap)
+        try #require(bitmap.representation(using: .png, properties: [:]))
+            .write(to: output.appendingPathComponent("source-picker.png"))
+        try picker.subtitle.write(
+            to: output.appendingPathComponent("source-picker.txt"), atomically: true, encoding: .utf8)
     }
 
     @Test
@@ -408,22 +450,17 @@ struct ProviderSettingsDescriptorTests {
     }
 
     @Test
-    func `claude daily routines toggle follows global optional usage setting`() throws {
-        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-claude-routines")
-        let context = fixture.settingsContext(provider: .claude)
-        let toggles = ClaudeProviderImplementation().settingsToggles(context: context)
-        let routinesToggle = try #require(toggles.first {
+    func `provider implementations omit superseded one-off usage visibility toggles`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-shared-usage-items")
+        let claudeContext = fixture.settingsContext(provider: .claude)
+        let codexContext = fixture.settingsContext(provider: .codex)
+
+        #expect(!ClaudeProviderImplementation().settingsToggles(context: claudeContext).contains {
             $0.id == "claude-daily-routines-usage-visible"
         })
-
-        #expect(routinesToggle.binding.wrappedValue)
-        #expect(routinesToggle.isEnabled?() == true)
-
-        routinesToggle.binding.wrappedValue = false
-        #expect(fixture.settings.claudeDailyRoutinesUsageVisible == false)
-
-        fixture.settings.showOptionalCreditsAndExtraUsage = false
-        #expect(routinesToggle.isEnabled?() == false)
+        #expect(!CodexProviderImplementation().settingsToggles(context: codexContext).contains {
+            $0.id == "codex-spark-usage-visible"
+        })
     }
 
     @Test
@@ -578,6 +615,39 @@ struct ProviderSettingsDescriptorTests {
         #expect(field.title == "Manual GitHub Cookie header")
         #expect(field.subtitle.contains("Treat this value like a password"))
         #expect(field.actions.map(\.id) == ["refresh-copilot-budget-cookie"])
+    }
+
+    @Test
+    func `copilot seat credit entitlement field writes through to the settings snapshot`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-copilot-seat-entitlement")
+        let context = fixture.settingsContext(provider: .copilot)
+
+        let fields = CopilotProviderImplementation().settingsFields(context: context)
+        let field = try #require(fields.first { $0.id == "copilot-seat-credit-entitlement" })
+        field.binding.wrappedValue = "3000"
+
+        #expect(fixture.settings.copilotSeatCreditEntitlementRaw == "3000")
+        #expect(fixture.settings.copilotSettingsSnapshot(tokenOverride: nil).seatCreditEntitlement == 3000)
+    }
+
+    @Test
+    func `copilot seat credit entitlement field writes to the selected account`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-copilot-seat-account")
+        fixture.settings.copilotSeatCreditEntitlementRaw = "3000"
+        fixture.settings.addTokenAccount(provider: .copilot, label: "Work", token: "token-1")
+        let context = fixture.settingsContext(provider: .copilot)
+
+        let fields = CopilotProviderImplementation().settingsFields(context: context)
+        let field = try #require(fields.first { $0.id == "copilot-seat-credit-entitlement" })
+        // The field surfaces the global fallback until the account sets its own value.
+        #expect(field.binding.wrappedValue == "3000")
+
+        field.binding.wrappedValue = "1500"
+
+        let account = try #require(fixture.settings.selectedTokenAccount(for: .copilot))
+        #expect(account.seatCreditEntitlement == "1500")
+        #expect(fixture.settings.copilotSeatCreditEntitlementRaw == "3000")
+        #expect(fixture.settings.copilotSettingsSnapshot(tokenOverride: nil).seatCreditEntitlement == 1500)
     }
 
     @Test
@@ -1218,6 +1288,45 @@ extension ProviderSettingsDescriptorTests {
     }
 
     @Test
+    func `provider settings shows unlimited OpenRouter spend details instead of placeholder`() throws {
+        let usage = OpenRouterUsageSnapshot(
+            totalCredits: 50,
+            totalUsage: 20,
+            balance: 30,
+            usedPercent: 40,
+            keyDataFetched: true,
+            keyLimit: nil,
+            keyUsageDaily: 1.25,
+            keyUsageWeekly: 7.5,
+            keyUsageMonthly: 18.75,
+            updatedAt: OpenRouterLimitTestSupport.now)
+        let model = try OpenRouterLimitTestSupport.model(usage.toUsageSnapshot())
+        let content = ProviderMetricsInlineView.ContentState(model: model, infoRows: [])
+
+        #expect(model.metrics.isEmpty)
+        #expect(model.providerDetails.flatMap(\.rows).contains { $0.label == "This month" })
+        #expect(!content.showsPlaceholder)
+
+        let meteredModel = try OpenRouterLimitTestSupport.model(OpenRouterUsageSnapshot(
+            totalCredits: 50,
+            totalUsage: 20,
+            balance: 30,
+            usedPercent: 40,
+            keyDataFetched: true,
+            keyLimit: 25,
+            keyUsage: 10,
+            updatedAt: OpenRouterLimitTestSupport.now).toUsageSnapshot())
+        #expect(!meteredModel.metrics.isEmpty)
+        #expect(!ProviderMetricsInlineView.ContentState(model: meteredModel, infoRows: []).showsPlaceholder)
+
+        let emptyModel = try OpenRouterLimitTestSupport.model(UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            updatedAt: OpenRouterLimitTestSupport.now))
+        #expect(ProviderMetricsInlineView.ContentState(model: emptyModel, infoRows: []).showsPlaceholder)
+    }
+
+    @Test
     func `deepseek hides profile picker when only one validated profile remains`() throws {
         let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-deepseek-single-profile")
         fixture.store.snapshots[.deepseek] = UsageSnapshot(
@@ -1270,16 +1379,6 @@ extension ProviderSettingsDescriptorTests {
                 provider: provider,
                 settings: settings,
                 store: store,
-                boolBinding: { keyPath in
-                    Binding(
-                        get: { settings[keyPath: keyPath] },
-                        set: { settings[keyPath: keyPath] = $0 })
-                },
-                stringBinding: { keyPath in
-                    Binding(
-                        get: { settings[keyPath: keyPath] },
-                        set: { settings[keyPath: keyPath] = $0 })
-                },
                 statusText: { id in state.statusByID[id] },
                 setStatusText: { id, text in
                     if let text {

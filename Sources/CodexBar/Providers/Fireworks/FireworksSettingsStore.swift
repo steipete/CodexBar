@@ -3,13 +3,8 @@ import Foundation
 
 extension SettingsStore {
     var fireworksAPIToken: String {
-        get { self.configSnapshot.providerConfig(for: .fireworks)?.sanitizedAPIKey ?? "" }
-        set {
-            self.updateProviderConfig(provider: .fireworks) { entry in
-                entry.apiKey = self.normalizedConfigValue(newValue)
-            }
-            self.logSecretUpdate(provider: .fireworks, field: "apiKey", value: newValue)
-        }
+        get { self[providerConfig: .fireworks, field: .apiKey] }
+        set { self[providerConfig: .fireworks, field: .apiKey] = newValue }
     }
 
     var fireworksAccountSlug: String {

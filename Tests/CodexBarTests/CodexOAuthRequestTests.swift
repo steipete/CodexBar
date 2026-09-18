@@ -65,14 +65,14 @@ struct CodexOAuthRequestTests {
 
         let (usageA, usageB) = await CodexAuthenticatedHTTPTransport.$overrideForTesting
             .withValue(transport) {
-                let usageA = await OpenAIDashboardFetcher.fetchDashboardUsageAPI(
+                let usageA = try? await OpenAIDashboardFetcher.fetchDashboardAPIResponse(
                     cookieHeader: "session=a",
                     deadline: nil,
-                    logger: { _ in })
-                let usageB = await OpenAIDashboardFetcher.fetchDashboardUsageAPI(
+                    logger: { _ in })?.apiData
+                let usageB = try? await OpenAIDashboardFetcher.fetchDashboardAPIResponse(
                     cookieHeader: "session=b",
                     deadline: nil,
-                    logger: { _ in })
+                    logger: { _ in })?.apiData
                 return (usageA, usageB)
             }
 

@@ -18,8 +18,8 @@ enum ClaudeUIErrorMapper {
             trimmed
         }
         guard let staleSnapshotUpdatedAt else { return message }
-        return message + " " + String(
-            format: localize("claude_showing_last_known_usage"),
-            staleSnapshotUpdatedAt.relativeDescription())
+        return message + " " + LastKnownUsagePresentation.message(
+            capturedAt: staleSnapshotUpdatedAt,
+            localize: localize)
     }
 }

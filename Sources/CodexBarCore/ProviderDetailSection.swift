@@ -7,28 +7,98 @@ public struct ProviderDetailSection: Codable, Equatable, Sendable {
     public static let maximumStringLength = 120
 
     public struct Row: Codable, Equatable, Sendable {
+        /// Numeric progress behind a row, when the provider knows both sides of a ratio.
+        ///
+        /// Rows are display strings by design; the bar needs real numbers, so a row that should
+        /// render a progress indicator carries the ratio here instead of a second representation.
+        public struct Progress: Codable, Equatable, Sendable {
+            public let used: Double
+            public let total: Double
+
+            /// Percent of the total consumed.
+            ///
+            /// Intentionally not clamped: overage-permitted plans can exceed 100%, and `RateWindow`
+            /// documents the same convention of leaving provider values un-normalized. Display
+            /// clamping belongs to the renderer.
+            public var usedPercent: Double {
+                (self.used / self.total) * 100
+            }
+
+            public init(used: Double, total: Double) throws {
+                guard used.isFinite, total.isFinite else {
+                    throw ValidationError("row.progress values must be finite")
+                }
+                guard total > 0 else {
+                    throw ValidationError("row.progress.total must be positive")
+                }
+                self.used = used
+                self.total = total
+            }
+
+            private enum CodingKeys: String, CodingKey {
+                case used
+                case total
+            }
+
+            public init(from decoder: Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                try self.init(
+                    used: container.decode(Double.self, forKey: .used),
+                    total: container.decode(Double.self, forKey: .total))
+            }
+        }
+
+        /// Optional stable identifier, for rows a feature must find again (tests, clearing a
+        /// specific row from a stored snapshot). Not required for purely presentational rows.
+        public let id: String?
         public let label: String
         public let value: String
         public let secondaryValue: String?
+        public let progress: Progress?
+        /// Numeric usage behind the row when known, so a cached row can be rebuilt into a ratio
+        /// (or stripped back to plain text) without parsing the display string. Independent of
+        /// `progress`, which only exists when both sides of a ratio are known.
+        public let usageValue: Double?
 
-        public init(label: String, value: String, secondaryValue: String? = nil) throws {
+        public init(
+            id: String? = nil,
+            label: String,
+            value: String,
+            secondaryValue: String? = nil,
+            progress: Progress? = nil,
+            usageValue: Double? = nil) throws
+        {
+            self.id = try ProviderDetailSection.optionalString(id, path: "row.id")
             self.label = try ProviderDetailSection.requiredString(label, path: "row.label")
             self.value = try ProviderDetailSection.requiredString(value, path: "row.value")
             self.secondaryValue = try ProviderDetailSection.optionalString(secondaryValue, path: "row.secondaryValue")
+            self.progress = progress
+            if let usageValue {
+                guard usageValue.isFinite else {
+                    throw ValidationError("row.usageValue must be finite")
+                }
+            }
+            self.usageValue = usageValue
         }
 
         private enum CodingKeys: String, CodingKey {
+            case id
             case label
             case value
             case secondaryValue
+            case progress
+            case usageValue
         }
 
         public init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             try self.init(
+                id: container.decodeIfPresent(String.self, forKey: .id),
                 label: container.decode(String.self, forKey: .label),
                 value: container.decode(String.self, forKey: .value),
-                secondaryValue: container.decodeIfPresent(String.self, forKey: .secondaryValue))
+                secondaryValue: container.decodeIfPresent(String.self, forKey: .secondaryValue),
+                progress: container.decodeIfPresent(Progress.self, forKey: .progress),
+                usageValue: container.decodeIfPresent(Double.self, forKey: .usageValue))
         }
     }
 
@@ -163,12 +233,22 @@ public struct ProviderDetailSection: Codable, Equatable, Sendable {
 }
 
 extension ProviderDetailSection {
-    static func makeRow(label: String, value: String, secondaryValue: String? = nil) -> Row {
+    static func makeRow(
+        id: String? = nil,
+        label: String,
+        value: String,
+        secondaryValue: String? = nil,
+        progress: Row.Progress? = nil,
+        usageValue: Double? = nil) -> Row
+    {
         do {
             return try Row(
+                id: self.boundedOptional(id),
                 label: self.boundedRequired(label),
                 value: self.boundedRequired(value),
-                secondaryValue: self.boundedOptional(secondaryValue))
+                secondaryValue: self.boundedOptional(secondaryValue),
+                progress: progress,
+                usageValue: usageValue)
         } catch {
             preconditionFailure("Bounded provider detail row failed validation: \(error)")
         }
@@ -218,8 +298,32 @@ extension ProviderDetailSection {
 }
 
 extension ProviderDetailSection.Row {
-    static func makeRow(label: String, value: String, secondaryValue: String? = nil) -> Self {
-        ProviderDetailSection.makeRow(label: label, value: value, secondaryValue: secondaryValue)
+    static func makeRow(
+        id: String? = nil,
+        label: String,
+        value: String,
+        secondaryValue: String? = nil,
+        progress: Progress? = nil,
+        usageValue: Double? = nil) -> Self
+    {
+        ProviderDetailSection.makeRow(
+            id: id,
+            label: label,
+            value: value,
+            secondaryValue: secondaryValue,
+            progress: progress,
+            usageValue: usageValue)
+    }
+}
+
+extension ProviderDetailSection.Row.Progress {
+    /// Non-throwing variant for call sites that already hold validated numbers.
+    static func makeProgress(used: Double, total: Double) -> Self {
+        do {
+            return try Self(used: used, total: total)
+        } catch {
+            preconditionFailure("Bounded provider detail row progress failed validation: \(error)")
+        }
     }
 }
 

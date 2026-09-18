@@ -334,7 +334,6 @@ final class MenuLayoutScreenshotRenderTests: XCTestCase {
                 snapshot: snapshot,
                 credits: nil,
                 creditsError: nil,
-                dashboard: nil,
                 dashboardError: nil,
                 tokenSnapshot: nil,
                 tokenError: nil,
@@ -472,10 +471,8 @@ final class MenuLayoutScreenshotRenderTests: XCTestCase {
                 hintLine: "Costs are estimated from local usage.",
                 errorLine: nil,
                 errorCopyText: nil)
-            let view = AnyView(UsageMenuCardCostSectionView(
+            let view = AnyView(UsageMenuCardView(
                 model: Self.costModel(tokenUsage: tokenUsage),
-                topPadding: 12,
-                bottomPadding: 12,
                 width: Self.width))
             let suffix = isRefreshing ? "refreshing" : "idle"
             let data = try XCTUnwrap(Self.pngData(for: view), "render failed for cached cost \(suffix)")
@@ -709,12 +706,11 @@ final class MenuLayoutScreenshotRenderTests: XCTestCase {
             snapshot: account.snapshot,
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,
             account: AccountInfo(email: account.displayLabel, plan: nil),
-            planOverride: account.isActive ? L("Active") : L("Switch Account..."),
+            planOverride: .label(account.isActive ? L("Active") : L("Switch Account...")),
             isRefreshing: false,
             lastError: account.error,
             usageBarsShowUsed: false,
@@ -785,12 +781,9 @@ final class MenuLayoutScreenshotRenderTests: XCTestCase {
                 case let .compact(compactRow):
                     MenuCardCompactAccountRowView(
                         model: MenuCardCompactAccountRowView.Model(
-                            label: compactRow.label,
-                            headroomPercent: compactRow.headroomPercent,
-                            severity: compactRow.severity,
-                            constraintDetail: compactRow.constraintDetail,
-                            hasError: compactRow.hasError,
-                            showsBestBadge: compactRow.isBestCandidate),
+                            row: compactRow,
+                            resetTimeDisplayStyle: .countdown,
+                            now: Self.now),
                         progressColor: progressColor,
                         width: self.width)
                 case let .collapsedHealthy(count):
@@ -924,7 +917,6 @@ extension MenuLayoutScreenshotRenderTests {
             snapshot: snapshot,
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,
@@ -1010,7 +1002,6 @@ extension MenuLayoutScreenshotRenderTests {
                 snapshot: snapshot,
                 credits: nil,
                 creditsError: nil,
-                dashboard: nil,
                 dashboardError: nil,
                 tokenSnapshot: nil,
                 tokenError: nil,
@@ -1053,7 +1044,140 @@ extension MenuLayoutScreenshotRenderTests {
         }
     }
 
-    fileprivate static func pngDataWithWindow(hosting: NSHostingView<AnyView>) -> Data? {
+    func test_ampTierPaceMatchesSharedPresentation() throws {
+        let now = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-09-20T12:00:00Z"))
+        for showUsed in [false, true] {
+            for (remaining, expectedDetail, orbHours, orbDetail) in [
+                (18, "15% in reserve", 450, "15% in deficit"),
+                (10, "25% in deficit", 675, "15% in reserve"),
+            ] {
+                let output = """
+                Amp Example Tier: agent usage $\(remaining) of $20 remaining, \
+                orb usage \(orbHours)h of 750h a1.small orb hours remaining - \
+                period 2026-09-13 to 2026-10-13, resets upon renewal in 22 days
+                Individual credits: $11 remaining
+                """
+                let snapshot = try AmpUsageParser.parse(displayText: output, now: now).toUsageSnapshot()
+                let model = try UsageMenuCardView.Model.make(.init(
+                    provider: .amp,
+                    metadata: XCTUnwrap(ProviderDefaults.metadata[.amp]),
+                    snapshot: snapshot,
+                    credits: nil,
+                    creditsError: nil,
+                    dashboardError: nil,
+                    tokenSnapshot: nil,
+                    tokenError: nil,
+                    account: AccountInfo(email: nil, plan: nil),
+                    isRefreshing: false,
+                    lastError: nil,
+                    usageBarsShowUsed: showUsed,
+                    resetTimeDisplayStyle: .countdown,
+                    tokenCostUsageEnabled: false,
+                    showOptionalCreditsAndExtraUsage: true,
+                    hidePersonalInfo: true,
+                    paceVisible: true,
+                    usesLiveSubtitle: false,
+                    now: now))
+                let agent = try XCTUnwrap(model.metrics.first)
+                XCTAssertEqual(agent.title, "Agent usage")
+                XCTAssertEqual(agent.detailLeftText, expectedDetail)
+                XCTAssertEqual(agent.pacePercent, showUsed ? 25 : 75)
+                XCTAssertEqual(agent.paceOnTop, remaining == 18)
+                XCTAssertEqual(agent.percent, showUsed ? Double(20 - remaining) * 5 : Double(remaining) * 5)
+                let orb = try XCTUnwrap(model.metrics.last)
+                XCTAssertEqual(model.metrics.count, 2)
+                XCTAssertEqual(orb.title, "Orb usage")
+                XCTAssertEqual(orb.detailLeftText, orbDetail)
+                XCTAssertEqual(orb.pacePercent, showUsed ? 25 : 75)
+                XCTAssertEqual(orb.paceOnTop, orbHours == 675)
+                XCTAssertEqual(orb.percent, showUsed ? (orbHours == 675 ? 10 : 40) : (orbHours == 675 ? 90 : 60))
+
+                guard let dir = ProcessInfo.processInfo.environment["CODEXBAR_AMP_SCREENSHOT_DIR"] else { continue }
+                let directory = URL(fileURLWithPath: dir, isDirectory: true)
+                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+                for dark in [false, true] {
+                    let view = AnyView(UsageMenuCardView(model: model, width: Self.width)
+                        .environment(\.locale, Locale(identifier: "en_US_POSIX"))
+                        .environment(\.colorScheme, dark ? .dark : .light)
+                        .environment(\.displayScale, 2)
+                        .background(Color(nsColor: .windowBackgroundColor)))
+                    let hosting = NSHostingView(rootView: view)
+                    hosting.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+                    let stem = "amp-\(remaining)-\(showUsed ? "used" : "left")-\(dark ? "dark" : "light")"
+                    let png = try XCTUnwrap(Self.pngData(hosting: hosting))
+                    try png.write(to: directory.appendingPathComponent("\(stem).png"))
+                }
+            }
+        }
+    }
+
+    func test_ampAllowanceDisplayCleanup() throws {
+        let now = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-09-16T12:00:00Z"))
+        for (name, orbHours, expectedHours) in [
+            ("sample", "732.8", "732h"), ("subhour", "0.75", "< 1h"), ("zero", "0", "0h"),
+            ("agent-only", "", ""), ("legacy", "", ""),
+        ] {
+            let orbText = orbHours.isEmpty ? "" : "orb usage \(orbHours)h of 750h a1.small orb hours remaining"
+            let tier = name == "legacy"
+                ? "Amp Megawatt Subscription: 68% other usage and 97% orb usage remaining"
+                : "Amp Megawatt Tier: agent usage $18.57 of $20 remaining, \(orbText)"
+            let period = name == "legacy" ? "" : "period 2026-09-13 to 2026-10-13, "
+            let output = """
+            \(tier) - \(period)resets upon renewal in 27 days
+            Individual credits: $20 remaining
+            """
+            let snapshot = try AmpUsageParser.parse(displayText: output, now: now).toUsageSnapshot()
+            for showUsed in [false, true] {
+                let model = try UsageMenuCardView.Model.make(.init(
+                    provider: .amp,
+                    metadata: XCTUnwrap(ProviderDefaults.metadata[.amp]),
+                    snapshot: snapshot,
+                    credits: nil,
+                    creditsError: nil,
+                    dashboardError: nil,
+                    tokenSnapshot: nil,
+                    tokenError: nil,
+                    account: AccountInfo(email: nil, plan: nil),
+                    isRefreshing: false,
+                    lastError: nil,
+                    usageBarsShowUsed: showUsed,
+                    resetTimeDisplayStyle: .countdown,
+                    tokenCostUsageEnabled: false,
+                    showOptionalCreditsAndExtraUsage: true,
+                    hidePersonalInfo: true,
+                    paceVisible: true,
+                    usesLiveSubtitle: false,
+                    now: now))
+                XCTAssertEqual(model.metrics.first?.title, name == "legacy" ? "Other usage" : "Agent usage")
+                XCTAssertEqual(
+                    model.providerDetails.map(\.title),
+                    name == "legacy" ? ["Credits"] : ["Monthly allowances", "Credits"])
+                XCTAssertEqual(model.providerDetails.last?.rows.first?.label, "Individual")
+                XCTAssertEqual(model.providerDetails.last?.rows.first?.value, "$20.00")
+                XCTAssertEqual(model.providerDetails.last?.rows.first?.secondaryValue, "For agent and orb usage")
+                if !orbHours.isEmpty {
+                    XCTAssertEqual(model.providerDetails.first?.rows.last?.value, expectedHours)
+                }
+                guard let dir = ProcessInfo.processInfo.environment["CODEXBAR_AMP_SCREENSHOT_DIR"] else { continue }
+                let directory = URL(fileURLWithPath: dir, isDirectory: true)
+                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+                for dark in [false, true] {
+                    let view = AnyView(UsageMenuCardView(model: model, width: Self.width)
+                        .environment(\.locale, Locale(identifier: "en_US_POSIX"))
+                        .environment(\.colorScheme, dark ? .dark : .light)
+                        .environment(\.displayScale, 2)
+                        .background(Color(nsColor: .windowBackgroundColor)))
+                    let hosting = NSHostingView(rootView: view)
+                    hosting.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+                    let stem = "amp-\(name)-\(showUsed ? "used" : "left")-\(dark ? "dark" : "light")"
+                    try XCTUnwrap(Self.pngData(hosting: hosting))
+                        .write(to: directory.appendingPathComponent("\(stem).png"))
+                }
+            }
+        }
+    }
+
+    static func pngDataWithWindow(hosting: NSView) -> Data? {
         // Native List rows need a window to materialize, but it never needs to be ordered onscreen.
         let size = hosting.fittingSize
         hosting.frame = CGRect(origin: .zero, size: size)

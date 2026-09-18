@@ -584,7 +584,11 @@ extension UsageStore {
             guard let account = self.uniqueTokenAccount(provider: provider, accountID: result.account.id)
             else { continue }
             let outcome = result.outcome
-            let isCancellation = Self.outcomeIsCancellation(outcome)
+            let isCancellation: Bool = if case let .failure(error) = outcome.result {
+                Self.shouldSuppressProviderCancellation(error, priorSnapshot: priorByAccountID[account.id]?.snapshot)
+            } else {
+                false
+            }
             if !isCancellation {
                 sawAnyNonCancellationOutcome = true
             }
@@ -639,16 +643,6 @@ extension UsageStore {
             selectedAccount: effectiveSelected)
     }
 
-    private static func outcomeIsCancellation(_ outcome: ProviderFetchOutcome) -> Bool {
-        if case let .failure(error) = outcome.result, error is CancellationError {
-            return true
-        }
-        if case let .failure(error) = outcome.result {
-            return self.errorIsCancellation(error)
-        }
-        return false
-    }
-
     private nonisolated static func codexUsageOutcomeMatchesVisibleAccount(
         _ outcome: ProviderFetchOutcome,
         account: CodexVisibleAccount) -> Bool
@@ -662,20 +656,6 @@ extension UsageStore {
             return true
         }
         return resultEmail == CodexIdentityResolver.normalizeEmail(account.email)
-    }
-
-    nonisolated static func errorIsCancellation(_ error: any Error) -> Bool {
-        if error is CancellationError {
-            return true
-        }
-        if let urlError = error as? URLError, urlError.code == .cancelled {
-            return true
-        }
-        let message = error.localizedDescription
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-        return message == "cancelled" || message.contains("cancellationerror")
-            || message.contains("cancelled")
     }
 
     func limitedTokenAccounts(
@@ -1063,7 +1043,8 @@ extension UsageStore {
     }
 
     func tokenAccountErrorMessage(_ error: any Error) -> String? {
-        guard !Self.errorIsCancellation(error) else { return nil }
+        // Owned browser cancellation is suppressed only after checking the actual prior balance owner.
+        guard error is DeepSeekPlatformTransportError || !Self.errorIsCancellation(error) else { return nil }
         let message = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
         return message.isEmpty ? nil : message
     }
@@ -1266,7 +1247,8 @@ extension UsageStore {
         switch outcome.result {
         case let .success(result):
             let scoped = result.usage.scoped(to: provider)
-            let labeled = self.applyAccountLabel(scoped, provider: provider, account: account)
+            let current = self.resolvingCurrentCopilotAllowance(in: scoped, provider: provider, account: account)
+            let labeled = current.withAccountLabel(account.label, for: provider)
             let snapshot = TokenAccountUsageSnapshot(
                 account: account,
                 snapshot: labeled,
@@ -1276,11 +1258,14 @@ extension UsageStore {
             return ResolvedAccountOutcome(snapshot: snapshot, usage: labeled, freshUsage: labeled)
         case let .failure(error):
             let prior = self.matchingTokenAccountSnapshot(priorSnapshot, provider: provider, account: account)
-            if Self.errorIsCancellation(error) {
+            if Self.shouldSuppressProviderCancellation(error, priorSnapshot: prior?.snapshot) {
                 return ResolvedAccountOutcome(snapshot: prior, usage: prior?.snapshot, freshUsage: nil)
             }
             let oauthLimited = Self.preservesClaudeOAuthSnapshot(error, provider: provider, snapshot: prior)
-            let retained = oauthLimited || Self.shouldPreservePriorSnapshot(after: error, hadPriorData: prior != nil)
+            let retained = oauthLimited || Self.shouldPreservePriorSnapshot(
+                after: error,
+                hadPriorData: prior != nil,
+                priorSnapshot: prior?.snapshot)
                 ? prior : nil
             let snapshot = TokenAccountUsageSnapshot(
                 account: account,
@@ -1301,7 +1286,7 @@ extension UsageStore {
               let current = self.uniqueTokenAccount(provider: provider, accountID: account.id),
               snapshot.cacheKey == self.tokenAccountSnapshotCacheKey(provider: provider, account: current)
         else { return nil }
-        return snapshot
+        return self.resolvingCurrentCopilotAllowance(in: snapshot, provider: provider, account: current)
     }
 
     private static func preservesClaudeOAuthSnapshot(
@@ -1507,16 +1492,19 @@ extension UsageStore {
         guard self.isCurrentProviderRefreshGeneration(provider, generation: generation) else { return }
         if case .failure = outcome.result, let account,
            self.settings.effectiveSelectedTokenAccount(for: provider)?.id != account.id
-        { return }
+        {
+            return
+        }
         self.lastFetchAttempts[provider.instanceID] = outcome.attempts
         switch outcome.result {
         case let .success(result):
             let scoped = result.usage.scoped(to: provider)
+            let current = self.resolvingCurrentCopilotAllowance(in: scoped, provider: provider, account: account)
             let labeled: UsageSnapshot =
                 if let account {
-                    self.applyAccountLabel(scoped, provider: provider, account: account)
+                    current.withAccountLabel(account.label, for: provider)
                 } else {
-                    scoped
+                    current
                 }
             let profileStable =
                 provider == .deepseek
@@ -1559,6 +1547,18 @@ extension UsageStore {
             let prior = account.flatMap {
                 self.matchingTokenAccountSnapshot(fallbackAccountSnapshot, provider: provider, account: $0)
             }
+            if error is DeepSeekPlatformTransportError,
+               Self.shouldSuppressProviderCancellation(error, priorSnapshot: prior?.snapshot),
+               let prior, let snapshot = prior.snapshot
+            {
+                self.snapshots[provider.instanceID] = snapshot
+                self.lastKnownResetSnapshots[provider.instanceID] = snapshot
+                self.lastSourceLabels[provider.instanceID] = prior.sourceLabel
+                self.installProviderDerivedTokenSnapshot(from: snapshot, for: provider)
+                self.errors[provider.instanceID] = nil
+                self.markDeepSeekProfileTransitionUnavailable()
+                return
+            }
             if Self.preservesClaudeOAuthSnapshot(error, provider: provider, snapshot: prior),
                let prior, let fallback = prior.snapshot
             {
@@ -1578,7 +1578,10 @@ extension UsageStore {
             if provider == .deepseek {
                 self.markDeepSeekProfileTransitionUnavailable()
             }
-            let retained = Self.shouldPreservePriorSnapshot(after: error, hadPriorData: prior != nil)
+            let retained = Self.shouldPreservePriorSnapshot(
+                after: error,
+                hadPriorData: prior != nil,
+                priorSnapshot: prior?.snapshot)
                 ? prior?.snapshot : nil
             self.publishSelectedAccountFailure(
                 error,

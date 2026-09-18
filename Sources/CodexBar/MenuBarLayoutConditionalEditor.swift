@@ -273,7 +273,7 @@ struct MenuBarLayoutConditionalEditorSheet: View {
 
     private func tokenMenu(selection: Binding<MenuBarLayoutToken>) -> some View {
         Menu {
-            ForEach(Self.selectableTokens, id: \.self) { token in
+            ForEach(MenuBarLayoutPaletteTokens.conditionalBranch, id: \.self) { token in
                 Button {
                     selection.wrappedValue = token
                 } label: {
@@ -289,30 +289,6 @@ struct MenuBarLayoutConditionalEditorSheet: View {
                 isSelected: false)
         }
     }
-
-    private static let selectableTokens: [MenuBarLayoutToken] = [
-        .icon,
-        .providerName,
-        .accountLabel,
-        .percent(window: .session),
-        .percent(window: .weekly),
-        .percent(window: .scopedWeekly),
-        .percent(window: .automatic),
-        .usageBar,
-        .pace(window: .session),
-        .pace(window: .weekly),
-        .pace(window: .automatic),
-        .resetCountdown,
-        .resetAbsolute,
-        .runsOut,
-        .runsOutCompact,
-        .balance,
-        .costToday,
-        .cost30d,
-        .separatorDot,
-        .space,
-        .hidden,
-    ]
 }
 
 extension MenuBarLayoutConditional {
@@ -385,21 +361,25 @@ extension MenuBarConditionalMetric {
     /// resolves lane names through the provider's own labels rather than hard-coding "Primary".
     func editorLabel(provider: UsageProvider?) -> String {
         switch self {
-        case .session: L("menu_bar_layout_token_session")
-        case .weekly: L("menu_bar_layout_token_weekly")
+        case .session: MenuBarLayoutToken.percent(window: .session).editorLabel(provider: provider)
+        case .weekly: MenuBarLayoutToken.percent(window: .weekly).editorLabel(provider: provider)
         case .scopedWeekly: L("menu_bar_layout_token_scoped_weekly")
         case .automatic: L("menu_bar_layout_token_auto")
         case .primaryLane: MenuBarLayoutToken.lanePercent(lane: .primary).editorLabel(provider: provider)
         case .secondaryLane: MenuBarLayoutToken.lanePercent(lane: .secondary).editorLabel(provider: provider)
         case .tertiaryLane: MenuBarLayoutToken.lanePercent(lane: .tertiary).editorLabel(provider: provider)
-        case .sessionResetsIn: L("menu_bar_layout_conditional_metric_resets_in", L("Session"))
-        case .weeklyResetsIn: L("menu_bar_layout_conditional_metric_resets_in", L("Weekly"))
+        case .sessionResetsIn: L(
+                "menu_bar_layout_conditional_metric_resets_in",
+                PercentWindow.session.providerLabel(provider: provider) ?? L("Session"))
+        case .weeklyResetsIn: L(
+                "menu_bar_layout_conditional_metric_resets_in",
+                PercentWindow.weekly.providerLabel(provider: provider) ?? L("Weekly"))
         case .scopedWeeklyResetsIn: L(
                 "menu_bar_layout_conditional_metric_resets_in",
                 L("menu_bar_layout_conditional_metric_scoped_weekly"))
         case .automaticResetsIn: L("menu_bar_layout_conditional_metric_resets_in", L("Auto"))
-        case .sessionPace: L("menu_bar_layout_token_session_pace")
-        case .weeklyPace: L("menu_bar_layout_token_weekly_pace")
+        case .sessionPace: MenuBarLayoutToken.pace(window: .session).editorLabel(provider: provider)
+        case .weeklyPace: MenuBarLayoutToken.pace(window: .weekly).editorLabel(provider: provider)
         case .automaticPace: L("menu_bar_layout_token_auto_pace")
         case .runsOutIn: L("menu_bar_layout_token_runs_out")
         case .balance: L("Balance")

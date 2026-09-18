@@ -81,8 +81,7 @@ public enum CodexOAuthCredentialsError: LocalizedError, Sendable {
         case .missingTokens:
             "Codex auth.json exists but contains no tokens."
         case .nativeRefreshRequired:
-            "Codex auth.json needs refresh. CodexBar will retry through the Codex CLI; "
-                + "run `codex login` if recovery fails."
+            "Codex auth.json needs refresh. Reauthenticate this account or run `codex login` in the same Codex home."
         case .readOnlySource:
             "This external Codex credential source is stale and read-only. "
                 + "Sign in again with its owning app or run `codex login` to create fresh native credentials."
@@ -461,13 +460,7 @@ public enum CodexOAuthCredentialsStore {
 
     private static func parseLastRefresh(from raw: Any?) -> Date? {
         guard let value = raw as? String, !value.isEmpty else { return nil }
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = formatter.date(from: value) {
-            return date
-        }
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter.date(from: value)
+        return ISO8601DateParser.parse(value)
     }
 
     private static func stringValue(

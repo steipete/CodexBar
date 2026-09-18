@@ -81,6 +81,9 @@ public struct ProviderSettingsSectionRegistration: Sendable {
     public let providerID: ProviderInstanceID
     let sectionTypeID: ObjectIdentifier
     public let defaultContribution: ProviderSettingsSnapshotContribution?
+    /// Preserves the registered section type after the caller resolves runtime-specific cookie policy.
+    public private(set) var cookieContribution: (@Sendable (
+        CookieProviderSettings) -> ProviderSettingsSnapshotContribution)?
     private let cookieSettingsReader: @Sendable (ProviderSettingsSnapshot) -> CookieProviderSettings?
     private let credentialContributionReader: @Sendable (
         ProviderCredentialSettingsContext) -> ProviderSettingsSnapshotContribution?
@@ -134,6 +137,13 @@ public struct ProviderSettingsSectionRegistration: Sendable {
                     cookieSource: settings.cookieSource,
                     manualCookieHeader: settings.manualCookieHeader)
             })
+        self.cookieContribution = { settings in
+            ProviderSettingsSnapshotContribution(
+                Key.Section(
+                    cookieSource: settings.cookieSource,
+                    manualCookieHeader: settings.manualCookieHeader),
+                for: key)
+        }
     }
 
     static func empty(for providerID: ProviderInstanceID) -> Self {

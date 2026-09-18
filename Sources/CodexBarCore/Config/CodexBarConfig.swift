@@ -189,6 +189,8 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
     public var quotaWarnings: QuotaWarningConfig?
     /// User override for the provider brand color, as `#RRGGBB`. Nil keeps the descriptor default.
     public var accentColor: String?
+    /// Stable menu-card item IDs hidden for this provider. Nil keeps the default of showing every item.
+    public var hiddenUsageItemIDs: [String]?
     /// Arbitrary user-plugin values stay scoped to the provider instance. Secure values are redacted from config dumps.
     public var pluginSettings: [String: String]?
     public var pluginSecrets: [String: String]?
@@ -209,6 +211,7 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
         tokenAccounts: ProviderTokenAccountData? = nil,
         quotaWarnings: QuotaWarningConfig? = nil,
         accentColor: String? = nil,
+        hiddenUsageItemIDs: [String]? = nil,
         pluginSettings: [String: String]? = nil,
         pluginSecrets: [String: String]? = nil)
     {
@@ -226,33 +229,34 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
         self.tokenAccounts = tokenAccounts
         self.quotaWarnings = quotaWarnings
         self.accentColor = accentColor
+        self.hiddenUsageItemIDs = hiddenUsageItemIDs
         self.pluginSettings = pluginSettings
         self.pluginSecrets = pluginSecrets
         self.extensionValues = [:]
     }
 
     public var sanitizedAPIKey: String? {
-        Self.clean(self.apiKey)
+        SettingsValue.cleaned(self.apiKey)
     }
 
     public var sanitizedSecretKey: String? {
-        Self.clean(self.secretKey)
+        SettingsValue.cleaned(self.secretKey)
     }
 
     public var sanitizedCookieHeader: String? {
-        Self.clean(self.cookieHeader)
+        SettingsValue.cleaned(self.cookieHeader)
     }
 
     public var sanitizedRegion: String? {
-        Self.clean(self.region)
+        SettingsValue.cleaned(self.region)
     }
 
     public var sanitizedWorkspaceID: String? {
-        Self.clean(self.workspaceID)
+        SettingsValue.cleaned(self.workspaceID)
     }
 
     public var sanitizedEnterpriseHost: String? {
-        Self.clean(self.enterpriseHost)
+        SettingsValue.cleaned(self.enterpriseHost)
     }
 
     public func sanitizedForDump() -> ProviderConfig {
@@ -273,19 +277,6 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
             copy.tokenAccounts = tokenAccounts.sanitizedForDump()
         }
         return copy
-    }
-
-    static func clean(_ raw: String?) -> String? {
-        guard var value = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
-            return nil
-        }
-        if (value.hasPrefix("\"") && value.hasSuffix("\"")) ||
-            (value.hasPrefix("'") && value.hasSuffix("'"))
-        {
-            value = String(value.dropFirst().dropLast())
-        }
-        value = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return value.isEmpty ? nil : value
     }
 }
 

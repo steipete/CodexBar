@@ -285,7 +285,7 @@ public enum AbacusUsageFetcher {
 
         let nextBillingDate = billingInfo["nextBillingDate"] as? String
         let currentTier = billingInfo["currentTier"] as? String
-        let resetsAt = self.parseDate(nextBillingDate)
+        let resetsAt = ISO8601DateParser.parse(nextBillingDate)
 
         return AbacusUsageSnapshot(
             creditsUsed: creditsUsed,
@@ -299,15 +299,6 @@ public enum AbacusUsageFetcher {
         if let i = value as? Int { return Double(i) }
         if let n = value as? NSNumber { return n.doubleValue }
         return nil
-    }
-
-    private static func parseDate(_ isoString: String?) -> Date? {
-        guard let isoString else { return nil }
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = formatter.date(from: isoString) { return date }
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter.date(from: isoString)
     }
 
     // MARK: - Logging

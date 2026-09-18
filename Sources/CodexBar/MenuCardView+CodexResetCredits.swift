@@ -7,19 +7,8 @@ struct LimitResetCreditPresentationItem: Equatable {
 }
 
 struct LimitResetCreditsPresentation: Equatable {
-    let title: String
     let text: String
     let items: [LimitResetCreditPresentationItem]
-
-    init(
-        title: String = L("Limit Reset Credits"),
-        text: String,
-        items: [LimitResetCreditPresentationItem])
-    {
-        self.title = title
-        self.text = text
-        self.items = items
-    }
 
     var expirySummaryText: String {
         let visibleItems = self.items.prefix(4).map(\.compactExpiryText)
@@ -35,7 +24,7 @@ struct LimitResetCreditsPresentation: Equatable {
     }
 
     var accessibilityLabel: String {
-        [self.title, self.text, self.helpText]
+        [L("Limit Reset Credits"), self.text, self.helpText]
             .filter { !$0.isEmpty }
             .joined(separator: ", ")
     }
@@ -64,25 +53,6 @@ struct LimitResetCreditsPresentation: Equatable {
             now: now)
     }
 
-    static func make(
-        details: [ProviderDetailSection]) -> LimitResetCreditsPresentation?
-    {
-        guard let row = details.lazy.flatMap(\.rows).first(where: { $0.label == "Limit Reset Credits" }) else {
-            return nil
-        }
-        let text = Self.localizedAvailableText(row.value)
-        let items = row.secondaryValue.map { secondaryValue -> [LimitResetCreditPresentationItem] in
-            let prefix = "Expires "
-            let compact = secondaryValue.hasPrefix(prefix)
-                ? String(secondaryValue.dropFirst(prefix.count))
-                : secondaryValue
-            return [.init(
-                expiryText: secondaryValue.hasPrefix(prefix) ? L("Expires %@", compact) : secondaryValue,
-                compactExpiryText: compact)]
-        } ?? []
-        return LimitResetCreditsPresentation(text: text, items: items)
-    }
-
     private static func availableText(count: Int) -> String {
         count == 1 ? L("1 available") : String(format: L("%d available"), count)
     }
@@ -98,13 +68,6 @@ struct LimitResetCreditsPresentation: Equatable {
             items: expirations.map { expiration in
                 Self.presentationItem(expiresAt: expiration, resetStyle: resetStyle, now: now)
             })
-    }
-
-    private static func localizedAvailableText(_ value: String) -> String {
-        if value == "1 available" { return L("1 available") }
-        let suffix = " available"
-        guard value.hasSuffix(suffix), let count = Int(value.dropLast(suffix.count)) else { return value }
-        return L("%d available", count)
     }
 
     private static func presentationItem(
@@ -145,7 +108,7 @@ struct LimitResetCreditsContent: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(self.presentation.title)
+            Text(L("Limit Reset Credits"))
                 .font(.body)
                 .fontWeight(.medium)
                 .lineLimit(1)
@@ -187,13 +150,11 @@ extension UsageMenuCardView.Model {
                 now: input.now)
         case .grok:
             guard input.showOptionalCreditsAndExtraUsage else { return nil }
-            if let resetCredits = input.snapshot?.grokResetCredits {
-                return LimitResetCreditsPresentation.make(
-                    snapshot: resetCredits,
-                    resetStyle: input.resetTimeDisplayStyle,
-                    now: input.now)
-            }
-            return LimitResetCreditsPresentation.make(details: input.snapshot?.details ?? [])
+            guard let resetCredits = input.snapshot?.grokResetCredits else { return nil }
+            return LimitResetCreditsPresentation.make(
+                snapshot: resetCredits,
+                resetStyle: input.resetTimeDisplayStyle,
+                now: input.now)
         default:
             return nil
         }

@@ -39,6 +39,9 @@ enum AmpUsageParser {
             #"(?im)^\s*Subscription\s+(.+?):"# + subscriptionSuffix,
             #"(?im)^\s*Amp\s+(.+?)\s+Subscription:"# + subscriptionSuffix,
         ]
+        let tierPattern = #"(?im)^\s*Amp\s+([^\r\n]+?)\s+Tier:\s*agent\s+usage\s+\$"# + amountPattern +
+            #"\s+of\s+\$"# + amountPattern + #"\s+remaining\b([^\r\n]*?)resets\s+upon\s+renewal\s+in\s+"# +
+            #"([0-9][0-9,]*)\s+(days?|months?)\b"#
         let creditsPattern = #"(?im)^\s*Individual credits:\s*\$?"# + amountPattern + #"\s+remaining"#
         let individualCredits = self.captures(in: text, pattern: creditsPattern)?.first
             .flatMap(self.number(from:))
@@ -82,6 +85,36 @@ enum AmpUsageParser {
         }()
         let resolvedFreeUsage = freeUsage ?? freePercentUsage
         let subscriptionUsage: AmpSubscriptionUsage? = {
+            // Agent dollars are authoritative; the displayed percentage is rounded. Orb text is independent.
+            if let tier = self.captures(in: text, pattern: tierPattern),
+               let remaining = self.number(from: tier[1]),
+               let limit = self.number(from: tier[2]), limit > 0,
+               let renewalValue = Int(tier[4].replacingOccurrences(of: ",", with: "")),
+               let resetsAt = self.subscriptionResetDate(value: renewalValue, unit: tier[5], now: now)
+            {
+                let period = self.tierPeriod(in: tier[3])
+                let orbPattern = #"(?i)\borb\s+usage\s+"# +
+                    amountPattern + #"h\s+of\s+"# + amountPattern + #"h\s+a1\.small\s+orb\s+hours\s+remaining\b"#
+                let orb = self.captures(in: tier[3], pattern: orbPattern)
+                let orbRemaining = orb.flatMap { self.number(from: $0[0]) }
+                let orbLimit = orb.flatMap { self.number(from: $0[1]) }.flatMap { $0 > 0 ? $0 : nil }
+                let orbUsedPercent: Double? = if let orbRemaining, let orbLimit {
+                    min(100, max(0, (orbLimit - orbRemaining) / orbLimit * 100))
+                } else {
+                    nil
+                }
+                return AmpSubscriptionUsage(
+                    plan: tier[0],
+                    otherUsedPercent: min(100, max(0, (limit - remaining) / limit * 100)),
+                    orbUsedPercent: orbUsedPercent,
+                    resetsAt: period?.end ?? resetsAt,
+                    resetDescription: "renews in \(renewalValue) \(tier[5].lowercased())",
+                    agentRemaining: remaining,
+                    agentLimit: limit,
+                    periodStart: period?.start,
+                    orbHoursRemaining: orbLimit == nil ? nil : orbRemaining,
+                    orbHoursLimit: orbLimit)
+            }
             guard let subscription = subscriptionPatterns.lazy.compactMap({ pattern in
                 self.captures(in: text, pattern: pattern)
             }).first,
@@ -123,6 +156,23 @@ enum AmpUsageParser {
             updatedAt: now,
             freeResetDescription: resolvedFreeUsage?.resetDescription,
             subscription: subscriptionUsage)
+    }
+
+    private static func tierPeriod(in text: String) -> (start: Date, end: Date)? {
+        let pattern = #"\bperiod\s+(\d{4}-\d{2}-\d{2})\s+to\s+(\d{4}-\d{2}-\d{2})\b"#
+        guard let dates = self.captures(in: text, pattern: pattern) else { return nil }
+        // CLI dates have day precision, not a renewal timestamp. Use UTC day boundaries consistently;
+        // never anchor the billing cycle to a rounded countdown that moves on every refresh.
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.isLenient = false
+        guard let start = formatter.date(from: dates[0]), let end = formatter.date(from: dates[1]),
+              formatter.string(from: start) == dates[0], formatter.string(from: end) == dates[1],
+              end > start
+        else { return nil }
+        return (start, end)
     }
 
     private static func subscriptionResetDate(value: Int, unit: String, now: Date) -> Date? {

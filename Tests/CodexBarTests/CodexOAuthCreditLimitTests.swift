@@ -220,6 +220,33 @@ struct CodexOAuthCreditLimitTests {
     }
 
     @Test
+    func `workspace credits with a hidden balance stay distinct from zero`() throws {
+        let json = """
+        {
+          "plan_type": "business",
+          "rate_limit": {
+            "primary_window": null,
+            "secondary_window": null
+          },
+          "credits": {
+            "has_credits": true,
+            "unlimited": false,
+            "balance": null
+          }
+        }
+        """
+        let result = try CodexOAuthFetchStrategy._mapResultForTesting(
+            Data(json.utf8),
+            credentials: self.makeCredentials(),
+            sourceMode: .oauth)
+
+        #expect(result.credits?.remaining == 0)
+        #expect(result.credits?.balanceReadSucceeded == false)
+        #expect(result.credits?.creditsAvailable == true)
+        #expect(result.credits?.codexCreditLimit == nil)
+    }
+
+    @Test
     func `auto O auth zero credits preserves O auth usage while adding CLI monthly limit`() async throws {
         let mappedOAuth = try CodexOAuthFetchStrategy._mapResultForTesting(
             Data(self.oauthZeroCreditRateWindowJSON().utf8),

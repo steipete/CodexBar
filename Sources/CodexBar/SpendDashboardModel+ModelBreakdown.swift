@@ -14,6 +14,7 @@ extension SpendDashboardModel {
         var tokens: Int?
         var cost: Double?
         var mix = CostUsageTokenMix()
+        var incompleteRequestCount = 0
         var sawTokens = false
         var sawCost = false
         var invalidTokens = false
@@ -33,7 +34,7 @@ extension SpendDashboardModel {
         for summary in summaries {
             let input = summary.input
             let hasCompleteTokenHistory = summary.totalTokens != nil && summary.entries.allSatisfy {
-                Self.hasCompleteModelTokenCoverage($0.entry)
+                Self.hasCompleteModelTokenCoverage($0.entry) || $0.entry.incompleteRequestCount > 0
             }
             for windowEntry in summary.entries {
                 let entry = windowEntry.entry
@@ -49,6 +50,15 @@ extension SpendDashboardModel {
                         providerName: input.modelProviderName,
                         tokens: 0,
                         cost: 0)
+                    aggregate.incompleteRequestCount = CostUsageIncompleteRequests.sum([
+                        aggregate.incompleteRequestCount, breakdown.incompleteRequestCount ?? 0,
+                    ])
+                    let excludedOnly = (breakdown.incompleteRequestCount ?? 0) > 0
+                        && breakdown.costUSD == nil && breakdown.totalTokens == nil
+                    if excludedOnly {
+                        aggregates[key] = aggregate
+                        continue
+                    }
                     if hasCompleteTokenHistory,
                        let tokens = Self.nonnegative(breakdown.totalTokens)
                     {
@@ -90,7 +100,8 @@ extension SpendDashboardModel {
                 modelName: key.modelName,
                 totalTokens: value.sawTokens && !value.invalidTokens && !value.overflowedTokens ? value.tokens : nil,
                 totalCost: value.sawCost && !value.invalidCost && !value.overflowedCost ? value.cost : nil,
-                tokenMix: value.mix)
+                tokenMix: value.mix,
+                incompleteRequestCount: value.incompleteRequestCount)
         }
         .sorted { lhs, rhs in
             switch (lhs.totalCost, rhs.totalCost) {
@@ -113,7 +124,8 @@ extension SpendDashboardModel {
                 modelName: row.modelName,
                 totalTokens: row.totalTokens,
                 totalCost: row.totalCost,
-                tokenMix: row.tokenMix)
+                tokenMix: row.tokenMix,
+                incompleteRequestCount: row.incompleteRequestCount)
         }
         return ModelSummary(rows: rows, completeness: completeness)
     }
@@ -134,7 +146,7 @@ extension SpendDashboardModel {
         return summary.entries.contains(where: { Self.hasRetainableUnpricedModelRows($0.entry) })
             && summary.entries.allSatisfy { windowEntry in
                 let entry = windowEntry.entry
-                return Self.hasRetainableUnpricedModelRows(entry) ||
+                return entry.hasOnlyIncompleteRequests || Self.hasRetainableUnpricedModelRows(entry) ||
                     Self.hasCompleteModelCostCoverage(entry) ||
                     Self.hasProvenZeroCost(entry)
             }
@@ -150,6 +162,11 @@ extension SpendDashboardModel {
                 continue
             }
             if Self.validCost(breakdown.costUSD) != nil {
+                continue
+            }
+            if (breakdown.incompleteRequestCount ?? 0) > 0,
+               breakdown.costUSD == nil, breakdown.totalTokens == nil
+            {
                 continue
             }
             guard breakdown.costUSD == nil,
@@ -226,6 +243,7 @@ extension SpendDashboardModel {
     }
 
     private static func hasCompleteModelCostCoverage(_ entry: CostUsageDailyReport.Entry) -> Bool {
+        guard entry.incompleteRequestCount == 0 else { return false }
         var totalCost = 0.0
         var sawNamedBreakdown = false
         for breakdown in entry.modelBreakdowns ?? [] {
@@ -246,6 +264,7 @@ extension SpendDashboardModel {
     }
 
     private static func hasCompleteModelTokenCoverage(_ entry: CostUsageDailyReport.Entry) -> Bool {
+        guard entry.incompleteRequestCount == 0 else { return false }
         var totalTokens = 0
         var sawNamedBreakdown = false
         var sawBreakdownTokens = false

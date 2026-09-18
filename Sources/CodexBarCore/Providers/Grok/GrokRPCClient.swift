@@ -147,45 +147,24 @@ final class GrokRPCClient: @unchecked Sendable {
         try self.sendRequest(id: id, method: method, params: params)
 
         let resolvedTimeout = timeout ?? self.requestTimeoutSeconds
-        let wrapped = try await self.withTimeout(seconds: resolvedTimeout, method: method) {
-            while true {
-                let message = try await self.readNextMessage()
-                // Skip notifications (no id) or unrelated responses.
-                if message["id"] == nil { continue }
-                guard let messageID = self.jsonID(message["id"]), messageID == id else { continue }
-                if let error = message["error"] as? [String: Any] {
-                    let messageText = (error["message"] as? String) ?? "unknown JSON-RPC error"
-                    throw GrokRPCError.requestFailed(messageText)
+        let wrapped = try await RPCRequestTimeout.run(
+            seconds: resolvedTimeout,
+            timeoutError: GrokRPCError.timeout(method: method),
+            onTimeout: { [weak self] in self?.terminateProcessForTimeout(method: method) },
+            operation: {
+                while true {
+                    let message = try await self.readNextMessage()
+                    // Skip notifications (no id) or unrelated responses.
+                    if message["id"] == nil { continue }
+                    guard let messageID = self.jsonID(message["id"]), messageID == id else { continue }
+                    if let error = message["error"] as? [String: Any] {
+                        let messageText = (error["message"] as? String) ?? "unknown JSON-RPC error"
+                        throw GrokRPCError.requestFailed(messageText)
+                    }
+                    return SendableJSONMessage(value: message)
                 }
-                return SendableJSONMessage(value: message)
-            }
-        }
+            })
         return wrapped.value
-    }
-
-    private func withTimeout<T: Sendable>(
-        seconds: TimeInterval,
-        method: String,
-        body: @escaping @Sendable () async throws -> T) async throws -> T
-    {
-        try await withThrowingTaskGroup(of: T.self) { group in
-            group.addTask { try await body() }
-            group.addTask { [weak self] in
-                try await Task.sleep(for: .seconds(seconds))
-                self?.terminateProcessForTimeout(method: method)
-                throw GrokRPCError.timeout(method: method)
-            }
-            do {
-                guard let result = try await group.next() else {
-                    throw GrokRPCError.timeout(method: method)
-                }
-                group.cancelAll()
-                return result
-            } catch {
-                group.cancelAll()
-                throw error
-            }
-        }
     }
 
     private func terminateProcessForTimeout(method: String) {
@@ -343,13 +322,11 @@ extension GrokBillingResponse {
     }
 
     public var billingPeriodEndDate: Date? {
-        guard let raw = self.billingCycle?.billingPeriodEnd else { return nil }
-        return GrokBillingResponse.parseISO8601(raw)
+        ISO8601DateParser.parse(self.billingCycle?.billingPeriodEnd)
     }
 
     public var billingPeriodStartDate: Date? {
-        guard let raw = self.billingCycle?.billingPeriodStart else { return nil }
-        return GrokBillingResponse.parseISO8601(raw)
+        ISO8601DateParser.parse(self.billingCycle?.billingPeriodStart)
     }
 
     public var billingPeriodMinutes: Int? {
@@ -358,13 +335,5 @@ extension GrokBillingResponse {
               end > start
         else { return nil }
         return Int(end.timeIntervalSince(start) / 60)
-    }
-
-    private static func parseISO8601(_ raw: String) -> Date? {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = formatter.date(from: raw) { return date }
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter.date(from: raw)
     }
 }

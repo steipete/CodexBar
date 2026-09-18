@@ -546,7 +546,7 @@ struct CostUsagePerformanceGateTests {
         print("[retention-proof] stale-coverage file retained after over-budget prune: \(retained.path)")
 
         let warmCounter = HeadParseCounter()
-        _ = CostUsageScanner.withCodexSessionHeadParseObserverForTesting {
+        CostUsageScanner.withCodexSessionHeadParseObserverForTesting {
             warmCounter.increment()
         } operation: {
             _ = CostUsageScanner.loadDailyReport(
@@ -1238,7 +1238,7 @@ struct CostUsagePerformanceGateTests {
         #expect(status.pending)
         var progressStates = [(pending: status.pending, key: status.progressKey)]
         for _ in 0..<12 where status.pending {
-            status = try await fetcher.advanceCodexScanCatchUp(now: day, historyDays: 1)
+            status = try await fetcher.advanceCodexScanCatchUp(now: day, historyDays: 1).value
             progressStates.append((pending: status.pending, key: status.progressKey))
         }
 

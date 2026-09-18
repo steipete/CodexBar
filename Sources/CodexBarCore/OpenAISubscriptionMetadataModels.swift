@@ -12,7 +12,7 @@ public struct OpenAISubscriptionMetadata: Equatable, Sendable {
     static func parse(activeUntil: String?, willRenew: Bool?) -> Self? {
         guard let activeUntil,
               let willRenew,
-              let date = self.parseISO8601(activeUntil)
+              let date = ISO8601DateParser.parse(activeUntil)
         else { return nil }
 
         return willRenew
@@ -33,12 +33,6 @@ public struct OpenAISubscriptionMetadata: Equatable, Sendable {
             return .unavailable
         }
         return .success(metadata)
-    }
-
-    private static func parseISO8601(_ value: String) -> Date? {
-        let fractional = ISO8601DateFormatter()
-        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return fractional.date(from: value) ?? ISO8601DateFormatter().date(from: value)
     }
 }
 

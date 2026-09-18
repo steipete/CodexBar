@@ -36,6 +36,8 @@ Reference guide: `https://docs.warp.dev/reference/cli/api-keys`
 - Query: `GetRequestLimitInfo`
 - Fields used: `isUnlimited`, `nextRefreshTime`, `requestLimit`, `requestsUsedSinceLastRefresh` (API uses request-named fields for credits)
 
+Automatic menu-bar percentages and provider-switcher mini-bars follow Warp's [credit consumption order](https://docs.warp.dev/support-and-community/plans-and-billing/add-on-credits/): monthly credits first, then available add-on credits once monthly credits are exhausted. The percentage describes the selected pool; it does not combine the two limits. Credit pools are mapped directly to their layout lanes, so selections work without inventing a quota duration. Explicit **Credits** and **Add-on credits** selections continue to show their respective pools, in either used or remaining mode.
+
 If `isUnlimited` is true, the UI shows “Unlimited” and a full remaining bar.
 
 ## Troubleshooting

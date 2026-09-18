@@ -90,10 +90,12 @@ extension SettingsStore {
     {
         Binding(
             get: { self.resolvedCookieSource(provider: provider, fallback: fallback) },
-            set: { newValue in
-                self.updateProviderConfig(provider: provider) { $0.cookieSource = newValue }
-                self.logProviderModeChange(provider: provider, field: "cookieSource", value: newValue.rawValue)
-            })
+            set: { self.setCookieSource($0, provider: provider) })
+    }
+
+    func setCookieSource(_ source: ProviderCookieSource, provider: UsageProvider) {
+        self.updateProviderConfig(provider: provider) { $0.cookieSource = source }
+        self.logProviderModeChange(provider: provider, field: "cookieSource", value: source.rawValue)
     }
 
     func providerConfig(for provider: UsageProvider) -> ProviderConfig? {

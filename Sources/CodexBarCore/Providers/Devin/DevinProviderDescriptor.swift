@@ -16,7 +16,15 @@ public enum DevinProviderDescriptor {
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .devin,
-            settingsSection: .init(DevinProviderSettingsKey.self),
+            settingsSection: .init(
+                DevinProviderSettingsKey.self,
+                credentialSettings: { context in
+                    let settings = context.cookieSettings(for: .devin)
+                    return DevinProviderSettings(
+                        cookieSource: settings.cookieSource,
+                        manualBearerToken: settings.manualCookieHeader,
+                        organization: context.config?.sanitizedWorkspaceID)
+                }),
             config: ProviderConfigCapabilities(workspaceIDValidationOrder: 4),
             metadata: ProviderMetadata(
                 id: .devin,
@@ -74,7 +82,16 @@ public enum DevinProviderDescriptor {
                 pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [DevinWebFetchStrategy()] })),
             cli: ProviderCLIConfig(
                 name: "devin",
-                versionDetector: nil))
+                versionDetector: nil,
+                browserSupportExemption: { _, environment, settings in
+                    #if os(Linux)
+                    settings?.devin?.cookieSource == .manual &&
+                        DevinUsageFetcher.manualAuth(
+                            from: settings?.devin?.bearerToken(environment: environment ?? [:])) != nil
+                    #else
+                    false
+                    #endif
+                }))
     }
 }
 
@@ -87,7 +104,7 @@ struct DevinWebFetchStrategy: ProviderFetchStrategy {
         let source = settings?.cookieSource ?? .auto
         guard source != .off else { return false }
         if source == .manual {
-            return DevinUsageFetcher.manualAuth(from: Self.bearerTokenOverride(context: context)) != nil
+            return DevinUsageFetcher.manualAuth(from: settings?.bearerToken(environment: context.env)) != nil
         }
         #if os(macOS)
         return true
@@ -103,7 +120,8 @@ struct DevinWebFetchStrategy: ProviderFetchStrategy {
             ? { msg in CodexBarLog.logger(LogCategories.provider(.devin)).verbose(msg) }
             : nil
         let snapshot = try await fetcher.fetch(
-            bearerTokenOverride: settings?.cookieSource == .manual ? Self.bearerTokenOverride(context: context) : nil,
+            bearerTokenOverride: settings?.cookieSource == .manual ? settings?
+                .bearerToken(environment: context.env) : nil,
             organizationOverride: Self.organizationOverride(context: context),
             timeout: context.webTimeout,
             logger: logger)
@@ -114,12 +132,6 @@ struct DevinWebFetchStrategy: ProviderFetchStrategy {
 
     func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
         false
-    }
-
-    private static func bearerTokenOverride(context: ProviderFetchContext) -> String? {
-        context.env["DEVIN_BEARER_TOKEN"]
-            ?? context.env["DEVIN_AUTHORIZATION"]
-            ?? context.settings?.devin?.manualBearerToken
     }
 
     private static func organizationOverride(context: ProviderFetchContext) -> String? {

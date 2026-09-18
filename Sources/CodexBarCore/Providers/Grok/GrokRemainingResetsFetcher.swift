@@ -142,38 +142,6 @@ enum GrokRemainingResetsFetcher {
         _ cookieHeader: String?,
         _ now: Date) async -> [GrokRemainingReset]?
 
-    /// Returns cached inventory immediately and refreshes it in the background. The optional
-    /// coupon endpoint must never hold back an already-completed weekly-usage result.
-    static func cachedTokensAndRefresh(
-        credentials: GrokCredentials?,
-        cookieHeader: String?,
-        now: Date = .init()) -> [GrokRemainingReset]
-    {
-        self.cachedLookupAndRefresh(
-            credentials: credentials,
-            cookieHeader: cookieHeader,
-            now: now,
-            refresh: { credentials, cookieHeader, now in
-                await Self.fetchResult(
-                    credentials: credentials,
-                    cookieHeader: cookieHeader,
-                    now: now)
-            }).tokens
-    }
-
-    static func cachedTokensAndRefresh(
-        credentials: GrokCredentials?,
-        cookieHeader: String?,
-        now: Date,
-        refresh: @escaping Refresh) -> [GrokRemainingReset]
-    {
-        self.cachedLookupAndRefresh(
-            credentials: credentials,
-            cookieHeader: cookieHeader,
-            now: now,
-            refresh: refresh).tokens
-    }
-
     static func cachedLookupAndRefresh(
         credentials: GrokCredentials?,
         cookieHeader: String?,
@@ -354,6 +322,7 @@ enum GrokRemainingResetsFetcher {
         endpoint: URL) async throws -> [GrokRemainingReset]
     {
         var request = URLRequest(url: endpoint)
+        request.httpShouldHandleCookies = false
         request.httpMethod = "POST"
         request.timeoutInterval = Self.requestTimeoutSeconds
         request.httpBody = Data([0x00, 0x00, 0x00, 0x00, 0x00])

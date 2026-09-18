@@ -24,6 +24,7 @@ struct SyncModelTests {
             region: "us",
             workspaceID: "workspace",
             tokenAccounts: .init(version: 1, accounts: [account], activeIndex: 0))
+        local.hiddenUsageItemIDs = ["metric:primary", "section:credits"]
         local.claudeSwapExecutablePath = "/machine/bin/cswap"
         local.codexActiveSource = .managedAccount(id: UUID())
         local.codexProfileHomePaths = ["/machine/codex"]
@@ -68,6 +69,27 @@ struct SyncModelTests {
         #expect(applied.awsAuthMode == "local-auth")
         #expect(applied.apiKey == "api-secret")
         #expect(applied.tokenAccounts?.accounts.first?.token == "account-secret")
+        #expect(applied.hiddenUsageItemIDs == ["metric:primary", "section:credits"])
+    }
+
+    @Test
+    func `usage item visibility sync preserves old clients and propagates explicit reset`() throws {
+        let oldPayload = try CanonicalSyncJSON.decode(
+            ProviderIntentPayload.self,
+            from: """
+            {"schemaVersion":1,"provider":"codex"}
+            """)
+        let local = ProviderConfig(
+            id: .codex,
+            hiddenUsageItemIDs: ["metric:primary", "section:credits"])
+
+        let preserved = try oldPayload.applying(to: local, secretFields: [:]) { _, _ in true }
+        #expect(preserved.hiddenUsageItemIDs == ["metric:primary", "section:credits"])
+
+        let resetPayload = ProviderIntentPayload(config: ProviderConfig(id: .codex, hiddenUsageItemIDs: []))
+        #expect(resetPayload.hiddenUsageItemIDs == [])
+        let reset = try resetPayload.applying(to: local, secretFields: [:]) { _, _ in true }
+        #expect(reset.hiddenUsageItemIDs == [])
     }
 
     @Test

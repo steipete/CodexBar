@@ -424,7 +424,7 @@ struct AntigravityCLIHTTPSFetchStrategyTests {
         let snapshot = try await AntigravityCLIHTTPSFetchStrategy.waitForSnapshot(
             pid: 123,
             deadline: Date().addingTimeInterval(5),
-            dependencies: AntigravityCLIHTTPSFetchStrategy.SnapshotWaitDependencies(
+            dependencies: makeAntigravitySnapshotDependencies(
                 pollIntervalNanoseconds: 0,
                 listeningPorts: { _, _ in [50080, 50081] },
                 drainOutput: {
@@ -463,7 +463,7 @@ struct AntigravityCLIHTTPSFetchStrategyTests {
         let snapshot = try await AntigravityCLIHTTPSFetchStrategy.waitForSnapshot(
             pid: 123,
             deadline: Date().addingTimeInterval(5),
-            dependencies: AntigravityCLIHTTPSFetchStrategy.SnapshotWaitDependencies(
+            dependencies: makeAntigravitySnapshotDependencies(
                 pollIntervalNanoseconds: 0,
                 listeningPorts: { _, _ in [50080] },
                 drainOutput: { Data() },
@@ -501,7 +501,7 @@ struct AntigravityCLIHTTPSFetchStrategyTests {
             pid: 123,
             deadline: Date().addingTimeInterval(5),
             expectedAccountEmail: "user@example.com",
-            dependencies: AntigravityCLIHTTPSFetchStrategy.SnapshotWaitDependencies(
+            dependencies: makeAntigravitySnapshotDependencies(
                 pollIntervalNanoseconds: 0,
                 listeningPorts: { _, _ in [50080] },
                 drainOutput: { Data() },
@@ -545,7 +545,7 @@ struct AntigravityCLIHTTPSFetchStrategyTests {
         let snapshot = try await AntigravityCLIHTTPSFetchStrategy.waitForSnapshot(
             pid: 123,
             deadline: Date().addingTimeInterval(5),
-            dependencies: AntigravityCLIHTTPSFetchStrategy.SnapshotWaitDependencies(
+            dependencies: makeAntigravitySnapshotDependencies(
                 pollIntervalNanoseconds: 0,
                 listeningPorts: { _, _ in
                     portPolls.increment() == 1 ? [] : [50080]
@@ -586,7 +586,7 @@ struct AntigravityCLIHTTPSFetchStrategyTests {
             _ = try await AntigravityCLIHTTPSFetchStrategy.waitForSnapshot(
                 pid: 123,
                 deadline: Date().addingTimeInterval(2),
-                dependencies: AntigravityCLIHTTPSFetchStrategy.SnapshotWaitDependencies(
+                dependencies: makeAntigravitySnapshotDependencies(
                     pollIntervalNanoseconds: 0,
                     listeningPorts: { _, _ in
                         portPolls.increment()
@@ -621,7 +621,7 @@ struct AntigravityCLIHTTPSFetchStrategyTests {
         let snapshot = try await AntigravityCLIHTTPSFetchStrategy.waitForSnapshot(
             pid: 123,
             deadline: Date().addingTimeInterval(2),
-            dependencies: AntigravityCLIHTTPSFetchStrategy.SnapshotWaitDependencies(
+            dependencies: makeAntigravitySnapshotDependencies(
                 pollIntervalNanoseconds: 0,
                 listeningPorts: { _, _ in [50080] },
                 drainOutput: {
@@ -657,7 +657,7 @@ struct AntigravityCLIHTTPSFetchStrategyTests {
             _ = try await AntigravityCLIHTTPSFetchStrategy.waitForSnapshot(
                 pid: 123,
                 deadline: Date().addingTimeInterval(2),
-                dependencies: AntigravityCLIHTTPSFetchStrategy.SnapshotWaitDependencies(
+                dependencies: makeAntigravitySnapshotDependencies(
                     pollIntervalNanoseconds: 0,
                     listeningPorts: { _, _ in
                         portPolls.increment()
@@ -687,7 +687,7 @@ struct AntigravityCLIHTTPSFetchStrategyTests {
             _ = try await AntigravityCLIHTTPSFetchStrategy.waitForSnapshot(
                 pid: 123,
                 deadline: Date().addingTimeInterval(2),
-                dependencies: AntigravityCLIHTTPSFetchStrategy.SnapshotWaitDependencies(
+                dependencies: makeAntigravitySnapshotDependencies(
                     pollIntervalNanoseconds: 0,
                     listeningPorts: { _, _ in [50080] },
                     drainOutput: {
@@ -721,7 +721,7 @@ struct AntigravityCLIHTTPSFetchStrategyTests {
         let snapshot = try await AntigravityCLIHTTPSFetchStrategy.waitForSnapshot(
             pid: 123,
             deadline: Date().addingTimeInterval(5),
-            dependencies: AntigravityCLIHTTPSFetchStrategy.SnapshotWaitDependencies(
+            dependencies: makeAntigravitySnapshotDependencies(
                 pollIntervalNanoseconds: 0,
                 listeningPorts: { _, _ in
                     if portPolls.increment() == 1 {
@@ -831,7 +831,7 @@ struct AntigravityCLIHTTPSFetchStrategyTests {
             _ = try await AntigravityCLIHTTPSFetchStrategy.waitForSnapshot(
                 pid: 123,
                 deadline: start.addingTimeInterval(5),
-                dependencies: AntigravityCLIHTTPSFetchStrategy.SnapshotWaitDependencies(
+                dependencies: makeAntigravitySnapshotDependencies(
                     pollIntervalNanoseconds: 0,
                     listeningPorts: { _, _ in [50080] },
                     drainOutput: { Data() },
@@ -855,7 +855,7 @@ struct AntigravityCLIHTTPSFetchStrategyTests {
             _ = try await AntigravityCLIHTTPSFetchStrategy.waitForSnapshot(
                 pid: 123,
                 deadline: Date().addingTimeInterval(2),
-                dependencies: AntigravityCLIHTTPSFetchStrategy.SnapshotWaitDependencies(
+                dependencies: makeAntigravitySnapshotDependencies(
                     pollIntervalNanoseconds: 0,
                     listeningPorts: { _, _ in
                         throw AntigravityStatusProbeError.portDetectionFailed("lsof not available")
@@ -907,7 +907,7 @@ struct AntigravityCLIHTTPSFetchStrategyTests {
         #expect(endpoint.requiresCSRFToken)
     }
 
-    private func makeFetchContext(
+    func makeFetchContext(
         runtime: ProviderRuntime = .app,
         sourceMode: ProviderSourceMode = .auto,
         selectedTokenAccountID: UUID? = nil,
@@ -935,7 +935,7 @@ struct AntigravityCLIHTTPSFetchStrategyTests {
             persistsCLISessions: persistsCLISessions)
     }
 
-    private func makeUsage(accountEmail: String?) -> UsageSnapshot {
+    func makeUsage(accountEmail: String?) -> UsageSnapshot {
         UsageSnapshot(
             primary: nil,
             secondary: nil,
@@ -947,7 +947,7 @@ struct AntigravityCLIHTTPSFetchStrategyTests {
                 loginMethod: nil))
     }
 
-    private func accountEnv(email: String?, idToken: String? = nil) -> [String: String] {
+    func accountEnv(email: String?, idToken: String? = nil) -> [String: String] {
         let credentials = AntigravityOAuthCredentials(
             accessToken: "access",
             refreshToken: "refresh",
@@ -985,32 +985,65 @@ struct AntigravityCLIHTTPSFetchStrategyTests {
 }
 
 extension AntigravityCLIHTTPSFetchStrategyTests {
-    @Test(arguments: [AntigravityStatusProbeError.notRunning, .missingCSRFToken])
-    func `unavailable IDE cannot replace actionable signed out CLI error`(
-        ideError: AntigravityStatusProbeError) async
+    @Test(arguments: [AntigravityStatusProbeError.notRunning, .missingCSRFToken], [
+        AntigravityStatusProbeError.authenticationRequired,
+        .apiError("quota request rejected"),
+        .timedOut,
+        .parseFailed("missing quota fields"),
+        .portDetectionFailed("no listening ports found"),
+        .accountMismatch(expected: "selected@example.com", found: "other@example.com"),
+    ])
+    func `unavailable IDE cannot replace an attempted source failure`(
+        ideError: AntigravityStatusProbeError,
+        cliError: AntigravityStatusProbeError) async
     {
-        let pipeline = ProviderFetchPipeline(
-            resolveStrategies: { _ in
-                [
-                    AntigravityFallbackFixtureStrategy(
-                        id: "antigravity.cli-https",
-                        error: .authenticationRequired),
-                    AntigravityFallbackFixtureStrategy(
-                        id: "antigravity.ide-local",
-                        error: ideError),
-                ]
-            },
-            resolveFallbackError: AntigravityProviderDescriptor.resolveFallbackError)
+        for allowsFallback in [true, false] {
+            let pipeline = ProviderFetchPipeline(
+                resolveStrategies: { _ in
+                    [
+                        AntigravityFallbackFixtureStrategy(id: "antigravity.app-local", error: .notRunning),
+                        AntigravityFallbackFixtureStrategy(
+                            id: "antigravity.cli-https",
+                            error: cliError),
+                        AntigravityFallbackFixtureStrategy(
+                            id: "antigravity.ide-local",
+                            error: ideError,
+                            allowsFallback: allowsFallback),
+                    ]
+                },
+                resolveFallbackError: AntigravityProviderDescriptor.resolveFallbackError)
 
-        let outcome = await pipeline.fetch(context: self.makeFetchContext(), provider: .antigravity)
+            let outcome = await pipeline.fetch(context: self.makeFetchContext(), provider: .antigravity)
 
-        #expect(outcome.attempts.map(\.strategyID) == ["antigravity.cli-https", "antigravity.ide-local"])
-        do {
-            _ = try outcome.result.get()
-            Issue.record("Expected the signed-out CLI failure")
-        } catch {
-            #expect((error as? AntigravityStatusProbeError) == .authenticationRequired)
+            #expect(outcome.attempts.map(\.strategyID) == [
+                "antigravity.app-local",
+                "antigravity.cli-https",
+                "antigravity.ide-local",
+            ])
+            do {
+                _ = try outcome.result.get()
+                Issue.record("Expected the attempted CLI failure")
+            } catch {
+                #expect((error as? AntigravityStatusProbeError) == cliError)
+            }
         }
+    }
+
+    @Test(arguments: [AntigravityStatusProbeError.notRunning, .missingCSRFToken])
+    func `unavailable fallback preserves transport errors`(current: AntigravityStatusProbeError) {
+        let error = URLError(.cannotConnectToHost)
+        let result = AntigravityProviderDescriptor.resolveFallbackError(error, current)
+        #expect((result as? URLError)?.code == error.code)
+    }
+
+    @Test(arguments: [AntigravityStatusProbeError.notRunning, .missingCSRFToken, .timedOut])
+    func `first error and newly detected fallback remain authoritative`(current: AntigravityStatusProbeError) {
+        let first = AntigravityProviderDescriptor.resolveFallbackError(nil, current)
+        let detected = AntigravityProviderDescriptor.resolveFallbackError(
+            AntigravityStatusProbeError.notRunning,
+            current)
+        #expect((first as? AntigravityStatusProbeError) == current)
+        #expect((detected as? AntigravityStatusProbeError) == current)
     }
 
     @Test
@@ -1052,7 +1085,7 @@ extension AntigravityCLIHTTPSFetchStrategyTests {
             _ = try await AntigravityCLIHTTPSFetchStrategy.waitForSnapshot(
                 pid: 123,
                 deadline: start.addingTimeInterval(5),
-                dependencies: AntigravityCLIHTTPSFetchStrategy.SnapshotWaitDependencies(
+                dependencies: makeAntigravitySnapshotDependencies(
                     pollIntervalNanoseconds: 0,
                     listeningPorts: { _, _ in
                         let attempt = attempts.increment()
@@ -1084,7 +1117,7 @@ extension AntigravityCLIHTTPSFetchStrategyTests {
             try await AntigravityCLIHTTPSFetchStrategy.waitForSnapshot(
                 pid: 123,
                 deadline: start.addingTimeInterval(5),
-                dependencies: AntigravityCLIHTTPSFetchStrategy.SnapshotWaitDependencies(
+                dependencies: makeAntigravitySnapshotDependencies(
                     pollIntervalNanoseconds: 0,
                     listeningPorts: { _, _ in
                         if attempts.increment() == 1 { return [50080] }
@@ -1104,6 +1137,7 @@ extension AntigravityCLIHTTPSFetchStrategyTests {
 private struct AntigravityFallbackFixtureStrategy: ProviderFetchStrategy {
     let id: String
     let error: AntigravityStatusProbeError?
+    var allowsFallback = true
     let kind: ProviderFetchKind = .localProbe
 
     func isAvailable(_: ProviderFetchContext) async -> Bool {
@@ -1120,6 +1154,6 @@ private struct AntigravityFallbackFixtureStrategy: ProviderFetchStrategy {
     }
 
     func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
-        true
+        self.allowsFallback
     }
 }

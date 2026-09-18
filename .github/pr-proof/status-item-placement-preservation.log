@@ -1,0 +1,35 @@
+CodexBar status item placement preservation — native AppKit proof
+Verified 2026-09-18 on macOS 27.0, arm64, 2880x1620 logical display.
+
+Harness:
+- Compiled the production preservation/preflight helpers into a standalone
+  NSApplication accessory app signed with the matching Developer ID.
+- Unique bundle/defaults domain; one synthetic item labeled "CB Proof".
+- Seeded preferred position 600; no settings store, provider startup,
+  credentials, browser sessions, or real account content.
+- Verified the item visibly on screen. ScreenCaptureKit preparation timed out;
+  Peekaboo's classic capture succeeded. Full desktop captures stayed local;
+  shared crops contain only the synthetic item.
+
+Before:
+- Raw removeStatusItem immediately changed saved position 600 to missing.
+- The submitted preserve/restore helper restored 600 synchronously, but after
+  recreation and release of the retired item, the value was missing again.
+
+After:
+- Reset the retired item's autosave name inside the preservation closure before
+  removing it. AppKit's later cleanup can no longer clear the stable name.
+- Preserved removal: 600 immediately, 600 after recreation/release and 2 seconds.
+- Hide/show: 600 while hidden, 600 after showing and 2 seconds.
+- Item frame remained x=1740, y=1590, width=74, height=30 in AppKit coordinates
+  through recreation and hide/show; the captured item was inside the display.
+- Removal before NSApplication.terminate: 600 before exit and on disk afterward.
+- Fresh process launched without reseeding: saved position remained 600.
+
+Deterministic coverage uses InMemoryUserDefaults. The two original ordinary
+SwiftPM tests that created NSStatusBar.system items were removed; removal was
+vacuous in that host and did not cover the delayed cleanup found above.
+
+Scope: this verifies the native helper's real lifecycle and the controller
+call sites. It does not reproduce Sequoia's older out-of-range positions in
+issue #3355, so that broader issue remains open.

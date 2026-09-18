@@ -398,6 +398,28 @@ struct UsageFormatterTests {
     }
 
     @Test
+    func `token count string promotes rounded unit boundaries`() {
+        #expect(UsageFormatter.tokenCountString(999_499) == "999K")
+        #expect(UsageFormatter.tokenCountString(999_500) == "1M")
+        #expect(UsageFormatter.tokenCountString(999_999) == "1M")
+        #expect(UsageFormatter.tokenCountString(999_499_999) == "999M")
+        #expect(UsageFormatter.tokenCountString(999_500_000) == "1B")
+        #expect(UsageFormatter.tokenCountString(999_999_999) == "1B")
+        #expect(UsageFormatter.tokenCountString(-999_499) == "-999K")
+        #expect(UsageFormatter.tokenCountString(-999_500) == "-1M")
+        #expect(UsageFormatter.tokenCountString(-999_999) == "-1M")
+        #expect(UsageFormatter.tokenCountString(-999_499_999) == "-999M")
+        #expect(UsageFormatter.tokenCountString(-999_500_000) == "-1B")
+        #expect(UsageFormatter.tokenCountString(-999_999_999) == "-1B")
+    }
+
+    @Test
+    func `token count string handles integer limits`() {
+        #expect(UsageFormatter.tokenCountString(Int.max) == "9223372037B")
+        #expect(UsageFormatter.tokenCountString(Int.min) == "-9223372037B")
+    }
+
+    @Test
     func `clean plan maps O auth to ollama`() {
         #expect(UsageFormatter.cleanPlanName("oauth") == "Ollama")
     }

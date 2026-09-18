@@ -34,78 +34,83 @@ defineProvider({
     const headers = { "X-Title": ctx.settings.get("OPENROUTER_X_TITLE") || "CodexBar" };
     const referer = ctx.settings.get("OPENROUTER_HTTP_REFERER");
     if (referer) headers["HTTP-Referer"] = referer;
-    const creditsResponse = await ctx.http.get(`${base}/credits`, { headers });
-    if (creditsResponse.status !== 200) {
-      throw ctx.fail.apiFailure(`OpenRouter API error: HTTP ${creditsResponse.status}`);
-    }
-    let creditsPayload;
-    try {
-      creditsPayload = JSON.parse(creditsResponse.bodyText);
-    } catch {
-      throw ctx.fail.parseFailure("Failed to parse OpenRouter response: response was not valid JSON");
-    }
-    const credits = creditsPayload && creditsPayload.data;
-    if (!credits || typeof credits !== "object" || Array.isArray(credits)) {
-      throw ctx.fail.parseFailure("Failed to parse OpenRouter credits: data must be an object");
-    }
-
-    const totalCredits = finite(credits.total_credits, "total_credits", false);
-    const totalUsage = finite(credits.total_usage, "total_usage", false);
-    const balance = Math.max(0, totalCredits - totalUsage);
     let keyData = null;
     let keyDegradation = null;
     let costUsage = null;
     let activityDegradation = null;
+    let creditsData = null;
+    let creditsDegradation = null;
     const managementKeyConfigured = Boolean(ctx.settings.getSecret("OPENROUTER_MANAGEMENT_API_KEY"));
     const injectedOptionalTimeout = ctx.__codexbarOptionalRequestTimeoutSeconds;
     const optionalRequestTimeoutSeconds =
       typeof injectedOptionalTimeout === "number" && Number.isFinite(injectedOptionalTimeout)
         ? injectedOptionalTimeout
-        : 1;
-    function degradationReason(error) {
+        : 4;
+    function requestDegradationReason(error) {
       const message = error && typeof error.message === "string" ? error.message : String(error);
       if (/timed out|-1001/i.test(message)) return "Request timed out";
-      if (/json|parse|invalid|must be|conflict|duplicate/i.test(message)) return "Response was invalid";
       return "Request failed";
     }
+    try {
+      // Credits belong to the selected API-key account. The optional management key is provider-wide
+      // and may belong to a different account, so it must never replace this request's credential.
+      const creditsResponse = await ctx.http.get(`${base}/credits`, {
+        headers,
+        timeoutSeconds: optionalRequestTimeoutSeconds,
+      });
+      if (creditsResponse.status !== 200) {
+        creditsDegradation = `Request returned HTTP ${creditsResponse.status}`;
+      } else {
+        try {
+          const creditsPayload = JSON.parse(creditsResponse.bodyText);
+          const credits = creditsPayload && creditsPayload.data;
+          if (!credits || typeof credits !== "object" || Array.isArray(credits)) {
+            throw new TypeError("credits.data must be an object");
+          }
+          const totalCredits = finite(credits.total_credits, "credits.total_credits", false);
+          const totalUsage = finite(credits.total_usage, "credits.total_usage", false);
+          creditsData = {
+            totalCredits,
+            totalUsage,
+            balance: Math.max(0, totalCredits - totalUsage),
+          };
+        } catch {
+          creditsDegradation = "Response was invalid";
+        }
+      }
+    } catch (error) {
+      creditsDegradation = requestDegradationReason(error);
+    }
+    if (!creditsData && !creditsDegradation) creditsDegradation = "Response was unavailable";
     try {
       const keyResponse = await ctx.http.get(`${base}/key`, {
         timeoutSeconds: optionalRequestTimeoutSeconds,
       });
-      if (keyResponse.status !== 200) keyDegradation = `Request returned HTTP ${keyResponse.status}`;
-      const keyPayload = keyResponse.status === 200 ? JSON.parse(keyResponse.bodyText) : null;
-      if (keyPayload && keyPayload.data && typeof keyPayload.data === "object" && !Array.isArray(keyPayload.data)) {
-        const candidate = keyPayload.data;
-        for (const field of ["limit", "limit_remaining", "usage", "usage_daily", "usage_weekly", "usage_monthly"])
-          finite(candidate[field], `key.${field}`, true);
-        if (
-          candidate.limit_reset !== null &&
-          candidate.limit_reset !== undefined &&
-          typeof candidate.limit_reset !== "string"
-        )
-          throw new TypeError("key.limit_reset must be a string");
-        if (
-          candidate.rate_limit !== null &&
-          candidate.rate_limit !== undefined &&
-          (!candidate.rate_limit ||
-            typeof candidate.rate_limit !== "object" ||
-            !Number.isInteger(candidate.rate_limit.requests) ||
-            typeof candidate.rate_limit.interval !== "string")
-        ) {
-          throw new TypeError("key.rate_limit is invalid");
+      if (keyResponse.status !== 200) {
+        keyDegradation = `Request returned HTTP ${keyResponse.status}`;
+      } else {
+        try {
+          const keyPayload = JSON.parse(keyResponse.bodyText);
+          if (keyPayload && keyPayload.data && typeof keyPayload.data === "object" && !Array.isArray(keyPayload.data)) {
+            const candidate = keyPayload.data;
+            for (const field of ["limit", "limit_remaining", "usage", "usage_daily", "usage_weekly", "usage_monthly"])
+              finite(candidate[field], `key.${field}`, true);
+            if (
+              candidate.limit_reset !== null &&
+              candidate.limit_reset !== undefined &&
+              typeof candidate.limit_reset !== "string"
+            )
+              throw new TypeError("key.limit_reset must be a string");
+            keyData = candidate;
+          }
+        } catch {
+          keyDegradation = "Response was invalid";
         }
-        keyData = candidate;
       }
     } catch (error) {
-      keyDegradation = degradationReason(error);
+      keyDegradation = requestDegradationReason(error);
     }
     if (!keyData && !keyDegradation) keyDegradation = "Response was unavailable";
-
-    function activityDegradationReason(status, error) {
-      if (status === 403) return "Management API key required";
-      if (status) return `Request returned HTTP ${status}`;
-      return degradationReason(error);
-    }
 
     if (!managementKeyConfigured) {
       activityDegradation = "Management API key not configured";
@@ -130,131 +135,137 @@ defineProvider({
         ]);
         if (historyResponse.status !== 200 || latestCompletedResponse.status !== 200) {
           const failed = historyResponse.status !== 200 ? historyResponse : latestCompletedResponse;
-          activityDegradation = activityDegradationReason(failed.status);
+          activityDegradation =
+            failed.status === 403 ? "Management API key required" : `Request returned HTTP ${failed.status}`;
         } else {
-          const payloads = [historyResponse, latestCompletedResponse].map((response) => JSON.parse(response.bodyText));
-          const rows = payloads.flatMap((payload) => {
-            if (!payload || !Array.isArray(payload.data)) throw new TypeError("activity.data must be an array");
-            return payload.data;
-          });
-          if (rows.length > 20000) throw new TypeError("activity.data exceeds 20000 rows");
-          const seen = new Map();
-          const entries = [];
-          let aggregateInputTokens = 0;
-          let aggregateOutputTokens = 0;
-          let aggregateReasoningTokens = 0;
-          let aggregateRequests = 0;
-          let aggregateCost = 0;
-          let aggregateEstimatedCost = 0;
-          for (const [index, row] of rows.entries()) {
-            if (!row || typeof row !== "object" || Array.isArray(row)) {
-              throw new TypeError(`activity.data[${index}] must be an object`);
-            }
-            const rawDate = typeof row.date === "string" ? row.date.trim() : "";
-            if (!/^\d{4}-\d{2}-\d{2}(?: \d{2}:\d{2}:\d{2})?$/.test(rawDate)) {
-              throw new TypeError(`activity.data[${index}].date must be YYYY-MM-DD or YYYY-MM-DD HH:MM:SS`);
-            }
-            const date = rawDate.slice(0, 10);
-            const parsedDate = new Date(`${date}T00:00:00Z`);
-            if (!Number.isFinite(parsedDate.getTime()) || parsedDate.toISOString().slice(0, 10) !== date) {
-              throw new TypeError(`activity.data[${index}].date must be a real calendar date`);
-            }
-            if (date > latestCompleted) {
-              throw new TypeError(`activity.data[${index}].date must be a completed UTC day`);
-            }
-            if (date < cutoff) continue;
-            const rawModel = row.model_permaslug ?? row.model;
-            const model = typeof rawModel === "string" && rawModel.trim() ? rawModel.trim() : null;
-            if (model !== null && model.length > 64) {
-              throw new TypeError(`activity.data[${index}].model exceeds 64 characters`);
-            }
-            const inputTokens = finite(row.prompt_tokens, `activity.data[${index}].prompt_tokens`, false);
-            const outputTokens = finite(row.completion_tokens, `activity.data[${index}].completion_tokens`, false);
-            const reasoningTokens = finite(row.reasoning_tokens, `activity.data[${index}].reasoning_tokens`, true);
-            const requests = finite(row.requests, `activity.data[${index}].requests`, false);
-            const meteredCost = finite(row.usage, `activity.data[${index}].usage`, false);
-            const estimatedCost =
-              finite(row.byok_usage_inference, `activity.data[${index}].byok_usage_inference`, true) ?? 0;
-            const cost = meteredCost + estimatedCost;
-            for (const [field, value] of [
-              ["prompt_tokens", inputTokens],
-              ["completion_tokens", outputTokens],
-              ["reasoning_tokens", reasoningTokens],
-              ["requests", requests],
-            ]) {
-              if (value !== null && (!Number.isSafeInteger(value) || value < 0)) {
-                throw new TypeError(`activity.data[${index}].${field} must be a nonnegative safe integer`);
-              }
-            }
-            if (reasoningTokens !== null && reasoningTokens > outputTokens) {
-              throw new TypeError(`activity.data[${index}].reasoning_tokens must not exceed completion_tokens`);
-            }
-            if (meteredCost < 0 || estimatedCost < 0 || !Number.isFinite(cost)) {
-              throw new TypeError(`activity.data[${index}] spend must be finite and nonnegative`);
-            }
-            if (!Number.isSafeInteger(inputTokens + outputTokens)) {
-              throw new TypeError(`activity.data[${index}] token total overflowed`);
-            }
-            const identity = JSON.stringify([
-              date,
-              model,
-              row.endpoint_id || null,
-              row.provider_name || null,
-              row.workspace_id || null,
-            ]);
-            const signature = JSON.stringify([
-              inputTokens,
-              outputTokens,
-              reasoningTokens,
-              requests,
-              meteredCost,
-              estimatedCost,
-            ]);
-            if (seen.has(identity)) {
-              if (seen.get(identity) !== signature) {
-                throw new TypeError(`activity.data[${index}] conflicts with a duplicate activity row`);
-              }
-              continue;
-            }
-            seen.set(identity, signature);
-            aggregateInputTokens += inputTokens;
-            aggregateOutputTokens += outputTokens;
-            aggregateReasoningTokens += reasoningTokens ?? 0;
-            aggregateRequests += requests;
-            aggregateCost += cost;
-            aggregateEstimatedCost += estimatedCost;
-            if (
-              !Number.isSafeInteger(aggregateInputTokens + aggregateOutputTokens) ||
-              !Number.isSafeInteger(aggregateReasoningTokens) ||
-              !Number.isSafeInteger(aggregateRequests)
-            ) {
-              throw new TypeError("activity aggregate must be within the safe integer range");
-            }
-            if (!Number.isFinite(aggregateCost) || !Number.isFinite(aggregateEstimatedCost)) {
-              throw new TypeError("activity spend aggregate overflowed");
-            }
-            entries.push({
-              date,
-              inputTokens,
-              outputTokens,
-              reasoningTokens,
-              requests,
-              cost,
-              estimatedCost,
-              model,
+          try {
+            const payloads = [historyResponse, latestCompletedResponse].map((response) =>
+              JSON.parse(response.bodyText),
+            );
+            const rows = payloads.flatMap((payload) => {
+              if (!payload || !Array.isArray(payload.data)) throw new TypeError("activity.data must be an array");
+              return payload.data;
             });
-            if (entries.length > 10000) throw new TypeError("activity.data exceeds 10000 distinct rows");
+            if (rows.length > 20000) throw new TypeError("activity.data exceeds 20000 rows");
+            const seen = new Map();
+            const entries = [];
+            let aggregateInputTokens = 0;
+            let aggregateOutputTokens = 0;
+            let aggregateReasoningTokens = 0;
+            let aggregateRequests = 0;
+            let aggregateCost = 0;
+            let aggregateEstimatedCost = 0;
+            for (const [index, row] of rows.entries()) {
+              if (!row || typeof row !== "object" || Array.isArray(row)) {
+                throw new TypeError(`activity.data[${index}] must be an object`);
+              }
+              const rawDate = typeof row.date === "string" ? row.date.trim() : "";
+              if (!/^\d{4}-\d{2}-\d{2}(?: \d{2}:\d{2}:\d{2})?$/.test(rawDate)) {
+                throw new TypeError(`activity.data[${index}].date must be YYYY-MM-DD or YYYY-MM-DD HH:MM:SS`);
+              }
+              const date = rawDate.slice(0, 10);
+              const parsedDate = new Date(`${date}T00:00:00Z`);
+              if (!Number.isFinite(parsedDate.getTime()) || parsedDate.toISOString().slice(0, 10) !== date) {
+                throw new TypeError(`activity.data[${index}].date must be a real calendar date`);
+              }
+              if (date > latestCompleted) {
+                throw new TypeError(`activity.data[${index}].date must be a completed UTC day`);
+              }
+              if (date < cutoff) continue;
+              const rawModel = row.model_permaslug ?? row.model;
+              const model = typeof rawModel === "string" && rawModel.trim() ? rawModel.trim() : null;
+              if (model !== null && model.length > 64) {
+                throw new TypeError(`activity.data[${index}].model exceeds 64 characters`);
+              }
+              const inputTokens = finite(row.prompt_tokens, `activity.data[${index}].prompt_tokens`, false);
+              const outputTokens = finite(row.completion_tokens, `activity.data[${index}].completion_tokens`, false);
+              const reasoningTokens = finite(row.reasoning_tokens, `activity.data[${index}].reasoning_tokens`, true);
+              const requests = finite(row.requests, `activity.data[${index}].requests`, false);
+              const meteredCost = finite(row.usage, `activity.data[${index}].usage`, false);
+              const estimatedCost =
+                finite(row.byok_usage_inference, `activity.data[${index}].byok_usage_inference`, true) ?? 0;
+              const cost = meteredCost + estimatedCost;
+              for (const [field, value] of [
+                ["prompt_tokens", inputTokens],
+                ["completion_tokens", outputTokens],
+                ["reasoning_tokens", reasoningTokens],
+                ["requests", requests],
+              ]) {
+                if (value !== null && (!Number.isSafeInteger(value) || value < 0)) {
+                  throw new TypeError(`activity.data[${index}].${field} must be a nonnegative safe integer`);
+                }
+              }
+              // Activity may report more reasoning than completion tokens. Preserve both counters;
+              // token totals remain prompt plus completion.
+              if (meteredCost < 0 || estimatedCost < 0 || !Number.isFinite(cost)) {
+                throw new TypeError(`activity.data[${index}] spend must be finite and nonnegative`);
+              }
+              if (!Number.isSafeInteger(inputTokens + outputTokens)) {
+                throw new TypeError(`activity.data[${index}] token total overflowed`);
+              }
+              const identity = JSON.stringify([
+                date,
+                model,
+                row.endpoint_id || null,
+                row.provider_name || null,
+                row.workspace_id || null,
+              ]);
+              const signature = JSON.stringify([
+                inputTokens,
+                outputTokens,
+                reasoningTokens,
+                requests,
+                meteredCost,
+                estimatedCost,
+              ]);
+              if (seen.has(identity)) {
+                if (seen.get(identity) !== signature) {
+                  throw new TypeError(`activity.data[${index}] conflicts with a duplicate activity row`);
+                }
+                continue;
+              }
+              seen.set(identity, signature);
+              aggregateInputTokens += inputTokens;
+              aggregateOutputTokens += outputTokens;
+              aggregateReasoningTokens += reasoningTokens ?? 0;
+              aggregateRequests += requests;
+              aggregateCost += cost;
+              aggregateEstimatedCost += estimatedCost;
+              if (
+                !Number.isSafeInteger(aggregateInputTokens + aggregateOutputTokens) ||
+                !Number.isSafeInteger(aggregateReasoningTokens) ||
+                !Number.isSafeInteger(aggregateRequests)
+              ) {
+                throw new TypeError("activity aggregate must be within the safe integer range");
+              }
+              if (!Number.isFinite(aggregateCost) || !Number.isFinite(aggregateEstimatedCost)) {
+                throw new TypeError("activity spend aggregate overflowed");
+              }
+              entries.push({
+                date,
+                inputTokens,
+                outputTokens,
+                reasoningTokens,
+                requests,
+                cost,
+                estimatedCost,
+                model,
+              });
+              if (entries.length > 10000) throw new TypeError("activity.data exceeds 10000 distinct rows");
+            }
+            costUsage = {
+              currency: "USD",
+              historyDays: 30,
+              historyLabel: "Last 30 days (UTC)",
+              windowEnd: latestCompleted,
+              entries,
+            };
+          } catch {
+            activityDegradation = "Response was invalid";
           }
-          costUsage = {
-            currency: "USD",
-            historyDays: 30,
-            historyLabel: "Last 30 days (UTC)",
-            windowEnd: latestCompleted,
-            entries,
-          };
         }
       } catch (error) {
-        activityDegradation = activityDegradationReason(null, error);
+        activityDegradation = requestDegradationReason(error);
       }
     if (!costUsage && !activityDegradation) activityDegradation = "Response was unavailable";
 
@@ -300,16 +311,28 @@ defineProvider({
     }
 
     const currency = (value) => `$${Math.max(0, value).toFixed(2)}`;
-    const details = [
-      {
+    const details = [];
+    if (creditsData) {
+      details.push({
         title: "Credits",
         rows: [
-          { label: "Remaining", value: currency(balance) },
-          { label: "Used", value: currency(totalUsage) },
-          { label: "Total added", value: currency(totalCredits) },
+          { label: "Remaining", value: currency(creditsData.balance) },
+          { label: "Used", value: currency(creditsData.totalUsage) },
+          { label: "Total added", value: currency(creditsData.totalCredits) },
         ],
-      },
-    ];
+      });
+    } else {
+      details.push({
+        title: "Credits",
+        rows: [
+          {
+            label: "Balance",
+            value: "Unavailable right now",
+            secondaryValue: creditsDegradation,
+          },
+        ],
+      });
+    }
 
     if (keyData) {
       const rows = [];
@@ -337,13 +360,6 @@ defineProvider({
         if (value !== null) {
           rows.push({ label, value: currency(value) });
           points.push({ label, value });
-        }
-      }
-      if (keyData.rate_limit && typeof keyData.rate_limit === "object") {
-        const requests = keyData.rate_limit.requests;
-        const interval = keyData.rate_limit.interval;
-        if (Number.isInteger(requests) && typeof interval === "string") {
-          rows.push({ label: "Rate limit", value: `${requests} requests / ${interval}` });
         }
       }
       const section = { title: "API key", rows };
@@ -377,8 +393,12 @@ defineProvider({
       });
     }
 
+    if (!creditsData && !keyData && !costUsage) {
+      throw ctx.fail.apiFailure(`OpenRouter API error: ${keyDegradation || creditsDegradation || activityDegradation}`);
+    }
+
     const result = {
-      identity: { loginMethod: `Balance: ${currency(balance)}` },
+      identity: creditsData ? { loginMethod: `Balance: ${currency(creditsData.balance)}` } : null,
       details,
     };
     if (costUsage) result.costUsage = costUsage;

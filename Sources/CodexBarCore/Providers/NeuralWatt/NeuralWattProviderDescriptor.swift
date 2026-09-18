@@ -33,6 +33,7 @@ public enum NeuralWattProviderDescriptor {
                 widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
+                usesDetailBackedWindow: true,
                 browserCookieOrder: nil,
                 dashboardURL: "https://portal.neuralwatt.com/dashboard",
                 subscriptionDashboardURL: "https://portal.neuralwatt.com/dashboard",

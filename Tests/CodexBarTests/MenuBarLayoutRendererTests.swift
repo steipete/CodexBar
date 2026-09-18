@@ -12,7 +12,7 @@ import Testing
 @Suite(.serialized)
 // swiftlint:disable:next type_body_length
 struct MenuBarLayoutRendererTests {
-    private let now = Date(timeIntervalSince1970: 1_752_768_000)
+    let now = Date(timeIntervalSince1970: 1_752_768_000)
 
     @Test
     func `renderer composes every token with live values`() {
@@ -1476,7 +1476,147 @@ struct MenuBarLayoutRendererTests {
                 threshold: threshold))
     }
 
-    private func data(
+    @Test
+    func `pace colors follow reserve and ahead values and toggle invalidates cache`() {
+        let renderer = MenuBarLayoutRenderer()
+        let cases: [(PercentWindow, NSColor)] = [
+            (.session, .systemGreen), (.weekly, .systemRed), (.automatic, .controlTextColor),
+        ]
+        for (window, expectedColor) in cases {
+            let layout = MenuBarLayout(lines: [[.pace(window: window)]])
+            let plain = renderer.render(layout: layout, data: self.data(), icon: nil, options: self.options())
+            let colored = renderer.render(
+                layout: layout, data: self.data(), icon: nil, options: self.options(colorPace: true))
+            #expect(plain.attributedTitle.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor
+                == .controlTextColor)
+            #expect(colored.attributedTitle.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor
+                == expectedColor)
+            #expect(colored.attributedTitle.string == plain.attributedTitle.string)
+            #expect(plain.statusImage?.isTemplate == true)
+            #expect((colored.statusImage == nil) == (window != .automatic))
+            let button = NSButton()
+            for output in [plain, colored] {
+                _ = StatusItemController.applyMenuBarLayoutContent(output, for: button, gap: .regular)
+            }
+            if window != .automatic {
+                #expect(button.image == nil)
+                #expect(button.attributedTitle.isEqual(to: colored.attributedTitle))
+            }
+            #expect(button.accessibilityTitle() == colored.accessibilityLabel)
+            let restored = renderer.render(layout: layout, data: self.data(), icon: nil, options: self.options())
+            #expect(restored.attributedTitle.isEqual(to: plain.attributedTitle))
+            _ = StatusItemController.applyMenuBarLayoutContent(restored, for: button, gap: .regular)
+            #expect(button.image?.isTemplate == true)
+            #expect(button.attributedTitle.length == 0)
+        }
+    }
+
+    @Test
+    func `pace color leaves other tokens and missing metrics neutral`() {
+        let renderer = MenuBarLayoutRenderer()
+        for token: MenuBarLayoutToken in [.percent(window: .session), .providerName, .pace(window: .scopedWeekly)] {
+            let rendered = renderer.render(
+                layout: MenuBarLayout(lines: [[token]]),
+                data: self.data(),
+                icon: nil,
+                options: self.options(colorPace: true))
+            #expect(rendered.attributedTitle.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor
+                == .controlTextColor)
+            #expect(rendered.statusImage?.isTemplate == true)
+        }
+        let missing = renderer.render(
+            layout: MenuBarLayout(lines: [[.pace(window: .session)]]),
+            data: self.data(metrics: .unavailable),
+            icon: nil,
+            options: self.options(colorPace: true))
+        #expect(missing.attributedTitle.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor
+            == .controlTextColor)
+        #expect(missing.statusImage?.isTemplate == true)
+    }
+
+    @Test(arguments: [MenuBarLayoutToken.hidden, .percent(window: .automatic)])
+    func `resolved conditionals choose native colors only for visible pace`(fallback: MenuBarLayoutToken) {
+        let conditional = MenuBarLayoutConditional(
+            clauses: [self.clause(metric: .automatic, comparison: .greaterThan, threshold: 0, direction: .remaining)],
+            thenToken: .pace(window: .weekly),
+            elseToken: fallback)
+        let renderer = MenuBarLayoutRenderer()
+        let layout = MenuBarLayout(lines: [[.providerName, .conditional(id: conditional.id)]])
+        let options = self.options(conditionals: [conditional], colorPace: true)
+        let colored = renderer.render(layout: layout, data: self.data(), icon: nil, options: options)
+        #expect(colored.statusImage == nil)
+        #expect(colored.attributedTitle.string.contains("+11%"))
+        let neutral = renderer.render(
+            layout: layout, data: self.data(automaticUsedPercent: 100), icon: nil, options: options)
+        #expect(neutral.statusImage?.isTemplate == true)
+        #expect(!neutral.attributedTitle.string.contains("+11%"))
+    }
+
+    @Test(arguments: ["aqua", "darkAqua"], ["regular", "stale", "highContrast", "staleHighContrast"])
+    func `colored pace reaches native button across supported layouts`(appearance: String, mode: String) throws {
+        let renderer = MenuBarLayoutRenderer()
+        let icon = NSImage(size: NSSize(width: 16, height: 16))
+        icon.isTemplate = true
+        let button = NSButton()
+        let options = self.options(
+            isStale: mode == "stale" || mode == "staleHighContrast",
+            colorPace: true,
+            highContrast: mode == "highContrast" || mode == "staleHighContrast",
+            appearanceName: appearance)
+        for lines: [[MenuBarLayoutToken]] in [
+            [[.pace(window: .weekly)]],
+            [[.icon, .pace(window: .weekly)]],
+            [[.providerName], [.pace(window: .weekly)]],
+        ] {
+            let output = renderer.render(
+                layout: MenuBarLayout(lines: lines),
+                data: self.data(),
+                icon: icon,
+                options: options)
+            #expect(output.statusImage == nil)
+            _ = StatusItemController.applyMenuBarLayoutContent(output, for: button, gap: .regular)
+            let range = (button.attributedTitle.string as NSString).range(of: "+11%")
+            try #require(range.location != NSNotFound)
+            let expected = mode == "stale" ? NSColor.systemRed.withAlphaComponent(0.5) : .systemRed
+            #expect(button.attributedTitle.attribute(
+                .foregroundColor,
+                at: range.location,
+                effectiveRange: nil) as? NSColor
+                == expected)
+            #expect(button.accessibilityTitle() == output.accessibilityLabel)
+        }
+    }
+
+    @Test
+    func `stale pace colors remain dimmed`() {
+        let rendered = MenuBarLayoutRenderer().render(
+            layout: MenuBarLayout(lines: [[.pace(window: .weekly)]]),
+            data: self.data(),
+            icon: nil,
+            options: self.options(isStale: true, colorPace: true))
+        #expect(rendered.attributedTitle.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor
+            == NSColor.systemRed.withAlphaComponent(0.5))
+    }
+
+    @Test(arguments: [false, true])
+    func `high contrast preserves pace color without recoloring neutral tokens`(stale: Bool) {
+        let renderer = MenuBarLayoutRenderer()
+        for (token, expected): (MenuBarLayoutToken, NSColor) in [
+            (.pace(window: .weekly), .systemRed),
+            (.pace(window: .automatic), .labelColor),
+            (.percent(window: .session), .labelColor),
+        ] {
+            let output = renderer.render(
+                layout: MenuBarLayout(lines: [[token]]),
+                data: self.data(),
+                icon: nil,
+                options: self.options(isStale: stale, colorPace: true, highContrast: true))
+            #expect(output.attributedTitle.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor
+                == expected)
+        }
+    }
+
+    func data(
         automaticUsedPercent: Double = 50,
         provider: UsageProvider = .codex,
         laneLabels: MenuBarLayoutLaneLabels? = nil,
@@ -1550,12 +1690,13 @@ struct MenuBarLayoutRendererTests {
                 cost30dUSD: 20))
     }
 
-    private func options(
+    func options(
         now: Date? = nil,
         verticalAdjustment: Int = 0,
         isStale: Bool = false,
         conditionals: [MenuBarLayoutConditional] = [],
         isDebugApp: Bool = false,
+        colorPace: Bool = false,
         highContrast: Bool = false,
         appearanceName: String = "aqua") -> MenuBarLayoutRenderOptions
     {
@@ -1568,7 +1709,8 @@ struct MenuBarLayoutRendererTests {
             isDebugApp: isDebugApp,
             isStale: isStale,
             now: now ?? self.now,
-            verticalAdjustment: verticalAdjustment)
+            verticalAdjustment: verticalAdjustment,
+            colorPace: colorPace)
     }
 
     private func averageBrightness(

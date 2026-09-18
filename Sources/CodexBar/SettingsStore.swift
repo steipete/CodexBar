@@ -241,10 +241,7 @@ final class SettingsStore {
     static let sharedDefaults = SettingsStore.resolveSharedDefaults()
     static let mergedOverviewProviderLimit = 6
     static let productionCodexAccountReconciliationSnapshotCacheInterval: TimeInterval = 2
-    static let isRunningTests = SettingsStore.resolveIsRunningTests(
-        processName: ProcessInfo.processInfo.processName,
-        environment: ProcessInfo.processInfo.environment,
-        hasLoadedXCTestCase: NSClassFromString("XCTestCase") != nil)
+    static let isRunningTests = TestProcessSafety.isRunning
 
     #if DEBUG
     static var codexAccountReconciliationSnapshotCacheIntervalOverrideForTesting: TimeInterval?
@@ -258,7 +255,6 @@ final class SettingsStore {
     @ObservationIgnored var configPersistTask: Task<Void, Never>?
     @ObservationIgnored var configFileWatcher: ConfigFileWatcher?
     @ObservationIgnored var configLoading = false
-    @ObservationIgnored var tokenAccountsLoaded = false
     @ObservationIgnored var cachedCodexAccountReconciliationSnapshot:
         CachedCodexAccountReconciliationSnapshot?
     @ObservationIgnored var cachedCodexAccountMenuProjection: CachedCodexAccountMenuProjection?
@@ -280,17 +276,6 @@ final class SettingsStore {
     @ObservationIgnored var providerEnablementRevisions: [ProviderInstanceID: UInt64] = [:]
     @ObservationIgnored var providerConfigRevisions: [ProviderInstanceID: UInt64] = [:]
     @ObservationIgnored var providerConfigFingerprints: [ProviderInstanceID: Data] = [:]
-
-    static func resolveIsRunningTests(
-        processName: String,
-        environment: [String: String],
-        hasLoadedXCTestCase: Bool) -> Bool
-    {
-        TestProcessSafety.isRunningUnderTests(
-            processName: processName,
-            environment: environment,
-            hasLoadedXCTestCase: hasLoadedXCTestCase)
-    }
 
     static func resolveSharedDefaults(
         _ resolve: () -> UserDefaults? = { AppGroupSupport.sharedDefaults() }) -> UserDefaults?
@@ -561,6 +546,8 @@ extension SettingsStore {
         let menuBarLayoutVerticalAdjustment = max(-20, min(20, rawVerticalAdjustment ?? 0))
         let copilotBudgetExtrasEnabled = userDefaults.object(forKey: "copilotBudgetExtrasEnabled") as? Bool ?? false
         let copilotIconSecondaryWindowIDRaw = Self.loadCopilotIconSecondaryWindowIDRaw(userDefaults: userDefaults)
+        let copilotSeatCreditEntitlementRaw = userDefaults.object(
+            forKey: "copilotSeatCreditEntitlement") as? String ?? ""
         let costUsageEnabled = userDefaults.object(forKey: "tokenCostUsageEnabled") as? Bool ?? false
         let codexLocalSessionCostLedgerEnabled = userDefaults.object(
             forKey: "codexLocalSessionCostLedgerEnabled") as? Bool ?? false
@@ -648,6 +635,8 @@ extension SettingsStore {
         let agentSessionLabelStyleRaw = userDefaults.string(forKey: "agentSessionLabelStyle")
             ?? AgentSessionLabelStyle.project.rawValue
         let agentSessionsManualHosts = userDefaults.string(forKey: "agentSessionsManualHosts") ?? ""
+        let agentSessionsHideUnreachableHosts = userDefaults.object(
+            forKey: "agentSessionsHideUnreachableHosts") as? Bool ?? false
         let preferredCurrencyCode = userDefaults.string(forKey: "preferredCurrencyCode") ?? "USD"
         let iCloudSyncEnabled = userDefaults.object(forKey: "iCloudSyncEnabled") as? Bool ?? false
         let iCloudSyncIncludeSecrets = userDefaults.object(forKey: "iCloudSyncIncludeSecrets") as? Bool ?? true
@@ -688,6 +677,7 @@ extension SettingsStore {
             providerChangelogLinksEnabled: providerChangelogLinksEnabled,
             menuBarShowsBrandIconWithPercent: menuBarShowsBrandIconWithPercent,
             menuBarHidesCritters: menuBarHidesCritters,
+            menuBarColorPace: userDefaults.bool(forKey: "menuBarColorPace"),
             menuBarHighContrastOnInactiveDisplays: menuBarHighContrastOnInactiveDisplays,
             menuBarDisplayModeRaw: menuBarDisplayModeRaw,
             menuBarShowsResetTimeWhenExhausted: menuBarShowsResetTimeWhenExhausted,
@@ -703,6 +693,7 @@ extension SettingsStore {
             menuBarLayoutVerticalAdjustment: menuBarLayoutVerticalAdjustment,
             copilotBudgetExtrasEnabled: copilotBudgetExtrasEnabled,
             copilotIconSecondaryWindowIDRaw: copilotIconSecondaryWindowIDRaw,
+            copilotSeatCreditEntitlementRaw: copilotSeatCreditEntitlementRaw,
             costUsageEnabled: costUsageEnabled,
             codexLocalSessionCostLedgerEnabled: codexLocalSessionCostLedgerEnabled,
             costUsageHistoryDays: costUsageHistoryDays,
@@ -743,6 +734,7 @@ extension SettingsStore {
             agentSessionsEnabled: agentSessionsEnabled,
             agentSessionLabelStyleRaw: agentSessionLabelStyleRaw,
             agentSessionsManualHosts: agentSessionsManualHosts,
+            agentSessionsHideUnreachableHosts: agentSessionsHideUnreachableHosts,
             preferredCurrencyCode: preferredCurrencyCode,
             iCloudSyncEnabled: iCloudSyncEnabled,
             iCloudSyncIncludeSecrets: iCloudSyncIncludeSecrets,
@@ -884,16 +876,20 @@ extension SettingsStore {
     private static func loadMenuBarLayout(userDefaults: UserDefaults) -> MenuBarLayout? {
         MenuBarLayoutPersistence.loadLayout(
             current: self.decodeMenuBarLayout(userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.layoutCurrent)),
+            released: self.decodeMenuBarLayout(
+                userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.layoutReleased)),
             legacy: self.decodeMenuBarLayout(userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.layout)),
             into: userDefaults)
     }
 
     private static func loadMenuBarLayoutConditionals(userDefaults: UserDefaults) -> [MenuBarLayoutConditional] {
-        // Neither key present means a fresh install, so hand back the shipped library. Any edit, add, or
-        // removal writes both keys, so a library the user deliberately emptied is never reseeded.
+        // No persisted generation means a fresh install, so hand back the shipped library. Any edit, add,
+        // or removal writes every generation, so a library the user deliberately emptied is never reseeded.
         MenuBarLayoutPersistence.loadLibrary(
             current: self.decodeMenuBarLayoutConditionals(
                 userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.conditionalsCurrent)),
+            released: self.decodeMenuBarLayoutConditionals(
+                userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.conditionalsReleased)),
             legacy: self.decodeMenuBarLayoutConditionals(
                 userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.conditionals)),
             into: userDefaults)
@@ -912,6 +908,8 @@ extension SettingsStore {
         MenuBarLayoutPersistence.loadOverrides(
             current: self.decodeMenuBarLayoutOverrides(
                 userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.overridesCurrent)),
+            released: self.decodeMenuBarLayoutOverrides(
+                userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.overridesReleased)),
             legacy: self.decodeMenuBarLayoutOverrides(
                 userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.overrides)),
             into: userDefaults)
@@ -1041,27 +1039,16 @@ extension SettingsStore {
         let rawOrder = config.providers.map(\.id.rawValue)
         self.providerOrder = Self.effectiveProviderOrder(raw: rawOrder)
         let metadata = ProviderDescriptorRegistry.metadata
+        let defaults = UsageProvider.allCases.map { provider in
+            (id: provider.instanceID, enabled: metadata[provider]?.defaultEnabled ?? false)
+        } + UserProviderPluginRegistry.all.map { plugin in
+            (id: plugin.manifest.id, enabled: true)
+        }
         var enablement: [ProviderInstanceID: Bool] = [:]
-        enablement.reserveCapacity(metadata.count)
-        for provider in UsageProvider.allCases {
-            let instanceID = provider.instanceID
-            let defaultEnabled = metadata[provider]?.defaultEnabled ?? false
+        enablement.reserveCapacity(defaults.count)
+        for (instanceID, defaultEnabled) in defaults {
             let providerConfig = config.providerConfig(for: instanceID) ?? ProviderConfig(id: instanceID)
             let isEnabled = providerConfig.enabled ?? defaultEnabled
-            if let previous = self.providerEnablement[instanceID], previous != isEnabled {
-                self.providerEnablementRevisions[instanceID, default: 0] &+= 1
-            }
-            let fingerprint = Self.providerConfigFingerprint(providerConfig)
-            if let previous = self.providerConfigFingerprints[instanceID], previous != fingerprint {
-                self.providerConfigRevisions[instanceID, default: 0] &+= 1
-            }
-            self.providerConfigFingerprints[instanceID] = fingerprint
-            enablement[instanceID] = isEnabled
-        }
-        for plugin in UserProviderPluginRegistry.all {
-            let instanceID = plugin.manifest.id
-            let providerConfig = config.providerConfig(for: instanceID) ?? ProviderConfig(id: instanceID)
-            let isEnabled = providerConfig.enabled ?? true
             if let previous = self.providerEnablement[instanceID], previous != isEnabled {
                 self.providerEnablementRevisions[instanceID, default: 0] &+= 1
             }
@@ -1083,14 +1070,9 @@ extension SettingsStore {
     }
 
     private static func providerConfigFingerprint(_ config: ProviderConfig) -> Data {
-        // This fingerprint gates provider refresh publication, so it must cover only fields a fetch
-        // depends on. A purely cosmetic field would otherwise discard an in-flight probe result, and
-        // a cosmetic edit schedules no replacement fetch.
-        var fetchRelevant = config
-        fetchRelevant.accentColor = nil
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
-        return (try? encoder.encode(fetchRelevant)) ?? Data()
+        return (try? encoder.encode(config.fetchIdentityConfig)) ?? Data()
     }
 
     func providerEnablementRevision(for provider: UsageProvider) -> UInt64 {
@@ -1164,13 +1146,9 @@ extension SettingsStore {
 
     func updatePluginConfig(instanceID: ProviderInstanceID, mutate: (inout ProviderConfig) -> Void) {
         self.updateConfig(reason: "plugin-\(instanceID.rawValue)", affectsBackgroundWork: true) { config in
-            if let index = config.providers.firstIndex(where: { $0.id == instanceID }) {
-                mutate(&config.providers[index])
-            } else {
-                var entry = ProviderConfig(id: instanceID, enabled: true)
-                mutate(&entry)
-                config.providers.append(entry)
-            }
+            var entry = config.providerConfig(for: instanceID) ?? ProviderConfig(id: instanceID, enabled: true)
+            mutate(&entry)
+            config.setProviderConfig(entry)
         }
     }
 

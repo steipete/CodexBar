@@ -83,7 +83,7 @@ extension OpenCodeGoUsageFetcher {
     static let optionalZenBalanceJoinGrace: Duration = .milliseconds(250)
 
     public static func zenDashboardURL(workspaceID raw: String?) -> URL {
-        guard let workspaceID = self.normalizeWorkspaceID(raw),
+        guard let workspaceID = OpenCodeWebParsing.normalizeWorkspaceID(raw),
               let url = URL(string: "https://opencode.ai/workspace/\(workspaceID)")
         else {
             return URL(string: "https://opencode.ai")!

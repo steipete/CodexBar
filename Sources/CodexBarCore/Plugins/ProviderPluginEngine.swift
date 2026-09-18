@@ -86,6 +86,7 @@ protocol ProviderPluginValue {
     var isUndefined: Bool { get }
     var isString: Bool { get }
     var isNumber: Bool { get }
+    var isBoolean: Bool { get }
     var isDate: Bool { get }
 
     func property(_ name: String) -> (any ProviderPluginValue)?
@@ -93,6 +94,7 @@ protocol ProviderPluginValue {
     func stringValue() -> String
     func int32Value() -> Int32
     func doubleValue() -> Double
+    func boolValue() -> Bool
     func dateValue() -> Date?
 }
 
@@ -128,6 +130,11 @@ final class JSONProviderPluginValue: ProviderPluginValue {
         return CFGetTypeID(number) != CFBooleanGetTypeID()
     }
 
+    var isBoolean: Bool {
+        guard let number = self.value as? NSNumber else { return false }
+        return CFGetTypeID(number) == CFBooleanGetTypeID()
+    }
+
     var isDate: Bool {
         false
     }
@@ -157,6 +164,10 @@ final class JSONProviderPluginValue: ProviderPluginValue {
 
     func doubleValue() -> Double {
         (self.value as? NSNumber)?.doubleValue ?? .nan
+    }
+
+    func boolValue() -> Bool {
+        (self.value as? NSNumber)?.boolValue ?? false
     }
 
     func dateValue() -> Date? {
@@ -198,6 +209,10 @@ final class JavaScriptCorePluginValue: ProviderPluginValue {
         self.value.isNumber
     }
 
+    var isBoolean: Bool {
+        self.value.isBoolean
+    }
+
     var isDate: Bool {
         self.value.isDate
     }
@@ -220,6 +235,10 @@ final class JavaScriptCorePluginValue: ProviderPluginValue {
 
     func doubleValue() -> Double {
         self.value.toDouble()
+    }
+
+    func boolValue() -> Bool {
+        self.value.toBool()
     }
 
     func dateValue() -> Date? {

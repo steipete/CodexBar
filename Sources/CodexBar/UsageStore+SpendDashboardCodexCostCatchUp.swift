@@ -242,9 +242,8 @@ extension UsageStore {
                 }
 
                 let previousStatus = statuses[account.cacheIdentity]
-                let passStartedAt = ContinuousClock.now
                 self.spendDashboardCodexCostCatchUpPassIsRunning = true
-                let nextStatus: CostUsageFetcher.CodexScanCatchUpStatus
+                let result: CostUsageScanExecutor.TimedResult<CostUsageFetcher.CodexScanCatchUpStatus>
                 do {
                     defer {
                         // A cancelled pass can finish after its replacement has started.
@@ -252,13 +251,13 @@ extension UsageStore {
                             self.spendDashboardCodexCostCatchUpPassIsRunning = false
                         }
                     }
-                    nextStatus = try await self.advanceSpendDashboardCodexCostCatchUp(
+                    result = try await self.advanceSpendDashboardCodexCostCatchUp(
                         account: account,
                         now: Date(),
                         historyDays: context.historyDays)
                 }
-                previousActiveDuration = Self.spendDashboardCodexCatchUpDuration(
-                    since: passStartedAt)
+                let nextStatus = result.value
+                previousActiveDuration = result.activeDuration
                 didChangeCache = didChangeCache || nextStatus.progressKey != previousStatus?.progressKey
                 statuses[account.cacheIdentity] = nextStatus
                 if nextStatus.pending,
@@ -339,10 +338,12 @@ extension UsageStore {
     private func advanceSpendDashboardCodexCostCatchUp(
         account: CodexSpendScanRequest,
         now: Date,
-        historyDays: Int) async throws -> CostUsageFetcher.CodexScanCatchUpStatus
+        historyDays: Int) async throws -> CostUsageScanExecutor.TimedResult<CostUsageFetcher.CodexScanCatchUpStatus>
     {
         if let override = self._test_spendDashboardCodexCostCatchUpAdvanceOverride {
-            return try await override(account, now, historyDays)
+            return try await .init(
+                value: override(account, now, historyDays),
+                activeDuration: self._test_spendDashboardCodexCostCatchUpActiveDuration)
         }
         return try await CostUsageFetcher(
             cacheRoot: SpendDashboardSource.codexCacheRoot(for: account),
@@ -405,15 +406,5 @@ extension UsageStore {
         _ statuses: [String: CostUsageFetcher.CodexScanCatchUpStatus]) -> Bool
     {
         statuses.values.contains(where: \.pending)
-    }
-
-    private static func spendDashboardCodexCatchUpDuration(
-        since start: ContinuousClock.Instant) -> TimeInterval
-    {
-        let components = (ContinuousClock.now - start).components
-        return max(
-            0,
-            Double(components.seconds)
-                + Double(components.attoseconds) / 1_000_000_000_000_000_000)
     }
 }

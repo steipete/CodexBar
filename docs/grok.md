@@ -39,6 +39,7 @@ The grok.com billing gRPC-web endpoint remains a best-effort fallback.
      fallback, while a team principal degrades to identity-only with an explicit
      unsupported-team-usage diagnostic. When xAI exposes billing on the agent
      protocol, no code change is required.
+   - A terminal CLI billing failure returns before scanning local session history or probing the CLI version, so the provider fallback does not wait for data that would be discarded. Successful billing and the established identity-only team fallback retain local history and plan enrichment.
    - After a successful RPC billing result (or the identity-only team fallback),
      CodexBar still GETs `/v1/settings` for `subscription_tier_display` so the
      billed plan is not lost just because the CLI route succeeded first. The
@@ -57,6 +58,13 @@ The grok.com billing gRPC-web endpoint remains a best-effort fallback.
      `onDemandUsed.val / onDemandCap.val * 100`. A parseable current period
      without either value represents unknown usage. The reset timestamp comes from
      `config.currentPeriod.end`, then `config.billingPeriodEnd`.
+     A complete `currentPeriod.start/end` also supplies the full window duration;
+     when the current-period end is unavailable, `billingPeriodStart/End` supplies
+     the matching fallback bounds. Missing, invalid, reversed, or future starts
+     leave the duration unknown. Measured weekly windows retain pace projections
+     near reset; time remaining alone is never used to populate the duration.
+     Measured monthly windows keep their Monthly label near reset and do not use
+     weekly pace projections.
    - Unknown usage yields no rate window at all, and a successful strategy ends the
      fetch pipeline, so a period-only credits answer would otherwise hide the usage
      bar for plans whose payload never publishes `creditUsagePercent`. Before that
@@ -88,10 +96,13 @@ The grok.com billing gRPC-web endpoint remains a best-effort fallback.
    - Weekly credits do not include usage-limit reset coupons. After a successful
      SuperGrok OAuth or CLI-proxy usage refresh, CodexBar POSTs an empty gRPC-web
      request to `https://grok.com/prod_mc_billing.ConsumerUiSvc/GetRemainingResets`
-     with the same bearer. Available tokens (`token_id` + `validity_end`) render as
-     a `Limit Reset Credits` detail row. The credential-scoped lookup refreshes a
+     with the same bearer, or the exact cookie session that supplied browser billing. Ambient cookie storage is
+     disabled for this request. Available tokens (`token_id` + `validity_end`) render as
+     a `Limit Reset Credits` section. The credential-scoped lookup refreshes a
      short-lived in-memory cache in the background, with a 2-second transport
-     budget, so it never delays already-fetched weekly usage. CodexBar does not
+     budget, so the app can publish already-fetched weekly usage immediately. The CLI waits for the bounded
+     optional result. Turning off optional usage skips the lookup. Expired or persisted inventory is not shown.
+     CodexBar does not
      redeem or modify reset tokens.
    - Plan name does not come from the credits payload. After a successful
      auth-file or SuperGrok OAuth web billing result (CLI-proxy) or the team
@@ -255,6 +266,11 @@ credits remain a quota window on the usage bar; they are never converted into
 dollars. Local session scans run on the dedicated background usage-scan queue;
 menu cards and spend views reuse the already-published snapshot instead of
 walking the session directory whenever they render.
+
+## Menu bar appearance
+
+Grok quota icons show a visor and twin antennae in both single- and two-meter layouts.
+Enable **Hide Critters** to use plain quota bars. Status badges retain their normal placement.
 
 ## Status
 

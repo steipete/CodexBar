@@ -44,6 +44,7 @@ interface CodexBarCostUsageEntry {
   date: string;
   inputTokens: number;
   outputTokens: number;
+  /** Independent reported count; may exceed outputTokens and is not added to input + output totals. */
   reasoningTokens?: number | null;
   requests: number;
   cost: number;
@@ -191,6 +192,8 @@ interface CodexBarProviderDefinition {
   id: string;
   name: string;
   icon?: { monogram?: string; tint?: string };
+  /** Shows this plugin as its own provider-switcher tab. */
+  topLevel?: boolean;
   endpoints: CodexBarEndpoint[];
   auth?: CodexBarAuth;
   settings: CodexBarSetting[];

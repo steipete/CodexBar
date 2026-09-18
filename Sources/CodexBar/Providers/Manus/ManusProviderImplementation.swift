@@ -1,7 +1,6 @@
 import AppKit
 import CodexBarCore
 import Foundation
-import SwiftUI
 
 struct ManusProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .manus
@@ -21,17 +20,6 @@ struct ManusProviderImplementation: ProviderImplementation {
     }
 
     @MainActor
-    func observeSettings(_ settings: SettingsStore) {
-        _ = settings.manusCookieSource
-        _ = settings.manusManualCookieHeader
-    }
-
-    @MainActor
-    func settingsSnapshot(context: ProviderSettingsSnapshotContext) -> ProviderSettingsSnapshotContribution? {
-        .manus(context.settings.manusSettingsSnapshot(tokenOverride: context.tokenOverride))
-    }
-
-    @MainActor
     func tokenAccountsVisibility(context: ProviderSettingsContext, support: TokenAccountSupport) -> Bool {
         guard support.requiresManualCookieSource else { return true }
         if !context.settings.tokenAccounts(for: context.provider).isEmpty { return true }
@@ -47,34 +35,18 @@ struct ManusProviderImplementation: ProviderImplementation {
 
     @MainActor
     func settingsPickers(context: ProviderSettingsContext) -> [ProviderSettingsPickerDescriptor] {
-        let cookieBinding = Binding(
-            get: { context.settings.manusCookieSource.rawValue },
-            set: { raw in
-                context.settings.manusCookieSource = ProviderCookieSource(rawValue: raw) ?? .auto
-            })
-        let options = ProviderCookieSourceUI.options(
-            allowsOff: true,
-            keychainDisabled: context.settings.debugDisableKeychainAccess)
-
-        let subtitle: () -> String? = {
-            ProviderCookieSourceUI.subtitle(
-                source: context.settings.manusCookieSource,
-                keychainDisabled: context.settings.debugDisableKeychainAccess,
-                auto: "Automatically imports browser session cookies.",
-                manual: "Paste the session_id value or a full Cookie header.",
-                off: "Manus cookies are disabled.")
-        }
-
-        return [
-            ProviderSettingsPickerDescriptor(
+        [
+            ProviderCookieSourceUI.picker(
                 id: "manus-cookie-source",
-                title: "Cookie source",
-                subtitle: "Automatically imports browser session cookies.",
-                dynamicSubtitle: subtitle,
-                binding: cookieBinding,
-                options: options,
-                isVisible: nil,
-                onChange: nil),
+                context: context,
+                source: \.manusCookieSource,
+                allowsOff: true,
+                subtitles: {
+                    .init(
+                        auto: L("Automatically imports browser session cookies."),
+                        manual: L("Paste the %@ value or a full Cookie header.", "session_id"),
+                        off: L("%@ cookies are disabled.", "Manus"))
+                }),
         ]
     }
 
@@ -87,21 +59,14 @@ struct ManusProviderImplementation: ProviderImplementation {
                 subtitle: "",
                 kind: .secure,
                 placeholder: "session_id=...\n\nor paste just the session_id value",
-                binding: context.stringBinding(\.manusManualCookieHeader),
+                binding: context.binding(\.manusManualCookieHeader),
                 actions: [
-                    ProviderSettingsActionDescriptor(
+                    ProviderSettingsActionDescriptor.openURL(
                         id: "manus-open-dashboard",
                         title: "Open Manus",
-                        style: .link,
-                        isVisible: nil,
-                        perform: {
-                            if let url = URL(string: "https://manus.im") {
-                                NSWorkspace.shared.open(url)
-                            }
-                        }),
+                        url: URL(string: "https://manus.im")),
                 ],
-                isVisible: { context.settings.manusCookieSource == .manual },
-                onActivate: nil),
+                isVisible: { context.settings.manusCookieSource == .manual }),
         ]
     }
 }

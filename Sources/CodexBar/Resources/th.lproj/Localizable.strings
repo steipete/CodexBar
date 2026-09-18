@@ -1433,6 +1433,33 @@
 "Cost today unavailable" = "ค่าใช้จ่ายวันนี้: ไม่พร้อมใช้งาน";
 "30-day cost unavailable" = "ค่าใช้จ่าย 30 วัน: ไม่พร้อมใช้งาน";
 "Resets" = "การรีเซ็ต";
+"codex_workspaces_estimated_cost_short" = "ค่าใช้จ่ายโดยประมาณ";
+"codex_workspaces_estimated_cost_value" = "ประมาณ %@";
+"codex_workspaces_estimated_local_logs" = "ประมาณจากบันทึก Codex ในเครื่อง";
+"codex_workspaces_failed_read_logs" = "อ่านบันทึก Codex ไม่สำเร็จ";
+"codex_workspaces_indexing_local_logs" = "กำลังสร้างดัชนีบันทึก Codex ในเครื่อง…";
+"codex_workspaces_indexing_projects" = "กำลังสร้างดัชนีโปรเจ็กต์…";
+"codex_workspaces_local_codex_chat" = "แชท Codex ในเครื่อง";
+"codex_workspaces_no_local_usage" = "ยังไม่มีข้อมูลการใช้งาน Codex ในเครื่อง";
+"codex_workspaces_saving_project_index" = "กำลังบันทึกดัชนีโปรเจ็กต์…";
+"codex_workspaces_scanning_logs" = "กำลังสแกนบันทึก Codex…";
+"codex_workspaces_session_count" = "เซสชัน: %@";
+"codex_workspaces_sessions" = "เซสชัน";
+"codex_workspaces_title" = "พื้นที่ทำงาน";
+"codex_workspaces_tokens" = "โทเค็น";
+"codex_workspaces_token_count_accessibility" = "%@ โทเค็น";
+"codex_workspaces_top_model" = "โมเดลยอดนิยม";
+"codex_workspaces_cost_unavailable" = "ไม่มีข้อมูลค่าใช้จ่าย";
+"codex_workspaces_refresh_usage_data" = "รีเฟรชข้อมูลการใช้งาน";
+"codex_workspaces_retry" = "ลองอีกครั้ง";
+"codex_workspaces_partial_data" = "ข้อมูลบางส่วน";
+"codex_workspaces_high_usage" = "การใช้งานสูง";
+"codex_workspaces_elevated_usage" = "การใช้งานสูงกว่าปกติ";
+"codex_workspaces_normal_usage" = "การใช้งานปกติ";
+"codex_workspaces_no_sessions" = "ไม่มีเซสชันในพื้นที่ทำงานนี้";
+"codex_workspaces_session" = "เซสชัน";
+"codex_workspaces_model" = "โมเดล";
+"codex_workspaces_started" = "เริ่มเมื่อ";
 "Finish now" = "เสร็จสิ้นตอนนี้";
 "Continue in background" = "ทำต่อในเบื้องหลัง";
 
@@ -1545,5 +1572,19 @@
 "menu_bar_layout_conditional_default_session_spent" = "เซสชันเกือบหมด";
 "menu_bar_layout_conditional_default_either_high" = "เซสชันหรือรายสัปดาห์อยู่ในระดับสูง";
 "menu_bar_layout_conditional_default_scoped_weekly" = "รายสัปดาห์ตามโมเดลเกิน 60%";
+"Visible usage items" = "รายการการใช้งานที่มองเห็น";
+"Restore Defaults" = "คืนค่าเริ่มต้น";
+"Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "เลือกแถวการใช้งานที่จะแสดงในเมนูของผู้ให้บริการนี้ ตัวอย่างการตั้งค่า และภาพรวม";
+"%@ (unavailable)" = "%@ (ไม่พร้อมใช้งาน)";
 "Spending cap, not balance" = "เพดานการใช้จ่าย ไม่ใช่ยอดคงเหลือ";
+
+"Color Pace Indicator" = "แสดงสีอัตราการใช้งาน";
+"Green pace indicator when behind pace, red when ahead of pace (risk of running out early)" = "สีเขียวเมื่อใช้งานช้ากว่าอัตราที่คาดไว้ (มีโควตาสำรอง) สีแดงเมื่อเร็วกว่า (เสี่ยงหมดโควตาก่อนเวลา)";
 "%@ weekly" = "%@ รายสัปดาห์";
+
+"agent_sessions_hide_unreachable_title" = "ซ่อนโฮสต์ที่เข้าถึงไม่ได้";
+"agent_sessions_hide_unreachable_subtitle" = "ซ่อนโฮสต์เมื่อดึงข้อมูลเซสชันไม่สำเร็จ";
+
+"Incomplete" = "ไม่ครบถ้วน";
+"Est. subtotal (%@): %@" = "ยอดรวมย่อยโดยประมาณ (%@): %@";
+"Excluded requests with missing final usage: %d" = "คำขอที่ไม่นับรวมเนื่องจากไม่มีข้อมูลการใช้งานขั้นสุดท้าย: %d";

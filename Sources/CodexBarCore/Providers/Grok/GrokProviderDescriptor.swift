@@ -101,13 +101,15 @@ public enum GrokProviderDescriptor {
                         && timeUntilReset > 0
                         && timeUntilReset <= TimeInterval(windowMinutes) * 60
                 }),
-            presentation: ProviderUsagePresentation(rateWindowLabeler: { metadata, snapshot, now in
-                ProviderRateWindowLabels(
-                    primary: Self.displayLabel(window: snapshot.primary, now: now) ?? metadata.sessionLabel,
-                    secondary: metadata.weeklyLabel,
-                    tertiary: metadata.opusLabel ?? "Sonnet",
-                    showsTertiary: metadata.supportsOpus)
-            }),
+            presentation: ProviderUsagePresentation(
+                rateWindowLabeler: { metadata, snapshot, now in
+                    ProviderRateWindowLabels(
+                        primary: Self.displayLabel(window: snapshot.primary, now: now) ?? metadata.sessionLabel,
+                        secondary: metadata.weeklyLabel,
+                        tertiary: metadata.opusLabel ?? "Sonnet",
+                        showsTertiary: metadata.supportsOpus)
+                },
+                iconDecorations: [.grok]),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .cli, .oauth, .web],
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
@@ -217,22 +219,6 @@ struct GrokCLIFetchStrategy: ProviderFetchStrategy {
             sourceLabel: "grok-cli",
             supplementalUsageTask: resetResolution.supplementalUsageTask,
             diagnostic: snapshot.diagnostic)
-    }
-
-    static func remainingResetTokens(
-        snapshot: GrokUsageSnapshot,
-        includeOptionalUsage: Bool,
-        lookup: GrokRemainingResetsLookup = { credentials, cookieHeader, now in
-            GrokRemainingResetsFetcher.cachedLookupAndRefresh(
-                credentials: credentials,
-                cookieHeader: cookieHeader,
-                now: now)
-        }) -> [GrokRemainingReset]
-    {
-        self.remainingResetLookup(
-            snapshot: snapshot,
-            includeOptionalUsage: includeOptionalUsage,
-            lookup: lookup).tokens
     }
 
     static func remainingResetLookup(

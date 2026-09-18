@@ -1433,6 +1433,33 @@
 "Cost today unavailable" = "هزینهٔ امروز: در دسترس نیست";
 "30-day cost unavailable" = "هزینهٔ ۳۰ روز: در دسترس نیست";
 "Resets" = "بازنشانی‌ها";
+"codex_workspaces_estimated_cost_short" = "هزینهٔ تخمینی";
+"codex_workspaces_estimated_cost_value" = "تخمینی %@";
+"codex_workspaces_estimated_local_logs" = "برآوردشده از گزارش‌های محلی Codex";
+"codex_workspaces_failed_read_logs" = "خواندن گزارش‌های Codex ناموفق بود";
+"codex_workspaces_indexing_local_logs" = "در حال فهرست‌سازی گزارش‌های محلی Codex…";
+"codex_workspaces_indexing_projects" = "در حال فهرست‌سازی پروژه‌ها…";
+"codex_workspaces_local_codex_chat" = "گفتگوی محلی Codex";
+"codex_workspaces_no_local_usage" = "هنوز استفادهٔ محلی از Codex وجود ندارد";
+"codex_workspaces_saving_project_index" = "در حال ذخیرهٔ فهرست پروژه…";
+"codex_workspaces_scanning_logs" = "در حال پویش گزارش‌های Codex…";
+"codex_workspaces_session_count" = "نشست‌ها: %@";
+"codex_workspaces_sessions" = "نشست‌ها";
+"codex_workspaces_title" = "فضاهای کاری";
+"codex_workspaces_tokens" = "توکن‌ها";
+"codex_workspaces_token_count_accessibility" = "%@ توکن";
+"codex_workspaces_top_model" = "مدل برتر";
+"codex_workspaces_cost_unavailable" = "هزینه در دسترس نیست";
+"codex_workspaces_refresh_usage_data" = "تازه‌سازی داده‌های استفاده";
+"codex_workspaces_retry" = "دوباره امتحان کنید";
+"codex_workspaces_partial_data" = "داده‌های جزئی";
+"codex_workspaces_high_usage" = "استفادهٔ زیاد";
+"codex_workspaces_elevated_usage" = "استفادهٔ بالاتر";
+"codex_workspaces_normal_usage" = "استفادهٔ عادی";
+"codex_workspaces_no_sessions" = "در این فضای کاری نشستی وجود ندارد";
+"codex_workspaces_session" = "نشست";
+"codex_workspaces_model" = "مدل";
+"codex_workspaces_started" = "آغازشده";
 "Finish now" = "اکنون تمام شود";
 "Continue in background" = "ادامه در پس‌زمینه";
 
@@ -1545,5 +1572,19 @@
 "menu_bar_layout_conditional_default_session_spent" = "نشست تقریباً تمام شده";
 "menu_bar_layout_conditional_default_either_high" = "نشست یا هفته در سطح بالا";
 "menu_bar_layout_conditional_default_scoped_weekly" = "پنجره هفتگی مدل بیش از ۶۰٪";
+"Visible usage items" = "موارد قابل مشاهده استفاده";
+"Restore Defaults" = "بازیابی پیش‌فرض‌ها";
+"Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "انتخاب کنید کدام ردیف‌های استفاده در منوی این ارائه‌دهنده، پیش‌نمایش تنظیمات و نمای کلی نمایش داده شوند.";
+"%@ (unavailable)" = "%@ (در دسترس نیست)";
 "Spending cap, not balance" = "سقف هزینه، نه موجودی";
+
+"Color Pace Indicator" = "رنگ‌بندی آهنگ مصرف";
+"Green pace indicator when behind pace, red when ahead of pace (risk of running out early)" = "سبز وقتی مصرف از آهنگ مورد انتظار عقب‌تر است (ذخیره)؛ قرمز وقتی جلوتر است (خطر تمام شدن زودهنگام سهمیه).";
 "%@ weekly" = "%@ هفتگی";
+
+"agent_sessions_hide_unreachable_title" = "پنهان کردن میزبان‌های در دسترس نبودنی";
+"agent_sessions_hide_unreachable_subtitle" = "میزبان‌ها را در صورت ناموفق بودن دریافت نشست‌هایشان پنهان کنید.";
+
+"Incomplete" = "ناقص";
+"Est. subtotal (%@): %@" = "جمع جزئی تخمینی (%@): %@";
+"Excluded requests with missing final usage: %d" = "درخواست‌های حذف‌شده به دلیل نبود داده‌های مصرف نهایی: %d";

@@ -2,27 +2,9 @@ import CodexBarCore
 import Foundation
 
 extension UsageStore {
-    nonisolated static func codexSessionQuotaOwnerKey(
-        for refreshGuard: CodexAccountScopedRefreshGuard?) -> CodexSessionQuotaOwnerKey?
-    {
-        guard let refreshGuard else { return nil }
-        return CodexSessionQuotaOwnerKey(refreshGuard: refreshGuard)
-    }
-
-    nonisolated static func codexSessionQuotaOwnersMatch(
-        _ lhs: CodexAccountScopedRefreshGuard?,
-        _ rhs: CodexAccountScopedRefreshGuard?) -> Bool
-    {
-        guard let lhsKey = self.codexSessionQuotaOwnerKey(for: lhs),
-              let rhsKey = self.codexSessionQuotaOwnerKey(for: rhs)
-        else {
-            return false
-        }
-        return lhsKey == rhsKey
-    }
-
     private struct ProviderRefreshOutcomeContext {
         let generation: UInt64
+        let includesCredits: Bool
         let claudeUsesConsumerAutoPipeline: Bool
         let codexExpectedGuard: CodexAccountScopedRefreshGuard?
         let tokenAccount: ProviderTokenAccount?
@@ -465,6 +447,7 @@ extension UsageStore {
             generation: generation))
         let outcomeContext = ProviderRefreshOutcomeContext(
             generation: generation,
+            includesCredits: fetchContext.includeCredits,
             claudeUsesConsumerAutoPipeline: Self.isClaudeConsumerAutoPipeline(
                 provider: provider,
                 context: fetchContext,
@@ -695,7 +678,7 @@ extension UsageStore {
             return
         }
         let accountScoped = if let tokenAccount = currentTokenAccount {
-            self.applyAccountLabel(scoped, provider: provider, account: tokenAccount)
+            scoped.withAccountLabel(tokenAccount.label, for: provider)
         } else {
             scoped
         }
@@ -720,11 +703,10 @@ extension UsageStore {
             } else {
                 self.lastKnownResetSnapshots[provider.instanceID]
             }
-            let profileStable = self.preservingDeepSeekProfileCatalog(in: accountScoped, provider: provider)
-            let stabilized = Self.commandCodeSnapshotResolvingDepletionOnEnrichmentFailure(
-                current: profileStable,
-                previous: self.snapshots[provider.instanceID])
-            let backfilled = stabilized.backfillingResetTimes(from: resetBackfillSource)
+            // Resolve display-only allowances after any suspended request has completed.
+            let allowanceCurrent = self.resolvingCurrentCopilotAllowance(in: accountScoped, provider: provider)
+            let backfilled = self.preparePublishedSnapshot(
+                allowanceCurrent, provider: provider, resetBackfillSource: resetBackfillSource, context: context)
             let warningAccountDiscriminator = Self.warningAccountDiscriminator(
                 provider: provider,
                 tokenAccount: currentTokenAccount,
@@ -843,7 +825,7 @@ extension UsageStore {
             return
         }
         // Credential-change cleanup already ran above; cancellation is now safe to suppress.
-        if Self.errorIsCancellation(error) {
+        if Self.shouldSuppressProviderCancellation(error, priorSnapshot: self.snapshots[provider.instanceID]) {
             if provider == .deepseek,
                self.isCurrentProviderRefreshGeneration(provider, generation: context.generation)
             {
@@ -865,6 +847,24 @@ extension UsageStore {
             error: error,
             attempts: attempts,
             context: context)
+    }
+
+    private func preparePublishedSnapshot(
+        _ snapshot: UsageSnapshot,
+        provider: UsageProvider,
+        resetBackfillSource: UsageSnapshot?,
+        context: ProviderRefreshOutcomeContext) -> UsageSnapshot
+    {
+        let profileStable = self.preservingDeepSeekProfileCatalog(in: snapshot, provider: provider)
+        let stabilized = Self.commandCodeSnapshotResolvingDepletionOnEnrichmentFailure(
+            current: profileStable,
+            previous: self.snapshots[provider.instanceID])
+        return self.preservingCodexCost(
+            in: stabilized,
+            for: provider,
+            owner: context.codexExpectedGuard,
+            includesCredits: context.includesCredits)
+            .backfillingResetTimes(from: resetBackfillSource)
     }
 
     private func preservingDeepSeekProfileCatalog(
@@ -1430,7 +1430,8 @@ extension UsageStore {
                 Self.isClaudeCLIUsageParseFailure(error)
             let preservesPriorData = Self.shouldPreservePriorSnapshot(
                 after: error,
-                hadPriorData: hadPriorData) ||
+                hadPriorData: hadPriorData,
+                priorSnapshot: self.snapshots[provider.instanceID]) ||
                 (provider == .claude &&
                     hadPriorData &&
                     (context.claudeUsesConsumerAutoPipeline ||
@@ -1523,7 +1524,7 @@ extension UsageStore {
     }
 
     nonisolated static func isPreservableNetworkTransportError(_ error: Error) -> Bool {
-        let nsError = error as NSError
+        let nsError = self.underlyingProviderTransportError(error) as NSError
         guard nsError.domain == NSURLErrorDomain else { return false }
         switch nsError.code {
         case NSURLErrorTimedOut,
@@ -1546,11 +1547,12 @@ extension UsageStore {
     }
 
     static func isStartupConnectivityRetryableError(_ error: Error) -> Bool {
-        if error is CancellationError {
+        let transportError = self.underlyingProviderTransportError(error)
+        if transportError is CancellationError {
             return false
         }
 
-        let nsError = error as NSError
+        let nsError = transportError as NSError
         if nsError.domain == NSURLErrorDomain {
             switch nsError.code {
             case NSURLErrorTimedOut,

@@ -466,6 +466,62 @@ struct CostUsageScannerClaudeMemoTests {
         #expect(reloaded.summary == report.summary)
     }
 
+    @Test(arguments: ["negative", "same-day-overflow", "cross-day-overflow", "absent", "zero", "positive"])
+    func `persisted exclusion counts are validated before report aggregation`(fixture: String) throws {
+        let env = try CostUsageTestEnvironment()
+        defer {
+            CostUsageScanner.evictClaudeReportMemoForTesting(provider: .claude, cacheRoot: env.cacheRoot)
+            env.cleanup()
+        }
+        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 1)
+        let source = try self.writeEvent(env: env, day: day, path: "project/session.jsonl", id: "first", input: 10)
+        let sourceData = try Data(contentsOf: source)
+        let sourceStamp = CostUsageClaudeFileStamp.read(at: source)
+        let options = self.options(env: env)
+        let original = self.load(day: day, options: options)
+        let memoURL = CostUsageClaudeReportMemo.reportMemoFileURL(cacheFileURL: self.cacheURL(env: env))
+        var memo = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: memoURL)) as? [String: Any])
+        var report = try #require(memo["report"] as? [String: Any])
+        var days = try #require(report["data"] as? [[String: Any]])
+        var models = try #require(days[0]["modelBreakdowns"] as? [[String: Any]])
+        switch fixture {
+        case "negative": models[0]["incompleteRequestCount"] = -1
+        case "same-day-overflow":
+            models[0]["incompleteRequestCount"] = Int.max
+            models.append(["modelName": "fixture-other", "incompleteRequestCount": 1])
+        case "cross-day-overflow":
+            models[0]["incompleteRequestCount"] = Int.max
+            days.append(["date": "2026-06-30", "modelBreakdowns": [
+                ["modelName": "fixture-other", "incompleteRequestCount": 1],
+            ]])
+        case "zero": models[0]["incompleteRequestCount"] = 0
+        case "positive": models[0]["incompleteRequestCount"] = 3
+        default: break
+        }
+        days[0]["modelBreakdowns"] = models
+        report["data"] = days
+        memo["report"] = report
+        try JSONSerialization.data(withJSONObject: memo).write(to: memoURL)
+        CostUsageScanner.evictClaudeReportMemoForTesting(provider: .claude, cacheRoot: env.cacheRoot)
+        let (loaded, work) = self.recordedLoad(day: day, options: options)
+        let valid = ["absent", "zero", "positive"].contains(fixture)
+        if valid {
+            #expect(loaded.data.first?.incompleteRequestCount == (fixture == "positive" ? 3 : 0))
+            #expect(work == CostUsageScanner.ClaudeScanWorkMetrics())
+        } else {
+            #expect(loaded.data == original.data)
+            #expect(loaded.summary == original.summary)
+            #expect(work.cacheDecodes == 1)
+            #expect(work.transcriptParses == 0)
+            CostUsageScanner.evictClaudeReportMemoForTesting(provider: .claude, cacheRoot: env.cacheRoot)
+            let (cold, coldWork) = self.recordedLoad(day: day, options: options)
+            #expect(cold.data == original.data)
+            #expect(coldWork == CostUsageScanner.ClaudeScanWorkMetrics())
+        }
+        #expect(try Data(contentsOf: source) == sourceData)
+        #expect(CostUsageClaudeFileStamp.read(at: source) == sourceStamp)
+    }
+
     private func options(
         env: CostUsageTestEnvironment,
         calendar: Calendar = .current) -> CostUsageScanner.Options

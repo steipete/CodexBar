@@ -39,6 +39,7 @@ Qwen Cloud console (`home.qwencloud.com`), including plans that grant hosted Cla
   identifies the active tier, and quota configuration supplies that tier's numeric credit limits.
 - Sends form-encoded fields for `product=sfm_bailian`, `action=IntlBroadScopeAspnGateway`,
   `region=ap-southeast-1`, `language=en-US`, a resolved `sec_token`, and the provider-native API payload.
+- Form encoding preserves reserved characters in the security token and JSON parameters, including cookie-derived anonymous IDs.
 - Uses Qwen Cloud / alibabacloud login cookies, with `sec_token` resolved from the dashboard HTML,
   a `sec_token` cookie, or the `/tool/user/info.json` endpoint
 - Supports `QWEN_CLOUD_HOST` and `QWEN_CLOUD_QUOTA_URL` for testing endpoint overrides, and

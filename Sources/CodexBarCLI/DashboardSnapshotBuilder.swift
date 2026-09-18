@@ -26,7 +26,8 @@ enum DashboardSnapshotBuilder {
         generatedAt: Date,
         refreshInterval: TimeInterval,
         codexBarVersion: String?,
-        claudeSwap: DashboardClaudeSwapInput? = nil) -> DashboardSnapshotPayload
+        claudeSwap: DashboardClaudeSwapInput? = nil,
+        usageBarsShowUsed: Bool = false) -> DashboardSnapshotPayload
     {
         var costByProvider: [String: CostPayload] = [:]
         for cost in costPayloads {
@@ -60,7 +61,8 @@ enum DashboardSnapshotBuilder {
             staleAfterSeconds: max(180, refreshSeconds * 3),
             host: DashboardHostPayload(
                 codexBarVersion: codexBarVersion,
-                refreshIntervalSeconds: refreshSeconds),
+                refreshIntervalSeconds: refreshSeconds,
+                usageBarsShowUsed: usageBarsShowUsed),
             providers: providers)
     }
 
@@ -69,7 +71,8 @@ enum DashboardSnapshotBuilder {
         providers requestedProviders: [UsageProvider]? = nil,
         generatedAt: Date,
         refreshInterval: TimeInterval,
-        codexBarVersion: String?) -> DashboardSnapshotPayload
+        codexBarVersion: String?,
+        usageBarsShowUsed: Bool = false) -> DashboardSnapshotPayload
     {
         let providers = requestedProviders
             ?? config.enabledProviders().compactMap(\.firstPartyProvider)
@@ -102,7 +105,8 @@ enum DashboardSnapshotBuilder {
             staleAfterSeconds: max(180, refreshSeconds * 3),
             host: DashboardHostPayload(
                 codexBarVersion: codexBarVersion,
-                refreshIntervalSeconds: refreshSeconds),
+                refreshIntervalSeconds: refreshSeconds,
+                usageBarsShowUsed: usageBarsShowUsed),
             providers: rows)
     }
 
@@ -246,11 +250,11 @@ enum DashboardSnapshotBuilder {
         guard let status else { return nil }
         return DashboardStatusPayload(
             level: self.dashboardStatusLevel(status.indicator),
-            label: status.indicator.label,
+            label: status.indicator.cliLabel,
             updatedAt: status.updatedAt)
     }
 
-    private static func dashboardStatusLevel(_ indicator: ProviderStatusPayload.ProviderStatusIndicator) -> String {
+    private static func dashboardStatusLevel(_ indicator: ProviderStatusIndicator) -> String {
         switch indicator {
         case .none:
             "ok"
@@ -477,26 +481,59 @@ enum DashboardSnapshotBuilder {
     }
 
     private static func makeCredits(_ credits: CreditsSnapshot?) -> DashboardCreditsPayload? {
-        guard let credits else { return nil }
+        guard let credits, credits.balanceReadSucceeded else { return nil }
         return DashboardCreditsPayload(remaining: credits.remaining, unit: "credits")
     }
 
     private static func makeCost(_ cost: CostPayload?, referenceDate: Date) -> DashboardCostPayload? {
         guard let cost else { return nil }
-        let todayUSD = self.todayCostUSD(cost, referenceDate: referenceDate)
-        guard todayUSD != nil || cost.last30DaysCostUSD != nil else { return nil }
+        let today = self.todayCostEntry(cost, referenceDate: referenceDate)
+        let todayUSD = today?.costUSD
+        let history = self.thirtyDayCost(cost, referenceDate: referenceDate)
+        guard todayUSD != nil || history.amount != nil ||
+            (today?.incompleteRequestCount ?? 0) > 0 || (history.incompleteCount ?? 0) > 0
+        else { return nil }
         return DashboardCostPayload(
             todayUSD: todayUSD,
-            last30DaysUSD: cost.last30DaysCostUSD)
+            last30DaysUSD: history.amount,
+            todayIncompleteRequestCount: today?.incompleteRequestCount,
+            last30DaysIncompleteRequestCount: history.incompleteCount)
     }
 
-    private static func todayCostUSD(_ cost: CostPayload, referenceDate: Date) -> Double? {
+    private static func thirtyDayCost(
+        _ cost: CostPayload,
+        referenceDate: Date) -> (amount: Double?, incompleteCount: Int?)
+    {
+        // Imported cost payloads may cover more than the dashboard's fixed 30-day metric.
+        // Narrow the monetary subtotal and exclusions together so they describe the same window.
+        guard (cost.historyDays ?? 30) > 30 else { return (cost.last30DaysCostUSD, cost.incompleteRequestCount) }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .current
+        let end = calendar.startOfDay(for: referenceDate)
+        guard let start = calendar.date(byAdding: .day, value: -29, to: end) else { return (nil, nil) }
+        let startKey = self.costDayKey(start, calendar: calendar)
+        let endKey = self.costDayKey(end, calendar: calendar)
+        let entries = cost.daily.filter {
+            let key = String($0.date.prefix(10))
+            return key >= startKey && key <= endKey
+        }
+        let amounts = entries.compactMap(\.costUSD)
+        let count = CostUsageIncompleteRequests.sum(entries.compactMap(\.incompleteRequestCount))
+        return (amounts.isEmpty ? nil : amounts.reduce(0, +), count > 0 ? count : nil)
+    }
+
+    private static func costDayKey(_ date: Date, calendar: Calendar) -> String {
+        let components = calendar.dateComponents([.year, .month, .day], from: date)
+        return String(format: "%04d-%02d-%02d", components.year ?? 0, components.month ?? 0, components.day ?? 0)
+    }
+
+    private static func todayCostEntry(_ cost: CostPayload, referenceDate: Date) -> CostDailyEntryPayload? {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = .current
         let components = calendar.dateComponents([.year, .month, .day], from: referenceDate)
         guard let year = components.year, let month = components.month, let day = components.day else { return nil }
         let dayKey = String(format: "%04d-%02d-%02d", year, month, day)
-        return cost.daily.first { String($0.date.prefix(10)) == dayKey }?.costUSD
+        return cost.daily.first { String($0.date.prefix(10)) == dayKey }
     }
 
     private static func updatedAt(

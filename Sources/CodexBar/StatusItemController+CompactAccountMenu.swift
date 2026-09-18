@@ -2,7 +2,7 @@ import AppKit
 import CodexBarCore
 
 /// Shared renderer for the compact multi-account menu layout: full cards for the
-/// active and explicitly expanded accounts, one-line rows for the rest, and a
+/// active and explicitly expanded accounts, compact rows for the rest, and a
 /// summary row standing in for the collapsed healthy tail. Used by every
 /// multi-account presentation (claude-swap, token accounts, Codex accounts).
 extension StatusItemController {
@@ -13,7 +13,8 @@ extension StatusItemController {
         AccountMenuLayoutPlanner.plan(
             accounts: accounts,
             expandedAccountIDs: self.compactAccountExpandedIDs,
-            healthyTailExpanded: self.compactAccountExpandedHealthyTailProviders.contains(provider.instanceID))
+            healthyTailExpanded: self.compactAccountExpandedHealthyTailProviders.contains(provider.instanceID),
+            hiddenMetricIDs: Set(self.settings.hiddenUsageItemIDs(for: provider).compactMap(\.metricID)))
     }
 
     struct CompactAccountMenuRendering {
@@ -22,6 +23,7 @@ extension StatusItemController {
         let idPrefix: String
         let cardModel: (ProviderAccountUsageSnapshot) -> UsageMenuCardView.Model?
         var planAction: ((ProviderAccountUsageSnapshot) -> (() -> Void)?)?
+        var privacyOrdinal: ((ProviderAccountUsageSnapshot) -> PersonalInfoRedactor.AccountOrdinal?)?
     }
 
     /// Renders the token-account list with the compact plan when it applies.
@@ -85,17 +87,9 @@ extension StatusItemController {
                 cardModel: { [weak self] projectedAccount in
                     guard let self,
                           let account = accountsByID[projectedAccount.id.opaqueID] else { return nil }
-                    let accountSnapshot = snapshotsByAccountID[account.id]
-                    let health = CodexAccountHealth.status(for: account, error: accountSnapshot?.error)
-                    return self.menuCardModel(
-                        for: .codex,
-                        snapshotOverride: accountSnapshot?.snapshot,
-                        errorOverride: health.label,
-                        forceOverrideCard: accountSnapshot == nil,
-                        accountOverride: self.accountInfo(for: account),
-                        historySelectionOverride: self.store.codexPlanUtilizationHistorySelection(
-                            forVisibleAccount: account),
-                        creditsOverride: accountSnapshot?.credits)
+                    return self.codexAccountMenuCardModel(
+                        for: account,
+                        accountSnapshot: snapshotsByAccountID[account.id])
                 },
                 planAction: nil),
             to: menu,
@@ -146,14 +140,10 @@ extension StatusItemController {
                     menu.addItem(.separator())
                 }
                 let rowModel = MenuCardCompactAccountRowView.Model(
-                    label: PersonalInfoRedactor.redactEmail(
-                        compactRow.label,
-                        isEnabled: self.settings.hidePersonalInfo),
-                    headroomPercent: compactRow.headroomPercent,
-                    severity: compactRow.severity,
-                    constraintDetail: compactRow.constraintDetail,
-                    hasError: compactRow.hasError,
-                    showsBestBadge: compactRow.isBestCandidate)
+                    row: compactRow,
+                    resetTimeDisplayStyle: self.settings.resetTimeDisplayStyle,
+                    hidePersonalInfo: self.settings.hidePersonalInfo,
+                    privacyOrdinal: accountsByID[compactRow.accountID].flatMap { rendering.privacyOrdinal?($0) })
                 let accountID = compactRow.accountID
                 menu.addItem(self.makeMenuCardItem(
                     MenuCardCompactAccountRowView(

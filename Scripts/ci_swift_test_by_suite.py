@@ -432,11 +432,29 @@ def stop_unreaped_child(process: subprocess.Popen) -> None:
     process.wait(timeout=2)
 
 
-def run_command(command: list[str], timeout: int | None = None) -> int:
+CONTAINMENT_CAPABILITIES = ("waitid", "P_PID", "WEXITED", "WNOHANG", "WNOWAIT")
+
+
+def containment_support_error(capabilities: object = os) -> str | None:
     if sys.platform != "darwin" and not sys.platform.startswith("linux"):
-        raise RuntimeError("Swift test process containment requires macOS or Linux")
-    if not all(hasattr(os, name) for name in ("waitid", "P_PID", "WEXITED", "WNOHANG", "WNOWAIT")):
-        raise RuntimeError("Swift test process containment requires waitid with WNOWAIT")
+        return f"Swift test process containment requires macOS or Linux, not {sys.platform}."
+    missing = [name for name in CONTAINMENT_CAPABILITIES if not hasattr(capabilities, name)]
+    if not missing:
+        return None
+    # A version number alone does not tell the reader which build of python3 to reach for.
+    version = ".".join(str(part) for part in sys.version_info[:3])
+    return (
+        "Swift test process containment requires waitid with WNOWAIT. "
+        f"{sys.executable} is Python {version} and does not provide: {', '.join(missing)}. "
+        "Run make test and make check with a python3 that provides them, "
+        "for example Homebrew python@3.14 placed first on PATH."
+    )
+
+
+def run_command(command: list[str], timeout: int | None = None) -> int:
+    error = containment_support_error()
+    if error is not None:
+        raise RuntimeError(error)
     print(f"+ {' '.join(command)}", flush=True)
     started = time.monotonic()
     ownership = None
@@ -624,9 +642,33 @@ def print_timing_summary(stats: RunStats) -> None:
         print(f"- {field}: {value}", flush=True)
 
 
-def chunks(items: list[TestSelection], size: int) -> Iterable[list[TestSelection]]:
-    for index in range(0, len(items), size):
-        yield items[index : index + size]
+ISOLATED_SUITES = {
+    "CodexBarTests.CostUsageBoundedProgressTests",
+    "CodexBarTests.CostUsageCacheWideMigrationTests",
+    "CodexBarTests.CostUsageFairSchedulingTests",
+    "CodexBarTests.CostUsagePerformanceGateTests",
+    "CodexBarTests.KiroStatusProbeTests",
+    "CodexBarTests.StatusMenuTests",
+    "CodexBarTests.TTYIntegrationTests",
+}
+
+
+def test_groups(items: list[TestSelection], size: int) -> Iterable[list[TestSelection]]:
+    # Measured slow suites keep their own deadline instead of forcing a whole batch to retry.
+    pending: list[TestSelection] = []
+    for item in items:
+        if item.suite_name in ISOLATED_SUITES:
+            if pending:
+                yield pending
+                pending = []
+            yield [item]
+            continue
+        pending.append(item)
+        if len(pending) == size:
+            yield pending
+            pending = []
+    if pending:
+        yield pending
 
 
 def shard_groups(groups: list[list[TestSelection]], shard_index: int | None, shard_count: int | None) -> list[list[TestSelection]]:
@@ -646,19 +688,6 @@ def prioritized_suites(suites: list[TestSelection]) -> list[TestSelection]:
     ordered = [suite for name in priority for suite in suites if suite.suite_name == name]
     ordered.extend(suite for suite in suites if suite.suite_name not in priority)
     return ordered
-
-
-def filtered_suites_for_environment(suites: list[TestSelection]) -> list[TestSelection]:
-    if os.environ.get("GITHUB_ACTIONS") != "true" or sys.platform != "darwin":
-        return suites
-
-    # SwiftPM hangs before suite output for this executable-target suite on the Intel macOS runner.
-    # Linux CI still runs it in the full Swift test lane, and local macOS runs it directly.
-    skipped = {"CodexBarTests.CLIEntryTests"}
-    filtered = [suite for suite in suites if suite.suite_name not in skipped]
-    if len(filtered) != len(suites):
-        print(f"Skipping macOS CI-only suites: {', '.join(sorted(skipped))}", flush=True)
-    return filtered
 
 
 def filter_for(suites: list[TestSelection]) -> str:
@@ -699,18 +728,25 @@ def main() -> int:
     if args.group_size < 1:
         print("--group-size must be positive", file=sys.stderr)
         return 2
+    # Discovery builds the package, so report an unusable interpreter before that cost.
+    # --list-only never runs a test command and keeps working without containment.
+    if not args.list_only:
+        error = containment_support_error()
+        if error is not None:
+            print(error, file=sys.stderr)
+            return 2
 
     swift_command = [args.swift_command, *args.swift_command_arg]
     result = 0
     try:
         discovery_started = time.monotonic()
         try:
-            suites = prioritized_suites(filtered_suites_for_environment(swift_test_list(swift_command)))
+            suites = prioritized_suites(swift_test_list(swift_command))
         finally:
             stats.discovery_seconds = time.monotonic() - discovery_started
         stats.discovered_selections = len(suites)
 
-        suite_groups = list(chunks(suites, args.group_size))
+        suite_groups = list(test_groups(suites, args.group_size))
         try:
             suite_groups = shard_groups(suite_groups, args.shard_index, args.shard_count)
         except ValueError as error:

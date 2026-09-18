@@ -6,6 +6,16 @@ enum PercentWindow: String, CaseIterable, Codable, Hashable, Sendable {
     case weekly
     case scopedWeekly
     case automatic
+
+    func providerLabel(provider: UsageProvider?) -> String? {
+        guard let provider else { return nil }
+        let presentation = ProviderDescriptorRegistry.descriptor(for: provider).presentation
+        return switch self {
+        case .session: presentation.menuBarLayoutPrimaryLabel.map(L)
+        case .weekly: presentation.menuBarLayoutSecondaryLabel.map(L)
+        case .scopedWeekly, .automatic: nil
+        }
+    }
 }
 
 /// Comparison unit of a conditional metric: drives the threshold range, the stepper increment, and the
@@ -365,7 +375,8 @@ struct MenuBarLayoutConditional: Codable, Hashable, Sendable {
 
     /// This conditional as a 0.54.0-era release can read it, or nil when it cannot be represented.
     ///
-    /// Two things make an entry unreadable there. A metric outside the original four throws on decode
+    /// New window-selectable reset branches are also omitted because older token decoders reject them.
+    /// Two predicate properties make an entry unreadable there. A metric outside the original four throws on decode
     /// and takes the whole array with it. A non-`.used` direction is worse than unreadable: the extra
     /// key is silently ignored by that release's synthesized decoder, so `session remaining > 80` would
     /// come back as `session used > 80` and render the opposite branch. Dropping the entry is the honest
@@ -374,7 +385,13 @@ struct MenuBarLayoutConditional: Codable, Hashable, Sendable {
         let readable = self.clauses.allSatisfy { clause in
             clause.predicate.metric.hasLegacyRepresentation && clause.predicate.direction == .used
         }
-        return readable ? self : nil
+        let readableBranches = self.releasedCompatible != nil
+        return readable && readableBranches ? self : nil
+    }
+
+    /// v0.56.8 understands every existing predicate and token except explicit reset windows.
+    var releasedCompatible: MenuBarLayoutConditional? {
+        self.thenToken.hasReleasedRepresentation && self.elseToken.hasReleasedRepresentation ? self : nil
     }
 
     private static func clause(
@@ -452,6 +469,9 @@ enum MenuBarLayoutToken: Codable, Hashable, Sendable {
     case usageBar
     case resetCountdown
     case resetAbsolute
+    /// Explicit reset windows keep separate discriminators so persisted automatic tokens stay unchanged.
+    case windowResetCountdown(window: PercentWindow)
+    case windowResetAbsolute(window: PercentWindow)
     case runsOut
     case runsOutCompact
     case balance
@@ -465,6 +485,22 @@ enum MenuBarLayoutToken: Codable, Hashable, Sendable {
     /// the conditionals library; the layout stores only its identity.
     case conditional(id: UUID)
 
+    /// The semantic window read by a reset token, including the historical automatic variants.
+    var resetWindow: PercentWindow? {
+        switch self {
+        case .resetCountdown, .resetAbsolute: .automatic
+        case let .windowResetCountdown(window), let .windowResetAbsolute(window): window
+        default: nil
+        }
+    }
+
+    var resetIsAbsolute: Bool {
+        switch self {
+        case .resetAbsolute, .windowResetAbsolute: true
+        default: false
+        }
+    }
+
     var selectedLane: MenuBarLayoutLane? {
         if case let .lanePercent(lane) = self { return lane }
         return nil
@@ -474,9 +510,16 @@ enum MenuBarLayoutToken: Codable, Hashable, Sendable {
     /// cannot map them onto an existing case without inventing content, so the layout projection
     /// drops them instead: an older release then decodes the rest of the layout rather than
     /// failing the whole blob and losing the user's arrangement.
+    var hasReleasedRepresentation: Bool {
+        switch self {
+        case .windowResetCountdown, .windowResetAbsolute: false
+        default: true
+        }
+    }
+
     var hasLegacyRepresentation: Bool {
         switch self {
-        case .conditional, .hidden: false
+        case .conditional, .hidden, .windowResetCountdown, .windowResetAbsolute: false
         default: true
         }
     }
@@ -498,12 +541,11 @@ enum MenuBarLayoutSemanticWindowResolver {
     static func windows(
         provider: UsageProvider,
         snapshot: UsageSnapshot?)
-        -> (session: RateWindow?, weekly: RateWindow?)
+        -> ProviderSemanticWindows
     {
-        guard let snapshot else { return (nil, nil) }
-        let windows = ProviderDescriptorRegistry.descriptor(for: provider).presentation
+        guard let snapshot else { return ProviderSemanticWindows(session: nil, weekly: nil) }
+        return ProviderDescriptorRegistry.descriptor(for: provider).presentation
             .semanticWindows(snapshot: snapshot)
-        return (windows.session, windows.weekly)
     }
 
     /// The active model-scoped weekly carve-out (e.g. Claude's `claude-weekly-scoped-fable`
@@ -526,12 +568,22 @@ enum MenuBarLayoutSemanticWindowResolver {
 enum MenuBarLayoutBalanceResolver {
     static func balance(
         provider: UsageProvider,
-        snapshot: UsageSnapshot?)
+        snapshot: UsageSnapshot?,
+        codexCredits: CreditsSnapshot? = nil)
         -> String?
     {
-        // Provider-specific by design: only OpenRouter exposes its credit balance as the "Remaining" detail row.
-        guard provider == .openrouter else { return nil }
-        return snapshot?.detailRow(label: "Remaining")?.value
+        // Provider-specific by design: Codex credits live outside UsageSnapshot, while OpenRouter exposes
+        // its credit balance as the "Remaining" detail row.
+        switch provider {
+        case .codex:
+            guard let codexCredits, codexCredits.balanceReadSucceeded else { return nil }
+            return codexCredits.remaining.rounded().formatted(
+                .number.precision(.fractionLength(0)).locale(Locale(identifier: "en_US")))
+        case .openrouter:
+            return snapshot?.detailRow(label: "Remaining")?.value
+        default:
+            return nil
+        }
     }
 
     /// Numeric USD amounts behind OpenRouter's "Credits" detail rows. The plugin formats both rows as
@@ -605,6 +657,15 @@ struct MenuBarLayout: Codable, Hashable, Sendable {
         Set(self.lines.joined().compactMap(\.selectedLane))
     }
 
+    /// Preserve all v0.56.8 tokens, dropping only the reset selections that release cannot decode.
+    func releasedCompatible() -> MenuBarLayout {
+        let projected = self.lines.map { $0.filter(\.hasReleasedRepresentation) }
+        let compacted = projected.enumerated().filter { index, line in
+            !line.isEmpty || self.lines[index].isEmpty
+        }.map(\.element)
+        return MenuBarLayout(lines: compacted)
+    }
+
     /// Older-readable projection of this layout. Tokens an older decoder cannot represent are
     /// dropped rather than mapped; a line left empty by that filtering is dropped too, and a layout
     /// with nothing left falls back to `defaultLayout` via `MenuBarLayout(lines:)` normalization.
@@ -623,13 +684,17 @@ struct MenuBarLayout: Codable, Hashable, Sendable {
     }
 }
 
+/// Keep released readers on their original schema; explicit reset selections live only in V3.
 enum MenuBarLayoutUserDefaultsKey {
     static let layout = "menuBarLayout"
-    static let layoutCurrent = "menuBarLayoutV2"
+    static let layoutReleased = "menuBarLayoutV2"
+    static let layoutCurrent = "menuBarLayoutV3"
     static let overrides = "menuBarLayoutOverrides"
-    static let overridesCurrent = "menuBarLayoutOverridesV2"
+    static let overridesReleased = "menuBarLayoutOverridesV2"
+    static let overridesCurrent = "menuBarLayoutOverridesV3"
     static let conditionals = "menuBarLayoutConditionals"
-    static let conditionalsCurrent = "menuBarLayoutConditionalsV2"
+    static let conditionalsReleased = "menuBarLayoutConditionalsV2"
+    static let conditionalsCurrent = "menuBarLayoutConditionalsV3"
 }
 
 enum MenuBarLayoutPreset: String, CaseIterable, Identifiable, Sendable {
@@ -690,26 +755,14 @@ enum MenuBarLayoutGap: String, CaseIterable, Identifiable, Sendable {
 }
 
 struct MenuBarLayoutResolution: Equatable {
-    struct LegacySettings: Equatable {
-        let iconStyle: MenuBarIconStyle
-        let displayMode: MenuBarDisplayMode
-        let metricPreference: MenuBarMetricPreference
-        let resetTimeDisplayStyle: ResetTimeDisplayStyle
-    }
-
     let layout: MenuBarLayout
-    let legacySettings: LegacySettings?
-
-    var usesLegacyRendering: Bool {
-        self.legacySettings != nil
-    }
+    let usesLegacyRendering: Bool
 
     static func stored(_ layout: MenuBarLayout) -> Self {
-        Self(layout: layout, legacySettings: nil)
+        Self(layout: layout, usesLegacyRendering: false)
     }
 
     static func legacy(
-        iconStyle: MenuBarIconStyle,
         displayMode: MenuBarDisplayMode,
         metricPreference: MenuBarMetricPreference,
         resetTimeDisplayStyle: ResetTimeDisplayStyle,
@@ -718,29 +771,22 @@ struct MenuBarLayoutResolution: Equatable {
     {
         Self(
             layout: MenuBarLayout.migrated(
-                iconStyle: iconStyle,
                 displayMode: displayMode,
                 metricPreference: metricPreference,
                 resetTimeDisplayStyle: resetTimeDisplayStyle,
                 provider: provider),
-            legacySettings: LegacySettings(
-                iconStyle: iconStyle,
-                displayMode: displayMode,
-                metricPreference: metricPreference,
-                resetTimeDisplayStyle: resetTimeDisplayStyle))
+            usesLegacyRendering: true)
     }
 }
 
 extension MenuBarLayout {
     static func migrated(
-        iconStyle: MenuBarIconStyle,
         displayMode: MenuBarDisplayMode,
         metricPreference: MenuBarMetricPreference,
         resetTimeDisplayStyle: ResetTimeDisplayStyle,
         provider: UsageProvider? = nil)
         -> MenuBarLayout
     {
-        _ = iconStyle // Critters and bars keep rendering through their unchanged legacy path.
         let icon: MenuBarLayoutToken = .icon
         // Provider-specific by design: OpenRouter Automatic historically renders remaining credit balance.
         if provider == .openrouter, metricPreference == .automatic {
@@ -811,7 +857,15 @@ extension MenuBarLayout {
 }
 
 enum MenuBarLayoutPersistence {
-    static func preferredLayout(current: MenuBarLayout?, legacy: MenuBarLayout?) -> MenuBarLayout? {
+    /// Reconcile V2 against its V1 projection first, then V3 against that result. This detects edits
+    /// made by either older release without discarding V3-only selections after an unchanged downgrade.
+    static func preferredLayout(
+        current: MenuBarLayout?, released: MenuBarLayout? = nil, legacy: MenuBarLayout?) -> MenuBarLayout?
+    {
+        if let released {
+            let older = self.preferredLayout(current: released, legacy: legacy)
+            return current?.releasedCompatible() == older ? current : older
+        }
         if let current {
             if let legacy, current.legacyCompatible() != legacy {
                 return legacy
@@ -823,9 +877,19 @@ enum MenuBarLayoutPersistence {
 
     static func preferredOverrides(
         current: [String: MenuBarLayout]?,
+        released: [String: MenuBarLayout]? = nil,
         legacy: [String: MenuBarLayout]?)
         -> [String: MenuBarLayout]
     {
+        if let released {
+            let older = self.preferredOverrides(current: released, legacy: legacy)
+            // Older keys own additions and removals. Reconcile each surviving provider separately,
+            // so editing one override on V2 does not discard V3-only tokens in an untouched override.
+            return Dictionary(uniqueKeysWithValues: older.map { key, layout in
+                let retained = current?[key].flatMap { $0.releasedCompatible() == layout ? $0 : nil }
+                return (key, retained ?? layout)
+            })
+        }
         guard let current else { return legacy ?? [:] }
         guard let legacy else { return current }
         guard Self.overridesAgree(current: current, legacy: legacy) else {
@@ -871,34 +935,38 @@ enum MenuBarLayoutPersistence {
     static func encoded(
         _ layout: MenuBarLayout,
         provider: UsageProvider? = nil)
-        throws -> (current: Data, legacy: Data)
+        throws -> (current: Data, released: Data, legacy: Data)
     {
         let encoder = JSONEncoder()
         let current = try encoder.encode(layout)
         let legacy = try encoder.encode(layout.legacyCompatible(for: provider))
-        return (current, legacy)
+        return try (current, encoder.encode(layout.releasedCompatible()), legacy)
     }
 
-    static func encodedOverrides(_ overrides: [String: MenuBarLayout]) throws -> (current: Data, legacy: Data) {
+    static func encodedOverrides(_ overrides: [String: MenuBarLayout]) throws
+    -> (current: Data, released: Data, legacy: Data) {
         let encoder = JSONEncoder()
-        let legacyOverrides = Dictionary(uniqueKeysWithValues: overrides.map { key, layout in
+        let released = overrides.mapValues { $0.releasedCompatible() }
+        let legacyOverrides = Dictionary(uniqueKeysWithValues: released.map { key, layout in
             (key, layout.legacyCompatible(for: UsageProvider(rawValue: key)))
         })
-        return try (encoder.encode(overrides), encoder.encode(legacyOverrides))
+        return try (encoder.encode(overrides), encoder.encode(released), encoder.encode(legacyOverrides))
     }
 
     static func loadLayout(
         current: MenuBarLayout?,
+        released: MenuBarLayout? = nil,
         legacy: MenuBarLayout?,
         into userDefaults: UserDefaults)
         -> MenuBarLayout?
     {
-        let preferred = self.preferredLayout(current: current, legacy: legacy)
+        let preferred = self.preferredLayout(current: current, released: released, legacy: legacy)
         if let preferred,
-           self.needsStartupDualWrite(current: current, legacy: legacy),
+           current == nil || released == nil || legacy == nil,
            let blobs = try? self.encoded(preferred)
         {
             userDefaults.set(blobs.current, forKey: MenuBarLayoutUserDefaultsKey.layoutCurrent)
+            userDefaults.set(blobs.released, forKey: MenuBarLayoutUserDefaultsKey.layoutReleased)
             userDefaults.set(blobs.legacy, forKey: MenuBarLayoutUserDefaultsKey.layout)
         }
         return preferred
@@ -906,18 +974,27 @@ enum MenuBarLayoutPersistence {
 
     static func loadOverrides(
         current: [String: MenuBarLayout]?,
+        released: [String: MenuBarLayout]? = nil,
         legacy: [String: MenuBarLayout]?,
         into userDefaults: UserDefaults)
         -> [String: MenuBarLayout]
     {
-        let preferred = self.preferredOverrides(current: current, legacy: legacy)
-        if self.needsStartupDualWrite(current: current, legacy: legacy),
+        let preferred = self.preferredOverrides(current: current, released: released, legacy: legacy)
+        if current != nil || released != nil || legacy != nil,
+           current == nil || released == nil || legacy == nil,
            let blobs = try? self.encodedOverrides(preferred)
         {
             userDefaults.set(blobs.current, forKey: MenuBarLayoutUserDefaultsKey.overridesCurrent)
+            userDefaults.set(blobs.released, forKey: MenuBarLayoutUserDefaultsKey.overridesReleased)
             userDefaults.set(blobs.legacy, forKey: MenuBarLayoutUserDefaultsKey.overrides)
         }
         return preferred
+    }
+
+    static func releasedCompatibleLibrary(
+        _ conditionals: [MenuBarLayoutConditional]) -> [MenuBarLayoutConditional]
+    {
+        conditionals.compactMap(\.releasedCompatible)
     }
 
     /// Library projection an older conditional-capable release can read, dropping entries it would
@@ -929,13 +1006,24 @@ enum MenuBarLayoutPersistence {
         conditionals.compactMap(\.legacyCompatible)
     }
 
-    /// Mirrors `preferredLayout`: the full-fidelity key wins unless the legacy key disagrees with its
-    /// own projection, which only happens when an older release wrote it, and that edit must survive.
+    /// Preserve invisible V3 rules across unrelated edits on V2. Older readable rules own their order,
+    /// edits, and deletions; changing a nonempty projection to an empty library means clear everything.
     static func preferredLibrary(
         current: [MenuBarLayoutConditional]?,
+        released: [MenuBarLayoutConditional]? = nil,
         legacy: [MenuBarLayoutConditional]?)
         -> [MenuBarLayoutConditional]?
     {
+        if let released {
+            let older = self.preferredLibrary(current: released, legacy: legacy)
+            guard let current, let older else { return older }
+            let projected = self.releasedCompatibleLibrary(current)
+            if projected == older { return current }
+            guard !older.isEmpty else { return older }
+            let olderIDs = Set(older.map(\.id))
+            let invisible = current.filter { $0.releasedCompatible == nil && !olderIDs.contains($0.id) }
+            return older + invisible
+        }
         if let current {
             if let legacy, self.legacyCompatibleLibrary(current) != legacy {
                 return legacy
@@ -958,28 +1046,32 @@ enum MenuBarLayoutPersistence {
 
     static func encodedLibrary(
         _ conditionals: [MenuBarLayoutConditional])
-        throws -> (current: Data, legacy: Data)
+        throws -> (current: Data, released: Data, legacy: Data)
     {
         let encoder = JSONEncoder()
+        let released = self.releasedCompatibleLibrary(conditionals)
         return try (
             encoder.encode(conditionals),
-            encoder.encode(self.legacyCompatibleLibrary(conditionals)))
+            encoder.encode(released),
+            encoder.encode(self.legacyCompatibleLibrary(released)))
     }
 
-    /// Pre-V2 installs only have the legacy key, so materialize both at load: an immediate downgrade
-    /// then reads a projection that was never written by an older release rather than nothing.
+    /// Materialize all three generations on upgrade, including a v0.56.8-readable projection.
+    /// Once all layers exist, mismatches remain intact so edits from an older release keep winning.
     static func loadLibrary(
         current: [MenuBarLayoutConditional]?,
+        released: [MenuBarLayoutConditional]? = nil,
         legacy: [MenuBarLayoutConditional]?,
         into userDefaults: UserDefaults)
         -> [MenuBarLayoutConditional]?
     {
-        let preferred = self.preferredLibrary(current: current, legacy: legacy)
+        let preferred = self.preferredLibrary(current: current, released: released, legacy: legacy)
         if let preferred,
-           self.needsStartupDualWrite(current: current, legacy: legacy),
+           current == nil || released == nil || legacy == nil,
            let blobs = try? self.encodedLibrary(preferred)
         {
             userDefaults.set(blobs.current, forKey: MenuBarLayoutUserDefaultsKey.conditionalsCurrent)
+            userDefaults.set(blobs.released, forKey: MenuBarLayoutUserDefaultsKey.conditionalsReleased)
             userDefaults.set(blobs.legacy, forKey: MenuBarLayoutUserDefaultsKey.conditionals)
         }
         return preferred

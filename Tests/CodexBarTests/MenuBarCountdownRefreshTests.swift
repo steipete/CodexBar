@@ -8,6 +8,104 @@ import Testing
 @Suite(.serialized)
 struct MenuBarCountdownRefreshTests {
     @Test
+    func `mixed selected reset styles schedule only their corresponding windows`() throws {
+        let settings = testSettingsStore(suiteName: "MenuBarCountdownRefreshTests-selected-mixed")
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.menuBarShowsBrandIconWithPercent = true
+        settings.menuBarLayout = MenuBarLayout(lines: [[
+            .windowResetCountdown(window: .session), .windowResetAbsolute(window: .weekly),
+        ]])
+        if let metadata = ProviderRegistry.shared.metadata[.codex] {
+            settings.setProviderEnabled(
+                provider: .codex,
+                metadata: metadata,
+                enabled: true)
+        }
+        let fetcher = UsageFetcher()
+        let store = UsageStore(
+            fetcher: fetcher,
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: testStatusBar())
+        defer { controller.releaseStatusItemsForTesting() }
+        let now = Date()
+        let sessionReset = now.addingTimeInterval(3650)
+        let weeklyReset = now.addingTimeInterval(86410)
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 30,
+                    windowMinutes: 300,
+                    resetsAt: sessionReset,
+                    resetDescription: nil),
+                secondary: RateWindow(
+                    usedPercent: 60,
+                    windowMinutes: 10080,
+                    resetsAt: weeklyReset,
+                    resetDescription: nil),
+                updatedAt: now),
+            provider: .codex)
+        let countdownDates = controller.menuBarLayoutResetDates(
+            for: .codex,
+            now: now,
+            absolute: false)
+        let absoluteDates = controller.menuBarLayoutResetDates(
+            for: .codex,
+            now: now,
+            absolute: true)
+        #expect(countdownDates == [sessionReset])
+        #expect(absoluteDates == [weeklyReset])
+        #expect(controller.menuBarLayoutResetDates(
+            for: .codex,
+            now: now) == [sessionReset, weeklyReset])
+        let delay = try #require(StatusItemController.menuBarCountdownRefreshDelay(
+            resetDates: countdownDates,
+            now: now))
+        #expect(abs(delay - 50.05) < 0.001)
+
+        for weekly in [
+            nil,
+            RateWindow(
+                usedPercent: 0,
+                windowMinutes: 10080,
+                resetsAt: weeklyReset,
+                resetDescription: nil,
+                isSyntheticPlaceholder: true),
+            RateWindow(
+                usedPercent: 60,
+                windowMinutes: 10080,
+                resetsAt: nil,
+                resetDescription: "Friday at 10:00"),
+        ] {
+            store._setSnapshotForTesting(
+                UsageSnapshot(
+                    primary: RateWindow(
+                        usedPercent: 30,
+                        windowMinutes: 300,
+                        resetsAt: sessionReset,
+                        resetDescription: nil),
+                    secondary: weekly,
+                    updatedAt: now),
+                provider: .codex)
+            #expect(controller.menuBarLayoutResetDates(
+                for: .codex,
+                now: now,
+                absolute: false) == [sessionReset])
+            #expect(controller.menuBarLayoutResetDates(
+                for: .codex,
+                now: now,
+                absolute: true).isEmpty)
+        }
+    }
+
+    @Test
     func `countdown refresh delay follows the next displayed minute boundary`() {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
 
@@ -19,6 +117,30 @@ struct MenuBarCountdownRefreshTests {
             now: now)
 
         #expect(abs((delay ?? 0) - 30.05) < 0.001)
+    }
+
+    @Test(arguments: [
+        (185_430.0, 1890.05), (176_400, 60.05), (176_370, 30.05),
+        (172_800, 60.05), (86400, 60.05), (60.5, 0.55), (1.5, 0.55),
+    ])
+    func `countdown wakes only when its visible text changes`(remaining: Double, expected: Double) throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let reset = now.addingTimeInterval(remaining)
+        let delay = try #require(StatusItemController.menuBarCountdownRefreshDelay(resetDates: [reset], now: now))
+        #expect(abs(delay - expected) < 0.001)
+        let original = UsageFormatter.resetCountdownDescription(from: reset, now: now)
+        #expect(UsageFormatter.resetCountdownDescription(
+            from: reset, now: now.addingTimeInterval(delay - 0.1)) == original)
+        #expect(UsageFormatter.resetCountdownDescription(
+            from: reset, now: now.addingTimeInterval(delay)) != original)
+    }
+
+    @Test
+    func `already now countdown still schedules its reset boundary`() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let reset = now.addingTimeInterval(0.5)
+        let delay = try #require(StatusItemController.menuBarCountdownRefreshDelay(resetDates: [reset], now: now))
+        #expect(abs(delay - 0.55) < 0.001)
     }
 
     @Test

@@ -26,17 +26,22 @@ final class PlaceholderSettingsWindowGuard {
 
     private let windows: WindowsProvider
     private let isKnownSettingsWindow: WindowPredicate
+    private let isVisible: WindowPredicate
     private let closeWindow: WindowAction
     private let logger = CodexBarLog.logger(LogCategories.app)
+    private let closedWindows = NSHashTable<NSWindow>(options: [.weakMemory, .objectPointerPersonality])
+    private var closingWindows: Set<ObjectIdentifier> = []
     private var isStarted = false
 
     init(
         windows: @escaping WindowsProvider = { NSApp?.windows ?? [] },
         isKnownSettingsWindow: @escaping WindowPredicate = { _ in false },
+        isVisible: @escaping WindowPredicate = { $0.isVisible },
         closeWindow: @escaping WindowAction = { $0.close() })
     {
         self.windows = windows
         self.isKnownSettingsWindow = isKnownSettingsWindow
+        self.isVisible = isVisible
         self.closeWindow = closeWindow
     }
 
@@ -70,6 +75,12 @@ final class PlaceholderSettingsWindowGuard {
                 frameAutosaveName: window.frameAutosaveName,
                 isKnownSettingsWindow: self.isKnownSettingsWindow(window))
             else { continue }
+            guard self.isVisible(window) || !self.closedWindows.contains(window) else { continue }
+            let identity = ObjectIdentifier(window)
+            guard self.closingWindows.insert(identity).inserted else { continue }
+            defer { self.closingWindows.remove(identity) }
+            // Record before closing: close can synchronously trigger another window notification.
+            self.closedWindows.add(window)
             self.closeWindow(window)
             closedCount += 1
         }

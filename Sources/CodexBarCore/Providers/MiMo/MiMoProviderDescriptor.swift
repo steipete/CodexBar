@@ -34,6 +34,7 @@ public enum MiMoProviderDescriptor {
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
                 debugLogUnavailableMessage: "Xiaomi MiMo debug log not yet implemented",
+                usesDetailBackedWindow: true,
                 browserCookieOrder: self.browserCookieOrder,
                 dashboardURL: "https://platform.xiaomimimo.com/#/console/balance",
                 statusPageURL: nil),

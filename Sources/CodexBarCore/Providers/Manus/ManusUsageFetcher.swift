@@ -55,6 +55,9 @@ public struct ManusCreditsResponse: Decodable, Sendable {
 
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        guard container.allKeys.contains(where: { $0 != .nextRefreshTime && $0 != .refreshInterval }) else {
+            throw ManusAPIError.parseFailed("response missing expected credits fields")
+        }
         self.totalCredits = container.decodeLossyDoubleIfPresent(forKey: .totalCredits) ?? 0
         self.freeCredits = container.decodeLossyDoubleIfPresent(forKey: .freeCredits) ?? 0
         self.periodicCredits = container.decodeLossyDoubleIfPresent(forKey: .periodicCredits) ?? 0
@@ -127,36 +130,7 @@ public enum ManusUsageFetcher {
     }
 
     public static func parseResponse(_ data: Data) throws -> ManusCreditsResponse {
-        let decoder = JSONDecoder()
-
-        // Try envelope first — the direct decoder defaults missing fields to 0,
-        // so it would "succeed" on wrapped payloads and silently return zero credits.
-        if let envelope = try? decoder.decode(ManusCreditsEnvelope.self, from: data),
-           let response = envelope.data ?? envelope.result ?? envelope.response ?? envelope.availableCredits
-        {
-            return response
-        }
-
-        let response = try decoder.decode(ManusCreditsResponse.self, from: data)
-        // The custom decoder defaults every numeric field to 0, so an unrelated JSON
-        // object (e.g. an error payload) would otherwise surface as a bogus zero-credit
-        // snapshot. Require at least one known credits key in the raw payload.
-        guard Self.payloadContainsCreditsField(data: data) else {
-            throw ManusAPIError.parseFailed("response missing expected credits fields")
-        }
-        return response
-    }
-
-    private static let expectedCreditsKeys: Set<String> = [
-        "totalCredits", "freeCredits", "periodicCredits", "addonCredits",
-        "refreshCredits", "maxRefreshCredits", "proMonthlyCredits", "eventCredits",
-    ]
-
-    private static func payloadContainsCreditsField(data: Data) -> Bool {
-        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return false
-        }
-        return !Self.expectedCreditsKeys.isDisjoint(with: object.keys)
+        try JSONDecoder().decode(ManusCreditsEnvelope.self, from: data).credits
     }
 }
 
@@ -261,10 +235,20 @@ public enum ManusAPIError: LocalizedError, Equatable, Sendable {
 }
 
 private struct ManusCreditsEnvelope: Decodable {
-    let data: ManusCreditsResponse?
-    let result: ManusCreditsResponse?
-    let response: ManusCreditsResponse?
-    let availableCredits: ManusCreditsResponse?
+    let credits: ManusCreditsResponse
+
+    private enum CodingKeys: String, CodingKey {
+        case data, result, response, availableCredits
+    }
+
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.credits = try container.decodeIfPresent(ManusCreditsResponse.self, forKey: .data) ??
+            container.decodeIfPresent(ManusCreditsResponse.self, forKey: .result) ??
+            container.decodeIfPresent(ManusCreditsResponse.self, forKey: .response) ??
+            container.decodeIfPresent(ManusCreditsResponse.self, forKey: .availableCredits) ??
+            ManusCreditsResponse(from: decoder)
+    }
 }
 
 extension KeyedDecodingContainer where K: CodingKey {

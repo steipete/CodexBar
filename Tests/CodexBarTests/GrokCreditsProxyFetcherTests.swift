@@ -50,7 +50,89 @@ struct GrokCreditsProxyFetcherTests {
         #expect(GrokCreditsProxyStubURLProtocol.requests.count == 1)
         #expect(snapshot.usedPercent == 12.5)
         #expect(snapshot.resetsAt == expectedReset)
+        #expect(snapshot.windowMinutes == 10080)
         #expect(snapshot.subscriptionTier == nil)
+    }
+
+    @Test
+    func `measures only matching valid period bounds`() throws {
+        let now = try Self.date("2026-08-12T00:00:00Z")
+        let cases: [(String, Int?)] = [
+            (#"""
+            "billingPeriodStart":"2026-08-06T00:00:00Z","billingPeriodEnd":"2026-08-13T00:00:00Z"
+            """#, 10080),
+            (#"""
+            "currentPeriod":{"start":"2026-07-13T00:00:00Z","end":"2026-08-13T00:00:00Z"}
+            """#, 44640),
+            (#"""
+            "currentPeriod":{"end":"2026-08-13T00:00:00Z"}
+            """#, nil),
+            (#"""
+            "currentPeriod":{"end":"2026-08-13T00:00:00Z"},
+            "billingPeriodStart":"2026-07-13T00:00:00Z","billingPeriodEnd":"2026-08-14T00:00:00Z"
+            """#, nil),
+            (#"""
+            "currentPeriod":{"start":"invalid","end":"2026-08-13T00:00:00Z"}
+            """#, nil),
+            (#"""
+            "currentPeriod":{"start":"2026-08-14T00:00:00Z","end":"2026-08-21T00:00:00Z"}
+            """#, nil),
+            (#"""
+            "currentPeriod":{"start":"2026-08-11T00:00:00Z","end":"2026-08-10T00:00:00Z"}
+            """#, nil),
+            (#"""
+            "currentPeriod":{"start":"2026-08-11T00:00:00Z","end":"2026-08-11T00:00:00Z"}
+            """#, nil),
+            (#"""
+            "currentPeriod":{"start":"2026-08-11T00:00:00Z","end":"2026-08-11T00:00:30Z"}
+            """#, nil),
+            (#"""
+            "currentPeriod":{"start":"2026-07-01T00:00:00Z","end":"invalid"},
+            "billingPeriodStart":"2026-08-06T00:00:00Z","billingPeriodEnd":"2026-08-13T00:00:00Z"
+            """#, 10080),
+        ]
+        for (period, expectedMinutes) in cases {
+            let data = Data("{\"config\":{\"creditUsagePercent\":90,\(period)}}".utf8)
+            let snapshot = try GrokCreditsProxyFetcher.parseSnapshot(data, now: now)
+            #expect(snapshot.usedPercent == 90)
+            #expect(snapshot.windowMinutes == expectedMinutes)
+        }
+    }
+
+    @Test
+    func `plan overlay and unknown usage enrichment retain proxy period bounds`() async throws {
+        let now = try Self.date("2026-08-12T00:00:00Z")
+        let proxy = try GrokCreditsProxyFetcher.parseSnapshot(Data("""
+        {"config":{"currentPeriod":{"start":"2026-08-06T00:00:00Z","end":"2026-08-13T00:00:00Z"}}}
+        """.utf8), now: now).applying(subscriptionTier: "SuperGrok Heavy")
+        #expect(proxy.usedPercent == nil)
+        #expect(proxy.windowMinutes == 10080)
+        let enriched = try await GrokOAuthFetchStrategy.resolvingUnknownUsage(
+            proxy,
+            credentials: Self.credentials,
+            grpcBilling: { _ in
+                GrokWebBillingSnapshot(usedPercent: 90, resetsAt: now.addingTimeInterval(3600))
+            }).snapshot
+        #expect(enriched.usedPercent == 90)
+        #expect(enriched.resetsAt == proxy.resetsAt)
+        #expect(enriched.windowMinutes == 10080)
+        #expect(enriched.subscriptionTier == "SuperGrok Heavy")
+    }
+
+    @Test
+    func `completion never pairs a duration with a different reset`() {
+        let original = GrokWebBillingSnapshot(
+            usedPercent: 90,
+            resetsAt: Date(timeIntervalSince1970: 1_000_000),
+            windowMinutes: 10080)
+        let replaced = original.completing(with: GrokWebBillingSnapshot(
+            usedPercent: nil,
+            resetsAt: Date(timeIntervalSince1970: 2_000_000)))
+        #expect(replaced.resetsAt == Date(timeIntervalSince1970: 2_000_000))
+        #expect(replaced.windowMinutes == nil)
+        let unchanged = original.completing(with: GrokWebBillingSnapshot(usedPercent: nil, resetsAt: nil))
+        #expect(unchanged.resetsAt == original.resetsAt)
+        #expect(unchanged.windowMinutes == 10080)
     }
 
     @Test

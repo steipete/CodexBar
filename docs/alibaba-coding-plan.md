@@ -15,6 +15,8 @@ Alibaba Coding Plan supports both browser-session and API-key paths, but the sup
 2) Manual cookie header from Settings.
 3) Environment variable `ALIBABA_CODING_PLAN_COOKIE`.
 
+Browser quota requests use form encoding that preserves reserved characters in the security token and JSON parameters, including cookie-derived anonymous IDs.
+
 When the RPC endpoint returns `ConsoleNeedLogin`, CodexBar treats that as a console-session requirement. In API mode it is surfaced as an explicit API-path limitation; in `auto` mode fallback remains observable through the fetch-attempt chain.
 
 ## Token sources (fallback order)
@@ -46,7 +48,7 @@ When the RPC endpoint returns `ConsoleNeedLogin`, CodexBar treats that as a cons
 - Security policy: endpoint overrides are only accepted when they use `https://`, omit userinfo, and do not contain encoded host delimiters. Custom HTTPS proxy/test domains continue to work for compatibility, but `http://` endpoints are rejected so cookies and API credentials are not sent in cleartext.
 - Strict provider-host mode: set `ALIBABA_CODING_PLAN_REQUIRE_PROVIDER_ENDPOINT_OVERRIDES=true` to additionally reject custom proxy/test domains and only accept the known Alibaba Coding Plan console and RPC hosts.
 
-## Request headers
+## API-key request headers
 - `Authorization: Bearer <api_key>`
 - `x-api-key: <api_key>`
 - `X-DashScope-API-Key: <api_key>`

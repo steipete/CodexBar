@@ -32,7 +32,7 @@ struct CodexAccountScopedRefreshGuard: Equatable {
 extension UsageStore {
     func accountScopedTokenSnapshot(for provider: UsageProvider) -> CostUsageTokenSnapshot? {
         guard provider == .codex, !self.settings.codexLocalSessionCostLedgerEnabled else {
-            return self.tokenSnapshots[provider.instanceID]
+            return self.tokenSnapshotPublications[provider.instanceID]?.snapshot
         }
         return self.tokenSnapshotForCurrentProviderConfig(for: provider)?.snapshot
     }
@@ -445,6 +445,8 @@ extension UsageStore {
                 expectedScopedEmail: self.currentCodexDashboardExpectedScopedEmail(),
                 trustedCurrentUsageEmail: self.trustedCurrentCodexUsageEmailForDashboardAuthority(),
                 dashboardSignedInEmail: dashboard.signedInEmail,
+                dashboardAccountID: dashboard.accountID,
+                requiresWorkspaceBalanceScope: dashboard.requiresWorkspaceBalanceScope,
                 knownOwners: self.codexDashboardKnownOwnerCandidates()),
             routing: CodexDashboardRoutingHints(
                 targetEmail: CodexIdentityResolver.normalizeEmail(routingTargetEmail),

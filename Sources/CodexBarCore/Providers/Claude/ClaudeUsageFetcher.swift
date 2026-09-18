@@ -316,6 +316,9 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
 
     private struct OAuthExecutor {
         let fetcher: ClaudeUsageFetcher
+        private static let scopeRecoveryMessage =
+            "Use a Claude Code sign-in token that includes 'user:profile'. "
+                + "To use Web/CLI instead, remove any configured OAuth token override and switch Claude Source."
 
         func load(allowDelegatedRetry: Bool) async throws -> ClaudeUsageSnapshot {
             do {
@@ -382,10 +385,13 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
                 {
                     throw ClaudeUsageError.oauthFailed(
                         "Claude OAuth token does not meet scope requirement 'user:profile'. "
-                            + "Run `claude setup-token` to re-generate credentials, or switch Claude Source to "
-                            + "Web/CLI.")
+                            + Self.scopeRecoveryMessage)
                 }
-                throw ClaudeUsageError.oauthFailed(error.localizedDescription)
+                let failure = ClaudeUsageError.oauthFailed(error.localizedDescription)
+                if case let .networkError(underlyingError) = error {
+                    throw ProviderTransportError.preservingIdentity(of: underlyingError, describedBy: failure)
+                }
+                throw failure
             } catch {
                 throw ClaudeUsageError.oauthFailed(error.localizedDescription)
             }
@@ -530,8 +536,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
                     ? "Claude OAuth token missing 'user:profile' scope."
                     : "Claude OAuth token missing 'user:profile' scope (has: \(scopes))."
                 throw ClaudeUsageError.oauthFailed(
-                    detail + " Run `claude setup-token` to re-generate credentials, or switch Claude Source to "
-                        + "Web/CLI.")
+                    detail + " " + Self.scopeRecoveryMessage)
             }
         }
 
@@ -1017,7 +1022,7 @@ extension ClaudeUsageFetcher {
             guard let window,
                   let utilization = window.utilization
             else { return nil }
-            let resetDate = ClaudeOAuthUsageFetcher.parseISO8601Date(window.resetsAt)
+            let resetDate = ISO8601DateParser.parse(window.resetsAt)
             let resetDescription = resetDate.map(Self.formatResetDate)
             return RateWindow(
                 usedPercent: utilization,
@@ -1155,7 +1160,7 @@ extension ClaudeUsageFetcher {
         }
         let routineWindows: [NamedRateWindow] = definitions.compactMap { definition in
             guard let window = definition.window, let utilization = window.utilization else { return nil }
-            let resetDate = ClaudeOAuthUsageFetcher.parseISO8601Date(window.resetsAt)
+            let resetDate = ISO8601DateParser.parse(window.resetsAt)
             let resetDescription = resetDate.map(Self.formatResetDate)
             return NamedRateWindow(
                 id: definition.id,
@@ -1177,7 +1182,7 @@ extension ClaudeUsageFetcher {
                 kind: entry.kind,
                 group: entry.group,
                 percent: entry.percent,
-                resetsAt: ClaudeOAuthUsageFetcher.parseISO8601Date(entry.resetsAt),
+                resetsAt: ISO8601DateParser.parse(entry.resetsAt),
                 modelID: entry.scope?.model?.id,
                 modelName: entry.scope?.model?.displayName)
         }
@@ -1571,37 +1576,6 @@ extension ClaudeUsageFetcher {
         guard task.terminationStatus == 0 else { return nil }
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
         return String(data: data, encoding: .utf8)
-    }
-
-    private static func oauthCredentialProbeErrorLabel(_ error: Error) -> String {
-        guard let oauthError = error as? ClaudeOAuthCredentialsError else {
-            return String(describing: type(of: error))
-        }
-
-        return switch oauthError {
-        case .decodeFailed:
-            "decodeFailed"
-        case .missingOAuth:
-            "missingOAuth"
-        case .mcpOAuthOnlyKeychain:
-            "mcpOAuthOnlyKeychain"
-        case .missingAccessToken:
-            "missingAccessToken"
-        case .notFound:
-            "notFound"
-        case .keychainAccessRevoked:
-            "keychainAccessRevoked"
-        case let .keychainError(status):
-            "keychainError:\(status)"
-        case .readFailed:
-            "readFailed"
-        case .refreshFailed:
-            "refreshFailed"
-        case .noRefreshToken:
-            "noRefreshToken"
-        case .refreshDelegatedToClaudeCLI:
-            "refreshDelegatedToClaudeCLI"
-        }
     }
 }
 

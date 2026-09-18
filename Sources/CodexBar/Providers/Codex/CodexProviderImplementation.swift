@@ -71,7 +71,7 @@ struct CodexProviderImplementation: ProviderImplementation {
                         for: .codex)
                 }
             })
-        let batterySaverBinding = context.boolBinding(\.openAIWebBatterySaverEnabled)
+        let batterySaverBinding = context.binding(\.openAIWebBatterySaverEnabled)
         let historicalTrackingSubtitle = [
             L("Stores local Codex usage history (8 weeks) to personalize Pace predictions."),
             "[\(L("weekly_progress_work_days_title")) = \(L("Automatic"))]",
@@ -87,7 +87,7 @@ struct CodexProviderImplementation: ProviderImplementation {
                     "Uses locally cached or bundled model prices without making a network request.",
                     "This provider-specific toggle does not enable cost summaries for other providers.",
                 ].joined(separator: " "),
-                binding: context.boolBinding(\.codexLocalSessionCostLedgerEnabled),
+                binding: context.binding(\.codexLocalSessionCostLedgerEnabled),
                 statusText: nil,
                 actions: [],
                 isVisible: nil,
@@ -98,25 +98,10 @@ struct CodexProviderImplementation: ProviderImplementation {
                 id: "codex-historical-tracking",
                 title: "Historical tracking",
                 subtitle: historicalTrackingSubtitle,
-                binding: context.boolBinding(\.historicalTrackingEnabled),
+                binding: context.binding(\.historicalTrackingEnabled),
                 statusText: nil,
                 actions: [],
                 isVisible: nil,
-                onChange: nil,
-                onAppDidBecomeActive: nil,
-                onAppearWhenEnabled: nil),
-            ProviderSettingsToggleDescriptor(
-                id: "codex-spark-usage-visible",
-                title: "Show Codex Spark usage",
-                subtitle: [
-                    "Shows Codex Spark quota rows in the menu and provider preview.",
-                    "Requires optional credits and extra usage in Display settings.",
-                ].joined(separator: " "),
-                binding: context.boolBinding(\.codexSparkUsageVisible),
-                statusText: nil,
-                actions: [],
-                isVisible: nil,
-                isEnabled: { context.settings.showOptionalCreditsAndExtraUsage },
                 onChange: nil,
                 onAppDidBecomeActive: nil,
                 onAppearWhenEnabled: nil),
@@ -142,7 +127,7 @@ struct CodexProviderImplementation: ProviderImplementation {
                     "CodexBar never refreshes or writes those external credentials.",
                     "Off by default because this shares another app's OAuth session with Codex usage requests.",
                 ].joined(separator: " "),
-                binding: context.boolBinding(\.codexExternalOAuthSourcesAllowed),
+                binding: context.binding(\.codexExternalOAuthSourcesAllowed),
                 statusText: nil,
                 actions: [],
                 isVisible: nil,
@@ -168,31 +153,10 @@ struct CodexProviderImplementation: ProviderImplementation {
 
     @MainActor
     func settingsPickers(context: ProviderSettingsContext) -> [ProviderSettingsPickerDescriptor] {
-        let usageBinding = Binding(
-            get: { context.settings.codexUsageDataSource.rawValue },
-            set: { raw in
-                context.settings.codexUsageDataSource = CodexUsageDataSource(rawValue: raw) ?? .auto
-            })
-        let cookieBinding = Binding(
-            get: { context.settings.codexCookieSource.rawValue },
-            set: { raw in
-                context.settings.codexCookieSource = ProviderCookieSource(rawValue: raw) ?? .auto
-            })
+        let usageBinding = context.rawValueBinding(\.codexUsageDataSource, fallback: .auto)
 
         let usageOptions = CodexUsageDataSource.allCases.map {
             ProviderSettingsPickerOption(id: $0.rawValue, title: $0.displayName)
-        }
-        let cookieOptions = ProviderCookieSourceUI.options(
-            allowsOff: true,
-            keychainDisabled: context.settings.debugDisableKeychainAccess)
-
-        let cookieSubtitle: () -> String? = {
-            ProviderCookieSourceUI.subtitle(
-                source: context.settings.codexCookieSource,
-                keychainDisabled: context.settings.debugDisableKeychainAccess,
-                auto: "Automatic imports browser cookies for dashboard extras.",
-                manual: "Paste a Cookie header from a chatgpt.com request.",
-                off: "Disable OpenAI dashboard cookie usage.")
         }
 
         return [
@@ -212,13 +176,18 @@ struct CodexProviderImplementation: ProviderImplementation {
                     let label = context.store.sourceLabel(for: .codex)
                     return label == "auto" ? nil : label
                 }),
-            ProviderSettingsPickerDescriptor(
+            ProviderCookieSourceUI.picker(
                 id: "codex-cookie-source",
+                context: context,
+                source: \.codexCookieSource,
+                allowsOff: true,
+                subtitles: {
+                    .init(
+                        auto: L("Automatic imports browser cookies for dashboard extras."),
+                        manual: L("Paste a Cookie header from %@.", "a chatgpt.com request"),
+                        off: L("Disable %@ dashboard cookie usage.", "OpenAI"))
+                },
                 title: "OpenAI cookies",
-                subtitle: "Automatic imports browser cookies for dashboard extras.",
-                dynamicSubtitle: cookieSubtitle,
-                binding: cookieBinding,
-                options: cookieOptions,
                 isVisible: { context.settings.openAIWebAccessEnabled },
                 onChange: nil,
                 trailingText: {
@@ -236,12 +205,11 @@ struct CodexProviderImplementation: ProviderImplementation {
                 subtitle: "",
                 kind: .secure,
                 placeholder: "Cookie: …",
-                binding: context.stringBinding(\.codexCookieHeader),
+                binding: context.binding(\.codexCookieHeader),
                 actions: [],
                 isVisible: {
                     context.settings.codexCookieSource == .manual
-                },
-                onActivate: { context.settings.ensureCodexCookieLoaded() }),
+                }),
         ]
     }
 
@@ -251,11 +219,17 @@ struct CodexProviderImplementation: ProviderImplementation {
               context.metadata.supportsCredits
         else { return }
 
-        if let credits = context.store.credits {
-            let remaining = credits.codexCreditLimit?.remaining ?? credits.remaining
-            entries.append(.text(
-                String(format: L("credits_remaining"), UsageFormatter.creditsString(from: remaining)),
-                .primary))
+        if let credits = CodexExtraUsageCost.creditsForDisplay(
+            context.store.credits,
+            attached: context.snapshot?.providerCost)
+        {
+            if let remaining = credits.displayRemaining {
+                entries.append(.text(
+                    String(format: L("credits_remaining"), UsageFormatter.creditsString(from: remaining)),
+                    .primary))
+            } else {
+                entries.append(.text("\(L("Credits")) · \(L("Balance")): \(L("Unavailable"))", .secondary))
+            }
             if let limit = credits.codexCreditLimit {
                 var parts = [
                     L("%@ used", UsageFormatter.creditsNumberString(from: limit.used)),
@@ -289,11 +263,24 @@ struct CodexProviderImplementation: ProviderImplementation {
             entries.append(.action(L("Workspaces"), .openCodexWorkspaces))
         }
 
-        let projection = context.settings.codexVisibleAccountProjection
-        guard !projection.visibleAccounts.isEmpty else { return }
+        let submenuItems = Self.systemAccountMenuItems(
+            projection: context.settings.codexVisibleAccountProjection,
+            hidePersonalInfo: context.settings.hidePersonalInfo,
+            isInteractionBlocked: context.codexAccountPromotionCoordinator?.isInteractionBlocked() ?? false)
+        guard !submenuItems.isEmpty else { return }
+        entries.append(.submenu(
+            "System Account",
+            MenuDescriptor.MenuActionSystemImage.systemAccount.rawValue,
+            submenuItems))
+    }
 
-        let isInteractionBlocked = context.codexAccountPromotionCoordinator?.isInteractionBlocked() ?? false
-
+    @MainActor
+    static func systemAccountMenuItems(
+        projection: CodexVisibleAccountProjection,
+        hidePersonalInfo: Bool,
+        isInteractionBlocked: Bool) -> [MenuDescriptor.SubmenuItem]
+    {
+        let ordinals = CodexAccountSwitcherLabeling.ordinals(for: projection.visibleAccounts)
         let submenuItems = projection.visibleAccounts.map { account in
             let isChecked = account.id == projection.liveVisibleAccountID
             let isEnabled = !isInteractionBlocked &&
@@ -301,19 +288,16 @@ struct CodexProviderImplementation: ProviderImplementation {
                 account.storedAccountID != nil
             let action = account.storedAccountID.map(MenuDescriptor.MenuAction.requestCodexSystemPromotion)
             return MenuDescriptor.SubmenuItem(
-                title: account.displayName,
+                title: hidePersonalInfo ? CodexAccountSwitcherLabeling.label(
+                    for: account, ordinal: ordinals[account.id], hidePersonalInfo: true) : account.displayName,
                 action: action,
                 isEnabled: isEnabled,
                 isChecked: isChecked)
         }
         guard submenuItems.count > 1 || submenuItems.contains(where: { $0.isEnabled && $0.action != nil }) else {
-            return
+            return []
         }
-
-        entries.append(.submenu(
-            "System Account",
-            MenuDescriptor.MenuActionSystemImage.systemAccount.rawValue,
-            submenuItems))
+        return submenuItems
     }
 
     @MainActor

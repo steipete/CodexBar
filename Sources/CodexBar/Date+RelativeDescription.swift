@@ -1,7 +1,6 @@
 import Foundation
 
 enum RelativeTimeFormatters {
-    @MainActor
     static func full(locale: Locale) -> RelativeDateTimeFormatter {
         let formatter = RelativeDateTimeFormatter()
         formatter.locale = locale
@@ -11,7 +10,6 @@ enum RelativeTimeFormatters {
 }
 
 extension Date {
-    @MainActor
     func relativeDescription(now: Date = .now) -> String {
         let seconds = abs(now.timeIntervalSince(self))
         if seconds < 15 {

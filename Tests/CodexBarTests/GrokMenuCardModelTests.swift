@@ -1,10 +1,79 @@
-import CodexBarCore
 import Foundation
 import Testing
 @testable import CodexBar
+@testable import CodexBarCore
 
 @MainActor
 struct GrokMenuCardModelTests {
+    @Test(arguments: [30.0, 6.0])
+    func `proxy weekly bounds preserve late cycle projection`(hoursUntilReset: Double) throws {
+        let reset = try #require(ISO8601DateParser.parse("2026-08-13T12:00:00.123456+00:00"))
+        let now = reset.addingTimeInterval(-hoursUntilReset * 3600)
+        let proxy = try GrokCreditsProxyFetcher.parseSnapshot(Data("""
+        {
+          "config": {
+            "creditUsagePercent": 90,
+            "currentPeriod": {
+              "type": "USAGE_PERIOD_TYPE_WEEKLY",
+              "start": "2026-08-06T12:00:00.123456+00:00",
+              "end": "2026-08-13T12:00:00.123456+00:00"
+            }
+          }
+        }
+        """.utf8), now: now)
+        let snapshot = GrokUsageSnapshot(
+            billing: nil,
+            webBilling: proxy,
+            credentials: nil,
+            localSummary: nil,
+            cliVersion: nil,
+            updatedAt: now).toUsageSnapshot()
+        let window = try #require(snapshot.primary)
+        let model = try Self.model(now: now, window: window)
+        let metric = try #require(model.metrics.first { $0.id == "primary" })
+
+        #expect(window.windowMinutes == 10080)
+        #expect(metric.title == "Weekly")
+        #expect(metric.detailLeftText != nil)
+        #expect(metric.detailRightText != nil)
+        #expect(metric.pacePercent != nil)
+    }
+
+    @Test
+    func `proxy monthly bounds remain monthly with six days until reset`() throws {
+        let reset = try #require(ISO8601DateParser.parse("2026-08-13T12:00:00.123456+00:00"))
+        let now = reset.addingTimeInterval(-6 * 24 * 3600)
+        let proxy = try GrokCreditsProxyFetcher.parseSnapshot(Data("""
+        {
+          "config": {
+            "creditUsagePercent": 90,
+            "currentPeriod": {
+              "start": "2026-07-13T12:00:00.123456+00:00",
+              "end": "2026-08-13T12:00:00.123456+00:00"
+            }
+          }
+        }
+        """.utf8), now: now)
+        let snapshot = GrokUsageSnapshot(
+            billing: nil,
+            webBilling: proxy,
+            credentials: nil,
+            localSummary: nil,
+            cliVersion: nil,
+            updatedAt: now).toUsageSnapshot()
+        let window = try #require(snapshot.primary)
+        let model = try Self.model(now: now, window: window)
+        let metric = try #require(model.metrics.first { $0.id == "primary" })
+
+        #expect(window.windowMinutes == 31 * 24 * 60)
+        #expect(window.resetsAt == reset)
+        #expect(metric.title == "Monthly")
+        #expect(metric.detailLeftText == nil)
+        #expect(metric.detailRightText == nil)
+        #expect(metric.pacePercent == nil)
+        #expect(!GrokProviderDescriptor.descriptor.pace.supportsResetWindowPace(window: window, now: now))
+    }
+
     @Test
     func `weekly CLI quota shows projection and pace marker`() throws {
         let now = Date(timeIntervalSince1970: 0)
@@ -129,7 +198,7 @@ struct GrokMenuCardModelTests {
     }
 
     @Test
-    func `cached coupon details fall back to the shared reset credits block`() throws {
+    func `untyped coupon details cannot invent current reset credits`() throws {
         let now = Date(timeIntervalSince1970: 1_787_647_576)
         let details = try [
             ProviderDetailSection(
@@ -149,8 +218,7 @@ struct GrokMenuCardModelTests {
                 resetDescription: nil),
             details: details)
 
-        #expect(model.limitResetCredits?.text == "1 available")
-        #expect(model.limitResetCredits?.expirySummaryText == "Sep 12")
+        #expect(model.limitResetCredits == nil)
         #expect(model.providerDetails.isEmpty)
     }
 
@@ -278,7 +346,6 @@ struct GrokMenuCardModelTests {
             snapshot: snapshot,
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,

@@ -274,7 +274,7 @@ extension SettingsStore {
 }
 
 extension MenuBarMetricPreference {
-    fileprivate var providerMetric: ProviderMenuBarMetric {
+    var providerMetric: ProviderMenuBarMetric {
         switch self {
         case .automatic: .automatic
         case .primary: .primary

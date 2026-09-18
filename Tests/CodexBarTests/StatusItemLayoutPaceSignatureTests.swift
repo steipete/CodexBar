@@ -7,6 +7,57 @@ import Testing
 @Suite(.serialized)
 struct StatusItemLayoutPaceSignatureTests {
     @Test
+    func `selected weekly reset date changes icon signature without usage changes`() {
+        let settings = testSettingsStore(suiteName: "StatusItemLayoutPaceSignatureTests-weekly-reset")
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.menuBarShowsBrandIconWithPercent = true
+        settings.menuBarLayout = MenuBarLayout(lines: [[.windowResetCountdown(window: .weekly)]])
+        if let metadata = ProviderRegistry.shared.metadata[.codex] {
+            settings.setProviderEnabled(
+                provider: .codex,
+                metadata: metadata,
+                enabled: true)
+        }
+        let fetcher = UsageFetcher()
+        let store = UsageStore(
+            fetcher: fetcher,
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: testStatusBar())
+        defer { controller.releaseStatusItemsForTesting() }
+        let now = Date()
+        func snapshot(weeklyReset: Date) -> UsageSnapshot {
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 30,
+                    windowMinutes: 300,
+                    resetsAt: now.addingTimeInterval(3600),
+                    resetDescription: nil),
+                secondary: RateWindow(
+                    usedPercent: 60,
+                    windowMinutes: 10080,
+                    resetsAt: weeklyReset,
+                    resetDescription: nil),
+                updatedAt: now)
+        }
+        store._setSnapshotForTesting(
+            snapshot(weeklyReset: now.addingTimeInterval(86400)),
+            provider: .codex)
+        let first = controller.storeIconObservationSignature()
+        store._setSnapshotForTesting(
+            snapshot(weeklyReset: now.addingTimeInterval(172_800)),
+            provider: .codex)
+        #expect(controller.storeIconObservationSignature() != first)
+    }
+
+    @Test
     func `icon observation signature tracks stored layout pace tokens`() {
         let suite = "StatusItemLayoutPaceSignatureTests-layout-pace-signature"
         let settings = testSettingsStore(suiteName: suite)

@@ -53,6 +53,10 @@ extension AntigravityLocalReader {
         var schemaBytes = 0
         var sqliteHandlesOpened = 0
         var sqliteHandlesClosed = 0
+        /// Sidecar-less WAL databases that the ordinary read-only open declined and an immutable open read.
+        var immutableFallbacks = 0
+        /// Databases in a declared root whose schema has no gen_metadata table; skipped without affecting coverage.
+        var foreignDatabases = 0
     }
 
     enum ScanFailure: Error {

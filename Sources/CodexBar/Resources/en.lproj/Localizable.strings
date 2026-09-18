@@ -631,6 +631,8 @@
 "agent_sessions_title" = "Agent sessions";
 "agent_sessions_subtitle" = "Show local and SSH-discovered Codex and Claude Code sessions in the menu.";
 "agent_sessions_hosts_title" = "Additional SSH hosts";
+"agent_sessions_hide_unreachable_title" = "Hide unreachable hosts";
+"agent_sessions_hide_unreachable_subtitle" = "Hide hosts when fetching their sessions fails.";
 "agent_sessions_footer" = "Macs on your tailnet are discovered automatically. Local sessions refresh every 30 seconds; remote hosts every 60 seconds and when the menu opens.";
 "agent_session_labels_title" = "Session labels";
 "agent_session_labels_subtitle" = "Choose how agent sessions are named.";
@@ -1436,6 +1438,33 @@
 "Cost today unavailable" = "Cost today unavailable";
 "30-day cost unavailable" = "30-day cost unavailable";
 "Resets" = "Resets";
+"codex_workspaces_cost_unavailable" = "Cost unavailable";
+"codex_workspaces_elevated_usage" = "Elevated usage";
+"codex_workspaces_estimated_cost_short" = "Est. cost";
+"codex_workspaces_estimated_cost_value" = "est. %@";
+"codex_workspaces_estimated_local_logs" = "Estimated from local Codex logs";
+"codex_workspaces_failed_read_logs" = "Failed to read Codex logs";
+"codex_workspaces_high_usage" = "High usage";
+"codex_workspaces_indexing_local_logs" = "Indexing local Codex logs…";
+"codex_workspaces_indexing_projects" = "Indexing projects…";
+"codex_workspaces_local_codex_chat" = "Local Codex chat";
+"codex_workspaces_model" = "Model";
+"codex_workspaces_no_local_usage" = "No local Codex usage yet";
+"codex_workspaces_no_sessions" = "No sessions in this workspace";
+"codex_workspaces_normal_usage" = "Normal usage";
+"codex_workspaces_partial_data" = "Partial data";
+"codex_workspaces_refresh_usage_data" = "Refresh usage data";
+"codex_workspaces_retry" = "Retry";
+"codex_workspaces_saving_project_index" = "Saving project index…";
+"codex_workspaces_scanning_logs" = "Scanning Codex logs…";
+"codex_workspaces_session" = "Session";
+"codex_workspaces_session_count" = "Sessions: %@";
+"codex_workspaces_sessions" = "Sessions";
+"codex_workspaces_started" = "Started";
+"codex_workspaces_title" = "Workspaces";
+"codex_workspaces_token_count_accessibility" = "%@ tokens";
+"codex_workspaces_tokens" = "Tokens";
+"codex_workspaces_top_model" = "Top model";
 "Finish now" = "Finish now";
 "Continue in background" = "Continue in background";
 
@@ -1544,5 +1573,18 @@
 "menu_bar_layout_conditional_default_session_spent" = "Session nearly spent";
 "menu_bar_layout_conditional_default_either_high" = "Session or weekly running high";
 "menu_bar_layout_conditional_default_scoped_weekly" = "Scoped weekly over 60% used";
+"Visible usage items" = "Visible usage items";
+"Restore Defaults" = "Restore Defaults";
+"Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "Choose which usage rows appear in this provider's menu, Settings preview, and Overview.";
+"%@ (unavailable)" = "%@ (unavailable)";
 "Spending cap, not balance" = "Spending cap, not balance";
+
+"Color Pace Indicator" = "Color Pace Indicator";
+"Green pace indicator when behind pace, red when ahead of pace (risk of running out early)" = "Green pace indicator when behind pace, red when ahead of pace (risk of running out early)";
 "%@ weekly" = "%@ weekly";
+
+"Incomplete" = "Incomplete";
+
+"Est. subtotal (%@): %@" = "Est. subtotal (%@): %@";
+
+"Excluded requests with missing final usage: %d" = "Excluded requests with missing final usage: %d";

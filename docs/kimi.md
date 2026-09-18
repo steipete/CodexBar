@@ -21,6 +21,7 @@ Code subscription credentials.
 - Displays membership from the API/CLI usage response, with the active web subscription title as a fallback
 - Detects the installed Kimi CLI version, including standalone installs outside the GUI app PATH
 - Enriches Code API/CLI usage with the monthly membership pool when a web session is available
+- Automatic menu-bar usage prioritizes an exhausted monthly Total usage pool over reset Code windows; explicit window selections remain authoritative
 - API-key, Kimi Code CLI, automatic cookie, and manual cookie authentication methods
 - Automatic refresh countdown
 
@@ -45,6 +46,12 @@ export KIMI_CODE_API_KEY="kimi-code-api-key-here"
 CodexBar calls `GET https://api.kimi.com/coding/v1/usages` with the API key. Set
 `KIMI_CODE_BASE_URL` only when testing a compatible HTTPS proxy or alternate host with an explicit API key.
 CodexBar never forwards a Kimi Code CLI credential to an endpoint override.
+
+Both the older count-based response and the newer `usages` ratio pools are supported. Ratio pools take
+precedence for the 5-hour, weekly, and monthly Total usage windows they provide. Missing windows stay
+absent; percentages retain the API's precision and do not imply request counts. The monthly Total usage
+pool is available directly from the Code API, without requiring browser authentication, and optional web
+enrichment cannot replace it. Legacy rate-limit counts remain available when no 5-hour ratio is reported.
 
 ### Method 2: Kimi Code CLI
 

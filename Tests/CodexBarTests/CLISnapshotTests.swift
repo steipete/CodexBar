@@ -1,7 +1,7 @@
-import CodexBarCore
 import Foundation
 import Testing
 @testable import CodexBarCLI
+@testable import CodexBarCore
 
 // swiftlint:disable:next type_body_length
 struct CLISnapshotTests {
@@ -754,31 +754,21 @@ struct CLISnapshotTests {
         #expect(primary.summary == "13% in reserve | Expected 43% used | Lasts until reset")
     }
 
-    @Test
-    func `descriptor monthly CLI pace uses the calendar cycle`() throws {
+    @Test(arguments: [
+        "Amp Example Subscription: 60% other usage and 90% orb usage remaining - resets upon renewal in 14 days",
+        "Amp Example Tier: agent usage $12 of $20 remaining - " +
+            "period 2026-02-01 to 2026-03-01, resets upon renewal in 14 days",
+    ])
+    func `amp monthly CLI pace uses the reported billing cycle`(output: String) throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
-        let resetsAt = try #require(calendar.date(from: DateComponents(
-            calendar: calendar,
-            timeZone: calendar.timeZone,
-            year: 2026,
-            month: 3,
-            day: 1)))
         let now = try #require(calendar.date(from: DateComponents(
             calendar: calendar,
             timeZone: calendar.timeZone,
             year: 2026,
             month: 2,
             day: 15)))
-        let snapshot = UsageSnapshot(
-            primary: .init(
-                usedPercent: 40,
-                windowMinutes: ProviderPaceCapability.monthlyWindowSentinelMinutes,
-                resetsAt: resetsAt,
-                resetDescription: "monthly"),
-            secondary: nil,
-            tertiary: nil,
-            updatedAt: now)
+        let snapshot = try AmpUsageParser.parse(displayText: output, now: now).toUsageSnapshot()
 
         let pace = try #require(CLIRenderer.providerPacePayload(provider: .amp, snapshot: snapshot, now: now))
         #expect(pace.primary?.expectedUsedPercent == 50)

@@ -24,43 +24,11 @@ final class StatusMenuProviderNativeProofTests: XCTestCase {
         }
         let directory = URL(fileURLWithPath: directoryPath, isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let fixture = try CodexWorkspacesNavigationFixture()
+        let fixture = try CodexWorkspacesNavigationFixture(userDefaults: InMemoryUserDefaults())
         defer { fixture.cleanup() }
         let overview = environment["CODEXBAR_STATUS_PROVIDER_PROOF_OVERVIEW"] == "1"
-        let providers: [UsageProvider] = [.claude, .codex, .grok]
-        for provider in providers {
-            fixture.settings.setProviderEnabled(
-                provider: provider,
-                metadata: ProviderDescriptorRegistry.descriptor(for: provider).metadata,
-                enabled: true)
-            _ = fixture.settings.setMergedOverviewProviderSelection(
-                provider: provider,
-                isSelected: overview,
-                activeProviders: providers)
-        }
-        fixture.settings.mergeIcons = true
-        fixture.settings.selectedMenuProvider = .claude
-        fixture.settings.mergedMenuLastSelectedWasOverview = overview
-        fixture.settings.statusChecksEnabled = true
-        for provider in providers {
-            fixture.store._setSnapshotForTesting(
-                UsageSnapshot(
-                    primary: RateWindow(
-                        usedPercent: 25,
-                        windowMinutes: 300,
-                        resetsAt: Date().addingTimeInterval(3600),
-                        resetDescription: nil),
-                    secondary: nil,
-                    updatedAt: Date()),
-                provider: provider)
-        }
-        if overview { Self.seedOverviewHistory(in: fixture) }
-        fixture.store.statusComponents[.claude] = [
-            ProviderStatusComponent(id: "claude", name: "Claude.ai", indicator: .none, status: "operational"),
-        ]
-        fixture.store.statusComponents[.codex] = [
-            ProviderStatusComponent(id: "codex", name: "Codex", indicator: .none, status: "operational"),
-        ]
+        let compact = environment["CODEXBAR_STATUS_PROVIDER_PROOF_COMPACT"] == "1"
+        Self.seedProviderMenu(in: fixture, overview: overview, compact: compact)
 
         let oldRendering = StatusItemController.menuCardRenderingEnabled
         let oldRefresh = StatusItemController.menuRefreshEnabled
@@ -72,7 +40,11 @@ final class StatusMenuProviderNativeProofTests: XCTestCase {
         }
         let controller = fixture.makeController()
         defer { controller.releaseStatusItemsForTesting() }
-        let menu = try XCTUnwrap(controller.mergedMenu)
+        let menu: NSMenu = if compact {
+            controller.makeMenu(for: .claude)
+        } else {
+            try XCTUnwrap(controller.mergedMenu)
+        }
         let application = NSApplication.shared
         guard application.delegate == nil, UserDefaults.standard.object(forKey: "NSOpen") == nil else {
             return XCTFail("Native proof requires a standalone test application.")
@@ -80,7 +52,7 @@ final class StatusMenuProviderNativeProofTests: XCTestCase {
         let oldPolicy = application.activationPolicy()
         let previousApplication = NSWorkspace.shared.frontmostApplication
         let host = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 480, height: 160),
+            contentRect: NSRect(x: 0, y: 0, width: 480, height: compact ? 900 : 160),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false)
@@ -113,25 +85,63 @@ final class StatusMenuProviderNativeProofTests: XCTestCase {
             return
         }
 
+        var sawExpandedAccount = false
+        var sawCollapsedAccount = false
+        var targetCompactID: String?
+        let deadline = Date().addingTimeInterval(600)
         // Common-mode receipts keep updating while the external driver interacts with NSMenu.
         let timer = Timer(timeInterval: 0.1, repeats: true) { _ in
             MainActor.assumeIsolated {
                 guard let menu = button.proofMenu else { return }
-                let receipt = Self.nativeReceipt(menu: menu, host: host, fixture: fixture, controller: controller)
+                if targetCompactID == nil {
+                    targetCompactID = menu.items.compactMap { $0.representedObject as? String }
+                        .first { $0.contains("Compact-") }
+                }
+                let targetCardID = targetCompactID?.replacingOccurrences(of: "Compact-", with: "Card-")
+                if let targetCompactID, let targetCardID,
+                   controller.openMenus[ObjectIdentifier(menu)] != nil
+                {
+                    if menu.items.contains(where: { ($0.representedObject as? String) == targetCardID }) {
+                        sawExpandedAccount = true
+                    } else if sawExpandedAccount,
+                              menu.items.contains(where: { ($0.representedObject as? String) == targetCompactID })
+                    {
+                        sawCollapsedAccount = true
+                    }
+                }
+                var receipt = Self.nativeReceipt(menu: menu, host: host, fixture: fixture, controller: controller)
+                if let row = menu.items.first(where: {
+                    guard let id = $0.representedObject as? String else { return false }
+                    return id == targetCompactID || id == targetCardID
+                })?.view, let window = row.window {
+                    let rect = window.convertToScreen(row.convert(row.bounds, to: nil))
+                    receipt["targetRect"] = NSStringFromRect(rect)
+                    receipt["screenHeight"] = String(Double(NSScreen.screens.first?.frame.maxY ?? 0))
+                }
+                receipt["configuredAccounts"] = String(fixture.settings.tokenAccounts(for: .claude).count)
+                receipt["validAccountSnapshots"] = String(fixture.store.validTokenAccountSnapshots(
+                    provider: .claude, accounts: fixture.settings.tokenAccounts(for: .claude)).count)
+                receipt["expandedAccounts"] = String(controller.compactAccountExpandedIDs.count)
+                receipt["sawExpansion"] = String(sawExpandedAccount)
+                receipt["sawCollapse"] = String(sawCollapsedAccount)
+                receipt["compactRows"] = String(menu.items.count(where: {
+                    ($0.representedObject as? String)?.contains("Compact-") == true
+                }))
                 do {
                     try JSONEncoder().encode(receipt).write(
                         to: directory.appendingPathComponent("state.json"), options: .atomic)
                 } catch {
                     XCTFail("Could not write native proof receipt: \(error)")
                 }
-                if FileManager.default.fileExists(atPath: directory.appendingPathComponent("done").path) {
+                if FileManager.default.fileExists(atPath: directory.appendingPathComponent("done").path)
+                    || Date() >= deadline
+                {
                     menu.cancelTracking()
                 }
             }
         }
         RunLoop.main.add(timer, forMode: .common)
         defer { timer.invalidate() }
-        let deadline = Date().addingTimeInterval(600)
         let done = directory.appendingPathComponent("done").path
         while !FileManager.default.fileExists(atPath: done), Date() < deadline {
             if let event = application.nextEvent(
@@ -142,6 +152,61 @@ final class StatusMenuProviderNativeProofTests: XCTestCase {
             _ = RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.02))
         }
         XCTAssertTrue(FileManager.default.fileExists(atPath: done), "Native proof timed out")
+        if compact {
+            XCTAssertTrue(sawExpandedAccount, "Expand one inactive account through its real menu row")
+            XCTAssertTrue(sawCollapsedAccount, "Collapse the expanded account again")
+        }
+    }
+
+    private static func seedProviderMenu(
+        in fixture: CodexWorkspacesNavigationFixture,
+        overview: Bool,
+        compact: Bool)
+    {
+        let providers: [UsageProvider] = compact ? [.claude] : [.claude, .codex, .grok]
+        for provider in providers {
+            fixture.settings.setProviderEnabled(
+                provider: provider,
+                metadata: ProviderDescriptorRegistry.descriptor(for: provider).metadata,
+                enabled: true)
+            _ = fixture.settings.setMergedOverviewProviderSelection(
+                provider: provider,
+                isSelected: overview,
+                activeProviders: providers)
+        }
+        fixture.settings.mergeIcons = true
+        fixture.settings.selectedMenuProvider = .claude
+        fixture.settings.mergedMenuLastSelectedWasOverview = overview
+        fixture.settings.statusChecksEnabled = true
+        for provider in providers {
+            fixture.store._setSnapshotForTesting(
+                UsageSnapshot(
+                    primary: RateWindow(
+                        usedPercent: 25,
+                        windowMinutes: 300,
+                        resetsAt: Date().addingTimeInterval(3600),
+                        resetDescription: nil),
+                    secondary: nil,
+                    updatedAt: Date()),
+                provider: provider)
+        }
+        if overview { Self.seedOverviewHistory(in: fixture) }
+        if compact {
+            fixture.settings.setProviderEnabled(
+                provider: .codex,
+                metadata: ProviderDescriptorRegistry.descriptor(for: .codex).metadata,
+                enabled: false)
+            Self.seedCompactAccounts(in: fixture)
+            if ProcessInfo.processInfo.environment["CODEXBAR_STATUS_PROVIDER_PROOF_HIDE_SESSION"] == "1" {
+                fixture.settings.setUsageItemVisible(false, itemID: .metric("primary"), for: .claude)
+            }
+        }
+        fixture.store.statusComponents[.claude] = [
+            ProviderStatusComponent(id: "claude", name: "Claude.ai", indicator: .none, status: "operational"),
+        ]
+        fixture.store.statusComponents[.codex] = [
+            ProviderStatusComponent(id: "codex", name: "Codex", indicator: .none, status: "operational"),
+        ]
     }
 
     private static func nativeReceipt(
@@ -216,6 +281,36 @@ final class StatusMenuProviderNativeProofTests: XCTestCase {
         ]
         try JSONSerialization.data(withJSONObject: receipt, options: [.prettyPrinted, .sortedKeys])
             .write(to: directory.appendingPathComponent("benchmark.json"), options: .atomic)
+    }
+
+    private static func seedCompactAccounts(in fixture: CodexWorkspacesNavigationFixture) {
+        fixture.settings.multiAccountMenuLayout = .stacked
+        for index in 0..<5 {
+            fixture.settings.addTokenAccount(
+                provider: .claude, label: "Synthetic Account \(index + 1)", token: "fixture-oauth-\(index)")
+        }
+        fixture.settings.setActiveTokenAccountIndex(0, for: .claude)
+        let accounts = fixture.settings.tokenAccounts(for: .claude)
+        let now = Date()
+        fixture.store.accountSnapshots[.claude] = accounts.enumerated().map { index, account in
+            TokenAccountUsageSnapshot(
+                account: account,
+                snapshot: UsageSnapshot(
+                    primary: RateWindow(
+                        usedPercent: index == 0 ? 20 : Double(99 - index),
+                        windowMinutes: 300,
+                        resetsAt: now.addingTimeInterval(Double(index + 1) * 3600),
+                        resetDescription: nil),
+                    secondary: RateWindow(
+                        usedPercent: Double(85 - index * 5),
+                        windowMinutes: 10080,
+                        resetsAt: now.addingTimeInterval(Double(index + 1) * 86400),
+                        resetDescription: nil),
+                    updatedAt: now),
+                error: nil,
+                sourceLabel: "synthetic",
+                cacheKey: fixture.store.tokenAccountSnapshotCacheKey(provider: .claude, account: account))
+        }
     }
 
     private static func seedOverviewHistory(in fixture: CodexWorkspacesNavigationFixture) {

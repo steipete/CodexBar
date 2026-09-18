@@ -70,11 +70,31 @@ public struct ProviderPluginManifest: Sendable {
     public let id: ProviderInstanceID
     public let name: String
     public let icon: ProviderPluginIcon
+    public let topLevel: Bool
     public let endpoints: Set<ProviderPluginEndpoint>
     public let auth: ProviderPluginAuth?
     public let settings: [ProviderPluginSetting]
     public let capabilities: Set<ProviderPluginCapability>
     public let cookieDomains: Set<String>
+
+    func openRouterManagementAuthSecret(method: String, url: URL) throws -> String {
+        let secret = "OPENROUTER_MANAGEMENT_API_KEY"
+        // Provider-specific by design: only OpenRouter Activity may use its separate management credential.
+        guard self.id.firstPartyProvider == .openrouter,
+              self.settings.first(where: { $0.key == secret })?.kind == .secure,
+              method == "GET",
+              url.scheme?.lowercased() == "https",
+              url.host?.lowercased() == "openrouter.ai",
+              url.port == nil,
+              url.user == nil,
+              url.password == nil,
+              url.path == "/api/v1/activity",
+              url.fragment == nil
+        else {
+            throw ProviderPluginError.secretAccess("OpenRouter management auth is unavailable for this plugin")
+        }
+        return secret
+    }
 
     // Manifest parsing validates the complete security surface in one pass.
     // swiftlint:disable:next cyclomatic_complexity function_body_length
@@ -95,6 +115,14 @@ public struct ProviderPluginManifest: Sendable {
         self.id = id
         self.name = try Self.boundedString(definition, property: "name", maximumLength: 80)
         self.icon = try Self.parseIcon(definition.property("icon"), fallbackName: self.name)
+        if let topLevel = definition.property("topLevel"), !topLevel.isUndefined, !topLevel.isNull {
+            guard topLevel.isBoolean else {
+                throw ProviderPluginError.invalidManifest("'topLevel' must be a boolean when present")
+            }
+            self.topLevel = topLevel.boolValue()
+        } else {
+            self.topLevel = false
+        }
 
         let endpointValue = definition.property("endpoints")
         guard let endpointValue, endpointValue.isArray else {
@@ -497,5 +525,29 @@ struct ProviderPluginTransientHTTPFailure: LocalizedError, Sendable {
         }
         let message = "request returned HTTP \(statusCode)"
         return "\(ProviderPluginClassifiedFailureParser.markerV2)\(kind.rawValue):\(retryAfterSeconds):\(message)"
+    }
+}
+
+extension ProviderPluginManifest {
+    func allowedOrigin(for url: URL, settings: [String: String]) throws -> Bool {
+        for endpoint in self.endpoints {
+            switch endpoint {
+            case let .fixed(declared):
+                if (try? ProviderPluginOrigin.normalizedOrigin(of: url)) == declared {
+                    return true
+                }
+            case let .setting(key, policy):
+                guard let rawValue = settings[key], !rawValue.isEmpty,
+                      let configuredURL = URL(string: rawValue), configuredURL.fragment == nil
+                else { continue }
+                let configuredOrigin = try ProviderPluginOrigin.normalizedOrigin(of: configuredURL, policy: policy)
+                if try ProviderPluginOrigin
+                    .normalizedOrigin(of: url, policy: policy) == configuredOrigin
+                {
+                    return true
+                }
+            }
+        }
+        return false
     }
 }

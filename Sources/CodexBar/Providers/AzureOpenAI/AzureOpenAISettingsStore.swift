@@ -2,14 +2,18 @@ import CodexBarCore
 import Foundation
 
 extension SettingsStore {
-    var azureOpenAIAPIKey: String {
-        get { self.configSnapshot.providerConfig(for: .azureopenai)?.sanitizedAPIKey ?? "" }
+    var azureOpenAIAPIVersion: String {
+        get { self.configSnapshot.providerConfig(for: .azureopenai)?.sanitizedAzureOpenAIAPIVersion ?? "" }
         set {
             self.updateProviderConfig(provider: .azureopenai) { entry in
-                entry.apiKey = self.normalizedConfigValue(newValue)
+                entry.azureOpenAIAPIVersion = self.normalizedConfigValue(newValue)
             }
-            self.logSecretUpdate(provider: .azureopenai, field: "apiKey", value: newValue)
         }
+    }
+
+    var azureOpenAIAPIKey: String {
+        get { self[providerConfig: .azureopenai, field: .apiKey] }
+        set { self[providerConfig: .azureopenai, field: .apiKey] = newValue }
     }
 
     var azureOpenAIEndpoint: String {

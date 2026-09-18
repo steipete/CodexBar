@@ -771,7 +771,7 @@ final class JavaScriptCoreProviderPluginEngine: ProviderPluginEngine, @unchecked
                 {
                     throw ProviderPluginError.http("compressed responses are not allowed")
                 }
-                let payload = try ProviderPluginObjectBox(Self.responsePayload(
+                let payload = try ProviderPluginObjectBox(ProviderPluginHTTPResponse.payload(
                     response,
                     wantsJSON: callbacks.wantsJSON))
                 worker.queue.async {
@@ -853,7 +853,7 @@ final class JavaScriptCoreProviderPluginEngine: ProviderPluginEngine, @unchecked
         guard let url = URL(string: rawURL) else {
             throw ProviderPluginError.networkPolicy("request URL is invalid")
         }
-        guard try self.allowedOrigin(for: url, settings: settings) else {
+        guard try self.manifest.allowedOrigin(for: url, settings: settings) else {
             let rejectedOrigin = (try? ProviderPluginOrigin.normalizedOrigin(
                 of: url,
                 policy: url.scheme?.lowercased() == "http" ? .httpsOrLoopbackHTTP : .https)) ?? "invalid"
@@ -907,24 +907,11 @@ final class JavaScriptCoreProviderPluginEngine: ProviderPluginEngine, @unchecked
                !managementAuth.isUndefined,
                !managementAuth.isNull
             {
-                let managementSecret = "OPENROUTER_MANAGEMENT_API_KEY"
-                guard managementAuth.isBoolean,
-                      managementAuth.toBool(),
-                      self.manifest.id.firstPartyProvider == .openrouter,
-                      self.manifest.settings.first(where: { $0.key == managementSecret })?.kind == .secure,
-                      method == "GET",
-                      url.scheme?.lowercased() == "https",
-                      url.host?.lowercased() == "openrouter.ai",
-                      url.port == nil,
-                      url.user == nil,
-                      url.password == nil,
-                      url.path == "/api/v1/activity",
-                      url.fragment == nil
-                else {
+                guard managementAuth.isBoolean, managementAuth.toBool() else {
                     throw ProviderPluginError.secretAccess(
                         "OpenRouter management auth is unavailable for this plugin")
                 }
-                secretName = managementSecret
+                secretName = try self.manifest.openRouterManagementAuthSecret(method: method, url: url)
             }
             guard let secret = secrets[secretName], !secret.isEmpty else {
                 throw ProviderPluginError.secretAccess("required auth secret is unavailable")
@@ -956,52 +943,6 @@ final class JavaScriptCoreProviderPluginEngine: ProviderPluginEngine, @unchecked
             throw ProviderPluginError.http("timeoutSeconds must be a number from 1 through 30")
         }
         return seconds
-    }
-
-    private func allowedOrigin(for url: URL, settings: [String: String]) throws -> Bool {
-        for endpoint in self.manifest.endpoints {
-            switch endpoint {
-            case let .fixed(declared):
-                if (try? ProviderPluginOrigin.normalizedOrigin(of: url)) == declared {
-                    return true
-                }
-            case let .setting(key, policy):
-                guard let rawValue = settings[key], !rawValue.isEmpty,
-                      let configuredURL = URL(string: rawValue), configuredURL.fragment == nil
-                else { continue }
-                let configuredOrigin = try ProviderPluginOrigin.normalizedOrigin(of: configuredURL, policy: policy)
-                if try ProviderPluginOrigin
-                    .normalizedOrigin(of: url, policy: policy) == configuredOrigin
-                {
-                    return true
-                }
-            }
-        }
-        return false
-    }
-
-    private static func responsePayload(_ response: ProviderHTTPResponse, wantsJSON: Bool) throws -> [String: Any] {
-        var headers: [String: String] = [:]
-        for (key, value) in response.response.allHeaderFields {
-            headers[String(describing: key).lowercased()] = String(describing: value)
-        }
-        var payload: [String: Any] = [
-            "status": response.statusCode,
-            "headers": headers,
-        ]
-        if wantsJSON {
-            do {
-                payload["json"] = try JSONSerialization.jsonObject(with: response.data)
-            } catch {
-                throw ProviderPluginError.http("response was not valid JSON")
-            }
-        } else {
-            guard let text = String(data: response.data, encoding: .utf8) else {
-                throw ProviderPluginError.http("response body was not valid UTF-8")
-            }
-            payload["bodyText"] = text
-        }
-        return payload
     }
 
     private func reject(_ reject: ProviderPluginJSValueBox, error: Error) {

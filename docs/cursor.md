@@ -8,32 +8,43 @@ read_when:
 
 # Cursor provider
 
-On macOS, Cursor can reuse Cursor.app's local session or a cursor.com browser session. Automatic mode prefers a usable
-Cursor.app session and falls back to cookies when the app token is missing, expired, invalid, or rejected.
+Cursor can reuse Cursor.app's local session or a cursor.com browser session. On macOS, automatic mode prefers a usable
+Cursor.app session and falls back to cookies when the app token is missing, expired, invalid, or rejected. On Linux,
+automatic mode uses cached or stored cookies when available, then falls back to the signed-in Cursor app token because
+browser import is unavailable.
 
 ## Data sources + fallback order
 
-1) **Cursor.app local auth** (preferred in Automatic mode)
+Manual cookie configuration is always the explicit override. The automatic order is Cursor.app → cached cookie → browser
+cookie import → stored session on macOS, and cached cookie → stored session → Cursor.app token on Linux. Explicit `web`
+mode never reads Cursor.app credentials; macOS uses its cookie ladder, while Linux requires a configured manual cookie.
+
+1) **Cursor.app local auth** (first automatic source on macOS; Linux fallback)
    - Reads Cursor.app's VS Code-style global state DB for `ItemTable` key `cursorAuth/accessToken`.
    - BLOB decoding recognizes BOM-less ASCII UTF-16LE tokens before UTF-8, which would otherwise keep interleaved
      NUL bytes. Other encodings retain the existing UTF-8/UTF-16LE fallback; tokens are not normalized, and malformed
      nonempty values remain distinct from a missing session so they cannot enable stale cached-account fallback.
    - Files consulted by SQLite:
      - macOS main DB: `~/Library/Application Support/Cursor/User/globalStorage/state.vscdb`
+     - Linux main DB: absolute `$XDG_CONFIG_HOME/.../state.vscdb`, else absolute `$HOME/.config/...`, else account-home `.config/...`
      - Active WAL sidecars when present: `state.vscdb-wal` and `state.vscdb-shm`
    - The database is opened read-only. Active WAL state is read normally; an idle WAL-mode main file with no
      sidecars uses SQLite immutable mode so CodexBar does not recreate files in Cursor's directory.
    - The token is used only while its JWT expiry is more than 60 seconds away. CodexBar never refreshes it.
-   - A validated derived session is also persisted owner-only at
-     `~/Library/Application Support/CodexBar/cursor-session.json` through the standard credential-file writer.
+   - On macOS, a validated derived session is also persisted owner-only at
+     `~/Library/Application Support/CodexBar/cursor-session.json` through the standard credential-file writer. Linux
+     reads the Cursor database directly and does not persist the app token.
    - When an already-cached cookie exposes a different email or subject, CodexBar logs the mismatch and keeps the
      chosen Cursor.app identity on the usage snapshot/card. It does not combine app usage with browser identity.
+   - Temporary transport failures keep the previous usage measurement and its timestamp for an unchanged account,
+     including when the network message is localized. The same policy applies to stored sessions; rejected sessions
+     still follow the normal sign-in recovery path.
 
 2) **Cached cookie header**
    - Stored after successful browser import.
    - Keychain cache: `com.steipete.codexbar.cache` (account `cookie.cursor`).
 
-3) **Browser cookie import**
+3) **Browser cookie import** (macOS only)
    - Cookie order from provider metadata (default: Safari → Chrome → Firefox).
    - Domain filters: `cursor.com`, `cursor.sh`.
    - Cookie names required (any one counts):
@@ -41,13 +52,14 @@ Cursor.app session and falls back to cookies when the app token is missing, expi
      - `__Secure-next-auth.session-token`
      - `next-auth.session-token`
 
-4) **Stored session cookies** (fallback)
+4) **Stored session cookies** (legacy fallback on macOS and Linux)
    - Legacy sessions captured by older CodexBar releases remain readable.
-   - Stored at: `~/Library/Application Support/CodexBar/cursor-session.json`.
+   - Stored in the platform Application Support directory: `~/Library/Application Support/CodexBar/cursor-session.json` on
+     macOS, or `$XDG_DATA_HOME/CodexBar/cursor-session.json` on Linux (default: `~/.local/share/CodexBar/cursor-session.json`).
 
-On macOS, explicit `--source web` skips Cursor.app local auth and uses only the cookie ladder. A configured Manual cookie
-header remains an explicit override. `codexbar usage --provider cursor --source auto --verbose` prints the selected
-automatic path and is the quickest live-read check after Cursor login.
+On macOS, explicit `--source web` skips Cursor.app local auth and uses only the cookie ladder. On Linux, explicit `web`
+requires a configured Manual cookie and never reads the app token. `codexbar usage --provider cursor --source auto --verbose`
+prints the selected automatic path and is the quickest live-read check after Cursor login.
 
 Manual option:
 - Preferences → Providers → Cursor → Cookie source → Manual.
@@ -82,7 +94,13 @@ Manual option:
 - Firefox: `~/Library/Application Support/Firefox/Profiles/*/cookies.sqlite`
 
 ## Linux CLI
-- Cursor.app session import, automatic browser cookie import, and the external-browser Add/Switch flow are macOS app features.
+- Automatic usage (`codexbar usage --provider cursor`) supports the signed-in Cursor app on Linux after manual, cached, and
+  stored sessions have been considered.
+- Authentication order: manual cookie header → cached session → stored session → Cursor app access token.
+- The app token is read from absolute `$XDG_CONFIG_HOME/Cursor/User/globalStorage/state.vscdb`, then `$HOME/.config/...` when `HOME` is absolute, then the account home’s `.config/...`. Relative `XDG_CONFIG_HOME` / `HOME` values are ignored. The database is read-only; expired app tokens are not refreshed by CodexBar.
+- Cursor usage includes the Grok Bot weekly allowance and reset time when the account exposes it. Grok Bot endpoint failures do not hide Cursor usage.
+- Explicit `--source web` requires a manual cookie and never reads the app token.
+- Automatic browser cookie import and the external-browser Add/Switch flow remain macOS app features.
 - Manual cookie headers from `~/.config/codexbar/config.json` (or legacy `~/.codexbar/config.json`) work on Linux.
 
 ## Local storage footprint
@@ -122,18 +140,40 @@ API-list-price estimates are not estimates of actual Cursor charges: they do not
 
 Caching: the app holds the snapshot for an in-memory hourly TTL, keyed by the history window plus the cookie source and resolved account (manual-cookie hash or auto-mode account fingerprint), so switching accounts or pasting a new cookie invalidates it immediately.
 
+If Auto fetches usage with a cookie that the app still cannot confirm for the current account, the result stays unpublished. An unchanged account scope waits for the next normal or manual refresh instead of repeatedly forcing another request. Real account, history-window, provider, or cost-timezone changes still request a replacement; a successful fetch that confirms its own cookie can publish immediately.
+
 ## Snapshot mapping
 - Primary: plan usage percent (included plan).
 - Secondary: Cursor (Cursor models) usage percent.
 - Tertiary: Third Party usage percent.
-- Extra: Grok Bot weekly included usage from `get-sand-usage-status` when the account has a non-zero Bot allowance.
+- Extra: Grok Bot usage from `get-sand-usage-status` when the account has a paid allowance or an unexpired trial. The current `includedLimitZero` field takes precedence over the older allowance flag. Exhausted active trials remain visible; missing, malformed, or expired trial dates do not grant an allowance. Grok Bot is not the semantic weekly window, so monthly Cursor Auto pace stays on the Cursor bar when this extra 7-day window is present. Paid 7-day Grok Bot extras still show weekly pace on that extra bar; trial extras without a recurring reset do not.
 - Provider cost: Extra usage USD. A capped individual budget wins; team accounts without a user cap use the shared team on-demand budget.
-- Reset: billing cycle end date for monthly bars; Grok Bot uses `nextResetTimestampUtc` (weekly).
+- Reset: billing cycle end date for monthly bars; paid Grok Bot uses `nextResetTimestampUtc`, even if a trial-expiry field is also present. Trial-only allowances have no recurring reset or duration because trial expiration does not replenish quota.
 
 ## Key files
 - `Sources/CodexBarCore/Providers/Cursor/CursorAppAuth.swift`
 - `Sources/CodexBarCore/Providers/Cursor/CursorStatusProbe.swift`
+- `Sources/CodexBarCore/Providers/Cursor/CursorStatusProbe+UsageSummary.swift` (summary projection)
+- `Sources/CodexBarCore/Providers/Cursor/CursorTeamSpend.swift` (verified member budget)
 - `Sources/CodexBarCore/Providers/Cursor/CursorSandUsage.swift` (Grok Bot weekly included usage)
 - `Sources/CodexBar/CursorLoginRunner.swift` (login flow)
 - `Sources/CodexBar/Providers/Cursor/CursorLoginFlow.swift` (menu integration)
 - `Sources/CodexBar/CursorLoginBrowserRouter.swift` (browser routing and selection)
+
+### Enterprise and Business member budgets
+
+For team plans with a fresh nonempty email from `/api/auth/me`, the usage probe also checks `/api/dashboard/teams` and
+`/api/dashboard/get-team-spend`. It prefers `portal-selected-team-id` over `team_id`,
+verifies the selection against the authenticated account's teams, and uses a sole
+team when no selection cookie is present (including Cursor.app authentication).
+Multiple teams without a selection remain on the usage-summary fallback.
+
+The authenticated member's `overallSpendCents` and `effectivePerUserLimitDollars`
+(or `monthlyLimitDollars` when the effective limit is absent) drive the primary
+percentage and plan dollars. Missing spend or non-positive limits are not treated
+as a zero-usage budget. Other members' data is not included in debug output.
+The optional lookup shares a ten-second deadline and the configured request timeout, with at most twenty pages of
+fifty members. It requires consistent page-count metadata, full intermediate pages, and the complete page set before accepting one
+matching member. Missing completion metadata, duplicate matches, or unavailable, invalid, or incomplete responses
+preserve usage-summary behavior. Billing dates and extra/on-demand charges remain sourced from usage-summary;
+team response dates and other members' details are not retained. Caller cancellation still stops the fetch.

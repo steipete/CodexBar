@@ -1,3 +1,4 @@
+import CodexBarCore
 import Foundation
 import Testing
 @testable import CodexBar
@@ -39,7 +40,7 @@ struct GoogleWorkspaceStatusTests {
         ]
         """#.utf8)
 
-        let status = try UsageStore.parseGoogleWorkspaceStatus(data: data, productID: self.productID)
+        let status = try ProviderStatusFetcher.parseGoogleWorkspaceStatus(data: data, productID: self.productID)
         #expect(status.indicator == .critical)
         #expect(status.description == "Gemini API error.")
         #expect(status.updatedAt != nil)
@@ -65,7 +66,7 @@ struct GoogleWorkspaceStatusTests {
         ]
         """#.utf8)
 
-        let status = try UsageStore.parseGoogleWorkspaceStatus(data: data, productID: self.productID)
+        let status = try ProviderStatusFetcher.parseGoogleWorkspaceStatus(data: data, productID: self.productID)
         #expect(status.indicator == .none)
         #expect(status.description == nil)
     }

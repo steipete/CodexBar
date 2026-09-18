@@ -1212,12 +1212,7 @@ extension StatusItemController {
         if !layoutResolution.usesLegacyRendering,
            self.settings.menuBarIconStyle == .iconAndPercent
         {
-            let showsReset = layoutResolution.layout
-                .flattenedTokens(conditionals: self.settings.menuBarLayoutConditionals)
-                .contains { $0 == .resetCountdown || $0 == .resetAbsolute }
-            guard showsReset else { return [] }
-            let window = self.menuBarLayoutWindows(provider: provider, snapshot: snapshot, now: now).automatic
-            return window?.resetsAt.map { [$0] } ?? []
+            return self.menuBarLayoutResetDates(for: provider, now: now)
         }
         let mode = self.settings.menuBarDisplayMode
 

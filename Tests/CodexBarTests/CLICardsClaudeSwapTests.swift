@@ -271,7 +271,7 @@ struct CLICardsClaudeSwapTests {
             "Re-login required. Re-authenticate this account in claude-swap.",
             "claude-swap could not read the active account's Keychain entry.",
             "No stored credentials for this account slot.",
-            "Polling deferred until a limit resets.",
+            "Usage unavailable.",
             "Unrecognized claude-swap status: future_status",
             "No usage windows reported.",
         ])
@@ -279,7 +279,7 @@ struct CLICardsClaudeSwapTests {
 
     @Test
     func `active sentinel account remains active and metrics less in full and brief cards`() async {
-        let problem = "Polling deferred until a limit resets."
+        let problem = "Usage unavailable."
         let output = await CLIClaudeSwapCards.fetch(
             eligible: true,
             executablePath: "/fake/cswap",

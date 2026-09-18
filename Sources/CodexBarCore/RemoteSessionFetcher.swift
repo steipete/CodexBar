@@ -191,10 +191,14 @@ public struct RemoteSessionFetcher: Sendable {
             let result = try await SubprocessRunner.run(
                 binary: ssh,
                 arguments: [
-                    "-o", "BatchMode=yes",
-                    "-o", "ConnectTimeout=3",
+                    "-o",
+                    "BatchMode=yes",
+                    "-o",
+                    "ConnectTimeout=3",
                     host,
-                    "sh", "-lc", Self.shellQuote(command),
+                    "sh",
+                    "-lc",
+                    Self.shellQuote(command),
                 ],
                 environment: environment,
                 timeout: 5,
@@ -271,10 +275,15 @@ public struct RemoteSessionFetcher: Sendable {
                 CharacterSet.controlCharacters.contains(scalar) ||
                     CharacterSet.whitespacesAndNewlines.contains(scalar)
             }
+            let key: String = if let separator = host.lastIndex(of: "@") {
+                String(host[...separator]) + host[host.index(after: separator)...].lowercased()
+            } else {
+                host.lowercased()
+            }
             guard !host.isEmpty,
                   !host.hasPrefix("-"),
                   !hasUnsafeScalar,
-                  seen.insert(host.lowercased()).inserted
+                  seen.insert(key).inserted
             else { return nil }
             return host
         }

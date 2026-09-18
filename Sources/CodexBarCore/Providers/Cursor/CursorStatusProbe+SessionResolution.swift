@@ -55,11 +55,13 @@ extension CursorStatusProbe {
             provider: .cursor,
             coordinator: self.conditionalMutationCoordinator)
         let cachedEntry = allowCachedSessions ? CookieHeaderCache.load(provider: .cursor) : nil
-        var storedCookies = allowCachedSessions ? await CursorSessionStore.shared.getCookies() : []
-        #if os(macOS)
+        var storedCookies = allowCachedSessions ? await self.sessionStore.getCookies() : []
+        #if os(macOS) || os(Linux)
         if !allowAppAuthFallback {
             storedCookies.removeAll(where: CursorAppAuthSession.isPersistedCookie)
         }
+        #endif
+        #if os(macOS)
 
         let hasExplicitBrowserSelection = cachedEntry?.sourceLabel != Self.appAuthSourceLabel &&
             cachedEntry?.authenticationFailurePolicy == .stopFallback
@@ -174,6 +176,11 @@ extension CursorStatusProbe {
         {
             return value
         }
+        #if os(Linux)
+        if allowAppAuthFallback {
+            return try await self.fetchLinuxAppSession(log: log, perform: perform)
+        }
+        #endif
         throw CursorStatusProbeError.noSessionCookie
     }
 
@@ -192,7 +199,7 @@ extension CursorStatusProbe {
             value = try await perform(cookieHeader, nil)
         } catch let error as CursorStatusProbeError {
             if case .notLoggedIn = error {
-                await CursorSessionStore.shared.clearCookies()
+                await self.sessionStore.clearCookies()
                 log("Stored session invalid, cleared")
                 return nil
             }
@@ -200,7 +207,9 @@ extension CursorStatusProbe {
             throw error
         } catch {
             log("Stored session failed: \(error.localizedDescription)")
-            throw CursorStatusProbeError.networkError(error.localizedDescription)
+            throw ProviderTransportError.preservingIdentity(
+                of: error,
+                describedBy: CursorStatusProbeError.networkError(error.localizedDescription))
         }
 
         #if os(macOS)
@@ -245,7 +254,7 @@ extension CursorStatusProbe {
                 context.log("Cursor.app local auth is expired or invalid; falling back to browser cookies")
             }
             let storedCookies = Self.removingPersistedAppSessions(from: context.storedCookies)
-            await CursorSessionStore.shared.setCookies(storedCookies)
+            await self.sessionStore.setCookies(storedCookies)
             return .resumeFallback(storedCookies: storedCookies)
         }
 
@@ -272,10 +281,12 @@ extension CursorStatusProbe {
             guard case .notLoggedIn = error else { throw error }
             context.log("Cursor.app local auth was rejected; falling back to browser cookies")
             let storedCookies = Self.removingPersistedAppSessions(from: context.storedCookies)
-            await CursorSessionStore.shared.setCookies(storedCookies)
+            await self.sessionStore.setCookies(storedCookies)
             return .resumeFallback(storedCookies: storedCookies)
         } catch {
-            throw CursorStatusProbeError.networkError(error.localizedDescription)
+            throw ProviderTransportError.preservingIdentity(
+                of: error,
+                describedBy: CursorStatusProbeError.networkError(error.localizedDescription))
         }
     }
 

@@ -332,12 +332,13 @@ public enum UsageFormatter {
     }
 
     public static func tokenCountString(_ value: Int) -> String {
-        let absValue = abs(value)
+        let absValue = value.magnitude
         let sign = value < 0 ? "-" : ""
 
-        let units: [(threshold: Int, divisor: Double, suffix: String)] = [
-            (1_000_000_000, 1_000_000_000, "B"),
-            (1_000_000, 1_000_000, "M"),
+        // Promote at the point where whole lower units would round to 1000.
+        let units: [(threshold: UInt, divisor: Double, suffix: String)] = [
+            (999_500_000, 1_000_000_000, "B"),
+            (999_500, 1_000_000, "M"),
             (1000, 1000, "K"),
         ]
 

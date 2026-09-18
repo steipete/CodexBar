@@ -153,15 +153,10 @@ extension GroqConsoleSession {
         from sources: [BrowserCookieStoreRecords],
         origin: BrowserCookieOriginStrategy) -> [SessionInfo]
     {
-        let grouped = Dictionary(grouping: sources, by: { $0.store.profile.id })
-        let sortedGroups = grouped.values.sorted { lhs, rhs in
-            self.mergedLabel(for: lhs) < self.mergedLabel(for: rhs)
-        }
-
         var sessions: [SessionInfo] = []
-        for group in sortedGroups where !group.isEmpty {
-            let label = self.mergedLabel(for: group)
-            let merged = self.mergeRecords(group)
+        for profile in BrowserCookieProfiles.merge(sources) {
+            let label = profile.label
+            let merged = profile.records
             let cookies = BrowserCookieClient.makeHTTPCookies(merged, origin: origin)
             let token = cookies.first { $0.name == self.sessionCookieName }?.value.nonEmpty
             let jwt = cookies.first { $0.name == self.jwtCookieName }?.value.nonEmpty
@@ -174,51 +169,6 @@ extension GroqConsoleSession {
     private static func emit(_ message: String, logger: ((String) -> Void)?) {
         logger?("[groq-cookie] \(message)")
         self.log.debug("\(message)")
-    }
-
-    private static func mergedLabel(for sources: [BrowserCookieStoreRecords]) -> String {
-        guard let base = sources.map(\.label).min() else { return "Unknown" }
-        if base.hasSuffix(" (Network)") {
-            return String(base.dropLast(" (Network)".count))
-        }
-        return base
-    }
-
-    private static func mergeRecords(_ sources: [BrowserCookieStoreRecords]) -> [BrowserCookieRecord] {
-        let sortedSources = sources.sorted { lhs, rhs in
-            self.storePriority(lhs.store.kind) < self.storePriority(rhs.store.kind)
-        }
-        var mergedByKey: [String: BrowserCookieRecord] = [:]
-        for source in sortedSources {
-            for record in source.records {
-                let key = "\(record.name)|\(record.domain)|\(record.path)"
-                if let existing = mergedByKey[key] {
-                    if self.shouldReplace(existing: existing, candidate: record) {
-                        mergedByKey[key] = record
-                    }
-                } else {
-                    mergedByKey[key] = record
-                }
-            }
-        }
-        return Array(mergedByKey.values)
-    }
-
-    private static func storePriority(_ kind: BrowserCookieStoreKind) -> Int {
-        switch kind {
-        case .network: 0
-        case .primary: 1
-        case .safari: 2
-        }
-    }
-
-    private static func shouldReplace(existing: BrowserCookieRecord, candidate: BrowserCookieRecord) -> Bool {
-        switch (existing.expires, candidate.expires) {
-        case let (lhs?, rhs?): rhs > lhs
-        case (nil, .some): true
-        case (.some, nil): false
-        case (nil, nil): false
-        }
     }
 }
 #else
