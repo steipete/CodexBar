@@ -507,6 +507,7 @@ extension CodexBarCLI {
             claudeFetcher: command.claudeFetcher,
             browserDetection: command.browserDetection,
             selectedTokenAccountID: account?.id,
+            allowsNativeCodexCredentialRefresh: true,
             tokenAccountTokenUpdater: tokenContext.tokenUpdater(for: account),
             providerManualTokenUpdater: tokenContext.manualTokenUpdater(),
             persistsCLISessions: Self.persistsCLISessions(provider: provider, command: command),

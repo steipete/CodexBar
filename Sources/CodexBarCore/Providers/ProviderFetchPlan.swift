@@ -39,6 +39,10 @@ public struct ProviderFetchContext: Sendable {
     public let claudeFetcher: any ClaudeUsageFetching
     public let browserDetection: BrowserDetection
     public let selectedTokenAccountID: UUID?
+    /// Allows the Codex-native recovery strategy to ask the credential-owning
+    /// app-server to rotate and persist tokens in the selected CODEX_HOME.
+    /// Read-only commands leave this disabled.
+    public let allowsNativeCodexCredentialRefresh: Bool
     public let tokenAccountTokenUpdater: TokenAccountTokenUpdater?
     public let providerManualTokenUpdater: ProviderManualTokenUpdater?
     public let costUsageHistoryDays: Int
@@ -73,6 +77,7 @@ public struct ProviderFetchContext: Sendable {
         claudeFetcher: any ClaudeUsageFetching,
         browserDetection: BrowserDetection,
         selectedTokenAccountID: UUID? = nil,
+        allowsNativeCodexCredentialRefresh: Bool = false,
         tokenAccountTokenUpdater: TokenAccountTokenUpdater? = nil,
         providerManualTokenUpdater: ProviderManualTokenUpdater? = nil,
         costUsageHistoryDays: Int = 30,
@@ -95,6 +100,7 @@ public struct ProviderFetchContext: Sendable {
         self.claudeFetcher = claudeFetcher
         self.browserDetection = browserDetection
         self.selectedTokenAccountID = selectedTokenAccountID
+        self.allowsNativeCodexCredentialRefresh = allowsNativeCodexCredentialRefresh
         self.tokenAccountTokenUpdater = tokenAccountTokenUpdater
         self.providerManualTokenUpdater = providerManualTokenUpdater
         self.costUsageHistoryDays = max(1, min(365, costUsageHistoryDays))

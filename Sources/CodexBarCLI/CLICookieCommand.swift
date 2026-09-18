@@ -209,7 +209,8 @@ extension CodexBarCLI {
                 settings: tokenContext.settingsSnapshot(for: provider, account: nil),
                 fetcher: tokenContext.fetcher(base: UsageFetcher(), provider: provider, env: environment),
                 claudeFetcher: ClaudeUsageFetcher(browserDetection: browserDetection),
-                browserDetection: browserDetection)
+                browserDetection: browserDetection,
+                allowsNativeCodexCredentialRefresh: false)
             let outcome = await descriptor.fetchOutcome(context: context)
             return switch outcome.result {
             case .success:

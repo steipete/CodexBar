@@ -72,6 +72,7 @@ struct ProviderRegistry {
                         claudeFetcher: claudeFetcher,
                         browserDetection: browserDetection,
                         selectedTokenAccountID: account?.id,
+                        allowsNativeCodexCredentialRefresh: true,
                         tokenAccountTokenUpdater: { provider, accountID, token in
                             await MainActor.run {
                                 settings.updateTokenAccount(

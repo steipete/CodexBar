@@ -954,6 +954,7 @@ extension UsageStore {
             claudeFetcher: self.claudeFetcher,
             browserDetection: self.browserDetection,
             selectedTokenAccountID: account?.id,
+            allowsNativeCodexCredentialRefresh: true,
             tokenAccountTokenUpdater: { [weak self] provider, accountID, token in
                 await MainActor.run {
                     guard let self, provider == contextProvider,

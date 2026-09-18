@@ -279,7 +279,8 @@ extension CodexBarCLI {
             claudeFetcher: claudeFetcher,
             browserDetection: browserDetection,
             // Guard is read-only: omit updater callbacks so refresh-dependent credentials fail unavailable.
-            selectedTokenAccountID: account?.id)
+            selectedTokenAccountID: account?.id,
+            allowsNativeCodexCredentialRefresh: false)
 
         let outcome = await Self.fetchProviderUsage(provider: provider, context: fetchContext)
         if verbose {

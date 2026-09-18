@@ -171,7 +171,8 @@ extension CodexBarCLI {
             browserDetection: browserDetection,
             // Watch is read-only, like `guard`: no updater callbacks, so refresh-dependent
             // credentials report unavailable instead of prompting.
-            selectedTokenAccountID: account?.id)
+            selectedTokenAccountID: account?.id,
+            allowsNativeCodexCredentialRefresh: false)
 
         let outcome = await ProviderInteractionContext.$current.withValue(.background) {
             await Self.fetchProviderUsage(provider: provider, context: fetchContext)

@@ -27,7 +27,7 @@ struct CodexPATFetchStrategy: ProviderFetchStrategy {
             switch fetchError {
             case .unauthorized:
                 return true
-            case .invalidResponse, .serverError, .networkError:
+            case .forbidden, .invalidResponse, .serverError, .networkError:
                 return false
             }
         }

@@ -23,6 +23,8 @@ enum CodexAuthenticatedHTTPTransport {
                 return response.data
             case 401:
                 throw CodexOAuthFetchError.unauthorized
+            case 403:
+                throw CodexOAuthFetchError.forbidden
             default:
                 let body = String(data: response.data, encoding: .utf8)
                 throw CodexOAuthFetchError.serverError(response.statusCode, body)

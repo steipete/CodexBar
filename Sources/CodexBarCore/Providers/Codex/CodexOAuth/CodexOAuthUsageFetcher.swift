@@ -335,6 +335,7 @@ public struct CodexUsageResponse: Decodable, Sendable {
 
 public enum CodexOAuthFetchError: LocalizedError, Sendable {
     case unauthorized
+    case forbidden
     case invalidResponse
     case serverError(Int, String?)
     case networkError(Error)
@@ -343,6 +344,8 @@ public enum CodexOAuthFetchError: LocalizedError, Sendable {
         switch self {
         case .unauthorized:
             return "Codex OAuth token expired or invalid. Run `codex login` to re-authenticate."
+        case .forbidden:
+            return "Codex request was forbidden (HTTP 403)."
         case .invalidResponse:
             return "Invalid response from Codex usage API."
         case let .serverError(code, message):

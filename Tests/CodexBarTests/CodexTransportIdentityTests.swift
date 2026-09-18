@@ -86,6 +86,9 @@ struct CodexTransportIdentityTests {
                 CodexOAuthFetchError.unauthorized,
                 "Codex OAuth token expired or invalid. Run `codex login` to re-authenticate."),
             (
+                CodexOAuthFetchError.forbidden,
+                "Codex request was forbidden (HTTP 403)."),
+            (
                 CodexTokenRefresher.RefreshError.expired,
                 "Refresh token expired. Please run `codex` to log in again."),
             (

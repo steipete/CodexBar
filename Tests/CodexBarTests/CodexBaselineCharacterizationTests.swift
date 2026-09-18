@@ -33,7 +33,8 @@ struct CodexBaselineCharacterizationTests {
             settings: settings,
             fetcher: fetcher,
             claudeFetcher: ClaudeUsageFetcher(browserDetection: browserDetection),
-            browserDetection: browserDetection)
+            browserDetection: browserDetection,
+            allowsNativeCodexCredentialRefresh: true)
     }
 
     private func strategyIDs(
