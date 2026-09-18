@@ -77,6 +77,10 @@ The OpenRouter menu card shows:
 - **Spend notes**: Daily, weekly, and monthly API key spend when OpenRouter returns those fields
 - **Spend chart**: Day/week/month spend can reuse the shared inline dashboard when enough history is available
 - **Balance**: Displayed in the identity section as "Balance: $X.XX" when the credits request succeeds
+- **Pay-as-you-go summary**: Uncapped keys show reported monthly key spend, falling back to lifetime key usage or lifetime account usage with an explicit period label. A successful credits request supplies the separate prepaid balance. Turning off the inline cost summary restores the corresponding detail rows; capped keys retain their existing quota meter.
+
+Management-key counters do not produce a key-spend summary: those keys can report zero key usage while the account
+has activity. Account credits and available Activity history retain their own scope and reporting period.
 
 Shared usage cards and copied statistics group recognized gateway model identifiers such as `openai/gpt-4o` under public family labels such as “GPT,” with usage attributed to OpenRouter. Raw namespaces and model names are omitted; shared model rankings still require complete eligible history.
 
@@ -88,7 +92,8 @@ window, then cumulative key spend. Used/remaining display preferences do not cha
 
 Without a configured limit, the detail row says “No limit configured” and no key percentage is shown. Unavailable
 key enrichment retains its diagnostic and account balance. CLI text and JSON detail strings use the same limit
-label and disclosure; the JSON structure is unchanged.
+label and disclosure. Uncapped reported spend also appears in JSON as `providerCost`; unavailable spend remains absent,
+and a reported zero remains zero. CLI text retains the detailed amounts without displaying an artificial zero-dollar budget.
 Settings still shows the returned daily, weekly, and monthly key spend when the API key has no configured limit.
 The deprecated Current Key API `rate_limit` field is ignored, including malformed values, so it cannot hide valid quota or spend details.
 

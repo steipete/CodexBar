@@ -310,6 +310,24 @@ defineProvider({
       }
     }
 
+    let cost = null;
+    // Capped keys already have a quota meter. Spend periods must come from their own
+    // reported counters, never the quota helper's cumulative-usage fallback.
+    if (!(keyLimit !== null && keyLimit > 0) && keyData?.is_management_key !== true) {
+      const monthly = keyData ? finite(keyData.usage_monthly, "key.usage_monthly", true) : null;
+      const used = monthly ?? keyUsage ?? creditsData?.totalUsage ?? null;
+      if (used !== null) {
+        cost = {
+          used: Math.max(0, used),
+          limit: 0,
+          currency: "USD",
+          balance: creditsData?.balance ?? null,
+          period:
+            monthly !== null ? "This month (API key)" : keyUsage !== null ? "Total key usage" : "Total account usage",
+        };
+      }
+    }
+
     const currency = (value) => `$${Math.max(0, value).toFixed(2)}`;
     const details = [];
     if (creditsData) {
@@ -401,6 +419,7 @@ defineProvider({
       identity: creditsData ? { loginMethod: `Balance: ${currency(creditsData.balance)}` } : null,
       details,
     };
+    if (cost) result.cost = cost;
     if (costUsage) result.costUsage = costUsage;
     if (primary) result.primary = primary;
     return result;

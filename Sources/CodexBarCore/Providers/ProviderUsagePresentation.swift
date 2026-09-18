@@ -85,15 +85,19 @@ public struct ProviderCostPresentation: Sendable, Equatable {
     public let showsGenericFallback: Bool
     public let balances: [Balance]
     public let menuCardStyle: ProviderCostMenuCardStyle
+    /// Detail rows replaced by the visible cost summary, keyed by section title.
+    public let replacedDetailRows: [String: Set<String>]
 
     public init(
         showsGenericFallback: Bool = true,
         balances: [Balance] = [],
-        menuCardStyle: ProviderCostMenuCardStyle = .generic)
+        menuCardStyle: ProviderCostMenuCardStyle = .generic,
+        replacedDetailRows: [String: Set<String>] = [:])
     {
         self.showsGenericFallback = showsGenericFallback
         self.balances = balances
         self.menuCardStyle = menuCardStyle
+        self.replacedDetailRows = replacedDetailRows
     }
 }
 
