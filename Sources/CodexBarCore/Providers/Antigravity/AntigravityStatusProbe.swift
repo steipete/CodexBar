@@ -770,6 +770,7 @@ public enum AntigravityStatusProbeError: LocalizedError, Sendable, Equatable {
     case timedOut
     case authenticationRequired
     case accountMismatch(expected: String?, found: String?)
+    case identityFreeReportExcluded(underlyingDescription: String)
 
     public var errorDescription: String? {
         switch self {
@@ -789,6 +790,9 @@ public enum AntigravityStatusProbeError: LocalizedError, Sendable, Equatable {
             "Antigravity CLI is signed out. Run agy in a terminal to sign in, then retry."
         case let .accountMismatch(expected, found):
             Self.accountMismatchDescription(expected: expected, found: found)
+        case let .identityFreeReportExcluded(underlyingDescription):
+            "\(underlyingDescription) Identity-free CLI usage report skipped: "
+                + "it cannot prove which Google account the quota belongs to."
         }
     }
 

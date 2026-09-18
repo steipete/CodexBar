@@ -533,12 +533,30 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
         } catch {
             try Task.checkCancellation()
             if error is CancellationError { throw error }
-            // Identity-free reports must not replace a selected or injected OAuth account's fallback.
-            guard context.sourceMode != .auto || (context.selectedTokenAccountID == nil &&
-                context.env[AntigravityOAuthCredentialsStore.environmentCredentialsKey] == nil)
-            else { throw error }
+            // Identity-free reports must not replace a selected or injected OAuth account's
+            // fallback (#3673 workstream 2): exclude the report with a visible reason instead of
+            // silently dropping it. Unavailable-source placeholders pass through unwrapped so
+            // recording the exclusion does not change the pipeline's error precedence.
+            guard self.identityFreeReportFallbackAllowed(context) else {
+                switch error as? AntigravityStatusProbeError {
+                case .notRunning, .missingCSRFToken: throw error
+                default:
+                    throw AntigravityStatusProbeError.identityFreeReportExcluded(
+                        underlyingDescription: error.localizedDescription)
+                }
+            }
         }
         return try await reportFetch()
+    }
+
+    /// The `agy -p /usage` report is identity-free: it cannot prove which Google account its
+    /// quota belongs to. In `auto` mode with a selected or injected OAuth account it is excluded
+    /// outright rather than allowed to shadow the account-scoped sources. Explicit `cli` mode
+    /// keeps its source authority and still uses the report.
+    static func identityFreeReportFallbackAllowed(_ context: ProviderFetchContext) -> Bool {
+        guard context.sourceMode == .auto else { return true }
+        return context.selectedTokenAccountID == nil &&
+            context.env[AntigravityOAuthCredentialsStore.environmentCredentialsKey] == nil
     }
 
     func fetchPrintUsage(

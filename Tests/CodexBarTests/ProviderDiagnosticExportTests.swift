@@ -469,6 +469,23 @@ struct ProviderDiagnosticExportTests {
         #expect(legacySkipped.outcome == "skipped")
     }
 
+    @Test(arguments: ["CLI timed out", "HTTP 403", "account@example.com private-response-body"])
+    func `identity free exclusion remains visible without exporting underlying error`(underlying: String) throws {
+        let error = AntigravityStatusProbeError.identityFreeReportExcluded(underlyingDescription: underlying)
+        let attempt = ProviderDiagnosticFetchAttempt(from: ProviderFetchAttempt(
+            strategyID: "antigravity.cli-https",
+            kind: .cli,
+            wasAvailable: true,
+            errorDescription: error.localizedDescription))
+
+        #expect(attempt.outcome == "failed")
+        #expect(attempt.errorCategory == "identity_free_report_excluded")
+        let json = try self.json(attempt)
+        #expect(json.contains("identity_free_report_excluded"))
+        #expect(!json.contains(underlying))
+        #expect(ProviderDiagnosticError(from: error, authConfigured: true).category == "identity_free_report_excluded")
+    }
+
     @Test
     func `serialized fetch outcomes remain compatible with legacy readers`() throws {
         struct LegacyAttempt: Codable {

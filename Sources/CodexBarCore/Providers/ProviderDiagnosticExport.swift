@@ -335,6 +335,9 @@ public struct ProviderDiagnosticFetchAttempt: Codable, Sendable {
 
     public static func errorCategoryLabel(_ description: String?) -> String {
         guard let desc = description?.lowercased() else { return "unknown" }
+        if desc.contains("identity-free cli usage report skipped:") {
+            return "identity_free_report_excluded"
+        }
         if desc.contains("endpoint override") {
             return "configuration"
         }
@@ -422,6 +425,8 @@ public struct ProviderDiagnosticError: Codable, Sendable {
             "Parse error - unexpected response format"
         case "configuration":
             "Configuration issue - check provider source and settings"
+        case "identity_free_report_excluded":
+            "CLI usage report skipped - account identity could not be verified"
         default:
             "An unexpected error occurred"
         }

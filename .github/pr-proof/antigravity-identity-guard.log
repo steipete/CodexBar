@@ -1,0 +1,153 @@
+Synthetic production CLI proof for PR #3689
+Source head: 926f0f12c
+Build: swift build --product CodexBarCLI --jobs 2 (passed, 65.92 s)
+
+Isolation: synthetic HOME, CFFIXED_USER_HOME, TMPDIR, config and PATH;
+CODEXBAR_DISABLE_KEYCHAIN_ACCESS=1 and CODEXBAR_SUPPRESS_TEST_KEYCHAIN_ACCESS=1.
+macOS sandbox-exec denies network access, other-process metadata, and file access
+under the real home except the rebuilt .build (read-only) and this fixture directory.
+The sandbox's denial of real-home reads and allowance of fixture reads were checked.
+No installed agy, real OAuth account, browser session, or Keychain was used.
+
+Ambient fixture: executable agy in the first PATH directory. It appends every argv
+to a marker, returns numeric 1.2.2 for --version, otherwise exits 19 with synthetic
+stderr. Invalid overrides are a missing path, empty string, whitespace-only string,
+and an existing non-executable file.
+
+Invalid override and positive control command:
+  codexbar usage --provider antigravity --source cli --format json --log-level debug --json-output
+For every invalid override: exit 1, no sentinel invocation, and the debug sources
+field records antigravity.cli-https (cli): skipped: unavailable.
+The no-override positive control invokes the same allowed sentinel, including
+-p /usage, proving that isolation itself did not suppress ambient executable discovery.
+
+Scoped Auto input: valid sentinel override and ANTIGRAVITY_OAUTH_CREDENTIALS_JSON={};
+the synthetic credential envelope is rejected before any HTTP request.
+  codexbar diagnose --provider antigravity --format json
+  codexbar usage --provider antigravity --source auto --format json --log-level debug --json-output
+Both run only --version; neither launches a managed session nor invokes -p /usage.
+The export preserves the exclusion category and the usage debug log contains only
+safe categories. Neither output contains the synthetic private-response marker.
+
+Observed cases:
+[
+  {
+    "case": "missing-override",
+    "exitCode": 1,
+    "agyInvocations": []
+  },
+  {
+    "case": "empty-override",
+    "exitCode": 1,
+    "agyInvocations": []
+  },
+  {
+    "case": "whitespace-override",
+    "exitCode": 1,
+    "agyInvocations": []
+  },
+  {
+    "case": "nonexecutable-override",
+    "exitCode": 1,
+    "agyInvocations": []
+  },
+  {
+    "case": "ambient-positive-control",
+    "exitCode": 1,
+    "agyInvocations": [
+      "--version",
+      "--version",
+      "-p /usage --output-format json --print-timeout 90s"
+    ]
+  },
+  {
+    "case": "scoped-auto-diagnose",
+    "exitCode": 0,
+    "agyInvocations": [
+      "--version"
+    ],
+    "cliAttempt": {
+      "errorCategory": "identity_free_report_excluded",
+      "kind": "cli",
+      "outcome": "failed",
+      "strategyID": "antigravity.cli-https",
+      "wasAvailable": true
+    }
+  },
+  {
+    "case": "scoped-auto-usage",
+    "exitCode": 1,
+    "agyInvocations": [
+      "--version"
+    ]
+  }
+]
+
+Observed diagnose export:
+{
+  "auth": {
+    "configured": false,
+    "modes": []
+  },
+  "displayName": "Antigravity",
+  "error": {
+    "category": "auth",
+    "safeDescription": "Authentication or setup issue - check provider credentials"
+  },
+  "fetchAttempts": [
+    {
+      "errorCategory": "unknown",
+      "kind": "local",
+      "outcome": "failed",
+      "strategyID": "antigravity.app-local",
+      "wasAvailable": true
+    },
+    {
+      "errorCategory": "identity_free_report_excluded",
+      "kind": "cli",
+      "outcome": "failed",
+      "strategyID": "antigravity.cli-https",
+      "wasAvailable": true
+    },
+    {
+      "errorCategory": "unknown",
+      "kind": "local",
+      "outcome": "failed",
+      "strategyID": "antigravity.ide-local",
+      "wasAvailable": true
+    },
+    {
+      "errorCategory": "auth",
+      "kind": "oauth",
+      "outcome": "failed",
+      "strategyID": "antigravity.oauth",
+      "wasAvailable": true
+    }
+  ],
+  "platform": "macOS",
+  "provider": "antigravity",
+  "schemaVersion": "1.0",
+  "settings": {
+    "sourceMode": "auto"
+  },
+  "source": "failed",
+  "sourceMode": "auto",
+  "timestamp": "2026-09-18T11:37:39Z"
+}
+
+Observed debug failure record:
+{
+  "file": "CodexBarCore/CodexBarLog.swift",
+  "function": "logger(_:)",
+  "label": "com.steipete.codexbar.antigravity",
+  "level": "debug",
+  "line": 122,
+  "message": "Provider fetch failed",
+  "metadata": {
+    "errorCategory": "auth",
+    "provider": "antigravity",
+    "sources": "antigravity.app-local (local): failed: unknown -> antigravity.cli-https (cli): failed: identity_free_report_excluded -> antigravity.ide-local (local): failed: unknown -> antigravity.oauth (oauth): failed: auth"
+  },
+  "source": "CodexBarCore",
+  "timestamp": "2026-09-18T11:37:39Z"
+}

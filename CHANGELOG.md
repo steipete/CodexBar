@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- Antigravity: honor unusable `ANTIGRAVITY_CLI_PATH` overrides instead of falling through to an ambient CLI that could start interactive login during background refresh (#3689, part of #3673).
+- Antigravity: explain identity-free CLI report exclusions for selected or injected OAuth accounts in usage output and safe diagnostic categories (#3689, part of #3673).
+
 ## 0.61.0 — 2026-09-18
 
 ### Highlights
