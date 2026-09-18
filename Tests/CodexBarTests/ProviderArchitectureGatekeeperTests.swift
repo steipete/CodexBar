@@ -154,8 +154,8 @@ struct ProviderArchitectureGatekeeperTests {
             Self.hash(descriptor.branding.burnDownWidgetColor, into: &burnDownFingerprint)
         }
 
-        #expect(widgetFingerprint == 16_873_014_858_015_536_126)
-        #expect(burnDownFingerprint == 8_686_456_525_451_224_704)
+        #expect(widgetFingerprint == 11_617_250_930_666_919_298)
+        #expect(burnDownFingerprint == 11_663_221_753_889_804_847)
     }
 
     @Test
@@ -167,8 +167,8 @@ struct ProviderArchitectureGatekeeperTests {
             try Self.hash(#require(descriptor.metadata.debugLogUnavailableMessage?.utf8), into: &fingerprint)
         }
 
-        #expect(descriptors.count == 38)
-        #expect(fingerprint == 2_208_147_801_202_684_136)
+        #expect(descriptors.count == 39)
+        #expect(fingerprint == 16_299_585_921_752_048_204)
     }
 
     @Test
@@ -199,7 +199,7 @@ struct ProviderArchitectureGatekeeperTests {
         #expect(Set(descriptors.filter(\.metadata.usesDetailBackedWindow).map(\.id)) == [
             .perplexity,
             .warp, .kilo, .mistral, .deepseek, .deepinfra, .qoder, .crof, .chutes, .longcat, .litellm, .manus, .mimo,
-            .neuralwatt, .abacus,
+            .neuralwatt, .abacus, .bifrost,
         ])
         #expect(Set(descriptors.filter(\.tokenCost.preservesCalendarDaysInCharts).map(\.id)) == [.codex])
         #if os(macOS)
