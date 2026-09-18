@@ -50,11 +50,15 @@ public enum AntigravityProviderDescriptor {
                 ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: true,
-                noDataMessage: { "Antigravity cost summary is not supported." },
-                supportsTokenSnapshot: true),
+                noDataMessage: { "No local Antigravity token usage found." },
+                menuHintLines: [.estimate],
+                supportsTokenSnapshot: true,
+                estimateDisclaimer: "API-equivalent token estimate, not Antigravity charges. " +
+                    "Excludes unpriced models, cache storage and subscription fees.",
+                chartEstimateDisclaimer: .literal("API estimate · not billed · unpriced usage excluded")),
             pace: ProviderPaceCapability(
                 sessionPaceWindowRule: .custom { window, _ in
-                    window.windowMinutes == nil || window.windowMinutes == 300
+                    window.windowMinutes == 300
                 }),
             history: .alwaysTracked,
             presentation: ProviderUsagePresentation(

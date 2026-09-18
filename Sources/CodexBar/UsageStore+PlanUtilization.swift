@@ -227,6 +227,7 @@ extension UsageStore {
                 snapshot: snapshot,
                 capturedAt: now,
                 forSessionEquivalents: true)
+            + Self.antigravityQuotaObservationSamples(snapshot: snapshot, capturedAt: now)
             : detectorSamples
         var effectiveOwner = claudeOAuthHistoryOwnerIdentifier
         if provider == .claude, isClaudeOAuthSample, let owner = claudeOAuthHistoryOwnerIdentifier {
@@ -377,7 +378,8 @@ extension UsageStore {
                 self.assertPlanUtilizationEntriesSorted(updatedEntries)
                 guard self.updatedPlanUtilizationEntries(
                     existingEntries: &updatedEntries,
-                    entry: sample.entry)
+                    entry: sample.entry,
+                    isQuotaObservation: sample.name.isQuotaObservation)
                 else {
                     continue
                 }
@@ -414,7 +416,8 @@ extension UsageStore {
 
     private nonisolated static func updatedPlanUtilizationEntries(
         existingEntries: inout [PlanUtilizationHistoryEntry],
-        entry: PlanUtilizationHistoryEntry) -> Bool
+        entry: PlanUtilizationHistoryEntry,
+        isQuotaObservation: Bool = false) -> Bool
     {
         let insertionIndex = self.planUtilizationEntryInsertionIndex(
             entries: existingEntries,
@@ -425,9 +428,8 @@ extension UsageStore {
             insertionIndex: insertionIndex,
             hourBucket: sampleHourBucket)
         let existingHourEntries = Array(existingEntries[sameHourRange])
-        let canonicalHourEntries = self.canonicalPlanUtilizationHourEntries(
-            existingHourEntries: existingHourEntries,
-            incomingEntry: entry)
+        let compact = isQuotaObservation ? self.latestObservationHourEntries : self.canonicalPlanUtilizationHourEntries
+        let canonicalHourEntries = compact(existingHourEntries, entry)
 
         guard canonicalHourEntries != existingHourEntries else { return false }
         existingEntries.replaceSubrange(sameHourRange, with: canonicalHourEntries)
@@ -1607,7 +1609,8 @@ extension UsageStore {
                 for entry in history.entries.sorted(by: { $0.capturedAt < $1.capturedAt }) {
                     _ = self.updatedPlanUtilizationEntries(
                         existingEntries: &mergedEntries,
-                        entry: entry)
+                        entry: entry,
+                        isQuotaObservation: history.name.isQuotaObservation)
                 }
                 mergedEntriesByKey[key] = mergedEntries
             }

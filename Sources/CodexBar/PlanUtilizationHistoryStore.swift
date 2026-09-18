@@ -16,6 +16,12 @@ struct PlanUtilizationSeriesName: RawRepresentable, Hashable, Codable, Expressib
     static let weekly: Self = "weekly"
     static let monthly: Self = "monthly"
     static let opus: Self = "opus"
+    static let antigravityGemini: Self = "antigravityGemini"
+    static let antigravityClaudeGPT: Self = "antigravityClaudeGPT"
+
+    var isQuotaObservation: Bool {
+        self == .antigravityGemini || self == .antigravityClaudeGPT
+    }
 
     func canonicalWindowMinutes(_ windowMinutes: Int) -> Int {
         switch self {
@@ -39,6 +45,11 @@ struct PlanUtilizationSeriesHistory: Codable, Equatable, Sendable {
     let name: PlanUtilizationSeriesName
     let windowMinutes: Int
     let entries: [PlanUtilizationHistoryEntry]
+
+    /// Zero is reserved for observed quota samples with no advertised reset cadence.
+    var hasSupportedCadence: Bool {
+        self.windowMinutes > 0 || (self.windowMinutes == 0 && self.name.isQuotaObservation)
+    }
 
     private enum CodingKeys: String, CodingKey {
         case name
@@ -354,7 +365,7 @@ struct PlanUtilizationHistoryStore: Sendable {
     private static func sanitizedHistories(_ histories: [PlanUtilizationSeriesHistory])
     -> [PlanUtilizationSeriesHistory] {
         histories.filter { history in
-            history.windowMinutes > 0 && !history.entries.isEmpty
+            history.hasSupportedCadence && !history.entries.isEmpty
         }
     }
 

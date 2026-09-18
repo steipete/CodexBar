@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- Antigravity: estimate supported local token usage at dated API rates, with separate unpriced-request coverage and an explicit non-billing disclaimer.
+
+### Fixed
+- Antigravity: retain account-scoped quota observations when the API omits a reset duration, and suppress pace forecasts that would otherwise assume a five-hour cycle.
+
 ## 0.61.0 — 2026-09-18
 
 ### Highlights

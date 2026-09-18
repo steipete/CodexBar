@@ -349,17 +349,18 @@ struct CostHistoryChartMenuView: View {
                         .lineLimit(1)
                         .truncationMode(.head)
                         .frame(height: Self.detailPrimaryLineHeight, alignment: .leading)
-                    if let disclaimer = UsageFormatter.incompleteUsageNote(incompleteCount)
-                        ?? Self.estimateDisclaimer(provider: self.provider)
-                    {
-                        Text(disclaimer)
-                            .help(disclaimer)
-                            .font(.caption2)
-                            .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                    }
                 }
+            }
+
+            if let disclaimer = UsageFormatter.incompleteUsageNote(incompleteCount)
+                ?? Self.coverageDisclaimer(
+                    provider: self.provider, daily: self.daily, totalCostUSD: self.totalCostUSD)
+            {
+                Text(disclaimer)
+                    .help(disclaimer)
+                    .font(.caption2)
+                    .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             if !self.projects.isEmpty {
@@ -421,6 +422,13 @@ struct CostHistoryChartMenuView: View {
         case .estimate: UsageFormatter.costEstimateHint(provider: provider)
         case let .literal(text): L(text)
         }
+    }
+
+    static func coverageDisclaimer(provider: UsageProvider, daily: [DailyEntry], totalCostUSD: Double?) -> String? {
+        guard let disclaimer = estimateDisclaimer(provider: provider) else { return nil }
+        let unpriced = daily.reduce(0) { $0 + ($1.unpricedRequestCount ?? 0) }
+        if unpriced > 0 { return "\(disclaimer) · \(unpriced) unpriced requests" }
+        return totalCostUSD == nil ? nil : disclaimer
     }
 
     private struct Model {
@@ -1100,6 +1108,7 @@ extension CostHistoryChartMenuView {
         let historyCoverageIsEstablished: Bool
         let windowLabel: String?
         let totalCostBitPattern: UInt64?
+        let coverageDisclaimer: String?
         let hasDailyEntries: Bool
         let daily: [VisibleDailyFingerprint]
         let projects: [VisibleProjectFingerprint]
@@ -1169,6 +1178,8 @@ extension CostHistoryChartMenuView {
             historyCoverageIsEstablished: snapshot.historyCoverageIsEstablished,
             windowLabel: snapshot.historyLabel,
             totalCostBitPattern: snapshot.last30DaysCostUSD.map(\.bitPattern),
+            coverageDisclaimer: self.coverageDisclaimer(
+                provider: provider, daily: snapshot.daily, totalCostUSD: snapshot.last30DaysCostUSD),
             hasDailyEntries: !snapshot.daily.isEmpty,
             daily: snapshot.daily
                 .filter { entry in

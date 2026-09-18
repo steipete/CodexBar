@@ -1,0 +1,13 @@
+{
+  "costDisclaimer" : "API estimate · not billed · unpriced usage excluded · 2 unpriced requests",
+  "costTotal" : null,
+  "observationUsedPercents" : [
+    18,
+    37,
+    64,
+    82,
+    20
+  ],
+  "selectedSeries" : "antigravityGemini:0",
+  "source" : "Production SwiftUI views rendered from synthetic UsageStore and SQLite reader fixtures"
+}
