@@ -154,7 +154,7 @@ struct ProviderArchitectureGatekeeperTests {
             Self.hash(descriptor.branding.burnDownWidgetColor, into: &burnDownFingerprint)
         }
 
-        #expect(widgetFingerprint == 11_617_250_930_666_919_298)
+        #expect(widgetFingerprint == 6_815_898_673_067_641_122)
         #expect(burnDownFingerprint == 11_663_221_753_889_804_847)
     }
 

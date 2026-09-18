@@ -41,11 +41,11 @@ public enum BifrostProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .init(provider: .bifrost),
                 iconResourceName: "ProviderIcon-bifrost",
-                color: ProviderColor(hex: 0x7C5CFC),
+                color: ProviderColor(hex: 0x33C09E),
                 confettiPalette: [
-                    ProviderColor(hex: 0x7C5CFC),
-                    ProviderColor(hex: 0x38BDF8),
-                    ProviderColor(hex: 0xF472B6),
+                    ProviderColor(hex: 0x33C09E),
+                    ProviderColor(hex: 0x1F7A63),
+                    ProviderColor(hex: 0x8FE0C7),
                 ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
