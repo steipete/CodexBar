@@ -955,9 +955,8 @@ extension UsageMenuCardView.Model {
         let showsProviderCost = menuCard.showsProviderCost(context: ProviderCostVisibilityContext(
             snapshot: extraUsageSnapshot,
             showOptionalUsage: input.showOptionalCreditsAndExtraUsage))
-        let providerCostStyle = extraUsageSnapshot.map {
-            presentation.cost(snapshot: $0).menuCardStyle
-        } ?? .generic
+        let costPresentation = extraUsageSnapshot.map { presentation.cost(snapshot: $0) }
+        let providerCostStyle = costPresentation?.menuCardStyle ?? .generic
         let providerCostFollowsSummaryStyle = Self.providerCostFollowsSummaryStyle(
             cost: extraUsageCost,
             style: providerCostStyle,
@@ -1010,7 +1009,9 @@ extension UsageMenuCardView.Model {
             metrics: metrics,
             usageNotes: usageNotes,
             subscriptionNotes: Self.subscriptionMetadataNotes(snapshot: input.snapshot, provider: input.provider),
-            providerDetails: Self.visibleProviderDetails(input: input),
+            providerDetails: Self.visibleProviderDetails(
+                input: input,
+                replacedRows: providerCost == nil ? [:] : costPresentation?.replacedDetailRows ?? [:]),
             openAIAPIUsage: openAIAPIUsage,
             inlineUsageDashboard: inlineUsageDashboard,
             creditsText: creditsText,
@@ -1040,8 +1041,19 @@ extension UsageMenuCardView.Model {
         return input.snapshot?.providerCost
     }
 
-    private static func visibleProviderDetails(input: Input) -> [ProviderDetailSection] {
+    private static func visibleProviderDetails(
+        input: Input,
+        replacedRows: [String: Set<String>]) -> [ProviderDetailSection]
+    {
         var details = input.snapshot?.details ?? []
+        if !replacedRows.isEmpty {
+            details = details.compactMap { section in
+                guard let title = section.title, let labels = replacedRows[title] else { return section }
+                let rows = section.rows.filter { !labels.contains($0.label) }
+                guard !rows.isEmpty || section.chart != nil else { return nil }
+                return try? ProviderDetailSection(title: section.title, rows: rows, chart: section.chart)
+            }
+        }
         let policy = ProviderDescriptorRegistry.descriptor(for: input.provider).presentation.optionalDetails
         if !input.costSummaryInlineEnabled, !policy.costSummaryTitles.isEmpty {
             details.removeAll { section in

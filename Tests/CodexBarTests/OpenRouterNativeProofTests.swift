@@ -7,6 +7,32 @@ import XCTest
 
 @MainActor
 final class OpenRouterNativeProofTests: XCTestCase {
+    func test_uncappedSpendSummaryNativeProof() async throws {
+        let environment = ProcessInfo.processInfo.environment
+        guard let path = environment["CODEXBAR_OPENROUTER_PAYG_PROOF_DIR"] else {
+            throw XCTSkip("Set CODEXBAR_OPENROUTER_PAYG_PROOF_DIR for synthetic spend-summary proof")
+        }
+        guard environment["CODEXBAR_SUPPRESS_TEST_KEYCHAIN_ACCESS"] == "1",
+              environment[CodexCredentialFileAccess.isolationEnvironmentKey] == "1",
+              environment["CODEXBAR_TEST_SESSION_FILE_ISOLATION"] == "1",
+              NSApplication.shared.delegate == nil
+        else { return XCTFail("Use an isolated standalone test host") }
+        let output = URL(fileURLWithPath: path, isDirectory: true)
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        let snapshot = try await OpenRouterLimitTestSupport.snapshot(
+            keyBody: #"{"data":{"usage_daily":1.25,"usage_weekly":8.75,"usage_monthly":12.50}}"#,
+            creditsBody: #"{"data":{"total_credits":50,"total_usage":30.10}}"#)
+        for (stage, usage) in [("before", snapshot.with(providerCost: nil)), ("after", snapshot)] {
+            let card = try Self.menuCard(usage)
+            XCTAssertEqual(card.providerCost != nil, stage == "after")
+            for (theme, appearance) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
+                let view = AnyView(UsageMenuCardView(model: card, width: 420).padding(20).frame(width: 460))
+                try Self.pngData(for: view, appearance: appearance)
+                    .write(to: output.appendingPathComponent("\(stage)-\(theme).png"))
+            }
+        }
+    }
+
     func test_reportedReasoningReachesNativeViewsAndDashboardExport() async throws {
         let environment = ProcessInfo.processInfo.environment
         guard let path = environment["CODEXBAR_OPENROUTER_REASONING_PROOF_DIR"] else {
