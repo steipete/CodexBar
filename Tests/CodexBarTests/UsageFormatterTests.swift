@@ -620,6 +620,15 @@ struct UsageFormatterTests {
         #expect(explicitAED.hasPrefix("AED"))
         #expect(explicitAED.range(of: #"\.\d{2}$"#, options: .regularExpression) != nil)
 
+        let tryRate = try #require(exchange.rate(for: "TRY"))
+        #expect(abs((exchange.convert(usdAmount: 10.0, to: "TRY") ?? 0) - 10.0 * tryRate) < epsilon)
+        #expect(abs((exchange.convert(amount: 10.0, from: "TRY", to: "USD") ?? 0) - 10.0 / tryRate) < epsilon)
+        #expect(abs((exchange.convert(amount: 10.0, from: "GBP", to: "TRY") ?? 0) - 10.0 / gbpRate * tryRate) < epsilon)
+        let explicitTRY = UsageFormatter.convertedCostString(10.0, preferredCurrency: "TRY", providerCurrency: "USD")
+        #expect(explicitTRY == UsageFormatter.currencyString(10.0 * tryRate, currencyCode: "TRY"))
+        #expect(explicitTRY.hasPrefix("TRY"))
+        #expect(explicitTRY.range(of: #"\.\d{2}$"#, options: .regularExpression) != nil)
+
         // CHF is supported: conversion through the USD pivot works both ways.
         let chfRate = exchange.rate(for: "CHF") ?? 0.80
         #expect(abs((exchange.convert(usdAmount: 10.0, to: "CHF") ?? 0) - 10.0 * chfRate) < epsilon)
