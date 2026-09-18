@@ -22,6 +22,22 @@ struct WidgetSnapshotTests {
         #expect(codex?.last30DaysLabel == "30d API est. · not billed")
         #expect(claude?.sessionLabel == "Today")
         #expect(claude?.last30DaysLabel == "30d")
+
+        let openrouter = UsageStore.widgetTokenUsageSummary(
+            from: CostUsageTokenSnapshot(
+                sessionTokens: nil,
+                sessionCostUSD: nil,
+                last30DaysTokens: 120_000,
+                last30DaysCostUSD: 12.5,
+                historyDays: 30,
+                historyLabel: "Last 30 days (UTC)",
+                costProvenance: .vendorMetered,
+                daily: [],
+                updatedAt: Date(timeIntervalSince1970: 0)),
+            provider: .openrouter)
+        #expect(openrouter?.sessionLabel == "Today")
+        #expect(openrouter?.last30DaysLabel == "Last 30 days (UTC)")
+        #expect(openrouter?.last30DaysCostUSD == 12.5)
     }
 
     @Test

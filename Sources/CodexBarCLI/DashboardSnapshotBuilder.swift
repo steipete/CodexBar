@@ -123,7 +123,8 @@ enum DashboardSnapshotBuilder {
         let descriptor = provider.map { ProviderDescriptorRegistry.descriptor(for: $0) }
         let metadata = descriptor?.metadata
 
-        let error = payload.error ?? cost?.error
+        let resolvedCost = cost ?? self.costPayload(fromUsage: payload)
+        let error = payload.error ?? resolvedCost?.error
         let accounts = claudeSwap?.adapterError == nil
             ? claudeSwap?.accounts?.map { account in
                 self.makeClaudeSwapAccount(
@@ -142,12 +143,12 @@ enum DashboardSnapshotBuilder {
             identity: self.makeIdentity(provider: provider, usage: payload.usage, mode: identityMode),
             windows: self.makeWindows(provider: provider, metadata: metadata, usage: payload.usage),
             credits: self.makeCredits(payload.credits),
-            cost: self.makeCost(cost, referenceDate: generatedAt),
+            cost: self.makeCost(resolvedCost, referenceDate: generatedAt),
             display: presentation.display,
             error: error,
             updatedAt: self.updatedAt(
                 payload: payload,
-                cost: cost,
+                cost: resolvedCost,
                 error: error,
                 generatedAt: generatedAt),
             accounts: accounts,
@@ -483,6 +484,16 @@ enum DashboardSnapshotBuilder {
     private static func makeCredits(_ credits: CreditsSnapshot?) -> DashboardCreditsPayload? {
         guard let credits, credits.balanceReadSucceeded else { return nil }
         return DashboardCreditsPayload(remaining: credits.remaining, unit: "credits")
+    }
+
+    /// Usage snapshots already carry live plugin history (`costUsage`) for pay-as-you-go
+    /// providers such as OpenRouter. The local `cost` command never scans those sources, so
+    /// dashboard spend would stay empty unless this projection reuses the usage fetch.
+    private static func costPayload(fromUsage payload: ProviderPayload) -> CostPayload? {
+        guard let provider = UsageProvider(rawValue: payload.provider),
+              let snapshot = payload.usage?.costUsage
+        else { return nil }
+        return CodexBarCLI.makeCostPayload(provider: provider, snapshot: snapshot, error: nil)
     }
 
     private static func makeCost(_ cost: CostPayload?, referenceDate: Date) -> DashboardCostPayload? {

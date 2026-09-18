@@ -23,6 +23,7 @@ struct WidgetProviderChoiceTests {
         "opencodego": "OpenCode Go",
         "mistral": "Mistral",
         "kimi": "Kimi Code",
+        "openrouter": "OpenRouter",
     ]
 
     @Test

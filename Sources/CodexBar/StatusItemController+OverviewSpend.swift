@@ -182,41 +182,51 @@ extension StatusItemController {
         now: Date = Date()) -> SpendDashboardModel
     {
         let publication = self.store.spendDashboardPublication
+        let liveInputs = self.liveSnapshotSpendInputs(providers: providers)
         if let configuration = publication.configuration {
             guard configuration.menuOwnershipFingerprint == SpendDashboardSource.currentMenuOwnershipFingerprint(
                 settings: self.settings,
                 store: self.store)
             else {
                 return SpendDashboardModel.build(
-                    inputs: [],
+                    inputs: liveInputs,
                     requestedDays: self.settings.costUsageHistoryDays,
                     now: now,
                     calendar: self.settings.costUsageBucketCalendar,
                     preferredCurrencyCode: self.settings.preferredCurrencyCode)
             }
-            return publication.model(
+            var inputs = publication.inputs.filter { providers.contains($0.provider) }
+            let present = Set(inputs.map(\.provider))
+            inputs.append(contentsOf: liveInputs.filter { !present.contains($0.provider) })
+            return SpendDashboardModel.build(
+                inputs: inputs,
                 requestedDays: self.settings.costUsageHistoryDays,
                 now: now,
                 calendar: self.settings.costUsageBucketCalendar,
                 preferredCurrencyCode: self.settings.preferredCurrencyCode,
                 hiddenSourceIDs: Set(self.settings.spendDashboardHiddenSourceIDs),
-                hideNativeCodexWhenOpenCodexPresent: self.settings.hideNativeCodexCostWhenOpenCodexPresent,
-                providerScope: Set(providers))
+                hideNativeCodexWhenOpenCodexPresent: self.settings.hideNativeCodexCostWhenOpenCodexPresent)
         }
-        let inputs = providers.compactMap { provider -> SpendDashboardModel.ProviderInput? in
-            guard let snapshot = self.store.tokenSnapshotForCurrentProviderConfig(for: provider)?.snapshot else {
-                return nil
-            }
+        return SpendDashboardModel.build(
+            inputs: liveInputs,
+            requestedDays: self.settings.costUsageHistoryDays,
+            now: now,
+            calendar: self.settings.costUsageBucketCalendar,
+            preferredCurrencyCode: self.settings.preferredCurrencyCode)
+    }
+
+    private func liveSnapshotSpendInputs(
+        providers: [UsageProvider]) -> [SpendDashboardModel.ProviderInput]
+    {
+        providers.compactMap { provider in
+            guard let snapshot = self.store.liveSpendTokenSnapshot(
+                for: provider,
+                historyDays: self.settings.costUsageHistoryDays)
+            else { return nil }
             return SpendDashboardModel.ProviderInput(
                 provider: provider,
                 displayName: self.store.metadata(for: provider).displayName,
                 snapshot: snapshot)
         }
-        return SpendDashboardModel.build(
-            inputs: inputs,
-            requestedDays: self.settings.costUsageHistoryDays,
-            now: now,
-            calendar: self.settings.costUsageBucketCalendar,
-            preferredCurrencyCode: self.settings.preferredCurrencyCode)
     }
 }

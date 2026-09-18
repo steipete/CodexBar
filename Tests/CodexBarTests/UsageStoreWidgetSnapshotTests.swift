@@ -37,6 +37,62 @@ struct UsageStoreWidgetSnapshotTests {
     }
 
     @Test
+    func `widget snapshot projects OpenRouter activity spend from live usage`() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let settings = testSettingsStore(
+            suiteName: "UsageStoreWidgetSnapshotTests-openrouter-activity",
+            config: testConfigWithAllProvidersDisabled())
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(homeDirectory: root.path, fileExists: { _ in false }),
+            settings: settings,
+            startupBehavior: .testing,
+            environmentBase: [:],
+            widgetSnapshotURL: root.appendingPathComponent("widget.json"))
+        let now = Date(timeIntervalSince1970: 1_787_079_600)
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(usedPercent: 0, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+                secondary: nil,
+                costUsage: CostUsageTokenSnapshot(
+                    sessionTokens: nil,
+                    sessionCostUSD: nil,
+                    last30DaysTokens: 120_000,
+                    last30DaysCostUSD: 12.5,
+                    historyDays: 30,
+                    historyLabel: "Last 30 days (UTC)",
+                    costProvenance: .vendorMetered,
+                    daily: [
+                        CostUsageDailyReport.Entry(
+                            date: "2026-08-17",
+                            inputTokens: 80_000,
+                            outputTokens: 40_000,
+                            totalTokens: 120_000,
+                            requestCount: 4,
+                            costUSD: 12.5,
+                            modelsUsed: ["openai/gpt-5"],
+                            modelBreakdowns: [
+                                .init(modelName: "openai/gpt-5", costUSD: 12.5, totalTokens: 120_000),
+                            ]),
+                    ],
+                    updatedAt: now),
+                updatedAt: now),
+            provider: .openrouter)
+        var saved: WidgetSnapshot?
+        store._test_widgetSnapshotSaveOverride = { saved = $0 }
+        defer { store._test_widgetSnapshotSaveOverride = nil }
+
+        store.persistWidgetSnapshot(reason: "openrouter-activity-test")
+        await store.widgetSnapshotPersistTask?.value
+
+        let entry = try #require(saved?.entries.first { $0.provider == .openrouter })
+        #expect(entry.tokenUsage?.last30DaysCostUSD == 12.5)
+        #expect(entry.tokenUsage?.last30DaysTokens == 120_000)
+        #expect(entry.tokenUsage?.last30DaysLabel == "Last 30 days (UTC)")
+        #expect(entry.dailyUsage.first?.costUSD == 12.5)
+    }
+
+    @Test
     func `widget snapshot preserves raw Codex windows for timeline projection`() async throws {
         let suite = "UsageStoreWidgetSnapshotTests-codex-weekly-cap"
         let defaults = try #require(UserDefaults(suiteName: suite))

@@ -122,6 +122,22 @@ extension UsageStore {
             publicationRevision: publication.publicationRevision)
     }
 
+    /// Prefer live plugin history (`usage.costUsage`) so Overview and widgets stay aligned
+    /// with the usage probe when the local cost publication has not caught up.
+    func liveSpendTokenSnapshot(
+        for provider: UsageProvider,
+        historyDays: Int? = nil) -> CostUsageTokenSnapshot?
+    {
+        if let derived = self.tokenSnapshot(
+            fromProviderSnapshot: self.snapshot(for: provider.instanceID),
+            provider: provider,
+            historyDays: historyDays)
+        {
+            return derived
+        }
+        return self.tokenSnapshotForCurrentProviderConfig(for: provider)?.snapshot
+    }
+
     func tokenSnapshotPublicationForCurrentProviderConfig(
         for provider: UsageProvider) -> CurrentProviderConfigTokenPublication?
     {

@@ -18,6 +18,7 @@ read_when:
   Manual disables the recurring refresh timer, not all scan activity: startup refreshes and pending Codex catch-up can
   still scan local history. The floor limits repeated local-history work and extra WidgetKit reload
   requests without changing provider usage/status freshness or the user-selected provider refresh cadence.
+- OpenRouter widgets are selectable. Activity spend (`costUsage` on the usage snapshot) feeds the same 30-day cost/token rows Overview uses; credits/balance remain the quota surface.
 - Claude local cost/token history remains eligible for widget snapshots when its account does not expose numeric
   session or weekly quota data.
 - Claude Usage widgets can show each known model-scoped weekly quota after the normal Session, Weekly, and Opus rows.

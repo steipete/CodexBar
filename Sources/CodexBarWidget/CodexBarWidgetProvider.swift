@@ -21,6 +21,7 @@ enum ProviderChoice: String, AppEnum {
     case opencodego
     case mistral
     case kimi
+    case openrouter
 
     static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Provider")
 
@@ -45,6 +46,7 @@ enum ProviderChoice: String, AppEnum {
         .opencodego: DisplayRepresentation(title: "OpenCode Go"),
         .mistral: DisplayRepresentation(title: "Mistral"),
         .kimi: DisplayRepresentation(title: "Kimi Code"),
+        .openrouter: DisplayRepresentation(title: "OpenRouter"),
     ]
 
     var provider: UsageProvider {

@@ -757,6 +757,111 @@ struct DashboardSnapshotBuilderTests {
         #expect(projected.last30DaysIncompleteRequestCount == nil)
     }
 
+    @Test
+    func `dashboard projects live plugin spend when the cost command has no row`() throws {
+        let generatedAt = Date(timeIntervalSince1970: 1_800_000_000)
+        let usage = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            costUsage: CostUsageTokenSnapshot(
+                sessionTokens: nil,
+                sessionCostUSD: nil,
+                last30DaysTokens: 120_000,
+                last30DaysCostUSD: 12.5,
+                historyDays: 30,
+                historyLabel: "Last 30 days (UTC)",
+                costProvenance: .vendorMetered,
+                daily: [
+                    .init(
+                        date: "2027-01-15",
+                        inputTokens: 100,
+                        outputTokens: 20,
+                        totalTokens: 120,
+                        costUSD: 1.25,
+                        modelsUsed: ["openai/gpt-5"],
+                        modelBreakdowns: [
+                            .init(modelName: "openai/gpt-5", costUSD: 1.25, totalTokens: 120),
+                        ]),
+                ],
+                updatedAt: generatedAt),
+            updatedAt: generatedAt)
+        let snapshot = DashboardSnapshotBuilder.makeSnapshot(
+            usagePayloads: [
+                ProviderPayload(
+                    provider: .openrouter,
+                    account: nil,
+                    version: nil,
+                    source: "api",
+                    status: nil,
+                    usage: usage,
+                    credits: nil,
+                    antigravityPlanInfo: nil,
+                    openaiDashboard: nil,
+                    error: nil),
+            ],
+            costPayloads: [],
+            config: CodexBarConfig(providers: [ProviderConfig(id: .openrouter, enabled: true)]),
+            identityMode: .redacted,
+            generatedAt: generatedAt,
+            refreshInterval: 60,
+            codexBarVersion: "0.61.1")
+        let cost = try #require(snapshot.providers.first?.cost)
+        #expect(snapshot.providers.first?.id == "openrouter")
+        #expect(cost.last30DaysUSD == 12.5)
+    }
+
+    @Test
+    func `dashboard keeps local cost rows over live plugin spend history`() throws {
+        let generatedAt = Date(timeIntervalSince1970: 1_800_000_000)
+        let usage = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            costUsage: CostUsageTokenSnapshot(
+                sessionTokens: nil,
+                sessionCostUSD: nil,
+                last30DaysTokens: 10,
+                last30DaysCostUSD: 99,
+                daily: [],
+                updatedAt: generatedAt),
+            updatedAt: generatedAt)
+        let snapshot = DashboardSnapshotBuilder.makeSnapshot(
+            usagePayloads: [
+                ProviderPayload(
+                    provider: .claude,
+                    account: nil,
+                    version: nil,
+                    source: "web",
+                    status: nil,
+                    usage: usage,
+                    credits: nil,
+                    antigravityPlanInfo: nil,
+                    openaiDashboard: nil,
+                    error: nil),
+            ],
+            costPayloads: [
+                CostPayload(
+                    provider: "claude",
+                    source: "local",
+                    updatedAt: generatedAt,
+                    sessionTokens: nil,
+                    sessionCostUSD: nil,
+                    historyDays: 30,
+                    last30DaysTokens: 300,
+                    last30DaysCostUSD: 5,
+                    daily: [],
+                    totals: nil,
+                    error: nil),
+            ],
+            config: CodexBarConfig(providers: [ProviderConfig(id: .claude, enabled: true)]),
+            identityMode: .redacted,
+            generatedAt: generatedAt,
+            refreshInterval: 60,
+            codexBarVersion: nil)
+        let cost = try #require(snapshot.providers.first?.cost)
+        #expect(cost.last30DaysUSD == 5)
+        #expect(cost.todayUSD == nil)
+    }
+
     private func identityPayload(email: String) -> ProviderPayload {
         ProviderPayload(
             provider: .claude,

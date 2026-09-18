@@ -217,6 +217,103 @@ extension StatusMenuTests {
     }
 
     @Test
+    func `overview spend includes live OpenRouter activity when the dashboard publication omitted it`() {
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.costUsageEnabled = true
+        settings.costSummaryDisplayStyle = .both
+        enableTestProviders([.claude, .openrouter], settings: settings)
+        let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
+        let now = Date(timeIntervalSince1970: 1_787_079_600)
+        let claudeInput = SpendDashboardModel.ProviderInput(
+            provider: .claude,
+            displayName: "Claude",
+            snapshot: CostUsageTokenSnapshot(
+                sessionTokens: nil,
+                sessionCostUSD: nil,
+                last30DaysTokens: 100,
+                last30DaysCostUSD: 5,
+                costProvenance: .listPriceEstimate,
+                daily: [
+                    CostUsageDailyReport.Entry(
+                        date: "2026-08-17",
+                        inputTokens: 50,
+                        outputTokens: 50,
+                        totalTokens: 100,
+                        requestCount: 1,
+                        costUSD: 5,
+                        modelsUsed: ["claude-sonnet"],
+                        modelBreakdowns: nil),
+                ],
+                updatedAt: now))
+        store.spendDashboardPublication = SpendDashboardPublication(
+            revision: 1,
+            generation: 1,
+            configuration: SpendDashboardConfiguration(
+                costUsageEnabled: true,
+                providerIDs: ["claude", "openrouter"],
+                codexAccountIdentities: [],
+                menuOwnershipFingerprint: SpendDashboardSource.currentMenuOwnershipFingerprint(
+                    settings: settings,
+                    store: store)),
+            loadedAt: now,
+            isRefreshing: false,
+            inputs: [claudeInput],
+            sources: [
+                SpendSourcePublication(
+                    id: "claude",
+                    provider: .claude,
+                    displayName: "Claude",
+                    role: .subscription,
+                    state: .available),
+            ])
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(usedPercent: 0, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+                secondary: nil,
+                costUsage: CostUsageTokenSnapshot(
+                    sessionTokens: nil,
+                    sessionCostUSD: nil,
+                    last30DaysTokens: 120_000,
+                    last30DaysCostUSD: 12.5,
+                    historyDays: 30,
+                    historyLabel: "Last 30 days (UTC)",
+                    costProvenance: .vendorMetered,
+                    daily: [
+                        CostUsageDailyReport.Entry(
+                            date: "2026-08-17",
+                            inputTokens: 80_000,
+                            outputTokens: 40_000,
+                            totalTokens: 120_000,
+                            requestCount: 4,
+                            costUSD: 12.5,
+                            modelsUsed: ["openai/gpt-5"],
+                            modelBreakdowns: [
+                                .init(modelName: "openai/gpt-5", costUSD: 12.5, totalTokens: 120_000),
+                            ]),
+                    ],
+                    updatedAt: now),
+                updatedAt: now),
+            provider: .openrouter)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: UsageFetcher().loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let model = controller.overviewSpendDashboardModel(
+            providers: [.claude, .openrouter],
+            now: now)
+        let ids = Set(model.groups.flatMap(\.providers).map(\.provider))
+        #expect(ids == [.claude, .openrouter])
+        #expect(model.groups.first?.totalCost == 17.5)
+    }
+
+    @Test
     func `overview accounts for all six selected providers while summing only available spend`() {
         let settings = self.makeSettings()
         settings.statusChecksEnabled = false

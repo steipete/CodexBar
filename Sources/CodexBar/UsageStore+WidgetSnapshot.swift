@@ -207,7 +207,7 @@ extension UsageStore {
         previousEntry: WidgetSnapshot.ProviderEntry?) -> WidgetSnapshot.ProviderEntry?
     {
         let snapshot = self.snapshots[provider.instanceID]
-        let storedTokenSnapshot = self.tokenSnapshotForCurrentProviderConfig(for: provider)?.snapshot
+        let storedTokenSnapshot = self.liveSpendTokenSnapshot(for: provider)
         let claudeQuotaOwnerKey: String? = if provider == .claude {
             self.claudeWidgetQuotaOwnerKey()
         } else {
