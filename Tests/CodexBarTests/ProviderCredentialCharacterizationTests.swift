@@ -209,6 +209,7 @@ struct ProviderCredentialCharacterizationTests {
             (.groq, "GROQ_API_KEY"),
             (.llmproxy, "LLM_PROXY_API_KEY"),
             (.litellm, "LITELLM_API_KEY"),
+            (.bifrost, "BIFROST_API_KEY"),
             (.sub2api, "SUB2API_API_KEY"),
             (.ibmbob, "BOBSHELL_API_KEY"),
             (.grok, "GROK_OAUTH_TOKEN"),
