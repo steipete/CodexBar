@@ -10,6 +10,225 @@ struct ShareStatsTests {
         #expect(ShareStatsFormatting.subscriptionSummary(count: scenario.0) == scenario.1)
     }
 
+    /// The trend is one value per covered day for the headline currency, summed across every
+    /// provider on that day and ordered oldest first, so the sparkline reads left to right.
+    @Test
+    func `daily spend trend aggregates every provider per day in chronological order`() throws {
+        let calendar = Calendar(identifier: .gregorian)
+        func day(_ d: Int) throws -> Date {
+            try #require(calendar.date(from: DateComponents(year: 2026, month: 8, day: d)))
+        }
+        func point(_ provider: UsageProvider, _ id: String, _ d: Date, _ cost: Double)
+            -> SpendDashboardModel.DailyPoint
+        {
+            SpendDashboardModel.DailyPoint(
+                sourceID: id,
+                provider: provider,
+                providerName: id,
+                day: d,
+                cost: cost,
+                stackStart: 0,
+                stackEnd: cost)
+        }
+        // Deliberately out of order, with two providers sharing the middle day.
+        let points = try [
+            point(.codex, "codex", day(22), 5),
+            point(.codex, "codex", day(20), 1),
+            point(.claude, "claude", day(21), 2),
+            point(.codex, "codex", day(21), 3),
+        ]
+        let group = try SpendDashboardModel.CurrencyGroup(
+            currencyCode: "USD",
+            providers: [
+                SpendDashboardModel.ProviderRow(
+                    id: "codex",
+                    rank: 1,
+                    provider: .codex,
+                    displayName: "Codex",
+                    totalTokens: 100,
+                    totalCost: 11,
+                    coveredDayCount: 3),
+            ],
+            models: [],
+            projects: [],
+            dailyPoints: points,
+            totalTokens: 100,
+            totalCost: 11,
+            coveredDayCount: 3,
+            chartDomain: day(20)...day(23),
+            modelHistoryCompleteness: .complete)
+        let payload = try #require(ShareStatsBuilder.make(
+            model: SpendDashboardModel(requestedDays: 30, groups: [group])))
+
+        #expect(payload.dailySpend == [1, 5, 5])
+    }
+
+    @Test
+    func `daily spend trend preserves covered zero days`() throws {
+        let calendar = Calendar(identifier: .gregorian)
+        func day(_ d: Int) throws -> Date {
+            try #require(calendar.date(from: DateComponents(year: 2026, month: 8, day: d)))
+        }
+        let points = try [
+            SpendDashboardModel.DailyPoint(
+                sourceID: "codex",
+                provider: .codex,
+                providerName: "Codex",
+                day: day(20),
+                cost: 10.0,
+                stackStart: 0,
+                stackEnd: 10.0),
+            SpendDashboardModel.DailyPoint(
+                sourceID: "codex",
+                provider: .codex,
+                providerName: "Codex",
+                day: day(22),
+                cost: 20.0,
+                stackStart: 0,
+                stackEnd: 20.0),
+        ]
+        let summaries = try [
+            SpendDashboardModel.DailySummary(
+                day: day(20),
+                providers: [],
+                requestCount: 1,
+                totalCost: 10.0),
+            SpendDashboardModel.DailySummary(
+                day: day(21),
+                providers: [],
+                requestCount: 0,
+                totalCost: 0.0),
+            SpendDashboardModel.DailySummary(
+                day: day(22),
+                providers: [],
+                requestCount: 2,
+                totalCost: 20.0),
+        ]
+        let group = try SpendDashboardModel.CurrencyGroup(
+            currencyCode: "USD",
+            providers: [
+                SpendDashboardModel.ProviderRow(
+                    id: "codex",
+                    rank: 1,
+                    provider: .codex,
+                    displayName: "Codex",
+                    totalTokens: 100,
+                    totalCost: 30.0,
+                    coveredDayCount: 3),
+            ],
+            models: [],
+            projects: [],
+            dailyPoints: points,
+            dailySummaries: summaries,
+            totalTokens: 100,
+            totalCost: 30.0,
+            coveredDayCount: 3,
+            chartDomain: day(20)...day(23),
+            modelHistoryCompleteness: .complete)
+        let payload = try #require(ShareStatsBuilder.make(
+            model: SpendDashboardModel(requestedDays: 30, groups: [group])))
+
+        #expect(payload.dailySpend == [10.0, 0.0, 20.0])
+    }
+
+    @Test
+    func `daily spend trend suppresses sparkline when unpriced days exist`() throws {
+        let calendar = Calendar(identifier: .gregorian)
+        func day(_ d: Int) throws -> Date {
+            try #require(calendar.date(from: DateComponents(year: 2026, month: 8, day: d)))
+        }
+        let summaries = try [
+            SpendDashboardModel.DailySummary(
+                day: day(20),
+                providers: [],
+                requestCount: 1,
+                totalCost: 10.0),
+            SpendDashboardModel.DailySummary(
+                day: day(21),
+                providers: [],
+                requestCount: 1,
+                totalCost: nil),
+            SpendDashboardModel.DailySummary(
+                day: day(22),
+                providers: [],
+                requestCount: 2,
+                totalCost: 20.0),
+        ]
+        let group = try SpendDashboardModel.CurrencyGroup(
+            currencyCode: "USD",
+            providers: [
+                SpendDashboardModel.ProviderRow(
+                    id: "codex",
+                    rank: 1,
+                    provider: .codex,
+                    displayName: "Codex",
+                    totalTokens: 100,
+                    totalCost: 30.0,
+                    coveredDayCount: 3),
+            ],
+            models: [],
+            projects: [],
+            dailyPoints: [],
+            dailySummaries: summaries,
+            totalTokens: 100,
+            totalCost: 30.0,
+            coveredDayCount: 3,
+            chartDomain: day(20)...day(23),
+            modelHistoryCompleteness: .incomplete)
+        let payload = try #require(ShareStatsBuilder.make(
+            model: SpendDashboardModel(requestedDays: 30, groups: [group])))
+
+        #expect(payload.dailySpend.isEmpty)
+    }
+
+    @Test
+    func `spend coverage preserves secondary currency when subscriptions overflow`() {
+        let usd = ShareStatsCurrencyPayload(
+            currencyCode: "USD",
+            estimatedCost: 120.0,
+            coveredDayCount: 30,
+            isPartial: false)
+        let eur = ShareStatsCurrencyPayload(
+            currencyCode: "EUR",
+            estimatedCost: 45.0,
+            coveredDayCount: 30,
+            isPartial: false)
+        let gbp = ShareStatsCurrencyPayload(
+            currencyCode: "GBP",
+            estimatedCost: 15.0,
+            coveredDayCount: 30,
+            isPartial: false)
+
+        let formatter: (ShareStatsCurrencyPayload) -> String = { curr in
+            switch curr.currencyCode {
+            case "EUR": "€45.00"
+            case "GBP": "£15.00"
+            default: "$120.00"
+            }
+        }
+
+        // Single currency
+        let single = ShareStatsFormatting.spendCoverage(
+            currencies: [usd],
+            coverageDenominator: "30d",
+            spendFormatter: formatter)
+        #expect(single == "USD \u{00B7} 30/30d")
+
+        // Two currencies - secondary total is explicitly preserved
+        let dual = ShareStatsFormatting.spendCoverage(
+            currencies: [usd, eur],
+            coverageDenominator: "30d",
+            spendFormatter: formatter)
+        #expect(dual == "USD \u{00B7} 30/30d \u{00B7} EUR €45.00")
+
+        // Three currencies - secondary total preserved plus overflow counter
+        let triple = ShareStatsFormatting.spendCoverage(
+            currencies: [usd, eur, gbp],
+            coverageDenominator: "30d",
+            spendFormatter: formatter)
+        #expect(triple == "USD \u{00B7} 30/30d \u{00B7} EUR €45.00 \u{00B7} +1 more in rows below")
+    }
+
     @Test
     func `descriptor share plan labels preserve the legacy central table`() throws {
         var fingerprint: UInt64 = 1_469_598_103_934_665_603

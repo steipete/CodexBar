@@ -52,67 +52,89 @@ struct ShareStatsCardView: View {
                     .font(.system(size: 26, weight: .semibold, design: .rounded))
             }
             Spacer()
-            Text("LOCAL SNAPSHOT")
-                .font(.system(size: 14, weight: .semibold, design: .rounded))
-                .tracking(1.8)
-                .foregroundStyle(self.secondary)
-                .padding(.horizontal, 15)
-                .padding(.vertical, 9)
-                .overlay {
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(self.secondary.opacity(0.45), lineWidth: 1)
-                }
         }
     }
 
+    /// Spend leads. It is the number the card exists to communicate and the reason someone
+    /// shares a snapshot at all; tokens are supporting context. Both columns anchor from the
+    /// top with the same label / value / detail hierarchy.
     private var hero: some View {
-        HStack(alignment: .bottom, spacing: 52) {
+        HStack(alignment: .top, spacing: 52) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("TRACKED TOKENS · \(self.periodLabel)")
+                Text("EST. \(self.spendLabel)")
+                    .font(.system(size: 20, weight: .semibold, design: .rounded))
+                    .tracking(1.8)
+                    .foregroundStyle(self.secondary)
+                Text(self.primarySpendText)
+                    .font(.system(size: 76, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                Text(self.spendCoverageText)
+                    .font(.system(size: 16, weight: .medium, design: .rounded))
+                    .foregroundStyle(self.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("TRACKED TOKENS")
                     .font(.system(size: 20, weight: .semibold, design: .rounded))
                     .tracking(1.8)
                     .foregroundStyle(self.secondary)
                 Text(self.trackedTokensText)
-                    .font(.system(size: 104, weight: .semibold, design: .rounded))
+                    .font(.system(size: 42, weight: .semibold, design: .rounded))
                     .monospacedDigit()
                     .lineLimit(1)
                     .minimumScaleFactor(0.72)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            VStack(alignment: .leading, spacing: 9) {
-                Text("EST. \(self.spendLabel)")
-                    .font(.system(size: 18, weight: .semibold, design: .rounded))
-                    .tracking(1.2)
-                    .foregroundStyle(self.secondary)
-                ForEach(self.payload.currencies.prefix(2)) { currency in
-                    HStack(alignment: .firstTextBaseline) {
-                        Text("\(currency.currencyCode) · \(currency.coveredDayCount)/\(self.coverageDenominator)")
-                            .font(.system(size: 17, weight: .semibold, design: .rounded))
-                            .foregroundStyle(self.secondary)
-                        Spacer()
-                        Text(self.spendText(for: currency))
-                            .font(.system(size: 32, weight: .semibold, design: .rounded))
-                            .monospacedDigit()
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.72)
-                    }
-                }
-                Text(self.currencySummary)
+                Text(self.subscriptionSummary)
                     .font(.system(size: 16, weight: .medium, design: .rounded))
                     .foregroundStyle(self.secondary)
+                if self.spendTrend.count > 1 {
+                    // Labelled because it plots spend, not the token count directly above it.
+                    Text("DAILY SPEND")
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .tracking(1.2)
+                        .foregroundStyle(self.secondary)
+                        .padding(.top, 6)
+                    ShareStatsSparkline(values: self.spendTrend, accent: self.accent)
+                        .frame(width: 382, height: 30)
+                }
             }
             .frame(width: 390, alignment: .leading)
         }
-        .frame(height: 132, alignment: .bottom)
+        .frame(height: 140, alignment: .top)
     }
 
-    private var currencySummary: String {
-        let hiddenCount = self.payload.currencies.count - min(self.payload.currencies.count, 2)
-        return hiddenCount > 0
-            ? "+\(hiddenCount) more currencies · see subscription rows"
-            : ShareStatsFormatting.subscriptionSummary(count: self.payload.providers.count)
-            + " · native currencies kept separate"
+    private var primaryCurrency: ShareStatsCurrencyPayload? {
+        self.payload.currencies.first
+    }
+
+    private var primarySpendText: String {
+        guard let currency = self.primaryCurrency else { return "\u{2014}" }
+        return self.spendText(for: currency)
+    }
+
+    /// Coverage for the headline currency, plus explicit totals for secondary currencies so
+    /// multi-currency users never lose spend visibility when subscription rows overflow.
+    private var spendCoverageText: String {
+        ShareStatsFormatting.spendCoverage(
+            currencies: self.payload.currencies,
+            coverageDenominator: self.coverageDenominator,
+            spendFormatter: { self.spendText(for: $0) })
+    }
+
+    /// A flat or single-point series has no shape worth drawing, and inventing one would imply
+    /// movement that is not in the data.
+    private var spendTrend: [Double] {
+        let values = self.payload.dailySpend
+        guard values.count > 1, let lo = values.min(), let hi = values.max(), hi > lo else { return [] }
+        return values
+    }
+
+    private var subscriptionSummary: String {
+        ShareStatsFormatting.subscriptionSummary(count: self.payload.providers.count)
     }
 
     private var rankings: some View {
@@ -142,9 +164,16 @@ struct ShareStatsCardView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     self.sectionHeader("TOP MODELS", detail: "BY USAGE")
                     if self.payload.topModels.isEmpty {
-                        Text("No model-level history in this local snapshot")
+                        Text("No model breakdown recorded")
                             .font(.system(size: 18, weight: .medium, design: .rounded))
                             .foregroundStyle(self.secondary)
+                            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                            .padding(.horizontal, 9)
+                            .background(Color.white.opacity(0.02), in: RoundedRectangle(cornerRadius: 9))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 9)
+                                    .stroke(Color.white.opacity(0.07), lineWidth: 1)
+                            }
                             .padding(.top, 4)
                     } else {
                         ForEach(
@@ -158,10 +187,6 @@ struct ShareStatsCardView: View {
                         }
                     }
                 }
-                Text("Only aggregate usage, plan tier, and estimated spend are included.")
-                    .font(.system(size: 16, weight: .medium, design: .rounded))
-                    .foregroundStyle(self.secondary)
-                    .padding(.top, 18)
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
@@ -173,10 +198,6 @@ struct ShareStatsCardView: View {
 
     private var isAllTime: Bool {
         self.payload.days >= SpendDashboardSource.scanDays
-    }
-
-    private var periodLabel: String {
-        self.isAllTime ? "ALL" : "\(self.payload.days) DAYS"
     }
 
     private var spendLabel: String {
@@ -339,6 +360,53 @@ private struct ShareStatsProviderRow: View {
             metrics.append("Spend unavailable")
         }
         return metrics.isEmpty ? "connected" : metrics.joined(separator: " · ")
+    }
+}
+
+/// A minimal filled sparkline: no axes, no labels, no gridlines. The hero already states the period
+/// and the total, so this only has to carry the shape of the spend over the window.
+private struct ShareStatsSparkline: View {
+    let values: [Double]
+    let accent: Color
+
+    var body: some View {
+        GeometryReader { proxy in
+            let w = proxy.size.width
+            let h = proxy.size.height
+            let lo = self.values.min() ?? 0
+            let hi = self.values.max() ?? 1
+            let span = hi - lo
+            let step = self.values.count > 1 ? w / CGFloat(self.values.count - 1) : w
+            let points = self.values.enumerated().map { index, value in
+                CGPoint(
+                    x: CGFloat(index) * step,
+                    y: h - (span > 0 ? CGFloat((value - lo) / span) : 0.5) * h)
+            }
+            ZStack {
+                Path { path in
+                    guard let first = points.first else { return }
+                    path.move(to: CGPoint(x: first.x, y: h))
+                    path.addLine(to: first)
+                    for point in points.dropFirst() {
+                        path.addLine(to: point)
+                    }
+                    path.addLine(to: CGPoint(x: points[points.count - 1].x, y: h))
+                    path.closeSubpath()
+                }
+                .fill(LinearGradient(
+                    colors: [self.accent.opacity(0.28), self.accent.opacity(0.02)],
+                    startPoint: .top,
+                    endPoint: .bottom))
+                Path { path in
+                    guard let first = points.first else { return }
+                    path.move(to: first)
+                    for point in points.dropFirst() {
+                        path.addLine(to: point)
+                    }
+                }
+                .stroke(self.accent, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+            }
+        }
     }
 }
 

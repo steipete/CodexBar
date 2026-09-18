@@ -108,6 +108,9 @@ struct ShareStatsPayload: Sendable, Equatable {
     let days: Int
     let periodEnd: Date
     let periodEndTimeZone: TimeZone
+    /// Daily spend totals for the headline currency, oldest first. Aggregate only: a day's total
+    /// across every provider, carrying no provider, model or account identity.
+    let dailySpend: [Double]
     let providers: [ShareStatsProviderPayload]
     let topModels: [ShareStatsModelPayload]
     let currencies: [ShareStatsCurrencyPayload]
@@ -122,7 +125,8 @@ struct ShareStatsPayload: Sendable, Equatable {
         currencies: [ShareStatsCurrencyPayload],
         totalTokens: Int?,
         hasPartialTokens: Bool = false,
-        periodEndTimeZone: TimeZone = .current)
+        periodEndTimeZone: TimeZone = .current,
+        dailySpend: [Double] = [])
     {
         self.days = days
         self.periodEnd = periodEnd
@@ -132,6 +136,7 @@ struct ShareStatsPayload: Sendable, Equatable {
         self.currencies = currencies
         self.totalTokens = totalTokens
         self.hasPartialTokens = hasPartialTokens
+        self.dailySpend = dailySpend
     }
 
     var hasShareableData: Bool {
@@ -330,6 +335,9 @@ enum ShareStatsBuilder {
             periodGroup.chartDomain.lowerBound,
             periodGroup.chartDomain.upperBound.addingTimeInterval(-1))
         let periodEnd = periodGroup.calendar.startOfDay(for: lastIncludedInstant)
+        // One value per covered day for the headline currency: every provider's spend on that day,
+        // summed. Preserves covered calendar zero days so sparse activity does not distort the trend.
+        let dailySpend = self.extractDailySpend(from: periodGroup, periodEnd: periodEnd)
         let payload = ShareStatsPayload(
             days: model.requestedDays,
             periodEnd: periodEnd,
@@ -338,8 +346,37 @@ enum ShareStatsBuilder {
             currencies: currencies,
             totalTokens: totalTokens,
             hasPartialTokens: hasPartialTokens,
-            periodEndTimeZone: periodGroup.timeZone)
+            periodEndTimeZone: periodGroup.timeZone,
+            dailySpend: dailySpend)
         return payload.hasShareableData ? payload : nil
+    }
+
+    private static func extractDailySpend(
+        from group: SpendDashboardModel.CurrencyGroup,
+        periodEnd: Date) -> [Double]
+    {
+        if !group.dailySummaries.isEmpty {
+            guard !group.dailySummaries.contains(where: { $0.totalCost == nil }) else {
+                return []
+            }
+            return group.dailySummaries
+                .sorted { $0.day < $1.day }
+                .compactMap(\.totalCost)
+        }
+        let pointsByDay = Dictionary(grouping: group.dailyPoints, by: \.day)
+        var current = group.calendar.startOfDay(for: group.chartDomain.lowerBound)
+        let end = periodEnd
+        guard current <= end else {
+            return pointsByDay.sorted { $0.key < $1.key }.map { _, pts in pts.reduce(0.0) { $0 + $1.cost } }
+        }
+        var result: [Double] = []
+        while current <= end {
+            let cost = pointsByDay[current]?.reduce(0.0) { $0 + $1.cost } ?? 0.0
+            result.append(cost)
+            guard let next = group.calendar.date(byAdding: .day, value: 1, to: current) else { break }
+            current = next
+        }
+        return result
     }
 
     private static func finiteCost(_ value: Double?) -> Double? {
@@ -355,8 +392,32 @@ enum ShareStatsBuilder {
 }
 
 enum ShareStatsFormatting {
+    /// Plural-safe subscription count for the share card. The single-subscription card is the
+    /// most common one there is, and it used to read "1 subscriptions".
     static func subscriptionSummary(count: Int) -> String {
         count == 1 ? "1 subscription" : "\(count) subscriptions"
+    }
+
+    /// Formats the spend coverage footnote on the share card hero.
+    /// Retains explicit totals for secondary currencies so multi-currency users never lose
+    /// spend visibility even when subscription rows overflow their display limit.
+    static func spendCoverage(
+        currencies: [ShareStatsCurrencyPayload],
+        coverageDenominator: String,
+        spendFormatter: (ShareStatsCurrencyPayload) -> String) -> String
+    {
+        guard let primary = currencies.first else { return "No spend recorded" }
+        let primaryCoverage = "\(primary.currencyCode) \u{00B7} \(primary.coveredDayCount)/\(coverageDenominator)"
+        guard currencies.count > 1 else { return primaryCoverage }
+
+        let secondary = currencies[1]
+        let secondarySpend = spendFormatter(secondary)
+        let secondarySummary = "\(secondary.currencyCode) \(secondarySpend)"
+        let hiddenCount = currencies.count - 2
+        guard hiddenCount > 0 else {
+            return "\(primaryCoverage) \u{00B7} \(secondarySummary)"
+        }
+        return "\(primaryCoverage) \u{00B7} \(secondarySummary) \u{00B7} +\(hiddenCount) more in rows below"
     }
 
     static func compactCount(_ value: Int) -> String {
