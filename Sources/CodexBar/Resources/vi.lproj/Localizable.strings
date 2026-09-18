@@ -1582,6 +1582,10 @@
 "agent_sessions_hide_unreachable_title" = "Ẩn máy chủ không thể truy cập";
 "agent_sessions_hide_unreachable_subtitle" = "Ẩn máy chủ khi không lấy được các phiên của máy chủ đó.";
 
+/* Overview share flow */
+"Share Usage Snapshot…" = "Chia sẻ tổng quan mức sử dụng…";
+"Usage snapshot unavailable" = "Không có tổng quan mức sử dụng";
+"CodexBar couldn't prepare a shareable usage snapshot. Refresh Usage & Spend and try again." = "CodexBar không thể chuẩn bị tổng quan mức sử dụng để chia sẻ. Hãy làm mới Mức sử dụng và chi phí rồi thử lại.";
 "Incomplete" = "Chưa đầy đủ";
 "Est. subtotal (%@): %@" = "Tổng phụ ước tính (%@): %@";
 "Excluded requests with missing final usage: %d" = "Yêu cầu bị loại trừ do thiếu dữ liệu sử dụng cuối cùng: %d";

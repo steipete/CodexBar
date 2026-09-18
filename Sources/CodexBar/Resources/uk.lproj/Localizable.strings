@@ -1581,6 +1581,10 @@
 "agent_sessions_hide_unreachable_title" = "Приховувати недоступні вузли";
 "agent_sessions_hide_unreachable_subtitle" = "Приховувати вузли, якщо не вдалося отримати їхні сеанси.";
 
+/* Overview share flow */
+"Share Usage Snapshot…" = "Поділитися оглядом використання…";
+"Usage snapshot unavailable" = "Огляд використання недоступний";
+"CodexBar couldn't prepare a shareable usage snapshot. Refresh Usage & Spend and try again." = "CodexBar не вдалося підготувати огляд використання для поширення. Оновіть розділ «Використання й витрати» та повторіть спробу.";
 "Incomplete" = "Неповні дані";
 "Est. subtotal (%@): %@" = "Орієнтовний підсумок (%@): %@";
 "Excluded requests with missing final usage: %d" = "Виключені запити без остаточних даних про використання: %d";

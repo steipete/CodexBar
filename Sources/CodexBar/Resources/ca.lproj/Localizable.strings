@@ -1583,6 +1583,10 @@
 "agent_sessions_hide_unreachable_title" = "Amaga els amfitrions inaccessibles";
 "agent_sessions_hide_unreachable_subtitle" = "Amaga els amfitrions quan falla la consulta de les seves sessions.";
 
+/* Overview share flow */
+"Share Usage Snapshot…" = "Comparteix la instantània d'ús…";
+"Usage snapshot unavailable" = "Instantània d'ús no disponible";
+"CodexBar couldn't prepare a shareable usage snapshot. Refresh Usage & Spend and try again." = "CodexBar no ha pogut preparar una instantània d'ús per compartir. Actualitza Ús i despesa i torna-ho a provar.";
 "Incomplete" = "Incomplet";
 "Est. subtotal (%@): %@" = "Subtotal estimat (%@): %@";
 "Excluded requests with missing final usage: %d" = "Sol·licituds excloses sense dades d’ús finals: %d";

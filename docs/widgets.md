@@ -47,6 +47,8 @@ also lets persistence integration tests count reload attempts without calling Wi
 - **CodexBar Burn Down** (`CodexBarBurnDownWidget`): configurable session or weekly burn-down chart, medium only.
 - **CodexBar Burn Down (Combined)** (`CodexBarCombinedBurnDownWidget`): session and weekly burn-down charts, medium only.
 
+Usage, History, Metric, and Switcher widgets can open the app’s current Usage & Spend share preview. Medium and large widgets expose a **Share overview** control; small widgets show the Share icon in their existing header and the whole tile opens that preview. The link carries no provider, account, usage, or spend data—the app rebuilds the selected overview when it opens. Burn Down widgets do not include the action because their scope is a single budget lane rather than the aggregated overview.
+
 Switcher widgets share one remembered provider selection, so switching one updates all Switcher widgets. To keep Claude and Codex visible side by side, add two **CodexBar Usage** widgets and configure each widget's **Provider** separately. Usage widgets read their own configured provider instead of the shared Switcher selection.
 
 ## Provider picker support

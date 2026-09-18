@@ -393,6 +393,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator?
     private var cloudSyncCoordinator: CloudSyncCoordinator?
     private var settingsWindowController: SettingsWindowController?
+    private var shareStatsRouteHandoff = ShareStatsRouteHandoff()
     private lazy var placeholderSettingsWindowGuard = PlaceholderSettingsWindowGuard(
         isKnownSettingsWindow: { [weak self] window in
             self?.settingsWindowController?.window === window
@@ -436,6 +437,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldOpenUntitledFile(_ sender: NSApplication) -> Bool {
         // CodexBar lives in the menu bar and has no untitled document to open at launch or on reopen.
         false
+    }
+
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls {
+            guard let route = ShareStatsRoute.parse(url) else { continue }
+            self.shareStatsRouteHandoff.enqueue(route)
+        }
+        self.deliverPendingShareStatsRouteIfPossible()
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -715,6 +724,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 concreteStatusController.cloudSyncState = self.cloudSyncState
                 MenuSwitchFlickerProbe.startIfRequested(controller: concreteStatusController)
             }
+            self.deliverPendingShareStatsRouteIfPossible()
             return
         }
 
@@ -744,6 +754,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.openSettings(pane: pane)
         }
         self.statusController = statusController
+        self.deliverPendingShareStatsRouteIfPossible()
+    }
+
+    private func deliverPendingShareStatsRouteIfPossible() {
+        self.shareStatsRouteHandoff.deliverIfPossible { [weak self] route in
+            guard let controller = self?.statusController as? StatusItemController else { return false }
+            switch route {
+            case .overview:
+                // Implemented by the overview-share change that owns the merged dashboard projection.
+                controller.presentOverviewShareStats()
+                return true
+            }
+        }
     }
 
     private func trimRebuildableCachesForMemoryPressure() -> MemoryPressureCacheTrimSummary {

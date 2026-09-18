@@ -1585,6 +1585,10 @@
 "agent_sessions_hide_unreachable_title" = "پنهان کردن میزبان‌های در دسترس نبودنی";
 "agent_sessions_hide_unreachable_subtitle" = "میزبان‌ها را در صورت ناموفق بودن دریافت نشست‌هایشان پنهان کنید.";
 
+/* Overview share flow */
+"Share Usage Snapshot…" = "اشتراک‌گذاری نمای کلی استفاده…";
+"Usage snapshot unavailable" = "نمای کلی استفاده در دسترس نیست";
+"CodexBar couldn't prepare a shareable usage snapshot. Refresh Usage & Spend and try again." = "CodexBar نتوانست نمای کلی استفاده قابل اشتراک‌گذاری را آماده کند. استفاده و هزینه را تازه‌سازی کنید و دوباره امتحان کنید.";
 "Incomplete" = "ناقص";
 "Est. subtotal (%@): %@" = "جمع جزئی تخمینی (%@): %@";
 "Excluded requests with missing final usage: %d" = "درخواست‌های حذف‌شده به دلیل نبود داده‌های مصرف نهایی: %d";

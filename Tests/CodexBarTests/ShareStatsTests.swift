@@ -335,6 +335,43 @@ struct ShareStatsTests {
     }
 
     @Test @MainActor
+    func `image exporter writes PNG and TIFF to an isolated pasteboard`() throws {
+        let payload = try #require(ShareStatsBuilder.make(model: Self.dashboard))
+        let pasteboard = NSPasteboard(name: .init("com.steipete.codexbar.tests.share-stats.\(UUID().uuidString)"))
+        defer { pasteboard.clearContents() }
+
+        #expect(ShareStatsExporter.copyImage(payload, pasteboard: pasteboard))
+        let png = try #require(pasteboard.data(forType: .png))
+        let tiff = try #require(pasteboard.data(forType: .tiff))
+        let bitmap = try #require(NSBitmapImageRep(data: png))
+
+        #expect(png.starts(with: [0x89, 0x50, 0x4E, 0x47]))
+        #expect(!tiff.isEmpty)
+        #expect(bitmap.pixelsWide == 1200)
+        #expect(bitmap.pixelsHigh == 630)
+        let sampledColors = Set(stride(from: 0, to: bitmap.pixelsWide, by: 31).compactMap { x in
+            bitmap.colorAt(x: x, y: bitmap.pixelsHigh / 2)?.usingColorSpace(.deviceRGB)?.description
+        })
+        #expect(sampledColors.count > 1)
+
+        if let outputPath = ProcessInfo.processInfo.environment["CODEXBAR_SHARE_STATS_SCREENSHOT_DIR"] {
+            let outputDirectory = URL(fileURLWithPath: outputPath, isDirectory: true)
+            try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
+            try png.write(to: outputDirectory.appendingPathComponent("share-stats.png"), options: .atomic)
+        }
+    }
+
+    @Test
+    func `image copy feedback reports semantic success and failure`() {
+        #expect(ShareStatsImageCopyFeedback.idle.title == "Copy Image")
+        #expect(ShareStatsImageCopyFeedback.idle.systemImage == "photo.on.rectangle")
+        #expect(ShareStatsImageCopyFeedback.copied.title == "Image copied")
+        #expect(ShareStatsImageCopyFeedback.copied.systemImage == "checkmark")
+        #expect(ShareStatsImageCopyFeedback.failed.title == "Could not copy image")
+        #expect(ShareStatsImageCopyFeedback.failed.systemImage == "photo.on.rectangle")
+    }
+
+    @Test @MainActor
     func `provider rows leave room for overflow summary`() {
         #expect(ShareStatsCardView.providerDisplayLimit(for: 5) == 5)
         #expect(ShareStatsCardView.providerDisplayLimit(for: 6) == 4)

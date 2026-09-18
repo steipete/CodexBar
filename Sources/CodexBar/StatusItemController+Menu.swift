@@ -618,6 +618,9 @@ extension StatusItemController {
                     spendSummary.provenanceText,
                 ].joined(separator: "|"))
             menu.addItem(summaryItem)
+            if let shareItem = self.makeOverviewShareStatsMenuItem(model: spendModel) {
+                menu.addItem(shareItem)
+            }
             menu.addItem(.separator())
         }
 

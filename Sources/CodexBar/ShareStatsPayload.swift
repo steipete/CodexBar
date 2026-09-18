@@ -354,6 +354,45 @@ enum ShareStatsBuilder {
     }
 }
 
+@MainActor
+enum ShareStatsPayloadFactory {
+    static func make(model: SpendDashboardModel, store: UsageStore) -> ShareStatsPayload? {
+        ShareStatsBuilder.make(
+            model: model,
+            subscriptionNames: self.subscriptionNames(model: model, store: store))
+    }
+
+    private static func subscriptionNames(
+        model: SpendDashboardModel,
+        store: UsageStore) -> [String: ShareStatsSubscriptionName]
+    {
+        var names: [String: ShareStatsSubscriptionName] = [:]
+        let codexRowCount = model.groups
+            .flatMap(\.providers)
+            .count { $0.provider == .codex }
+        for group in model.groups {
+            for row in group.providers {
+                let snapshots: [UsageSnapshot?] = if row.provider == .codex,
+                                                     row.id.hasPrefix("codex:")
+                {
+                    [
+                        store.codexAccountSnapshots.first {
+                            row.id == "codex:\($0.id)"
+                        }?.snapshot,
+                        codexRowCount == 1 ? store.snapshot(for: .codex) : nil,
+                    ]
+                } else {
+                    [store.snapshot(for: row.provider.instanceID)]
+                }
+                if let name = ShareStatsSubscriptionName.first(from: snapshots, provider: row.provider) {
+                    names[row.id] = name
+                }
+            }
+        }
+        return names
+    }
+}
+
 enum ShareStatsFormatting {
     static func subscriptionSummary(count: Int) -> String {
         count == 1 ? "1 subscription" : "\(count) subscriptions"

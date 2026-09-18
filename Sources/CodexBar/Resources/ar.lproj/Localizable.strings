@@ -1585,6 +1585,10 @@
 "agent_sessions_hide_unreachable_title" = "إخفاء المضيفين غير المتاحين";
 "agent_sessions_hide_unreachable_subtitle" = "إخفاء المضيفين عند تعذّر جلب جلساتهم.";
 
+/* Overview share flow */
+"Share Usage Snapshot…" = "مشاركة ملخص الاستخدام…";
+"Usage snapshot unavailable" = "ملخص الاستخدام غير متاح";
+"CodexBar couldn't prepare a shareable usage snapshot. Refresh Usage & Spend and try again." = "تعذر على CodexBar إعداد ملخص استخدام قابل للمشاركة. حدّث الاستخدام والإنفاق ثم حاول مرة أخرى.";
 "Incomplete" = "غير مكتمل";
 "Est. subtotal (%@): %@" = "الإجمالي الفرعي التقديري (%@): %@";
 "Excluded requests with missing final usage: %d" = "الطلبات المستبعدة لعدم توفر بيانات الاستخدام النهائية: %d";

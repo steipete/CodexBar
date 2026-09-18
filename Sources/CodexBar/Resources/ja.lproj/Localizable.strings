@@ -1581,6 +1581,10 @@
 "agent_sessions_hide_unreachable_title" = "接続できないホストを非表示";
 "agent_sessions_hide_unreachable_subtitle" = "セッションの取得に失敗したホストを非表示にします。";
 
+/* Overview share flow */
+"Share Usage Snapshot…" = "使用状況の概要を共有…";
+"Usage snapshot unavailable" = "使用状況の概要を利用できません";
+"CodexBar couldn't prepare a shareable usage snapshot. Refresh Usage & Spend and try again." = "CodexBar で共有用の使用状況の概要を準備できませんでした。「使用状況と支出」を更新して、もう一度お試しください。";
 "Incomplete" = "不完全";
 "Est. subtotal (%@): %@" = "推定小計 (%@): %@";
 "Excluded requests with missing final usage: %d" = "最終的な使用量が未記録のため除外されたリクエスト: %d";

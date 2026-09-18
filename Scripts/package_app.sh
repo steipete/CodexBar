@@ -322,6 +322,14 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CodexBuildTimestamp</key><string>${BUILD_TIMESTAMP}</string>
     <key>CodexGitCommit</key><string>${GIT_COMMIT}</string>
     <key>CodexBarTeamID</key><string>${APP_TEAM_ID}</string>
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key><string>com.steipete.codexbar.share-stats</string>
+            <key>CFBundleURLSchemes</key>
+            <array><string>codexbar</string></array>
+        </dict>
+    </array>
     <key>UTExportedTypeDeclarations</key>
     <array>
         <dict>

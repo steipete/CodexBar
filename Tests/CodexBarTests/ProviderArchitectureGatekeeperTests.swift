@@ -1033,7 +1033,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "The memory-pressure debug fixture installs its synthetic entry in the Codex cache slot."),
         SuppressedProviderReference(
             path: "Sources/CodexBar/StatusItemController+Menu.swift",
-            line: 1122,
+            line: 1125,
             anchor: "controller.refreshOpenMenuIfStillVisible(menu, provider: .codex)",
             expectedProviderIDs: ["codex"],
             reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
@@ -2300,14 +2300,6 @@ struct ProviderArchitectureGatekeeperTests {
             expectedReferenceFingerprint: ["codex@0"],
             reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
         AllowedProviderConstruct(
-            path: "Sources/CodexBar/PreferencesSpendDashboardPane.swift",
-            line: 519,
-            anchor: ".count { $0.provider == .codex }",
-            expectedProviderIDs: ["codex"],
-            expectedReferenceCount: 3,
-            expectedReferenceFingerprint: ["codex@0", "codex@3", "codex@10"],
-            reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
-        AllowedProviderConstruct(
             path: "Sources/CodexBar/Providers/Shared/ProviderTokenAccountSelection.swift",
             line: 28,
             anchor: "guard provider == .deepseek else { return settings.showOptionalCreditsAndExtraUsage }",
@@ -2323,6 +2315,14 @@ struct ProviderArchitectureGatekeeperTests {
             expectedReferenceCount: 1,
             expectedReferenceFingerprint: ["mistral@0"],
             reason: "This public model-family sanitizer is independent of the provider registry; Mistral is also a provider ID."),
+        AllowedProviderConstruct(
+            path: "Sources/CodexBar/ShareStatsPayload.swift",
+            line: 372,
+            anchor: ".count { $0.provider == .codex }",
+            expectedProviderIDs: ["codex"],
+            expectedReferenceCount: 3,
+            expectedReferenceFingerprint: ["codex@0", "codex@3", "codex@10"],
+            reason: "This shared export factory preserves Codex multi-account plan labels without exposing account identity."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/SessionQuotaNotifications.swift",
             line: 198,
@@ -2590,7 +2590,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/StatusItemController+Menu.swift",
-            line: 1152,
+            line: 1155,
             anchor: "return self.store.enabledFirstPartyProvidersForDisplay().first ?? .codex",
             expectedProviderIDs: ["codex"],
             expectedReferenceCount: 1,
@@ -2670,7 +2670,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/StatusItemController.swift",
-            line: 369,
+            line: 370,
             anchor: "if provider == .codex {",
             expectedProviderIDs: ["codex"],
             expectedReferenceCount: 1,

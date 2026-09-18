@@ -1580,6 +1580,10 @@
 "agent_sessions_hide_unreachable_title" = "Agochar os hosts inaccesibles";
 "agent_sessions_hide_unreachable_subtitle" = "Agocha os hosts cando falla a consulta das súas sesións.";
 
+/* Overview share flow */
+"Share Usage Snapshot…" = "Compartir resumo do uso…";
+"Usage snapshot unavailable" = "Resumo do uso non dispoñible";
+"CodexBar couldn't prepare a shareable usage snapshot. Refresh Usage & Spend and try again." = "CodexBar non puido preparar un resumo do uso para compartir. Actualiza Uso e gasto e téntao de novo.";
 "Incomplete" = "Incompleto";
 "Est. subtotal (%@): %@" = "Subtotal estimado (%@): %@";
 "Excluded requests with missing final usage: %d" = "Solicitudes excluídas sen datos de uso finais: %d";

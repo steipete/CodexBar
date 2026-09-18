@@ -169,6 +169,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var closedMenuRebuildTasks: [ObjectIdentifier: Task<Void, Never>] = [:]
     var closedMenuRebuildRequests = MenuRebuildRequestRegistry<ObjectIdentifier>()
     var openMenuRebuildTasks: [ObjectIdentifier: Task<Void, Never>] = [:]
+    var overviewSharePresentation = OverviewSharePresentation()
     var openMenuRebuildRequests = MenuRebuildRequestRegistry<ObjectIdentifier>()
     var menuIdentitySignatures: [ObjectIdentifier: String] = [:]
     var codexAccountMenuProjectionRevalidationTask: Task<Void, Never>?
@@ -937,6 +938,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.blinkTask?.cancel()
         self.menuBarCountdownRefreshTask?.cancel()
         self.loginTask?.cancel()
+        self.overviewSharePresentation.task?.cancel()
         self.screenChangeVisibilityTask?.cancel()
         self.pendingScreenChangePreviousCount = nil
         NotificationCenter.default.removeObserver(self)

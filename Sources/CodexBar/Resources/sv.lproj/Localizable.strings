@@ -1580,6 +1580,10 @@
 "agent_sessions_hide_unreachable_title" = "Dölj värdar som inte kan nås";
 "agent_sessions_hide_unreachable_subtitle" = "Dölj värdar när deras sessioner inte kan hämtas.";
 
+/* Overview share flow */
+"Share Usage Snapshot…" = "Dela användningsöversikt…";
+"Usage snapshot unavailable" = "Användningsöversikt är inte tillgänglig";
+"CodexBar couldn't prepare a shareable usage snapshot. Refresh Usage & Spend and try again." = "CodexBar kunde inte förbereda en delbar användningsöversikt. Uppdatera Användning och utgifter och försök igen.";
 "Incomplete" = "Ofullständigt";
 "Est. subtotal (%@): %@" = "Uppskattad delsumma (%@): %@";
 "Excluded requests with missing final usage: %d" = "Uteslutna förfrågningar utan slutliga användningsdata: %d";

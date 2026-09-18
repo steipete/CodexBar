@@ -1612,6 +1612,10 @@
 "agent_sessions_hide_unreachable_title" = "隱藏無法連線的主機";
 "agent_sessions_hide_unreachable_subtitle" = "擷取工作階段失敗時隱藏該主機。";
 
+/* Overview share flow */
+"Share Usage Snapshot…" = "分享用量總覽…";
+"Usage snapshot unavailable" = "用量總覽無法使用";
+"CodexBar couldn't prepare a shareable usage snapshot. Refresh Usage & Spend and try again." = "CodexBar 無法準備可分享的用量總覽。請重新整理「使用量與支出」後再試一次。";
 "Incomplete" = "不完整";
 "Est. subtotal (%@): %@" = "估算小計（%@）：%@";
 "Excluded requests with missing final usage: %d" = "因缺少最終用量而排除的請求：%d";

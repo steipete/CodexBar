@@ -1584,6 +1584,10 @@
 "agent_sessions_hide_unreachable_title" = "Nascondi gli host irraggiungibili";
 "agent_sessions_hide_unreachable_subtitle" = "Nascondi gli host quando il recupero delle loro sessioni non riesce.";
 
+/* Overview share flow */
+"Share Usage Snapshot…" = "Condividi riepilogo utilizzo…";
+"Usage snapshot unavailable" = "Riepilogo utilizzo non disponibile";
+"CodexBar couldn't prepare a shareable usage snapshot. Refresh Usage & Spend and try again." = "CodexBar non ha potuto preparare un riepilogo dell’utilizzo da condividere. Aggiorna Utilizzo e spesa e riprova.";
 "Incomplete" = "Incompleto";
 "Est. subtotal (%@): %@" = "Subtotale stimato (%@): %@";
 "Excluded requests with missing final usage: %d" = "Richieste escluse senza dati di utilizzo finali: %d";
