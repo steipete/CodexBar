@@ -256,6 +256,54 @@ struct StatusItemControllerSplitLifecycleTests {
     }
 
     @Test
+    func `makeStatusItem assigns autosaveName before onCreated observes the item`() throws {
+        // Provider vending registers through onCreated before button/setup work (#2162). Tahoe can
+        // otherwise bind Control Center to the transient Item-N identity when that callback runs
+        // before the stable autosave name is applied.
+        let suite = "StatusItemControllerSplitLifecycleTests-autosave-order-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        var autosaveNameDuringOnCreated: String?
+        let item = StatusItemController.makeStatusItem(
+            statusBar: .system,
+            identity: .provider(.codex),
+            defaults: defaults,
+            legacyDefaultItemIndex: 1,
+            onCreated: { created in
+                autosaveNameDuringOnCreated = created.autosaveName
+            })
+        defer { NSStatusBar.system.removeStatusItem(item) }
+
+        #expect(autosaveNameDuringOnCreated == "codexbar-codex")
+        #expect(item.autosaveName == "codexbar-codex")
+    }
+
+    @Test
+    func `provider vending registers with stable autosaveName before setup callback`() throws {
+        // Exercise StatusItemController.vendStatusItem (the app entrypoint), not only makeStatusItem.
+        let (_, controller) = try self.makeSplitController()
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let initialItem = try #require(controller.statusItems[.codex])
+        controller.statusItems.removeValue(forKey: .codex)
+        controller.statusBar.removeStatusItem(initialItem)
+
+        var autosaveNameAtRegistration: String?
+        var registeredItem: NSStatusItem?
+        let vendedItem = controller._test_vendStatusItem(for: .codex) { created in
+            autosaveNameAtRegistration = created.autosaveName
+            registeredItem = controller.statusItems[.codex]
+        }
+
+        #expect(autosaveNameAtRegistration == "codexbar-codex")
+        #expect(registeredItem === vendedItem)
+        #expect(vendedItem.autosaveName == "codexbar-codex")
+        #expect(vendedItem.button != nil)
+    }
+
+    @Test
     func `status item placement preflight leaves fresh install placement unset`() throws {
         let suite = "StatusItemControllerSplitLifecycleTests-placement-missing-\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))
