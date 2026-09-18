@@ -51,6 +51,63 @@ struct MenuBarLayoutV4PersistenceTests {
         #expect(defaults.data(forKey: MenuBarLayoutUserDefaultsKey.layoutCurrent) != nil)
         #expect(defaults.data(forKey: MenuBarLayoutUserDefaultsKey.layoutV3) != nil)
     }
+
+    @Test
+    func `V3 edits win on return upgrade across layouts overrides and conditionals`() {
+        let fullLayout = MenuBarLayout(lines: [[
+            .icon,
+            .windowResetCountdown(window: .weekly),
+            .extraPercent(id: "cursor-grok-bot"),
+        ]])
+        let olderLayoutEdit = MenuBarLayout(lines: [[.icon, .windowResetCountdown(window: .session)]])
+        #expect(MenuBarLayoutPersistence.preferredLayout(
+            current: fullLayout,
+            v3: olderLayoutEdit,
+            released: olderLayoutEdit.releasedCompatible(),
+            legacy: olderLayoutEdit.legacyCompatible()) == olderLayoutEdit)
+
+        let fullOverrides = ["cursor": fullLayout, "claude": fullLayout]
+        let olderOverrideEdit = ["cursor": olderLayoutEdit]
+        #expect(MenuBarLayoutPersistence.preferredOverrides(
+            current: fullOverrides,
+            v3: olderOverrideEdit,
+            released: olderOverrideEdit.mapValues { $0.releasedCompatible() },
+            legacy: olderOverrideEdit.mapValues { $0.legacyCompatible() }) == olderOverrideEdit)
+
+        let readable = MenuBarLayoutConditional(
+            name: "Read reset",
+            clauses: [MenuBarConditionalClause(
+                combinator: nil,
+                predicate: MenuBarConditionalPredicate(metric: .session, comparison: .greaterThan, threshold: 50))],
+            thenToken: .windowResetCountdown(window: .weekly),
+            elseToken: .hidden)
+        let namedExtra = MenuBarLayoutConditional(
+            name: "Read Grok Bot",
+            clauses: [MenuBarConditionalClause(
+                combinator: nil,
+                predicate: MenuBarConditionalPredicate(metric: .session, comparison: .greaterThan, threshold: 50))],
+            thenToken: .extraPercent(id: "cursor-grok-bot"),
+            elseToken: .hidden)
+        let olderConditionalEdit = MenuBarLayoutConditional(
+            id: readable.id,
+            name: "Edited in V3",
+            clauses: readable.clauses,
+            thenToken: .windowResetAbsolute(window: .session),
+            elseToken: .hidden)
+        let returned = MenuBarLayoutPersistence.preferredLibrary(
+            current: [readable, namedExtra],
+            v3: [olderConditionalEdit],
+            released: [olderConditionalEdit],
+            legacy: [])
+        #expect(returned == [olderConditionalEdit, namedExtra])
+
+        // A V3 user clearing the library deliberately clears V4-only entries too.
+        #expect(MenuBarLayoutPersistence.preferredLibrary(
+            current: [readable, namedExtra],
+            v3: [],
+            released: [],
+            legacy: []) == [])
+    }
 }
 
 private enum PreV3MenuBarLayoutToken: Codable, Equatable {
