@@ -136,6 +136,11 @@ covering wide displays left of the primary screen. When no display bound is avai
 cover this cleanup without creating status items or changing the user's saved preferences. Passing these tests does
 not establish the cause of a position that changes again after launch; that requires runtime placement evidence.
 
+Runtime removal and visibility changes preserve the current saved position if AppKit clears it. This also covers
+status-menu Quit, which removes items before AppKit termination begins. The deterministic tests use in-memory
+defaults; native proof must use a signed, isolated app with a visibly hosted item and exercise removal/recreation,
+hide/show, and removal before termination. This does not diagnose older out-of-range placement reports.
+
 ### Run Tests Only
 
 Lint tools are installed at repository-pinned versions by `Scripts/install_lint_tools.sh`, with archive checksums
