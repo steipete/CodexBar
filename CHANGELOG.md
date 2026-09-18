@@ -2,6 +2,10 @@
 
 ## 0.60.5 — Unreleased
 
+### Added
+
+- Bifrost: add a self-hosted AI gateway provider that reads a virtual key's own governance budgets and rate limits.
+
 ### Fixed
 
 - Codex costs: publish validated reporting windows during historical catch-up while retaining prior data for incomplete sources and preserving automatic power limits (#3669, related to #3508). Thanks @kernnel!
