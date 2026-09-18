@@ -20,6 +20,7 @@ enum CLILoginRunner {
 
     static func run(
         executable: String?,
+        extraArguments: [String] = [],
         environment: [String: String],
         timeout: TimeInterval,
         outputDrainTimeout: TimeInterval,
@@ -30,7 +31,7 @@ enum CLILoginRunner {
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        process.arguments = [executable, "login"]
+        process.arguments = [executable, "login"] + extraArguments
         process.environment = environment
 
         let stdout = Pipe()

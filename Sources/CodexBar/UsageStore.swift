@@ -15,7 +15,11 @@ extension UsageStore {
         _ = self.knownLimitsAvailabilityByProvider
         _ = self.lastSourceLabels
         _ = self.lastFetchAttempts
-        _ = (self.accountSnapshots, self.tokenAccountLiveStateProviders, self.codexAccountSnapshots)
+        _ = (
+            self.accountSnapshots,
+            self.tokenAccountLiveStateProviders,
+            self.codexAccountSnapshots,
+            self.grokAccountSnapshots)
         _ = self.kiloScopeSnapshots
         _ = self.claudeSwapAccountSnapshots
         _ = self.claudeSwapLastError
@@ -167,6 +171,7 @@ final class UsageStore {
     var accountSnapshots: [ProviderInstanceID: [TokenAccountUsageSnapshot]] = [:]
     var tokenAccountLiveStateProviders: Set<ProviderInstanceID> = []
     var codexAccountSnapshots: [CodexAccountUsageSnapshot] = []
+    var grokAccountSnapshots: [GrokAccountUsageSnapshot] = []
     var kiloScopeSnapshots: [KiloScopeSnapshot] = []
     var claudeSwapAccountSnapshots: [ProviderAccountUsageSnapshot] = []
     var claudeSwapLastRefreshAt: Date?

@@ -1599,3 +1599,20 @@
 "Incomplete" = "不完整";
 "Est. subtotal (%@): %@" = "估算小计（%@）：%@";
 "Excluded requests with missing final usage: %d" = "因缺少最终用量而排除的请求：%d";
+
+"managed_grok_login_already_running" = "托管 Grok 登录已在运行。请等待完成后再添加或重新认证其他账户。";
+"managed_grok_login_failed" = "托管 Grok 登录未完成。请先在终端确认 `grok --version` 可以运行，然后重试添加账户。";
+"managed_grok_login_missing_email" = "Grok 登录已完成，但没有拿到账户邮箱。请确认账户已完全登录后再试。";
+"grok_login_output" = "grok login 输出：";
+"remove_grok_account_title" = "移除 Grok 账户？";
+"Grok CLI not found" = "未找到 Grok CLI";
+"Install the Grok CLI (`grok`) and try again." = "请安装 Grok CLI（`grok`）后再试。";
+"Could not start grok login" = "无法启动 grok login";
+"Grok login timed out" = "Grok 登录超时";
+"Grok login failed" = "Grok 登录失败";
+"Complete Grok login in your browser" = "请在浏览器中完成 Grok 登录";
+"grok_device_login_progress_prefix" = "请在浏览器中完成登录。如果没有弹出窗口，请打开下面的 URL。";
+"grok login exited with status %d." = "grok login 以状态 %d 退出。";
+"No Grok account on this Mac." = "这台 Mac 上没有 Grok 账户。";
+"Active account" = "当前账户";
+"Grok account identity did not match the selected home." = "Grok 账户身份与所选 Home 不匹配。";

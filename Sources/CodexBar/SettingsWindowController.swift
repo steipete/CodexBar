@@ -64,6 +64,7 @@ final class SettingsWindowController: NSWindowController {
         updater: UpdaterProviding,
         selection: PreferencesSelection,
         managedCodexAccountCoordinator: ManagedCodexAccountCoordinator,
+        managedGrokAccountCoordinator: ManagedGrokAccountCoordinator = ManagedGrokAccountCoordinator(),
         codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator,
         runProviderLoginFlow: @escaping @MainActor (UsageProvider) async -> Void)
     {
@@ -75,6 +76,7 @@ final class SettingsWindowController: NSWindowController {
                 updater: updater,
                 selection: selection,
                 managedCodexAccountCoordinator: managedCodexAccountCoordinator,
+                managedGrokAccountCoordinator: managedGrokAccountCoordinator,
                 codexAccountPromotionCoordinator: codexAccountPromotionCoordinator,
                 runProviderLoginFlow: runProviderLoginFlow)
             let hostingController = NSHostingController(rootView: rootView)

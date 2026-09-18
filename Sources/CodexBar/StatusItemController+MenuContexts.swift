@@ -16,6 +16,7 @@ extension StatusItemController {
         let menuWidth: CGFloat
         let codexAccountDisplay: CodexAccountMenuDisplay?
         let tokenAccountDisplay: TokenAccountMenuDisplay?
+        var grokAccountDisplay: GrokAccountMenuDisplay?
         let openAIContext: OpenAIWebContext
     }
 
@@ -28,6 +29,7 @@ extension StatusItemController {
         let menuWidth: CGFloat
         let codexAccountDisplay: CodexAccountMenuDisplay?
         let tokenAccountDisplay: TokenAccountMenuDisplay?
+        var grokAccountDisplay: GrokAccountMenuDisplay?
         let openAIContext: OpenAIWebContext
         let descriptor: MenuDescriptor
     }

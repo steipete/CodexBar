@@ -29,6 +29,7 @@ extension StatusItemController {
             menuWidth: 300,
             codexAccountDisplay: nil,
             tokenAccountDisplay: nil,
+            grokAccountDisplay: nil,
             localizationSignature: self.menuLocalizationSignature(),
             items: [])
         self.menuCardHeightCache[

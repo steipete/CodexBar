@@ -344,6 +344,13 @@ extension UsageStore {
             self.codexAccountSnapshots = []
         }
 
+        if provider == .grok, self.shouldFetchAllGrokVisibleAccounts() {
+            await self.refreshGrokVisibleAccountsForMenu(generation: generation)
+            return nil
+        } else if provider == .grok {
+            self.grokAccountSnapshots = []
+        }
+
         if provider == .kilo, self.shouldFanOutKiloScopes() {
             await self.refreshKiloScopes(generation: generation)
             guard self.isCurrentProviderRefreshGeneration(provider, generation: generation) else { return nil }
@@ -374,9 +381,15 @@ extension UsageStore {
         }
 
         let tokenAccount = self.settings.effectiveSelectedTokenAccount(for: provider)
+        let grokActiveSourceOverride: GrokActiveSource? = {
+            guard provider == .grok else { return nil }
+            let source = self.settings.grokResolvedActiveSource
+            return source.usesManagedHome ? source : nil
+        }()
         let fetchContext = self.makeFetchContext(
             provider: provider,
             override: nil,
+            grokActiveSourceOverride: grokActiveSourceOverride,
             claudeOwnerCLIRecoveryOnly: retryMode == .claudeOwnerCLIRecovery)
         let claudeHasAdminAPIKey = ClaudeAdminAPISettingsReader.apiKey(environment: fetchContext.env) != nil
         let claudeActiveAccountIdentitySourceEligible = Self.shouldTrackClaudeActiveAccountIdentity(

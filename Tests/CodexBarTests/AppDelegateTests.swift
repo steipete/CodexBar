@@ -52,6 +52,7 @@ struct AppDelegateTests {
             account: account,
             selection: PreferencesSelection(),
             managedCodexAccountCoordinator: managedCodexAccountCoordinator,
+            managedGrokAccountCoordinator: ManagedGrokAccountCoordinator(),
             codexAccountPromotionCoordinator: promotionCoordinator))
         #expect(factoryCalls == 0)
 

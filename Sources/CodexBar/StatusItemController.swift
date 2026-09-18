@@ -285,6 +285,8 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var lastCodexAccountMenuDisplay: CodexAccountMenuDisplay?
     /// Tracks the visible token account switcher contents for merged-menu smart updates.
     var lastTokenAccountMenuDisplay: TokenAccountMenuDisplay?
+    /// Tracks the visible Grok account switcher contents for merged-menu smart updates.
+    var lastGrokAccountMenuDisplay: GrokAccountMenuDisplay?
     /// Debounced pre-build of sibling switcher tabs for flicker-free tab switches.
     /// A common-modes Timer (not a Task) so it fires during NSMenu tracking.
     var mergedSwitcherWarmupTimer: Timer?

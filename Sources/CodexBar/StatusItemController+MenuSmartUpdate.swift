@@ -11,6 +11,7 @@ extension StatusItemController {
         let menuWidth: CGFloat
         let codexAccountDisplay: CodexAccountMenuDisplay?
         let tokenAccountDisplay: TokenAccountMenuDisplay?
+        var grokAccountDisplay: GrokAccountMenuDisplay?
         let openAIContext: OpenAIWebContext
         let descriptor: MenuDescriptor
     }
@@ -38,7 +39,8 @@ extension StatusItemController {
                    in: menu,
                    menuWidth: context.menuWidth,
                    codexAccountDisplay: context.codexAccountDisplay,
-                   tokenAccountDisplay: context.tokenAccountDisplay)
+                   tokenAccountDisplay: context.tokenAccountDisplay,
+                   grokAccountDisplay: context.grokAccountDisplay)
             {
                 MenuSwitchFlickerProbe.debugLog("cached-swap begin \(context.switcherSelection)")
                 defer { MenuSwitchFlickerProbe.debugLog("cached-swap end") }
@@ -47,6 +49,7 @@ extension StatusItemController {
                 // AppKit can visibly render when the whole content block is removed first.
                 let outgoingCodexAccountDisplay = self.lastCodexAccountMenuDisplay
                 let outgoingTokenAccountDisplay = self.lastTokenAccountMenuDisplay
+                let outgoingGrokAccountDisplay = self.lastGrokAccountMenuDisplay
                 self.rememberMergedSwitcherState(enabledProviders, context.switcherSelection)
                 let displacedItems = self.replaceMenuContentKeepingRowsVisible(
                     menu,
@@ -63,9 +66,11 @@ extension StatusItemController {
                         menuWidth: context.menuWidth,
                         codexAccountDisplay: outgoingCodexAccountDisplay,
                         tokenAccountDisplay: outgoingTokenAccountDisplay,
+                        grokAccountDisplay: outgoingGrokAccountDisplay,
                         contentVersion: nil))
                 self.lastCodexAccountMenuDisplay = context.codexAccountDisplay
                 self.lastTokenAccountMenuDisplay = context.tokenAccountDisplay
+                self.lastGrokAccountMenuDisplay = context.grokAccountDisplay
                 self.cacheVisibleMergedSwitcherContent(
                     in: menu,
                     selection: context.switcherSelection,
@@ -123,6 +128,12 @@ extension StatusItemController {
             width: context.menuWidth,
             captureMenu: captureMenu)
         self.lastTokenAccountMenuDisplay = context.tokenAccountDisplay
+        self.addGrokAccountSwitcherIfNeeded(
+            to: target,
+            display: context.grokAccountDisplay,
+            width: context.menuWidth,
+            captureMenu: captureMenu)
+        self.lastGrokAccountMenuDisplay = context.grokAccountDisplay
 
         let menuContext = MenuCardContext(
             currentProvider: context.currentProvider,
@@ -130,6 +141,7 @@ extension StatusItemController {
             menuWidth: context.menuWidth,
             codexAccountDisplay: context.codexAccountDisplay,
             tokenAccountDisplay: context.tokenAccountDisplay,
+            grokAccountDisplay: context.grokAccountDisplay,
             openAIContext: context.openAIContext)
         self.addPrimaryMenuContent(
             to: target,

@@ -56,6 +56,7 @@ struct PreferencesView: View {
     let updater: UpdaterProviding
     @Bindable var selection: PreferencesSelection
     let managedCodexAccountCoordinator: ManagedCodexAccountCoordinator
+    let managedGrokAccountCoordinator: ManagedGrokAccountCoordinator
     let codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator
     let runProviderLoginFlow: @MainActor (UsageProvider) async -> Void
     @Environment(\.colorScheme) private var colorScheme
@@ -78,6 +79,7 @@ struct PreferencesView: View {
         updater: UpdaterProviding,
         selection: PreferencesSelection,
         managedCodexAccountCoordinator: ManagedCodexAccountCoordinator = ManagedCodexAccountCoordinator(),
+        managedGrokAccountCoordinator: ManagedGrokAccountCoordinator = ManagedGrokAccountCoordinator(),
         codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator? = nil,
         runProviderLoginFlow: @escaping @MainActor (UsageProvider) async -> Void = { _ in })
     {
@@ -87,6 +89,7 @@ struct PreferencesView: View {
         self.updater = updater
         self.selection = selection
         self.managedCodexAccountCoordinator = managedCodexAccountCoordinator
+        self.managedGrokAccountCoordinator = managedGrokAccountCoordinator
         self.codexAccountPromotionCoordinator = codexAccountPromotionCoordinator
             ?? CodexAccountPromotionCoordinator(
                 settingsStore: settings,
@@ -215,6 +218,7 @@ struct PreferencesView: View {
                     settings: self.settings,
                     store: self.store,
                     managedCodexAccountCoordinator: self.managedCodexAccountCoordinator,
+                    managedGrokAccountCoordinator: self.managedGrokAccountCoordinator,
                     codexAccountPromotionCoordinator: self.codexAccountPromotionCoordinator,
                     runProviderLoginFlow: self.runProviderLoginFlow)
                     .id(instanceID)

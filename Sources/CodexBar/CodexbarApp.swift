@@ -43,6 +43,7 @@ struct CodexBarApp: App {
     @State private var settings: SettingsStore
     @State private var store: UsageStore
     @State private var managedCodexAccountCoordinator: ManagedCodexAccountCoordinator
+    @State private var managedGrokAccountCoordinator: ManagedGrokAccountCoordinator
     @State private var codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator
     private let preferencesSelection: PreferencesSelection
     private let account: AccountInfo
@@ -83,7 +84,12 @@ struct CodexBarApp: App {
         managedCodexAccountCoordinator.onManagedAccountsDidChange = {
             _ = settings.refreshCodexAccountReconciliationAfterManagedAccountsDidChange()
         }
+        let managedGrokAccountCoordinator = ManagedGrokAccountCoordinator()
+        managedGrokAccountCoordinator.onManagedAccountsDidChange = {
+            _ = settings.refreshGrokAccountsAfterManagedAccountsDidChange()
+        }
         _ = settings.persistResolvedCodexActiveSourceCorrectionIfNeeded()
+        _ = settings.persistResolvedGrokActiveSourceCorrectionIfNeeded()
         let fetcher = UsageFetcher()
         let browserDetection = BrowserDetection(cacheTTL: BrowserDetection.defaultCacheTTL)
         let account = fetcher.loadAccountInfo()
@@ -96,6 +102,7 @@ struct CodexBarApp: App {
         _settings = State(wrappedValue: settings)
         _store = State(wrappedValue: store)
         _managedCodexAccountCoordinator = State(wrappedValue: managedCodexAccountCoordinator)
+        _managedGrokAccountCoordinator = State(wrappedValue: managedGrokAccountCoordinator)
         _codexAccountPromotionCoordinator = State(wrappedValue: codexAccountPromotionCoordinator)
         self.account = account
         CodexBarLog.setLogLevel(settings.debugLogLevel)
@@ -105,6 +112,7 @@ struct CodexBarApp: App {
             account: account,
             selection: preferencesSelection,
             managedCodexAccountCoordinator: managedCodexAccountCoordinator,
+            managedGrokAccountCoordinator: managedGrokAccountCoordinator,
             codexAccountPromotionCoordinator: codexAccountPromotionCoordinator))
     }
 
@@ -372,6 +380,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let account: AccountInfo
         let selection: PreferencesSelection
         let managedCodexAccountCoordinator: ManagedCodexAccountCoordinator
+        let managedGrokAccountCoordinator: ManagedGrokAccountCoordinator
         let codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator
     }
 
@@ -390,6 +399,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var account: AccountInfo?
     private var preferencesSelection: PreferencesSelection?
     private var managedCodexAccountCoordinator: ManagedCodexAccountCoordinator?
+    private var managedGrokAccountCoordinator: ManagedGrokAccountCoordinator?
     private var codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator?
     private var cloudSyncCoordinator: CloudSyncCoordinator?
     private var settingsWindowController: SettingsWindowController?
@@ -411,6 +421,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.account = dependencies.account
         self.preferencesSelection = dependencies.selection
         self.managedCodexAccountCoordinator = dependencies.managedCodexAccountCoordinator
+        self.managedGrokAccountCoordinator = dependencies.managedGrokAccountCoordinator
         self.codexAccountPromotionCoordinator = dependencies.codexAccountPromotionCoordinator
         self.cloudSyncCoordinator = CloudSyncCoordinator(settings: dependencies.settings, state: self.cloudSyncState)
         self.settingsWindowController = SettingsWindowController(
@@ -420,6 +431,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             updater: self.updaterController,
             selection: dependencies.selection,
             managedCodexAccountCoordinator: dependencies.managedCodexAccountCoordinator,
+            managedGrokAccountCoordinator: dependencies.managedGrokAccountCoordinator,
             codexAccountPromotionCoordinator: dependencies.codexAccountPromotionCoordinator,
             runProviderLoginFlow: { [weak self] provider in
                 guard let self else { return }

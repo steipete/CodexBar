@@ -1583,3 +1583,20 @@
 "Incomplete" = "Incompleto";
 "Est. subtotal (%@): %@" = "Subtotal estimado (%@): %@";
 "Excluded requests with missing final usage: %d" = "Solicitudes excluídas sen datos de uso finais: %d";
+
+"managed_grok_login_already_running" = "A managed Grok login is already running. Wait for it to finish before adding or re-authenticating another account.";
+"managed_grok_login_failed" = "Managed Grok login did not complete. Verify that `grok --version` works in Terminal, then try Add Account again.";
+"managed_grok_login_missing_email" = "Grok login completed, but no account email was available. Try again after confirming the account is fully signed in.";
+"grok_login_output" = "grok login output:";
+"remove_grok_account_title" = "Remove Grok account?";
+"Grok CLI not found" = "Grok CLI not found";
+"Install the Grok CLI (`grok`) and try again." = "Install the Grok CLI (`grok`) and try again.";
+"Could not start grok login" = "Could not start grok login";
+"Grok login timed out" = "Grok login timed out";
+"Grok login failed" = "Grok login failed";
+"Complete Grok login in your browser" = "Complete Grok login in your browser";
+"grok_device_login_progress_prefix" = "Finish signing in in your browser. If no window appeared, open the URL below.";
+"grok login exited with status %d." = "grok login exited with status %d.";
+"No Grok account on this Mac." = "No Grok account on this Mac.";
+"Active account" = "Active account";
+"Grok account identity did not match the selected home." = "Grok account identity did not match the selected home.";

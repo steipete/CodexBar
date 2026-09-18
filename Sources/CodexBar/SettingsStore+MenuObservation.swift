@@ -81,6 +81,7 @@ extension SettingsStore {
         _ = self.iCloudSyncShowFleetAccounts
         _ = self.codexUsageDataSource
         _ = self.codexActiveSource
+        _ = self.grokActiveSource
         _ = self.claudeUsageDataSource
         _ = self.kiloUsageDataSource
         _ = self.kiloExtrasEnabled

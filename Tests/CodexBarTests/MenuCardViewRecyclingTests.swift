@@ -627,6 +627,7 @@ extension StatusMenuTests {
             menuWidth: 300,
             codexAccountDisplay: nil,
             tokenAccountDisplay: nil,
+            grokAccountDisplay: nil,
             localizationSignature: "",
             items: [])
         controller.mergedSwitcherContentCaches[ObjectIdentifier(menu)] = [
@@ -663,6 +664,7 @@ extension StatusMenuTests {
             menuWidth: 300,
             codexAccountDisplay: nil,
             tokenAccountDisplay: nil,
+            grokAccountDisplay: nil,
             localizationSignature: "",
             items: [])
         controller.mergedSwitcherContentCaches[ObjectIdentifier(menu)] = [

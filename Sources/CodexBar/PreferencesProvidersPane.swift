@@ -19,6 +19,7 @@ struct ProvidersPane: View {
     @Bindable var settings: SettingsStore
     @Bindable var store: UsageStore
     let managedCodexAccountCoordinator: ManagedCodexAccountCoordinator
+    let managedGrokAccountCoordinator: ManagedGrokAccountCoordinator
     let codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator
     let codexAmbientLoginRunner: any CodexAmbientLoginRunning
     let runProviderLoginFlow: @MainActor (UsageProvider) async -> Void
@@ -27,7 +28,9 @@ struct ProvidersPane: View {
     @State private var settingsLastAppActiveRunAtByID: [String: Date] = [:]
     @State private var activeConfirmation: ProviderSettingsConfirmationState?
     @State private var codexAccountsNotice: CodexAccountsSectionNotice?
+    @State private var grokAccountsNotice: GrokAccountsSectionNotice?
     @State private var isAuthenticatingLiveCodexAccount = false
+    @State private var isAuthenticatingLiveGrokAccount = false
 
     init(
         // Provider-specific by design: Codex is the historical settings selection when no provider is supplied.
@@ -35,6 +38,7 @@ struct ProvidersPane: View {
         settings: SettingsStore,
         store: UsageStore,
         managedCodexAccountCoordinator: ManagedCodexAccountCoordinator = ManagedCodexAccountCoordinator(),
+        managedGrokAccountCoordinator: ManagedGrokAccountCoordinator = ManagedGrokAccountCoordinator(),
         codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator? = nil,
         codexAmbientLoginRunner: any CodexAmbientLoginRunning = DefaultCodexAmbientLoginRunner(),
         runProviderLoginFlow: @escaping @MainActor (UsageProvider) async -> Void = { _ in })
@@ -43,6 +47,7 @@ struct ProvidersPane: View {
         self.settings = settings
         self.store = store
         self.managedCodexAccountCoordinator = managedCodexAccountCoordinator
+        self.managedGrokAccountCoordinator = managedGrokAccountCoordinator
         self.codexAccountPromotionCoordinator = codexAccountPromotionCoordinator
             ?? CodexAccountPromotionCoordinator(
                 settingsStore: settings,
@@ -76,8 +81,31 @@ struct ProvidersPane: View {
             onRefresh: {
                 self.triggerRefresh(for: self.provider)
             },
-            showsSupplementarySettingsContent: self.codexAccountsSectionState(for: self.provider) != nil,
+            showsSupplementarySettingsContent: self.codexAccountsSectionState(for: self.provider) != nil
+                || self.grokAccountsSectionState(for: self.provider) != nil,
             supplementarySettingsContent: {
+                if let state = self.grokAccountsSectionState(for: self.provider) {
+                    GrokAccountsSectionView(
+                        state: state,
+                        setActiveVisibleAccount: { visibleAccountID in
+                            Task { @MainActor in
+                                await self.selectGrokVisibleAccount(id: visibleAccountID)
+                            }
+                        },
+                        reauthenticateAccount: { account in
+                            Task { @MainActor in
+                                await self.reauthenticateGrokAccount(account)
+                            }
+                        },
+                        removeAccount: { account in
+                            self.requestManagedGrokAccountRemoval(account)
+                        },
+                        addAccount: {
+                            Task { @MainActor in
+                                await self.addManagedGrokAccount()
+                            }
+                        })
+                }
                 if let state = self.codexAccountsSectionState(for: self.provider) {
                     CodexAccountsSectionView(
                         state: state,
@@ -350,6 +378,119 @@ struct ProvidersPane: View {
             })
     }
 
+    func grokAccountsSectionState(for provider: UsageProvider) -> GrokAccountsSectionState? {
+        guard provider == .grok else { return nil }
+        let projection = self.settings.grokVisibleAccountProjection
+        let degradedNotice: GrokAccountsSectionNotice? = if projection.hasUnreadableAddedAccountStore {
+            GrokAccountsSectionNotice(
+                text: L("managed_account_storage_unreadable"),
+                tone: .warning)
+        } else {
+            nil
+        }
+        let progressNotice = self.managedGrokAccountCoordinator.loginProgressOutput.map {
+            GrokAccountsSectionNotice(text: $0, tone: .secondary)
+        }
+        return GrokAccountsSectionState(
+            visibleAccounts: projection.visibleAccounts,
+            activeVisibleAccountID: projection.activeVisibleAccountID,
+            hasUnreadableManagedAccountStore: projection.hasUnreadableAddedAccountStore,
+            isAuthenticatingManagedAccount: self.managedGrokAccountCoordinator.isAuthenticatingManagedAccount,
+            authenticatingManagedAccountID: self.managedGrokAccountCoordinator.authenticatingManagedAccountID,
+            isRemovingManagedAccount: self.managedGrokAccountCoordinator.isRemovingManagedAccount,
+            isAuthenticatingLiveAccount: self.isAuthenticatingLiveGrokAccount,
+            notice: self.grokAccountsNotice ?? progressNotice ?? degradedNotice)
+    }
+
+    func selectGrokVisibleAccount(id: String) async {
+        self.grokAccountsNotice = nil
+        guard self.settings.selectGrokVisibleAccount(id: id) else { return }
+        await self.refreshGrokProvider()
+    }
+
+    func addManagedGrokAccount() async {
+        self.grokAccountsNotice = nil
+        guard let state = self.grokAccountsSectionState(for: .grok), state.canAddAccount else {
+            return
+        }
+        do {
+            let account = try await self.managedGrokAccountCoordinator.authenticateManagedAccount(
+                onProgress: Self.grokLoginProgressHandler)
+            self.settings.selectAuthenticatedManagedGrokAccount(account)
+            await self.refreshGrokProvider()
+        } catch {
+            self.grokAccountsNotice = self.grokAccountsNotice(for: error)
+        }
+    }
+
+    func reauthenticateGrokAccount(_ account: GrokVisibleAccount) async {
+        self.grokAccountsNotice = nil
+        if case let .managedAccount(accountID) = account.selectionSource {
+            do {
+                _ = try await self.managedGrokAccountCoordinator.authenticateManagedAccount(
+                    existingAccountID: accountID,
+                    onProgress: Self.grokLoginProgressHandler)
+                await self.refreshGrokProvider()
+            } catch {
+                self.grokAccountsNotice = self.grokAccountsNotice(for: error)
+            }
+            return
+        }
+        guard account.selectionSource == .liveSystem else { return }
+        self.isAuthenticatingLiveGrokAccount = true
+        defer { self.isAuthenticatingLiveGrokAccount = false }
+        let result = await GrokLoginRunner.run(
+            timeout: GrokLoginRunner.defaultTimeout,
+            onProgress: Self.grokLoginProgressHandler)
+        if let info = GrokLoginAlertPresentation.alertInfo(for: result) {
+            self.presentLoginAlert(title: info.title, message: info.message)
+            return
+        }
+        await self.refreshGrokProvider()
+    }
+
+    func removeManagedGrokAccount(id: UUID) async {
+        self.grokAccountsNotice = nil
+        do {
+            try await self.managedGrokAccountCoordinator.removeManagedAccount(id: id)
+            _ = self.settings.refreshGrokAccountsAfterManagedAccountsDidChange()
+            await self.refreshGrokProvider()
+        } catch {
+            self.grokAccountsNotice = self.grokAccountsNotice(for: error)
+        }
+    }
+
+    func requestManagedGrokAccountRemoval(_ account: GrokVisibleAccount) {
+        guard let accountID = account.storedAccountID else { return }
+        self.activeConfirmation = ProviderSettingsConfirmationState(
+            title: L("remove_grok_account_title"),
+            message: String(format: L("remove_account_message"), account.email),
+            confirmTitle: L("remove"),
+            onConfirm: {
+                Task { @MainActor in
+                    await self.removeManagedGrokAccount(id: accountID)
+                }
+            })
+    }
+
+    private func refreshGrokProvider() async {
+        await ProviderInteractionContext.$current.withValue(.userInitiated) {
+            await self.store.refreshProvider(.grok, allowDisabled: true)
+        }
+    }
+
+    private func grokAccountsNotice(for error: Error) -> GrokAccountsSectionNotice {
+        if let error = error as? ManagedGrokAccountCoordinatorError,
+           error == .authenticationInProgress
+        {
+            return GrokAccountsSectionNotice(text: L("managed_grok_login_already_running"), tone: .warning)
+        }
+        if let error = error as? ManagedGrokAccountServiceError {
+            return GrokAccountsSectionNotice(text: error.userFacingMessage, tone: .warning)
+        }
+        return GrokAccountsSectionNotice(text: error.localizedDescription, tone: .warning)
+    }
+
     func providerErrorDisplay(_ provider: UsageProvider) -> ProviderErrorDisplay? {
         guard let full = self.store.error(for: provider) ?? self.store.diagnostic(for: provider),
               !full.isEmpty
@@ -559,6 +700,12 @@ struct ProvidersPane: View {
         return CodexAccountsSectionNotice(
             text: error.localizedDescription,
             tone: .warning)
+    }
+
+    private static let grokLoginProgressHandler: @Sendable (String) -> Void = { output in
+        Task { @MainActor in
+            GrokLoginAlertPresentation.presentProgress(output)
+        }
     }
 
     private func presentLoginAlert(title: String, message: String) {

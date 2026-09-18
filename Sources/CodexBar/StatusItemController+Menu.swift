@@ -275,7 +275,10 @@ extension StatusItemController {
                 menu: menu,
                 provider: currentProvider)
         let tokenAccountDisplay = suppressAccountSwitchers ? nil : self.tokenAccountMenuDisplay(for: currentProvider)
-        let showAllAccounts = (tokenAccountDisplay?.showAll ?? false) || (codexAccountDisplay?.showAll ?? false)
+        let grokAccountDisplay = suppressAccountSwitchers ? nil : self.grokAccountMenuDisplay(for: currentProvider)
+        let showAllAccounts = (tokenAccountDisplay?.showAll ?? false)
+            || (codexAccountDisplay?.showAll ?? false)
+            || (grokAccountDisplay?.showAll ?? false)
         let openAIContext = self.openAIWebContext(
             currentProvider: currentProvider,
             showAllAccounts: showAllAccounts)
@@ -289,6 +292,7 @@ extension StatusItemController {
 
         let hasTokenSwitcher = menu.items.contains { $0.view is TokenAccountSwitcherView }
         let hasCodexSwitcher = menu.items.contains { $0.view is CodexAccountSwitcherView }
+        let hasGrokSwitcher = menu.items.contains { $0.view is GrokAccountSwitcherView }
         let switcherProvidersMatch = switcherProviderIDs == self.lastSwitcherProviders
         let switcherUsageBarsShowUsedMatch = self.settings.usageBarsShowUsed == self.lastSwitcherUsageBarsShowUsed
         let switcherSelectionMatches = switcherSelection == self.lastMergedSwitcherSelection
@@ -300,6 +304,9 @@ extension StatusItemController {
         let codexSwitcherCompatible = codexAccountDisplay == self.lastCodexAccountMenuDisplay &&
             ((codexAccountDisplay?.showSwitcher == true && hasCodexSwitcher) ||
                 (codexAccountDisplay?.showSwitcher != true && !hasCodexSwitcher))
+        let grokSwitcherCompatible = grokAccountDisplay == self.lastGrokAccountMenuDisplay &&
+            ((grokAccountDisplay?.showSwitcher == true && hasGrokSwitcher) ||
+                (grokAccountDisplay?.showSwitcher != true && !hasGrokSwitcher))
         let reusableRowWidthsMatch = self.reusableFixedWidthRows(in: menu).allSatisfy { item in
             guard let view = item.view else { return false }
             return abs(view.frame.width - menuWidth) <= 0.5
@@ -317,6 +324,7 @@ extension StatusItemController {
             menuLocalizationMatches &&
             tokenSwitcherCompatible &&
             codexSwitcherCompatible &&
+            grokSwitcherCompatible &&
             reusableRowWidthsMatch &&
             !menu.items.isEmpty &&
             menu.items.first?.view is ProviderSwitcherView
@@ -343,6 +351,7 @@ extension StatusItemController {
                     menuWidth: menuWidth,
                     codexAccountDisplay: codexAccountDisplay,
                     tokenAccountDisplay: tokenAccountDisplay,
+                    grokAccountDisplay: grokAccountDisplay,
                     openAIContext: openAIContext,
                     descriptor: descriptor))
             return
@@ -376,6 +385,7 @@ extension StatusItemController {
                     menuWidth: menuWidth,
                     codexAccountDisplay: codexAccountDisplay,
                     tokenAccountDisplay: tokenAccountDisplay,
+                    grokAccountDisplay: grokAccountDisplay,
                     openAIContext: openAIContext,
                     descriptor: descriptor))
             return
@@ -398,6 +408,7 @@ extension StatusItemController {
                 menuWidth: menuWidth,
                 codexAccountDisplay: codexAccountDisplay,
                 tokenAccountDisplay: tokenAccountDisplay,
+                grokAccountDisplay: grokAccountDisplay,
                 openAIContext: openAIContext,
                 descriptor: descriptor))
     }
@@ -418,6 +429,12 @@ extension StatusItemController {
         }
         if menu.items.count > index,
            menu.items[index].view is TokenAccountSwitcherView
+        {
+            reusableRows.append(menu.items[index])
+            index += 2
+        }
+        if menu.items.count > index,
+           menu.items[index].view is GrokAccountSwitcherView
         {
             reusableRows.append(menu.items[index])
         }
@@ -458,7 +475,8 @@ extension StatusItemController {
                    to: menu,
                    menuWidth: context.menuWidth,
                    codexAccountDisplay: context.codexAccountDisplay,
-                   tokenAccountDisplay: context.tokenAccountDisplay)
+                   tokenAccountDisplay: context.tokenAccountDisplay,
+                   grokAccountDisplay: context.grokAccountDisplay)
             {
                 return
             }
@@ -472,12 +490,18 @@ extension StatusItemController {
                 display: context.tokenAccountDisplay,
                 width: context.menuWidth)
             self.lastTokenAccountMenuDisplay = context.tokenAccountDisplay
+            self.addGrokAccountSwitcherIfNeeded(
+                to: menu,
+                display: context.grokAccountDisplay,
+                width: context.menuWidth)
+            self.lastGrokAccountMenuDisplay = context.grokAccountDisplay
             let menuContext = MenuCardContext(
                 currentProvider: context.currentProvider,
                 selectedProvider: context.selectedProvider,
                 menuWidth: context.menuWidth,
                 codexAccountDisplay: context.codexAccountDisplay,
                 tokenAccountDisplay: context.tokenAccountDisplay,
+                grokAccountDisplay: context.grokAccountDisplay,
                 openAIContext: context.openAIContext)
             self.addPrimaryMenuContent(
                 to: menu,
@@ -687,6 +711,12 @@ extension StatusItemController {
     private func addMenuCards(to menu: NSMenu, context: MenuCardContext, captureMenu: NSMenu? = nil) -> Bool {
         let fleetProjection = self.fleetAccountProjection(for: context.currentProvider)
         if self.addFleetFallback(fleetProjection, to: menu, context: context) {
+            return false
+        }
+
+        if let grokAccountDisplay = context.grokAccountDisplay, grokAccountDisplay.showAll {
+            self.addGrokAccountMenuCards(grokAccountDisplay, to: menu, context: context)
+            self.addFleetAccountMenuCards(fleetProjection.additionalAccounts, to: menu, context: context)
             return false
         }
 

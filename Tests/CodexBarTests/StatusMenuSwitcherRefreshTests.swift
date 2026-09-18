@@ -524,7 +524,8 @@ struct StatusMenuSwitcherRefreshTests {
             to: menu,
             menuWidth: cache.menuWidth,
             codexAccountDisplay: cache.codexAccountDisplay,
-            tokenAccountDisplay: cache.tokenAccountDisplay))
+            tokenAccountDisplay: cache.tokenAccountDisplay,
+            grokAccountDisplay: cache.grokAccountDisplay))
         #expect(refreshItem.menu === menu)
         #expect(refreshItem.isEnabled)
     }

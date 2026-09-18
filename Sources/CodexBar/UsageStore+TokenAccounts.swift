@@ -701,7 +701,8 @@ extension UsageStore {
     func fetchOutcome(
         provider: UsageProvider,
         override: TokenAccountOverride?,
-        codexActiveSourceOverride: CodexActiveSource? = nil) async -> ProviderFetchOutcome
+        codexActiveSourceOverride: CodexActiveSource? = nil,
+        grokActiveSourceOverride: GrokActiveSource? = nil) async -> ProviderFetchOutcome
     {
         let descriptor =
             self.providerSpecs[provider]?.descriptor
@@ -710,7 +711,8 @@ extension UsageStore {
         let context = self.makeFetchContext(
             provider: provider,
             override: override,
-            codexActiveSourceOverride: codexActiveSourceOverride)
+            codexActiveSourceOverride: codexActiveSourceOverride,
+            grokActiveSourceOverride: grokActiveSourceOverride)
         let outcome = await descriptor.fetchOutcome(context: context)
         guard provider == .codex else { return outcome }
         return await Self.attachingCodexResetCreditsIfNeeded(
@@ -904,6 +906,7 @@ extension UsageStore {
         provider: UsageProvider,
         override: TokenAccountOverride?,
         codexActiveSourceOverride: CodexActiveSource? = nil,
+        grokActiveSourceOverride: GrokActiveSource? = nil,
         includeCredits: Bool = false,
         claudeOwnerCLIRecoveryOnly: Bool = false) -> ProviderFetchContext
     {
@@ -911,10 +914,16 @@ extension UsageStore {
             provider: provider,
             settings: self.settings,
             override: override)
-        let sourceMode = ProviderRegistry.resolvedSourceMode(
+        var sourceMode = ProviderRegistry.resolvedSourceMode(
             provider: provider,
             settings: self.settings,
             account: account)
+        if provider == .grok {
+            let grokActiveSource = grokActiveSourceOverride ?? self.settings.grokResolvedActiveSource
+            if grokActiveSource.usesManagedHome {
+                sourceMode = .oauth
+            }
+        }
         let snapshot = ProviderRegistry.makeSettingsSnapshot(
             settings: self.settings,
             tokenOverride: override,
@@ -924,7 +933,8 @@ extension UsageStore {
             provider: provider,
             settings: self.settings,
             tokenOverride: override,
-            codexActiveSourceOverride: codexActiveSourceOverride)
+            codexActiveSourceOverride: codexActiveSourceOverride,
+            grokActiveSourceOverride: grokActiveSourceOverride)
         let fetcher = ProviderRegistry.makeFetcher(base: self.codexFetcher, provider: provider, env: env)
         let contextProvider = provider
         let publicationGeneration = self.providerRefreshPublicationContexts[provider.instanceID]?

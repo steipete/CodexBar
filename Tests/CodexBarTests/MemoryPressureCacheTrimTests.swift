@@ -108,6 +108,7 @@ struct MemoryPressureCacheTrimTests {
             menuWidth: 300,
             codexAccountDisplay: nil,
             tokenAccountDisplay: nil,
+            grokAccountDisplay: nil,
             localizationSignature: "",
             items: [])
 

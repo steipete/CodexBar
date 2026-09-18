@@ -5,6 +5,7 @@ struct CachedMergedSwitcherMenuContent {
     let menuWidth: CGFloat
     let codexAccountDisplay: CodexAccountMenuDisplay?
     let tokenAccountDisplay: TokenAccountMenuDisplay?
+    let grokAccountDisplay: GrokAccountMenuDisplay?
     let localizationSignature: String
     let items: [NSMenuItem]
 
@@ -13,6 +14,7 @@ struct CachedMergedSwitcherMenuContent {
         menuWidth: CGFloat,
         codexAccountDisplay: CodexAccountMenuDisplay?,
         tokenAccountDisplay: TokenAccountMenuDisplay?,
+        grokAccountDisplay: GrokAccountMenuDisplay?,
         localizationSignature: String)
         -> Bool
     {
@@ -20,6 +22,7 @@ struct CachedMergedSwitcherMenuContent {
             abs(self.menuWidth - menuWidth) <= 0.5 &&
             self.codexAccountDisplay == codexAccountDisplay &&
             self.tokenAccountDisplay == tokenAccountDisplay &&
+            self.grokAccountDisplay == grokAccountDisplay &&
             self.localizationSignature == localizationSignature
     }
 }
@@ -28,6 +31,7 @@ struct MergedSwitcherContentCacheContext {
     let menuWidth: CGFloat
     let codexAccountDisplay: CodexAccountMenuDisplay?
     let tokenAccountDisplay: TokenAccountMenuDisplay?
+    let grokAccountDisplay: GrokAccountMenuDisplay?
     let contentVersion: Int?
 }
 
@@ -66,6 +70,7 @@ extension StatusItemController {
                 menuWidth: menuWidth,
                 codexAccountDisplay: self.lastCodexAccountMenuDisplay,
                 tokenAccountDisplay: self.lastTokenAccountMenuDisplay,
+                grokAccountDisplay: self.lastGrokAccountMenuDisplay,
                 contentVersion: contentVersion))
     }
 
@@ -84,6 +89,7 @@ extension StatusItemController {
             menuWidth: context.menuWidth,
             codexAccountDisplay: context.codexAccountDisplay,
             tokenAccountDisplay: context.tokenAccountDisplay,
+            grokAccountDisplay: context.grokAccountDisplay,
             localizationSignature: self.lastMenuLocalizationSignature,
             items: items)
         self.mergedSwitcherContentCaches[ObjectIdentifier(menu), default: [:]][selection] = entry
@@ -95,7 +101,8 @@ extension StatusItemController {
         in menu: NSMenu,
         menuWidth: CGFloat,
         codexAccountDisplay: CodexAccountMenuDisplay?,
-        tokenAccountDisplay: TokenAccountMenuDisplay?)
+        tokenAccountDisplay: TokenAccountMenuDisplay?,
+        grokAccountDisplay: GrokAccountMenuDisplay?)
         -> [NSMenuItem]?
     {
         let key = ObjectIdentifier(menu)
@@ -105,6 +112,7 @@ extension StatusItemController {
             menuWidth: menuWidth,
             codexAccountDisplay: codexAccountDisplay,
             tokenAccountDisplay: tokenAccountDisplay,
+            grokAccountDisplay: grokAccountDisplay,
             localizationSignature: self.menuLocalizationSignature())
         else {
             self.mergedSwitcherContentCaches[key]?.removeValue(forKey: selection)
@@ -118,7 +126,8 @@ extension StatusItemController {
         to menu: NSMenu,
         menuWidth: CGFloat,
         codexAccountDisplay: CodexAccountMenuDisplay?,
-        tokenAccountDisplay: TokenAccountMenuDisplay?)
+        tokenAccountDisplay: TokenAccountMenuDisplay?,
+        grokAccountDisplay: GrokAccountMenuDisplay?)
         -> Bool
     {
         guard let items = self.reusableMergedSwitcherContent(
@@ -126,11 +135,13 @@ extension StatusItemController {
             in: menu,
             menuWidth: menuWidth,
             codexAccountDisplay: codexAccountDisplay,
-            tokenAccountDisplay: tokenAccountDisplay)
+            tokenAccountDisplay: tokenAccountDisplay,
+            grokAccountDisplay: grokAccountDisplay)
         else { return false }
 
         self.lastCodexAccountMenuDisplay = codexAccountDisplay
         self.lastTokenAccountMenuDisplay = tokenAccountDisplay
+        self.lastGrokAccountMenuDisplay = grokAccountDisplay
         for item in items {
             menu.addItem(item)
         }

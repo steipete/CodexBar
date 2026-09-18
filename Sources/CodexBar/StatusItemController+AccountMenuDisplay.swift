@@ -40,6 +40,12 @@ extension StatusItemController {
     }
 
     func tokenAccountMenuDisplay(for provider: UsageProvider) -> TokenAccountMenuDisplay? {
+        if GrokAccountMenuSupport.suppressesTokenAccounts(
+            provider: provider,
+            visibleAccountCount: self.settings.grokVisibleAccountProjection.visibleAccounts.count)
+        {
+            return nil
+        }
         guard TokenAccountSupportCatalog.support(for: provider) != nil else { return nil }
         // Retained Cursor manual accounts are dormant while Automatic browser discovery owns the live snapshot.
         guard self.settings.effectiveSelectedTokenAccount(for: provider) != nil else { return nil }

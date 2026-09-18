@@ -13,6 +13,18 @@ fetched via the ACP JSON-RPC `x.ai/billing` extension method over `grok agent st
 when available, then via the Grok CLI billing REST API using the local login token.
 The grok.com billing gRPC-web endpoint remains a best-effort fallback.
 
+## Managed OAuth accounts
+
+CodexBar can add extra SuperGrok OAuth accounts without overwriting `~/.grok`.
+
+- Settings → Providers → Grok → **Add Account** runs `GROK_HOME=<managed-home> grok login --device-auth`.
+- `--device-auth` is the headless device-code flow. `--oauth` is a TUI paste-code flow and cannot complete from CodexBar because there is no stdin.
+- Each added account keeps its own `auth.json` under `Application Support/CodexBar/managed-grok-homes/`.
+- The live `~/.grok` account still appears as **(System)** when present.
+- Usage refreshes set `GROK_HOME` per account and use the SuperGrok OAuth billing path. Cookie fallback is disabled for these stacked refreshes.
+- The menu follows Settings → Display multi-account layout, same as Codex: segmented switcher by default, stacked cards when that layout is selected.
+- CodexBar does not copy or refresh Grok tokens; re-auth runs `grok login --device-auth` against that home.
+
 ## Settings source picker
 
 - **Auto**: Grok CLI, then SuperGrok OAuth CLI-proxy, then browser cookies, then bearer gRPC.

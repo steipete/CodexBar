@@ -163,7 +163,8 @@ struct ProviderRegistry {
         provider: UsageProvider,
         settings: SettingsStore,
         tokenOverride: TokenAccountOverride?,
-        codexActiveSourceOverride: CodexActiveSource? = nil) -> [String: String]
+        codexActiveSourceOverride: CodexActiveSource? = nil,
+        grokActiveSourceOverride: GrokActiveSource? = nil) -> [String: String]
     {
         let account = ProviderTokenAccountSelection.selectedAccount(
             provider: provider,
@@ -193,6 +194,14 @@ struct ProviderRegistry {
                 forActiveSource: codexActiveSource)
             {
                 env = CodexHomeScope.scopedEnvironment(base: env, codexHome: profileHomePath)
+            }
+        }
+        if provider == .grok {
+            let grokActiveSource = grokActiveSourceOverride ?? settings.grokResolvedActiveSource
+            if grokActiveSource.usesManagedHome,
+               let grokHomePath = settings.grokHomePath(forActiveSource: grokActiveSource)
+            {
+                env = GrokHomeScope.scopedEnvironment(base: env, grokHome: grokHomePath)
             }
         }
         return env
