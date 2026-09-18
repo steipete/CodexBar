@@ -245,11 +245,12 @@ extension AntigravityCLIHTTPSFetchStrategyTests {
     @Test(arguments: [true, false])
     func `print timeout terminates its process`(versionKnown: Bool) async throws {
         let fixture = try Self.printExecutable(
-            "echo $$ > \"$HOME/pid\"; exec /bin/sleep 10", version: versionKnown ? "1.2.2" : nil)
+            "echo $$ > \"$HOME/pid.tmp\"; /bin/mv \"$HOME/pid.tmp\" \"$HOME/pid\"; exec /bin/sleep 10",
+            version: versionKnown ? "1.2.2" : nil)
         defer { try? FileManager.default.removeItem(at: fixture.directory) }
         await #expect(throws: AntigravityStatusProbeError.timedOut) {
             try await AntigravityCLIHTTPSFetchStrategy().fetchPrintUsage(
-                binary: fixture.binary.path, environment: fixture.environment, timeout: 1)
+                binary: fixture.binary.path, environment: fixture.environment, timeout: 3)
         }
         try Self.expectPrintProcessExited(in: fixture.directory)
     }
@@ -257,7 +258,8 @@ extension AntigravityCLIHTTPSFetchStrategyTests {
     @Test(arguments: [true, false])
     func `print cancellation terminates its process`(versionKnown: Bool) async throws {
         let fixture = try Self.printExecutable(
-            "echo $$ > \"$HOME/pid\"; exec /bin/sleep 10", version: versionKnown ? "1.2.2" : nil)
+            "echo $$ > \"$HOME/pid.tmp\"; /bin/mv \"$HOME/pid.tmp\" \"$HOME/pid\"; exec /bin/sleep 10",
+            version: versionKnown ? "1.2.2" : nil)
         defer { try? FileManager.default.removeItem(at: fixture.directory) }
         let task = Task {
             try await AntigravityCLIHTTPSFetchStrategy().fetchPrintUsage(

@@ -7,6 +7,31 @@ import XCTest
 
 @MainActor
 final class OpenRouterNativeProofTests: XCTestCase {
+    func test_managementActivitySummaryNativeProof() async throws {
+        guard let path = ProcessInfo.processInfo.environment["CODEXBAR_OPENROUTER_ACTIVITY_PROOF_DIR"] else {
+            throw XCTSkip("Set CODEXBAR_OPENROUTER_ACTIVITY_PROOF_DIR for synthetic Activity proof")
+        }
+        let output = URL(fileURLWithPath: path, isDirectory: true)
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        let snapshot = try await OpenRouterLimitTestSupport.snapshot(
+            keyBody: #"{"data":{"is_management_key":true}}"#,
+            activityBody: #"""
+            {"data":[{"date":"2026-08-17","model":"example-model","prompt_tokens":10000,
+            "completion_tokens":5000,"reasoning_tokens":2000,"requests":20,"usage":1}]}
+            """#)
+        let before = snapshot.with(details: snapshot.details.filter {
+            $0.title != "Activity (last 30 completed UTC days)"
+        })
+        for (stage, usage) in [("before", before), ("after", snapshot)] {
+            let card = try Self.menuCard(usage)
+            for (theme, appearance) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
+                let view = AnyView(UsageMenuCardView(model: card, width: 420).padding(20).frame(width: 460))
+                try Self.pngData(for: view, appearance: appearance)
+                    .write(to: output.appendingPathComponent("\(stage)-\(theme).png"))
+            }
+        }
+    }
+
     func test_uncappedSpendSummaryNativeProof() async throws {
         let environment = ProcessInfo.processInfo.environment
         guard let path = environment["CODEXBAR_OPENROUTER_PAYG_PROOF_DIR"] else {

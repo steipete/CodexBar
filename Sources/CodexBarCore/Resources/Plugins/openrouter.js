@@ -7,13 +7,13 @@ defineProvider({
     {
       key: "OPENROUTER_API_KEY",
       title: "API key",
-      subtitle: "OpenRouter API key used for credits and key quota.",
+      subtitle: "Inference or management key. Management keys also enable account Activity on the official API.",
       type: "secure",
     },
     {
       key: "OPENROUTER_MANAGEMENT_API_KEY",
       title: "Management API key",
-      subtitle: "Optional key used only for exact 30-day Activity spend.",
+      subtitle: "Optional account Activity key; takes precedence over a management key in the API key field.",
       type: "secure",
     },
     { key: "OPENROUTER_API_URL", title: "API URL", type: "plain" },
@@ -38,6 +38,7 @@ defineProvider({
     let keyDegradation = null;
     let costUsage = null;
     let activityDegradation = null;
+    let activityDetails = null;
     let creditsData = null;
     let creditsDegradation = null;
     const managementKeyConfigured = Boolean(ctx.settings.getSecret("OPENROUTER_MANAGEMENT_API_KEY"));
@@ -112,7 +113,17 @@ defineProvider({
     }
     if (!keyData && !keyDegradation) keyDegradation = "Response was unavailable";
 
-    if (!managementKeyConfigured) {
+    function isOfficialAPIBase(value) {
+      const match = /^([A-Za-z][A-Za-z0-9+.-]*):\/\/([^/?#]+)(\/[^?#]*)?$/.exec(value);
+      return (
+        match !== null &&
+        match[1].toLowerCase() === "https" &&
+        ["openrouter.ai", "openrouter.ai:443"].includes(match[2].toLowerCase()) &&
+        match[3] === "/api/v1"
+      );
+    }
+    const primaryManagementKey = isOfficialAPIBase(base) && keyData?.is_management_key === true;
+    if (!managementKeyConfigured && !primaryManagementKey) {
       activityDegradation = "Management API key not configured";
     } else
       try {
@@ -123,15 +134,11 @@ defineProvider({
         const cutoff = cutoffDate.toISOString().slice(0, 10);
         // A management credential must never follow the user-configurable API base to a proxy.
         const activityURL = "https://openrouter.ai/api/v1/activity";
+        const activityOptions = { timeoutSeconds: optionalRequestTimeoutSeconds };
+        if (managementKeyConfigured) activityOptions.openRouterManagementAuth = true;
         const [historyResponse, latestCompletedResponse] = await Promise.all([
-          ctx.http.get(activityURL, {
-            timeoutSeconds: optionalRequestTimeoutSeconds,
-            openRouterManagementAuth: true,
-          }),
-          ctx.http.get(`${activityURL}?date=${encodeURIComponent(latestCompleted)}`, {
-            timeoutSeconds: optionalRequestTimeoutSeconds,
-            openRouterManagementAuth: true,
-          }),
+          ctx.http.get(activityURL, activityOptions),
+          ctx.http.get(`${activityURL}?date=${encodeURIComponent(latestCompleted)}`, activityOptions),
         ]);
         if (historyResponse.status !== 200 || latestCompletedResponse.status !== 200) {
           const failed = historyResponse.status !== 200 ? historyResponse : latestCompletedResponse;
@@ -259,6 +266,14 @@ defineProvider({
               historyLabel: "Last 30 days (UTC)",
               windowEnd: latestCompleted,
               entries,
+            };
+            activityDetails = {
+              title: "Activity (last 30 completed UTC days)",
+              rows: [
+                { label: "Tokens", value: String(aggregateInputTokens + aggregateOutputTokens) },
+                { label: "Requests", value: String(aggregateRequests) },
+                { label: "Models", value: String(new Set(entries.map((entry) => entry.model).filter(Boolean)).size) },
+              ],
             };
           } catch {
             activityDegradation = "Response was invalid";
@@ -398,6 +413,7 @@ defineProvider({
       });
     }
 
+    if (activityDetails) details.push(activityDetails);
     if (!costUsage) {
       details.push({
         title: "Spend history",

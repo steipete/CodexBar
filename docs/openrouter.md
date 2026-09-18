@@ -26,7 +26,7 @@ export OPENROUTER_API_KEY="sk-or-v1-..."
 
 You can also configure the API key in CodexBar Settings → Providers → OpenRouter.
 
-Add an OpenRouter Management API key in the same settings pane for exact 30-day Activity spend. It is used only for Activity; the selected regular API key supplies key quota and balance when OpenRouter permits it.
+A management key in the API key field enables account Activity when using the official OpenRouter API. A separately configured Management API key takes precedence for Activity; the selected API key still supplies quota and balance when OpenRouter permits it.
 
 ### CLI config
 
@@ -43,15 +43,16 @@ is `~/.config/codexbar/config.json`, with legacy `~/.codexbar/config.json` and c
 
 ## Data Source
 
-The OpenRouter provider uses a regular API key for current-key data and credit balance when OpenRouter permits that
-key. An optional Management API key enables account-wide Activity and is used only for that fixed-host request:
+The selected API key supplies current-key data and credit balance when OpenRouter permits that key. Account Activity
+uses a separately configured Management API key first, or the primary key when the official Current Key response
+identifies it as a management key. Custom API origins cannot promote a key into Activity requests:
 
 OpenRouter documents the [Current Key](https://openrouter.ai/docs/api/api-reference/api-keys/get-current-key),
 [Credits](https://openrouter.ai/docs/api/api-reference/credits/get-credits), and
 [Activity](https://openrouter.ai/docs/api/api-reference/analytics/get-user-activity) contracts separately.
 
 1. **Current Key API** (`/api/v1/key`): Returns the configured key's spending limit, remaining limit, reset window, and key-level usage.
-2. **Credits API** (`/api/v1/credits`): Returns total credits purchased and total usage. The balance is calculated as `total_credits - total_usage`. CodexBar always uses the selected regular API key so a provider-wide management key cannot replace another account’s balance. A rejected request leaves balance unavailable while valid key usage survives.
+2. **Credits API** (`/api/v1/credits`): Returns total credits purchased and total usage. The balance is calculated as `total_credits - total_usage`. CodexBar always uses the selected API key so a provider-wide management key cannot replace another account’s balance. A rejected request leaves balance unavailable while valid key usage survives.
 3. **Activity API** (`/api/v1/activity`, Management API key required): Returns account activity for the last 30 completed UTC days.
 
 Without a Management API key, CodexBar still shows regular API-key quota and key usage, and preserves balance when
@@ -63,11 +64,15 @@ within the plugin's total deadline. If the Key API is slow or unavailable,
 CodexBar keeps any valid balance and labels the API key limit as unavailable with a safe timeout, HTTP,
 or response diagnostic.
 
-Activity history uses the separately configured Management API key and is optional. Malformed activity, including a combined input/output token total outside the safe integer range, leaves valid credits and key quota available and marks history unavailable.
+Activity history is optional and uses only the fixed official endpoint. The separately configured Management API key wins over a primary management key. Malformed activity, including a combined input/output token total outside the safe integer range, leaves valid credits and key quota available and marks history unavailable.
 Reported reasoning counts are retained separately, including when they exceed completion counts. Token totals remain prompt plus completion; reasoning is not added a second time.
 Successful HTTP responses that fail JSON parsing or validation are labeled “Response was invalid.” Network failures retain “Request failed” or “Request timed out”; HTTP errors retain their status-specific diagnostic. These optional failures preserve usable data from the other endpoints.
 
 ## Display
+
+Successful account Activity adds a compact summary of tokens, requests, and distinct reported models for the last
+30 completed UTC days. Detailed model breakdowns and spend stay in Usage & Spend. Reasoning tokens are retained
+separately and are not added again to input-plus-output token counts.
 
 The **Usage Dashboard** menu action opens [OpenRouter Activity](https://openrouter.ai/activity) for request and spending history.
 

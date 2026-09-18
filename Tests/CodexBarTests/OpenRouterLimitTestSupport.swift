@@ -14,7 +14,8 @@ enum OpenRouterLimitTestSupport {
         keyBody: String = Self.keyBody,
         keyStatus: Int = 200,
         creditsBody: String? = nil,
-        creditsStatus: Int = 200) async throws -> UsageSnapshot
+        creditsStatus: Int = 200,
+        activityBody: String? = nil) async throws -> UsageSnapshot
     {
         let transport = ProviderHTTPTransportHandler { request in
             #expect(request.httpMethod == "GET")
@@ -28,6 +29,9 @@ enum OpenRouterLimitTestSupport {
             case "https://openrouter.ai/api/v1/key":
                 body = keyBody
                 statusCode = keyStatus
+            case "https://openrouter.ai/api/v1/activity", "https://openrouter.ai/api/v1/activity?date=2026-08-17":
+                body = try #require(activityBody)
+                statusCode = 200
             default:
                 Issue.record("Unexpected OpenRouter fixture request: \(String(describing: request.url))")
                 throw URLError(.unsupportedURL)

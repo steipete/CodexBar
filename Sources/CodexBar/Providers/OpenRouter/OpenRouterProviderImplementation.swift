@@ -39,7 +39,7 @@ struct OpenRouterProviderImplementation: ProviderImplementation {
                 id: "openrouter-api-key",
                 title: "API key",
                 subtitle: "Stored in your CodexBar config. Shows spend for this key. "
-                    + "Get your key from openrouter.ai/settings/keys; a spending limit enables quota tracking.",
+                    + "Management keys also enable account Activity on the official OpenRouter API.",
                 kind: .secure,
                 placeholder: "sk-or-v1-...",
                 binding: context.providerConfigBinding(.apiKey),
@@ -57,7 +57,7 @@ struct OpenRouterProviderImplementation: ProviderImplementation {
             ProviderSettingsFieldDescriptor(
                 id: "openrouter-management-api-key",
                 title: "Management API key",
-                subtitle: "Optional. Enables exact 30-day Activity spend.",
+                subtitle: "Optional account Activity key. Takes precedence over a management key in the API key field.",
                 kind: .secure,
                 placeholder: "sk-or-v1-...",
                 binding: context.providerConfigSecretBinding(

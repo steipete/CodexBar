@@ -135,7 +135,9 @@ struct OpenRouterProviderDescriptorTests {
     @Test(arguments: BundledPluginTestSupport.engines)
     func `management key counters do not represent account spend`(engine: ProviderPluginEngineKind) async throws {
         let snapshot = try await OpenRouterLimitTestSupport.snapshot(
-            engine: engine, keyBody: #"{"data":{"is_management_key":true,"usage":0,"usage_monthly":0}}"#)
+            engine: engine,
+            keyBody: #"{"data":{"is_management_key":true,"usage":0,"usage_monthly":0}}"#,
+            activityBody: #"{"data":[]}"#)
         #expect(snapshot.providerCost == nil)
         #expect(snapshot.details.first { $0.title == "Credits" }?.rows.contains {
             $0.label == "Used" && $0.value == "$3.10"
