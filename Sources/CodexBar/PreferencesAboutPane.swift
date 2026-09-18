@@ -57,8 +57,19 @@ struct AboutPane: View {
                 }
             } else {
                 Section {
-                    Text(self.updater.unavailableReason ?? L("updates_unavailable"))
-                        .foregroundStyle(.secondary)
+                    HStack(alignment: .top) {
+                        Text(self.updater.unavailableReason ?? L("updates_unavailable"))
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Button {
+                            self.copyToPasteboard(self.updater.unavailableReason ?? L("updates_unavailable"))
+                        } label: {
+                            Label(L("copy"), systemImage: "doc.on.doc")
+                        }
+                        .labelStyle(.iconOnly)
+                        .buttonStyle(.borderless)
+                        .help(L("copy"))
+                    }
                 }
             }
 
@@ -148,6 +159,12 @@ struct AboutPane: View {
     private func openProjectHome() {
         guard let url = URL(string: "https://github.com/steipete/CodexBar") else { return }
         NSWorkspace.shared.open(url)
+    }
+
+    private func copyToPasteboard(_ text: String) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
     }
 }
 
