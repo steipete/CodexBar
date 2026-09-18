@@ -58,6 +58,14 @@ Bifrost's `override_amount`/`override_mode`/`override_cycles_remaining` fields, 
 shorthand, are resolved client-side to compute the effective limit and next reset date shown in CodexBar; both are
 Bifrost-specific and not otherwise exposed by the API.
 
+Per-model rows normalize the upstream `model` ID for display: known AWS Bedrock cross-region geo (`us.`, `eu.`,
+`apac.`, `global.`, `us-gov.`) and vendor (`anthropic.`, `amazon.`, `meta.`, …) prefixes, and the trailing Bedrock
+revision suffix (`-v1:0`), are stripped, since `per_model_usage[].model` reports that ID verbatim — Bifrost's
+`provider/model` request syntax is routing-only and does not shorten it. The `provider` field is shown as a
+`provider · model` prefix only when a section actually spans more than one upstream provider; a single-provider
+section shows the bare model name, matching every other provider's model rows. A normalization collision (two rows
+resolving to the same label) falls back to the raw model ID for the affected rows instead of merging them.
+
 ## Security
 
 Treat Bifrost virtual keys as secrets. CodexBar stores configured keys only in provider config or token-account
