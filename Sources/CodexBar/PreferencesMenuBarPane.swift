@@ -73,12 +73,40 @@ struct MenuBarPane: View {
                 }
 
                 SettingsMenuPicker(
+                    selection: self.$settings.mergedIconDisplayStyle,
+                    options: MenuBarSettingsMenuOptions.mergedIconStyles,
+                    label: {
+                        SettingsRowLabel(L("merged_icon_style_title"), subtitle: L("merged_icon_style_subtitle"))
+                    },
+                    optionLabel: { style in
+                        Text(style.label)
+                    })
+                    .disabled(!self.settings.mergeIcons || self.settings.menuBarIconStyle != .iconAndPercent)
+
+                if self.isStackedStyleActive {
+                    self.stackedRowProviderPicker(
+                        title: L("merge_icon_stacked_top_provider_title"),
+                        selection: Binding(
+                            get: { self.settings.mergeIconStackedTopProvider },
+                            set: { self.settings.mergeIconStackedTopProvider = $0 }),
+                        excluding: self.settings.mergeIconStackedBottomProvider)
+                    self.stackedRowProviderPicker(
+                        title: L("merge_icon_stacked_bottom_provider_title"),
+                        selection: Binding(
+                            get: { self.settings.mergeIconStackedBottomProvider },
+                            set: { self.settings.mergeIconStackedBottomProvider = $0 }),
+                        excluding: self.settings.mergeIconStackedTopProvider)
+                }
+
+                SettingsMenuPicker(
                     selection: self.$settings.switcherRowsOption,
                     options: MenuBarSettingsMenuOptions.switcherRows,
                     label: { Text(L("switcher_rows_title")) },
                     optionLabel: { option in
                         Text(option.label)
                     })
+                    // Governs the dropdown menu opened by clicking the status item, not the status item
+                    // text itself — that stays fully configurable in Stacked mode too.
                     .disabled(!self.settings.mergeIcons)
 
                 Toggle(isOn: self.$settings.menuBarShowsHighestUsage) {
@@ -86,8 +114,9 @@ struct MenuBarPane: View {
                         L("show_most_used_provider_title"),
                         subtitle: L("show_most_used_provider_subtitle"))
                 }
-                .disabled(!self.settings.mergeIcons)
+                .disabled(!self.settings.mergeIcons || self.isStackedStyleActive)
 
+                // Also governs the dropdown menu, not the status item text.
                 self.overviewProviderRow
                     .disabled(!self.settings.mergeIcons)
             } header: {
@@ -107,6 +136,7 @@ struct MenuBarPane: View {
         .scrollContentBackground(.hidden)
         .onAppear {
             self.reconcileOverviewSelection()
+            self.reconcileStackedProviderSelections()
         }
         .onChange(of: self.settings.mergeIcons) { _, isEnabled in
             guard isEnabled else {
@@ -114,12 +144,20 @@ struct MenuBarPane: View {
                 return
             }
             self.reconcileOverviewSelection()
+            self.reconcileStackedProviderSelections()
         }
         .onChange(of: self.activeProvidersInOrder) { _, _ in
             if self.activeProvidersInOrder.isEmpty {
                 self.isOverviewProviderPopoverPresented = false
             }
             self.reconcileOverviewSelection()
+        }
+        // Stacked rows are picked from the unfiltered display list (`enabledFirstPartyProvidersForDisplay`,
+        // also what the row pickers and resolver use), not `activeProvidersInOrder`'s availability-filtered
+        // list above — a provider that stays enabled but turns momentarily unavailable, or vice versa, can
+        // change one list without changing the other, silently leaving a stale row selection unreconciled.
+        .onChange(of: self.stackedProvidersInOrder) { _, _ in
+            self.reconcileStackedProviderSelections()
         }
     }
 
@@ -183,6 +221,47 @@ struct MenuBarPane: View {
 
     private var activeProvidersInOrder: [UsageProvider] {
         self.store.enabledFirstPartyProviders()
+    }
+
+    /// The unfiltered enabled-provider list Stacked's row pickers and resolver are drawn from — unlike
+    /// `activeProvidersInOrder`, this does not drop a provider that is enabled but momentarily unavailable.
+    private var stackedProvidersInOrder: [UsageProvider] {
+        self.store.enabledFirstPartyProvidersForDisplay()
+    }
+
+    private var isStackedStyleActive: Bool {
+        self.settings.mergeIcons && self.settings.mergedIconDisplayStyle == .stacked
+            && self.settings.menuBarIconStyle == .iconAndPercent
+            && self.stackedProvidersInOrder.count >= 2
+    }
+
+    /// Clears an explicit row pick once it's no longer active, so the picker's label can never disagree
+    /// with what `resolvedMergeIconStackedProviders` actually resolves and renders.
+    private func reconcileStackedProviderSelections() {
+        let active = Set(self.stackedProvidersInOrder)
+        if let top = self.settings.mergeIconStackedTopProvider, !active.contains(top) {
+            self.settings.mergeIconStackedTopProvider = nil
+        }
+        if let bottom = self.settings.mergeIconStackedBottomProvider, !active.contains(bottom) {
+            self.settings.mergeIconStackedBottomProvider = nil
+        }
+    }
+
+    /// Excludes `excluding` from the offered options so the two row pickers can never both point at the
+    /// same explicit provider (an "Automatic" pick on the other row imposes no exclusion, since it
+    /// resolves dynamically around whatever this row ends up as).
+    private func stackedRowProviderPicker(
+        title: String,
+        selection: Binding<UsageProvider?>,
+        excluding: UsageProvider?) -> some View
+    {
+        SettingsMenuPicker(
+            selection: selection,
+            options: [nil] + self.stackedProvidersInOrder.filter { $0 != excluding },
+            label: { Text(title) },
+            optionLabel: { provider in
+                Text(provider.map(self.providerDisplayName) ?? L("Automatic"))
+            })
     }
 
     private var overviewSelectedProviders: [UsageProvider] {

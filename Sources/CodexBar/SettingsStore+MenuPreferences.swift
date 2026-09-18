@@ -27,6 +27,18 @@ enum SwitcherRowsOption: String, CaseIterable {
     }
 }
 
+enum MergedIconDisplayStyle: String, CaseIterable {
+    case switcher
+    case stacked
+
+    var label: String {
+        switch self {
+        case .switcher: L("merged_icon_style_switcher")
+        case .stacked: L("merged_icon_style_stacked")
+        }
+    }
+}
+
 enum UsageBarsFillOption: String, CaseIterable {
     case remaining
     case used
@@ -147,6 +159,42 @@ extension SettingsStore {
     var switcherRowsOption: SwitcherRowsOption {
         get { self.switcherShowsIcons ? .icons : .progress }
         set { self.switcherShowsIcons = newValue == .icons }
+    }
+
+    var mergedIconDisplayStyle: MergedIconDisplayStyle {
+        get { self.mergeIconsStacked ? .stacked : .switcher }
+        set { self.mergeIconsStacked = newValue == .stacked }
+    }
+
+    var mergeIconStackedTopProvider: UsageProvider? {
+        get { self.mergeIconStackedTopProviderRaw.flatMap(UsageProvider.init(rawValue:)) }
+        set { self.mergeIconStackedTopProviderRaw = newValue?.rawValue }
+    }
+
+    var mergeIconStackedBottomProvider: UsageProvider? {
+        get { self.mergeIconStackedBottomProviderRaw.flatMap(UsageProvider.init(rawValue:)) }
+        set { self.mergeIconStackedBottomProviderRaw = newValue?.rawValue }
+    }
+
+    /// Resolves the two providers shown by the "Stacked" combined-icon style: the user's explicit
+    /// top/bottom picks when they are still active, otherwise the first two active providers in
+    /// order. Explicit picks are reserved before any "Automatic" slot is filled, so leaving one row on
+    /// Automatic never bumps an explicit pick on the other row. Returns nil when fewer than two
+    /// providers are active, so callers can fall back to the switcher style.
+    func resolvedMergeIconStackedProviders(activeProviders: [UsageProvider])
+    -> (top: UsageProvider, bottom: UsageProvider)? {
+        guard activeProviders.count >= 2 else { return nil }
+
+        let explicitTop = self.mergeIconStackedTopProvider.flatMap { activeProviders.contains($0) ? $0 : nil }
+        let explicitBottom = self.mergeIconStackedBottomProvider.flatMap {
+            activeProviders.contains($0) && $0 != explicitTop ? $0 : nil
+        }
+
+        let top = explicitTop ?? activeProviders.first { $0 != explicitBottom }
+        let bottom = explicitBottom ?? activeProviders.first { $0 != top }
+
+        guard let top, let bottom else { return nil }
+        return (top, bottom)
     }
 
     var usageBarsFillOption: UsageBarsFillOption {

@@ -100,6 +100,9 @@ extension SettingsStore {
         _ = self.ollamaCookieSource
         _ = self.mergeIcons
         _ = self.switcherShowsIcons
+        _ = self.mergeIconsStacked
+        _ = self.mergeIconStackedTopProviderRaw
+        _ = self.mergeIconStackedBottomProviderRaw
         _ = self.mergedOverviewSelectedProviders
         _ = self.zaiAPIToken
         _ = self[providerConfig: .synthetic, field: .apiKey]

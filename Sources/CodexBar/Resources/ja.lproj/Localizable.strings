@@ -609,6 +609,12 @@
 "cost_summary_off" = "オフ";
 "merge_icons_title" = "アイコンを統合";
 "merge_icons_subtitle" = "プロバイダ切替付きの単一のメニューバーアイコンを使用します。";
+"merged_icon_style_title" = "結合アイコンのスタイル";
+"merged_icon_style_subtitle" = "「切り替え」はプロバイダを1つずつ順番に表示し、「積み重ね」は2つのプロバイダを同時に1行ずつ表示します。";
+"merged_icon_style_switcher" = "切り替え";
+"merged_icon_style_stacked" = "積み重ね";
+"merge_icon_stacked_top_provider_title" = "上段";
+"merge_icon_stacked_bottom_provider_title" = "下段";
 "show_most_used_provider_title" = "最も使用中のプロバイダを表示";
 "show_most_used_provider_subtitle" = "レート制限に最も近いプロバイダをメニューバーに自動表示します。";
 "display_mode_title" = "表示モード";

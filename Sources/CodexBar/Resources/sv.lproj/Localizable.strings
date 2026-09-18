@@ -611,6 +611,12 @@
 "cost_summary_off" = "Av";
 "merge_icons_title" = "Slå ihop ikoner";
 "merge_icons_subtitle" = "Använd en enda menyradsikon med leverantörsväxlare.";
+"merged_icon_style_title" = "Kombinerad ikonstil";
+"merged_icon_style_subtitle" = "Växlaren växlar mellan leverantörer en i taget; Staplad visar två leverantörer samtidigt, en rad var.";
+"merged_icon_style_switcher" = "Växlare";
+"merged_icon_style_stacked" = "Staplad";
+"merge_icon_stacked_top_provider_title" = "Övre raden";
+"merge_icon_stacked_bottom_provider_title" = "Nedre raden";
 "show_most_used_provider_title" = "Visa mest använda leverantör";
 "show_most_used_provider_subtitle" = "Menyraden visar automatiskt leverantören som ligger närmast sin gräns.";
 "display_mode_title" = "Visningsläge";

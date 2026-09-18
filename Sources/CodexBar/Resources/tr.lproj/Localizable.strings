@@ -618,6 +618,12 @@
 "cost_summary_off" = "Kapalı";
 "merge_icons_title" = "Simgeleri birleştir";
 "merge_icons_subtitle" = "Sağlayıcı seçicili tek bir menü çubuğu simgesi kullan.";
+"merged_icon_style_title" = "Birleşik simge stili";
+"merged_icon_style_subtitle" = "Değiştirici sağlayıcılar arasında tek tek geçiş yapar; Yığılmış ise iki sağlayıcıyı aynı anda, her biri kendi satırında gösterir.";
+"merged_icon_style_switcher" = "Değiştirici";
+"merged_icon_style_stacked" = "Yığılmış";
+"merge_icon_stacked_top_provider_title" = "Üst satır";
+"merge_icon_stacked_bottom_provider_title" = "Alt satır";
 "show_most_used_provider_title" = "En çok kullanılan sağlayıcıyı göster";
 "show_most_used_provider_subtitle" = "Menü çubuğu, kota sınırına en yakın sağlayıcıyı otomatik olarak gösterir.";
 "display_mode_title" = "Görünüm modu";
