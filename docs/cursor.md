@@ -36,6 +36,9 @@ mode never reads Cursor.app credentials; macOS uses its cookie ladder, while Lin
      reads the Cursor database directly and does not persist the app token.
    - When an already-cached cookie exposes a different email or subject, CodexBar logs the mismatch and keeps the
      chosen Cursor.app identity on the usage snapshot/card. It does not combine app usage with browser identity.
+   - Temporary transport failures keep the previous usage measurement and its timestamp for an unchanged account,
+     including when the network message is localized. The same policy applies to stored sessions; rejected sessions
+     still follow the normal sign-in recovery path.
 
 2) **Cached cookie header**
    - Stored after successful browser import.
@@ -137,18 +140,40 @@ API-list-price estimates are not estimates of actual Cursor charges: they do not
 
 Caching: the app holds the snapshot for an in-memory hourly TTL, keyed by the history window plus the cookie source and resolved account (manual-cookie hash or auto-mode account fingerprint), so switching accounts or pasting a new cookie invalidates it immediately.
 
+If Auto fetches usage with a cookie that the app still cannot confirm for the current account, the result stays unpublished. An unchanged account scope waits for the next normal or manual refresh instead of repeatedly forcing another request. Real account, history-window, provider, or cost-timezone changes still request a replacement; a successful fetch that confirms its own cookie can publish immediately.
+
 ## Snapshot mapping
 - Primary: plan usage percent (included plan).
 - Secondary: Cursor (Cursor models) usage percent.
 - Tertiary: Third Party usage percent.
-- Extra: Grok Bot weekly included usage from `get-sand-usage-status` when the account has a non-zero Bot allowance.
+- Extra: Grok Bot usage from `get-sand-usage-status` when the account has a paid allowance or an unexpired trial. The current `includedLimitZero` field takes precedence over the older allowance flag. Exhausted active trials remain visible; missing, malformed, or expired trial dates do not grant an allowance. Grok Bot is not the semantic weekly window, so monthly Cursor Auto pace stays on the Cursor bar when this extra 7-day window is present. Paid 7-day Grok Bot extras still show weekly pace on that extra bar; trial extras without a recurring reset do not.
 - Provider cost: Extra usage USD. A capped individual budget wins; team accounts without a user cap use the shared team on-demand budget.
-- Reset: billing cycle end date for monthly bars; Grok Bot uses `nextResetTimestampUtc` (weekly).
+- Reset: billing cycle end date for monthly bars; paid Grok Bot uses `nextResetTimestampUtc`, even if a trial-expiry field is also present. Trial-only allowances have no recurring reset or duration because trial expiration does not replenish quota.
 
 ## Key files
 - `Sources/CodexBarCore/Providers/Cursor/CursorAppAuth.swift`
 - `Sources/CodexBarCore/Providers/Cursor/CursorStatusProbe.swift`
+- `Sources/CodexBarCore/Providers/Cursor/CursorStatusProbe+UsageSummary.swift` (summary projection)
+- `Sources/CodexBarCore/Providers/Cursor/CursorTeamSpend.swift` (verified member budget)
 - `Sources/CodexBarCore/Providers/Cursor/CursorSandUsage.swift` (Grok Bot weekly included usage)
 - `Sources/CodexBar/CursorLoginRunner.swift` (login flow)
 - `Sources/CodexBar/Providers/Cursor/CursorLoginFlow.swift` (menu integration)
 - `Sources/CodexBar/CursorLoginBrowserRouter.swift` (browser routing and selection)
+
+### Enterprise and Business member budgets
+
+For team plans with a fresh nonempty email from `/api/auth/me`, the usage probe also checks `/api/dashboard/teams` and
+`/api/dashboard/get-team-spend`. It prefers `portal-selected-team-id` over `team_id`,
+verifies the selection against the authenticated account's teams, and uses a sole
+team when no selection cookie is present (including Cursor.app authentication).
+Multiple teams without a selection remain on the usage-summary fallback.
+
+The authenticated member's `overallSpendCents` and `effectivePerUserLimitDollars`
+(or `monthlyLimitDollars` when the effective limit is absent) drive the primary
+percentage and plan dollars. Missing spend or non-positive limits are not treated
+as a zero-usage budget. Other members' data is not included in debug output.
+The optional lookup shares a ten-second deadline and the configured request timeout, with at most twenty pages of
+fifty members. It requires consistent page-count metadata, full intermediate pages, and the complete page set before accepting one
+matching member. Missing completion metadata, duplicate matches, or unavailable, invalid, or incomplete responses
+preserve usage-summary behavior. Billing dates and extra/on-demand charges remain sourced from usage-summary;
+team response dates and other members' details are not retained. Caller cancellation still stops the fetch.

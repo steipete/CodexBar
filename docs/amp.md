@@ -15,10 +15,14 @@ local Amp CLI, then an Amp access token, and finally browser cookies.
 
 - **Amp Free meter**: Shows how much daily free usage remains.
 - **Daily reset**: Percentage-based Amp Free usage resets at 8:00 PM America/New_York time.
-- **Monthly subscriptions**: Shows the independently metered “Other usage” and “Orb usage” pools for Megawatt and
-  Gigawatt plans.
+- **Monthly subscriptions**: Shows independent Agent and Orb usage for Tier output, calculated from the exact dollar
+  and hour balances instead of rounded CLI percentages. Legacy Subscription output retains its “Other usage” and
+  “Orb usage” pools. Missing or unrecognized Orb data does not hide the Agent pool.
+- **Monthly allowances**: Keeps remaining Agent dollars and Orb hours separate from individual and workspace credits.
+  Orb time is displayed as whole a1.small-equivalent hours, rounded down; positive balances below an hour show `< 1h`.
+  Usage calculations retain the full reported precision.
 - **Time-to-full reset**: Legacy dollar-based Amp Free output estimates when hourly replenishment reaches full.
-- **Individual credits**: Shows the remaining paid credit balance when Amp reports one.
+- **Individual credits**: Shows the remaining paid balance shared by agent and orb usage when Amp reports one.
 - **Workspace credits**: Shows each workspace's remaining paid credit balance separately.
 - **CLI-first fetch**: Uses `amp usage` when the Amp CLI is installed and signed in.
 - **Access token support**: Uses `AMP_API_KEY` or the access token saved in CodexBar settings.
@@ -46,7 +50,9 @@ Create an access token in Amp settings, then paste it into **Amp → Access toke
 - Calls `POST https://ampcode.com/api/internal?userDisplayBalanceInfo` with an Amp access token
 - Falls back to the settings page with browser cookies
 - Parses the same usage display format returned to the CLI
-- Uses Amp's calendar-month renewal period for subscriptions and its 8:00 PM New York reset for daily free usage
+- Anchors Tier pacing to the reported billing dates; missing or invalid dates disable Tier pacing. These date-only
+  fields use UTC day boundaries, so renewal timing and pacing are approximate within a day. Legacy Subscription
+  output retains its calendar-month estimate. Daily free usage resets at 8:00 PM New York time.
 - Computes time-to-full from the hourly replenishment rate for legacy dollar-based Amp Free output
 
 ### “Amp access token is invalid or expired”

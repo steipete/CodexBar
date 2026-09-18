@@ -136,7 +136,7 @@ struct OpenCodexUsageFanOutTests {
         #expect(SpendDashboardSource.preferredMergeIndex(for: .codex, in: multipleCodex) == nil)
     }
 
-    @Test func `mergingOpenCodexInputs drops opencodex when hidden in hiddenSourceIDs`() {
+    @Test func `hidden OpenCodex inputs publish a disabled observation`() {
         let dummySnapshot = CostUsageTokenSnapshot(
             sessionTokens: nil,
             sessionCostUSD: nil,
@@ -165,8 +165,9 @@ struct OpenCodexUsageFanOutTests {
             now: Date(),
             force: false)
 
-        let result = SpendDashboardSource.mergingOpenCodexInputs([dummy], request: request)
-        #expect(!result.contains(where: { $0.id == SpendDashboardModel.openCodexSourceID }))
+        let result = SpendDashboardSource.mergingOpenCodexInputsWithObservation([dummy], request: request)
+        #expect(!result.inputs.contains(where: { $0.id == SpendDashboardModel.openCodexSourceID }))
+        #expect(result.observation == .disabled)
     }
 
     @Test
@@ -688,7 +689,7 @@ private enum OpenCodexUsageSnapshotReference {
             .summary(forLastDays: days, calendar: calendar)
         return CostUsageTokenSnapshot(
             sessionTokens: todayEntry?.totalTokens ?? (daily.isEmpty ? nil : 0),
-            sessionCostUSD: todayEntry?.costUSD ?? (daily.isEmpty ? nil : 0),
+            sessionCostUSD: todayEntry == nil && !daily.isEmpty ? 0 : todayEntry?.costUSD,
             sessionRequests: todayEntry?.requestCount ?? (daily.isEmpty ? nil : 0),
             last30DaysTokens: windowSummary.totalTokens,
             last30DaysCostUSD: windowSummary.totalCostUSD,

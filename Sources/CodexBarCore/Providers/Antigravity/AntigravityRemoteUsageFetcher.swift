@@ -428,7 +428,7 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
         let models = response.models ?? [:]
         return models.compactMap { modelID, model in
             guard let quotaInfo = model.quotaInfo else { return nil }
-            let resetTime = quotaInfo.resetTime.flatMap(Self.parseResetTime(_:))
+            let resetTime = ISO8601DateParser.parse(quotaInfo.resetTime)
             let label = model.displayName?.trimmedNonEmpty
                 ?? model.label?.trimmedNonEmpty
                 ?? modelID
@@ -464,7 +464,7 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
 
         return modelQuotaMap.keys.sorted().compactMap { modelID in
             guard let info = modelQuotaMap[modelID] else { return nil }
-            let resetTime = info.resetTime.flatMap(Self.parseResetTime(_:))
+            let resetTime = ISO8601DateParser.parse(info.resetTime)
             return AntigravityModelQuota(
                 label: modelID,
                 modelId: modelID,
@@ -513,16 +513,6 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
         return nil
     }
 
-    private static func parseResetTime(_ value: String) -> Date? {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = formatter.date(from: value) {
-            return date
-        }
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter.date(from: value)
-    }
-
     private static func credentialsStore(homeDirectory: String) -> AntigravityOAuthCredentialsStore {
         let homeURL = URL(fileURLWithPath: homeDirectory, isDirectory: true)
         return AntigravityOAuthCredentialsStore(fileURL: AntigravityOAuthCredentialsStore.defaultURL(home: homeURL))
@@ -564,7 +554,7 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
         request.httpMethod = "POST"
         request.timeoutInterval = context.timeout
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        request.httpBody = Self.formBody([
+        request.httpBody = FormURLEncoding.body([
             "client_id": oauthClient.clientID,
             "client_secret": oauthClient.clientSecret,
             "refresh_token": refreshToken,
@@ -621,14 +611,6 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
             credentials.idToken = idToken
         }
         return credentials
-    }
-
-    private static func formBody(_ values: [String: String]) -> Data? {
-        var components = URLComponents()
-        components.queryItems = values.map { key, value in
-            URLQueryItem(name: key, value: value)
-        }
-        return components.query?.data(using: .utf8)
     }
 
     private struct TokenClaims {

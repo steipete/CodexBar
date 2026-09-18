@@ -325,10 +325,16 @@ enum CostUsageScanner {
         let projectPath: String?
         let codexSession: CostUsageCodexSessionMetadata
         let rows: [CodexUsageRow]
+        let nextUsageRowIndex: Int
         let tokenSnapshots: [CostUsageCodexTokenSnapshot]
         let jsonlResumeState: CostUsageJsonl.ResumeState?
         let bufferedSubagentLines: [CodexBufferedFastLine]?
         let bufferedUnresolvedForkLines: [CodexBufferedFastLine]?
+    }
+
+    struct CodexPricingEvidence: Codable, Equatable {
+        let pricingModel: String?
+        let pricingMode: String?
     }
 
     struct CodexUsageRow: Codable, Equatable {
@@ -346,8 +352,8 @@ enum CostUsageScanner {
         /// Estimated model-table pricing is resolved from token classes when reports are read.
         let knownCostNanos: Int64?
         let unpricedTokens: Int?
-        let pricingModel: String?
-        let pricingMode: String?
+        var pricingModel: String?
+        var pricingMode: String?
 
         init(
             day: String,
@@ -1955,6 +1961,7 @@ enum CostUsageScanner {
         let output: Int
         let costNanos: Int
         let costPriced: Bool?
+        var isIncomplete: Bool?
     }
 
     static func loadDailyReport(
@@ -4180,6 +4187,7 @@ enum CostUsageScanner {
                 startedAtUnixMs: nil,
                 latestActivityUnixMs: nil),
             rows: [],
+            nextUsageRowIndex: initialCodexUsageRowIndex,
             tokenSnapshots: [],
             jsonlResumeState: nil,
             bufferedSubagentLines: nil,
@@ -5177,6 +5185,7 @@ enum CostUsageScanner {
             projectPath: projectPath,
             codexSession: codexSession,
             rows: rows,
+            nextUsageRowIndex: codexUsageRowIndex,
             tokenSnapshots: tokenSnapshots,
             jsonlResumeState: jsonlResumeState,
             bufferedSubagentLines: parsedBytes < effectiveTargetSize
@@ -5607,8 +5616,7 @@ enum CostUsageScanner {
                       receipt: self.receipt)
             else { return [] }
             for path in paths {
-                guard var usage = cache.files[path], let persisted = snapshotsByPath[path] else { continue }
-                let snapshots = persisted.map(CostUsageStore.tokenSnapshot(from:))
+                guard var usage = cache.files[path], let snapshots = snapshotsByPath[path] else { continue }
                 usage.codexTokenSnapshots = snapshots
                 usage.codexTokenCheckpoints = CostUsageScanner.codexTokenCheckpoints(for: snapshots)
                 cache.files[path] = usage

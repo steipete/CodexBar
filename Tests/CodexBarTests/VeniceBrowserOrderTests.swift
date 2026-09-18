@@ -7,9 +7,9 @@ import SweetCookieKit
 
 struct VeniceBrowserOrderTests {
     @Test
-    func `venice web import tries chrome then brave`() throws {
+    func `venice web import defaults to chrome`() throws {
         let metadata = try #require(ProviderDefaults.metadata[.venice])
-        #expect(metadata.browserCookieOrder == [.chrome, .brave])
+        #expect(metadata.browserCookieOrder == [.chrome])
     }
 }
 #endif

@@ -13,11 +13,19 @@ struct SpendActivityHeatmapTests {
     }
 
     @Test
-    func `weekly and cumulative totals saturate instead of overflowing`() {
+    func `weekly and cumulative totals saturate instead of overflowing`() throws {
+        let calendar = Self.calendar
+        let start = try #require(calendar.date(from: DateComponents(year: 2026, month: 8, day: 2)))
+        let now = try #require(calendar.date(byAdding: .day, value: 7, to: start))
         let daily = [Int.max, 1, 0, 0, 0, 0, 0, 2]
-        let weekly = SpendActivityLevels.weeklyTotals(daily)
-        #expect(weekly == [Int.max, 2])
-        #expect(SpendActivityLevels.cumulativeTotals(weekly) == [Int.max, Int.max])
+        let points = try daily.enumerated().map { offset, tokens in
+            let day = try #require(calendar.date(byAdding: .day, value: offset, to: start))
+            return SpendDashboardModel.TokenActivityPoint(day: day, totalTokens: tokens)
+        }
+        let series = SpendActivitySeries.make(from: points, now: now, calendar: calendar)
+        let weekly = series.weeklyActivity()
+        #expect(Array(weekly.values.suffix(2)) == [Int.max, 2])
+        #expect(Array(weekly.cumulative().values.suffix(2)) == [Int.max, Int.max])
     }
 
     @Test

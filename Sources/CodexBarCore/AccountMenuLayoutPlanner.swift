@@ -47,6 +47,7 @@ public enum AccountMenuLayoutPlanner {
         /// Constrained windows, or the least remaining window for a healthy account.
         /// Keep reset metadata attached to its own quota until the app formats it.
         public let windowDetails: [WindowDetail]
+        public let lastKnownUsageCapturedAt: Date?
         public let hasError: Bool
         public let canActivate: Bool
         /// Marks the inactive account with the most usable headroom — the best
@@ -84,6 +85,7 @@ public enum AccountMenuLayoutPlanner {
         let collapsible = healthyTailExpanded
             ? []
             : compactRows.filter { $0.severity == .healthy && !$0.isBestCandidate && !$0.hasError &&
+                $0.lastKnownUsageCapturedAt == nil &&
                 !expandedAccountIDs.contains($0.accountID)
             }
         let collapsedIDs: Set<ProviderAccountIdentity> =
@@ -158,6 +160,7 @@ public enum AccountMenuLayoutPlanner {
             headroomPercent: headroom,
             severity: headroom.map(self.severity(forHeadroom:)),
             windowDetails: Array(details),
+            lastKnownUsageCapturedAt: account.usesLastKnownUsage ? account.snapshot?.updatedAt : nil,
             hasError: account.error != nil,
             canActivate: account.canActivate,
             isBestCandidate: isBestCandidate)
@@ -168,7 +171,7 @@ public enum AccountMenuLayoutPlanner {
     {
         accounts
             .compactMap { account -> (id: ProviderAccountIdentity, headroom: Double)? in
-                guard account.canActivate, account.error == nil,
+                guard account.canActivate, account.error == nil, !account.usesLastKnownUsage,
                       let headroom = self.headroomPercent(for: account),
                       self.severity(forHeadroom: headroom) == .healthy
                 else { return nil }

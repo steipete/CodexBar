@@ -617,15 +617,22 @@ public struct CostUsageFetcher: Sendable {
             var projects: [CostUsageProjectBreakdown] = []
             var sessions: [CostUsageSessionBreakdown] = []
             var staleSnapshotUpdatedAt: Date?
+            var historyCoverageIsEstablished = provider != .codex
             if provider == .codex {
                 let roots = CostUsageScanner.codexSessionsRoots(options: options.scanOptions)
                 let rootsFingerprint = CostUsageScanner.codexRootsFingerprint(options: options.scanOptions)
                 let range = CostUsageScanner.CostUsageDayRange(
                     since: since, until: now, calendar: options.scanOptions.calendar)
                 let view = Self.codexReportView(options: options.scanOptions, range: range)
-                if let previous = view.previousReport(range: range, rootsFingerprint: rootsFingerprint) {
+                historyCoverageIsEstablished = view.historyCoverageIsEstablished(
+                    range: range,
+                    rootsFingerprint: rootsFingerprint)
+                if !historyCoverageIsEstablished,
+                   let previous = view.previousReport(range: range, rootsFingerprint: rootsFingerprint)
+                {
                     staleSnapshotUpdatedAt = previous.updatedAt
                 } else {
+                    daily = view.dailyReport(range: range, cacheRoot: options.scanOptions.cacheRoot)
                     projects = view.projects(
                         range: range,
                         cacheRoot: options.scanOptions.cacheRoot)
@@ -660,8 +667,7 @@ public struct CostUsageFetcher: Sendable {
                 projects: projects,
                 sessions: sessions,
                 staleSnapshotUpdatedAt: staleSnapshotUpdatedAt,
-                historyCoverageIsEstablished: provider != .codex
-                    || Self.codexScanCatchUpStatus(options: options.scanOptions).historyCoverageIsEstablished)
+                historyCoverageIsEstablished: historyCoverageIsEstablished)
         }
     }
 
@@ -674,6 +680,9 @@ public struct CostUsageFetcher: Sendable {
         // Keep a fallback detail read on the same validated connection.
         let store = CostUsageStore(cacheRoot: options.cacheRoot)
         var view = store.syncLoadCodexReadView(calendar: options.calendar, purpose: .status).scoped(to: roots)
+        if view.hasPendingScan {
+            view = store.syncLoadCodexReadView(calendar: options.calendar, purpose: .activity).scoped(to: roots)
+        }
         if view.previousReport(range: range, rootsFingerprint: rootsFingerprint) == nil {
             view = store.syncLoadCodexReadView(calendar: options.calendar, purpose: .report).scoped(to: roots)
         }
@@ -705,11 +714,6 @@ public struct CostUsageFetcher: Sendable {
         } else {
             await ModelsDevPricingPipeline.refreshIfNeeded(now: now, cacheRoot: cacheRoot, client: client)
         }
-    }
-
-    private struct ModelsDevPricingTarget: Hashable, Sendable {
-        let providerID: String
-        let modelID: String
     }
 
     private struct UnknownPricingRefreshRequest: Sendable {
@@ -925,9 +929,10 @@ public struct CostUsageFetcher: Sendable {
             // Final catch-up publication must not fall back to the report from before a new pending scan.
             guard !requireCompleteHistory || nativeHistoryCoverageIsEstablished else { return nil }
 
-            if let previous = cache.previousReport(
-                range: range,
-                rootsFingerprint: rootsFingerprint)
+            if !nativeHistoryCoverageIsEstablished,
+               let previous = cache.previousReport(
+                   range: range,
+                   rootsFingerprint: rootsFingerprint)
             {
                 reports.append(previous.report)
                 staleSnapshotUpdatedAt = previous.updatedAt
@@ -1557,58 +1562,6 @@ public struct CostUsageFetcher: Sendable {
                 return lhsTokens > rhsTokens
             }
             return lhs.modelName > rhs.modelName
-        }
-    }
-
-    static func selectCurrentSession(from sessions: [CostUsageSessionReport.Entry])
-        -> CostUsageSessionReport.Entry?
-    {
-        if sessions.isEmpty {
-            return nil
-        }
-        return sessions.max { lhs, rhs in
-            let lDate = CostUsageDateParser.parse(lhs.lastActivity) ?? .distantPast
-            let rDate = CostUsageDateParser.parse(rhs.lastActivity) ?? .distantPast
-            if lDate != rDate {
-                return lDate < rDate
-            }
-            let lCost = lhs.costUSD ?? -1
-            let rCost = rhs.costUSD ?? -1
-            if lCost != rCost {
-                return lCost < rCost
-            }
-            let lTokens = lhs.totalTokens ?? -1
-            let rTokens = rhs.totalTokens ?? -1
-            if lTokens != rTokens {
-                return lTokens < rTokens
-            }
-            return lhs.session < rhs.session
-        }
-    }
-
-    static func selectMostRecentMonth(from months: [CostUsageMonthlyReport.Entry])
-        -> CostUsageMonthlyReport.Entry?
-    {
-        if months.isEmpty {
-            return nil
-        }
-        return months.max { lhs, rhs in
-            let lDate = CostUsageDateParser.parseMonth(lhs.month) ?? .distantPast
-            let rDate = CostUsageDateParser.parseMonth(rhs.month) ?? .distantPast
-            if lDate != rDate {
-                return lDate < rDate
-            }
-            let lCost = lhs.costUSD ?? -1
-            let rCost = rhs.costUSD ?? -1
-            if lCost != rCost {
-                return lCost < rCost
-            }
-            let lTokens = lhs.totalTokens ?? -1
-            let rTokens = rhs.totalTokens ?? -1
-            if lTokens != rTokens {
-                return lTokens < rTokens
-            }
-            return lhs.month < rhs.month
         }
     }
 }

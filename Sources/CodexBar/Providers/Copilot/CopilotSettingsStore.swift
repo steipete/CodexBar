@@ -7,13 +7,8 @@ enum CopilotIconSecondaryWindowSelection {
 
 extension SettingsStore {
     var copilotAPIToken: String {
-        get { self.configSnapshot.providerConfig(for: .copilot)?.sanitizedAPIKey ?? "" }
-        set {
-            self.updateProviderConfig(provider: .copilot) { entry in
-                entry.apiKey = self.normalizedConfigValue(newValue)
-            }
-            self.logSecretUpdate(provider: .copilot, field: "apiKey", value: newValue)
-        }
+        get { self[providerConfig: .copilot, field: .apiKey] }
+        set { self[providerConfig: .copilot, field: .apiKey] = newValue }
     }
 
     var copilotEnterpriseHost: String {
@@ -26,26 +21,14 @@ extension SettingsStore {
     }
 
     var copilotBudgetCookieHeader: String {
-        get { self.configSnapshot.providerConfig(for: .copilot)?.sanitizedCookieHeader ?? "" }
-        set {
-            self.updateProviderConfig(provider: .copilot) { entry in
-                entry.cookieHeader = self.normalizedConfigValue(newValue)
-            }
-            self.logSecretUpdate(provider: .copilot, field: "cookieHeader", value: newValue)
-        }
+        get { self[providerConfig: .copilot, field: .cookieHeader] }
+        set { self[providerConfig: .copilot, field: .cookieHeader] = newValue }
     }
 
     var copilotBudgetCookieSource: ProviderCookieSource {
         get { self.resolvedCookieSource(provider: .copilot, fallback: .auto) }
-        set {
-            self.updateProviderConfig(provider: .copilot) { entry in
-                entry.cookieSource = newValue
-            }
-            self.logProviderModeChange(provider: .copilot, field: "cookieSource", value: newValue.rawValue)
-        }
+        set { self.setCookieSource(newValue, provider: .copilot) }
     }
-
-    func ensureCopilotAPITokenLoaded() {}
 
     var copilotIconSecondaryWindowID: String {
         get {

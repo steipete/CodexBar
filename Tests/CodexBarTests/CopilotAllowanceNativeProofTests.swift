@@ -203,7 +203,6 @@ private struct CopilotAllowanceProofView: View {
             snapshot: self.fixture.store.snapshots[.copilot],
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,

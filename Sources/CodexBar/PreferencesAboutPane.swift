@@ -57,8 +57,9 @@ struct AboutPane: View {
                 }
             } else {
                 Section {
-                    Text(self.updater.unavailableReason ?? L("updates_unavailable"))
-                        .foregroundStyle(.secondary)
+                    AboutUpdatesUnavailableView(
+                        reason: self.updater.unavailableReason ?? L("updates_unavailable"),
+                        command: self.updater.manualUpdateCommand)
                 }
             }
 
@@ -148,6 +149,40 @@ struct AboutPane: View {
     private func openProjectHome() {
         guard let url = URL(string: "https://github.com/steipete/CodexBar") else { return }
         NSWorkspace.shared.open(url)
+    }
+}
+
+@MainActor
+struct AboutUpdatesUnavailableView: View {
+    let reason: String
+    let command: ManualUpdateCommand?
+    let copyAction: (String) -> Void
+
+    init(
+        reason: String,
+        command: ManualUpdateCommand? = nil,
+        copyAction: @escaping (String) -> Void = { MenuPasteboardCopy.perform($0) })
+    {
+        self.reason = reason
+        self.command = command
+        self.copyAction = copyAction
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(self.reason)
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+            if let command {
+                Button {
+                    self.copyAction(command.command)
+                } label: {
+                    Label(L("copy"), systemImage: "doc.on.doc")
+                }
+                .controlSize(.small)
+                .accessibilityIdentifier("about-copy-update-command")
+            }
+        }
     }
 }
 

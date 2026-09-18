@@ -15,16 +15,9 @@ extension SettingsStore {
     }
 
     var zaiAPIToken: String {
-        get { self.configSnapshot.providerConfig(for: .zai)?.sanitizedAPIKey ?? "" }
-        set {
-            self.updateProviderConfig(provider: .zai) { entry in
-                entry.apiKey = self.normalizedConfigValue(newValue)
-            }
-            self.logSecretUpdate(provider: .zai, field: "apiKey", value: newValue)
-        }
+        get { self[providerConfig: .zai, field: .apiKey] }
+        set { self[providerConfig: .zai, field: .apiKey] = newValue }
     }
-
-    func ensureZaiAPITokenLoaded() {}
 }
 
 extension SettingsStore {

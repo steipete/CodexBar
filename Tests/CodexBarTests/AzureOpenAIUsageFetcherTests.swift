@@ -285,3 +285,127 @@ struct AzureOpenAIMenuDescriptorTests {
         #expect(lines.contains("Deployment: chat-prod · Model: gpt-4o-mini"))
     }
 }
+
+struct AzureOpenAISettingsTests {
+    @Test(arguments: [
+        (nil as String?, nil as String?, "2024-10-21"),
+        (nil, "v1", "v1"),
+        ("v1", nil, "v1"),
+        ("v1", "2024-10-21", "v1"),
+        ("2024-10-21", "v1", "2024-10-21"),
+        ("  ", "v1", "v1"),
+        (" \"v1\" ", "2024-10-21", "v1"),
+        ("custom &version=#value", "v1", "custom &version=#value"),
+    ])
+    func `config version precedence reaches the expected request`(
+        configured: String?, environmentVersion: String?, expected: String) async throws
+    {
+        var config = ProviderConfig(id: .azureopenai)
+        config.azureOpenAIAPIVersion = configured
+        let credentials = try #require(AzureOpenAIProviderDescriptor.descriptor.credentials)
+        var base: [String: String] = [:]
+        base[AzureOpenAISettingsReader.apiVersionEnvironmentKey] = environmentVersion
+        let environment = credentials.applyConfig(base: base, config: config)
+        let version = AzureOpenAISettingsReader.apiVersion(environment: environment)
+        #expect(version == expected)
+
+        let transport = ProviderHTTPTransportStub { request in
+            let url = try #require(request.url)
+            #expect(url.host == "example-resource.openai.azure.com")
+            #expect(url.fragment == nil)
+            let body = try #require(request.httpBody)
+            let json = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            if expected == "v1" {
+                #expect(url.path == "/openai/v1/chat/completions")
+                #expect(url.query == nil)
+                #expect(json["model"] as? String == "chat-prod")
+                #expect(json["max_completion_tokens"] as? Int == 64)
+                #expect(json["max_tokens"] == nil)
+            } else {
+                #expect(url.path == "/openai/deployments/chat-prod/chat/completions")
+                let components = try #require(URLComponents(url: url, resolvingAgainstBaseURL: false))
+                #expect(components.queryItems == [URLQueryItem(name: "api-version", value: expected)])
+                #expect(json["max_tokens"] as? Int == 1)
+                #expect(json["max_completion_tokens"] == nil)
+                #expect(json["model"] == nil)
+            }
+            let response = try #require(HTTPURLResponse(
+                url: url, statusCode: 200, httpVersion: nil, headerFields: nil))
+            return (Data(#"{"model":"gpt-4o-mini"}"#.utf8), response)
+        }
+        let snapshot = try await AzureOpenAIUsageFetcher.fetchUsage(
+            apiKey: "test-key",
+            endpoint: #require(URL(string: "https://example-resource.openai.azure.com")),
+            deploymentName: "chat-prod",
+            apiVersion: version,
+            transport: transport)
+        #expect(snapshot.apiVersion == expected)
+    }
+
+    @Test
+    func `provider config without a version inherits environment version`() throws {
+        let config = try JSONDecoder().decode(ProviderConfig.self, from: Data(#"{"id":"azureopenai"}"#.utf8))
+        #expect(config.azureOpenAIAPIVersion == nil)
+        let credentials = try #require(AzureOpenAIProviderDescriptor.descriptor.credentials)
+        let environment = credentials.applyConfig(
+            base: [AzureOpenAISettingsReader.apiVersionEnvironmentKey: "v1"], config: config)
+        #expect(AzureOpenAISettingsReader.apiVersion(environment: environment) == "v1")
+    }
+
+    @Test
+    @MainActor
+    func `picker persists version and default clears only the version override`() throws {
+        let settings = testSettingsStore(suiteName: #function, userDefaults: InMemoryUserDefaults())
+        settings.azureOpenAIAPIKey = "test-key"
+        settings.azureOpenAIEndpoint = "https://example-resource.openai.azure.com"
+        settings.azureOpenAIDeploymentName = "chat-prod"
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing,
+            environmentBase: [:])
+        let context = ProviderSettingsContext(
+            provider: .azureopenai,
+            settings: settings,
+            store: store,
+            statusText: { _ in nil },
+            setStatusText: { _, _ in },
+            lastAppActiveRunAt: { _ in nil },
+            setLastAppActiveRunAt: { _, _ in },
+            requestConfirmation: { _ in })
+        let implementation = AzureOpenAIProviderImplementation()
+        let picker = try #require(implementation.settingsPickers(context: context).first)
+        #expect(picker.options.map(\.id) == ["", "v1"])
+        #expect(picker.binding.wrappedValue.isEmpty)
+        picker.binding.wrappedValue = "v1"
+
+        let reader = CodexBarConfigStore(fileURL: settings.configStore.fileURL)
+        let saved = try #require(try reader.load())
+        #expect(saved.providerConfig(for: .azureopenai)?.azureOpenAIAPIVersion == "v1")
+        let reloaded = testSettingsStore(
+            suiteName: "azure-version-reloaded", userDefaults: InMemoryUserDefaults(), config: saved)
+        #expect(reloaded.azureOpenAIAPIVersion == "v1")
+        let environment = ProviderRegistry.makeEnvironment(
+            base: [AzureOpenAISettingsReader.apiVersionEnvironmentKey: "2024-10-21"],
+            provider: .azureopenai,
+            settings: reloaded,
+            tokenOverride: nil)
+        #expect(AzureOpenAISettingsReader.apiVersion(environment: environment) == "v1")
+
+        settings.azureOpenAIAPIVersion = "2025-01-01-preview"
+        #expect(implementation.settingsPickers(context: context).first?.options.last?.id == "2025-01-01-preview")
+        picker.binding.wrappedValue = ""
+        let cleared = try #require(try reader.load()?.providerConfig(for: .azureopenai))
+        #expect(cleared.azureOpenAIAPIVersion == nil)
+        #expect(cleared.apiKey == "test-key")
+        #expect(cleared.enterpriseHost == "https://example-resource.openai.azure.com")
+        #expect(cleared.workspaceID == "chat-prod")
+        let defaultEnvironment = ProviderRegistry.makeEnvironment(
+            base: [AzureOpenAISettingsReader.apiVersionEnvironmentKey: "v1"],
+            provider: .azureopenai,
+            settings: settings,
+            tokenOverride: nil)
+        #expect(AzureOpenAISettingsReader.apiVersion(environment: defaultEnvironment) == "v1")
+    }
+}

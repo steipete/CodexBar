@@ -44,6 +44,7 @@ interface CodexBarCostUsageEntry {
   date: string;
   inputTokens: number;
   outputTokens: number;
+  /** Independent reported count; may exceed outputTokens and is not added to input + output totals. */
   reasoningTokens?: number | null;
   requests: number;
   cost: number;

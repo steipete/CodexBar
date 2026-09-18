@@ -12,7 +12,7 @@ struct VeniceWebUsageFetcherTests {
     func `web strategy is unavailable unless source is explicit web`() async {
         let strategy = VeniceWebFetchStrategy(
             usageLoader: { _ in fatalError("must not fetch") },
-            sessionLoader: { fatalError("must not import cookies") })
+            sessionLoader: { _ in fatalError("must not import cookies") })
         #expect(await strategy.isAvailable(Self.context(.auto)) == false)
         #expect(await strategy.isAvailable(Self.context(.api)) == false)
         await #expect(throws: VeniceUsageError.missingCredentials) {
@@ -30,12 +30,58 @@ struct VeniceWebUsageFetcherTests {
     func `token account selection rejects before cookie import`() async {
         let strategy = VeniceWebFetchStrategy(
             usageLoader: { _ in fatalError("must not fetch") },
-            sessionLoader: { fatalError("must not import cookies") })
+            sessionLoader: { _ in fatalError("must not import cookies") })
         let account = Self.context(.web, selectedTokenAccountID: UUID())
         #expect(await strategy.isAvailable(account) == false)
         await #expect(throws: VeniceUsageError.tokenAccountUnsupported) {
             _ = try await strategy.fetch(account)
         }
+    }
+
+    @Test(arguments: [ProviderCookieSource.auto, .manual])
+    func `cancelled web refresh never reads credentials`(source: ProviderCookieSource) async throws {
+        let touched = LockIsolated(false)
+        let strategy = VeniceWebFetchStrategy(
+            usageLoader: { _ in touched.setValue(true); throw VeniceUsageError.invalidCredentials },
+            sessionLoader: { _ in touched.setValue(true); return [] })
+        let settings = ProviderSettingsSnapshot.make(venice: VeniceProviderSettings(
+            cookieSource: source, manualCookieHeader: "__venice-auth.session-token=synthetic"))
+        let task = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            return try await strategy.fetch(Self.context(.web, settings: settings))
+        }
+        await #expect(throws: CancellationError.self) { _ = try await task.value }
+        #expect(!touched.value)
+    }
+
+    @Test
+    func `missing session token is an authentication failure`() {
+        #expect(throws: VeniceUsageError.invalidCredentials) {
+            _ = try VeniceWebUsageFetcher.snapshot(fromSessionData: Data("{}".utf8), now: Self.fixtureNow)
+        }
+    }
+
+    @Test(arguments: ["", "__venice-auth.session-token=retained"])
+    func `cookies off prevents every credential and usage loader`(header: String) async throws {
+        let fetched = LockIsolated(false)
+        let imported = LockIsolated(false)
+        let snapshot = try VeniceWebUsageFetcher.snapshot(fromClaims: Self.fixtureClaims(), now: Self.fixtureNow)
+        let strategy = VeniceWebFetchStrategy(
+            usageLoader: { _ in fetched.setValue(true); return snapshot },
+            sessionLoader: { _ in
+                imported.setValue(true)
+                return [VeniceResolvedSession(cookieHeader: "synthetic", sourceLabel: "fixture")]
+            })
+        _ = try await strategy.fetch(Self.context(.web))
+        #expect(fetched.value && imported.value)
+        fetched.setValue(false)
+        imported.setValue(false)
+        let settings = ProviderSettingsSnapshot.make(venice: VeniceProviderSettings(
+            cookieSource: .off, manualCookieHeader: header))
+        let context = Self.context(.web, settings: settings)
+        #expect(await strategy.isAvailable(context) == false)
+        await #expect(throws: VeniceUsageError.cookiesDisabled) { _ = try await strategy.fetch(context) }
+        #expect(!fetched.value && !imported.value)
     }
 
     @Test
@@ -52,17 +98,17 @@ struct VeniceWebUsageFetcherTests {
         #expect(credentials?.selectedAccountSourceMode(base: .web, account: account, config: nil) == .api)
     }
 
-    @Test
-    func `revoked first session falls through to signed-in profile`() async throws {
+    @Test(arguments: [VeniceUsageError.invalidCredentials, .expiredSession, .missingQuota])
+    func `unusable first session falls through to signed-in profile`(error: VeniceUsageError) async throws {
         let snapshot = try VeniceWebUsageFetcher.snapshot(
             fromClaims: Self.fixtureClaims(),
             now: Self.fixtureNow)
         let strategy = VeniceWebFetchStrategy(
             usageLoader: { header in
-                if header == "session=revoked" { throw VeniceUsageError.invalidCredentials }
+                if header == "session=revoked" { throw error }
                 return snapshot
             },
-            sessionLoader: {
+            sessionLoader: { _ in
                 [
                     VeniceResolvedSession(cookieHeader: "session=revoked", sourceLabel: "Chrome A"),
                     VeniceResolvedSession(cookieHeader: "session=live", sourceLabel: "Chrome B"),
@@ -83,7 +129,7 @@ struct VeniceWebUsageFetcherTests {
                 #expect(header == "__venice-auth.session-token=manual-abc")
                 return snapshot
             },
-            sessionLoader: { fatalError("must not import cookies") })
+            sessionLoader: { _ in fatalError("must not import cookies") })
         let settings = ProviderSettingsSnapshot.make(venice: VeniceProviderSettings(
             cookieSource: .manual,
             manualCookieHeader: "__venice-auth.session-token=manual-abc"))
@@ -96,7 +142,7 @@ struct VeniceWebUsageFetcherTests {
     func `manual source without session cookie fails`() async {
         let strategy = VeniceWebFetchStrategy(
             usageLoader: { _ in fatalError("must not fetch") },
-            sessionLoader: { fatalError("must not import cookies") })
+            sessionLoader: { _ in fatalError("must not import cookies") })
         let settings = ProviderSettingsSnapshot.make(venice: VeniceProviderSettings(
             cookieSource: .manual,
             manualCookieHeader: "unrelated=1"))
@@ -123,7 +169,7 @@ struct VeniceWebUsageFetcherTests {
             now: Self.fixtureNow)
         let strategy = VeniceWebFetchStrategy(
             usageLoader: { _ in snapshot },
-            sessionLoader: {
+            sessionLoader: { _ in
                 [VeniceResolvedSession(cookieHeader: "session=live", sourceLabel: "Brave")]
             })
         let settings = ProviderSettingsSnapshot.make(venice: VeniceProviderSettings(
@@ -134,43 +180,13 @@ struct VeniceWebUsageFetcherTests {
     }
 
     @Test
-    func `descriptor presentation labels monthly quota`() throws {
-        let monthly = try VeniceWebUsageFetcher.snapshot(
-            fromClaims: Self.fixtureClaims(),
-            now: Self.fixtureNow)
-        let metadata = VeniceProviderDescriptor.descriptor.metadata
-        let monthlyLabels = VeniceProviderDescriptor.descriptor.presentation.rateWindowLabels(
-            metadata: metadata,
-            snapshot: monthly,
-            now: Self.fixtureNow)
-        #expect(monthlyLabels.primary == "Monthly credits")
-
-        let hourly = UsageSnapshot(
-            primary: RateWindow(usedPercent: 10, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
-            secondary: nil,
-            updatedAt: Self.fixtureNow,
-            identity: nil)
-        let hourlyLabels = VeniceProviderDescriptor.descriptor.presentation.rateWindowLabels(
-            metadata: metadata,
-            snapshot: hourly,
-            now: Self.fixtureNow)
-        #expect(hourlyLabels.primary == "Balance")
-    }
-
-    @Test
-    func `live quota fixture maps cycle used over monthly refill`() throws {
+    func `subscription fixture separates available credits from cycle spending`() throws {
         let snapshot = try VeniceWebUsageFetcher.snapshot(
             fromClaims: Self.fixtureClaims(),
             now: Self.fixtureNow)
-        let expectedPercent = Self.fixtureUsedThisCycle / Self.fixtureMonthlyRefill * 100
         let reset = Date(timeIntervalSince1970: Self.fixtureNextRefillAtMs / 1000)
-
-        #expect(snapshot.primary?.usedPercent == expectedPercent)
-        #expect(((snapshot.primary?.usedPercent ?? 0) * 10000).rounded() / 10000 == 59.5556)
-        #expect(snapshot.primary?.windowMinutes == ProviderPaceCapability.monthlyWindowSentinelMinutes)
-        #expect(snapshot.primary?.resetsAt == reset)
-        #expect(VeniceProviderDescriptor.primaryLabel(window: snapshot.primary) == "Monthly credits")
-        #expect(snapshot.subscriptionRenewsAt == reset)
+        #expect(snapshot.primary == nil)
+        #expect(snapshot.subscriptionRenewsAt == nil)
         #expect(snapshot.dataConfidence == .exact)
         #expect(snapshot.identity?.providerID == .venice)
         #expect(snapshot.identity?.accountEmail == nil)
@@ -187,10 +203,11 @@ struct VeniceWebUsageFetcherTests {
 
         let rows = Dictionary(uniqueKeysWithValues: snapshot.details.flatMap(\.rows).map { ($0.label, $0.value) })
         #expect(rows["Used this cycle"] == "13,400")
-        #expect(rows["Monthly allowance"] == "22,500")
-        #expect(rows["Subscription remaining"] == "9,100")
+        #expect(snapshot.details.flatMap(\.rows).first { $0.label == "Used this cycle" }?
+            .secondaryValue == "Monthly refill: 22,500")
+        #expect(rows["Subscription credits available"] == "9,100")
         #expect(rows["Bank cap"] == "67,500")
-        #expect(rows["Total credits"] == "9,600")
+        #expect(rows["Total credits available"] == "9,600")
         #expect(rows["Plan"] == "MAX")
         #expect(!rows.contains(where: { $0.value.contains("9,100") && $0.value.contains("22,500") }))
     }
@@ -205,10 +222,12 @@ struct VeniceWebUsageFetcherTests {
         claims["bundledCredits"] = 40000
 
         let snapshot = try VeniceWebUsageFetcher.snapshot(fromClaims: claims, now: Self.fixtureNow)
-        #expect(snapshot.primary?.usedPercent == 30000.0 / 22500.0 * 100)
+        #expect(snapshot.primary == nil)
+        #expect(snapshot.details.flatMap(\.rows).first { $0.label == "Used this cycle" }?.progress?.used == 30000)
         let rows = Dictionary(uniqueKeysWithValues: snapshot.details.flatMap(\.rows).map { ($0.label, $0.value) })
-        #expect(rows["Subscription remaining"] == "40,000")
-        #expect(rows["Monthly allowance"] == "22,500")
+        #expect(rows["Subscription credits available"] == "40,000")
+        #expect(snapshot.details.flatMap(\.rows).first { $0.label == "Used this cycle" }?
+            .secondaryValue == "Monthly refill: 22,500")
         #expect(rows["Bank cap"] == "67,500")
     }
 
@@ -230,6 +249,7 @@ struct VeniceWebUsageFetcherTests {
         let transport = ProviderHTTPTransportHandler { request in
             #expect(request.url == VeniceWebUsageFetcher.sessionURL)
             #expect(request.httpMethod == "GET")
+            #expect(!request.httpShouldHandleCookies)
             #expect(request.value(forHTTPHeaderField: "Authorization") == nil)
             #expect(
                 request.value(forHTTPHeaderField: "Cookie")
@@ -242,7 +262,8 @@ struct VeniceWebUsageFetcherTests {
             cookieHeader: "\(VeniceCookieHeader.sessionCookieName)=session-cookie; _ga=tracker; cf_clearance=cf",
             transport: transport,
             now: Self.fixtureNow)
-        #expect(((snapshot.primary?.usedPercent ?? 0) * 10000).rounded() / 10000 == 59.5556)
+        #expect(snapshot.details.flatMap(\.rows).first { $0.label == "Used this cycle" }?.progress?.used == Self
+            .fixtureUsedThisCycle)
     }
 
     @Test
@@ -341,7 +362,7 @@ struct VeniceWebUsageFetcherTests {
             now: Self.fixtureNow)
         let strategy = VeniceWebFetchStrategy(
             usageLoader: { _ in snapshot },
-            sessionLoader: {
+            sessionLoader: { _ in
                 [VeniceResolvedSession(
                     cookieHeader: "\(VeniceCookieHeader.sessionCookieName)=session-cookie",
                     sourceLabel: "Chrome Default")]
@@ -380,7 +401,8 @@ struct VeniceWebUsageFetcherTests {
         claims["bundledCreditsUsage"] = usage
         let data = try Data(Self.sessionJSON(payload: claims).utf8)
         let snapshot = try VeniceWebUsageFetcher.snapshot(fromSessionData: data, now: Self.fixtureNow)
-        #expect(snapshot.primary?.usedPercent == 0)
+        #expect(snapshot.primary == nil)
+        #expect(snapshot.details.flatMap(\.rows).first { $0.label == "Used this cycle" }?.value == "0")
     }
 
     @Test

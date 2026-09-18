@@ -28,6 +28,7 @@ public enum VeniceWebUsageFetcher {
     {
         let header = try Self.requireSessionCookieHeader(cookieHeader)
         var request = URLRequest(url: self.sessionURL)
+        request.httpShouldHandleCookies = false
         request.httpMethod = "GET"
         request.timeoutInterval = timeout
         request.setValue(header, forHTTPHeaderField: "Cookie")
@@ -56,7 +57,7 @@ public enum VeniceWebUsageFetcher {
     static func snapshot(fromSessionData data: Data, now: Date = Date()) throws -> UsageSnapshot {
         let object = try self.sessionObject(from: data)
         guard let token = self.string(object["token"]), !token.isEmpty else {
-            throw VeniceUsageError.parseFailed("session response missing token")
+            throw VeniceUsageError.invalidCredentials
         }
         guard let claims = UsageFetcher.parseJWT(token) else {
             throw VeniceUsageError.parseFailed("session token payload is not a JWT")
@@ -89,21 +90,14 @@ public enum VeniceWebUsageFetcher {
         let tierCap = self.finiteNonNegative(usage["tierCap"])
         let nextRefillAt = self.date(fromEpoch: self.finiteNonNegative(usage["nextRefillAt"]))
 
-        let usedPercent = UsagePercent(used: usedThisCycle, limit: monthlyRefillCredits).raw
-        guard usedPercent.isFinite else { throw VeniceUsageError.missingQuota }
-        let resetDescription = nextRefillAt.map { UsageFormatter.resetDescription(from: $0, now: now) }
-        let primary = RateWindow(
-            usedPercent: usedPercent,
-            windowMinutes: ProviderPaceCapability.monthlyWindowSentinelMinutes,
-            resetsAt: nextRefillAt,
-            resetDescription: resetDescription)
-
         let details = Self.makeDetails(CreditDetails(
             usedThisCycle: usedThisCycle,
             monthlyRefillCredits: monthlyRefillCredits,
             availableCredits: availableCredits,
             veniceCredits: veniceCredits,
             tierCap: tierCap,
+            nextRefillAt: nextRefillAt,
+            now: now,
             userType: userType))
 
         let identity = ProviderIdentitySnapshot(
@@ -113,10 +107,9 @@ public enum VeniceWebUsageFetcher {
             loginMethod: nil)
 
         return UsageSnapshot(
-            primary: primary,
+            primary: nil,
             secondary: nil,
             details: details,
-            subscriptionRenewsAt: nextRefillAt,
             updatedAt: now,
             identity: identity,
             dataConfidence: .exact)
@@ -148,26 +141,34 @@ public enum VeniceWebUsageFetcher {
         let availableCredits: Double?
         let veniceCredits: Double?
         let tierCap: Double?
+        let nextRefillAt: Date?
+        let now: Date
         let userType: String?
     }
 
     private static func makeDetails(_ details: CreditDetails) -> [ProviderDetailSection] {
-        var rows: [ProviderDetailSection.Row] = [
-            ProviderDetailSection.makeRow(label: "Used this cycle", value: self.formatCredits(details.usedThisCycle)),
-            ProviderDetailSection.makeRow(
-                label: "Monthly allowance",
-                value: self.formatCredits(details.monthlyRefillCredits)),
-        ]
+        var rows: [ProviderDetailSection.Row] = []
         if let availableCredits = details.availableCredits {
-            rows.append(ProviderDetailSection.makeRow(
-                label: "Subscription remaining",
-                value: self.formatCredits(availableCredits)))
-        }
-        if let tierCap = details.tierCap {
-            rows.append(ProviderDetailSection.makeRow(label: "Bank cap", value: self.formatCredits(tierCap)))
+            rows.append(.makeRow(
+                label: "Subscription credits available", value: self.formatCredits(availableCredits)))
         }
         if let veniceCredits = details.veniceCredits {
-            rows.append(ProviderDetailSection.makeRow(label: "Total credits", value: self.formatCredits(veniceCredits)))
+            rows.append(.makeRow(label: "Total credits available", value: self.formatCredits(veniceCredits)))
+        }
+        let progress = (details.usedThisCycle / details.monthlyRefillCredits * 100).isFinite
+            ? try? ProviderDetailSection.Row.Progress(used: details.usedThisCycle, total: details.monthlyRefillCredits)
+            : nil
+        rows.append(.makeRow(
+            label: "Used this cycle",
+            value: self.formatCredits(details.usedThisCycle),
+            secondaryValue: "Monthly refill: \(self.formatCredits(details.monthlyRefillCredits))",
+            progress: progress))
+        if let tierCap = details.tierCap {
+            rows.append(.makeRow(label: "Bank cap", value: self.formatCredits(tierCap)))
+        }
+        if let nextRefillAt = details.nextRefillAt {
+            rows.append(.makeRow(
+                label: "Next refill", value: UsageFormatter.resetDescription(from: nextRefillAt, now: details.now)))
         }
         if let userType = details.userType, !userType.isEmpty {
             rows.append(ProviderDetailSection.makeRow(label: "Plan", value: userType))

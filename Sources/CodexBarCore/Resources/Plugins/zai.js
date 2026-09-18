@@ -170,29 +170,28 @@ defineProvider({
       .sort((a, b) => (a.windowMinutes || Number.MAX_SAFE_INTEGER) - (b.windowMinutes || Number.MAX_SAFE_INTEGER));
     const timeLimit = limits.filter((item) => item.raw.type === "TIME_LIMIT").pop() || null;
     const tokenLimit = tokenLimits.length ? tokenLimits[tokenLimits.length - 1] : null;
-    const sessionLimit = tokenLimits.length >= 2 ? tokenLimits[0] : null;
-    const primaryLimit = sessionLimit || tokenLimit || timeLimit;
+    const primaryLimit = tokenLimits[0] || timeLimit;
     const result = {
-      primary: primaryLimit ? window(primaryLimit) : { usedPercent: 0 },
+      primary: primaryLimit ? window(primaryLimit) : null,
       identity: {},
       details: [{ title: "Quota details", rows: [] }],
     };
-    if (sessionLimit && tokenLimit) result.secondary = window(tokenLimit);
-    if ((tokenLimit || sessionLimit) && timeLimit) {
+    if (tokenLimits.length >= 2) result.secondary = window(tokenLimit);
+    if (tokenLimit && timeLimit) {
       result.extraWindows = [{ id: "zai-mcp", title: "MCP", window: window(timeLimit) }];
     }
     if (tokenLimit)
       result.details[0].rows.push(
         limitRow(tokenLimit.raw.type === "CREDIT_LIMIT" ? "Credit quota" : "Token quota", tokenLimit),
       );
-    if (sessionLimit)
+    if (tokenLimits.length >= 2)
       result.details[0].rows.push(
         limitRow(
-          sessionLimit.raw.type === "CREDIT_LIMIT" ? "Session credit quota" : "Session token quota",
-          sessionLimit,
+          primaryLimit.raw.type === "CREDIT_LIMIT" ? "Session credit quota" : "Session token quota",
+          primaryLimit,
         ),
       );
-    const hasCreditLimit = [tokenLimit, sessionLimit].some((item) => item && item.raw.type === "CREDIT_LIMIT");
+    const hasCreditLimit = [tokenLimit, primaryLimit].some((item) => item && item.raw.type === "CREDIT_LIMIT");
     if (hasCreditLimit) result.details[0].rows.push(quotaRateRow());
     if (timeLimit) {
       result.details[0].rows.push(limitRow("MCP quota", timeLimit));

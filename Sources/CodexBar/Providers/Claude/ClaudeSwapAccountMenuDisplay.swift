@@ -23,8 +23,48 @@ struct ClaudeSwapAccountMenuDisplay {
     }
 
     static func label(for account: ProviderAccountUsageSnapshot, hidePersonalInfo: Bool) -> String {
-        hidePersonalInfo
-            ? String(format: L("Account %@"), account.id.opaqueID)
-            : account.displayLabel
+        PersonalInfoRedactor.redactAccountLabel(
+            account.displayLabel,
+            isEnabled: hidePersonalInfo,
+            ordinal: self.privacyOrdinal(for: account))
+    }
+
+    static func privacyOrdinal(for account: ProviderAccountUsageSnapshot) -> PersonalInfoRedactor.AccountOrdinal? {
+        guard account.provider == .claude,
+              account.id.source == ClaudeSwapAccountProjection.sourceName,
+              let number = Int(account.id.opaqueID)
+        else { return nil }
+        return PersonalInfoRedactor.AccountOrdinal(number)
+    }
+
+    static func cardContext(
+        for account: ProviderAccountUsageSnapshot,
+        planLabel: String?,
+        adapterError: String?,
+        switchError: String?) -> UsageMenuCardContext
+    {
+        .account(.init(
+            snapshot: account.snapshot,
+            error: ClaudeSwapAccountProjection.displayError(
+                accountError: account.error,
+                adapterError: adapterError,
+                switchError: switchError),
+            info: AccountInfo(email: account.displayLabel, plan: nil),
+            privacyOrdinal: self.privacyOrdinal(for: account),
+            plan: .label(planLabel),
+            planEmphasis: account.isActive ? .active : .none,
+            lastKnownUsageCapturedAt: account.usesLastKnownUsage ? account.snapshot?.updatedAt : nil,
+            sourceLabel: ClaudeSwapAccountProjection.sourceLabel))
+    }
+
+    static func actionLabel(
+        for account: ProviderAccountUsageSnapshot,
+        switchingAccountID: ProviderAccountIdentity?,
+        switchInFlight: Bool) -> String?
+    {
+        if account.isActive, !account.canActivate { return L("Active") }
+        if switchingAccountID == account.id { return L("Loading…") }
+        guard !switchInFlight, account.canActivate else { return nil }
+        return account.isActive ? L("Re-authenticate") : L("Switch Account...")
     }
 }

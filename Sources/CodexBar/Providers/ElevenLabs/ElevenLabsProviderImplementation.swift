@@ -38,8 +38,7 @@ struct ElevenLabsProviderImplementation: ProviderImplementation {
                 placeholder: "xi-...",
                 binding: context.providerConfigBinding(.apiKey),
                 actions: [],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
         ]
     }
 }

@@ -2,6 +2,7 @@ import Foundation
 
 public enum VeniceUsageError: LocalizedError, Sendable, Equatable {
     case missingCredentials
+    case cookiesDisabled
     case invalidCredentials
     case anonymousSession
     case expiredSession
@@ -13,6 +14,8 @@ public enum VeniceUsageError: LocalizedError, Sendable, Equatable {
 
     public var errorDescription: String? {
         switch self {
+        case .cookiesDisabled:
+            "Venice browser cookies are disabled. Enable cookies in Settings to use the Web source."
         case .missingCredentials:
             "Venice browser session cookie not found. Sign in to venice.ai in your browser."
         case .invalidCredentials:

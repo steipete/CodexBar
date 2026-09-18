@@ -1,6 +1,20 @@
 import Foundation
 
 enum PersonalInfoRedactor {
+    /// A source-issued slot is safe to show when arbitrary account labels are hidden.
+    struct AccountOrdinal: Equatable {
+        private let number: Int
+
+        init?(_ number: Int) {
+            guard number > 0 else { return nil }
+            self.number = number
+        }
+
+        var label: String {
+            String(format: L("Account %@"), String(self.number))
+        }
+    }
+
     static let emailPlaceholder = ""
 
     private static let emailRegex: NSRegularExpression? = {
@@ -12,6 +26,15 @@ enum PersonalInfoRedactor {
         guard let email, !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return "" }
         guard isEnabled else { return email }
         return Self.emailPlaceholder
+    }
+
+    static func redactAccountLabel(
+        _ label: String?,
+        isEnabled: Bool,
+        ordinal: AccountOrdinal? = nil) -> String
+    {
+        if isEnabled, let ordinal { return ordinal.label }
+        return Self.redactEmail(label, isEnabled: isEnabled)
     }
 
     static func redactEmails(in text: String?, isEnabled: Bool) -> String? {

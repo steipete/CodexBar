@@ -48,6 +48,10 @@ For the console request, CodexBar forwards only the `csrftoken` and `ory_session
 - The optional **Monthly Plan** window shows Vibe usage percentage and reset time when the console endpoint is
   available.
 - Token-cost history is supported through the billing web session; no local log scan is used.
+- Unrepresentable billing token totals fail parsing instead of crashing. Display-only model rankings omit an
+  overflowing total while retaining valid cost data.
+- Final input, cached, and output totals allow signed adjustments in any lane while rejecting totals outside the
+  supported integer range.
 
 ## CLI Usage
 

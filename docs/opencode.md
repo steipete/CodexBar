@@ -60,6 +60,10 @@ usage is a separate [OpenAI provider](openai.md), not Codex subscription quota.
   available, the menu and text CLI label the quota as estimated, and JSON includes `dataConfidence: "estimated"`.
   Estimated quota keeps its percentages and reset dates but does not show pace, reserve, or run-out advice in the
   menu, menu-bar layouts, or CLI; device-local costs cannot establish account-wide consumption or the billing cycle.
+- OpenCode Go Monthly usage can be selected in the menu-bar percentage picker and layout palette before the first
+  snapshot arrives. Missing data renders a dash. Percentage selection leaves pace, resets, and custom tokens independent;
+  custom layouts with both ordinary percentages and an independently placed Monthly percentage use the layout editor
+  for that mixed selection.
 - OpenCode Go cost history chart: `opencode.ai` has no daily-granularity endpoint, so per-day cost/request buckets
   come from local `opencode-go` assistant costs in `opencode.db`, keyed by device-local calendar day. Successful web
   usage remains workspace-scoped and is never blended with device-wide local costs, so it does not show cost history.

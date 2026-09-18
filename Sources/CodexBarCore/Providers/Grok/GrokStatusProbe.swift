@@ -49,7 +49,7 @@ public struct GrokUsageSnapshot: Sendable {
             // monthly window near its reset would otherwise be misclassified as weekly.
             primary = RateWindow(
                 usedPercent: percent,
-                windowMinutes: nil,
+                windowMinutes: webBilling.windowMinutes,
                 resetsAt: webBilling.resetsAt,
                 resetDescription: nil)
         }

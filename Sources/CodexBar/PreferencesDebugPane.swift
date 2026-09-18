@@ -565,7 +565,7 @@ struct DebugPane: View {
         let attempts = self.store.fetchAttempts(for: provider)
         guard !attempts.isEmpty else { return L("no_fetch_attempts") }
         return attempts.map { attempt in
-            let kind = Self.fetchKindLabel(attempt.kind)
+            let kind = ProviderDiagnosticFetchAttempt.kindLabel(attempt.kind)
             var line = "\(attempt.strategyID) (\(kind))"
             line += attempt.wasAvailable ? " available" : " unavailable"
             if let error = attempt.errorDescription, !error.isEmpty {
@@ -573,16 +573,5 @@ struct DebugPane: View {
             }
             return line
         }.joined(separator: "\n")
-    }
-
-    private static func fetchKindLabel(_ kind: ProviderFetchKind) -> String {
-        switch kind {
-        case .cli: "cli"
-        case .web: "web"
-        case .oauth: "oauth"
-        case .apiToken: "api"
-        case .localProbe: "local"
-        case .webDashboard: "web"
-        }
     }
 }

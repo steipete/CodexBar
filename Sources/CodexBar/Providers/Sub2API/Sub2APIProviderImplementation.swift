@@ -33,8 +33,7 @@ struct Sub2APIProviderImplementation: ProviderImplementation {
                 placeholder: "sk-…",
                 binding: context.providerConfigBinding(.apiKey),
                 actions: [],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
             ProviderSettingsFieldDescriptor(
                 id: "sub2api-base-url",
                 title: "Base URL",
@@ -43,8 +42,7 @@ struct Sub2APIProviderImplementation: ProviderImplementation {
                 placeholder: "https://sub2api.example.com",
                 binding: context.providerConfigBinding(.endpoint),
                 actions: [],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
         ]
     }
 }

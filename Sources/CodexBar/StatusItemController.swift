@@ -762,7 +762,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         guard !self.isReleasedForTesting else { return }
         #endif
         self.statusItem.menu = nil
-        self.statusBar.removeStatusItem(self.statusItem)
+        self.removeStatusItemPreservingPlacement(self.statusItem)
         self.statusItem = Self.makeStatusItem(
             statusBar: self.statusBar,
             identity: .merged,
@@ -787,7 +787,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         var expectedVisibleAutosaveNames: Set<String> = []
         if mergeIcons {
             let shouldBeVisible = anyEnabled || force
-            self.statusItem.isVisible = shouldBeVisible
+            self.setStatusItemVisiblePreservingPlacement(self.statusItem, shouldBeVisible)
             if shouldBeVisible {
                 expectedVisibleAutosaveNames.insert(self.statusItem.autosaveName)
             }
@@ -796,7 +796,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             }
             self.attachMenus()
         } else {
-            self.statusItem.isVisible = false
+            self.setStatusItemVisiblePreservingPlacement(self.statusItem, false)
             let fallback = self.fallbackProvider
             for provider in self.settings.orderedFirstPartyProviders() {
                 let isEnabled = self.isEnabled(provider)
@@ -908,7 +908,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         guard let item = self.statusItems.removeValue(forKey: instanceID) else { return }
         item.menu = nil
         self.lastAppliedProviderIconRenderSignatures.removeValue(forKey: instanceID)
-        self.statusBar.removeStatusItem(item)
+        self.removeStatusItemPreservingPlacement(item)
     }
 
     func isVisible(_ provider: UsageProvider) -> Bool {
@@ -1022,10 +1022,10 @@ extension StatusItemController {
         #endif
         let visibleItems = ([self.statusItem] + Array(self.statusItems.values)).filter(\.isVisible)
         for item in visibleItems {
-            item.isVisible = false
+            self.setStatusItemVisiblePreservingPlacement(item, false)
         }
         for item in visibleItems {
-            item.isVisible = true
+            self.setStatusItemVisiblePreservingPlacement(item, true)
         }
         self.updateVisibility()
         self.updateIcons()

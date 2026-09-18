@@ -6,6 +6,113 @@ import Testing
 @MainActor
 @Suite(.serialized)
 struct UsageStoreCodexCostCatchUpTests {
+    @Test(arguments: [CodexCurrentWindowFixture.Kind.historical, .unresolved], ["normal", "low-power", "thermal"])
+    func `cached native readiness is checked before the first duty-cycle or resource-pause sleep`(
+        _ kind: CodexCurrentWindowFixture.Kind, resource: String) async throws
+    {
+        let fixture = try CodexCurrentWindowFixture(kind: kind)
+        defer { fixture.base.remove() }
+        let store = try Self.makeStore(suite: "native-pre-sleep")
+        defer { store.cancelCodexCostCatchUp() }
+        store.settings.costUsageHistoryDays = 1
+        store.settings.backgroundWorkLowPowerModePreference = .off
+        store._test_codexCostCatchUpResourceStateOverride = {
+            (.ac, resource == "low-power", resource == "thermal" ? .serious : .nominal)
+        }
+        var advances = 0
+        var sleeps = 0
+        var widgets: [WidgetSnapshot] = []
+        store._test_widgetSnapshotSaveOverride = { widgets.append($0) }
+        store._setSnapshotForTesting(
+            UsageSnapshot(primary: nil, secondary: nil, updatedAt: fixture.base.now), provider: .codex)
+        store._test_codexCostCatchUpStatusOverride = { _ in
+            await CostUsageFetcher(scannerOptions: fixture.base.options).codexScanCatchUpStatus()
+        }
+        store._test_cachedCodexTokenSnapshotLoaderOverride = { _, _, days in
+            #expect(days == 1)
+            return await fixture.strictSnapshot().map { ($0.snapshot, $0.lastRefreshAt, $0.staleSnapshotUpdatedAt) }
+        }
+        store._test_codexCostCatchUpAdvanceOverride = { _, _, _ in
+            advances += 1
+            return .init(pending: false, progressKey: "unexpected-scan")
+        }
+        store._test_codexCostCatchUpSleepOverride = { delay in
+            sleeps += 1
+            #expect(delay == (resource == "normal" ? 1998 : CodexCostCatchUpPolicy.constrainedRetryDelay))
+            #expect(advances == 0)
+            if resource != "normal" {
+                #expect(store.codexCostCatchUpActivity?.phase == .paused)
+                #expect(store.codexCostCatchUpActivity?.pauseReason == (resource == "thermal" ? .thermal : .lowPower))
+            }
+            if kind == .historical {
+                #expect(store.tokenSnapshot(for: .codex)?.last30DaysTokens == 52)
+                #expect(store.tokenSnapshot(for: .codex)?.updatedAt == fixture.base.now)
+                #expect(store.lastTokenFetchAt[.codex] == fixture.base.now)
+            } else {
+                #expect(store.tokenSnapshot(for: .codex) == nil)
+                #expect(store.lastTokenFetchAt[.codex] == nil)
+            }
+            throw CancellationError()
+        }
+
+        store.startCodexCostCatchUpIfNeeded()
+        await store.codexCostCatchUpTask?.value
+        await store.widgetSnapshotPersistTask?.value
+
+        #expect(sleeps == 1)
+        #expect(advances == 0)
+        if kind == .historical {
+            let widget = try #require(widgets.last?.entries.first { $0.provider == .codex })
+            #expect(widget.tokenUsage?.last30DaysTokens == 52)
+            #expect(widget.tokenUsage?.updatedAt == fixture.base.now)
+        }
+        store._test_widgetSnapshotSaveOverride = nil
+    }
+
+    @Test
+    func `a ready native window publishes before a genuine no-progress pause`() async throws {
+        let fixture = try CodexCurrentWindowFixture(kind: .incompleteCost)
+        defer { fixture.base.remove() }
+        let store = try Self.makeStore(suite: "native-no-progress")
+        defer { store.cancelCodexCostCatchUp() }
+        store.settings.costUsageHistoryDays = 1
+        store.settings.backgroundWorkLowPowerModePreference = .off
+        store._test_codexCostCatchUpResourceStateOverride = { (.ac, false, .nominal) }
+        let fetcher = CostUsageFetcher(scannerOptions: fixture.base.options)
+        let initialStatus = await fetcher.codexScanCatchUpStatus()
+        #expect(await fixture.strictSnapshot() == nil)
+        var advances = 0
+        var sleeps: [TimeInterval] = []
+        store._test_codexCostCatchUpStatusOverride = { _ in await fetcher.codexScanCatchUpStatus() }
+        store._test_cachedCodexTokenSnapshotLoaderOverride = { _, _, _ in
+            await fixture.strictSnapshot().map { ($0.snapshot, $0.lastRefreshAt, $0.staleSnapshotUpdatedAt) }
+        }
+        store._test_codexCostCatchUpAdvanceOverride = { _, _, _ in
+            advances += 1
+            var cache = CostUsageStoreAccess.read(
+                cacheRoot: fixture.base.env.cacheRoot,
+                calendar: fixture.base.calendar)
+            cache.files[fixture.pendingURL.path]?.codexCostCacheComplete = true
+            CostUsageStoreAccess.replace(
+                cacheRoot: fixture.base.env.cacheRoot, cache: cache, calendar: fixture.base.calendar)
+            let status = await fetcher.codexScanCatchUpStatus()
+            #expect(status.pending)
+            #expect(status.progressKey == initialStatus.progressKey)
+            return status
+        }
+        store._test_codexCostCatchUpSleepOverride = { delay in sleeps.append(delay) }
+
+        store.startCodexCostCatchUpIfNeeded()
+        await store.codexCostCatchUpTask?.value
+        await store.widgetSnapshotPersistTask?.value
+
+        #expect(advances == 1)
+        #expect(sleeps == [1998])
+        #expect(store.tokenSnapshot(for: .codex)?.last30DaysTokens == 52)
+        #expect(store.tokenSnapshot(for: .codex)?.updatedAt == fixture.base.now)
+        #expect(store.codexCostCatchUpActivity?.pauseReason == .noProgress)
+    }
+
     @Test
     func `automatic sleep uses active scan duration instead of awaited latency`() async throws {
         let store = try Self.makeStore(suite: "active-duration")
@@ -19,6 +126,9 @@ struct UsageStoreCodexCostCatchUpTests {
         store._test_codexCostCatchUpAdvanceOverride = { _, _, _ in
             try await Task.sleep(for: .milliseconds(20))
             return .init(pending: true, progressKey: "progressed")
+        }
+        store._test_cachedCodexTokenSnapshotLoaderOverride = { now, _, _ in
+            (Self.tokenSnapshot(cost: 1, now: now), now, nil)
         }
         store._test_codexCostCatchUpSleepOverride = { delay in
             sleeps.append(delay)
@@ -65,7 +175,7 @@ struct UsageStoreCodexCostCatchUpTests {
     }
 
     @Test(arguments: [CodexCostCatchUpMode.automatic, .accelerated])
-    func `app low power preference reaches successive catch-up passes`(mode: CodexCostCatchUpMode) async throws {
+    func `app low power preference survives current window priority`(mode: CodexCostCatchUpMode) async throws {
         let store = try Self.makeStore(suite: "app-low-power-worker")
         store.settings.backgroundWorkLowPowerModePreference = .on
         var sleeps: [TimeInterval] = []
@@ -76,6 +186,7 @@ struct UsageStoreCodexCostCatchUpTests {
         store._test_codexCostCatchUpAdvanceOverride = { _, _, _ in
             CostUsageFetcher.CodexScanCatchUpStatus(pending: true, progressKey: "progressed")
         }
+        store._test_cachedCodexTokenSnapshotLoaderOverride = { _, _, _ in nil }
         store._test_codexCostCatchUpSleepOverride = { delay in
             sleeps.append(delay)
             if sleeps.count == 2 { throw CancellationError() }
@@ -85,7 +196,7 @@ struct UsageStoreCodexCostCatchUpTests {
         await task.value
         #expect(sleeps.count == 2)
         if mode == .automatic {
-            #expect(sleeps.allSatisfy { $0 >= 1800 })
+            #expect(sleeps == [1998, 1800])
         } else {
             #expect(sleeps == [0, 0])
         }
@@ -162,29 +273,33 @@ struct UsageStoreCodexCostCatchUpTests {
     }
 
     @Test
-    func `bounded catch-up automatically publishes only the final stable snapshot`() async throws {
+    func `bounded catch-up publishes current window before historical completion`() async throws {
         let store = try Self.makeStore(suite: "publishes-final")
         var snapshotLoadCount = 0
         var cachedLoadCount = 0
         var statusLoadCount = 0
         var advanceCount = 0
         var sleepDurations: [TimeInterval] = []
+        store._test_codexCostCatchUpActiveDuration = 2
         store._test_tokenUsageSnapshotLoaderOverride = { _, _, now, _, _ in
             snapshotLoadCount += 1
             return Self.tokenSnapshot(cost: Double(snapshotLoadCount), now: now)
         }
         store._test_cachedCodexTokenSnapshotLoaderOverride = { now, _, _ in
             cachedLoadCount += 1
-            return (Self.tokenSnapshot(cost: 2, now: now), now, nil)
+            return (Self.tokenSnapshot(cost: advanceCount == 2 ? 1 : 2, now: now), now, nil)
         }
         store._test_codexCostCatchUpStatusOverride = { _ in
             statusLoadCount += 1
             return CostUsageFetcher.CodexScanCatchUpStatus(
-                pending: statusLoadCount == 1,
+                pending: advanceCount < 2,
                 progressKey: "status-\(statusLoadCount)")
         }
         store._test_codexCostCatchUpAdvanceOverride = { _, _, _ in
             advanceCount += 1
+            if advanceCount == 2 {
+                #expect(store.tokenSnapshot(for: .codex)?.last30DaysCostUSD == 2)
+            }
             return CostUsageFetcher.CodexScanCatchUpStatus(
                 pending: advanceCount < 2,
                 progressKey: "advance-\(advanceCount)")
@@ -199,22 +314,23 @@ struct UsageStoreCodexCostCatchUpTests {
 
         await store.refreshTokenUsage(.codex, force: true)
         await Self.waitUntil {
-            store.codexCostCatchUpTask == nil && cachedLoadCount == 1
+            store.codexCostCatchUpTask == nil && cachedLoadCount == 2
         }
 
         #expect(advanceCount == 2)
-        #expect(statusLoadCount == 2)
+        #expect(statusLoadCount == 3)
         #expect(snapshotLoadCount == 1)
-        #expect(cachedLoadCount == 1)
-        #expect(sleepDurations.first == 1998)
-        #expect(store.tokenSnapshot(for: .codex)?.last30DaysCostUSD == 2)
-        #expect(store.tokenSnapshotPublicationRevision(for: .codex) == 2)
+        #expect(cachedLoadCount == 2)
+        #expect(sleepDurations == [1998, 1998])
+        #expect(store.tokenSnapshot(for: .codex)?.last30DaysCostUSD == 1)
+        #expect(store.tokenSnapshotPublicationRevision(for: .codex) == 3)
         #expect(store.tokenError(for: .codex) == nil)
     }
 
     @Test
     func `catch-up stops after one bounded pass that makes no progress`() async throws {
         let store = try Self.makeStore(suite: "no-progress")
+        store._test_cachedCodexTokenSnapshotLoaderOverride = { _, _, _ in nil }
         var snapshotLoadCount = 0
         var advanceCount = 0
         store._test_tokenUsageSnapshotLoaderOverride = { _, _, now, _, _ in
@@ -314,6 +430,10 @@ struct UsageStoreCodexCostCatchUpTests {
         store._test_tokenUsageSnapshotLoaderOverride = { _, _, now, _, _ in
             Self.tokenSnapshot(cost: 1, now: now)
         }
+        store._test_cachedCodexTokenSnapshotLoaderOverride = { now, _, _ in
+            guard advanceCount == 2 else { return nil }
+            return (Self.tokenSnapshot(cost: 1, now: now), now, nil)
+        }
         store._test_codexCostCatchUpStatusOverride = { _ in
             statusLoadCount += 1
             return CostUsageFetcher.CodexScanCatchUpStatus(
@@ -348,6 +468,10 @@ struct UsageStoreCodexCostCatchUpTests {
         let store = try Self.makeStore(suite: "same-mode-restart")
         var statusLoadCount = 0
         var advanceCount = 0
+        store._test_cachedCodexTokenSnapshotLoaderOverride = { now, _, _ in
+            guard advanceCount > 0 else { return nil }
+            return (Self.tokenSnapshot(cost: 1, now: now), now, nil)
+        }
         store._test_tokenUsageSnapshotLoaderOverride = { _, _, now, _, _ in
             Self.tokenSnapshot(cost: 1, now: now)
         }
@@ -385,6 +509,11 @@ struct UsageStoreCodexCostCatchUpTests {
     func `accelerated catch-up runs without an inter-pass delay and publishes progress`() async throws {
         let store = try Self.makeStore(suite: "accelerated")
         var statusLoadCount = 0
+        var didAdvance = false
+        store._test_cachedCodexTokenSnapshotLoaderOverride = { now, _, _ in
+            guard didAdvance else { return nil }
+            return (Self.tokenSnapshot(cost: 1, now: now), now, nil)
+        }
         var sleepDurations: [TimeInterval] = []
         store._test_tokenUsageSnapshotLoaderOverride = { _, _, now, _, _ in
             Self.tokenSnapshot(cost: 1, now: now)
@@ -400,7 +529,8 @@ struct UsageStoreCodexCostCatchUpTests {
                 totalFiles: 1)
         }
         store._test_codexCostCatchUpAdvanceOverride = { _, _, _ in
-            CostUsageFetcher.CodexScanCatchUpStatus(
+            didAdvance = true
+            return CostUsageFetcher.CodexScanCatchUpStatus(
                 pending: false,
                 progressKey: "complete",
                 processedBytes: 100,
@@ -477,7 +607,9 @@ struct UsageStoreCodexCostCatchUpTests {
 
     private static func makeStore(suite: String) throws -> UsageStore {
         let settings = testSettingsStore(
-            suiteName: "UsageStoreCodexCostCatchUpTests-\(suite)", userDefaults: InMemoryUserDefaults())
+            suiteName: "UsageStoreCodexCostCatchUpTests-\(suite)",
+            userDefaults: InMemoryUserDefaults(),
+            keychainAccessPolicy: .init(setDisabled: { _ in }, isExplicitlyDisabled: { false }))
         settings.costUsageEnabled = true
         settings.costUsageHistoryDays = 30
         let metadata = try #require(ProviderRegistry.shared.metadata[.codex])

@@ -948,21 +948,6 @@ extension ClaudeStatusProbe {
         String(text.lowercased().unicodeScalars.filter(CharacterSet.alphanumerics.contains))
     }
 
-    /// Capture all "Reset"/"Resets" strings to surface in the menu.
-    private static func allResets(_ text: String) -> [String] {
-        let pat = #"\bResets?\b[^\r\n]*"#
-        guard let regex = try? NSRegularExpression(pattern: pat, options: [.caseInsensitive]) else { return [] }
-        let nsrange = NSRange(text.startIndex..<text.endIndex, in: text)
-        var results: [String] = []
-        regex.enumerateMatches(in: text, options: [], range: nsrange) { match, _, _ in
-            guard let match,
-                  let r = Range(match.range(at: 0), in: text) else { return }
-            let raw = String(text[r]).trimmingCharacters(in: .whitespacesAndNewlines)
-            results.append(self.cleanResetLine(raw))
-        }
-        return results
-    }
-
     private static func cleanResetLine(_ raw: String) -> String {
         // TTY capture sometimes appends a stray ")" at line ends; trim it to keep snapshots stable.
         var cleaned = raw.trimmingCharacters(in: .whitespacesAndNewlines)

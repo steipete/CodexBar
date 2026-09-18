@@ -6,7 +6,8 @@ extension UsageStore {
         from providerSnapshot: UsageSnapshot?,
         historyDays: Int) -> CostUsageTokenSnapshot?
     {
-        let published = providerSnapshot?.costUsage ?? (providerSnapshot == nil ? self.tokenSnapshots[.grok] : nil)
+        let published = providerSnapshot?.costUsage
+            ?? (providerSnapshot == nil ? self.tokenSnapshotPublications[.grok]?.snapshot : nil)
         guard let published else { return nil }
         let days = max(1, historyDays)
         guard published.historyDays != days else { return published }

@@ -10,6 +10,19 @@ struct TokenAccountCLISelection {
     var usesOverride: Bool {
         self.label != nil || self.index != nil || self.allAccounts
     }
+
+    func providerSelectionError(_ providers: [UsageProvider]) -> String? {
+        guard self.usesOverride else { return nil }
+        guard providers.count == 1 else { return "account selection requires a single provider." }
+        let provider = providers[0]
+        // Provider-specific by design: Codex exposes reconciled live/managed accounts beyond token accounts.
+        let includesReconciledAccounts = provider == .codex && self.allAccounts && self.label == nil && self
+            .index == nil
+        guard includesReconciledAccounts || TokenAccountSupportCatalog.support(for: provider) != nil else {
+            return "\(provider.rawValue) does not support token accounts."
+        }
+        return nil
+    }
 }
 
 enum TokenAccountCLIResolutionScope {
@@ -66,8 +79,15 @@ struct TokenAccountCLIContext {
         }
     }
 
-    func resolvedAccounts(for provider: UsageProvider) throws -> [ProviderTokenAccount] {
-        guard TokenAccountSupportCatalog.support(for: provider) != nil else { return [] }
+    func resolvedAccounts(
+        for provider: UsageProvider, sourceMode: ProviderSourceMode? = nil) throws -> [ProviderTokenAccount]
+    {
+        guard let support = TokenAccountSupportCatalog.support(for: provider) else { return [] }
+        if !self.selection.usesOverride,
+           support.passiveSourceModes.contains(sourceMode ?? self.preferredSourceMode(for: provider))
+        {
+            return []
+        }
         guard let data = self.accountsByProvider[provider], !data.accounts.isEmpty else {
             if self.selection.usesOverride {
                 throw TokenAccountCLIError.noAccounts(provider)
@@ -219,24 +239,6 @@ struct TokenAccountCLIContext {
     func visibleCodexAccounts() -> CodexVisibleAccountProjection {
         // Provider-specific by design: only Codex exposes reconciled live, managed, and profile-home accounts.
         self.codexAccountReconciler().loadVisibleAccounts()
-    }
-
-    func applyAccountLabel(
-        _ snapshot: UsageSnapshot,
-        provider: UsageProvider,
-        account: ProviderTokenAccount) -> UsageSnapshot
-    {
-        let label = account.label.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !label.isEmpty else { return snapshot }
-        let existing = snapshot.identity(for: provider.instanceID)
-        let email = existing?.accountEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let resolvedEmail = (email?.isEmpty ?? true) ? label : email
-        let identity = ProviderIdentitySnapshot(
-            providerID: provider.instanceID,
-            accountEmail: resolvedEmail,
-            accountOrganization: existing?.accountOrganization,
-            loginMethod: existing?.loginMethod)
-        return snapshot.withIdentity(identity)
     }
 
     func applyCodexVisibleAccountLabel(_ snapshot: UsageSnapshot, account: CodexVisibleAccount) -> UsageSnapshot {

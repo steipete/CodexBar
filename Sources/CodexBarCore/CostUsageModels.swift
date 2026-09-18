@@ -16,12 +16,21 @@ package struct CostUsageTokenActivityCache: Sendable, Equatable {
     }
 }
 
+package enum CostUsageIncompleteRequests {
+    /// Reject malformed persisted counts at decode boundaries. Saturate combined reports so
+    /// overflow cannot erase the incomplete marker or crash a consumer.
+    package static func sum(_ counts: some Sequence<Int>) -> Int {
+        CheckedSum.integers(counts.map { max(0, $0) }) ?? Int.max
+    }
+}
+
 public struct CostUsageWindowSummary: Sendable, Equatable {
     public let days: Int
     public let totalTokens: Int?
     public let totalCostUSD: Double?
     public let totalRequests: Int?
     public let entryCount: Int
+    public let incompleteRequestCount: Int
     public let tokenMix: CostUsageTokenMix
     public let coverage: CostUsageCoverageCounts
     public let provenance: CostProvenance
@@ -36,13 +45,15 @@ public struct CostUsageWindowSummary: Sendable, Equatable {
         tokenMix: CostUsageTokenMix = CostUsageTokenMix(),
         coverage: CostUsageCoverageCounts = CostUsageCoverageCounts(),
         provenance: CostProvenance = .unknown,
-        meteredCostUSD: Double? = nil)
+        meteredCostUSD: Double? = nil,
+        incompleteRequestCount: Int = 0)
     {
         self.days = days
         self.totalTokens = totalTokens
         self.totalCostUSD = totalCostUSD
         self.totalRequests = totalRequests
         self.entryCount = entryCount
+        self.incompleteRequestCount = incompleteRequestCount
         self.tokenMix = tokenMix
         self.coverage = coverage
         self.provenance = provenance
@@ -199,26 +210,8 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
         }
         let coversFullHistory = days >= self.historyDays
         let windowMetered = coversFullHistory ? self.meteredCostUSD : nil
-        let totalTokens: Int? = {
-            guard !tokens.isEmpty else { return nil }
-            var sum = 0
-            for t in tokens {
-                let (res, of) = sum.addingReportingOverflow(t)
-                if of { return nil }
-                sum = res
-            }
-            return sum
-        }()
-        let totalRequests: Int? = {
-            guard !requests.isEmpty else { return nil }
-            var sum = 0
-            for r in requests {
-                let (res, of) = sum.addingReportingOverflow(r)
-                if of { return nil }
-                sum = res
-            }
-            return sum
-        }()
+        let totalTokens = tokens.isEmpty ? nil : CheckedSum.integers(tokens)
+        let totalRequests = requests.isEmpty ? nil : CheckedSum.integers(requests)
         return CostUsageWindowSummary(
             days: days,
             totalTokens: totalTokens,
@@ -231,7 +224,8 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
                 snapshot: self.costProvenance,
                 hasWindowCosts: !costs.isEmpty,
                 includesMetered: windowMetered != nil),
-            meteredCostUSD: windowMetered)
+            meteredCostUSD: windowMetered,
+            incompleteRequestCount: CostUsageIncompleteRequests.sum(entries.map(\.incompleteRequestCount)))
     }
 
     public func comparisonSummaries(
@@ -374,6 +368,7 @@ public struct CostUsageDailyReport: Sendable, Codable {
         public let priorityCostUSD: Double?
         public let standardTokens: Int?
         public let priorityTokens: Int?
+        public let incompleteRequestCount: Int?
 
         private enum CodingKeys: String, CodingKey {
             case modelName
@@ -391,6 +386,7 @@ public struct CostUsageDailyReport: Sendable, Codable {
             case priorityCostUSD
             case standardTokens
             case priorityTokens
+            case incompleteRequestCount
         }
 
         public init(from decoder: Decoder) throws {
@@ -412,6 +408,7 @@ public struct CostUsageDailyReport: Sendable, Codable {
             self.priorityCostUSD = try container.decodeIfPresent(Double.self, forKey: .priorityCostUSD)
             self.standardTokens = try container.decodeIfPresent(Int.self, forKey: .standardTokens)
             self.priorityTokens = try container.decodeIfPresent(Int.self, forKey: .priorityTokens)
+            self.incompleteRequestCount = try container.decodeIfPresent(Int.self, forKey: .incompleteRequestCount)
         }
 
         public init(
@@ -427,7 +424,8 @@ public struct CostUsageDailyReport: Sendable, Codable {
             standardCostUSD: Double? = nil,
             priorityCostUSD: Double? = nil,
             standardTokens: Int? = nil,
-            priorityTokens: Int? = nil)
+            priorityTokens: Int? = nil,
+            incompleteRequestCount: Int? = nil)
         {
             self.modelName = modelName
             self.costUSD = costUSD
@@ -442,6 +440,7 @@ public struct CostUsageDailyReport: Sendable, Codable {
             self.priorityCostUSD = priorityCostUSD
             self.standardTokens = standardTokens
             self.priorityTokens = priorityTokens
+            self.incompleteRequestCount = incompleteRequestCount
         }
 
         public func encode(to encoder: Encoder) throws {
@@ -459,6 +458,7 @@ public struct CostUsageDailyReport: Sendable, Codable {
             try container.encodeIfPresent(self.priorityCostUSD, forKey: .priorityCostUSD)
             try container.encodeIfPresent(self.standardTokens, forKey: .standardTokens)
             try container.encodeIfPresent(self.priorityTokens, forKey: .priorityTokens)
+            try container.encodeIfPresent(self.incompleteRequestCount, forKey: .incompleteRequestCount)
         }
     }
 
@@ -482,6 +482,14 @@ public struct CostUsageDailyReport: Sendable, Codable {
         public let unmeteredRequestCount: Int?
         public let estimatedRequestCount: Int?
 
+        package var hasOnlyIncompleteRequests: Bool {
+            self.incompleteRequestCount > 0 && self.totalTokens == nil && self.costUSD == nil
+        }
+
+        public var incompleteRequestCount: Int {
+            CostUsageIncompleteRequests.sum((self.modelBreakdowns ?? []).compactMap(\.incompleteRequestCount))
+        }
+
         public var coverageCounts: CostUsageCoverageCounts {
             self.coverageCounts(detail: .exact)
         }
@@ -498,18 +506,16 @@ public struct CostUsageDailyReport: Sendable, Codable {
                     estimated: estimated)
             }
             if detail != .rows, let requests = self.requestCount, requests > 0 {
-                let priced = if self.costUSD != nil {
-                    max(0, requests - unpriced - unmetered - estimated)
-                } else {
-                    0
-                }
+                // Clamp each subtraction so oversized explicit categories leave no inferred remainder.
+                let remainder = [unpriced, unmetered, estimated].reduce(requests) { max(0, $0 - $1) }
+                let hasCost = self.costUSD != nil
                 return CostUsageCoverageCounts(
-                    priced: priced,
-                    unpriced: unpriced,
+                    priced: hasCost ? remainder : 0,
+                    unpriced: hasCost ? unpriced : unpriced + remainder,
                     unmetered: unmetered,
                     estimated: estimated)
             }
-            if unpriced + unmetered + estimated > 0 {
+            if unpriced > 0 || unmetered > 0 || estimated > 0 {
                 return CostUsageCoverageCounts(
                     priced: 0,
                     unpriced: unpriced,
@@ -821,6 +827,7 @@ extension CostUsageDailyReport {
         var sawPriorityCost = false
         var standardTokens = OptionalCountAccumulator()
         var priorityTokens = OptionalCountAccumulator()
+        var incompleteRequestCount = 0
 
         mutating func add(_ breakdown: ModelBreakdown) {
             self.tokenMix.merge(CostUsageTokenMix(
@@ -830,6 +837,9 @@ extension CostUsageDailyReport {
                 cacheCreationTokens: breakdown.cacheCreationTokens,
                 reasoningTokens: breakdown.reasoningTokens))
             self.requestCount.add(breakdown.requestCount)
+            self.incompleteRequestCount = CostUsageIncompleteRequests.sum([
+                self.incompleteRequestCount, breakdown.incompleteRequestCount ?? 0,
+            ])
             self.totalTokens.add(breakdown.totalTokens)
             if let costUSD = breakdown.costUSD {
                 self.costUSD += costUSD
@@ -861,7 +871,8 @@ extension CostUsageDailyReport {
                 standardCostUSD: self.sawStandardCost ? self.standardCostUSD : nil,
                 priorityCostUSD: self.sawPriorityCost ? self.priorityCostUSD : nil,
                 standardTokens: self.standardTokens.value,
-                priorityTokens: self.priorityTokens.value)
+                priorityTokens: self.priorityTokens.value,
+                incompleteRequestCount: self.incompleteRequestCount > 0 ? self.incompleteRequestCount : nil)
         }
     }
 
@@ -1202,9 +1213,6 @@ enum CostUsageDateParser {
     private static let isoInternetDateTimeKey = "CostUsageDateParser.isoInternetDateTime"
     private static let dayFormatterKey = "CostUsageDateParser.dayFormatter"
     private static let monthDayYearFormatterKey = "CostUsageDateParser.monthDayYearFormatter"
-    private static let monthYearFormatterKey = "CostUsageDateParser.monthYearFormatter"
-    private static let fullMonthYearFormatterKey = "CostUsageDateParser.fullMonthYearFormatter"
-    private static let yearMonthFormatterKey = "CostUsageDateParser.yearMonthFormatter"
 
     static func parse(_ text: String?) -> Date? {
         guard let text, !text.isEmpty else { return nil }
@@ -1228,23 +1236,6 @@ enum CostUsageDateParser {
         if let d = self.dateFormatter(key: self.monthDayYearFormatterKey, format: "MMM d, yyyy")
             .date(from: trimmed)
         {
-            return d
-        }
-
-        return nil
-    }
-
-    static func parseMonth(_ text: String?) -> Date? {
-        guard let text, !text.isEmpty else { return nil }
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        if let d = self.dateFormatter(key: self.monthYearFormatterKey, format: "MMM yyyy").date(from: trimmed) {
-            return d
-        }
-        if let d = self.dateFormatter(key: self.fullMonthYearFormatterKey, format: "MMMM yyyy").date(from: trimmed) {
-            return d
-        }
-        if let d = self.dateFormatter(key: self.yearMonthFormatterKey, format: "yyyy-MM").date(from: trimmed) {
             return d
         }
 

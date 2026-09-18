@@ -209,8 +209,7 @@ public enum VertexAIOAuthCredentialsStore {
         // Try to get project ID from gcloud config
         let projectId = Self.loadProjectId(environment: environment)
 
-        // Try to extract email from ID token if present
-        let email = Self.extractEmailFromIdToken(json["id_token"] as? String)
+        let email = VertexAIIDToken.email(from: json["id_token"] as? String)
 
         // Parse expiry if present
         var expiryDate: Date?
@@ -229,10 +228,8 @@ public enum VertexAIOAuthCredentialsStore {
             expiryDate: expiryDate)
     }
 
-    public static func save(_ credentials: VertexAIOAuthCredentials) throws {
-        // We don't modify gcloud's credentials file; just cache the access token in memory
-        // The refresh happens on each app launch if needed
-    }
+    /// Compatibility no-op; gcloud owns credential persistence.
+    public static func save(_: VertexAIOAuthCredentials) throws {}
 
     private static func parseServiceAccountMetadata(json: [String: Any]) -> ServiceAccountMetadata? {
         guard let email = (json["client_email"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -299,29 +296,5 @@ public enum VertexAIOAuthCredentialsStore {
         return environment["GOOGLE_CLOUD_PROJECT"]
             ?? environment["GCLOUD_PROJECT"]
             ?? environment["CLOUDSDK_CORE_PROJECT"]
-    }
-
-    private static func extractEmailFromIdToken(_ token: String?) -> String? {
-        guard let token, !token.isEmpty else { return nil }
-
-        let parts = token.components(separatedBy: ".")
-        guard parts.count >= 2 else { return nil }
-
-        var payload = parts[1]
-            .replacingOccurrences(of: "-", with: "+")
-            .replacingOccurrences(of: "_", with: "/")
-
-        let remainder = payload.count % 4
-        if remainder > 0 {
-            payload += String(repeating: "=", count: 4 - remainder)
-        }
-
-        guard let data = Data(base64Encoded: payload, options: .ignoreUnknownCharacters),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-        else {
-            return nil
-        }
-
-        return json["email"] as? String
     }
 }

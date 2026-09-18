@@ -17,23 +17,13 @@ extension SettingsStore {
     }
 
     var alibabaTokenPlanCookieHeader: String {
-        get { self.configSnapshot.providerConfig(for: .alibabatokenplan)?.sanitizedCookieHeader ?? "" }
-        set {
-            self.updateProviderConfig(provider: .alibabatokenplan) { entry in
-                entry.cookieHeader = self.normalizedConfigValue(newValue)
-            }
-            self.logSecretUpdate(provider: .alibabatokenplan, field: "cookieHeader", value: newValue)
-        }
+        get { self[providerConfig: .alibabatokenplan, field: .cookieHeader] }
+        set { self[providerConfig: .alibabatokenplan, field: .cookieHeader] = newValue }
     }
 
     var alibabaTokenPlanCookieSource: ProviderCookieSource {
         get { self.resolvedCookieSource(provider: .alibabatokenplan, fallback: .auto) }
-        set {
-            self.updateProviderConfig(provider: .alibabatokenplan) { entry in
-                entry.cookieSource = newValue
-            }
-            self.logProviderModeChange(provider: .alibabatokenplan, field: "cookieSource", value: newValue.rawValue)
-        }
+        set { self.setCookieSource(newValue, provider: .alibabatokenplan) }
     }
 
     var alibabaTokenPlanAPIRegion: AlibabaTokenPlanAPIRegion {

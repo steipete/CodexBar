@@ -546,8 +546,11 @@ struct AlibabaTokenPlanUsageParsingTests {
         }
     }
 
-    @Test
-    func `mainland Personal fetch resolves SEC token and omits hardcoded workspace agent`() async throws {
+    @Test(arguments: ["", "+&=%2B /東京"])
+    func `mainland Personal fetch resolves SEC token and omits hardcoded workspace agent`(suffix: String) async throws {
+        let secToken = "personal-sec-token" + suffix
+        let anonymousID = "fixture-anon" + (suffix.isEmpty ? "" : "+%2B")
+        let apiCookieHeader = "quota_only=quota; cna=\(anonymousID)"
         defer {
             AlibabaTokenPlanStubURLProtocol.handler = nil
         }
@@ -567,7 +570,7 @@ struct AlibabaTokenPlanUsageParsingTests {
                     {
                       "code": "200",
                       "data": {
-                        "secToken": "personal-sec-token"
+                        "secToken": "\(secToken)"
                       },
                       "successResponse": true
                     }
@@ -579,10 +582,17 @@ struct AlibabaTokenPlanUsageParsingTests {
 
             #expect(url.host == "bailian-cs.console.aliyun.com")
             #expect(request.httpMethod == "POST")
-            #expect(request.value(forHTTPHeaderField: "Cookie") == "quota_only=quota")
+            #expect(request.value(forHTTPHeaderField: "Cookie") == apiCookieHeader)
             #expect(request.value(forHTTPHeaderField: "Origin") == "https://bailian.console.aliyun.com")
             let body = Self.requestBodyString(from: request)
-            #expect(body.contains("sec_token=personal-sec-token"))
+            let fields = try FormBodyTestSupport.decode(Data(body.utf8))
+            #expect(Set(fields.keys) == ["product", "action", "region", "language", "params", "sec_token"])
+            #expect(fields["sec_token"] == secToken)
+            let paramsData = try #require(fields["params"]?.data(using: .utf8))
+            let params = try #require(JSONSerialization.jsonObject(with: paramsData) as? [String: Any])
+            let data = try #require(params["Data"] as? [String: Any])
+            let cornerstone = try #require(data["cornerstoneParam"] as? [String: Any])
+            #expect(cornerstone["X-Anonymous-Id"] as? String == anonymousID)
             #expect(!body.contains("switchAgent"))
             #expect(body.removingPercentEncoding?.contains("cornerstoneParam") == true)
 
@@ -607,7 +617,7 @@ struct AlibabaTokenPlanUsageParsingTests {
         configuration.protocolClasses = [AlibabaTokenPlanStubURLProtocol.self]
         let session = URLSession(configuration: configuration)
         let snapshot = try await AlibabaTokenPlanUsageFetcher.fetchUsage(
-            apiCookieHeader: "quota_only=quota",
+            apiCookieHeader: apiCookieHeader,
             dashboardCookieHeader: "dashboard_only=dashboard",
             region: .chinaMainlandPersonal,
             environment: [:],
@@ -789,21 +799,24 @@ struct AlibabaTokenPlanUsageParsingTests {
         #expect(snapshot.planName == "TOKEN PLAN")
     }
 
-    @Test
-    func `SEC token preflight uses injected session`() async throws {
+    @Test(arguments: ["", "+&=%2B /東京"])
+    func `SEC token preflight uses injected session`(suffix: String) async throws {
+        let secToken = "session-html-token" + suffix
         AlibabaTokenPlanStubURLProtocol.handler = { request in
             guard let url = request.url else { throw URLError(.badURL) }
 
             if url.host == "session-token.test", request.httpMethod == "GET" {
                 return Self.makeResponse(
                     url: url,
-                    body: "<html><script>sec_token = \"session-html-token\";</script></html>",
+                    body: "<html><script>sec_token = \"\(secToken)\";</script></html>",
                     statusCode: 200)
             }
 
             if url.host == "session-token.test", request.httpMethod == "POST" {
                 let body = Self.requestBodyString(from: request)
-                #expect(body.contains("sec_token=session-html-token"))
+                let fields = try FormBodyTestSupport.decode(Data(body.utf8))
+                #expect(Set(fields.keys) == ["product", "action", "params", "region", "sec_token"])
+                #expect(fields["sec_token"] == secToken)
                 let json = """
                 {
                   "Success": true,
@@ -1555,37 +1568,6 @@ final class AlibabaTokenPlanStubURLProtocol: URLProtocol {
     }
 
     override func stopLoading() {}
-}
-
-struct AlibabaTokenPlanSECTokenScrapeTests {
-    @Test
-    func `extracts the OneConsole SEC_TOKEN embedded in the dashboard shell`() {
-        // The aliyun OneConsole shell embeds the token as an upper-case, unquoted key inside
-        // `window.ALIYUN_CONSOLE_CONFIG` — the shape the mainland Personal/Solo gateway requires.
-        let html = """
-        <script>
-          window.ALIYUN_CONSOLE_CONFIG = {
-            LANG: "zh",
-            SEC_TOKEN: "NwsiCAv9SDsHsNab4Jexample",
-            ACCOUNT_NAME: "someone"
-          };
-        </script>
-        """
-        #expect(AlibabaTokenPlanUsageFetcher.extractSECToken(from: html) == "NwsiCAv9SDsHsNab4Jexample")
-    }
-
-    @Test
-    func `still extracts the lower-case secToken and sec_token shapes`() {
-        #expect(
-            AlibabaTokenPlanUsageFetcher.extractSECToken(from: #"{"secToken":"abc123"}"#) == "abc123")
-        #expect(
-            AlibabaTokenPlanUsageFetcher.extractSECToken(from: #"var x = { sec_token: 'def456' };"#) == "def456")
-    }
-
-    @Test
-    func `returns nil when no token is present`() {
-        #expect(AlibabaTokenPlanUsageFetcher.extractSECToken(from: "<html><body>no token here</body></html>") == nil)
-    }
 }
 
 struct AlibabaTokenPlanPersonalUsageRetryTests {

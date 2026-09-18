@@ -169,8 +169,10 @@ struct UsageMenuCardView: View {
         var accountIdentityFingerprint: String?
         let subtitleText: String
         let subtitleStyle: SubtitleStyle
+        var lastKnownUsageText: String?
         var usesLiveSubtitle: Bool = false
         let planText: String?
+        var planEmphasis: PlanEmphasis = .none
         var metrics: [Metric]
         let usageNotes: [String]
         var subscriptionNotes: [String] = []
@@ -391,9 +393,17 @@ private struct UsageMenuCardHeaderView: View {
                         }
                     }
                     .font(.footnote)
-                    .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                    .fontWeight(self.model.planEmphasis.isEmphasized ? .semibold : nil)
+                    .foregroundStyle(self.model.planEmphasis.color(highlighted: self.isHighlighted))
                     .lineLimit(1)
+                    .layoutPriority(2)
                 }
+            }
+            if let lastKnownUsageText = self.model.lastKnownUsageText {
+                Text(lastKnownUsageText)
+                    .font(.footnote)
+                    .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
@@ -869,42 +879,6 @@ private struct CreditsBarContent: View {
     }
 }
 
-struct UsageMenuCardCostSectionView: View {
-    let model: UsageMenuCardView.Model
-    let topPadding: CGFloat
-    let bottomPadding: CGFloat
-    let width: CGFloat
-    @Environment(\.menuItemHighlighted) private var isHighlighted
-    @Environment(\.menuCardRefreshMonitor) private var refreshMonitor
-
-    var body: some View {
-        let liveModel = self.liveModel
-        let hasTokenCost = liveModel.tokenUsage != nil
-        return Group {
-            if hasTokenCost {
-                VStack(alignment: .leading, spacing: 10) {
-                    if let tokenUsage = liveModel.tokenUsage {
-                        TokenUsageSectionContent(
-                            provider: liveModel.provider,
-                            tokenUsage: tokenUsage,
-                            showsCodexHint: true,
-                            lineFont: .caption)
-                    }
-                }
-                .padding(.horizontal, UsageMenuCardLayout.horizontalPadding)
-                .padding(.top, self.topPadding)
-                .padding(.bottom, self.bottomPadding)
-                .frame(width: self.width, alignment: .leading)
-            }
-        }
-    }
-
-    private var liveModel: UsageMenuCardView.Model {
-        guard self.model.usesLiveSubtitle else { return self.model }
-        return self.refreshMonitor?.model(for: self.model.provider, fallback: self.model) ?? self.model
-    }
-}
-
 struct UsageMenuCardExtraUsageSectionView: View {
     let model: UsageMenuCardView.Model
     let topPadding: CGFloat
@@ -1008,12 +982,14 @@ extension UsageMenuCardView.Model {
             comparisonPeriodsEnabled: input.costComparisonPeriodsEnabled,
             snapshot: tokenUsageSnapshot,
             error: input.tokenError,
-            preferredCurrencyCode: input.preferredCurrencyCode)
+            preferredCurrencyCode: input.preferredCurrencyCode,
+            calendar: input.costUsageBucketCalendar)
         let subtitle = input.subtitleOverride.map { (text: $0, style: SubtitleStyle.info) }
             ?? Self.subtitle(
                 snapshot: input.snapshot,
                 isRefreshing: input.isRefreshing,
                 lastError: Self.lastError(input: input),
+                hasLastKnownUsage: input.lastKnownUsageCapturedAt != nil,
                 now: input.now)
         let redacted = Self.redactedText(input: input, subtitle: subtitle)
         let placeholder = Self.placeholder(input: input)
@@ -1025,8 +1001,12 @@ extension UsageMenuCardView.Model {
             accountIdentityFingerprint: Self.trackedAccountIdentityFingerprint(input: input),
             subtitleText: redacted.subtitleText,
             subtitleStyle: subtitle.style,
+            lastKnownUsageText: input.lastKnownUsageCapturedAt.map {
+                LastKnownUsagePresentation.message(capturedAt: $0, now: input.now)
+            },
             usesLiveSubtitle: input.usesLiveSubtitle,
             planText: planText,
+            planEmphasis: input.planEmphasis,
             metrics: metrics,
             usageNotes: usageNotes,
             subscriptionNotes: Self.subscriptionMetadataNotes(snapshot: input.snapshot, provider: input.provider),
@@ -1146,11 +1126,11 @@ extension UsageMenuCardView.Model {
         for provider: UsageProvider,
         snapshot: UsageSnapshot?,
         account: AccountInfo,
-        override: String?,
+        override: PlanOverride,
         metadata: ProviderMetadata) -> String?
     {
-        if let override, !override.isEmpty {
-            return override
+        if case let .label(label) = override {
+            return label.flatMap { $0.isEmpty ? nil : $0 }
         }
         if provider == .kiro,
            let plan = kiroPlan(snapshot: snapshot)
@@ -1236,14 +1216,20 @@ extension UsageMenuCardView.Model {
         snapshot: UsageSnapshot?,
         isRefreshing: Bool,
         lastError: String?,
+        hasLastKnownUsage: Bool,
         now: Date) -> (text: String, style: SubtitleStyle)
     {
         if let lastError, !lastError.isEmpty {
-            return (lastError.trimmingCharacters(in: .whitespacesAndNewlines), .error)
+            let message = lastError.trimmingCharacters(in: .whitespacesAndNewlines)
+            return (message, .error)
         }
 
         if isRefreshing {
             return ("\(L("Refreshing"))…", .loading)
+        }
+
+        if hasLastKnownUsage {
+            return ("", .info)
         }
 
         if let updated = snapshot?.updatedAt {
@@ -1264,9 +1250,10 @@ extension UsageMenuCardView.Model {
         input: Input,
         subtitle: (text: String, style: SubtitleStyle)) -> RedactedText
     {
-        let email = PersonalInfoRedactor.redactEmail(
+        let email = PersonalInfoRedactor.redactAccountLabel(
             Self.email(from: input),
-            isEnabled: input.hidePersonalInfo)
+            isEnabled: input.hidePersonalInfo,
+            ordinal: input.accountPrivacyOrdinal)
         let subtitleText = PersonalInfoRedactor.redactEmails(in: subtitle.text, isEnabled: input.hidePersonalInfo)
             ?? subtitle.text
         let creditsHintText = PersonalInfoRedactor.redactEmails(
@@ -1480,6 +1467,7 @@ extension UsageMenuCardView.Model {
                 pace: input.weeklyPace,
                 showUsed: input.usageBarsShowUsed)
         }
+        let presentation = ProviderDescriptorRegistry.descriptor(for: input.provider).presentation
         var weeklyResetText = Self.resetText(for: weekly, style: input.resetTimeDisplayStyle, now: input.now)
         var weeklyDetailText: String?
         if input.provider == .warp,
@@ -1489,7 +1477,7 @@ extension UsageMenuCardView.Model {
             weeklyResetText = nil
             weeklyDetailText = detail
         }
-        if [.kilo, .litellm, .chutes].contains(input.provider),
+        if presentation.menuCard.showsSecondaryBalanceDescription,
            let detail = weekly.resetDescription,
            !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         {
@@ -1516,12 +1504,6 @@ extension UsageMenuCardView.Model {
                 paceOnTop: true)
         }
         if input.provider == .alibaba || input.provider == .alibabatokenplan,
-           let detail = weekly.resetDescription,
-           !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        {
-            weeklyDetailText = detail
-        }
-        if input.provider == .manus,
            let detail = weekly.resetDescription,
            !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         {

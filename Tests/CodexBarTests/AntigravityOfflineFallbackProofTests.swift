@@ -56,7 +56,7 @@ struct AntigravityOfflineFallbackProofTests {
     }
 
     @Test
-    func `oauth shouldFallback when offline data exists`() async {
+    func `oauth shouldFallback when offline data exists`() {
         let tmp = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try? FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tmp) }
@@ -66,10 +66,10 @@ struct AntigravityOfflineFallbackProofTests {
         let ctxWithData = Self.makeContext(env: ["HOME": tmp.path])
         let ctxEmpty = Self.makeContext(env: ["HOME": "/tmp/empty-\(UUID().uuidString)"])
         let oauth = AntigravityOAuthFetchStrategy()
-        let shouldFallbackWithData = await oauth.shouldFallback(
+        let shouldFallbackWithData = oauth.shouldFallback(
             on: ProviderFetchError.noAvailableStrategy(.antigravity),
             context: ctxWithData)
-        let shouldFallbackEmpty = await oauth.shouldFallback(
+        let shouldFallbackEmpty = oauth.shouldFallback(
             on: ProviderFetchError.noAvailableStrategy(.antigravity),
             context: ctxEmpty)
         #expect(shouldFallbackWithData == true)

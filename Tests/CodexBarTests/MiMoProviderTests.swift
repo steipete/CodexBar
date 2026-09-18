@@ -320,8 +320,8 @@ struct MiMoProviderTests {
             updatedAt: Date())
             .toUsageSnapshot()
 
-        let balanceIcon = IconRemainingResolver.resolvedRemaining(snapshot: balanceOnly, style: .mimo)
-        let planIcon = IconRemainingResolver.resolvedRemaining(snapshot: withPlan, style: .mimo)
+        let balanceIcon = IconRemainingResolver.resolvedPercents(snapshot: balanceOnly, style: .mimo, showUsed: false)
+        let planIcon = IconRemainingResolver.resolvedPercents(snapshot: withPlan, style: .mimo, showUsed: false)
 
         #expect(balanceIcon.primary == nil)
         #expect(balanceIcon.secondary == nil)
@@ -1548,7 +1548,6 @@ extension MiMoProviderTests {
             snapshot: snapshot,
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,
@@ -1575,7 +1574,6 @@ extension MiMoProviderTests {
                 keyDataFetched: false,
                 keyLimit: nil,
                 keyUsage: nil,
-                rateLimit: nil,
                 updatedAt: updatedAt).toUsageSnapshot()
         case .mimo:
             return MiMoUsageSnapshot(

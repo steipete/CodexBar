@@ -17,7 +17,9 @@ Source labels (CLI/header): `openai-web`, `web`, `oauth`, `api`, `local`, `cli`,
 
 Cookie-based providers expose a Cookie source picker (Automatic or Manual) in Settings → Providers.
 Some browser cookie imports are cached in Keychain and reused until the session is invalid. API keys, manual cookie
-headers, source selection, provider ordering, and token accounts are stored in `~/.codexbar/config.json`.
+headers, source selection, provider ordering, and token accounts are stored in the resolved config file.
+New installs use `~/.config/codexbar/config.json`; existing `~/.codexbar/config.json` installs retain that legacy path.
+See [CLI configuration](cli-configuration.md) for `XDG_CONFIG_HOME` and `CODEXBAR_CONFIG` overrides.
 
 ## Usage & Spend settings
 
@@ -225,7 +227,7 @@ complete when the available scan window covers fewer days.
 - Web API via browser cookies (`cursor.com` + `cursor.sh`).
 - Fallbacks: a legacy stored session, then Cursor.app local auth.
 - Add Account and Switch Account open Cursor's authenticator in a supported browser; Switch Account prefers stable account IDs and falls back to normalized email when IDs are unavailable. CodexBar uses the supported system HTTPS handler when possible and otherwise asks the user to choose an eligible supported browser.
-- Grok Bot weekly included usage is a fourth Cursor card bar from `POST /api/dashboard/get-sand-usage-status` (same session). Accounts without a Bot allowance omit the bar.
+- Grok Bot weekly included usage is a fourth Cursor card bar from `POST /api/dashboard/get-sand-usage-status` (same session). Paid 7-day Bot allowances show weekly pace on that extra bar. Accounts without a Bot allowance omit the bar.
 - Status: Statuspage.io (Cursor).
 - Details: `docs/cursor.md`.
 
@@ -413,8 +415,8 @@ provider-specific cookie validation, endpoints, login detection, and error trans
 - Details: `docs/synthetic.md`.
 
 ## OpenRouter
-- API token from `~/.codexbar/config.json` (`providers[].apiKey`) or `OPENROUTER_API_KEY` env var.
-- Reads credits and key rate-limit info from OpenRouter APIs.
+- API token from the resolved CodexBar config (`providers[].apiKey`, default `~/.config/codexbar/config.json`) or `OPENROUTER_API_KEY` env var. Legacy config paths remain supported.
+- Reads regular-key quota from `/key` and attempts regular-key credits; a Management API key is required for 30-day Activity spend and is used only for Activity. Credits always use the selected account’s regular key.
 - Shows daily, weekly, and monthly API-key spend when `/api/v1/key` returns those fields.
 - Override base URL with `OPENROUTER_API_URL` env var.
 - Status: `https://status.openrouter.ai` (link only, no auto-polling yet).

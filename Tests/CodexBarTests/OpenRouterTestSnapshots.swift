@@ -3,11 +3,6 @@ import Foundation
 @testable import CodexBarCore
 
 /// Test-only fixture projection for UI tests. Production JavaScriptCore builds use openrouter.js.
-struct OpenRouterRateLimit: Sendable {
-    let requests: Int
-    let interval: String
-}
-
 struct OpenRouterUsageSnapshot: Sendable {
     let totalCredits: Double
     let totalUsage: Double
@@ -21,7 +16,6 @@ struct OpenRouterUsageSnapshot: Sendable {
     let keyUsageDaily: Double?
     let keyUsageWeekly: Double?
     let keyUsageMonthly: Double?
-    let rateLimit: OpenRouterRateLimit?
     let updatedAt: Date
 
     init(
@@ -37,7 +31,6 @@ struct OpenRouterUsageSnapshot: Sendable {
         keyUsageDaily: Double? = nil,
         keyUsageWeekly: Double? = nil,
         keyUsageMonthly: Double? = nil,
-        rateLimit: OpenRouterRateLimit?,
         updatedAt: Date)
     {
         self.totalCredits = totalCredits
@@ -53,7 +46,6 @@ struct OpenRouterUsageSnapshot: Sendable {
         self.keyUsageDaily = keyUsageDaily
         self.keyUsageWeekly = keyUsageWeekly
         self.keyUsageMonthly = keyUsageMonthly
-        self.rateLimit = rateLimit
         self.updatedAt = updatedAt
     }
 
@@ -102,11 +94,6 @@ struct OpenRouterUsageSnapshot: Sendable {
                 if let value {
                     rows.append(.makeRow(label: label, value: currency(value)))
                 }
-            }
-            if let rateLimit {
-                rows.append(.makeRow(
-                    label: "Rate limit",
-                    value: "\(rateLimit.requests) requests / \(rateLimit.interval)"))
             }
             let points = periods.compactMap { label, value in value.map { (label, $0) } }
             details.append(.makeSection(

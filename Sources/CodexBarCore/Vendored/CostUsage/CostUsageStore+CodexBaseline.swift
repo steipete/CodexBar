@@ -48,11 +48,19 @@ extension CostUsageStore {
         var stamp: DatabaseStamp
         var unloadedTokenSnapshotPaths: Set<String>
         var tokenSnapshotsLoaded: Bool
+        var hydratedTokenSnapshots: [String: [CostUsageCodexTokenSnapshot]] = [:]
     }
 
     struct RetainedCodexBaseline {
         var id: UUID
         var baseline: CodexDecodedBaseline
+    }
+
+    struct RetainedCodexRead {
+        var decoded: CostUsageCache
+        var persistence: CodexPersistenceState
+        var stamp: DatabaseStamp
+        var purpose: CostUsageStoreReadPurpose
     }
 
     func loadCodexScan(calendar: Calendar) -> CostUsageStoreLoad {
@@ -114,11 +122,7 @@ extension CostUsageStore {
                     loadTokenSnapshots: loadTokenSnapshots,
                     recorder: self.scopedReadWorkRecorderForTesting)
                 #if DEBUG
-                if let checkpoint = Self.codexBaselineReadCheckpointForTesting,
-                   checkpoint.databaseURL == self.databaseURL
-                {
-                    try checkpoint.checkpoint()
-                }
+                try self.runCodexReadCheckpointForTesting()
                 #endif
                 return snapshot
             }
@@ -188,6 +192,14 @@ extension CostUsageStore {
     }
 
     #if DEBUG
+    func runCodexReadCheckpointForTesting() throws {
+        if let checkpoint = Self.codexBaselineReadCheckpointForTesting,
+           checkpoint.databaseURL == self.databaseURL
+        {
+            try checkpoint.checkpoint()
+        }
+    }
+
     nonisolated(unsafe) static var codexBaselineReadCheckpointForTesting: (
         databaseURL: URL,
         checkpoint: () throws -> Void)?

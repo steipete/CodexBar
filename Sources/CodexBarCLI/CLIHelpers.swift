@@ -1,5 +1,8 @@
 import CodexBarCore
 import Commander
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 #if canImport(Darwin)
 import Darwin
 #elseif canImport(Glibc)
@@ -8,6 +11,9 @@ import Glibc
 import Musl
 #endif
 import Foundation
+#if os(macOS)
+import CoreFoundation
+#endif
 
 extension CodexBarCLI {
     static func decodeProvider(from values: ParsedValues, config: CodexBarConfig) -> ProviderSelection {
@@ -92,7 +98,7 @@ extension CodexBarCLI {
         guard !attempts.isEmpty else { return }
         self.writeStderr("[\(provider.rawValue)] fetch strategies:\n")
         for attempt in attempts {
-            let kindLabel = Self.fetchKindLabel(attempt.kind)
+            let kindLabel = ProviderDiagnosticFetchAttempt.kindLabel(attempt.kind)
             var line = "  - \(attempt.strategyID) (\(kindLabel))"
             line += attempt.wasAvailable ? " available" : " unavailable"
             if let error = attempt.errorDescription, !error.isEmpty {
@@ -131,34 +137,30 @@ extension CodexBarCLI {
         // Provider-specific by design: Kilo exposes its ordered API-to-CLI fallback attempts in verbose output.
         guard provider == .kilo, sourceMode == .auto, !attempts.isEmpty else { return nil }
         let parts = attempts.map { attempt in
-            let label = Self.fetchKindLabel(attempt.kind)
+            let label = ProviderDiagnosticFetchAttempt.kindLabel(attempt.kind)
             let message = attempt.errorDescription?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             if !message.isEmpty {
                 return "\(label): \(message)"
             }
             return "\(label): \(attempt.wasAvailable ? "success" : "unavailable")"
         }
-        guard !parts.isEmpty else { return nil }
         return "Kilo auto fallback attempts: " + parts.joined(separator: " -> ")
     }
 
-    private static func fetchKindLabel(_ kind: ProviderFetchKind) -> String {
-        switch kind {
-        case .cli: "cli"
-        case .web: "web"
-        case .oauth: "oauth"
-        case .apiToken: "api"
-        case .localProbe: "local"
-        case .webDashboard: "web"
-        }
-    }
-
-    static func fetchStatus(for provider: UsageProvider) async -> ProviderStatusPayload? {
+    static func fetchStatus(
+        for provider: UsageProvider,
+        transport: any ProviderHTTPTransport = ProviderHTTPClient(session: .shared)) async -> ProviderStatusPayload?
+    {
         let urlString = ProviderDescriptorRegistry.descriptor(for: provider).metadata.statusPageURL
         guard let urlString,
               let baseURL = URL(string: urlString) else { return nil }
         do {
-            return try await StatusFetcher.fetch(from: baseURL)
+            let status = try await ProviderStatusFetcher.fetchStatus(from: baseURL, transport: transport)
+            return ProviderStatusPayload(
+                indicator: status.indicator,
+                description: status.description,
+                updatedAt: status.updatedAt,
+                url: urlString)
         } catch {
             return ProviderStatusPayload(
                 indicator: .unknown,
@@ -169,17 +171,7 @@ extension CodexBarCLI {
     }
 
     static func resetTimeDisplayStyleFromDefaults() -> ResetTimeDisplayStyle {
-        let domains = [
-            "com.steipete.codexbar",
-            "com.steipete.codexbar.debug",
-        ]
-        for domain in domains {
-            if let value = UserDefaults(suiteName: domain)?.object(forKey: "resetTimesShowAbsolute") as? Bool {
-                return value ? .absolute : .countdown
-            }
-        }
-        let fallback = UserDefaults.standard.object(forKey: "resetTimesShowAbsolute") as? Bool ?? false
-        return fallback ? .absolute : .countdown
+        (self.boolFromAppDefaults("resetTimesShowAbsolute") ?? false) ? .absolute : .countdown
     }
 
     static func weeklyProgressWorkDaysFromDefaults() -> Int? {
@@ -188,6 +180,18 @@ extension CodexBarCLI {
             "com.steipete.codexbar.debug",
         ]
         for domain in domains {
+            #if os(macOS)
+            let cfDomain = domain as CFString
+            CFPreferencesSynchronize(cfDomain, kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
+            if let cfValue = CFPreferencesCopyValue(
+                "weeklyProgressWorkDays" as CFString,
+                cfDomain,
+                kCFPreferencesCurrentUser,
+                kCFPreferencesAnyHost) as? Int
+            {
+                return cfValue
+            }
+            #endif
             if let value = UserDefaults(suiteName: domain)?.object(forKey: "weeklyProgressWorkDays") as? Int {
                 return value
             }
@@ -202,12 +206,30 @@ extension CodexBarCLI {
         self.boolFromAppDefaults("hidePersonalInfo") ?? false
     }
 
+    /// The app's "Usage bars fill" preference (true = as used, false = as remaining). Read
+    /// per request so the serve dashboard follows the setting without a restart.
+    static func usageBarsShowUsedFromDefaults() -> Bool {
+        self.boolFromAppDefaults("usageBarsShowUsed") ?? false
+    }
+
     static func boolFromAppDefaults(_ key: String) -> Bool? {
         let domains = [
             "com.steipete.codexbar",
             "com.steipete.codexbar.debug",
         ]
         for domain in domains {
+            #if os(macOS)
+            let cfDomain = domain as CFString
+            CFPreferencesSynchronize(cfDomain, kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
+            if let cfValue = CFPreferencesCopyValue(
+                key as CFString,
+                cfDomain,
+                kCFPreferencesCurrentUser,
+                kCFPreferencesAnyHost) as? Bool
+            {
+                return cfValue
+            }
+            #endif
             if let value = UserDefaults(suiteName: domain)?.object(forKey: key) as? Bool {
                 return value
             }
@@ -221,6 +243,19 @@ extension CodexBarCLI {
             "com.steipete.codexbar.debug",
         ]
         for domain in domains {
+            #if os(macOS)
+            let cfDomain = domain as CFString
+            CFPreferencesSynchronize(cfDomain, kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
+            if let cfValue = CFPreferencesCopyValue(
+                key as CFString,
+                cfDomain,
+                kCFPreferencesCurrentUser,
+                kCFPreferencesAnyHost) as? String,
+                !cfValue.isEmpty
+            {
+                return cfValue
+            }
+            #endif
             if let value = UserDefaults(suiteName: domain)?.string(forKey: key), !value.isEmpty {
                 return value
             }

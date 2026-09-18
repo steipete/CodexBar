@@ -3,23 +3,13 @@ import Foundation
 
 extension SettingsStore {
     var notionCookieHeader: String {
-        get { self.configSnapshot.providerConfig(for: .notion)?.sanitizedCookieHeader ?? "" }
-        set {
-            self.updateProviderConfig(provider: .notion) { entry in
-                entry.cookieHeader = self.normalizedConfigValue(newValue)
-            }
-            self.logSecretUpdate(provider: .notion, field: "cookieHeader", value: newValue)
-        }
+        get { self[providerConfig: .notion, field: .cookieHeader] }
+        set { self[providerConfig: .notion, field: .cookieHeader] = newValue }
     }
 
     var notionCookieSource: ProviderCookieSource {
         get { self.resolvedCookieSource(provider: .notion, fallback: .auto) }
-        set {
-            self.updateProviderConfig(provider: .notion) { entry in
-                entry.cookieSource = newValue
-            }
-            self.logProviderModeChange(provider: .notion, field: "cookieSource", value: newValue.rawValue)
-        }
+        set { self.setCookieSource(newValue, provider: .notion) }
     }
 
     var notionWorkspaceID: String {

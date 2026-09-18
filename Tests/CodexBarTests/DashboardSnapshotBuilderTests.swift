@@ -297,6 +297,7 @@ struct DashboardSnapshotBuilderTests {
         #expect(object["staleAfterSeconds"] as? Int == 180)
         #expect(host["codexBarVersion"] as? String == "9.8.7")
         #expect(host["refreshIntervalSeconds"] as? Int == 60)
+        #expect(host["usageBarsShowUsed"] as? Bool == false)
 
         #expect(provider["id"] as? String == "codex")
         #expect(provider["name"] as? String == "Codex")
@@ -609,6 +610,32 @@ struct DashboardSnapshotBuilderTests {
     }
 
     @Test
+    func `dashboard snapshot builder serializes usage bars show used host preference`() throws {
+        let snapshot = DashboardSnapshotBuilder.makeSnapshot(
+            usagePayloads: [],
+            costPayloads: [],
+            config: CodexBarConfig(providers: []),
+            identityMode: .none,
+            generatedAt: Date(),
+            refreshInterval: 60,
+            codexBarVersion: "1.0.0",
+            usageBarsShowUsed: true)
+        let object = try self.jsonObject(snapshot)
+        let host = try #require(object["host"] as? [String: Any])
+        #expect(host["usageBarsShowUsed"] as? Bool == true)
+
+        let shellSnapshot = DashboardSnapshotBuilder.makeShellSnapshot(
+            config: CodexBarConfig(providers: []),
+            generatedAt: Date(),
+            refreshInterval: 60,
+            codexBarVersion: "1.0.0",
+            usageBarsShowUsed: true)
+        let shellObject = try self.jsonObject(shellSnapshot)
+        let shellHost = try #require(shellObject["host"] as? [String: Any])
+        #expect(shellHost["usageBarsShowUsed"] as? Bool == true)
+    }
+
+    @Test
     func `dashboard daily cost uses generation day without update metadata`() throws {
         let generatedAt = Date(timeIntervalSince1970: 1_800_000_000)
         let usage = self.identityPayload(email: "user@example.com")
@@ -647,6 +674,87 @@ struct DashboardSnapshotBuilderTests {
         let costObject = try #require(provider["cost"] as? [String: Any])
 
         #expect(costObject["todayUSD"] as? Double == 2.5)
+    }
+
+    @Test
+    func `dashboard keeps incomplete only costs and scopes Today to its generation date`() throws {
+        let localDay = Calendar.current.startOfDay(for: ClaudeIncompleteUsagePropagationTests.now)
+        let priorDay = try #require(Calendar.current.date(byAdding: .day, value: -1, to: localDay))
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        dateFormatter.calendar = .current
+        let entries = [ClaudeIncompleteUsagePropagationTests.entry(
+            day: dateFormatter.string(from: priorDay),
+            cost: nil,
+            tokens: nil,
+            incomplete: 2)]
+        let cost = CodexBarCLI.makeCostPayload(
+            provider: .claude,
+            snapshot: ClaudeIncompleteUsagePropagationTests.snapshot(entries: entries),
+            error: nil)
+        for (generatedAt, expectedTodayCount) in [(priorDay, 2), (localDay, 0)] {
+            let snapshot = DashboardSnapshotBuilder.makeSnapshot(
+                usagePayloads: [self.identityPayload(email: "fixture@example.test")],
+                costPayloads: [cost],
+                config: CodexBarConfig(providers: [ProviderConfig(id: .claude, enabled: true)]),
+                identityMode: .redacted,
+                generatedAt: generatedAt,
+                refreshInterval: 60,
+                codexBarVersion: nil)
+            let object = try self.jsonObject(snapshot)
+            let provider = try #require((object["providers"] as? [[String: Any]])?.first)
+            let payload = try #require(provider["cost"] as? [String: Any])
+            #expect(payload["todayUSD"] is NSNull)
+            #expect(payload["last30DaysUSD"] is NSNull)
+            #expect((payload["todayIncompleteRequestCount"] as? Int ?? 0) == expectedTodayCount)
+            #expect(payload["last30DaysIncompleteRequestCount"] as? Int == 2)
+        }
+    }
+
+    @Test
+    func `dashboard narrows amounts and exclusions together for histories longer than thirty days`() throws {
+        let now = ClaudeIncompleteUsagePropagationTests.now
+        let calendar = Calendar.current
+        let old = try #require(calendar.date(byAdding: .day, value: -45, to: now))
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        dateFormatter.calendar = calendar
+        let cost = CodexBarCLI.makeCostPayload(
+            provider: .claude,
+            snapshot: .init(
+                sessionTokens: 500,
+                sessionCostUSD: 5,
+                last30DaysTokens: 1200,
+                last30DaysCostUSD: 12,
+                historyDays: 90,
+                daily: [
+                    ClaudeIncompleteUsagePropagationTests.entry(
+                        day: dateFormatter.string(from: old),
+                        cost: 7,
+                        tokens: 700,
+                        incomplete: 1),
+                    ClaudeIncompleteUsagePropagationTests.entry(
+                        day: dateFormatter.string(from: now),
+                        cost: 5,
+                        tokens: 500),
+                ],
+                updatedAt: now),
+            error: nil)
+        #expect(cost.last30DaysCostUSD == 12)
+        #expect(cost.incompleteRequestCount == 1)
+        let snapshot = DashboardSnapshotBuilder.makeSnapshot(
+            usagePayloads: [self.identityPayload(email: "fixture@example.test")],
+            costPayloads: [cost],
+            config: CodexBarConfig(providers: [ProviderConfig(id: .claude, enabled: true)]),
+            identityMode: .redacted,
+            generatedAt: now,
+            refreshInterval: 60,
+            codexBarVersion: nil)
+        let projected = try #require(snapshot.providers.first?.cost)
+        #expect(projected.todayUSD == 5)
+        #expect(projected.last30DaysUSD == 5)
+        #expect(projected.todayIncompleteRequestCount == nil)
+        #expect(projected.last30DaysIncompleteRequestCount == nil)
     }
 
     private func identityPayload(email: String) -> ProviderPayload {

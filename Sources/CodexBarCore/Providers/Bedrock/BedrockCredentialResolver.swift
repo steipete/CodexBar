@@ -65,8 +65,8 @@ enum BedrockCredentialResolver {
         profile: String,
         environment: [String: String]) async throws -> String
     {
-        if let explicit = BedrockSettingsReader.cleaned(environment[BedrockSettingsReader.regionKeys[0]])
-            ?? BedrockSettingsReader.cleaned(environment[BedrockSettingsReader.regionKeys[1]])
+        if let explicit = SettingsValue.cleaned(environment[BedrockSettingsReader.regionKeys[0]])
+            ?? SettingsValue.cleaned(environment[BedrockSettingsReader.regionKeys[1]])
         {
             return explicit
         }

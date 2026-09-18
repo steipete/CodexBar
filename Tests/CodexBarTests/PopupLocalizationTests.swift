@@ -253,7 +253,6 @@ struct PopupLocalizationTests {
                 keyUsageDaily: 1.25,
                 keyUsageWeekly: 7.5,
                 keyUsageMonthly: 18.75,
-                rateLimit: OpenRouterRateLimit(requests: 100, interval: "10s"),
                 updatedAt: now)
 
             let model = UsageMenuCardView.Model.make(.init(
@@ -262,7 +261,6 @@ struct PopupLocalizationTests {
                 snapshot: usage.toUsageSnapshot(),
                 credits: nil,
                 creditsError: nil,
-                dashboard: nil,
                 dashboardError: nil,
                 tokenSnapshot: nil,
                 tokenError: nil,
@@ -282,40 +280,53 @@ struct PopupLocalizationTests {
             let apiKey = try #require(model.providerDetails.first { $0.title == "API 金鑰" })
             #expect(apiKey.rows.map(\.label) == [
                 "API 金鑰限制", "API key remaining", "API key used", "Reset window",
-                "今天", "本週", "本月", "Rate limit",
+                "今天", "本週", "本月",
             ])
             #expect(apiKey.chart?.points.map(\.label) == ["Today", "This week", "This month"])
-            #expect(apiKey.rows.last?.value == "100 requests / 10s")
+            #expect(apiKey.rows.last?.value == "$18.75")
         }
     }
 
     @Test
-    func `cookie source dynamic subtitles use selected localization`() {
+    func `cookie source dynamic subtitles use selected localization`() throws {
+        let settings = testSettingsStore(
+            suiteName: "PopupLocalizationTests-cookie-subtitles", userDefaults: InMemoryUserDefaults())
+        settings.t3ChatCookieSource = .manual
+        settings.windsurfCookieSource = .manual
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing)
+        let pane = ProvidersPane(provider: .t3chat, settings: settings, store: store)
+        let picker = try #require(pane._test_settingsPickers(for: .t3chat).first)
+        let windsurf = try #require(pane._test_settingsPickers(for: .windsurf)
+            .first { $0.id == "windsurf-cookie-source" })
+        settings.alibabaTokenPlanCookieSource = .manual
+        settings.alibabaTokenPlanAPIRegion = .international
+        let alibaba = try #require(pane._test_settingsPickers(for: .alibabatokenplan)
+            .first { $0.id == "alibaba-token-plan-cookie-source" })
+
         CodexBarLocalizationOverride.$appLanguage.withValue("zh-Hant") {
-            let subtitle = ProviderCookieSourceUI.subtitle(
-                source: .manual,
-                keychainDisabled: false,
-                auto: "Automatically imports browser cookies.",
-                manual: "Paste a Cookie header or cURL capture from T3 Chat settings.",
-                off: "T3 Chat cookies are disabled.")
-            let disabledSubtitle = ProviderCookieSourceUI.subtitle(
-                source: .manual,
-                keychainDisabled: true,
-                auto: "Automatically imports browser cookies.",
-                manual: "Paste a Cookie header or cURL capture from T3 Chat settings.",
-                off: "T3 Chat cookies are disabled.")
-            let jsonBundleSubtitle = ProviderCookieSourceUI.subtitle(
-                source: .manual,
-                keychainDisabled: false,
-                auto: "Automatically imports browser cookies.",
-                manual: "Paste the localStorage JSON bundle from Windsurf session.",
-                off: "Windsurf cookies are disabled.")
+            let subtitle = picker.dynamicSubtitle?() ?? ""
+            let jsonBundleSubtitle = windsurf.dynamicSubtitle?() ?? ""
+            settings.debugDisableKeychainAccess = true
+            let disabledSubtitle = picker.dynamicSubtitle?() ?? ""
 
             #expect(subtitle.contains("貼上"))
             #expect(!subtitle.contains("Paste a Cookie"))
             #expect(disabledSubtitle.contains("鑰匙圈"))
             #expect(!disabledSubtitle.contains("Keychain access"))
-            #expect(jsonBundleSubtitle.contains("來自 Windsurf session 的 localStorage JSON"))
+            #expect(jsonBundleSubtitle.contains("來自 localStorage 的 Windsurf session JSON"))
+            settings.windsurfCookieSource = .off
+            #expect(windsurf.dynamicSubtitle?() == "Windsurf Web API 存取已停用。")
+        }
+        CodexBarLocalizationOverride.$appLanguage.withValue("en") {
+            settings.debugDisableKeychainAccess = false
+            #expect(picker.dynamicSubtitle?() == "Paste a Cookie header or cURL capture from T3 Chat settings.")
+            #expect(alibaba.dynamicSubtitle?() == "Paste a Cookie header from modelstudio.console.alibabacloud.com.")
+            settings.alibabaTokenPlanAPIRegion = .chinaMainlandPersonal
+            #expect(alibaba.dynamicSubtitle?() == "Paste a Cookie header from bailian-cs.console.aliyun.com.")
         }
     }
 
@@ -343,16 +354,6 @@ struct PopupLocalizationTests {
             provider: .kilo,
             settings: settings,
             store: store,
-            boolBinding: { keyPath in
-                Binding(
-                    get: { settings[keyPath: keyPath] },
-                    set: { settings[keyPath: keyPath] = $0 })
-            },
-            stringBinding: { keyPath in
-                Binding(
-                    get: { settings[keyPath: keyPath] },
-                    set: { settings[keyPath: keyPath] = $0 })
-            },
             statusText: { _ in nil },
             setStatusText: { _, _ in },
             lastAppActiveRunAt: { _ in nil },
@@ -409,7 +410,6 @@ struct PopupLocalizationTests {
             snapshot: snapshot,
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,

@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-14T12:00:00Z",
+  "staleAfterSeconds": 86400,
+  "host": {
+    "codexBarVersion": "synthetic",
+    "refreshIntervalSeconds": 60
+  },
+  "providers": [
+    {
+      "id": "claude",
+      "name": "Claude",
+      "enabled": true,
+      "display": {
+        "sortKey": 0,
+        "accentColor": "#C58060"
+      },
+      "identity": {
+        "plan": "Synthetic ambient plan",
+        "accountEmail": "ambient@example.test"
+      },
+      "windows": [
+        {
+          "kind": "session",
+          "label": "Ambient quota",
+          "usedPercent": 77,
+          "remainingPercent": 23
+        }
+      ],
+      "credits": {
+        "remaining": 9876,
+        "unit": "credits"
+      },
+      "cost": {
+        "todayUSD": 2,
+        "last30DaysUSD": 5
+      },
+      "error": {
+        "message": "Synthetic provider diagnostic"
+      },
+      "accountsError": "Synthetic adapter note",
+      "accounts": [
+        {
+          "id": "slot-a",
+          "label": "Synthetic Account A",
+          "active": true,
+          "windows": [
+            {
+              "kind": "session",
+              "label": "Session",
+              "usedPercent": 20,
+              "remainingPercent": 80
+            },
+            {
+              "kind": "weekly",
+              "label": "Weekly",
+              "usedPercent": 40,
+              "remainingPercent": 60
+            }
+          ],
+          "error": "Synthetic account A note"
+        },
+        {
+          "id": "slot-b",
+          "label": "Synthetic Account B",
+          "active": false,
+          "windows": [
+            {
+              "kind": "session",
+              "label": "Session",
+              "usedPercent": 70,
+              "remainingPercent": 30
+            },
+            {
+              "kind": "weekly",
+              "label": "Weekly",
+              "usedPercent": 10,
+              "remainingPercent": 90
+            }
+          ],
+          "error": "Synthetic account B note"
+        }
+      ]
+    }
+  ]
+}

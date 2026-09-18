@@ -84,6 +84,42 @@ struct ClaudeSwapMenuBarSnapshotTests {
         #expect(snapshot.primary?.usedPercent == 55)
     }
 
+    /// The account card shows last-known bars and states their age; the bar icon
+    /// has no age affordance and `isStale` tracks provider errors rather than
+    /// measurement age, so last-known data must not reach it.
+    @Test
+    func `active account with only last known usage still falls back on the bar`() throws {
+        let store = Self.makeUsageStore(suite: "ClaudeSwapMenuBarSnapshotTests-lastknown")
+        var rows = Self.swapRows(count: 2, activeNumber: 1)
+        rows[0] = ClaudeSwapAccountRow(
+            number: 1,
+            email: "active@example.com",
+            isActive: true,
+            usageStatus: .tokenExpired,
+            fiveHour: nil,
+            sevenDay: nil,
+            scoped: [],
+            lastGoodUsage: ClaudeSwapLastGoodUsage(
+                measurement: ClaudeSwapUsageMeasurement(
+                    fiveHour: ClaudeSwapUsageWindow(usedPercent: 71, resetsAt: nil),
+                    sevenDay: nil),
+                fetchedAt: Self.now.addingTimeInterval(-3600)))
+        store.claudeSwapAccountSnapshots = ClaudeSwapAccountProjection.accountSnapshots(
+            from: ClaudeSwapAccountList(activeAccountNumber: 1, accounts: rows),
+            now: Self.now)
+        store._setSnapshotForTesting(Self.ambientSnapshot(usedPercent: 55), provider: .claude)
+
+        // The card keeps the last known measurement...
+        let activeAccount = store.claudeSwapAccountSnapshots.first(where: \.isActive)
+        let active = try #require(activeAccount)
+        #expect(active.usesLastKnownUsage)
+        #expect(active.snapshot?.primary?.usedPercent == 71)
+
+        // ...while the bar icon still renders the ambient snapshot.
+        let snapshot = try #require(store.menuBarSnapshot(for: UsageProvider.claude.instanceID))
+        #expect(snapshot.primary?.usedPercent == 55)
+    }
+
     @Test
     func `no swap accounts keeps the ambient snapshot`() throws {
         let store = Self.makeUsageStore(suite: "ClaudeSwapMenuBarSnapshotTests-none")

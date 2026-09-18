@@ -411,7 +411,7 @@ public struct ZedStatusProbe: Sendable {
         decoder.dateDecodingStrategy = .custom { decoder in
             let container = try decoder.singleValueContainer()
             let value = try container.decode(String.self)
-            if let date = Self.parseISO8601Date(value) {
+            if let date = ISO8601DateParser.parse(value) {
                 return date
             }
             throw DecodingError.dataCorruptedError(
@@ -423,17 +423,6 @@ public struct ZedStatusProbe: Sendable {
         } catch {
             throw ZedStatusProbeError.parseFailed(error.localizedDescription)
         }
-    }
-
-    private static func parseISO8601Date(_ value: String) -> Date? {
-        let withFractional = ISO8601DateFormatter()
-        withFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = withFractional.date(from: value) {
-            return date
-        }
-        let plain = ISO8601DateFormatter()
-        plain.formatOptions = [.withInternetDateTime]
-        return plain.date(from: value)
     }
 }
 

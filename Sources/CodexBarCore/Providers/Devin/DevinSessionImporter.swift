@@ -36,11 +36,6 @@ enum DevinSessionImporter {
         let sourceLabel: String
     }
 
-    struct LocalStorageCandidate {
-        let label: String
-        let url: URL
-    }
-
     static func importSession(
         browserDetection: BrowserDetection,
         organizationOverride: String? = nil,
@@ -71,7 +66,8 @@ enum DevinSessionImporter {
         #endif
 
         let log: (String) -> Void = { msg in logger?("[devin-storage] \(msg)") }
-        let candidates = self.chromeLocalStorageCandidates(browserDetection: browserDetection)
+        let candidates = ChromiumLocalStorageDiscovery
+            .candidates(browsers: self.localStorageBrowsers(browserDetection: browserDetection))
         if !candidates.isEmpty {
             log("Chrome local storage candidates: \(candidates.count)")
         }
@@ -182,6 +178,9 @@ enum DevinSessionImporter {
         organizationOverride: String?) -> (organization: String?, internalOrganizationID: String?)
     {
         let override = DevinUsageFetcher.normalizedOrganization(organizationOverride)
+        if let override, let internalOrgID = self.orgID(fromNormalizedOrganization: override) {
+            return (override, internalOrgID)
+        }
         let overrideSlug = override.flatMap(self.slug(fromNormalizedOrganization:))
         var firstInternalOrgID: String?
 
@@ -204,7 +203,7 @@ enum DevinSessionImporter {
         }
 
         if let override {
-            return (override, firstInternalOrgID ?? self.orgID(fromNormalizedOrganization: override))
+            return (override, nil)
         }
 
         return (firstInternalOrgID.map { "organizations/\($0)" }, firstInternalOrgID)
@@ -222,68 +221,48 @@ enum DevinSessionImporter {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    static func chromeLocalStorageCandidates(browserDetection: BrowserDetection) -> [LocalStorageCandidate] {
-        let installedBrowsers = self.localStorageBrowsers(browserDetection: browserDetection)
-        let roots = ChromiumProfileLocator
-            .roots(for: installedBrowsers, homeDirectories: BrowserCookieClient.defaultHomeDirectories())
-            .map { (url: $0.url, labelPrefix: $0.labelPrefix) }
-
-        var candidates: [LocalStorageCandidate] = []
-        for root in roots {
-            candidates.append(contentsOf: self.chromeProfileLocalStorageDirs(
-                root: root.url,
-                labelPrefix: root.labelPrefix))
-        }
-        return candidates
-    }
-
     static func localStorageBrowsers(browserDetection: BrowserDetection) -> [Browser] {
         let order = ProviderDefaults.metadata[.devin]?.browserCookieOrder ?? [.chrome]
         return order.browsersWithProfileData(using: browserDetection)
     }
 
-    private static func chromeProfileLocalStorageDirs(root: URL, labelPrefix: String) -> [LocalStorageCandidate] {
-        guard let entries = try? FileManager.default.contentsOfDirectory(
-            at: root,
-            includingPropertiesForKeys: [.isDirectoryKey],
-            options: [.skipsHiddenFiles])
-        else { return [] }
-
-        return entries.filter { url in
-            guard let isDir = (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory), isDir else {
-                return false
-            }
-            let name = url.lastPathComponent
-            return name == "Default" || name.hasPrefix("Profile ") || name.hasPrefix("user-")
-        }
-        .sorted { $0.lastPathComponent < $1.lastPathComponent }
-        .compactMap { dir in
-            let levelDBURL = dir.appendingPathComponent("Local Storage").appendingPathComponent("leveldb")
-            guard FileManager.default.fileExists(atPath: levelDBURL.path) else { return nil }
-            return LocalStorageCandidate(label: "\(labelPrefix) \(dir.lastPathComponent)", url: levelDBURL)
-        }
-    }
-
-    private static func readLocalStorage(from levelDBURL: URL, logger: ((String) -> Void)?) -> [String: String] {
-        var storage: [String: String] = [:]
+    static func readLocalStorage(from levelDBURL: URL, logger: ((String) -> Void)? = nil) -> [String: String] {
         let entries = SweetCookieKit.ChromiumLocalStorageReader.readEntries(
             for: self.storageOrigin,
             in: levelDBURL,
             logger: logger)
-        for entry in entries {
-            storage[entry.key] = self.decodedStorageValue(entry.value)
-        }
-
         let textEntries = SweetCookieKit.ChromiumLocalStorageReader.readTextEntries(
             in: levelDBURL,
             logger: logger)
-        for entry in textEntries where storage[entry.key] == nil {
-            if self.isUsefulStorageKey(entry.key) {
-                storage[entry.key] = self.decodedStorageValue(entry.value)
-            }
+        return self.localStorageValues(from: entries, textEntries: textEntries)
+    }
+
+    static func localStorageValues(
+        from entries: [SweetCookieKit.ChromiumLocalStorageEntry],
+        textEntries: [SweetCookieKit.ChromiumLevelDBTextEntry]) -> [String: String]
+    {
+        var storage: [String: String] = [:]
+        for entry in entries {
+            storage[entry.key] = self.decodedStorageValue(entry.value)
+        }
+        for entry in textEntries {
+            guard let key = self.localStorageKey(fromRawKey: entry.key),
+                  self.isUsefulStorageKey(key), storage[key] == nil
+            else { continue }
+            storage[key] = self.decodedStorageValue(entry.value)
         }
 
         return storage
+    }
+
+    private static func localStorageKey(fromRawKey raw: String) -> String? {
+        guard let separator = raw.firstIndex(of: "\u{0000}") else { return nil }
+        var origin = String(raw[..<separator])
+        if origin.hasPrefix("_") { origin.removeFirst() }
+        origin = String(origin.split(separator: "^", maxSplits: 1).first ?? "")
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        guard origin == self.storageOrigin || origin == "app.devin.ai" else { return nil }
+        return String(raw[raw.index(after: separator)...]).trimmingCharacters(in: .controlCharacters)
     }
 
     private static func jsonObject(from raw: String) -> Any? {
@@ -360,7 +339,6 @@ enum DevinSessionImporter {
         override: String?) -> (organization: String?, internalOrganizationID: String?)?
     {
         let overrideSlug = override.flatMap(self.slug(fromNormalizedOrganization:))
-        let overrideOrgID = override.flatMap(self.orgID(fromNormalizedOrganization:))
         var fallbackSlug: String?
         var fallbackInternalOrgID: String?
 
@@ -374,9 +352,6 @@ enum DevinSessionImporter {
                 self.slugFromPostAuthKey(key) ??
                     self.firstString(in: object, matching: ["orgName", "org_name", "externalOrgId", "external_org_id"]))
 
-            if let overrideOrgID, internalOrgID == overrideOrgID {
-                return (override, internalOrgID)
-            }
             if let overrideSlug, slug == overrideSlug {
                 return (override, internalOrgID)
             }
@@ -389,9 +364,7 @@ enum DevinSessionImporter {
             }
         }
 
-        if let override, fallbackInternalOrgID != nil {
-            return (override, fallbackInternalOrgID)
-        }
+        guard override == nil else { return nil }
 
         if let fallbackSlug {
             return ("org/\(fallbackSlug)", fallbackInternalOrgID)

@@ -334,14 +334,7 @@ public enum CodebuffUsageFetcher {
         case let string as String:
             let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { return nil }
-            let fractional = ISO8601DateFormatter()
-            fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            if let date = fractional.date(from: trimmed) {
-                return date
-            }
-            let plain = ISO8601DateFormatter()
-            plain.formatOptions = [.withInternetDateTime]
-            if let date = plain.date(from: trimmed) {
+            if let date = ISO8601DateParser.parse(trimmed) {
                 return date
             }
             if let interval = Double(trimmed), interval.isFinite {

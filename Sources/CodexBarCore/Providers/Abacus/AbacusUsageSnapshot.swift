@@ -43,25 +43,19 @@ public struct AbacusUsageSnapshot: Sendable {
             30 * 24 * 60
         }
 
-        let primary = RateWindow(
-            usedPercent: percentUsed,
-            windowMinutes: windowMinutes,
-            resetsAt: self.resetsAt,
-            resetDescription: resetDesc)
-
-        let identity = ProviderIdentitySnapshot(
-            providerID: .abacus,
-            accountEmail: nil,
-            accountOrganization: nil,
-            loginMethod: self.planName)
-
         return UsageSnapshot(
-            primary: primary,
+            primary: RateWindow(
+                usedPercent: percentUsed,
+                windowMinutes: windowMinutes,
+                resetsAt: self.resetsAt,
+                resetDescription: resetDesc),
             secondary: nil,
-            tertiary: nil,
-            providerCost: nil,
             updatedAt: Date(),
-            identity: identity)
+            identity: ProviderIdentitySnapshot(
+                providerID: .abacus,
+                accountEmail: nil,
+                accountOrganization: nil,
+                loginMethod: self.planName))
     }
 
     // MARK: - Formatting

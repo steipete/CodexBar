@@ -48,6 +48,13 @@ extension KiroStatusProbeTests {
                 try SpawnedProcessGroup.withOutputHolderCleanupMaxLifetimeForTesting(cleanupMaxLifetime) {
                     try SpawnedProcessGroup.withOutputHolderPreKillSnapshotHookForTesting {
                         try? KiroProcessTestSupport.touch(preKillSnapshotTriggerFile)
+                        // A fixed delay can kill the parent before its late fork runs on a loaded machine.
+                        let deadline = ContinuousClock().now.advanced(by: .seconds(5))
+                        while KiroProcessTestSupport.readPID(from: lateChildPIDFile) == nil,
+                              ContinuousClock().now < deadline
+                        {
+                            Thread.sleep(forTimeInterval: 0.01)
+                        }
                     } operation: {
                         try SpawnedProcessGroup.withOutputHolderPreKillDelayForTesting(0.5) {
                             try TTYCommandRunner().run(

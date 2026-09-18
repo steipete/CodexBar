@@ -482,23 +482,25 @@ struct KimiAPIFetchStrategyTests {
     }
 
     @Test
-    func `auto mode falls back from API response decoding failure`() {
+    func `auto mode falls back from API response decoding failure`() throws {
         let strategy = KimiAPIFetchStrategy()
         let context = makeKimiFetchContext(sourceMode: .auto)
-        let error = DecodingError.dataCorrupted(
-            DecodingError.Context(codingPath: [], debugDescription: "Unexpected Kimi payload"))
+        let error = #expect(throws: DecodingError.self) {
+            try KimiUsageFetcher._parseCodeAPIUsageForTesting(Data("{}".utf8))
+        }
 
-        #expect(strategy.shouldFallback(on: error, context: context))
+        #expect(try strategy.shouldFallback(on: #require(error), context: context))
     }
 
     @Test
-    func `explicit API mode surfaces response decoding failure`() {
+    func `explicit API mode surfaces response decoding failure`() throws {
         let strategy = KimiAPIFetchStrategy()
         let context = makeKimiFetchContext(sourceMode: .api)
-        let error = DecodingError.dataCorrupted(
-            DecodingError.Context(codingPath: [], debugDescription: "Unexpected Kimi payload"))
+        let error = #expect(throws: DecodingError.self) {
+            try KimiUsageFetcher._parseCodeAPIUsageForTesting(Data("{}".utf8))
+        }
 
-        #expect(strategy.shouldFallback(on: error, context: context) == false)
+        #expect(try strategy.shouldFallback(on: #require(error), context: context) == false)
     }
 
     @Test
@@ -635,8 +637,8 @@ struct KimiUsageResponseParsingTests {
         """
 
         let snapshot = try KimiUsageFetcher._parseCodeAPIUsageForTesting(Data(json.utf8))
-        #expect(snapshot.weekly.limit == "2048")
-        #expect(snapshot.weekly.used == "375")
+        #expect(snapshot.weekly?.limit == "2048")
+        #expect(snapshot.weekly?.used == "375")
         #expect(snapshot.rateLimit?.limit == "200")
         #expect(snapshot.rateLimit?.used == "19")
 
@@ -731,10 +733,10 @@ struct KimiUsageResponseParsingTests {
 
         let snapshot = try KimiUsageFetcher._parseCodeAPIUsageForTesting(Data(json.utf8))
 
-        #expect(snapshot.weekly.limit == "1000")
-        #expect(snapshot.weekly.used == "40")
-        #expect(snapshot.weekly.remaining == "960")
-        #expect(snapshot.weekly.resetTime == "2026-01-09T15:23:13Z")
+        #expect(snapshot.weekly?.limit == "1000")
+        #expect(snapshot.weekly?.used == "40")
+        #expect(snapshot.weekly?.remaining == "960")
+        #expect(snapshot.weekly?.resetTime == "2026-01-09T15:23:13Z")
         #expect(snapshot.rateLimit?.limit == "100")
         #expect(snapshot.rateLimit?.used == nil)
         #expect(snapshot.rateLimit?.remaining == "99")

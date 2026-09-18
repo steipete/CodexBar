@@ -570,10 +570,7 @@ public enum KeychainCacheStore {
     /// True when the running executable has no `.app` bundle ancestor.
     static let isUnbundledProcess: Bool = {
         #if os(macOS)
-        if Self.appBundleURL(containing: Bundle.main.bundleURL) != nil {
-            return false
-        }
-        if let executableURL = Bundle.main.executableURL,
+        if let executableURL = Self.runningExecutableURLForCacheAccess,
            Self.appBundleURL(containing: executableURL) != nil
         {
             return false

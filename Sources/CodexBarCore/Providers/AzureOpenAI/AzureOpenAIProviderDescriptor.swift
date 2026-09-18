@@ -8,6 +8,9 @@ public enum AzureOpenAIProviderDescriptor {
         additionalProjections: [
             .enterpriseHost(AzureOpenAISettingsReader.endpointEnvironmentKey),
             .workspaceID(AzureOpenAISettingsReader.deploymentNameEnvironmentKey),
+            ProviderCredentialEnvironmentProjection(
+                key: AzureOpenAISettingsReader.apiVersionEnvironmentKey,
+                value: { $0.sanitizedAzureOpenAIAPIVersion }),
         ],
         resolve: AzureOpenAISettingsReader.apiKey,
         missingCredentialMessage: { _ in AzureOpenAISettingsError.missingAPIKey.errorDescription })
@@ -108,5 +111,17 @@ struct AzureOpenAIAPIFetchStrategy: ProviderFetchStrategy {
 
     private static func resolveDeploymentName(environment: [String: String]) -> String? {
         AzureOpenAISettingsReader.deploymentName(environment: environment)
+    }
+}
+
+extension ProviderConfig {
+    /// Nil inherits AZURE_OPENAI_API_VERSION, falling back to AzureOpenAISettingsReader.defaultAPIVersion.
+    public var azureOpenAIAPIVersion: String? {
+        get { self.extensionValue(forKey: "azureOpenAIAPIVersion") }
+        set { self.setExtensionValue(newValue, forKey: "azureOpenAIAPIVersion") }
+    }
+
+    public var sanitizedAzureOpenAIAPIVersion: String? {
+        SettingsValue.cleaned(self.azureOpenAIAPIVersion)
     }
 }

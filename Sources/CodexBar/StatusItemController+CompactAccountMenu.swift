@@ -23,6 +23,7 @@ extension StatusItemController {
         let idPrefix: String
         let cardModel: (ProviderAccountUsageSnapshot) -> UsageMenuCardView.Model?
         var planAction: ((ProviderAccountUsageSnapshot) -> (() -> Void)?)?
+        var privacyOrdinal: ((ProviderAccountUsageSnapshot) -> PersonalInfoRedactor.AccountOrdinal?)?
     }
 
     /// Renders the token-account list with the compact plan when it applies.
@@ -86,17 +87,9 @@ extension StatusItemController {
                 cardModel: { [weak self] projectedAccount in
                     guard let self,
                           let account = accountsByID[projectedAccount.id.opaqueID] else { return nil }
-                    let accountSnapshot = snapshotsByAccountID[account.id]
-                    let health = CodexAccountHealth.status(for: account, error: accountSnapshot?.error)
-                    return self.menuCardModel(
-                        for: .codex,
-                        snapshotOverride: accountSnapshot?.snapshot,
-                        errorOverride: health.label,
-                        forceOverrideCard: accountSnapshot == nil,
-                        accountOverride: self.accountInfo(for: account),
-                        historySelectionOverride: self.store.codexPlanUtilizationHistorySelection(
-                            forVisibleAccount: account),
-                        creditsOverride: accountSnapshot?.credits)
+                    return self.codexAccountMenuCardModel(
+                        for: account,
+                        accountSnapshot: snapshotsByAccountID[account.id])
                 },
                 planAction: nil),
             to: menu,
@@ -149,7 +142,8 @@ extension StatusItemController {
                 let rowModel = MenuCardCompactAccountRowView.Model(
                     row: compactRow,
                     resetTimeDisplayStyle: self.settings.resetTimeDisplayStyle,
-                    hidePersonalInfo: self.settings.hidePersonalInfo)
+                    hidePersonalInfo: self.settings.hidePersonalInfo,
+                    privacyOrdinal: accountsByID[compactRow.accountID].flatMap { rendering.privacyOrdinal?($0) })
                 let accountID = compactRow.accountID
                 menu.addItem(self.makeMenuCardItem(
                     MenuCardCompactAccountRowView(

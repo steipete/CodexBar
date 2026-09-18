@@ -111,7 +111,8 @@ struct ShareStatsCardView: View {
         let hiddenCount = self.payload.currencies.count - min(self.payload.currencies.count, 2)
         return hiddenCount > 0
             ? "+\(hiddenCount) more currencies · see subscription rows"
-            : "\(self.payload.providers.count) subscriptions · native currencies kept separate"
+            : ShareStatsFormatting.subscriptionSummary(count: self.payload.providers.count)
+            + " · native currencies kept separate"
     }
 
     private var rankings: some View {
@@ -222,7 +223,7 @@ struct ShareStatsCardView: View {
         HStack(spacing: 12) {
             Label("LOCAL · AGGREGATE ONLY", systemImage: "lock.shield")
             Spacer()
-            Text("DATA THROUGH \(ShareStatsFormatting.dataThrough(self.payload.periodEnd).uppercased())")
+            Text("DATA THROUGH \(ShareStatsFormatting.dataThrough(self.payload).uppercased())")
         }
         .font(.system(size: 14, weight: .medium, design: .rounded))
         .tracking(0.7)

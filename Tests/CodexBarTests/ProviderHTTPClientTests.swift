@@ -4,6 +4,49 @@ import Testing
 
 @Suite(.serialized)
 struct ProviderHTTPClientTests {
+    @Test(arguments: [
+        ["/usr/local/bin/codexbar", "--account", "swift-testing"],
+        ["/usr/local/bin/codexbar", "--account", "Example.xctest"],
+        ["/tmp/swift-testing/Example.xctest/codexbar", "usage"],
+    ])
+    func `ordinary runner-like arguments keep the production redirect guard`(arguments: [String]) async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [RedirectProofURLProtocol.self]
+        configuration.timeoutIntervalForRequest = 3
+        let session = ProviderHTTPClient.sharedSession(
+            isRunningTests: TestProcessSafety.isRunningUnderTests(
+                processName: "codexbar", environment: [:], arguments: arguments),
+            configuration: configuration)
+        defer { session.invalidateAndCancel() }
+        #expect(session.delegate is ProviderHTTPRedirectGuardDelegate)
+        let client = ProviderHTTPClient(session: session)
+        let source = try #require(URL(string: "https://provider.invalid/start"))
+        let allowed = try #require(URL(string: "https://provider.invalid/usage"))
+        let forbidden = try #require(URL(string: "https://other.invalid/capture"))
+        for destination in [allowed, forbidden] {
+            RedirectProofURLProtocol.destination.setValue(destination)
+            RedirectProofURLProtocol.requests.setValue([])
+            var request = URLRequest(url: source)
+            request.setValue("synthetic-test-key", forHTTPHeaderField: "x-api-key")
+
+            if destination == allowed {
+                let (data, response) = try await client.data(for: request)
+                #expect((response as? HTTPURLResponse)?.statusCode == 200)
+                #expect(String(data: data, encoding: .utf8) == "ok")
+                #expect(RedirectProofURLProtocol.requests.value.map(\.url) == [source, allowed])
+                #expect(RedirectProofURLProtocol.requests.value.last?
+                    .value(forHTTPHeaderField: "x-api-key") == "synthetic-test-key")
+            } else {
+                // URLProtocol does not complete a declined redirect; bound the fixture and verify no destination I/O.
+                let error = await #expect(throws: URLError.self) {
+                    _ = try await client.data(for: request)
+                }
+                #expect(error?.code == .timedOut)
+                #expect(RedirectProofURLProtocol.requests.value.map(\.url) == [source])
+            }
+        }
+    }
+
     @Test
     func `default client configuration fails blocked connections promptly`() {
         let configuration = ProviderHTTPClient.defaultConfiguration()
@@ -194,6 +237,42 @@ struct ProviderHTTPClientTests {
         #expect(guarded.value(forHTTPHeaderField: "x-api-key") == "[REDACTED]")
         #expect(guarded.value(forHTTPHeaderField: "Accept") == "application/json")
     }
+}
+
+private final class RedirectProofURLProtocol: URLProtocol {
+    static let destination = LockIsolated<URL?>(nil)
+    static let requests = LockIsolated<[URLRequest]>([])
+
+    override static func canInit(with request: URLRequest) -> Bool {
+        request.url?.host?.hasSuffix(".invalid") == true
+    }
+
+    override static func canonicalRequest(for request: URLRequest) -> URLRequest {
+        request
+    }
+
+    override func startLoading() {
+        Self.requests.setValue(Self.requests.value + [self.request])
+        guard let url = self.request.url else { return }
+        if url.path == "/start", let destination = Self.destination.value {
+            let response = HTTPURLResponse(
+                url: url,
+                statusCode: 302,
+                httpVersion: "HTTP/1.1",
+                headerFields: ["Location": destination.absoluteString])!
+            var redirect = self.request
+            redirect.url = destination
+            self.client?.urlProtocol(self, wasRedirectedTo: redirect, redirectResponse: response)
+            return
+        } else {
+            let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: nil)!
+            self.client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            self.client?.urlProtocol(self, didLoad: Data("ok".utf8))
+        }
+        self.client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
 }
 
 extension ProviderHTTPRetryPolicy {

@@ -271,7 +271,7 @@ public struct WarpUsageFetcher: Sendable {
 
         var nextRefreshTime: Date?
         if let nextRefreshTimeString = limitInfo["nextRefreshTime"] as? String {
-            nextRefreshTime = Self.parseDate(nextRefreshTimeString)
+            nextRefreshTime = ISO8601DateParser.parse(nextRefreshTimeString)
         }
 
         // Parse and combine bonus credits from user-level and workspace-level
@@ -303,27 +303,12 @@ public struct WarpUsageFetcher: Sendable {
     }
 
     private static func parseBonusCredits(from userObj: [String: Any]) -> BonusSummary {
-        var grants: [BonusGrant] = []
-
-        // User-level bonus grants
-        if let bonusGrants = userObj["bonusGrants"] as? [[String: Any]] {
-            for grant in bonusGrants {
-                grants.append(Self.parseBonusGrant(from: grant))
-            }
+        let userGrants = userObj["bonusGrants"] as? [[String: Any]] ?? []
+        let workspaceGrants = (userObj["workspaces"] as? [[String: Any]] ?? []).flatMap { workspace in
+            let info = workspace["bonusGrantsInfo"] as? [String: Any]
+            return info?["grants"] as? [[String: Any]] ?? []
         }
-
-        // Workspace-level bonus grants
-        if let workspaces = userObj["workspaces"] as? [[String: Any]] {
-            for workspace in workspaces {
-                if let bonusGrantsInfo = workspace["bonusGrantsInfo"] as? [String: Any],
-                   let workspaceGrants = bonusGrantsInfo["grants"] as? [[String: Any]]
-                {
-                    for grant in workspaceGrants {
-                        grants.append(Self.parseBonusGrant(from: grant))
-                    }
-                }
-            }
-        }
+        let grants = (userGrants + workspaceGrants).map(Self.parseBonusGrant)
 
         let totalRemaining = grants.reduce(0) { $0 + $1.remaining }
         let totalGranted = grants.reduce(0) { $0 + $1.granted }
@@ -358,7 +343,7 @@ public struct WarpUsageFetcher: Sendable {
     private static func parseBonusGrant(from grant: [String: Any]) -> BonusGrant {
         let granted = self.intValue(grant["requestCreditsGranted"])
         let remaining = self.intValue(grant["requestCreditsRemaining"])
-        let expiration = (grant["expiration"] as? String).flatMap(Self.parseDate)
+        let expiration = ISO8601DateParser.parse(grant["expiration"] as? String)
         return BonusGrant(granted: granted, remaining: remaining, expiration: expiration)
     }
 
@@ -450,16 +435,5 @@ public struct WarpUsageFetcher: Sendable {
         }
         let limitIndex = collapsed.index(collapsed.startIndex, offsetBy: maxLength)
         return "\(collapsed[..<limitIndex])..."
-    }
-
-    private static func parseDate(_ dateString: String) -> Date? {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = formatter.date(from: dateString) {
-            return date
-        }
-        let fallback = ISO8601DateFormatter()
-        fallback.formatOptions = [.withInternetDateTime]
-        return fallback.date(from: dateString)
     }
 }

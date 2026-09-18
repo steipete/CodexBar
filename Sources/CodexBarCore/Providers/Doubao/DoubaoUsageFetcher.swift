@@ -646,19 +646,7 @@ public struct DoubaoUsageFetcher: Sendable {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
 
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = formatter.date(from: trimmed) {
-            return date
-        }
-
-        let fallback = ISO8601DateFormatter()
-        fallback.formatOptions = [.withInternetDateTime]
-        if let date = fallback.date(from: trimmed) {
-            return date
-        }
-
-        return nil
+        return ISO8601DateParser.parse(trimmed)
     }
 
     private static func confirmAmbiguousZeroRemaining(
@@ -821,14 +809,7 @@ public struct DoubaoUsageFetcher: Sendable {
             return nil
         }
 
-        let isoFormatter = ISO8601DateFormatter()
-        isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = isoFormatter.date(from: trimmed) {
-            return date
-        }
-        let isoFallback = ISO8601DateFormatter()
-        isoFallback.formatOptions = [.withInternetDateTime]
-        if let date = isoFallback.date(from: trimmed) {
+        if let date = ISO8601DateParser.parse(trimmed) {
             return date
         }
 

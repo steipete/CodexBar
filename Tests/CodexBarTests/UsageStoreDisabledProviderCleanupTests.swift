@@ -449,11 +449,19 @@ struct UsageStoreDisabledProviderCleanupTests {
             components: [],
             updatedAt: Date())
         store.quotaWarningState[
-            UsageStore.QuotaWarningStateKey(provider: .kilo, window: .session, accountDiscriminator: nil),
+            UsageStore.QuotaWarningStateKey(
+                provider: .kilo,
+                window: .session,
+                accountDiscriminator: nil,
+                windowID: nil),
         ] =
             UsageStore.QuotaWarningState(lastRemaining: 20, firedThresholds: [50], source: .primary)
         store.quotaWarningState[
-            UsageStore.QuotaWarningStateKey(provider: .codex, window: .session, accountDiscriminator: nil),
+            UsageStore.QuotaWarningStateKey(
+                provider: .codex,
+                window: .session,
+                accountDiscriminator: nil,
+                windowID: nil),
         ] =
             UsageStore.QuotaWarningState(lastRemaining: 80, firedThresholds: [20], source: .primary)
         store.predictivePaceWarningNotifiedKeys = [
@@ -478,7 +486,11 @@ struct UsageStoreDisabledProviderCleanupTests {
         #expect(store.kiloScopeSnapshots.isEmpty)
         #expect(store.providerStorageFootprints[.kilo] == nil)
         #expect(store.quotaWarningState[
-            UsageStore.QuotaWarningStateKey(provider: .kilo, window: .session, accountDiscriminator: nil),
+            UsageStore.QuotaWarningStateKey(
+                provider: .kilo,
+                window: .session,
+                accountDiscriminator: nil,
+                windowID: nil),
         ] == nil)
         #expect(store.predictivePaceWarningNotifiedKeys.allSatisfy { $0.provider != .kilo })
         #expect(store.lastTokenFetchAt[.kilo] == nil)
@@ -486,7 +498,11 @@ struct UsageStoreDisabledProviderCleanupTests {
 
         #expect(store.lastKnownResetSnapshots[.codex]?.primary?.usedPercent == 12)
         #expect(store.quotaWarningState[
-            UsageStore.QuotaWarningStateKey(provider: .codex, window: .session, accountDiscriminator: nil),
+            UsageStore.QuotaWarningStateKey(
+                provider: .codex,
+                window: .session,
+                accountDiscriminator: nil,
+                windowID: nil),
         ] != nil)
         #expect(store.predictivePaceWarningNotifiedKeys.contains { $0.provider == .codex })
     }

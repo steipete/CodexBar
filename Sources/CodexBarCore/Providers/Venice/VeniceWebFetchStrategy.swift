@@ -17,7 +17,7 @@ public struct VeniceResolvedSession: Sendable {
 /// prompt, so it only runs when the caller explicitly selects the web source.
 struct VeniceWebFetchStrategy: ProviderFetchStrategy {
     typealias UsageLoader = @Sendable (String) async throws -> UsageSnapshot
-    typealias SessionLoader = @Sendable () throws -> [VeniceResolvedSession]
+    typealias SessionLoader = @Sendable (BrowserDetection) throws -> [VeniceResolvedSession]
 
     let id: String = "venice.web"
     let kind: ProviderFetchKind = .web
@@ -33,10 +33,11 @@ struct VeniceWebFetchStrategy: ProviderFetchStrategy {
         self.usageLoader = usageLoader ?? { header in
             try await VeniceWebUsageFetcher.fetchUsage(cookieHeader: header, timeout: timeout)
         }
-        self.sessionLoader = sessionLoader ?? { try Self.defaultSessions() }
+        self.sessionLoader = sessionLoader ?? { try Self.defaultSessions(browserDetection: $0) }
     }
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
+        guard context.settings?.venice?.cookieSource != .off else { return false }
         // A selected token account is an authority boundary: ambient browser
         // sessions must never be fetched and labeled as that account.
         guard context.selectedTokenAccountID == nil else { return false }
@@ -49,10 +50,12 @@ struct VeniceWebFetchStrategy: ProviderFetchStrategy {
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
+        guard context.settings?.venice?.cookieSource != .off else { throw VeniceUsageError.cookiesDisabled }
         guard context.selectedTokenAccountID == nil else {
             throw VeniceUsageError.tokenAccountUnsupported
         }
         guard context.sourceMode == .web else { throw VeniceUsageError.missingCredentials }
+        try Task.checkCancellation()
         // An explicitly stored manual cookie wins over ambient browser
         // sessions: it is the user's deliberate credential, and it keeps web
         // quota working where the browser profile is unreadable.
@@ -63,16 +66,18 @@ struct VeniceWebFetchStrategy: ProviderFetchStrategy {
             let usage = try await self.usageLoader(manual)
             return self.makeResult(usage: usage, sourceLabel: "manual cookie")
         }
-        let sessions = try self.sessionLoader()
+        let sessions = try self.sessionLoader(context.browserDetection)
+        try Task.checkCancellation()
         guard !sessions.isEmpty else { throw VeniceUsageError.missingCredentials }
         var lastError: (any Error)?
         for session in sessions {
+            try Task.checkCancellation()
             do {
                 let usage = try await self.usageLoader(session.cookieHeader)
                 return self.makeResult(usage: usage, sourceLabel: session.sourceLabel)
             } catch is CancellationError {
                 throw CancellationError()
-            } catch let error as VeniceUsageError where error.isSessionAuthenticationFailure {
+            } catch let error as VeniceUsageError where error.isSessionAuthenticationFailure || error == .missingQuota {
                 lastError = error
                 continue
             } catch {
@@ -92,13 +97,13 @@ struct VeniceWebFetchStrategy: ProviderFetchStrategy {
     }
 
     #if os(macOS)
-    private static func defaultSessions() throws -> [VeniceResolvedSession] {
-        try VeniceCookieImporter.importSessions().map {
+    private static func defaultSessions(browserDetection: BrowserDetection) throws -> [VeniceResolvedSession] {
+        try VeniceCookieImporter.importSessions(browserDetection: browserDetection).map {
             VeniceResolvedSession(cookieHeader: $0.cookieHeader, sourceLabel: $0.sourceLabel)
         }
     }
     #else
-    private static func defaultSessions() throws -> [VeniceResolvedSession] {
+    private static func defaultSessions(browserDetection _: BrowserDetection) throws -> [VeniceResolvedSession] {
         []
     }
     #endif

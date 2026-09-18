@@ -85,13 +85,6 @@ public struct CodexSpendControlsMonthlyUsageResponse: Decodable, Sendable {
         }
     }
 
-    private static func decodeFlexibleDouble<Key: CodingKey>(
-        _ container: KeyedDecodingContainer<Key>,
-        forKey key: Key) -> Double?
-    {
-        self.decodeFlexibleDoubleResult(container, forKey: key).value
-    }
-
     fileprivate static func decodeFlexibleDoubleResult<Key: CodingKey>(
         _ container: KeyedDecodingContainer<Key>,
         forKey key: Key) -> (value: Double?, unmappable: Bool)

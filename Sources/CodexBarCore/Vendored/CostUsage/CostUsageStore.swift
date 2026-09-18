@@ -80,6 +80,10 @@ actor CostUsageStore {
         parserHash: CodexParserHash.value)
     static let cacheGeneration = "sqlite:\(CostUsageStore.schemaVersion)"
     static let compatiblePredecessorParserHashes: Set<String> = [
+        "c2ac37e84074d2b2", // Native rows are unchanged by Claude completion metadata.
+        "710f475c3d1cfb61", // 0.60.4 native rows and checkpoints are unchanged by Claude pricing corrections.
+        "aa57b010b3c0bee4", // Provider-aware pricing preserves native rows and scan checkpoints.
+        "aef0df6c73f8052c", // 0.60.1 rows and checkpoints survive routine rescan repairs.
         "4969a789db679c93", // 0.58.0 native rows, checkpoints, and reports survive queue reordering.
         "c4fa7db2cf54bc41", // Parser revisions reparse older native files while preserving stored rows and checkpoints.
         "ca4bc3875600536f", // Reserve pricing stores retain compatible rows and checkpoints.
@@ -148,8 +152,10 @@ actor CostUsageStore {
     private let expectedParserHash: String
     private let busyTimeoutMilliseconds: Int32
     private var connection: SQLiteConnection?
+    var requiresReadReopen = false
     private var failureGeneration = UUID()
     var retainedCodexBaseline: RetainedCodexBaseline?
+    var retainedCodexRead: RetainedCodexRead?
     #if DEBUG
     var codexBaselineReleaseObserverForTesting: (@Sendable () -> Void)?
     #endif
@@ -210,15 +216,18 @@ extension CostUsageStore {
         self.syncWithStoreIsolation { $0.releaseCodexBaseline(receipt) }
     }
 
-    nonisolated func syncLoadCodexCache(calendar: Calendar) -> CostUsageCache {
+    nonisolated func syncLoadCodexCache(
+        calendar: Calendar,
+        loadTokenSnapshots: Bool = true) -> CostUsageCache
+    {
         self.syncWithStoreIsolation { store in
-            store.loadCodexCache(calendar: calendar)
+            store.loadCodexCache(calendar: calendar, loadTokenSnapshots: loadTokenSnapshots)
         }
     }
 
     nonisolated func syncLoadCodexTokenSnapshotsIfAvailable(
         paths: Set<String>,
-        receipt: CodexBaselineReceipt) -> [String: [CostUsageStoreTokenSnapshot]]?
+        receipt: CodexBaselineReceipt) -> [String: [CostUsageCodexTokenSnapshot]]?
     {
         self.syncWithStoreIsolation { store in
             guard let stamp = store.codexBaselineStamp(for: receipt),
@@ -227,7 +236,7 @@ extension CostUsageStore {
             else { return nil }
             do {
                 // Reuse the loaded connection: reopening could rebuild a concurrent replacement.
-                let snapshots = try Self.inReadTransaction(database) {
+                let persisted = try Self.inReadTransaction(database) {
                     var snapshots: [String: [CostUsageStoreTokenSnapshot]] = [:]
                     for path in paths.sorted() {
                         if Self.codexTokenSnapshotReadFailureForTesting?(store.databaseURL, path) == true {
@@ -245,8 +254,12 @@ extension CostUsageStore {
                     }
                     return snapshots
                 }
+                let snapshots = persisted.mapValues { $0.map(Self.tokenSnapshot) }
                 // A read transaction pins data_version; validate again only after COMMIT.
                 guard store.currentDatabaseStamp() == stamp else { return nil }
+                for (path, rows) in snapshots {
+                    store.retainedCodexBaseline?.baseline.hydratedTokenSnapshots[path] = rows
+                }
                 return snapshots
             } catch {
                 store.recoverConnectionAfterFailure()
@@ -407,6 +420,7 @@ extension CostUsageStore {
     /// next access reopens the intact file.
     func recoverConnectionAfterFailure() {
         self.retainedCodexBaseline = nil
+        self.retainedCodexRead = nil
         self.failureGeneration = UUID()
         guard let handle = self.connection?.handle else { return }
         if sqlite3_get_autocommit(handle) == 0,
@@ -485,6 +499,7 @@ extension CostUsageStore {
         defer {
             if sqlite3_total_changes64(database) != changes {
                 self.retainedCodexBaseline = nil
+                self.retainedCodexRead = nil
             } else if let retained = self.retainedCodexBaseline,
                       (try? Self.scalarInt(database, "PRAGMA schema_version")) != retained.baseline.stamp.schemaVersion
                       || (try? Self.scalarInt(database, "PRAGMA user_version")) != retained.baseline.stamp.userVersion
@@ -496,6 +511,7 @@ extension CostUsageStore {
             return try operation(database)
         } catch {
             self.retainedCodexBaseline = nil
+            self.retainedCodexRead = nil
             self.failureGeneration = UUID()
             throw error
         }
@@ -504,6 +520,7 @@ extension CostUsageStore {
     #if DEBUG
     func closeConnectionForTesting() {
         self.retainedCodexBaseline = nil
+        self.retainedCodexRead = nil
         self.connection?.close()
         self.connection = nil
     }
@@ -511,15 +528,17 @@ extension CostUsageStore {
 
     func ensureDatabase() throws -> OpaquePointer {
         if let database = self.connection?.handle {
-            if try self.connectionMatchesPath(database) {
+            if !self.requiresReadReopen, try self.connectionMatchesPath(database) {
                 return database
             }
             self.retainedCodexBaseline = nil
+            self.retainedCodexRead = nil
             // Never reopen underneath a transaction (including its COMMIT/ROLLBACK).
             guard sqlite3_get_autocommit(database) != 0 else { throw StoreError.sqlite(SQLITE_IOERR) }
             self.connection?.close()
             self.connection = nil
         }
+        self.requiresReadReopen = false
         do {
             let opened = try self.openDatabase()
             self.connection = SQLiteConnection(handle: opened, identity: Self.databaseIdentity(at: self.databaseURL))
@@ -669,6 +688,7 @@ extension CostUsageStore {
 
     private func rebuildDatabase(reason: String) {
         self.retainedCodexBaseline = nil
+        self.retainedCodexRead = nil
         self.connection?.close()
         self.connection = nil
         for suffix in ["", "-wal", "-shm"] {

@@ -18,24 +18,24 @@ public enum BedrockSettingsReader {
     public static let defaultRegion = "us-east-1"
 
     public static func accessKeyID(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
-        self.cleaned(environment[self.accessKeyIDKey])
+        SettingsValue.cleaned(environment[self.accessKeyIDKey])
     }
 
     public static func secretAccessKey(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
     {
-        self.cleaned(environment[self.secretAccessKeyKey])
+        SettingsValue.cleaned(environment[self.secretAccessKeyKey])
     }
 
     public static func sessionToken(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
     {
-        self.cleaned(environment[self.sessionTokenKey])
+        SettingsValue.cleaned(environment[self.sessionTokenKey])
     }
 
     public static func region(environment: [String: String] = ProcessInfo.processInfo.environment) -> String {
         for key in self.regionKeys {
-            if let value = self.cleaned(environment[key]) {
+            if let value = SettingsValue.cleaned(environment[key]) {
                 return value
             }
         }
@@ -43,7 +43,7 @@ public enum BedrockSettingsReader {
     }
 
     public static func budget(environment: [String: String] = ProcessInfo.processInfo.environment) -> Double? {
-        guard let raw = self.cleaned(environment[self.budgetKey]),
+        guard let raw = SettingsValue.cleaned(environment[self.budgetKey]),
               let value = Double(raw),
               value > 0
         else {
@@ -55,13 +55,13 @@ public enum BedrockSettingsReader {
     public static func profile(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
     {
-        self.cleaned(environment[self.profileKey])
+        SettingsValue.cleaned(environment[self.profileKey])
     }
 
     public static func authMode(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> BedrockAuthMode
     {
-        if let raw = self.cleaned(environment[self.authModeKey])?.lowercased(),
+        if let raw = SettingsValue.cleaned(environment[self.authModeKey])?.lowercased(),
            let mode = BedrockAuthMode(rawValue: raw)
         {
             return mode
@@ -88,20 +88,5 @@ public enum BedrockSettingsReader {
         case .profile:
             self.profile(environment: environment) != nil
         }
-    }
-
-    static func cleaned(_ raw: String?) -> String? {
-        guard var value = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
-            return nil
-        }
-
-        if (value.hasPrefix("\"") && value.hasSuffix("\"")) ||
-            (value.hasPrefix("'") && value.hasSuffix("'"))
-        {
-            value = String(value.dropFirst().dropLast())
-        }
-
-        value = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return value.isEmpty ? nil : value
     }
 }

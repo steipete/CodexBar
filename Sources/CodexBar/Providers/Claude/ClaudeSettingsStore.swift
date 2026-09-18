@@ -26,35 +26,18 @@ extension SettingsStore {
     }
 
     var claudeCookieHeader: String {
-        get { self.configSnapshot.providerConfig(for: .claude)?.sanitizedCookieHeader ?? "" }
-        set {
-            self.updateProviderConfig(provider: .claude) { entry in
-                entry.cookieHeader = self.normalizedConfigValue(newValue)
-            }
-            self.logSecretUpdate(provider: .claude, field: "cookieHeader", value: newValue)
-        }
+        get { self[providerConfig: .claude, field: .cookieHeader] }
+        set { self[providerConfig: .claude, field: .cookieHeader] = newValue }
     }
 
     var claudeCookieSource: ProviderCookieSource {
         get { self.resolvedCookieSource(provider: .claude, fallback: .auto) }
-        set {
-            self.updateProviderConfig(provider: .claude) { entry in
-                entry.cookieSource = newValue
-            }
-            self.logProviderModeChange(provider: .claude, field: "cookieSource", value: newValue.rawValue)
-        }
+        set { self.setCookieSource(newValue, provider: .claude) }
     }
 
-    func ensureClaudeCookieLoaded() {}
-
     var claudeAdminAPIKey: String {
-        get { self.configSnapshot.providerConfig(for: .claude)?.sanitizedAPIKey ?? "" }
-        set {
-            self.updateProviderConfig(provider: .claude) { entry in
-                entry.apiKey = self.normalizedConfigValue(newValue)
-            }
-            self.logSecretUpdate(provider: .claude, field: "apiKey", value: newValue)
-        }
+        get { self[providerConfig: .claude, field: .apiKey] }
+        set { self[providerConfig: .claude, field: .apiKey] = newValue }
     }
 
     var claudeSwapEnabled: Bool {

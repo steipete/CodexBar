@@ -6,18 +6,18 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TOOLS_DIR="${ROOT_DIR}/.build/lint-tools"
 BIN_DIR="${TOOLS_DIR}/bin"
 
-SWIFTFORMAT_VERSION="0.61.1"
+SWIFTFORMAT_VERSION="0.63.0"
 SWIFTLINT_VERSION="0.65.1"
 OXLINT_VERSION="1.82.0"
 OXFMT_VERSION="0.67.0"
 OXC_APPS_RELEASE="1.82.0"
-TYPESCRIPT_VERSION="5.9.3"
+TYPESCRIPT_VERSION="7.0.2"
 
-SWIFTFORMAT_SHA256_DARWIN="b990400779aceb7d7020796eb9ba814d4480543f671d38fc0ff48cb72f04c584"
+SWIFTFORMAT_SHA256_DARWIN="28c7802e11fa5ae113d903066439c6bb1be20a8ac1ad9709c42616a7e273fb0f"
 SWIFTLINT_SHA256_DARWIN="c1e429b0599cf1b516f369a2d9ec04eaf0e436f3c12b637df8851fa52ff694d0"
-SWIFTFORMAT_SHA256_LINUX_X86_64="7bc8706e3fd51963f1f29eb99098ebdf482f3497fa527c68e6cf75cbee29c77a"
+SWIFTFORMAT_SHA256_LINUX_X86_64="b4a3cbb8c852a0baaf9adf853e221ff1dabf921a3d8957a602e0bda3af8470f1"
 SWIFTLINT_SHA256_LINUX_X86_64="caeed6f4a679c35539ffaf124f6c4ab4a8416917f7d8796279dc52b74026059d"
-SWIFTFORMAT_SHA256_LINUX_ARM64="42a35b557a6d56975fba3a48e78d39ab5388c8faac65d4819f25d3e20c7504c0"
+SWIFTFORMAT_SHA256_LINUX_ARM64="b0335af32e2c5944a17b3e6d916ff4552eb757ed88f68b80fd19415824850717"
 SWIFTLINT_SHA256_LINUX_ARM64="9ffa52f478e6d8eb485d37d14715ffac90abc81c58f3370d598bf75be05605f8"
 OXLINT_SHA256_DARWIN_X86_64="42206a631be5a65e4f32de5983e9e8991197ef2756870c257a5db2e6f493a86f"
 OXLINT_SHA256_DARWIN_ARM64="e420b7f67fc1ec5426c932a7e5b07e546c67c661c9b7116ba6c8c9648ff96074"
@@ -27,7 +27,11 @@ OXFMT_SHA256_DARWIN_X86_64="20e82289d7f41399a4d9670a0d78135e14dbe04f421163be2cc0
 OXFMT_SHA256_DARWIN_ARM64="2c0a483844922828a8b9b78684cb01e9283242250cad5d7303eb2cce0e027175"
 OXFMT_SHA256_LINUX_X86_64="7fcda58499e25a261069022f3c6b9827da4bcc729a6181214c0645b3e30d1603"
 OXFMT_SHA256_LINUX_ARM64="b738733446781432fc6874b9e9328def0c5cd1c69335bcf258078e429e4887e1"
-TYPESCRIPT_SHA256="10e108c9cf7d5f2879053dff18515fb405abf2ccef63eaaf017d9c571687a1d3"
+TYPESCRIPT_SHA256="da2513f4b95176d6dde8b51aab7afe8a927656c9d277369793f77f7e59371c08"
+TYPESCRIPT_SHA256_DARWIN_ARM64="902e2fe1cf0799198ef902c6b8c310a450fef629a6baba41d45641ef75c04ebd"
+TYPESCRIPT_SHA256_DARWIN_X64="eba158cb54050f723d5ff781438f33de5640054440bb4f2bd170cfe9bc2eb551"
+TYPESCRIPT_SHA256_LINUX_ARM64="c83d931ac9dd7549cde6e71246aa9d6a9812843023df3e277fe3b5dcf41dd0ea"
+TYPESCRIPT_SHA256_LINUX_X64="7ecad6f67377e831856367ab062ef394f21506a611405bf8ac0ff039348637d3"
 
 log() { printf '%s\n' "$*"; }
 fail() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
@@ -174,11 +178,22 @@ install_tar_binary() {
   rm -rf "$tmp_dir"
 }
 
-install_typescript() {
-  local tmp_tar
-  tmp_tar="$(mktemp -t "typescript.XXXX")"
+install_typescript() (
+  # Match the Node wrapper's package selection, including Node running under Rosetta.
+  local target native_sha
+  target="$(node -p 'process.platform + "-" + process.arch')"
+  case "$target" in
+    darwin-arm64) native_sha="$TYPESCRIPT_SHA256_DARWIN_ARM64" ;;
+    darwin-x64) native_sha="$TYPESCRIPT_SHA256_DARWIN_X64" ;;
+    linux-arm64) native_sha="$TYPESCRIPT_SHA256_LINUX_ARM64" ;;
+    linux-x64) native_sha="$TYPESCRIPT_SHA256_LINUX_X64" ;;
+    *) fail "Unsupported TypeScript platform: ${target}" ;;
+  esac
+
   local tmp_dir
   tmp_dir="$(mktemp -d -t "typescript.XXXX")"
+  trap 'rm -rf "$tmp_dir"' EXIT
+  local tmp_tar="${tmp_dir}/typescript.tgz"
   local url="https://registry.npmjs.org/typescript/-/typescript-${TYPESCRIPT_VERSION}.tgz"
 
   log "==> Downloading TypeScript ${TYPESCRIPT_VERSION}"
@@ -186,17 +201,23 @@ install_typescript() {
   local actual_sha
   actual_sha="$(sha256_value "$tmp_tar")"
   if [[ "$actual_sha" != "$TYPESCRIPT_SHA256" ]]; then
-    rm -f "$tmp_tar"
-    rm -rf "$tmp_dir"
     fail "TypeScript ${TYPESCRIPT_VERSION} SHA256 mismatch (expected ${TYPESCRIPT_SHA256}, got ${actual_sha})"
   fi
 
   tar -xzf "$tmp_tar" -C "$tmp_dir"
+  local native_dir="${tmp_dir}/package/node_modules/@typescript/typescript-${target}"
+  local native_url="https://registry.npmjs.org/@typescript/typescript-${target}/-/typescript-${target}-${TYPESCRIPT_VERSION}.tgz"
+  download_file "$native_url" "$tmp_tar"
+  actual_sha="$(sha256_value "$tmp_tar")"
+  if [[ "$actual_sha" != "$native_sha" ]]; then
+    fail "TypeScript ${target} SHA256 mismatch (expected ${native_sha}, got ${actual_sha})"
+  fi
+  mkdir -p "$native_dir"
+  tar -xzf "$tmp_tar" --strip-components=1 -C "$native_dir"
+  node "${tmp_dir}/package/bin/tsc" --version
   rm -rf "${TOOLS_DIR}/typescript"
   mv "${tmp_dir}/package" "${TOOLS_DIR}/typescript"
-  rm -f "$tmp_tar"
-  rm -rf "$tmp_dir"
-}
+)
 
 mkdir -p "$BIN_DIR"
 

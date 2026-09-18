@@ -34,8 +34,7 @@ struct ChutesProviderImplementation: ProviderImplementation {
                 placeholder: "chutes key...",
                 binding: context.providerConfigBinding(.apiKey),
                 actions: [],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
         ]
     }
 }

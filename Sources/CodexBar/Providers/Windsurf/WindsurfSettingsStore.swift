@@ -22,22 +22,12 @@ extension SettingsStore {
 
     var windsurfCookieSource: ProviderCookieSource {
         get { self.resolvedCookieSource(provider: .windsurf, fallback: .auto) }
-        set {
-            self.updateProviderConfig(provider: .windsurf) { entry in
-                entry.cookieSource = newValue
-            }
-            self.logProviderModeChange(provider: .windsurf, field: "cookieSource", value: newValue.rawValue)
-        }
+        set { self.setCookieSource(newValue, provider: .windsurf) }
     }
 
     var windsurfCookieHeader: String {
-        get { self.configSnapshot.providerConfig(for: .windsurf)?.sanitizedCookieHeader ?? "" }
-        set {
-            self.updateProviderConfig(provider: .windsurf) { entry in
-                entry.cookieHeader = self.normalizedConfigValue(newValue)
-            }
-            self.logSecretUpdate(provider: .windsurf, field: "cookieHeader", value: newValue)
-        }
+        get { self[providerConfig: .windsurf, field: .cookieHeader] }
+        set { self[providerConfig: .windsurf, field: .cookieHeader] = newValue }
     }
 }
 

@@ -5,6 +5,54 @@ import Testing
 
 @MainActor
 struct ClaudeSwapSwitchErrorTimingTests {
+    @Test
+    func `active foreign credential repair uses the existing exact slot command`() async throws {
+        let fixture = try CodexWorkspacesNavigationFixture(userDefaults: InMemoryUserDefaults())
+        defer { fixture.cleanup() }
+        let executable = fixture.files.root.appendingPathComponent("cswap-repair")
+        let script = #"""
+        #!/bin/sh
+        if [ "$#" -ne 3 ] || [ "$1" != "--switch-to" ] || [ "$2" != "1" ] || [ "$3" != "--json" ]; then
+          exit 64
+        fi
+        printf '%s\n' "$@" > "$0.calls"
+        echo '{"schemaVersion":1,"switched":false,"from":{"number":1},"to":{"number":1},"reason":"already-active"}'
+        """#
+        try script.write(to: executable, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: executable.path)
+        let gate = RefreshGate()
+        gate.release()
+        fixture.store._test_providerRefreshOverride = { provider in
+            #expect(provider == .claude)
+            await gate.wait()
+        }
+        defer { fixture.store._test_providerRefreshOverride = nil }
+        let metadata = try #require(ProviderRegistry.shared.metadata[.claude])
+        fixture.settings.setProviderEnabled(provider: .claude, metadata: metadata, enabled: true)
+        fixture.settings.claudeSwapExecutablePath = executable.path
+        fixture.settings.claudeSwapEnabled = true
+        let account = try #require(ClaudeSwapAccountProjection.accountSnapshots(from: .init(
+            activeAccountNumber: 1,
+            accounts: [.init(
+                number: 1,
+                email: "fixture@example.invalid",
+                isActive: true,
+                usageStatus: .foreignCredential,
+                fiveHour: nil,
+                sevenDay: nil)])).first)
+        fixture.store.claudeSwapAccountSnapshots = [account]
+        #expect(account.canActivate)
+        #expect(ClaudeSwapAccountMenuDisplay.actionLabel(
+            for: account, switchingAccountID: nil, switchInFlight: false) == L("Re-authenticate"))
+        fixture.store.switchClaudeSwapAccount(account.id)
+        let task = try #require(fixture.store.claudeSwapTransientState.task)
+        await task.value
+        #expect(gate.entered)
+        #expect(try String(contentsOfFile: executable.path + ".calls", encoding: .utf8) == "--switch-to\n1\n--json\n")
+        #expect(fixture.store.claudeSwapTransientState.lastError == nil)
+        #expect(fixture.store.claudeSwapTransientState.task == nil)
+    }
+
     @Test(arguments: [false, true])
     func `failed switch is visible before ambient refresh finishes`(changeConfiguration: Bool) async throws {
         let fixture = try CodexWorkspacesNavigationFixture(userDefaults: InMemoryUserDefaults())

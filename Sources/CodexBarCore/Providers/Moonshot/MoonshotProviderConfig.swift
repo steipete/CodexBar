@@ -8,6 +8,6 @@ extension ProviderConfig {
     }
 
     public var sanitizedAPIKeyRegion: String? {
-        Self.clean(self.apiKeyRegion)
+        SettingsValue.cleaned(self.apiKeyRegion)
     }
 }

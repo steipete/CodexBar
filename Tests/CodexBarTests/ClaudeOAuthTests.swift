@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
-@Suite(.serialized)
+@Suite(.serialized, ClaudeOAuthDefaultsFixtures())
 struct ClaudeOAuthTests {
     @Test
     func `parses O auth credentials`() throws {
@@ -587,9 +587,9 @@ struct ClaudeOAuthTests {
         let legacyKey = "claudeOAuthUsageRateLimitBlockedUntilV1"
         let expiredKey = prefix + "expired"
         let malformedKey = prefix + "malformed"
-        UserDefaults.standard.set(now.addingTimeInterval(600).timeIntervalSince1970, forKey: legacyKey)
-        UserDefaults.standard.set(now.addingTimeInterval(-1).timeIntervalSince1970, forKey: expiredKey)
-        UserDefaults.standard.set("not-a-date", forKey: malformedKey)
+        ClaudeOAuthDefaultsFixtures.defaults.set(now.addingTimeInterval(600).timeIntervalSince1970, forKey: legacyKey)
+        ClaudeOAuthDefaultsFixtures.defaults.set(now.addingTimeInterval(-1).timeIntervalSince1970, forKey: expiredKey)
+        ClaudeOAuthDefaultsFixtures.defaults.set("not-a-date", forKey: malformedKey)
 
         ClaudeOAuthUsageRateLimitGate.recordRateLimit(
             accessToken: accessToken,
@@ -598,10 +598,10 @@ struct ClaudeOAuthTests {
 
         #expect(!preferenceName.contains(accessToken))
         #expect(String(preferenceName.dropFirst(prefix.count)).count == 64)
-        #expect(UserDefaults.standard.object(forKey: preferenceName) != nil)
-        #expect(UserDefaults.standard.object(forKey: legacyKey) == nil)
-        #expect(UserDefaults.standard.object(forKey: expiredKey) == nil)
-        #expect(UserDefaults.standard.object(forKey: malformedKey) == nil)
+        #expect(ClaudeOAuthDefaultsFixtures.defaults.object(forKey: preferenceName) != nil)
+        #expect(ClaudeOAuthDefaultsFixtures.defaults.object(forKey: legacyKey) == nil)
+        #expect(ClaudeOAuthDefaultsFixtures.defaults.object(forKey: expiredKey) == nil)
+        #expect(ClaudeOAuthDefaultsFixtures.defaults.object(forKey: malformedKey) == nil)
     }
 
     @Test

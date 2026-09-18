@@ -270,6 +270,7 @@ public enum DeepSeekProviderDescriptor {
             usageSummary: resolution.selectedSummary,
             detailedUsageState: resolution.detailedUsageState,
             platformProfiles: resolution.profiles,
+            platformBalanceOwner: balance.platformBalanceOwner,
             updatedAt: balance.updatedAt).toUsageSnapshot()
     }
 
@@ -307,12 +308,21 @@ public enum DeepSeekProviderDescriptor {
         case let .value(value):
             resolution = value
         case .timedOut:
-            throw DeepSeekUsageError.networkError("Chrome session resolution timed out")
+            let timeout = DeepSeekUsageError.networkError("Chrome session resolution timed out")
+            if let transport = DeepSeekPlatformTransportError(
+                owner: nil,
+                underlyingError: URLError(.timedOut),
+                description: timeout.localizedDescription)
+            {
+                throw transport
+            }
+            throw timeout
         case let .failure(error):
             throw error
         }
         try Task.checkCancellation()
         if resolution.selectedBalance == nil, resolution.detailedUsageState == .unavailable {
+            if let error = resolution.selectedTransportError { throw error }
             throw DeepSeekUsageError.networkError("Chrome session resolution unavailable")
         }
         let balance = resolution.selectedBalance ?? DeepSeekUsageSnapshot(

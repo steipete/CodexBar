@@ -21,21 +21,13 @@ extension SettingsStore {
     }
 
     var veniceCookieSource: ProviderCookieSource {
-        self.resolvedCookieSource(provider: .venice, fallback: .auto)
+        get { self.resolvedCookieSource(provider: .venice, fallback: .auto) }
+        set { self.setCookieSource(newValue, provider: .venice) }
     }
 
     var veniceCookieHeader: String {
-        self.configSnapshot.providerConfig(for: .venice)?.sanitizedCookieHeader ?? ""
-    }
-
-    func veniceSettingsSnapshot(tokenOverride: TokenAccountOverride?)
-        -> ProviderSettingsSnapshot.VeniceProviderSettings
-    {
-        self.resolvedCookieSettings(
-            provider: .venice,
-            configuredSource: self.veniceCookieSource,
-            configuredHeader: self.veniceCookieHeader,
-            tokenOverride: tokenOverride)
+        get { self[providerConfig: .venice, field: .cookieHeader] }
+        set { self[providerConfig: .venice, field: .cookieHeader] = newValue }
     }
 
     private static func veniceUsageDataSource(from source: ProviderSourceMode?) -> VeniceUsageDataSource {

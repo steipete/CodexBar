@@ -14,30 +14,18 @@ extension SettingsStore {
     }
 
     var opencodegoCookieHeader: String {
-        get { self.configSnapshot.providerConfig(for: .opencodego)?.sanitizedCookieHeader ?? "" }
-        set {
-            self.updateProviderConfig(provider: .opencodego) { entry in
-                entry.cookieHeader = self.normalizedConfigValue(newValue)
-            }
-            self.logSecretUpdate(provider: .opencodego, field: "cookieHeader", value: newValue)
-        }
+        get { self[providerConfig: .opencodego, field: .cookieHeader] }
+        set { self[providerConfig: .opencodego, field: .cookieHeader] = newValue }
     }
 
     var opencodegoCookieSource: ProviderCookieSource {
         get { self.resolvedCookieSource(provider: .opencodego, fallback: .auto) }
-        set {
-            self.updateProviderConfig(provider: .opencodego) { entry in
-                entry.cookieSource = newValue
-            }
-            self.logProviderModeChange(provider: .opencodego, field: "cookieSource", value: newValue.rawValue)
-        }
+        set { self.setCookieSource(newValue, provider: .opencodego) }
     }
 
     var opencodegoDashboardURL: URL {
         OpenCodeGoUsageFetcher.dashboardURL(workspaceID: self.opencodegoWorkspaceID)
     }
-
-    func ensureOpenCodeGoCookieLoaded() {}
 }
 
 extension SettingsStore {

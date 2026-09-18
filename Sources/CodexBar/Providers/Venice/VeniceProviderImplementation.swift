@@ -15,6 +15,8 @@ struct VeniceProviderImplementation: ProviderImplementation {
     @MainActor
     func observeSettings(_ settings: SettingsStore) {
         _ = settings.veniceUsageDataSource
+        _ = settings.veniceCookieSource
+        _ = settings.veniceCookieHeader
     }
 
     @MainActor
@@ -63,15 +65,33 @@ struct VeniceProviderImplementation: ProviderImplementation {
                 options: usageOptions,
                 isVisible: nil,
                 onChange: nil),
+            ProviderCookieSourceUI.picker(
+                id: "venice-cookie-source",
+                context: context,
+                source: \.veniceCookieSource,
+                allowsOff: true,
+                subtitles: {
+                    .init(
+                        auto: "Automatic imports Venice cookies from Chrome.",
+                        manual: "Paste a Cookie header from venice.ai.",
+                        off: "Venice cookies are disabled.")
+                },
+                isVisible: { context.settings.veniceUsageDataSource == .web }),
         ]
     }
 
     @MainActor
-    func settingsFields(context _: ProviderSettingsContext) -> [ProviderSettingsFieldDescriptor] {
-        []
-    }
-
-    func settingsSnapshot(context: ProviderSettingsSnapshotContext) -> ProviderSettingsSnapshotContribution? {
-        .venice(context.settings.veniceSettingsSnapshot(tokenOverride: context.tokenOverride))
+    func settingsFields(context: ProviderSettingsContext) -> [ProviderSettingsFieldDescriptor] {
+        [ProviderSettingsFieldDescriptor(
+            id: "venice-cookie",
+            title: "",
+            subtitle: "",
+            kind: .secure,
+            placeholder: "Cookie: …",
+            binding: context.binding(\.veniceCookieHeader),
+            actions: [],
+            isVisible: {
+                context.settings.veniceUsageDataSource == .web && context.settings.veniceCookieSource == .manual
+            })]
     }
 }

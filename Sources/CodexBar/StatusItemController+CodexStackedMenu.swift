@@ -21,17 +21,9 @@ extension StatusItemController {
             }
 
             for account in section.accounts {
-                let accountSnapshot = snapshotsByAccountID[account.id]
-                let health = CodexAccountHealth.status(for: account, error: accountSnapshot?.error)
-                let model = self.menuCardModel(
-                    for: .codex,
-                    snapshotOverride: accountSnapshot?.snapshot,
-                    errorOverride: health.label,
-                    forceOverrideCard: accountSnapshot == nil,
-                    accountOverride: self.accountInfo(for: account),
-                    historySelectionOverride: self.store.codexPlanUtilizationHistorySelection(
-                        forVisibleAccount: account),
-                    creditsOverride: accountSnapshot?.credits)
+                let model = self.codexAccountMenuCardModel(
+                    for: account,
+                    accountSnapshot: snapshotsByAccountID[account.id])
                 guard let model else { continue }
                 menu.addItem(self.makeMenuCardItem(
                     UsageMenuCardView(model: model, width: context.menuWidth),

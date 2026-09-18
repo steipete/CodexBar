@@ -48,54 +48,6 @@ actor CodexCLISession {
         let workingDirectory: URL?
     }
 
-    private struct RollingBuffer {
-        private let maxNeedle: Int
-        private var tail = Data()
-
-        init(maxNeedle: Int) {
-            self.maxNeedle = max(0, maxNeedle)
-        }
-
-        mutating func append(_ data: Data) -> Data {
-            guard !data.isEmpty else { return Data() }
-            var combined = Data()
-            combined.reserveCapacity(self.tail.count + data.count)
-            combined.append(self.tail)
-            combined.append(data)
-            if self.maxNeedle > 1 {
-                if combined.count >= self.maxNeedle - 1 {
-                    self.tail = combined.suffix(self.maxNeedle - 1)
-                } else {
-                    self.tail = combined
-                }
-            } else {
-                self.tail.removeAll(keepingCapacity: true)
-            }
-            return combined
-        }
-
-        mutating func reset() {
-            self.tail.removeAll(keepingCapacity: true)
-        }
-    }
-
-    static func lowercasedASCII(_ data: Data) -> Data {
-        guard !data.isEmpty else { return data }
-        var out = Data(count: data.count)
-        out.withUnsafeMutableBytes { dest in
-            data.withUnsafeBytes { source in
-                let src = source.bindMemory(to: UInt8.self)
-                let dst = dest.bindMemory(to: UInt8.self)
-                for idx in 0..<src.count {
-                    var byte = src[idx]
-                    if byte >= 65, byte <= 90 { byte += 32 }
-                    dst[idx] = byte
-                }
-            }
-        }
-        return out
-    }
-
     // swiftlint:disable cyclomatic_complexity
     func captureStatus(
         binary: String,
@@ -113,20 +65,8 @@ actor CodexCLISession {
 
         let script = "/status"
         let cursorQuery = Data([0x1B, 0x5B, 0x36, 0x6E])
-        let statusMarkers = [
-            "Credits:",
-            "5h limit",
-            "5-hour limit",
-            "Weekly limit",
-        ].map { Data($0.utf8) }
-        let updateNeedles = ["Update available!", "Run bun install -g @openai/codex", "0.60.1 ->"]
-        let updateNeedlesLower = updateNeedles.map { Data($0.lowercased().utf8) }
-        let statusNeedleLengths = statusMarkers.map(\.count)
-        let updateNeedleLengths = updateNeedlesLower.map(\.count)
-        let statusMaxNeedle = ([cursorQuery.count] + statusNeedleLengths).max() ?? cursorQuery.count
-        let updateMaxNeedle = updateNeedleLengths.max() ?? 0
-        var statusScanBuffer = RollingBuffer(maxNeedle: statusMaxNeedle)
-        var updateScanBuffer = RollingBuffer(maxNeedle: updateMaxNeedle)
+        var statusScanBuffer = StreamScanBuffer(maxNeedle: max(cursorQuery.count, CodexStatusMarkers.longestStatus))
+        var updateScanBuffer = StreamScanBuffer(maxNeedle: CodexStatusMarkers.longestUpdatePrompt)
 
         var buffer = BoundedOutputBuffer()
         func appendOutput(_ data: Data) throws {
@@ -162,15 +102,15 @@ actor CodexCLISession {
                 nextCursorCheckAt = Date().addingTimeInterval(1.0)
             }
             if !scanData.isEmpty, !sawCodexStatus {
-                if statusMarkers.contains(where: { scanData.range(of: $0) != nil }) {
+                if CodexStatusMarkers.status.contains(where: { scanData.range(of: $0) != nil }) {
                     sawCodexStatus = true
                 }
             }
 
             if !skippedCodexUpdate, !sawCodexUpdatePrompt, !newData.isEmpty {
-                let lowerData = Self.lowercasedASCII(newData)
+                let lowerData = StreamScanBuffer.lowercasedASCII(newData)
                 let lowerScan = updateScanBuffer.append(lowerData)
-                if updateNeedlesLower.contains(where: { lowerScan.range(of: $0) != nil }) {
+                if CodexStatusMarkers.updatePrompt.contains(where: { lowerScan.range(of: $0) != nil }) {
                     sawCodexUpdatePrompt = true
                 }
             }

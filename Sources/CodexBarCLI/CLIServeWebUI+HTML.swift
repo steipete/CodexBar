@@ -335,6 +335,7 @@ extension CLIServeWebUI {
         }
 
         .provider-name {
+          margin: 0;
           overflow: hidden;
           font-size: 16px;
           font-weight: 700;
@@ -773,18 +774,19 @@ extension CLIServeWebUI {
         function renderWindow(window) {
           const item = node("div", "window");
           const head = node("div", "window-head");
-          const label = node(
-            "span",
-            "window-label",
-            `${window.label || "Usage"} · ${percent(window.usedPercent)} used`
-          );
-          head.append(label);
+          const showUsed = Boolean(state.snapshot && state.snapshot.host && state.snapshot.host.usageBarsShowUsed);
+          const pct = showUsed
+            ? window.usedPercent
+            : (window.remainingPercent ?? (100 - finiteNumber(window.usedPercent)));
+          const suffix = showUsed ? "used" : "left";
+          head.append(node("span", "window-label",
+            `${window.label || "Usage"} · ${percent(pct)} ${suffix}`));
           const reset = resetTime(window.resetAt);
           if (reset) head.append(node("span", "window-time", reset));
 
           const track = node("div", "track");
           const fill = node("div", "fill");
-          const width = Math.min(100, Math.max(0, finiteNumber(window.usedPercent)));
+          const width = Math.min(100, Math.max(0, finiteNumber(pct)));
           fill.style.width = `${width}%`;
           track.setAttribute("role", "progressbar");
           track.setAttribute("aria-label", "Usage window");
@@ -797,12 +799,11 @@ extension CLIServeWebUI {
         }
 
         function renderCostChart(history) {
-          // Daily spend as an inline SVG bar chart: one thin accent bar per day,
-          // 2px gaps, no dual axes, native tooltips per bar. Height is scaled to
-          // the busiest day; a zero-spend range renders nothing.
+          // Keep excluded requests visible without turning unavailable costs into zero.
           const days = history.slice(-30);
-          const max = Math.max(...days.map(day => day.cost), 0);
-          if (!(max > 0) || days.length < 2) return null;
+          const max = Math.max(...days.map(day => day.cost ?? 0), 0);
+          const incomplete = days.reduce((sum, day) => sum + (day.incompleteRequestCount || 0), 0);
+          if ((!(max > 0) && !incomplete) || !days.length) return null;
 
           const width = 100;
           const height = 36;
@@ -814,10 +815,13 @@ extension CLIServeWebUI {
           svg.setAttribute("preserveAspectRatio", "none");
           svg.classList.add("chart");
           svg.setAttribute("role", "img");
-          svg.setAttribute("aria-label", `Daily spend, last ${days.length} days`);
+          svg.setAttribute("aria-label",
+            `Daily spend, last ${days.length} days${incomplete ? ", incomplete usage" : ""}`);
 
           days.forEach((day, index) => {
-            const barHeight = Math.max((day.cost / max) * height, day.cost > 0 ? 1 : 0);
+            const excluded = day.incompleteRequestCount > 0;
+            const barHeight = Math.max(max > 0 ? ((day.cost ?? 0) / max) * height : 0,
+              day.cost > 0 ? 1 : excluded ? 2 : 0);
             const rect = document.createElementNS(svgNS, "rect");
             rect.setAttribute("x", String(index * (barWidth + gap)));
             rect.setAttribute("y", String(height - barHeight));
@@ -825,7 +829,14 @@ extension CLIServeWebUI {
             rect.setAttribute("height", String(barHeight));
             rect.setAttribute("rx", "0.5");
             const title = document.createElementNS(svgNS, "title");
-            title.textContent = `${day.date} · ${dollars(day.cost)}`;
+            title.textContent = `${day.date} · ${day.cost == null ? "—" : dollars(day.cost)}`
+              + (excluded ? ` · Incomplete: ${day.incompleteRequestCount} excluded requests` : "");
+            if (excluded) {
+              rect.setAttribute("fill-opacity", "0.45");
+              rect.setAttribute("stroke", "currentColor");
+              rect.setAttribute("stroke-dasharray", "3 3");
+              rect.setAttribute("vector-effect", "non-scaling-stroke");
+            }
             rect.append(title);
             svg.append(rect);
           });
@@ -834,22 +845,17 @@ extension CLIServeWebUI {
           wrap.append(svg);
           const caption = node("div", "chart-caption");
           caption.append(node("span", "", `Daily spend · ${days.length}d`));
-          caption.append(node("span", "", `peak ${dollars(max)}`));
+          caption.append(node("span", "", incomplete ? "Incomplete usage" : `peak ${dollars(max)}`));
           wrap.append(caption);
           return wrap;
         }
 
         function providerGlyph(provider) {
           const url = providerIconURLs[provider.id];
-          if (url) {
-            const icon = node("span", "provider-icon");
-            icon.style.setProperty("--icon", `url("${url}")`);
-            icon.setAttribute("aria-hidden", "true");
-            return icon;
-          }
-          const dot = node("span", "provider-dot");
-          dot.setAttribute("aria-hidden", "true");
-          return dot;
+          const icon = node("span", url ? "provider-icon" : "provider-dot");
+          if (url) icon.style.setProperty("--icon", `url("${url}")`);
+          icon.setAttribute("aria-hidden", "true");
+          return icon;
         }
 
         function visibleWindows(windows) {
@@ -868,13 +874,10 @@ extension CLIServeWebUI {
         }
 
         function pill(level, label) {
-          const el = node("span", `pill ${level}`, label);
-          return el;
+          return node("span", `pill ${level}`, label);
         }
 
         function renderAccountCard(provider, account) {
-          // Each claude-swap account gets a full card in the group grid — the
-          // vertical structure reads better than rows nested inside one card.
           const card = node("article", "card");
           card.style.setProperty("--accent", accentColor(provider.display?.accentColor));
           if (account.active) card.classList.add("active-account");
@@ -882,8 +885,7 @@ extension CLIServeWebUI {
           const head = node("div", "card-head");
           const title = node("div", "provider-title");
           title.append(providerGlyph(provider));
-          const name = account.identity?.accountEmail || account.label || "Account";
-          title.append(node("span", "provider-name", name));
+          title.append(node("span", "provider-name", account.label || account.identity?.accountEmail || "Account"));
           head.append(title);
           if (account.active) {
             head.append(pill("active", "active"));
@@ -971,11 +973,21 @@ extension CLIServeWebUI {
             const unit = provider.credits.unit ? ` ${provider.credits.unit}` : "";
             metrics.append(metric("Remaining", `${amount(provider.credits.remaining)}${unit}`));
           }
-          if (provider.cost?.todayUSD !== null && provider.cost?.todayUSD !== undefined) {
-            metrics.append(metric("Today", dollars(provider.cost.todayUSD)));
-          }
-          if (provider.cost?.last30DaysUSD !== null && provider.cost?.last30DaysUSD !== undefined) {
-            metrics.append(metric("Last 30 days", dollars(provider.cost.last30DaysUSD)));
+          appendCostSummary(card, provider, metrics);
+          return card;
+        }
+
+        function appendCostSummary(card, provider, metrics = node("div", "metrics")) {
+          for (const [label, key, countKey] of [
+            ["Today", "todayUSD", "todayIncompleteRequestCount"],
+            ["Last 30 days", "last30DaysUSD", "last30DaysIncompleteRequestCount"]
+          ]) {
+            const value = provider.cost?.[key];
+            const incomplete = provider.cost?.[countKey] > 0;
+            if (value != null || incomplete) {
+              const amount = value == null ? "—" : dollars(value);
+              metrics.append(metric(label, amount + (incomplete ? " · Incomplete" : "")));
+            }
           }
           if (metrics.childElementCount) card.append(metrics);
 
@@ -984,7 +996,6 @@ extension CLIServeWebUI {
             const chart = renderCostChart(history);
             if (chart) card.append(chart);
           }
-          return card;
         }
 
         function updateFreshness() {
@@ -997,6 +1008,15 @@ extension CLIServeWebUI {
           const stale = state.forceStale
             || (generatedAt !== null && (Date.now() - generatedAt) / 1000 > staleAfter);
           elements.stale.classList.toggle("visible", stale);
+        }
+
+        function renderGroup(title, cards) {
+          const group = node("section", "group");
+          if (title) group.append(node("h2", "group-title", title));
+          const grid = node("div", "grid");
+          grid.append(...cards);
+          group.append(grid);
+          return group;
         }
 
         function renderSnapshot(snapshot, forceStale = false) {
@@ -1023,24 +1043,23 @@ extension CLIServeWebUI {
           for (const provider of providers) {
             const accounts = Array.isArray(provider.accounts) ? provider.accounts : [];
             if (accounts.length) {
-              const group = node("section", "group");
-              group.append(node("h2", "group-title", `${provider.name || provider.id} accounts`));
-              const grid = node("div", "grid");
-              for (const account of accounts) grid.append(renderAccountCard(provider, account));
-              if (provider.accountsError) grid.append(node("p", "error-message", provider.accountsError));
-              group.append(grid);
+              const cards = accounts.map(account => renderAccountCard(provider, account));
+              const summary = node("article", "card");
+              summary.style.setProperty("--accent", accentColor(provider.display?.accentColor));
+              summary.append(node("h3", "provider-name", `${provider.name || provider.id} local spend`));
+              appendCostSummary(summary, provider);
+              if (summary.childElementCount > 1) cards.push(summary);
+              const group = renderGroup(`${provider.name || provider.id} accounts`, cards);
+              if (provider.error) group.append(node("p", "error-message",
+                `Provider data: ${provider.error.message || "Provider data is unavailable."}`));
+              if (provider.accountsError) group.append(node("p", "error-message", provider.accountsError));
               sections.push(group);
             } else {
               rest.push(provider);
             }
           }
           if (rest.length) {
-            const group = node("section", "group");
-            if (sections.length) group.append(node("h2", "group-title", "Other providers"));
-            const grid = node("div", "grid");
-            for (const provider of rest) grid.append(renderProvider(provider));
-            group.append(grid);
-            sections.push(group);
+            sections.push(renderGroup(sections.length ? "Other providers" : null, rest.map(renderProvider)));
           }
           if (!sections.length) sections.push(node("div", "empty", "No providers are configured."));
           elements.providers.replaceChildren(...sections);
@@ -1196,10 +1215,12 @@ extension CLIServeWebUI {
             const histories = {};
             for (const row of rows) {
               if (!row || typeof row.provider !== "string") continue;
-              if (!Array.isArray(row.daily) || row.daily.length < 2) continue;
+              if (!Array.isArray(row.daily) || !row.daily.length) continue;
               histories[row.provider] = row.daily
                 .filter(day => day && typeof day.date === "string")
-                .map(day => ({ date: day.date, cost: finiteNumber(day.totalCost) }));
+                .map(day => ({ date: day.date,
+                  cost: typeof day.totalCost === "number" && Number.isFinite(day.totalCost) ? day.totalCost : null,
+                  incompleteRequestCount: Math.max(0, finiteNumber(day.incompleteRequestCount)) }));
             }
             state.costHistories = histories;
           } catch (error) {

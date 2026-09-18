@@ -225,7 +225,7 @@ extension CodexBarCLI {
     }
 
     static func hookProviderStatus(
-        _ indicator: ProviderStatusPayload.ProviderStatusIndicator?) -> HookProviderStatus
+        _ indicator: ProviderStatusIndicator?) -> HookProviderStatus
     {
         guard let indicator else { return .unknown }
         return HookProviderStatus(rawValue: indicator.rawValue) ?? .unknown
