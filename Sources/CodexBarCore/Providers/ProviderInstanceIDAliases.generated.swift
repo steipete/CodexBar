@@ -58,6 +58,7 @@ extension ProviderInstanceID {
     public static let groq = UsageProvider.groq.instanceID
     public static let llmproxy = UsageProvider.llmproxy.instanceID
     public static let litellm = UsageProvider.litellm.instanceID
+    public static let bifrost = UsageProvider.bifrost.instanceID
     public static let deepgram = UsageProvider.deepgram.instanceID
     public static let poe = UsageProvider.poe.instanceID
     public static let chutes = UsageProvider.chutes.instanceID
