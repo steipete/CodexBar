@@ -1162,7 +1162,6 @@
 "Open Augment (Log Out & Back In)" = "Augment'i aç (oturumu kapat ve tekrar aç)";
 "Open Codebuff Dashboard" = "Codebuff gösterge panelini aç";
 "Open Command Code Settings" = "Command Code ayarlarını aç";
-"Open Crof dashboard" = "Crof gösterge panelini aç";
 "Open Manus" = "Manus'u aç";
 "Open MiMo Balance" = "MiMo bakiyesini aç";
 "Open Moonshot Console" = "Moonshot konsolunu aç";
@@ -1229,7 +1228,6 @@
 "Stored in ~/.codexbar/config.json. Requires an Anthropic Admin API key." = "~/.codexbar/config.json dosyasında depolandı. Anthropic Yönetici API anahtarı gerektirir.";
 "Stored in ~/.codexbar/config.json. Used for /v1/quota-stats." = "~/.codexbar/config.json dosyasında depolandı. /v1/quota-stats için kullanılır.";
 "Stored in ~/.codexbar/config.json. You can also provide CODEBUFF_API_KEY or let CodexBar read ~/.config/manicode/credentials.json (created by `codebuff login`)." = "~/.codexbar/config.json dosyasında depolandı. Ayrıca CODEBUFF_API_KEY sağlayabilir veya CodexBar'ın ~/.config/manicode/credentials.json dosyasını okumasına izin verebilirsiniz (`codebuff login` tarafından oluşturulur).";
-"Stored in ~/.codexbar/config.json. You can also provide CROF_API_KEY." = "~/.codexbar/config.json dosyasında depolandı. Ayrıca CROF_API_KEY sağlayabilirsiniz.";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or ~/.local/share/kilo/auth.json (kilo.access)." = "~/.codexbar/config.json dosyasında depolandı. Ayrıca KILO_API_KEY veya ~/.local/share/kilo/auth.json (kilo.access) sağlayabilirsiniz.";
 "T3 Chat cookie" = "T3 Chat çerezi";
 "Team mode" = "Takım modu";

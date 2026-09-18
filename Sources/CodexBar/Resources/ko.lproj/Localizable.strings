@@ -1116,7 +1116,6 @@
 "Open Augment (Log Out & Back In)" = "Augment 열기(로그아웃 후 다시 로그인)";
 "Open Codebuff Dashboard" = "Codebuff 대시보드 열기";
 "Open Command Code Settings" = "Command Code 설정 열기";
-"Open Crof dashboard" = "Crof 대시보드 열기";
 "Open Manus" = "Manus 열기";
 "Open MiMo Balance" = "MiMo 잔액 열기";
 "Open Moonshot Console" = "Moonshot 콘솔 열기";
@@ -1184,7 +1183,6 @@
 "Stored in ~/.codexbar/config.json. Requires an Anthropic Admin API key." = "~/.codexbar/config.json에 저장됩니다. Anthropic Admin API 키가 필요합니다.";
 "Stored in ~/.codexbar/config.json. Used for /v1/quota-stats." = "~/.codexbar/config.json에 저장됩니다. /v1/quota-stats에 사용됩니다.";
 "Stored in ~/.codexbar/config.json. You can also provide CODEBUFF_API_KEY or let CodexBar read ~/.config/manicode/credentials.json (created by `codebuff login`)." = "~/.codexbar/config.json에 저장됩니다. CODEBUFF_API_KEY를 제공하거나 CodexBar가 ~/.config/manicode/credentials.json(`codebuff login`으로 생성됨)을 읽도록 할 수도 있습니다.";
-"Stored in ~/.codexbar/config.json. You can also provide CROF_API_KEY." = "~/.codexbar/config.json에 저장됩니다. CROF_API_KEY를 제공할 수도 있습니다.";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or ~/.local/share/kilo/auth.json (kilo.access)." = "~/.codexbar/config.json에 저장됩니다. KILO_API_KEY 또는 ~/.local/share/kilo/auth.json(kilo.access)을 제공할 수도 있습니다.";
 "T3 Chat cookie" = "T3 Chat 쿠키";
 "Team mode" = "팀 모드";

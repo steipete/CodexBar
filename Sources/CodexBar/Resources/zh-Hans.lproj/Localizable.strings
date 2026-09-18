@@ -1128,7 +1128,6 @@
 "Open Augment (Log Out & Back In)" = "打开 Augment（退出后重新登录）";
 "Open Codebuff Dashboard" = "打开 Codebuff 仪表盘";
 "Open Command Code Settings" = "打开 Command Code 设置";
-"Open Crof dashboard" = "打开 Crof 仪表盘";
 "Open Manus" = "打开 Manus";
 "Open MiMo Balance" = "打开 MiMo 余额";
 "Open Moonshot Console" = "打开 Moonshot 控制台";
@@ -1196,7 +1195,6 @@
 "Stored in ~/.codexbar/config.json. Requires an Anthropic Admin API key." = "存储在 ~/.codexbar/config.json 中。需要 Anthropic Admin API 密钥。";
 "Stored in ~/.codexbar/config.json. Used for /v1/quota-stats." = "存储在 ~/.codexbar/config.json 中。用于 /v1/quota-stats。";
 "Stored in ~/.codexbar/config.json. You can also provide CODEBUFF_API_KEY or let CodexBar read ~/.config/manicode/credentials.json (created by `codebuff login`)." = "存储在 ~/.codexbar/config.json 中。你也可以提供 CODEBUFF_API_KEY，或让 CodexBar 读取由 `codebuff login` 创建的 ~/.config/manicode/credentials.json。";
-"Stored in ~/.codexbar/config.json. You can also provide CROF_API_KEY." = "存储在 ~/.codexbar/config.json 中。你也可以提供 CROF_API_KEY。";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or ~/.local/share/kilo/auth.json (kilo.access)." = "存储在 ~/.codexbar/config.json 中。你也可以提供 KILO_API_KEY 或 ~/.local/share/kilo/auth.json（kilo.access）。";
 "T3 Chat cookie" = "T3 Chat Cookie";
 "Team mode" = "团队模式";

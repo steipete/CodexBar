@@ -1150,7 +1150,6 @@
 "Open Augment (Log Out & Back In)" = "Open Augment (Log Out & Back In)";
 "Open Codebuff Dashboard" = "Open Codebuff Dashboard";
 "Open Command Code Settings" = "Open Command Code Settings";
-"Open Crof dashboard" = "Open Crof dashboard";
 "Open Manus" = "Open Manus";
 "Open MiMo Balance" = "Open MiMo Balance";
 "Open Moonshot Console" = "Open Moonshot Console";
@@ -1218,7 +1217,6 @@
 "Stored in ~/.codexbar/config.json. Requires an Anthropic Admin API key." = "Stored in ~/.codexbar/config.json. Requires an Anthropic Admin API key.";
 "Stored in ~/.codexbar/config.json. Used for /v1/quota-stats." = "Stored in ~/.codexbar/config.json. Used for /v1/quota-stats.";
 "Stored in ~/.codexbar/config.json. You can also provide CODEBUFF_API_KEY or let CodexBar read ~/.config/manicode/credentials.json (created by `codebuff login`)." = "Stored in ~/.codexbar/config.json. You can also provide CODEBUFF_API_KEY or let CodexBar read ~/.config/manicode/credentials.json (created by `codebuff login`).";
-"Stored in ~/.codexbar/config.json. You can also provide CROF_API_KEY." = "Stored in ~/.codexbar/config.json. You can also provide CROF_API_KEY.";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or ~/.local/share/kilo/auth.json (kilo.access)." = "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or ~/.local/share/kilo/auth.json (kilo.access).";
 "T3 Chat cookie" = "T3 Chat cookie";
 "Team mode" = "Team mode";

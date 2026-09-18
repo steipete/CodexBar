@@ -1001,7 +1001,6 @@
 "Stored in ~/.codexbar/config.json. Used for /v1/quota-stats." = "Sparas i ~/.codexbar/config.json. Används för /v1/quota-stats.";
 "CodexBar could not safely preserve the current system account before switching." = "CodexBar kunde inte spara det aktuella systemkontot säkert före bytet.";
 "Oasis-Token" = "Oasis-Token";
-"Open Crof dashboard" = "Öppna Crof-översikt";
 "Sonnet" = "Sonnet";
 "No credits history data available." = "Ingen kredithistorik finns tillgänglig.";
 "4 days" = "4 dagar";
@@ -1236,7 +1235,6 @@
 "Service" = "Tjänst";
 "Azure OpenAI key" = "Azure OpenAI-nyckel";
 "%@ cookies are disabled." = "%@-cookies är inaktiverade.";
-"Stored in ~/.codexbar/config.json. You can also provide CROF_API_KEY." = "Sparas i ~/.codexbar/config.json. Du kan också ange CROF_API_KEY.";
 "CodexBar will ask macOS Keychain for your Synthetic API key so it can fetch usage. Click OK to continue." = "CodexBar kommer att be macOS Nyckelring om din Synthetic-API-nyckel så att användning kan hämtas. Klicka på OK för att fortsätta.";
 "CodexBar could not update managed account storage." = "CodexBar kunde inte uppdatera hanterad kontolagring.";
 "CodexBar will ask macOS Keychain for your Augment cookie header so it can fetch usage. Click OK to continue." = "CodexBar kommer att be macOS Nyckelring om din Augment-cookie-header så att användning kan hämtas. Klicka på OK för att fortsätta.";

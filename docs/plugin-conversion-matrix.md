@@ -7,7 +7,7 @@ read_when:
 
 # Provider plugin conversion matrix
 
-This matrix evaluates all 68 providers in the current capability audit against the prototype documented in
+This matrix evaluates all 67 providers in the current capability audit against the prototype documented in
 [`plugin-prototype.md`](plugin-prototype.md). Each provider has one primary blocker.
 
 `convertible-now` means the canonical first-party flow is GET-only, uses a fixed HTTPS origin and header secret, and fits
@@ -28,14 +28,14 @@ weakening the plugin network policy.
 
 | Status | Count |
 |---|---:|
-| `cut-over` | 11 |
+| `cut-over` | 10 |
 | `converted` | 5 |
 | `convertible-now` | 10 |
 | `needs-cookie-import` | 19 |
 | `needs-files/subprocess/oauth-broker` | 15 |
 | `needs-pty/webview/native` | 8 |
 | `needs-host-extension` | 0 |
-| **Total** | **68** |
+| **Total** | **67** |
 
 ## Matrix
 
@@ -86,7 +86,6 @@ weakening the plugin network policy.
 | deepseek | `needs-files/subprocess/oauth-broker` | No | Platform auth/profile selection reads Chromium localStorage, and the result has a bespoke history model. |
 | deepinfra | `convertible-now` | No | Verified fixed-origin bearer GET pair; spend limit and balance project into generic cost/windows. |
 | codebuff | `needs-files/subprocess/oauth-broker` | No | Full credential parity reads a local Manicode credential file; environment-key mode is partial. |
-| crof | `cut-over` | Yes | Cut over on JavaScriptCore: fixed-origin bearer GET with exact credit formatting and America/Chicago daily reset; native fetch code is Linux-only. |
 | venice | `cut-over` | Yes | Cut over on JavaScriptCore: fixed-origin bearer GET with DIEM/USD allocation projection; native fetch code is Linux-only. |
 | commandcode | `needs-cookie-import` | No | Skipped: live subscription/depletion flags lack reconstructable fixtures within the per-provider cap. |
 | qoder | `converted` | Yes | Converted: declared global/China cookie domains, browser headers, and merged generic quota window. |

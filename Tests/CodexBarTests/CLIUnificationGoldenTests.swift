@@ -30,9 +30,6 @@ struct CLIUnificationGoldenTests {
         == grok ==
         Credits: 89% left [==========--]
         ---
-        == crof ==
-        Credits: 88% left [==========--]
-        ---
         == sub2api ==
         Daily quota: 87% left [==========--]
         Weekly quota: 86% left [==========--]
@@ -145,13 +142,6 @@ struct CLIUnificationGoldenTests {
         │ ────────────────────────────────────── │
         │ Credits                       89% left │
         │ [ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━     ] │
-        ╰────────────────────────────────────────╯
-        ---
-        ╭────────────────────────────────────────╮
-        │ Crof [fixture]                         │
-        │ ────────────────────────────────────── │
-        │ Credits                       88% left │
-        │ [ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━      ] │
         ╰────────────────────────────────────────╯
         ---
         ╭────────────────────────────────────────╮
@@ -420,8 +410,6 @@ struct CLIUnificationGoldenTests {
                 tertiary: window(used: 30, minutes: 43200))),
             Fixture(provider: .grok, snapshot: snapshot(
                 primary: window(used: 11, minutes: 120))),
-            Fixture(provider: .crof, snapshot: snapshot(
-                primary: window(used: 12, minutes: nil))),
             Fixture(provider: .sub2api, snapshot: snapshot(
                 primary: window(used: 13, minutes: 1440),
                 secondary: window(used: 14, minutes: 10080))),
@@ -462,7 +450,7 @@ struct CLIUnificationGoldenTests {
     }
 
     private static var cardFixtures: [Fixture] {
-        Array(textFixtures.prefix(7))
+        Array(textFixtures.prefix(6))
     }
 
     private static var paceFixtures: [Fixture] {

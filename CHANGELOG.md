@@ -67,6 +67,9 @@
 ### Development
 - Debug builds: reduce memory when loading Workspaces reports, preserve saved history after cache-read failures, and keep reports tied to the selected Codex home (#3661, #3666). Thanks @apple-ouyang!
 
+### Changes
+- Crof: remove the provider after the service shut down.
+
 ## 0.60.3 — 2026-09-15
 
 ### Highlights

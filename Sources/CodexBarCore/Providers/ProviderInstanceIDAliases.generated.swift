@@ -48,7 +48,6 @@ extension ProviderInstanceID {
     public static let deepseek = UsageProvider.deepseek.instanceID
     public static let deepinfra = UsageProvider.deepinfra.instanceID
     public static let codebuff = UsageProvider.codebuff.instanceID
-    public static let crof = UsageProvider.crof.instanceID
     public static let venice = UsageProvider.venice.instanceID
     public static let commandcode = UsageProvider.commandcode.instanceID
     public static let qoder = UsageProvider.qoder.instanceID

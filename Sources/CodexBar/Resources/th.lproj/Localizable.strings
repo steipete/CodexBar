@@ -1167,7 +1167,6 @@
 "Open Augment (Log Out & Back In)" = "เปิด Augment (ออกจากระบบและกลับเข้ามาใหม่)";
 "Open Codebuff Dashboard" = "เปิดแดชบอร์ด Codebuff";
 "Open Command Code Settings" = "เปิดการตั้งค่า Command Code";
-"Open Crof dashboard" = "เปิดแดชบอร์ด Crof";
 "Open Manus" = "เปิด Manus";
 "Open MiMo Balance" = "เปิดยอดคงเหลือ MiMo";
 "Open Moonshot Console" = "เปิดคอนโซล Moonshot";
@@ -1235,7 +1234,6 @@
 "Stored in ~/.codexbar/config.json. Requires an Anthropic Admin API key." = "เก็บไว้ใน ~/.codexbar/config.json. ต้องใช้คีย์ API ผู้ดูแลระบบ Anthropic";
 "Stored in ~/.codexbar/config.json. Used for /v1/quota-stats." = "เก็บไว้ใน ~/.codexbar/config.json. ใช้สําหรับ /v1/quota-stats.";
 "Stored in ~/.codexbar/config.json. You can also provide CODEBUFF_API_KEY or let CodexBar read ~/.config/manicode/credentials.json (created by `codebuff login`)." = "เก็บไว้ใน ~/.codexbar/config.json. คุณยังสามารถระบุ CODEBUFF_API_KEY หรือให้ CodexBar อ่าน ~/.config/manicode/credentials.json (สร้างโดย `codebuff login`)";
-"Stored in ~/.codexbar/config.json. You can also provide CROF_API_KEY." = "เก็บไว้ใน ~/.codexbar/config.json. คุณยังสามารถให้ CROF_API_KEY";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or ~/.local/share/kilo/auth.json (kilo.access)." = "เก็บไว้ใน ~/.codexbar/config.json. คุณยังสามารถระบุ KILO_API_KEY หรือ ~/.local/share/kilo/auth.json (kilo.access) ได้อีกด้วย";
 "T3 Chat cookie" = "คุกกี้ T3 Chat";
 "Team mode" = "โหมดทีม";
