@@ -84,6 +84,8 @@ envelope. CodexBar does not need
   fields fail independently of valid live windows; ignore the row's free-form `message`. Source-declared last-known
   measurements keep their own timestamp and a visible age beside diagnostics, and never drive the age-less menu icon
   or ready-account suggestions. Cache only numeric quota data, capture time, provenance, and the existing account fingerprint.
+- Parse optional top-level `supportsAccountSwitching`; it defaults to `true` for schema-v1 compatibility. When `false`,
+  account cards remain read-only and CodexBar never offers an activation action.
 - `unavailable` does not establish a polling-failure cause. Retain the existing same-account, unexpired at-limit
   windows only when the source supplies no explicit last-good measurement; preserve their freshness provenance.
 - Disabled slots are excluded only from source-owned automatic rotation. They remain explicit switch targets;
